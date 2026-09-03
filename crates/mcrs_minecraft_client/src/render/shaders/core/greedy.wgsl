@@ -125,7 +125,7 @@ fn greedy_surface(in: GreedyOut) -> Surface {
 
 @fragment
 fn fragment_greedy_solid(in: GreedyOut) -> @location(0) vec4<f32> {
-    return finish_solid(shade_surface(greedy_surface(in)));
+    return finish_solid(shade_surface(greedy_surface(in)), in.quad_uv);
 }
 
 @fragment

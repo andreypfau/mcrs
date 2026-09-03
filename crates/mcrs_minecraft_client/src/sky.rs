@@ -11,7 +11,7 @@ use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
 
-use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
+use crate::sky_state::{MOON_PHASES, SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
 use mcrs_minecraft_world::environment::{
     DimensionEnvironments, EnvironmentAttributes, EnvironmentContext, SpatialAttributeInterpolator,
@@ -21,17 +21,16 @@ use mcrs_minecraft_world::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
 
-const CELESTIAL_LAYERS: [&str; 9] = [
-    "minecraft/textures/environment/celestial/sun.png",
-    "minecraft/textures/environment/celestial/moon/full_moon.png",
-    "minecraft/textures/environment/celestial/moon/waning_gibbous.png",
-    "minecraft/textures/environment/celestial/moon/third_quarter.png",
-    "minecraft/textures/environment/celestial/moon/waning_crescent.png",
-    "minecraft/textures/environment/celestial/moon/new_moon.png",
-    "minecraft/textures/environment/celestial/moon/waxing_crescent.png",
-    "minecraft/textures/environment/celestial/moon/first_quarter.png",
-    "minecraft/textures/environment/celestial/moon/waxing_gibbous.png",
-];
+const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
+
+/// Layer 0 is the sun; the moon phases follow in `MOON_PHASES` order.
+fn celestial_paths() -> impl Iterator<Item = String> {
+    std::iter::once(SUN.to_owned()).chain(
+        MOON_PHASES
+            .iter()
+            .map(|phase| format!("minecraft/textures/environment/celestial/moon/{phase}.png")),
+    )
+}
 
 const CLOUD_LAYERS: [&str; 1] = ["minecraft/textures/environment/clouds.png"];
 
@@ -306,21 +305,24 @@ fn alpha(packed: u32) -> f32 {
 }
 
 fn linear(srgb: f32) -> f32 {
-    LinearRgba::from(Srgba::new(srgb, srgb, srgb, 1.0)).red
+    Srgba::gamma_function(srgb)
 }
 
 fn request_sources(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let load = |path: &&str| {
+    let load = |path: String| {
         asset_server
             .load_builder()
             .with_settings(|settings: &mut ImageLoaderSettings| {
                 settings.asset_usage = RenderAssetUsages::MAIN_WORLD;
             })
-            .load((*path).to_owned())
+            .load(path)
     };
     commands.insert_resource(SkySources {
-        celestials: CELESTIAL_LAYERS.iter().map(load).collect(),
-        clouds: CLOUD_LAYERS.iter().map(load).collect(),
+        celestials: celestial_paths().map(load).collect(),
+        clouds: CLOUD_LAYERS
+            .iter()
+            .map(|path| load((*path).to_owned()))
+            .collect(),
     });
 }
 
@@ -442,11 +444,6 @@ fn array(
         RenderAssetUsages::RENDER_WORLD,
     );
     array.sampler = ImageSampler::nearest();
-    // A single-layer array is not a thing a GL texture can be: the backend
-    // picks the texture target from the layer count when it creates the
-    // texture, so asking for a `D2Array` view over one layer leaves the
-    // binding mismatched and the sampler reads nothing. One layer is a plain
-    // 2D texture, and the shader declares it as one.
     // Only a stack of layers is an array. A GL backend picks the texture
     // target from the layer count when it creates the texture, so a one-layer
     // texture is a plain 2D one there whatever view is asked for, and binding
@@ -476,33 +473,10 @@ fn log_array(name: &str, image: &Image) {
 mod tests {
     use super::*;
 
-    fn stem(path: &str) -> &str {
-        path.rsplit('/').next().unwrap().trim_end_matches(".png")
-    }
-
-    #[test]
-    fn the_celestial_layers_are_the_sun_then_the_moon_phases_in_index_order() {
-        let stems: Vec<&str> = CELESTIAL_LAYERS.iter().copied().map(stem).collect();
-        assert_eq!(
-            stems,
-            [
-                "sun",
-                "full_moon",
-                "waning_gibbous",
-                "third_quarter",
-                "waning_crescent",
-                "new_moon",
-                "waxing_crescent",
-                "first_quarter",
-                "waxing_gibbous",
-            ]
-        );
-    }
-
     #[test]
     fn every_layer_path_names_a_file_in_the_corpus() {
         let corpus = crate::asset_corpus();
-        for path in CELESTIAL_LAYERS.iter().chain(&CLOUD_LAYERS) {
+        for path in celestial_paths().chain(CLOUD_LAYERS.iter().map(|p| (*p).to_owned())) {
             let file = corpus.join(path);
             assert!(file.is_file(), "{} is missing", file.display());
         }
@@ -658,7 +632,6 @@ mod reference {
 
 #[cfg(test)]
 mod sky_regression {
-    use bevy::prelude::*;
     use mcrs_minecraft_world::attribute::EnvironmentAttributeMap;
     use mcrs_minecraft_world::dimension::dimension_type::Skybox;
     use mcrs_minecraft_world::environment::{DimensionEnvironment, EnvironmentAttributes};

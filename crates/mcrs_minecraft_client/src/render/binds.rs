@@ -1,9 +1,8 @@
 use std::num::NonZeroU64;
 
-use bevy::render::globals::GlobalsUniform;
 use bevy::render::render_resource::binding_types::{
     sampler, storage_buffer_read_only_sized, storage_buffer_sized, texture_2d, texture_2d_array,
-    uniform_buffer, uniform_buffer_sized,
+    uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
@@ -19,6 +18,7 @@ pub(super) struct Bindings {
     pub view_layout: BindGroupLayoutDescriptor,
     pub cull_layout: BindGroupLayoutDescriptor,
     pub draw_layout: BindGroupLayoutDescriptor,
+    pub view: BindGroup,
     pub cull: BindGroup,
     pub draw: BindGroup,
 }
@@ -34,12 +34,25 @@ impl Bindings {
         let view_layout = view_layout();
         let cull_layout = cull_layout();
         let draw_layout = draw_layout();
+        let view = device.create_bind_group(
+            "terrain view",
+            &pipeline_cache.get_bind_group_layout(&view_layout),
+            &BindGroupEntries::sequential((
+                BufferBinding {
+                    buffer: &frame.params,
+                    offset: 0,
+                    size: NonZeroU64::new(PARAMS_SIZE),
+                },
+                frame.camera.as_entire_buffer_binding(),
+            )),
+        );
         let cull = cull_bind_group(&cull_layout, arenas, frame, device, pipeline_cache);
         let draw = draw_bind_group(&draw_layout, arenas, sprites, device, pipeline_cache);
         Self {
             view_layout,
             cull_layout,
             draw_layout,
+            view,
             cull,
             draw,
         }
@@ -73,7 +86,6 @@ fn view_layout() -> BindGroupLayoutDescriptor {
             ShaderStages::VERTEX_FRAGMENT | ShaderStages::COMPUTE,
             (
                 uniform_buffer_sized(true, NonZeroU64::new(PARAMS_SIZE)),
-                uniform_buffer::<GlobalsUniform>(false),
                 uniform_buffer_sized(false, NonZeroU64::new(CAMERA_SIZE)),
             ),
         ),
@@ -163,7 +175,7 @@ fn draw_bind_group(
             &sprites.atlas_sampler,
             &sprites.tints_view,
             &sprites.tint_sampler,
-            sprites.animations.as_entire_buffer_binding(),
+            sprites.frames.as_entire_buffer_binding(),
             arenas.faces.as_entire_buffer_binding(),
             arenas.sections.as_entire_buffer_binding(),
             &sprites.lightmap_view,

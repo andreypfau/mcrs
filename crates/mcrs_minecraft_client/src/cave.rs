@@ -330,7 +330,9 @@ pub fn cave_cull(
 ) {
     let (transform, frustum) = *camera;
     if !cave.enabled {
-        cave.bits.fill(u32::MAX);
+        if cave.bits.iter().any(|&word| word != u32::MAX) {
+            cave.bits.fill(u32::MAX);
+        }
         return;
     }
     let started = bevy::platform::time::Instant::now();

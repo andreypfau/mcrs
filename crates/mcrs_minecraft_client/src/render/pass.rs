@@ -1,27 +1,21 @@
-use std::num::NonZeroU64;
-
 use bevy::core_pipeline::core_3d::{AlphaMask3d, Opaque3d};
 use bevy::prelude::*;
 use bevy::render::Extract;
 use bevy::render::diagnostic::RecordDiagnostics;
-use bevy::render::globals::GlobalsBuffer;
 use bevy::render::render_phase::{TrackedRenderPass, ViewBinnedRenderPhases};
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
+use bevy::render::renderer::{RenderContext, RenderQueue, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUniformOffset};
 
 use crate::mesh::STREAM_NAMES;
 use crate::probe::{self, GpuTimings, Queries};
 use crate::sky_render::CloudDraw;
 
-use super::draws::{PARAMS_SIZE, PARAMS_STRIDE};
+use super::draws::PARAMS_STRIDE;
 use super::layer::LayerGroup;
 use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, copy_args};
 use super::terrain::Terrain;
 use super::{Raster, Streams, Wireframe};
-
-#[derive(Resource)]
-pub(super) struct ViewBindGroup(BindGroup);
 
 pub(super) fn extract_cave_visibility(
     cave: Extract<Res<crate::cave::CaveCull>>,
@@ -31,40 +25,14 @@ pub(super) fn extract_cave_visibility(
     let Some(terrain) = terrain else {
         return;
     };
+    if !cave.is_changed() {
+        return;
+    }
     queue.write_buffer(&terrain.frame.cave, 0, bytemuck::cast_slice(&cave.bits[..]));
-}
-
-pub(super) fn prepare_view_bind_group(
-    mut commands: Commands,
-    terrain: Option<Res<Terrain>>,
-    device: Res<RenderDevice>,
-    pipeline_cache: Res<PipelineCache>,
-    globals: Res<GlobalsBuffer>,
-) {
-    let Some(terrain) = terrain else {
-        return;
-    };
-    let Some(globals_binding) = globals.buffer.binding() else {
-        return;
-    };
-    commands.insert_resource(ViewBindGroup(device.create_bind_group(
-        "terrain view",
-        &pipeline_cache.get_bind_group_layout(&terrain.binds.view_layout),
-        &BindGroupEntries::sequential((
-            BufferBinding {
-                buffer: &terrain.frame.params,
-                offset: 0,
-                size: NonZeroU64::new(PARAMS_SIZE),
-            },
-            globals_binding,
-            terrain.frame.camera.as_entire_buffer_binding(),
-        )),
-    )));
 }
 
 pub(super) fn cull_terrain(
     terrain: Option<Res<Terrain>>,
-    view_bind_group: Option<Res<ViewBindGroup>>,
     pipeline_cache: Res<PipelineCache>,
     triangles: Res<DrawnTriangles>,
     queries: Option<Res<Queries>>,
@@ -72,7 +40,7 @@ pub(super) fn cull_terrain(
     streams: Res<Streams>,
     mut ctx: RenderContext,
 ) {
-    let (Some(terrain), Some(view_bind_group)) = (terrain, view_bind_group) else {
+    let Some(terrain) = terrain else {
         return;
     };
     let (Some(compacting), Some(stable)) = (
@@ -113,15 +81,13 @@ pub(super) fn cull_terrain(
             } else {
                 compacting
             },
-            &view_bind_group.0,
             &streams,
         );
     }
     span.end(&mut pass);
 }
 
-/// Must match `CULL_THREADS` in `cull.wgsl`.
-const CULL_THREADS: u32 = 32;
+pub(super) const CULL_THREADS: u32 = 32;
 
 /// `cull.wgsl` strides over the group arena, so the dispatch is capped by the device instead of
 /// sized by the world and a bigger render distance can no longer walk it into wgpu's 65535
@@ -143,7 +109,6 @@ fn cull_group<'pass>(
     terrain: &'pass Terrain,
     group: LayerGroup,
     pipeline: &'pass ComputePipeline,
-    view_bind_group: &'pass BindGroup,
     streams: &Streams,
 ) {
     pass.set_pipeline(pipeline);
@@ -156,8 +121,12 @@ fn cull_group<'pass>(
             pass.push_debug_group(STREAM_NAMES[draw.stream as usize]);
             open = Some(draw.stream);
         }
-        pass.set_bind_group(0, view_bind_group, &[index as u32 * PARAMS_STRIDE]);
-        pass.dispatch_workgroups(draw.group_count.min(terrain.cull_grid), 1, 1);
+        pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
+        pass.dispatch_workgroups(
+            draw.group_count.div_ceil(CULL_THREADS).min(terrain.cull_grid),
+            1,
+            1,
+        );
     }
     if open.is_some() {
         pass.pop_debug_group();
@@ -183,7 +152,6 @@ pub(super) fn draw_terrain(
         &ViewUniformOffset,
     )>,
     terrain: Option<Res<Terrain>>,
-    view_bind_group: Option<Res<ViewBindGroup>>,
     streams: Res<Streams>,
     wireframe: Res<Wireframe>,
     raster: Res<Raster>,
@@ -193,7 +161,7 @@ pub(super) fn draw_terrain(
     clouds: CloudDraw,
     mut ctx: RenderContext,
 ) {
-    let (Some(terrain), Some(view_bind_group)) = (terrain, view_bind_group) else {
+    let Some(terrain) = terrain else {
         return;
     };
     if !terrain.pipelines.ready() {
@@ -228,7 +196,6 @@ pub(super) fn draw_terrain(
             &mut pass,
             &terrain,
             group,
-            &view_bind_group.0,
             &pipeline_cache,
             &streams,
             wireframe.0,
@@ -242,7 +209,6 @@ fn draw_layer_group<'pass>(
     pass: &mut TrackedRenderPass<'pass>,
     terrain: &'pass Terrain,
     group: LayerGroup,
-    view_bind_group: &'pass BindGroup,
     pipeline_cache: &'pass PipelineCache,
     streams: &Streams,
     wireframe: bool,
@@ -264,7 +230,7 @@ fn draw_layer_group<'pass>(
             open = Some(draw.stream);
         }
         pass.set_render_pipeline(pipeline);
-        pass.set_bind_group(0, view_bind_group, &[index as u32 * PARAMS_STRIDE]);
+        pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
         pass.draw_indirect(&terrain.frame.args, index as u64 * DRAW_ARGS_SIZE);
     }
     if open.is_some() {

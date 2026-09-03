@@ -105,7 +105,7 @@ fn model_surface(in: ModelOut) -> Surface {
 
 @fragment
 fn fragment_model_solid(in: ModelOut) -> @location(0) vec4<f32> {
-    return finish_solid(shade_surface(model_surface(in)));
+    return finish_solid(shade_surface(model_surface(in)), in.quad_uv);
 }
 
 @fragment

@@ -5,12 +5,12 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::view::ExtractedView;
 
 use super::draws::PARAMS_STRIDE;
-use super::stats::DrawArgs;
+use super::stats::quad_strip;
 use super::terrain::Terrain;
 use crate::camera::CameraOrigin;
 use crate::mesh::STREAMS;
 
-use super::{Budget, Wireframe};
+use super::Budget;
 
 /// The frame's view, expressed against the origin of the section the camera stands in. Nothing
 /// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
@@ -25,9 +25,8 @@ pub(super) struct CameraUniform {
     _pad_offset: f32,
     tint_origin: [f32; 2],
     tint_scale: [f32; 2],
-    wireframe: u32,
     animated_from: u32,
-    _pad_flags: [u32; 2],
+    _pad: [u32; 3],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
@@ -58,7 +57,7 @@ pub(crate) fn uniform(label: &str, size: u64, device: &RenderDevice) -> Buffer {
 
 impl Frame {
     pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
-        let args_init = vec![DrawArgs::quad_strip(); STREAMS];
+        let args_init = vec![quad_strip(); STREAMS];
         Self {
             params: uniform(
                 "terrain draw params",
@@ -102,7 +101,6 @@ pub(super) fn write_camera(
     terrain: Option<Res<Terrain>>,
     origin: Option<Res<CameraOrigin>>,
     views: Query<&ExtractedView, With<Camera3d>>,
-    wireframe: Res<Wireframe>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(terrain), Some(origin), Some(view)) = (terrain, origin, views.iter().next()) else {
@@ -132,7 +130,6 @@ pub(super) fn write_camera(
                 1.0 / terrain.budget.tint_size[0] as f32,
                 1.0 / terrain.budget.tint_size[1] as f32,
             ],
-            wireframe: u32::from(wireframe.0),
             animated_from: terrain.sprites.animated_from,
             ..default()
         }),

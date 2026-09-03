@@ -1,12 +1,3 @@
-//! The two blocks the sky renderer consumes: what is baked into the shader for
-//! as long as the dimension lasts, and what is written to one uniform per
-//! frame.
-//!
-//! Which visual attribute lands in which block is derived, never listed: an
-//! attribute is dimension-constant exactly when nothing below the biome layer
-//! can move it, so a datapack that gives `cloud_height` a track moves it into
-//! the per-frame block without a line changing here.
-
 use bevy::prelude::*;
 use bitflags::bitflags;
 use serde_json::Value;
@@ -16,10 +7,6 @@ use mcrs_minecraft_world::dimension::dimension_type::Skybox;
 use mcrs_minecraft_world::environment::{EnvironmentAttributes, EnvironmentContext};
 
 /// A visual attribute the renderer carries as GPU state.
-///
-/// The two attributes left out — `ambient_particles` and
-/// `default_dripstone_particle` — are spawn tables, not shader inputs; they
-/// ride along in [`SkyStatic`] instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SkyField {
     SkyColor,
@@ -116,7 +103,7 @@ impl SkyValue {
     }
 }
 
-const MOON_PHASES: [&str; 8] = [
+pub(crate) const MOON_PHASES: [&str; 8] = [
     "full_moon",
     "waning_gibbous",
     "third_quarter",
@@ -192,8 +179,6 @@ impl SkyKey {
 pub struct SkyLayout {
     frame: Vec<(SkyField, usize)>,
     constant: Vec<(SkyField, usize)>,
-    ambient_particles: usize,
-    dripstone_particle: usize,
 }
 
 impl SkyLayout {
@@ -206,12 +191,7 @@ impl SkyLayout {
             .map(|field| (field, index(field.attribute())))
             .partition(|(_, stack)| attributes.stack(*stack).is_dynamic());
 
-        SkyLayout {
-            frame,
-            constant,
-            ambient_particles: index("minecraft:visual/ambient_particles"),
-            dripstone_particle: index("minecraft:visual/default_dripstone_particle"),
-        }
+        SkyLayout { frame, constant }
     }
 
     /// The meaning of each slot of [`SkyFrame::values`], in order. Only the
@@ -258,28 +238,13 @@ impl SkyLayout {
             .map(|(field, stack)| (*field, sky_value(&attributes.stack(*stack).evaluate(ctx))))
             .collect();
 
-        let list = |stack: usize| match attributes.stack(stack).evaluate(ctx) {
-            AttributeValue::List(items) => items,
-            other => vec![opaque(other)],
-        };
-
         SkyStatic {
             key: SkyKey {
                 skybox,
                 effects: effects(skybox, attributes, ctx),
             },
             values,
-            ambient_particles: list(self.ambient_particles),
-            dripstone_particle: opaque(attributes.stack(self.dripstone_particle).evaluate(ctx)),
         }
-    }
-}
-
-fn opaque(value: AttributeValue) -> Value {
-    match value {
-        AttributeValue::Opaque(value) => value,
-        AttributeValue::List(items) => Value::Array(items),
-        _ => Value::Null,
     }
 }
 
@@ -296,10 +261,14 @@ fn effects(
     let mut effects = SkyEffects::DISC;
     if skybox == Skybox::Overworld {
         effects |= SkyEffects::TWILIGHT | SkyEffects::CELESTIAL | SkyEffects::STARS;
-        let cloud_color = EnvironmentAttributes::index(SkyField::CloudColor.attribute())
-            .map(|stack| sky_value(&attributes.stack(stack).evaluate(ctx)).color())
-            .unwrap_or(0);
-        if cloud_color >> 24 != 0 {
+        // A tracked colour can be transparent at this tick and opaque at the next, so only a
+        // constant one can rule the clouds out.
+        let clouds = EnvironmentAttributes::index(SkyField::CloudColor.attribute())
+            .map(|index| attributes.stack(index))
+            .is_some_and(|stack| {
+                stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color() >> 24 != 0
+            });
+        if clouds {
             effects |= SkyEffects::CLOUDS;
         }
     }
@@ -330,8 +299,6 @@ impl SkyFrame {
 pub struct SkyStatic {
     pub key: SkyKey,
     pub values: Vec<(SkyField, SkyValue)>,
-    pub ambient_particles: Vec<Value>,
-    pub dripstone_particle: Value,
 }
 
 impl SkyStatic {

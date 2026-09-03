@@ -1,7 +1,5 @@
 #define_import_path mcrs_minecraft_client::finish
 
-#import mcrs_minecraft_client::frame::camera
-
 fn edge_pixels(quad_uv: vec2<f32>) -> f32 {
     let width = max(fwidth(quad_uv), vec2<f32>(1e-6));
     let border = min(
@@ -14,10 +12,17 @@ fn edge_pixels(quad_uv: vec2<f32>) -> f32 {
 }
 
 fn wireframe_discards(quad_uv: vec2<f32>) -> bool {
-    return camera.wireframe != 0u && edge_pixels(quad_uv) > 1.0;
+#ifdef WIREFRAME
+    return edge_pixels(quad_uv) > 1.0;
+#else
+    return false;
+#endif
 }
 
-fn finish_solid(color: vec4<f32>) -> vec4<f32> {
+fn finish_solid(color: vec4<f32>, quad_uv: vec2<f32>) -> vec4<f32> {
+    if (wireframe_discards(quad_uv)) {
+        discard;
+    }
     return vec4<f32>(color.rgb, 1.0);
 }
 

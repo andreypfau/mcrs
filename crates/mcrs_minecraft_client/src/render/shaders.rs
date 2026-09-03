@@ -3,25 +3,10 @@ use bevy::shader::Shader;
 
 use super::layer::Shape;
 
-// Held alive because a shader whose imported module was dropped fails to compile.
-const IMPORTED: [&str; 9] = [
-    "include/fields.wgsl",
-    "include/section.wgsl",
-    "include/frame.wgsl",
-    "include/sky.wgsl",
-    "include/quad.wgsl",
-    "include/lighting.wgsl",
-    "include/terrain_bindings.wgsl",
-    "include/surface.wgsl",
-    "include/finish.wgsl",
-];
-
 pub(super) struct Shaders {
     pub greedy: Handle<Shader>,
     pub model: Handle<Shader>,
     pub cull: Handle<Shader>,
-    #[expect(dead_code, reason = "held so the modules these import stay loaded")]
-    imports: Vec<Handle<Shader>>,
 }
 
 impl Shaders {
@@ -30,10 +15,6 @@ impl Shaders {
             greedy: load(asset_server, "core/greedy.wgsl"),
             model: load(asset_server, "core/model.wgsl"),
             cull: load(asset_server, "core/cull.wgsl"),
-            imports: IMPORTED
-                .iter()
-                .map(|name| load(asset_server, name))
-                .collect(),
         }
     }
 

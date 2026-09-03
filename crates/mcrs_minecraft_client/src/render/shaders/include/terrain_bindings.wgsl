@@ -2,11 +2,11 @@
 
 #import mcrs_minecraft_client::section::SectionDesc
 
-struct Animation {
-    base_layer: u32,
-    count: u32,
-    frametime: u32,
-    interpolate: u32,
+struct AnimationFrame {
+    layer: u32,
+    next: u32,
+    blend: f32,
+    pad: u32,
 };
 
 @group(1) @binding(0) var<storage, read> quads: array<u32>;
@@ -19,7 +19,7 @@ struct Animation {
 @group(1) @binding(7) var atlas_sampler: sampler;
 @group(1) @binding(8) var tints: texture_2d_array<f32>;
 @group(1) @binding(9) var tint_sampler: sampler;
-@group(1) @binding(10) var<storage, read> animations: array<Animation>;
+@group(1) @binding(10) var<storage, read> animations: array<AnimationFrame>;
 @group(1) @binding(11) var<storage, read> faces: array<u32>;
 @group(1) @binding(12) var<storage, read> sections: array<SectionDesc>;
 @group(1) @binding(13) var lightmap_levels: texture_2d<f32>;

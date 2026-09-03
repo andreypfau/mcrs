@@ -115,15 +115,16 @@ pub fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<W
 struct TerrainBudget(Arc<Budget>);
 
 fn embed_shaders(app: &mut App) {
-    bevy::asset::embedded_asset!(app, "shaders/include/fields.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/section.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/frame.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/sky.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/quad.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/lighting.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/terrain_bindings.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/surface.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/finish.wgsl");
+    use bevy::shader::load_shader_library;
+    load_shader_library!(app, "shaders/include/fields.wgsl");
+    load_shader_library!(app, "shaders/include/section.wgsl");
+    load_shader_library!(app, "shaders/include/frame.wgsl");
+    load_shader_library!(app, "shaders/include/sky.wgsl");
+    load_shader_library!(app, "shaders/include/quad.wgsl");
+    load_shader_library!(app, "shaders/include/lighting.wgsl");
+    load_shader_library!(app, "shaders/include/terrain_bindings.wgsl");
+    load_shader_library!(app, "shaders/include/surface.wgsl");
+    load_shader_library!(app, "shaders/include/finish.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/model.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
@@ -164,8 +165,10 @@ impl Plugin for TerrainPlugin {
                         .in_set(RenderSystems::Prepare)
                         .before(frame::write_camera),
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
+                    sprites::write_animation_frames
+                        .in_set(RenderSystems::Prepare)
+                        .after(upload::apply_uploads),
                     frame::write_camera.in_set(RenderSystems::Prepare),
-                    pass::prepare_view_bind_group.in_set(RenderSystems::PrepareBindGroups),
                     stats::read_draw_args.in_set(RenderSystems::Cleanup),
                     probe::read.in_set(RenderSystems::Cleanup),
                 ),

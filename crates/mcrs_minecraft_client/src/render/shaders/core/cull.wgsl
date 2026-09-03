@@ -26,15 +26,18 @@ struct DrawArgs {
 @group(1) @binding(4) var<storage, read> sections: array<SectionDesc>;
 
 /// The dispatch does not scale with the world: a fixed grid of workgroups strides over the group
-/// arena, so a resident world of any size is covered by the same command and the 65535-per-
-/// dimension cap on a dispatch can never be reached.
+/// arena a batch of `CULL_THREADS` groups at a time, so a resident world of any size is covered
+/// by the same command and the 65535-per-dimension cap on a dispatch can never be reached.
 ///
-/// Within a group the work splits in two. One thread decides the group's fate and reserves its
-/// run of the visible list; the whole workgroup then writes that run. The reservation crosses
-/// between the two in workgroup memory, so neither a second pass nor a side buffer is needed.
-const CULL_THREADS: u32 = 32u;
+/// Within a batch every lane tests its own group, lane 0 sums what survived and reserves the
+/// batch's run of the visible list with one atomic, and the whole workgroup then writes each
+/// surviving group's quads.
+const CULL_THREADS: u32 = #{CULL_THREADS}u;
 
-var<workgroup> reserved_slot: u32;
+var<workgroup> batch: array<Group, CULL_THREADS>;
+var<workgroup> counts: array<u32, CULL_THREADS>;
+var<workgroup> starts: array<u32, CULL_THREADS>;
+var<workgroup> reserved: u32;
 
 fn in_frustum(mn: vec3<f32>, mx: vec3<f32>) -> bool {
     for (var i = 0u; i < 5u; i = i + 1u) {
@@ -69,30 +72,49 @@ fn survives(g: Group) -> bool {
     return reachable != 0u && in_frustum(mn, mx) && faces_camera(g.face, mn, mx);
 }
 
+/// Loads this lane's group of the batch starting at `first` and answers whether it is drawn.
+fn load(first: u32, local: u32) -> bool {
+    let slot = first + local;
+    if (slot >= params.group_count) {
+        return false;
+    }
+    let g = groups[params.group_base + slot];
+    batch[local] = g;
+    return survives(g);
+}
+
 @compute @workgroup_size(CULL_THREADS)
 fn cull(
     @builtin(workgroup_id) workgroup: vec3<u32>,
     @builtin(num_workgroups) grid: vec3<u32>,
     @builtin(local_invocation_index) local: u32,
 ) {
-    var slot = workgroup.x;
+    var first = workgroup.x * CULL_THREADS;
     loop {
-        if (slot >= params.group_count) {
+        if (first >= params.group_count) {
             break;
         }
-        let g = groups[params.group_base + slot];
+        let lives = load(first, local);
+        counts[local] = select(0u, batch[local].quad_count, lives);
+        workgroupBarrier();
 
         if (local == 0u) {
-            if (survives(g)) {
-                reserved_slot = atomicAdd(&args[params.args_index].instance_count, g.quad_count);
-            } else {
-                reserved_slot = CULLED;
+            var total = 0u;
+            for (var k = 0u; k < CULL_THREADS; k = k + 1u) {
+                starts[k] = total;
+                total = total + counts[k];
             }
+            reserved = atomicAdd(&args[params.args_index].instance_count, total);
         }
         workgroupBarrier();
 
-        let base = reserved_slot;
-        if (base != CULLED) {
+        let in_batch = min(CULL_THREADS, params.group_count - first);
+        for (var k = 0u; k < in_batch; k = k + 1u) {
+            if (counts[k] == 0u) {
+                continue;
+            }
+            let g = batch[k];
+            let base = reserved + starts[k];
             var i = local;
             loop {
                 if (i >= g.quad_count) {
@@ -103,7 +125,7 @@ fn cull(
             }
         }
         workgroupBarrier();
-        slot = slot + grid.x;
+        first = first + grid.x * CULL_THREADS;
     }
 }
 
@@ -115,33 +137,39 @@ fn cull_stable(
     @builtin(num_workgroups) grid: vec3<u32>,
     @builtin(local_invocation_index) local: u32,
 ) {
-    var slot = workgroup.x;
+    var first = workgroup.x * CULL_THREADS;
     loop {
-        if (slot >= params.group_count) {
+        if (first >= params.group_count) {
             break;
         }
-        let g = groups[params.group_base + slot];
+        counts[local] = u32(load(first, local));
+        workgroupBarrier();
 
+        let in_batch = min(CULL_THREADS, params.group_count - first);
         if (local == 0u) {
-            let lives = survives(g);
-            if (lives) {
-                atomicMax(&args[params.args_index].instance_count, g.quad_prefix + g.quad_count);
+            var top = 0u;
+            for (var k = 0u; k < in_batch; k = k + 1u) {
+                if (counts[k] != 0u) {
+                    top = max(top, batch[k].quad_prefix + batch[k].quad_count);
+                }
             }
-            reserved_slot = select(CULLED, g.quad_prefix, lives);
+            atomicMax(&args[params.args_index].instance_count, top);
         }
-        workgroupBarrier();
 
-        let culled = reserved_slot == CULLED;
-        var i = local;
-        loop {
-            if (i >= g.quad_count) {
-                break;
+        for (var k = 0u; k < in_batch; k = k + 1u) {
+            let g = batch[k];
+            let culled = counts[k] == 0u;
+            var i = local;
+            loop {
+                if (i >= g.quad_count) {
+                    break;
+                }
+                visible[params.visible_base + g.quad_prefix + i] =
+                    vec2<u32>(select(g.quad_base + i, CULLED, culled), g.section);
+                i = i + CULL_THREADS;
             }
-            visible[params.visible_base + g.quad_prefix + i] =
-                vec2<u32>(select(g.quad_base + i, CULLED, culled), g.section);
-            i = i + CULL_THREADS;
         }
         workgroupBarrier();
-        slot = slot + grid.x;
+        first = first + grid.x * CULL_THREADS;
     }
 }

@@ -13,23 +13,12 @@ pub(super) const DRAW_ARGS_SIZE: u64 = size_of::<DrawArgs>() as u64;
 const VERTICES_PER_QUAD: u32 = 4;
 const TRIANGLES_PER_QUAD: u32 = 2;
 
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub(super) struct DrawArgs {
-    pub vertex_count: u32,
-    pub instance_count: u32,
-    pub first_vertex: u32,
-    pub first_instance: u32,
-}
+pub(super) type DrawArgs = DrawIndirectArgs;
 
-impl DrawArgs {
-    pub(super) fn quad_strip() -> Self {
-        Self {
-            vertex_count: VERTICES_PER_QUAD,
-            instance_count: 0,
-            first_vertex: 0,
-            first_instance: 0,
-        }
+pub(super) fn quad_strip() -> DrawArgs {
+    DrawArgs {
+        vertex_count: VERTICES_PER_QUAD,
+        ..default()
     }
 }
 
@@ -99,11 +88,11 @@ mod tests {
         let args = [
             DrawArgs {
                 instance_count: 3,
-                ..DrawArgs::quad_strip()
+                ..quad_strip()
             },
             DrawArgs {
                 instance_count: 5,
-                ..DrawArgs::quad_strip()
+                ..quad_strip()
             },
         ];
         counted.read(bytemuck::cast_slice(&args));

@@ -102,7 +102,7 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         vertex: "vertex_clouds",
         fragment: "fragment_clouds",
         blend: Some(BlendState::ALPHA_BLENDING),
-        vertices: 3,
+        vertices: 6,
         writes_depth: true,
         visible: |_| true,
     },
@@ -146,6 +146,7 @@ pub(crate) struct Sky {
     uniform: Buffer,
     pipelines: Option<(SkyKey, [Option<CachedRenderPipelineId>; SKY_DRAWS.len()])>,
     textures: Option<(AssetId<Image>, AssetId<Image>, BindGroup)>,
+    view: Option<(BufferId, BindGroup)>,
 }
 
 /// Restricts the sky to a subset of its draws, so a profiling run can price
@@ -182,7 +183,7 @@ fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<
         texture_layout: BindGroupLayoutDescriptor::new(
             "sky textures",
             &BindGroupLayoutEntries::sequential(
-                ShaderStages::FRAGMENT,
+                ShaderStages::VERTEX_FRAGMENT,
                 (
                     texture_2d_array(TextureSampleType::Float { filterable: true }),
                     sampler(SamplerBindingType::Filtering),
@@ -194,6 +195,7 @@ fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<
         uniform: uniform_buffer("sky", size_of::<SkyUniform>() as u64, &device),
         pipelines: None,
         textures: None,
+        view: None,
     });
 }
 
@@ -295,7 +297,7 @@ fn prepare_sky_bind_groups(
     let (Some(mut sky), Some(extracted)) = (sky, extracted) else {
         return;
     };
-    let Some(view_binding) = view_uniforms.uniforms.binding() else {
+    let Some(view_buffer) = view_uniforms.uniforms.buffer() else {
         return;
     };
     let textures = match &sky.textures {
@@ -324,14 +326,26 @@ fn prepare_sky_bind_groups(
             bind_group
         }
     };
-    commands.insert_resource(SkyBindGroups {
-        view: device.create_bind_group(
-            "sky view",
-            &pipeline_cache.get_bind_group_layout(&sky.view_layout),
-            &BindGroupEntries::sequential((view_binding, sky.uniform.as_entire_buffer_binding())),
-        ),
-        textures,
-    });
+    let view = match &sky.view {
+        Some((id, bind_group)) if *id == view_buffer.id() => bind_group.clone(),
+        _ => {
+            let bind_group = device.create_bind_group(
+                "sky view",
+                &pipeline_cache.get_bind_group_layout(&sky.view_layout),
+                &BindGroupEntries::sequential((
+                    BufferBinding {
+                        buffer: view_buffer,
+                        offset: 0,
+                        size: Some(ViewUniform::min_size()),
+                    },
+                    sky.uniform.as_entire_buffer_binding(),
+                )),
+            );
+            sky.view = Some((view_buffer.id(), bind_group.clone()));
+            bind_group
+        }
+    };
+    commands.insert_resource(SkyBindGroups { view, textures });
 }
 
 #[derive(SystemParam)]

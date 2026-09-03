@@ -1,12 +1,10 @@
 #define_import_path mcrs_minecraft_client::surface
 
 #import mcrs_minecraft_client::fields::{FACE_LAYER_BITS}
-#import mcrs_minecraft_client::frame::{camera, globals}
+#import mcrs_minecraft_client::frame::camera
 #import mcrs_minecraft_client::terrain_bindings::{
     animations, atlas0, atlas1, atlas2, atlas3, atlas_sampler, tint_sampler, tints,
 }
-
-const TICKS_PER_SECOND: f32 = 20.0;
 
 struct Surface {
     layer: u32,
@@ -36,15 +34,12 @@ fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
     if (layer < camera.animated_from) {
         return sample_atlas(array, uv, layer, ddx, ddy);
     }
-    let animation = animations[(1u << FACE_LAYER_BITS) - 1u - layer];
-    let elapsed = globals.time * TICKS_PER_SECOND / f32(animation.frametime);
-    let step = u32(elapsed) % animation.count;
-    let color = sample_atlas(array, uv, animation.base_layer + step, ddx, ddy);
-    if (animation.interpolate == 0u) {
+    let frame = animations[(1u << FACE_LAYER_BITS) - 1u - layer];
+    let color = sample_atlas(array, uv, frame.layer, ddx, ddy);
+    if (frame.blend == 0.0) {
         return color;
     }
-    let next = animation.base_layer + (step + 1u) % animation.count;
-    return mix(color, sample_atlas(array, uv, next, ddx, ddy), fract(elapsed));
+    return mix(color, sample_atlas(array, uv, frame.next, ddx, ddy), frame.blend);
 }
 
 fn shade_surface(s: Surface) -> vec4<f32> {

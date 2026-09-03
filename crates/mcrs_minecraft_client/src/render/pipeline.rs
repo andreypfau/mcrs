@@ -2,6 +2,7 @@ use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::view::ExtractedView;
+use bevy::shader::ShaderDefVal;
 
 use crate::blocks::Pass;
 use crate::mesh::stream_pass;
@@ -11,10 +12,10 @@ use super::layer::Shape;
 use super::shaders::Shaders;
 use super::terrain::Terrain;
 
-pub(super) const TERRAIN_PIPELINES: usize = Pass::COUNT * Shape::ALL.len();
+pub(super) const TERRAIN_PIPELINES: usize = Pass::COUNT * Shape::ALL.len() * 2;
 
-const fn slot(layer: Pass, shape: Shape) -> usize {
-    layer as usize * Shape::ALL.len() + shape as usize
+const fn slot(layer: Pass, shape: Shape, wireframe: bool) -> usize {
+    (layer as usize * Shape::ALL.len() + shape as usize) * 2 + wireframe as usize
 }
 
 pub(crate) fn common(
@@ -62,10 +63,15 @@ pub(super) struct Pipelines {
 impl Pipelines {
     pub fn new(shaders: Shaders, binds: &Bindings, pipeline_cache: &PipelineCache) -> Self {
         let layout = vec![binds.view_layout.clone(), binds.cull_layout.clone()];
+        let shader_defs = vec![ShaderDefVal::UInt(
+            "CULL_THREADS".into(),
+            super::pass::CULL_THREADS,
+        )];
         let cull = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("terrain cull".into()),
             layout: layout.clone(),
             shader: shaders.cull.clone(),
+            shader_defs: shader_defs.clone(),
             entry_point: Some("cull".into()),
             ..default()
         });
@@ -73,6 +79,7 @@ impl Pipelines {
             label: Some("terrain cull stable".into()),
             layout,
             shader: shaders.cull.clone(),
+            shader_defs,
             entry_point: Some("cull_stable".into()),
             ..default()
         });
@@ -97,8 +104,10 @@ impl Pipelines {
         let mut terrain = [CachedRenderPipelineId::INVALID; TERRAIN_PIPELINES];
         for layer in Pass::ALL {
             for shape in Shape::ALL {
-                terrain[slot(layer, shape)] =
-                    self.queue_terrain(layer, shape, binds, view, pipeline_cache);
+                for wireframe in [false, true] {
+                    terrain[slot(layer, shape, wireframe)] =
+                        self.queue_terrain(layer, shape, wireframe, binds, view, pipeline_cache);
+                }
             }
         }
         self.terrain = Some(terrain);
@@ -108,11 +117,12 @@ impl Pipelines {
         &self,
         layer: Pass,
         shape: Shape,
+        wireframe: bool,
         binds: &Bindings,
         view: &ExtractedView,
         pipeline_cache: &PipelineCache,
     ) -> CachedRenderPipelineId {
-        let descriptor = RenderPipelineDescriptor {
+        let mut descriptor = RenderPipelineDescriptor {
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::TriangleStrip,
                 front_face: FrontFace::Ccw,
@@ -127,7 +137,12 @@ impl Pipelines {
                 bias: model_depth_bias(layer, shape),
             }),
             ..common(
-                format!("terrain {} {}", layer.label(), shape.label()),
+                format!(
+                    "terrain {} {}{}",
+                    layer.label(),
+                    shape.label(),
+                    if wireframe { " wireframe" } else { "" }
+                ),
                 vec![binds.view_layout.clone(), binds.draw_layout.clone()],
                 self.shaders.shape(shape),
                 format!("vertex_{}", shape.label()),
@@ -136,6 +151,10 @@ impl Pipelines {
                 layer.blend(),
             )
         };
+        if wireframe {
+            let fragment = descriptor.fragment.as_mut().expect("common sets a fragment");
+            fragment.shader_defs.push("WIREFRAME".into());
+        }
         pipeline_cache.queue_render_pipeline(descriptor)
     }
 
@@ -145,8 +164,7 @@ impl Pipelines {
         wireframe: bool,
         pipeline_cache: &'cache PipelineCache,
     ) -> Option<&'cache RenderPipeline> {
-        let layer = stream_pass(stream).drawn_as(wireframe);
-        let slot = slot(layer, Shape::of_stream(stream));
+        let slot = slot(stream_pass(stream), Shape::of_stream(stream), wireframe);
         pipeline_cache.get_render_pipeline(self.terrain?[slot])
     }
 }
@@ -190,10 +208,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_table_holds_one_pipeline_per_layer_and_shape() {
+    fn the_table_holds_one_pipeline_per_layer_shape_and_wireframe() {
         let mut slots: Vec<usize> = Pass::ALL
             .iter()
-            .flat_map(|&layer| Shape::ALL.iter().map(move |&shape| slot(layer, shape)))
+            .flat_map(|&layer| {
+                Shape::ALL.iter().flat_map(move |&shape| {
+                    [false, true].map(|wireframe| slot(layer, shape, wireframe))
+                })
+            })
             .collect();
         slots.sort_unstable();
         assert_eq!(slots, (0..TERRAIN_PIPELINES).collect::<Vec<_>>());

@@ -39,7 +39,7 @@ struct SkyVertex {
     @location(0) color: vec4<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) @interpolate(flat) layer: u32,
-    @location(3) distance: f32,
+    @location(3) fog: f32,
 };
 
 fn to_clip(local: vec3<f32>) -> vec4<f32> {
@@ -74,7 +74,7 @@ fn disc_corner(index: u32, y: f32) -> vec3<f32> {
         return vec3<f32>(0.0, y, 0.0);
     }
     let step = index / 3u + corner - 1u;
-    let angle = (-180.0 + f32(step) * 45.0) * PI / 180.0;
+    let angle = radians(-180.0 + f32(step) * 45.0);
     let radius = sky.fog.a;
     return vec3<f32>(sign(y) * radius * cos(angle), y, radius * sin(angle));
 }
@@ -95,7 +95,7 @@ fn vertex_disc(@builtin(vertex_index) index: u32) -> SkyVertex {
         out.color = vec4<f32>(0.0);
         out.clip_position = degenerate();
     }
-    out.distance = length(local);
+    out.fog = length(local) / sky.fog.a;
     return out;
 }
 
@@ -210,8 +210,7 @@ fn fragment_flat(in: SkyVertex) -> @location(0) vec4<f32> {
 
 @fragment
 fn fragment_disc(in: SkyVertex) -> @location(0) vec4<f32> {
-    let fog = clamp(in.distance / sky.fog.a, 0.0, 1.0);
-    return vec4<f32>(mix(in.color.rgb, sky.fog.rgb, fog), in.color.a);
+    return vec4<f32>(mix(in.color.rgb, sky.fog.rgb, clamp(in.fog, 0.0, 1.0)), in.color.a);
 }
 
 @fragment
@@ -221,39 +220,54 @@ fn fragment_celestial(in: SkyVertex) -> @location(0) vec4<f32> {
 
 struct CloudVertex {
     @builtin(position) clip_position: vec4<f32>,
-    // Every near-plane point shares one clip w, so the unprojected position is affine across
-    // the screen and interpolates exactly.
-    @location(0) near: vec3<f32>,
+    @location(0) world: vec3<f32>,
+    @location(1) @interpolate(flat) mask: vec2<i32>,
+    @location(2) @interpolate(flat) drift: vec2<f32>,
+    @location(3) @interpolate(flat) inv_fade: f32,
 };
 
-struct CloudFragment {
-    @location(0) color: vec4<f32>,
-    @builtin(frag_depth) depth: f32,
-};
-
+/// The slab is entered through its bottom from below and its top from above, so that plane is
+/// drawn as a quad out to the fade distance and the depth test rejects every fragment a nearer
+/// surface already covers before the march runs. From inside the slab the entry is the near
+/// plane itself, so the quad collapses to a full-screen triangle.
 @vertex
 fn vertex_clouds(@builtin(vertex_index) index: u32) -> CloudVertex {
-    let corner = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));
-    let ndc = corner * 2.0 - 1.0;
-    let near = view.world_from_clip * vec4<f32>(ndc, 1.0, 1.0);
+    let origin = view.world_position.xyz;
+    let bottom = sky.cloud.x;
+    let top = bottom + CLOUD_THICKNESS;
+    let fade = sky.cloud.z;
+    let size = vec2<i32>(textureDimensions(clouds));
+
     var out: CloudVertex;
-    out.near = near.xyz / near.w;
-    out.clip_position = vec4<f32>(ndc, 1.0, 1.0);
+    out.mask = size - vec2<i32>(1);
+    out.drift = vec2<f32>(sky.cloud.y % (f32(size.x) * CLOUD_CELL), CLOUD_ORIGIN_Z);
+    out.inv_fade = 1.0 / fade;
+
+    if (origin.y >= bottom && origin.y <= top) {
+        if (index >= 3u) {
+            out.clip_position = degenerate();
+            return out;
+        }
+        let ndc = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u)) * 2.0 - 1.0;
+        let near = view.world_from_clip * vec4<f32>(ndc, 1.0, 1.0);
+        out.world = near.xyz / near.w;
+        out.clip_position = vec4<f32>(ndc, 1.0, 1.0);
+        return out;
+    }
+
+    let corner = quad_corner(index);
+    let sign_x = select(-1.0, 1.0, corner == 1u || corner == 2u);
+    let sign_z = select(-1.0, 1.0, corner >= 2u);
+    let plane = select(top, bottom, origin.y < bottom);
+    out.world = vec3<f32>(origin.x + sign_x * fade, plane, origin.z + sign_z * fade);
+    out.clip_position = view.clip_from_world * vec4<f32>(out.world, 1.0);
     return out;
 }
 
-fn cloud_cell(cell: vec2<i32>, size: vec2<i32>) -> vec4<f32> {
-    return textureLoad(clouds, cell & (size - vec2<i32>(1)), 0);
-}
-
 @fragment
-fn fragment_clouds(in: CloudVertex) -> CloudFragment {
-    var out: CloudFragment;
-    out.color = vec4<f32>(0.0);
-    out.depth = 0.0;
-
+fn fragment_clouds(in: CloudVertex) -> @location(0) vec4<f32> {
     let origin = view.world_position.xyz;
-    let direction = normalize(in.near - origin);
+    let direction = normalize(in.world - origin);
 
     let bottom = sky.cloud.x;
     let top = bottom + CLOUD_THICKNESS;
@@ -275,10 +289,7 @@ fn fragment_clouds(in: CloudVertex) -> CloudFragment {
         discard;
     }
 
-    let size = vec2<i32>(textureDimensions(clouds));
-    let span = f32(size.x) * CLOUD_CELL;
-    let drift = vec2<f32>(sky.cloud.y % span, CLOUD_ORIGIN_Z);
-    let start = (origin.xz + drift + direction.xz * enter) / CLOUD_CELL;
+    let start = (origin.xz + in.drift + direction.xz * enter) / CLOUD_CELL;
 
     let corner = floor(start);
     let step = sign(direction.xz);
@@ -292,7 +303,7 @@ fn fragment_clouds(in: CloudVertex) -> CloudFragment {
     var distance = enter;
     var filled = vec4<f32>(0.0);
     for (var taken = 0u; taken < CLOUD_STEPS; taken = taken + 1u) {
-        let sample = cloud_cell(cell, size);
+        let sample = textureLoad(clouds, cell & in.mask, 0);
         if sample.a >= CLOUD_OPEN {
             filled = sample;
             break;
@@ -316,12 +327,8 @@ fn fragment_clouds(in: CloudVertex) -> CloudFragment {
         discard;
     }
 
-    let position = origin + direction * distance;
-    let clip = view.clip_from_world * vec4<f32>(position, 1.0);
-    out.depth = clip.z / clip.w;
-    out.color = vec4<f32>(
+    return vec4<f32>(
         filled.rgb * sky.cloud_color.rgb * shade,
-        filled.a * sky.cloud_color.a * (1.0 - clamp(distance / fade, 0.0, 1.0)),
+        filled.a * sky.cloud_color.a * (1.0 - clamp(distance * in.inv_fade, 0.0, 1.0)),
     );
-    return out;
 }

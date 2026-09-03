@@ -28,15 +28,6 @@ impl Pass {
             _ => None,
         }
     }
-
-    // Wireframe draws by discarding the inside of every quad, and the solid pipeline has no
-    // discard in it, so it borrows the cutout one for as long as wireframe is on.
-    pub const fn drawn_as(self, wireframe: bool) -> Self {
-        match self {
-            Pass::Solid if wireframe => Pass::Cutout,
-            other => other,
-        }
-    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -110,12 +101,5 @@ mod tests {
                 .count();
             assert_eq!(held, 1, "stream {stream} is in {held} groups");
         }
-    }
-
-    #[test]
-    fn wireframe_moves_the_solid_layer_onto_a_pipeline_that_can_discard() {
-        assert_eq!(Pass::Solid.drawn_as(false), Pass::Solid);
-        assert_eq!(Pass::Solid.drawn_as(true), Pass::Cutout);
-        assert_eq!(Pass::Translucent.drawn_as(true), Pass::Translucent);
     }
 }
