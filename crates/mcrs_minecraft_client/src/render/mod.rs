@@ -25,8 +25,10 @@ use crate::mesh::STREAMS;
 use crate::probe::{self, GpuTimings};
 
 pub use stats::DrawnTriangles;
-pub use terrain::SkyBuffer;
 pub use upload::{Placement, Upload, Uploads};
+
+pub(crate) use frame::uniform as uniform_buffer;
+pub(crate) use pipeline::common as pipeline_descriptor;
 
 /// The depth buffer runs reverse-Z, so the near plane is at one and a fragment passes when its
 /// depth is the greater. Every pipeline drawing into the view depth must agree on this.
@@ -160,9 +162,8 @@ impl Plugin for TerrainPlugin {
                     pass::drop_unused_bins.in_set(RenderSystems::Prepare),
                     upload::apply_uploads
                         .in_set(RenderSystems::Prepare)
-                        .before(draws::prepare_wireframe),
-                    draws::prepare_wireframe.in_set(RenderSystems::Prepare),
-                    terrain::write_sky.in_set(RenderSystems::Prepare),
+                        .before(frame::write_camera),
+                    terrain::write_lightmap.in_set(RenderSystems::Prepare),
                     frame::write_camera.in_set(RenderSystems::Prepare),
                     pass::prepare_view_bind_group.in_set(RenderSystems::PrepareBindGroups),
                     stats::read_draw_args.in_set(RenderSystems::Cleanup),

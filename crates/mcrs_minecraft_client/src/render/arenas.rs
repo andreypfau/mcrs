@@ -37,15 +37,6 @@ fn visible_list(entries: usize, device: &RenderDevice) -> Buffer {
     )
 }
 
-#[derive(Copy, Clone)]
-pub(super) enum Arena {
-    Quads,
-    Vertices,
-    Faces,
-    Groups,
-    Sections,
-}
-
 impl Arenas {
     pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
         let arena = |label, bytes| arena(label, bytes, device);
@@ -81,15 +72,5 @@ impl Arenas {
         bevy::log::info!(entries, "growing the visible list");
         self.visible = visible_list(entries, device);
         true
-    }
-
-    pub fn buffer(&self, arena: Arena) -> &Buffer {
-        match arena {
-            Arena::Quads => &self.quads,
-            Arena::Vertices => &self.vertices,
-            Arena::Faces => &self.faces,
-            Arena::Groups => &self.groups,
-            Arena::Sections => &self.sections,
-        }
     }
 }

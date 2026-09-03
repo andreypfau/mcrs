@@ -1,18 +1,13 @@
 #define_import_path mcrs_minecraft_client::frame
 
-#import bevy_render::view::View
 #import bevy_render::globals::Globals
-#import mcrs_minecraft_client::sky::Sky
 
 struct Params {
     group_base: u32,
     group_count: u32,
     visible_base: u32,
     args_index: u32,
-    wireframe: u32,
     overhang: f32,
-    animated_from: u32,
-    padding: u32,
 }
 
 struct Camera {
@@ -22,10 +17,10 @@ struct Camera {
     offset: vec3<f32>,
     tint_origin: vec2<f32>,
     tint_scale: vec2<f32>,
+    wireframe: u32,
+    animated_from: u32,
 }
 
-@group(0) @binding(0) var<uniform> view: View;
-@group(0) @binding(1) var<uniform> params: Params;
-@group(0) @binding(2) var<uniform> globals: Globals;
-@group(0) @binding(3) var<uniform> sky: Sky;
-@group(0) @binding(4) var<uniform> camera: Camera;
+@group(0) @binding(0) var<uniform> params: Params;
+@group(0) @binding(1) var<uniform> globals: Globals;
+@group(0) @binding(2) var<uniform> camera: Camera;

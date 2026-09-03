@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use bevy::prelude::*;
-use bevy::render::render_resource::{Buffer, PipelineCache, Texture};
+use bevy::render::render_resource::PipelineCache;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
+
+use crate::sky_render::ExtractedSky;
 
 use super::arenas::Arenas;
 use super::binds::Bindings;
@@ -11,14 +13,8 @@ use super::frame::Frame;
 use super::pipeline::Pipelines;
 use super::shaders::Shaders;
 use super::sprites::Sprites;
-use super::texture::write_lightmap;
+use super::texture;
 use super::{Budget, TerrainBudget};
-
-#[derive(Resource, Deref)]
-pub struct SkyBuffer(Buffer);
-
-#[derive(Resource, Deref)]
-pub(super) struct Lightmap(Texture);
 
 #[derive(Resource)]
 pub(super) struct Terrain {
@@ -37,7 +33,7 @@ impl Terrain {
     /// per-draw parameters, so a world that has grown is drawn whole rather
     /// than up to a share of a fixed list.
     pub fn rebuild_params(&mut self, device: &RenderDevice, pipeline_cache: &PipelineCache) {
-        self.list.rebuild(self.sprites.animated_from);
+        self.list.rebuild();
         if self.arenas.grow_visible(self.list.visible_entries, device) {
             self.binds
                 .rebuild_cull(&self.arenas, &self.frame, device, pipeline_cache);
@@ -62,8 +58,6 @@ pub(super) fn init_terrain(
     let binds = Bindings::new(&arenas, &frame, &sprites, &device, &pipeline_cache);
     let pipelines = Pipelines::new(Shaders::load(&asset_server), &binds, &pipeline_cache);
 
-    commands.insert_resource(SkyBuffer(frame.sky.clone()));
-    commands.insert_resource(Lightmap(sprites.lightmap.clone()));
     commands.insert_resource(Terrain {
         cull_grid: super::pass::cull_grid(&device.limits()),
         list: DrawList::new(),
@@ -76,15 +70,25 @@ pub(super) fn init_terrain(
     });
 }
 
-pub(super) fn write_sky(
-    buffer: Option<Res<SkyBuffer>>,
-    lightmap: Option<Res<Lightmap>>,
-    sky: Option<Res<crate::sky_render::ExtractedSky>>,
+/// The lightmap follows the three light colours alone, which move at tick rate and often not at
+/// all, so a frame whose colours match the last one uploads nothing.
+pub(super) fn write_lightmap(
+    terrain: Option<Res<Terrain>>,
+    sky: Option<Res<ExtractedSky>>,
     queue: Res<RenderQueue>,
+    mut last: Local<Option<[[f32; 4]; 3]>>,
 ) {
-    let (Some(buffer), Some(lightmap), Some(sky)) = (buffer, lightmap, sky) else {
+    let (Some(terrain), Some(sky)) = (terrain, sky) else {
         return;
     };
-    queue.write_buffer(&buffer, 0, bytemuck::bytes_of(&sky.uniform));
-    write_lightmap(&lightmap, &queue, &sky.uniform);
+    let lights = [
+        sky.uniform.ambient,
+        sky.uniform.sky_light,
+        sky.uniform.block_light,
+    ];
+    if *last == Some(lights) {
+        return;
+    }
+    *last = Some(lights);
+    texture::write_lightmap(&terrain.sprites.lightmap, &queue, &sky.uniform);
 }

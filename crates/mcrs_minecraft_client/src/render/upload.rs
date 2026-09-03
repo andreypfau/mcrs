@@ -8,14 +8,12 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 use crate::mesh::{Draw, Group};
 use crate::pack::QUAD_WORDS;
 
-use super::arenas::Arena;
+use super::arenas::Arenas;
 use super::terrain::Terrain;
 use super::texture::write_tint_square;
 use super::{Animation, Atlas, SectionDesc};
 
 static BUDGET: std::sync::LazyLock<usize> = std::sync::LazyLock::new(crate::config::upload_budget);
-
-const COPY_ALIGN: usize = 4;
 
 pub enum Upload {
     Tints {
@@ -44,20 +42,15 @@ pub struct Placement {
 }
 
 #[derive(Resource, Clone, Default)]
-pub struct Uploads(Arc<Mutex<Waiting>>);
-
-#[derive(Default)]
-pub struct Waiting {
-    queue: VecDeque<Upload>,
-}
+pub struct Uploads(Arc<Mutex<VecDeque<Upload>>>);
 
 impl Uploads {
     pub fn push(&self, upload: Upload) {
-        self.0.lock().unwrap().queue.push_back(upload);
+        self.0.lock().unwrap().push_back(upload);
     }
 
     pub fn waiting(&self) -> usize {
-        self.0.lock().unwrap().queue.len()
+        self.0.lock().unwrap().len()
     }
 }
 
@@ -67,37 +60,35 @@ pub(super) struct Pending {
     done: usize,
 }
 
-const ARENA_PARTS: usize = 5;
-
 impl Placement {
-    fn part(&self, index: usize) -> (Arena, u64, &[u8]) {
-        match index {
-            0 => (
-                Arena::Quads,
+    fn parts<'a>(&'a self, arenas: &'a Arenas) -> [(&'a Buffer, u64, &'a [u8]); 5] {
+        [
+            (
+                &arenas.quads,
                 self.quads.0,
                 bytemuck::cast_slice(&self.quads.1),
             ),
-            1 => (
-                Arena::Vertices,
+            (
+                &arenas.vertices,
                 self.vertices.0,
                 bytemuck::cast_slice(&self.vertices.1),
             ),
-            2 => (
-                Arena::Faces,
+            (
+                &arenas.faces,
                 self.faces.0,
                 bytemuck::cast_slice(&self.faces.1),
             ),
-            3 => (
-                Arena::Sections,
+            (
+                &arenas.sections,
                 self.sections.0,
                 bytemuck::cast_slice(&self.sections.1),
             ),
-            _ => (
-                Arena::Groups,
+            (
+                &arenas.groups,
                 self.groups.0,
                 bytemuck::cast_slice(&self.groups.1),
             ),
-        }
+        ]
     }
 }
 
@@ -114,17 +105,14 @@ pub(super) fn apply_uploads(
     let terrain = terrain.as_mut();
     let mut budget = *BUDGET;
 
-    loop {
+    while budget > 0 {
         if terrain.arenas.pending.is_none() {
-            let next = uploads.0.lock().unwrap().queue.pop_front();
+            let next = uploads.0.lock().unwrap().pop_front();
             match next {
                 None => break,
                 Some(Upload::Tints { origin, size, data }) => {
                     write_tint_square(&terrain.sprites.tints, &queue, origin, size, &data);
                     budget = budget.saturating_sub(data.len());
-                    if budget == 0 {
-                        break;
-                    }
                     continue;
                 }
                 Some(Upload::Sprites {
@@ -142,11 +130,7 @@ pub(super) fn apply_uploads(
                         &device,
                         &pipeline_cache,
                     );
-                    terrain.rebuild_params(&device, &pipeline_cache);
                     budget = budget.saturating_sub(spent);
-                    if budget == 0 {
-                        break;
-                    }
                     continue;
                 }
                 Some(Upload::Geometry(placement)) => {
@@ -160,8 +144,9 @@ pub(super) fn apply_uploads(
         }
 
         let mut pending = terrain.arenas.pending.take().expect("just filled");
-        while budget > 0 && pending.part < ARENA_PARTS {
-            let (arena, offset, data) = pending.placement.part(pending.part);
+        let parts = pending.placement.parts(&terrain.arenas);
+        while budget > 0 && pending.part < parts.len() {
+            let (buffer, offset, data) = parts[pending.part];
             if data.is_empty() {
                 pending.part += 1;
                 pending.done = 0;
@@ -170,13 +155,13 @@ pub(super) fn apply_uploads(
             let left = data.len() - pending.done;
             let mut take = left.min(budget);
             if take < left {
-                take -= take % COPY_ALIGN;
+                take -= take % COPY_BUFFER_ALIGNMENT as usize;
                 if take == 0 {
                     break;
                 }
             }
             queue.write_buffer(
-                terrain.arenas.buffer(arena),
+                buffer,
                 offset + pending.done as u64,
                 &data[pending.done..pending.done + take],
             );
@@ -187,27 +172,15 @@ pub(super) fn apply_uploads(
                 pending.done = 0;
             }
         }
-        if pending.part < ARENA_PARTS {
+        if pending.part < parts.len() {
             terrain.arenas.pending = Some(pending);
             break;
         }
-        publish(terrain, pending.placement, &device, &pipeline_cache);
-        if budget == 0 {
-            break;
+        if let Some(draws) = pending.placement.draws {
+            terrain.list.draws = draws;
         }
+        terrain.rebuild_params(&device, &pipeline_cache);
     }
 
     terrain.list.flush(&terrain.frame.params, &queue);
-}
-
-fn publish(
-    terrain: &mut Terrain,
-    placement: Placement,
-    device: &RenderDevice,
-    pipeline_cache: &PipelineCache,
-) {
-    if let Some(draws) = placement.draws {
-        terrain.list.draws = draws;
-    }
-    terrain.rebuild_params(device, pipeline_cache);
 }

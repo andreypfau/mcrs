@@ -1,7 +1,7 @@
 #define_import_path mcrs_minecraft_client::surface
 
 #import mcrs_minecraft_client::fields::{FACE_LAYER_BITS}
-#import mcrs_minecraft_client::frame::{camera, globals, params}
+#import mcrs_minecraft_client::frame::{camera, globals}
 #import mcrs_minecraft_client::terrain_bindings::{
     animations, atlas0, atlas1, atlas2, atlas3, atlas_sampler, tint_sampler, tints,
 }
@@ -33,7 +33,7 @@ fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
 /// Animated sprites are numbered down from the top of the layer range, so a layer at or above
 /// `animated_from` names an animation rather than a still frame.
 fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
-    if (layer < params.animated_from) {
+    if (layer < camera.animated_from) {
         return sample_atlas(array, uv, layer, ddx, ddy);
     }
     let animation = animations[(1u << FACE_LAYER_BITS) - 1u - layer];

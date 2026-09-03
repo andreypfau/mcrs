@@ -40,7 +40,6 @@ impl DrawnTriangles {
     pub fn get(&self) -> u32 {
         self.0.triangles.load(Ordering::Relaxed)
     }
-
 }
 
 #[derive(Default)]

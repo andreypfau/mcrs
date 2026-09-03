@@ -4,13 +4,15 @@ use crate::sky_state::{SkyEffects, SkyFrame, SkyKey};
 use bevy::asset::embedded_asset;
 use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
+use bevy::render::render_phase::TrackedRenderPass;
 use bevy::render::render_resource::binding_types::{
     sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
+use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::texture::GpuImage;
 use bevy::render::view::{
     ExtractedView, ViewDepthTexture, ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms,
@@ -19,7 +21,7 @@ use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, R
 use bevy::shader::Shader;
 use mcrs_minecraft_world::world_clock::WorldClocks;
 
-use crate::render::SkyBuffer;
+use crate::render::{DEPTH_COMPARE, pipeline_descriptor, uniform_buffer};
 use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};
 
 const STAR_COUNT: u32 = 1500;
@@ -49,6 +51,8 @@ struct SkyDraw {
     blend: Option<BlendState>,
     vertices: u32,
     writes_depth: bool,
+    /// Whether the draw would put any colour on screen with these values.
+    visible: fn(&SkyUniform) -> bool,
 }
 
 const SKY_DRAWS: [SkyDraw; 5] = [
@@ -60,6 +64,7 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         blend: None,
         vertices: 48,
         writes_depth: false,
+        visible: |_| true,
     },
     SkyDraw {
         label: "sky twilight",
@@ -69,6 +74,7 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         blend: Some(BlendState::ALPHA_BLENDING),
         vertices: 48,
         writes_depth: false,
+        visible: |sky| sky.sunrise[3] > 0.001,
     },
     SkyDraw {
         label: "sky celestial",
@@ -78,6 +84,7 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         blend: Some(ADDITIVE),
         vertices: 12,
         writes_depth: false,
+        visible: |_| true,
     },
     SkyDraw {
         label: "sky stars",
@@ -87,6 +94,7 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         blend: Some(ADDITIVE),
         vertices: STAR_COUNT * 6,
         writes_depth: false,
+        visible: |sky| sky.angles[3] > 0.0,
     },
     SkyDraw {
         label: "sky clouds",
@@ -96,8 +104,11 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         blend: Some(BlendState::ALPHA_BLENDING),
         vertices: 3,
         writes_depth: true,
+        visible: |_| true,
     },
 ];
+
+const CLOUDS: usize = 4;
 
 pub struct SkyRenderPlugin;
 
@@ -114,7 +125,7 @@ impl Plugin for SkyRenderPlugin {
             .add_systems(
                 Render,
                 (
-                    prepare_sky.in_set(RenderSystems::Prepare),
+                    (prepare_sky, write_sky).in_set(RenderSystems::Prepare),
                     prepare_sky_bind_groups.in_set(RenderSystems::PrepareBindGroups),
                 ),
             )
@@ -132,7 +143,8 @@ pub(crate) struct Sky {
     view_layout: BindGroupLayoutDescriptor,
     texture_layout: BindGroupLayoutDescriptor,
     shader: Handle<Shader>,
-    pipelines: Option<(SkyKey, Vec<(usize, CachedRenderPipelineId)>)>,
+    uniform: Buffer,
+    pipelines: Option<(SkyKey, [Option<CachedRenderPipelineId>; SKY_DRAWS.len()])>,
     textures: Option<(AssetId<Image>, AssetId<Image>, BindGroup)>,
 }
 
@@ -155,7 +167,7 @@ pub(crate) struct SkyBindGroups {
     textures: BindGroup,
 }
 
-fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<RenderDevice>) {
     commands.insert_resource(Sky {
         view_layout: BindGroupLayoutDescriptor::new(
             "sky view",
@@ -179,6 +191,7 @@ fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>) {
             ),
         ),
         shader: asset_server.load("embedded://mcrs_minecraft_client/shaders/sky.wgsl"),
+        uniform: uniform_buffer("sky", size_of::<SkyUniform>() as u64, &device),
         pipelines: None,
         textures: None,
     });
@@ -207,6 +220,13 @@ fn extract_sky(
     });
 }
 
+fn write_sky(sky: Option<Res<Sky>>, extracted: Option<Res<ExtractedSky>>, queue: Res<RenderQueue>) {
+    let (Some(sky), Some(extracted)) = (sky, extracted) else {
+        return;
+    };
+    queue.write_buffer(&sky.uniform, 0, bytemuck::bytes_of(&extracted.uniform));
+}
+
 fn prepare_sky(
     sky: Option<ResMut<Sky>>,
     extracted: Option<Res<ExtractedSky>>,
@@ -227,29 +247,9 @@ fn prepare_sky(
         return;
     };
     let layout = vec![sky.view_layout.clone(), sky.texture_layout.clone()];
-    let queued = SKY_DRAWS
-        .iter()
-        .enumerate()
-        .filter(|(_, draw)| extracted.key.effects.contains(draw.effect))
-        .map(|(index, draw)| {
-            let pipeline = pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
-                label: Some(draw.label.into()),
-                layout: layout.clone(),
-                vertex: VertexState {
-                    shader: sky.shader.clone(),
-                    entry_point: Some(draw.vertex.into()),
-                    ..default()
-                },
-                fragment: Some(FragmentState {
-                    shader: sky.shader.clone(),
-                    entry_point: Some(draw.fragment.into()),
-                    targets: vec![Some(ColorTargetState {
-                        format: view.target_format,
-                        blend: draw.blend,
-                        write_mask: ColorWrites::ALL,
-                    })],
-                    ..default()
-                }),
+    let queued = SKY_DRAWS.each_ref().map(|draw| {
+        extracted.key.effects.contains(draw.effect).then(|| {
+            pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
                 primitive: PrimitiveState {
                     topology: PrimitiveTopology::TriangleList,
                     front_face: FrontFace::Ccw,
@@ -260,22 +260,25 @@ fn prepare_sky(
                     format: CORE_3D_DEPTH_FORMAT,
                     depth_write_enabled: Some(draw.writes_depth),
                     depth_compare: Some(if draw.writes_depth {
-                        crate::render::DEPTH_COMPARE
+                        DEPTH_COMPARE
                     } else {
                         CompareFunction::Always
                     }),
                     stencil: default(),
                     bias: default(),
                 }),
-                multisample: MultisampleState {
-                    count: 1,
-                    ..default()
-                },
-                ..default()
-            });
-            (index, pipeline)
+                ..pipeline_descriptor(
+                    draw.label.into(),
+                    layout.clone(),
+                    &sky.shader,
+                    draw.vertex.into(),
+                    draw.fragment.into(),
+                    view,
+                    draw.blend,
+                )
+            })
         })
-        .collect();
+    });
     info!(?extracted.key, draws = extracted.key.draws(), "queued the sky pipelines");
     sky.pipelines = Some((extracted.key, queued));
 }
@@ -284,13 +287,12 @@ fn prepare_sky_bind_groups(
     mut commands: Commands,
     sky: Option<ResMut<Sky>>,
     extracted: Option<Res<ExtractedSky>>,
-    buffer: Option<Res<SkyBuffer>>,
     images: Res<RenderAssets<GpuImage>>,
     view_uniforms: Res<ViewUniforms>,
     device: Res<RenderDevice>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let (Some(mut sky), Some(extracted), Some(buffer)) = (sky, extracted, buffer) else {
+    let (Some(mut sky), Some(extracted)) = (sky, extracted) else {
         return;
     };
     let Some(view_binding) = view_uniforms.uniforms.binding() else {
@@ -326,14 +328,68 @@ fn prepare_sky_bind_groups(
         view: device.create_bind_group(
             "sky view",
             &pipeline_cache.get_bind_group_layout(&sky.view_layout),
-            &BindGroupEntries::sequential((view_binding, buffer.as_entire_buffer_binding())),
+            &BindGroupEntries::sequential((view_binding, sky.uniform.as_entire_buffer_binding())),
         ),
         textures,
     });
 }
 
-fn contributes(draw: &SkyDraw, uniform: &SkyUniform) -> bool {
-    draw.effect != SkyEffects::STARS || uniform.angles[3] > 0.0
+#[derive(SystemParam)]
+pub(crate) struct CloudDraw<'w> {
+    sky: Option<Res<'w, Sky>>,
+    extracted: Option<Res<'w, ExtractedSky>>,
+    binds: Option<Res<'w, SkyBindGroups>>,
+}
+
+impl CloudDraw<'_> {
+    pub fn draw<'pass>(
+        &'pass self,
+        pass: &mut TrackedRenderPass<'pass>,
+        view_offset: u32,
+        cache: &'pass PipelineCache,
+    ) {
+        let (Some(sky), Some(extracted), Some(binds)) = (
+            self.sky.as_deref(),
+            self.extracted.as_deref(),
+            self.binds.as_deref(),
+        ) else {
+            return;
+        };
+        let Some((_, pipelines)) = sky.pipelines.as_ref() else {
+            return;
+        };
+        pass.set_bind_group(1, &binds.textures, &[]);
+        issue(
+            pass,
+            CLOUDS,
+            pipelines,
+            extracted,
+            binds,
+            view_offset,
+            cache,
+        );
+    }
+}
+
+fn issue<'pass>(
+    pass: &mut TrackedRenderPass<'pass>,
+    index: usize,
+    pipelines: &[Option<CachedRenderPipelineId>; SKY_DRAWS.len()],
+    extracted: &ExtractedSky,
+    binds: &'pass SkyBindGroups,
+    view_offset: u32,
+    cache: &'pass PipelineCache,
+) {
+    let draw = &SKY_DRAWS[index];
+    if !(draw.visible)(&extracted.uniform) {
+        return;
+    }
+    let Some(pipeline) = pipelines[index].and_then(|id| cache.get_render_pipeline(id)) else {
+        return;
+    };
+    pass.set_render_pipeline(pipeline);
+    pass.set_bind_group(0, &binds.view, &[view_offset]);
+    pass.draw(0..draw.vertices, 0..1);
 }
 
 pub(crate) fn draw_sky(
@@ -362,17 +418,16 @@ pub(crate) fn draw_sky(
         multiview_mask: None,
     });
     pass.set_bind_group(1, &binds.textures, &[]);
-    for &(index, id) in pipelines {
-        let draw = &SKY_DRAWS[index];
-        if !contributes(draw, &extracted.uniform) {
-            continue;
-        }
-        let Some(pipeline) = pipeline_cache.get_render_pipeline(id) else {
-            continue;
-        };
-        pass.set_render_pipeline(pipeline);
-        pass.set_bind_group(0, &binds.view, &[view_offset.offset]);
-        pass.draw(0..draw.vertices, 0..1);
+    for index in (0..SKY_DRAWS.len()).filter(|&index| index != CLOUDS) {
+        issue(
+            &mut pass,
+            index,
+            pipelines,
+            &extracted,
+            &binds,
+            view_offset.offset,
+            &pipeline_cache,
+        );
     }
 }
 
@@ -388,6 +443,7 @@ mod tests {
             .map(|draw| draw.label)
             .collect();
         assert_eq!(writers, ["sky clouds"]);
+        assert_eq!(SKY_DRAWS[CLOUDS].label, "sky clouds");
     }
 
     #[test]
@@ -413,19 +469,17 @@ mod tests {
     }
 
     #[test]
-    fn the_stars_are_drawn_only_while_they_carry_brightness() {
-        let stars = SKY_DRAWS
-            .iter()
-            .find(|draw| draw.effect == SkyEffects::STARS)
-            .unwrap();
-        let with_brightness = |brightness: f32| SkyUniform {
-            angles: [0.0, 0.0, 0.0, brightness],
+    fn a_draw_is_skipped_only_while_it_would_put_nothing_on_screen() {
+        let dark = SkyUniform::default();
+        let lit = SkyUniform {
+            angles: [0.0, 0.0, 0.0, f32::MIN_POSITIVE],
+            sunrise: [0.0, 0.0, 0.0, 0.5],
             ..default()
         };
-        assert!(!contributes(stars, &with_brightness(0.0)));
-        assert!(contributes(stars, &with_brightness(f32::MIN_POSITIVE)));
-        for draw in SKY_DRAWS.iter().filter(|draw| draw.effect != stars.effect) {
-            assert!(contributes(draw, &with_brightness(0.0)), "{}", draw.label);
+        for draw in &SKY_DRAWS {
+            assert!((draw.visible)(&lit), "{}", draw.label);
+            let fades = matches!(draw.effect, SkyEffects::STARS | SkyEffects::TWILIGHT);
+            assert_eq!((draw.visible)(&dark), !fades, "{}", draw.label);
         }
     }
 

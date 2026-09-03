@@ -2,27 +2,28 @@ use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
+use crate::blocks::TINT_KINDS;
 use crate::pack::MAX_SPRITE_ARRAYS;
 use crate::sky::SkyUniform;
 
 use super::{Atlas, Budget};
 
-pub(super) const TINT_LAYERS: u32 = 3;
+const TINT_LAYERS: u32 = TINT_KINDS as u32;
 
-pub(super) const LIGHT_LEVELS: u32 = 16;
+const LIGHT_LEVELS: u32 = 16;
 
 pub(super) fn upload_atlases(
     atlases: &[Atlas],
     device: &RenderDevice,
     queue: &RenderQueue,
-) -> (Vec<TextureView>, Sampler) {
+) -> Vec<TextureView> {
     let limit = device.limits().max_texture_array_layers;
     let blank = Atlas {
         size: 1,
         layers: 1,
         mips: vec![vec![0u8; 4]],
     };
-    let views = (0..MAX_SPRITE_ARRAYS)
+    (0..MAX_SPRITE_ARRAYS)
         .map(|index| {
             let atlas = atlases.get(index).unwrap_or(&blank);
             assert!(
@@ -34,11 +35,10 @@ pub(super) fn upload_atlases(
             );
             upload_atlas(atlas, &format!("terrain atlas {index}"), device, queue)
         })
-        .collect();
-    (views, atlas_sampler(device))
+        .collect()
 }
 
-pub(super) fn upload_atlas(
+fn upload_atlas(
     atlas: &Atlas,
     label: &str,
     device: &RenderDevice,
@@ -183,7 +183,7 @@ pub(super) fn create_lightmap(device: &RenderDevice) -> Texture {
 
 pub(super) fn write_lightmap(lightmap: &Texture, queue: &RenderQueue, sky: &SkyUniform) {
     let levels = LIGHT_LEVELS as usize;
-    let mut texels = vec![[0.0f32; 4]; levels * levels];
+    let mut texels = [[0.0f32; 4]; (LIGHT_LEVELS * LIGHT_LEVELS) as usize];
     for sky_level in 0..levels {
         for block_level in 0..levels {
             texels[sky_level * levels + block_level] =

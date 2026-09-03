@@ -9,9 +9,8 @@ use super::stats::DrawArgs;
 use super::terrain::Terrain;
 use crate::camera::CameraOrigin;
 use crate::mesh::STREAMS;
-use crate::sky::SkyUniform;
 
-use super::Budget;
+use super::{Budget, Wireframe};
 
 /// The frame's view, expressed against the origin of the section the camera stands in. Nothing
 /// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
@@ -26,6 +25,9 @@ pub(super) struct CameraUniform {
     _pad_offset: f32,
     tint_origin: [f32; 2],
     tint_scale: [f32; 2],
+    wireframe: u32,
+    animated_from: u32,
+    _pad_flags: [u32; 2],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
@@ -37,7 +39,6 @@ const SIDE_PLANES: usize = 5;
 pub(super) struct Frame {
     pub params: Buffer,
     pub camera: Buffer,
-    pub sky: Buffer,
     pub cave: Buffer,
     pub args: Buffer,
     // Copied over `args` once a frame so the cull pass starts from zeroed instance counts
@@ -46,28 +47,25 @@ pub(super) struct Frame {
     pub args_readback: Buffer,
 }
 
+pub(crate) fn uniform(label: &str, size: u64, device: &RenderDevice) -> Buffer {
+    device.create_buffer(&BufferDescriptor {
+        label: Some(label),
+        size,
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
 impl Frame {
     pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
         let args_init = vec![DrawArgs::quad_strip(); STREAMS];
         Self {
-            params: device.create_buffer(&BufferDescriptor {
-                label: Some("terrain draw params"),
-                size: STREAMS as u64 * PARAMS_STRIDE as u64,
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }),
-            camera: device.create_buffer(&BufferDescriptor {
-                label: Some("terrain camera"),
-                size: CAMERA_SIZE,
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }),
-            sky: device.create_buffer(&BufferDescriptor {
-                label: Some("terrain sky"),
-                size: size_of::<SkyUniform>() as u64,
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }),
+            params: uniform(
+                "terrain draw params",
+                STREAMS as u64 * PARAMS_STRIDE as u64,
+                device,
+            ),
+            camera: uniform("terrain camera", CAMERA_SIZE, device),
             cave: device.create_buffer_with_data(&BufferInitDescriptor {
                 label: Some("terrain cave visibility"),
                 contents: bytemuck::cast_slice(&vec![u32::MAX; budget.sections.div_ceil(32)]),
@@ -104,6 +102,7 @@ pub(super) fn write_camera(
     terrain: Option<Res<Terrain>>,
     origin: Option<Res<CameraOrigin>>,
     views: Query<&ExtractedView, With<Camera3d>>,
+    wireframe: Res<Wireframe>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(terrain), Some(origin), Some(view)) = (terrain, origin, views.iter().next()) else {
@@ -133,6 +132,8 @@ pub(super) fn write_camera(
                 1.0 / terrain.budget.tint_size[0] as f32,
                 1.0 / terrain.budget.tint_size[1] as f32,
             ],
+            wireframe: u32::from(wireframe.0),
+            animated_from: terrain.sprites.animated_from,
             ..default()
         }),
     );

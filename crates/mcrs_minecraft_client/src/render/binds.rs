@@ -7,16 +7,13 @@ use bevy::render::render_resource::binding_types::{
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
-use bevy::render::view::ViewUniform;
 
 use crate::pack::MAX_SPRITE_ARRAYS;
-use crate::sky::SkyUniform;
 
 use super::arenas::Arenas;
 use super::draws::PARAMS_SIZE;
 use super::frame::{CAMERA_SIZE, Frame};
 use super::sprites::Sprites;
-use super::texture::array_view;
 
 pub(super) struct Bindings {
     pub view_layout: BindGroupLayoutDescriptor,
@@ -75,10 +72,8 @@ fn view_layout() -> BindGroupLayoutDescriptor {
         &BindGroupLayoutEntries::sequential(
             ShaderStages::VERTEX_FRAGMENT | ShaderStages::COMPUTE,
             (
-                uniform_buffer_sized(true, Some(ViewUniform::min_size())),
                 uniform_buffer_sized(true, NonZeroU64::new(PARAMS_SIZE)),
                 uniform_buffer::<GlobalsUniform>(false),
-                uniform_buffer_sized(false, NonZeroU64::new(size_of::<SkyUniform>() as u64)),
                 uniform_buffer_sized(false, NonZeroU64::new(CAMERA_SIZE)),
             ),
         ),
@@ -166,12 +161,12 @@ fn draw_bind_group(
             &sprites.atlases[2],
             &sprites.atlases[3],
             &sprites.atlas_sampler,
-            &array_view(&sprites.tints),
+            &sprites.tints_view,
             &sprites.tint_sampler,
             sprites.animations.as_entire_buffer_binding(),
             arenas.faces.as_entire_buffer_binding(),
             arenas.sections.as_entire_buffer_binding(),
-            &sprites.lightmap.create_view(&TextureViewDescriptor::default()),
+            &sprites.lightmap_view,
         )),
     )
 }

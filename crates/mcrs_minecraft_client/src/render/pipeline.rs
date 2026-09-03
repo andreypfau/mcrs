@@ -3,18 +3,21 @@ use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::view::ExtractedView;
 
+use crate::blocks::Pass;
+use crate::mesh::stream_pass;
+
 use super::binds::Bindings;
-use super::layer::{Layer, Shape};
+use super::layer::Shape;
 use super::shaders::Shaders;
 use super::terrain::Terrain;
 
-pub(super) const TERRAIN_PIPELINES: usize = Layer::ALL.len() * Shape::ALL.len();
+pub(super) const TERRAIN_PIPELINES: usize = Pass::COUNT * Shape::ALL.len();
 
-const fn slot(layer: Layer, shape: Shape) -> usize {
+const fn slot(layer: Pass, shape: Shape) -> usize {
     layer as usize * Shape::ALL.len() + shape as usize
 }
 
-pub(super) fn common(
+pub(crate) fn common(
     label: String,
     layout: Vec<BindGroupLayoutDescriptor>,
     shader: &Handle<Shader>,
@@ -92,7 +95,7 @@ impl Pipelines {
         pipeline_cache: &PipelineCache,
     ) {
         let mut terrain = [CachedRenderPipelineId::INVALID; TERRAIN_PIPELINES];
-        for layer in Layer::ALL {
+        for layer in Pass::ALL {
             for shape in Shape::ALL {
                 terrain[slot(layer, shape)] =
                     self.queue_terrain(layer, shape, binds, view, pipeline_cache);
@@ -103,7 +106,7 @@ impl Pipelines {
 
     fn queue_terrain(
         &self,
-        layer: Layer,
+        layer: Pass,
         shape: Shape,
         binds: &Bindings,
         view: &ExtractedView,
@@ -142,7 +145,7 @@ impl Pipelines {
         wireframe: bool,
         pipeline_cache: &'cache PipelineCache,
     ) -> Option<&'cache RenderPipeline> {
-        let layer = Layer::of_stream(stream).drawn_as(wireframe);
+        let layer = stream_pass(stream).drawn_as(wireframe);
         let slot = slot(layer, Shape::of_stream(stream));
         pipeline_cache.get_render_pipeline(self.terrain?[slot])
     }
@@ -150,7 +153,7 @@ impl Pipelines {
 
 // Model quads sit flush against the greedy faces behind them, so without a nudge the two
 // fight for the same depth.
-fn model_depth_bias(layer: Layer, shape: Shape) -> DepthBiasState {
+fn model_depth_bias(layer: Pass, shape: Shape) -> DepthBiasState {
     if shape == Shape::Model && layer.writes_depth() {
         DepthBiasState {
             constant: 2,
@@ -188,7 +191,7 @@ mod tests {
 
     #[test]
     fn the_table_holds_one_pipeline_per_layer_and_shape() {
-        let mut slots: Vec<usize> = Layer::ALL
+        let mut slots: Vec<usize> = Pass::ALL
             .iter()
             .flat_map(|&layer| Shape::ALL.iter().map(move |&shape| slot(layer, shape)))
             .collect();

@@ -1,5 +1,9 @@
 #define_import_path mcrs_minecraft_client::quad
 
+fn degenerate() -> vec4<f32> {
+    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+}
+
 /// Both geometry kinds draw a quad as a four vertex triangle strip, so the strip order and
 /// the corner order around the quad are not the same walk.
 fn corner_index(vertex: u32) -> u32 {

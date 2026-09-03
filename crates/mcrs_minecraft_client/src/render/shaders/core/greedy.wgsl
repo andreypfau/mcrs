@@ -24,9 +24,9 @@
 #import mcrs_minecraft_client::frame::{camera, params}
 #import mcrs_minecraft_client::lighting::{ao_factor, face_shade, lightmap}
 #import mcrs_minecraft_client::quad::{
-    corner_index, corner_uv, face_normal, face_u_dir, face_v_dir,
+    corner_index, corner_uv, degenerate, face_normal, face_u_dir, face_v_dir,
 }
-#import mcrs_minecraft_client::section::{CULLED, degenerate, section_origin}
+#import mcrs_minecraft_client::section::{CULLED, section_origin}
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
 #import mcrs_minecraft_client::terrain_bindings::{faces, quad_field, sections, visible}
 

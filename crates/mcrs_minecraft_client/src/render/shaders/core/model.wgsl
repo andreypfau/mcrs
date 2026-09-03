@@ -17,8 +17,8 @@
 #import mcrs_minecraft_client::finish::{finish_cutout, finish_solid, finish_translucent}
 #import mcrs_minecraft_client::frame::{camera, params}
 #import mcrs_minecraft_client::lighting::lightmap
-#import mcrs_minecraft_client::quad::{corner_index, corner_uv}
-#import mcrs_minecraft_client::section::{CULLED, degenerate, section_origin}
+#import mcrs_minecraft_client::quad::{corner_index, corner_uv, degenerate}
+#import mcrs_minecraft_client::section::{CULLED, section_origin}
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
 #import mcrs_minecraft_client::terrain_bindings::{model_field, sections, visible}
 

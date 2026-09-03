@@ -1,9 +1,11 @@
-use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderQueue;
 
 use crate::mesh::{Draw, STREAMS, stream_is_model};
 use crate::pack::MODEL_OVERHANG;
+
+use super::Streams;
+use super::layer::LayerGroup;
 
 pub(super) const PARAMS_STRIDE: u32 = 256;
 pub(super) const PARAMS_SIZE: u64 = 32;
@@ -16,18 +18,14 @@ pub(super) struct Params {
     group_count: u32,
     visible_base: u32,
     args_index: u32,
-    wireframe: u32,
     overhang: f32,
-    animated_from: u32,
     /// Keeps the struct a 16-byte multiple, which every backend lays a uniform
     /// out to whatever the member alignments alone would allow.
-    padding: u32,
+    padding: [u32; 3],
 }
 
 pub(super) struct DrawList {
     pub draws: Vec<Draw>,
-    pub group_counts: Vec<u32>,
-    pub wireframe: u32,
     /// Entries the visible list has to hold for the draws as they stand.
     ///
     /// A blended draw addresses the list by the slot the mesher gave each
@@ -44,17 +42,14 @@ impl DrawList {
     pub fn new() -> Self {
         Self {
             draws: Vec::new(),
-            group_counts: Vec::new(),
-            wireframe: 0,
             visible_entries: 0,
             params: Vec::with_capacity(STREAMS),
             dirty: false,
         }
     }
 
-    pub fn rebuild(&mut self, animated_from: u32) {
+    pub fn rebuild(&mut self) {
         self.params.clear();
-        self.group_counts.clear();
         let mut visible_base = 0u32;
         for (index, draw) in self.draws.iter().enumerate() {
             self.params.push(Params {
@@ -62,17 +57,14 @@ impl DrawList {
                 group_count: draw.group_count,
                 visible_base,
                 args_index: index as u32,
-                wireframe: self.wireframe,
                 overhang: if stream_is_model(draw.stream) {
                     MODEL_OVERHANG
                 } else {
                     0.0
                 },
-                animated_from,
-                padding: 0,
+                padding: [0; 3],
             });
             visible_base += draw.quad_count;
-            self.group_counts.push(draw.group_count);
         }
         self.visible_entries = visible_base as usize;
         self.dirty = true;
@@ -83,34 +75,19 @@ impl DrawList {
             return;
         }
         self.dirty = false;
-        let stride = PARAMS_STRIDE as usize;
-        let mut bytes = vec![0u8; self.params.len() * stride];
         for (index, entry) in self.params.iter().enumerate() {
-            let at = index * stride;
-            bytes[at..at + PARAMS_SIZE as usize].copy_from_slice(bytemuck::bytes_of(entry));
-        }
-        if !bytes.is_empty() {
-            queue.write_buffer(params, 0, &bytes);
+            let at = index as u64 * PARAMS_STRIDE as u64;
+            queue.write_buffer(params, at, bytemuck::bytes_of(entry));
         }
     }
-}
 
-pub(super) fn prepare_wireframe(
-    wireframe: Res<super::Wireframe>,
-    mut terrain: Option<ResMut<super::terrain::Terrain>>,
-    queue: Res<RenderQueue>,
-    device: Res<bevy::render::renderer::RenderDevice>,
-    pipeline_cache: Res<PipelineCache>,
-) {
-    let Some(terrain) = terrain.as_mut() else {
-        return;
-    };
-    let flag = u32::from(wireframe.0);
-    if terrain.list.wireframe == flag {
-        return;
+    pub fn drawn<'a>(
+        &'a self,
+        group: LayerGroup,
+        streams: &'a Streams,
+    ) -> impl Iterator<Item = (usize, &'a Draw)> {
+        self.draws.iter().enumerate().filter(move |(_, draw)| {
+            draw.quad_count != 0 && group.holds(draw.stream) && streams.drawn(draw.stream)
+        })
     }
-    let terrain = terrain.as_mut();
-    terrain.list.wireframe = flag;
-    terrain.rebuild_params(&device, &pipeline_cache);
-    terrain.list.flush(&terrain.frame.params, &queue);
 }

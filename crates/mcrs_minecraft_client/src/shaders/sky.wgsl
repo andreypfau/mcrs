@@ -1,4 +1,6 @@
+#import bevy_render::maths::{HALF_PI, PI}
 #import bevy_render::view::View
+#import mcrs_minecraft_client::quad::degenerate
 #import mcrs_minecraft_client::sky::Sky
 
 @group(0) @binding(0) var<uniform> view: View;
@@ -7,8 +9,6 @@
 @group(1) @binding(0) var celestials: texture_2d_array<f32>;
 @group(1) @binding(1) var celestial_sampler: sampler;
 @group(1) @binding(2) var clouds: texture_2d<f32>;
-
-const PI: f32 = 3.14159265359;
 
 const SKY_DISC_Y: f32 = 16.0;
 const DARK_DISC_Y: f32 = -4.0;
@@ -42,10 +42,6 @@ struct SkyVertex {
     @location(3) distance: f32,
 };
 
-fn degenerate() -> vec4<f32> {
-    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
-}
-
 fn to_clip(local: vec3<f32>) -> vec4<f32> {
     return view.clip_from_world * vec4<f32>(view.world_position.xyz + local, 1.0);
 }
@@ -69,7 +65,7 @@ fn rotate_z(v: vec3<f32>, angle: f32) -> vec3<f32> {
 }
 
 fn celestial_frame(local: vec3<f32>, angle: f32) -> vec3<f32> {
-    return rotate_y(rotate_x(local, angle), -PI / 2.0);
+    return rotate_y(rotate_x(local, angle), -HALF_PI);
 }
 
 fn disc_corner(index: u32, y: f32) -> vec3<f32> {
@@ -86,8 +82,6 @@ fn disc_corner(index: u32, y: f32) -> vec3<f32> {
 @vertex
 fn vertex_disc(@builtin(vertex_index) index: u32) -> SkyVertex {
     var out: SkyVertex;
-    out.uv = vec2<f32>(0.0);
-    out.layer = 0u;
     var local = vec3<f32>(0.0);
     if index < DISC_VERTICES {
         local = disc_corner(index, SKY_DISC_Y);
@@ -108,16 +102,7 @@ fn vertex_disc(@builtin(vertex_index) index: u32) -> SkyVertex {
 @vertex
 fn vertex_sunrise(@builtin(vertex_index) index: u32) -> SkyVertex {
     var out: SkyVertex;
-    out.uv = vec2<f32>(0.0);
-    out.layer = 0u;
-    out.distance = 0.0;
     let alpha = sky.sunrise.a;
-    if alpha <= 0.001 {
-        out.clip_position = degenerate();
-        out.color = vec4<f32>(0.0);
-        return out;
-    }
-
     let corner = index % 3u;
     var local = vec3<f32>(0.0, CELESTIAL_HEIGHT, 0.0);
     var fade = 1.0;
@@ -133,7 +118,7 @@ fn vertex_sunrise(@builtin(vertex_index) index: u32) -> SkyVertex {
     }
     local.z *= alpha;
     let side = select(0.0, PI, sin(sky.angles.x) < 0.0);
-    out.clip_position = to_clip(rotate_x(rotate_z(local, side + PI / 2.0), PI / 2.0));
+    out.clip_position = to_clip(rotate_x(rotate_z(local, side + HALF_PI), HALF_PI));
     out.color = vec4<f32>(sky.sunrise.rgb, alpha * fade);
     return out;
 }
@@ -167,7 +152,6 @@ fn vertex_celestial(@builtin(vertex_index) index: u32) -> SkyVertex {
     out.clip_position = to_clip(celestial_frame(local, angle));
     out.color = vec4<f32>(1.0, 1.0, 1.0, sky.moon.y);
     out.uv = uv;
-    out.distance = 0.0;
     out.layer = select(0u, u32(sky.moon.x), is_moon);
     return out;
 }
@@ -195,9 +179,6 @@ fn vertex_stars(@builtin(vertex_index) index: u32) -> SkyVertex {
     let spin = random(draw + 4u) * 2.0 * PI;
 
     var out: SkyVertex;
-    out.uv = vec2<f32>(0.0);
-    out.layer = 0u;
-    out.distance = 0.0;
     out.color = vec4<f32>(sky.angles.w);
 
     let length_squared = dot(point, point);
@@ -240,7 +221,9 @@ fn fragment_celestial(in: SkyVertex) -> @location(0) vec4<f32> {
 
 struct CloudVertex {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) ndc: vec2<f32>,
+    // Every near-plane point shares one clip w, so the unprojected position is affine across
+    // the screen and interpolates exactly.
+    @location(0) near: vec3<f32>,
 };
 
 struct CloudFragment {
@@ -251,9 +234,11 @@ struct CloudFragment {
 @vertex
 fn vertex_clouds(@builtin(vertex_index) index: u32) -> CloudVertex {
     let corner = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));
+    let ndc = corner * 2.0 - 1.0;
+    let near = view.world_from_clip * vec4<f32>(ndc, 1.0, 1.0);
     var out: CloudVertex;
-    out.ndc = corner * 2.0 - 1.0;
-    out.clip_position = vec4<f32>(out.ndc, 1.0, 1.0);
+    out.near = near.xyz / near.w;
+    out.clip_position = vec4<f32>(ndc, 1.0, 1.0);
     return out;
 }
 
@@ -268,8 +253,7 @@ fn fragment_clouds(in: CloudVertex) -> CloudFragment {
     out.depth = 0.0;
 
     let origin = view.world_position.xyz;
-    let near = view.world_from_clip * vec4<f32>(in.ndc, 1.0, 1.0);
-    let direction = normalize(near.xyz / near.w - origin);
+    let direction = normalize(in.near - origin);
 
     let bottom = sky.cloud.x;
     let top = bottom + CLOUD_THICKNESS;
