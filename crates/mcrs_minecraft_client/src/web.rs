@@ -12,12 +12,9 @@ use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
 use bevy::camera::visibility::VisibilitySystems;
-use std::sync::Arc;
 
-use crate::render::{
-    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads,
-};
-use crate::sky_state::SkyEffects;
+use crate::config::TerrainLimits;
+use crate::render::TerrainPlugin;
 use crate::{camera, cave, config, gui, input, local_player, player, render, sky, sky_render, stream};
 
 pub const CANVAS: &str = "#mcrs";
@@ -95,14 +92,8 @@ struct FrozenTicks(i64);
 pub fn run() {
     console_error_panic_hook::set_once();
 
-    let frozen_at = query("time").and_then(|ticks| ticks.trim().parse::<i64>().ok());
-    let sky_only = query("sky").and_then(|list| match SkyEffects::parse(&list) {
-        Ok(effects) => Some(effects),
-        Err(error) => {
-            error!("?sky={list}: {error}");
-            None
-        }
-    });
+    let frozen_at = config::frozen_time();
+    let sky_only = config::sky_draws_only();
 
     let mut app = App::new();
     register_asset_source(&mut app);
@@ -143,7 +134,7 @@ pub fn run() {
         app.insert_resource(sky_render::SkyDrawsOnly(only));
     }
 
-    let (budget, uploads, cave, loader) = terrain();
+    let (budget, uploads, cave, loader) = config::terrain(SPAWN, TERRAIN_LIMITS);
     app.add_plugins(TerrainPlugin(budget, uploads))
         .insert_resource(config::drawn_streams())
         .insert_resource(config::raster_fraction())
@@ -167,57 +158,19 @@ pub fn run() {
              The server logs both at startup."
         ),
     }
-    let (yaw, pitch) = look_override().unwrap_or((0.0, 0.0));
+    let (yaw, pitch) = config::look_override().unwrap_or((0.0, 0.0));
     player::spawn_player(app.world_mut(), SPAWN, yaw, pitch);
     app.run();
 }
 
 /// The browser draws the same columns the native client does, from a smaller
 /// arena: a WebGPU context has far less room than a desktop one.
-const ARENA_SCALE: usize = 1;
-
-const GROUPS_BUDGET: usize = 1 << 20;
-
-const SECTIONS_BUDGET: usize = 1 << 14;
-
-const TINT_SPAN: u32 = 512;
-
-fn terrain() -> (Arc<Budget>, Uploads, cave::CaveCull, stream::Loader) {
-    let (quad_mb, model_mb, face_mb) = config::arena_budget();
-    let centre = |axis: f64| (axis as i32).div_euclid(16) * 16 - TINT_SPAN as i32 / 2;
-    let budget = Arc::new(Budget {
-        quads: quad_mb * ARENA_SCALE * 1_000_000 / QUAD_BYTES,
-        models: model_mb * ARENA_SCALE * 1_000_000 / MODEL_BYTES,
-        faces: face_mb * ARENA_SCALE * 1_000_000 / FACE_BYTES,
-        groups: GROUPS_BUDGET,
-        sections: SECTIONS_BUDGET,
-        tint_origin: [centre(SPAWN.x), centre(SPAWN.z)],
-        tint_size: [TINT_SPAN; 2],
-    });
-    let uploads = Uploads::default();
-    let loader = stream::Loader::new(&budget, uploads.clone());
-    (
-        budget.clone(),
-        uploads,
-        cave::CaveCull::new(budget.sections),
-        loader,
-    )
-}
-
-/// `?look=<yaw>,<pitch>` aims the camera in Minecraft degrees.
-fn look_override() -> Option<(f32, f32)> {
-    let look = query("look")?;
-    match look
-        .split_once(',')
-        .and_then(|(yaw, pitch)| Some((yaw.trim().parse().ok()?, pitch.trim().parse().ok()?)))
-    {
-        Some(angles) => Some(angles),
-        None => {
-            error!("?look={look}: expected <yaw>,<pitch> in degrees");
-            None
-        }
-    }
-}
+const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
+    arena_scale: 1,
+    groups: 1 << 20,
+    sections: 1 << 14,
+    tint_span: 512,
+};
 
 fn freeze_clocks(mut clocks: ResMut<WorldClocks>, frozen: Res<FrozenTicks>) {
     let ids: Vec<String> = clocks.iter().map(|(id, _)| id.to_string()).collect();

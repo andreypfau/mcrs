@@ -1,8 +1,15 @@
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
+use bevy::math::DVec3;
+
+use crate::cave::CaveCull;
 use crate::mesh::STREAMS;
-use crate::render::{Raster, Streams, Wireframe};
+use crate::render::{
+    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Raster, Streams, Uploads, Wireframe,
+};
+use crate::sky_state::SkyEffects;
+use crate::stream;
 
 const QUAD_MB_PER_FILE: usize = 32;
 const MODEL_MB_PER_FILE: usize = 208;
@@ -129,4 +136,107 @@ pub fn gputrace_path() -> Option<String> {
 
 pub fn wireframe() -> Wireframe {
     Wireframe(knob("WIREFRAME").is_some_and(|on| on != "0"))
+}
+
+/// The knob's spelling in the message a bad value produces, which is the
+/// spelling whoever set it typed.
+#[cfg(not(target_family = "wasm"))]
+fn spelled(name: &str) -> String {
+    format!("MCRS_{name}")
+}
+
+#[cfg(target_family = "wasm")]
+fn spelled(name: &str) -> String {
+    format!("?{}", name.to_ascii_lowercase())
+}
+
+/// A knob set to something unusable is a typo in a run that was asked for, so
+/// the native binary refuses to start. The browser has no exit status to carry
+/// that, and drops the knob after saying so.
+#[cfg(not(target_family = "wasm"))]
+fn reject<T>(name: &str, value: &str, expected: impl std::fmt::Display) -> Option<T> {
+    eprintln!("{}={value}: {expected}", spelled(name));
+    std::process::exit(1);
+}
+
+#[cfg(target_family = "wasm")]
+fn reject<T>(name: &str, value: &str, expected: impl std::fmt::Display) -> Option<T> {
+    bevy::log::error!("{}={value}: {expected}", spelled(name));
+    None
+}
+
+/// `LOOK=<yaw>,<pitch>` aims the camera somewhere other than where the save
+/// left it, in Minecraft degrees.
+pub fn look_override() -> Option<(f32, f32)> {
+    let look = knob("LOOK")?;
+    let angles = look
+        .split_once(',')
+        .and_then(|(yaw, pitch)| Some((yaw.trim().parse().ok()?, pitch.trim().parse().ok()?)));
+    match angles {
+        Some(angles) => Some(angles),
+        None => reject("LOOK", &look, "expected <yaw>,<pitch> in degrees"),
+    }
+}
+
+/// `SKY=disc,twilight,celestial,stars,clouds` draws only the passes it lists,
+/// which is how a frame gets priced one pass at a time.
+pub fn sky_draws_only() -> Option<SkyEffects> {
+    let list = knob("SKY")?;
+    match SkyEffects::parse(&list) {
+        Ok(effects) => Some(effects),
+        Err(error) => reject("SKY", &list, error),
+    }
+}
+
+/// `TIME=<ticks>` pins every clock and stops them, so a scripted screenshot
+/// lands on the tick it asked for.
+pub fn frozen_time() -> Option<i64> {
+    let ticks = knob("TIME")?;
+    match ticks.trim().parse() {
+        Ok(ticks) => Some(ticks),
+        Err(error) => reject("TIME", ticks.trim(), error),
+    }
+}
+
+pub struct TerrainLimits {
+    pub arena_scale: usize,
+    pub groups: usize,
+    pub sections: usize,
+    /// The tint texture covers a fixed square of world around the spawn.
+    /// ponytail: a player who walks out of it takes the edge tint with them;
+    /// the upgrade is a tint window that scrolls with the camera.
+    pub tint_span: u32,
+}
+
+pub fn terrain(
+    spawn: DVec3,
+    limits: TerrainLimits,
+) -> (Arc<Budget>, Uploads, CaveCull, stream::Loader) {
+    let (quad_mb, model_mb, face_mb) = arena_budget();
+    let centre = |axis: f64| (axis as i32).div_euclid(16) * 16 - limits.tint_span as i32 / 2;
+    let budget = Arc::new(Budget {
+        quads: quad_mb * limits.arena_scale * 1_000_000 / QUAD_BYTES,
+        models: model_mb * limits.arena_scale * 1_000_000 / MODEL_BYTES,
+        faces: face_mb * limits.arena_scale * 1_000_000 / FACE_BYTES,
+        groups: limits.groups,
+        sections: limits.sections,
+        tint_origin: [centre(spawn.x), centre(spawn.z)],
+        tint_size: [limits.tint_span; 2],
+    });
+
+    bevy::log::info!(
+        quad_mb = (budget.quads * QUAD_BYTES) / 1_000_000,
+        model_mb = (budget.models * MODEL_BYTES) / 1_000_000,
+        face_mb = (budget.faces * FACE_BYTES) / 1_000_000,
+        "meshing the columns the server sends"
+    );
+
+    let uploads = Uploads::default();
+    let loader = stream::Loader::new(&budget, uploads.clone());
+    (
+        budget.clone(),
+        uploads,
+        CaveCull::new(budget.sections),
+        loader,
+    )
 }

@@ -2,7 +2,6 @@
 
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use bevy::asset::AssetPlugin;
 use bevy::log::{BoxedLayer, LogPlugin};
@@ -25,10 +24,8 @@ use mcrs_minecraft_world::timeline::Timeline;
 use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
-use mcrs_minecraft_client::render::{
-    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads,
-};
-use mcrs_minecraft_client::sky_state::SkyEffects;
+use mcrs_minecraft_client::config::TerrainLimits;
+use mcrs_minecraft_client::render::TerrainPlugin;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 use mcrs_minecraft_client::{
@@ -70,8 +67,8 @@ fn main() {
 fn main() {
     let world = world_folder();
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
-    let frozen_at = frozen_time();
-    let (budget, uploads, cave, loader) = terrain(save_data.position);
+    let frozen_at = config::frozen_time();
+    let (budget, uploads, cave, loader) = config::terrain(save_data.position, TERRAIN_LIMITS);
     let assets = asset_corpus().to_string_lossy().into_owned();
 
     let mut app = App::new();
@@ -139,7 +136,7 @@ fn main() {
         log_spawned_transforms.after(TransformSystems::Propagate),
     );
 
-    if let Some(only) = sky_draws_only() {
+    if let Some(only) = config::sky_draws_only() {
         app.insert_resource(sky_render::SkyDrawsOnly(only));
     }
 
@@ -191,7 +188,7 @@ fn main() {
     #[cfg(feature = "telemetry-tracy")]
     app.add_systems(Last, frame_mark);
 
-    let (yaw, pitch) = look_override().unwrap_or((save_data.yaw, save_data.pitch));
+    let (yaw, pitch) = config::look_override().unwrap_or((save_data.yaw, save_data.pitch));
     player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
 
     app.run();
@@ -199,46 +196,12 @@ fn main() {
 
 /// One block holds every group of every bucket and a flush takes a fresh one before freeing the
 /// stale one, so the arena has to fit two of them with the buddy rounding on top.
-const GROUPS_BUDGET: usize = 1 << 21;
-
-const SECTIONS_BUDGET: usize = 1 << 16;
-
-/// The tint texture covers a fixed square of world around the spawn.
-/// ponytail: a player who walks out of it takes the edge tint with them; the
-/// upgrade is a tint window that scrolls with the camera.
-const TINT_SPAN: u32 = 1024;
-
-const ARENA_SCALE: usize = 4;
-
-fn terrain(spawn: DVec3) -> (Arc<Budget>, Uploads, cave::CaveCull, stream::Loader) {
-    let (quad_mb, model_mb, face_mb) = config::arena_budget();
-    let centre = |axis: f64| (axis as i32).div_euclid(16) * 16 - TINT_SPAN as i32 / 2;
-    let budget = Arc::new(Budget {
-        quads: quad_mb * ARENA_SCALE * 1_000_000 / QUAD_BYTES,
-        models: model_mb * ARENA_SCALE * 1_000_000 / MODEL_BYTES,
-        faces: face_mb * ARENA_SCALE * 1_000_000 / FACE_BYTES,
-        groups: GROUPS_BUDGET,
-        sections: SECTIONS_BUDGET,
-        tint_origin: [centre(spawn.x), centre(spawn.z)],
-        tint_size: [TINT_SPAN; 2],
-    });
-
-    info!(
-        quad_mb = (budget.quads * QUAD_BYTES) / 1_000_000,
-        model_mb = (budget.models * MODEL_BYTES) / 1_000_000,
-        face_mb = (budget.faces * FACE_BYTES) / 1_000_000,
-        "meshing the columns the server sends"
-    );
-
-    let uploads = Uploads::default();
-    let loader = stream::Loader::new(&budget, uploads.clone());
-    (
-        budget.clone(),
-        uploads,
-        cave::CaveCull::new(budget.sections),
-        loader,
-    )
-}
+const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
+    arena_scale: 4,
+    groups: 1 << 21,
+    sections: 1 << 16,
+    tint_span: 1024,
+};
 
 /// Singleplayer, the way the vanilla client plays it: a server of our own on a
 /// loopback port, which the client then joins like any other.
@@ -362,46 +325,6 @@ fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32, String) {
         spawn.pitch,
         "minecraft:overworld".to_owned(),
     )
-}
-
-/// `MCRS_LOOK=<yaw>,<pitch>` aims the camera somewhere other than where the
-/// save left it, in Minecraft degrees.
-fn look_override() -> Option<(f32, f32)> {
-    let look = std::env::var("MCRS_LOOK").ok()?;
-    let angles = look
-        .split_once(',')
-        .and_then(|(yaw, pitch)| Some((yaw.trim().parse().ok()?, pitch.trim().parse().ok()?)));
-    let Some(angles) = angles else {
-        eprintln!("MCRS_LOOK={look}: expected <yaw>,<pitch> in degrees");
-        std::process::exit(1);
-    };
-    Some(angles)
-}
-
-/// `MCRS_SKY=disc,twilight,celestial,stars,clouds` draws only the passes it
-/// lists, which is how a frame gets priced one pass at a time.
-fn sky_draws_only() -> Option<SkyEffects> {
-    let list = std::env::var("MCRS_SKY").ok()?;
-    match SkyEffects::parse(&list) {
-        Ok(effects) => Some(effects),
-        Err(err) => {
-            eprintln!("MCRS_SKY={list}: {err}");
-            std::process::exit(1);
-        }
-    }
-}
-
-/// `MCRS_TIME=<ticks>` pins every clock and stops them, so a scripted
-/// screenshot lands on the tick it asked for.
-fn frozen_time() -> Option<i64> {
-    let ticks = std::env::var("MCRS_TIME").ok()?;
-    match ticks.trim().parse() {
-        Ok(ticks) => Some(ticks),
-        Err(err) => {
-            eprintln!("MCRS_TIME={ticks}: {err}");
-            std::process::exit(1);
-        }
-    }
 }
 
 #[cfg(not(target_family = "wasm"))]
