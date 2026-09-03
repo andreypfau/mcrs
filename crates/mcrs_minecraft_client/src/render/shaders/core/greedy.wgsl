@@ -81,7 +81,7 @@ fn vertex_greedy(
     }
     // A fluid face shares a plane with the block face behind it, so it is pulled in slightly.
     let fluid = quad_field(quad, QUAD_FLUID_WORD, QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
-    world -= face_normal(u_dir, v_dir) * (FLUID_INSET * f32(fluid));
+    world -= face_normal(face) * (FLUID_INSET * f32(fluid));
 
     out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
     out.quad_uv = quad_uv;

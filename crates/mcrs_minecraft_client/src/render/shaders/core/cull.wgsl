@@ -1,6 +1,7 @@
 
 #import mcrs_minecraft_client::fields::FACE_NONE
 #import mcrs_minecraft_client::frame::{camera, params}
+#import mcrs_minecraft_client::quad::face_normal
 #import mcrs_minecraft_client::section::{CULLED, SectionDesc, section_origin, section_span}
 
 struct Group {
@@ -50,26 +51,11 @@ fn in_frustum(mn: vec3<f32>, mx: vec3<f32>) -> bool {
     return true;
 }
 
-fn group_normal(face: u32) -> vec3<f32> {
-    switch face {
-        case 0u: { return vec3<f32>(0.0, -1.0, 0.0); }
-        case 1u: { return vec3<f32>(0.0, 1.0, 0.0); }
-        case 2u: { return vec3<f32>(0.0, 0.0, -1.0); }
-        case 3u: { return vec3<f32>(0.0, 0.0, 1.0); }
-        case 4u: { return vec3<f32>(-1.0, 0.0, 0.0); }
-        case 5u: { return vec3<f32>(1.0, 0.0, 0.0); }
-        case 6u: { return vec3<f32>(1.0, 0.0, 1.0); }
-        case 7u: { return vec3<f32>(1.0, 0.0, -1.0); }
-        case 8u: { return vec3<f32>(-1.0, 0.0, 1.0); }
-        default: { return vec3<f32>(-1.0, 0.0, -1.0); }
-    }
-}
-
 fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
     if (face >= FACE_NONE) {
         return true;
     }
-    let n = group_normal(face);
+    let n = face_normal(face);
     let nearest = select(mx, mn, n > vec3<f32>(0.0));
     return dot(n, camera.offset - nearest) > 0.0;
 }
