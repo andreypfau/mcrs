@@ -87,7 +87,7 @@ pub const MAX_SPRITES: usize = 1 << FACE_LAYER.bits;
 pub const MAX_SPRITE_ARRAYS: usize = 1 << FACE_ARRAY.bits;
 
 #[cfg(test)]
-const FIELDS: &[(&str, Field)] = &[
+const QUAD_FIELDS: &[(&str, Field)] = &[
     ("QUAD_X", QUAD_X),
     ("QUAD_Y", QUAD_Y),
     ("QUAD_Z", QUAD_Z),
@@ -97,6 +97,10 @@ const FIELDS: &[(&str, Field)] = &[
     ("QUAD_DROP", QUAD_DROP),
     ("QUAD_FLUID", QUAD_FLUID),
     ("QUAD_FACE_BASE", QUAD_FACE_BASE),
+];
+
+#[cfg(test)]
+const FACE_FIELDS: &[(&str, Field)] = &[
     ("FACE_LAYER", FACE_LAYER),
     ("FACE_ARRAY", FACE_ARRAY),
     ("FACE_TINT", FACE_TINT),
@@ -104,6 +108,10 @@ const FIELDS: &[(&str, Field)] = &[
     ("FACE_SKY_LIGHT", FACE_SKY_LIGHT),
     ("FACE_AO", FACE_AO),
     ("FACE_FLUID", FACE_FLUID),
+];
+
+#[cfg(test)]
+const MODEL_FIELDS: &[(&str, Field)] = &[
     ("MODEL_X", MODEL_X),
     ("MODEL_Y", MODEL_Y),
     ("MODEL_Z", MODEL_Z),
@@ -115,6 +123,13 @@ const FIELDS: &[(&str, Field)] = &[
     ("MODEL_SHADE", MODEL_SHADE),
     ("MODEL_ARRAY", MODEL_ARRAY),
     ("MODEL_LAYER", MODEL_LAYER),
+];
+
+#[cfg(test)]
+const GROUPS: &[(&str, &[(&str, Field)])] = &[
+    ("greedy quad", QUAD_FIELDS),
+    ("face attribute", FACE_FIELDS),
+    ("model vertex", MODEL_FIELDS),
 ];
 
 #[cfg(test)]
@@ -136,7 +151,7 @@ mcrs_minecraft_client`\n// checks it; `MCRS_BLESS=1 cargo test -p mcrs_minecraft
 rewrites it.\n#define_import_path mcrs_minecraft_client::fields\n",
     );
     let mut group = "";
-    for (name, field) in FIELDS {
+    for (name, field) in GROUPS.iter().flat_map(|(_, fields)| fields.iter()) {
         let prefix = name.split_once('_').map_or(*name, |(head, _)| head);
         if prefix != group {
             out.push('\n');
@@ -204,26 +219,19 @@ mod tests {
 
     #[test]
     fn no_word_of_a_quad_is_overfull() {
-        let quad = [
-            QUAD_X,
-            QUAD_Y,
-            QUAD_Z,
-            QUAD_FACE,
-            QUAD_W,
-            QUAD_H,
-            QUAD_DROP,
-            QUAD_FLUID,
-            QUAD_FACE_BASE,
-        ];
         for word in 0..QUAD_WORDS as u32 {
-            let bits: u32 = quad
+            let bits: u32 = QUAD_FIELDS
                 .iter()
-                .filter(|field| field.word == word)
-                .map(|field| field.bits)
+                .filter(|(_, field)| field.word == word)
+                .map(|(_, field)| field.bits)
                 .sum();
             assert!(bits <= 32, "word {word} of a quad holds {bits} bits");
         }
-        assert!(quad.iter().all(|field| (field.word as usize) < QUAD_WORDS));
+        assert!(
+            QUAD_FIELDS
+                .iter()
+                .all(|(_, field)| (field.word as usize) < QUAD_WORDS)
+        );
     }
 
     #[test]
@@ -237,49 +245,9 @@ mod tests {
 
     #[test]
     fn no_field_of_a_word_overlaps_another() {
-        let values = [
-            (
-                "greedy quad",
-                &[
-                    QUAD_X,
-                    QUAD_Y,
-                    QUAD_Z,
-                    QUAD_FACE,
-                    QUAD_W,
-                    QUAD_H,
-                    QUAD_FACE_BASE,
-                ][..],
-            ),
-            (
-                "face attribute",
-                &[
-                    FACE_LAYER,
-                    FACE_ARRAY,
-                    FACE_TINT,
-                    FACE_BLOCK_LIGHT,
-                    FACE_SKY_LIGHT,
-                    FACE_AO,
-                ][..],
-            ),
-            (
-                "model vertex",
-                &[
-                    MODEL_X,
-                    MODEL_Y,
-                    MODEL_Z,
-                    MODEL_U,
-                    MODEL_V,
-                    MODEL_TINT,
-                    MODEL_BLOCK_LIGHT,
-                    MODEL_SHADE,
-                    MODEL_ARRAY,
-                    MODEL_LAYER,
-                ][..],
-            ),
-        ];
-        for (value, fields) in values {
+        for (value, fields) in GROUPS {
             let mut taken = [0u64; 4];
-            for field in fields {
+            for (_, field) in *fields {
                 let bits = field.max() << field.shift;
                 let word = &mut taken[field.word as usize];
                 assert_eq!(
