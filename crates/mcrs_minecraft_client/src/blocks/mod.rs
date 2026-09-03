@@ -175,13 +175,7 @@ pub const FACE_AXES: [[u8; 6]; 6] = [
 pub const CORNER_UV: [[f32; 2]; 4] = [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]];
 
 pub fn cube_corner(dir: Dir, corner: usize) -> Vec3 {
-    let a = FACE_AXES[dir as usize];
-    let (cu, cv) = (CORNER_UV[corner][0], CORNER_UV[corner][1]);
-    let mut p = [0.0f32; 3];
-    p[a[0] as usize] = if a[1] == 1 { 1.0 } else { 0.0 };
-    p[a[2] as usize] = if a[3] == 1 { cu } else { 1.0 - cu };
-    p[a[4] as usize] = if a[5] == 1 { cv } else { 1.0 - cv };
-    Vec3::from(p)
+    crate::bake::corner(dir, corner, Vec3::ZERO, Vec3::ONE)
 }
 pub fn empty() -> Catalog {
     Catalog {

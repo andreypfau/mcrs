@@ -223,7 +223,7 @@ fn build_mesh(
             // The only piece of vanilla's `shouldRenderFace` a lone block needs: a face touching a
             // full neighbour is never visible.
             if let Some(cull) = quad.cull
-                && world.is_collision_shape_full_block(pos + cull.inormal())
+                && world.is_collision_shape_full_block(pos + cull.normal())
             {
                 continue;
             }
@@ -242,7 +242,7 @@ fn build_mesh(
     let slots = sprites.len().max(1) as f32;
     for (pos, quad, slot) in baked_quads {
         let base = positions.len() as u32;
-        let normal = quad.dir.normal().to_array();
+        let normal = quad.dir.normal().as_vec3().to_array();
         for i in 0..4 {
             positions.push((quad.positions[i] + pos.as_vec3()).to_array());
             normals.push(normal);

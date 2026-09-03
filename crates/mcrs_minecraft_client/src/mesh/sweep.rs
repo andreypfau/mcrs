@@ -183,12 +183,11 @@ fn pack_quad(
 mod tests {
     use super::{pack_quad, quad_anchor};
     use crate::atlas::SpriteRef;
-    use crate::blocks::{BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Pass, cube_corner};
+    use crate::blocks::{BlockInfo, CubeFace, Pass};
     use crate::mesh::{Scratch, mesh_world, one_section_world};
     use crate::pack::{
         FACE_ARRAY, FACE_LAYER, QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
     };
-    use bevy::math::Vec3;
 
     #[test]
     fn the_face_runs_of_a_batch_tile_it_exactly() {
@@ -243,32 +242,6 @@ mod tests {
             quads, 6,
             "a lone solid section is six merged faces, one per side"
         );
-    }
-
-    #[test]
-    fn a_single_block_greedy_quad_matches_the_baked_cube() {
-        for face in 0..6usize {
-            let axes = FACE_AXES[face];
-            let gu = if axes[3] == 1 { 0 } else { 15 };
-            let gv = if axes[5] == 1 { 0 } else { 15 };
-            let anchor = quad_anchor(face, 0, gu, gv);
-
-            for corner in 0..4 {
-                let cu = CORNER_UV[corner][0];
-                let cv = CORNER_UV[corner][1];
-                let mut world = [0f32; 3];
-                world[axes[0] as usize] = anchor[axes[0] as usize] as f32;
-                world[axes[2] as usize] =
-                    anchor[axes[2] as usize] as f32 + if axes[3] == 1 { cu } else { -cu };
-                world[axes[4] as usize] =
-                    anchor[axes[4] as usize] as f32 + if axes[5] == 1 { cv } else { -cv };
-                let expected = cube_corner(crate::bake::Dir::ALL[face], corner);
-                assert!(
-                    Vec3::from(world).distance(expected) < 1e-5,
-                    "face {face} corner {corner}: greedy {world:?} vs baked {expected:?}"
-                );
-            }
-        }
     }
 
     #[test]

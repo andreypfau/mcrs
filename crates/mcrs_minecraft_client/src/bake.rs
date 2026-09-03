@@ -15,80 +15,35 @@ use crate::model::{
 
 const BLOCK_MIDDLE: Vec3 = Vec3::splat(0.5);
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-pub enum Dir {
-    Down = 0,
-    Up = 1,
-    North = 2,
-    South = 3,
-    West = 4,
-    East = 5,
+pub use mcrs_voxel_math::Direction as Dir;
+
+fn axis(dir: Dir) -> usize {
+    match dir {
+        Dir::West | Dir::East => 0,
+        Dir::Down | Dir::Up => 1,
+        Dir::North | Dir::South => 2,
+    }
 }
 
-impl Dir {
-    pub const ALL: [Dir; 6] = [
-        Dir::Down,
-        Dir::Up,
-        Dir::North,
-        Dir::South,
-        Dir::West,
-        Dir::East,
-    ];
+fn from_name(name: &str) -> Option<Dir> {
+    Dir::all().into_iter().find(|d| d.name() == name)
+}
 
-    pub fn name(self) -> &'static str {
-        match self {
-            Dir::Down => "down",
-            Dir::Up => "up",
-            Dir::North => "north",
-            Dir::South => "south",
-            Dir::West => "west",
-            Dir::East => "east",
+/// The direction whose normal is most aligned with `v`, or `None` when `v` is degenerate.
+pub fn nearest(v: Vec3) -> Option<Dir> {
+    if !v.is_finite() {
+        return None;
+    }
+    let mut best = None;
+    let mut best_dot = 0.0f32;
+    for dir in Dir::all() {
+        let dot = v.dot(dir.normal().as_vec3());
+        if dot > best_dot {
+            best_dot = dot;
+            best = Some(dir);
         }
     }
-
-    pub fn from_name(name: &str) -> Option<Dir> {
-        Dir::ALL.into_iter().find(|d| d.name() == name)
-    }
-
-    pub fn inormal(self) -> IVec3 {
-        match self {
-            Dir::Down => IVec3::new(0, -1, 0),
-            Dir::Up => IVec3::new(0, 1, 0),
-            Dir::North => IVec3::new(0, 0, -1),
-            Dir::South => IVec3::new(0, 0, 1),
-            Dir::West => IVec3::new(-1, 0, 0),
-            Dir::East => IVec3::new(1, 0, 0),
-        }
-    }
-
-    pub fn normal(self) -> Vec3 {
-        self.inormal().as_vec3()
-    }
-
-    pub fn axis(self) -> usize {
-        match self {
-            Dir::West | Dir::East => 0,
-            Dir::Down | Dir::Up => 1,
-            Dir::North | Dir::South => 2,
-        }
-    }
-
-    /// The direction whose normal is most aligned with `v`, or `None` when `v` is degenerate.
-    pub fn nearest(v: Vec3) -> Option<Dir> {
-        if !v.is_finite() {
-            return None;
-        }
-        let mut best = None;
-        let mut best_dot = 0.0f32;
-        for dir in Dir::ALL {
-            let dot = v.dot(dir.normal());
-            if dot > best_dot {
-                best_dot = dot;
-                best = Some(dir);
-            }
-        }
-        best
-    }
+    best
 }
 
 /// Per-direction vertex corner order, each entry selecting `from` (0) or `to` (1) per axis.
@@ -102,7 +57,7 @@ const FACE_CORNERS: [[[u8; 3]; 4]; 6] = [
     [[1, 1, 1], [1, 0, 1], [1, 0, 0], [1, 1, 0]], // east
 ];
 
-fn corner(dir: Dir, index: usize, from: Vec3, to: Vec3) -> Vec3 {
+pub(crate) fn corner(dir: Dir, index: usize, from: Vec3, to: Vec3) -> Vec3 {
     let select = FACE_CORNERS[dir as usize][index];
     Vec3::new(
         if select[0] == 0 { from.x } else { to.x },
@@ -226,7 +181,7 @@ fn uv_plane(dir: Dir) -> Mat4 {
 
 fn uvlock_transform(rotation: VariantRotation, dir: Dir) -> Mat4 {
     let rotated = rotation.matrix() * uv_plane(dir);
-    let landed = Dir::nearest(rotated.transform_vector3(Vec3::Z)).unwrap_or(dir);
+    let landed = nearest(rotated.transform_vector3(Vec3::Z)).unwrap_or(dir);
     (uv_plane(landed).inverse() * rotated).inverse()
 }
 
@@ -236,7 +191,8 @@ fn draws_face(element: &Element, dir: Dir) -> bool {
     let flat: Vec<usize> = (0..3)
         .filter(|&axis| element.from[axis] == element.to[axis])
         .collect();
-    flat.iter().all(|&axis| axis == dir.axis())
+    let face_axis = axis(dir);
+    flat.iter().all(|&axis| axis == face_axis)
 }
 
 fn recalculate_winding(positions: &mut [Vec3; 4], uvs: &mut [[f32; 2]; 4], dir: Dir) {
@@ -353,9 +309,9 @@ fn face_shade(dir: Dir) -> f32 {
 
 /// Position along `dir`'s axis, oriented so the result is 0 at the face opposite `dir`.
 fn coord_towards(dir: Dir, p: Vec3) -> f32 {
-    let axis = dir.axis();
+    let axis = axis(dir);
     let c = p[axis];
-    if dir.inormal()[axis] > 0 { c } else { 1.0 - c }
+    if dir.normal()[axis] > 0 { c } else { 1.0 - c }
 }
 
 fn ambient_occlusion(
@@ -383,19 +339,19 @@ fn ambient_occlusion(
         Dir::East => min.x == max.x && (max.x > NEAR_ONE || full),
     };
 
-    let base = if face_cubic { pos + dir.inormal() } else { pos };
+    let base = if face_cubic { pos + dir.normal() } else { pos };
     let c = AO_CORNERS[dir as usize];
 
     let mut shade = [0.0f32; 4];
     let mut translucent = [false; 4];
     for i in 0..4 {
-        shade[i] = world.shade_brightness(base + c[i].inormal());
+        shade[i] = world.shade_brightness(base + c[i].normal());
         // The occlusion probe sits one block further out than the side sample.
-        let probe = base + c[i].inormal() + dir.inormal();
+        let probe = base + c[i].normal() + dir.normal();
         translucent[i] = !world.is_view_blocking(probe) || world.light_dampening(probe) == 0;
     }
     let diagonal =
-        |a: usize, b: usize| world.shade_brightness(base + c[a].inormal() + c[b].inormal());
+        |a: usize, b: usize| world.shade_brightness(base + c[a].normal() + c[b].normal());
     // The `shade[0]` reuse in all four branches is vanilla, including where symmetry would call
     // for `shade[1]`. "Fixing" it diverges from the client on every inside corner.
     let corner_02 = if !translucent[2] && !translucent[0] {
@@ -508,7 +464,7 @@ fn bake_face(
         }
     }
 
-    let mut cull = face.cullface.as_deref().and_then(Dir::from_name);
+    let mut cull = face.cullface.as_deref().and_then(from_name);
     if !rotation.is_identity() {
         for p in positions.iter_mut() {
             *p = BLOCK_MIDDLE + rotation.apply(*p - BLOCK_MIDDLE);
@@ -520,11 +476,11 @@ fn bake_face(
                 *uv = [p.x + 0.5, p.y + 0.5];
             }
         }
-        cull = cull.and_then(|d| Dir::nearest(rotation.apply(d.normal())));
+        cull = cull.and_then(|d| nearest(rotation.apply(d.normal().as_vec3())));
     }
 
     let normal = (positions[1] - positions[0]).cross(positions[2] - positions[0]);
-    let facing = Dir::nearest(normal);
+    let facing = nearest(normal);
     if element.rotation.is_none()
         && let Some(facing) = facing
     {
@@ -607,7 +563,7 @@ fn bake_model(
     let mut quads = Vec::new();
     for element in &model.elements {
         // Ordinal order, not JSON key order, so the vertex layout matches the client's.
-        for dir in Dir::ALL {
+        for dir in Dir::all() {
             let Some(face) = element.faces.get(dir.name()) else {
                 continue;
             };
@@ -673,7 +629,7 @@ mod tests {
         assert_eq!(baked.quads.len(), 6);
         assert_eq!(baked.sprites.len(), 2);
 
-        for dir in Dir::ALL {
+        for dir in Dir::all() {
             let q = quad(&baked, dir);
             for i in 0..4 {
                 assert_eq!(q.positions[i], corner(dir, i, Vec3::ZERO, Vec3::ONE));
@@ -684,7 +640,7 @@ mod tests {
                 "default uv derivation for {dir:?}"
             );
             let normal = (q.positions[1] - q.positions[0]).cross(q.positions[2] - q.positions[0]);
-            assert!(normal.dot(dir.normal()) > 0.0, "winding of {dir:?}");
+            assert!(normal.dot(dir.normal().as_vec3()) > 0.0, "winding of {dir:?}");
             assert_eq!(q.cull, Some(dir));
         }
 
@@ -759,7 +715,7 @@ mod tests {
         for dir in [Dir::Up, Dir::Down, Dir::North, Dir::South] {
             assert_eq!(sprite_of(dir), "minecraft:block/oak_log", "{dir:?}");
         }
-        for dir in Dir::ALL {
+        for dir in Dir::all() {
             let q = quad(&baked, dir);
             for i in 0..4 {
                 assert_eq!(q.positions[i], corner(dir, i, Vec3::ZERO, Vec3::ONE));

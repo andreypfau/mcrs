@@ -107,7 +107,7 @@ pub(super) fn build_one(
     if let Some(faces) = cube_faces {
         let mut built = [CubeFace::default(); 6];
         let mut worst = Pass::Solid;
-        for dir in Dir::ALL {
+        for dir in Dir::all() {
             let quad = &baked.quads[faces[dir as usize]];
             let interned = layers[quad.sprite];
             let pass = Pass::of(sprites.opacity(interned));
@@ -154,7 +154,7 @@ pub(super) fn build_one(
 const FACE_GRID: usize = 16;
 
 fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[SpriteRef], sprites: &SpriteRegistry) -> u8 {
-    let mut sides = [[0u16; FACE_GRID]; Dir::ALL.len()];
+    let mut sides = [[0u16; FACE_GRID]; Dir::all().len()];
     for quad in quads {
         let Some(dir) = quad.cull else { continue };
         if sprites.opacity(layers[quad.sprite]) != Opacity::Solid {
@@ -163,7 +163,7 @@ fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[SpriteRef], sprites: &Sprit
         cover_face(&mut sides[dir as usize], &quad.positions, dir);
     }
     let mut mask = 0;
-    for dir in Dir::ALL {
+    for dir in Dir::all() {
         if sides[dir as usize].iter().all(|row| *row == u16::MAX) {
             mask |= 1 << dir as u8;
         }
@@ -215,16 +215,16 @@ fn face_group(positions: &[Vec3; 4]) -> Option<u8> {
     let normal = (positions[1] - positions[0])
         .cross(positions[2] - positions[0])
         .normalize_or_zero();
-    if let Some(dir) = Dir::ALL
+    if let Some(dir) = Dir::all()
         .into_iter()
-        .find(|dir| normal.dot(dir.normal()) >= 1.0 - 1e-4)
+        .find(|dir| normal.dot(dir.normal().as_vec3()) >= 1.0 - 1e-4)
     {
         return Some(dir as u8);
     }
     let diagonal = DIAGONALS
         .iter()
         .position(|&[x, z]| normal.dot(Vec3::new(x, 0.0, z).normalize()) >= 1.0 - 1e-4)?;
-    Some(Dir::ALL.len() as u8 + diagonal as u8)
+    Some(Dir::all().len() as u8 + diagonal as u8)
 }
 
 fn tint_kind_of(name: &str) -> TintKind {
@@ -327,7 +327,7 @@ mod tests {
 
     fn closed(name: &str, props: &[(&str, &str)]) -> Vec<&'static str> {
         let sturdy = bake_state(name, props).sturdy;
-        Dir::ALL
+        Dir::all()
             .into_iter()
             .filter(|dir| sturdy >> *dir as u8 & 1 == 1)
             .map(|dir| dir.name())
@@ -385,7 +385,7 @@ mod tests {
 
     #[test]
     fn a_quad_joins_the_face_group_it_squarely_points_along() {
-        for dir in Dir::ALL {
+        for dir in Dir::all() {
             let face = std::array::from_fn(|corner| cube_corner(dir, corner));
             assert_eq!(
                 face_group(&face),
@@ -403,12 +403,12 @@ mod tests {
         ];
         let normal = (pane[1] - pane[0]).cross(pane[2] - pane[0]);
         assert!(
-            Dir::nearest(normal).is_some(),
+            bake::nearest(normal).is_some(),
             "the nearest axis answers even for a pane that faces none of them"
         );
         let group = face_group(&pane).expect("a plant's pane points along a diagonal");
         assert!(
-            group >= Dir::ALL.len() as u8,
+            group >= Dir::all().len() as u8,
             "a pane must not be filed under an axis, it would vanish from one side"
         );
         let mirrored = [pane[3], pane[2], pane[1], pane[0]];
@@ -432,7 +432,7 @@ mod tests {
         let (faces, extras) = split_cube(&baked.quads);
         let faces = faces.expect("stone is a full cube");
         assert!(extras.is_empty(), "stone has nothing beyond its cube");
-        for dir in Dir::ALL {
+        for dir in Dir::all() {
             let quad = &baked.quads[faces[dir as usize]];
             for corner in 0..4 {
                 assert_eq!(
