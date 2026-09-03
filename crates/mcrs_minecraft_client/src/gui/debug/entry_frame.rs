@@ -14,8 +14,20 @@ pub fn display(
     counts: Res<FrameCounts>,
 ) {
     let stage = |slot: usize| cpu.median(slot).unwrap_or(0.0);
+    let tail = |slot: usize| match cpu.spread(slot) {
+        Some(spread) => format!("{:.2}/{:.2}", spread.p99, spread.max),
+        None => "-".to_owned(),
+    };
     let (terrain_draws, sky_draws) = counts.draws();
+    let engine = match cpu.spread(probe::ENGINE) {
+        Some(spread) => format!(
+            "Engine: {:.3} ms median, {:.3} p99, {:.2} max over {} frames",
+            spread.median, spread.p99, spread.max, spread.frames
+        ),
+        None => "Engine: no frames yet".to_owned(),
+    };
     let mut lines = vec![
+        engine,
         format!(
             "CPU: main {:.3} ms, extract {:.3}, prepare {:.3} (acquire {:.3}), render {:.3}, \
              cleanup {:.3}",
@@ -25,6 +37,15 @@ pub fn display(
             stage(probe::ACQUIRE),
             stage(probe::RENDER),
             stage(probe::CLEANUP),
+        ),
+        format!(
+            "CPU p99/max: main {}, extract {}, prepare {}, acquire {}, render {}, cleanup {}",
+            tail(probe::MAIN),
+            tail(probe::EXTRACT),
+            tail(probe::PREPARE),
+            tail(probe::ACQUIRE),
+            tail(probe::RENDER),
+            tail(probe::CLEANUP),
         ),
         format!("Draws: {terrain_draws} terrain, {sky_draws} sky"),
         format!(

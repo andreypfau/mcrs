@@ -67,6 +67,16 @@ fn main() {
 
 #[cfg(not(target_family = "wasm"))]
 fn main() {
+    if config::hot_clocks() {
+        std::thread::Builder::new()
+            .name("hot clocks".into())
+            .spawn(|| {
+                loop {
+                    std::hint::spin_loop();
+                }
+            })
+            .expect("a thread");
+    }
     let world = world_folder();
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = config::frozen_time();
@@ -201,7 +211,13 @@ fn main() {
     app.add_systems(Last, frame_mark);
 
     let (yaw, pitch) = config::look_override().unwrap_or((save_data.yaw, save_data.pitch));
-    player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
+    let player = player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
+    if let Some(speed) = config::scripted_flight() {
+        app.insert_resource(local_player::ScriptedFlight);
+        app.world_mut()
+            .entity_mut(player)
+            .insert(mcrs_minecraft_world::entity::player::FlyingSpeed(speed));
+    }
 
     app.run();
 }

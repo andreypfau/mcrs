@@ -111,6 +111,54 @@ The starting split from the brief, next to what was measured. The engine figure 
 | GPU sky pass | 0.10 ms | 0.27 ms at 8.3 Mpx | 0.11 ms |
 | GPU clouds (in the terrain pass) | | 0.63 ms at 8.3 Mpx | |
 
+## Stalls
+
+Native, 3840x2160 fullscreen, vsync off, overlay hidden, save `two`. `MCRS_HOT=1` keeps the
+performance cluster clocked (see DECISIONS.md); the cold column is the same build without it.
+Engine time is per frame; p99 and max are over the last 4096 frames.
+
+| scenario | engine cold: median / p99 / max | engine hot: median / p99 / max |
+|---|---|---|
+| floor (no world) | 1.37 / 4.0 / 9.2 ms | 0.60 / 1.12 / 1.36 ms |
+| base, static | 1.45 / 3.5 / 4.8 ms | 0.70 / 1.31 / 1.66 ms |
+| flight, vanilla sprint (`MCRS_FLY=0.05`) | 1.53 / 3.7 / 5.5 ms | 0.76 / 1.47 / 1.72 ms |
+| flight, maximum wheel speed (`MCRS_FLY=0.2`) | | 0.89 / 1.74 / 2.11 ms |
+| base, vsync on | 3.90 / 5.6 / 42 ms | 0.82 / 1.73 / 51 ms |
+
+Hot stage medians in sprint flight: main 0.38 ms, extract 0.09, prepare without acquire 0.08,
+render 0.20, cleanup 0.01; p99 of the main world 0.79 ms and of render 0.41 ms.
+
+What was found and what it cost, in the order it was taken:
+
+- The sprite atlas swap was the render-world stall: 54 whole-atlas re-uploads in 40 s of
+  flight, 2.4 ms mean and 4.8 ms max, all of it in `write_texture` (220 calls, 0.58 ms mean)
+  for under a megabyte. Bakes now write only new layers: 8 to 90 KB each, and the render
+  stage max in flight went from 6.6 ms to 2.0 ms.
+- Column decoding on the main thread cost 1.3 to 1.4 ms on arrival frames (command
+  application after `receive_packets`) with `stream::advance` adding 0.5 to 0.7 ms. Decoding
+  moved to the compute pool: main-world p99 in flight 2.44 to 2.01 ms, max 3.5 to 2.9 ms (cold).
+- Geometry uploads through a staging belt: render stage p99 at maximum speed 0.94 to 0.49 ms.
+- Everything left in the tail was uniform: in a slow frame every system ran two to four times
+  slower. A vsync-on run, where the thread sleeps every frame, put the engine median at 3.9 ms
+  for the same work, and a spinning helper thread brought the floor from 1.37 / 4.0 / 9.2 ms to
+  0.60 / 1.12 / 1.36 ms. That is the CPU's clock ramp after the acquire sleep. A higher QoS
+  class and a deeper swapchain (Metal allows three drawables at most) changed nothing.
+- Pipeline warm-up needs no work yet: every terrain variant, wireframe included, is queued when
+  the view appears, and the sky pipelines are per dimension.
+
+Screenshot: `docs/perf/m2-flight-2560x1440.png`, taken in sprint flight with `MCRS_HOT=1` (the
+3840x2160 frame scaled to 1440p); the 34 ms max in its line is the screenshot readback itself,
+which waits on the GPU.
+
+Gate: the engine p99 is under 2.0 ms in every scenario hot; the max still sits about 1 ms over
+the median rather than 0.5 ms. Cold, neither holds, and cannot until the sleep is dealt with.
+
+Open: the client keeps every column the server ever sent (5932 resident at maximum speed, 0
+evicted, 44k sections, GPU terrain 4.9 ms) although the server emits chunk-forget packets;
+that is streaming work still to come and it inflates every GPU number taken in flight.
+Bevy's window screenshot comes back black on some frames on this build and the previous one
+alike; captures are retried until one is lit.
+
 ## Web
 
 Not measurable yet. `scripts/build-web.sh` produces a 40 MB single-file bundle that Chrome runs
@@ -130,3 +178,5 @@ that will count there are the CPU stages and the GPU pass timestamps, never the 
 - UI layout and its siblings cost about 130 µs per frame with nothing visible.
 - The client requests a view distance of 8 but the server sends 13; the baseline is taken at 13.
 - The web build's start-up blocks the page for minutes and re-runs the render start-up schedule.
+- The client never evicts columns in flight although the server sends chunk-forget packets.
+- Bevy's window screenshot is black on some frames.

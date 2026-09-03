@@ -12,6 +12,7 @@ doctest = false
 anyhow.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
+bevy_tasks.workspace = true
 bevy_math.workspace = true
 bytes.workspace = true
 thiserror.workspace = true

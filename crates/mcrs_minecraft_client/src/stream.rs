@@ -16,7 +16,7 @@ use crate::cave::{CaveCull, NO_SLOT};
 use crate::mesh::{self, Connectivity, Draw, Group, STREAMS, Scratch, SectionMesh};
 use crate::model::Pack;
 use crate::pack::QUAD_WORDS;
-use crate::render::{Animation, Atlas, Budget, Placement, SectionDesc, Upload, Uploads};
+use crate::render::{Animation, AtlasUpdate, Budget, Placement, SectionDesc, Upload, Uploads};
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 
@@ -68,6 +68,7 @@ pub struct Loader {
     faces: Arena,
     groups: Arena,
     sprites: usize,
+    sent: Vec<(u32, u32)>,
 }
 
 enum PackLoad {
@@ -146,6 +147,7 @@ impl Loader {
             faces: Arena::new(budget.faces),
             groups: Arena::new(budget.groups),
             sprites: 0,
+            sent: Vec::new(),
         }
     }
 
@@ -725,6 +727,7 @@ fn start_baking(
     let states = std::mem::take(&mut loader.to_bake);
     let biomes = loader.biomes.clone();
     let known = loader.sprites;
+    let sent = loader.sent.clone();
     let definitions = definitions.clone();
     let pack = pack.clone();
     loader.baking = Some(pool.spawn(async move {
@@ -736,17 +739,26 @@ fn start_baking(
                 atlases: sprites
                     .arrays()
                     .iter()
-                    .map(|array| Atlas {
-                        size: array.size,
-                        layers: array.layers(),
-                        mips: array.mip_chain(),
+                    .enumerate()
+                    .map(|(index, array)| {
+                        let (first_still, first_frame) = sent.get(index).copied().unwrap_or((0, 0));
+                        AtlasUpdate {
+                            size: array.size,
+                            stills: array.stills() as u32,
+                            frames: array.frame_layers() as u32,
+                            first_still,
+                            first_frame,
+                            still_mips: array.still_mips(first_still as usize),
+                            frame_mips: array.frame_mips(first_frame as usize),
+                        }
                     })
                     .collect(),
                 animations: sprites
                     .animations()
                     .iter()
                     .map(|animation| Animation {
-                        base_layer: sprites.base_layer(animation),
+                        array: u32::from(animation.array),
+                        frame_base: animation.frame_base,
                         count: animation.count,
                         frametime: animation.frametime,
                         interpolate: u32::from(animation.interpolate),
@@ -766,6 +778,7 @@ fn start_baking(
 fn publish(loader: &mut Loader, baked: Baked) {
     if let Some(sprites) = baked.sprites {
         loader.sprites = baked.catalog.sprites.len();
+        loader.sent = baked.catalog.sprites.counts();
         loader.uploads.push(sprites);
     }
     for failure in &baked.catalog.failures[loader.failures..] {

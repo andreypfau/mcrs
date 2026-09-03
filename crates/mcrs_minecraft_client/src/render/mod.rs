@@ -61,16 +61,24 @@ pub struct SectionDesc {
     pub face_base: u32,
 }
 
-pub struct Atlas {
+/// The layers one array gained since the last update: stills from `first_still` up to `stills`,
+/// frame layers from `first_frame` up to `frames`, each as a full mip chain with level zero
+/// first. What was sent before stays where it is on the GPU.
+pub struct AtlasUpdate {
     pub size: u32,
-    pub layers: u32,
-    pub mips: Vec<Vec<u8>>,
+    pub stills: u32,
+    pub frames: u32,
+    pub first_still: u32,
+    pub first_frame: u32,
+    pub still_mips: Vec<Vec<u8>>,
+    pub frame_mips: Vec<Vec<u8>>,
 }
 
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Animation {
-    pub base_layer: u32,
+    pub array: u32,
+    pub frame_base: u32,
     pub count: u32,
     pub frametime: u32,
     pub interpolate: u32,
@@ -183,21 +191,17 @@ impl Plugin for TerrainPlugin {
                     probe::cleaned.in_set(RenderSystems::PostCleanup),
                     pipeline::prepare_pipelines.in_set(RenderSystems::Prepare),
                     pass::drop_unused_bins.in_set(RenderSystems::Prepare),
-                    upload::apply_uploads
-                        .in_set(RenderSystems::Prepare)
-                        .before(frame::write_camera),
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
-                    sprites::write_animation_frames
-                        .in_set(RenderSystems::Prepare)
-                        .after(upload::apply_uploads),
+                    sprites::write_animation_frames.in_set(RenderSystems::Prepare),
                     frame::write_camera.in_set(RenderSystems::Prepare),
                     stats::read_draw_args.in_set(RenderSystems::Cleanup),
                     probe::read.in_set(RenderSystems::Cleanup),
+                    upload::recall_staging.in_set(RenderSystems::Cleanup),
                 ),
             )
             .add_systems(
                 Core3d,
-                (probe::resolve, pass::cull_terrain)
+                (upload::apply_uploads, probe::resolve, pass::cull_terrain)
                     .chain()
                     .in_set(Core3dSystems::Prepass),
             )

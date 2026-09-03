@@ -163,7 +163,13 @@ impl Plugin for ClientNetworkPlugin {
 
         app.add_systems(
             Update,
-            (spawn_logged_in_connection(recv), receive_packets, flush).chain(),
+            (
+                spawn_logged_in_connection(recv),
+                receive_packets,
+                crate::columns::settle_columns,
+                flush,
+            )
+                .chain(),
         );
         app.add_observer(handle_configuration_packet);
         app.add_observer(handle_game_packet);
@@ -397,7 +403,11 @@ fn handle_configuration_packet(
 
 fn handle_game_packet(
     event: On<ReceivedPacketEvent>,
-    mut connections: Query<(&mut ClientConnection, &ConnectionState, &mut PendingTeleports)>,
+    mut connections: Query<(
+        &mut ClientConnection,
+        &ConnectionState,
+        &mut PendingTeleports,
+    )>,
     mut commands: Commands,
 ) {
     let Ok((mut connection, state, mut pending_teleports)) = connections.get_mut(event.entity)
@@ -419,7 +429,10 @@ fn handle_game_packet(
             // ponytail: every relative flag is treated as absolute. Our server
             // only ever sends absolute teleports; the upgrade is vanilla's
             // `PositionMoveRotation.calculateAbsolute`.
-            warn!("relative teleport flags are not applied: {:?}", position.flags);
+            warn!(
+                "relative teleport flags are not applied: {:?}",
+                position.flags
+            );
         }
         pending_teleports.0.push(ServerTeleport {
             teleport_id: position.teleport_id.0,

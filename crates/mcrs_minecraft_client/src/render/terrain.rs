@@ -47,17 +47,17 @@ pub(super) fn init_terrain(
     mut commands: Commands,
     budget: Res<TerrainBudget>,
     device: Res<RenderDevice>,
-    queue: Res<RenderQueue>,
     asset_server: Res<AssetServer>,
     pipeline_cache: Res<PipelineCache>,
 ) {
     let budget = budget.0.clone();
     let arenas = Arenas::new(&budget, &device);
     let frame = Frame::new(&budget, &device);
-    let sprites = Sprites::new(&budget, &device, &queue);
+    let sprites = Sprites::new(&budget, &device);
     let binds = Bindings::new(&arenas, &frame, &sprites, &device, &pipeline_cache);
     let pipelines = Pipelines::new(Shaders::load(&asset_server), &binds, &pipeline_cache);
 
+    commands.insert_resource(super::upload::Staging::new(&device));
     commands.insert_resource(Terrain {
         cull_grid: super::pass::cull_grid(&device.limits()),
         list: DrawList::new(),

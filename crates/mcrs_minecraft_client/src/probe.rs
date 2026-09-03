@@ -50,7 +50,7 @@ impl GpuTimings {
 #[derive(Default)]
 struct Shared {
     frame: AtomicU32,
-    samples: Mutex<Samples<SLOTS>>,
+    samples: Mutex<Samples<SLOTS, WINDOW>>,
     gate: Gate,
     period_ns: AtomicU32,
 }
@@ -84,36 +84,52 @@ impl Reader for Shared {
     }
 }
 
-struct Samples<const N: usize> {
-    ms: [[f32; WINDOW]; N],
+struct Samples<const N: usize, const W: usize> {
+    ms: Vec<[f32; W]>,
     written: [usize; N],
 }
 
-impl<const N: usize> Default for Samples<N> {
+impl<const N: usize, const W: usize> Default for Samples<N, W> {
     fn default() -> Self {
         Self {
-            ms: [[0.0; WINDOW]; N],
+            ms: vec![[0.0; W]; N],
             written: [0; N],
         }
     }
 }
 
-impl<const N: usize> Samples<N> {
+impl<const N: usize, const W: usize> Samples<N, W> {
     fn push(&mut self, slot: usize, ms: f32) {
-        let at = self.written[slot] % WINDOW;
+        let at = self.written[slot] % W;
         self.ms[slot][at] = ms;
         self.written[slot] += 1;
     }
 
+    fn last(&self, slot: usize) -> f32 {
+        match self.written[slot] {
+            0 => 0.0,
+            n => self.ms[slot][(n - 1) % W],
+        }
+    }
+
     fn median(&self, slot: usize) -> Option<f32> {
-        let held = self.written[slot].min(WINDOW);
+        self.percentiles(slot, &[0.5]).map(|p| p[0])
+    }
+
+    /// Sorted-window lookups, each quantile clamped to the last sample held; the count of samples
+    /// the answer stands on comes with it.
+    fn percentiles<const Q: usize>(&self, slot: usize, quantiles: &[f32; Q]) -> Option<[f32; Q]> {
+        let held = self.written[slot].min(W);
         if held == 0 {
             return None;
         }
-        let mut sorted = [0.0f32; WINDOW];
-        sorted[..held].copy_from_slice(&self.ms[slot][..held]);
-        sorted[..held].sort_unstable_by(f32::total_cmp);
-        Some(sorted[held / 2])
+        let mut sorted = self.ms[slot][..held].to_vec();
+        sorted.sort_unstable_by(f32::total_cmp);
+        Some(quantiles.map(|q| sorted[((held as f32 * q) as usize).min(held - 1)]))
+    }
+
+    fn held(&self, slot: usize) -> usize {
+        self.written[slot].min(W)
     }
 }
 
@@ -123,8 +139,15 @@ pub const PREPARE: usize = 2;
 pub const RENDER: usize = 3;
 pub const CLEANUP: usize = 4;
 pub const ACQUIRE: usize = 5;
-pub const CPU_NAMES: [&str; 6] = ["main", "extract", "prepare", "render", "cleanup", "acquire"];
+/// The frame's own work: every stage added up, the acquire wait taken back out.
+pub const ENGINE: usize = 6;
+pub const CPU_NAMES: [&str; 7] = [
+    "main", "extract", "prepare", "render", "cleanup", "acquire", "engine",
+];
 pub const CPU_SLOTS: usize = CPU_NAMES.len();
+
+/// Long enough for a one-percent tail to mean something at a thousand frames a second.
+pub const CPU_WINDOW: usize = 4096;
 
 const FRAME_START: usize = 0;
 const MAIN_END: usize = 1;
@@ -142,12 +165,30 @@ pub struct CpuTimings(Arc<CpuShared>);
 #[derive(Default)]
 struct CpuShared {
     marks: Mutex<[Option<Instant>; MARKS]>,
-    samples: Mutex<Samples<CPU_SLOTS>>,
+    samples: Mutex<Samples<CPU_SLOTS, CPU_WINDOW>>,
+}
+
+pub struct Spread {
+    pub median: f32,
+    pub p99: f32,
+    pub max: f32,
+    pub frames: usize,
 }
 
 impl CpuTimings {
     pub fn median(&self, slot: usize) -> Option<f32> {
         self.0.samples.lock().ok()?.median(slot)
+    }
+
+    pub fn spread(&self, slot: usize) -> Option<Spread> {
+        let samples = self.0.samples.lock().ok()?;
+        let [median, p99, max] = samples.percentiles(slot, &[0.5, 0.99, 1.0])?;
+        Some(Spread {
+            median,
+            p99,
+            max,
+            frames: samples.held(slot),
+        })
     }
 
     fn lap(&self, from: usize, to: usize, slot: usize) {
@@ -203,6 +244,14 @@ pub fn rendered(cpu: Res<CpuTimings>) {
 
 pub fn cleaned(cpu: Res<CpuTimings>) {
     cpu.lap(RENDER_LAST, RENDER_LAST, CLEANUP);
+    if let Ok(mut samples) = cpu.0.samples.lock() {
+        let engine = [MAIN, EXTRACT, PREPARE, RENDER, CLEANUP]
+            .iter()
+            .map(|&slot| samples.last(slot))
+            .sum::<f32>()
+            - samples.last(ACQUIRE);
+        samples.push(ENGINE, engine);
+    }
 }
 
 /// Every system dispatched costs something whether or not it finds work, so the count per

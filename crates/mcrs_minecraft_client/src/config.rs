@@ -97,6 +97,33 @@ pub fn frame_latency() -> Option<std::num::NonZeroU32> {
     }
 }
 
+/// `TRACY_PREVIEW=1` streams frame images to the profiler, which costs a readback per frame and
+/// so stays off in a capture meant for timing.
+pub fn tracy_preview() -> bool {
+    flag("TRACY_PREVIEW", false)
+}
+
+/// `HOT=1` keeps one core spinning for the whole run. The frame sleeps in the swapchain acquire
+/// and the performance cluster clocks down while it does, so the same work then measures two to
+/// three times longer; with the cluster held at speed the numbers are the engine's own.
+pub fn hot_clocks() -> bool {
+    flag("HOT", false)
+}
+
+/// `FLY=<speed>` holds forward and sprint down from the first tick at that flying speed, in
+/// vanilla's units where 0.05 is the default, so a flight can be repeated exactly.
+pub fn scripted_flight() -> Option<f64> {
+    let spec = knob("FLY")?;
+    match spec.trim().parse::<f64>() {
+        Ok(speed) if speed > 0.0 => Some(speed),
+        _ => reject(
+            "FLY",
+            &spec,
+            "expected a flying speed above zero, 0.05 is vanilla",
+        ),
+    }
+}
+
 /// `RESOLUTION=<width>x<height>` opens a window of exactly that many pixels instead of the
 /// fullscreen one, so a frame can be priced at a stated pixel count.
 pub fn resolution() -> Option<(u32, u32)> {

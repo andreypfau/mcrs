@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
 use bevy_app::App;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{On, Query, ResMut, Resource};
+use bevy_tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use log::error;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{
@@ -14,6 +16,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight, ClientboundLogin,
 };
 use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind};
+use mcrs_minecraft_protocol::{Decode, Packet};
 use mcrs_voxel_storage::unpack_into;
 
 use crate::ConnectionState;
@@ -283,13 +286,35 @@ fn extent_of(registries: &[ReceivedRegistry], dimension_type_id: i32) -> Option<
 
 pub(crate) fn build(app: &mut App) {
     app.init_resource::<ColumnStore>();
+    app.init_resource::<Arrivals>();
     app.add_observer(receive_column_packets);
+}
+
+/// Column packets in the order they came, each one decoding on the compute pool. A column's
+/// forget can only be applied once the column itself has landed, so the queue is drained from
+/// the front and stops at the first decode still running.
+#[derive(Resource, Default)]
+pub struct Arrivals {
+    queue: VecDeque<Arrival>,
+    extent: Option<Extent>,
+}
+
+enum Arrival {
+    Enter(Extent),
+    Column(Task<Result<(ColumnPos, Column)>>),
+    Forget(ColumnPos),
+}
+
+impl Arrivals {
+    pub fn pending(&self) -> usize {
+        self.queue.len()
+    }
 }
 
 fn receive_column_packets(
     event: On<ReceivedPacketEvent>,
     connections: Query<(&ConnectionState, &ReceivedRegistries)>,
-    mut store: ResMut<ColumnStore>,
+    mut arrivals: ResMut<Arrivals>,
 ) {
     let Ok((state, registries)) = connections.get(event.entity) else {
         return;
@@ -301,22 +326,53 @@ fn receive_column_packets(
     if let Some(login) = event.decode::<ClientboundLogin>() {
         let dimension_type = login.player_spawn_info.dimension_type_id.0;
         match extent_of(&registries.0, dimension_type) {
-            Some(extent) => store.enter(extent),
+            Some(extent) => {
+                arrivals.extent = Some(extent);
+                arrivals.queue.push_back(Arrival::Enter(extent));
+            }
             None => error!(
                 "dimension type {dimension_type} carries no min_y and height: \
                  columns have nowhere to sit"
             ),
         }
-    } else if let Some(packet) = event.decode::<ClientboundLevelChunkWithLight>() {
-        let Some(extent) = store.extent() else {
+    } else if event.id == ClientboundLevelChunkWithLight::ID {
+        let Some(extent) = arrivals.extent else {
             return;
         };
-        match Column::decode(&packet.chunk_data, &packet.light_data, extent) {
-            Ok(column) => store.insert(packet.pos, column),
-            Err(error) => error!("column {:?}: {error:#}", packet.pos),
-        }
+        let data = event.data.clone();
+        let task = AsyncComputeTaskPool::get().spawn(async move {
+            let mut bytes = &data[..];
+            let packet = ClientboundLevelChunkWithLight::decode(&mut bytes)
+                .map_err(|error| anyhow!("chunk packet: {error:?}"))?;
+            let column = Column::decode(&packet.chunk_data, &packet.light_data, extent)
+                .with_context(|| format!("column {:?}", packet.pos))?;
+            Ok((packet.pos, column))
+        });
+        arrivals.queue.push_back(Arrival::Column(task));
     } else if let Some(forget) = event.decode::<ClientboundForgetLevelChunk>() {
-        store.remove(ColumnPos::new(forget.x, forget.z));
+        arrivals
+            .queue
+            .push_back(Arrival::Forget(ColumnPos::new(forget.x, forget.z)));
+    }
+}
+
+/// Lands what has finished decoding, in packet order. The store is only borrowed mutably when
+/// something actually lands, so its change tick means a column moved.
+pub(crate) fn settle_columns(mut arrivals: ResMut<Arrivals>, mut store: ResMut<ColumnStore>) {
+    let arrivals = arrivals.bypass_change_detection();
+    while let Some(arrival) = arrivals.queue.pop_front() {
+        match arrival {
+            Arrival::Enter(extent) => store.enter(extent),
+            Arrival::Forget(pos) => store.remove(pos),
+            Arrival::Column(mut task) => match check_ready(&mut task) {
+                None => {
+                    arrivals.queue.push_front(Arrival::Column(task));
+                    break;
+                }
+                Some(Ok((pos, column))) => store.insert(pos, column),
+                Some(Err(error)) => error!("{error:#}"),
+            },
+        }
     }
 }
 

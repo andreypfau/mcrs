@@ -3587,6 +3587,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_math",
+ "bevy_tasks",
  "bytes",
  "js-sys",
  "log",

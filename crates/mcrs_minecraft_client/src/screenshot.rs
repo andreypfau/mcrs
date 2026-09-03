@@ -41,8 +41,10 @@ impl Plugin for ScreenshotPlugin {
             .add_systems(Startup, prepare_dir)
             .add_systems(Update, capture);
         #[cfg(feature = "telemetry-tracy")]
-        app.init_resource::<tracy_preview::Preview>()
-            .add_systems(Update, tracy_preview::request);
+        if crate::config::tracy_preview() {
+            app.init_resource::<tracy_preview::Preview>()
+                .add_systems(Update, tracy_preview::request);
+        }
     }
 }
 

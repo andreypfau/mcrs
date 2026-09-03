@@ -24,7 +24,7 @@ pub struct SpriteRef {
 
 pub struct Animation {
     pub array: u8,
-    frame_base: u32,
+    pub frame_base: u32,
     pub count: u32,
     pub frametime: u32,
     pub interpolate: bool,
@@ -73,6 +73,14 @@ impl SpriteRegistry {
 
     pub fn base_layer(&self, animation: &Animation) -> u32 {
         self.arrays[animation.array as usize].stills.len() as u32 + animation.frame_base
+    }
+
+    /// How many stills and how many frame layers each array holds, in array order.
+    pub fn counts(&self) -> Vec<(u32, u32)> {
+        self.arrays
+            .iter()
+            .map(|array| (array.stills.len() as u32, array.frames.len() as u32))
+            .collect()
     }
 
     fn animation(&self, layer: u16) -> Option<&Animation> {
@@ -234,40 +242,72 @@ impl SpriteArray {
         self.stills.len()
     }
 
+    pub fn frame_layers(&self) -> usize {
+        self.frames.len()
+    }
+
     pub fn mip_chain(&self) -> Vec<Vec<u8>> {
         let opacities: Vec<Opacity> = self.stills.iter().chain(&self.frames).copied().collect();
         let pixels = [&self.still_pixels[..], &self.frame_pixels[..]].concat();
-        let layers = opacities.len().max(1);
-        let mut size = self.size as usize;
-        let targets: Vec<Option<f32>> = (0..layers)
-            .map(|layer| {
-                (*opacities.get(layer)? == Opacity::Cutout)
-                    .then(|| coverage(&pixels[layer * size * size * 4..], size * size, 1.0))
-            })
-            .collect();
+        if opacities.is_empty() {
+            return mip_levels(&[0; 4], &[Opacity::Solid], 1);
+        }
+        mip_levels(&pixels, &opacities, self.size as usize)
+    }
 
-        let mut levels = vec![pixels];
-        while size > 1 {
-            let half = size / 2;
-            let previous = levels.last().unwrap();
-            let mut level = vec![0u8; half * half * 4 * layers];
-            for layer in 0..layers {
-                let src = &previous[layer * size * size * 4..(layer + 1) * size * size * 4];
-                let dst = &mut level[layer * half * half * 4..(layer + 1) * half * half * 4];
-                for y in 0..half {
-                    for x in 0..half {
-                        downsample_2x2(src, size, x * 2, y * 2, &mut dst[(y * half + x) * 4..]);
-                    }
-                }
-                if let Some(target) = targets[layer] {
-                    match_coverage(dst, half * half, target);
+    /// The mip chain of the stills from `from` on, in the layout the whole chain uses.
+    pub fn still_mips(&self, from: usize) -> Vec<Vec<u8>> {
+        let stride = (self.size * self.size * 4) as usize;
+        mip_levels(
+            &self.still_pixels[from * stride..],
+            &self.stills[from..],
+            self.size as usize,
+        )
+    }
+
+    pub fn frame_mips(&self, from: usize) -> Vec<Vec<u8>> {
+        let stride = (self.size * self.size * 4) as usize;
+        mip_levels(
+            &self.frame_pixels[from * stride..],
+            &self.frames[from..],
+            self.size as usize,
+        )
+    }
+}
+
+/// Every level of every layer, level zero being the pixels as given. A cutout layer keeps the
+/// share of texels its alpha test passes at every level, so a leaf block does not thin out with
+/// distance.
+fn mip_levels(pixels: &[u8], opacities: &[Opacity], mut size: usize) -> Vec<Vec<u8>> {
+    let layers = opacities.len();
+    let targets: Vec<Option<f32>> = (0..layers)
+        .map(|layer| {
+            (opacities[layer] == Opacity::Cutout)
+                .then(|| coverage(&pixels[layer * size * size * 4..], size * size, 1.0))
+        })
+        .collect();
+
+    let mut levels = vec![pixels[..layers * size * size * 4].to_vec()];
+    while size > 1 {
+        let half = size / 2;
+        let previous = levels.last().unwrap();
+        let mut level = vec![0u8; half * half * 4 * layers];
+        for layer in 0..layers {
+            let src = &previous[layer * size * size * 4..(layer + 1) * size * size * 4];
+            let dst = &mut level[layer * half * half * 4..(layer + 1) * half * half * 4];
+            for y in 0..half {
+                for x in 0..half {
+                    downsample_2x2(src, size, x * 2, y * 2, &mut dst[(y * half + x) * 4..]);
                 }
             }
-            levels.push(level);
-            size = half;
+            if let Some(target) = targets[layer] {
+                match_coverage(dst, half * half, target);
+            }
         }
-        levels
+        levels.push(level);
+        size = half;
     }
+    levels
 }
 
 static SRGB_TO_LINEAR: LazyLock<[f32; 256]> = LazyLock::new(|| {
@@ -398,6 +438,28 @@ mod tests {
                 "level {level} rescaled a translucent alpha"
             );
         }
+    }
+
+    #[test]
+    fn the_mips_of_a_tail_of_stills_match_the_whole_chain() {
+        let mut registry = SpriteRegistry::new();
+        for id in [
+            "minecraft:block/stone",
+            "minecraft:block/dirt",
+            "minecraft:block/oak_leaves",
+        ] {
+            registry.intern(Pack::corpus(), id).unwrap();
+        }
+        let array = &registry.arrays()[0];
+        let whole = array.mip_chain();
+        let tail = array.still_mips(1);
+        assert_eq!(tail.len(), whole.len());
+        for (level, (all, some)) in whole.iter().zip(&tail).enumerate() {
+            let size = (array.size as usize >> level).max(1);
+            let stride = size * size * 4;
+            assert_eq!(&all[stride..], &some[..], "level {level}");
+        }
+        assert!(array.frame_mips(0).is_empty() || array.frames.is_empty());
     }
 
     #[test]

@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderDevice, RenderQueue};
+use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue};
+use wgpu::util::StagingBelt;
 
 use crate::mesh::{Draw, Group};
 use crate::pack::QUAD_WORDS;
@@ -12,7 +13,7 @@ use super::arenas::Arenas;
 use super::stats::FrameCounts;
 use super::terrain::Terrain;
 use super::texture::write_tint_square;
-use super::{Animation, Atlas, SectionDesc};
+use super::{Animation, AtlasUpdate, SectionDesc};
 
 static BUDGET: std::sync::LazyLock<usize> = std::sync::LazyLock::new(crate::config::upload_budget);
 
@@ -23,7 +24,7 @@ pub enum Upload {
         data: Vec<u8>,
     },
     Sprites {
-        atlases: Vec<Atlas>,
+        atlases: Vec<AtlasUpdate>,
         animations: Vec<Animation>,
         animated_from: u32,
     },
@@ -52,6 +53,27 @@ impl Uploads {
 
     pub fn waiting(&self) -> usize {
         self.0.lock().unwrap().len()
+    }
+}
+
+/// Geometry goes to the arenas through mapped staging memory the belt hands back after each
+/// submit; `Queue::write_buffer` allocates a fresh staging buffer per call, which at the upload
+/// budget costs a millisecond per megabyte.
+#[derive(Resource)]
+pub(super) struct Staging(Mutex<StagingBelt>);
+
+impl Staging {
+    pub fn new(device: &RenderDevice) -> Self {
+        Self(Mutex::new(StagingBelt::new(
+            device.wgpu_device().clone(),
+            *BUDGET as u64,
+        )))
+    }
+}
+
+pub(super) fn recall_staging(staging: Option<Res<Staging>>) {
+    if let Some(staging) = staging {
+        staging.0.lock().unwrap().recall();
     }
 }
 
@@ -95,16 +117,20 @@ impl Placement {
 
 pub(super) fn apply_uploads(
     mut terrain: Option<ResMut<Terrain>>,
+    staging: Option<Res<Staging>>,
     uploads: Res<Uploads>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     pipeline_cache: Res<PipelineCache>,
     counts: Res<FrameCounts>,
+    mut ctx: RenderContext,
 ) {
-    let Some(terrain) = terrain.as_mut() else {
+    let (Some(terrain), Some(staging)) = (terrain.as_mut(), staging) else {
         return;
     };
     let terrain = terrain.as_mut();
+    let mut belt = staging.0.lock().unwrap();
+    let encoder = ctx.command_encoder();
     let mut budget = *BUDGET;
 
     while budget > 0 {
@@ -113,6 +139,7 @@ pub(super) fn apply_uploads(
             match next {
                 None => break,
                 Some(Upload::Tints { origin, size, data }) => {
+                    let _writing = info_span!("upload tints").entered();
                     write_tint_square(&terrain.sprites.tints, &queue, origin, size, &data);
                     budget = budget.saturating_sub(data.len());
                     continue;
@@ -122,16 +149,23 @@ pub(super) fn apply_uploads(
                     animations,
                     animated_from,
                 }) => {
-                    let spent =
-                        terrain
-                            .sprites
-                            .swap(atlases, &animations, animated_from, &device, &queue);
-                    terrain.binds.rebuild_draw(
-                        &terrain.arenas,
-                        &terrain.sprites,
+                    let _adding = info_span!("upload sprites").entered();
+                    let (spent, rebound) = terrain.sprites.update(
+                        &atlases,
+                        &animations,
+                        animated_from,
                         &device,
-                        &pipeline_cache,
+                        encoder,
+                        &mut belt,
                     );
+                    if rebound {
+                        terrain.binds.rebuild_draw(
+                            &terrain.arenas,
+                            &terrain.sprites,
+                            &device,
+                            &pipeline_cache,
+                        );
+                    }
                     budget = budget.saturating_sub(spent);
                     continue;
                 }
@@ -147,6 +181,7 @@ pub(super) fn apply_uploads(
 
         let mut pending = terrain.arenas.pending.take().expect("just filled");
         let parts = pending.placement.parts(&terrain.arenas);
+        let copying = info_span!("upload copy").entered();
         while budget > 0 && pending.part < parts.len() {
             let (buffer, offset, data) = parts[pending.part];
             if data.is_empty() {
@@ -162,11 +197,13 @@ pub(super) fn apply_uploads(
                     break;
                 }
             }
-            queue.write_buffer(
+            belt.write_buffer(
+                encoder,
                 buffer,
                 offset + pending.done as u64,
-                &data[pending.done..pending.done + take],
-            );
+                BufferSize::new(take as u64).expect("a non-empty part"),
+            )
+            .copy_from_slice(&data[pending.done..pending.done + take]);
             budget -= take;
             pending.done += take;
             if pending.done == data.len() {
@@ -174,6 +211,7 @@ pub(super) fn apply_uploads(
                 pending.done = 0;
             }
         }
+        drop(copying);
         if pending.part < parts.len() {
             terrain.arenas.pending = Some(pending);
             break;
@@ -181,9 +219,15 @@ pub(super) fn apply_uploads(
         if let Some(draws) = pending.placement.draws {
             terrain.list.draws = draws;
         }
+        let _rebuilding = info_span!("upload rebuild params").entered();
         terrain.rebuild_params(&device, &pipeline_cache);
     }
 
+    {
+        let _finishing = info_span!("upload finish").entered();
+        belt.finish();
+    }
     counts.set_upload_bytes(*BUDGET - budget);
+    let _flushing = info_span!("upload flush params").entered();
     terrain.list.flush(&terrain.frame.params, &queue);
 }

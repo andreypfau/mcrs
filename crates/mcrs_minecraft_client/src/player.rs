@@ -49,7 +49,7 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) {
+pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) -> Entity {
     let physics =
         PhysicsTransform::from_translation(position).with_rotation(Rotation::new(yaw, pitch));
     let player = world
@@ -82,6 +82,7 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) {
         Transform::from_xyz(0.0, EYE_HEIGHT, 0.0),
         ChildOf(player),
     ));
+    player
 }
 
 /// Grabbing after the look has been applied drops the motion the pointer made

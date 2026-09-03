@@ -88,7 +88,12 @@ pub struct LastSentMovement {
 }
 
 impl LastSentMovement {
-    fn tick(&mut self, position: DVec3, rotation: Rotation, flags: MoveFlags) -> Option<MovePacket> {
+    fn tick(
+        &mut self,
+        position: DVec3,
+        rotation: Rotation,
+        flags: MoveFlags,
+    ) -> Option<MovePacket> {
         self.reminder += 1;
         let moved = position.distance_squared(self.position) > MOVE_EPSILON_SQUARED
             || self.reminder >= POSITION_REMINDER_TICKS;
@@ -114,6 +119,9 @@ impl LastSentMovement {
         packet
     }
 }
+
+#[derive(Resource)]
+pub struct ScriptedFlight;
 
 /// One tick of local-player movement, from the sprint machine through the
 /// shared travel step.
@@ -208,6 +216,7 @@ fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), 
 fn fly(
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
+    scripted: Option<Res<ScriptedFlight>>,
     player: Single<
         (
             &mut Sprint,
@@ -219,7 +228,15 @@ fn fly(
     >,
 ) {
     let (mut sprint, mut velocity, mut transform, flying_speed) = player.into_inner();
-    let input = input::pressed(&keys, &cursor);
+    let input = if scripted.is_some() {
+        Input {
+            forward: true,
+            sprint: true,
+            ..Input::EMPTY
+        }
+    } else {
+        input::pressed(&keys, &cursor)
+    };
     let yaw = transform.rotation.yaw();
     tick(
         &mut sprint,
@@ -436,7 +453,6 @@ mod tests {
         }
     }
 
-
     fn on_ground(on_ground: bool) -> MoveFlags {
         MoveFlags::new().with_on_ground(on_ground)
     }
@@ -503,7 +519,10 @@ mod tests {
             last_sent.tick(resting, Rotation::ZERO, on_ground(false)),
             Some(MovePacket::StatusOnly)
         );
-        assert_eq!(last_sent.tick(resting, Rotation::ZERO, on_ground(false)), None);
+        assert_eq!(
+            last_sent.tick(resting, Rotation::ZERO, on_ground(false)),
+            None
+        );
     }
 
     /// A drift under the epsilon is not a move, so the reminder keeps counting
@@ -515,7 +534,10 @@ mod tests {
         last_sent.tick(position, Rotation::ZERO, on_ground(true));
         for _ in 0..18 {
             position.x += 1.0e-5;
-            assert_eq!(last_sent.tick(position, Rotation::ZERO, on_ground(true)), None);
+            assert_eq!(
+                last_sent.tick(position, Rotation::ZERO, on_ground(true)),
+                None
+            );
         }
         position.x += 1.0e-5;
         assert_eq!(
