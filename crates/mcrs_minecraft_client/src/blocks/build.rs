@@ -6,18 +6,7 @@ use crate::bake::{self, Dir, TinyWorld};
 use crate::model::Pack;
 
 use super::{BlockInfo, CORNER_UV, CubeFace, FACE_AXES, ModelQuad, Pass, TintKind, cube_corner};
-
-const EMISSION: [(&str, u8); 9] = [
-    ("minecraft:lava", 15),
-    ("minecraft:sea_lantern", 15),
-    ("minecraft:crying_obsidian", 10),
-    ("minecraft:magma_block", 3),
-    ("minecraft:amethyst_cluster", 5),
-    ("minecraft:large_amethyst_bud", 4),
-    ("minecraft:medium_amethyst_bud", 2),
-    ("minecraft:small_amethyst_bud", 1),
-    ("minecraft:budding_amethyst", 0),
-];
+use mcrs_minecraft_world::block::definition::BlockStateData;
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
     "minecraft:bubble_column",
@@ -36,17 +25,10 @@ pub struct Fluid {
     pub overlay: Option<SpriteRef>,
 }
 
-fn amount_of(level: u32) -> u8 {
-    match level {
-        0 => 8,
-        1..=7 => 8 - level as u8,
-        _ => (16u32.saturating_sub(level)).clamp(1, 8) as u8,
-    }
-}
-
 fn fluid_of(
     pack: &Pack,
     state: &BlockStateKey,
+    data: &BlockStateData,
     sprites: &mut SpriteRegistry,
 ) -> Result<Option<Fluid>, String> {
     let prop = |key: &str| {
@@ -58,10 +40,10 @@ fn fluid_of(
     };
     let (lava, amount) = match state.name.as_str() {
         "minecraft:water" | "minecraft:lava" => {
-            let level = prop("level")
-                .and_then(|value| value.parse().ok())
-                .unwrap_or(0);
-            (state.name == "minecraft:lava", amount_of(level))
+            let fluid = data
+                .fluid
+                .ok_or_else(|| format!("{} states no fluid", state.name))?;
+            (state.name == "minecraft:lava", fluid.level)
         }
         name if IMPLICITLY_WATERLOGGED.contains(&name) => (false, 8),
         _ if prop("waterlogged") == Some("true") => (false, 8),
@@ -88,6 +70,7 @@ fn fluid_of(
 pub(super) fn build_one(
     pack: &Pack,
     state: &BlockStateKey,
+    data: &BlockStateData,
     world: &TinyWorld,
     sprites: &mut SpriteRegistry,
 ) -> Result<BlockInfo, String> {
@@ -98,13 +81,9 @@ pub(super) fn build_one(
         return Ok(BlockInfo::default());
     }
 
-    let emission = EMISSION
-        .iter()
-        .find(|(name, _)| *name == state.name)
-        .map(|(_, level)| *level)
-        .unwrap_or(0);
+    let emission = data.light_emission;
     let tint_kind = tint_kind_of(&state.name);
-    let fluid = fluid_of(pack, state, sprites)?;
+    let fluid = fluid_of(pack, state, data, sprites)?;
 
     let baked = bake::bake(pack, &state.name, &state.pairs(), IVec3::ZERO, world)?;
     if baked.quads.is_empty() {
@@ -297,10 +276,22 @@ mod tests {
 
     #[test]
     fn a_fluid_level_reads_back_as_the_height_vanilla_gives_it() {
-        let ninths = [8u8, 7, 6, 5, 4, 3, 2, 1, 8, 7, 6, 5, 4, 3, 2, 1];
+        let ninths = [8u8, 7, 6, 5, 4, 3, 2, 1, 8, 8, 8, 8, 8, 8, 8, 8];
         for (level, height) in ninths.iter().enumerate() {
-            assert_eq!(super::amount_of(level as u32), *height, "level {level}");
+            let info = bake_state("minecraft:water", &[("level", &level.to_string())]);
+            assert_eq!(
+                info.fluid.expect("water is a fluid").amount,
+                *height,
+                "level {level}"
+            );
         }
+    }
+
+    #[test]
+    fn a_block_lights_the_mesh_by_what_the_corpus_says_it_emits() {
+        assert_eq!(bake_state("minecraft:torch", &[]).emission, 14);
+        assert_eq!(bake_state("minecraft:glowstone", &[]).emission, 15);
+        assert_eq!(bake_state("minecraft:stone", &[]).emission, 0);
     }
 
     use super::{BlockStateKey, Pack, cube_corner, face_group, split_cube};
@@ -316,9 +307,18 @@ mod tests {
                 .map(|(key, value)| (key.to_string(), value.to_string()))
                 .collect(),
         };
+        let corpus = crate::blocks::corpus();
+        let mut id = corpus.default_state(name);
+        for (key, value) in props {
+            id = corpus
+                .owner(id)
+                .with_text(id, key, value)
+                .unwrap_or_else(|| panic!("{name} has no {key}={value}"));
+        }
         super::build_one(
             Pack::corpus(),
             &state,
+            corpus.state(id),
             &TinyWorld::default(),
             &mut SpriteRegistry::new(),
         )

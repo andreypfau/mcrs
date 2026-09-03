@@ -209,7 +209,8 @@ pub fn extend(
     }
     for &id in ids {
         let state = state_key(definitions, id);
-        match build_one(pack, &state, &neighbours, &mut catalog.sprites) {
+        let data = definitions.state(BlockStateId(id));
+        match build_one(pack, &state, data, &neighbours, &mut catalog.sprites) {
             Ok(info) => catalog.blocks[id as usize] = info,
             Err(reason) => catalog
                 .failures
