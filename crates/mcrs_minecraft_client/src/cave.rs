@@ -64,6 +64,19 @@ const _: () = {
     }
 };
 
+/// Clears cells `from..=to` of a bitset without touching the cells sharing their end words.
+fn clear_run(bits: &mut [u32], from: usize, to: usize) {
+    let (first, last) = (from >> 5, to >> 5);
+    let (head, tail) = (u32::MAX << (from & 31), u32::MAX >> (31 - (to & 31)));
+    if first == last {
+        bits[first] &= !(head & tail);
+        return;
+    }
+    bits[first] &= !head;
+    bits[first + 1..last].fill(0);
+    bits[last] &= !tail;
+}
+
 fn cell_of(local: [usize; 3]) -> usize {
     (local[1] * WALK[2] + local[2]) * WALK[0] + local[0]
 }
@@ -79,6 +92,7 @@ pub struct CaveCull {
     pub bits: Box<[u32]>,
     min_section: [i32; 3],
     laid: Option<[[usize; 3]; 2]>,
+    walked: Option<[[i32; 3]; 2]>,
     reached: Box<[u32]>,
     inside: Box<[u32]>,
     spent: Vec<u8>,
@@ -96,6 +110,7 @@ impl CaveCull {
             bits: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
             min_section: [0; 3],
             laid: None,
+            walked: None,
             reached: vec![0; WALK_CELLS / 32].into_boxed_slice(),
             inside: vec![0; WALK_CELLS / 32].into_boxed_slice(),
             spent: vec![NEVER; WALK_CELLS * ENTRIES],
@@ -188,6 +203,11 @@ impl CaveCull {
 
     fn run(&mut self, camera: Vec3, frustum: &Frustum) {
         self.bits.fill(u32::MAX);
+        // Only the last walk's box can hold stale marks, so scrubbing it — before any early
+        // return — is what leaves the whole of `reached`, `inside` and `spent` clean again.
+        if let Some(walked) = self.walked.take() {
+            self.scrub(walked);
+        }
         let section =
             std::array::from_fn(|axis| (camera[axis] / SECTION_SIZE as f32).floor() as i32);
         let (Some(eye), Some([laid_lo, laid_hi])) = (self.local(section), self.laid) else {
@@ -202,9 +222,7 @@ impl CaveCull {
         // wherever the camera stands — therefore drops no cell it could have reached.
         let lo: [i32; 3] = std::array::from_fn(|axis| laid_lo[axis].min(eye[axis]) as i32);
         let hi: [i32; 3] = std::array::from_fn(|axis| laid_hi[axis].max(eye[axis]) as i32);
-        self.spent.fill(NEVER);
-        self.reached.fill(0);
-        self.inside.fill(0);
+        self.walked = Some([lo, hi]);
         self.queue.clear();
         self.push(start as u32, ENTRY_ANY, 0, frustum);
 
@@ -235,6 +253,18 @@ impl CaveCull {
             }
         }
         self.project(laid_lo, laid_hi);
+    }
+
+    fn scrub(&mut self, [lo, hi]: [[i32; 3]; 2]) {
+        for y in lo[1]..=hi[1] {
+            for z in lo[2]..=hi[2] {
+                let row = (y as usize * WALK[2] + z as usize) * WALK[0];
+                let (from, to) = (row + lo[0] as usize, row + hi[0] as usize);
+                self.spent[from * ENTRIES..(to + 1) * ENTRIES].fill(NEVER);
+                clear_run(&mut self.reached, from, to);
+                clear_run(&mut self.inside, from, to);
+            }
+        }
     }
 
     /// The shader indexes visibility by table slot, so what the walk did not reach loses its bit.
@@ -524,6 +554,22 @@ mod tests {
     /// By the time the walk turns west out of the corner it has already stepped west, down and
     /// north, so only that octant's flood is asked. A route through the corner that doubles back on
     /// an axis lives in the other floods and is culled.
+    #[test]
+    fn a_walk_whose_box_moved_reports_only_what_this_walk_reached() {
+        let mut slab = Slab::in_the_open(middle([0, 2, 0]));
+        slab.open([10, 2, 0], CONNECT_ALL);
+
+        slab.run(middle([0, 2, 0]), middle([40, 2, 0]));
+        assert_eq!(slab.cave.reached(), 11, "the eleven cells east to the section laid in");
+
+        slab.run(middle([20, 2, 0]), middle([0, 2, 0]));
+        assert_eq!(
+            slab.cave.reached(),
+            11,
+            "the eleven cells west of the new eye, and none the first walk left behind"
+        );
+    }
+
     #[test]
     fn a_corner_reads_only_the_flood_for_the_octant_it_was_reached_in() {
         let eye = [8, 8, 8];
