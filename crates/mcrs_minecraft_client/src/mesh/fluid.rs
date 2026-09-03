@@ -22,6 +22,20 @@ pub(super) const COVER_SEE_THROUGH: u8 = 1 << 6;
 
 const IN_SECTION: u32 = ((1 << SECTION_SIZE) - 1) << 1;
 
+const CORNER_XZ: [[f32; 2]; 4] = [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]];
+
+const SIDE_CORNERS: [[usize; 2]; 4] = [[0, 3], [2, 1], [1, 0], [3, 2]];
+
+#[inline]
+fn side_corner_xz(face: usize, corner: usize) -> [f32; 2] {
+    let normal = face_normal(face);
+    let [x, z] = CORNER_XZ[corner];
+    [
+        x - normal[0] as f32 * FLUID_INSET,
+        z - normal[2] as f32 * FLUID_INSET,
+    ]
+}
+
 pub(super) struct Sloped {
     cell: [i32; 3],
     corners: [f32; 4],
@@ -407,41 +421,12 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
             if !open(face) {
                 continue;
             }
-            let [north_west, south_west, south_east, north_east] = corners;
-            let (c0, c1, x0, z0, x1, z1) = match face {
-                2 => (
-                    north_west,
-                    north_east,
-                    fx,
-                    fz + FLUID_INSET,
-                    fx + 1.0,
-                    fz + FLUID_INSET,
-                ),
-                3 => (
-                    south_east,
-                    south_west,
-                    fx + 1.0,
-                    fz + 1.0 - FLUID_INSET,
-                    fx,
-                    fz + 1.0 - FLUID_INSET,
-                ),
-                4 => (
-                    south_west,
-                    north_west,
-                    fx + FLUID_INSET,
-                    fz + 1.0,
-                    fx + FLUID_INSET,
-                    fz,
-                ),
-                _ => (
-                    north_east,
-                    south_east,
-                    fx + 1.0 - FLUID_INSET,
-                    fz,
-                    fx + 1.0 - FLUID_INSET,
-                    fz + 1.0,
-                ),
-            };
+            let [i0, i1] = SIDE_CORNERS[face - 2];
+            let (c0, c1) = (corners[i0], corners[i1]);
+            let [x0, z0] = side_corner_xz(face, i0);
+            let [x1, z1] = side_corner_xz(face, i1);
+            let (x0, z0) = (fx + x0, fz + z0);
+            let (x1, z1) = (fx + x1, fz + z1);
             model::push(
                 out,
                 &model::Quad {
@@ -474,7 +459,8 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
 
 #[cfg(test)]
 mod tests {
-    use super::{FLUID_FULL, drop_steps};
+    use super::{FLUID_FULL, SIDE_CORNERS, drop_steps, side_corner_xz};
+    use crate::pack::FLUID_INSET;
     use crate::atlas::SpriteRef;
     use crate::bake::Dir;
     use crate::blocks::{BlockInfo, CubeFace, Fluid, Pass};
@@ -509,6 +495,27 @@ mod tests {
                 merged, model,
                 "{ninths} ninths of a block lands in two places"
             );
+        }
+    }
+
+    #[test]
+    fn fluid_sides_take_their_corner_pair_and_inset_towards_the_block() {
+        const NW: usize = 0;
+        const SW: usize = 1;
+        const SE: usize = 2;
+        const NE: usize = 3;
+        let i = FLUID_INSET;
+        let sides = [
+            (NW, NE, [0.0, i], [1.0, i]),
+            (SE, SW, [1.0, 1.0 - i], [0.0, 1.0 - i]),
+            (SW, NW, [i, 1.0], [i, 0.0]),
+            (NE, SE, [1.0 - i, 0.0], [1.0 - i, 1.0]),
+        ];
+        for (side, (c0, c1, xz0, xz1)) in sides.into_iter().enumerate() {
+            let face = side + 2;
+            assert_eq!(SIDE_CORNERS[side], [c0, c1], "face {face} corner pair");
+            assert_eq!(side_corner_xz(face, c0), xz0, "face {face} first corner");
+            assert_eq!(side_corner_xz(face, c1), xz1, "face {face} second corner");
         }
     }
 
