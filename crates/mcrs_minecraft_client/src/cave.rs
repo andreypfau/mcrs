@@ -153,6 +153,12 @@ impl CaveCull {
         self.laid = None;
         self.conn.fill(OPEN);
         self.slot.fill(NO_SLOT);
+        // A cell is numbered against the corner, so sliding renumbers every one of them and the
+        // last walk's marks can no longer be found by the box they were made in.
+        self.walked = None;
+        self.spent.fill(NEVER);
+        self.reached.fill(0);
+        self.inside.fill(0);
         true
     }
 
@@ -488,6 +494,30 @@ mod tests {
             "in front of the wall laid back in"
         );
         assert!(!slab.visible([10, 2, 16]), "behind it");
+    }
+
+    #[test]
+    fn a_slide_leaves_no_mark_from_the_walk_before_it() {
+        let before = middle([44, 2, 16]);
+        let mut slab = Slab::around(before);
+        slab.cave.conn.fill(SEALED);
+        for x in 40..80 {
+            for z in 8..24 {
+                slab.open([x, 2, z], CONNECT_ALL);
+            }
+        }
+        slab.run(before, middle([40, 2, 16]));
+        assert!(
+            slab.cave.spent.iter().any(|seen| *seen != NEVER),
+            "the walk has to leave marks for this to be worth asserting"
+        );
+
+        assert!(slab.cave.follow(middle([60, 2, 16])), "the camera crossed a step");
+        assert!(
+            slab.cave.spent.iter().all(|seen| *seen == NEVER),
+            "a cell is numbered against the corner, so a slide renumbers every one of them \
+             and no mark may be left behind to be read as another cell's"
+        );
     }
 
     #[test]
