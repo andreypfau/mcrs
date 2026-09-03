@@ -269,6 +269,50 @@ mod tests {
     use bevy::math::Vec3;
 
     #[test]
+    fn a_reused_scratch_meshes_a_section_exactly_as_a_fresh_one_does() {
+        const STONE: u16 = 1;
+        const BUSH: u16 = 2;
+        let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
+        catalog[STONE as usize].cube = Some(
+            [CubeFace {
+                sprite: SpriteRef { array: 0, layer: 1 },
+                pass: Pass::Solid as u8,
+                tinted: false,
+            }; 6],
+        );
+        catalog[STONE as usize].occludes = true;
+        catalog[BUSH as usize].quads = vec![ModelQuad {
+            positions: [Vec3::ZERO, Vec3::X, Vec3::ONE, Vec3::Y],
+            uvs: [[0.0; 2]; 4],
+            cull: None,
+            face: None,
+            sprite: SpriteRef::default(),
+            pass: Pass::Cutout,
+            shade: [255; 4],
+            tinted: false,
+        }];
+
+        let subject = one_section_world(|x, y, z| match (x + y + z) % 4 {
+            0 => STONE,
+            1 => BUSH,
+            _ => 0,
+        });
+        let other = one_section_world(|x, _, z| if x > z { BUSH } else { STONE });
+
+        let fresh = mesh_section(&subject, &catalog, [0, 0, 0], 0, &mut Scratch::new());
+
+        let mut carried = Scratch::new();
+        mesh_section(&other, &catalog, [0, 0, 0], 0, &mut carried);
+        let again = mesh_section(&subject, &catalog, [0, 0, 0], 0, &mut carried);
+
+        assert_eq!(fresh.faces, again.faces, "face attributes");
+        assert_eq!(fresh.simple, again.simple, "greedy quads");
+        assert_eq!(fresh.complex, again.complex, "model vertices");
+        assert_eq!(fresh.groups.len(), again.groups.len(), "groups");
+        assert_eq!(fresh.connectivity, again.connectivity, "connectivity");
+    }
+
+    #[test]
     fn the_groups_of_a_section_tile_the_quads_of_that_section() {
         const STONE: u16 = 1;
         const BUSH: u16 = 2;
