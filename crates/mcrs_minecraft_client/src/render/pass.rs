@@ -112,24 +112,21 @@ pub(super) fn cull_terrain(
         });
     let span = diagnostics.pass_span(&mut pass, "terrain_cull");
     pass.set_bind_group(1, &terrain.binds.cull, &[]);
-    cull_group(
-        &mut pass,
-        &terrain,
-        LayerGroup::Opaque,
-        compacting,
-        &view_bind_group.0,
-        view_offset,
-        &streams,
-    );
-    cull_group(
-        &mut pass,
-        &terrain,
-        LayerGroup::Translucent,
-        stable,
-        &view_bind_group.0,
-        view_offset,
-        &streams,
-    );
+    for group in LayerGroup::ALL {
+        cull_group(
+            &mut pass,
+            &terrain,
+            group,
+            if group.culls_in_order() {
+                stable
+            } else {
+                compacting
+            },
+            &view_bind_group.0,
+            view_offset,
+            &streams,
+        );
+    }
     span.end(&mut pass);
 }
 
@@ -243,26 +240,18 @@ pub(super) fn draw_terrain(
     }
 
     let view_offset = view_offset.offset;
-    draw_layer_group(
-        &mut pass,
-        &terrain,
-        LayerGroup::Opaque,
-        &view_bind_group.0,
-        view_offset,
-        &pipeline_cache,
-        &streams,
-        wireframe.0,
-    );
-    draw_layer_group(
-        &mut pass,
-        &terrain,
-        LayerGroup::Translucent,
-        &view_bind_group.0,
-        view_offset,
-        &pipeline_cache,
-        &streams,
-        wireframe.0,
-    );
+    for group in LayerGroup::ALL {
+        draw_layer_group(
+            &mut pass,
+            &terrain,
+            group,
+            &view_bind_group.0,
+            view_offset,
+            &pipeline_cache,
+            &streams,
+            wireframe.0,
+        );
+    }
 
     span.end(&mut pass);
 }

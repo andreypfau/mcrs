@@ -65,6 +65,14 @@ pub(super) enum LayerGroup {
 }
 
 impl LayerGroup {
+    pub const ALL: [LayerGroup; 2] = [LayerGroup::Opaque, LayerGroup::Translucent];
+
+    // Blending is not commutative, so translucent draws have to reach the rasteriser in the order
+    // the list holds them; opaque ones may be compacted.
+    pub const fn culls_in_order(self) -> bool {
+        matches!(self, LayerGroup::Translucent)
+    }
+
     pub const fn layers(self) -> &'static [Layer] {
         match self {
             LayerGroup::Opaque => &[Layer::Solid, Layer::Cutout],
@@ -123,7 +131,7 @@ mod tests {
     #[test]
     fn the_two_groups_between_them_hold_every_stream_exactly_once() {
         for stream in 0..STREAMS as u32 {
-            let held = [LayerGroup::Opaque, LayerGroup::Translucent]
+            let held = LayerGroup::ALL
                 .into_iter()
                 .filter(|group| group.holds(stream))
                 .count();
