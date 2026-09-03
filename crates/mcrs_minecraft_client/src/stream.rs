@@ -51,7 +51,8 @@ pub struct Loader {
     queue: Vec<[i32; 3]>,
     queued: HashSet<[i32; 3]>,
     queue_sorted: bool,
-    meshing: Vec<([i32; 3], u32, Task<SectionMesh>)>,
+    meshing: Vec<([i32; 3], u32, Task<(SectionMesh, Scratch)>)>,
+    scratches: Vec<Scratch>,
     lists: [Vec<Group>; STREAMS],
     group_block: Block,
     slots: usize,
@@ -125,6 +126,7 @@ impl Loader {
             queued: HashSet::new(),
             queue_sorted: true,
             meshing: Vec::new(),
+            scratches: Vec::new(),
             lists: std::array::from_fn(|_| Vec::new()),
             group_block: Block::EMPTY,
             slots: budget.sections,
@@ -597,13 +599,14 @@ pub fn advance(
     loader
         .meshing
         .retain_mut(|(at, slot, task)| match check_ready(task) {
-            Some(mesh) => {
-                meshed.push((*at, *slot, mesh));
+            Some(done) => {
+                meshed.push((*at, *slot, done));
                 false
             }
             None => true,
         });
-    for (at, slot, mesh) in meshed {
+    for (at, slot, (mesh, scratch)) in meshed {
+        loader.scratches.push(scratch);
         loader.pending.remove(&at);
         let here = loader.distance(at);
         let mut pending = mesh;
@@ -653,13 +656,14 @@ pub fn advance(
         };
         let world = loader.store.clone();
         let blocks = loader.blocks.clone();
+        let mut scratch = loader.scratches.pop().unwrap_or_else(Scratch::new);
         loader.pending.insert(at);
         loader.meshing.push((
             at,
             slot,
             pool.spawn(async move {
-                let mut scratch = Scratch::new();
-                mesh::mesh_section(&world, &blocks, at, slot, &mut scratch)
+                let mesh = mesh::mesh_section(&world, &blocks, at, slot, &mut scratch);
+                (mesh, scratch)
             }),
         ));
     }
