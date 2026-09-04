@@ -28,10 +28,10 @@ pub fn gputrace(
         }
         return;
     }
-    if loader.done() {
+    let auto = config::gputrace_path();
+    if auto.is_some() && loader.done() {
         *settled += 1;
     }
-    let auto = config::gputrace_path();
     let path = match (&auto, keys.just_pressed(KeyCode::F9)) {
         (Some(path), _) if *settled == 30 => path.clone(),
         (_, true) => "mcrs.gputrace".to_string(),

@@ -4,6 +4,7 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::view::ExtractedView;
 
+use super::Occlusion;
 use super::draws::PARAMS_STRIDE;
 use super::stats::args_reset;
 use super::terrain::Terrain;
@@ -103,6 +104,7 @@ pub(super) fn write_camera(
     terrain: Option<Res<Terrain>>,
     origin: Option<Res<CameraOrigin>>,
     views: Query<&ExtractedView, With<Camera3d>>,
+    occlusion: Res<Occlusion>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(terrain), Some(origin), Some(view)) = (terrain, origin, views.iter().next()) else {
@@ -136,7 +138,7 @@ pub(super) fn write_camera(
                 1.0 / terrain.budget.tint_size[1] as f32,
             ],
             animated_from: terrain.sprites.animated_from,
-            hiz_levels: terrain.hiz.levels(),
+            hiz_levels: if occlusion.0 { terrain.hiz.levels() } else { 0 },
             ..default()
         }),
     );

@@ -18,7 +18,7 @@ use super::layer::LayerGroup;
 use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, FrameCounts, copy_args};
 use super::terrain::Terrain;
 use super::upload::{UploadParams, apply_uploads};
-use super::{Raster, Streams, Wireframe};
+use super::{Occlusion, Raster, Streams, Wireframe};
 
 pub(super) fn extract_cave_visibility(
     cave: Extract<Res<crate::cave::CaveCull>>,
@@ -145,6 +145,7 @@ pub(super) struct FrameParams<'w> {
     streams: Res<'w, Streams>,
     wireframe: Res<'w, Wireframe>,
     raster: Res<'w, Raster>,
+    occlusion: Res<'w, Occlusion>,
     counts: Res<'w, FrameCounts>,
     heat: Option<Res<'w, Heat>>,
 }
@@ -253,7 +254,9 @@ pub(super) fn draw_frame(
 
     span.end(&mut pass);
     drop(pass);
-    let Some(terrain) = terrain else {
+    let Some(terrain) =
+        terrain.filter(|terrain| frame.occlusion.0 && terrain.list.visible_entries != 0)
+    else {
         return;
     };
     terrain.hiz.build(
@@ -273,10 +276,12 @@ pub(super) fn draw_frame(
             .queries
             .as_deref()
             .map(|q| q.compute(probe::CULL_SECOND, &frame.timings));
-        let mut pass = ctx.command_encoder().begin_compute_pass(&ComputePassDescriptor {
-            label: Some("terrain cull second"),
-            timestamp_writes: timestamps,
-        });
+        let mut pass = ctx
+            .command_encoder()
+            .begin_compute_pass(&ComputePassDescriptor {
+                label: Some("terrain cull second"),
+                timestamp_writes: timestamps,
+            });
         pass.set_bind_group(1, &terrain.binds.cull, &[]);
         for group in LayerGroup::ALL {
             cull_group(&mut pass, terrain, group, second, &frame.streams);
@@ -327,7 +332,9 @@ pub(super) fn draw_frame(
             frame.wireframe.0,
         );
     }
-    frame.counts.set_terrain_draws(frame.counts.draws().0 + draws);
+    frame
+        .counts
+        .set_terrain_draws(frame.counts.draws().0 + draws);
     span.end(&mut pass);
 }
 

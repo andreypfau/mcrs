@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock};
 use crate::cave::CaveCull;
 use crate::mesh::STREAMS;
 use crate::render::{
-    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Raster, Streams, Uploads, Wireframe,
+    Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Raster, Streams, Uploads, Wireframe,
 };
 use crate::sky_state::SkyEffects;
 use crate::stream;
@@ -239,6 +239,12 @@ pub fn gputrace_path() -> Option<String> {
 
 pub fn wireframe() -> Wireframe {
     Wireframe(knob("WIREFRAME").is_some_and(|on| on != "0"))
+}
+
+/// `OCCLUSION=0` draws every group the frustum and the cave graph keep, without the depth
+/// pyramid test and its second pass.
+pub fn occlusion() -> Occlusion {
+    Occlusion(flag("OCCLUSION", true))
 }
 
 /// The knob's spelling in the message a bad value produces, which is the

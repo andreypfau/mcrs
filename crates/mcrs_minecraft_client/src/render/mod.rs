@@ -116,6 +116,17 @@ impl Default for Raster {
 #[derive(Resource, Clone, Copy, Default, ExtractResource)]
 pub struct Wireframe(pub bool);
 
+/// Whether terrain is tested against the last frame's depth pyramid; off, every group the
+/// frustum and the cave graph keep is drawn and the second pass does not exist.
+#[derive(Resource, Clone, Copy, ExtractResource)]
+pub struct Occlusion(pub bool);
+
+impl Default for Occlusion {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 pub fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<Wireframe>) {
     if keys.just_pressed(KeyCode::F10) {
         wireframe.0 = !wireframe.0;
@@ -154,8 +165,10 @@ impl Plugin for TerrainPlugin {
         let cpu = CpuTimings::default();
         let counts = FrameCounts::default();
         app.insert_resource(crate::config::wireframe())
+            .insert_resource(crate::config::occlusion())
             .init_resource::<Streams>()
             .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
+            .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<Streams>::default())
             .add_plugins(ExtractResourcePlugin::<Raster>::default())
             .insert_resource(triangles.clone())

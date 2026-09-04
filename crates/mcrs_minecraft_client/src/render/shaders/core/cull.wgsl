@@ -85,6 +85,9 @@ fn survives(g: Group) -> bool {
 /// its footprint. A box reaching behind the camera or past the edge of the screen is never
 /// hidden: what the last frame did not draw says nothing about it.
 fn behind_terrain(mn: vec3<f32>, mx: vec3<f32>) -> bool {
+    if (camera.hiz_levels == 0u) {
+        return false;
+    }
     var lo = vec2<f32>(1e30);
     var hi = vec2<f32>(-1e30);
     var nearest = 0.0;
