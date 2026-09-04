@@ -81,7 +81,7 @@ fn main() {
     let world = world_folder();
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = config::frozen_time();
-    let (budget, uploads, cave, loader) = config::terrain(save_data.position, TERRAIN_LIMITS);
+    let (budget, uploads, cave, loader) = config::terrain(TERRAIN_LIMITS);
     let assets = asset_corpus().to_string_lossy().into_owned();
 
     let mut app = App::new();

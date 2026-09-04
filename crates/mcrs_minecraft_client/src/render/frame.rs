@@ -9,6 +9,7 @@ use super::stats::args_reset;
 use super::terrain::Terrain;
 use crate::camera::CameraOrigin;
 use crate::mesh::STREAMS;
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 
 use super::Budget;
 
@@ -112,11 +113,14 @@ pub(super) fn write_camera(
         origin.offset,
     );
     let frustum = ViewFrustum::from_clip_from_world(&clip_from_relative);
-    let tint_origin = origin.relative(IVec3::new(
-        terrain.budget.tint_origin[0],
-        0,
-        terrain.budget.tint_origin[1],
-    ));
+    // The tint window wraps, so only the camera section's place inside it matters, and that
+    // stays exact in i32 where the section's absolute position would not in f32.
+    let tint_origin = [
+        -(origin.section.x * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[0] as i32)
+            as f32,
+        -(origin.section.z * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[1] as i32)
+            as f32,
+    ];
     queue.write_buffer(
         &terrain.frame.camera,
         0,
@@ -125,7 +129,7 @@ pub(super) fn write_camera(
             frustum: std::array::from_fn(|plane| frustum.half_spaces[plane].normal_d().to_array()),
             section: origin.section.to_array(),
             offset: origin.offset.to_array(),
-            tint_origin: [tint_origin.x, tint_origin.z],
+            tint_origin,
             tint_scale: [
                 1.0 / terrain.budget.tint_size[0] as f32,
                 1.0 / terrain.budget.tint_size[1] as f32,
@@ -139,8 +143,6 @@ pub(super) fn write_camera(
 #[cfg(test)]
 mod tests {
     use bevy::math::{DMat4, DVec3};
-
-    use mcrs_minecraft_network::columns::SECTION_SIZE;
 
     use super::*;
 

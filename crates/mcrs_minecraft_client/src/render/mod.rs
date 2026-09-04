@@ -48,7 +48,8 @@ pub struct Budget {
     pub faces: usize,
     pub groups: usize,
     pub sections: usize,
-    pub tint_origin: [i32; 2],
+    /// The tint texture is a window of this many blocks a side that the world wraps into, so
+    /// it follows the camera for nothing; it only has to be wider than what is resident.
     pub tint_size: [u32; 2],
 }
 

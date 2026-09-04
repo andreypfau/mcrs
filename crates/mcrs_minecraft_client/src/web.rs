@@ -137,7 +137,7 @@ pub fn run() {
         app.insert_resource(sky_render::SkyDrawsOnly(only));
     }
 
-    let (budget, uploads, cave, loader) = config::terrain(SPAWN, TERRAIN_LIMITS);
+    let (budget, uploads, cave, loader) = config::terrain(TERRAIN_LIMITS);
     app.add_plugins(TerrainPlugin(budget, uploads))
         .insert_resource(config::drawn_streams())
         .insert_resource(config::raster_fraction())

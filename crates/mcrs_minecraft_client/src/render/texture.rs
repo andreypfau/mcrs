@@ -282,8 +282,8 @@ pub(super) fn create_tints(budget: &Budget, device: &RenderDevice) -> (Texture, 
     });
     let sampler = device.create_sampler(&SamplerDescriptor {
         label: Some("terrain tints"),
-        address_mode_u: AddressMode::ClampToEdge,
-        address_mode_v: AddressMode::ClampToEdge,
+        address_mode_u: AddressMode::Repeat,
+        address_mode_v: AddressMode::Repeat,
         mag_filter: FilterMode::Linear,
         min_filter: FilterMode::Linear,
         ..default()

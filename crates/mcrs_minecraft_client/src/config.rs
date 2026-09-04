@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use bevy::math::DVec3;
-
 use crate::cave::CaveCull;
 use crate::mesh::STREAMS;
 use crate::render::{
@@ -276,25 +274,19 @@ pub struct TerrainLimits {
     pub arena_scale: usize,
     pub groups: usize,
     pub sections: usize,
-    /// The tint texture covers a fixed square of world around the spawn.
-    /// ponytail: a player who walks out of it takes the edge tint with them;
-    /// the upgrade is a tint window that scrolls with the camera.
+    /// The side of the tint window the world wraps into, in blocks. Two resident columns this
+    /// far apart would share a square, so it has to exceed the view's width.
     pub tint_span: u32,
 }
 
-pub fn terrain(
-    spawn: DVec3,
-    limits: TerrainLimits,
-) -> (Arc<Budget>, Uploads, CaveCull, stream::Loader) {
+pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull, stream::Loader) {
     let (quad_mb, model_mb, face_mb) = arena_budget();
-    let centre = |axis: f64| (axis as i32).div_euclid(16) * 16 - limits.tint_span as i32 / 2;
     let budget = Arc::new(Budget {
         quads: quad_mb * limits.arena_scale * 1_000_000 / QUAD_BYTES,
         models: model_mb * limits.arena_scale * 1_000_000 / MODEL_BYTES,
         faces: face_mb * limits.arena_scale * 1_000_000 / FACE_BYTES,
         groups: limits.groups,
         sections: limits.sections,
-        tint_origin: [centre(spawn.x), centre(spawn.z)],
         tint_size: [limits.tint_span; 2],
     });
 
