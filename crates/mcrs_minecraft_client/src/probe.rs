@@ -15,7 +15,8 @@ use crate::readback::{self, Gate, Reader};
 
 pub const CULL: usize = 0;
 pub const WORLD: usize = 1;
-pub const NAMES: [&str; 2] = ["cull", "world"];
+pub const HEAT: usize = 2;
+pub const NAMES: [&str; 3] = ["cull", "world", "heat"];
 pub const SLOTS: usize = NAMES.len();
 
 const WINDOW: usize = 256;
@@ -429,9 +430,9 @@ mod tests {
     fn the_median_ignores_the_one_frame_that_stalled() {
         let timings = GpuTimings::default();
         for _ in 0..8 {
-            timings.push([1.0, 4.0]);
+            timings.push([1.0, 4.0, 0.5]);
         }
-        timings.push([1.0, 400.0]);
+        timings.push([1.0, 400.0, 0.5]);
         assert_eq!(timings.median(CULL), Some(1.0));
         assert_eq!(timings.median(WORLD), Some(4.0));
     }
@@ -440,7 +441,7 @@ mod tests {
     fn a_pass_the_gpu_never_timed_leaves_the_others_readable() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(2.0));
@@ -456,7 +457,7 @@ mod tests {
     fn a_resolved_frame_lands_in_the_window_as_milliseconds() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000];
+        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(1.0));

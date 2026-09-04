@@ -20,7 +20,7 @@
 #import mcrs_minecraft_client::quad::{corner_index, corner_uv, degenerate}
 #import mcrs_minecraft_client::section::{CULLED, section_origin}
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
-#import mcrs_minecraft_client::terrain_bindings::{model_field, sections, visible}
+#import mcrs_minecraft_client::terrain_bindings::{model_field, sections, visible, visible_slot}
 
 const WORDS_PER_VERTEX: u32 = 3u;
 const CORNERS_PER_QUAD: u32 = 4u;
@@ -51,7 +51,7 @@ fn vertex_model(
     @builtin(instance_index) instance: u32,
 ) -> ModelOut {
     var out: ModelOut;
-    let entry = visible[params.visible_base + instance];
+    let entry = visible[visible_slot(instance)];
     if (entry.x == CULLED) {
         out.clip_position = degenerate();
         return out;

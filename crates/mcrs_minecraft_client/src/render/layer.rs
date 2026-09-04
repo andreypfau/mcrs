@@ -48,6 +48,14 @@ impl LayerGroup {
     pub fn holds(self, stream: u32) -> bool {
         stream_pass(stream).translucent() == matches!(self, LayerGroup::Translucent)
     }
+
+    pub fn of(stream: u32) -> Self {
+        if stream_pass(stream).translucent() {
+            LayerGroup::Translucent
+        } else {
+            LayerGroup::Opaque
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

@@ -13,6 +13,7 @@ use crate::probe::{self, GpuTimings, Queries};
 use crate::sky_render::SkyDraws;
 
 use super::draws::PARAMS_STRIDE;
+use super::heat::Heat;
 use super::layer::LayerGroup;
 use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, FrameCounts, copy_args};
 use super::terrain::Terrain;
@@ -44,9 +45,10 @@ fn cull_terrain(
     streams: &Streams,
     encoder: &mut CommandEncoder,
 ) {
-    let (Some(compacting), Some(stable)) = (
+    let (Some(compacting), Some(stable), Some(finalize)) = (
         pipeline_cache.get_compute_pipeline(terrain.pipelines.cull),
         pipeline_cache.get_compute_pipeline(terrain.pipelines.cull_stable),
+        pipeline_cache.get_compute_pipeline(terrain.pipelines.cull_finalize),
     ) else {
         return;
     };
@@ -74,6 +76,9 @@ fn cull_terrain(
             streams,
         );
     }
+    pass.set_pipeline(finalize);
+    pass.set_bind_group(0, &terrain.binds.view, &[0]);
+    pass.dispatch_workgroups(1, 1, 1);
 }
 
 pub(super) const CULL_THREADS: u32 = 32;
@@ -142,6 +147,7 @@ pub(super) struct FrameParams<'w> {
     wireframe: Res<'w, Wireframe>,
     raster: Res<'w, Raster>,
     counts: Res<'w, FrameCounts>,
+    heat: Option<Res<'w, Heat>>,
 }
 
 /// The whole frame from one system, so it records into one encoder and submits one command
@@ -166,6 +172,14 @@ pub(super) fn draw_frame(
         &frame.timings,
         ctx.command_encoder(),
     );
+    if let Some(heat) = frame.heat.as_deref() {
+        heat.dispatch(
+            &frame.pipeline_cache,
+            frame.queries.as_deref(),
+            &frame.timings,
+            ctx.command_encoder(),
+        );
+    }
     let terrain = uploads
         .terrain
         .as_deref()

@@ -13,7 +13,8 @@ use bevy::render::render_resource::WgpuFeatures;
 use bevy::render::settings::WgpuSettings;
 use bevy::transform::TransformSystems;
 use bevy::window::{
-    Monitor, MonitorSelection, PresentMode, PrimaryMonitor, WindowMode, WindowResolution,
+    Monitor, MonitorSelection, PresentMode, PrimaryMonitor, WindowLevel, WindowMode,
+    WindowPosition, WindowResolution,
 };
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_core::AppState;
@@ -109,9 +110,18 @@ fn main() {
                         None => "mcrs".to_owned(),
                     },
                     mode: if config::fullscreen() && config::resolution().is_none() {
-                        WindowMode::BorderlessFullscreen(MonitorSelection::Current)
+                        WindowMode::BorderlessFullscreen(MonitorSelection::Primary)
                     } else {
                         WindowMode::Windowed
+                    },
+                    position: WindowPosition::Centered(MonitorSelection::Primary),
+                    // A window another one covers stops being presented, and a frame that gets no
+                    // swapchain texture is a frame that is never drawn, so a sized window stays on
+                    // top for the length of the measurement.
+                    window_level: if config::resolution().is_some() {
+                        WindowLevel::AlwaysOnTop
+                    } else {
+                        WindowLevel::Normal
                     },
                     resolution: match config::resolution() {
                         Some((width, height)) => {
@@ -212,6 +222,9 @@ fn main() {
     app.add_systems(Last, frame_mark);
 
     let (yaw, pitch) = config::look_override().unwrap_or((save_data.yaw, save_data.pitch));
+    if config::look_override().is_some() {
+        app.insert_resource(local_player::LookOverride { yaw, pitch });
+    }
     let player = player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
     if let Some(speed) = config::scripted_flight() {
         app.insert_resource(local_player::ScriptedFlight);

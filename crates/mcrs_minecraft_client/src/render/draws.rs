@@ -19,9 +19,10 @@ pub(super) struct Params {
     visible_base: u32,
     args_index: u32,
     overhang: f32,
+    counter: u32,
     /// Keeps the struct a 16-byte multiple, which every backend lays a uniform
     /// out to whatever the member alignments alone would allow.
-    padding: [u32; 3],
+    padding: [u32; 2],
 }
 
 pub(super) struct DrawList {
@@ -62,7 +63,8 @@ impl DrawList {
                 } else {
                     0.0
                 },
-                padding: [0; 3],
+                counter: STREAMS as u32 + index as u32,
+                padding: [0; 2],
             });
             visible_base += draw.quad_count;
         }

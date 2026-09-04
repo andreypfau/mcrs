@@ -5,7 +5,7 @@ use bevy::render::view::ExtractedView;
 use bevy::shader::ShaderDefVal;
 
 use crate::blocks::Pass;
-use crate::mesh::stream_pass;
+use crate::mesh::{STREAMS, stream_pass};
 
 use super::binds::Bindings;
 use super::layer::Shape;
@@ -57,16 +57,17 @@ pub(super) struct Pipelines {
     pub shaders: Shaders,
     pub cull: CachedComputePipelineId,
     pub cull_stable: CachedComputePipelineId,
+    pub cull_finalize: CachedComputePipelineId,
     terrain: Option<[CachedRenderPipelineId; TERRAIN_PIPELINES]>,
 }
 
 impl Pipelines {
     pub fn new(shaders: Shaders, binds: &Bindings, pipeline_cache: &PipelineCache) -> Self {
         let layout = vec![binds.view_layout.clone(), binds.cull_layout.clone()];
-        let shader_defs = vec![ShaderDefVal::UInt(
-            "CULL_THREADS".into(),
-            super::pass::CULL_THREADS,
-        )];
+        let shader_defs = vec![
+            ShaderDefVal::UInt("CULL_THREADS".into(), super::pass::CULL_THREADS),
+            ShaderDefVal::UInt("STREAMS".into(), STREAMS as u32),
+        ];
         let cull = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("terrain cull".into()),
             layout: layout.clone(),
@@ -77,16 +78,25 @@ impl Pipelines {
         });
         let cull_stable = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("terrain cull stable".into()),
+            layout: layout.clone(),
+            shader: shaders.cull.clone(),
+            shader_defs: shader_defs.clone(),
+            entry_point: Some("cull_stable".into()),
+            ..default()
+        });
+        let cull_finalize = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+            label: Some("terrain cull finalize".into()),
             layout,
             shader: shaders.cull.clone(),
             shader_defs,
-            entry_point: Some("cull_stable".into()),
+            entry_point: Some("finalize".into()),
             ..default()
         });
         Self {
             shaders,
             cull,
             cull_stable,
+            cull_finalize,
             terrain: None,
         }
     }
@@ -152,7 +162,10 @@ impl Pipelines {
             )
         };
         if wireframe {
-            let fragment = descriptor.fragment.as_mut().expect("common sets a fragment");
+            let fragment = descriptor
+                .fragment
+                .as_mut()
+                .expect("common sets a fragment");
             fragment.shader_defs.push("WIREFRAME".into());
         }
         pipeline_cache.queue_render_pipeline(descriptor)

@@ -6,6 +6,7 @@ struct Params {
     visible_base: u32,
     args_index: u32,
     overhang: f32,
+    counter: u32,
 }
 
 struct Camera {

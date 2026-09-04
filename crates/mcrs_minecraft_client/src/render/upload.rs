@@ -172,6 +172,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
                     if rebound {
                         terrain.binds.rebuild_draw(
                             &terrain.arenas,
+                            &terrain.frame,
                             &terrain.sprites,
                             device,
                             pipeline_cache,

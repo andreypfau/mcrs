@@ -47,7 +47,7 @@ impl Bindings {
             )),
         );
         let cull = cull_bind_group(&cull_layout, arenas, frame, device, pipeline_cache);
-        let draw = draw_bind_group(&draw_layout, arenas, sprites, device, pipeline_cache);
+        let draw = draw_bind_group(&draw_layout, arenas, frame, sprites, device, pipeline_cache);
         Self {
             view_layout,
             cull_layout,
@@ -61,11 +61,19 @@ impl Bindings {
     pub fn rebuild_draw(
         &mut self,
         arenas: &Arenas,
+        frame: &Frame,
         sprites: &Sprites,
         device: &RenderDevice,
         pipeline_cache: &PipelineCache,
     ) {
-        self.draw = draw_bind_group(&self.draw_layout, arenas, sprites, device, pipeline_cache);
+        self.draw = draw_bind_group(
+            &self.draw_layout,
+            arenas,
+            frame,
+            sprites,
+            device,
+            pipeline_cache,
+        );
     }
 
     pub fn rebuild_cull(
@@ -129,6 +137,7 @@ fn draw_layout() -> BindGroupLayoutDescriptor {
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
                 texture_2d(TextureSampleType::Float { filterable: false }),
+                storage_buffer_read_only_sized(false, None),
             ),
         ),
     )
@@ -157,6 +166,7 @@ fn cull_bind_group(
 fn draw_bind_group(
     layout: &BindGroupLayoutDescriptor,
     arenas: &Arenas,
+    frame: &Frame,
     sprites: &Sprites,
     device: &RenderDevice,
     pipeline_cache: &PipelineCache,
@@ -179,6 +189,7 @@ fn draw_bind_group(
             arenas.faces.as_entire_buffer_binding(),
             arenas.sections.as_entire_buffer_binding(),
             &sprites.lightmap_view,
+            frame.args.as_entire_buffer_binding(),
         )),
     )
 }

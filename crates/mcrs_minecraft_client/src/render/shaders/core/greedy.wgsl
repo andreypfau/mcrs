@@ -28,7 +28,7 @@
 }
 #import mcrs_minecraft_client::section::{CULLED, section_origin}
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
-#import mcrs_minecraft_client::terrain_bindings::{faces, quad_field, sections, visible}
+#import mcrs_minecraft_client::terrain_bindings::{faces, quad_field, sections, visible, visible_slot}
 
 struct GreedyOut {
     @builtin(position) clip_position: vec4<f32>,
@@ -45,7 +45,7 @@ fn vertex_greedy(
     @builtin(instance_index) instance: u32,
 ) -> GreedyOut {
     var out: GreedyOut;
-    let entry = visible[params.visible_base + instance];
+    let entry = visible[visible_slot(instance)];
     if (entry.x == CULLED) {
         out.clip_position = degenerate();
         return out;

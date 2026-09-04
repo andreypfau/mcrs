@@ -1,6 +1,14 @@
 #define_import_path mcrs_minecraft_client::terrain_bindings
 
+#import mcrs_minecraft_client::frame::params
 #import mcrs_minecraft_client::section::SectionDesc
+
+struct DrawArgs {
+    vertex_count: u32,
+    instance_count: u32,
+    first_vertex: u32,
+    first_instance: u32,
+};
 
 struct AnimationFrame {
     layer: u32,
@@ -23,6 +31,13 @@ struct AnimationFrame {
 @group(1) @binding(11) var<storage, read> faces: array<u32>;
 @group(1) @binding(12) var<storage, read> sections: array<SectionDesc>;
 @group(1) @binding(13) var lightmap_levels: texture_2d<f32>;
+@group(1) @binding(14) var<storage, read> args: array<DrawArgs>;
+
+/// Where this instance sits in the visible list: an ordered draw starts at its first surviving
+/// slot rather than at slot zero.
+fn visible_slot(instance: u32) -> u32 {
+    return params.visible_base + args[params.counter].first_instance + instance;
+}
 
 fn quad_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
     return extractBits(quads[base + word], shift, bits);

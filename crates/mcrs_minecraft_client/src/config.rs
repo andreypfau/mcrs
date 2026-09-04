@@ -110,6 +110,20 @@ pub fn hot_clocks() -> bool {
     flag("HOT", false)
 }
 
+/// `GPU_HOT=<workgroups>` burns that many workgroups of arithmetic after the frame's own passes.
+/// A composited window presents at the display's rate and leaves the GPU idle most of the frame,
+/// and it clocks down while it waits: the same cull dispatch read 0.25 ms in a 60 Hz window and
+/// 0.11 ms fullscreen on a 120 Hz display, and the governor only lets go of the deadline once
+/// the GPU is saturated: 16384 workgroups did that on an M4 Max at 60 Hz, where the same cull
+/// read 0.058 ms. With the GPU held busy the pass timestamps are the code's own.
+pub fn gpu_hot() -> Option<u32> {
+    let spec = knob("GPU_HOT")?;
+    match spec.trim().parse::<u32>() {
+        Ok(workgroups) if workgroups > 0 => Some(workgroups),
+        _ => reject("GPU_HOT", &spec, "expected a workgroup count above zero"),
+    }
+}
+
 /// `FLY=<speed>` holds forward and sprint down from the first tick at that flying speed, in
 /// vanilla's units where 0.05 is the default, so a flight can be repeated exactly.
 pub fn scripted_flight() -> Option<f64> {

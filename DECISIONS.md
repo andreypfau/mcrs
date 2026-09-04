@@ -48,3 +48,23 @@ One line each, with the numbers that justified it. Newest last.
 - **Dropped:** the light plugin (no lights here, 31 systems, 9 µs), the per-frame cave-bit
   upload when the walk changed nothing (11 µs), and a per-frame stat of the screenshot trigger
   file (3 µs; polled four times a second instead).
+- **GPU pass times are taken with the GPU held at speed (`MCRS_GPU_HOT=16384`).** The governor
+  clocks to the display's deadline: the same cull read 0.248 ms in a composited 60 Hz window,
+  0.114 fullscreen at 120 Hz and 0.058 saturated, and it read 0.058 at 16384 and 32768 heater
+  workgroups alike. The heater is a compute pass written against the draw args so the driver
+  orders it between frames; a first version with its own buffer overlapped the next frame's cull
+  and read it at 3.9 ms. Like `MCRS_HOT` it is a measurement knob and off by default.
+- **Fullscreen goes to the primary monitor, and a sized window is centred on it and kept on
+  top.** Winit could not find the current monitor and fell back to the built-in display, and a
+  covered window stopped being presented: its frames got no swapchain texture, the frame system
+  never ran, and 24 000 uploads waited while the stats kept reporting stale medians.
+- **A blended draw covers the range from its first surviving slot to its last.** Its instance
+  count used to run from slot zero, so a flight at maximum speed over ocean spent 0.65 ms of a
+  0.74 ms world pass on degenerate water quads behind the camera (world pass 0.743 to 0.144 ms
+  at 50 000 resident sections); the static view is unchanged at 0.305 ms and the draw order is
+  the order the list held, so the picture is the same. The draw keeps a zero first instance and
+  the vertex shader adds the start, which needs no optional feature on the web.
+- **The drawn-triangle stat counts survivors.** It used to count every slot a blended draw
+  spanned: 283 192 against 226 784 in the base view, 1 569 034 against 26 652 in flight.
+- **`MCRS_LOOK` outlives the join teleport.** The server answered a join with the saved look and
+  the knob had no effect under the integrated server.

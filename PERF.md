@@ -21,7 +21,11 @@ MCRS_STATS=5 ./target/release/mcrs_minecraft_client "<world folder>"
 writes the whole F3 line to the log every five seconds with the overlay hidden. Knobs that
 shape a scenario: `MCRS_SERVER=127.0.0.1:9` (no world, the floor), `MCRS_RESOLUTION=2560x1440`
 (windowed surface of that size), `MCRS_LATENCY=<frames>` (swapchain depth), `MCRS_SKY=`
-(no sky draws), `MCRS_FULLSCREEN=0`. Tracy: build with `--features telemetry-tracy`, capture with
+(no sky draws), `MCRS_LOOK=<yaw>,<pitch>` (aim the camera, kept through the join teleport),
+`MCRS_GPU_HOT=<workgroups>` (hold the GPU at speed, see the GPU frame section), `MCRS_FULLSCREEN=0`.
+Fullscreen lands on the primary monitor; a sized window is centred on it and stays on top, because
+a covered window is not presented and a frame that gets no swapchain texture is never drawn.
+Tracy: build with `--features telemetry-tracy`, capture with
 `tracy-capture -o trace.tracy -f`, aggregate with `tracy-csvexport`. Apple's Metal HUD
 (`MTL_HUD_ENABLED=1`) shows the presented rate, the GPU time per frame and whether the window is
 composited or direct to display.
@@ -106,10 +110,10 @@ The starting split from the brief, next to what was measured. The engine figure 
 | extract | 0.10 ms | 0.11 ms | 0.17 ms |
 | prepare + queue | 0.15 ms | 0.11 ms | 0.15 ms |
 | encode + submit | 0.10 ms | 0.21 ms | 0.33 ms |
-| GPU cull | 0.05 ms | | 0.14 ms |
-| GPU terrain | 0.65 ms | | 1.1 ms at 8.3 Mpx |
-| GPU sky pass | 0.10 ms | 0.27 ms at 8.3 Mpx | 0.11 ms |
-| GPU clouds (in the terrain pass) | | 0.63 ms at 8.3 Mpx | |
+| GPU cull | 0.05 ms | | 0.14 ms at the display's clock, 0.058 at full clock |
+| GPU terrain | 0.65 ms | | 1.1 ms at 8.3 Mpx at the display's clock; 0.25 ms at 3.7 Mpx at full clock |
+| GPU sky pass | 0.10 ms | 0.27 ms at 8.3 Mpx | 0.11 ms at the display's clock; 0.016 at full clock |
+| GPU clouds (in the terrain pass) | | 0.63 ms at 8.3 Mpx | 0.08 ms for a full screen at 3.7 Mpx at full clock |
 
 ## Stalls
 
@@ -187,6 +191,76 @@ few µs (PreUpdate 57, PostUpdate 80, Update 41), extract 54 µs across 70 syste
 system 51 µs (one compute and one render pass; opening a pass on Metal is ~15 µs), upscaling
 16 µs, submit 38 µs, and `bevy_asset` at 22 µs a frame across 184 per-asset-type systems.
 
+## GPU frame
+
+Every GPU pass figure above this section was taken at whatever clock the GPU's governor chose,
+and it chooses the lowest clock that still meets the display's deadline. The same cull dispatch
+over the same 6170 sections read 0.248 ms in the composited 1440p window at 60 Hz, 0.114 ms
+fullscreen on the 120 Hz built-in display, and 0.058 ms once the GPU was saturated. So the
+numbers here are taken with `MCRS_GPU_HOT=16384`: a compute pass of arithmetic ahead of the
+frame's own passes, written against the draw args so the driver orders it between one frame's
+world pass and the next frame's cull instead of overlapping either. The cull read 0.163 / 0.108
+/ 0.058 / 0.058 ms with 4096 / 8192 / 16384 / 32768 workgroups, and the heater itself read
+12.4 / 13.0 / 12.7 / 25.4 ms: below 16384 the governor slows the whole frame to fit 16.6 ms,
+at 16384 it cannot and the passes read their own cost. Two runs of the same scenario agree to
+0.001 ms on the cull and 0.002 ms on the world pass at that clock.
+
+Scenario unless stated: save `two`, spawn 0/100/0 facing south, overworld evening, 6170 resident
+sections, 2560x1440 window, `MCRS_HOT=1`, `MCRS_GPU_HOT=16384`, overlay hidden. Medians of 256
+frames. The world pass holds the sky, the opaque terrain, the clouds and the blended terrain.
+
+| view | GPU cull | GPU world | drawn triangles |
+|---|---|---|---|
+| base | 0.058 ms | 0.305 ms | 226 784 |
+| base, no sky draws (`MCRS_SKY=`) | 0.058 | 0.288 | |
+| base, no clouds | 0.058 | 0.289 | |
+| base, solid greedy stream only | 0.012 | 0.117 | 67 840 |
+| base, opaque streams only | 0.039 | 0.273 | 222 526 |
+| base, terrain viewport at half size (`MCRS_RASTER=0.5`) | 0.058 | 0.248 | |
+| base, terrain viewport at a twentieth | 0.058 | 0.229 | |
+| camera straight up, sky and clouds only | 0.047 | 0.080 | 0 |
+| camera straight down, full-screen ground | 0.061 | 0.216 | 52 922 |
+| base at 3840x2160 fullscreen | 0.059 | 0.460 | 226 784 |
+
+Read together: the pass floor with the sky and a full screen of clouds is 0.08 ms, of which
+the sky draws are 0.016 in the base view; the terrain is 0.25 ms, about 0.08 of it fill (the
+half-size viewport saves 0.056) and 0.17 vertex work for 141 000 quad slots; the blended
+streams are 0.019 of the cull and 0.031 of the world pass. Against the brief's split the cull
+is at its 0.05 ms line and the terrain is well inside 0.65. Going to 3840x2160 adds 0.155 ms,
+which is the fill and the tile traffic scaling with pixels.
+
+The drawn-triangle stat used to count every slot an ordered (blended) draw spanned, holes
+included: 283 192 in this view, where 226 784 quads' worth actually survived the cull. It now
+counts survivors.
+
+**Residency.** Flying south at maximum wheel speed (`MCRS_FLY=0.2`) for 50 s, nothing evicted:
+
+| build | sections resident | GPU cull | GPU world | drawn triangles |
+|---|---|---|---|---|
+| before, all streams | 50 403 | 0.076 ms | 0.743 ms | 1 569 034 (holes counted) |
+| before, opaque streams only | 49 366 | 0.051 | 0.098 | 24 036 |
+| after, all streams | 49 491 | 0.076 | 0.144 | 26 652 |
+
+The blended draw keeps every group in the slot the mesher gave it and set its instance count
+to the last survivor's end, so the vertex shader walked every resident blended quad up to it:
+the flight is over ocean, and 0.65 ms of the world pass was degenerate water quads behind the
+camera. The cull now also records the first surviving slot, a finalize dispatch turns the end
+into a count from there, and the vertex shader adds that start, so the draw covers the range
+between the first and last survivor. The static view is unchanged (0.305 ms both ways: its
+survivors are scattered over the list) and the picture is the same, since the order the range
+is drawn in is the order the list held. What is left in flight over the base view is the cull
+growing 0.058 to 0.076 ms with 8x the resident groups, and the hole-writing in the ordered cull,
+which is still per resident blended group. Survivors scattered across a long-resident list would
+still pay for the holes between them; a compaction that preserves the order (a prefix sum over
+batches) is the general fix and waits for a scenario that shows the cost.
+
+Screenshot: `docs/perf/m4-base-2560x1440.png`, the base view at 2560x1440 as drawn.
+
+Gate: the GPU frame is 0.36 ms in the base view and 0.22 ms in flight at 50 000 resident
+sections, and the world pass now follows what is drawn. The empty-frame GPU floor cannot be
+read with the heater (with no terrain draw nothing ties the world pass to the draw args and the
+two overlap); the camera-up view stands in for it at 0.080 ms.
+
 ## Web
 
 Not measurable yet. `scripts/build-web.sh` produces a 40 MB single-file bundle that Chrome runs
@@ -205,6 +279,8 @@ that will count there are the CPU stages and the GPU pass timestamps, never the 
   thread. The cheapest win in the CPU frame is likely turning it on and measuring.
 - UI layout and its siblings cost about 130 µs per frame with nothing visible.
 - The client requests a view distance of 8 but the server sends 13; the baseline is taken at 13.
+- The ordered cull still writes a hole for every resident blended group, and survivors scattered
+  over a long-resident list still pay for the holes between them.
 - The web build's start-up blocks the page for minutes and re-runs the render start-up schedule.
 - The client never evicts columns in flight although the server sends chunk-forget packets.
 - Bevy's window screenshot is black on some frames.

@@ -123,6 +123,13 @@ impl LastSentMovement {
 #[derive(Resource)]
 pub struct ScriptedFlight;
 
+/// The look a run asked for, kept through the teleports the server answers a join with.
+#[derive(Resource, Clone, Copy)]
+pub struct LookOverride {
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
 /// One tick of local-player movement, from the sprint machine through the
 /// shared travel step.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -148,6 +155,7 @@ impl Plugin for LocalPlayerPlugin {
 fn accept_teleports(
     player: Single<(&mut PhysicsTransform, &mut Velocity), With<Player>>,
     connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
+    look: Option<Res<LookOverride>>,
 ) {
     let Some(connection) = connection else { return };
     let (mut connection, mut pending) = connection.into_inner();
@@ -157,7 +165,10 @@ fn accept_teleports(
     let (mut transform, mut velocity) = player.into_inner();
     for teleport in pending.0.drain(..) {
         transform.translation = teleport.position;
-        transform.rotation = Rotation::new(teleport.look.yaw, teleport.look.pitch);
+        transform.rotation = match look.as_deref() {
+            Some(look) => Rotation::new(look.yaw, look.pitch),
+            None => Rotation::new(teleport.look.yaw, teleport.look.pitch),
+        };
         velocity.0 = teleport.velocity;
         connection.write_packet(&ServerboundAcceptTeleportation {
             teleport_id: VarInt(teleport.teleport_id),

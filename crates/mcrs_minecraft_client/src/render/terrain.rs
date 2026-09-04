@@ -37,8 +37,13 @@ impl Terrain {
         if self.arenas.grow_visible(self.list.visible_entries, device) {
             self.binds
                 .rebuild_cull(&self.arenas, &self.frame, device, pipeline_cache);
-            self.binds
-                .rebuild_draw(&self.arenas, &self.sprites, device, pipeline_cache);
+            self.binds.rebuild_draw(
+                &self.arenas,
+                &self.frame,
+                &self.sprites,
+                device,
+                pipeline_cache,
+            );
         }
     }
 }

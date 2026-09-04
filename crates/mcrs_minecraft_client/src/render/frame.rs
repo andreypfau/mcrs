@@ -5,7 +5,7 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::view::ExtractedView;
 
 use super::draws::PARAMS_STRIDE;
-use super::stats::quad_strip;
+use super::stats::args_reset;
 use super::terrain::Terrain;
 use crate::camera::CameraOrigin;
 use crate::mesh::STREAMS;
@@ -57,7 +57,7 @@ pub(crate) fn uniform(label: &str, size: u64, device: &RenderDevice) -> Buffer {
 
 impl Frame {
     pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
-        let args_init = vec![quad_strip(); STREAMS];
+        let args_init = args_reset();
         Self {
             params: uniform(
                 "terrain draw params",

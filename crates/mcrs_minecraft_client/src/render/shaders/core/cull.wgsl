@@ -12,11 +12,13 @@ struct Group {
     quad_prefix: u32,
 }
 
+/// One entry per draw, then one counter entry per draw: a counter's `instance_count` is the
+/// number of quads that survived and its `first_instance` the lowest slot one of them keeps.
 struct DrawArgs {
     vertex_count: u32,
     instance_count: atomic<u32>,
     first_vertex: u32,
-    first_instance: u32,
+    first_instance: atomic<u32>,
 }
 
 @group(1) @binding(0) var<storage, read> groups: array<Group>;
@@ -33,6 +35,8 @@ struct DrawArgs {
 /// batch's run of the visible list with one atomic, and the whole workgroup then writes each
 /// surviving group's quads.
 const CULL_THREADS: u32 = #{CULL_THREADS}u;
+const STREAMS: u32 = #{STREAMS}u;
+const NO_SLOT: u32 = 0xffffffffu;
 
 var<workgroup> batch: array<Group, CULL_THREADS>;
 var<workgroup> counts: array<u32, CULL_THREADS>;
@@ -130,7 +134,9 @@ fn cull(
 }
 
 /// Blended geometry: every group keeps the slot the mesher gave it and culled quads leave a
-/// hole, because packing would reshuffle the back-to-front order the blend depends on.
+/// hole, because packing would reshuffle the back-to-front order the blend depends on. The draw
+/// covers the slots from the first survivor to the last, so what lies outside that range costs
+/// nothing however much of it is resident.
 @compute @workgroup_size(CULL_THREADS)
 fn cull_stable(
     @builtin(workgroup_id) workgroup: vec3<u32>,
@@ -148,12 +154,20 @@ fn cull_stable(
         let in_batch = min(CULL_THREADS, params.group_count - first);
         if (local == 0u) {
             var top = 0u;
+            var bottom = NO_SLOT;
+            var total = 0u;
             for (var k = 0u; k < in_batch; k = k + 1u) {
                 if (counts[k] != 0u) {
                     top = max(top, batch[k].quad_prefix + batch[k].quad_count);
+                    bottom = min(bottom, batch[k].quad_prefix);
+                    total = total + batch[k].quad_count;
                 }
             }
-            atomicMax(&args[params.args_index].instance_count, top);
+            if (total != 0u) {
+                atomicMax(&args[params.args_index].instance_count, top);
+                atomicMin(&args[params.counter].first_instance, bottom);
+                atomicAdd(&args[params.counter].instance_count, total);
+            }
         }
 
         for (var k = 0u; k < in_batch; k = k + 1u) {
@@ -172,4 +186,18 @@ fn cull_stable(
         workgroupBarrier();
         first = first + grid.x * CULL_THREADS;
     }
+}
+
+/// Turns each ordered draw's end slot into a count from its first survivor. A packed draw's
+/// counter keeps a zero start and is left as it stands.
+@compute @workgroup_size(CULL_THREADS)
+fn finalize(@builtin(local_invocation_index) local: u32) {
+    if (local >= STREAMS) {
+        return;
+    }
+    let first = atomicLoad(&args[STREAMS + local].first_instance);
+    if (first == NO_SLOT) {
+        return;
+    }
+    atomicSub(&args[local].instance_count, first);
 }

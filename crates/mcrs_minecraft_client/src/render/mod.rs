@@ -2,6 +2,7 @@ mod arenas;
 mod binds;
 mod draws;
 mod frame;
+mod heat;
 mod layer;
 mod pass;
 mod pipeline;
@@ -136,6 +137,7 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/model.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/heat.wgsl");
 }
 
 pub struct TerrainPlugin(pub Arc<Budget>, pub Uploads);
@@ -173,7 +175,12 @@ impl Plugin for TerrainPlugin {
             .insert_resource(self.1.clone())
             .add_systems(
                 RenderStartup,
-                (terrain::init_terrain, probe::init, probe::log_system_counts),
+                (
+                    terrain::init_terrain,
+                    heat::init_heat.after(terrain::init_terrain),
+                    probe::init,
+                    probe::log_system_counts,
+                ),
             )
             .add_systems(ExtractSchedule, pass::extract_cave_visibility)
             .add_systems(
