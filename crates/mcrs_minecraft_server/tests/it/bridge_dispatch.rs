@@ -24,9 +24,7 @@ use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::world::bridge::dispatch_encode;
-use mcrs_minecraft_server::world::bridge_queue::{
-    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue,
-};
+use mcrs_minecraft_server::world::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue};
 use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };

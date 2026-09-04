@@ -110,7 +110,11 @@ impl Placement {
             ),
         ];
         parts.extend(self.groups.iter().map(|(offset, records)| {
-            (&arenas.groups, *offset, bytemuck::cast_slice::<_, u8>(records))
+            (
+                &arenas.groups,
+                *offset,
+                bytemuck::cast_slice::<_, u8>(records),
+            )
         }));
         parts
     }

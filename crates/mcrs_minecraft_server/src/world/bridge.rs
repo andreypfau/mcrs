@@ -33,12 +33,12 @@ use mcrs_minecraft_protocol::chunk::ChunkData;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
-    ClientboundChunkCacheRadius, ClientboundDisconnect, ClientboundEntityEvent,
-    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
-    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundLevelChunkWithLight,
-    ClientboundLightUpdate, ClientboundLogin,
-    ClientboundPlayerInfoUpdate, ClientboundPlayerPosition, ClientboundRemoveEntities,
-    ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket, PositionPath,
+    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundChunkCacheRadius,
+    ClientboundDisconnect, ClientboundEntityEvent, ClientboundEntityPositionSync,
+    ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelChunkWithLight,
+    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerInfoUpdate,
+    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
+    ClientboundSystemChatPacket, PositionPath,
 };
 use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, LpVec3, PositionFlag, Text, VarInt};
@@ -234,9 +234,7 @@ pub fn dispatch_encode(
 
         // --- (1a) A writer that is behind takes what it can; one that has stalled for this
         // much is a dead socket, not a slow one ---
-        if !conn.raw.flush_unsent()
-            && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES
-        {
+        if !conn.raw.flush_unsent() && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES {
             warn!(
                 conn = ?entity,
                 unsent_bytes = conn.raw.unsent_bytes(),

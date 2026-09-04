@@ -5,13 +5,13 @@
 use std::path::{Path, PathBuf};
 
 pub mod anim;
+#[cfg(target_os = "macos")]
+pub mod app_nap;
 pub mod arena;
 pub mod atlas;
 pub mod bake;
 pub mod blocks;
 pub mod camera;
-#[cfg(target_os = "macos")]
-pub mod app_nap;
 #[cfg(target_os = "macos")]
 pub mod capture;
 pub mod cave;

@@ -85,7 +85,14 @@ impl Bindings {
         device: &RenderDevice,
         pipeline_cache: &PipelineCache,
     ) {
-        self.cull = cull_bind_group(&self.cull_layout, arenas, frame, hiz, device, pipeline_cache);
+        self.cull = cull_bind_group(
+            &self.cull_layout,
+            arenas,
+            frame,
+            hiz,
+            device,
+            pipeline_cache,
+        );
     }
 }
 

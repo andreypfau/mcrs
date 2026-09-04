@@ -9,10 +9,10 @@ use bevy_ecs::prelude::{
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::light_codec::{
     LightCodecParams, build_full_light_data, build_fullbright_light_data,
 };
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
 use mcrs_voxel_math::ChunkPos;

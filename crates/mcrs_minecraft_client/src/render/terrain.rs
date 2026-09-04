@@ -67,7 +67,14 @@ pub(super) fn init_terrain(
     let frame = Frame::new(&budget, &device);
     let sprites = Sprites::new(&budget, &device);
     let hiz = Hiz::new(&device, &asset_server, &pipeline_cache);
-    let binds = Bindings::new(&arenas, &frame, &sprites, &hiz.view, &device, &pipeline_cache);
+    let binds = Bindings::new(
+        &arenas,
+        &frame,
+        &sprites,
+        &hiz.view,
+        &device,
+        &pipeline_cache,
+    );
     let pipelines = Pipelines::new(Shaders::load(&asset_server), &binds, &pipeline_cache);
 
     commands.insert_resource(super::upload::Staging::new(&device));

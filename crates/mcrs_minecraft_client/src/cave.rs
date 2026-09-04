@@ -447,10 +447,7 @@ impl Walker {
     }
 }
 
-pub fn cave_cull(
-    mut cave: ResMut<CaveCull>,
-    camera: Single<&GlobalTransform, With<Camera3d>>,
-) {
+pub fn cave_cull(mut cave: ResMut<CaveCull>, camera: Single<&GlobalTransform, With<Camera3d>>) {
     let cave = cave.bypass_change_detection();
     if !cave.enabled {
         if cave.bits.iter().any(|&word| word != u32::MAX) {
@@ -531,7 +528,6 @@ mod tests {
             self.cave.bits[(slot >> 5) as usize] >> (slot & 31) & 1 != 0
         }
     }
-
 
     fn pair(entry: u32, exit: u32) -> u64 {
         1 << (entry * 6 + exit)

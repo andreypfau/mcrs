@@ -19,7 +19,14 @@ pub const HEAT: usize = 2;
 pub const HIZ: usize = 3;
 pub const CULL_SECOND: usize = 4;
 pub const WORLD_SECOND: usize = 5;
-pub const NAMES: [&str; 6] = ["cull", "world", "heat", "hiz", "cull second", "world second"];
+pub const NAMES: [&str; 6] = [
+    "cull",
+    "world",
+    "heat",
+    "hiz",
+    "cull second",
+    "world second",
+];
 pub const SLOTS: usize = NAMES.len();
 
 const WINDOW: usize = 256;
@@ -223,7 +230,12 @@ pub struct Spread {
 impl CpuTimings {
     pub fn median(&self, slot: usize) -> Option<f32> {
         let recent = self.0.starts.lock().ok()?.recent(Instant::now());
-        self.0.samples.lock().ok()?.percentiles(slot, recent, &[0.5]).map(|p| p[0])
+        self.0
+            .samples
+            .lock()
+            .ok()?
+            .percentiles(slot, recent, &[0.5])
+            .map(|p| p[0])
     }
 
     pub fn spread(&self, slot: usize) -> Option<Spread> {
