@@ -18,6 +18,9 @@ use std::time::Instant;
 
 use tracing::{debug, error};
 
+/// The only chunk status whose sections hold the blocks a column is made of.
+const FULL_STATUS: &str = "minecraft:full";
+
 /// Resolves a saved palette entry against the corpus.
 ///
 /// A save states every property as text. The type is never inferred from that
@@ -89,14 +92,20 @@ impl SavedColumns {
     ///
     /// A column that is present but unreadable is reported and treated as
     /// absent: the alternative is killing the dimension over one bad chunk.
+    ///
+    /// A save also holds a ring of proto-chunks around what it generated,
+    /// stopped at whatever status the player's view reached. Their sections
+    /// hold no blocks, so anything short of `full` is absent too and the
+    /// generator fills the column instead of the save handing back a hole.
     pub fn read(&self, x: i32, z: i32) -> Option<Chunk> {
-        match self.region(x >> 5, z >> 5)?.read_chunk(x, z) {
-            Ok(chunk) => chunk,
+        let chunk = match self.region(x >> 5, z >> 5)?.read_chunk(x, z) {
+            Ok(chunk) => chunk?,
             Err(err) => {
                 error!(%err, x, z, "reading a saved column");
-                None
+                return None;
             }
-        }
+        };
+        (chunk.status == FULL_STATUS).then_some(chunk)
     }
 
     /// Reading a region file is megabytes of blocking I/O, so the map lock is
