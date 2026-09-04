@@ -857,7 +857,7 @@ pub(crate) fn dispatch_column_generation(
 
         // Spawn the generation task
         let task = task_pool.spawn(async move {
-            let _column = info_span!("world::column_load", x = col.x, z = col.z).entered();
+            let _column = info_span!("world::column_load").entered();
             let started = Instant::now();
             let router = router.as_ref();
             let biome_context = biome_ctx.as_ref().map(|(src, reg)| {
