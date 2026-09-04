@@ -201,6 +201,9 @@ pub fn bridge_outbound(
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::dispatch_encode", skip_all)
 )]
+/// Sixteen blobs at the socket's cap.
+const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
+
 pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
     mut commands: Commands,
@@ -222,6 +225,16 @@ pub fn dispatch_encode(
                 .ok();
             let blob = conn.raw.take_encoded();
             conn.raw.try_send_blob(blob);
+            commands.entity(entity).remove::<ServerSideConnection>();
+            BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
+
+        // --- (1a) A writer that is behind takes what it can; one that has stalled for this
+        // much is a dead socket, not a slow one ---
+        if !conn.raw.flush_unsent()
+            && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES
+        {
             commands.entity(entity).remove::<ServerSideConnection>();
             BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
             continue;
@@ -613,9 +626,8 @@ pub fn dispatch_encode(
             commands.entity(entity).remove::<ServerSideConnection>();
             continue;
         }
-        if !blob.is_empty() && !conn.raw.try_send_blob(blob) {
-            // Channel full = backpressure; feeds kick path next tick.
-            queue.overflow_ticks = queue.overflow_ticks.saturating_add(1);
+        if !blob.is_empty() {
+            conn.raw.try_send_blob(blob);
         }
 
         // --- (5) Update depth gauges (monotone totals, consistent with metrics.rs) ---

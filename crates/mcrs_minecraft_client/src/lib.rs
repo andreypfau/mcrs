@@ -11,6 +11,8 @@ pub mod bake;
 pub mod blocks;
 pub mod camera;
 #[cfg(target_os = "macos")]
+pub mod app_nap;
+#[cfg(target_os = "macos")]
 pub mod capture;
 pub mod cave;
 pub mod config;

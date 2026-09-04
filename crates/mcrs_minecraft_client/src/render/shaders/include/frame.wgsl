@@ -17,6 +17,7 @@ struct Camera {
     tint_origin: vec2<f32>,
     tint_scale: vec2<f32>,
     animated_from: u32,
+    hiz_levels: u32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;

@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::time::Instant;
 
 use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
@@ -87,6 +88,8 @@ pub struct ColumnView {
     loading_queue: VecDeque<ColumnPos>,
     send_queue: VecDeque<(ColumnPos, Vec<Entity>)>,
     pub sent_columns: FxHashSet<ColumnPos>,
+    send_credit: f32,
+    credited_at: Option<Instant>,
 }
 
 pub(crate) fn load_chunk_request(
@@ -246,6 +249,10 @@ pub(crate) fn loading_column_queue(
 /// and the bytes below are the brake.
 const MAX_COL_SENDS_PER_TICK: usize = 64;
 
+/// The ceiling paid out continuously, so the drain between ticks spends the tick's allowance
+/// rather than a fresh one each pass; sent faster, columns overran the socket and were lost.
+const COL_SENDS_PER_SECOND: f32 = MAX_COL_SENDS_PER_TICK as f32 * 20.0;
+
 /// The bridge closes a socket whose blob passes its cap, so one pass of sends stays well
 /// inside it, light arrays counted: 64 columns closed one at 4.2 MB, and 4.6 MB with the light
 /// left out of the count.
@@ -275,11 +282,19 @@ pub(crate) fn send_column_queue(
                 .get(in_dim.entity())
                 .map(|config| config.section_count as usize + 2)
                 .unwrap_or(0);
+            let now = Instant::now();
+            let allowance = match chunk_view.credited_at.replace(now) {
+                Some(then) => (chunk_view.send_credit
+                    + now.duration_since(then).as_secs_f32() * COL_SENDS_PER_SECOND)
+                    .min(MAX_COL_SENDS_PER_TICK as f32),
+                None => MAX_COL_SENDS_PER_TICK as f32,
+            };
+            let allowed = allowance as usize;
             let mut sends = 0usize;
             let mut sent_bytes = 0usize;
 
             loop {
-                if sends >= MAX_COL_SENDS_PER_TICK || sent_bytes >= MAX_COL_SEND_BYTES_PER_TICK {
+                if sends >= allowed || sent_bytes >= MAX_COL_SEND_BYTES_PER_TICK {
                     break;
                 }
 
@@ -383,6 +398,7 @@ pub(crate) fn send_column_queue(
 
                 sends += 1;
             }
+            chunk_view.send_credit = allowance - sends as f32;
         })
 }
 

@@ -63,7 +63,7 @@ impl DrawList {
                 } else {
                     0.0
                 },
-                counter: STREAMS as u32 + index as u32,
+                counter: 2 * STREAMS as u32 + index as u32,
                 padding: [0; 2],
             });
             visible_base += draw.quad_count;

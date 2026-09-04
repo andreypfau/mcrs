@@ -410,6 +410,7 @@ fn play_login_emitted_on_spawn() {
                     username: "login_test".into(),
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: bevy_math::Vec2::ZERO,
+                    view_distance: 12,
                 },
                 dimensions: Vec::new(),
             })
@@ -493,6 +494,7 @@ fn play_login_targets_host_anchor() {
                     username: "target_test".into(),
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: bevy_math::Vec2::ZERO,
+                    view_distance: 12,
                 },
                 dimensions: Vec::new(),
             })
@@ -564,6 +566,7 @@ fn in_dim_entity_carries_host_anchor() {
                     username: "anchor_test".into(),
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: bevy_math::Vec2::ZERO,
+                    view_distance: 12,
                 },
                 dimensions: Vec::new(),
             })

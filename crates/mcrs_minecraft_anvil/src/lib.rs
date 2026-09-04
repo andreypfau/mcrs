@@ -16,7 +16,13 @@ pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 
 use std::path::PathBuf;
 
-pub const DATA_VERSION: i32 = 5015;
+/// 26.3 Pre-Release 1; the oldest accepted is snapshot 10, the first with this layout.
+pub const DATA_VERSION: i32 = 5017;
+pub const OLDEST_DATA_VERSION: i32 = 5015;
+
+pub fn accepts_data_version(found: i32) -> bool {
+    (OLDEST_DATA_VERSION..=DATA_VERSION).contains(&found)
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("{path}: {kind}")]
@@ -77,9 +83,9 @@ pub enum ErrorKind {
     MissingExternal { x: i32, z: i32, name: String },
     #[error("{0}")]
     Nbt(#[from] mcrs_minecraft_nbt::Error),
-    #[error("DataVersion {found}, expected {expected}")]
+    #[error("DataVersion {found}, expected {OLDEST_DATA_VERSION} to {expected}")]
     DataVersion { found: i32, expected: i32 },
-    #[error("no DataVersion, so older than the tag itself; expected {expected}")]
+    #[error("no DataVersion, so older than the tag itself; expected {OLDEST_DATA_VERSION} to {expected}")]
     MissingDataVersion { expected: i32 },
     #[error("`{name}` is not a block state this registry knows")]
     UnknownPaletteEntry { name: String },

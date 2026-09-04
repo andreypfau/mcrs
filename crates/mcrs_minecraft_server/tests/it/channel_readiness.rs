@@ -136,6 +136,7 @@ fn messages_buffered_before_dim_boots() {
                 username: "readiness_player".into(),
                 position: bevy_math::DVec3::ZERO,
                 rotation: bevy_math::Vec2::ZERO,
+                view_distance: 12,
             },
             dimensions: Vec::new(),
         });

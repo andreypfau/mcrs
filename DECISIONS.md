@@ -99,6 +99,57 @@ One line each, with the numbers that justified it. Newest last.
 - **The tint window wraps around the world instead of sitting on spawn.** Grass 3000 blocks out
   sampled texels nothing had written and drew black; a column's square lands at its position
   modulo the window and the sampler repeats. The window must exceed the view's width.
+- **The frame figures stand on the last second of frames.** The 4096-frame window behind the fps
+  line and the engine spread lagged the picture by four to twelve seconds on the overlay; vanilla
+  counts its fps over one second and its chart holds 240 frames, so the fps line is now that count
+  and every quantile is taken over the frames of the last second. Reports take the median of the
+  lines a settled run wrote instead of leaning on one long window.
+- **The default render distance is 96 columns, and the server honours what the client asks
+  for.** Vanilla's option stops at 32; the desktop asks for three times that and the browser
+  keeps 12. At 96 the settled frame reads 3.1 ms engine and 10.9 ms GPU against the 1.0 ms
+  goal (see PERF.md), so the budget binds long before the distance does; the figures are the
+  starting point for the work, not a claim that it fits.
+- **The client opts out of App Nap.** A window that was not the frontmost app dropped to the
+  background scheduling band about a minute in, and the same frame read 0.7 ms before and 4 ms
+  after; a latency-critical activity held for the life of the process keeps the priority.
+- **The sight-line walk runs on the compute pool, without the frustum, when its inputs change.**
+  On the frame it cost 1.6 ms at 96 columns (flood plus a scan of the laid box to project the
+  bits); the loader now queues table edits and the walk runs on the pool whenever the camera's
+  section or the topology changed, 3.1 ms of pool time for the whole box. Main world 2.2 to
+  0.32 ms, engine 3.1 to 0.99 ms at 96 columns. A section laid while a walk is out is drawn
+  until the next walk lands, which vanilla's occlusion graph also accepts.
+- **The group table is written incrementally.** A stream keeps a block with room to grow, an
+  arrival appends, an eviction leaves a record with no quads, and a rebuild into a fresh block
+  happens only when a stream outgrows its block or half its records are dead. The whole-table
+  rebuild was 56 MB on every arrival frame at 96 columns.
+- **The translucent draws are packed by a prefix sum instead of spanning holes.** At 96
+  columns their ordered draws walked 6.9 M triangles' worth of slots for 2.6 M survivors; a
+  count, a scan over the batches and a scatter pack the survivors in list order. GPU world
+  10.4 to 7.94 ms, cull 0.43 to 0.45. The picture is unchanged: the order the blend sees is
+  the order the list held, as before.
+- **Terrain quads are drawn as an indexed triangle list, not as instanced strips.** One draw
+  of six vertices a quad with the quad read from the vertex index: GPU world 7.94 to 5.90 ms at
+  96 columns for the same 15.3 M triangles; indexed through a fixed index buffer, so a quad is
+  four vertices again, 4.27 ms. The index buffer follows the visible list's size, 24 MB per
+  million slots. The picture is unchanged.
+- **A blob the writer has no room for waits; it is never dropped.** The bridge handed each
+  pass's encoded bytes to a four-deep channel and ignored a full one, so a client slower than
+  the server's sends lost whole batches of columns that the server then counted as sent: 5 385
+  of 38 025 columns never arrived at 96 columns with two clients loading on one machine, and
+  the ring they left was drawn empty. Unsent blobs now queue in order ahead of anything newer,
+  and a writer holding more than sixteen blobs at the socket's cap is a dead socket and kicked.
+- **Column sends are paid out at vanilla's ceiling of 64 a tick as a continuous rate.** The cap
+  was per pass, and the drain between ticks runs every 2 ms, so a tick could send thirty
+  times vanilla's maximum and overrun the socket. At 1 280 columns a second a 96-column view
+  arrives in 30 s instead of 15, and the meshing that follows takes 160 s either way.
+- **Terrain is occlusion culled against a depth pyramid, in two passes.** Proven first as a
+  counter: half of the drawn triangles at 96 columns (7.96 M of 15.3 M) were behind the last
+  frame's terrain. The first cull tests against the last frame's pyramid and leaves what that
+  test alone hides as candidates; the pyramid is rebuilt from this frame's depth and a second
+  cull revives the candidates into a second set of draws, so nothing pops a frame late. GPU
+  world 4.27 to 2.32 ms, the pyramid 0.07 and the second cull 0.30. The second pass packs the
+  translucent quads it revives after the first pass's ordered ones, unordered among themselves;
+  they are the few a turn uncovers, and the first pass keeps its order.
 - **Dead section slots are swept through a set.** Every group was compared against a vector of
   dead slots, and a row leaving at once is 243 slots against 40 000 groups: the main world's
   worst settled frame at maximum speed was 10.7 ms, and is 0.95 with the set.

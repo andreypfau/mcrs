@@ -24,9 +24,9 @@
 #import mcrs_minecraft_client::frame::{camera, params}
 #import mcrs_minecraft_client::lighting::{ao_factor, face_shade, lightmap}
 #import mcrs_minecraft_client::quad::{
-    corner_index, corner_uv, degenerate, face_normal, face_u_dir, face_v_dir,
+    corner_index, corner_uv, face_normal, face_u_dir, face_v_dir, quad_of,
 }
-#import mcrs_minecraft_client::section::{CULLED, section_origin}
+#import mcrs_minecraft_client::section::section_origin
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
 #import mcrs_minecraft_client::terrain_bindings::{faces, quad_field, sections, visible, visible_slot}
 
@@ -40,16 +40,9 @@ struct GreedyOut {
 };
 
 @vertex
-fn vertex_greedy(
-    @builtin(vertex_index) vertex: u32,
-    @builtin(instance_index) instance: u32,
-) -> GreedyOut {
+fn vertex_greedy(@builtin(vertex_index) vertex: u32) -> GreedyOut {
     var out: GreedyOut;
-    let entry = visible[visible_slot(instance)];
-    if (entry.x == CULLED) {
-        out.clip_position = degenerate();
-        return out;
-    }
+    let entry = visible[visible_slot(quad_of(vertex))];
     let quad = entry.x * QUAD_WORDS;
 
     let desc = sections[entry.y];

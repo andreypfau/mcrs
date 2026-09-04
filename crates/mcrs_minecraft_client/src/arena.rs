@@ -13,6 +13,11 @@ impl Block {
         size: 0,
         asked: 0,
     };
+
+    /// The units the block really holds, which the buddy rounding leaves above what was asked.
+    pub fn capacity(&self) -> usize {
+        self.size
+    }
 }
 
 pub struct Arena {

@@ -38,7 +38,8 @@ pub struct Placement {
     pub vertices: (u64, Vec<u32>),
     pub faces: (u64, Vec<u32>),
     pub sections: (u64, Vec<SectionDesc>),
-    pub groups: (u64, Vec<Group>),
+    /// Runs of records written into the group arena, each at its byte offset.
+    pub groups: Vec<(u64, Vec<Group>)>,
     /// A whole new draw list, swapped in only once its group block has landed, so a draw never
     /// spends a frame pointing at a block that is still being written.
     pub draws: Option<Vec<Draw>>,
@@ -85,8 +86,8 @@ pub(super) struct Pending {
 }
 
 impl Placement {
-    fn parts<'a>(&'a self, arenas: &'a Arenas) -> [(&'a Buffer, u64, &'a [u8]); 5] {
-        [
+    fn parts<'a>(&'a self, arenas: &'a Arenas) -> Vec<(&'a Buffer, u64, &'a [u8])> {
+        let mut parts = vec![
             (
                 &arenas.quads,
                 self.quads.0,
@@ -107,12 +108,11 @@ impl Placement {
                 self.sections.0,
                 bytemuck::cast_slice(&self.sections.1),
             ),
-            (
-                &arenas.groups,
-                self.groups.0,
-                bytemuck::cast_slice(&self.groups.1),
-            ),
-        ]
+        ];
+        parts.extend(self.groups.iter().map(|(offset, records)| {
+            (&arenas.groups, *offset, bytemuck::cast_slice::<_, u8>(records))
+        }));
+        parts
     }
 }
 

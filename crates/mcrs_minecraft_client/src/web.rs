@@ -157,6 +157,7 @@ pub fn run() {
             app.add_plugins(ClientNetworkPlugin {
                 server,
                 username: query("username").unwrap_or_else(|| "Player".to_owned()),
+                view_distance: config::view_distance(),
             });
         }
         None => warn!(

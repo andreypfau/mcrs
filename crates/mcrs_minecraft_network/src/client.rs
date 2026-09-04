@@ -57,6 +57,7 @@ pub type ServerAddress = crate::browser::WebTransportTarget;
 pub struct ClientNetworkPlugin {
     pub server: ServerAddress,
     pub username: String,
+    pub view_distance: u8,
 }
 
 /// The socket, its reader and writer tasks, and the outbound encoder.
@@ -142,6 +143,7 @@ impl Plugin for ClientNetworkPlugin {
         let (send, recv) = channel(1);
         let server = self.server.clone();
         let username = self.username.clone();
+        let view_distance = self.view_distance;
 
         let joining = async move {
             match connect_and_log_in(server, username).await {
@@ -164,7 +166,7 @@ impl Plugin for ClientNetworkPlugin {
         app.add_systems(
             Update,
             (
-                spawn_logged_in_connection(recv),
+                spawn_logged_in_connection(recv, view_distance),
                 receive_packets,
                 crate::columns::settle_columns,
                 flush,
@@ -274,10 +276,10 @@ async fn log_in<S: ByteStream>(
     Ok((io.into_raw_connection(remote_addr), profile))
 }
 
-fn client_information() -> ClientInformation<'static> {
+fn client_information(view_distance: u8) -> ClientInformation<'static> {
     ClientInformation {
         locale: "en_us",
-        view_distance: 8,
+        view_distance,
         chat_mode: ChatMode::Enabled,
         chat_colors: true,
         displayed_skin_parts: DisplayedSkinParts::from_bits(0x7f),
@@ -290,11 +292,14 @@ fn client_information() -> ClientInformation<'static> {
 
 fn spawn_logged_in_connection(
     mut logged_in: Receiver<(RawConnection, ServerProfile)>,
+    view_distance: u8,
 ) -> impl FnMut(&mut World) {
     move |world: &mut World| {
         while let Ok((raw, profile)) = logged_in.try_recv() {
             let mut connection = ClientConnection { raw: Box::new(raw) };
-            connection.write_packet(&ServerboundClientInformation(client_information()));
+            connection.write_packet(&ServerboundClientInformation(client_information(
+                view_distance,
+            )));
             world.spawn((
                 connection,
                 ConnectionState::Configuration,

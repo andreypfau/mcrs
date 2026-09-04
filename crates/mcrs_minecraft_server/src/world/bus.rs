@@ -244,6 +244,7 @@ pub struct PlayerTransferSnapshot {
     pub username: String,
     pub position: DVec3,
     pub rotation: Vec2,
+    pub view_distance: u8,
 }
 
 /// Generic move payload.  The `Player` variant carries only the minimal
@@ -323,6 +324,7 @@ mod tests {
             username: "test".to_string(),
             position: DVec3::ZERO,
             rotation: Vec2::ZERO,
+            view_distance: 12,
         };
 
         let outbound = OutboundPlayerPacket {

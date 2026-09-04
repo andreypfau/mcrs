@@ -10,7 +10,9 @@ use uuid::Uuid;
 
 use crate::world_clock::ClockState;
 
-pub const WORLD_VERSION: i32 = 5015;
+/// 26.3 Pre-Release 1; the oldest accepted is snapshot 10, the first with this layout.
+pub const WORLD_VERSION: i32 = 5017;
+pub const OLDEST_WORLD_VERSION: i32 = 5015;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {
@@ -26,7 +28,7 @@ pub enum SaveError {
         path: PathBuf,
         source: mcrs_minecraft_nbt::Error,
     },
-    #[error("{path}: DataVersion {found}, expected {expected}")]
+    #[error("{path}: DataVersion {found}, expected {OLDEST_WORLD_VERSION} to {expected}")]
     DataVersion {
         path: PathBuf,
         found: i32,
@@ -160,7 +162,7 @@ fn decode<T: DeserializeOwned>(bytes: &[u8], path: &Path) -> Result<T, SaveError
 }
 
 fn check_data_version(found: i32, path: &Path) -> Result<(), SaveError> {
-    if found == WORLD_VERSION {
+    if (OLDEST_WORLD_VERSION..=WORLD_VERSION).contains(&found) {
         return Ok(());
     }
     Err(SaveError::DataVersion {

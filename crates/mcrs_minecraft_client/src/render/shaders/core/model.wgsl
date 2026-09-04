@@ -17,8 +17,8 @@
 #import mcrs_minecraft_client::finish::{finish_cutout, finish_solid, finish_translucent}
 #import mcrs_minecraft_client::frame::{camera, params}
 #import mcrs_minecraft_client::lighting::lightmap
-#import mcrs_minecraft_client::quad::{corner_index, corner_uv, degenerate}
-#import mcrs_minecraft_client::section::{CULLED, section_origin}
+#import mcrs_minecraft_client::quad::{corner_index, corner_uv, quad_of}
+#import mcrs_minecraft_client::section::section_origin
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
 #import mcrs_minecraft_client::terrain_bindings::{model_field, sections, visible, visible_slot}
 
@@ -46,16 +46,9 @@ fn shade_bucket(bucket: u32) -> f32 {
 }
 
 @vertex
-fn vertex_model(
-    @builtin(vertex_index) vertex: u32,
-    @builtin(instance_index) instance: u32,
-) -> ModelOut {
+fn vertex_model(@builtin(vertex_index) vertex: u32) -> ModelOut {
     var out: ModelOut;
-    let entry = visible[visible_slot(instance)];
-    if (entry.x == CULLED) {
-        out.clip_position = degenerate();
-        return out;
-    }
+    let entry = visible[visible_slot(quad_of(vertex))];
     let corner = corner_index(vertex);
     let base = (entry.x * CORNERS_PER_QUAD + corner) * WORDS_PER_VERTEX;
 

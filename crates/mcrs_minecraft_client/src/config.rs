@@ -9,11 +9,26 @@ use crate::render::{
 use crate::sky_state::SkyEffects;
 use crate::stream;
 
+#[cfg(not(target_family = "wasm"))]
+const QUAD_MB_PER_FILE: usize = 192;
+#[cfg(not(target_family = "wasm"))]
+const MODEL_MB_PER_FILE: usize = 640;
+#[cfg(not(target_family = "wasm"))]
+const FACE_MB_PER_FILE: usize = 256;
+#[cfg(target_family = "wasm")]
 const QUAD_MB_PER_FILE: usize = 32;
+#[cfg(target_family = "wasm")]
 const MODEL_MB_PER_FILE: usize = 208;
+#[cfg(target_family = "wasm")]
 const FACE_MB_PER_FILE: usize = 40;
 
 const UPLOAD_MB: usize = 4;
+/// The browser keeps vanilla's default; the desktop asks for three times vanilla's maximum.
+#[cfg(not(target_family = "wasm"))]
+const VIEW_DISTANCE: u8 = 96;
+#[cfg(target_family = "wasm")]
+const VIEW_DISTANCE: u8 = 12;
+pub const MAX_VIEW_DISTANCE: u8 = 96;
 
 static KNOBS: OnceLock<HashMap<String, String>> = OnceLock::new();
 
@@ -46,6 +61,22 @@ fn numbers<T: std::str::FromStr>(spec: &str) -> Vec<T> {
     spec.split(',')
         .filter_map(|n| n.trim().parse().ok())
         .collect()
+}
+
+/// `VIEW=<columns>` is the render distance the client asks the server for.
+pub fn view_distance() -> u8 {
+    let Some(spec) = knob("VIEW") else {
+        return VIEW_DISTANCE;
+    };
+    match spec.trim().parse::<u8>() {
+        Ok(columns) if (2..=MAX_VIEW_DISTANCE).contains(&columns) => columns,
+        _ => reject(
+            "VIEW",
+            &spec,
+            format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
+        )
+        .unwrap_or(VIEW_DISTANCE),
+    }
 }
 
 pub fn upload_budget() -> usize {

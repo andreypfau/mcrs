@@ -7,50 +7,49 @@ use bevy::render::render_resource::*;
 use crate::mesh::STREAMS;
 use crate::readback::{self, Gate, Reader};
 
-use super::layer::LayerGroup;
 use super::terrain::Terrain;
 
 pub(super) const DRAW_ARGS_SIZE: u64 = size_of::<DrawArgs>() as u64;
 
-const VERTICES_PER_QUAD: u32 = 4;
+/// Quads are drawn indexed, two triangles each over four vertices, one draw and no instancing:
+/// the cull adds six indices per surviving quad and the vertex shader finds its quad and
+/// corner in the index.
+pub(super) const INDICES_PER_QUAD: u32 = 6;
 const TRIANGLES_PER_QUAD: u32 = 2;
 
-pub(super) type DrawArgs = DrawIndirectArgs;
+pub(super) type DrawArgs = DrawIndexedIndirectArgs;
 
-pub(super) fn quad_strip() -> DrawArgs {
+pub(super) fn quad_list() -> DrawArgs {
     DrawArgs {
-        vertex_count: VERTICES_PER_QUAD,
+        instance_count: 1,
         ..default()
     }
 }
 
-const NO_SLOT: u32 = u32::MAX;
-
-/// The draw args as a frame starts: a strip per stream, then a counter per stream. An ordered
-/// draw's counter starts its first slot at the top so the cull can lower it.
+/// The draw args as a frame starts: a list per stream for the first pass, one per stream for
+/// the second, then a counter per stream.
 pub(super) fn args_reset() -> Vec<DrawArgs> {
-    let ordered = |stream: usize| LayerGroup::of(stream as u32).culls_in_order();
-    (0..STREAMS)
-        .map(|_| quad_strip())
-        .chain((0..STREAMS).map(|stream| DrawArgs {
-            first_instance: if ordered(stream) { NO_SLOT } else { 0 },
-            ..default()
-        }))
+    (0..2 * STREAMS)
+        .map(|_| quad_list())
+        .chain((0..STREAMS).map(|_| DrawArgs::default()))
         .collect()
 }
 
-/// An ordered draw spans holes, so its counter holds what actually survived; a packed draw's
-/// instance count is that already.
 fn drawn_quads(args: &[DrawArgs]) -> u32 {
-    (0..STREAMS)
-        .map(|stream| {
-            if LayerGroup::of(stream as u32).culls_in_order() {
-                args[STREAMS + stream].instance_count
-            } else {
-                args[stream].instance_count
-            }
-        })
+    (0..2 * STREAMS)
+        .map(|draw| args[draw].index_count / INDICES_PER_QUAD)
         .sum()
+}
+
+/// Quads the last frame's depth hid and this frame's did not revive.
+fn hidden_quads(args: &[DrawArgs]) -> u32 {
+    let hidden: u32 = (0..STREAMS)
+        .map(|stream| args[2 * STREAMS + stream].index_count)
+        .sum();
+    let revived: u32 = (0..STREAMS)
+        .map(|stream| args[STREAMS + stream].index_count / INDICES_PER_QUAD)
+        .sum();
+    hidden.saturating_sub(revived)
 }
 
 /// What the CPU issued this frame, kept where the main world can read it a frame later.
@@ -98,11 +97,16 @@ impl DrawnTriangles {
     pub fn get(&self) -> u32 {
         self.0.triangles.load(Ordering::Relaxed)
     }
+
+    pub fn hidden(&self) -> u32 {
+        self.0.hidden.load(Ordering::Relaxed)
+    }
 }
 
 #[derive(Default)]
 pub struct Counted {
     triangles: AtomicU32,
+    hidden: AtomicU32,
     gate: Gate,
 }
 
@@ -115,6 +119,8 @@ impl Reader for Counted {
         let args: &[DrawArgs] = bytemuck::cast_slice(bytes);
         self.triangles
             .store(drawn_quads(args) * TRIANGLES_PER_QUAD, Ordering::Relaxed);
+        self.hidden
+            .store(hidden_quads(args) * TRIANGLES_PER_QUAD, Ordering::Relaxed);
     }
 }
 
@@ -154,34 +160,9 @@ mod tests {
     fn the_triangle_count_is_two_per_drawn_quad() {
         let counted = Counted::default();
         let mut args = args_reset();
-        args[0].instance_count = 3;
-        args[1].instance_count = 5;
+        args[0].index_count = 3 * INDICES_PER_QUAD;
+        args[1].index_count = 5 * INDICES_PER_QUAD;
         counted.read(bytemuck::cast_slice(&args));
         assert_eq!(counted.triangles.load(Ordering::Relaxed), 16);
-    }
-
-    #[test]
-    fn an_ordered_draw_counts_its_survivors_and_not_the_holes_it_spans() {
-        let counted = Counted::default();
-        let mut args = args_reset();
-        let ordered = (0..STREAMS)
-            .find(|&stream| LayerGroup::of(stream as u32).culls_in_order())
-            .expect("a blended stream");
-        args[ordered].instance_count = 900;
-        args[STREAMS + ordered].instance_count = 7;
-        args[STREAMS + ordered].first_instance = 100;
-        counted.read(bytemuck::cast_slice(&args));
-        assert_eq!(counted.triangles.load(Ordering::Relaxed), 14);
-    }
-
-    #[test]
-    fn only_an_ordered_draw_starts_its_counter_at_the_top() {
-        let args = args_reset();
-        assert_eq!(args.len(), STREAMS * 2);
-        for stream in 0..STREAMS {
-            assert_eq!(args[stream].first_instance, 0);
-            let ordered = LayerGroup::of(stream as u32).culls_in_order();
-            assert_eq!(args[STREAMS + stream].first_instance == NO_SLOT, ordered);
-        }
     }
 }

@@ -1,8 +1,9 @@
 # Performance
 
 Every number carries its scenario. Medians are over a window, never a mean and never one frame:
-frame time over the last 4096 frames, CPU stages and GPU passes over the last 256. The first ten
-seconds after launch are discarded. Run-to-run spread on the settled figures, from two runs of
+the wall frame and the engine time over the frames of the last second, as vanilla counts its fps,
+and the CPU stages and GPU passes over the last 256 frames. A reported figure is the median of
+the lines a settled run wrote, not one line. The first ten seconds after launch are discarded. Run-to-run spread on the settled figures, from two runs of
 each scenario: 0.1 ms on the wall frame, 0.2 ms on the main-world stage, 0.05 ms on the other
 stages and on the GPU passes. A delta inside that is noise.
 
@@ -34,7 +35,7 @@ composited or direct to display.
 ## What one line reads
 
 ```
-290 fps (3.447 ms median, 17.628 p99, 31.10 max over 4096 frames)
+290 fps (3.447 ms median, 17.628 p99, 31.10 max over the last second)
 CPU: main 0.674 ms, extract 0.175, prepare 2.123 (acquire 2.004), render 0.345, cleanup 0.012
 Draws: 7 terrain, 2 sky | Upload: 0 KB of 4096 KB | GPU cull: 0.142 ms | GPU terrain: 1.085 ms
 3840x2160 physical, scale 2.00
@@ -386,6 +387,131 @@ nothing had written and drew black. A column now writes its square at its positi
 window, the sampler repeats, and the camera passes its own section's place in the window, so
 the coordinates stay exact wherever the player is. The window only has to be wider than what
 is resident: 1024 blocks holds a view of up to 31 columns.
+
+## Render distance
+
+`MCRS_VIEW=<columns>` is what the client asks for and the server now honours it (it used to
+send 13 whatever the client said); the default is 96, three times vanilla's maximum. Native,
+2560x1440 window, `MCRS_HOT=1`, save `two-relight` (the same terrain as `two`, whose spawn
+chunks were since rewritten by 26.3 Pre-Release 1), spawn view, settled. Engine medians are
+the quietest settled line of a 100 s run; the GPU world pass is at the display's clock.
+
+| columns | resident columns / sections | engine ms | main world ms | sight-line walk ms | drawn triangles | GPU world ms |
+|---|---|---|---|---|---|---|
+| 8 | 361 / 2 867 | 0.68 | 0.25 | 0.03 | 150 530 | 0.61 |
+| 12 | 729 / 6 170 | 0.71 | 0.28 | 0.06 | 226 784 | 0.76 |
+| 16 | 1 225 / 10 800 | 0.66 | 0.28 | 0.09 | 340 010 | 0.97 |
+| 20 | 1 849 / 16 599 | 0.89 | 0.42 | 0.18 | 587 460 | 2.5 |
+| 24 | 2 601 / 23 367 | 0.91 | 0.46 | 0.27 | 870 496 | 3.4 |
+| 28 | 3 481 / 31 566 | 1.07 | 0.61 | 0.34 | 1 249 770 | 1.1 to 1.7 |
+| 30 | 3 969 / 36 157 | 1.35 | 0.81 | 0.49 | 1 463 882 | 3.1 to 4.1 |
+| 96 | 38 025 / 295 511 | 3.09 (p99 5.9) | 2.2 | 1.6 | 14 382 144 | 10.9 (cull 0.46) |
+
+The CPU frame is flat to 16 columns and grows with residency past it, most of it the cave
+sight-line walk (bounded by its 96x32x96 box, so it stops growing past 48 columns) and the
+rest spread over the main world. At 96 columns the frame is GPU-bound at 9.4 ms wall: 14.4 M
+triangles reach the rasterizer through 7 draws, the arenas sit at 50% of 4.3 GB (quads 768 MB,
+models 2.5 GB, faces 1 GB), the process holds 12 GB, and the world settles 80 s after launch
+with a 32 MB upload budget (the 4 MB default drains 124 000 waiting meshes at 360 a second and
+never settles inside four minutes). To hold 96 columns the tint window is 4096 blocks, the
+section table 2^19 rows and the group table 2^22.
+
+**The CPU frame at 96 columns**, spawn now at 0/128/0 so the view holds 15.3 M triangles,
+`MCRS_HOT=1`, settled, median of three lines:
+
+| build | engine median / p99 | main world | sight-line walk |
+|---|---|---|---|
+| before | 3.09 / 5.9 ms | 2.2 ms | 1.6 ms a frame, on the frame |
+| the walk off the frame, the group table written incrementally | 0.99 / 1.30 ms | 0.32 ms | 3.1 ms a walk, on the compute pool |
+
+The sight-line walk used to flood from the camera every frame, pruned by the frustum, and then
+scan the whole laid box to project its bits; at 96 columns that was 1.6 of the main world's
+2.2 ms. It now runs on the compute pool, without the frustum (the GPU cull tests that per group
+anyway), only when the camera's section or the topology changed, from a queue of table edits
+the loader hands it; between walks a newly laid section is drawn until told otherwise. In the
+open it reaches the whole box, 85 794 sections, in 3.1 ms of pool time. The group table used
+to be rebuilt and re-uploaded whole on any arrival, 2.8 M records or 56 MB at this residency;
+each stream now keeps its own block with room to grow, a landing section appends its records
+and an evicted one leaves records with no quads, and a stream is rebuilt into a fresh block
+only when it outgrows its block or half of it is dead.
+
+**The GPU frame at 96 columns**, GPU held at clock (`MCRS_GPU_HOT=16384`), same view:
+
+| streams drawn | GPU cull | GPU world | drawn triangles |
+|---|---|---|---|
+| all | 0.43 ms | 10.4 ms | 15 310 688 |
+| all, terrain viewport at a twentieth (`MCRS_RASTER=0.05`) | 0.41 | 9.0 | 15 310 688 |
+| solid greedy only | 0.19 | 4.15 | 8 129 316 |
+| the four opaque streams | 0.31 | 6.86 | 12 755 936 |
+| cutout and model streams only | 0.12 | 2.93 | 4 626 620 |
+| the two translucent streams only | 0.10 | 3.32 | 2 554 752 |
+
+Fill is 1.4 ms of the 10.4; the rest is vertex work, at 0.51 ns a triangle for the solid
+stream, 0.63 for cutout and models, and 1.3 for the two translucent streams. Their ordered
+draws spanned 6 936 798 triangles' worth of slots for the 2 554 752 that survived, so about two
+thirds of what their vertex shader walked was holes.
+
+**Packing the ordered draws.** The translucent streams are now compacted by a prefix sum over
+batches of groups (count, scan, scatter: three dispatches in place of the hole-writing cull and
+its finalize), which keeps the list order the blend depends on and leaves no holes. Same view:
+
+| build | GPU cull | GPU world | drawn triangles |
+|---|---|---|---|
+| ordered draws spanning holes | 0.43 ms | 10.4 ms | 15 310 688 |
+| ordered draws packed | 0.45 | 7.94 | 15 310 688 |
+| and drawn as a triangle list, no instancing | 0.45 | 5.90 | 15 310 688 |
+| and indexed, four vertices a quad | 0.45 | 4.27 | 15 310 688 |
+
+**No instancing.** A quad was an instance of a four-vertex strip; Metal pays per instance, and
+a plain triangle list of six vertices a quad, with the vertex shader reading its quad from the
+vertex index, reads 5.90 ms against 7.94 for the same triangles, though it runs the vertex
+shader six times a quad instead of four. Indexing the list through a fixed index buffer (six
+indices a visible slot, grown with the visible list) gives the four vertices back: 4.27 ms.
+Of that, 1.35 ms is fill (2.93 ms at a twentieth of the viewport) and 2.9 ms vertex work:
+30 M vertices in 2.9 ms, about ten billion a second, which is the machine's vertex rate rather
+than anything left in the shader. The solid stream alone is 2.3 ms for 8.1 M triangles.
+
+**Occlusion.** The brief asked for proof before a depth pyramid was built, so the pyramid was
+built first as a counter: the last frame's depth reduced to the farthest surface per footprint
+(0.07 to 0.11 ms), and the cull projecting each surviving group's box onto it and counting the
+quads it would have hidden, still drawing them. Settled at spawn the count read 7.96 M of
+15.3 M triangles, half of what was drawn. So the test culls now, in two passes: the first
+against the last frame's pyramid, with groups that test alone hides left as candidates; the
+frame's own depth then rebuilds the pyramid and a second cull revives the candidates it no
+longer hides into a second set of draws, so a turn or a step never leaves a hole for a frame.
+A box reaching behind the camera or past the screen's edge is never hidden.
+
+| pass | GPU ms |
+|---|---|
+| cull | 0.495 |
+| world | 2.315 |
+| pyramid | 0.073 |
+| second cull | 0.302 |
+| second world | 0.007 with the camera still |
+| **frame** | **3.19**, from 4.27 without the test and 10.4 at the start of the day |
+
+Drawn triangles 7.35 M, 7.96 M hidden. The second cull walks every group again to find the
+candidates, which is where its 0.3 ms goes; a compact candidate list would make it scale with
+what the first pass left rather than with what is resident.
+
+**The frame at 96 columns, end of the day**, hot clocks, GPU at clock, settled, overlay hidden:
+engine 1.0 to 1.5 ms (main world 0.33 to 0.55), GPU 3.2 ms. The CPU side sits at the goal; the
+GPU side is three times over it with every quad the cull cannot remove still costing its
+vertices.
+
+Screenshot: `docs/perf/m6-96-2560x1440.png`, the packed build at spawn. A world pass under 1 ms needs about
+ten times fewer quads in the vertex shader than this view sends, which no cull can deliver from
+a view where most of the terrain is in front of the camera; that is the size of the distant
+geometry problem at 96 columns.
+
+## Chunk delivery at 96 columns
+
+With two clients loading on the machine at once, 5 385 of a view's 38 025 columns never
+reached the client and the ring they should have filled stayed empty: the bridge dropped an
+encoded blob when its four-deep writer channel was full and marked the columns sent. Blobs now
+wait in order, and column sends are rated at 1 280 a second (vanilla's 64 a tick) instead of
+64 per 2 ms drain pass, so a view of 96 columns arrives in 30 s rather than 15 and nothing is
+lost. The client meshes it in 160 s either way.
 
 ## Web
 

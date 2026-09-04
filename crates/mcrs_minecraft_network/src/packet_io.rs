@@ -7,11 +7,12 @@ use mcrs_minecraft_protocol::{
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
 
 /// `Send` everywhere but the browser, where a WebTransport stream is a JS
 /// object bound to the single thread that made it.
@@ -164,6 +165,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             enc: self.enc,
             remote_addr,
             disconnect_flag,
+            unsent: VecDeque::new(),
         }
     }
 }
@@ -246,6 +248,9 @@ pub struct RawConnection {
     writer_task: tokio::task::JoinHandle<()>,
     pub enc: PacketEncoder,
     pub remote_addr: SocketAddr,
+    /// Blobs the writer had no room for yet, sent ahead of anything newer: a slow socket delays
+    /// what it is sent and never loses it.
+    unsent: VecDeque<Bytes>,
     disconnect_flag: Arc<AtomicBool>,
 }
 
@@ -286,6 +291,7 @@ impl RawConnection {
             enc: PacketEncoder::new(),
             remote_addr: addr,
             disconnect_flag,
+            unsent: VecDeque::new(),
         }
     }
 
@@ -315,14 +321,35 @@ impl RawConnection {
             enc: PacketEncoder::new(),
             remote_addr: addr,
             disconnect_flag,
+            unsent: VecDeque::new(),
         };
         (raw, outgoing_rx, inbound_tx)
     }
 
-    /// Returns `true` if the blob was accepted, `false` if the channel is full or closed.
-    /// The `false` case is the backpressure signal consumed by the bridge dispatch system.
-    pub fn try_send_blob(&self, blob: Bytes) -> bool {
-        self.outgoing.try_send(blob).is_ok()
+    /// Hands the blob to the writer behind anything still waiting. Answers `false` when the
+    /// writer is behind, which is the backpressure signal the bridge reads; the blob is kept.
+    pub fn try_send_blob(&mut self, blob: Bytes) -> bool {
+        self.unsent.push_back(blob);
+        self.flush_unsent()
+    }
+
+    /// Sends what is waiting, in order, as far as the writer has room.
+    pub fn flush_unsent(&mut self) -> bool {
+        while let Some(blob) = self.unsent.pop_front() {
+            match self.outgoing.try_send(blob) {
+                Ok(()) => {}
+                Err(TrySendError::Full(blob)) => {
+                    self.unsent.push_front(blob);
+                    return false;
+                }
+                Err(TrySendError::Closed(_)) => return false,
+            }
+        }
+        true
+    }
+
+    pub fn unsent_bytes(&self) -> usize {
+        self.unsent.iter().map(Bytes::len).sum()
     }
 
     pub fn take_encoded(&mut self) -> Bytes {

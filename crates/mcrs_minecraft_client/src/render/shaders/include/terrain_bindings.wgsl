@@ -33,10 +33,8 @@ struct AnimationFrame {
 @group(1) @binding(13) var lightmap_levels: texture_2d<f32>;
 @group(1) @binding(14) var<storage, read> args: array<DrawArgs>;
 
-/// Where this instance sits in the visible list: an ordered draw starts at its first surviving
-/// slot rather than at slot zero.
-fn visible_slot(instance: u32) -> u32 {
-    return params.visible_base + args[params.counter].first_instance + instance;
+fn visible_slot(quad: u32) -> u32 {
+    return params.visible_base + quad;
 }
 
 fn quad_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {

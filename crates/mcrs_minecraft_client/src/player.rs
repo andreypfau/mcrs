@@ -2,6 +2,7 @@ use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::math::DVec3;
 use bevy::prelude::*;
+use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
@@ -72,7 +73,13 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
             far: FAR_PLANE,
             ..default()
         }),
-        Camera3d::default(),
+        Camera3d {
+            // The cull reads the last frame's depth back as a pyramid.
+            depth_texture_usages: (TextureUsages::RENDER_ATTACHMENT
+                | TextureUsages::TEXTURE_BINDING)
+                .into(),
+            ..default()
+        },
         // The sky pipelines are built for a single sample; multisampling the
         // view would leave them unable to render into it.
         Msaa::Off,

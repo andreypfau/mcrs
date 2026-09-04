@@ -4,15 +4,15 @@ fn degenerate() -> vec4<f32> {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
 }
 
-/// Both geometry kinds draw a quad as a four vertex triangle strip, so the strip order and
-/// the corner order around the quad are not the same walk.
+const VERTICES_PER_QUAD: u32 = 4u;
+
+/// The index list names each vertex as four times its quad plus its corner.
 fn corner_index(vertex: u32) -> u32 {
-    switch vertex {
-        case 0u: { return 1u; }
-        case 1u: { return 2u; }
-        case 2u: { return 0u; }
-        default: { return 3u; }
-    }
+    return vertex % VERTICES_PER_QUAD;
+}
+
+fn quad_of(vertex: u32) -> u32 {
+    return vertex / VERTICES_PER_QUAD;
 }
 
 fn corner_uv(index: u32) -> vec2<f32> {

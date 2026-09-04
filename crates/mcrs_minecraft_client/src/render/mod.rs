@@ -3,6 +3,7 @@ mod binds;
 mod draws;
 mod frame;
 mod heat;
+mod hiz;
 mod layer;
 mod pass;
 mod pipeline;
@@ -139,6 +140,7 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/model.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/heat.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/hiz.wgsl");
 }
 
 pub struct TerrainPlugin(pub Arc<Budget>, pub Uploads);

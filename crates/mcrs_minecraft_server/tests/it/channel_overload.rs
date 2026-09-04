@@ -196,6 +196,7 @@ fn spawn_succeeds_when_serverbound_full() {
                 username: "test".into(),
                 position: bevy_math::DVec3::ZERO,
                 rotation: bevy_math::Vec2::ZERO,
+                view_distance: 12,
             },
             dimensions: Vec::new(),
         });
@@ -260,6 +261,7 @@ fn dim_teardown_only_on_control_reserve_exhausted() {
             username: "test".into(),
             position: bevy_math::DVec3::ZERO,
             rotation: bevy_math::Vec2::ZERO,
+            view_distance: 12,
         };
         for i in 0..TO_DIM_CONTROL_CAPACITY {
             entry
@@ -306,6 +308,7 @@ fn transfer_snapshot() -> mcrs_minecraft_server::world::bus::PlayerTransferSnaps
         username: "test".into(),
         position: bevy_math::DVec3::ZERO,
         rotation: bevy_math::Vec2::ZERO,
+        view_distance: 12,
     }
 }
 

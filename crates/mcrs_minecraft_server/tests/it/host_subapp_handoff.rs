@@ -327,6 +327,7 @@ fn spawn_consumer_materializes_in_dim_entity() {
                     username: "consumer_test".into(),
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: Vec2::ZERO,
+                    view_distance: 12,
                 },
                 dimensions: Vec::new(),
             })
@@ -452,6 +453,7 @@ fn no_duplicate_spawn_on_reread() {
                     username: "cursor_test".into(),
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: Vec2::ZERO,
+                    view_distance: 12,
                 },
                 dimensions: Vec::new(),
             })

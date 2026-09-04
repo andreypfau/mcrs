@@ -1,3 +1,4 @@
+use crate::client_info::ClientViewDistance;
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::PlayerTransferSnapshot;
@@ -710,8 +711,11 @@ fn on_game_configuration_ack(
 /// If no live label entity exists yet (dims still loading), the emit is deferred:
 /// no spawn is sent and `current_dim` stays `PLACEHOLDER`. The idempotent guard
 /// (`current_dim != PLACEHOLDER`) ensures at most one initial-join spawn per player.
+/// What vanilla's player asks for until its client information arrives.
+const VIEW_DISTANCE_FALLBACK: u8 = 2;
+
 pub fn emit_initial_player_spawn(
-    connections: Query<&HostAnchorRef, With<InGameConnectionState>>,
+    connections: Query<(&HostAnchorRef, Option<&ClientViewDistance>), With<InGameConnectionState>>,
     mut session_registry: ResMut<SessionRegistry>,
     live_dims: Query<Entity, With<DimSubAppHandle>>,
     profiles: Query<&GameProfile>,
@@ -738,9 +742,12 @@ pub fn emit_initial_player_spawn(
     };
 
     // Collect anchors first so we can mutably borrow session_registry below.
-    let anchors: Vec<Entity> = connections.iter().map(|r| r.0).collect();
+    let anchors: Vec<(Entity, Option<ClientViewDistance>)> = connections
+        .iter()
+        .map(|(anchor, view_distance)| (anchor.0, view_distance.copied()))
+        .collect();
 
-    for host_anchor in anchors {
+    for (host_anchor, view_distance) in anchors {
         let Some((session, entry)) = session_registry.get_by_anchor_mut(&host_anchor) else {
             continue;
         };
@@ -753,8 +760,9 @@ pub fn emit_initial_player_spawn(
         let snapshot = PlayerTransferSnapshot {
             uuid: profile.id,
             username: profile.username.clone(),
-            position: DVec3::new(0.0, 100.0, 0.0),
+            position: DVec3::new(0.0, 128.0, 0.0),
             rotation: Vec2::ZERO,
+            view_distance: view_distance.map_or(VIEW_DISTANCE_FALLBACK, |requested| *requested),
         };
         entry.dim = dim_label;
         send_control_or_teardown(

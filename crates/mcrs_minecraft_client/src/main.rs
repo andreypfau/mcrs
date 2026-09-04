@@ -68,6 +68,8 @@ fn main() {
 
 #[cfg(not(target_family = "wasm"))]
 fn main() {
+    #[cfg(target_os = "macos")]
+    mcrs_minecraft_client::app_nap::decline();
     if config::hot_clocks() {
         std::thread::Builder::new()
             .name("hot clocks".into())
@@ -180,6 +182,7 @@ fn main() {
     app.add_plugins(ClientNetworkPlugin {
         server,
         username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
+        view_distance: config::view_distance(),
     });
 
     // Inserted after `add_plugins`: `WorldClockPlugin` calls
@@ -257,9 +260,9 @@ fn log_monitors(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>) {
 /// stale one, so the arena has to fit two of them with the buddy rounding on top.
 const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
     arena_scale: 4,
-    groups: 1 << 21,
-    sections: 1 << 16,
-    tint_span: 1024,
+    groups: 1 << 22,
+    sections: 1 << 19,
+    tint_span: 4096,
 };
 
 /// Singleplayer, the way the vanilla client plays it: a server of our own on a

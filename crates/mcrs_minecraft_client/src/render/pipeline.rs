@@ -56,8 +56,10 @@ pub(crate) fn common(
 pub(super) struct Pipelines {
     pub shaders: Shaders,
     pub cull: CachedComputePipelineId,
-    pub cull_stable: CachedComputePipelineId,
-    pub cull_finalize: CachedComputePipelineId,
+    pub cull_count: CachedComputePipelineId,
+    pub cull_scan: CachedComputePipelineId,
+    pub cull_scatter: CachedComputePipelineId,
+    pub cull_second: CachedComputePipelineId,
     terrain: Option<[CachedRenderPipelineId; TERRAIN_PIPELINES]>,
 }
 
@@ -76,27 +78,27 @@ impl Pipelines {
             entry_point: Some("cull".into()),
             ..default()
         });
-        let cull_stable = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-            label: Some("terrain cull stable".into()),
-            layout: layout.clone(),
-            shader: shaders.cull.clone(),
-            shader_defs: shader_defs.clone(),
-            entry_point: Some("cull_stable".into()),
-            ..default()
-        });
-        let cull_finalize = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-            label: Some("terrain cull finalize".into()),
-            layout,
-            shader: shaders.cull.clone(),
-            shader_defs,
-            entry_point: Some("finalize".into()),
-            ..default()
-        });
+        let ordered = |label: &str, entry: &str| {
+            pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+                label: Some(label.to_owned().into()),
+                layout: layout.clone(),
+                shader: shaders.cull.clone(),
+                shader_defs: shader_defs.clone(),
+                entry_point: Some(entry.to_owned().into()),
+                ..default()
+            })
+        };
+        let cull_count = ordered("terrain cull count", "count_ordered");
+        let cull_scan = ordered("terrain cull scan", "scan_ordered");
+        let cull_scatter = ordered("terrain cull scatter", "scatter_ordered");
+        let cull_second = ordered("terrain cull second", "cull_second");
         Self {
             shaders,
             cull,
-            cull_stable,
-            cull_finalize,
+            cull_count,
+            cull_scan,
+            cull_scatter,
+            cull_second,
             terrain: None,
         }
     }
@@ -134,7 +136,7 @@ impl Pipelines {
     ) -> CachedRenderPipelineId {
         let mut descriptor = RenderPipelineDescriptor {
             primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleStrip,
+                topology: PrimitiveTopology::TriangleList,
                 front_face: FrontFace::Ccw,
                 cull_mode: layer.writes_depth().then_some(Face::Back),
                 ..default()

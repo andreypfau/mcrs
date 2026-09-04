@@ -119,7 +119,7 @@ fn handle_command(
                     move_id,
                     target: dim_name,
                     cause: ArrivalCause::CommandTeleport {
-                        pos: DVec3::new(0.0, 100.0, 0.0),
+                        pos: DVec3::new(0.0, 128.0, 0.0),
                     },
                     payload,
                     player: Some(session),

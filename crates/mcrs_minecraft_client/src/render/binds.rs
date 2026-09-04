@@ -28,6 +28,7 @@ impl Bindings {
         arenas: &Arenas,
         frame: &Frame,
         sprites: &Sprites,
+        hiz: &TextureView,
         device: &RenderDevice,
         pipeline_cache: &PipelineCache,
     ) -> Self {
@@ -46,7 +47,7 @@ impl Bindings {
                 frame.camera.as_entire_buffer_binding(),
             )),
         );
-        let cull = cull_bind_group(&cull_layout, arenas, frame, device, pipeline_cache);
+        let cull = cull_bind_group(&cull_layout, arenas, frame, hiz, device, pipeline_cache);
         let draw = draw_bind_group(&draw_layout, arenas, frame, sprites, device, pipeline_cache);
         Self {
             view_layout,
@@ -80,10 +81,11 @@ impl Bindings {
         &mut self,
         arenas: &Arenas,
         frame: &Frame,
+        hiz: &TextureView,
         device: &RenderDevice,
         pipeline_cache: &PipelineCache,
     ) {
-        self.cull = cull_bind_group(&self.cull_layout, arenas, frame, device, pipeline_cache);
+        self.cull = cull_bind_group(&self.cull_layout, arenas, frame, hiz, device, pipeline_cache);
     }
 }
 
@@ -111,6 +113,9 @@ fn cull_layout() -> BindGroupLayoutDescriptor {
                 storage_buffer_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
+                storage_buffer_sized(false, None),
+                texture_2d(TextureSampleType::Float { filterable: false }),
+                storage_buffer_sized(false, None),
             ),
         ),
     )
@@ -147,6 +152,7 @@ fn cull_bind_group(
     layout: &BindGroupLayoutDescriptor,
     arenas: &Arenas,
     frame: &Frame,
+    hiz: &TextureView,
     device: &RenderDevice,
     pipeline_cache: &PipelineCache,
 ) -> BindGroup {
@@ -159,6 +165,9 @@ fn cull_bind_group(
             frame.args.as_entire_buffer_binding(),
             frame.cave.as_entire_buffer_binding(),
             arenas.sections.as_entire_buffer_binding(),
+            arenas.batches.as_entire_buffer_binding(),
+            hiz,
+            arenas.candidates.as_entire_buffer_binding(),
         )),
     )
 }

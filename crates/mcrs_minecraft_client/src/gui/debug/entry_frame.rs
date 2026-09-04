@@ -21,7 +21,7 @@ pub fn display(
     let (terrain_draws, sky_draws) = counts.draws();
     let engine = match cpu.spread(probe::ENGINE) {
         Some(spread) => format!(
-            "Engine: {:.3} ms median, {:.3} p99, {:.2} max over {} frames",
+            "Engine: {:.3} ms median, {:.3} p99, {:.2} max over {} frames in the last second",
             spread.median, spread.p99, spread.max, spread.frames
         ),
         None => "Engine: no frames yet".to_owned(),

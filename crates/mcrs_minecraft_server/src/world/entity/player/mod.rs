@@ -94,6 +94,10 @@ impl Plugin for DimPlayerPlugin {
     }
 }
 
+/// The server clamps what a client asks for to its own limit, as vanilla does; ours is three
+/// times vanilla's 32.
+const MAX_VIEW_DISTANCE: u8 = 96;
+
 #[derive(Bundle, Default)]
 pub struct PlayerBundle {
     pub teleport_state: TeleportState,
@@ -132,6 +136,10 @@ fn consume_inbound_player_spawn(
         };
         let dim_name = dim_id.as_str().to_string();
         let dim_type_id = dim_type_index.0;
+        let view_distance = PlayerViewDistance {
+            distance: spawn.snapshot.view_distance.clamp(2, MAX_VIEW_DISTANCE),
+            ..Default::default()
+        };
         let new_entity = commands
             .spawn((
                 EntityBundle::new(InDimension(dim))
@@ -140,6 +148,7 @@ fn consume_inbound_player_spawn(
                 PlayerBundle {
                     game_mode: PlayerGameMode(default_game_mode()),
                     teleport_state: TeleportState::after_login(),
+                    view_distance,
                     ..Default::default()
                 },
                 PlayerChunkObserver::default(),
@@ -180,8 +189,8 @@ fn consume_inbound_player_spawn(
                 dimension_type_id: dim_type_id,
                 dimensions,
                 max_players: 100,
-                chunk_radius: 12,
-                simulation_distance: 12,
+                chunk_radius: view_distance.distance as i32,
+                simulation_distance: view_distance.distance as i32,
                 reduced_debug_info: false,
                 show_death_screen: false,
                 do_limited_crafting: false,
@@ -230,7 +239,9 @@ fn consume_inbound_player_spawn(
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
-            data: PacketPayload::SetChunkCacheRadius { radius: 12 },
+            data: PacketPayload::SetChunkCacheRadius {
+                radius: view_distance.distance as i32,
+            },
             session: PlayerSession(0),
             epoch: 0,
         });

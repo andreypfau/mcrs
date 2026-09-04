@@ -16,7 +16,10 @@ use crate::readback::{self, Gate, Reader};
 pub const CULL: usize = 0;
 pub const WORLD: usize = 1;
 pub const HEAT: usize = 2;
-pub const NAMES: [&str; 3] = ["cull", "world", "heat"];
+pub const HIZ: usize = 3;
+pub const CULL_SECOND: usize = 4;
+pub const WORLD_SECOND: usize = 5;
+pub const NAMES: [&str; 6] = ["cull", "world", "heat", "hiz", "cull second", "world second"];
 pub const SLOTS: usize = NAMES.len();
 
 const WINDOW: usize = 256;
@@ -113,17 +116,22 @@ impl<const N: usize, const W: usize> Samples<N, W> {
     }
 
     fn median(&self, slot: usize) -> Option<f32> {
-        self.percentiles(slot, &[0.5]).map(|p| p[0])
+        self.percentiles(slot, W, &[0.5]).map(|p| p[0])
     }
 
-    /// Sorted-window lookups, each quantile clamped to the last sample held; the count of samples
-    /// the answer stands on comes with it.
-    fn percentiles<const Q: usize>(&self, slot: usize, quantiles: &[f32; Q]) -> Option<[f32; Q]> {
-        let held = self.written[slot].min(W);
+    /// Quantiles over the newest `last` samples, each clamped to the last sample held.
+    fn percentiles<const Q: usize>(
+        &self,
+        slot: usize,
+        last: usize,
+        quantiles: &[f32; Q],
+    ) -> Option<[f32; Q]> {
+        let held = self.held(slot).min(last);
         if held == 0 {
             return None;
         }
-        let mut scratch = self.ms[slot][..held].to_vec();
+        let end = self.written[slot];
+        let mut scratch: Vec<f32> = (end - held..end).map(|i| self.ms[slot][i % W]).collect();
         Some(quantiles.map(|q| {
             let at = ((held as f32 * q) as usize).min(held - 1);
             *scratch.select_nth_unstable_by(at, f32::total_cmp).1
@@ -148,8 +156,10 @@ pub const CPU_NAMES: [&str; 7] = [
 ];
 pub const CPU_SLOTS: usize = CPU_NAMES.len();
 
-/// Long enough for a one-percent tail to mean something at a thousand frames a second.
+/// Room for a second of frames at the rate being aimed for.
 pub const CPU_WINDOW: usize = 4096;
+/// A figure stands on the frames of the last second, which is how vanilla counts its fps.
+pub const WINDOW_SECS: f32 = 1.0;
 
 const FRAME_START: usize = 0;
 const MAIN_END: usize = 1;
@@ -168,6 +178,39 @@ pub struct CpuTimings(Arc<CpuShared>);
 struct CpuShared {
     marks: Mutex<[Option<Instant>; MARKS]>,
     samples: Mutex<Samples<CPU_SLOTS, CPU_WINDOW>>,
+    starts: Mutex<FrameStarts>,
+}
+
+struct FrameStarts {
+    at: Vec<Instant>,
+    written: usize,
+}
+
+impl Default for FrameStarts {
+    fn default() -> Self {
+        Self {
+            at: vec![Instant::now(); CPU_WINDOW],
+            written: 0,
+        }
+    }
+}
+
+impl FrameStarts {
+    fn push(&mut self, at: Instant) {
+        self.at[self.written % CPU_WINDOW] = at;
+        self.written += 1;
+    }
+
+    /// How many of the newest frames began within the window.
+    fn recent(&self, now: Instant) -> usize {
+        let held = self.written.min(CPU_WINDOW);
+        (1..=held)
+            .take_while(|&back| {
+                let at = self.at[(self.written - back) % CPU_WINDOW];
+                now.saturating_duration_since(at).as_secs_f32() <= WINDOW_SECS
+            })
+            .count()
+    }
 }
 
 pub struct Spread {
@@ -179,17 +222,19 @@ pub struct Spread {
 
 impl CpuTimings {
     pub fn median(&self, slot: usize) -> Option<f32> {
-        self.0.samples.lock().ok()?.median(slot)
+        let recent = self.0.starts.lock().ok()?.recent(Instant::now());
+        self.0.samples.lock().ok()?.percentiles(slot, recent, &[0.5]).map(|p| p[0])
     }
 
     pub fn spread(&self, slot: usize) -> Option<Spread> {
+        let recent = self.0.starts.lock().ok()?.recent(Instant::now());
         let samples = self.0.samples.lock().ok()?;
-        let [median, p99, max] = samples.percentiles(slot, &[0.5, 0.99, 1.0])?;
+        let [median, p99, max] = samples.percentiles(slot, recent, &[0.5, 0.99, 1.0])?;
         Some(Spread {
             median,
             p99,
             max,
-            frames: samples.held(slot),
+            frames: samples.held(slot).min(recent),
         })
     }
 
@@ -213,6 +258,11 @@ impl CpuTimings {
 pub fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
     if let Ok(mut marks) = cpu.0.marks.lock() {
         marks[FRAME_START] = time.last_update();
+    }
+    if let Some(at) = time.last_update()
+        && let Ok(mut starts) = cpu.0.starts.lock()
+    {
+        starts.push(at);
     }
 }
 
@@ -432,9 +482,9 @@ mod tests {
     fn the_median_ignores_the_one_frame_that_stalled() {
         let timings = GpuTimings::default();
         for _ in 0..8 {
-            timings.push([1.0, 4.0, 0.5]);
+            timings.push([1.0, 4.0, 0.5, 0.1, 0.2, 0.3]);
         }
-        timings.push([1.0, 400.0, 0.5]);
+        timings.push([1.0, 400.0, 0.5, 0.1, 0.2, 0.3]);
         assert_eq!(timings.median(CULL), Some(1.0));
         assert_eq!(timings.median(WORLD), Some(4.0));
     }
@@ -443,7 +493,7 @@ mod tests {
     fn a_pass_the_gpu_never_timed_leaves_the_others_readable() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(2.0));
@@ -459,7 +509,7 @@ mod tests {
     fn a_resolved_frame_lands_in_the_window_as_milliseconds() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000, 0, 0, 0, 0, 0, 0, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(1.0));

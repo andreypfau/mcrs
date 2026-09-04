@@ -4,6 +4,7 @@ use bevy::render::renderer::RenderDevice;
 use crate::mesh::Group;
 use crate::pack::QUAD_WORDS;
 
+use super::stats::INDICES_PER_QUAD;
 use super::upload::Pending;
 use super::{Budget, SECTION_BYTES, VISIBLE_BYTES};
 
@@ -17,6 +18,13 @@ pub(super) struct Arenas {
     pub groups: Buffer,
     pub sections: Buffer,
     pub visible: Buffer,
+    /// Six indices a visible slot, naming its quad's four corners as two triangles.
+    pub indices: Buffer,
+    /// One count per batch of `CULL_THREADS` groups, which the ordered cull turns into where
+    /// each batch's survivors start.
+    pub batches: Buffer,
+    /// One word per group: left to the second cull pass by the first.
+    pub candidates: Buffer,
     pub pending: Option<Pending>,
 }
 
@@ -37,6 +45,20 @@ fn visible_list(entries: usize, device: &RenderDevice) -> Buffer {
     )
 }
 
+/// Wound as the strip the quads used to be drawn as: corners 1, 2, 0 and then 0, 2, 3.
+fn quad_indices(entries: usize, device: &RenderDevice) -> Buffer {
+    let mut indices = Vec::with_capacity(entries * INDICES_PER_QUAD as usize);
+    for quad in 0..entries as u32 {
+        let base = quad * 4;
+        indices.extend_from_slice(&[base + 1, base + 2, base, base, base + 2, base + 3]);
+    }
+    device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("terrain quad indices"),
+        contents: bytemuck::cast_slice(&indices),
+        usage: BufferUsages::INDEX,
+    })
+}
+
 impl Arenas {
     pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
         let arena = |label, bytes| arena(label, bytes, device);
@@ -53,6 +75,12 @@ impl Arenas {
             ),
             sections: arena("terrain sections", (budget.sections * SECTION_BYTES) as u64),
             visible: visible_list(VISIBLE_STEP, device),
+            indices: quad_indices(VISIBLE_STEP, device),
+            batches: arena(
+                "terrain cull batches",
+                (budget.groups.div_ceil(super::pass::CULL_THREADS as usize) * 4) as u64,
+            ),
+            candidates: arena("terrain cull candidates", (budget.groups * 4) as u64),
             pending: None,
         }
     }
@@ -71,6 +99,7 @@ impl Arenas {
         let entries = entries.next_multiple_of(VISIBLE_STEP);
         bevy::log::info!(entries, "growing the visible list");
         self.visible = visible_list(entries, device);
+        self.indices = quad_indices(entries, device);
         true
     }
 }

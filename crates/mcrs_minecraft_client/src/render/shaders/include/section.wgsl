@@ -3,7 +3,6 @@
 #import mcrs_minecraft_client::fields::SECTION_SIZE
 #import mcrs_minecraft_client::frame::camera
 
-const CULLED: u32 = 0xffffffffu;
 
 struct SectionDesc {
     x: i32,

@@ -27,7 +27,8 @@ pub(super) struct CameraUniform {
     tint_origin: [f32; 2],
     tint_scale: [f32; 2],
     animated_from: u32,
-    _pad: [u32; 3],
+    hiz_levels: u32,
+    _pad: [u32; 2],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
@@ -135,6 +136,7 @@ pub(super) fn write_camera(
                 1.0 / terrain.budget.tint_size[1] as f32,
             ],
             animated_from: terrain.sprites.animated_from,
+            hiz_levels: terrain.hiz.levels(),
             ..default()
         }),
     );

@@ -52,11 +52,17 @@ pub struct Loader {
     queue_sorted: bool,
     meshing: Vec<([i32; 3], u32, Task<(SectionMesh, Scratch)>)>,
     scratches: Vec<Scratch>,
+    /// Every stream's group records as the GPU holds them, dead ones kept as records with no
+    /// quads until the stream is rebuilt, so a change only ever writes the records it touched.
     lists: [Vec<Group>; STREAMS],
-    group_block: Block,
+    group_blocks: [Block; STREAMS],
+    quads_end: [u32; STREAMS],
+    dead_records: [usize; STREAMS],
+    touched: [Vec<(u32, u32)>; STREAMS],
+    rebuild: [bool; STREAMS],
+    owners: Vec<[i32; 3]>,
     slots: usize,
     free_slots: Vec<u32>,
-    dead: Vec<u32>,
     slots_used: u32,
     dirty: bool,
     camera: Vec3,
@@ -82,6 +88,8 @@ struct Resident {
     faces: Block,
     slot: u32,
     connectivity: Connectivity,
+    /// Where this section's records sit in each stream's list: first index and count.
+    groups: [(u32, u32); STREAMS],
 }
 
 struct Baked {
@@ -131,10 +139,14 @@ impl Loader {
             meshing: Vec::new(),
             scratches: Vec::new(),
             lists: std::array::from_fn(|_| Vec::new()),
-            group_block: Block::EMPTY,
+            group_blocks: std::array::from_fn(|_| Block::EMPTY),
+            quads_end: [0; STREAMS],
+            dead_records: [0; STREAMS],
+            touched: std::array::from_fn(|_| Vec::new()),
+            rebuild: [false; STREAMS],
+            owners: vec![[0; 3]; budget.sections],
             slots: budget.sections,
             free_slots: Vec::new(),
-            dead: Vec::new(),
             slots_used: 0,
             dirty: false,
             camera: Vec3::ZERO,
@@ -285,25 +297,27 @@ impl Loader {
         self.models.free(held.models);
         self.faces.free(held.faces);
         if held.slot != NO_SLOT {
-            self.dead.push(held.slot);
+            for stream in 0..STREAMS {
+                let (first, count) = held.groups[stream];
+                if count == 0 {
+                    continue;
+                }
+                let (first, end) = (first as usize, (first + count) as usize);
+                for group in &mut self.lists[stream][first..end] {
+                    group.quad_count = 0;
+                }
+                self.dead_records[stream] += count as usize;
+                self.touched[stream].push((first as u32, end as u32));
+                if self.dead_records[stream] * 2 >= self.lists[stream].len() {
+                    self.rebuild[stream] = true;
+                }
+            }
+            self.free_slots.push(held.slot);
             self.dirty = true;
         }
         cave.forget(section);
         self.evicted += 1;
         self.requeue_deferred();
-    }
-
-    /// A slot goes back on the free list only once the group records naming it are gone, so a
-    /// section placed later in the same frame cannot have its groups swept away with them.
-    fn sweep(&mut self) {
-        if self.dead.is_empty() {
-            return;
-        }
-        let dead: HashSet<u32> = std::mem::take(&mut self.dead).into_iter().collect();
-        for list in &mut self.lists {
-            list.retain(|group| !dead.contains(&group.section));
-        }
-        self.free_slots.extend(dead);
     }
 
     fn follow(&mut self, cave: &mut CaveCull) {
@@ -426,6 +440,7 @@ impl Loader {
 
         let mut placed = mesh.groups;
         let mut first = 0usize;
+        let mut ranges = [(0u32, 0u32); STREAMS];
         for stream in 0..STREAMS {
             let run = mesh.spans[stream].group_count as usize;
             let base = if stream % 2 == 0 {
@@ -435,8 +450,18 @@ impl Loader {
             } as u32;
             for group in &mut placed[first..first + run] {
                 group.quad_base += base;
+                group.quad_prefix = self.quads_end[stream];
+                self.quads_end[stream] += group.quad_count;
             }
-            self.lists[stream].extend_from_slice(&placed[first..first + run]);
+            if run != 0 {
+                let at = self.lists[stream].len() as u32;
+                self.lists[stream].extend_from_slice(&placed[first..first + run]);
+                ranges[stream] = (at, run as u32);
+                self.touched[stream].push((at, at + run as u32));
+                if self.lists[stream].len() > self.group_blocks[stream].capacity() {
+                    self.rebuild[stream] = true;
+                }
+            }
             first += run;
         }
 
@@ -446,6 +471,7 @@ impl Loader {
             NO_SLOT
         } else {
             self.dirty = true;
+            self.owners[slot as usize] = section;
             slot
         };
         cave.set_section(section, slot, mesh.connectivity);
@@ -458,6 +484,7 @@ impl Loader {
                 faces,
                 slot,
                 connectivity: mesh.connectivity,
+                groups: ranges,
             },
         );
 
@@ -480,37 +507,91 @@ impl Loader {
         })
     }
 
-    /// The whole draw list hands its group block back and takes a fresh one, so the block the
-    /// buckets are being drawn from is never the block being written.
+    /// Writes the records each stream touched since the last flush, rebuilding a stream into a
+    /// fresh block first when it outgrew its block or half of it is dead. A stream that cannot
+    /// get a block draws what its block holds and tries again next time.
     fn flush(&mut self) -> Option<Placement> {
-        let total: usize = self.lists.iter().map(Vec::len).sum();
-        let block = self.groups.alloc(total)?;
-        let stale = std::mem::replace(&mut self.group_block, block);
-        self.groups.free(stale);
-
-        let mut records = Vec::with_capacity(total);
-        let mut draws = Vec::with_capacity(STREAMS);
+        let mut groups = Vec::new();
         for stream in 0..STREAMS {
-            let first = records.len();
-            let mut quads = 0u32;
-            for group in &self.lists[stream] {
-                let mut group = *group;
-                group.quad_prefix = quads;
-                quads += group.quad_count;
-                records.push(group);
+            if self.rebuild[stream] {
+                self.rebuild_stream(stream);
             }
-            draws.push(Draw {
-                stream: stream as u32,
-                first_group: (block.offset + first) as u32,
-                group_count: (records.len() - first) as u32,
-                quad_count: quads,
-            });
+            let capacity = self.group_blocks[stream].capacity() as u32;
+            let mut ranges = std::mem::take(&mut self.touched[stream]);
+            ranges.sort_unstable();
+            let mut merged: Vec<(u32, u32)> = Vec::new();
+            for (first, end) in ranges.drain(..) {
+                let end = end.min(capacity);
+                if first >= end {
+                    continue;
+                }
+                match merged.last_mut() {
+                    Some(last) if first <= last.1 + RUN_GAP => last.1 = last.1.max(end),
+                    _ => merged.push((first, end)),
+                }
+            }
+            if self.rebuild[stream] {
+                // What lies past the block is written once the rebuild goes through.
+                self.touched[stream].push((capacity, self.lists[stream].len() as u32));
+            }
+            for (first, end) in merged {
+                let offset = (self.group_blocks[stream].offset + first as usize) * size_of::<Group>();
+                groups.push((
+                    offset as u64,
+                    self.lists[stream][first as usize..end as usize].to_vec(),
+                ));
+            }
         }
+        let draws = (0..STREAMS)
+            .map(|stream| Draw {
+                stream: stream as u32,
+                first_group: self.group_blocks[stream].offset as u32,
+                group_count: self.lists[stream]
+                    .len()
+                    .min(self.group_blocks[stream].capacity()) as u32,
+                quad_count: self.quads_end[stream],
+            })
+            .collect();
         Some(Placement {
-            groups: ((block.offset * size_of::<Group>()) as u64, records),
+            groups,
             draws: Some(draws),
             ..Placement::default()
         })
+    }
+
+    /// Packs a stream's live records into a fresh block with room to grow, keeping their order
+    /// and telling each resident section where its records went.
+    fn rebuild_stream(&mut self, stream: usize) {
+        let live = self.lists[stream].len() - self.dead_records[stream];
+        let capacity = (live * 2).next_power_of_two().max(MIN_BLOCK);
+        let Some(block) = self.groups.alloc(capacity) else {
+            return;
+        };
+        let stale = std::mem::replace(&mut self.group_blocks[stream], block);
+        self.groups.free(stale);
+        let old = std::mem::take(&mut self.lists[stream]);
+        let mut packed = Vec::with_capacity(live);
+        let mut quads = 0u32;
+        let mut last_slot = NO_SLOT;
+        for mut group in old.into_iter().filter(|group| group.quad_count != 0) {
+            let owner = self.owners[group.section as usize];
+            if let Some(resident) = self.resident.get_mut(&owner) {
+                if group.section != last_slot {
+                    resident.groups[stream] = (packed.len() as u32, 0);
+                }
+                resident.groups[stream].1 += 1;
+            }
+            last_slot = group.section;
+            group.quad_prefix = quads;
+            quads += group.quad_count;
+            packed.push(group);
+        }
+        self.lists[stream] = packed;
+        self.quads_end[stream] = quads;
+        self.dead_records[stream] = 0;
+        self.touched[stream].clear();
+        self.touched[stream].push((0, live as u32));
+        self.rebuild[stream] = false;
     }
 
     /// Where a column's tint square sits in the tint texture, which the world wraps into.
@@ -522,6 +603,11 @@ impl Loader {
         ]
     }
 }
+
+/// Touched runs of records this close together are written as one copy.
+const RUN_GAP: u32 = 64;
+/// The smallest block a stream is rebuilt into, in records.
+const MIN_BLOCK: usize = 256;
 
 fn worth_evicting(resident: f32, candidate: f32) -> bool {
     resident > candidate + HYSTERESIS
@@ -639,7 +725,6 @@ pub fn advance(
     drop(placing);
 
     let flushing = info_span!("stream flush").entered();
-    loader.sweep();
     if loader.dirty
         && let Some(placement) = loader.flush()
     {
@@ -895,8 +980,7 @@ mod tests {
         assert_eq!(draws[0].group_count, 2);
         assert_eq!(draws[0].quad_count, 8);
         assert_eq!(
-            flushed
-                .groups
+            flushed.groups[0]
                 .1
                 .iter()
                 .map(|g| g.quad_prefix)
@@ -906,7 +990,6 @@ mod tests {
         );
 
         loader.evict([0, 0, 0], &mut cave);
-        loader.sweep();
         let flushed = loader.flush().expect("the group arena has room");
         let draws = flushed
             .draws
@@ -914,7 +997,7 @@ mod tests {
         assert_eq!(draws[0].group_count, 1);
         assert_eq!(draws[0].quad_count, 5);
         assert_eq!(
-            flushed.groups.1[0].quad_prefix, 0,
+            flushed.groups[0].1[0].quad_prefix, 0,
             "what the evicted section held is given back, not left as a hole"
         );
     }

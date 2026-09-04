@@ -16,7 +16,11 @@ pub fn display(
 ) {
     let status = loader.status();
     let lines = vec![
-        format!("Tris: {}", triangles.get()),
+        format!(
+            "Tris: {} ({} hidden behind terrain)",
+            triangles.get(),
+            triangles.hidden()
+        ),
         format!(
             "Sections: {}/{} in {} columns, {} evicted",
             status.sections, status.sections_total, status.columns, status.evicted

@@ -7,7 +7,7 @@ use mcrs_voxel_storage::SectionKind;
 use serde::Deserialize;
 
 use crate::palette::{BlockStateLookup, Palette, Properties};
-use crate::{DATA_VERSION, ErrorKind};
+use crate::{DATA_VERSION, ErrorKind, accepts_data_version};
 
 pub const LIGHT_BYTES: usize = 2048;
 
@@ -244,7 +244,7 @@ fn wrong_version(nbt: &[u8]) -> Option<ErrorKind> {
         None => Some(ErrorKind::MissingDataVersion {
             expected: DATA_VERSION,
         }),
-        Some(found) if found != DATA_VERSION => Some(ErrorKind::DataVersion {
+        Some(found) if !accepts_data_version(found) => Some(ErrorKind::DataVersion {
             found,
             expected: DATA_VERSION,
         }),
@@ -257,7 +257,7 @@ pub fn parse(nbt: &[u8]) -> Result<Chunk, ErrorKind> {
         Ok(raw) => raw,
         Err(err) => return Err(wrong_version(nbt).unwrap_or_else(|| err.into())),
     };
-    if raw.data_version != DATA_VERSION {
+    if !accepts_data_version(raw.data_version) {
         return Err(ErrorKind::DataVersion {
             found: raw.data_version,
             expected: DATA_VERSION,
