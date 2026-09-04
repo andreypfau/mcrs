@@ -106,6 +106,7 @@ pub struct Status {
     pub quads: f32,
     pub models: f32,
     pub faces: f32,
+    pub groups: f32,
     pub queued: usize,
     pub meshing: usize,
     pub uploads_waiting: usize,
@@ -170,6 +171,7 @@ impl Loader {
             quads: self.quads.held() as f32 / self.quads.capacity() as f32,
             models: self.models.held() as f32 / self.models.capacity() as f32,
             faces: self.faces.held() as f32 / self.faces.capacity() as f32,
+            groups: self.groups.held() as f32 / self.groups.capacity() as f32,
             queued: self.queue.len(),
             meshing: self.meshing.len(),
             uploads_waiting: self.uploads.waiting(),
@@ -563,8 +565,21 @@ impl Loader {
     /// and telling each resident section where its records went.
     fn rebuild_stream(&mut self, stream: usize) {
         let live = self.lists[stream].len() - self.dead_records[stream];
-        let capacity = (live * 2).next_power_of_two().max(MIN_BLOCK);
-        let Some(block) = self.groups.alloc(capacity) else {
+        let roomy = (live * 2).next_power_of_two().max(MIN_BLOCK);
+        let tight = live.next_power_of_two().max(MIN_BLOCK);
+        let Some(block) = self
+            .groups
+            .alloc(roomy)
+            .or_else(|| self.groups.alloc(tight))
+        else {
+            warn!(
+                stream,
+                live,
+                held = self.groups.held(),
+                capacity = self.groups.capacity(),
+                "the group arena cannot hold a rebuild; the stream draws only what its block \
+                 holds and the rest of its sections stay off the screen"
+            );
             return;
         };
         let stale = std::mem::replace(&mut self.group_blocks[stream], block);
@@ -1000,6 +1015,47 @@ mod tests {
             flushed.groups[0].1[0].quad_prefix, 0,
             "what the evicted section held is given back, not left as a hole"
         );
+    }
+
+    #[test]
+    fn a_stream_too_big_to_rebuild_with_room_to_spare_still_draws_every_section() {
+        let mut loader = Loader::new(
+            &Budget {
+                quads: 1 << 12,
+                models: 1 << 12,
+                faces: 1 << 16,
+                groups: 1 << 12,
+                sections: 1 << 11,
+                tint_size: [512; 2],
+            },
+            Uploads::default(),
+        );
+        let mut cave = CaveCull::new(1 << 11);
+
+        // Past a thousand records the roomy ask is the whole arena, which the block still
+        // out makes impossible.
+        let placed = 1100u32;
+        for index in 0..placed {
+            loader
+                .place(
+                    one_greedy_group([index as i32, 0, 0], index, 1),
+                    index,
+                    &mut cave,
+                )
+                .unwrap_or_else(|_| panic!("the arena has room"));
+            loader.flush().expect("a flush hands over the whole draw list");
+        }
+
+        let draws = loader
+            .flush()
+            .expect("a flush hands over the whole draw list")
+            .draws
+            .expect("the whole draw list");
+        assert_eq!(
+            draws[0].group_count, placed,
+            "every section placed is a record the draw reaches"
+        );
+        assert_eq!(draws[0].quad_count, placed);
     }
 
     #[test]

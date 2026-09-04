@@ -30,10 +30,11 @@ pub fn display(
             status.queued, status.meshing, status.uploads_waiting
         ),
         format!(
-            "Arena: {:.1}% quads, {:.1}% models, {:.1}% faces",
+            "Arena: {:.1}% quads, {:.1}% models, {:.1}% faces, {:.1}% groups",
             status.quads * 100.0,
             status.models * 100.0,
-            status.faces * 100.0
+            status.faces * 100.0,
+            status.groups * 100.0
         ),
         match (cave.enabled, cave.took_ms()) {
             (false, _) => "Sight lines: off".to_owned(),
