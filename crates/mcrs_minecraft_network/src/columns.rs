@@ -60,34 +60,66 @@ pub struct Column {
     light: Vec<Option<Box<[u8; SECTION_VOLUME]>>>,
 }
 
-/// The columns the server has sent and not taken back, keyed by position.
-/// Cloning hands an async mesh task the same sections, not a copy of them.
+/// A column the server sent or took back, in the order it happened. A column sent again
+/// departs and arrives in that order, and one dropped by a change of extent departs too.
+#[derive(Clone)]
+pub enum ColumnChange {
+    Arrived(ColumnPos),
+    Departed(ColumnPos, Arc<Column>),
+}
+
+/// The columns the server has sent and not taken back, keyed by position, and the changes
+/// nobody has drained yet.
 #[derive(Resource, Default, Clone)]
 pub struct ColumnStore {
     extent: Option<Extent>,
     columns: HashMap<ColumnPos, Arc<Column>>,
+    changes: Vec<ColumnChange>,
 }
 
 impl ColumnStore {
-    pub fn extent(&self) -> Option<Extent> {
-        self.extent
-    }
-
     /// A column placed against one extent cannot be read against another, so
     /// entering a dimension of a different shape drops what is resident.
     pub fn enter(&mut self, extent: Extent) {
         if self.extent != Some(extent) {
-            self.columns.clear();
+            for (pos, column) in self.columns.drain() {
+                self.changes.push(ColumnChange::Departed(pos, column));
+            }
             self.extent = Some(extent);
         }
     }
 
     pub fn insert(&mut self, pos: ColumnPos, column: Column) {
-        self.columns.insert(pos, Arc::new(column));
+        if let Some(old) = self.columns.insert(pos, Arc::new(column)) {
+            self.changes.push(ColumnChange::Departed(pos, old));
+        }
+        self.changes.push(ColumnChange::Arrived(pos));
     }
 
     pub fn remove(&mut self, pos: ColumnPos) {
-        self.columns.remove(&pos);
+        if let Some(old) = self.columns.remove(&pos) {
+            self.changes.push(ColumnChange::Departed(pos, old));
+        }
+    }
+
+    /// Moves every change since the last drain to the end of `into`.
+    pub fn drain_changes(&mut self, into: &mut Vec<ColumnChange>) {
+        into.append(&mut self.changes);
+    }
+
+    /// The column at `origin` and the eight around it, held alive for a task that reads
+    /// across their edges.
+    pub fn around(&self, origin: ColumnPos) -> Neighbourhood {
+        Neighbourhood {
+            extent: self.extent,
+            origin,
+            columns: std::array::from_fn(|index| {
+                let (dx, dz) = (index as i32 % 3 - 1, index as i32 / 3 - 1);
+                self.columns
+                    .get(&ColumnPos::new(origin.x + dx, origin.z + dz))
+                    .cloned()
+            }),
+        }
     }
 
     pub fn holds(&self, pos: ColumnPos) -> bool {
@@ -105,9 +137,48 @@ impl ColumnStore {
     pub fn is_empty(&self) -> bool {
         self.columns.is_empty()
     }
+}
+
+impl BlockSource for ColumnStore {
+    fn extent(&self) -> Option<Extent> {
+        self.extent
+    }
 
     #[inline]
-    pub fn block(&self, x: i32, y: i32, z: i32) -> u16 {
+    fn column(&self, sx: i32, sz: i32) -> Option<&Column> {
+        self.columns.get(&ColumnPos::new(sx, sz)).map(Arc::as_ref)
+    }
+}
+
+pub struct Neighbourhood {
+    extent: Option<Extent>,
+    origin: ColumnPos,
+    columns: [Option<Arc<Column>>; 9],
+}
+
+impl BlockSource for Neighbourhood {
+    fn extent(&self) -> Option<Extent> {
+        self.extent
+    }
+
+    #[inline]
+    fn column(&self, sx: i32, sz: i32) -> Option<&Column> {
+        let (dx, dz) = (sx - self.origin.x + 1, sz - self.origin.z + 1);
+        if !(0..3).contains(&dx) || !(0..3).contains(&dz) {
+            return None;
+        }
+        self.columns[(dz * 3 + dx) as usize].as_deref()
+    }
+}
+
+/// Blocks, light and biomes read by section and cell, from whatever columns are held.
+pub trait BlockSource {
+    fn extent(&self) -> Option<Extent>;
+
+    fn column(&self, sx: i32, sz: i32) -> Option<&Column>;
+
+    #[inline]
+    fn block(&self, x: i32, y: i32, z: i32) -> u16 {
         match self.section(section_of(x), section_of(y), section_of(z)) {
             Some(section) => section.blocks[cell_index(x, y, z)],
             None => AIR,
@@ -115,7 +186,7 @@ impl ColumnStore {
     }
 
     #[inline]
-    pub fn light(&self, x: i32, y: i32, z: i32) -> u8 {
+    fn light(&self, x: i32, y: i32, z: i32) -> u8 {
         match self.column(section_of(x), section_of(z)) {
             Some(column) => column.light(section_of(y), cell_index(x, y, z)),
             None => OPEN_SKY,
@@ -123,20 +194,15 @@ impl ColumnStore {
     }
 
     #[inline]
-    pub fn section(&self, sx: i32, sy: i32, sz: i32) -> Option<&Section> {
+    fn section(&self, sx: i32, sy: i32, sz: i32) -> Option<&Section> {
         self.column(sx, sz)?.section(sy)
     }
 
-    pub fn biome(&self, sx: i32, sy: i32, sz: i32, cell: usize) -> u8 {
+    fn biome(&self, sx: i32, sy: i32, sz: i32, cell: usize) -> u8 {
         match self.section(sx, sy, sz) {
             Some(section) => section.biomes[cell],
             None => 0,
         }
-    }
-
-    #[inline]
-    fn column(&self, sx: i32, sz: i32) -> Option<&Column> {
-        self.columns.get(&ColumnPos::new(sx, sz)).map(Arc::as_ref)
     }
 }
 
@@ -202,9 +268,17 @@ impl Column {
     }
 
     #[inline]
-    fn section(&self, sy: i32) -> Option<&Section> {
+    pub fn section(&self, sy: i32) -> Option<&Section> {
         let index = usize::try_from(sy - self.min_section_y).ok()?;
         self.sections.get(index)?.as_ref()
+    }
+
+    /// Every section slot the column spans, by section y.
+    pub fn sections(&self) -> impl Iterator<Item = (i32, Option<&Section>)> {
+        self.sections
+            .iter()
+            .enumerate()
+            .map(|(index, section)| (self.min_section_y + index as i32, section.as_ref()))
     }
 
     #[inline]

@@ -7,7 +7,9 @@ mod sweep;
 
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::QUAD_WORDS;
-use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE};
+#[cfg(test)]
+use mcrs_minecraft_network::columns::ColumnStore;
+use mcrs_minecraft_network::columns::{BlockSource, SECTION_SIZE};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
 pub use scratch::Scratch;
@@ -129,7 +131,7 @@ impl Sink<'_> {
 }
 
 pub fn mesh_section(
-    world: &ColumnStore,
+    world: &impl BlockSource,
     catalog: &[BlockInfo],
     section: [i32; 3],
     slot: u32,
@@ -241,7 +243,7 @@ impl Batch {
 /// The named sections, meshed into one batch, with a table slot handed out in walk order.
 #[cfg(test)]
 pub fn mesh_world(
-    world: &ColumnStore,
+    world: &impl BlockSource,
     catalog: &[BlockInfo],
     sections: &[[i32; 3]],
     scratch: &mut Scratch,

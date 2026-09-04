@@ -4,10 +4,10 @@ use log::{error, warn};
 use mcrs_minecraft_protocol::{
     CompressionThreshold, Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket,
 };
+use std::collections::VecDeque;
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};

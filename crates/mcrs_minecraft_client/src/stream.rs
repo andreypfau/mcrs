@@ -4,7 +4,9 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_network::client::ReceivedRegistries;
-use mcrs_minecraft_network::columns::{ColumnStore, Extent, SECTION_SIZE};
+use mcrs_minecraft_network::columns::{
+    BlockSource, ColumnChange, ColumnStore, Extent, SECTION_SIZE,
+};
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
 use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::world::lifecycle::trace::{self, ColumnStage};
@@ -31,8 +33,8 @@ pub struct Loader {
     pack: PackLoad,
     catalog: Option<Catalog>,
     blocks: Arc<Vec<BlockInfo>>,
-    store: Arc<ColumnStore>,
-    known: HashSet<ColumnPos>,
+    changes: Vec<ColumnChange>,
+    columns: usize,
     sections_total: usize,
     baked: Vec<bool>,
     to_bake: Vec<u16>,
@@ -116,8 +118,8 @@ impl Loader {
             pack: PackLoad::Pending,
             catalog: Some(blocks::empty()),
             blocks: Arc::new(Vec::new()),
-            store: Arc::new(ColumnStore::default()),
-            known: HashSet::new(),
+            changes: Vec::new(),
+            columns: 0,
             sections_total: 0,
             baked: Vec::new(),
             to_bake: Vec::new(),
@@ -159,7 +161,7 @@ impl Loader {
 
     pub fn status(&self) -> Status {
         Status {
-            columns: self.known.len(),
+            columns: self.columns,
             sections: self.resident.len(),
             sections_total: self.sections_total,
             evicted: self.evicted,
@@ -184,7 +186,7 @@ impl Loader {
             && self.tinting.is_empty()
             && self.meshing.is_empty()
             && !self.dirty
-            && !self.queue.iter().any(|at| self.meshable(*at))
+            && self.queue.is_empty()
     }
 
     /// The catalog has to reach every state a resident column names before a
@@ -199,18 +201,17 @@ impl Loader {
 
     /// A section reads one block past its own faces, so it borders the eight
     /// columns around its own and cannot be meshed until they have arrived.
-    fn surrounded(&self, pos: ColumnPos) -> bool {
-        (-1..=1)
-            .all(|dz| (-1..=1).all(|dx| self.store.holds(ColumnPos::new(pos.x + dx, pos.z + dz))))
+    fn surrounded(&self, pos: ColumnPos, store: &ColumnStore) -> bool {
+        (-1..=1).all(|dz| (-1..=1).all(|dx| store.holds(ColumnPos::new(pos.x + dx, pos.z + dz))))
     }
 
     /// Holds blocks, has nowhere to be but the arena, and borders only columns that have
     /// arrived.
-    fn meshable(&self, at: [i32; 3]) -> bool {
+    fn meshable(&self, at: [i32; 3], store: &ColumnStore) -> bool {
         !self.resident.contains_key(&at)
             && !self.pending.contains(&at)
-            && self.store.section(at[0], at[1], at[2]).is_some()
-            && self.surrounded(ColumnPos::new(at[0], at[2]))
+            && store.section(at[0], at[1], at[2]).is_some()
+            && self.surrounded(ColumnPos::new(at[0], at[2]), store)
     }
 
     fn camera_section(&self) -> [i32; 3] {
@@ -227,16 +228,16 @@ impl Loader {
 
     /// A section turns meshable when the last of the nine columns it reads arrives, which is
     /// as often a neighbour of its own column as the column itself.
-    fn enqueue_around(&mut self, pos: ColumnPos, extent: Extent) {
+    fn enqueue_around(&mut self, pos: ColumnPos, extent: Extent, store: &ColumnStore) {
         for dz in -1..=1 {
             for dx in -1..=1 {
                 let column = ColumnPos::new(pos.x + dx, pos.z + dz);
-                if !self.surrounded(column) {
+                if !self.surrounded(column, store) {
                     continue;
                 }
                 for step in 0..extent.sections {
                     let at = [column.x, extent.min_section_y + step as i32, column.z];
-                    if self.meshable(at) {
+                    if self.meshable(at, store) {
                         self.enqueue(at);
                     }
                 }
@@ -251,7 +252,7 @@ impl Loader {
     }
 
     /// The nearest queued sections. Nothing more than distance decides the order yet.
-    fn take_wanted(&mut self, want: usize) -> Vec<[i32; 3]> {
+    fn take_wanted(&mut self, want: usize, store: &ColumnStore) -> Vec<[i32; 3]> {
         if want == 0 || self.queue.is_empty() {
             return Vec::new();
         }
@@ -261,7 +262,7 @@ impl Loader {
             let Some(at) = self.queue.pop_nearest(camera) else {
                 break;
             };
-            if self.meshable(at) {
+            if self.meshable(at, store) {
                 taken.push(at);
             }
         }
@@ -331,78 +332,65 @@ impl Loader {
         }
     }
 
-    /// Takes the store's newest shape: the sections of a column the server has
-    /// taken back go with it, and a column that has just arrived is walked for
-    /// the block states the catalog still owes and queued for its tints.
-    ///
-    /// ponytail: a column the server sends a second time keeps the geometry
-    /// meshed from the first, so a block change never reaches the screen; the
-    /// upgrade is to compare what is resident against the store's own columns
-    /// rather than a set of positions.
+    /// Takes what the server sent and took back since the last frame: a departed column's
+    /// sections leave the queue and the arena with it, and an arrived column is walked for the
+    /// block states the catalog still owes and queued for its tints.
     fn adopt(&mut self, store: &ColumnStore, definitions: &BlockDefinitions, cave: &mut CaveCull) {
         let extent = store.extent();
-        let departed: Vec<ColumnPos> = self
-            .known
-            .iter()
-            .copied()
-            .filter(|pos| !store.holds(*pos))
-            .collect();
-        for pos in departed {
-            trace::forget(pos);
-            self.known.remove(&pos);
-            self.to_tint.retain(|queued| *queued != pos);
-            if let Some(extent) = self.store.extent() {
-                for step in 0..extent.sections {
-                    let at = [pos.x, extent.min_section_y + step as i32, pos.z];
-                    if self.store.section(at[0], at[1], at[2]).is_some() {
-                        self.sections_total -= 1;
-                    }
-                    self.queue.remove(at);
-                    self.evict(at, cave);
-                }
-            }
-        }
-
-        let arrived: Vec<ColumnPos> = store
-            .positions()
-            .filter(|pos| !self.known.contains(pos))
-            .collect();
-        self.store = Arc::new(store.clone());
         if self.baked.len() < definitions.state_count() {
             self.baked.resize(definitions.state_count(), false);
         }
-        for pos in arrived {
-            trace::mark(pos, ColumnStage::Received);
-            self.known.insert(pos);
-            self.to_tint.push(pos);
-            let Some(extent) = extent else { continue };
-            for step in 0..extent.sections {
-                let sy = extent.min_section_y + step as i32;
-                let Some(section) = self.store.section(pos.x, sy, pos.z) else {
-                    continue;
-                };
-                self.sections_total += 1;
-                for &state in &section.states {
-                    match self.baked.get_mut(state as usize) {
-                        Some(true) => {}
-                        Some(seen) => {
-                            *seen = true;
-                            self.to_bake.push(state);
+        let mut changes = std::mem::take(&mut self.changes);
+        for change in changes.drain(..) {
+            match change {
+                ColumnChange::Departed(pos, column) => {
+                    trace::forget(pos);
+                    self.columns -= 1;
+                    self.to_tint.retain(|queued| *queued != pos);
+                    for (sy, section) in column.sections() {
+                        if section.is_some() {
+                            self.sections_total -= 1;
                         }
-                        None if self.foreign_states => {}
-                        None => {
-                            self.foreign_states = true;
-                            error!(
-                                state,
-                                "the server names block states this corpus has no definition \
-                                 for; they are drawn as air"
-                            );
-                        }
+                        let at = [pos.x, sy, pos.z];
+                        self.queue.remove(at);
+                        self.evict(at, cave);
                     }
                 }
+                ColumnChange::Arrived(pos) => {
+                    trace::mark(pos, ColumnStage::Received);
+                    self.columns += 1;
+                    self.to_tint.push(pos);
+                    let Some(extent) = extent else { continue };
+                    for step in 0..extent.sections {
+                        let sy = extent.min_section_y + step as i32;
+                        let Some(section) = store.section(pos.x, sy, pos.z) else {
+                            continue;
+                        };
+                        self.sections_total += 1;
+                        for &state in &section.states {
+                            match self.baked.get_mut(state as usize) {
+                                Some(true) => {}
+                                Some(seen) => {
+                                    *seen = true;
+                                    self.to_bake.push(state);
+                                }
+                                None if self.foreign_states => {}
+                                None => {
+                                    self.foreign_states = true;
+                                    error!(
+                                        state,
+                                        "the server names block states this corpus has no \
+                                         definition for; they are drawn as air"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    self.enqueue_around(pos, extent, store);
+                }
             }
-            self.enqueue_around(pos, extent);
         }
+        self.changes = changes;
     }
 
     fn reserve(&mut self, mesh: &SectionMesh) -> Option<[Block; 3]> {
@@ -678,10 +666,6 @@ impl MeshQueue {
         self.queued.contains(at)
     }
 
-    fn iter(&self) -> impl Iterator<Item = &[i32; 3]> {
-        self.queued.iter()
-    }
-
     /// The queued section nearest the camera, taken out of the queue.
     fn pop_nearest(&mut self, camera: [i32; 3]) -> Option<[i32; 3]> {
         if self.queued.is_empty() {
@@ -733,13 +717,14 @@ pub fn advance(
     mut cave: ResMut<CaveCull>,
     assets: Res<AssetServer>,
     definitions: Res<Blocks>,
-    store: Option<Res<ColumnStore>>,
+    store: Option<ResMut<ColumnStore>>,
     registries: Query<&ReceivedRegistries>,
     camera: Single<&GlobalTransform, With<Camera3d>>,
 ) {
-    let Some(store) = store else {
+    let Some(mut store) = store else {
         return;
     };
+    let store = store.bypass_change_detection();
     let pool = AsyncComputeTaskPool::get();
     let loader = &mut *loader;
     let pack = poll_pack(loader, &assets);
@@ -753,9 +738,10 @@ pub fn advance(
     if loader.biomes.is_empty() {
         loader.biomes = biome_names(&registries);
     }
-    if store.is_changed() {
+    store.drain_changes(&mut loader.changes);
+    if !loader.changes.is_empty() {
         let _adopting = info_span!("stream adopt").entered();
-        loader.adopt(&store, &definitions, &mut cave);
+        loader.adopt(store, &definitions, &mut cave);
     }
 
     if let Some(task) = loader.baking.as_mut()
@@ -789,7 +775,7 @@ pub fn advance(
             data,
         });
     }
-    start_tinting(loader, pool);
+    start_tinting(loader, pool, store);
 
     let placing = info_span!("stream place").entered();
     let mut meshed = Vec::new();
@@ -847,7 +833,7 @@ pub fn advance(
     }
     let _admitting = info_span!("stream admit").entered();
     let room = SECTIONS_IN_FLIGHT.saturating_sub(loader.meshing.len());
-    let wanted = loader.take_wanted(room.min(SECTIONS_PER_FRAME));
+    let wanted = loader.take_wanted(room.min(SECTIONS_PER_FRAME), store);
     for (taken, &at) in wanted.iter().enumerate() {
         let Some(slot) = loader.take_slot() else {
             for &back in &wanted[taken..] {
@@ -855,7 +841,7 @@ pub fn advance(
             }
             break;
         };
-        let world = loader.store.clone();
+        let world = store.around(ColumnPos::new(at[0], at[2]));
         let blocks = loader.blocks.clone();
         let mut scratch = loader.scratches.pop().unwrap_or_else(Scratch::new);
         loader.pending.insert(at);
@@ -981,7 +967,7 @@ fn publish(loader: &mut Loader, baked: Baked) {
     loader.blocks = Arc::new(baked.blocks);
 }
 
-fn start_tinting(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
+fn start_tinting(loader: &mut Loader, pool: &'static AsyncComputeTaskPool, store: &ColumnStore) {
     let Some(catalog) = loader.catalog.as_ref() else {
         return;
     };
@@ -991,7 +977,7 @@ fn start_tinting(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
     let tints = catalog.tints.clone();
     for pos in std::mem::take(&mut loader.to_tint) {
         let corner = loader.tint_corner(pos);
-        let world = loader.store.clone();
+        let world = store.around(pos);
         let tints = tints.clone();
         loader.tinting.push((
             corner,
@@ -1169,17 +1155,15 @@ mod tests {
                 store.insert(ColumnPos::new(x, z), Column::unlit(0, Vec::new()));
             }
         }
-        loader.store = Arc::new(store.clone());
-        assert!(loader.surrounded(ColumnPos::new(0, 0)));
+        assert!(loader.surrounded(ColumnPos::new(0, 0), &store));
         assert!(
-            !loader.surrounded(ColumnPos::new(1, 0)),
+            !loader.surrounded(ColumnPos::new(1, 0), &store),
             "an edge column still has three neighbours missing"
         );
 
         store.remove(ColumnPos::new(-1, -1));
-        loader.store = Arc::new(store);
         assert!(
-            !loader.surrounded(ColumnPos::new(0, 0)),
+            !loader.surrounded(ColumnPos::new(0, 0), &store),
             "the diagonal is read too, so losing it is enough"
         );
     }
@@ -1234,6 +1218,7 @@ mod tests {
         for pos in &order {
             store.insert(*pos, stone());
         }
+        store.drain_changes(&mut loader.changes);
         loader.adopt(&store, blocks::corpus(), &mut cave);
         assert!(
             loader.queue.is_empty(),
@@ -1241,6 +1226,7 @@ mod tests {
         );
 
         store.insert(last, stone());
+        store.drain_changes(&mut loader.changes);
         loader.adopt(&store, blocks::corpus(), &mut cave);
         assert!(
             loader.queue.contains(&[0, 0, 0]),
@@ -1252,9 +1238,9 @@ mod tests {
             "the arrival that unblocked the centre was a neighbour, not the centre itself"
         );
 
-        assert_eq!(loader.take_wanted(8), vec![[0, 0, 0]]);
+        assert_eq!(loader.take_wanted(8, &store), vec![[0, 0, 0]]);
         assert!(
-            loader.take_wanted(8).is_empty(),
+            loader.take_wanted(8, &store).is_empty(),
             "a section handed out once is not handed out again"
         );
     }

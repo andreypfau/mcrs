@@ -1,4 +1,4 @@
-use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE};
+use mcrs_minecraft_network::columns::{BlockSource, SECTION_SIZE};
 use mcrs_voxel_math::ColumnPos;
 
 use crate::model::{self, Pack};
@@ -160,7 +160,7 @@ fn rgb(Rgb(packed): Rgb) -> [f32; 4] {
     ]
 }
 
-pub fn tint_column(store: &ColumnStore, tints: &[[f32; 4]], column: ColumnPos) -> Vec<u8> {
+pub fn tint_column(store: &impl BlockSource, tints: &[[f32; 4]], column: ColumnPos) -> Vec<u8> {
     const SIZE: usize = SECTION_SIZE;
     let mut out = vec![0u8; SIZE * SIZE * 4 * TINT_KINDS];
     for z in 0..SIZE {
@@ -179,7 +179,7 @@ pub fn tint_column(store: &ColumnStore, tints: &[[f32; 4]], column: ColumnPos) -
     out
 }
 
-fn surface_biome(store: &ColumnStore, column: ColumnPos, x: usize, z: usize) -> u8 {
+fn surface_biome(store: &impl BlockSource, column: ColumnPos, x: usize, z: usize) -> u8 {
     let Some(extent) = store.extent() else {
         return 0;
     };

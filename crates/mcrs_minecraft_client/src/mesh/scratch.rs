@@ -1,6 +1,6 @@
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{FACE_NONE, QUAD_WORDS};
-use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE, SECTION_VOLUME};
+use mcrs_minecraft_network::columns::{BlockSource, SECTION_SIZE, SECTION_VOLUME};
 
 use super::fluid::{COVER_SEE_THROUGH, FLUID_LAVA, Sloped, fluid_kind};
 
@@ -68,7 +68,7 @@ impl Scratch {
         }
     }
 
-    pub(super) fn load(&mut self, world: &ColumnStore, catalog: &[BlockInfo], base: [i32; 3]) {
+    pub(super) fn load(&mut self, world: &impl BlockSource, catalog: &[BlockInfo], base: [i32; 3]) {
         *self.cube_columns = [[0; COLUMNS]; 3];
         *self.occlude_columns = [[0; COLUMNS]; 3];
         *self.fluid_columns = [[[0; COLUMNS]; 3]; FLUID_KINDS];
