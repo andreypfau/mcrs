@@ -1,4 +1,3 @@
-use std::cmp::Reverse;
 use std::sync::Arc;
 
 use bevy::platform::collections::{HashMap, HashSet};
@@ -47,9 +46,7 @@ pub struct Loader {
     resident: HashMap<[i32; 3], Resident>,
     pending: HashSet<[i32; 3]>,
     deferred: HashSet<[i32; 3]>,
-    queue: Vec<[i32; 3]>,
-    queued: HashSet<[i32; 3]>,
-    queue_sorted: bool,
+    queue: MeshQueue,
     meshing: Vec<([i32; 3], u32, Task<(SectionMesh, Scratch)>)>,
     scratches: Vec<Scratch>,
     /// Every stream's group records as the GPU holds them, dead ones kept as records with no
@@ -134,9 +131,7 @@ impl Loader {
             resident: HashMap::new(),
             pending: HashSet::new(),
             deferred: HashSet::new(),
-            queue: Vec::new(),
-            queued: HashSet::new(),
-            queue_sorted: true,
+            queue: MeshQueue::default(),
             meshing: Vec::new(),
             scratches: Vec::new(),
             lists: std::array::from_fn(|_| Vec::new()),
@@ -218,11 +213,16 @@ impl Loader {
             && self.surrounded(ColumnPos::new(at[0], at[2]))
     }
 
+    fn camera_section(&self) -> [i32; 3] {
+        (self.camera / SECTION_SIZE as f32)
+            .floor()
+            .as_ivec3()
+            .to_array()
+    }
+
     fn enqueue(&mut self, at: [i32; 3]) {
-        if self.queued.insert(at) {
-            self.queue.push(at);
-            self.queue_sorted = false;
-        }
+        let camera = self.camera_section();
+        self.queue.insert(at, camera);
     }
 
     /// A section turns meshable when the last of the nine columns it reads arrives, which is
@@ -248,7 +248,6 @@ impl Loader {
         for at in std::mem::take(&mut self.deferred) {
             self.enqueue(at);
         }
-        self.queue_sorted = false;
     }
 
     /// The nearest queued sections. Nothing more than distance decides the order yet.
@@ -256,16 +255,12 @@ impl Loader {
         if want == 0 || self.queue.is_empty() {
             return Vec::new();
         }
-        if !self.queue_sorted {
-            let camera = self.camera;
-            self.queue
-                .sort_by_cached_key(|at| Reverse(distance_from(camera, *at).to_bits()));
-            self.queue_sorted = true;
-        }
+        let camera = self.camera_section();
         let mut taken = Vec::with_capacity(want);
         while taken.len() < want {
-            let Some(at) = self.queue.pop() else { break };
-            self.queued.remove(&at);
+            let Some(at) = self.queue.pop_nearest(camera) else {
+                break;
+            };
             if self.meshable(at) {
                 taken.push(at);
             }
@@ -362,6 +357,7 @@ impl Loader {
                     if self.store.section(at[0], at[1], at[2]).is_some() {
                         self.sections_total -= 1;
                     }
+                    self.queue.remove(at);
                     self.evict(at, cave);
                 }
             }
@@ -537,7 +533,8 @@ impl Loader {
                 self.touched[stream].push((capacity, self.lists[stream].len() as u32));
             }
             for (first, end) in merged {
-                let offset = (self.group_blocks[stream].offset + first as usize) * size_of::<Group>();
+                let offset =
+                    (self.group_blocks[stream].offset + first as usize) * size_of::<Group>();
                 groups.push((
                     offset as u64,
                     self.lists[stream][first as usize..end as usize].to_vec(),
@@ -623,6 +620,103 @@ impl Loader {
 const RUN_GAP: u32 = 64;
 /// The smallest block a stream is rebuilt into, in records.
 const MIN_BLOCK: usize = 256;
+
+/// Sections waiting to be meshed, bucketed by how many sections they lie from a reference
+/// position along their farthest axis, so the nearest come out first without ever sorting the
+/// whole queue. The reference follows the camera in steps of `QUEUE_STEP` sections, and each
+/// step rebuckets everything, so the order is never staler than that.
+#[derive(Default)]
+struct MeshQueue {
+    buckets: Vec<Vec<[i32; 3]>>,
+    queued: HashSet<[i32; 3]>,
+    reference: [i32; 3],
+    /// Entries across the buckets, those since removed from the set included.
+    entries: usize,
+    scratch: Vec<[i32; 3]>,
+}
+
+/// Buckets past this distance share the last one.
+const QUEUE_BUCKETS: usize = 256;
+/// How far the camera moves from the reference before the queue is rebucketed.
+const QUEUE_STEP: usize = 8;
+
+impl MeshQueue {
+    fn bucket(at: [i32; 3], from: [i32; 3]) -> usize {
+        let axis = |a: i32, c: i32| a.abs_diff(c) as usize;
+        axis(at[0], from[0])
+            .max(axis(at[1], from[1]))
+            .max(axis(at[2], from[2]))
+            .min(QUEUE_BUCKETS - 1)
+    }
+
+    fn insert(&mut self, at: [i32; 3], camera: [i32; 3]) {
+        if !self.queued.insert(at) {
+            return;
+        }
+        if self.buckets.is_empty() {
+            self.buckets = (0..QUEUE_BUCKETS).map(|_| Vec::new()).collect();
+            self.reference = camera;
+        }
+        self.buckets[Self::bucket(at, self.reference)].push(at);
+        self.entries += 1;
+    }
+
+    fn remove(&mut self, at: [i32; 3]) {
+        self.queued.remove(&at);
+    }
+
+    fn len(&self) -> usize {
+        self.queued.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.queued.is_empty()
+    }
+
+    #[cfg(test)]
+    fn contains(&self, at: &[i32; 3]) -> bool {
+        self.queued.contains(at)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &[i32; 3]> {
+        self.queued.iter()
+    }
+
+    /// The queued section nearest the camera, taken out of the queue.
+    fn pop_nearest(&mut self, camera: [i32; 3]) -> Option<[i32; 3]> {
+        if self.queued.is_empty() {
+            return None;
+        }
+        let moved = Self::bucket(camera, self.reference) >= QUEUE_STEP;
+        if moved || self.entries > 2 * self.queued.len() + 1024 {
+            self.rebucket(camera);
+        }
+        for bucket in &mut self.buckets {
+            while let Some(at) = bucket.pop() {
+                self.entries -= 1;
+                if self.queued.remove(&at) {
+                    return Some(at);
+                }
+            }
+        }
+        None
+    }
+
+    /// Buckets every live entry afresh around the camera, dropping the entries whose sections
+    /// have since left the queue.
+    fn rebucket(&mut self, camera: [i32; 3]) {
+        self.scratch.clear();
+        for bucket in &mut self.buckets {
+            self.scratch
+                .extend(bucket.drain(..).filter(|at| self.queued.contains(at)));
+        }
+        self.reference = camera;
+        for at in self.scratch.drain(..) {
+            self.buckets[Self::bucket(at, camera)].push(at);
+        }
+        self.entries = self.queued.len();
+    }
+}
 
 fn worth_evicting(resident: f32, candidate: f32) -> bool {
     resident > candidate + HYSTERESIS
@@ -1043,7 +1137,9 @@ mod tests {
                     &mut cave,
                 )
                 .unwrap_or_else(|_| panic!("the arena has room"));
-            loader.flush().expect("a flush hands over the whole draw list");
+            loader
+                .flush()
+                .expect("a flush hands over the whole draw list");
         }
 
         let draws = loader
@@ -1086,6 +1182,25 @@ mod tests {
             !loader.surrounded(ColumnPos::new(0, 0)),
             "the diagonal is read too, so losing it is enough"
         );
+    }
+
+    #[test]
+    fn the_queue_serves_the_nearest_section_first_wherever_the_camera_has_gone() {
+        let mut queue = MeshQueue::default();
+        let camera = [0, 0, 0];
+        for at in [[40, 0, 0], [3, 0, 0], [12, 0, 0], [-7, 0, 0]] {
+            queue.insert(at, camera);
+        }
+        queue.remove([3, 0, 0]);
+        assert_eq!(queue.pop_nearest(camera), Some([-7, 0, 0]));
+        assert_eq!(
+            queue.pop_nearest([36, 0, 0]),
+            Some([40, 0, 0]),
+            "the camera moved past the step, so the order follows it"
+        );
+        assert_eq!(queue.pop_nearest([36, 0, 0]), Some([12, 0, 0]));
+        assert_eq!(queue.pop_nearest([36, 0, 0]), None);
+        assert_eq!(queue.len(), 0);
     }
 
     #[test]
