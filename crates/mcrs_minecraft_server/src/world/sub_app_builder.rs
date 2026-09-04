@@ -70,6 +70,7 @@ use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
+use mcrs_minecraft_worldgen::bevy::WorldGenConfig;
 use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_voxel_world::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -84,6 +85,7 @@ pub struct DimRegistryBundle {
     pub biome_registry: RegistrySnapshot<Biome>,
     pub active_biome_source: Option<ActiveBiomeSource>,
     pub world_save: Option<WorldSave>,
+    pub world_gen_config: WorldGenConfig,
 }
 
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
@@ -95,6 +97,10 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
         active_biome_source: world.get_resource::<ActiveBiomeSource>().cloned(),
         world_save: world.get_resource::<WorldSave>().cloned(),
+        world_gen_config: world
+            .get_resource::<WorldGenConfig>()
+            .cloned()
+            .unwrap_or_else(WorldGenConfig::from_env),
     }
 }
 
@@ -294,6 +300,7 @@ pub fn spawn_dim_subapp(
     // per-dim entry-point that turns DimSpawnRequest into populated columns.
     // It is distinct from the engine-level `storage::chunk::ChunkPlugin` that
     // DimensionPlugin adds (which only contributes TicketPlugin).
+    sub_app.insert_resource(registries.world_gen_config.clone());
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
     // Per-dim composition of the simulation plugins. Each plugin's
     // schedule placements (`MinecraftBlockPlugin`, `ExplosionPlugin`,

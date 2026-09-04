@@ -428,3 +428,25 @@ fn every_error_names_the_file() {
         "{err}"
     );
 }
+
+#[test]
+fn world_gen_settings_reads_the_seed_past_the_fields_we_ignore() {
+    let mut generator = NbtCompound::new();
+    generator.put_string("type", "minecraft:noise".to_string());
+    generator.put_string("settings", "minecraft:overworld".to_string());
+    let mut overworld = NbtCompound::new();
+    overworld.put_string("type", "minecraft:overworld".to_string());
+    overworld.put_component("generator", generator);
+    let mut dimensions = NbtCompound::new();
+    dimensions.put_component("minecraft:overworld", overworld);
+
+    let mut payload = NbtCompound::new();
+    payload.put_bool("bonus_chest", false);
+    payload.put_long("seed", 2);
+    payload.put_bool("generate_structures", true);
+    payload.put_component("dimensions", dimensions);
+
+    let settings =
+        parse_world_gen_settings(&saved_data(WORLD_VERSION, payload), path()).unwrap();
+    assert_eq!(settings, WorldGenSettings { seed: 2 });
+}

@@ -78,6 +78,11 @@ pub struct LevelDat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub struct WorldGenSettings {
+    pub seed: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub struct WeatherData {
     pub clear_weather_time: i32,
     pub rain_time: i32,
@@ -119,6 +124,11 @@ pub fn read_level_dat(world: &Path) -> Result<LevelDat, SaveError> {
 pub fn read_world_clocks(world: &Path) -> Result<WorldClockStates, SaveError> {
     let path = saved_data_path(world, "world_clocks");
     parse_world_clocks(&read_bytes(&path)?, &path)
+}
+
+pub fn read_world_gen_settings(world: &Path) -> Result<WorldGenSettings, SaveError> {
+    let path = saved_data_path(world, "world_gen_settings");
+    parse_world_gen_settings(&read_bytes(&path)?, &path)
 }
 
 pub fn read_weather(world: &Path) -> Result<WeatherData, SaveError> {
@@ -290,6 +300,12 @@ fn parse_world_clocks(bytes: &[u8], path: &Path) -> Result<WorldClockStates, Sav
             });
         }
     }
+    Ok(file.data)
+}
+
+fn parse_world_gen_settings(bytes: &[u8], path: &Path) -> Result<WorldGenSettings, SaveError> {
+    let file: SavedDataFile<WorldGenSettings> = decode(bytes, path)?;
+    check_data_version(file.data_version, path)?;
     Ok(file.data)
 }
 
