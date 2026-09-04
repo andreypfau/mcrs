@@ -4,11 +4,16 @@ fn degenerate() -> vec4<f32> {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
 }
 
-const VERTICES_PER_QUAD: u32 = 4u;
+const VERTICES_PER_QUAD: u32 = 6u;
 
-/// The index list names each vertex as four times its quad plus its corner.
+/// Two triangles a quad, wound over its corners as 1, 2, 0 and 0, 2, 3.
 fn corner_index(vertex: u32) -> u32 {
-    return vertex % VERTICES_PER_QUAD;
+    switch vertex % VERTICES_PER_QUAD {
+        case 0u: { return 1u; }
+        case 1u, 4u: { return 2u; }
+        case 2u, 3u: { return 0u; }
+        default: { return 3u; }
+    }
 }
 
 fn quad_of(vertex: u32) -> u32 {

@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::time::Instant;
 
 use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
@@ -13,6 +12,8 @@ use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, Networ
 use mcrs_minecraft_protocol::light_codec::{
     LightCodecParams, build_full_light_data, build_fullbright_light_data,
 };
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_world::entity::player::chunk_view::{
@@ -68,6 +69,7 @@ impl Plugin for ColumnViewPlugin {
 
         // React to ChunkTrackingView changes (xz-distance changes, movement).
         app.add_observer(on_view_update);
+        app.add_observer(handle_batch_acknowledgement);
 
         // When vertical reposition offset changes, re-map forced tickets and re-send active columns.
         // app.add_systems(Update, handle_reposition_changed);
@@ -80,7 +82,7 @@ impl Plugin for ColumnViewPlugin {
     }
 }
 
-#[derive(Component, Default)]
+#[derive(Component)]
 pub struct ColumnView {
     desired_columns: FxHashSet<ColumnPos>,
     loaded_columns: FxHashSet<ColumnPos>,
@@ -88,8 +90,53 @@ pub struct ColumnView {
     loading_queue: VecDeque<ColumnPos>,
     send_queue: VecDeque<(ColumnPos, Vec<Entity>)>,
     pub sent_columns: FxHashSet<ColumnPos>,
-    send_credit: f32,
-    credited_at: Option<Instant>,
+    batch_quota: f32,
+    desired_columns_per_tick: f32,
+    unacknowledged_batches: u32,
+    max_unacknowledged_batches: u32,
+}
+
+impl Default for ColumnView {
+    fn default() -> Self {
+        Self {
+            desired_columns: FxHashSet::default(),
+            loaded_columns: FxHashSet::default(),
+            load_queue: VecDeque::new(),
+            loading_queue: VecDeque::new(),
+            send_queue: VecDeque::new(),
+            sent_columns: FxHashSet::default(),
+            batch_quota: 0.0,
+            desired_columns_per_tick: START_COLUMNS_PER_TICK,
+            unacknowledged_batches: 0,
+            max_unacknowledged_batches: 1,
+        }
+    }
+}
+
+impl ColumnView {
+    /// The client has taken a batch and says how many columns a tick it managed while doing so.
+    pub fn acknowledge_batch(&mut self, desired_columns_per_tick: f32) {
+        self.unacknowledged_batches = self.unacknowledged_batches.saturating_sub(1);
+        self.desired_columns_per_tick = if desired_columns_per_tick.is_nan() {
+            MIN_COLUMNS_PER_TICK
+        } else {
+            desired_columns_per_tick.clamp(MIN_COLUMNS_PER_TICK, MAX_COLUMNS_PER_TICK)
+        };
+        if self.unacknowledged_batches == 0 {
+            self.batch_quota = 1.0;
+        }
+        self.max_unacknowledged_batches = MAX_UNACKNOWLEDGED_BATCHES;
+    }
+}
+
+fn handle_batch_acknowledgement(on: On<ReceivedPacketEvent>, mut players: Query<&mut ColumnView>) {
+    let Some(ack) = on.decode::<ServerboundChunkBatchReceived>() else {
+        return;
+    };
+    let Ok(mut chunk_view) = players.get_mut(on.entity) else {
+        return;
+    };
+    chunk_view.acknowledge_batch(ack.desired_chunks_per_tick);
 }
 
 pub(crate) fn load_chunk_request(
@@ -244,28 +291,33 @@ pub(crate) fn loading_column_queue(
     })
 }
 
-/// Vanilla's `PlayerChunkSender` starts at nine chunks a tick and lets the client's batch
-/// acknowledgements raise it to this; nothing acknowledges here, so the ceiling is the rate
-/// and the bytes below are the brake.
-const MAX_COL_SENDS_PER_TICK: usize = 64;
+/// The rate the client is asked to answer with, in columns a tick.
+const MIN_COLUMNS_PER_TICK: f32 = 0.01;
+const MAX_COLUMNS_PER_TICK: f32 = 96.0;
+const START_COLUMNS_PER_TICK: f32 = 9.0;
 
-/// The ceiling paid out continuously, so the drain between ticks spends the tick's allowance
-/// rather than a fresh one each pass; sent faster, columns overran the socket and were lost.
-const COL_SENDS_PER_SECOND: f32 = MAX_COL_SENDS_PER_TICK as f32 * 20.0;
+/// The bridge coalesces a tick's packets into one blob and closes a connection whose blob
+/// passes its cap, so a batch stops well short of it and the quota it did not spend rides to
+/// the next tick.
+const MAX_BATCH_BYTES: usize = mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET / 2;
 
-/// The bridge closes a socket whose blob passes its cap, so one pass of sends stays well
-/// inside it, light arrays counted: 64 columns closed one at 4.2 MB, and 4.6 MB with the light
-/// left out of the count.
-const MAX_COL_SEND_BYTES_PER_TICK: usize = mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET / 4;
+/// Batches allowed in flight once the client has answered one. Until then a single batch is
+/// out at a time, so a client that cannot keep up is never sent a second one to prove it.
+const MAX_UNACKNOWLEDGED_BATCHES: u32 = 10;
 
 /// Chunk-load wire emit routed through the `OutboundPlayerPacket` bus.
 ///
-/// Per-column byte-backpressure is removed: the bridge tier's `OutboundQueue`
-/// byte-cap and drop-oldest policy own backpressure now. Only the count gate
-/// (`MAX_COL_SENDS_PER_TICK`) remains to throttle per-tick burst.
-/// Chunks are sent at Critical priority so they are never dropped by the bridge.
+/// The rate is the client's: each batch is bracketed by a start and a finish, and the client
+/// answers with the columns a tick it managed. Chunks are sent at Critical priority so they
+/// are never dropped by the bridge.
 pub(crate) fn send_column_queue(
-    mut players: Query<(&mut ColumnView, &Reposition, &InDimension, &HostAnchor)>,
+    mut players: Query<(
+        &mut ColumnView,
+        &PlayerChunkObserver,
+        &Reposition,
+        &InDimension,
+        &HostAnchor,
+    )>,
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
     dim_type_configs: Query<&DimensionTypeConfig>,
@@ -275,36 +327,54 @@ pub(crate) fn send_column_queue(
     use std::sync::atomic::Ordering;
     players
         .iter_mut()
-        .for_each(|(mut chunk_view, rep, in_dim, host_anchor)| {
+        .for_each(|(mut chunk_view, observer, rep, in_dim, host_anchor)| {
             let host = host_anchor.0;
             let column_index = dim_column_indexes.get(in_dim.entity()).ok();
             let wire_light_rows = dim_type_configs
                 .get(in_dim.entity())
                 .map(|config| config.section_count as usize + 2)
                 .unwrap_or(0);
-            let now = Instant::now();
-            let allowance = match chunk_view.credited_at.replace(now) {
-                Some(then) => (chunk_view.send_credit
-                    + now.duration_since(then).as_secs_f32() * COL_SENDS_PER_SECOND)
-                    .min(MAX_COL_SENDS_PER_TICK as f32),
-                None => MAX_COL_SENDS_PER_TICK as f32,
-            };
-            let allowed = allowance as usize;
+            if chunk_view.unacknowledged_batches >= chunk_view.max_unacknowledged_batches {
+                return;
+            }
+            let desired = chunk_view.desired_columns_per_tick;
+            chunk_view.batch_quota = (chunk_view.batch_quota + desired).min(desired.max(1.0));
+            if chunk_view.batch_quota < 1.0 {
+                return;
+            }
+            let allowed = chunk_view.batch_quota as usize;
             let mut sends = 0usize;
-            let mut sent_bytes = 0usize;
+            let mut batch_bytes = 0usize;
+            let mut batch = Vec::with_capacity(allowed);
 
+            // A column the view has since dropped would spend a batch on terrain the player
+            // has already flown past, and one further out would spend it ahead of the ground
+            // under their feet, so the queue is cut down to what is still wanted and taken
+            // nearest first.
+            let center = observer
+                .last_last_chunk_tracking_view
+                .map(|view| view.center)
+                .unwrap_or(ChunkPos::new(0, 0, 0));
+            {
+                let view = &mut *chunk_view;
+                let desired = &view.desired_columns;
+                view.send_queue.retain(|(pos, _)| desired.contains(pos));
+                view.send_queue.make_contiguous().sort_by_key(|(pos, _)| {
+                    let dx = (pos.x - center.x) as i64;
+                    let dz = (pos.z - center.z) as i64;
+                    dx * dx + dz * dz
+                });
+            }
+
+            let mut index = 0usize;
             loop {
-                if sends >= allowed || sent_bytes >= MAX_COL_SEND_BYTES_PER_TICK {
+                if sends >= allowed || batch_bytes >= MAX_BATCH_BYTES {
                     break;
                 }
 
-                let Some((column_pos, chunks_e)) = chunk_view.send_queue.front() else {
+                let Some((column_pos, chunks_e)) = chunk_view.send_queue.get(index) else {
                     break;
                 };
-                if !chunk_view.desired_columns.contains(column_pos) {
-                    chunk_view.send_queue.pop_front();
-                    continue;
-                }
                 let column_pos = *column_pos;
                 let mut ready = true;
                 let mut data = Vec::with_capacity(16 * 1024);
@@ -339,13 +409,11 @@ pub(crate) fn send_column_queue(
                         .expect("Failed to encode chunk block data");
                 }
                 if !ready {
-                    // Entity data not available yet — stop processing
-                    // this tick and retry on the next one. Do NOT continue,
-                    // as that would re-front the same failing column in a
-                    // tight loop.
-                    break;
+                    // Its chunks have not landed yet; the ones behind it may have, and the
+                    // batch is worth more spent on them than on waiting.
+                    index += 1;
+                    continue;
                 }
-                sent_bytes += data.len();
 
                 let light_data = if crate::lighting_disabled() {
                     build_fullbright_light_data(wire_light_rows)
@@ -360,17 +428,13 @@ pub(crate) fn send_column_queue(
                         .unwrap_or_default()
                 };
 
-                sent_bytes += (light_data.sky_light_arrays.len()
-                    + light_data.block_light_arrays.len())
-                    * std::mem::size_of::<mcrs_minecraft_protocol::chunk::LightChunk>();
-
                 let wire_pos = ColumnPos::new(
                     rep.convert_chunk_x(column_pos.x),
                     rep.convert_chunk_z(column_pos.z),
                 );
 
                 column_trace::mark(column_pos, ColumnStage::Sent);
-                chunk_view.send_queue.pop_front();
+                chunk_view.send_queue.remove(index);
                 chunk_view.sent_columns.insert(column_pos);
 
                 trace!(
@@ -382,23 +446,40 @@ pub(crate) fn send_column_queue(
                     "send_column_queue: emitting ChunkLoad via bus"
                 );
 
+                batch_bytes += data.len()
+                    + (light_data.sky_light_arrays.len() + light_data.block_light_arrays.len())
+                        * size_of::<mcrs_minecraft_protocol::chunk::LightChunk>();
+                batch.push(PacketPayload::ChunkLoad {
+                    column: wire_pos,
+                    chunk_bytes: data,
+                    light_data,
+                });
+
+                sends += 1;
+            }
+            if batch.is_empty() {
+                return;
+            }
+            chunk_view.unacknowledged_batches += 1;
+            chunk_view.batch_quota -= sends as f32;
+
+            let batch_size = batch.len() as u32;
+            let mut emit = |data| {
                 packet_writer.write(OutboundPlayerPacket {
                     target: PacketTarget::SinglePlayer(host),
                     priority: PacketPriority::Critical,
-                    data: PacketPayload::ChunkLoad {
-                        column: wire_pos,
-                        chunk_bytes: data,
-                        light_data,
-                    },
+                    data,
                     session: PlayerSession(0),
                     epoch: 0,
                 });
                 mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                     .fetch_add(1, Ordering::Relaxed);
-
-                sends += 1;
+            };
+            emit(PacketPayload::ChunkBatchStart);
+            for column in batch {
+                emit(column);
             }
-            chunk_view.send_credit = allowance - sends as f32;
+            emit(PacketPayload::ChunkBatchFinished { batch_size });
         })
 }
 

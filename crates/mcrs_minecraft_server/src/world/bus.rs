@@ -102,6 +102,12 @@ pub enum PacketPayload {
     ChunkUnload {
         column: ColumnPos,
     },
+    /// Brackets the columns of one send batch, which the client times to answer with the rate
+    /// it can take them at.
+    ChunkBatchStart,
+    ChunkBatchFinished {
+        batch_size: u32,
+    },
     /// Carries the wire numeric entity id and all fields ClientboundAddEntity
     /// needs so dispatch_encode needs no World access. The producer resolves
     /// `entity.index_u32() as i32` before emitting this variant.

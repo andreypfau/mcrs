@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 use bevy_app::App;
 use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::prelude::{On, Query, ResMut, Resource};
+use bevy_ecs::prelude::{On, Query, ResMut, Resource, Single};
 use bevy_tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use log::error;
 use mcrs_minecraft_protocol::ColumnPos;
@@ -13,14 +13,17 @@ use mcrs_minecraft_protocol::chunk::{
 };
 use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight, ClientboundLogin,
+    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundForgetLevelChunk,
+    ClientboundLevelChunkWithLight, ClientboundLogin,
 };
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind};
-use mcrs_minecraft_protocol::{Decode, Packet};
+use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 use mcrs_voxel_storage::unpack_into;
 
 use crate::ConnectionState;
-use crate::client::{ReceivedRegistries, ReceivedRegistry};
+use crate::Instant;
+use crate::client::{ClientConnection, ReceivedRegistries, ReceivedRegistry};
 use crate::event::ReceivedPacketEvent;
 
 pub const SECTION_SIZE: usize = 16;
@@ -309,21 +312,66 @@ pub(crate) fn build(app: &mut App) {
 /// Column packets in the order they came, each one decoding on the compute pool. A column's
 /// forget can only be applied once the column itself has landed, so the queue is drained from
 /// the front and stops at the first decode still running.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct Arrivals {
     queue: VecDeque<Arrival>,
     extent: Option<Extent>,
+    batch_started_at: Option<Instant>,
+    nanos_per_column: f64,
+    old_samples_weight: u32,
+}
+
+impl Default for Arrivals {
+    fn default() -> Self {
+        Self {
+            queue: VecDeque::new(),
+            extent: None,
+            batch_started_at: None,
+            nanos_per_column: START_NANOS_PER_COLUMN,
+            old_samples_weight: 1,
+        }
+    }
 }
 
 enum Arrival {
     Enter(Extent),
     Column(Task<Result<(ColumnPos, Column)>>),
     Forget(ColumnPos),
+    BatchStart,
+    BatchEnd(u32),
 }
+
+/// The rate answered to the server is measured over a batch: not from the packets landing, but
+/// from its columns finishing their decode, so a client that has fallen behind asks for less.
+const START_NANOS_PER_COLUMN: f64 = 2_000_000.0;
+const MAX_OLD_SAMPLES_WEIGHT: u32 = 49;
+const CLAMP_COEFFICIENT: f64 = 3.0;
+
+/// The share of a tick a client is willing to spend taking columns. Vanilla keeps 7 ms of the
+/// tick for chunks because it decodes them on the thread it renders from; ours decode on the
+/// compute pool, so the budget is most of the tick and the ceiling is what binds while the
+/// pipeline keeps up.
+const NANOS_PER_TICK_ON_COLUMNS: f64 = 35_000_000.0;
 
 impl Arrivals {
     pub fn pending(&self) -> usize {
         self.queue.len()
+    }
+
+    /// Folds a finished batch into the running average and answers with the columns a tick it
+    /// implies.
+    fn rate_after_batch(&mut self, batch_size: u32) -> f32 {
+        if let (Some(started), true) = (self.batch_started_at.take(), batch_size > 0) {
+            let measured = started.elapsed().as_nanos() as f64 / batch_size as f64;
+            let clamped = measured.clamp(
+                self.nanos_per_column / CLAMP_COEFFICIENT,
+                self.nanos_per_column * CLAMP_COEFFICIENT,
+            );
+            let weight = self.old_samples_weight as f64;
+            self.nanos_per_column = (self.nanos_per_column * weight + clamped) / (weight + 1.0);
+            self.old_samples_weight = (self.old_samples_weight + 1).min(MAX_OLD_SAMPLES_WEIGHT);
+        }
+        (NANOS_PER_TICK_ON_COLUMNS / self.nanos_per_column) as f32
     }
 }
 
@@ -369,17 +417,37 @@ fn receive_column_packets(
         arrivals
             .queue
             .push_back(Arrival::Forget(ColumnPos::new(forget.x, forget.z)));
+    } else if event.id == ClientboundChunkBatchStart::ID {
+        arrivals.queue.push_back(Arrival::BatchStart);
+    } else if let Some(finished) = event.decode::<ClientboundChunkBatchFinished>() {
+        arrivals
+            .queue
+            .push_back(Arrival::BatchEnd(finished.batch_size.0.max(0) as u32));
     }
 }
 
 /// Lands what has finished decoding, in packet order. The store is only borrowed mutably when
 /// something actually lands, so its change tick means a column moved.
-pub(crate) fn settle_columns(mut arrivals: ResMut<Arrivals>, mut store: ResMut<ColumnStore>) {
+pub(crate) fn settle_columns(
+    mut arrivals: ResMut<Arrivals>,
+    mut store: ResMut<ColumnStore>,
+    connection: Option<Single<&mut ClientConnection>>,
+) {
+    let mut connection = connection.map(Single::into_inner);
     let arrivals = arrivals.bypass_change_detection();
     while let Some(arrival) = arrivals.queue.pop_front() {
         match arrival {
             Arrival::Enter(extent) => store.enter(extent),
             Arrival::Forget(pos) => store.remove(pos),
+            Arrival::BatchStart => arrivals.batch_started_at = Some(Instant::now()),
+            Arrival::BatchEnd(batch_size) => {
+                let desired_chunks_per_tick = arrivals.rate_after_batch(batch_size);
+                if let Some(connection) = connection.as_mut() {
+                    connection.write_packet(&ServerboundChunkBatchReceived {
+                        desired_chunks_per_tick,
+                    });
+                }
+            }
             Arrival::Column(mut task) => match check_ready(&mut task) {
                 None => {
                     arrivals.queue.push_front(Arrival::Column(task));

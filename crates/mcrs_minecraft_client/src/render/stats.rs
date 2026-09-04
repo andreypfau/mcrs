@@ -11,13 +11,13 @@ use super::terrain::Terrain;
 
 pub(super) const DRAW_ARGS_SIZE: u64 = size_of::<DrawArgs>() as u64;
 
-/// Quads are drawn indexed, two triangles each over four vertices, one draw and no instancing:
-/// the cull adds six indices per surviving quad and the vertex shader finds its quad and
-/// corner in the index.
-pub(super) const INDICES_PER_QUAD: u32 = 6;
+/// Quads are drawn as two triangles each, one draw and no instancing: the cull adds six
+/// vertices per surviving quad and the vertex shader finds its quad and corner in the
+/// vertex index.
+pub(super) const VERTICES_PER_QUAD: u32 = 6;
 const TRIANGLES_PER_QUAD: u32 = 2;
 
-pub(super) type DrawArgs = DrawIndexedIndirectArgs;
+pub(super) type DrawArgs = DrawIndirectArgs;
 
 pub(super) fn quad_list() -> DrawArgs {
     DrawArgs {
@@ -37,17 +37,17 @@ pub(super) fn args_reset() -> Vec<DrawArgs> {
 
 fn drawn_quads(args: &[DrawArgs]) -> u32 {
     (0..2 * STREAMS)
-        .map(|draw| args[draw].index_count / INDICES_PER_QUAD)
+        .map(|draw| args[draw].vertex_count / VERTICES_PER_QUAD)
         .sum()
 }
 
 /// Quads the last frame's depth hid and this frame's did not revive.
 fn hidden_quads(args: &[DrawArgs]) -> u32 {
     let hidden: u32 = (0..STREAMS)
-        .map(|stream| args[2 * STREAMS + stream].index_count)
+        .map(|stream| args[2 * STREAMS + stream].vertex_count)
         .sum();
     let revived: u32 = (0..STREAMS)
-        .map(|stream| args[STREAMS + stream].index_count / INDICES_PER_QUAD)
+        .map(|stream| args[STREAMS + stream].vertex_count / VERTICES_PER_QUAD)
         .sum();
     hidden.saturating_sub(revived)
 }
@@ -160,8 +160,8 @@ mod tests {
     fn the_triangle_count_is_two_per_drawn_quad() {
         let counted = Counted::default();
         let mut args = args_reset();
-        args[0].index_count = 3 * INDICES_PER_QUAD;
-        args[1].index_count = 5 * INDICES_PER_QUAD;
+        args[0].vertex_count = 3 * VERTICES_PER_QUAD;
+        args[1].vertex_count = 5 * VERTICES_PER_QUAD;
         counted.read(bytemuck::cast_slice(&args));
         assert_eq!(counted.triangles.load(Ordering::Relaxed), 16);
     }

@@ -35,7 +35,8 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
     ClientboundChunkCacheRadius, ClientboundDisconnect, ClientboundEntityEvent,
     ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
-    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin,
+    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundLevelChunkWithLight,
+    ClientboundLightUpdate, ClientboundLogin,
     ClientboundPlayerInfoUpdate, ClientboundPlayerPosition, ClientboundRemoveEntities,
     ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket, PositionPath,
 };
@@ -44,8 +45,7 @@ use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, LpVec3, PositionFl
 use tracing::{debug, trace, warn};
 
 use crate::world::bridge_queue::{
-    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT, InboundRateBucket,
-    KICK_AFTER_OVERFLOW_TICKS, OutboundQueue,
+    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue,
 };
 use crate::world::bus::{PacketPayload, PacketTarget};
 use crate::world::channel_types::{DimChannelsResource, ToDim};
@@ -186,6 +186,8 @@ pub fn bridge_outbound(
     }
 }
 
+const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
+
 /// Encode queued outbound packets for every active connection, enforce the
 /// drop-oldest policy, kick connections that overflow Critical/High backlogs,
 /// and coalesce all encoded bytes into a single `try_send_blob` per socket per
@@ -202,7 +204,6 @@ pub fn bridge_outbound(
     tracing::instrument(name = "network::dispatch_encode", skip_all)
 )]
 /// Sixteen blobs at the socket's cap.
-const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
 pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
@@ -225,6 +226,7 @@ pub fn dispatch_encode(
                 .ok();
             let blob = conn.raw.take_encoded();
             conn.raw.try_send_blob(blob);
+            warn!(conn = ?entity, "kick: the writer reported the socket dead");
             commands.entity(entity).remove::<ServerSideConnection>();
             BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
             continue;
@@ -235,26 +237,11 @@ pub fn dispatch_encode(
         if !conn.raw.flush_unsent()
             && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES
         {
-            commands.entity(entity).remove::<ServerSideConnection>();
-            BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
-            continue;
-        }
-
-        // --- (1b) Critical/High overflow kick check ---
-        if queue.critical_high_len() > HIGH_OVERFLOW_LIMIT {
-            queue.overflow_ticks = queue.overflow_ticks.saturating_add(1);
-        } else {
-            queue.overflow_ticks = 0;
-        }
-
-        if queue.overflow_ticks >= KICK_AFTER_OVERFLOW_TICKS {
-            conn.raw
-                .append(&ClientboundDisconnect {
-                    reason: Text::from("Server queue overflow"),
-                })
-                .ok();
-            let blob = conn.raw.take_encoded();
-            conn.raw.try_send_blob(blob);
+            warn!(
+                conn = ?entity,
+                unsent_bytes = conn.raw.unsent_bytes(),
+                "kick: the writer has stalled"
+            );
             commands.entity(entity).remove::<ServerSideConnection>();
             BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
             continue;
@@ -424,6 +411,16 @@ pub fn dispatch_encode(
                                 pos: column,
                                 chunk_data,
                                 light_data,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::ChunkBatchStart => {
+                        conn.raw.append(&ClientboundChunkBatchStart).ok();
+                    }
+                    PacketPayload::ChunkBatchFinished { batch_size } => {
+                        conn.raw
+                            .append(&ClientboundChunkBatchFinished {
+                                batch_size: VarInt(batch_size as i32),
                             })
                             .ok();
                     }
@@ -614,20 +611,13 @@ pub fn dispatch_encode(
         }
 
         // --- (4) Coalesce + send ---
-        let blob = conn.raw.take_encoded();
-        if blob.len() > MAX_QUEUED_BYTES_PER_SOCKET {
-            // Byte-cap backstop: oversized blob is never sent; kick the connection.
-            warn!(
-                entity = ?entity,
-                blob_len = blob.len(),
-                max = MAX_QUEUED_BYTES_PER_SOCKET,
-                "dispatch_encode: blob exceeds MAX_QUEUED_BYTES_PER_SOCKET; closing connection"
-            );
-            commands.entity(entity).remove::<ServerSideConnection>();
-            continue;
-        }
-        if !blob.is_empty() {
-            conn.raw.try_send_blob(blob);
+        // A tick's packets are one blob, and several ticks can fall in one frame, so the blob
+        // is handed over in pieces the socket's queue can hold rather than counted against the
+        // player: what it carries is what the server chose to send.
+        let mut blob = conn.raw.take_encoded();
+        while !blob.is_empty() {
+            let piece = blob.split_to(blob.len().min(MAX_QUEUED_BYTES_PER_SOCKET));
+            conn.raw.try_send_blob(piece);
         }
 
         // --- (5) Update depth gauges (monotone totals, consistent with metrics.rs) ---

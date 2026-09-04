@@ -13,14 +13,13 @@ struct Group {
 }
 
 struct DrawArgs {
-    index_count: atomic<u32>,
+    vertex_count: atomic<u32>,
     instance_count: u32,
-    first_index: u32,
-    base_vertex: i32,
+    first_vertex: u32,
     first_instance: u32,
 }
 
-const INDICES_PER_QUAD: u32 = 6u;
+const VERTICES_PER_QUAD: u32 = 6u;
 
 @group(1) @binding(0) var<storage, read> groups: array<Group>;
 @group(1) @binding(1) var<storage, read_write> visible: array<vec2<u32>>;
@@ -144,7 +143,7 @@ fn load(first: u32, local: u32, tally: bool) -> bool {
     if (behind_terrain(origin, origin + section_span(desc))) {
         candidates[params.group_base + slot] = 1u;
         if (tally) {
-            atomicAdd(&args[params.counter].index_count, g.quad_count);
+            atomicAdd(&args[params.counter].vertex_count, g.quad_count);
         }
         return false;
     }
@@ -174,10 +173,10 @@ fn cull_second(
     @builtin(num_workgroups) grid: vec3<u32>,
     @builtin(local_invocation_index) local: u32,
 ) {
-    let drawn = atomicLoad(&args[params.args_index].index_count) / INDICES_PER_QUAD;
+    let drawn = atomicLoad(&args[params.args_index].vertex_count) / VERTICES_PER_QUAD;
     let second = params.args_index + STREAMS;
     if (workgroup.x == 0u && local == 0u) {
-        args[second].first_index = drawn * INDICES_PER_QUAD;
+        args[second].first_vertex = drawn * VERTICES_PER_QUAD;
     }
     var first = workgroup.x * CULL_THREADS;
     loop {
@@ -195,7 +194,7 @@ fn cull_second(
                 total = total + counts[k];
             }
             reserved = drawn
-                + atomicAdd(&args[second].index_count, total * INDICES_PER_QUAD) / INDICES_PER_QUAD;
+                + atomicAdd(&args[second].vertex_count, total * VERTICES_PER_QUAD) / VERTICES_PER_QUAD;
         }
         workgroupBarrier();
 
@@ -241,8 +240,8 @@ fn cull(
                 starts[k] = total;
                 total = total + counts[k];
             }
-            reserved = atomicAdd(&args[params.args_index].index_count, total * INDICES_PER_QUAD)
-                / INDICES_PER_QUAD;
+            reserved = atomicAdd(&args[params.args_index].vertex_count, total * VERTICES_PER_QUAD)
+                / VERTICES_PER_QUAD;
         }
         workgroupBarrier();
 
@@ -325,7 +324,7 @@ fn scan_ordered(@builtin(local_invocation_index) local: u32) {
         running = running + here;
     }
     if (local == CULL_THREADS - 1u) {
-        atomicStore(&args[params.args_index].index_count, running * INDICES_PER_QUAD);
+        atomicStore(&args[params.args_index].vertex_count, running * VERTICES_PER_QUAD);
     }
 }
 

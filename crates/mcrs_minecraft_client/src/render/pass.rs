@@ -360,8 +360,7 @@ fn draw_layer_group<'pass>(
         }
         pass.set_render_pipeline(pipeline);
         pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
-        pass.set_index_buffer(terrain.arenas.indices.slice(..), IndexFormat::Uint32);
-        pass.draw_indexed_indirect(
+        pass.draw_indirect(
             &terrain.frame.args,
             (phase * STREAMS as u64 + index as u64) * DRAW_ARGS_SIZE,
         );

@@ -80,6 +80,8 @@ fn play_clientbound_ids() {
         0x01 => ClientboundAddEntity, Clientbound, Game;
         0x05 => ClientboundBlockDestruction, Clientbound, Game;
         0x08 => ClientboundBlockUpdate, Clientbound, Game;
+        0x0B => ClientboundChunkBatchFinished, Clientbound, Game;
+        0x0C => ClientboundChunkBatchStart, Clientbound, Game;
         0x12 => ClientboundContainerSetContent, Clientbound, Game;
         0x20 => ClientboundDisconnect, Clientbound, Game;
         0x22 => ClientboundEntityEvent, Clientbound, Game;
@@ -121,6 +123,7 @@ fn play_serverbound_ids() {
         0x08 => ServerboundChatCommandSigned<'_>, Serverbound, Game;
         0x09 => ServerboundChat<'_>, Serverbound, Game;
         0x0A => ServerboundChatSessionUpdate, Serverbound, Game;
+        0x0B => ServerboundChunkBatchReceived, Serverbound, Game;
         0x0E => ServerboundClientInformation<'_>, Serverbound, Game;
         0x10 => ServerboundConfigurationAcknowledged, Serverbound, Game;
         0x12 => ServerboundContainerClick, Serverbound, Game;

@@ -37,6 +37,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     client.add_plugins(ClientNetworkPlugin {
         server: address,
         username: "mcrs_test".to_owned(),
+        view_distance: 8,
     });
 
     let outcome = drive_client_until_joined(&mut client);

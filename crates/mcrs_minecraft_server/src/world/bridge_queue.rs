@@ -9,8 +9,6 @@ use crate::world::bus::{OutboundPlayerPacket, PacketPriority};
 // the same limits.
 pub const DEPTH_LIMIT: usize = 256;
 pub const DEPTH_DRAIN_TARGET: usize = 192;
-pub const HIGH_OVERFLOW_LIMIT: usize = 64;
-pub const KICK_AFTER_OVERFLOW_TICKS: u8 = 3;
 
 // Inbound rate-bucket baselines. A real throughput measurement pass may
 // revise these values.
@@ -22,17 +20,16 @@ pub const INBOUND_KICK_OVERFLOW_TICKS: u8 = 3;
 ///
 /// Four sub-deques ordered Critical → High → Normal → Low. `dispatch_encode`
 /// drains in that order and enforces `DEPTH_LIMIT`/`DEPTH_DRAIN_TARGET`
-/// shedding on Normal/Low before flushing. `overflow_ticks` counts consecutive
-/// ticks where `total_len() > DEPTH_LIMIT` so the kick threshold is observable
-/// without atomics (no atomics for queue depth — queue state lives only in
-/// these Component fields).
+/// shedding on Normal/Low before flushing. Critical and High are never shed and
+/// never counted against the connection: how many the server produced in a tick
+/// says nothing about the client, which paces its own columns by acknowledging
+/// each batch.
 #[derive(Component, Default)]
 pub struct OutboundQueue {
     pub critical: VecDeque<OutboundPlayerPacket>,
     pub high: VecDeque<OutboundPlayerPacket>,
     pub normal: VecDeque<OutboundPlayerPacket>,
     pub low: VecDeque<OutboundPlayerPacket>,
-    pub overflow_ticks: u8,
 }
 
 impl OutboundQueue {
@@ -47,13 +44,6 @@ impl OutboundQueue {
 
     pub fn total_len(&self) -> usize {
         self.critical.len() + self.high.len() + self.normal.len() + self.low.len()
-    }
-
-    /// Returns the sum of the two highest-priority sub-deques. Used by
-    /// `dispatch_encode` to decide whether to kick a connection that is not
-    /// draining its critical+high backlog within `KICK_AFTER_OVERFLOW_TICKS`.
-    pub fn critical_high_len(&self) -> usize {
-        self.critical.len() + self.high.len()
     }
 }
 

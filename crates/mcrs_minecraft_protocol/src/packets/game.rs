@@ -48,6 +48,16 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x0B, state=Game)]
+    pub struct ClientboundChunkBatchFinished {
+        pub batch_size: VarInt,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x0C, state=Game)]
+    pub struct ClientboundChunkBatchStart;
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x12, state=Game)]
     pub struct ClientboundContainerSetContent {
         pub container_id: VarInt,
@@ -524,6 +534,12 @@ pub mod serverbound {
     pub struct ServerboundChatSessionUpdate {
         pub session_id: Uuid,
         pub public_key: [u8; 32],
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x0B, state=Game)]
+    pub struct ServerboundChunkBatchReceived {
+        pub desired_chunks_per_tick: f32,
     }
 
     #[derive(Clone, Debug, Encode, Decode, From, Packet)]

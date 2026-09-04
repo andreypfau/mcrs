@@ -25,7 +25,7 @@ use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::world::bridge::dispatch_encode;
 use mcrs_minecraft_server::world::bridge_queue::{
-    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT, KICK_AFTER_OVERFLOW_TICKS, OutboundQueue,
+    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, OutboundQueue,
 };
 use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
@@ -221,14 +221,14 @@ fn drop_oldest_low_after_normal_exhausted() {
 }
 
 // ---------------------------------------------------------------------------
-// kick_on_critical_high_overflow
+// deep_critical_queue_is_not_kicked
 // ---------------------------------------------------------------------------
 
-/// When `critical_high_len() > HIGH_OVERFLOW_LIMIT` for
-/// `KICK_AFTER_OVERFLOW_TICKS` consecutive ticks, the connection is kicked
-/// (ServerSideConnection removed) and `BRIDGE_KICK_OVERFLOW_TOTAL` increments.
+/// A tick's worth of critical packets is what the server produced, not what the
+/// client failed to take, so no depth of critical backlog kicks the connection.
+/// Columns are paced by the client's batch acknowledgements instead.
 #[test]
-fn kick_on_critical_high_overflow() {
+fn deep_critical_queue_is_not_kicked() {
     let _lock = TELEMETRY_TEST_LOCK
         .lock()
         .unwrap_or_else(|e| e.into_inner());
@@ -236,30 +236,21 @@ fn kick_on_critical_high_overflow() {
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
-    // Fill critical+high past HIGH_OVERFLOW_LIMIT.
-    enqueue_critical(&mut world, socket, HIGH_OVERFLOW_LIMIT + 1);
-
     let before_kick = BRIDGE_KICK_OVERFLOW_TOTAL.load(Ordering::Relaxed);
 
-    // Run enough ticks to trigger the kick.
-    for _ in 0..KICK_AFTER_OVERFLOW_TICKS {
+    for _ in 0..8 {
+        enqueue_critical(&mut world, socket, 512);
         run_dispatch(&mut world);
-        // Re-fill to keep the overflow sustained.
-        if world.get::<OutboundQueue>(socket).is_some() {
-            enqueue_critical(&mut world, socket, HIGH_OVERFLOW_LIMIT + 1);
-        }
     }
 
-    let after_kick = BRIDGE_KICK_OVERFLOW_TOTAL.load(Ordering::Relaxed);
-    assert!(
-        after_kick > before_kick,
-        "BRIDGE_KICK_OVERFLOW_TOTAL should increment on overflow kick"
+    assert_eq!(
+        BRIDGE_KICK_OVERFLOW_TOTAL.load(Ordering::Relaxed),
+        before_kick,
+        "a deep critical queue must not count as an overflow kick"
     );
-
-    // ServerSideConnection must be removed (connection kicked).
     assert!(
-        world.get::<ServerSideConnection>(socket).is_none(),
-        "ServerSideConnection must be removed after overflow kick"
+        world.get::<ServerSideConnection>(socket).is_some(),
+        "the connection must survive a deep critical queue"
     );
 }
 
