@@ -68,3 +68,15 @@ One line each, with the numbers that justified it. Newest last.
   spanned: 283 192 against 226 784 in the base view, 1 569 034 against 26 652 in flight.
 - **`MCRS_LOOK` outlives the join teleport.** The server answered a join with the saved look and
   the knob had no effect under the integrated server.
+- **Chunk unloads are aimed at the player's host anchor.** The host stamps a session onto a
+  single-player packet by its anchor and drops the rest, so unloads aimed at the dimension-local
+  entity never left the server and nothing was ever evicted: 6703 columns resident after 50 s
+  at maximum speed against 1110 with unloads arriving, main-world median 0.63 to 0.43 ms.
+- **A section lists its distinct block states when it is decoded.** The loader scanned every
+  block of an arriving column for unbaked states on the frame; reading the palette's list
+  instead took `stream adopt` from 248 to 107 µs mean and 549 to 281 max.
+- **Frame-time quantiles are selected, not sorted.** Sorting the 4096-frame window seven times
+  cost 500 µs in the frame that read it; selecting costs 113.
+- **The admission bounds stay at 32 sections a frame, 128 in flight and 4 MB of upload.** The
+  pool returns about 32 meshes a frame and placing them costs 350 µs at worst; a settled flight
+  uploads 300 to 450 KB a frame.

@@ -372,7 +372,7 @@ impl Loader {
                     continue;
                 };
                 self.sections_total += 1;
-                for &state in section.blocks.iter() {
+                for &state in &section.states {
                     match self.baked.get_mut(state as usize) {
                         Some(true) => {}
                         Some(seen) => {
@@ -568,6 +568,7 @@ pub fn advance(
         loader.biomes = biome_names(&registries);
     }
     if store.is_changed() {
+        let _adopting = info_span!("stream adopt").entered();
         loader.adopt(&store, &definitions, &mut cave);
     }
 
@@ -604,6 +605,7 @@ pub fn advance(
     }
     start_tinting(loader, pool);
 
+    let placing = info_span!("stream place").entered();
     let mut meshed = Vec::new();
     loader
         .meshing
@@ -643,6 +645,9 @@ pub fn advance(
         }
     }
 
+    drop(placing);
+
+    let flushing = info_span!("stream flush").entered();
     loader.sweep();
     if loader.dirty
         && let Some(placement) = loader.flush()
@@ -650,10 +655,12 @@ pub fn advance(
         loader.dirty = false;
         loader.uploads.push(Upload::Geometry(placement));
     }
+    drop(flushing);
 
     if !loader.caught_up() {
         return;
     }
+    let _admitting = info_span!("stream admit").entered();
     let room = SECTIONS_IN_FLIGHT.saturating_sub(loader.meshing.len());
     let wanted = loader.take_wanted(room.min(SECTIONS_PER_FRAME));
     for (taken, &at) in wanted.iter().enumerate() {
@@ -968,6 +975,7 @@ mod tests {
                 vec![Some(Section {
                     blocks: Box::new([1; mcrs_minecraft_network::columns::SECTION_VOLUME]),
                     biomes: Box::new([0; mcrs_minecraft_network::columns::BIOME_CELLS]),
+                    states: vec![1],
                 })],
             )
         };

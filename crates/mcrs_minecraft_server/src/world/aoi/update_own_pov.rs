@@ -22,6 +22,7 @@ use smallvec::SmallVec;
 use crate::world::aoi::components::ChunkSubscriptionSet;
 use crate::world::aoi::probe::AoiTickProbe;
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::entity::player::HostAnchor;
 
 #[cfg_attr(
     feature = "telemetry-tracy",
@@ -40,6 +41,7 @@ pub fn update_own_pov(
             &Transform,
             &PlayerViewDistance,
             &InDimension,
+            Option<&HostAnchor>,
             &mut ChunkSubscriptionSet,
         ),
         (
@@ -54,10 +56,15 @@ pub fn update_own_pov(
 ) {
     probe.own_pov_ran = probe.own_pov_ran.saturating_add(1);
 
-    for (player, transform, view_distance, in_dim, mut subscriptions) in players.iter_mut() {
+    for (player, transform, view_distance, in_dim, host_anchor, mut subscriptions) in
+        players.iter_mut()
+    {
         let Ok(column_index) = column_indices.get(in_dim.0) else {
             continue;
         };
+        // The host stamps a session onto a packet by its anchor, and drops one aimed at a
+        // dimension-local entity.
+        let target = host_anchor.map_or(player, |anchor| anchor.0);
 
         let centre = ColumnPos::from(transform.translation);
         let radius = view_distance.distance as i32;
@@ -161,7 +168,7 @@ pub fn update_own_pov(
                 obs.0.retain(|e| *e != player);
             }
             packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(player),
+                target: PacketTarget::SinglePlayer(target),
                 priority: PacketPriority::Normal,
                 data: PacketPayload::ChunkUnload { column: *pos },
                 session: PlayerSession(0),

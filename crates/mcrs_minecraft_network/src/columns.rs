@@ -45,6 +45,8 @@ pub struct Extent {
 pub struct Section {
     pub blocks: Box<[u16; SECTION_VOLUME]>,
     pub biomes: Box<[u8; BIOME_CELLS]>,
+    /// Every state the blocks hold, and possibly a few the palette named without using.
+    pub states: Vec<u16>,
 }
 
 pub struct Column {
@@ -157,13 +159,27 @@ impl Column {
                 let mut blocks = Box::new([AIR; SECTION_VOLUME]);
                 expand::<Blocks, _>(&section.blocks, |id| id.0, blocks.as_mut_slice())
                     .context("blocks")?;
+                let states = match &section.blocks.palette {
+                    Palette::Single(value) => vec![value.0],
+                    Palette::Indirect(entries) => entries.iter().map(|id| id.0).collect(),
+                    Palette::Direct => {
+                        let mut states = blocks.to_vec();
+                        states.sort_unstable();
+                        states.dedup();
+                        states
+                    }
+                };
                 let mut cells = [0u16; BIOME_CELLS];
                 expand::<Biomes, _>(&section.biomes, u16::from, &mut cells).context("biomes")?;
                 let mut biomes = Box::new([0u8; BIOME_CELLS]);
                 for (out, cell) in biomes.iter_mut().zip(cells) {
                     *out = cell as u8;
                 }
-                Ok(Some(Section { blocks, biomes }))
+                Ok(Some(Section {
+                    blocks,
+                    biomes,
+                    states,
+                }))
             })
             .collect::<Result<Vec<_>>>()?;
 

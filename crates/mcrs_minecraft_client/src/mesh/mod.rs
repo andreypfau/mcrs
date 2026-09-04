@@ -200,6 +200,9 @@ pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> ColumnSto
             }
         }
     }
+    let mut states = blocks.to_vec();
+    states.sort_unstable();
+    states.dedup();
     let mut store = ColumnStore::default();
     store.enter(Extent {
         min_section_y: 0,
@@ -212,6 +215,7 @@ pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> ColumnSto
             vec![Some(Section {
                 blocks,
                 biomes: Box::new([0; 64]),
+                states,
             })],
         ),
     );

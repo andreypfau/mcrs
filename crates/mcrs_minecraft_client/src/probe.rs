@@ -123,9 +123,11 @@ impl<const N: usize, const W: usize> Samples<N, W> {
         if held == 0 {
             return None;
         }
-        let mut sorted = self.ms[slot][..held].to_vec();
-        sorted.sort_unstable_by(f32::total_cmp);
-        Some(quantiles.map(|q| sorted[((held as f32 * q) as usize).min(held - 1)]))
+        let mut scratch = self.ms[slot][..held].to_vec();
+        Some(quantiles.map(|q| {
+            let at = ((held as f32 * q) as usize).min(held - 1);
+            *scratch.select_nth_unstable_by(at, f32::total_cmp).1
+        }))
     }
 
     fn held(&self, slot: usize) -> usize {

@@ -261,6 +261,70 @@ sections, and the world pass now follows what is drawn. The empty-frame GPU floo
 read with the heater (with no terrain draw nothing ties the world pass to the draw args and the
 two overlap); the camera-up view stands in for it at 0.080 ms.
 
+## Streaming
+
+Flying south at maximum wheel speed (`MCRS_FLY=0.2`, about 75 blocks a second) into terrain the
+server generates as it goes: save `two`, 2560x1440 window, `MCRS_HOT=1`, overlay hidden, stats
+every five seconds. Engine time median / p99 / max over 4096 frames, all of them in flight (the
+run is 85 s so the window holds nothing of the start), and the stage figures from the same line.
+Run-to-run spread over three settled flights of the same build: 0.04 ms on the median, 0.1 on
+the p99, 0.2 on the max.
+
+| build | engine | main median / p99 / max | render median / p99 / max | resident | upload per frame |
+|---|---|---|---|---|---|
+| nothing evicted | 1.28 / 1.98 / (start in window) | 0.63 / 1.21 / | 0.37 / 0.54 / | 6703 columns, 50 640 sections | 4096 KB, capped |
+| columns evicted | 1.07 / 1.65 / (start in window) | 0.43 / 0.95 / | 0.33 / 0.48 / | 1110 columns, 4763 sections | 317 KB |
+| states listed at decode | 1.08 / 1.49 / 1.83 | 0.45 / 0.81 / 1.12 | 0.34 / 0.46 / 0.74 | 1501 columns, 4863 sections | 437 KB |
+| quantiles selected, not sorted | 1.09 / 1.45 / 2.03 | 0.45 / 0.78 / 0.90 | 0.35 / 0.46 / 0.52 | 1492 columns, 4730 sections | 399 KB |
+| same build, two more runs | 1.12 / 1.56 / 1.87 and 0.97 / 1.39 / 1.90 | | | | |
+
+What was found, in order, with Tracy means over the settled part of a 70 s flight:
+
+- **The server never took a column back.** It computed the unload set and wrote the packets,
+  but aimed them at the dimension-local player entity, and the host stamps a session onto a
+  single-player packet by the player's host anchor and drops one it cannot stamp. Chunk loads
+  already used the anchor. With unloads arriving, residency in flight holds at about 1100 to
+  1500 columns instead of growing without bound (44 000 to 86 000 sections evicted per run),
+  the main-world median fell 0.63 to 0.43 ms, and the group-table re-upload that had saturated
+  the 4 MB belt every frame fell to 300 to 450 KB.
+- **`stream::advance`** was 115 µs mean, 547 p99, 752 max, and `stream adopt` (once per
+  arriving batch, every fourth frame) 248 mean, 461 p99, 549 max: it walked every block of
+  every arriving column looking for states the catalog had not baked, 40 000 reads a column.
+  The decode task now lists a section's distinct states from its palette (a direct-palette
+  section is scanned on the compute pool), and adopt reads that: 107 mean, 240 p99, 281 max;
+  `stream::advance` 72 mean, 377 p99, 488 max.
+- **The stats collection sorted the 4096-frame window seven times** to answer three quantiles,
+  500 µs in the frame that wrote a line, and the overlay would pay it ten times a second when
+  shown. The quantiles are selected instead: 113 µs mean, 132 max.
+
+What is left in a flight frame, Tracy means: main world 424 µs (PostUpdate 167 of which
+`cave_cull` 51, Update 137 of which `stream::advance` 72, PreUpdate 74, extract 97), render
+world 321 (`draw_frame` encoding 132, submit 70). In `stream::advance`: `stream flush` 25 mean
+and 153 p99, because a frame with an arrival rebuilds and re-uploads the whole group table
+(about 40 000 records at this residency); `stream adopt` 107 mean, which is the store clone,
+two set scans over the resident columns and the enqueue of the neighbours; `stream place` 12
+mean and 352 max for a frame that lands 32 sections at once.
+
+**Admission bounds.** `SECTIONS_PER_FRAME` is 32 and `SECTIONS_IN_FLIGHT` 128; at maximum
+speed the compute pool returns about 32 meshes a frame at 60 Hz and never holds more than 32
+in flight, so the in-flight bound is slack and the per-frame bound is what the pool delivers.
+Placing 32 sections costs 350 µs at worst and 12 on average, which fits. The 4 MB upload budget
+is a cap, not a target: a settled flight uploads 300 to 450 KB a frame, and a full 4 MB frame
+costs about 130 µs of staging memcpy. Neither bound was changed; the numbers that justify
+leaving them are the ones above.
+
+At maximum speed the store holds about 12 000 sections of which 5000 are meshed: a section
+is not meshed until all eight neighbouring columns have arrived, and columns are taken back at
+radius 13 before the mesher reaches them, which reads as terrain filling in behind the horizon.
+That is throughput, not a frame cost.
+
+Screenshot: `docs/perf/m5-flight-2560x1440.png`, 82 s into the flight, over ocean.
+
+Gate: no settled flight frame over 2.0 ms in two of three runs (max 1.83, 1.87, 1.90); the
+third run's single worst frame read 2.03, which is inside the 0.2 ms spread on a maximum.
+Breaking and placing blocks cannot be measured: the client has no block-edit path, no handler
+for block-update packets and no input for it.
+
 ## Web
 
 Not measurable yet. `scripts/build-web.sh` produces a 40 MB single-file bundle that Chrome runs
@@ -282,5 +346,7 @@ that will count there are the CPU stages and the GPU pass timestamps, never the 
 - The ordered cull still writes a hole for every resident blended group, and survivors scattered
   over a long-resident list still pay for the holes between them.
 - The web build's start-up blocks the page for minutes and re-runs the render start-up schedule.
-- The client never evicts columns in flight although the server sends chunk-forget packets.
+- A frame with an arrival rebuilds and re-uploads the whole group table (`stream flush`,
+  153 µs p99 at 5000 resident sections), which grows with render distance.
+- The client has no block-edit path, so remeshing on a block change cannot be measured.
 - Bevy's window screenshot is black on some frames.
