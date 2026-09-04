@@ -695,10 +695,10 @@ impl MeshQueue {
                 .extend(bucket.drain(..).filter(|at| self.queued.contains(at)));
         }
         self.reference = camera;
+        self.entries = self.scratch.len();
         for at in self.scratch.drain(..) {
             self.buckets[Self::bucket(at, camera)].push(at);
         }
-        self.entries = self.queued.len();
     }
 }
 
@@ -1268,5 +1268,27 @@ mod tests {
         assert_eq!(loader.tint_corner(ColumnPos::new(32, 0)), [0, 0]);
         assert_eq!(loader.tint_corner(ColumnPos::new(-1, -33)), [496, 496]);
         assert_eq!(loader.tint_corner(ColumnPos::new(1_000_000, 0)), [0, 0]);
+    }
+}
+
+#[cfg(test)]
+mod mesh_queue_tests {
+    use super::*;
+
+    /// A section requeued after its first entry was left behind sits in the
+    /// buckets twice, so the rebucket has to count what it actually holds.
+    #[test]
+    fn a_requeued_section_does_not_underflow_the_entry_count() {
+        let mut queue = MeshQueue::default();
+        let requeued = [4, 0, 0];
+        let other = [5, 0, 0];
+        queue.insert(requeued, [0; 3]);
+        queue.remove(requeued);
+        queue.insert(requeued, [0; 3]);
+        queue.insert(other, [0; 3]);
+        queue.rebucket([0; 3]);
+        assert_eq!(queue.pop_nearest([0; 3]), Some(requeued));
+        assert_eq!(queue.pop_nearest([0; 3]), Some(other));
+        assert_eq!(queue.pop_nearest([0; 3]), None);
     }
 }
