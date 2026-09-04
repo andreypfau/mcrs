@@ -8,7 +8,7 @@ use crate::world::lifecycle::trace::{self, ColumnStage};
 use crate::world::storage::chunk::Chunk;
 use crate::world::storage::chunk::ChunkBundle;
 use crate::world::storage::chunk::ChunkIndex;
-use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin};
+use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::With;
@@ -17,13 +17,20 @@ use mcrs_voxel_math::ChunkPos;
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
 const MAX_DESPAWNS_PER_TICK: usize = 1024;
-const MAX_SPAWNS_PER_TICK: usize = 512;
+/// A view's row is 27 columns of 24 sections, and a column whose sections straddle two ticks
+/// is sent a tick late, so the cap holds several rows.
+const MAX_SPAWNS_PER_TICK: usize = 4096;
 
 pub(crate) struct TicketPlugin;
 
+/// Turns the tick's new tickets into chunk entities. It runs in `FixedUpdate` so the tickets a
+/// view raised this tick become entities this tick, and whatever queues them can follow.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ChunkSpawnSet;
+
 impl Plugin for TicketPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedPreUpdate, spawn_chunks);
+        app.add_systems(FixedUpdate, spawn_chunks.in_set(ChunkSpawnSet));
         app.add_systems(
             FixedUpdate,
             (unload_chunks, despawn_chunks, remove_tickets_from_chunks),
@@ -177,7 +184,7 @@ fn unload_chunks(
     })
 }
 
-fn spawn_chunks(
+pub fn spawn_chunks(
     mut dims: Query<(Entity, &mut ChunkTicketsCommands, &mut ChunkIndex)>,
     mut commands: Commands,
     mut chunks: Query<(Entity, &mut ChunkTicketHolder), With<Chunk>>,

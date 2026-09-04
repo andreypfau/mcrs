@@ -9,14 +9,20 @@ use bevy_ecs::prelude::{
     Added, Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs,
     MessageWriter, Or, ParallelCommands, Query, With,
 };
+use bevy_ecs::schedule::SystemSet;
 use bevy_ecs_macros::Message;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use std::collections::VecDeque;
 
-const MAX_LOADS: usize = 256;
+const MAX_LOADS: usize = 4096;
 
 pub struct ChunkViewPlugin;
+
+/// The view diff and the load and unload requests it raises, so that what consumes them can
+/// run in the same tick.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ChunkViewSet;
 
 impl Plugin for ChunkViewPlugin {
     fn build(&self, app: &mut App) {
@@ -30,7 +36,8 @@ impl Plugin for ChunkViewPlugin {
                 update_load_queue,
                 update_loading_queue,
             )
-                .chain(),
+                .chain()
+                .in_set(ChunkViewSet),
         );
     }
 }
@@ -180,7 +187,11 @@ fn update_unload_queue(
     });
 }
 
-fn update_loading_queue(
+/// Raises a load request for every ticketed chunk that has landed. Runs on the tick and again
+/// whenever the game drains what landed off the tick, so it is safe to run more than once
+/// between ticks. A chunk still loading is left in the queue without holding back the ones
+/// behind it.
+pub fn update_loading_queue(
     mut players: Query<(Entity, &mut PlayerChunkObserver, &InDimension)>,
     dims: Query<&ChunkIndex>,
     chunks: Query<Entity, With<ChunkLoaded>>,
@@ -197,28 +208,27 @@ fn update_loading_queue(
             return;
         };
         let mut sends = 0;
-        while sends < MAX_SENDS {
-            let Some(chunk_pos) = observer.loading_queue.front().copied() else {
-                return;
-            };
+        observer.loading_queue.retain(|&chunk_pos| {
             if !last_view.contains(&chunk_pos) {
-                observer.loading_queue.pop_front();
-                continue;
+                return false;
+            }
+            if sends >= MAX_SENDS {
+                return true;
             }
             let Some(chunk) = chunk_index.get(chunk_pos) else {
-                return;
+                return true;
             };
             if chunks.get(chunk).is_err() {
-                return;
-            };
-            observer.loading_queue.pop_front();
+                return true;
+            }
             load_requests.write(PlayerChunkLoadRequest {
                 player,
                 chunk_pos,
                 chunk,
             });
             sends += 1;
-        }
+            false
+        });
     })
 }
 

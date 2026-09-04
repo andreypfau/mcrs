@@ -83,3 +83,22 @@ One line each, with the numbers that justified it. Newest last.
 - **The admission bounds stay at 32 sections a frame, 128 in flight and 4 MB of upload.** The
   pool returns about 32 meshes a frame and placing them costs 350 µs at worst; a settled flight
   uploads 300 to 450 KB a frame.
+- **The chunk pipeline runs inside one tick and drains between ticks.** From ticket to sent a
+  saved column crossed six systems on the 20 Hz schedule, 378 ms at the median and none of it
+  work (73 µs to read, 87 to decode). Chaining the hops inside the tick took it to 164 ms, a
+  `ColumnDrain` run every 2 ms of idle loop time to 55, and spawning and dispatching the rest
+  of a column inside the drain to 7. Vanilla's `waitUntilNextTick` is the precedent.
+- **Sends are capped at 64 columns and a quarter of the socket's byte cap a pass, light
+  counted.** Ten a tick cost a row of 27 three ticks; 64 alone made a 4.2 MB blob that the
+  bridge answered by closing the socket, and 4.6 MB once the light arrays were left out of the
+  count. Vanilla starts at nine and ramps to 64 on the client's acknowledgements, which nothing
+  sends here.
+- **The drain rebuilds the column index before it sends.** The light packet walks that index,
+  which the tick rebuilt once; a column sent within the tick had no sections in it and went out
+  unlit, and the whole world drew black.
+- **The tint window wraps around the world instead of sitting on spawn.** Grass 3000 blocks out
+  sampled texels nothing had written and drew black; a column's square lands at its position
+  modulo the window and the sampler repeats. The window must exceed the view's width.
+- **Dead section slots are swept through a set.** Every group was compared against a vector of
+  dead slots, and a row leaving at once is 243 slots against 40 000 groups: the main world's
+  worst settled frame at maximum speed was 10.7 ms, and is 0.95 with the set.

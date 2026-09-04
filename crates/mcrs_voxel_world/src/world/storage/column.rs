@@ -309,7 +309,7 @@ pub enum ColumnLifecycleSet {
 
 /// Stage 1: when a chunk becomes `ChunkLoaded` (or `ChunkUnloading`),
 /// create / refcount its owning column entity.
-fn reconcile_column_existence(
+pub fn reconcile_column_existence(
     newly_loaded: Query<(&ChunkPos, &InDimension), Added<ChunkLoaded>>,
     newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,
     mut dimensions: Query<&mut ColumnIndex>,
@@ -385,7 +385,7 @@ fn reconcile_column_existence(
 ///
 /// Deliberately takes no lighting-table resource: heightmap priming
 /// (Stage 2.5) lives in the lighting crate.
-fn reconcile_column_chunks(
+pub fn reconcile_column_chunks(
     newly_loaded: Query<(Entity, &ChunkPos, &InDimension), Added<ChunkLoaded>>,
     newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,
     dimensions: Query<&ColumnIndex>,

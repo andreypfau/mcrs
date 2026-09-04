@@ -279,6 +279,7 @@ the p99, 0.2 on the max.
 | quantiles selected, not sorted | 1.09 / 1.45 / 2.03 | 0.45 / 0.78 / 0.90 | 0.35 / 0.46 / 0.52 | 1492 columns, 4730 sections | 399 KB |
 | same build, two more runs | 1.12 / 1.56 / 1.87 and 0.97 / 1.39 / 1.90 | | | | |
 | forget from the column view | 1.08 / 1.53 / 2.20 | 0.44 / 0.80 / 0.91 | 0.33 / 0.46 / 0.51 | 675 columns, 5236 sections | 0 to 450 KB |
+| chunk pipeline drained between ticks, dead slots swept through a set | 1.16 / 1.54 / 2.01 | 0.42 / 0.74 / 0.95 | 0.30 / 0.68 / 1.21 | 729 columns, 5650 sections | 320 to 620 KB |
 
 What was found, in order, with Tracy means over the settled part of a 70 s flight:
 
@@ -338,6 +339,54 @@ prepare stage and Tracy has not yet named.
 Breaking and placing blocks cannot be measured: the client has no block-edit path, no handler
 for block-update packets and no input for it.
 
+## Chunk loading
+
+The stats line now carries `Hops p50 ms`: for the columns on screen, the median time each spent
+getting into every stage of the column trace from the one before, server and client alike.
+Scenario: save `two`, flying south from spawn at vanilla sprint speed (`MCRS_FLY=0.05`) over
+saved terrain, 2560x1440 window, 60 s, the last line.
+
+| build | spawn | queue | gen | load | ready | sent | ticket to sent | recv | mesh |
+|---|---|---|---|---|---|---|---|---|---|
+| before | 55 | 55 | 0 | 54 | 163 | 51 | 378 | 79 | 767 |
+| the tick chained | 0 | 0 | 0 | 55 | 109 | 0 | 164 | 62 | 760 |
+| drained between ticks | 0 | 0 | 0 | 3 | 51 | 1 | 55 | 24 | 784 |
+| the drain spawns and dispatches too | 0 | 0 | 0 | 3 | 3 | 1 | 7 | 28 | 786 |
+| and rebuilds the column index, so the light goes with it | 0 | 0 | 0 | 4 | 4 | 0 | 8 | 24 | 787 |
+
+Reading a saved column was never the cost: over saved terrain a column read costs 73 µs and its
+decode 87 µs (Tracy means), against 1.3 ms to generate one. The 378 ms was the pipeline: every
+hop from ticket to sent was a system on the 20 Hz fixed schedule, so each cost a tick, "ready"
+cost three because the loading queue stopped at the first column still loading and a column's
+sections straddled the 512-section spawn cap, and sends were capped at ten columns a tick where
+a row is 27. Vanilla runs its chunk tasks in the idle time before the next tick
+(`MinecraftServer.waitUntilNextTick`), and its chunk map sends and drops from one view diff.
+
+What changed: the view diff, its tickets, the chunk spawn and the dispatch are chained inside
+`FixedUpdate`; completed columns, the load requests they raise, the forced tickets for the rest
+of the column, their spawn and dispatch, readiness, the send and the flush to the host are one
+`ColumnDrain` schedule run at the tick's end and every 2 ms while the loop would otherwise
+sleep, and the host bridges and writes the sockets right after each pump (`OutboundFlush`).
+Both queues skip past a column still loading. Sends are capped at vanilla's 64 a tick and at
+a quarter of the socket's byte cap with the light arrays counted, since 64 columns of 65 KB
+overran it when the count alone was raised, and 4.6 MB more when the light was left out of
+the count. The spawn cap is 4096 sections and the ticket cap 4096 a tick. The drain also
+rebuilds the column index the light packet walks: sent before that, a column went out with
+every section unlit and the world drew black.
+
+The 786 ms on the client is the leading edge at sprint speed: a column is meshed once the row
+beyond it has arrived, as vanilla renders a chunk once its neighbours are loaded, and at 11
+blocks a second the next row is 1.5 s away. At maximum speed it reads 207 to 217 ms. The 25 to
+28 ms from sent to received is the client's own socket read and decode, and is the next hop
+to look at.
+
+The tint window wraps. The biome colours lived in a fixed 1024-block square around spawn and
+the sampler clamped to its edge; 3000 blocks out, grass off to the sides multiplied by texels
+nothing had written and drew black. A column now writes its square at its position modulo the
+window, the sampler repeats, and the camera passes its own section's place in the window, so
+the coordinates stay exact wherever the player is. The window only has to be wider than what
+is resident: 1024 blocks holds a view of up to 31 columns.
+
 ## Web
 
 Not measurable yet. `scripts/build-web.sh` produces a 40 MB single-file bundle that Chrome runs
@@ -362,4 +411,8 @@ that will count there are the CPU stages and the GPU pass timestamps, never the 
 - A frame with an arrival rebuilds and re-uploads the whole group table (`stream flush`,
   153 µs p99 at 5000 resident sections), which grows with render distance.
 - The client has no block-edit path, so remeshing on a block change cannot be measured.
+- The client takes 25 to 28 ms from a column being sent to receiving it, mostly its own socket
+  read and decode cadence.
+- The tint window must exceed the view's width; a render distance past 31 columns needs it
+  widened.
 - Bevy's window screenshot is black on some frames.

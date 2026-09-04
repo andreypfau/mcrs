@@ -3,7 +3,7 @@ use crate::world::generate::{
     BetaCaveBlockIds, BetaOreBlockIds, apply_beta_caves, apply_beta_ores, apply_beta_surface,
     generate_column,
 };
-use bevy_app::{App, FixedPreUpdate, Plugin};
+use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
@@ -121,22 +121,20 @@ impl Plugin for ChunkPlugin {
                 .build()
         });
         app.insert_resource(scheduler);
-        app.configure_sets(FixedPreUpdate, WorldgenIngestSet::ProcessCompletedColumns);
+        // The chunks a view ticketed this tick are spawned this tick and dispatched right
+        // after; what lands is drained by the dimension's `ColumnDrain`, at the tick's end and
+        // between ticks.
         app.add_systems(
-            FixedPreUpdate,
+            FixedUpdate,
             (
-                process_completed_columns.in_set(WorldgenIngestSet::ProcessCompletedColumns),
                 enqueue_pending_columns,
                 cancel_stale_columns,
                 reprioritize_columns,
                 dispatch_column_generation.run_if(resource_exists::<OverworldNoiseRouter>),
             )
-                .chain(),
+                .chain()
+                .after(mcrs_voxel_world::world::lifecycle::ticket::ChunkSpawnSet),
         );
-        // A column read from the save is finished within a fraction of a
-        // millisecond, so draining only at the head of the tick charges every
-        // one of them a full tick of latency it never spent working.
-        app.add_systems(bevy_app::FixedLast, process_completed_columns);
     }
 }
 
@@ -452,7 +450,10 @@ fn report_column_timing(in_flight: &InFlightColumn, result: &ColumnResult) {
     );
 }
 
-fn process_completed_columns(mut scheduler: ResMut<ColumnScheduler>, mut commands: Commands) {
+pub(crate) fn process_completed_columns(
+    mut scheduler: ResMut<ColumnScheduler>,
+    mut commands: Commands,
+) {
     // Collect columns to remove from in_flight_index after iteration
     let mut columns_to_remove: Vec<ColumnPos> = Vec::new();
 
@@ -508,7 +509,7 @@ fn process_completed_columns(mut scheduler: ResMut<ColumnScheduler>, mut command
 /// Columns already pending or in-flight are skipped to avoid duplicate work.
 /// The `ChunkGenerating` marker is applied immediately to prevent re-discovery
 /// on subsequent ticks.
-fn enqueue_pending_columns(
+pub(crate) fn enqueue_pending_columns(
     mut commands: Commands,
     mut scheduler: ResMut<ColumnScheduler>,
     loading_query: Query<(Entity, &ChunkPos), With<ChunkLoading>>,
@@ -764,7 +765,7 @@ fn reprioritize_columns(
 /// # Performance
 /// - Uses `pop_first()` for O(log n) priority dequeue from BTreeMap
 /// - Bounded dispatch prevents task queue explosion during player teleports
-fn dispatch_column_generation(
+pub(crate) fn dispatch_column_generation(
     mut scheduler: ResMut<ColumnScheduler>,
     overworld_noise_router: Res<OverworldNoiseRouter>,
     blocks: Res<Blocks>,

@@ -92,10 +92,18 @@ pub fn spawn_server_thread(
         .expect("failed to spawn the server thread")
 }
 
+/// How long the loop sleeps between two calls of `idle` while it waits for the next tick.
+const IDLE_STEP: Duration = Duration::from_millis(2);
+
+/// Ticks the app at `tick_rate`. `between_ticks` runs once after every tick; `idle` runs then
+/// and again every `IDLE_STEP` until the next tick is due, which is where work that finished
+/// off the tick, a column read from the save above all, is passed on without waiting for the
+/// tick to come round.
 pub fn run_server_loop(
     mut app: App,
     tick_rate: NonZeroU32,
     mut between_ticks: impl FnMut(&mut App),
+    mut idle: impl FnMut(&mut App),
 ) {
     let tick = Duration::from_secs_f64(1.0 / tick_rate.get() as f64);
     app.finish();
@@ -107,9 +115,15 @@ pub fn run_server_loop(
         if app.should_exit().is_some() {
             break;
         }
-        let elapsed = start.elapsed();
-        if elapsed < tick {
-            std::thread::sleep(tick - elapsed);
+        loop {
+            idle(&mut app);
+            let Some(remaining) = tick.checked_sub(start.elapsed()) else {
+                break;
+            };
+            std::thread::sleep(remaining.min(IDLE_STEP));
+            if start.elapsed() >= tick {
+                break;
+            }
         }
     }
 }

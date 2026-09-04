@@ -43,7 +43,6 @@ pub struct Loader {
     biomes: Vec<String>,
     to_tint: Vec<ColumnPos>,
     tinting: Vec<([u32; 2], Task<Vec<u8>>)>,
-    tint_origin: [i32; 2],
     tint_size: [u32; 2],
     resident: HashMap<[i32; 3], Resident>,
     pending: HashSet<[i32; 3]>,
@@ -122,7 +121,6 @@ impl Loader {
             biomes: Vec::new(),
             to_tint: Vec::new(),
             tinting: Vec::new(),
-            tint_origin: budget.tint_origin,
             tint_size: budget.tint_size,
             resident: HashMap::new(),
             pending: HashSet::new(),
@@ -301,7 +299,7 @@ impl Loader {
         if self.dead.is_empty() {
             return;
         }
-        let dead = std::mem::take(&mut self.dead);
+        let dead: HashSet<u32> = std::mem::take(&mut self.dead).into_iter().collect();
         for list in &mut self.lists {
             list.retain(|group| !dead.contains(&group.section));
         }
@@ -515,20 +513,13 @@ impl Loader {
         })
     }
 
-    /// Where a column's tint square sits in the tint texture, or `None` when
-    /// the column falls outside the window the texture covers.
-    fn tint_corner(&self, pos: ColumnPos) -> Option<[u32; 2]> {
-        let span = SECTION_SIZE as u32;
-        let corner = [
-            pos.x * SECTION_SIZE as i32 - self.tint_origin[0],
-            pos.z * SECTION_SIZE as i32 - self.tint_origin[1],
-        ];
-        let inside = |axis: usize| {
-            u32::try_from(corner[axis])
-                .ok()
-                .filter(|near| near + span <= self.tint_size[axis])
-        };
-        Some([inside(0)?, inside(1)?])
+    /// Where a column's tint square sits in the tint texture, which the world wraps into.
+    fn tint_corner(&self, pos: ColumnPos) -> [u32; 2] {
+        let wrapped = |axis: i32, size: u32| (axis * SECTION_SIZE as i32).rem_euclid(size as i32);
+        [
+            wrapped(pos.x, self.tint_size[0]) as u32,
+            wrapped(pos.z, self.tint_size[1]) as u32,
+        ]
     }
 }
 
@@ -805,9 +796,7 @@ fn start_tinting(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
     }
     let tints = catalog.tints.clone();
     for pos in std::mem::take(&mut loader.to_tint) {
-        let Some(corner) = loader.tint_corner(pos) else {
-            continue;
-        };
+        let corner = loader.tint_corner(pos);
         let world = loader.store.clone();
         let tints = tints.clone();
         loader.tinting.push((
@@ -830,7 +819,6 @@ mod tests {
                 faces: 1 << 16,
                 groups: 1 << 12,
                 sections: 1 << 8,
-                tint_origin: [-256, -256],
                 tint_size: [512; 2],
             },
             Uploads::default(),
@@ -1033,12 +1021,12 @@ mod tests {
     }
 
     #[test]
-    fn a_column_outside_the_tint_window_is_not_written_into_it() {
+    fn a_column_wraps_into_the_tint_window_wherever_it_is() {
         let loader = loader();
-        assert_eq!(loader.tint_corner(ColumnPos::new(-16, -16)), Some([0, 0]));
-        assert_eq!(loader.tint_corner(ColumnPos::new(0, 0)), Some([256, 256]));
-        assert_eq!(loader.tint_corner(ColumnPos::new(15, 0)), Some([496, 256]));
-        assert_eq!(loader.tint_corner(ColumnPos::new(16, 0)), None);
-        assert_eq!(loader.tint_corner(ColumnPos::new(-17, 0)), None);
+        assert_eq!(loader.tint_corner(ColumnPos::new(0, 0)), [0, 0]);
+        assert_eq!(loader.tint_corner(ColumnPos::new(31, 1)), [496, 16]);
+        assert_eq!(loader.tint_corner(ColumnPos::new(32, 0)), [0, 0]);
+        assert_eq!(loader.tint_corner(ColumnPos::new(-1, -33)), [496, 496]);
+        assert_eq!(loader.tint_corner(ColumnPos::new(1_000_000, 0)), [0, 0]);
     }
 }

@@ -50,6 +50,8 @@ impl ColumnStage {
     }
 }
 
+pub const STAGES: usize = ColumnStage::ALL.len();
+
 #[derive(Clone, Copy)]
 struct Trace {
     stage: ColumnStage,
@@ -57,6 +59,8 @@ struct Trace {
     first: Instant,
     source: Option<&'static str>,
     sent_after: Option<Duration>,
+    /// When each stage was entered, after `first`; a stage the column skipped stays empty.
+    reached: [Option<Duration>; STAGES],
 }
 
 pub struct ColumnSample {
@@ -66,6 +70,21 @@ pub struct ColumnSample {
     pub age: Duration,
     pub source: Option<&'static str>,
     pub sent_after: Option<Duration>,
+    pub reached: [Option<Duration>; STAGES],
+}
+
+impl ColumnSample {
+    /// How long the column spent getting from the stage before `stage` to `stage`, or
+    /// `None` when it has not reached it.
+    pub fn hop(&self, stage: ColumnStage) -> Option<Duration> {
+        let at = self.reached[stage as usize]?;
+        let before = self.reached[..stage as usize]
+            .iter()
+            .rev()
+            .find_map(|earlier| *earlier)
+            .unwrap_or(Duration::ZERO);
+        Some(at.saturating_sub(before))
+    }
 }
 
 /// A single-player client hosts its server in this same process, so the debug
@@ -94,6 +113,7 @@ pub fn mark(pos: ColumnPos, stage: ColumnStage) {
             }
             trace.stage = stage;
             trace.entered = now;
+            trace.reached[stage as usize] = Some(now - trace.first);
             if stage == ColumnStage::Sent {
                 trace.sent_after = Some(now - trace.first);
             }
@@ -102,6 +122,8 @@ pub fn mark(pos: ColumnPos, stage: ColumnStage) {
             if traces.len() >= CAPACITY {
                 traces.clear();
             }
+            let mut reached = [None; STAGES];
+            reached[stage as usize] = Some(Duration::ZERO);
             traces.insert(
                 pos,
                 Trace {
@@ -110,6 +132,7 @@ pub fn mark(pos: ColumnPos, stage: ColumnStage) {
                     first: now,
                     source: None,
                     sent_after: None,
+                    reached,
                 },
             );
         }
@@ -143,6 +166,7 @@ pub fn snapshot(out: &mut Vec<ColumnSample>) {
         age: now - trace.first,
         source: trace.source,
         sent_after: trace.sent_after,
+        reached: trace.reached,
     }));
 }
 

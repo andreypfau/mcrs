@@ -6,7 +6,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{
     Added, Component, ContainsEntity, Message, MessageReader, On, Query, With,
 };
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
 use mcrs_minecraft_protocol::light_codec::{
@@ -15,13 +15,14 @@ use mcrs_minecraft_protocol::light_codec::{
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_world::entity::player::chunk_view::{
-    ChunkTrackingViewUpdateEvent, ChunkViewPlugin, PlayerChunkLoadRequest, PlayerChunkObserver,
-    PlayerChunkUnloadRequest,
+    ChunkTrackingViewUpdateEvent, ChunkViewPlugin, ChunkViewSet, PlayerChunkLoadRequest,
+    PlayerChunkObserver, PlayerChunkUnloadRequest,
 };
 use mcrs_voxel_world::entity::player::reposition::Reposition;
 use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::lifecycle::ticket::ChunkSpawnSet;
 use mcrs_voxel_world::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
 use mcrs_voxel_world::world::lifecycle::trace as column_trace;
 use mcrs_voxel_world::world::lifecycle::trace::ColumnStage;
@@ -35,6 +36,11 @@ use tracing::trace;
 
 pub struct ColumnViewPlugin;
 
+/// Turns the view's requests into tickets, so the spawn that follows in the same tick sees
+/// them.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ColumnViewSet;
+
 impl Plugin for ColumnViewPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ChunkViewPlugin);
@@ -42,6 +48,10 @@ impl Plugin for ColumnViewPlugin {
         // Initialize per-player column state.
         app.add_systems(PreUpdate, add_player_column_view);
 
+        app.configure_sets(
+            FixedUpdate,
+            (ChunkViewSet, ColumnViewSet, ChunkSpawnSet).chain(),
+        );
         app.add_systems(
             FixedUpdate,
             (
@@ -51,7 +61,8 @@ impl Plugin for ColumnViewPlugin {
                 loading_column_queue,
                 send_column_queue,
             )
-                .chain(),
+                .chain()
+                .in_set(ColumnViewSet),
         );
 
         // React to ChunkTrackingView changes (xz-distance changes, movement).
@@ -78,7 +89,7 @@ pub struct ColumnView {
     pub sent_columns: FxHashSet<ColumnPos>,
 }
 
-fn load_chunk_request(
+pub(crate) fn load_chunk_request(
     mut message: MessageReader<PlayerChunkLoadRequest>,
     mut players: Query<&mut ColumnView>,
 ) {
@@ -162,7 +173,7 @@ fn unload_chunk_request(
     });
 }
 
-fn load_column_queue(
+pub(crate) fn load_column_queue(
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
     mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
 ) {
@@ -189,7 +200,7 @@ fn load_column_queue(
     })
 }
 
-fn loading_column_queue(
+pub(crate) fn loading_column_queue(
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
     dims: Query<(&ChunkIndex, &DimensionTypeConfig)>,
     chunks: Query<Entity, With<ChunkLoaded>>,
@@ -199,39 +210,46 @@ fn loading_column_queue(
             return;
         };
         let section_count = type_config.section_count as i32;
-        loop {
-            let Some(col) = chunk_view.loading_queue.front().copied() else {
-                return;
-            };
-            if !chunk_view.desired_columns.contains(&col) {
-                chunk_view.loading_queue.pop_front();
-                continue;
+        let off = offset_sections(rep, type_config.min_y);
+        // A column that is still loading must not hold back the ones behind it: a column read
+        // from the save lands in a fraction of a millisecond while a generated one takes
+        // several ticks, and they share this queue.
+        let ColumnView {
+            loading_queue,
+            send_queue,
+            desired_columns,
+            ..
+        } = &mut *chunk_view;
+        loading_queue.retain(|&col| {
+            if !desired_columns.contains(&col) {
+                return false;
             }
-            // Check if all chunks in the column are loaded.
-            let off = offset_sections(rep, type_config.min_y);
             let mut chunks_entities = Vec::with_capacity(section_count as usize);
             for client_y in 0..section_count {
                 let server_y = client_y - off;
                 let pos = ChunkPos::new(col.x, server_y, col.z);
-                let Some(chunk_e) = chunk_index.get(pos) else {
-                    return;
-                };
-                if chunks.contains(chunk_e) {
-                    chunks_entities.push(chunk_e);
-                } else {
-                    return;
+                match chunk_index.get(pos) {
+                    Some(chunk_e) if chunks.contains(chunk_e) => chunks_entities.push(chunk_e),
+                    _ => return true,
                 }
             }
             trace!("Column {:?} loaded", col);
             column_trace::mark(col, ColumnStage::Ready);
-            chunk_view.loading_queue.pop_front();
-            chunk_view.send_queue.push_back((col, chunks_entities));
-        }
+            send_queue.push_back((col, chunks_entities));
+            false
+        });
     })
 }
 
-/// Maximum chunk columns to send per player per tick.
-const MAX_COL_SENDS_PER_TICK: usize = 10;
+/// Vanilla's `PlayerChunkSender` starts at nine chunks a tick and lets the client's batch
+/// acknowledgements raise it to this; nothing acknowledges here, so the ceiling is the rate
+/// and the bytes below are the brake.
+const MAX_COL_SENDS_PER_TICK: usize = 64;
+
+/// The bridge closes a socket whose blob passes its cap, so one pass of sends stays well
+/// inside it, light arrays counted: 64 columns closed one at 4.2 MB, and 4.6 MB with the light
+/// left out of the count.
+const MAX_COL_SEND_BYTES_PER_TICK: usize = mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET / 4;
 
 /// Chunk-load wire emit routed through the `OutboundPlayerPacket` bus.
 ///
@@ -239,7 +257,7 @@ const MAX_COL_SENDS_PER_TICK: usize = 10;
 /// byte-cap and drop-oldest policy own backpressure now. Only the count gate
 /// (`MAX_COL_SENDS_PER_TICK`) remains to throttle per-tick burst.
 /// Chunks are sent at Critical priority so they are never dropped by the bridge.
-fn send_column_queue(
+pub(crate) fn send_column_queue(
     mut players: Query<(&mut ColumnView, &Reposition, &InDimension, &HostAnchor)>,
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
@@ -258,9 +276,10 @@ fn send_column_queue(
                 .map(|config| config.section_count as usize + 2)
                 .unwrap_or(0);
             let mut sends = 0usize;
+            let mut sent_bytes = 0usize;
 
             loop {
-                if sends >= MAX_COL_SENDS_PER_TICK {
+                if sends >= MAX_COL_SENDS_PER_TICK || sent_bytes >= MAX_COL_SEND_BYTES_PER_TICK {
                     break;
                 }
 
@@ -311,6 +330,7 @@ fn send_column_queue(
                     // tight loop.
                     break;
                 }
+                sent_bytes += data.len();
 
                 let light_data = if crate::lighting_disabled() {
                     build_fullbright_light_data(wire_light_rows)
@@ -324,6 +344,10 @@ fn send_column_queue(
                         .map(|column_entity| build_full_light_data(column_entity, &codec_params))
                         .unwrap_or_default()
                 };
+
+                sent_bytes += (light_data.sky_light_arrays.len()
+                    + light_data.block_light_arrays.len())
+                    * std::mem::size_of::<mcrs_minecraft_protocol::chunk::LightChunk>();
 
                 let wire_pos = ColumnPos::new(
                     rep.convert_chunk_x(column_pos.x),

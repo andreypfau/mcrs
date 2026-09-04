@@ -1,3 +1,4 @@
+use bevy_ecs::schedule::ScheduleLabel;
 use std::sync::atomic::Ordering;
 
 use bevy_ecs::entity::Entity;
@@ -7,6 +8,11 @@ use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Query, Res, ResMut};
 use bevy_math::DVec3;
+
+/// Bridges the bus to the sockets and writes them: run in the tick's `FixedPostUpdate` and
+/// again between ticks, so a packet a dimension produced off the tick leaves at once.
+#[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OutboundFlush;
 
 /// FixedPostUpdate ordering for the three bridge stages.
 ///

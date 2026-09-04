@@ -48,6 +48,11 @@ pub struct DimInboxDrain;
 /// - No `SpawnScene` (we do not depend on `bevy_scene`).
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
+
+/// Takes the columns whose sections landed on to the wire: run at the end of every tick and
+/// again between ticks, so a column read from the save is not held for the next tick.
+#[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ColumnDrain;
 use crate::WorldSave;
 use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block::MinecraftBlockPlugin;
@@ -240,7 +245,34 @@ pub fn spawn_dim_subapp(
     );
 
     sub_app.add_systems(FixedPreUpdate, drain_to_dim_inbox.in_set(DimInboxDrain));
-    sub_app.add_systems(FixedLast, flush_from_dim_outbox);
+    sub_app.add_schedule(Schedule::new(ColumnDrain));
+    sub_app.add_systems(
+        ColumnDrain,
+        (
+            crate::world::chunk::process_completed_columns,
+            // The light packet walks the column index, which is rebuilt here rather than left
+            // to the tick: a column sent before its sections are in it goes out unlit.
+            mcrs_voxel_world::world::storage::column::reconcile_column_existence,
+            mcrs_voxel_world::world::storage::column::reconcile_column_chunks,
+            mcrs_voxel_world::entity::player::chunk_view::update_loading_queue,
+            crate::world::entity::player::column_view::load_chunk_request,
+            crate::world::entity::player::column_view::load_column_queue,
+            mcrs_voxel_world::world::lifecycle::ticket::spawn_chunks,
+            crate::world::chunk::enqueue_pending_columns,
+            crate::world::chunk::dispatch_column_generation.run_if(
+                bevy_ecs::prelude::resource_exists::<
+                    mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter,
+                >,
+            ),
+            crate::world::entity::player::column_view::loading_column_queue,
+            crate::world::entity::player::column_view::send_column_queue,
+            flush_from_dim_outbox,
+        )
+            .chain(),
+    );
+    sub_app.add_systems(FixedLast, |world: &mut World| {
+        world.run_schedule(ColumnDrain)
+    });
 
     sub_app.add_plugins(DimensionPlugin);
     // AssetPlugin and AppTypeRegistry must precede any plugin that calls
@@ -487,7 +519,7 @@ const FROM_DIM_DROP_LOG_INTERVAL: u64 = 256;
 /// dropped (clientbound packet loss is recoverable like network loss), but the
 /// loss is counted in `FROM_DIM_CHANNEL_DROP_TOTAL` and surfaced via a
 /// rate-limited warning so saturation is not silently invisible.
-fn flush_from_dim_outbox(
+pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
     sender: Res<FromDimSender<FromDim>>,
     mut dropped_since_log: Local<u64>,

@@ -74,13 +74,24 @@ impl Plugin for WorldPlugin {
             )
                 .chain(),
         );
+        app.add_schedule(bevy_ecs::schedule::Schedule::new(
+            crate::world::bridge::OutboundFlush,
+        ));
+        app.add_systems(
+            crate::world::bridge::OutboundFlush,
+            (
+                crate::world::bridge::bridge_outbound,
+                crate::world::bridge::dispatch_encode,
+            )
+                .chain(),
+        );
         app.add_systems(
             FixedPostUpdate,
             (
-                crate::world::bridge::bridge_outbound
-                    .in_set(crate::world::bridge::BridgeSet::Outbound),
-                crate::world::bridge::dispatch_encode
-                    .in_set(crate::world::bridge::BridgeSet::Dispatch),
+                (|world: &mut bevy_ecs::world::World| {
+                    world.run_schedule(crate::world::bridge::OutboundFlush)
+                })
+                .in_set(crate::world::bridge::BridgeSet::Outbound),
                 crate::world::bridge::bridge_inbound
                     .in_set(crate::world::bridge::BridgeSet::Inbound),
             ),
