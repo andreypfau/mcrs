@@ -138,6 +138,16 @@ pub fn scripted_flight() -> Option<f64> {
     }
 }
 
+/// `TURN=<seconds>` turns a scripted flight round once, that long after launch, so the way
+/// back over columns the server took back can be repeated exactly.
+pub fn turn_after() -> Option<f32> {
+    let spec = knob("TURN")?;
+    match spec.trim().parse::<f32>() {
+        Ok(seconds) if seconds > 0.0 => Some(seconds),
+        _ => reject("TURN", &spec, "expected seconds above zero"),
+    }
+}
+
 /// `RESOLUTION=<width>x<height>` opens a window of exactly that many pixels instead of the
 /// fullscreen one, so a frame can be priced at a stated pixel count.
 pub fn resolution() -> Option<(u32, u32)> {

@@ -22,6 +22,7 @@ writes the whole F3 line to the log every five seconds with the overlay hidden. 
 shape a scenario: `MCRS_SERVER=127.0.0.1:9` (no world, the floor), `MCRS_RESOLUTION=2560x1440`
 (windowed surface of that size), `MCRS_LATENCY=<frames>` (swapchain depth), `MCRS_SKY=`
 (no sky draws), `MCRS_LOOK=<yaw>,<pitch>` (aim the camera, kept through the join teleport),
+`MCRS_TURN=<seconds>` (turn a scripted flight round once),
 `MCRS_GPU_HOT=<workgroups>` (hold the GPU at speed, see the GPU frame section), `MCRS_FULLSCREEN=0`.
 Fullscreen lands on the primary monitor; a sized window is centred on it and stays on top, because
 a covered window is not presented and a frame that gets no swapchain texture is never drawn.
@@ -277,16 +278,25 @@ the p99, 0.2 on the max.
 | states listed at decode | 1.08 / 1.49 / 1.83 | 0.45 / 0.81 / 1.12 | 0.34 / 0.46 / 0.74 | 1501 columns, 4863 sections | 437 KB |
 | quantiles selected, not sorted | 1.09 / 1.45 / 2.03 | 0.45 / 0.78 / 0.90 | 0.35 / 0.46 / 0.52 | 1492 columns, 4730 sections | 399 KB |
 | same build, two more runs | 1.12 / 1.56 / 1.87 and 0.97 / 1.39 / 1.90 | | | | |
+| forget from the column view | 1.08 / 1.53 / 2.20 | 0.44 / 0.80 / 0.91 | 0.33 / 0.46 / 0.51 | 675 columns, 5236 sections | 0 to 450 KB |
 
 What was found, in order, with Tracy means over the settled part of a 70 s flight:
 
-- **The server never took a column back.** It computed the unload set and wrote the packets,
-  but aimed them at the dimension-local player entity, and the host stamps a session onto a
-  single-player packet by the player's host anchor and drops one it cannot stamp. Chunk loads
-  already used the anchor. With unloads arriving, residency in flight holds at about 1100 to
-  1500 columns instead of growing without bound (44 000 to 86 000 sections evicted per run),
-  the main-world median fell 0.63 to 0.43 ms, and the group-table re-upload that had saturated
-  the 4 MB belt every frame fell to 300 to 450 KB.
+- **The server never took a column back.** The area-of-interest system computed an unload set
+  and wrote forget packets, but aimed them at the dimension-local player entity, and the host
+  stamps a session onto a single-player packet by the player's host anchor and drops one it
+  cannot stamp. Aiming them at the anchor made the forgets arrive, and then a flight that turned
+  round came back to holes: that system unloads at the view radius while the column view sends
+  at one more and only clears its sent set when a column leaves its own view, so a column
+  between the two radii at the turn was forgotten by the client and never sent again, and the
+  eight around it could never be meshed. Vanilla's chunk map sends and drops from one view
+  diff, and so does this now: the forget goes out from the column view's unload path, the
+  area-of-interest system keeps its subscriptions only. Out and back at maximum speed
+  (`MCRS_TURN=30`), the client holds the view's 729 columns with 89% of their sections meshed,
+  where before the turn left 6% meshed. In a straight flight residency holds at 700 to 1500
+  columns instead of growing without bound (44 000 to 86 000 sections evicted per run), the
+  main-world median fell 0.63 to 0.43 ms, and the group-table re-upload that had saturated the
+  4 MB belt every frame fell to 300 to 450 KB.
 - **`stream::advance`** was 115 µs mean, 547 p99, 752 max, and `stream adopt` (once per
   arriving batch, every fourth frame) 248 mean, 461 p99, 549 max: it walked every block of
   every arriving column looking for states the catalog had not baked, 40 000 reads a column.
@@ -318,10 +328,13 @@ is not meshed until all eight neighbouring columns have arrived, and columns are
 radius 13 before the mesher reaches them, which reads as terrain filling in behind the horizon.
 That is throughput, not a frame cost.
 
-Screenshot: `docs/perf/m5-flight-2560x1440.png`, 82 s into the flight, over ocean.
+Screenshots: `docs/perf/m5-flight-2560x1440.png`, 82 s into the flight, over ocean;
+`docs/perf/m5-return-2560x1440.png`, 33 s after turning round, where the holes used to be.
 
-Gate: no settled flight frame over 2.0 ms in two of three runs (max 1.83, 1.87, 1.90); the
-third run's single worst frame read 2.03, which is inside the 0.2 ms spread on a maximum.
+Gate: the settled flight's worst frame read 1.83, 1.87, 1.90, 2.03 and 2.20 ms over five runs,
+with the main world's own worst frame under 0.95 in each; the frames over 2.0 carry about 0.5 ms
+outside the main world, the extract and the render stages, which the stage marks put in the
+prepare stage and Tracy has not yet named.
 Breaking and placing blocks cannot be measured: the client has no block-edit path, no handler
 for block-update packets and no input for it.
 

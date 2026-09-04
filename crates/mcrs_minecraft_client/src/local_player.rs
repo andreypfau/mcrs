@@ -121,7 +121,10 @@ impl LastSentMovement {
 }
 
 #[derive(Resource)]
-pub struct ScriptedFlight;
+pub struct ScriptedFlight {
+    pub turn_at: Option<f32>,
+    pub turned: bool,
+}
 
 /// The look a run asked for, kept through the teleports the server answers a join with.
 #[derive(Resource, Clone, Copy)]
@@ -227,7 +230,8 @@ fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), 
 fn fly(
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
-    scripted: Option<Res<ScriptedFlight>>,
+    scripted: Option<ResMut<ScriptedFlight>>,
+    time: Res<Time>,
     player: Single<
         (
             &mut Sprint,
@@ -239,7 +243,15 @@ fn fly(
     >,
 ) {
     let (mut sprint, mut velocity, mut transform, flying_speed) = player.into_inner();
-    let input = if scripted.is_some() {
+    let input = if let Some(mut scripted) = scripted {
+        if let Some(turn_at) = scripted.turn_at
+            && !scripted.turned
+            && time.elapsed_secs() >= turn_at
+        {
+            scripted.turned = true;
+            let rotation = transform.rotation;
+            transform.rotation = Rotation::new(rotation.yaw() + 180.0, rotation.pitch());
+        }
         Input {
             forward: true,
             sprint: true,

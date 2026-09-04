@@ -101,6 +101,9 @@ fn load_chunk_request(
     })
 }
 
+/// The forget goes out from the same view diff that sent the column, as vanilla's chunk map
+/// does, so what the client holds is exactly what the server counts as sent: a forget from any
+/// other radius leaves a column the server will never send again.
 fn unload_chunk_request(
     mut message: MessageReader<PlayerChunkUnloadRequest>,
     mut players: Query<(
@@ -108,11 +111,14 @@ fn unload_chunk_request(
         &InDimension,
         &Reposition,
         &PlayerChunkObserver,
+        &HostAnchor,
     )>,
     mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     message.read().for_each(|req| {
-        let Ok((mut chunk_view, in_dim, rep, observer)) = players.get_mut(req.player) else {
+        let Ok((mut chunk_view, in_dim, rep, observer, host_anchor)) = players.get_mut(req.player)
+        else {
             return;
         };
         let column_pos = ColumnPos::from(req.chunk_pos);
@@ -128,7 +134,20 @@ fn unload_chunk_request(
         }
         column_trace::forget(column_pos);
         chunk_view.desired_columns.remove(&column_pos);
-        chunk_view.sent_columns.remove(&column_pos);
+        if chunk_view.sent_columns.remove(&column_pos) {
+            packet_writer.write(OutboundPlayerPacket {
+                target: PacketTarget::SinglePlayer(host_anchor.0),
+                priority: PacketPriority::Critical,
+                data: PacketPayload::ChunkUnload {
+                    column: ColumnPos::new(
+                        rep.convert_chunk_x(column_pos.x),
+                        rep.convert_chunk_z(column_pos.z),
+                    ),
+                },
+                session: PlayerSession(0),
+                epoch: 0,
+            });
+        }
         if chunk_view.loaded_columns.remove(&column_pos)
             && let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity())
         {

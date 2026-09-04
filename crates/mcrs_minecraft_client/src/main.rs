@@ -227,7 +227,10 @@ fn main() {
     }
     let player = player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
     if let Some(speed) = config::scripted_flight() {
-        app.insert_resource(local_player::ScriptedFlight);
+        app.insert_resource(local_player::ScriptedFlight {
+            turn_at: config::turn_after(),
+            turned: false,
+        });
         app.world_mut()
             .entity_mut(player)
             .insert(mcrs_minecraft_world::entity::player::FlyingSpeed(speed));

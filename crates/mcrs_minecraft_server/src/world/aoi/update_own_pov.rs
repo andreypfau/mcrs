@@ -4,16 +4,12 @@
 //! as the subscription mutation — the AOI mirror invariant
 //! (`aoi_mirror_invariant.rs`) hinges on that atomicity.
 
-use std::sync::atomic::Ordering;
-
-use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Added, Changed, Commands, Entity, Or, Query, ResMut, With, Without};
 use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::world::dimension::InDimension;
 use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex};
 use rustc_hash::FxHashSet;
@@ -21,8 +17,6 @@ use smallvec::SmallVec;
 
 use crate::world::aoi::components::ChunkSubscriptionSet;
 use crate::world::aoi::probe::AoiTickProbe;
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
-use crate::world::entity::player::HostAnchor;
 
 #[cfg_attr(
     feature = "telemetry-tracy",
@@ -41,7 +35,6 @@ pub fn update_own_pov(
             &Transform,
             &PlayerViewDistance,
             &InDimension,
-            Option<&HostAnchor>,
             &mut ChunkSubscriptionSet,
         ),
         (
@@ -51,20 +44,14 @@ pub fn update_own_pov(
     >,
     mut observers: Query<&mut PlayerObservers, (With<Column>, Without<Player>)>,
     column_indices: Query<&ColumnIndex>,
-    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut commands: Commands,
 ) {
     probe.own_pov_ran = probe.own_pov_ran.saturating_add(1);
 
-    for (player, transform, view_distance, in_dim, host_anchor, mut subscriptions) in
-        players.iter_mut()
-    {
+    for (player, transform, view_distance, in_dim, mut subscriptions) in players.iter_mut() {
         let Ok(column_index) = column_indices.get(in_dim.0) else {
             continue;
         };
-        // The host stamps a session onto a packet by its anchor, and drops one aimed at a
-        // dimension-local entity.
-        let target = host_anchor.map_or(player, |anchor| anchor.0);
 
         let centre = ColumnPos::from(transform.translation);
         let radius = view_distance.distance as i32;
@@ -167,15 +154,6 @@ pub fn update_own_pov(
             if let Ok(mut obs) = observers.get_mut(slot.entity) {
                 obs.0.retain(|e| *e != player);
             }
-            packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(target),
-                priority: PacketPriority::Normal,
-                data: PacketPayload::ChunkUnload { column: *pos },
-                session: PlayerSession(0),
-                epoch: 0,
-            });
-            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                .fetch_add(1, Ordering::Relaxed);
         }
 
         subscriptions.0 = desired;
