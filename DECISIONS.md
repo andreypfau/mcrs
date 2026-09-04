@@ -153,3 +153,33 @@ One line each, with the numbers that justified it. Newest last.
 - **Dead section slots are swept through a set.** Every group was compared against a vector of
   dead slots, and a row leaving at once is 243 slots against 40 000 groups: the main world's
   worst settled frame at maximum speed was 10.7 ms, and is 0.95 with the set.
+- **The occlusion passes need resident groups, and `MCRS_OCCLUSION=0` turns the test off.**
+  The empty frame built the pyramid, ran the second cull and opened the second world pass for
+  nothing: 0.88 ms of engine time against 0.70 on the build before occlusion, measured back to
+  back; gated, 0.80. The knob prices the test at any distance: 0.11 ms of GPU to hide 1% of the
+  triangles at 12 columns, 6.0 to 3.7 ms of GPU frame at 96.
+- **Open: the indexed terrain draw.** `2d943bd4` took the index buffer out and draws six vertices
+  a quad again; the world pass at 96 columns reads 3.2 ms where the indexed draw read 2.3 on the
+  same view, the only GPU figure that moved. The index buffer costs 24 MB per million visible
+  slots, which at 96 columns is hundreds of megabytes; whether that memory buys the 0.9 ms back
+  is the owner's call and was not reversed here.
+- **A span carries no per-column field.** Tracy allots one source location per distinct name
+  and field set and stops at 32K; a span per column position ended a 96-column capture after
+  eight seconds.
+- **The meshing queue is bucketed by distance from a reference that follows the camera in steps
+  of eight sections, and a departed column's sections leave it.** Sorting it whole on every
+  arrival or eviction cost 4 to 18 ms a frame once it held 900 000 positions in flight at 96
+  columns; the flight's main-world p99 went 14.6 to 3.8 ms and its engine p99 15.5 to 5.6. The
+  order is exact to within a step; a first version that left each position in the bucket it was
+  queued in let the far edge shadow the near sections after a long flight.
+- **The headline render distance is 96 columns**, on the owner's word; 12 columns and the empty
+  frame are kept for the trend.
+- **The column store journals its changes, and a task takes the nine columns it reads.**
+  Adopting an arrival diffed and cloned the whole store: 1.74 ms mean and 10.9 max on every
+  other frame of a 96-column flight, 0.38 mean with the journal; the engine median in that
+  flight 2.36 to 1.56 ms. A column sent again now departs and arrives, so its old geometry no
+  longer outlives it.
+- **A derivative is never evaluated behind a short-circuit.** WebGPU's uniformity analysis
+  rejected the cutout finish's `fwidth` behind an `||`, and with it the whole terrain module and
+  every wireframe pipeline, and the web client quit on the validation error; naga on native
+  never objected.

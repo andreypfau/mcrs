@@ -524,6 +524,101 @@ schedule also logged itself once per frame in those four frames, which on native
 Until the browser build reaches a steady frame there is no floor to state for it; the numbers
 that will count there are the CPU stages and the GPU pass timestamps, never the FPS line.
 
+## Hardening
+
+Everything above re-measured on one build, in one session, in the 2560x1440 window, overlay
+hidden, `MCRS_HOT=1`, save `two-relight`. The default render distance is 96 columns and every
+headline figure is taken there; 12 columns and the empty frame are kept for the trend. A run
+is 60 s at the floor, 90 s at 12 columns, 300 s static at 96 (the view settles 160 s after
+launch with `MCRS_UPLOAD=32`) and 120 s in flight; figures are medians of the settled lines,
+p99 and max the median of the per-second p99 and max. The build at the start of the day is
+`e52647d5`.
+
+| scenario | engine median / p99 / max | main | extract | render | GPU cull / world / pyramid / second cull / second world | drawn tris (hidden) |
+|---|---|---|---|---|---|---|
+| floor, start of day | 0.88 / 1.09 / 1.09 | 0.31 | 0.11 | 0.29 | none / 0.31 / 0.22 / none / 0.45 | 0 |
+| floor, build before occlusion (`8026a767`) | 0.70 / 1.02 | 0.26 | 0.09 | 0.20 | none / 0.31 | 0 |
+| **floor, end of day** | **0.80 / 0.94 / 0.94** | 0.30 | 0.11 | 0.21 | none / 0.30 / none / none / none | 0 |
+| 12 columns, start of day, GPU at clock | 1.02 / 1.23 / 1.23 | 0.32 | 0.11 | 0.40 | 0.086 / 0.258 / 0.072 / 0.050 / 0.007 | 201 000 (2 400) |
+| 12 columns, build before occlusion | 1.00 / 1.40 | 0.40 | 0.11 | 0.31 | 0.058 / 0.302 | 227 000 |
+| 96 columns static, start of day, GPU at clock | 1.12 / 1.34 / 1.35 | 0.33 | 0.12 | 0.45 | 0.494 / 3.20 / 0.074 / 0.304 / 0.007 | 7 350 000 (7 960 000) |
+| **96 columns static, end of day** | **1.12 / 1.33 / 1.33** | 0.33 | 0.12 | 0.45 | 0.48 / 3.3 / 0.074 / 0.29 / 0.007 | 7 380 000 (8 020 000) |
+| 96 columns static, `MCRS_OCCLUSION=0` | 1.00 / 1.20 / 1.20 | 0.33 | 0.12 | 0.34 | 0.46 / 6.0 | 15 400 000 |
+| 96 columns, flight at maximum speed, start of day | 1.97 / 15.5 / 15.5 | 0.48 / 14.6 p99 | 0.18 | 0.58 | at the display's clock | 280 000 |
+| 96 columns, flight at maximum speed, queue bucketed | 2.36 / 5.6 / 6.2 | 0.52 / 3.8 p99 / 4.9 max | 0.18 | 0.59 | at the display's clock | 184 000 |
+| **96 columns, flight at maximum speed, end of day** | **1.56 / 5.0 / 5.9** | 0.47 / 4.0 p99 / 4.5 max | 0.17 | 0.58 | at the display's clock | 208 000 |
+| 96 columns, out and back (`MCRS_TURN=45`), end of day | 1.44 / 5.0 / 5.5 | 0.44 / 4.0 p99 | 0.17 | 0.55 | at the display's clock | 436 000 |
+
+What was found, in the order it was taken:
+
+- **The tree did not build.** `HEAD` referenced the depth pyramid, its shader and the App Nap
+  opt-out, and none of the three was committed. They are now.
+- **The empty frame paid for occlusion.** With nothing resident the frame still built the
+  pyramid, ran the second cull and opened the second world pass: 0.88 ms of engine time
+  against 0.70 on the build before occlusion, measured back to back in the same window, and
+  0.7 ms of GPU passes at the display's clock. The passes now need resident groups:
+  0.80 / 0.94 ms, render stage 0.29 to 0.21. What is left over the older build, 0.1 ms, sits
+  inside the 0.2 ms spread on the main world. `MCRS_OCCLUSION=0` prices the test at any
+  distance: at 12 columns it hides 1% of the triangles for 0.11 ms of GPU and 0.09 of CPU; at
+  96 it takes the GPU frame from 6.0 to 3.7 ms.
+- **The world pass at 96 columns reads 3.2 ms where 2.3 was recorded.** The indexed draw
+  went out in `2d943bd4` (quads are six vertices again, the index buffer with them), after the
+  2.3 ms was taken; every other GPU figure in that view is unchanged to 0.01 ms. See the open
+  question in DECISIONS.md.
+- **Tracy could not capture a 96-column run.** The server named a span per column position,
+  and Tracy allots one source location per distinct name and field set: 32K ran out eight
+  seconds into a flight and the capture ended. The span lost its fields.
+- **The meshing queue was sorted whole on every change.** In flight at 96 columns it held up
+  to 900 000 positions, since nothing dropped a section whose column the server had taken
+  back, and any arrival or eviction re-sorted it by distance: `stream admit` ran over 4 ms in
+  2 603 of the 85 s capture's frames, 18 ms at most, and the main world read 10 to 20 ms once
+  a second. The queue is now bucketed by how many sections a position lies from a reference
+  that follows the camera in steps of eight, a departed column's sections leave it, and an
+  admission pops the nearest bucket: engine p99 15.5 to 5.6 ms, main-world p99 14.6 to 3.8.
+  A first version kept each position in the bucket it was queued in and only moved it when
+  it surfaced; after a long flight the near sections sat behind the far edge, nothing near
+  the camera was meshed and the ground drew as scattered fragments for 40 s.
+- **The Metal capture trigger scanned the queue every frame** to know whether the world had
+  settled, whichever the run had asked for. It scans only with a trace path set.
+- **Adopting an arrival cost what was resident.** With the sort gone, `stream adopt` was the
+  flight's next zone: 1.74 ms mean and 10.9 max on every other frame, since it diffed the whole
+  store against the columns it knew and then cloned the store, 38 000 columns each way, for the
+  mesh tasks. The store now journals each arrival and departure and the loader drains that; a
+  mesh or tint task takes the column it works on and the eight around it by `Arc` instead of a
+  snapshot of the store. Adopt 0.38 ms mean, engine median in flight 2.36 to 1.56 ms.
+- **What is left in the flight frame**, Tracy over 85 s of it after all of the above: the queue
+  rebucket, 3.4 ms at the p99 of `stream admit` and 4.7 at most, once every eight sections of
+  travel; and adopt at 9.8 ms at most, 24 frames over 1.5 ms, when a batch of hundreds of
+  columns lands in one frame and each brings 216 sections to queue and hundreds to evict. The
+  first wants the rebucket off the frame or per bucket; the second wants the adoption bounded
+  per frame the way admission is. Neither was taken today.
+- **The static view hitches once.** A settled 96-column run shows one main-world frame of 19 to
+  20 ms about four minutes in, in two runs out of three; no capture covered it and it is not
+  named.
+- **The web build quit on its first terrain pipeline.** Chrome rejected the terrain shader
+  module: the cutout finish evaluated the wireframe test behind a short-circuit `||`, which put
+  the `fwidth` inside it in non-uniform control flow, and since the three fragment entries share
+  one module every wireframe pipeline failed and Bevy quit the app on the validation error.
+  Native naga accepts it. The test is now taken before the condition, and the page draws the
+  sky and the clouds; it then stops at that frame, with no stats line in 45 s and the same
+  clouds in three screenshots, which is the start-up stall recorded under Web. The web target
+  is still not measurable.
+
+Chunk delivery at 96 columns, `Hops p50 ms` on the last line of the flight: spawn 1, queue 0,
+gen 32, load 19, ready 21, sent 1, received 29, meshed 272 over 8 167 columns on screen, where
+the build at the start of the day read 12 905 ms to mesh over 7 192.
+
+Screenshots: `docs/perf/m7-96-2560x1440.png`, the settled static view 280 s in, at dusk since
+the clock ran from the save's evening; `docs/perf/m7-flight-2560x1440.png`, 110 s into the
+flight at maximum speed.
+
+Gates, as they stand at 96 columns: the static engine frame is 1.12 ms at the median and
+1.33 at the worst second, so the CPU sits at the goal and inside the ceiling, with the one
+unnamed 20 ms frame above; the GPU frame is 3.7 ms, over the ceiling as the render distance
+section already records, and 0.9 of that is the indexed draw's absence; the flight's worst second is 5 to
+6 ms of engine time with the main world at 4 to 4.5, over the ceiling, where it was 15 to 20
+at the start of the day, and the two zones that remain are named above.
+
 ## Findings not yet acted on
 
 - The client is built without Bevy's `multi_threaded` feature: the ECS runs on the
