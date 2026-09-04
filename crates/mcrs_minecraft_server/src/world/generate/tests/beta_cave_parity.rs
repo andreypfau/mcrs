@@ -5,14 +5,14 @@ use bevy_asset::Assets;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_decoration::carver::WorldCarver;
+use mcrs_minecraft_decoration::carver::cave::CaveWorldCarver;
+use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
-use mcrs_minecraft_decoration::carver::WorldCarver;
-use mcrs_minecraft_decoration::carver::cave::CaveWorldCarver;
-use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
@@ -346,7 +346,6 @@ fn make_beta_biome() -> Biome {
         attributes: Default::default(),
     }
 }
-
 
 fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let mut assets = Assets::<Biome>::default();

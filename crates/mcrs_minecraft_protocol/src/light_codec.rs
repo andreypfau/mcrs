@@ -173,18 +173,20 @@ fn unpack_layer(
     let mut taken = 0usize;
     let layer = (0..rows)
         .map(|bit_idx| {
-            Ok(match (bit_is_set(mask, bit_idx), bit_is_set(empty_mask, bit_idx)) {
-                (true, true) => bail!("row {bit_idx} is both populated and empty"),
-                (true, false) => {
-                    let chunk = *arrays
-                        .get(taken)
-                        .with_context(|| format!("row {bit_idx} has no payload"))?;
-                    taken += 1;
-                    RowLight::Filled(chunk)
-                }
-                (false, true) => RowLight::Empty,
-                (false, false) => RowLight::Unchanged,
-            })
+            Ok(
+                match (bit_is_set(mask, bit_idx), bit_is_set(empty_mask, bit_idx)) {
+                    (true, true) => bail!("row {bit_idx} is both populated and empty"),
+                    (true, false) => {
+                        let chunk = *arrays
+                            .get(taken)
+                            .with_context(|| format!("row {bit_idx} has no payload"))?;
+                        taken += 1;
+                        RowLight::Filled(chunk)
+                    }
+                    (false, true) => RowLight::Empty,
+                    (false, false) => RowLight::Unchanged,
+                },
+            )
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
 

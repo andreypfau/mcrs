@@ -608,8 +608,7 @@ pub fn apply_beta_surface(
 
             let climate_x = block_x + x_local;
             let climate_z = block_z + z_local;
-            let (temp, humidity) =
-                noise_router.sample_beta_climate(&mut ws, climate_x, climate_z);
+            let (temp, humidity) = noise_router.sample_beta_climate(&mut ws, climate_x, climate_z);
             let biome_land: BetaLandBiome = if let Some(table) = beta_lookup {
                 beta_biome_from_climate(table, temp, humidity)
             } else {

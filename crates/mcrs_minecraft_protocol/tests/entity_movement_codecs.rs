@@ -2,12 +2,12 @@
 //! field rather than in front of the steps, so these two packets carry
 //! hand-written codecs that the derive cannot express.
 
+use bevy_math::DVec3;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
     DeltaStep, PositionPath, PositionStep, VecDelta,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, Look, VarInt};
-use bevy_math::DVec3;
 
 fn round_trip<'a, P: Encode + Decode<'a> + std::fmt::Debug>(packet: &P, buf: &'a mut Vec<u8>) -> P {
     packet.encode(&mut *buf).expect("encode");
@@ -57,7 +57,10 @@ fn stepped_move_entity_pos_rot_round_trips() {
     assert!(!decoded.on_ground);
     assert_eq!(decoded.y_rot.0, 64);
     assert_eq!(decoded.x_rot.0, 200);
-    assert_eq!(buf[1], 4, "step count must be packed above the on-ground bit");
+    assert_eq!(
+        buf[1], 4,
+        "step count must be packed above the on-ground bit"
+    );
 }
 
 #[test]

@@ -9,8 +9,8 @@ use bevy_asset::{
 };
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Local, Res, Resource};
 use bevy_reflect::TypePath;
-use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::asset::read_all;
 use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;

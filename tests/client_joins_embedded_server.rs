@@ -56,7 +56,10 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     assert_eq!(profile.username, "mcrs_test");
     assert_eq!(profile.id, offline_player_uuid("mcrs_test"));
 
-    assert_eq!(*world.get::<ConnectionState>(connection).unwrap(), ConnectionState::Game);
+    assert_eq!(
+        *world.get::<ConnectionState>(connection).unwrap(),
+        ConnectionState::Game
+    );
 
     let registries = world.get::<ReceivedRegistries>(connection).unwrap();
     assert_eq!(registries.0.len(), 29, "registry packet count");

@@ -1,10 +1,10 @@
-use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::atlas::SpriteRef;
 use crate::blocks::{BlockInfo, Fluid, Pass, TintKind};
 use crate::pack::{
     FACE_AO, FACE_ARRAY, FACE_BLOCK_LIGHT, FACE_FLUID, FACE_LAYER, FACE_NONE, FACE_SKY_LIGHT,
     FACE_TINT, FLUID_INSET, MODEL_STEPS,
 };
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 
 use super::model::{self, SHADE_DOWN, SHADE_EAST_WEST, SHADE_NORTH_SOUTH, SHADE_UP, UNGROUPED};
 use super::scratch::{
@@ -460,14 +460,14 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
 #[cfg(test)]
 mod tests {
     use super::{FLUID_FULL, SIDE_CORNERS, drop_steps, side_corner_xz};
-    use crate::pack::FLUID_INSET;
     use crate::atlas::SpriteRef;
     use crate::bake::Dir;
     use crate::blocks::{BlockInfo, CubeFace, Fluid, Pass};
     use crate::mesh::model::fixed;
     use crate::mesh::{Scratch, mesh_world, one_section_world};
-    use mcrs_minecraft_network::columns::SECTION_SIZE;
+    use crate::pack::FLUID_INSET;
     use crate::pack::{FACE_LAYER, MODEL_STEPS, QUAD_DROP, QUAD_FACE, QUAD_H, QUAD_W};
+    use mcrs_minecraft_network::columns::SECTION_SIZE;
 
     fn water(amount: u8) -> Fluid {
         Fluid {

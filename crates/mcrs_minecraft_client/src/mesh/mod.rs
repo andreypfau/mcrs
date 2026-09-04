@@ -5,9 +5,9 @@ mod model;
 mod scratch;
 mod sweep;
 
-use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE};
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::QUAD_WORDS;
+use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
 pub use scratch::Scratch;

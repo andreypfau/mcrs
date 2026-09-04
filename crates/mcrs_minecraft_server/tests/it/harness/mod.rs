@@ -8,7 +8,6 @@
 
 #![allow(dead_code)]
 
-
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate};
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;

@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use bevy_asset::io::AssetSourceId;
 use bevy_asset::AssetServer;
+use bevy_asset::io::AssetSourceId;
 use bevy_tasks::block_on;
 
 use super::data::{EnchantmentData, ProtoEnchantmentData};

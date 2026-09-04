@@ -102,6 +102,6 @@ mod loop_plugin {
     }
 }
 #[cfg(not(target_family = "wasm"))]
-pub use loop_plugin::RunEventLoop;
-#[cfg(not(target_family = "wasm"))]
 pub(crate) use loop_plugin::EventLoopPlugin;
+#[cfg(not(target_family = "wasm"))]
+pub use loop_plugin::RunEventLoop;

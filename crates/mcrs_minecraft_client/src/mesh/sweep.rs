@@ -1,9 +1,9 @@
-use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{
     QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y,
     QUAD_Z,
 };
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 
 use super::Sink;
 use super::scratch::{Columns, Scratch, column_index, face_axis};
@@ -193,9 +193,7 @@ mod tests {
     fn the_face_runs_of_a_batch_tile_it_exactly() {
         const TEST_BLOCK: u16 = 37;
         let world = one_section_world(|_, _, _| TEST_BLOCK);
-        let mut blocks: Vec<BlockInfo> = (0..=TEST_BLOCK)
-            .map(|_| BlockInfo::default())
-            .collect();
+        let mut blocks: Vec<BlockInfo> = (0..=TEST_BLOCK).map(|_| BlockInfo::default()).collect();
         blocks[TEST_BLOCK as usize].cube = Some(
             [CubeFace {
                 sprite: SpriteRef { array: 1, layer: 7 },

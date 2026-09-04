@@ -1,10 +1,10 @@
+use crate::asset::read_all;
 use crate::resource_location::ResourceLocation;
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
-use crate::asset::read_all;
 
 /// A single entry in a Minecraft tag file.
 #[derive(Debug)]

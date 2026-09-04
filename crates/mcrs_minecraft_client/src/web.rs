@@ -6,16 +6,18 @@ use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_world::environment::Weather;
-use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
+use mcrs_minecraft_world::environment::Weather;
+use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
 
 use bevy::camera::visibility::VisibilitySystems;
 
 use crate::config::TerrainLimits;
 use crate::render::TerrainPlugin;
-use crate::{camera, cave, config, gui, input, local_player, player, render, sky, sky_render, stream};
+use crate::{
+    camera, cave, config, gui, input, local_player, player, render, sky, sky_render, stream,
+};
 
 pub const CANVAS: &str = "#mcrs";
 
@@ -141,7 +143,10 @@ pub fn run() {
         .insert_resource(config::raster_fraction())
         .insert_resource(cave)
         .insert_resource(loader)
-        .add_systems(Update, (stream::advance, cave::toggle, render::toggle_wireframe))
+        .add_systems(
+            Update,
+            (stream::advance, cave::toggle, render::toggle_wireframe),
+        )
         .add_systems(
             PostUpdate,
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),

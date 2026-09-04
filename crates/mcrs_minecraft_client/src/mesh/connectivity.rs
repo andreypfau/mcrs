@@ -304,7 +304,11 @@ mod tests {
                 });
                 let loose = undirected(&occludes);
                 for (held, mask) in connectivity(&occludes).into_iter().enumerate() {
-                    assert_eq!(mask & !loose, 0, "flood {held} at {percent}% seed {seed} escaped");
+                    assert_eq!(
+                        mask & !loose,
+                        0,
+                        "flood {held} at {percent}% seed {seed} escaped"
+                    );
                 }
             }
         }

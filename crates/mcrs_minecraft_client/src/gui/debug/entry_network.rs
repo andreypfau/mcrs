@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{ChunkCacheRadius, ClientConnection, JoinedGame, ServerProfile};
+use mcrs_minecraft_network::client::{
+    ChunkCacheRadius, ClientConnection, JoinedGame, ServerProfile,
+};
 use mcrs_minecraft_network::columns::ColumnStore;
 
 use super::DebugScreenDisplayer;

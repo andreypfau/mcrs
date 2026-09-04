@@ -134,7 +134,10 @@ const GROUPS: &[(&str, &[(&str, Field)])] = &[
 
 #[cfg(test)]
 const FLOATS: &[(&str, f32)] = &[
-    ("SECTION_SIZE", mcrs_minecraft_network::columns::SECTION_SIZE as f32),
+    (
+        "SECTION_SIZE",
+        mcrs_minecraft_network::columns::SECTION_SIZE as f32,
+    ),
     ("MODEL_OVERHANG", MODEL_OVERHANG),
     ("MODEL_STEPS", MODEL_STEPS),
     ("FLUID_INSET", FLUID_INSET),

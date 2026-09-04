@@ -1808,7 +1808,8 @@ mod tests {
             &std::fs::read(assets().join("noise_settings/overworld.json")).unwrap(),
         )
         .unwrap();
-        let router = build_router(&settings, &functions, &noises, 42, VoxelId(1), VoxelId(2)).unwrap();
+        let router =
+            build_router(&settings, &functions, &noises, 42, VoxelId(1), VoxelId(2)).unwrap();
 
         let failed: Vec<&str> = router
             .failed_roots()
@@ -1845,7 +1846,8 @@ mod tests {
             &std::fs::read(assets().join("noise_settings/overworld.json")).unwrap(),
         )
         .unwrap();
-        let router = build_router(&settings, &functions, &noises, 42, VoxelId(1), VoxelId(2)).unwrap();
+        let router =
+            build_router(&settings, &functions, &noises, 42, VoxelId(1), VoxelId(2)).unwrap();
 
         let volume = Volume::new(
             IVec3::new(5, 3, 5),

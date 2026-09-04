@@ -7,10 +7,10 @@ pub mod clientbound {
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::text::Text;
     use crate::{ColumnPos, Look, LpVec3, PositionFlag, Slot, VarInt};
+    use crate::{Decode as _, Encode as _};
     use bevy_math::DVec3;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_protocol::{BlockStateId, ByteAngle};
-    use crate::{Decode as _, Encode as _};
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;

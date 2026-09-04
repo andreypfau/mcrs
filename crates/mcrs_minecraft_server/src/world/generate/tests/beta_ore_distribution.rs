@@ -2,11 +2,11 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_decoration::feature::OreFeature;
+use mcrs_minecraft_decoration::feature::config::{OreConfig, OreYOffset, TargetBlockState};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_decoration::feature::OreFeature;
-use mcrs_minecraft_decoration::feature::config::{OreConfig, OreYOffset, TargetBlockState};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 use rand_xoshiro::rand_core::{Infallible, TryRng};

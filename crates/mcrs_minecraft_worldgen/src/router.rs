@@ -399,7 +399,12 @@ impl NoiseRouter {
     }
 
     /// Temperature and vegetation at one block column.
-    pub fn sample_beta_climate(&self, ws: &mut Workspace, block_x: i32, block_z: i32) -> (f32, f32) {
+    pub fn sample_beta_climate(
+        &self,
+        ws: &mut Workspace,
+        block_x: i32,
+        block_z: i32,
+    ) -> (f32, f32) {
         let volume = Volume::point(IVec3::new(block_x, 0, block_z));
         let mut values = [0.0f32; 2];
         self.fill_roots(

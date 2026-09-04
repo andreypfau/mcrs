@@ -1,10 +1,10 @@
-use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::atlas::SpriteRef;
 use crate::blocks::{BlockInfo, Pass};
 use crate::pack::{
     FACE_NONE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SHADE,
     MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
 };
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 
 use super::Sink;
 use super::face_normal;
@@ -151,18 +151,16 @@ mod tests {
     use crate::atlas::SpriteRef;
     use crate::blocks::{BlockInfo, ModelQuad, Pass};
     use crate::mesh::{Scratch, mesh_world, one_section_world};
-    use mcrs_minecraft_network::columns::{SECTION_SIZE, SECTION_VOLUME};
     use crate::pack::{MODEL_OVERHANG, MODEL_STEPS};
     use bevy::math::Vec3;
+    use mcrs_minecraft_network::columns::{SECTION_SIZE, SECTION_VOLUME};
 
     #[test]
     fn the_model_mesher_names_blocks_in_the_worlds_numbering() {
         const TEST_BLOCK: u16 = 37;
         let world = one_section_world(|_, _, _| TEST_BLOCK);
 
-        let mut blocks: Vec<BlockInfo> = (0..=TEST_BLOCK)
-            .map(|_| BlockInfo::default())
-            .collect();
+        let mut blocks: Vec<BlockInfo> = (0..=TEST_BLOCK).map(|_| BlockInfo::default()).collect();
         blocks[TEST_BLOCK as usize].quads = vec![ModelQuad {
             positions: [Vec3::ZERO; 4],
             uvs: [[0.0; 2]; 4],

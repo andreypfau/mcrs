@@ -90,8 +90,11 @@ fn generate_column_beta_biome_not_default() {
         lookup: Box::new(build_beta_lookup_table()),
     };
 
-    let (temp_0, hum_0) =
-        router.sample_beta_climate(&mut mcrs_minecraft_worldgen::program::Workspace::new(), 0, 0);
+    let (temp_0, hum_0) = router.sample_beta_climate(
+        &mut mcrs_minecraft_worldgen::program::Workspace::new(),
+        0,
+        0,
+    );
 
     // Ocean biome id for (temp_0, hum_0) at below-sea-level cell.
     let ocean_asset_id = biome_source.beta_biome_id(temp_0, hum_0, true);

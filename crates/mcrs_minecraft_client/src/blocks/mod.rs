@@ -276,9 +276,12 @@ mod tests {
             let key = state_key(corpus, id);
             assert_eq!(key.name, "minecraft:oak_slab");
             assert_eq!(key.props.len(), slab.properties.0.len());
-            let walked = key.props.iter().try_fold(slab.base_state_id, |at, (property, value)| {
-                slab.with_text(at, property, value)
-            });
+            let walked = key
+                .props
+                .iter()
+                .try_fold(slab.base_state_id, |at, (property, value)| {
+                    slab.with_text(at, property, value)
+                });
             assert_eq!(
                 walked,
                 Some(BlockStateId(id)),

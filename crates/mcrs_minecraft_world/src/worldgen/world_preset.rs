@@ -4,8 +4,8 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_ecs_macros::Resource;
 use bevy_reflect::TypePath;
-use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_core::asset::read_all;
 use serde::Deserialize;
 
 use crate::dimension::level_stem::{DimensionDefinition, ProtoDimensionEntry};

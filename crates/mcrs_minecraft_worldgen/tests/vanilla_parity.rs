@@ -1,11 +1,11 @@
 use bevy_math::IVec3;
-use mcrs_voxel_storage::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::compile::build_router;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
 use mcrs_minecraft_worldgen::router::{GeneratorSettings, NoiseRouter, ROOT_NAMES};
 use mcrs_minecraft_worldgen::volume::Volume;
+use mcrs_voxel_storage::VoxelId;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -141,15 +141,8 @@ fn overworld_router(seed: u64) -> NoiseRouter {
     let registry: BTreeMap<ResourceLocation, DensityFunctionHolder> =
         load("minecraft/worldgen/density_function");
     let noises: BTreeMap<ResourceLocation, NoiseParam> = load("minecraft/worldgen/noise");
-    build_router(
-        &settings,
-        &registry,
-        &noises,
-        seed,
-        VoxelId(1),
-        VoxelId(2),
-    )
-    .expect("overworld router")
+    build_router(&settings, &registry, &noises, seed, VoxelId(1), VoxelId(2))
+        .expect("overworld router")
 }
 
 fn fill(router: &NoiseRouter, root: usize, v: &DumpVolume) -> Vec<f32> {

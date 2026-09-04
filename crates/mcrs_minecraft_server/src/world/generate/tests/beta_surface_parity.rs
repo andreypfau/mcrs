@@ -266,7 +266,8 @@ fn column_matches(
 
     // Biome check: sample climate at the geographic position and resolve via the
     // quantized 64x64 table, matching back2beta's getBiomeFromLookup.
-    let (temp, humidity) = router.sample_beta_climate(&mut Workspace::new(), fixture.wx, fixture.wz);
+    let (temp, humidity) =
+        router.sample_beta_climate(&mut Workspace::new(), fixture.wx, fixture.wz);
     let gen_biome = beta_biome_from_climate(table, temp, humidity);
     let gen_back2beta_id = beta_land_biome_to_back2beta_id(gen_biome);
     let biome_mismatch = if gen_back2beta_id != fixture.biome_id {
@@ -307,7 +308,6 @@ fn make_beta_biome() -> Biome {
         attributes: Default::default(),
     }
 }
-
 
 fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let mut assets = Assets::<Biome>::default();

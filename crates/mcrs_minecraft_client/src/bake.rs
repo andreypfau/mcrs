@@ -640,7 +640,10 @@ mod tests {
                 "default uv derivation for {dir:?}"
             );
             let normal = (q.positions[1] - q.positions[0]).cross(q.positions[2] - q.positions[0]);
-            assert!(normal.dot(dir.normal().as_vec3()) > 0.0, "winding of {dir:?}");
+            assert!(
+                normal.dot(dir.normal().as_vec3()) > 0.0,
+                "winding of {dir:?}"
+            );
             assert_eq!(q.cull, Some(dir));
         }
 

@@ -65,7 +65,9 @@ impl ByteStream for SessionStream<BiStream> {
     }
 }
 
-pub(crate) fn bind(address: SocketAddr) -> anyhow::Result<(Endpoint<Server>, SocketAddr, [u8; 32])> {
+pub(crate) fn bind(
+    address: SocketAddr,
+) -> anyhow::Result<(Endpoint<Server>, SocketAddr, [u8; 32])> {
     let identity = Identity::self_signed(["localhost", "127.0.0.1", "::1"])?;
     let certificate_hash = *identity.certificate_chain().as_slice()[0].hash().as_ref();
     let config = ServerConfig::builder()
@@ -74,7 +76,10 @@ pub(crate) fn bind(address: SocketAddr) -> anyhow::Result<(Endpoint<Server>, Soc
         .build();
     let endpoint = Endpoint::server(config)?;
     let bound = endpoint.local_addr()?;
-    let hex: String = certificate_hash.iter().map(|b| format!("{b:02x}")).collect();
+    let hex: String = certificate_hash
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
     info!("WebTransport listening on {bound} (certificate hash {hex})");
     Ok((endpoint, bound, certificate_hash))
 }

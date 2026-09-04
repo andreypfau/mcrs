@@ -54,9 +54,13 @@ pub async fn connect(target: &WebTransportTarget) -> anyhow::Result<BrowserStrea
     options.set_server_certificate_hashes(&[hash]);
 
     let transport = WebTransport::new_with_options(&target.url, &options).map_err(js_error)?;
-    JsFuture::from(transport.ready())
-        .await
-        .map_err(|e| anyhow!("WebTransport to {} never became ready: {}", target.url, js(e)))?;
+    JsFuture::from(transport.ready()).await.map_err(|e| {
+        anyhow!(
+            "WebTransport to {} never became ready: {}",
+            target.url,
+            js(e)
+        )
+    })?;
 
     let stream = JsFuture::from(transport.create_bidirectional_stream())
         .await

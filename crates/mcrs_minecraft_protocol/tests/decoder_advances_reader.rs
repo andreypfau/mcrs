@@ -3,13 +3,13 @@
 //! chat components each used to leave the reader where they found it, or to
 //! swallow the whole remaining buffer.
 
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundRegistryData;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
 use mcrs_minecraft_protocol::registry::Holder;
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_nbt::compound::NbtCompound;
 
 fn compound(name: &str, value: i32) -> NbtCompound {
     let mut c = NbtCompound::new();

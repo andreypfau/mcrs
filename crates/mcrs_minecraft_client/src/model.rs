@@ -484,17 +484,20 @@ mod tests {
 
     #[test]
     fn a_condition_matches_alternatives_and_bare_values() {
-        let when: Condition = serde_json::from_str(
-            r#"{"facing": "north|east", "powered": true, "delay": 3}"#,
-        )
-        .expect("a when clause parses");
+        let when: Condition =
+            serde_json::from_str(r#"{"facing": "north|east", "powered": true, "delay": 3}"#)
+                .expect("a when clause parses");
 
         assert!(when.matches(&[("facing", "east"), ("powered", "true"), ("delay", "3")]));
         assert!(when.matches(&[("facing", "north"), ("powered", "true"), ("delay", "3")]));
         assert!(!when.matches(&[("facing", "south"), ("powered", "true"), ("delay", "3")]));
         assert!(!when.matches(&[("facing", "north"), ("powered", "false"), ("delay", "3")]));
         assert!(!when.matches(&[("facing", "north"), ("powered", "true"), ("delay", "4")]));
-        assert!(!when.matches(&[("facing", "north|east"), ("powered", "true"), ("delay", "3")]));
+        assert!(!when.matches(&[
+            ("facing", "north|east"),
+            ("powered", "true"),
+            ("delay", "3")
+        ]));
     }
 
     #[test]

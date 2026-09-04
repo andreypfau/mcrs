@@ -199,4 +199,3 @@ impl Drop for ServerSideConnection {
         let _ = self.flush();
     }
 }
-

@@ -181,7 +181,10 @@ pub fn column_sections(
 pub type SectionData = (BlockPalette, BiomePalette, BlockLight, SkyLight);
 
 fn block_light(section: &Section) -> BlockLight {
-    BlockLight(saved_light(section.block_light.as_ref(), LightStorage::Empty))
+    BlockLight(saved_light(
+        section.block_light.as_ref(),
+        LightStorage::Empty,
+    ))
 }
 
 fn sky_light(section: &Section) -> SkyLight {

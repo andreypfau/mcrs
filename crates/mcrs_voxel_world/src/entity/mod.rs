@@ -12,8 +12,8 @@ use bevy_ecs::prelude::{
     IntoScheduleConfigs, Local, On, ParallelCommands, Query, Ref, With, Without,
 };
 use bevy_ecs::relationship::RelationshipSourceCollection;
-use mcrs_voxel_math::ChunkPos;
 use bevy_platform::time::Instant;
+use mcrs_voxel_math::ChunkPos;
 
 pub mod despawn;
 pub mod physics;

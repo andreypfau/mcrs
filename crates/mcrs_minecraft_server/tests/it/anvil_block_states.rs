@@ -3,16 +3,16 @@ use std::sync::OnceLock;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
+use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_server::world::format::anvil::{CorpusBlockStates, column_sections};
 use mcrs_minecraft_world::biome::Biome;
-use mcrs_voxel_light::storage::LightStorage;
 use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 use mcrs_minecraft_world::block::definition::{
     BlockDefinitions, BlockEntry, load_block_definitions,
 };
+use mcrs_voxel_light::storage::LightStorage;
 
 fn corpus() -> &'static BlockDefinitions {
     static CORPUS: OnceLock<BlockDefinitions> = OnceLock::new();
@@ -342,7 +342,9 @@ fn a_value_the_block_does_not_declare_is_a_loud_error() {
 #[test]
 fn a_property_the_entry_leaves_out_keeps_its_default_value() {
     let corpus = corpus();
-    let stairs = corpus.block("minecraft:oak_stairs").expect("the corpus has stairs");
+    let stairs = corpus
+        .block("minecraft:oak_stairs")
+        .expect("the corpus has stairs");
     let default = stairs.default_state_id;
     let facing_north = stairs
         .with_text(default, "facing", "north")
@@ -352,10 +354,7 @@ fn a_property_the_entry_leaves_out_keeps_its_default_value() {
         0,
         vec![
             entry("minecraft:oak_stairs", &[]),
-            entry(
-                "minecraft:oak_stairs",
-                &[("facing", "north".to_string())],
-            ),
+            entry("minecraft:oak_stairs", &[("facing", "north".to_string())]),
         ],
     )])
     .expect("a partial property set resolves");

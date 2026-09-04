@@ -215,8 +215,8 @@ mod test {
     use crate::nbt_int_array;
     use crate::nbt_long_array;
     use crate::serializer::to_bytes;
-    use crate::{Nbt, compound, tag};
     use crate::serializer::to_bytes_named;
+    use crate::{Nbt, compound, tag};
     use crate::{deserializer::from_bytes_unnamed, serializer::to_bytes_unnamed};
     use serde::{Deserialize, Serialize};
 
@@ -240,10 +240,7 @@ mod test {
         let mut root = compound::NbtCompound::new();
         root.put_list(
             "palette",
-            vec![
-                tag::NbtTag::Compound(wrapper),
-                tag::NbtTag::Compound(state),
-            ],
+            vec![tag::NbtTag::Compound(wrapper), tag::NbtTag::Compound(state)],
         );
 
         #[derive(Deserialize, PartialEq, Debug)]

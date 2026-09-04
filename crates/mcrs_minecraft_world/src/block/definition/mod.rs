@@ -1,9 +1,9 @@
 pub mod molang;
 pub mod schema;
 
+use core::time::Duration;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use core::time::Duration;
 
 use bevy_platform::time::Instant;
 
@@ -22,8 +22,8 @@ use self::schema::{
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
-use mcrs_minecraft_core::asset::read_whole;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::asset::read_whole;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::voxel_shape::Aabb;
 

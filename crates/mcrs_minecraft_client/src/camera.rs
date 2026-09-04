@@ -4,10 +4,10 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 
 use mcrs_voxel_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
-use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::local_player::{LocalPlayerTick, Sprint};
 use crate::options::FOV;
 use crate::player::{EYE_HEIGHT, Player, PlayerCamera};
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 
 const FLYING_FOV_MODIFIER: f32 = 1.1;
 /// `1.1 * (1.3 + 1) / 2`, where `1.3` is `MOVEMENT_SPEED` scaled by the `+0.3`

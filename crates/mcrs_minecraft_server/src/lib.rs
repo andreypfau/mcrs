@@ -30,8 +30,8 @@ use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_network::NetworkPlugin;
 use mcrs_voxel_server::VoxelServerPlugin;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::sync::LazyLock;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 pub use mcrs_minecraft_network::BoundAddress;
 pub use mcrs_voxel_server::spawn_server_thread;

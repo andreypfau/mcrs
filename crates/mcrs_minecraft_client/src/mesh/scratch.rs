@@ -1,6 +1,6 @@
-use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE, SECTION_VOLUME};
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{FACE_NONE, QUAD_WORDS};
+use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE, SECTION_VOLUME};
 
 use super::fluid::{COVER_SEE_THROUGH, FLUID_LAVA, Sloped, fluid_kind};
 
