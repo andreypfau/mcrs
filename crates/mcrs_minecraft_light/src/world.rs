@@ -86,6 +86,12 @@ pub enum Edit {
     UnloadSection {
         pos: ChunkPos,
     },
+    /// Hands the sky scan a bound for one column. Carries no blocks, so it
+    /// queues no lighting work; any later edit to the column supersedes it.
+    SetColumnSurface {
+        column: ColumnPos,
+        surface: Arc<ColumnSurface>,
+    },
 }
 
 impl Edit {
@@ -94,7 +100,26 @@ impl Edit {
         match self {
             Edit::SetBlock { pos, .. } => ColumnPos::from(*pos),
             Edit::LoadSection { pos, .. } | Edit::UnloadSection { pos } => ColumnPos::from(*pos),
+            Edit::SetColumnSurface { column, .. } => *column,
         }
+    }
+}
+
+/// One past the topmost non-air Y of each of the 256 block columns, as the
+/// world that owns the blocks reports it.
+///
+/// Purely a bound on the sky scan, never a source of truth. It is dropped the
+/// moment this world's own copy of the column changes, so a scan is never
+/// steered by a claim about blocks it has not been handed yet.
+#[derive(Clone, Debug)]
+pub struct ColumnSurface(pub Box<[i32; BLOCKS::AREA]>);
+
+impl ColumnSurface {
+    /// Above every block, so a column with no bound skips nothing.
+    pub const UNKNOWN: i32 = i32::MAX;
+
+    fn get(&self, local_x: u8, local_z: u8) -> i32 {
+        self.0[(local_x as usize) | ((local_z as usize) << BLOCKS::BITS)]
     }
 }
 
@@ -110,6 +135,7 @@ pub struct LightWorld {
     sky: bool,
     sections: HashMap<ChunkPos, Section>,
     sky_floors: HashMap<ColumnPos, SkyFloor>,
+    surfaces: HashMap<ColumnPos, Arc<ColumnSurface>>,
 }
 
 impl LightWorld {
@@ -123,6 +149,7 @@ impl LightWorld {
             sky: true,
             sections: HashMap::new(),
             sky_floors: HashMap::new(),
+            surfaces: HashMap::new(),
         }
     }
 
@@ -154,11 +181,27 @@ impl LightWorld {
     }
 
     pub(crate) fn insert_section(&mut self, pos: ChunkPos, section: Section) {
+        self.forget_column_surface(ColumnPos::from(pos));
         self.sections.insert(pos, section);
     }
 
     pub(crate) fn remove_section(&mut self, pos: ChunkPos) -> Option<Section> {
+        self.forget_column_surface(ColumnPos::from(pos));
         self.sections.remove(&pos)
+    }
+
+    pub(crate) fn set_column_surface(&mut self, column: ColumnPos, surface: Arc<ColumnSurface>) {
+        self.surfaces.insert(column, surface);
+    }
+
+    /// Dropped on every change to the column's blocks: a bound computed against
+    /// one set of blocks says nothing about another.
+    pub(crate) fn forget_column_surface(&mut self, column: ColumnPos) {
+        self.surfaces.remove(&column);
+    }
+
+    fn column_surface(&self, column: ColumnPos) -> Option<&ColumnSurface> {
+        self.surfaces.get(&column).map(Arc::as_ref)
     }
 
     /// The block at a position.
@@ -245,6 +288,10 @@ impl LightWorld {
             self.sky_column_top_down(section_column),
             local_x_of(column),
             local_z_of(column),
+            self.column_surface(section_column)
+                .map_or(ColumnSurface::UNKNOWN, |surface| {
+                    surface.get(local_x_of(column), local_z_of(column))
+                }),
         );
         let bottom = self.bounds.min_light_y();
         self.sky_floors
@@ -268,14 +315,17 @@ impl LightWorld {
         }
         let stack: Vec<_> = self.sky_column_top_down(section_column).collect();
         let (start, entering) = self.skip_uniform_sky(&stack);
+        let surfaces = self.column_surface(section_column);
         let mut floors = SkyFloor::new(self.bounds.min_light_y());
         let mut moved: Option<(i32, i32)> = None;
         for column in Self::block_columns_of(section_column) {
+            let (local_x, local_z) = (local_x_of(column), local_z_of(column));
             let floor = self.scan_sky_floor(
                 entering,
                 stack[start..].iter().copied(),
-                local_x_of(column),
-                local_z_of(column),
+                local_x,
+                local_z,
+                surfaces.map_or(ColumnSurface::UNKNOWN, |s| s.get(local_x, local_z)),
             );
             floors.set(column, floor);
             let previous = self.sky_floor(column);
@@ -342,18 +392,36 @@ impl LightWorld {
         stack: impl Iterator<Item = (i32, SkyColumnSection<'a>)>,
         local_x: u8,
         local_z: u8,
+        surface: i32,
     ) -> i32 {
         let mut above = entering;
         for (section_y, section) in stack {
+            let top = |block| {
+                if self.registry.breaks_sky_column(above, block) {
+                    return Err(section_y * SECTION_WIDTH + SECTION_WIDTH);
+                }
+                if self.registry.breaks_sky_column(block, block) {
+                    return Err(section_y * SECTION_WIDTH + SECTION_WIDTH - 1);
+                }
+                Ok(block)
+            };
             match section {
-                SkyColumnSection::Uniform(block) => {
-                    if self.registry.breaks_sky_column(above, block) {
-                        return section_y * SECTION_WIDTH + SECTION_WIDTH;
+                SkyColumnSection::Uniform(block) => match top(block) {
+                    Ok(block) => above = block,
+                    Err(floor) => return floor,
+                },
+                // Every block this column holds here is air, so the section
+                // seals no seam a uniform one would not: the entry seam and one
+                // air-over-air test settle all sixteen levels.
+                SkyColumnSection::Blocks(blocks) if section_y * SECTION_WIDTH >= surface => {
+                    let air = section::block_at(
+                        blocks,
+                        LocalPos::new(local_x, BLOCKS::MASK as u8, local_z),
+                    );
+                    match top(air) {
+                        Ok(block) => above = block,
+                        Err(floor) => return floor,
                     }
-                    if self.registry.breaks_sky_column(block, block) {
-                        return section_y * SECTION_WIDTH + SECTION_WIDTH - 1;
-                    }
-                    above = block;
                 }
                 SkyColumnSection::Blocks(blocks) => {
                     for local_y in (0..BLOCKS::SIZE as u8).rev() {
@@ -433,4 +501,3 @@ pub(crate) fn local_of(pos: BlockPos) -> LocalPos {
         (pos.z & BLOCKS::MASK as i32) as u8,
     )
 }
-

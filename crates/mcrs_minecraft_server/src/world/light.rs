@@ -6,16 +6,20 @@ use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::prelude::{
-    BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SkyLight,
+    BlockLight, ColumnSurface, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority,
+    SkyLight,
 };
 use mcrs_minecraft_protocol::light_codec::{LightCodecParams, build_delta_light_data};
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{ChunkPos, ColumnPos};
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::world::dimension::InDimension;
 use mcrs_voxel_world::world::lifecycle::markers::{ChunkFresh, ChunkLoaded};
-use mcrs_voxel_world::world::storage::column::ColumnIndex;
+use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnPosComponent};
+
+use crate::world::heightmap::SurfaceHeightmap;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
@@ -44,6 +48,13 @@ impl Plugin for DimLightPlugin {
             (
                 feed_light_edits
                     .after(LightSet::Track)
+                    .before(LightSet::Intake),
+                // After the block edits it bounds, and after the maps have taken
+                // this tick's edits: a bound must never describe blocks the
+                // light world has not been handed.
+                feed_column_surfaces
+                    .after(feed_light_edits)
+                    .after(crate::world::heightmap::update_column_heightmaps)
                     .before(LightSet::Intake),
                 emit_light_updates.after(LightSet::Publish),
             ),
@@ -87,6 +98,38 @@ fn feed_light_edits(
             pos: placed.block_pos,
             block: placed.new_state,
         });
+    }
+}
+
+/// Hands the sky scan each column's surface, so a section holding no block of a
+/// column costs it two seam tests rather than sixteen reads.
+fn feed_column_surfaces(
+    mut pending: ResMut<PendingEdits>,
+    columns: Query<(&ColumnPosComponent, &SurfaceHeightmap), Changed<SurfaceHeightmap>>,
+    players: Query<&Transform, With<Player>>,
+) {
+    if columns.is_empty() {
+        return;
+    }
+    let player_columns: Vec<ColumnPos> = players
+        .iter()
+        .map(|at| ColumnPos::from(at.translation))
+        .collect();
+    for (pos, surface) in &columns {
+        let mut cells = Box::new([0i32; BLOCKS::AREA]);
+        for z in 0..BLOCKS::SIZE {
+            for x in 0..BLOCKS::SIZE {
+                cells[x | (z << BLOCKS::BITS)] = surface.0.get(x, z);
+            }
+        }
+        let distance = crate::world::chunk::min_column_distance(&pos.0, &player_columns);
+        pending.push_with_priority(
+            Edit::SetColumnSurface {
+                column: pos.0,
+                surface: Arc::new(ColumnSurface(cells)),
+            },
+            distance.clamp(0, Priority::MAX as i32) as Priority,
+        );
     }
 }
 

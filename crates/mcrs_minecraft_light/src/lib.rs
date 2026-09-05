@@ -52,6 +52,6 @@ pub mod prelude {
     pub use crate::region::{BlockBox, Influence};
     pub use crate::section::SectionBlocks;
     pub use crate::storage::LightStorage;
-    pub use crate::world::{Edit, LightWorld, Section};
+    pub use crate::world::{ColumnSurface, Edit, LightWorld, Section};
     pub use crate::{BlockLight, SkyLight};
 }

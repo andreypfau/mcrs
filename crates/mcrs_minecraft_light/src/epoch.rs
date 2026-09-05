@@ -270,6 +270,10 @@ impl LightWorld {
                     columns_to_rescan.insert(column);
                     Influence::new(BlockBox::of_section(pos), INFLUENCE_RADIUS)
                 }),
+                Edit::SetColumnSurface { column, surface } => {
+                    self.set_column_surface(column, surface);
+                    None
+                }
             };
             if let Some(influence) = influence {
                 work.push((column, influence));
@@ -392,6 +396,10 @@ impl LightWorld {
             return None;
         }
         section::set_block(Arc::make_mut(&mut section.blocks), local, block);
+        // Past the early return above, so a write the scan cannot tell apart
+        // from what it replaced keeps the bound: equal light properties give
+        // equal seams, whatever the surface now says about that block.
+        self.forget_column_surface(ColumnPos::from(pos));
 
         // The affected core is the edited cell together with the run of column
         // whose sky source flag changed. Both share a horizontal position, so
