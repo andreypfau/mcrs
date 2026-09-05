@@ -83,6 +83,11 @@ impl PendingEdits {
         self.columns.is_empty()
     }
 
+    /// Whether this column has edits that have not reached the world yet.
+    pub fn holds(&self, column: ColumnPos) -> bool {
+        self.columns.contains_key(&column)
+    }
+
     /// The most urgent `limit` columns plus every column holding a block
     /// change, each taken whole.
     ///
@@ -225,6 +230,11 @@ struct InFlight {
 impl LightEpoch {
     pub fn is_running(&self) -> bool {
         !self.0.is_empty()
+    }
+
+    /// Whether an epoch under way may still write into `area`.
+    pub fn touches(&self, area: BlockBox) -> bool {
+        self.0.iter().any(|epoch| epoch.area.intersects(area))
     }
 }
 

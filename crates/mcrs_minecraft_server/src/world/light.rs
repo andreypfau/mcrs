@@ -10,7 +10,6 @@ use mcrs_minecraft_light::prelude::{
 };
 use mcrs_minecraft_protocol::light_codec::{LightCodecParams, build_delta_light_data};
 use mcrs_voxel_math::{ChunkPos, ColumnPos};
-use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::session::PlayerSession;
@@ -109,9 +108,7 @@ pub fn emit_light_updates(
         Or<(Changed<BlockLight>, Changed<SkyLight>)>,
     >,
     column_indices: Query<&ColumnIndex>,
-    observers: Query<&PlayerObservers>,
-    live_players: Query<Entity, With<Player>>,
-    views: Query<&ColumnView>,
+    views: Query<(Entity, &ColumnView)>,
     codec_params: LightCodecParams,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
@@ -137,17 +134,16 @@ pub fn emit_light_updates(
         else {
             continue;
         };
-        let mut targets: SmallVec<[Entity; 8]> = observers
-            .get(column_entity)
-            .map(|obs| obs.0.iter().copied().collect())
-            .unwrap_or_default();
-        crate::world::aoi::retain_live_observers(&mut targets, &live_players);
-        // A delta is meaningless to a client that never received the column.
-        targets.retain(|player| {
-            views
-                .get(*player)
-                .is_ok_and(|view| view.sent_columns.contains(&column_pos))
-        });
+        // Who holds the column is what the sender recorded, not what the area
+        // of interest mirrors: that mirror is rebuilt from a player's movement,
+        // so for a player standing still every column that finished loading
+        // afterwards has an empty observer list and would never see a
+        // correction to the light it was sent.
+        let targets: SmallVec<[Entity; 8]> = views
+            .iter()
+            .filter(|(_, view)| view.sent_columns.contains(&column_pos))
+            .map(|(player, _)| player)
+            .collect();
         if targets.is_empty() {
             continue;
         }
@@ -170,4 +166,49 @@ pub fn emit_light_updates(
             epoch: 0,
         });
     }
+}
+
+/// Whether the light of a column is finished, neighbours included.
+///
+/// A column is sent once and its light travels with it, so anything the engine
+/// still owes it would arrive too late. The neighbours count because a seam is
+/// lit against whatever stands beside it: a column whose neighbour is still
+/// being lit holds the darker edge that neighbour's work is about to repair.
+pub fn light_settled_around(
+    column_pos: ColumnPos,
+    lighting: Option<&mcrs_minecraft_light::prelude::Lighting>,
+    queue: Option<&mcrs_minecraft_light::prelude::LightWorkQueue>,
+    epoch: Option<&mcrs_minecraft_light::prelude::LightEpoch>,
+    pending: Option<&mcrs_minecraft_light::prelude::PendingEdits>,
+) -> bool {
+    use mcrs_minecraft_light::prelude::BlockBox;
+    use mcrs_voxel_math::BlockPos;
+
+    let Some(lighting) = lighting else {
+        return true;
+    };
+    let neighbourhood = (-1..=1).flat_map(|dx| {
+        (-1..=1).map(move |dz| ColumnPos::new(column_pos.x + dx, column_pos.z + dz))
+    });
+    for column in neighbourhood {
+        if pending.is_some_and(|pending| pending.holds(column))
+            || queue.is_some_and(|queue| queue.0.priority_of(column).is_some())
+        {
+            return false;
+        }
+    }
+    let bounds = lighting.0.bounds();
+    let area = BlockBox {
+        min: BlockPos::new(
+            (column_pos.x - 1) * 16,
+            bounds.min_light_y(),
+            (column_pos.z - 1) * 16,
+        ),
+        max: BlockPos::new(
+            (column_pos.x + 2) * 16 - 1,
+            bounds.max_light_y(),
+            (column_pos.z + 2) * 16 - 1,
+        ),
+    };
+    !epoch.is_some_and(|epoch| epoch.touches(area))
 }

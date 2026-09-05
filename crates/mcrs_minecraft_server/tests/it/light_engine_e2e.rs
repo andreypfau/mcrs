@@ -17,7 +17,6 @@ use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_s
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
 use mcrs_voxel_storage::VoxelId;
-use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::world::dimension::InDimension;
@@ -274,15 +273,6 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
         view.sent_columns.insert(column);
     }
     let player = world.spawn((Player, view)).id();
-    let column_entity = world
-        .query::<&ColumnIndex>()
-        .iter(world)
-        .next()
-        .and_then(|index| index.0.get(&column).map(|slot| slot.entity))
-        .expect("the column the sections reconciled into");
-    let mut observers = PlayerObservers::default();
-    observers.0.push(player);
-    world.entity_mut(column_entity).insert(observers);
     world.resource_mut::<CapturedLightUpdates>().0.clear();
 
     place_torch(&mut app, label, torch_at());
@@ -299,6 +289,9 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
     (captured, player)
 }
 
+/// The player holds the column but its area-of-interest mirror is empty, which
+/// is what a player standing still while the world loads around them looks
+/// like: every correction after the send has to reach them anyway.
 #[test]
 fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
     let (captured, player) = torch_delta(true);
@@ -454,5 +447,51 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     assert!(
         by_distance.windows(2).all(|pair| pair[0].1 <= pair[1].1),
         "a nearer column is never lit later than a farther one, got {by_distance:?}"
+    );
+}
+
+/// A seam is lit against whatever stands beside it, so a column is only
+/// finished once its neighbours are.
+#[test]
+fn a_column_is_not_sent_while_a_neighbour_still_has_lighting_work() {
+    use mcrs_minecraft_light::block::{LightProperties, LightRegistry, SpecialBlocks};
+    use mcrs_minecraft_light::prelude::{
+        Influence, LightBounds, LightEpoch, LightWorkQueue, Lighting, PendingEdits,
+    };
+    use mcrs_minecraft_light::world::LightWorld;
+    use mcrs_minecraft_server::world::light::light_settled_around;
+    use std::sync::Arc;
+
+    let registry = Arc::new(LightRegistry::new(
+        vec![LightProperties::AIR, LightProperties::SOLID],
+        SpecialBlocks {
+            unloaded: VoxelId(1),
+            outside: VoxelId(0),
+        },
+    ));
+    let lighting = Lighting(LightWorld::new(registry, LightBounds::new(-4, 19)));
+    let mut queue = LightWorkQueue::default();
+    let epoch = LightEpoch::default();
+    let pending = PendingEdits::default();
+    let column = ColumnPos::new(0, 0);
+    let settled = |queue: &LightWorkQueue| {
+        light_settled_around(
+            column,
+            Some(&lighting),
+            Some(queue),
+            Some(&epoch),
+            Some(&pending),
+        )
+    };
+
+    assert!(settled(&queue), "nothing is owed to the column or its ring");
+
+    queue.0.push(
+        ColumnPos::new(1, 0),
+        Influence::around(BlockPos::new(16, 64, 0)),
+    );
+    assert!(
+        !settled(&queue),
+        "the neighbour's work will repair this column's seam"
     );
 }

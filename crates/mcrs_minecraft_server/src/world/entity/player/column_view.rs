@@ -327,6 +327,9 @@ pub(crate) fn send_column_queue(
     dim_type_configs: Query<&DimensionTypeConfig>,
     codec_params: LightCodecParams,
     lighting: Option<Res<Lighting>>,
+    light_queue: Option<Res<mcrs_minecraft_light::prelude::LightWorkQueue>>,
+    light_epoch: Option<Res<mcrs_minecraft_light::prelude::LightEpoch>>,
+    light_pending: Option<Res<mcrs_minecraft_light::prelude::PendingEdits>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     use std::sync::atomic::Ordering;
@@ -395,7 +398,14 @@ pub(crate) fn send_column_queue(
                         && (!await_light
                             || (codec_params.block_lights.contains(chunk_e)
                                 && codec_params.sky_lights.contains(chunk_e)))
-                });
+                }) && (!await_light
+                    || crate::world::light::light_settled_around(
+                        column_pos,
+                        lighting.as_deref(),
+                        light_queue.as_deref(),
+                        light_epoch.as_deref(),
+                        light_pending.as_deref(),
+                    ));
                 if !ready {
                     // Its chunks have not landed yet; the ones behind it may have, and the
                     // batch is worth more spent on them than on waiting.
