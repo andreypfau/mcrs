@@ -67,6 +67,7 @@ log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"
 md-5 = "0.11.0-rc.3"
 rand_xoshiro = "0.8.0-rc.0"
 flume = { version = "0.12.0", default-features = false }
+rayon = "1"
 
 mcrs_minecraft_protocol_macros = { path = "crates/mcrs_minecraft_protocol_macros" }
 mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol", features = ["compression"] }
@@ -81,7 +82,7 @@ mcrs_minecraft_decoration = { path = "crates/mcrs_minecraft_decoration" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
-mcrs_voxel_light = { path = "crates/mcrs_voxel_light" }
+mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light" }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
 mcrs_voxel_storage = { path = "crates/mcrs_voxel_storage" }

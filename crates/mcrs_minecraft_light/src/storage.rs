@@ -1,6 +1,8 @@
+use mcrs_voxel_math::chunk_pos::BLOCKS;
+
 use crate::nibble::LightNibbles;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum LightStorage {
     #[default]
     Empty,
@@ -9,7 +11,30 @@ pub enum LightStorage {
 }
 
 impl LightStorage {
-    pub fn from_nibbles(bytes: Box<[u8; mcrs_voxel_math::chunk_pos::BLOCKS::HALF_VOLUME]>) -> Self {
+    /// One byte per cell, in [`LightNibbles::index`] order — the layout the
+    /// working field uses. Storage stays nibble-packed; the hot loop never does.
+    pub fn from_field(cells: &[u8; BLOCKS::VOLUME]) -> Self {
+        let mut arr = LightNibbles::zeros();
+        for (byte, pair) in arr.0.iter_mut().zip(cells.chunks_exact(2)) {
+            *byte = (pair[0] & 0x0F) | ((pair[1] & 0x0F) << 4);
+        }
+        LightStorage::Dense(Box::new(arr)).compact()
+    }
+
+    pub fn write_field(&self, cells: &mut [u8; BLOCKS::VOLUME]) {
+        match self {
+            LightStorage::Empty => cells.fill(0),
+            LightStorage::Uniform(v) => cells.fill(*v),
+            LightStorage::Dense(arr) => {
+                for (byte, pair) in arr.0.iter().zip(cells.chunks_exact_mut(2)) {
+                    pair[0] = byte & 0x0F;
+                    pair[1] = byte >> 4;
+                }
+            }
+        }
+    }
+
+    pub fn from_nibbles(bytes: Box<[u8; BLOCKS::HALF_VOLUME]>) -> Self {
         LightStorage::Dense(Box::new(LightNibbles(bytes))).compact()
     }
 
@@ -72,6 +97,58 @@ impl LightStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn field_of(f: impl Fn(usize) -> u8) -> Box<[u8; BLOCKS::VOLUME]> {
+        let mut cells = Box::new([0u8; BLOCKS::VOLUME]);
+        for (i, cell) in cells.iter_mut().enumerate() {
+            *cell = f(i);
+        }
+        cells
+    }
+
+    #[test]
+    fn an_all_zero_field_normalizes_to_empty() {
+        let cells = field_of(|_| 0);
+        assert!(matches!(
+            LightStorage::from_field(&cells),
+            LightStorage::Empty
+        ));
+    }
+
+    #[test]
+    fn a_constant_field_normalizes_to_uniform() {
+        let cells = field_of(|_| 12);
+        assert!(matches!(
+            LightStorage::from_field(&cells),
+            LightStorage::Uniform(12)
+        ));
+    }
+
+    #[test]
+    fn field_round_trips_through_storage() {
+        let cells = field_of(|i| (i % 16) as u8);
+        let storage = LightStorage::from_field(&cells);
+        assert!(matches!(storage, LightStorage::Dense(_)));
+        assert_eq!(storage.get(3, 7, 11), cells[LightNibbles::index(3, 7, 11)]);
+
+        let mut back = Box::new([0u8; BLOCKS::VOLUME]);
+        storage.write_field(&mut back);
+        assert_eq!(&back[..], &cells[..]);
+    }
+
+    #[test]
+    fn empty_and_uniform_expand_to_constant_fields() {
+        let mut cells = Box::new([9u8; BLOCKS::VOLUME]);
+        LightStorage::Empty.write_field(&mut cells);
+        assert!(cells.iter().all(|&c| c == 0));
+
+        LightStorage::Uniform(4).write_field(&mut cells);
+        assert!(cells.iter().all(|&c| c == 4));
+        assert!(matches!(
+            LightStorage::from_field(&cells),
+            LightStorage::Uniform(4)
+        ));
+    }
 
     #[test]
     fn default_is_null() {

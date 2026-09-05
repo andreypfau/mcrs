@@ -1,6 +1,4 @@
-//! Full unit-cube `VoxelShape` singleton — the canonical solid block.
-
-use super::{Aabb, ShapeRepr, VoxelShape};
+use super::{Aabb, FACE_MASK_FULL, ShapeRepr, VoxelShape};
 use bevy_math::Vec3;
 
 pub(super) static BLOCK: VoxelShape = VoxelShape {
@@ -10,7 +8,7 @@ pub(super) static BLOCK: VoxelShape = VoxelShape {
         max: Vec3::ONE,
     },
     occludes_full_block: true,
-    face_cache: [&BLOCK, &BLOCK, &BLOCK, &BLOCK, &BLOCK, &BLOCK],
+    face_masks: [FACE_MASK_FULL; 6],
 };
 
 #[inline]

@@ -12,7 +12,6 @@ use bevy_ecs::system::{Commands, Local, Res, ResMut};
 use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -25,8 +24,6 @@ use mcrs_minecraft_worldgen::bevy::{
     OverworldNoiseRouter, WorldGenConfig,
 };
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
-use mcrs_voxel_light::storage::LightStorage;
-use mcrs_voxel_light::{BlockLight, SkyLight};
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
@@ -40,7 +37,7 @@ use mcrs_voxel_world::world::lifecycle::trace::ColumnStage;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, LazyLock, OnceLock};
+use std::sync::{Arc, LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 use tracing::{error, info, info_span, trace};
 
@@ -384,8 +381,12 @@ static SLOW_COLUMN: LazyLock<Duration> = LazyLock::new(|| {
     Duration::from_millis(ms)
 });
 
+/// When the last slow column was reported, and how many have gone unreported
+/// since.
+static SLOW_COLUMN_SAMPLE: Mutex<(Option<Instant>, u64)> = Mutex::new((None, 0));
+
 /// Squared XZ (column) distance from a chunk to the nearest player.
-fn min_column_distance(pos: &ColumnPos, players: &[ColumnPos]) -> i32 {
+pub(crate) fn min_column_distance(pos: &ColumnPos, players: &[ColumnPos]) -> i32 {
     if players.is_empty() {
         return 0;
     }
@@ -420,22 +421,27 @@ fn min_y_distance(pos: &ChunkPos, players: &[IVec3]) -> i32 {
 /// Splits a slow column's latency into the three stages that can own it: the
 /// wait for a worker, the read or generation itself, and the wait for this
 /// system to notice the task had finished.
-/// Nothing computes light any more, so a column the save holds no light for is
-/// lit as if it stood under open sky; unlit, it would render black.
-fn generated_section((blocks, biomes): (BlockPalette, BiomePalette)) -> SectionData {
-    (
-        blocks,
-        biomes,
-        BlockLight::default(),
-        SkyLight(LightStorage::Uniform(15)),
-    )
-}
-
 fn report_column_timing(in_flight: &InFlightColumn, result: &ColumnResult) {
     let total = in_flight.queued.elapsed();
     if total < *SLOW_COLUMN {
         return;
     }
+    // A stall is a property of the whole load, not of one column, and a line per
+    // column drowns out every other log on the server; one sample a second with
+    // the count it stands for says the same thing and survives the flood.
+    let mut since = SLOW_COLUMN_SAMPLE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    since.1 += 1;
+    if since
+        .0
+        .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
+    {
+        return;
+    }
+    let others = std::mem::replace(&mut since.1, 0) - 1;
+    since.0 = Some(Instant::now());
+    drop(since);
     let ms = |d: Duration| d.as_secs_f32() * 1000.0;
     info!(
         x = in_flight.col.x,
@@ -446,6 +452,7 @@ fn report_column_timing(in_flight: &InFlightColumn, result: &ColumnResult) {
         work_ms = ms(result.work),
         drain_ms = ms(in_flight.dispatched.elapsed() - result.work),
         sections = in_flight.sections.len(),
+        others = others,
         "slow chunk column"
     );
 }
@@ -466,11 +473,11 @@ pub(crate) fn process_completed_columns(
             // Column generation task completed, process all sections
             for (entity, _pos, result) in column_result.sections {
                 match result {
-                    Some((blocks, biomes, block_light, sky_light)) => {
+                    Some((blocks, biomes)) => {
                         // Section completed successfully - mark as loaded with data
                         commands
                             .entity(entity)
-                            .insert((ChunkLoaded, blocks, biomes, block_light, sky_light))
+                            .insert((ChunkLoaded, blocks, biomes))
                             .remove::<ChunkGenerating>();
                     }
                     None => {
@@ -966,7 +973,7 @@ pub(crate) fn dispatch_column_generation(
             let column_sections = sections_data
                 .into_iter()
                 .zip(results)
-                .map(|((entity, pos), result)| (entity, pos, result.map(generated_section)))
+                .map(|((entity, pos), result)| (entity, pos, result))
                 .collect();
 
             ColumnResult {

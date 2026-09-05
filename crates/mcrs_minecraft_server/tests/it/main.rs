@@ -34,6 +34,7 @@ mod epoch_round_trip;
 mod harness;
 mod host_app;
 mod host_subapp_handoff;
+mod light_engine_e2e;
 mod login_handshake_e2e;
 #[path = "common/mock_connection.rs"]
 mod mock_connection;

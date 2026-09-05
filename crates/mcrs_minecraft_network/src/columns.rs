@@ -11,10 +11,10 @@ use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{
     ChunkData, LightChunk, LightData, Palette, PalettedContainer,
 };
-use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
+use mcrs_minecraft_protocol::light_codec::{ColumnLight, RowLight, unpack_light_data};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundForgetLevelChunk,
-    ClientboundLevelChunkWithLight, ClientboundLogin,
+    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind};
@@ -45,6 +45,7 @@ pub struct Extent {
     pub sections: usize,
 }
 
+#[derive(Clone)]
 pub struct Section {
     pub blocks: Box<[u16; SECTION_VOLUME]>,
     pub biomes: Box<[u8; BIOME_CELLS]>,
@@ -52,6 +53,7 @@ pub struct Section {
     pub states: Vec<u16>,
 }
 
+#[derive(Clone)]
 pub struct Column {
     min_section_y: i32,
     sections: Vec<Option<Section>>,
@@ -66,6 +68,8 @@ pub struct Column {
 pub enum ColumnChange {
     Arrived(ColumnPos),
     Departed(ColumnPos, Arc<Column>),
+    /// The section rows a light update rewrote, by section y.
+    Relit(ColumnPos, Vec<i32>),
 }
 
 /// The columns the server has sent and not taken back, keyed by position, and the changes
@@ -94,6 +98,17 @@ impl ColumnStore {
             self.changes.push(ColumnChange::Departed(pos, old));
         }
         self.changes.push(ColumnChange::Arrived(pos));
+    }
+
+    /// A light update for a column nobody holds is not an error: the client may
+    /// have forgotten the column between the server's decision and the packet.
+    pub fn relight(&mut self, pos: ColumnPos, update: &ColumnLight) {
+        if let Some(column) = self.columns.get_mut(&pos) {
+            let rows = Arc::make_mut(column).relight(update);
+            if !rows.is_empty() {
+                self.changes.push(ColumnChange::Relit(pos, rows));
+            }
+        }
     }
 
     pub fn remove(&mut self, pos: ColumnPos) {
@@ -252,19 +267,36 @@ impl Column {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let unpacked = unpack_light_data(light, extent.sections + 2)?;
-        let light = unpacked
-            .sky
-            .iter()
-            .zip(&unpacked.block)
-            .map(|(sky, block)| merge_light(sky, block))
-            .collect();
+        let mut column = Column::unlit(extent.min_section_y, sections);
+        column.relight(&unpack_light_data(light, extent.sections + 2)?);
+        Ok(column)
+    }
 
-        Ok(Column {
-            min_section_y: extent.min_section_y,
-            sections,
-            light,
-        })
+    /// Rows the update leaves unchanged keep the nibbles they have, per layer.
+    /// Returns the section y of every row it rewrote.
+    fn relight(&mut self, update: &ColumnLight) -> Vec<i32> {
+        let min_section_y = self.min_section_y;
+        let mut touched = Vec::new();
+        let rows = update.sky.iter().zip(&update.block);
+        for (index, (row, (sky, block))) in self.light.iter_mut().zip(rows).enumerate() {
+            let out = match row {
+                Some(out) => out,
+                None => {
+                    if !matches!(sky, RowLight::Filled(_)) && !matches!(block, RowLight::Filled(_))
+                    {
+                        continue;
+                    }
+                    row.insert(Box::new([0u8; SECTION_VOLUME]))
+                }
+            };
+            if matches!(sky, RowLight::Unchanged) && matches!(block, RowLight::Unchanged) {
+                continue;
+            }
+            apply_layer(sky, out, 0);
+            apply_layer(block, out, 4);
+            touched.push(min_section_y + index as i32 - 1);
+        }
+        touched
     }
 
     #[inline]
@@ -337,29 +369,24 @@ fn expand<K: NetworkSectionKind, V: Copy>(
     Ok(())
 }
 
-fn merge_light(sky: &RowLight, block: &RowLight) -> Option<Box<[u8; SECTION_VOLUME]>> {
-    let filled = |row: &RowLight| match row {
-        RowLight::Filled(chunk) => Some(*chunk),
-        _ => None,
-    };
-    let (sky, block) = (filled(sky), filled(block));
-    if sky.is_none() && block.is_none() {
-        return None;
+fn apply_layer(row: &RowLight, out: &mut [u8; SECTION_VOLUME], shift: u32) {
+    match row {
+        RowLight::Unchanged => {}
+        RowLight::Empty => {
+            let keep = !(0x0f << shift);
+            for byte in out.iter_mut() {
+                *byte &= keep;
+            }
+        }
+        RowLight::Filled(chunk) => write_nibbles(chunk, out, shift),
     }
-    let mut out = Box::new([0u8; SECTION_VOLUME]);
-    if let Some(sky) = sky {
-        write_nibbles(&sky, &mut out, 0);
-    }
-    if let Some(block) = block {
-        write_nibbles(&block, &mut out, 4);
-    }
-    Some(out)
 }
 
 fn write_nibbles(source: &LightChunk, out: &mut [u8; SECTION_VOLUME], shift: u32) {
+    let keep = !(0x0f << shift);
     for (index, byte) in source.as_bytes().iter().enumerate() {
-        out[index * 2] |= (byte & 0x0f) << shift;
-        out[index * 2 + 1] |= (byte >> 4) << shift;
+        out[index * 2] = (out[index * 2] & keep) | ((byte & 0x0f) << shift);
+        out[index * 2 + 1] = (out[index * 2 + 1] & keep) | ((byte >> 4) << shift);
     }
 }
 
@@ -410,6 +437,7 @@ impl Default for Arrivals {
 enum Arrival {
     Enter(Extent),
     Column(Task<Result<(ColumnPos, Column)>>),
+    Light(ColumnPos, ColumnLight),
     Forget(ColumnPos),
     BatchStart,
     BatchEnd(u32),
@@ -487,6 +515,15 @@ fn receive_column_packets(
             Ok((packet.pos, column))
         });
         arrivals.queue.push_back(Arrival::Column(task));
+    } else if let Some(update) = event.decode::<ClientboundLightUpdate>() {
+        let Some(extent) = arrivals.extent else {
+            return;
+        };
+        let pos = ColumnPos::new(update.x.0, update.z.0);
+        match unpack_light_data(&update.light_data, extent.sections + 2) {
+            Ok(light) => arrivals.queue.push_back(Arrival::Light(pos, light)),
+            Err(error) => error!("light update for column {pos:?}: {error:#}"),
+        }
     } else if let Some(forget) = event.decode::<ClientboundForgetLevelChunk>() {
         arrivals
             .queue
@@ -513,6 +550,7 @@ pub(crate) fn settle_columns(
         match arrival {
             Arrival::Enter(extent) => store.enter(extent),
             Arrival::Forget(pos) => store.remove(pos),
+            Arrival::Light(pos, light) => store.relight(pos, &light),
             Arrival::BatchStart => arrivals.batch_started_at = Some(Instant::now()),
             Arrival::BatchEnd(batch_size) => {
                 let desired_chunks_per_tick = arrivals.rate_after_batch(batch_size);
@@ -540,7 +578,7 @@ mod tests {
     use crate::client::RegistryEntry;
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_protocol::chunk::ChunkSection;
-    use mcrs_minecraft_protocol::{BlockStateId, Decode, Encode};
+    use mcrs_minecraft_protocol::{BlockStateId, Decode, Encode, VarInt};
     use mcrs_voxel_storage::pack_from;
     use std::borrow::Cow;
 
@@ -665,6 +703,188 @@ mod tests {
 
         store.remove(packet.pos);
         assert!(store.is_empty(), "the forget packet takes the column back");
+    }
+
+    /// A column with sections -1 and 0 lit at one cell: sky 6 / block 1 below,
+    /// sky 7 / block 2 above.
+    fn lit_store() -> (ColumnStore, ColumnPos) {
+        let blob = [air_section(), air_section()]
+            .iter()
+            .flat_map(encoded)
+            .collect::<Vec<u8>>();
+        let rows = (1u64 << 1) | (1u64 << 2);
+        let light = LightData {
+            sky_light_mask: Cow::Owned(vec![rows]),
+            block_light_mask: Cow::Owned(vec![rows]),
+            sky_light_arrays: Cow::Owned(vec![
+                one_lit_cell(lit_cell(), 6),
+                one_lit_cell(lit_cell(), 7),
+            ]),
+            block_light_arrays: Cow::Owned(vec![
+                one_lit_cell(lit_cell(), 1),
+                one_lit_cell(lit_cell(), 2),
+            ]),
+            ..Default::default()
+        };
+        let column = Column::decode(
+            &ChunkData {
+                data: &blob,
+                ..Default::default()
+            },
+            &light,
+            EXTENT,
+        )
+        .expect("decode the column");
+        let pos = ColumnPos::new(1, -2);
+        let mut store = ColumnStore::default();
+        store.enter(EXTENT);
+        store.insert(pos, column);
+        (store, pos)
+    }
+
+    fn lit_cell() -> usize {
+        cell_index(3, 5, 7)
+    }
+
+    /// The world coordinates of `lit_cell` in section `sy` of the lit column.
+    fn lit_at(sy: i32) -> (i32, i32, i32) {
+        (19, sy * SECTION_SIZE as i32 + 5, -25)
+    }
+
+    fn light_update(pos: ColumnPos, light_data: LightData<'_>) -> ColumnLight {
+        let bytes = encoded(&ClientboundLightUpdate {
+            x: VarInt(pos.x),
+            z: VarInt(pos.z),
+            light_data,
+        });
+        let mut reader = bytes.as_slice();
+        let packet = ClientboundLightUpdate::decode(&mut reader).expect("decode packet");
+        assert!(reader.is_empty(), "{} bytes left unread", reader.len());
+        assert_eq!(ColumnPos::new(packet.x.0, packet.z.0), pos);
+        unpack_light_data(&packet.light_data, EXTENT.sections + 2).expect("unpack")
+    }
+
+    #[test]
+    fn an_update_rewrites_the_rows_it_carries_and_leaves_the_rest() {
+        let (mut store, pos) = lit_store();
+        let row = 1u64 << 2;
+        let update = light_update(
+            pos,
+            LightData {
+                sky_light_mask: Cow::Owned(vec![row]),
+                block_light_mask: Cow::Owned(vec![row]),
+                sky_light_arrays: Cow::Owned(vec![one_lit_cell(lit_cell(), 3)]),
+                block_light_arrays: Cow::Owned(vec![one_lit_cell(lit_cell(), 5)]),
+                ..Default::default()
+            },
+        );
+        store.relight(pos, &update);
+
+        let (x, y, z) = lit_at(0);
+        assert_eq!(
+            store.light(x, y, z),
+            0x53,
+            "sky 7 fell to 3, which an or-merge could not do"
+        );
+        let (x, y, z) = lit_at(-1);
+        assert_eq!(store.light(x, y, z), 0x16, "the row the update left out");
+    }
+
+    #[test]
+    fn an_update_of_nothing_but_unchanged_rows_leaves_every_cell_alone() {
+        let (mut store, pos) = lit_store();
+        let update = light_update(pos, LightData::default());
+        store.relight(pos, &update);
+
+        let (x, y, z) = lit_at(0);
+        assert_eq!(store.light(x, y, z), 0x27);
+        let (x, y, z) = lit_at(-1);
+        assert_eq!(store.light(x, y, z), 0x16);
+    }
+
+    #[test]
+    fn an_empty_row_darkens_that_layer_only() {
+        let (mut store, pos) = lit_store();
+        let update = light_update(
+            pos,
+            LightData {
+                empty_sky_light_mask: Cow::Owned(vec![1u64 << 2]),
+                ..Default::default()
+            },
+        );
+        store.relight(pos, &update);
+
+        let (x, y, z) = lit_at(0);
+        assert_eq!(store.light(x, y, z), 0x20, "sky dark, block untouched");
+        let (x, y, z) = lit_at(-1);
+        assert_eq!(store.light(x, y, z), 0x16);
+    }
+
+    fn drained(store: &mut ColumnStore) -> Vec<ColumnChange> {
+        let mut changes = Vec::new();
+        store.drain_changes(&mut changes);
+        changes
+    }
+
+    fn relit_rows(changes: &[ColumnChange]) -> Vec<(ColumnPos, Vec<i32>)> {
+        changes
+            .iter()
+            .filter_map(|change| match change {
+                ColumnChange::Relit(pos, rows) => Some((*pos, rows.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_update_reports_the_rows_it_rewrote_so_the_renderer_can_follow() {
+        let (mut store, pos) = lit_store();
+        drained(&mut store);
+
+        let update = light_update(
+            pos,
+            LightData {
+                block_light_mask: Cow::Owned(vec![1u64 << 2]),
+                block_light_arrays: Cow::Owned(vec![one_lit_cell(lit_cell(), 5)]),
+                empty_sky_light_mask: Cow::Owned(vec![1u64 << 3]),
+                ..Default::default()
+            },
+        );
+        store.relight(pos, &update);
+
+        assert_eq!(
+            relit_rows(&drained(&mut store)),
+            vec![(pos, vec![0])],
+            "row 2 is section 0; darkening the already dark top padding row changes nothing"
+        );
+
+        let update = light_update(pos, LightData::default());
+        store.relight(pos, &update);
+        assert!(
+            relit_rows(&drained(&mut store)).is_empty(),
+            "an update that rewrites nothing is not a change"
+        );
+    }
+
+    #[test]
+    fn an_update_for_a_column_nobody_holds_is_dropped() {
+        let (mut store, pos) = lit_store();
+        let update = light_update(
+            ColumnPos::new(9, 9),
+            LightData {
+                empty_sky_light_mask: Cow::Owned(vec![1u64 << 2]),
+                ..Default::default()
+            },
+        );
+        store.relight(ColumnPos::new(9, 9), &update);
+
+        let (x, y, z) = lit_at(0);
+        assert_eq!(
+            store.light(x, y, z),
+            0x27,
+            "the resident column is untouched"
+        );
+        assert!(store.holds(pos));
     }
 
     #[test]

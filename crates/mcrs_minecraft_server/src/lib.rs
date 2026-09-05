@@ -8,6 +8,7 @@
 
 extern crate core;
 
+pub mod block_light_table;
 mod client_info;
 pub mod runner;
 pub use runner::{DEFAULT_TPS, run_server_loop};
@@ -51,9 +52,10 @@ pub struct MinecraftServerPlugin {
     pub world: Option<PathBuf>,
 }
 
-/// `MCRS_NO_LIGHTING=1` drops the lighting engine and hands every column to the
-/// client at full sky light. Sunlight, torches and shadows all stop existing;
-/// what is left is a world that loads without the propagation cost.
+/// `MCRS_NO_LIGHTING=1` leaves the block light table unbuilt, so no dimension
+/// registers a lighting engine and every column goes to the client at full sky
+/// light. Sunlight, torches and shadows all stop existing; what is left is a
+/// world that loads without the propagation cost.
 pub fn lighting_disabled() -> bool {
     static DISABLED: LazyLock<bool> = LazyLock::new(|| {
         matches!(
@@ -127,6 +129,7 @@ impl Plugin for MinecraftServerPlugin {
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
+        app.add_plugins(crate::block_light_table::BlockLightTablePlugin);
         app.add_plugins(WorldPlugin);
         app.add_plugins(ClientInfoPlugin);
     }

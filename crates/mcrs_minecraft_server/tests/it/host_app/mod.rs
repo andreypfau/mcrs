@@ -21,6 +21,7 @@ use mcrs_minecraft_core::registry::access::RegistryAccess;
 use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
 use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_server::block_light_table::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerPacket,
@@ -34,16 +35,13 @@ use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 
-/// A two-state stub light table sufficient for sub-app construction. The
-/// production table is data-loaded; tests only need the resource to exist.
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///
 /// Registers the host-side bus messages, channel resource, spawn/despawn
-/// queues, registries, and the stub light table that the sub-app extract
-/// closure and `pump_channels` read — without them the first `app.update()`
-/// after a spawn drain panics. The message set is the union required across
-/// the sub-app tests, so callers that need only a subset still get a valid
-/// host app.
+/// queues and registries that the sub-app extract closure and `pump_channels`
+/// read — without them the first `app.update()` after a spawn drain panics.
+/// The message set is the union required across the sub-app tests, so callers
+/// that need only a subset still get a valid host app.
 pub fn make_host_app() -> App {
     let mut app = App::new();
     // ChunkPlugin's worldgen startup uses AssetServer::load, which spawns
@@ -76,6 +74,13 @@ pub fn make_host_app() -> App {
     app.insert_resource(shared_corpus(&app));
 
     app
+}
+
+/// Give the dimensions spawned from this host a lighting engine. Production
+/// inserts the same resource at `AppState::WorldgenFreeze`.
+pub fn enable_lighting(app: &mut App) {
+    let blocks = app.world().resource::<Blocks>().clone();
+    app.insert_resource(BlockLightRegistry(block_light_registry(&blocks)));
 }
 
 /// The real corpus, loaded once per test binary. A stub would let a sub-app

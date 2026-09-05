@@ -12,3 +12,4 @@ bevy_ecs.workspace = true
 bevy_derive.workspace = true
 bevy_math.workspace = true
 serde.workspace = true
+tracing.workspace = true

@@ -24,6 +24,7 @@ pub mod explosion;
 pub mod format;
 pub mod generate;
 mod inventory;
+pub mod light;
 pub mod loot;
 pub mod player_index;
 pub mod sub_app_builder;

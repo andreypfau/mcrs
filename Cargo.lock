@@ -3569,6 +3569,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_light"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_tasks",
+ "mcrs_voxel_math",
+ "mcrs_voxel_storage",
+ "rayon",
+]
+
+[[package]]
 name = "mcrs_minecraft_nbt"
 version = "0.1.0"
 dependencies = [
@@ -3623,9 +3636,9 @@ dependencies = [
  "derive_more",
  "flate2",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_light",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol_macros",
- "mcrs_voxel_light",
  "mcrs_voxel_math",
  "mcrs_voxel_storage",
  "mcrs_voxel_world",
@@ -3688,13 +3701,13 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
  "mcrs_minecraft_decoration",
+ "mcrs_minecraft_light",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
- "mcrs_voxel_light",
  "mcrs_voxel_math",
  "mcrs_voxel_server",
  "mcrs_voxel_storage",
@@ -3778,14 +3791,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_voxel_light"
-version = "0.1.0"
-dependencies = [
- "bevy_ecs",
- "mcrs_voxel_math",
-]
-
-[[package]]
 name = "mcrs_voxel_math"
 version = "0.1.0"
 dependencies = [
@@ -3793,6 +3798,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "serde",
+ "tracing",
 ]
 
 [[package]]

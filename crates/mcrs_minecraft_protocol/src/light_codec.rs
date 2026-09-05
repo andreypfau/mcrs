@@ -9,9 +9,11 @@
 //!    four wire masks (`*_light_mask` and `empty_*_light_mask`) and may append
 //!    a 2048-byte payload to the matching arrays builder.
 //!
-//! 2. `build_full_light_data` — iterates `wire_rows` for a column entity,
-//!    dispatches `pack_chunk` per row per layer, and returns a wire-ready
-//!    `LightData<'static>` with `Cow::Owned` payloads.
+//! 2. `build_full_light_data` / `build_delta_light_data` — iterate `wire_rows`
+//!    for a column entity, dispatch `pack_chunk` per row per layer, and return
+//!    a wire-ready `LightData<'static>` with `Cow::Owned` payloads. They differ
+//!    only in which rows they pack: a delta leaves the rest out of both masks,
+//!    which the client reads as "unchanged".
 //!
 //! The codec is read-only against ECS state and allocates only the output
 //! buffers (worst case 24 chunks × 2 layers × 2048 bytes = 96 KB per column).
@@ -22,8 +24,8 @@ use crate::chunk::{LightChunk, LightData};
 use anyhow::{Context, bail, ensure};
 use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::SystemParam;
-use mcrs_voxel_light::storage::LightStorage;
-use mcrs_voxel_light::{BlockLight, SkyLight};
+use mcrs_minecraft_light::storage::LightStorage;
+use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_voxel_world::world::dimension::{HasSkyLight, InDimension};
 use mcrs_voxel_world::world::storage::column::{ChunkLookup, ColumnChunks};
 use std::borrow::Cow;
@@ -258,6 +260,35 @@ pub fn build_full_light_data(
     column_entity: Entity,
     params: &LightCodecParams,
 ) -> LightData<'static> {
+    build_light_data(column_entity, params, |_, _| true)
+}
+
+/// Build a `LightData` describing only the sections named in the changed
+/// slices. Every other row is left out of both masks, which the client reads as
+/// [`RowLight::Unchanged`] and leaves as it is — including the two padding rows,
+/// which a delta never synthesizes.
+///
+/// Changed sections arrive as entities because that is what a change-detection
+/// query hands the caller, and a delta touches a handful of sections, so a
+/// linear scan is cheaper than making the caller build a set.
+pub fn build_delta_light_data(
+    column_entity: Entity,
+    changed_block: &[Entity],
+    changed_sky: &[Entity],
+    params: &LightCodecParams,
+) -> LightData<'static> {
+    build_light_data(column_entity, params, |row, layer| match (row, layer) {
+        (WireRow::Loaded(e), Layer::Block) => changed_block.contains(&e),
+        (WireRow::Loaded(e), Layer::Sky) => changed_sky.contains(&e),
+        _ => false,
+    })
+}
+
+fn build_light_data(
+    column_entity: Entity,
+    params: &LightCodecParams,
+    pack_row: impl Fn(WireRow, Layer) -> bool,
+) -> LightData<'static> {
     let Ok(chunk_index) = params.chunk_indexes.get(column_entity) else {
         return LightData::default();
     };
@@ -285,26 +316,30 @@ pub fn build_full_light_data(
             .and_then(|e| params.sky_lights.get(e).ok())
             .map(|sl| &sl.0);
 
-        pack_chunk(
-            lookup,
-            block_storage,
-            Layer::Block,
-            has_sky_light,
-            bit_idx,
-            &mut block_mask,
-            &mut empty_block_mask,
-            &mut block_arrays,
-        );
-        pack_chunk(
-            lookup,
-            sky_storage,
-            Layer::Sky,
-            has_sky_light,
-            bit_idx,
-            &mut sky_mask,
-            &mut empty_sky_mask,
-            &mut sky_arrays,
-        );
+        if pack_row(lookup, Layer::Block) {
+            pack_chunk(
+                lookup,
+                block_storage,
+                Layer::Block,
+                has_sky_light,
+                bit_idx,
+                &mut block_mask,
+                &mut empty_block_mask,
+                &mut block_arrays,
+            );
+        }
+        if pack_row(lookup, Layer::Sky) {
+            pack_chunk(
+                lookup,
+                sky_storage,
+                Layer::Sky,
+                has_sky_light,
+                bit_idx,
+                &mut sky_mask,
+                &mut empty_sky_mask,
+                &mut sky_arrays,
+            );
+        }
     }
 
     LightData {
@@ -321,7 +356,9 @@ pub fn build_full_light_data(
 mod tests {
     use super::*;
     use bevy_ecs::entity::Entity;
-    use mcrs_voxel_light::nibble::LightNibbles;
+    use bevy_ecs::prelude::{In, World};
+    use bevy_ecs::system::RunSystemOnce;
+    use mcrs_minecraft_light::nibble::LightNibbles;
 
     fn fake_entity(index: u32) -> Entity {
         Entity::from_raw_u32(index + 1).expect("valid entity index")
@@ -782,5 +819,135 @@ mod tests {
         // Spot-check that the topmost sky array (TopPadding synth) is 0xFF.
         let top_array = &sky_arrays[sky_arrays.len() - 1];
         assert_eq!(*top_array, LightChunk([0xFFu8; 2048]));
+    }
+
+    const SECTIONS: usize = 5;
+    const ROWS: usize = SECTIONS + 2;
+
+    fn column_world(has_sky_light: bool) -> (World, Entity, Vec<Entity>) {
+        let mut world = World::new();
+        let dimension = if has_sky_light {
+            world.spawn(HasSkyLight).id()
+        } else {
+            world.spawn_empty().id()
+        };
+        let mut chunks = ColumnChunks::new(0, SECTIONS);
+        let sections: Vec<Entity> = (0..SECTIONS)
+            .map(|y| {
+                let section = world
+                    .spawn((
+                        BlockLight(LightStorage::Empty),
+                        SkyLight(LightStorage::Empty),
+                    ))
+                    .id();
+                chunks.set_loaded(y as i32, section);
+                section
+            })
+            .collect();
+        let column = world.spawn((chunks, InDimension(dimension))).id();
+        (world, column, sections)
+    }
+
+    fn delta(
+        world: &mut World,
+        column: Entity,
+        changed_block: Vec<Entity>,
+        changed_sky: Vec<Entity>,
+    ) -> LightData<'static> {
+        world
+            .run_system_once_with(
+                |input: In<(Entity, Vec<Entity>, Vec<Entity>)>, params: LightCodecParams| {
+                    let (column, block, sky) = input.0;
+                    build_delta_light_data(column, &block, &sky, &params)
+                },
+                (column, changed_block, changed_sky),
+            )
+            .expect("delta system runs")
+    }
+
+    #[test]
+    fn delta_leaves_every_untouched_row_unchanged() {
+        let (mut world, column, sections) = column_world(true);
+        let mut nibbles = LightNibbles::zeros();
+        nibbles.set(1, 2, 3, 0xB);
+        world
+            .entity_mut(sections[2])
+            .insert(BlockLight(LightStorage::Dense(Box::new(nibbles.clone()))));
+
+        let data = delta(&mut world, column, vec![sections[2]], Vec::new());
+        let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
+
+        assert_eq!(unpacked.block[3], RowLight::Filled(LightChunk(*nibbles.0)));
+        for row in 0..ROWS {
+            if row != 3 {
+                assert_eq!(unpacked.block[row], RowLight::Unchanged, "block row {row}");
+            }
+            assert_eq!(unpacked.sky[row], RowLight::Unchanged, "sky row {row}");
+        }
+    }
+
+    #[test]
+    fn delta_of_a_dark_section_is_empty_not_unchanged() {
+        let (mut world, column, sections) = column_world(true);
+        world
+            .entity_mut(sections[2])
+            .insert(BlockLight(LightStorage::Uniform(0)));
+
+        let data = delta(&mut world, column, vec![sections[2]], Vec::new());
+        let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
+
+        assert_eq!(unpacked.block[3], RowLight::Empty);
+        assert!(data.block_light_arrays.is_empty());
+    }
+
+    #[test]
+    fn delta_carries_sky_without_block() {
+        let (mut world, column, sections) = column_world(true);
+        world
+            .entity_mut(sections[1])
+            .insert(SkyLight(LightStorage::Uniform(0xF)));
+
+        let data = delta(&mut world, column, Vec::new(), vec![sections[1]]);
+        let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
+
+        assert_eq!(
+            unpacked.sky[2],
+            RowLight::Filled(LightChunk([0xFFu8; 2048]))
+        );
+        for row in 0..ROWS {
+            assert_eq!(unpacked.block[row], RowLight::Unchanged, "block row {row}");
+            if row != 2 {
+                assert_eq!(unpacked.sky[row], RowLight::Unchanged, "sky row {row}");
+            }
+        }
+    }
+
+    #[test]
+    fn delta_row_index_is_the_section_index_plus_the_bottom_padding() {
+        for index in 0..SECTIONS {
+            let (mut world, column, sections) = column_world(true);
+            world
+                .entity_mut(sections[index])
+                .insert(BlockLight(LightStorage::Uniform(0x3)));
+
+            let data = delta(&mut world, column, vec![sections[index]], Vec::new());
+            let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
+
+            let filled: Vec<usize> = (0..ROWS)
+                .filter(|&row| unpacked.block[row] != RowLight::Unchanged)
+                .collect();
+            assert_eq!(filled, vec![index + 1], "section {index}");
+        }
+    }
+
+    #[test]
+    fn delta_in_a_skyless_dimension_sends_no_sky_payload() {
+        let (mut world, column, sections) = column_world(false);
+        world
+            .entity_mut(sections[2])
+            .insert(SkyLight(LightStorage::Uniform(0xF)));
+
+        let data = delta(&mut world, column, Vec::new(), vec![sections[2]]);
+        assert!(data.sky_light_arrays.is_empty());
     }
 }

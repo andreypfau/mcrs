@@ -1,17 +1,27 @@
-//! v1 exposes only the surface the lighting BFS needs: `empty`, `block`,
-//! `is_empty`, `occludes_full_block`, `face_shape`, `face_occludes`. v2
-//! operations (collision sweep, raycast/clip, mesh iter) are out of scope.
-
 pub mod block;
-pub mod discrete;
 pub mod empty;
 
 use bevy_math::Vec3;
 
 use self::block::block_shape;
-use self::discrete::DiscreteShape;
 use self::empty::empty_shape;
 use crate::Direction;
+
+/// Cells per axis of a face coverage mask. Every occlusion shape in the
+/// vanilla corpus is exact at 1/32; 1/16 is not enough for wall-mounted
+/// blocks.
+pub const FACE_RESOLUTION: usize = 32;
+
+const MASK_WORDS: usize = FACE_RESOLUTION * FACE_RESOLUTION / 64;
+
+pub type FaceMask = [u64; MASK_WORDS];
+
+pub const FACE_MASK_EMPTY: FaceMask = [0; MASK_WORDS];
+pub const FACE_MASK_FULL: FaceMask = [u64::MAX; MASK_WORDS];
+
+const R: i32 = FACE_RESOLUTION as i32;
+const EPSILON: f32 = 1.0e-6;
+const GRID_TOLERANCE: f32 = 1.0e-3;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Aabb {
@@ -19,27 +29,19 @@ pub struct Aabb {
     pub max: Vec3,
 }
 
-/// Internal representation of a `VoxelShape`. v1 only ever stores the
-/// `Empty` / `Block` variants in practice; `SingleAabb` and `Discrete`
-/// exist so the conditional-shape slow path can land later without
-/// rewriting the repr.
 #[derive(Debug)]
 pub enum ShapeRepr {
     Empty,
     Block,
-    SingleAabb(Aabb),
-    Discrete(DiscreteShape),
+    Boxes(Box<[Aabb]>),
 }
 
-/// Opaque voxel shape. Construction-time caches (`face_cache`,
-/// `occludes_full_block`, `bounds`) are populated up front — no interior
-/// mutability, per the project's concurrency convention.
 #[derive(Debug)]
 pub struct VoxelShape {
     pub repr: ShapeRepr,
     pub bounds: Aabb,
     pub occludes_full_block: bool,
-    pub face_cache: [&'static VoxelShape; 6],
+    face_masks: [FaceMask; 6],
 }
 
 impl VoxelShape {
@@ -63,42 +65,200 @@ impl VoxelShape {
         self.occludes_full_block
     }
 
+    /// Coverage of this shape on one face of the unit cube, as a
+    /// `FACE_RESOLUTION` square bitmap indexed `v * FACE_RESOLUTION + u` over
+    /// the two axes other than the face normal, in ascending axis order.
     #[inline]
-    pub fn face_shape(&self, dir: Direction) -> &'static VoxelShape {
-        self.face_cache[dir.id()]
+    pub fn face_mask(&self, dir: Direction) -> &FaceMask {
+        &self.face_masks[dir.id()]
     }
 
-    /// Returns true when `self`'s face on `dir` merged with `other`'s face on
-    /// the opposite direction covers the entire unit face.
-    ///
-    /// v1 coverage matrix (the only cases the lighting BFS exercises while
-    /// the conditionally-opaque flag is false):
-    /// - (Block, Block, _) → true
-    /// - (Empty, _, _) or (_, Empty, _) → false
-    /// - (Block, _, _) where the other side is a full-face shape → true
-    /// - all other combinations → false until the discrete merge lands
-    pub fn face_occludes(&self, other: &VoxelShape, _dir: Direction) -> bool {
-        match (&self.repr, &other.repr) {
-            (ShapeRepr::Empty, _) | (_, ShapeRepr::Empty) => false,
-            (ShapeRepr::Block, ShapeRepr::Block) => true,
-            (ShapeRepr::Block, _) | (_, ShapeRepr::Block) => {
-                // Conservative: if either side is a full unit cube, the face
-                // is fully covered regardless of what the other side projects.
-                true
+    /// Whether the seam between this block and the neighbour on `dir` is
+    /// fully covered by the two shapes together. Both arguments are whole
+    /// block shapes; the projection onto the shared face happens here.
+    pub fn face_occludes(&self, other: &VoxelShape, dir: Direction) -> bool {
+        let mine = self.face_mask(dir);
+        let theirs = other.face_mask(dir.opposite());
+        mine.iter()
+            .zip(theirs.iter())
+            .all(|(a, b)| a | b == u64::MAX)
+    }
+
+    /// Builds a shape from the boxes of a block definition, in the unit-cube
+    /// convention. Boxes reaching outside the cube are clipped, matching the
+    /// union with the full block that vanilla performs before every occlusion
+    /// test.
+    pub fn from_boxes(boxes: &[Aabb]) -> VoxelShape {
+        let mut off_grid = false;
+        let prepared: Vec<Prepared> = boxes
+            .iter()
+            .filter_map(|b| Prepared::clip(b, &mut off_grid))
+            .collect();
+        if off_grid {
+            tracing::warn!(
+                ?boxes,
+                "block shape is finer than 1/{FACE_RESOLUTION}; occlusion is rounded to the grid"
+            );
+        }
+
+        if prepared.is_empty() {
+            return VoxelShape {
+                repr: ShapeRepr::Empty,
+                bounds: Aabb {
+                    min: Vec3::ZERO,
+                    max: Vec3::ZERO,
+                },
+                occludes_full_block: false,
+                face_masks: [FACE_MASK_EMPTY; 6],
+            };
+        }
+
+        if fills_unit_cube(&prepared) {
+            return VoxelShape {
+                repr: ShapeRepr::Block,
+                bounds: Aabb {
+                    min: Vec3::ZERO,
+                    max: Vec3::ONE,
+                },
+                occludes_full_block: true,
+                face_masks: [FACE_MASK_FULL; 6],
+            };
+        }
+
+        let mut face_masks = [FACE_MASK_EMPTY; 6];
+        for dir in Direction::all() {
+            let (axis, positive) = face_axis(dir);
+            let (u, v) = tangent_axes(axis);
+            let mask = &mut face_masks[dir.id()];
+            for p in &prepared {
+                let reaches = if positive {
+                    p.hi[axis] >= 1.0 - EPSILON
+                } else {
+                    p.lo[axis] <= EPSILON
+                };
+                if reaches {
+                    fill(mask, p.cell_lo[u], p.cell_hi[u], p.cell_lo[v], p.cell_hi[v]);
+                }
             }
-            // TODO: real bitset-discrete face merge lands with the
-            // conditional-shape slow path covering slabs/stairs/walls.
-            _ => false,
+        }
+
+        let mut min = Vec3::ONE;
+        let mut max = Vec3::ZERO;
+        for p in &prepared {
+            min = min.min(Vec3::from(p.lo));
+            max = max.max(Vec3::from(p.hi));
+        }
+
+        VoxelShape {
+            repr: ShapeRepr::Boxes(
+                prepared
+                    .iter()
+                    .map(|p| Aabb {
+                        min: Vec3::from(p.lo),
+                        max: Vec3::from(p.hi),
+                    })
+                    .collect(),
+            ),
+            bounds: Aabb { min, max },
+            occludes_full_block: false,
+            face_masks,
         }
     }
+}
+
+struct Prepared {
+    lo: [f32; 3],
+    hi: [f32; 3],
+    cell_lo: [i32; 3],
+    cell_hi: [i32; 3],
+}
+
+impl Prepared {
+    fn clip(b: &Aabb, off_grid: &mut bool) -> Option<Prepared> {
+        let lo = b.min.max(Vec3::ZERO);
+        let hi = b.max.min(Vec3::ONE);
+        if (hi - lo).min_element() < EPSILON {
+            return None;
+        }
+        let mut cell_lo = [0i32; 3];
+        let mut cell_hi = [0i32; 3];
+        for axis in 0..3 {
+            cell_lo[axis] = snap(lo[axis], off_grid);
+            cell_hi[axis] = snap(hi[axis], off_grid);
+            if cell_hi[axis] <= cell_lo[axis] {
+                cell_lo[axis] = cell_lo[axis].min(R - 1);
+                cell_hi[axis] = cell_lo[axis] + 1;
+            }
+        }
+        Some(Prepared {
+            lo: lo.into(),
+            hi: hi.into(),
+            cell_lo,
+            cell_hi,
+        })
+    }
+}
+
+fn snap(coord: f32, off_grid: &mut bool) -> i32 {
+    let scaled = coord * R as f32;
+    let rounded = scaled.round();
+    if (scaled - rounded).abs() > GRID_TOLERANCE {
+        *off_grid = true;
+    }
+    (rounded as i32).clamp(0, R)
+}
+
+const fn face_axis(dir: Direction) -> (usize, bool) {
+    match dir {
+        Direction::Down => (1, false),
+        Direction::Up => (1, true),
+        Direction::North => (2, false),
+        Direction::South => (2, true),
+        Direction::West => (0, false),
+        Direction::East => (0, true),
+    }
+}
+
+const fn tangent_axes(axis: usize) -> (usize, usize) {
+    match axis {
+        0 => (1, 2),
+        1 => (0, 2),
+        _ => (0, 1),
+    }
+}
+
+fn fill(mask: &mut FaceMask, u_lo: i32, u_hi: i32, v_lo: i32, v_hi: i32) {
+    for v in v_lo..v_hi {
+        for u in u_lo..u_hi {
+            let bit = (v * R + u) as usize;
+            mask[bit >> 6] |= 1 << (bit & 63);
+        }
+    }
+}
+
+fn fills_unit_cube(prepared: &[Prepared]) -> bool {
+    (0..R).all(|y| {
+        let mut layer = FACE_MASK_EMPTY;
+        for p in prepared {
+            if p.cell_lo[1] <= y && y < p.cell_hi[1] {
+                fill(
+                    &mut layer,
+                    p.cell_lo[0],
+                    p.cell_hi[0],
+                    p.cell_lo[2],
+                    p.cell_hi[2],
+                );
+            }
+        }
+        layer == FACE_MASK_FULL
+    })
 }
 
 /// Pool of `&'static VoxelShape` references produced by freeze-time interning.
 /// Indices 0 and 1 are reserved for the `Empty` and `Block` singletons.
 ///
-/// `intern` leaks owned shapes via `Box::leak`. A full game corpus interns on
-/// the order of 30 unique shapes (~6 KB total leak), all paid once at freeze
-/// time.
+/// `intern` leaks owned shapes via `Box::leak`, paid once at freeze time; the
+/// vanilla corpus holds a few hundred distinct occlusion shapes.
 #[derive(Default)]
 pub struct ShapeRegistry {
     entries: Vec<&'static VoxelShape>,
@@ -143,118 +303,19 @@ impl ShapeRegistry {
 }
 
 fn shapes_equal(a: &VoxelShape, b: &VoxelShape) -> bool {
-    if a.bounds != b.bounds || a.occludes_full_block != b.occludes_full_block {
+    if a.bounds != b.bounds
+        || a.occludes_full_block != b.occludes_full_block
+        || a.face_masks != b.face_masks
+    {
         return false;
     }
     match (&a.repr, &b.repr) {
         (ShapeRepr::Empty, ShapeRepr::Empty) => true,
         (ShapeRepr::Block, ShapeRepr::Block) => true,
-        (ShapeRepr::SingleAabb(la), ShapeRepr::SingleAabb(rb)) => la == rb,
-        (ShapeRepr::Discrete(la), ShapeRepr::Discrete(rb)) => {
-            la.bounds == rb.bounds && la.resolution == rb.resolution && la.bits == rb.bits
-        }
+        (ShapeRepr::Boxes(la), ShapeRepr::Boxes(rb)) => la == rb,
         _ => false,
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_returns_pointer_stable_static() {
-        let a = VoxelShape::empty();
-        let b = VoxelShape::empty();
-        assert!(std::ptr::eq(a, b));
-        assert!(a.is_empty());
-        assert!(!a.occludes_full_block());
-    }
-
-    #[test]
-    fn block_returns_pointer_stable_static() {
-        let a = VoxelShape::block();
-        let b = VoxelShape::block();
-        assert!(std::ptr::eq(a, b));
-        assert!(!a.is_empty());
-        assert!(a.occludes_full_block());
-    }
-
-    #[test]
-    fn block_face_shape_is_self_for_all_six_faces() {
-        let b = VoxelShape::block();
-        for dir in [
-            Direction::Down,
-            Direction::Up,
-            Direction::North,
-            Direction::South,
-            Direction::West,
-            Direction::East,
-        ] {
-            assert!(
-                std::ptr::eq(b.face_shape(dir), b),
-                "face_shape({:?}) != block()",
-                dir
-            );
-        }
-    }
-
-    #[test]
-    fn empty_face_shape_is_self_for_all_six_faces() {
-        let e = VoxelShape::empty();
-        for dir in [
-            Direction::Down,
-            Direction::Up,
-            Direction::North,
-            Direction::South,
-            Direction::West,
-            Direction::East,
-        ] {
-            assert!(std::ptr::eq(e.face_shape(dir), e));
-        }
-    }
-
-    #[test]
-    fn face_occludes_block_block_returns_true() {
-        let b = VoxelShape::block();
-        assert!(b.face_occludes(b, Direction::Up));
-        assert!(b.face_occludes(b, Direction::Down));
-        assert!(b.face_occludes(b, Direction::North));
-    }
-
-    #[test]
-    fn face_occludes_block_empty_returns_false() {
-        let b = VoxelShape::block();
-        let e = VoxelShape::empty();
-        assert!(!b.face_occludes(e, Direction::Up));
-        assert!(!e.face_occludes(b, Direction::Up));
-        assert!(!e.face_occludes(e, Direction::Up));
-    }
-
-    #[test]
-    fn shape_registry_new_reserves_empty_and_block() {
-        let reg = ShapeRegistry::new();
-        assert_eq!(reg.len(), 2);
-        assert!(std::ptr::eq(reg.entries()[0], VoxelShape::empty()));
-        assert!(std::ptr::eq(reg.entries()[1], VoxelShape::block()));
-    }
-
-    #[test]
-    fn direction_opposite_is_involutive() {
-        for dir in [
-            Direction::Down,
-            Direction::Up,
-            Direction::North,
-            Direction::South,
-            Direction::West,
-            Direction::East,
-        ] {
-            assert_eq!(dir.opposite().opposite(), dir);
-        }
-    }
-
-    #[test]
-    fn singletons_referenced_through_static_globals_are_pointer_equal_to_accessors() {
-        assert!(std::ptr::eq(&super::empty::EMPTY, VoxelShape::empty()));
-        assert!(std::ptr::eq(&super::block::BLOCK, VoxelShape::block()));
-    }
-}
+mod tests;

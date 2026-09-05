@@ -85,7 +85,9 @@ pub enum ErrorKind {
     Nbt(#[from] mcrs_minecraft_nbt::Error),
     #[error("DataVersion {found}, expected {OLDEST_DATA_VERSION} to {expected}")]
     DataVersion { found: i32, expected: i32 },
-    #[error("no DataVersion, so older than the tag itself; expected {OLDEST_DATA_VERSION} to {expected}")]
+    #[error(
+        "no DataVersion, so older than the tag itself; expected {OLDEST_DATA_VERSION} to {expected}"
+    )]
     MissingDataVersion { expected: i32 },
     #[error("`{name}` is not a block state this registry knows")]
     UnknownPaletteEntry { name: String },

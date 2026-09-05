@@ -60,6 +60,7 @@ use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
 use crate::world::format::anvil::SavedColumns;
+use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::registry::access::RegistryAccess;
@@ -79,6 +80,7 @@ use mcrs_voxel_world::world::sub_app::{
 #[derive(Clone)]
 pub struct DimRegistryBundle {
     pub registry_access: RegistryAccess,
+    pub light_registry: Option<std::sync::Arc<mcrs_minecraft_light::block::LightRegistry>>,
     pub blocks: Blocks,
     pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
     pub block_tag_registry: DynTagRegistry<Block>,
@@ -91,6 +93,9 @@ pub struct DimRegistryBundle {
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
     DimRegistryBundle {
         registry_access: world.resource::<RegistryAccess>().clone(),
+        light_registry: world
+            .get_resource::<crate::block_light_table::BlockLightRegistry>()
+            .map(|registry| registry.0.clone()),
         blocks: world.resource::<Blocks>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
@@ -328,6 +333,21 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(LootPlugin);
     sub_app.add_plugins(crate::world::experience::ExperiencePlugin);
     sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
+    if let Some(registry) = &registries.light_registry {
+        sub_app.add_plugins(DimLightPlugin {
+            registry: std::sync::Arc::clone(registry),
+            bounds: mcrs_minecraft_light::level::LightBounds::from_dimension(
+                request.type_config.min_y,
+                request.type_config.section_count,
+            ),
+            sky: request.has_sky,
+        });
+    } else if !crate::lighting_disabled() {
+        warn!(
+            dim = request.dimension_id.as_str(),
+            "no block light table; this dimension will publish no light"
+        );
+    }
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.blocks.clone());

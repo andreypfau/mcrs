@@ -849,7 +849,8 @@ fn a_stale_data_version_is_a_loud_error() {
         "{err}"
     );
     assert!(
-        err.to_string().ends_with("DataVersion 4903, expected 5015 to 5017"),
+        err.to_string()
+            .ends_with("DataVersion 4903, expected 5015 to 5017"),
         "{err}"
     );
 }

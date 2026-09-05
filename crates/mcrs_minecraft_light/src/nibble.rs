@@ -1,5 +1,6 @@
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 
+#[derive(PartialEq)]
 pub struct LightNibbles(pub Box<[u8; BLOCKS::HALF_VOLUME]>);
 
 impl Clone for LightNibbles {

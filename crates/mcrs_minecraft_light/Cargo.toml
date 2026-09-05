@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_minecraft_light"
+description = "mcrs_minecraft_light"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_voxel_math.workspace = true
+mcrs_voxel_storage.workspace = true
+bevy_ecs.workspace = true
+bevy_app.workspace = true
+bevy_tasks = { workspace = true, features = ["multi_threaded"] }
+rayon.workspace = true
+
+[dev-dependencies]
+bevy_math.workspace = true

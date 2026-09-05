@@ -1,6 +1,4 @@
-//! Empty `VoxelShape` singleton — occupies no volume, occludes nothing.
-
-use super::{Aabb, ShapeRepr, VoxelShape};
+use super::{Aabb, FACE_MASK_EMPTY, ShapeRepr, VoxelShape};
 use bevy_math::Vec3;
 
 pub(super) static EMPTY: VoxelShape = VoxelShape {
@@ -10,7 +8,7 @@ pub(super) static EMPTY: VoxelShape = VoxelShape {
         max: Vec3::ZERO,
     },
     occludes_full_block: false,
-    face_cache: [&EMPTY, &EMPTY, &EMPTY, &EMPTY, &EMPTY, &EMPTY],
+    face_masks: [FACE_MASK_EMPTY; 6],
 };
 
 #[inline]

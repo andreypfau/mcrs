@@ -446,7 +446,6 @@ fn world_gen_settings_reads_the_seed_past_the_fields_we_ignore() {
     payload.put_bool("generate_structures", true);
     payload.put_component("dimensions", dimensions);
 
-    let settings =
-        parse_world_gen_settings(&saved_data(WORLD_VERSION, payload), path()).unwrap();
+    let settings = parse_world_gen_settings(&saved_data(WORLD_VERSION, payload), path()).unwrap();
     assert_eq!(settings, WorldGenSettings { seed: 2 });
 }

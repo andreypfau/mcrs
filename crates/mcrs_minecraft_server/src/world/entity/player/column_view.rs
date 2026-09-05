@@ -7,8 +7,9 @@ use bevy_ecs::prelude::{
     Added, Component, ContainsEntity, Message, MessageReader, On, Query, With,
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy_ecs::system::Commands;
+use bevy_ecs::system::{Commands, Res};
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
+use mcrs_minecraft_light::prelude::Lighting;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::light_codec::{
     LightCodecParams, build_full_light_data, build_fullbright_light_data,
@@ -322,9 +323,14 @@ pub(crate) fn send_column_queue(
     dim_column_indexes: Query<&ColumnIndex>,
     dim_type_configs: Query<&DimensionTypeConfig>,
     codec_params: LightCodecParams,
+    lighting: Option<Res<Lighting>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     use std::sync::atomic::Ordering;
+    // A column is sent once and never again, so it has to wait for its light the
+    // way vanilla waits for a chunk to reach `light`: sending first would put a
+    // permanently black column on the client.
+    let await_light = lighting.is_some() && !crate::lighting_disabled();
     players
         .iter_mut()
         .for_each(|(mut chunk_view, observer, rep, in_dim, host_anchor)| {
@@ -384,6 +390,13 @@ pub(crate) fn send_column_queue(
                         ready = false;
                         break;
                     };
+                    if await_light
+                        && (codec_params.block_lights.get(chunk_e).is_err()
+                            || codec_params.sky_lights.get(chunk_e).is_err())
+                    {
+                        ready = false;
+                        break;
+                    }
                     // Section layout per vanilla LevelChunkSection.write:
                     //   short non_empty_block_count
                     //   short fluid_count
@@ -483,14 +496,6 @@ pub(crate) fn send_column_queue(
         })
 }
 
-/// Bridges codec-emitted `ColumnLightUpdate` messages to per-player wire
-/// dispatch through the `OutboundPlayerPacket` bus.
-///
-/// The `ColumnView::sent_columns` set gates the ordering: a light update is
-/// only forwarded to a player after that player has already received the
-/// corresponding `ChunkLoad` packet. Emitted at Normal priority (light
-/// updates after first send can be dropped on congestion without client
-/// visible loss — only the initial chunk light is Critical).
 #[derive(Debug, Message)]
 pub struct PlayerColumnLoadRequest {
     pub player: Entity,
@@ -691,3 +696,128 @@ fn on_view_update(
 //         view.last_offset_sections = new_off;
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_ecs::message::Messages;
+    use bevy_ecs::system::RunSystemOnce;
+    use bevy_ecs::world::World;
+    use mcrs_minecraft_light::prelude::{
+        BlockLight, LightBounds, LightProperties, LightRegistry, LightWorld, SkyLight,
+        SpecialBlocks,
+    };
+    use mcrs_voxel_world::world::dimension::HasSkyLight;
+    use mcrs_voxel_world::world::storage::column::{ColumnChunks, ColumnSlot};
+
+    const SECTIONS: u32 = 2;
+
+    fn queued_column(world: &mut World) -> Vec<Entity> {
+        let sections: Vec<Entity> = (0..SECTIONS)
+            .map(|_| {
+                world
+                    .spawn((
+                        BlockPalette::default(),
+                        BiomePalette::default(),
+                        ChunkLoaded,
+                    ))
+                    .id()
+            })
+            .collect();
+
+        let dim = world.spawn_empty().id();
+        let column = world
+            .spawn((
+                ColumnChunks {
+                    min_section_y: 0,
+                    sections: sections.iter().copied().map(Some).collect(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+        world.entity_mut(dim).insert((
+            DimensionTypeConfig::new(0, SECTIONS << 4),
+            HasSkyLight,
+            ColumnIndex(
+                [(
+                    EngineColumnPos::new(0, 0),
+                    ColumnSlot {
+                        entity: column,
+                        section_count: SECTIONS,
+                    },
+                )]
+                .into_iter()
+                .collect(),
+            ),
+        ));
+
+        let pos = ColumnPos::new(0, 0);
+        let mut view = ColumnView::default();
+        view.desired_columns.insert(pos);
+        view.send_queue.push_back((pos, sections.clone()));
+        let host = world.spawn_empty().id();
+        world.spawn((
+            view,
+            PlayerChunkObserver::default(),
+            Reposition::default(),
+            InDimension(dim),
+            HostAnchor(host),
+        ));
+
+        let registry = std::sync::Arc::new(LightRegistry::new(
+            vec![LightProperties::AIR, LightProperties::SOLID],
+            SpecialBlocks {
+                unloaded: mcrs_voxel_storage::VoxelId(1),
+                outside: mcrs_voxel_storage::VoxelId(0),
+            },
+        ));
+        world.insert_resource(mcrs_minecraft_light::prelude::Lighting(LightWorld::new(
+            registry,
+            LightBounds::new(0, SECTIONS as i32 - 1),
+        )));
+        world.init_resource::<Messages<OutboundPlayerPacket>>();
+        sections
+    }
+
+    fn drain_column_loads(world: &mut World) -> usize {
+        world
+            .resource_mut::<Messages<OutboundPlayerPacket>>()
+            .drain()
+            .filter(|packet| matches!(packet.data, PacketPayload::ChunkLoad { .. }))
+            .count()
+    }
+
+    /// A column is sent once and never again, so sending one whose sections the
+    /// engine has not published yet puts a permanently black column on the client.
+    #[test]
+    fn a_column_waits_for_the_light_of_every_section_it_carries() {
+        let mut world = World::new();
+        let sections = queued_column(&mut world);
+
+        world
+            .run_system_once(send_column_queue)
+            .expect("the send runs");
+        assert_eq!(
+            drain_column_loads(&mut world),
+            0,
+            "no section has published light yet"
+        );
+
+        for (i, &section) in sections.iter().enumerate() {
+            world
+                .entity_mut(section)
+                .insert((BlockLight::default(), SkyLight::default()));
+            world
+                .run_system_once(send_column_queue)
+                .expect("the send runs");
+            let expected = usize::from(i + 1 == sections.len());
+            assert_eq!(
+                drain_column_loads(&mut world),
+                expected,
+                "{} of {} sections lit",
+                i + 1,
+                sections.len()
+            );
+        }
+    }
+}

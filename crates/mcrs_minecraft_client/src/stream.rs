@@ -21,6 +21,16 @@ use crate::render::{Animation, AtlasUpdate, Budget, Placement, SectionDesc, Uplo
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 
+const FACE_NEIGHBOURHOOD: [[i32; 3]; 7] = [
+    [0, 0, 0],
+    [-1, 0, 0],
+    [1, 0, 0],
+    [0, -1, 0],
+    [0, 1, 0],
+    [0, 0, -1],
+    [0, 0, 1],
+];
+
 const SECTIONS_IN_FLIGHT: usize = 128;
 
 const SECTIONS_PER_FRAME: usize = 32;
@@ -47,6 +57,7 @@ pub struct Loader {
     tint_size: [u32; 2],
     resident: HashMap<[i32; 3], Resident>,
     pending: HashSet<[i32; 3]>,
+    relit: HashSet<[i32; 3]>,
     deferred: HashSet<[i32; 3]>,
     queue: MeshQueue,
     meshing: Vec<([i32; 3], u32, Task<(SectionMesh, Scratch)>)>,
@@ -132,6 +143,7 @@ impl Loader {
             tint_size: budget.tint_size,
             resident: HashMap::new(),
             pending: HashSet::new(),
+            relit: HashSet::new(),
             deferred: HashSet::new(),
             queue: MeshQueue::default(),
             meshing: Vec::new(),
@@ -241,6 +253,23 @@ impl Loader {
                         self.enqueue(at);
                     }
                 }
+            }
+        }
+    }
+
+    /// A section whose light a delta rewrote has to be meshed again, and so do the
+    /// six around it: a face samples the light of the cell it faces, which for a
+    /// face on the section boundary lies in the neighbour. One still being meshed
+    /// waits for the next frame, since the task holds the light it started with.
+    fn remesh_relit(&mut self, store: &ColumnStore, cave: &mut CaveCull) {
+        for at in std::mem::take(&mut self.relit) {
+            if self.pending.contains(&at) {
+                self.relit.insert(at);
+                continue;
+            }
+            self.evict(at, cave);
+            if self.meshable(at, store) {
+                self.enqueue(at);
             }
         }
     }
@@ -387,6 +416,13 @@ impl Loader {
                         }
                     }
                     self.enqueue_around(pos, extent, store);
+                }
+                ColumnChange::Relit(pos, rows) => {
+                    for sy in rows {
+                        for [dx, dy, dz] in FACE_NEIGHBOURHOOD {
+                            self.relit.insert([pos.x + dx, sy + dy, pos.z + dz]);
+                        }
+                    }
                 }
             }
         }
@@ -816,6 +852,8 @@ pub fn advance(
             }
         }
     }
+
+    loader.remesh_relit(store, &mut cave);
 
     drop(placing);
 

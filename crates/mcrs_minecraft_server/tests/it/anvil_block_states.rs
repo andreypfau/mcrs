@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
+use mcrs_minecraft_block::palette::AirCount;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -12,7 +13,6 @@ use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 use mcrs_minecraft_world::block::definition::{
     BlockDefinitions, BlockEntry, load_block_definitions,
 };
-use mcrs_voxel_light::storage::LightStorage;
 
 fn corpus() -> &'static BlockDefinitions {
     static CORPUS: OnceLock<BlockDefinitions> = OnceLock::new();
@@ -361,12 +361,17 @@ fn a_property_the_entry_leaves_out_keeps_its_default_value() {
     assert_eq!(ids, vec![default.0 as u32, facing_north.0 as u32]);
 }
 
-/// Light is read from the save, never computed: the saved nibbles land in the
-/// section's components as-is, and a Y the save skipped stands under open sky.
+/// The save's light arrays are not read: nothing writes a region file back, so
+/// every session recomputes light from the blocks.
 #[test]
-fn saved_light_reaches_the_section_components() {
-    let palette = vec![default_entry(corpus().block("minecraft:stone").unwrap())];
-    let chunk = chunk(vec![section_with_light(0, palette, 0xff, 0xa5)]);
+fn a_saved_section_decodes_its_blocks_and_nothing_else() {
+    let stone = corpus().block("minecraft:stone").unwrap();
+    let chunk = chunk(vec![section_with_light(
+        0,
+        vec![default_entry(stone)],
+        0xff,
+        0xa5,
+    )]);
 
     let sections = column_sections(
         &chunk,
@@ -376,12 +381,11 @@ fn saved_light_reaches_the_section_components() {
     )
     .expect("the column decodes");
 
-    let (_, _, block_light, sky_light) = sections[0].as_ref().expect("the saved section");
-    assert!(matches!(sky_light.0, LightStorage::Uniform(15)));
-    assert_eq!(block_light.0.get(0, 0, 0), 0x5);
-    assert_eq!(block_light.0.get(1, 0, 0), 0xa);
+    let (blocks, _) = sections[0].as_ref().expect("the saved section");
+    assert_eq!(blocks.0.get(0, 0, 0), stone.default_state_id.into());
 
-    let (_, _, block_light, sky_light) = sections[1].as_ref().expect("the absent section");
-    assert!(matches!(sky_light.0, LightStorage::Uniform(15)));
-    assert!(matches!(block_light.0, LightStorage::Empty));
+    let (blocks, _) = sections[1]
+        .as_ref()
+        .expect("a Y the save skipped is empty, not absent");
+    assert_eq!(blocks.non_air_block_count(), 0);
 }
