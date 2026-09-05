@@ -47,6 +47,9 @@ pub struct Loader {
     tint_size: [u32; 2],
     resident: HashMap<[i32; 3], Resident>,
     pending: HashSet<[i32; 3]>,
+    /// Sections whose column left or was sent again while they were being meshed, so the mesh
+    /// that lands was read out of a world nobody holds any more.
+    orphaned: HashSet<[i32; 3]>,
     relit: HashSet<[i32; 3]>,
     deferred: HashSet<[i32; 3]>,
     queue: MeshQueue,
@@ -137,6 +140,7 @@ impl Loader {
             tint_size: budget.tint_size,
             resident: HashMap::new(),
             pending: HashSet::new(),
+            orphaned: HashSet::new(),
             relit: HashSet::new(),
             deferred: HashSet::new(),
             queue: MeshQueue::default(),
@@ -269,6 +273,19 @@ impl Loader {
         }
     }
 
+    /// A mesh read out of a column the server has since taken back is thrown away rather than
+    /// drawn, and its section queued again if the column came back while the task ran.
+    fn discard_orphan(&mut self, at: [i32; 3], slot: u32, store: &ColumnStore) -> bool {
+        if !self.orphaned.remove(&at) {
+            return false;
+        }
+        self.free_slots.push(slot);
+        if self.meshable(at, store) {
+            self.enqueue(at);
+        }
+        true
+    }
+
     fn requeue_deferred(&mut self) {
         for at in std::mem::take(&mut self.deferred) {
             self.enqueue(at);
@@ -377,6 +394,9 @@ impl Loader {
                         }
                         let at = [pos.x, sy, pos.z];
                         self.queue.remove(at);
+                        if self.pending.contains(&at) {
+                            self.orphaned.insert(at);
+                        }
                         self.evict(at, cave);
                     }
                 }
@@ -878,6 +898,9 @@ pub fn advance(
     for (at, slot, (mesh, scratch)) in meshed {
         loader.scratches.push(scratch);
         loader.pending.remove(&at);
+        if loader.discard_orphan(at, slot, store) {
+            continue;
+        }
         let here = loader.distance(at);
         let mut pending = mesh;
         loop {
@@ -1452,6 +1475,75 @@ mod tests {
         assert!(
             loader.take_wanted(8, &store).is_empty(),
             "a section handed out once is not handed out again"
+        );
+    }
+
+    #[test]
+    fn a_mesh_read_out_of_a_column_the_server_took_back_is_thrown_away() {
+        use mcrs_minecraft_network::columns::{Column, Extent, Section};
+
+        let stone = || {
+            Column::unlit(
+                0,
+                vec![Some(Section {
+                    blocks: Box::new([1; mcrs_minecraft_network::columns::SECTION_VOLUME]),
+                    biomes: Box::new([0; mcrs_minecraft_network::columns::BIOME_CELLS]),
+                    states: vec![1],
+                })],
+            )
+        };
+
+        let mut loader = loader();
+        let mut cave = CaveCull::new(1 << 8);
+        let mut store = ColumnStore::default();
+        store.enter(Extent {
+            min_section_y: 0,
+            sections: 1,
+        });
+        for x in -1..=1 {
+            for z in -1..=1 {
+                store.insert(ColumnPos::new(x, z), stone());
+            }
+        }
+        store.drain_changes(&mut loader.changes);
+        loader.adopt(&store, blocks::corpus(), &mut cave);
+
+        let centre = [0, 0, 0];
+        let slot = loader.take_slot().expect("a free slot");
+        loader.queue.remove(centre);
+        loader.pending.insert(centre);
+
+        store.remove(ColumnPos::new(0, 0));
+        store.drain_changes(&mut loader.changes);
+        loader.adopt(&store, blocks::corpus(), &mut cave);
+        loader.pending.remove(&centre);
+        assert!(
+            loader.discard_orphan(centre, slot, &store),
+            "the mesh was read out of a column nobody holds any more"
+        );
+        assert!(!loader.resident.contains_key(&centre), "so it is not drawn");
+        assert_eq!(loader.free_slots, vec![slot], "and its slot goes back");
+        assert!(
+            !loader.queue.contains(&centre),
+            "with the column gone there is nothing to mesh again"
+        );
+
+        // The same again, only the server sends the column back before the mesh lands.
+        loader.pending.insert(centre);
+        store.insert(ColumnPos::new(0, 0), stone());
+        store.remove(ColumnPos::new(0, 0));
+        store.insert(ColumnPos::new(0, 0), stone());
+        store.drain_changes(&mut loader.changes);
+        loader.adopt(&store, blocks::corpus(), &mut cave);
+        assert!(
+            !loader.queue.contains(&centre),
+            "the arrival cannot queue a section a task still holds"
+        );
+        loader.pending.remove(&centre);
+        assert!(loader.discard_orphan(centre, slot, &store));
+        assert!(
+            loader.queue.contains(&centre),
+            "the column is back, so the section is meshed again out of what it holds now"
         );
     }
 
