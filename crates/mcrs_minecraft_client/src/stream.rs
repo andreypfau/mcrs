@@ -380,16 +380,15 @@ impl Loader {
                         self.evict(at, cave);
                     }
                 }
-                ColumnChange::Arrived(pos) => {
+                ColumnChange::Arrived(pos, column) => {
                     trace::mark(pos, ColumnStage::Received);
                     self.columns += 1;
                     self.to_tint.push(pos);
-                    let Some(extent) = extent else { continue };
-                    for step in 0..extent.sections {
-                        let sy = extent.min_section_y + step as i32;
-                        let Some(section) = store.section(pos.x, sy, pos.z) else {
-                            continue;
-                        };
+                    // The column the change carries, not the one the store holds now: a column
+                    // the server took back before this drain is already gone from the store,
+                    // and its departure counts the sections this arrival has to have counted.
+                    for (_, section) in column.sections() {
+                        let Some(section) = section else { continue };
                         self.sections_total += 1;
                         for &state in &section.states {
                             match self.baked.get_mut(state as usize) {
@@ -410,7 +409,9 @@ impl Loader {
                             }
                         }
                     }
-                    self.enqueue_around(pos, extent, store);
+                    if let Some(extent) = extent {
+                        self.enqueue_around(pos, extent, store);
+                    }
                 }
                 ColumnChange::Relit(pos, rows) => {
                     // A vertex takes its shade from the four cells around it, so
@@ -1451,6 +1452,42 @@ mod tests {
         assert!(
             loader.take_wanted(8, &store).is_empty(),
             "a section handed out once is not handed out again"
+        );
+    }
+
+    #[test]
+    fn a_column_taken_back_before_it_is_adopted_leaves_the_section_count_where_it_was() {
+        use mcrs_minecraft_network::columns::{Column, Extent, Section};
+
+        let mut loader = loader();
+        let mut cave = CaveCull::new(1 << 8);
+        let mut store = ColumnStore::default();
+        store.enter(Extent {
+            min_section_y: 0,
+            sections: 1,
+        });
+
+        let pos = ColumnPos::new(0, 0);
+        store.insert(
+            pos,
+            Column::unlit(
+                0,
+                vec![Some(Section {
+                    blocks: Box::new([1; mcrs_minecraft_network::columns::SECTION_VOLUME]),
+                    biomes: Box::new([0; mcrs_minecraft_network::columns::BIOME_CELLS]),
+                    states: vec![1],
+                })],
+            ),
+        );
+        store.remove(pos);
+        store.drain_changes(&mut loader.changes);
+        loader.adopt(&store, blocks::corpus(), &mut cave);
+
+        assert_eq!(
+            loader.status().sections_total,
+            0,
+            "a column the server took back before the frame that adopts it counts for as much \
+             on the way out as it did on the way in"
         );
     }
 

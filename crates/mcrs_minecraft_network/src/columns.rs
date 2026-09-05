@@ -66,7 +66,7 @@ pub struct Column {
 /// departs and arrives in that order, and one dropped by a change of extent departs too.
 #[derive(Clone)]
 pub enum ColumnChange {
-    Arrived(ColumnPos),
+    Arrived(ColumnPos, Arc<Column>),
     Departed(ColumnPos, Arc<Column>),
     /// The section rows a light update rewrote, by section y.
     Relit(ColumnPos, Vec<i32>),
@@ -94,10 +94,11 @@ impl ColumnStore {
     }
 
     pub fn insert(&mut self, pos: ColumnPos, column: Column) {
-        if let Some(old) = self.columns.insert(pos, Arc::new(column)) {
+        let column = Arc::new(column);
+        if let Some(old) = self.columns.insert(pos, column.clone()) {
             self.changes.push(ColumnChange::Departed(pos, old));
         }
-        self.changes.push(ColumnChange::Arrived(pos));
+        self.changes.push(ColumnChange::Arrived(pos, column));
     }
 
     /// A light update for a column nobody holds is not an error: the client may
