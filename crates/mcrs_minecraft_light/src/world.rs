@@ -241,6 +241,7 @@ impl LightWorld {
         let previous = self.sky_floor(column);
         let section_column = column.section_column();
         let floor = self.scan_sky_floor(
+            self.registry.outside(),
             self.sky_column_top_down(section_column),
             local_x_of(column),
             local_z_of(column),
@@ -266,11 +267,13 @@ impl LightWorld {
             return None;
         }
         let stack: Vec<_> = self.sky_column_top_down(section_column).collect();
+        let (start, entering) = self.skip_uniform_sky(&stack);
         let mut floors = SkyFloor::new(self.bounds.min_light_y());
         let mut moved: Option<(i32, i32)> = None;
         for column in Self::block_columns_of(section_column) {
             let floor = self.scan_sky_floor(
-                stack.iter().copied(),
+                entering,
+                stack[start..].iter().copied(),
                 local_x_of(column),
                 local_z_of(column),
             );
@@ -335,11 +338,12 @@ impl LightWorld {
     /// above against the first block, then that block against itself.
     fn scan_sky_floor<'a>(
         &self,
+        entering: VoxelId,
         stack: impl Iterator<Item = (i32, SkyColumnSection<'a>)>,
         local_x: u8,
         local_z: u8,
     ) -> i32 {
-        let mut above = self.registry.outside();
+        let mut above = entering;
         for (section_y, section) in stack {
             match section {
                 SkyColumnSection::Uniform(block) => {
@@ -364,6 +368,30 @@ impl LightWorld {
             }
         }
         self.bounds.min_light_y()
+    }
+
+    /// How much of a column stack every one of its 256 block columns answers
+    /// the same way, and the block the scan then enters on.
+    ///
+    /// A uniform section that seals no seam is transparent to all 256 columns
+    /// alike, so the empty sky above the terrain is walked once per stack
+    /// instead of once per column.
+    fn skip_uniform_sky(&self, stack: &[(i32, SkyColumnSection<'_>)]) -> (usize, VoxelId) {
+        let mut above = self.registry.outside();
+        let mut start = 0;
+        for (index, (_, section)) in stack.iter().enumerate() {
+            let SkyColumnSection::Uniform(block) = section else {
+                break;
+            };
+            if self.registry.breaks_sky_column(above, *block)
+                || self.registry.breaks_sky_column(*block, *block)
+            {
+                break;
+            }
+            above = *block;
+            start = index + 1;
+        }
+        (start, above)
     }
 
     pub(crate) fn forget_sky_floors(&mut self, section_column: ColumnPos) {
@@ -405,3 +433,4 @@ pub(crate) fn local_of(pos: BlockPos) -> LocalPos {
         (pos.z & BLOCKS::MASK as i32) as u8,
     )
 }
+
