@@ -229,6 +229,10 @@ pub fn chunk_map() -> bool {
     flag("CHUNK_MAP", false)
 }
 
+pub fn light_levels() -> bool {
+    flag("LIGHT_LEVELS", false)
+}
+
 pub fn stats_interval() -> Option<f32> {
     knob("STATS").map(|spec| spec.trim().parse().unwrap_or(1.0))
 }

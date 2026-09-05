@@ -10,6 +10,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 
 use crate::gui::chunk_map::ChunkMap;
 use crate::gui::debug_screen_overlay;
+use crate::gui::light_levels::LightLevels;
 
 /// Whether any panel is up this frame and whether one was last frame. Bevy's UI systems run
 /// every frame whatever is on screen; with nothing shown they are a fixed cost of the frame,
@@ -34,9 +35,10 @@ fn ui_needed(needed: Option<Res<UiNeeded>>) -> bool {
 fn update_ui_needed(
     list: Res<DebugScreenEntryList>,
     map: Res<ChunkMap>,
+    levels: Res<LightLevels>,
     mut needed: ResMut<UiNeeded>,
 ) {
-    let now = list.overlay_visible() || map.visible();
+    let now = list.overlay_visible() || map.visible() || levels.visible();
     let next = UiNeeded {
         now,
         before: needed.now,

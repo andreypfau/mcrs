@@ -116,6 +116,7 @@ pub fn run() {
     .add_plugins(camera::CameraPlugin)
     .add_plugins(gui::debug::DebugScreenPlugin)
     .add_plugins(gui::chunk_map::ChunkMapPlugin)
+    .add_plugins(gui::light_levels::LightLevelsPlugin)
     .add_plugins(sky::SkyPlugin)
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .insert_resource(WorldClocks::default())
