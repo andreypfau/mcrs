@@ -5,7 +5,7 @@ use mcrs_minecraft_network::client::{
     ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, JoinedGame, PendingTeleports,
     ReceivedRegistries, ReceivedTags, ServerProfile, offline_player_uuid,
 };
-use mcrs_minecraft_network::columns::ColumnStore;
+use mcrs_minecraft_network::columns::{BlockSource, ColumnStore};
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin, run_server_loop};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
