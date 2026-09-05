@@ -18,7 +18,6 @@ pub mod block;
 pub mod epoch;
 pub mod field;
 pub mod level;
-pub mod nibble;
 pub mod plugin;
 pub mod queue;
 pub mod region;
@@ -53,6 +52,6 @@ pub mod prelude {
     pub use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
     pub use crate::region::{BlockBox, Influence};
     pub use crate::storage::LightStorage;
-    pub use crate::world::{ColumnSurface, Edit, LightWorld, Section, UNKNOWN_SURFACE};
+    pub use crate::world::{ColumnSurface, Edit, LightWorld, Section};
     pub use crate::{BlockLight, SectionBlocks, SkyLight};
 }

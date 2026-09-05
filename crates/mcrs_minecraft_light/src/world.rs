@@ -127,9 +127,6 @@ impl Edit {
 /// steered by a claim about blocks it has not been handed yet.
 pub type ColumnSurface = ColumnHeights;
 
-/// Above every block, so a column with no bound skips nothing.
-pub const UNKNOWN_SURFACE: i32 = i32::MAX;
-
 #[derive(Clone, Copy)]
 enum SkyColumnSection<'a> {
     Uniform(VoxelId),
@@ -303,10 +300,7 @@ impl LightWorld {
             self.sky_column_top_down(section_column),
             local_x_of(column),
             local_z_of(column),
-            self.column_surface(section_column)
-                .map_or(UNKNOWN_SURFACE, |surface| {
-                    surface.get(local_x_of(column) as usize, local_z_of(column) as usize)
-                }),
+            self.column_surface(section_column),
         );
         let bottom = self.bounds.min_light_y();
         Arc::make_mut(
@@ -342,7 +336,7 @@ impl LightWorld {
                 stack[start..].iter().copied(),
                 local_x,
                 local_z,
-                surfaces.map_or(UNKNOWN_SURFACE, |s| s.get(local_x as usize, local_z as usize)),
+                surfaces,
             );
             floors.set(column, floor);
             let previous = published.map_or(Self::NO_SKY_SOURCES, |f| f.get(column));
@@ -402,8 +396,12 @@ impl LightWorld {
         stack: impl Iterator<Item = (i32, SkyColumnSection<'a>)>,
         local_x: u8,
         local_z: u8,
-        surface: i32,
+        surface: Option<&ColumnSurface>,
     ) -> i32 {
+        // Above every block, so a column with no bound skips nothing.
+        let surface = surface.map_or(i32::MAX, |surface| {
+            surface.get(local_x as usize, local_z as usize)
+        });
         let mut above = entering;
         for (section_y, section) in stack {
             let top = |block| {

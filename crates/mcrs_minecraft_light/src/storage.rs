@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 
-use crate::nibble::LightNibbles;
+use mcrs_voxel_storage::SectionNibbles;
 
 /// `Eq` is load-bearing: `Arc` compares its pointers first only when the payload
 /// is `Eq`, and that shortcut is why the dense payload is shared rather than
@@ -12,16 +12,16 @@ pub enum LightStorage {
     #[default]
     Empty,
     Uniform(u8),
-    Dense(Arc<LightNibbles>),
+    Dense(Arc<SectionNibbles>),
 }
 
 impl LightStorage {
-    /// One byte per cell, in [`LightNibbles::index`] order — the layout the
+    /// One byte per cell, in [`SectionNibbles::index`] order — the layout the
     /// working field uses. Storage stays nibble-packed; the hot loop never does.
     pub fn from_field(cells: &[u8; BLOCKS::VOLUME]) -> Self {
         // Most sections of a working field come back dark or fully lit, and
-        // packing one only to throw the buffer away in `compact` is the whole
-        // cost of reading a section back.
+        // packing 2048 bytes only to throw them away is the whole cost of
+        // reading a section back.
         let first = cells[0] & 0x0F;
         if cells.iter().all(|&c| c & 0x0F == first) {
             return match first {
@@ -29,7 +29,7 @@ impl LightStorage {
                 value => LightStorage::Uniform(value),
             };
         }
-        let mut arr = LightNibbles::zeros();
+        let mut arr = SectionNibbles::zeros();
         for (byte, pair) in arr.0.iter_mut().zip(cells.chunks_exact(2)) {
             *byte = (pair[0] & 0x0F) | ((pair[1] & 0x0F) << 4);
         }
@@ -63,7 +63,7 @@ impl LightStorage {
         match self {
             LightStorage::Empty => {
                 if val != 0 {
-                    let mut arr = LightNibbles::zeros();
+                    let mut arr = SectionNibbles::zeros();
                     arr.set(x, y, z, val);
                     *self = LightStorage::Dense(Arc::new(arr));
                 }
@@ -72,35 +72,13 @@ impl LightStorage {
                 if *current == val {
                     return;
                 }
-                let mut arr = LightNibbles::filled(*current);
+                let mut arr = SectionNibbles::filled(*current);
                 arr.set(x, y, z, val);
                 *self = LightStorage::Dense(Arc::new(arr));
             }
             LightStorage::Dense(arr) => {
                 Arc::make_mut(arr).set(x, y, z, val);
             }
-        }
-    }
-
-    pub fn compact(self) -> Self {
-        match self {
-            LightStorage::Dense(arr) => {
-                let bytes = &arr.0;
-                if bytes.iter().all(|&b| b == 0x00) {
-                    return LightStorage::Empty;
-                }
-                let first = bytes[0];
-                let low = first & 0x0F;
-                let high = (first >> 4) & 0x0F;
-                if low == high {
-                    let packed = first;
-                    if bytes.iter().all(|&b| b == packed) {
-                        return LightStorage::Uniform(low);
-                    }
-                }
-                LightStorage::Dense(arr)
-            }
-            other => other,
         }
     }
 }
@@ -140,7 +118,7 @@ mod tests {
         let cells = field_of(|i| (i % 16) as u8);
         let storage = LightStorage::from_field(&cells);
         assert!(matches!(storage, LightStorage::Dense(_)));
-        assert_eq!(storage.get(3, 7, 11), cells[LightNibbles::index(3, 7, 11)]);
+        assert_eq!(storage.get(3, 7, 11), cells[SectionNibbles::index(3, 7, 11)]);
 
         let mut back = Box::new([0u8; BLOCKS::VOLUME]);
         storage.write_field(&mut back);
@@ -225,48 +203,6 @@ mod tests {
         assert_eq!(original.get(1, 0, 0), 2);
         assert_eq!(shared.get(1, 0, 0), 5);
         assert_eq!(shared.get(0, 0, 0), 9);
-    }
-
-    #[test]
-    fn compact_null_passthrough() {
-        let s = LightStorage::Empty.compact();
-        assert!(matches!(s, LightStorage::Empty));
-    }
-
-    #[test]
-    fn compact_uniform_passthrough() {
-        let s = LightStorage::Uniform(11).compact();
-        assert!(matches!(s, LightStorage::Uniform(11)));
-    }
-
-    #[test]
-    fn compact_mixed_all_zero_becomes_null() {
-        let arr = LightNibbles::zeros();
-        let s = LightStorage::Dense(Arc::new(arr)).compact();
-        assert!(matches!(s, LightStorage::Empty));
-    }
-
-    #[test]
-    fn compact_mixed_all_uniform_becomes_uniform_n() {
-        let arr = LightNibbles::filled(8);
-        let s = LightStorage::Dense(Arc::new(arr)).compact();
-        assert!(matches!(s, LightStorage::Uniform(8)));
-    }
-
-    #[test]
-    fn compact_mixed_heterogeneous_stays_mixed() {
-        let mut arr = LightNibbles::filled(3);
-        arr.set(5, 5, 5, 12);
-        arr.set(10, 1, 2, 7);
-        let s = LightStorage::Dense(Arc::new(arr)).compact();
-        match s {
-            LightStorage::Dense(a) => {
-                assert_eq!(a.get(5, 5, 5), 12);
-                assert_eq!(a.get(10, 1, 2), 7);
-                assert_eq!(a.get(0, 0, 0), 3);
-            }
-            _ => panic!("expected Mixed"),
-        }
     }
 
     #[test]

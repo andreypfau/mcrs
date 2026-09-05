@@ -168,34 +168,23 @@ pub enum SectionErase {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Influence {
     pub core: BlockBox,
-    pub radius: i32,
 }
 
 impl Influence {
-    pub fn new(core: BlockBox, radius: i32) -> Self {
-        Self { core, radius }
+    pub fn new(core: BlockBox) -> Self {
+        Self { core }
     }
 
     pub fn around(pos: BlockPos) -> Self {
-        Self::new(BlockBox::point(pos), INFLUENCE_RADIUS)
+        Self::new(BlockBox::point(pos))
     }
 
     pub fn contains(&self, pos: BlockPos) -> bool {
-        self.core.distance_to(pos) <= self.radius
+        self.core.distance_to(pos) <= INFLUENCE_RADIUS
     }
 
     pub fn bounds(&self) -> BlockBox {
-        self.core.expand(self.radius)
-    }
-
-    /// Upper bound on the cells this influence covers, used to decide whether
-    /// testing cells against influences one by one is worth it.
-    ///
-    /// The bounding box of the dilation, not the dilation itself: an L1 ball
-    /// fills about a sixth of its box, but for a large core the box is close to
-    /// tight, and it is the large cores that decide the question.
-    pub fn approximate_cells(&self) -> u64 {
-        self.bounds().cells()
+        self.core.expand(INFLUENCE_RADIUS)
     }
 }
 
@@ -258,10 +247,13 @@ impl Regions {
     /// Decides how to clear an area of `area_cells` whose changeable part is
     /// `influenced`, and packages the data that plan needs.
     pub fn erase_plan(self, area_cells: u64, influenced: BlockBox) -> ErasePlan {
+        // The bounding box of each dilation, not the dilation itself: an L1
+        // ball fills about a sixth of its box, but for a large core the box is
+        // close to tight, and it is the large cores that decide the question.
         let marking_cost: u64 = self
             .influences
             .iter()
-            .map(Influence::approximate_cells)
+            .map(|influence| influence.bounds().cells())
             .sum();
         if marking_cost >= area_cells {
             ErasePlan::Everything(influenced)

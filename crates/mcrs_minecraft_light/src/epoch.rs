@@ -13,10 +13,10 @@ use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
 use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashSet;
 
-use crate::block::{Layer, LightRegistry};
+use crate::block::LightRegistry;
 use crate::field::{BlockSnapshot, CellIndex, FieldLayout, LightField, SectionSource, block_in};
 use crate::level::{BlockColumn, LightLevel, LocalPos};
-use crate::region::{BlockBox, ErasePlan, INFLUENCE_RADIUS, Influence, Regions, SectionErase};
+use crate::region::{BlockBox, ErasePlan, Influence, Regions, SectionErase};
 use crate::relax::relax;
 use crate::storage::LightStorage;
 use crate::world::{Edit, LightWorld, Section, SkyFloor};
@@ -44,9 +44,9 @@ pub struct EpochStats {
     pub timings: EpochTimings,
 }
 
-/// Below this many cells the seeding pass is run on one thread: a small field
-/// costs less to walk than a thread pool costs to start.
-const PARALLEL_SEED_LIMIT: usize = 1 << 18;
+/// Below this many cells the per-section passes run on one thread: a small
+/// field costs less to walk than a thread pool costs to start.
+const PARALLEL_SECTION_LIMIT: usize = 1 << 18;
 
 /// Where the time inside one epoch went. Costs a handful of clock reads.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -103,7 +103,7 @@ impl LightJob {
             registry,
             layout,
             blocks,
-            mut published,
+            published,
             erase_plan,
             sky_floors,
         } = self;
@@ -115,12 +115,8 @@ impl LightJob {
             let Some((block_light, sky_light)) = light else {
                 continue;
             };
-            if !matches!(block_light, LightStorage::Empty) {
-                block_field.fill_section(section_index, block_light);
-            }
-            if !matches!(sky_light, LightStorage::Empty) {
-                sky_field.fill_section(section_index, sky_light);
-            }
+            block_field.fill_section(section_index, block_light);
+            sky_field.fill_section(section_index, sky_light);
         }
 
         let fill = started.elapsed();
@@ -146,6 +142,10 @@ impl LightJob {
             let source = blocks.section(section_index);
             let erase = erase_plan.meets(BlockBox::of_section(section_pos));
 
+            // Every cell of a uniform section emits the same light, and most
+            // sections of a loading world are uniform air.
+            let uniform_emission = source.uniform_block().map(|block| registry.emission(block));
+
             let capacity = match erase {
                 SectionErase::None => 0,
                 _ => BLOCKS::VOLUME / 8,
@@ -163,7 +163,8 @@ impl LightJob {
                     SectionErase::Partial => erase_plan.covers(pos),
                 };
                 if erased {
-                    let emission = registry.emission(source.block_at(local), Layer::Block);
+                    let emission = uniform_emission
+                        .unwrap_or_else(|| registry.emission(source.block_at(local)));
                     block_field.set(index, emission);
                     if !emission.is_zero() {
                         block_seeds.push(index);
@@ -195,7 +196,7 @@ impl LightJob {
         };
 
         let per_section: Vec<(Vec<CellIndex>, Vec<CellIndex>)> =
-            if layout.cell_count() >= PARALLEL_SEED_LIMIT {
+            if layout.cell_count() >= PARALLEL_SECTION_LIMIT {
                 (0..layout.section_count())
                     .into_par_iter()
                     .map(seed_section)
@@ -204,12 +205,9 @@ impl LightJob {
                 (0..layout.section_count()).map(seed_section).collect()
             };
 
-        let mut block_seeds = Vec::with_capacity(per_section.iter().map(|s| s.0.len()).sum());
-        let mut sky_seeds = Vec::with_capacity(per_section.iter().map(|s| s.1.len()).sum());
-        for (block, sky) in per_section {
-            block_seeds.extend(block);
-            sky_seeds.extend(sky);
-        }
+        let (block_seeds, sky_seeds): (Vec<Vec<CellIndex>>, Vec<Vec<CellIndex>>) =
+            per_section.into_iter().unzip();
+        let (block_seeds, sky_seeds) = (block_seeds.concat(), sky_seeds.concat());
 
         let seed = started.elapsed();
         let started = Instant::now();
@@ -223,18 +221,26 @@ impl LightJob {
         let relax_time = started.elapsed();
         let started = Instant::now();
 
-        let mut sections = Vec::with_capacity(layout.section_count());
-        for (section_index, section_pos) in layout.sections() {
-            if !blocks.section_loaded(section_index) {
-                continue;
-            }
-            let (was_block, was_sky) = published[section_index].take().unzip();
-            sections.push(SectionLight {
-                pos: section_pos,
-                block_light: keep_published(was_block, block_field.section_light(section_index)),
-                sky_light: keep_published(was_sky, sky_field.section_light(section_index)),
-            });
-        }
+        // Independent per section like the seeding pass, and just as expensive:
+        // 4096 loads and a repack each.
+        let read_back = |(section_index, was): (usize, Option<(LightStorage, LightStorage)>)| {
+            let (was_block, was_sky) = was.unzip();
+            blocks
+                .section_loaded(section_index)
+                .then(|| SectionLight {
+                    pos: layout.section_pos(section_index),
+                    block_light: keep_published(
+                        was_block,
+                        block_field.section_light(section_index),
+                    ),
+                    sky_light: keep_published(was_sky, sky_field.section_light(section_index)),
+                })
+        };
+        let sections: Vec<SectionLight> = if layout.cell_count() >= PARALLEL_SECTION_LIMIT {
+            published.into_par_iter().enumerate().filter_map(read_back).collect()
+        } else {
+            published.into_iter().enumerate().filter_map(read_back).collect()
+        };
 
         LightUpdate {
             sections,
@@ -279,11 +285,11 @@ impl LightWorld {
                 Edit::LoadSection { pos, entity, blocks } => {
                     self.insert_section(pos, Section::new(entity, blocks));
                     columns_to_rescan.insert(column);
-                    Some(Influence::new(BlockBox::of_section(pos), INFLUENCE_RADIUS))
+                    Some(Influence::new(BlockBox::of_section(pos)))
                 }
                 Edit::UnloadSection { pos } => self.remove_section(pos).map(|_| {
                     columns_to_rescan.insert(column);
-                    Influence::new(BlockBox::of_section(pos), INFLUENCE_RADIUS)
+                    Influence::new(BlockBox::of_section(pos))
                 }),
                 Edit::SetColumnSurface { column, surface } => {
                     self.set_column_surface(column, surface);
@@ -298,7 +304,7 @@ impl LightWorld {
         for column in columns_to_rescan {
             if self.column_is_loaded(column) {
                 if let Some(core) = self.rescan_column(column) {
-                    work.push((column, Influence::new(core, INFLUENCE_RADIUS)));
+                    work.push((column, Influence::new(core)));
                 }
             } else {
                 self.forget_sky_floors(column);
@@ -424,6 +430,6 @@ impl LightWorld {
             min: BlockPos::new(pos.x, low, pos.z),
             max: BlockPos::new(pos.x, high, pos.z),
         };
-        Some(Influence::new(core, INFLUENCE_RADIUS))
+        Some(Influence::new(core))
     }
 }

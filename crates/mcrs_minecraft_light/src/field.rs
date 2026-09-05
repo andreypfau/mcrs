@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ChunkPos, Direction};
-use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_storage::{PalettedContainer, VoxelId};
 
 use crate::SectionBlocks;
 use crate::level::{LightLevel, LocalPos, SECTION_WIDTH};
@@ -93,19 +93,12 @@ impl FieldLayout {
 
     /// The block-coordinate box this layout spans.
     pub fn block_bounds(&self) -> BlockBox {
-        let min = BlockPos::new(
-            self.origin.x * SECTION_WIDTH,
-            self.origin.y * SECTION_WIDTH,
-            self.origin.z * SECTION_WIDTH,
+        let far = ChunkPos::new(
+            self.origin.x + self.dim_x - 1,
+            self.origin.y + self.dim_y - 1,
+            self.origin.z + self.dim_z - 1,
         );
-        BlockBox {
-            min,
-            max: BlockPos::new(
-                min.x + self.dim_x * SECTION_WIDTH - 1,
-                min.y + self.dim_y * SECTION_WIDTH - 1,
-                min.z + self.dim_z * SECTION_WIDTH - 1,
-            ),
-        }
+        BlockBox::of_section(self.origin).union(BlockBox::of_section(far))
     }
 
     /// Index of the first cell of a section, to be combined with a [`LocalPos`].
@@ -178,6 +171,17 @@ impl SectionSource {
                 blocks.get_cell(local.x() as usize, local.y() as usize, local.z() as usize)
             }
             SectionSource::Open(block) | SectionSource::Absent(block) => *block,
+        }
+    }
+
+    /// The block this section holds everywhere, when it holds only one.
+    pub fn uniform_block(&self) -> Option<VoxelId> {
+        match self {
+            SectionSource::Loaded(blocks) => match &blocks.0 {
+                PalettedContainer::Homogeneous(block) => Some(*block),
+                PalettedContainer::Heterogeneous(_) => None,
+            },
+            SectionSource::Open(block) | SectionSource::Absent(block) => Some(*block),
         }
     }
 }
@@ -262,6 +266,10 @@ impl LightField {
     }
 
     pub fn fill_section(&mut self, section_index: usize, light: &LightStorage) {
+        // A fresh field is already zeroed, so an empty section needs no work.
+        if matches!(light, LightStorage::Empty) {
+            return;
+        }
         let base = section_index * BLOCKS::VOLUME;
         let mut cells = [0u8; BLOCKS::VOLUME];
         light.write_field(&mut cells);

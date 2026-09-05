@@ -73,8 +73,9 @@ impl LightProperties {
 pub enum Layer {
     /// Emitted by blocks. Sources are block emission.
     Block,
-    /// Comes from the sky. Sources are whole vertical runs of unoccluded
-    /// column, never block emission.
+    /// Comes from the sky. It has no per-block emitters at all: its sources
+    /// are whole vertical runs of unoccluded column, found by
+    /// [`LightRegistry::breaks_sky_column`].
     Sky,
 }
 
@@ -142,15 +143,8 @@ impl LightRegistry {
         self.special.outside
     }
 
-    /// Light emitted by a block into the given layer.
-    ///
-    /// Sky light has no per-block emitters; its sources come from
-    /// [`Self::breaks_sky_column`] applied down a whole column.
-    pub fn emission(&self, id: VoxelId, layer: Layer) -> LightLevel {
-        match layer {
-            Layer::Block => self.get(id).emission,
-            Layer::Sky => LightLevel::ZERO,
-        }
+    pub fn emission(&self, id: VoxelId) -> LightLevel {
+        self.get(id).emission
     }
 
     /// Cost of moving light from `from` into `to` across `dir`. `None` means

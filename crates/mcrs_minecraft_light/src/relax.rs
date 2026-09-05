@@ -71,22 +71,19 @@ pub fn relax(
 
     while !frontier.is_empty() {
         rounds += 1;
+        next.clear();
         if frontier.len() < SEQUENTIAL_ROUND_LIMIT {
-            next.clear();
             for &from in &frontier {
                 let (raised, count) = spread(from, field, blocks, registry);
                 next.extend_from_slice(&raised[..count]);
             }
-            std::mem::swap(&mut frontier, &mut next);
         } else {
-            frontier = frontier
-                .par_iter()
-                .flat_map_iter(|&from| {
-                    let (raised, count) = spread(from, field, blocks, registry);
-                    (0..count).map(move |i| raised[i])
-                })
-                .collect();
+            next.par_extend(frontier.par_iter().flat_map_iter(|&from| {
+                let (raised, count) = spread(from, field, blocks, registry);
+                (0..count).map(move |i| raised[i])
+            }));
         }
+        std::mem::swap(&mut frontier, &mut next);
     }
 
     rounds

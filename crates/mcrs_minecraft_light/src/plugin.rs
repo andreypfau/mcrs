@@ -5,7 +5,7 @@ use rustc_hash::FxHashSet;
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
-use bevy_tasks::{AsyncComputeTaskPool, Task, block_on, poll_once};
+use bevy_tasks::{AsyncComputeTaskPool, Task, available_parallelism, block_on, poll_once};
 use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
 
 use crate::block::LightRegistry;
@@ -113,7 +113,7 @@ impl Default for LightBudget {
             // perimeter: a few milliseconds of work, and four times the value
             // per column of lighting one on its own.
             cells_per_epoch: 4 << 20,
-            epochs_in_flight: std::thread::available_parallelism().map_or(1, |n| n.get()),
+            epochs_in_flight: available_parallelism(),
         }
     }
 }

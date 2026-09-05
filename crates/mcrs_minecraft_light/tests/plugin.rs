@@ -1,32 +1,12 @@
+mod common;
+
 use bevy_ecs::prelude::Entity;
 use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};
+use common::{AIR, TORCH, filled, registry};
 use mcrs_minecraft_light::prelude::*;
 use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
-
-fn filled(block: VoxelId) -> SectionBlocks {
-    VoxelPalette(PalettedContainer::Homogeneous(block))
-}
-
-const AIR: VoxelId = VoxelId(0);
-const STONE: VoxelId = VoxelId(1);
-const TORCH: VoxelId = VoxelId(2);
-
-fn registry() -> Arc<LightRegistry> {
-    Arc::new(LightRegistry::new(
-        vec![
-            LightProperties::AIR,
-            LightProperties::SOLID,
-            LightProperties::emitter(14),
-        ],
-        SpecialBlocks {
-            unloaded: STONE,
-            outside: AIR,
-        },
-    ))
-}
 
 // The epoch runs on a worker thread, so the loop has to give it a chance to
 // finish rather than spinning the schedule.

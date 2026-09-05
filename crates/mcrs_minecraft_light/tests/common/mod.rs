@@ -232,7 +232,7 @@ impl Reference {
                         let p = BlockPos::new(x, y, z);
                         let i = idx(p);
                         let here = world.block_at(p);
-                        let mut best_block = registry.emission(here, Layer::Block).get();
+                        let mut best_block = registry.emission(here).get();
                         let mut best_sky = if sky_source[i] { 15 } else { 0 };
 
                         for dir in Direction::all() {

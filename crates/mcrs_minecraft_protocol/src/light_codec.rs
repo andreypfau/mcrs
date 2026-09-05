@@ -25,7 +25,7 @@ use anyhow::{Context, bail, ensure};
 use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::SystemParam;
 pub use mcrs_minecraft_light::block::Layer;
-use mcrs_minecraft_light::nibble::LightNibbles;
+use mcrs_voxel_storage::SectionNibbles as LightNibbles;
 use mcrs_minecraft_light::storage::LightStorage;
 use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_voxel_world::world::dimension::{HasSkyLight, InDimension};
@@ -353,7 +353,7 @@ mod tests {
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::{In, World};
     use bevy_ecs::system::RunSystemOnce;
-    use mcrs_minecraft_light::nibble::LightNibbles;
+    use mcrs_voxel_storage::SectionNibbles as LightNibbles;
     use std::sync::Arc;
 
     fn fake_entity(index: u32) -> Entity {
