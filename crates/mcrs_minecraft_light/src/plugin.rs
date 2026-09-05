@@ -1,15 +1,17 @@
-use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
+
+use rustc_hash::FxHashSet;
 
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
+use bevy_ecs::system::SystemParam;
 use bevy_tasks::{AsyncComputeTaskPool, Task, block_on, poll_once};
-use mcrs_voxel_math::{ChunkPos, ColumnPos};
+use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
 
 use crate::block::LightRegistry;
 use crate::epoch::LightUpdate;
-use crate::level::LightBounds;
-use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
+use crate::level::{LightBounds, SECTION_WIDTH};
+use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority, PriorityColumns};
 use crate::region::BlockBox;
 use crate::world::{Edit, LightWorld};
 use crate::{BlockLight, SkyLight};
@@ -24,17 +26,9 @@ pub struct Lighting(pub LightWorld);
 /// is never deferred — only the lighting is.
 #[derive(Resource, Default)]
 pub struct PendingEdits {
-    columns: HashMap<ColumnPos, ColumnEdits>,
-    /// The same columns again, keyed so that the most urgent sorts first.
-    order: BTreeSet<(Priority, ColumnPos)>,
-    /// Columns no budget holds back, in the order they became urgent.
-    immediate: Vec<ColumnPos>,
-}
-
-struct ColumnEdits {
-    edits: Vec<Edit>,
-    priority: Priority,
-    immediate: bool,
+    columns: PriorityColumns<Vec<Edit>>,
+    /// Columns no budget holds back.
+    immediate: FxHashSet<ColumnPos>,
 }
 
 impl PendingEdits {
@@ -48,35 +42,10 @@ impl PendingEdits {
         let column = edit.column();
         // A block change takes effect the tick it is pushed; a section load
         // held back past one in the same column would then overwrite it.
-        let immediate = matches!(edit, Edit::SetBlock { .. });
-        match self.columns.get_mut(&column) {
-            Some(waiting) => {
-                if priority < waiting.priority {
-                    self.order.remove(&(waiting.priority, column));
-                    waiting.priority = priority;
-                    self.order.insert((priority, column));
-                }
-                if immediate && !waiting.immediate {
-                    waiting.immediate = true;
-                    self.immediate.push(column);
-                }
-                waiting.edits.push(edit);
-            }
-            None => {
-                self.order.insert((priority, column));
-                if immediate {
-                    self.immediate.push(column);
-                }
-                self.columns.insert(
-                    column,
-                    ColumnEdits {
-                        edits: vec![edit],
-                        priority,
-                        immediate,
-                    },
-                );
-            }
+        if matches!(edit, Edit::SetBlock { .. }) {
+            self.immediate.insert(column);
         }
+        self.columns.entry(column, priority, Vec::new).push(edit);
     }
 
     pub fn is_empty(&self) -> bool {
@@ -85,7 +54,7 @@ impl PendingEdits {
 
     /// Whether this column has edits that have not reached the world yet.
     pub fn holds(&self, column: ColumnPos) -> bool {
-        self.columns.contains_key(&column)
+        self.columns.contains(column)
     }
 
     /// The most urgent `limit` columns plus every column holding a block
@@ -94,23 +63,21 @@ impl PendingEdits {
     /// Costs what it hands out, never what is waiting: a backlog of thousands
     /// of columns is not re-read to admit fifty.
     fn take_admitted(&mut self, limit: usize) -> Vec<(Priority, Vec<Edit>)> {
-        let mut admitted = std::mem::take(&mut self.immediate);
+        let immediate = std::mem::take(&mut self.immediate);
+        let mut admitted: Vec<ColumnPos> = immediate.iter().copied().collect();
         admitted.extend(
-            self.order
-                .iter()
-                .map(|&(_, column)| column)
-                .filter(|column| !self.columns[column].immediate)
+            self.columns
+                .order()
+                .map(|(_, column)| column)
+                .filter(|column| !immediate.contains(column))
                 .take(limit),
         );
         admitted
             .into_iter()
             .map(|column| {
-                let waiting = self
-                    .columns
-                    .remove(&column)
-                    .expect("an admitted column is waiting");
-                self.order.remove(&(waiting.priority, column));
-                (waiting.priority, waiting.edits)
+                self.columns
+                    .remove(column)
+                    .expect("an admitted column is waiting")
             })
             .collect()
     }
@@ -173,46 +140,6 @@ impl Default for IntakeBudget {
     }
 }
 
-/// How much the sky is dimmed right now: 0 at noon, 11 at midnight.
-#[derive(Resource, Default, Copy, Clone, PartialEq, Eq, Debug)]
-pub struct SkyDarken(pub u8);
-
-/// Maps section positions to entities and back.
-///
-/// The reverse direction is not a convenience. When a section entity goes away
-/// the component is already gone, so its position cannot be recovered from
-/// anything but this map.
-#[derive(Resource, Default)]
-pub struct SectionIndex {
-    by_position: HashMap<ChunkPos, Entity>,
-    by_entity: HashMap<Entity, ChunkPos>,
-}
-
-impl SectionIndex {
-    pub fn entity(&self, pos: ChunkPos) -> Option<Entity> {
-        self.by_position.get(&pos).copied()
-    }
-
-    pub fn position(&self, entity: Entity) -> Option<ChunkPos> {
-        self.by_entity.get(&entity).copied()
-    }
-
-    fn insert(&mut self, pos: ChunkPos, entity: Entity) {
-        self.by_position.insert(pos, entity);
-        self.by_entity.insert(entity, pos);
-    }
-
-    fn remove(&mut self, entity: Entity) -> Option<ChunkPos> {
-        let pos = self.by_entity.remove(&entity)?;
-        // A section despawned and respawned in the same tick reaches this in one
-        // batch, and the new entity is already the occupant of that position.
-        if self.by_position.get(&pos) == Some(&entity) {
-            self.by_position.remove(&pos);
-        }
-        Some(pos)
-    }
-}
-
 /// The epochs in flight.
 ///
 /// This is also the answer to "has the light settled". Systems whose behaviour
@@ -238,13 +165,85 @@ impl LightEpoch {
     }
 }
 
+/// Whether the engine still owes anybody light.
+///
+/// Both questions are asked of the same four resources, so they are answered in
+/// one place: a plugin that is not installed owes nothing, which is what the
+/// optional resources mean.
+#[derive(SystemParam)]
+pub struct LightStatus<'w> {
+    lighting: Option<Res<'w, Lighting>>,
+    queue: Option<Res<'w, LightWorkQueue>>,
+    epoch: Option<Res<'w, LightEpoch>>,
+    pending: Option<Res<'w, PendingEdits>>,
+}
+
+impl LightStatus<'_> {
+    /// Whether the lighting plugin is installed at all.
+    pub fn is_installed(&self) -> bool {
+        self.lighting.is_some()
+    }
+
+    /// Nothing outstanding anywhere. Systems whose behaviour has to be
+    /// reproducible — mob spawning, crop growth, saving a region — should run
+    /// only when this holds, because light published a tick later than an edit
+    /// is fine for rendering and not fine for simulation.
+    pub fn settled(&self) -> bool {
+        self.epoch.as_ref().is_none_or(|epoch| !epoch.is_running())
+            && self.pending.as_ref().is_none_or(|pending| pending.is_empty())
+            && self.queue.as_ref().is_none_or(|queue| queue.0.is_empty())
+    }
+
+    /// Whether the light of one column is finished, neighbours included.
+    ///
+    /// A column is sent once and its light travels with it, so anything the
+    /// engine still owes it would arrive too late. The neighbours count because
+    /// a seam is lit against whatever stands beside it: a column whose
+    /// neighbour is still being lit holds the darker edge that neighbour's work
+    /// is about to repair.
+    pub fn settled_around(&self, column: ColumnPos) -> bool {
+        let Some(lighting) = self.lighting.as_ref() else {
+            return true;
+        };
+        for dx in -1..=1 {
+            for dz in -1..=1 {
+                let neighbour = ColumnPos::new(column.x + dx, column.z + dz);
+                if self
+                    .pending
+                    .as_ref()
+                    .is_some_and(|pending| pending.holds(neighbour))
+                    || self
+                        .queue
+                        .as_ref()
+                        .is_some_and(|queue| queue.0.priority_of(neighbour).is_some())
+                {
+                    return false;
+                }
+            }
+        }
+        let bounds = lighting.0.bounds();
+        let area = BlockBox {
+            min: BlockPos::new(
+                (column.x - 1) * SECTION_WIDTH,
+                bounds.min_light_y(),
+                (column.z - 1) * SECTION_WIDTH,
+            ),
+            max: BlockPos::new(
+                (column.x + 2) * SECTION_WIDTH - 1,
+                bounds.max_light_y(),
+                (column.z + 2) * SECTION_WIDTH - 1,
+            ),
+        };
+        !self
+            .epoch
+            .as_ref()
+            .is_some_and(|epoch| epoch.touches(area))
+    }
+}
+
 /// Run condition for systems that must see settled light.
-pub fn light_has_settled(
-    epoch: Res<LightEpoch>,
-    pending: Res<PendingEdits>,
-    queue: Res<LightWorkQueue>,
-) -> bool {
-    !epoch.is_running() && pending.is_empty() && queue.0.is_empty()
+pub fn light_has_settled(status: LightStatus) -> bool {
+    status.settled()
 }
 
 /// The tick-loop steps, in the order they must run.
@@ -255,8 +254,6 @@ pub fn light_has_settled(
 /// throws away a finished epoch.
 #[derive(SystemSet, Hash, Eq, PartialEq, Debug, Clone)]
 pub enum LightSet {
-    /// Section entities are indexed and their removal turned into edits.
-    Track,
     /// A finished epoch is written into [`BlockLight`] and [`SkyLight`].
     Publish,
     /// Edits are applied to the world and their lighting work is queued.
@@ -280,13 +277,10 @@ impl Plugin for LightPlugin {
             .init_resource::<LightWorkQueue>()
             .init_resource::<LightBudget>()
             .init_resource::<IntakeBudget>()
-            .init_resource::<SectionIndex>()
-            .init_resource::<SkyDarken>()
             .init_resource::<LightEpoch>()
             .add_systems(
                 Last,
                 (
-                    track_sections.in_set(LightSet::Track),
                     publish_light.in_set(LightSet::Publish),
                     intake_edits.in_set(LightSet::Intake),
                     dispatch_epoch.in_set(LightSet::Dispatch),
@@ -296,26 +290,9 @@ impl Plugin for LightPlugin {
     }
 }
 
-fn track_sections(
-    mut index: ResMut<SectionIndex>,
-    mut pending: ResMut<PendingEdits>,
-    added: Query<(Entity, &ChunkPos), Added<ChunkPos>>,
-    mut removed: RemovedComponents<ChunkPos>,
-) {
-    for (entity, pos) in &added {
-        index.insert(*pos, entity);
-    }
-    for entity in removed.read() {
-        if let Some(pos) = index.remove(entity) {
-            pending.push(Edit::UnloadSection { pos });
-        }
-    }
-}
-
 fn publish_light(
     mut lighting: ResMut<Lighting>,
     mut running: ResMut<LightEpoch>,
-    index: Res<SectionIndex>,
     mut commands: Commands,
     mut lit: Query<(&mut BlockLight, &mut SkyLight)>,
 ) {
@@ -336,12 +313,10 @@ fn publish_light(
         .collect();
 
     for pos in published {
-        let Some(entity) = index.entity(pos) else {
-            continue;
-        };
         let Some(section) = lighting.0.section(pos) else {
             continue;
         };
+        let entity = section.entity;
         let block = BlockLight(section.block_light.clone());
         let sky = SkyLight(section.sky_light.clone());
         match lit.get_mut(entity) {

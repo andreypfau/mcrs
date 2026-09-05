@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Query;
 use bevy_math::DVec3;
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
@@ -27,7 +27,7 @@ pub fn find_or_create_nether_landing(
     dim_entity: Entity,
     source_pos: BlockPos,
     chunk_index_query: &Query<&ChunkIndex>,
-    palette_query: &Query<&BlockPalette>,
+    palette_query: &Query<&ChunkBlocks>,
 ) -> DVec3 {
     let scaled_x = nether_scale(source_pos.x);
     let scaled_z = nether_scale(source_pos.z);
@@ -66,7 +66,7 @@ pub fn find_or_create_nether_landing(
 fn read_block(
     pos: BlockPos,
     chunk_index: &ChunkIndex,
-    palette_query: &Query<&BlockPalette>,
+    palette_query: &Query<&ChunkBlocks>,
 ) -> Option<BlockStateId> {
     let chunk_entity = chunk_index.get(ChunkPos::from(pos))?;
     let palette = palette_query.get(chunk_entity).ok()?;

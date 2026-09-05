@@ -1,27 +1,32 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
+use rustc_hash::FxHashMap;
+
+use bevy_ecs::prelude::Entity;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
-use mcrs_voxel_storage::{PalettedContainer, VoxelId};
+use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 
+use crate::SectionBlocks;
 use crate::block::{Layer, LightRegistry};
 use crate::level::{BlockColumn, LightBounds, LightLevel, LocalPos, SECTION_WIDTH};
 use crate::region::BlockBox;
-use crate::section::{self, SectionBlocks};
 use crate::storage::LightStorage;
 
-/// One loaded section: its blocks, plus the last published light for both layers.
+/// One loaded section: its blocks, the entity that owns them, and the last
+/// published light for both layers.
 #[derive(Clone, Debug)]
 pub struct Section {
+    pub entity: Entity,
     pub blocks: Arc<SectionBlocks>,
     pub block_light: LightStorage,
     pub sky_light: LightStorage,
 }
 
 impl Section {
-    pub fn new(blocks: Arc<SectionBlocks>) -> Self {
+    pub fn new(entity: Entity, blocks: Arc<SectionBlocks>) -> Self {
         Self {
+            entity,
             blocks,
             block_light: LightStorage::Empty,
             sky_light: LightStorage::Empty,
@@ -49,7 +54,7 @@ pub struct SkyFloor {
 }
 
 impl SkyFloor {
-    fn new(default_y: i32) -> Self {
+    pub(crate) fn new(default_y: i32) -> Self {
         Self {
             lowest_source_y: vec![default_y; BLOCKS::AREA].into_boxed_slice(),
         }
@@ -62,6 +67,11 @@ impl SkyFloor {
 
     pub fn get(&self, column: BlockColumn) -> i32 {
         self.lowest_source_y[Self::index(column)]
+    }
+
+    /// Whether every cell from `y` up this column is a sky source.
+    pub fn is_source(&self, x: i32, y: i32, z: i32) -> bool {
+        y >= self.get(BlockColumn { x, z })
     }
 
     fn set(&mut self, column: BlockColumn, y: i32) {
@@ -81,6 +91,9 @@ pub enum Edit {
     },
     LoadSection {
         pos: ChunkPos,
+        /// Who owns the blocks. Published light is written back to it, so the
+        /// engine never has to infer a lifecycle it does not define.
+        entity: Entity,
         blocks: Arc<SectionBlocks>,
     },
     UnloadSection {
@@ -106,22 +119,16 @@ impl Edit {
 }
 
 /// One past the topmost non-air Y of each of the 256 block columns, as the
-/// world that owns the blocks reports it.
+/// world that owns the blocks reports it — the same heightmap that world
+/// already keeps, so handing it over costs no repacking.
 ///
 /// Purely a bound on the sky scan, never a source of truth. It is dropped the
 /// moment this world's own copy of the column changes, so a scan is never
 /// steered by a claim about blocks it has not been handed yet.
-#[derive(Clone, Debug)]
-pub struct ColumnSurface(pub Box<[i32; BLOCKS::AREA]>);
+pub type ColumnSurface = ColumnHeights;
 
-impl ColumnSurface {
-    /// Above every block, so a column with no bound skips nothing.
-    pub const UNKNOWN: i32 = i32::MAX;
-
-    fn get(&self, local_x: u8, local_z: u8) -> i32 {
-        self.0[(local_x as usize) | ((local_z as usize) << BLOCKS::BITS)]
-    }
-}
+/// Above every block, so a column with no bound skips nothing.
+pub const UNKNOWN_SURFACE: i32 = i32::MAX;
 
 #[derive(Clone, Copy)]
 enum SkyColumnSection<'a> {
@@ -133,9 +140,10 @@ pub struct LightWorld {
     registry: Arc<LightRegistry>,
     bounds: LightBounds,
     sky: bool,
-    sections: HashMap<ChunkPos, Section>,
-    sky_floors: HashMap<ColumnPos, SkyFloor>,
-    surfaces: HashMap<ColumnPos, Arc<ColumnSurface>>,
+    sections: FxHashMap<ChunkPos, Section>,
+    loaded_per_column: FxHashMap<ColumnPos, u32>,
+    sky_floors: FxHashMap<ColumnPos, Arc<SkyFloor>>,
+    surfaces: FxHashMap<ColumnPos, Arc<ColumnSurface>>,
 }
 
 impl LightWorld {
@@ -147,9 +155,10 @@ impl LightWorld {
             registry,
             bounds,
             sky: true,
-            sections: HashMap::new(),
-            sky_floors: HashMap::new(),
-            surfaces: HashMap::new(),
+            sections: FxHashMap::default(),
+            loaded_per_column: FxHashMap::default(),
+            sky_floors: FxHashMap::default(),
+            surfaces: FxHashMap::default(),
         }
     }
 
@@ -182,12 +191,21 @@ impl LightWorld {
 
     pub(crate) fn insert_section(&mut self, pos: ChunkPos, section: Section) {
         self.forget_column_surface(ColumnPos::from(pos));
-        self.sections.insert(pos, section);
+        if self.sections.insert(pos, section).is_none() {
+            *self.loaded_per_column.entry(ColumnPos::from(pos)).or_default() += 1;
+        }
     }
 
     pub(crate) fn remove_section(&mut self, pos: ChunkPos) -> Option<Section> {
-        self.forget_column_surface(ColumnPos::from(pos));
-        self.sections.remove(&pos)
+        let section = self.sections.remove(&pos)?;
+        let column = ColumnPos::from(pos);
+        if let Some(count) = self.loaded_per_column.get_mut(&column) {
+            *count -= 1;
+            if *count == 0 {
+                self.loaded_per_column.remove(&column);
+            }
+        }
+        Some(section)
     }
 
     pub(crate) fn set_column_surface(&mut self, column: ColumnPos, surface: Arc<ColumnSurface>) {
@@ -215,7 +233,7 @@ impl LightWorld {
             return self.registry.outside();
         }
         match self.sections.get(&ChunkPos::from(pos)) {
-            Some(section) => section::block_at(&section.blocks, local_of(pos)),
+            Some(section) => section.blocks.get(pos),
             None => self.registry.unloaded(),
         }
     }
@@ -249,15 +267,6 @@ impl LightWorld {
         }
     }
 
-    /// Combined brightness at a position, as [`LightLevel::brightness`] defines it.
-    pub fn brightness(&self, pos: BlockPos, sky_darken: u8) -> LightLevel {
-        LightLevel::brightness(
-            self.light_at(pos, Layer::Block),
-            self.light_at(pos, Layer::Sky),
-            sky_darken,
-        )
-    }
-
     /// Lowest block Y in this column that is still a sky source, or
     /// [`Self::NO_SKY_SOURCES`] where the world knows nothing about the column.
     ///
@@ -272,14 +281,20 @@ impl LightWorld {
         }
     }
 
+    /// The published floors of one section column, shared rather than copied:
+    /// a job reads them from a worker thread while the world keeps scanning.
+    pub(crate) fn sky_floors_of(&self, section_column: ColumnPos) -> Option<Arc<SkyFloor>> {
+        self.sky_floors.get(&section_column).cloned()
+    }
+
     /// Recomputes the sky source floor for one column by scanning it top down,
-    /// and returns the previous value.
+    /// and returns the previous floor and the new one.
     ///
     /// Scanning stops at the first occluded seam, so an edit that does not touch
     /// the boundary costs a few reads rather than a full column.
-    pub(crate) fn rescan_sky_floor(&mut self, column: BlockColumn) -> i32 {
+    pub(crate) fn rescan_sky_floor(&mut self, column: BlockColumn) -> (i32, i32) {
         if !self.sky {
-            return Self::NO_SKY_SOURCES;
+            return (Self::NO_SKY_SOURCES, Self::NO_SKY_SOURCES);
         }
         let previous = self.sky_floor(column);
         let section_column = column.section_column();
@@ -289,21 +304,22 @@ impl LightWorld {
             local_x_of(column),
             local_z_of(column),
             self.column_surface(section_column)
-                .map_or(ColumnSurface::UNKNOWN, |surface| {
-                    surface.get(local_x_of(column), local_z_of(column))
+                .map_or(UNKNOWN_SURFACE, |surface| {
+                    surface.get(local_x_of(column) as usize, local_z_of(column) as usize)
                 }),
         );
         let bottom = self.bounds.min_light_y();
-        self.sky_floors
-            .entry(section_column)
-            .or_insert_with(|| SkyFloor::new(bottom))
-            .set(column, floor);
-        previous
+        Arc::make_mut(
+            self.sky_floors
+                .entry(section_column)
+                .or_insert_with(|| Arc::new(SkyFloor::new(bottom))),
+        )
+        .set(column, floor);
+        (previous, floor)
     }
 
-    /// Recomputes all 256 sky source floors of one section column.
-    /// Rescans the column's sky floors and reports the run of cells whose
-    /// source flag moved, if any.
+    /// Rescans all 256 sky source floors of one section column and reports the
+    /// run of cells whose source flag moved, if any.
     ///
     /// A section arriving can move the floor of a column whose lower sections
     /// were lit ticks ago, and those cells are further than one section from
@@ -316,6 +332,7 @@ impl LightWorld {
         let stack: Vec<_> = self.sky_column_top_down(section_column).collect();
         let (start, entering) = self.skip_uniform_sky(&stack);
         let surfaces = self.column_surface(section_column);
+        let published = self.sky_floors.get(&section_column);
         let mut floors = SkyFloor::new(self.bounds.min_light_y());
         let mut moved: Option<(i32, i32)> = None;
         for column in Self::block_columns_of(section_column) {
@@ -325,25 +342,18 @@ impl LightWorld {
                 stack[start..].iter().copied(),
                 local_x,
                 local_z,
-                surfaces.map_or(ColumnSurface::UNKNOWN, |s| s.get(local_x, local_z)),
+                surfaces.map_or(UNKNOWN_SURFACE, |s| s.get(local_x as usize, local_z as usize)),
             );
             floors.set(column, floor);
-            let previous = self.sky_floor(column);
-            if previous != floor {
-                let low = previous.min(floor).max(self.bounds.min_light_y());
-                let high = previous
-                    .max(floor)
-                    .saturating_sub(1)
-                    .min(self.bounds.max_light_y());
-                if low <= high {
-                    moved = Some(match moved {
-                        Some((lo, hi)) => (lo.min(low), hi.max(high)),
-                        None => (low, high),
-                    });
-                }
+            let previous = published.map_or(Self::NO_SKY_SOURCES, |f| f.get(column));
+            if let Some((low, high)) = self.bounds.sky_flip_span(previous, floor) {
+                moved = Some(match moved {
+                    Some((lo, hi)) => (lo.min(low), hi.max(high)),
+                    None => (low, high),
+                });
             }
         }
-        self.sky_floors.insert(section_column, floors);
+        self.sky_floors.insert(section_column, Arc::new(floors));
         moved.map(|(low, high)| {
             let (x, z) = (
                 section_column.x * SECTION_WIDTH,
@@ -414,10 +424,8 @@ impl LightWorld {
                 // seals no seam a uniform one would not: the entry seam and one
                 // air-over-air test settle all sixteen levels.
                 SkyColumnSection::Blocks(blocks) if section_y * SECTION_WIDTH >= surface => {
-                    let air = section::block_at(
-                        blocks,
-                        LocalPos::new(local_x, BLOCKS::MASK as u8, local_z),
-                    );
+                    let air =
+                        blocks.get_cell(local_x as usize, BLOCKS::MASK, local_z as usize);
                     match top(air) {
                         Ok(block) => above = block,
                         Err(floor) => return floor,
@@ -426,7 +434,7 @@ impl LightWorld {
                 SkyColumnSection::Blocks(blocks) => {
                     for local_y in (0..BLOCKS::SIZE as u8).rev() {
                         let below =
-                            section::block_at(blocks, LocalPos::new(local_x, local_y, local_z));
+                            blocks.get_cell(local_x as usize, local_y as usize, local_z as usize);
                         if self.registry.breaks_sky_column(above, below) {
                             return section_y * SECTION_WIDTH + local_y as i32 + 1;
                         }
@@ -468,10 +476,7 @@ impl LightWorld {
 
     /// True when the section column still holds at least one loaded section.
     pub(crate) fn column_is_loaded(&self, section_column: ColumnPos) -> bool {
-        self.bounds.light_sections().any(|y| {
-            self.sections
-                .contains_key(&ChunkPos::new(section_column.x, y, section_column.z))
-        })
+        self.loaded_per_column.contains_key(&section_column)
     }
 
     pub(crate) fn block_columns_of(section_column: ColumnPos) -> impl Iterator<Item = BlockColumn> {

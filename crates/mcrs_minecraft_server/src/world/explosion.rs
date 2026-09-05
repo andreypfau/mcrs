@@ -3,7 +3,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
 use bevy_ecs::query::With;
 use bevy_ecs::system::{Local, Query, Res};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
@@ -89,7 +89,7 @@ struct BlockCacheItem {
 struct BlockCache<'a, 'b> {
     map: &'a mut FxHashMap<BlockPos, BlockCacheItem>,
     chunk_index: &'a ChunkIndex,
-    chunks: &'a Query<'a, 'a, (Entity, &'b BlockPalette)>,
+    chunks: &'a Query<'a, 'a, (Entity, &'b ChunkBlocks)>,
     blocks: &'a BlockDefinitions,
 }
 
@@ -155,7 +155,7 @@ fn tick_explode(
         With<Explosion>,
     >,
     dim_chunks: Query<&ChunkIndex>,
-    chunks: Query<(ChunkEntity, &BlockPalette)>,
+    chunks: Query<(ChunkEntity, &ChunkBlocks)>,
     mut queue: Local<Parallel<Vec<(ExplosionEntity, Vec<BlockExplodedEvent>)>>>,
     blocks: Res<Blocks>,
     mut commands: Commands,

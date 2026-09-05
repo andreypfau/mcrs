@@ -3,10 +3,14 @@ use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind, Palet
 use mcrs_voxel_math::chunk_pos;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_storage::PalettedContainer::{Heterogeneous, Homogeneous};
-use mcrs_voxel_storage::{SectionKind, VoxelId, VoxelPalette};
+use mcrs_voxel_storage::{SectionKind, SharedVoxelPalette, VoxelId, VoxelPalette};
 
 pub type BlockPalette = VoxelPalette<VoxelId, { BLOCKS::SIZE }>;
 pub type BiomePalette = VoxelPalette<u8, 4>;
+
+/// The blocks a loaded chunk entity holds: the engine's shared section
+/// palette, named in this crate's vocabulary.
+pub type ChunkBlocks = SharedVoxelPalette<VoxelId, { BLOCKS::SIZE }>;
 
 // A container whose edge length disagrees with its section kind's axis bits packs
 // to a wrong length at runtime instead of failing to compile.

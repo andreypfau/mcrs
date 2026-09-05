@@ -1,10 +1,19 @@
+use bevy_ecs::prelude::Entity;
 mod common;
 
 use std::sync::Arc;
 
 use common::*;
+
+fn combined(world: &LightWorld, pos: BlockPos, sky_darken: u8) -> u8 {
+    LightLevel::brightness(
+        world.light_at(pos, Layer::Block),
+        world.light_at(pos, Layer::Sky),
+        sky_darken,
+    )
+    .get()
+}
 use mcrs_minecraft_light::prelude::*;
-use mcrs_minecraft_light::section;
 use mcrs_voxel_math::{BlockPos, ChunkPos};
 use mcrs_voxel_storage::VoxelId;
 
@@ -222,8 +231,9 @@ fn loading_a_section_lets_light_in_from_its_neighbour() {
     let mut world = LightWorld::new(registry, LightBounds::new(0, 0));
 
     world.update_now([Edit::LoadSection {
+        entity: Entity::PLACEHOLDER,
         pos: ChunkPos::new(0, 0, 0),
-        blocks: Arc::new(section::filled(AIR)),
+        blocks: Arc::new(filled(AIR)),
     }]);
     world.update_now([Edit::SetBlock {
         pos: BlockPos::new(15, 8, 8),
@@ -235,8 +245,9 @@ fn loading_a_section_lets_light_in_from_its_neighbour() {
     );
 
     world.update_now([Edit::LoadSection {
+        entity: Entity::PLACEHOLDER,
         pos: ChunkPos::new(1, 0, 0),
-        blocks: Arc::new(section::filled(AIR)),
+        blocks: Arc::new(filled(AIR)),
     }]);
     assert_eq!(
         world.light_at(BlockPos::new(16, 8, 8), Layer::Block).get(),
@@ -255,8 +266,9 @@ fn unloading_a_section_takes_its_light_with_it() {
     let mut world = LightWorld::new(registry, LightBounds::new(0, 0));
     for x in 0..2 {
         world.update_now([Edit::LoadSection {
+            entity: Entity::PLACEHOLDER,
             pos: ChunkPos::new(x, 0, 0),
-            blocks: Arc::new(section::filled(AIR)),
+            blocks: Arc::new(filled(AIR)),
         }]);
     }
     world.update_now([Edit::SetBlock {
@@ -284,13 +296,13 @@ fn brightness_applies_sky_darkening_at_read_time() {
     let pos = BlockPos::new(8, 20, 8);
     assert_eq!(world.sky_light(pos), 15);
 
-    assert_eq!(world.world.brightness(pos, 0).get(), 15, "noon");
-    assert_eq!(world.world.brightness(pos, 5).get(), 10, "thunderstorm");
-    assert_eq!(world.world.brightness(pos, 11).get(), 4, "midnight");
+    assert_eq!(combined(&world.world, pos, 0), 15, "noon");
+    assert_eq!(combined(&world.world, pos, 5), 10, "thunderstorm");
+    assert_eq!(combined(&world.world, pos, 11), 4, "midnight");
 
     world.set(BlockPos::new(8, 19, 8), TORCH);
     assert_eq!(
-        world.world.brightness(BlockPos::new(8, 18, 8), 11).get(),
+        combined(&world.world, BlockPos::new(8, 18, 8), 11),
         13,
         "block light is never darkened"
     );
@@ -447,8 +459,9 @@ fn uniform_sections_agree_with_the_reference_solver() {
     let mut world = LightWorld::new(registry(), LightBounds::new(0, 2));
     let loads: Vec<Edit> = (0..3)
         .map(|y| Edit::LoadSection {
+            entity: Entity::PLACEHOLDER,
             pos: ChunkPos::new(0, y, 0),
-            blocks: Arc::new(section::filled(match y {
+            blocks: Arc::new(filled(match y {
                 2 => GLASS,
                 1 => WATER,
                 _ => AIR,

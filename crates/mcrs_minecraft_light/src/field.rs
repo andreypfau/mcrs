@@ -9,9 +9,9 @@ use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ChunkPos, Direction};
 use mcrs_voxel_storage::VoxelId;
 
+use crate::SectionBlocks;
 use crate::level::{LightLevel, LocalPos, SECTION_WIDTH};
 use crate::region::BlockBox;
-use crate::section::{self, SectionBlocks};
 use crate::storage::LightStorage;
 
 /// Index of a cell within a [`FieldLayout`].
@@ -56,6 +56,17 @@ impl FieldLayout {
         (self.dim_x * self.dim_y * self.dim_z) as usize
     }
 
+    /// The number of section columns the layout spans.
+    pub fn column_count(&self) -> usize {
+        (self.dim_x * self.dim_z) as usize
+    }
+
+    /// Every cell of a section shares this, so a per-column table is resolved
+    /// once per section rather than once per cell.
+    pub fn column_index(&self, section_index: usize) -> usize {
+        section_index % self.column_count()
+    }
+
     pub fn cell_count(&self) -> usize {
         self.section_count() * BLOCKS::VOLUME
     }
@@ -80,10 +91,6 @@ impl FieldLayout {
         ChunkPos::new(self.origin.x + sx, self.origin.y + sy, self.origin.z + sz)
     }
 
-    pub fn block_at(&self, section_index: usize, local: LocalPos) -> BlockPos {
-        block_in(self.section_pos(section_index), local)
-    }
-
     /// The block-coordinate box this layout spans.
     pub fn block_bounds(&self) -> BlockBox {
         let min = BlockPos::new(
@@ -102,6 +109,7 @@ impl FieldLayout {
     }
 
     /// Index of the first cell of a section, to be combined with a [`LocalPos`].
+    #[inline]
     pub fn section_base(&self, section_index: usize) -> CellIndex {
         (section_index as CellIndex) << LOCAL_BITS
     }
@@ -110,6 +118,7 @@ impl FieldLayout {
     ///
     /// Leaving the area is safe to ignore: the area is built with a shell of
     /// cells that no edit in this batch can reach, so nothing outside it changes.
+    #[inline]
     pub fn step(&self, index: CellIndex, dir: Direction) -> Option<CellIndex> {
         // The local index is `x | z << 4 | y << 8` and the section grid runs x
         // fastest then z then y, so an axis is fully described by where its
@@ -161,19 +170,34 @@ pub enum SectionSource {
     Absent(VoxelId),
 }
 
+impl SectionSource {
+    #[inline]
+    pub fn block_at(&self, local: LocalPos) -> VoxelId {
+        match self {
+            SectionSource::Loaded(blocks) => {
+                blocks.get_cell(local.x() as usize, local.y() as usize, local.z() as usize)
+            }
+            SectionSource::Open(block) | SectionSource::Absent(block) => *block,
+        }
+    }
+}
+
 impl BlockSnapshot {
     pub fn new(layout: &FieldLayout, sections: Vec<SectionSource>) -> Self {
         debug_assert_eq!(sections.len(), layout.section_count());
         Self { sections }
     }
 
+    /// Resolved once per section by the seeding pass, which would otherwise
+    /// re-index and re-match for each of the section's 4096 cells.
+    pub fn section(&self, section_index: usize) -> &SectionSource {
+        &self.sections[section_index]
+    }
+
+    #[inline]
     pub fn get(&self, index: CellIndex) -> VoxelId {
-        match &self.sections[(index >> LOCAL_BITS) as usize] {
-            SectionSource::Loaded(blocks) => {
-                section::block_at(blocks, LocalPos::from_index((index & LOCAL_MASK) as usize))
-            }
-            SectionSource::Open(block) | SectionSource::Absent(block) => *block,
-        }
+        self.sections[(index >> LOCAL_BITS) as usize]
+            .block_at(LocalPos::from_index((index & LOCAL_MASK) as usize))
     }
 
     pub fn section_loaded(&self, section_index: usize) -> bool {
@@ -198,7 +222,18 @@ pub struct LightField {
 
 impl LightField {
     pub fn new(layout: FieldLayout) -> Self {
-        let cells = (0..layout.cell_count()).map(|_| AtomicU8::new(0)).collect();
+        // `AtomicU8` is `repr(transparent)` over `u8`, and a zeroed byte is a
+        // zeroed atomic, so this reaches `alloc_zeroed` instead of writing
+        // several megabytes of zeros per epoch.
+        let zeros = vec![0u8; layout.cell_count()];
+        let mut zeros = std::mem::ManuallyDrop::new(zeros);
+        let cells = unsafe {
+            Vec::from_raw_parts(
+                zeros.as_mut_ptr() as *mut AtomicU8,
+                zeros.len(),
+                zeros.capacity(),
+            )
+        };
         Self { layout, cells }
     }
 
@@ -206,10 +241,12 @@ impl LightField {
         &self.layout
     }
 
+    #[inline]
     pub fn get(&self, index: CellIndex) -> LightLevel {
         LightLevel::new(self.cells[index as usize].load(Ordering::Relaxed))
     }
 
+    #[inline]
     pub fn set(&self, index: CellIndex, level: LightLevel) {
         self.cells[index as usize].store(level.get(), Ordering::Relaxed);
     }
@@ -219,6 +256,7 @@ impl LightField {
     /// The caller that sees `true` owns the obligation to spread the new value.
     /// A caller that read a stale, lower value elsewhere can only ever make a
     /// weaker claim, which some later write corrects.
+    #[inline]
     pub fn raise(&self, index: CellIndex, level: LightLevel) -> bool {
         self.cells[index as usize].fetch_max(level.get(), Ordering::Relaxed) < level.get()
     }
@@ -332,8 +370,8 @@ mod tests {
     }
 
     fn block_of(layout: &FieldLayout, index: CellIndex) -> BlockPos {
-        layout.block_at(
-            (index >> LOCAL_BITS) as usize,
+        block_in(
+            layout.section_pos((index >> LOCAL_BITS) as usize),
             LocalPos::from_index((index & LOCAL_MASK) as usize),
         )
     }

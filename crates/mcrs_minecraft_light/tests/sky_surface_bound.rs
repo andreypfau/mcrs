@@ -6,9 +6,9 @@ mod common;
 
 use std::sync::Arc;
 
-use common::{AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, registry};
+use common::{AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry};
+use bevy_ecs::prelude::Entity;
 use mcrs_minecraft_light::prelude::*;
-use mcrs_minecraft_light::section::{self, SectionBlocks};
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
 
@@ -23,17 +23,17 @@ fn world() -> LightWorld {
 /// uniform nor empty.
 fn stack() -> Vec<SectionBlocks> {
     let mut sections: Vec<SectionBlocks> = (0..SECTIONS_Y)
-        .map(|y| section::filled(if y == 0 { STONE } else { AIR }))
+        .map(|y| filled(if y == 0 { STONE } else { AIR }))
         .collect();
 
     let canopy = &mut sections[2];
     for i in 0..8u8 {
-        section::set_block(canopy, LocalPos::new(i, 4, i), LEAVES);
-        section::set_block(canopy, LocalPos::new(i, 5, i + 1), GLASS);
+        canopy.set_cell(i as usize, 4, i as usize, LEAVES);
+        canopy.set_cell((i) as usize, (5) as usize, (i + 1) as usize, GLASS);
         // A top slab directly under a bottom slab seals a seam neither seals
         // alone, so the shortcut has to leave these columns to the full walk.
-        section::set_block(canopy, LocalPos::new(i + 8, 7, i), TOP_SLAB);
-        section::set_block(canopy, LocalPos::new(i + 8, 8, i), BOTTOM_SLAB);
+        canopy.set_cell((i + 8) as usize, (7) as usize, (i) as usize, TOP_SLAB);
+        canopy.set_cell((i + 8) as usize, (8) as usize, (i) as usize, BOTTOM_SLAB);
     }
     sections
 }
@@ -43,6 +43,7 @@ fn load(world: &mut LightWorld, sections: &[SectionBlocks]) {
         .iter()
         .enumerate()
         .map(|(y, blocks)| Edit::LoadSection {
+            entity: Entity::PLACEHOLDER,
             pos: ChunkPos::new(0, y as i32, 0),
             blocks: Arc::new(blocks.clone()),
         })
@@ -53,22 +54,21 @@ fn load(world: &mut LightWorld, sections: &[SectionBlocks]) {
 /// One past the topmost non-air Y of each block column, which is what the
 /// server's `SurfaceHeightmap` holds.
 fn surface_of(sections: &[SectionBlocks]) -> Arc<ColumnSurface> {
-    let mut cells = Box::new([0i32; BLOCKS::AREA]);
+    let mut surface = ColumnSurface::new((SECTIONS_Y * 16) as u32, 0);
     for z in 0..BLOCKS::SIZE {
         for x in 0..BLOCKS::SIZE {
             let mut top = 0;
             for y in (0..SECTIONS_Y * 16).rev() {
                 let blocks = &sections[(y / 16) as usize];
-                let local = LocalPos::new(x as u8, (y % 16) as u8, z as u8);
-                if section::block_at(blocks, local) != AIR {
+                if blocks.get_cell(x, (y % 16) as usize, z) != AIR {
                     top = y + 1;
                     break;
                 }
             }
-            cells[x | (z << BLOCKS::BITS)] = top;
+            surface.set(x, z, top);
         }
     }
-    Arc::new(ColumnSurface(cells))
+    Arc::new(surface)
 }
 
 fn floors(world: &LightWorld) -> Vec<i32> {
@@ -106,6 +106,7 @@ fn a_surface_bound_never_changes_a_sky_floor() {
     }]);
     // The bound only takes effect on the next scan of the column.
     bounded.update_now(vec![Edit::LoadSection {
+        entity: Entity::PLACEHOLDER,
         pos: ChunkPos::new(0, 4, 0),
         blocks: Arc::new(sections[4].clone()),
     }]);
@@ -166,11 +167,12 @@ fn a_section_arriving_drops_the_bound() {
     }]);
 
     // Section 3 comes back holding terrain the bound says is not there.
-    let mut ceiling = section::filled(AIR);
+    let mut ceiling = filled(AIR);
     for i in 0..16u8 {
-        section::set_block(&mut ceiling, LocalPos::new(i, 9, i), STONE);
+        ceiling.set_cell(i as usize, 9 as usize, i as usize, STONE);
     }
     let replacement = Edit::LoadSection {
+        entity: Entity::PLACEHOLDER,
         pos: ChunkPos::new(0, 3, 0),
         blocks: Arc::new(ceiling.clone()),
     };
@@ -189,9 +191,9 @@ fn a_section_arriving_drops_the_bound() {
 #[test]
 fn a_bound_on_a_section_boundary_is_exact() {
     let mut sections: Vec<SectionBlocks> = (0..SECTIONS_Y)
-        .map(|y| section::filled(if y == 0 { STONE } else { AIR }))
+        .map(|y| filled(if y == 0 { STONE } else { AIR }))
         .collect();
-    section::set_block(&mut sections[1], LocalPos::new(0, 15, 0), STONE);
+    sections[1].set_cell(0 as usize, 15 as usize, 0 as usize, STONE);
 
     let mut bounded = world();
     load(&mut bounded, &sections);

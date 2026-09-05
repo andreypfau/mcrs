@@ -151,15 +151,7 @@ enum Cells {
 }
 
 /// One nibble per cell, indexed the same way block states are.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Light(pub Box<[u8; LIGHT_BYTES]>);
-
-impl Light {
-    pub fn get(&self, x: usize, y: usize, z: usize) -> u8 {
-        let index = BlockStates::index(x, y, z);
-        self.0[index >> 1] >> (4 * (index & 1)) & 0xf
-    }
-}
+pub type Light = mcrs_voxel_storage::SectionNibbles;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Section {
@@ -387,5 +379,5 @@ fn light(bytes: Vec<u8>, y: i8, field: &'static str) -> Result<Light, ErrorKind>
         .into_boxed_slice()
         .try_into()
         .map_err(|_| ErrorKind::LightLength { y, field, found })?;
-    Ok(Light(bytes))
+    Ok(mcrs_voxel_storage::SectionNibbles(bytes))
 }

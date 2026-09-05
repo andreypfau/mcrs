@@ -398,7 +398,7 @@ fn spawn_column(
         .iter()
         .map(|section| {
             let blocks = section.as_ref().map(|(b, _)| b.clone()).unwrap_or_default();
-            app.world_mut().spawn(blocks).id()
+            app.world_mut().spawn(ChunkBlocks::new(blocks)).id()
         })
         .collect();
 
@@ -485,8 +485,9 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
         let old = blocks.set_cell(x, (y % 16) as usize, z, id);
         app.world_mut()
             .entity_mut(section_entities[index])
-            .get_mut::<BlockPalette>()
+            .get_mut::<ChunkBlocks>()
             .unwrap()
+            .make_mut()
             .set_cell(x, (y % 16) as usize, z, id);
         app.world_mut().write_message(BlockPlaced {
             chunk: section_entities[index],

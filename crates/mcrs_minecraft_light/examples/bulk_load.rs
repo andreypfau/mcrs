@@ -4,10 +4,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, TaskPoolPlugin};
+use bevy_ecs::prelude::Entity;
 use mcrs_minecraft_light::prelude::*;
-use mcrs_minecraft_light::section;
 use mcrs_voxel_math::{ChunkPos, ColumnPos};
-use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
+
+fn filled(block: VoxelId) -> SectionBlocks {
+    VoxelPalette(PalettedContainer::Homogeneous(block))
+}
 use rayon::prelude::*;
 
 const AIR: VoxelId = VoxelId(0);
@@ -36,10 +40,10 @@ fn main() {
     let bounds = LightBounds::new(-4, 19);
     let sections_per_column = (bounds.max_section_y - bounds.min_section_y + 1) as usize;
     let mut world = LightWorld::new(registry(), bounds);
-    let mut queue = LightQueue::new();
+    let mut queue = LightQueue::default();
 
-    let air = Arc::new(section::filled(AIR));
-    let stone = Arc::new(section::filled(STONE));
+    let air = Arc::new(filled(AIR));
+    let stone = Arc::new(filled(STONE));
 
     let mut edits = Vec::new();
     let mut columns = 0usize;
@@ -53,6 +57,7 @@ fn main() {
                     Arc::clone(&air)
                 };
                 edits.push(Edit::LoadSection {
+                    entity: Entity::PLACEHOLDER,
                     pos: ChunkPos::new(x, y, z),
                     blocks,
                 });
@@ -103,7 +108,7 @@ fn main() {
             }
             let world = app.world();
             if took == worst {
-                worst_waiting = world.resource::<LightWorkQueue>().0.columns_waiting();
+                worst_waiting = world.resource::<LightWorkQueue>().0.len();
             }
             let drained = world.resource::<PendingEdits>().is_empty();
             if drained && intake_ticks == 0 {

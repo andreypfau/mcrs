@@ -18,7 +18,7 @@ use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_server::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload};
@@ -81,7 +81,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     for &chunk_pos in &chunk_positions {
         let chunk_entity = app
             .world_mut()
-            .spawn((chunk_pos, InDimension(dim_entity), BlockPalette::default()))
+            .spawn((chunk_pos, InDimension(dim_entity), ChunkBlocks::default()))
             .id();
         chunk_index.insert(chunk_pos, chunk_entity);
         column_index.0.insert(

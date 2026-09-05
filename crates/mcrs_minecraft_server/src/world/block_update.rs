@@ -15,7 +15,7 @@
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Entity, IntoScheduleConfigs, Query, With};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
@@ -54,7 +54,7 @@ pub fn update_client_blocks_per_dim(
         (
             &ChunkPos,
             &InDimension,
-            &BlockPalette,
+            &ChunkBlocks,
             &mut ChunkVoxelChanges,
         ),
         Changed<ChunkVoxelChanges>,

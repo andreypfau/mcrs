@@ -12,7 +12,7 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Query, Res, ResMut, With};
 use bevy_math::DVec3;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_voxel_world::world::channels::FromDimSender;
@@ -37,7 +37,7 @@ fn resolve_arrivals(
     sender: Res<FromDimSender<FromDim>>,
     dims: Query<Entity, With<Dimension>>,
     chunk_index_query: Query<&ChunkIndex>,
-    palette_query: Query<&BlockPalette>,
+    palette_query: Query<&ChunkBlocks>,
     mut dim_player_index: ResMut<DimPlayerIndex>,
     mut commands: Commands,
 ) {
@@ -95,7 +95,7 @@ fn resolve_position(
     cause: &ArrivalCause,
     block_writer: &mut MessageWriter<BlockSetRequest>,
     chunk_index_query: &Query<&ChunkIndex>,
-    palette_query: &Query<&BlockPalette>,
+    palette_query: &Query<&ChunkBlocks>,
 ) -> DVec3 {
     match cause {
         ArrivalCause::EndPlatform => {

@@ -23,16 +23,18 @@ pub mod plugin;
 pub mod queue;
 pub mod region;
 pub mod relax;
-pub mod section;
-pub mod sky;
 pub mod storage;
 pub mod world;
 
 use bevy_ecs::prelude::Component;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_storage::{VoxelId, VoxelPalette};
 
 use crate::storage::LightStorage;
 
 pub use relax::relax;
+
+pub type SectionBlocks = VoxelPalette<VoxelId, { BLOCKS::SIZE }>;
 
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct BlockLight(pub LightStorage);
@@ -45,13 +47,12 @@ pub mod prelude {
     pub use crate::epoch::{EpochStats, EpochTimings, LightJob, LightUpdate, SectionLight};
     pub use crate::level::{BlockColumn, LightBounds, LightLevel, LocalPos};
     pub use crate::plugin::{
-        IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightSet, LightWorkQueue, Lighting,
-        PendingEdits, SectionIndex, SkyDarken, light_has_settled,
+        IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightSet, LightStatus, LightWorkQueue,
+        Lighting, PendingEdits, light_has_settled,
     };
     pub use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
     pub use crate::region::{BlockBox, Influence};
-    pub use crate::section::SectionBlocks;
     pub use crate::storage::LightStorage;
-    pub use crate::world::{ColumnSurface, Edit, LightWorld, Section};
-    pub use crate::{BlockLight, SkyLight};
+    pub use crate::world::{ColumnSurface, Edit, LightWorld, Section, UNKNOWN_SURFACE};
+    pub use crate::{BlockLight, SectionBlocks, SkyLight};
 }

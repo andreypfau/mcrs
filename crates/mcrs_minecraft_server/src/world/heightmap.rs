@@ -4,7 +4,7 @@ use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette, ChunkBlocks};
 use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_core::tag::TagPhase;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
@@ -17,92 +17,28 @@ use mcrs_minecraft_world::block::tags::{
 use mcrs_minecraft_world::transition_to_playing;
 use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_storage::{PackedBitStorage, PalettedContainer, VoxelId, bits_needed_for};
+use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_voxel_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_voxel_world::world::storage::column::{ChunkLookup, ColumnChunks, ColumnIndex};
 use rustc_hash::FxHashMap;
 
-/// One packed Y scalar over the 16x16 column footprint, indexed by `(x, z)` in
-/// `0..16` each. The stored value is `1 + y` of the topmost block satisfying the
-/// map's predicate, or `min_y` when the column holds no such block.
-#[derive(Debug, Clone)]
-pub struct ColumnHeightmap {
-    store: PackedBitStorage,
-    height: u32,
-    min_y: i32,
-}
-
-impl ColumnHeightmap {
-    pub fn new(height: u32, min_y: i32) -> Self {
-        let max_value = height; // stored value range is [0, height]
-        Self {
-            store: PackedBitStorage::with_bits(BLOCKS::AREA, bits_needed_for(max_value), max_value),
-            height,
-            min_y,
-        }
-    }
-
-    pub fn height(&self) -> u32 {
-        self.height
-    }
-
-    pub fn min_y(&self) -> i32 {
-        self.min_y
-    }
-
-    /// One past the highest Y this map can name.
-    pub fn max_y(&self) -> i32 {
-        self.min_y + self.height as i32
-    }
-
-    #[inline]
-    fn index(x: usize, z: usize) -> usize {
-        debug_assert!(
-            x < BLOCKS::SIZE && z < BLOCKS::SIZE,
-            "ColumnHeightmap index ({x}, {z}) out of range"
-        );
-        (z & BLOCKS::MASK) * BLOCKS::SIZE + (x & BLOCKS::MASK)
-    }
-
-    pub fn get(&self, x: usize, z: usize) -> i32 {
-        self.store.get(Self::index(x, z)) as i32 + self.min_y
-    }
-
-    pub fn set(&mut self, x: usize, z: usize, y: i32) {
-        debug_assert!(
-            y >= self.min_y && y <= self.max_y(),
-            "ColumnHeightmap::set y={y} outside [{min}, {max}]",
-            min = self.min_y,
-            max = self.max_y(),
-        );
-        let rel = (y - self.min_y).clamp(0, self.height as i32);
-        self.store.set(Self::index(x, z), rel as u32);
-    }
-
-    pub fn raw_longs(&self) -> &[u64] {
-        self.store.raw_longs()
-    }
-
-    pub fn storage(&self) -> &PackedBitStorage {
-        &self.store
-    }
-}
+pub use mcrs_voxel_storage::ColumnHeights as ColumnHeightmap;
 
 /// Topmost non-air block. The upper bound of every other map.
 #[derive(Component, Debug, Clone)]
-pub struct SurfaceHeightmap(pub ColumnHeightmap);
+pub struct SurfaceHeightmap(pub ColumnHeights);
 
 /// Topmost block that blocks motion, leaves included, fluids excluded.
 #[derive(Component, Debug, Clone)]
-pub struct SolidHeightmap(pub ColumnHeightmap);
+pub struct SolidHeightmap(pub ColumnHeights);
 
 /// Topmost block that blocks motion or holds a fluid.
 #[derive(Component, Debug, Clone)]
-pub struct MotionHeightmap(pub ColumnHeightmap);
+pub struct MotionHeightmap(pub ColumnHeights);
 
 /// Topmost block that blocks motion without being leaves, or holds a fluid.
 #[derive(Component, Debug, Clone)]
-pub struct NoLeavesHeightmap(pub ColumnHeightmap);
+pub struct NoLeavesHeightmap(pub ColumnHeights);
 
 bitflags::bitflags! {
     /// The four heightmap predicates, as one bitmask per block state.
@@ -199,10 +135,10 @@ pub struct ColumnHeightmapSet {
 impl ColumnHeightmapSet {
     pub fn new(height: u32, min_y: i32) -> Self {
         Self {
-            surface: SurfaceHeightmap(ColumnHeightmap::new(height, min_y)),
-            solid: SolidHeightmap(ColumnHeightmap::new(height, min_y)),
-            motion: MotionHeightmap(ColumnHeightmap::new(height, min_y)),
-            no_leaves: NoLeavesHeightmap(ColumnHeightmap::new(height, min_y)),
+            surface: SurfaceHeightmap(ColumnHeights::new(height, min_y)),
+            solid: SolidHeightmap(ColumnHeights::new(height, min_y)),
+            motion: MotionHeightmap(ColumnHeights::new(height, min_y)),
+            no_leaves: NoLeavesHeightmap(ColumnHeights::new(height, min_y)),
         }
     }
 
@@ -396,7 +332,7 @@ pub fn prime_column_heightmaps(
     }
 }
 
-fn merge_max(into: &mut ColumnHeightmap, from: &ColumnHeightmap) {
+fn merge_max(into: &mut ColumnHeights, from: &ColumnHeights) {
     for z in 0..BLOCKS::SIZE {
         for x in 0..BLOCKS::SIZE {
             let candidate = from.get(x, z);
@@ -428,7 +364,7 @@ pub fn update_column_heightmaps(
         &mut MotionHeightmap,
         &mut NoLeavesHeightmap,
     )>,
-    palettes: Query<&BlockPalette>,
+    palettes: Query<&ChunkBlocks>,
 ) {
     for edit in placed.read() {
         let col = ColumnPos::from(edit.block_pos);
@@ -502,7 +438,7 @@ pub fn update_column_heightmaps(
 
 #[allow(clippy::too_many_arguments)]
 fn apply_edit(
-    map: &mut ColumnHeightmap,
+    map: &mut ColumnHeights,
     kind: HeightmapKinds,
     x: usize,
     z: usize,
@@ -538,7 +474,7 @@ fn apply_edit(
 
 fn block_at(
     chunks: &ColumnChunks,
-    palettes: &Query<&BlockPalette>,
+    palettes: &Query<&ChunkBlocks>,
     x: usize,
     y: i32,
     z: usize,
@@ -548,8 +484,7 @@ fn block_at(
     };
     match palettes.get(section) {
         Ok(blocks) => blocks
-            .0
-            .get(x, y.rem_euclid(BLOCKS::SIZE as i32) as usize, z),
+            .get_cell(x, y.rem_euclid(BLOCKS::SIZE as i32) as usize, z),
         Err(_) => VoxelId::default(),
     }
 }

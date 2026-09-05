@@ -6,9 +6,9 @@ mod common;
 
 use std::sync::Arc;
 
-use common::{AIR, Reference, STONE, WATER, registry};
+use common::{AIR, Reference, STONE, WATER, filled, registry};
+use bevy_ecs::prelude::Entity;
 use mcrs_minecraft_light::prelude::*;
-use mcrs_minecraft_light::section;
 use mcrs_voxel_math::{BlockPos, ChunkPos};
 use mcrs_voxel_storage::VoxelId;
 
@@ -22,8 +22,9 @@ fn world() -> LightWorld {
 fn load_column(world: &mut LightWorld, x: i32, z: i32, floor_y: i32, floor: VoxelId) {
     let loads: Vec<Edit> = (0..SECTIONS_Y)
         .map(|y| Edit::LoadSection {
+            entity: Entity::PLACEHOLDER,
             pos: ChunkPos::new(x, y, z),
-            blocks: Arc::new(section::filled(if y == floor_y { floor } else { AIR })),
+            blocks: Arc::new(filled(if y == floor_y { floor } else { AIR })),
         })
         .collect();
     world.update_now(loads);
@@ -98,15 +99,17 @@ fn a_column_arriving_bottom_half_first_matches_one_pass() {
     let half = SECTIONS_Y / 2;
     let lower: Vec<Edit> = (0..half)
         .map(|y| Edit::LoadSection {
+            entity: Entity::PLACEHOLDER,
             pos: ChunkPos::new(0, y, 0),
-            blocks: Arc::new(section::filled(AIR)),
+            blocks: Arc::new(filled(AIR)),
         })
         .collect();
     world.update_now(lower);
     let upper: Vec<Edit> = (half..SECTIONS_Y)
         .map(|y| Edit::LoadSection {
+            entity: Entity::PLACEHOLDER,
             pos: ChunkPos::new(0, y, 0),
-            blocks: Arc::new(section::filled(AIR)),
+            blocks: Arc::new(filled(AIR)),
         })
         .collect();
     world.update_now(upper);
@@ -118,8 +121,9 @@ fn a_column_arriving_one_section_at_a_time_bottom_up_matches_one_pass() {
     let mut world = world();
     for y in 0..SECTIONS_Y {
         world.update_now([Edit::LoadSection {
+            entity: Entity::PLACEHOLDER,
             pos: ChunkPos::new(0, y, 0),
-            blocks: Arc::new(section::filled(AIR)),
+            blocks: Arc::new(filled(AIR)),
         }]);
     }
     check(&world, 1, 1);
@@ -131,8 +135,9 @@ fn a_column_arriving_one_section_at_a_time_bottom_up_matches_one_pass() {
 fn load_ocean_column(world: &mut LightWorld, x: i32, z: i32, water_sections: i32) {
     let loads: Vec<Edit> = (0..SECTIONS_Y)
         .map(|y| Edit::LoadSection {
+            entity: Entity::PLACEHOLDER,
             pos: ChunkPos::new(x, y, z),
-            blocks: Arc::new(section::filled(if y < water_sections {
+            blocks: Arc::new(filled(if y < water_sections {
                 WATER
             } else {
                 AIR

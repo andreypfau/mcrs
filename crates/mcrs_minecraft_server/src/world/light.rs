@@ -3,14 +3,13 @@ use std::sync::Arc;
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::prelude::{
-    BlockLight, ColumnSurface, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority,
+    BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority,
     SkyLight,
 };
 use mcrs_minecraft_protocol::light_codec::{LightCodecParams, build_delta_light_data};
-use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{ChunkPos, ColumnPos};
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
@@ -46,9 +45,7 @@ impl Plugin for DimLightPlugin {
         .add_systems(
             Last,
             (
-                feed_light_edits
-                    .after(LightSet::Track)
-                    .before(LightSet::Intake),
+                feed_light_edits.before(LightSet::Intake),
                 // After the block edits it bounds, and after the maps have taken
                 // this tick's edits: a bound must never describe blocks the
                 // light world has not been handed.
@@ -64,7 +61,7 @@ impl Plugin for DimLightPlugin {
 
 fn feed_light_edits(
     mut pending: ResMut<PendingEdits>,
-    loaded: Query<(&ChunkPos, &BlockPalette), (Added<ChunkLoaded>, With<ChunkFresh>)>,
+    loaded: Query<(Entity, &ChunkPos, &ChunkBlocks), (Added<ChunkLoaded>, With<ChunkFresh>)>,
     positions: Query<&ChunkPos>,
     players: Query<&Transform, With<Player>>,
     mut unloaded: RemovedComponents<ChunkLoaded>,
@@ -82,16 +79,17 @@ fn feed_light_edits(
         pending.push_with_priority(edit, distance.clamp(0, Priority::MAX as i32) as Priority);
     };
 
-    for (pos, blocks) in &loaded {
-        queue(Edit::LoadSection {
-            pos: *pos,
-            blocks: Arc::new(blocks.clone()),
-        });
-    }
     for entity in unloaded.read() {
         if let Ok(pos) = positions.get(entity) {
             queue(Edit::UnloadSection { pos: *pos });
         }
+    }
+    for (entity, pos, blocks) in &loaded {
+        queue(Edit::LoadSection {
+            pos: *pos,
+            entity,
+            blocks: Arc::clone(&blocks.0),
+        });
     }
     for placed in placed.read() {
         queue(Edit::SetBlock {
@@ -116,17 +114,11 @@ fn feed_column_surfaces(
         .map(|at| ColumnPos::from(at.translation))
         .collect();
     for (pos, surface) in &columns {
-        let mut cells = Box::new([0i32; BLOCKS::AREA]);
-        for z in 0..BLOCKS::SIZE {
-            for x in 0..BLOCKS::SIZE {
-                cells[x | (z << BLOCKS::BITS)] = surface.0.get(x, z);
-            }
-        }
         let distance = crate::world::chunk::min_column_distance(&pos.0, &player_columns);
         pending.push_with_priority(
             Edit::SetColumnSurface {
                 column: pos.0,
-                surface: Arc::new(ColumnSurface(cells)),
+                surface: Arc::new(surface.0.clone()),
             },
             distance.clamp(0, Priority::MAX as i32) as Priority,
         );
@@ -209,49 +201,4 @@ pub fn emit_light_updates(
             epoch: 0,
         });
     }
-}
-
-/// Whether the light of a column is finished, neighbours included.
-///
-/// A column is sent once and its light travels with it, so anything the engine
-/// still owes it would arrive too late. The neighbours count because a seam is
-/// lit against whatever stands beside it: a column whose neighbour is still
-/// being lit holds the darker edge that neighbour's work is about to repair.
-pub fn light_settled_around(
-    column_pos: ColumnPos,
-    lighting: Option<&mcrs_minecraft_light::prelude::Lighting>,
-    queue: Option<&mcrs_minecraft_light::prelude::LightWorkQueue>,
-    epoch: Option<&mcrs_minecraft_light::prelude::LightEpoch>,
-    pending: Option<&mcrs_minecraft_light::prelude::PendingEdits>,
-) -> bool {
-    use mcrs_minecraft_light::prelude::BlockBox;
-    use mcrs_voxel_math::BlockPos;
-
-    let Some(lighting) = lighting else {
-        return true;
-    };
-    let neighbourhood = (-1..=1).flat_map(|dx| {
-        (-1..=1).map(move |dz| ColumnPos::new(column_pos.x + dx, column_pos.z + dz))
-    });
-    for column in neighbourhood {
-        if pending.is_some_and(|pending| pending.holds(column))
-            || queue.is_some_and(|queue| queue.0.priority_of(column).is_some())
-        {
-            return false;
-        }
-    }
-    let bounds = lighting.0.bounds();
-    let area = BlockBox {
-        min: BlockPos::new(
-            (column_pos.x - 1) * 16,
-            bounds.min_light_y(),
-            (column_pos.z - 1) * 16,
-        ),
-        max: BlockPos::new(
-            (column_pos.x + 2) * 16 - 1,
-            bounds.max_light_y(),
-            (column_pos.z + 2) * 16 - 1,
-        ),
-    };
-    !epoch.is_some_and(|epoch| epoch.touches(area))
 }

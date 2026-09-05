@@ -146,6 +146,23 @@ impl LightBounds {
         y < self.min_block_y() || y > self.max_block_y()
     }
 
+    /// The run of cells whose sky source flag moved when a column's floor went
+    /// from `old` to `new`, clamped into the light range.
+    ///
+    /// A column the world has not scanned yet reports [`LightWorld::NO_SKY_SOURCES`],
+    /// and clamping degrades that to "the whole column" instead of overflowing
+    /// when the box is later dilated.
+    ///
+    /// [`LightWorld::NO_SKY_SOURCES`]: crate::world::LightWorld::NO_SKY_SOURCES
+    pub fn sky_flip_span(self, old: i32, new: i32) -> Option<(i32, i32)> {
+        if old == new {
+            return None;
+        }
+        let low = old.min(new).max(self.min_light_y());
+        let high = old.max(new).saturating_sub(1).min(self.max_light_y());
+        (low <= high).then_some((low, high))
+    }
+
     /// Lowest block Y that can hold light.
     pub const fn min_light_y(self) -> i32 {
         self.min_light_section_y() * SECTION_WIDTH

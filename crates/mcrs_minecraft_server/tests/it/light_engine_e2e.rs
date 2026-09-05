@@ -3,7 +3,7 @@ use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::{BlockPalette, ChunkBlocks};
 use mcrs_minecraft_light::prelude::{
     BlockLight, LightBudget, LightEpoch, LightWorkQueue, PendingEdits, SkyLight,
 };
@@ -66,7 +66,7 @@ fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
         world.spawn((
             ChunkPos::new(0, y, 0),
             InDimension(dimension),
-            filled(if solid { stone } else { air }),
+            ChunkBlocks::new(filled(if solid { stone } else { air })),
             ChunkLoaded,
         ));
     }
@@ -163,8 +163,9 @@ fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
         .expect("the section holding the torch");
     sub_app
         .world_mut()
-        .get_mut::<BlockPalette>(chunk)
+        .get_mut::<ChunkBlocks>(chunk)
         .expect("the section has blocks")
+        .make_mut()
         .0
         .set(
             (at.x & 15) as usize,
@@ -401,7 +402,7 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
             world.spawn((
                 ChunkPos::new(x, y, z),
                 InDimension(dimension),
-                filled(if solid { stone } else { air }),
+                ChunkBlocks::new(filled(if solid { stone } else { air })),
                 ChunkLoaded,
             ));
         }
@@ -455,11 +456,12 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
 #[test]
 fn a_column_is_not_sent_while_a_neighbour_still_has_lighting_work() {
     use mcrs_minecraft_light::block::{LightProperties, LightRegistry, SpecialBlocks};
+    use bevy_ecs::prelude::World;
+    use bevy_ecs::system::RunSystemOnce;
     use mcrs_minecraft_light::prelude::{
-        Influence, LightBounds, LightEpoch, LightWorkQueue, Lighting, PendingEdits,
+        Influence, LightBounds, LightEpoch, LightStatus, LightWorkQueue, Lighting, PendingEdits,
     };
     use mcrs_minecraft_light::world::LightWorld;
-    use mcrs_minecraft_server::world::light::light_settled_around;
     use std::sync::Arc;
 
     let registry = Arc::new(LightRegistry::new(
@@ -469,29 +471,30 @@ fn a_column_is_not_sent_while_a_neighbour_still_has_lighting_work() {
             outside: VoxelId(0),
         },
     ));
-    let lighting = Lighting(LightWorld::new(registry, LightBounds::new(-4, 19)));
-    let mut queue = LightWorkQueue::default();
-    let epoch = LightEpoch::default();
-    let pending = PendingEdits::default();
-    let column = ColumnPos::new(0, 0);
-    let settled = |queue: &LightWorkQueue| {
-        light_settled_around(
-            column,
-            Some(&lighting),
-            Some(queue),
-            Some(&epoch),
-            Some(&pending),
-        )
-    };
+    let mut world = World::new();
+    world.insert_resource(Lighting(LightWorld::new(
+        registry,
+        LightBounds::new(-4, 19),
+    )));
+    world.init_resource::<LightWorkQueue>();
+    world.init_resource::<LightEpoch>();
+    world.init_resource::<PendingEdits>();
 
-    assert!(settled(&queue), "nothing is owed to the column or its ring");
+    fn settled(status: LightStatus) -> bool {
+        status.settled_around(ColumnPos::new(0, 0))
+    }
 
-    queue.0.push(
+    assert!(
+        world.run_system_once(settled).unwrap(),
+        "nothing is owed to the column or its ring"
+    );
+
+    world.resource_mut::<LightWorkQueue>().0.push(
         ColumnPos::new(1, 0),
         Influence::around(BlockPos::new(16, 64, 0)),
     );
     assert!(
-        !settled(&queue),
+        !world.run_system_once(settled).unwrap(),
         "the neighbour's work will repair this column's seam"
     );
 }

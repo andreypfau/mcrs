@@ -1,10 +1,14 @@
+use bevy_ecs::prelude::Entity;
 use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_minecraft_light::section;
 use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
+
+fn filled(block: VoxelId) -> SectionBlocks {
+    VoxelPalette(PalettedContainer::Homogeneous(block))
+}
 
 const AIR: VoxelId = VoxelId(0);
 const STONE: VoxelId = VoxelId(1);
@@ -53,12 +57,13 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
 
     let sections: Vec<ChunkPos> = (0..2).map(|y| ChunkPos::new(0, y, 0)).collect();
     for pos in &sections {
-        app.world_mut().spawn(*pos);
+        let entity = app.world_mut().spawn(*pos).id();
         app.world_mut()
             .resource_mut::<PendingEdits>()
             .push(Edit::LoadSection {
+                entity,
                 pos: *pos,
-                blocks: Arc::new(section::filled(AIR)),
+                blocks: Arc::new(filled(AIR)),
             });
     }
     settle(&mut app);
@@ -86,7 +91,8 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
 }
 
 /// A section can be despawned and respawned at the same position within one
-/// tick, so both facts reach `track_sections` together.
+/// tick. The later load names the new entity, so it supersedes the old one
+/// without anything having to notice that the old one died.
 #[test]
 fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
     use bevy_app::Last;
@@ -94,12 +100,13 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
 
     fn load_added_sections(
         mut pending: ResMut<PendingEdits>,
-        added: Query<&ChunkPos, Added<ChunkPos>>,
+        added: Query<(Entity, &ChunkPos), Added<ChunkPos>>,
     ) {
-        for pos in &added {
+        for (entity, pos) in &added {
             pending.push(Edit::LoadSection {
+                entity,
                 pos: *pos,
-                blocks: Arc::new(section::filled(AIR)),
+                blocks: Arc::new(filled(AIR)),
             });
         }
     }
@@ -111,29 +118,17 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
             bounds: LightBounds::new(0, 0),
             sky: true,
         })
-        .add_systems(
-            Last,
-            load_added_sections
-                .after(LightSet::Track)
-                .before(LightSet::Intake),
-        );
+        .add_systems(Last, load_added_sections.before(LightSet::Intake));
 
     let pos = ChunkPos::new(0, 0, 0);
     let old = app.world_mut().spawn(pos).id();
     settle(&mut app);
-    assert_eq!(
-        app.world().resource::<SectionIndex>().entity(pos),
-        Some(old)
-    );
+    assert!(app.world().get::<SkyLight>(old).is_some());
 
     app.world_mut().despawn(old);
     let new = app.world_mut().spawn(pos).id();
     settle(&mut app);
 
-    assert_eq!(
-        app.world().resource::<SectionIndex>().entity(pos),
-        Some(new)
-    );
     assert!(
         app.world().get::<SkyLight>(new).is_some(),
         "the respawned section was published"
@@ -155,8 +150,9 @@ fn load_columns(app: &mut App, columns: i32) {
     for x in 0..columns {
         for y in 0..2 {
             pending.push(Edit::LoadSection {
+                entity: Entity::PLACEHOLDER,
                 pos: ChunkPos::new(x, y, 0),
-                blocks: Arc::new(section::filled(AIR)),
+                blocks: Arc::new(filled(AIR)),
             });
         }
     }
@@ -219,8 +215,9 @@ fn the_most_urgent_column_is_admitted_before_the_backlog() {
         .resource_mut::<PendingEdits>()
         .push_with_priority(
             Edit::LoadSection {
+                entity: Entity::PLACEHOLDER,
                 pos: urgent,
-                blocks: Arc::new(section::filled(AIR)),
+                blocks: Arc::new(filled(AIR)),
             },
             0,
         );

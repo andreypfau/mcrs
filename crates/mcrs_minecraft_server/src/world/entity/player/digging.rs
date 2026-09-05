@@ -14,7 +14,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_world::item::component::Enchantments;
 use mcrs_minecraft_world::item::component::Tool;
@@ -73,7 +73,7 @@ impl Digging {
 fn tick_digging(
     time: Res<Time<Fixed>>,
     mut players: Query<(Entity, &InDimension, &mut Digging, &Transform)>,
-    chunks: Query<&BlockPalette>,
+    chunks: Query<&ChunkBlocks>,
     mut packet_queue: Local<Vec<(Entity, Entity, BlockPos, i8)>>,
     mut send: SendDestroyBlockProgress,
     mut commands: Commands,
@@ -118,7 +118,7 @@ fn tick_digging(
 fn player_start_destroy_block(
     mut reader: MessageReader<PlayerAction>,
     dimensions: Query<&ChunkIndex>,
-    chunks: Query<&BlockPalette>,
+    chunks: Query<&ChunkBlocks>,
     mut players: Query<(
         &InDimension,
         &Transform,

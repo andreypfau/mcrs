@@ -1,13 +1,14 @@
 #![allow(dead_code)]
 
+use bevy_ecs::prelude::Entity;
+
 use std::sync::{Arc, OnceLock};
 
 use bevy_math::Vec3;
 use mcrs_minecraft_light::prelude::*;
-use mcrs_minecraft_light::section;
 use mcrs_voxel_math::voxel_shape::{Aabb, VoxelShape};
 use mcrs_voxel_math::{BlockPos, ChunkPos, Direction};
-use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
 
 pub const AIR: VoxelId = VoxelId(0);
 pub const STONE: VoxelId = VoxelId(1);
@@ -41,6 +42,10 @@ fn bottom_slab_shape() -> &'static VoxelShape {
 fn top_slab_shape() -> &'static VoxelShape {
     static SHAPE: OnceLock<&'static VoxelShape> = OnceLock::new();
     *SHAPE.get_or_init(|| slab_shape(UPPER_HALF))
+}
+
+pub fn filled(block: VoxelId) -> SectionBlocks {
+    VoxelPalette(PalettedContainer::Homogeneous(block))
 }
 
 pub fn registry() -> Arc<LightRegistry> {
@@ -86,8 +91,9 @@ impl TestWorld {
             .flat_map(|y| {
                 (0..sections_z).flat_map(move |z| {
                     (0..sections_x).map(move |x| Edit::LoadSection {
+                        entity: Entity::PLACEHOLDER,
                         pos: ChunkPos::new(x, y, z),
-                        blocks: Arc::new(section::filled(AIR)),
+                        blocks: Arc::new(filled(AIR)),
                     })
                 })
             })

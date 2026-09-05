@@ -1,4 +1,5 @@
 use crate::world::format::anvil::{SavedColumns, SectionData, column_sections};
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use crate::world::generate::{
     BetaCaveBlockIds, BetaOreBlockIds, apply_beta_caves, apply_beta_ores, apply_beta_surface,
     generate_column,
@@ -487,7 +488,7 @@ pub(crate) fn process_completed_columns(
                         // Section completed successfully - mark as loaded with data
                         commands
                             .entity(entity)
-                            .insert((ChunkLoaded, blocks, biomes))
+                            .insert((ChunkLoaded, ChunkBlocks::new(blocks), biomes))
                             .remove::<ChunkGenerating>();
                     }
                     None => {

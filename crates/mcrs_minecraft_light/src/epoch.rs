@@ -1,26 +1,25 @@
 //! One batch of edits, turned into new light, split so the expensive part can
-//! leave the tick loop: [`LightWorld::prepare`] runs on the caller's thread,
-//! [`LightJob::run`] is pure computation holding no borrows, and
+//! leave the tick loop: [`LightWorld::prepare_batch`] runs on the caller's
+//! thread, [`LightJob::run`] is pure computation holding no borrows, and
 //! [`LightWorld::apply`] publishes the result.
 
 use rayon::prelude::*;
 
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
 use mcrs_voxel_storage::VoxelId;
+use rustc_hash::FxHashSet;
 
 use crate::block::{Layer, LightRegistry};
 use crate::field::{BlockSnapshot, CellIndex, FieldLayout, LightField, SectionSource, block_in};
 use crate::level::{BlockColumn, LightLevel, LocalPos};
-use crate::region::{BlockBox, ErasePlan, INFLUENCE_RADIUS, Influence, Regions};
+use crate::region::{BlockBox, ErasePlan, INFLUENCE_RADIUS, Influence, Regions, SectionErase};
 use crate::relax::relax;
-use crate::section;
-use crate::sky::SkyFloors;
 use crate::storage::LightStorage;
-use crate::world::{Edit, LightWorld, Section, local_of};
+use crate::world::{Edit, LightWorld, Section, SkyFloor};
 
 /// New light for one section.
 #[derive(Clone, Debug)]
@@ -41,7 +40,6 @@ pub struct LightUpdate {
 pub struct EpochStats {
     pub block_rounds: usize,
     pub sky_rounds: usize,
-    pub erased_cells: usize,
     pub area_cells: usize,
     pub timings: EpochTimings,
 }
@@ -84,7 +82,9 @@ pub struct LightJob {
     /// worker, not on the thread that asked for the work.
     published: Vec<Option<(LightStorage, LightStorage)>>,
     erase_plan: ErasePlan,
-    sky_floors: SkyFloors,
+    /// One entry per section column of the layout, shared with the world rather
+    /// than copied: the scan that produced them is the world's own.
+    sky_floors: Vec<Option<Arc<SkyFloor>>>,
 }
 
 impl LightJob {
@@ -112,8 +112,13 @@ impl LightJob {
         let mut block_field = LightField::new(layout.clone());
         let mut sky_field = LightField::new(layout.clone());
         for (section_index, light) in published.iter().enumerate() {
-            if let Some((block_light, sky_light)) = light {
+            let Some((block_light, sky_light)) = light else {
+                continue;
+            };
+            if !matches!(block_light, LightStorage::Empty) {
                 block_field.fill_section(section_index, block_light);
+            }
+            if !matches!(sky_light, LightStorage::Empty) {
                 sky_field.fill_section(section_index, sky_light);
             }
         }
@@ -128,30 +133,43 @@ impl LightJob {
         let seed_section = |section_index: usize| {
             let mut block_seeds = Vec::new();
             let mut sky_seeds = Vec::new();
-            let mut erased = 0;
 
             // Unloaded space is neither lit nor a source; giving it light
             // would let that light escape into the loaded world next to it.
             if !blocks.section_holds_light(section_index) {
-                return (block_seeds, sky_seeds, erased);
+                return (block_seeds, sky_seeds);
             }
 
             let section_base = layout.section_base(section_index);
             let section_pos = layout.section_pos(section_index);
+            let floors = sky_floors[layout.column_index(section_index)].as_deref();
+            let source = blocks.section(section_index);
+            let erase = erase_plan.meets(BlockBox::of_section(section_pos));
+
+            let capacity = match erase {
+                SectionErase::None => 0,
+                _ => BLOCKS::VOLUME / 8,
+            };
+            block_seeds.reserve(capacity);
+            sky_seeds.reserve(capacity);
+
             for local in LocalPos::all() {
                 let index = section_base | local.index() as u32;
                 let pos = block_in(section_pos, local);
 
-                if erase_plan.covers(pos) {
-                    erased += 1;
-
-                    let emission = registry.emission(blocks.get(index), Layer::Block);
+                let erased = match erase {
+                    SectionErase::All => true,
+                    SectionErase::None => false,
+                    SectionErase::Partial => erase_plan.covers(pos),
+                };
+                if erased {
+                    let emission = registry.emission(source.block_at(local), Layer::Block);
                     block_field.set(index, emission);
                     if !emission.is_zero() {
                         block_seeds.push(index);
                     }
 
-                    let sky = if sky_floors.is_source(pos.x, pos.y, pos.z) {
+                    let sky = if floors.is_some_and(|f| f.is_source(pos.x, pos.y, pos.z)) {
                         LightLevel::MAX
                     } else {
                         LightLevel::ZERO
@@ -173,10 +191,10 @@ impl LightJob {
                 }
             }
 
-            (block_seeds, sky_seeds, erased)
+            (block_seeds, sky_seeds)
         };
 
-        let per_section: Vec<(Vec<CellIndex>, Vec<CellIndex>, usize)> =
+        let per_section: Vec<(Vec<CellIndex>, Vec<CellIndex>)> =
             if layout.cell_count() >= PARALLEL_SEED_LIMIT {
                 (0..layout.section_count())
                     .into_par_iter()
@@ -186,13 +204,11 @@ impl LightJob {
                 (0..layout.section_count()).map(seed_section).collect()
             };
 
-        let mut erased_cells = 0;
         let mut block_seeds = Vec::with_capacity(per_section.iter().map(|s| s.0.len()).sum());
         let mut sky_seeds = Vec::with_capacity(per_section.iter().map(|s| s.1.len()).sum());
-        for (block, sky, erased) in per_section {
+        for (block, sky) in per_section {
             block_seeds.extend(block);
             sky_seeds.extend(sky);
-            erased_cells += erased;
         }
 
         let seed = started.elapsed();
@@ -225,7 +241,6 @@ impl LightJob {
             stats: EpochStats {
                 block_rounds,
                 sky_rounds,
-                erased_cells,
                 area_cells: layout.cell_count(),
                 timings: EpochTimings {
                     fill,
@@ -255,14 +270,14 @@ impl LightWorld {
         // Loading a stack of sections would otherwise rescan the same 256
         // columns once per section; deduplicating is worth an order of
         // magnitude on a bulk load.
-        let mut columns_to_rescan: HashSet<ColumnPos> = HashSet::new();
+        let mut columns_to_rescan: FxHashSet<ColumnPos> = FxHashSet::default();
 
         for edit in edits {
             let column = edit.column();
             let influence = match edit {
                 Edit::SetBlock { pos, block } => self.edit_block(pos, block),
-                Edit::LoadSection { pos, blocks } => {
-                    self.insert_section(pos, Section::new(blocks));
+                Edit::LoadSection { pos, entity, blocks } => {
+                    self.insert_section(pos, Section::new(entity, blocks));
                     columns_to_rescan.insert(column);
                     Some(Influence::new(BlockBox::of_section(pos), INFLUENCE_RADIUS))
                 }
@@ -335,9 +350,12 @@ impl LightWorld {
             }
         }
 
-        // Collected over the whole layout, which the section grid rounds
-        // outward from the influenced area.
-        let sky_floors = SkyFloors::collect(layout.block_bounds(), |column| self.sky_floor(column));
+        let sky_floors = (0..layout.column_count())
+            .map(|index| {
+                let pos = layout.section_pos(index);
+                self.sky_floors_of(ColumnPos::new(pos.x, pos.z))
+            })
+            .collect();
         let erase_plan = regions.erase_plan(layout.cell_count() as u64, influenced);
 
         Some(LightJob {
@@ -348,12 +366,6 @@ impl LightWorld {
             erase_plan,
             sky_floors,
         })
-    }
-
-    /// Applies edits and turns all of them into one unit of work.
-    pub fn prepare(&mut self, edits: impl IntoIterator<Item = Edit>) -> Option<LightJob> {
-        let work = self.apply_edits(edits);
-        self.prepare_batch(work.into_iter().map(|(_, influence)| influence))
     }
 
     /// Publishes a finished result. Sections unloaded in the meantime are dropped.
@@ -370,32 +382,25 @@ impl LightWorld {
         changed
     }
 
-    /// Convenience for callers that do not need the work off their thread.
-    pub fn run_epoch(&mut self, edits: impl IntoIterator<Item = Edit>) -> Option<LightUpdate> {
-        let job = self.prepare(edits)?;
-        Some(job.run())
-    }
-
-    /// Prepares, runs and publishes in one go.
+    /// Applies edits, lights them and publishes the result on this thread.
     pub fn update_now(&mut self, edits: impl IntoIterator<Item = Edit>) -> EpochStats {
-        match self.run_epoch(edits) {
-            Some(update) => {
-                let stats = update.stats;
-                self.apply(update);
-                stats
-            }
-            None => EpochStats::default(),
-        }
+        let work = self.apply_edits(edits);
+        let Some(job) = self.prepare_batch(work.into_iter().map(|(_, influence)| influence)) else {
+            return EpochStats::default();
+        };
+        let update = job.run();
+        let stats = update.stats;
+        self.apply(update);
+        stats
     }
 
     fn edit_block(&mut self, pos: BlockPos, block: VoxelId) -> Option<Influence> {
         let registry = Arc::clone(self.registry());
         let section = self.section_mut(ChunkPos::from(pos))?;
-        let local = local_of(pos);
-        if !registry.light_properties_differ(section::block_at(&section.blocks, local), block) {
+        if !registry.light_properties_differ(section.blocks.get(pos), block) {
             return None;
         }
-        section::set_block(Arc::make_mut(&mut section.blocks), local, block);
+        Arc::make_mut(&mut section.blocks).set(pos, block);
         // Past the early return above, so a write the scan cannot tell apart
         // from what it replaced keeps the bound: equal light properties give
         // equal seams, whatever the surface now says about that block.
@@ -405,25 +410,14 @@ impl LightWorld {
         // whose sky source flag changed. Both share a horizontal position, so
         // the two collapse into one vertical box.
         let column = BlockColumn { x: pos.x, z: pos.z };
-        let old_floor = self.rescan_sky_floor(column);
-        let new_floor = self.sky_floor(column);
+        let (old_floor, new_floor) = self.rescan_sky_floor(column);
 
         let mut low = pos.y;
         let mut high = pos.y;
-        if old_floor != new_floor {
-            // A column the world has not scanned yet reports the
-            // `NO_SKY_SOURCES` sentinel; clamping degrades that to "the whole
-            // column" instead of overflowing when the box is later dilated.
-            let bounds = self.bounds();
-            let segment_low = old_floor.min(new_floor).max(bounds.min_light_y());
-            let segment_high = old_floor
-                .max(new_floor)
-                .saturating_sub(1)
-                .min(bounds.max_light_y());
-            if segment_low <= segment_high {
-                low = low.min(segment_low);
-                high = high.max(segment_high);
-            }
+        if let Some((segment_low, segment_high)) = self.bounds().sky_flip_span(old_floor, new_floor)
+        {
+            low = low.min(segment_low);
+            high = high.max(segment_high);
         }
 
         let core = BlockBox {

@@ -8,7 +8,7 @@ use bevy_app::App;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::IntoSystem;
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_server::world::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_voxel_math::BlockPos;
@@ -60,7 +60,7 @@ fn block_update_resolves_observers_per_dim_emit_site() {
         .spawn((
             chunk_pos,
             InDimension(dim_entity),
-            BlockPalette::default(),
+            ChunkBlocks::default(),
             change_set,
         ))
         .id();

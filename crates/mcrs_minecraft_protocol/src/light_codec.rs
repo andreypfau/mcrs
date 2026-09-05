@@ -24,6 +24,8 @@ use crate::chunk::{LightChunk, LightData};
 use anyhow::{Context, bail, ensure};
 use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::SystemParam;
+pub use mcrs_minecraft_light::block::Layer;
+use mcrs_minecraft_light::nibble::LightNibbles;
 use mcrs_minecraft_light::storage::LightStorage;
 use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_voxel_world::world::dimension::{HasSkyLight, InDimension};
@@ -49,13 +51,6 @@ pub fn wire_rows(chunks: &ColumnChunks) -> impl Iterator<Item = WireRow> + '_ {
             _ => WireRow::Unloaded,
         }))
         .chain(std::iter::once(WireRow::TopPadding))
-}
-
-/// Which light layer a `pack_chunk` call is operating on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Layer {
-    Block,
-    Sky,
 }
 
 /// Wire-mapping decision matrix dispatcher for a single (chunk, layer) pair.
@@ -108,8 +103,7 @@ pub fn pack_chunk(
                 }
                 Some(LightStorage::Uniform(n)) => {
                     set_bit(mask, bit_idx);
-                    let packed = *n | (*n << 4);
-                    arrays.push(LightChunk([packed; 2048]));
+                    arrays.push(LightChunk(*LightNibbles::filled(*n).0));
                 }
                 Some(LightStorage::Dense(arr)) => {
                     set_bit(mask, bit_idx);

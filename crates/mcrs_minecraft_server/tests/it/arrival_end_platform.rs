@@ -4,7 +4,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::world::arrival::ArrivalPlugin;
@@ -196,7 +196,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         // without waiting for add_changes_set deferred command to flush.
         let chunk_entity = sub
             .world_mut()
-            .spawn((Chunk, BlockPalette::default(), ChunkVoxelChanges::default()))
+            .spawn((Chunk, ChunkBlocks::default(), ChunkVoxelChanges::default()))
             .id();
         let dim_entity = sub.world_mut().spawn(Dimension).id();
         let mut chunk_index = ChunkIndex::default();
@@ -246,7 +246,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
     // Assert: 5×5 obsidian floor via BlockPalette::get.
     let chunk_entity = {
         let w = app.sub_app_mut(TestDimLabel(1)).world_mut();
-        w.query_filtered::<Entity, With<BlockPalette>>()
+        w.query_filtered::<Entity, With<ChunkBlocks>>()
             .single(w)
             .expect("pre-loaded chunk entity")
     };
@@ -263,7 +263,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                 .sub_app(TestDimLabel(1))
                 .world()
                 .entity(chunk_entity)
-                .get::<BlockPalette>()
+                .get::<ChunkBlocks>()
                 .expect("BlockPalette")
                 .get(pos)
                 .into();
@@ -290,7 +290,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                     .sub_app(TestDimLabel(1))
                     .world()
                     .entity(chunk_entity)
-                    .get::<BlockPalette>()
+                    .get::<ChunkBlocks>()
                     .expect("BlockPalette")
                     .get(pos)
                     .into();

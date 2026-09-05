@@ -7,9 +7,8 @@ use bevy_ecs::prelude::{
     Added, Component, ContainsEntity, Message, MessageReader, On, Query, With,
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy_ecs::system::{Commands, Res};
-use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
-use mcrs_minecraft_light::prelude::Lighting;
+use bevy_ecs::system::Commands;
+use mcrs_minecraft_block::palette::{AirCount, BiomePalette, ChunkBlocks, NetworkPalette};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::light_codec::{
     LightCodecParams, build_full_light_data, build_fullbright_light_data,
@@ -325,22 +324,19 @@ pub(crate) fn send_column_queue(
         &InDimension,
         &HostAnchor,
     )>,
-    chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
+    chunks: Query<(&ChunkBlocks, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
     dim_type_configs: Query<&DimensionTypeConfig>,
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
-    lighting: Option<Res<Lighting>>,
-    light_queue: Option<Res<mcrs_minecraft_light::prelude::LightWorkQueue>>,
-    light_epoch: Option<Res<mcrs_minecraft_light::prelude::LightEpoch>>,
-    light_pending: Option<Res<mcrs_minecraft_light::prelude::PendingEdits>>,
+    light_status: mcrs_minecraft_light::prelude::LightStatus,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     use std::sync::atomic::Ordering;
     // A column is sent once and never again, so it has to wait for its light the
     // way vanilla waits for a chunk to reach `light`: sending first would put a
     // permanently black column on the client.
-    let await_light = lighting.is_some() && !crate::lighting_disabled();
+    let await_light = light_status.is_installed() && !crate::lighting_disabled();
     players
         .iter_mut()
         .for_each(|(mut chunk_view, observer, rep, in_dim, host_anchor)| {
@@ -402,14 +398,7 @@ pub(crate) fn send_column_queue(
                         && (!await_light
                             || (codec_params.block_lights.contains(chunk_e)
                                 && codec_params.sky_lights.contains(chunk_e)))
-                }) && (!await_light
-                    || crate::world::light::light_settled_around(
-                        column_pos,
-                        lighting.as_deref(),
-                        light_queue.as_deref(),
-                        light_epoch.as_deref(),
-                        light_pending.as_deref(),
-                    ));
+                }) && (!await_light || light_status.settled_around(column_pos));
                 if !ready {
                     // Its chunks have not landed yet; the ones behind it may have, and the
                     // batch is worth more spent on them than on waiting.
@@ -745,7 +734,7 @@ mod tests {
             .map(|_| {
                 world
                     .spawn((
-                        BlockPalette::default(),
+                        ChunkBlocks::default(),
                         BiomePalette::default(),
                         ChunkLoaded,
                     ))

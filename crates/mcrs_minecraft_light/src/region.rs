@@ -122,6 +122,38 @@ impl BlockBox {
     pub fn contains(self, pos: BlockPos) -> bool {
         self.distance_to(pos) == 0
     }
+
+    pub fn contains_box(self, other: Self) -> bool {
+        self.min.x <= other.min.x
+            && self.min.y <= other.min.y
+            && self.min.z <= other.min.z
+            && other.max.x <= self.max.x
+            && other.max.y <= self.max.y
+            && other.max.z <= self.max.z
+    }
+
+    pub fn corners(self) -> [BlockPos; 8] {
+        let (lo, hi) = (self.min, self.max);
+        [
+            BlockPos::new(lo.x, lo.y, lo.z),
+            BlockPos::new(hi.x, lo.y, lo.z),
+            BlockPos::new(lo.x, hi.y, lo.z),
+            BlockPos::new(hi.x, hi.y, lo.z),
+            BlockPos::new(lo.x, lo.y, hi.z),
+            BlockPos::new(hi.x, lo.y, hi.z),
+            BlockPos::new(lo.x, hi.y, hi.z),
+            BlockPos::new(hi.x, hi.y, hi.z),
+        ]
+    }
+}
+
+/// How an erase plan meets one section: the answer is the same for all 4096
+/// cells except on the fringe, so the per-cell test is worth avoiding.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum SectionErase {
+    None,
+    All,
+    Partial,
 }
 
 /// The region one edit can change: an L1 dilation of the box where the edit
@@ -185,6 +217,21 @@ impl ErasePlan {
             ErasePlan::Selective(regions) => regions.contains(pos),
         }
     }
+
+    pub fn meets(&self, section: BlockBox) -> SectionErase {
+        match self {
+            ErasePlan::Everything(bounds) => {
+                if bounds.contains_box(section) {
+                    SectionErase::All
+                } else if bounds.intersects(section) {
+                    SectionErase::Partial
+                } else {
+                    SectionErase::None
+                }
+            }
+            ErasePlan::Selective(regions) => regions.meets(section),
+        }
+    }
 }
 
 /// The influences of one batch of edits, merged into a single working area.
@@ -225,5 +272,25 @@ impl Regions {
 
     fn contains(&self, pos: BlockPos) -> bool {
         self.influences.iter().any(|i| i.contains(pos))
+    }
+
+    /// An influence covers a convex L1 ball, so a box lies wholly inside one
+    /// exactly when its eight corners do.
+    fn meets(&self, section: BlockBox) -> SectionErase {
+        let mut touched = false;
+        for influence in &self.influences {
+            if !influence.bounds().intersects(section) {
+                continue;
+            }
+            if section.corners().iter().all(|&c| influence.contains(c)) {
+                return SectionErase::All;
+            }
+            touched = true;
+        }
+        if touched {
+            SectionErase::Partial
+        } else {
+            SectionErase::None
+        }
     }
 }

@@ -19,11 +19,21 @@ impl LightStorage {
     /// One byte per cell, in [`LightNibbles::index`] order — the layout the
     /// working field uses. Storage stays nibble-packed; the hot loop never does.
     pub fn from_field(cells: &[u8; BLOCKS::VOLUME]) -> Self {
+        // Most sections of a working field come back dark or fully lit, and
+        // packing one only to throw the buffer away in `compact` is the whole
+        // cost of reading a section back.
+        let first = cells[0] & 0x0F;
+        if cells.iter().all(|&c| c & 0x0F == first) {
+            return match first {
+                0 => LightStorage::Empty,
+                value => LightStorage::Uniform(value),
+            };
+        }
         let mut arr = LightNibbles::zeros();
         for (byte, pair) in arr.0.iter_mut().zip(cells.chunks_exact(2)) {
             *byte = (pair[0] & 0x0F) | ((pair[1] & 0x0F) << 4);
         }
-        LightStorage::Dense(Arc::new(arr)).compact()
+        LightStorage::Dense(Arc::new(arr))
     }
 
     pub fn write_field(&self, cells: &mut [u8; BLOCKS::VOLUME]) {
@@ -37,10 +47,6 @@ impl LightStorage {
                 }
             }
         }
-    }
-
-    pub fn from_nibbles(bytes: Box<[u8; BLOCKS::HALF_VOLUME]>) -> Self {
-        LightStorage::Dense(Arc::new(LightNibbles(bytes))).compact()
     }
 
     #[inline]

@@ -3579,6 +3579,7 @@ dependencies = [
  "mcrs_voxel_math",
  "mcrs_voxel_storage",
  "rayon",
+ "rustc-hash 2.1.1",
 ]
 
 [[package]]

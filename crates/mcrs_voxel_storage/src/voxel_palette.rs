@@ -3,6 +3,7 @@ use crate::PalettedContainer::{Heterogeneous, Homogeneous};
 use bevy_ecs::component::Component;
 use mcrs_voxel_math::BlockPos;
 use std::hash::Hash;
+use std::sync::Arc;
 
 /// One section's cube of voxel ids, addressed by section-local position.
 #[derive(Component, Debug, Clone, Default)]
@@ -41,6 +42,10 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Vo
         self.0.set(x, y, z, value)
     }
 
+    pub fn get_cell(&self, x: usize, y: usize, z: usize) -> V {
+        self.0.get(x, y, z)
+    }
+
     /// Fill the box `[x0, x1) x [y0, y1) x [z0, z1)` in section-local coords.
     /// Produces output identical to per-voxel `set` calls over the same box,
     /// with bulk-optimized palette bookkeeping.
@@ -68,5 +73,57 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Vo
                 }
             }
         }
+    }
+}
+
+
+/// A section's voxels as a world holds them.
+///
+/// Shared rather than owned, because a subsystem that runs off the tick loop —
+/// lighting, meshing, saving — needs a view it can outlive further edits with,
+/// and taking one has to cost a refcount instead of the kilobytes a
+/// heterogeneous section weighs. A write diverges that one section through
+/// [`SharedVoxelPalette::make_mut`].
+#[derive(Component, Debug)]
+pub struct SharedVoxelPalette<
+    V: Hash + Eq + Copy + Default + Send + Sync + 'static,
+    const DIM: usize,
+>(pub Arc<VoxelPalette<V, DIM>>);
+
+impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Clone
+    for SharedVoxelPalette<V, DIM>
+{
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
+impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Default
+    for SharedVoxelPalette<V, DIM>
+{
+    fn default() -> Self {
+        Self(Arc::new(VoxelPalette::default()))
+    }
+}
+
+impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> std::ops::Deref
+    for SharedVoxelPalette<V, DIM>
+{
+    type Target = VoxelPalette<V, DIM>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize>
+    SharedVoxelPalette<V, DIM>
+{
+    pub fn new(palette: VoxelPalette<V, DIM>) -> Self {
+        Self(Arc::new(palette))
+    }
+
+    pub fn make_mut(&mut self) -> &mut VoxelPalette<V, DIM> {
+        Arc::make_mut(&mut self.0)
     }
 }
