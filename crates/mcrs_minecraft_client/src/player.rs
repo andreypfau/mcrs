@@ -64,6 +64,9 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
             Sprint::default(),
             LastSentMovement::default(),
             Transform::from_translation(position.as_vec3()),
+            // The camera hangs off the player, and visibility only reaches a child through a
+            // parent that takes part in it.
+            Visibility::default(),
         ))
         .id();
     world.spawn((
