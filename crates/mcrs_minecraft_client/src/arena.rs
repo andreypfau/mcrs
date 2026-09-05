@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Block {
@@ -22,7 +22,7 @@ impl Block {
 
 pub struct Arena {
     capacity: usize,
-    free: Vec<HashSet<usize>>,
+    free: Vec<BTreeSet<usize>>,
     held: usize,
     asked: usize,
 }
@@ -30,7 +30,7 @@ pub struct Arena {
 impl Arena {
     pub fn new(capacity: usize) -> Self {
         let classes = class_of(capacity.max(1)) + 1;
-        let mut free: Vec<HashSet<usize>> = (0..classes).map(|_| HashSet::new()).collect();
+        let mut free: Vec<BTreeSet<usize>> = (0..classes).map(|_| BTreeSet::new()).collect();
         let mut offset = 0;
         for class in (0..classes).rev() {
             if capacity & (1 << class) != 0 {
@@ -52,11 +52,12 @@ impl Arena {
         }
         let want = class_of(units);
         let mut class = (want..self.free.len()).find(|class| !self.free[*class].is_empty())?;
-        let offset = *self.free[class]
-            .iter()
-            .next()
+        // The lowest block of the class, so what is handed out packs towards one end and a
+        // large class stays whole; an arbitrary one leaves a block in every half of the arena
+        // and a request for a half then has nowhere to go.
+        let offset = self.free[class]
+            .pop_first()
             .expect("the class is not empty");
-        self.free[class].remove(&offset);
         while class > want {
             class -= 1;
             self.free[class].insert(offset + (1 << class));

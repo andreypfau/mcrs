@@ -60,6 +60,10 @@ pub struct Loader {
     dead_records: [usize; STREAMS],
     touched: [Vec<(u32, u32)>; STREAMS],
     rebuild: [bool; STREAMS],
+    /// A stream the arena had no room for even with every stream packed tight, which stops
+    /// asking until a rebuild elsewhere moves room around; retrying every frame would lay out
+    /// and send every stream again for nothing.
+    starved: [bool; STREAMS],
     owners: Vec<[i32; 3]>,
     slots: usize,
     free_slots: Vec<u32>,
@@ -144,6 +148,7 @@ impl Loader {
             dead_records: [0; STREAMS],
             touched: std::array::from_fn(|_| Vec::new()),
             rebuild: [false; STREAMS],
+            starved: [false; STREAMS],
             owners: vec![[0; 3]; budget.sections],
             slots: budget.sections,
             free_slots: Vec::new(),
@@ -527,15 +532,13 @@ impl Loader {
         })
     }
 
-    /// Writes the records each stream touched since the last flush, rebuilding a stream into a
-    /// fresh block first when it outgrew its block or half of it is dead. A stream that cannot
-    /// get a block draws what its block holds and tries again next time.
+    /// Writes the records each stream touched since the last flush, after any stream that
+    /// outgrew its block or filled it with dead records has been given a new one. What lies
+    /// past a stream's block is left for the rebuild that reaches it.
     fn flush(&mut self) -> Option<Placement> {
+        self.rebuild_blocks();
         let mut groups = Vec::new();
         for stream in 0..STREAMS {
-            if self.rebuild[stream] {
-                self.rebuild_stream(stream);
-            }
             let capacity = self.group_blocks[stream].capacity() as u32;
             let mut ranges = std::mem::take(&mut self.touched[stream]);
             ranges.sort_unstable();
@@ -580,29 +583,78 @@ impl Loader {
         })
     }
 
-    /// Packs a stream's live records into a fresh block with room to grow, keeping their order
-    /// and telling each resident section where its records went.
-    fn rebuild_stream(&mut self, stream: usize) {
-        let live = self.lists[stream].len() - self.dead_records[stream];
-        let roomy = (live * 2).next_power_of_two().max(MIN_BLOCK);
-        let tight = live.next_power_of_two().max(MIN_BLOCK);
-        let Some(block) = self
-            .groups
-            .alloc(roomy)
-            .or_else(|| self.groups.alloc(tight))
-        else {
-            warn!(
-                stream,
-                live,
-                held = self.groups.held(),
-                capacity = self.groups.capacity(),
-                "the group arena cannot hold a rebuild; the stream draws only what its block \
-                 holds and the rest of its sections stay off the screen"
-            );
-            return;
-        };
-        let stale = std::mem::replace(&mut self.group_blocks[stream], block);
-        self.groups.free(stale);
+    /// The records a stream still draws, the dead ones it has not been rebuilt out of aside.
+    fn live(&self, stream: usize) -> usize {
+        self.lists[stream].len() - self.dead_records[stream]
+    }
+
+    /// Gives a fresh block to every stream that outgrew the one it has or filled it with dead
+    /// records. The block a stream leaves is room for the one it takes, since every record is
+    /// written again; when what the arena has left is enough but not in one piece, every stream
+    /// is laid out again to put it back together.
+    fn rebuild_blocks(&mut self) {
+        let mut in_pieces = false;
+        for stream in 0..STREAMS {
+            if !self.rebuild[stream] || self.starved[stream] {
+                continue;
+            }
+            let stale = std::mem::replace(&mut self.group_blocks[stream], Block::EMPTY);
+            self.groups.free(stale);
+            match self.groups.alloc(self.live(stream).max(MIN_BLOCK)) {
+                Some(block) => {
+                    self.group_blocks[stream] = block;
+                    // A rebuild that goes through moves room around, so a stream that was
+                    // refused can ask again.
+                    self.starved = [false; STREAMS];
+                    self.pack_stream(stream);
+                }
+                None => in_pieces = true,
+            }
+        }
+        if in_pieces {
+            self.repack_streams();
+        }
+    }
+
+    /// Lays every stream out again, the largest first so the blocks stack without leaving a
+    /// hole a later one cannot use. A stream the arena cannot hold even packed tight takes the
+    /// largest block it can, since one that takes none draws nothing at all.
+    fn repack_streams(&mut self) {
+        for stream in 0..STREAMS {
+            let stale = std::mem::replace(&mut self.group_blocks[stream], Block::EMPTY);
+            self.groups.free(stale);
+        }
+        let mut order: [usize; STREAMS] = std::array::from_fn(|stream| stream);
+        order.sort_unstable_by_key(|&stream| std::cmp::Reverse(self.live(stream)));
+        for stream in order {
+            let live = self.live(stream);
+            let mut want = live.max(MIN_BLOCK).next_power_of_two();
+            while self.group_blocks[stream].capacity() == 0 {
+                match self.groups.alloc(want) {
+                    Some(block) => self.group_blocks[stream] = block,
+                    None if want > MIN_BLOCK => want /= 2,
+                    None => break,
+                }
+            }
+            self.starved[stream] = self.group_blocks[stream].capacity() < live;
+            if self.starved[stream] {
+                warn!(
+                    stream,
+                    live,
+                    held = self.groups.held(),
+                    capacity = self.groups.capacity(),
+                    "the group arena cannot hold every stream packed tight; this one draws \
+                     only what its block holds and the rest of its sections stay off the screen"
+                );
+            }
+            self.pack_stream(stream);
+        }
+    }
+
+    /// Packs a stream's live records into the block it holds, keeping their order and telling
+    /// each resident section where its records went.
+    fn pack_stream(&mut self, stream: usize) {
+        let live = self.live(stream);
         let old = std::mem::take(&mut self.lists[stream]);
         let mut packed = Vec::with_capacity(live);
         let mut quads = 0u32;
@@ -1134,23 +1186,23 @@ mod tests {
     }
 
     #[test]
-    fn a_stream_too_big_to_rebuild_with_room_to_spare_still_draws_every_section() {
+    fn a_stream_needing_the_whole_arena_still_draws_every_section() {
         let mut loader = Loader::new(
             &Budget {
                 quads: 1 << 12,
                 models: 1 << 12,
                 faces: 1 << 16,
                 groups: 1 << 12,
-                sections: 1 << 11,
+                sections: 1 << 12,
                 tint_size: [512; 2],
             },
             Uploads::default(),
         );
-        let mut cave = CaveCull::new(1 << 11);
+        let mut cave = CaveCull::new(1 << 12);
 
-        // Past a thousand records the roomy ask is the whole arena, which the block still
-        // out makes impossible.
-        let placed = 1100u32;
+        // Past a thousand records the ask is a class the arena only has one of, so the
+        // block the stream leaves has to be the room the next one comes out of.
+        let placed = 3000u32;
         for index in 0..placed {
             loader
                 .place(
@@ -1174,6 +1226,127 @@ mod tests {
             "every section placed is a record the draw reaches"
         );
         assert_eq!(draws[0].quad_count, placed);
+    }
+
+    /// A mesh whose records land in the three greedy streams, so many at a time.
+    fn greedy_groups(section: [i32; 3], slot: u32, counts: [u32; 3]) -> SectionMesh {
+        let mut spans = [StreamSpan::default(); STREAMS];
+        for (index, count) in counts.iter().enumerate() {
+            spans[index * 2] = StreamSpan {
+                group_count: *count,
+                quad_count: *count,
+            };
+        }
+        let total = counts.iter().sum::<u32>();
+        SectionMesh {
+            section,
+            simple: vec![[0; QUAD_WORDS]; total as usize],
+            faces: vec![0; 4],
+            complex: Vec::new(),
+            groups: (0..total)
+                .map(|quad| Group {
+                    quad_base: quad,
+                    quad_count: 1,
+                    section: slot,
+                    face: 0,
+                    quad_prefix: 0,
+                })
+                .collect(),
+            spans,
+            connectivity: crate::mesh::OPEN,
+        }
+    }
+
+    #[test]
+    fn streams_growing_together_reach_every_record_the_arena_has_room_for() {
+        let mut loader = Loader::new(
+            &Budget {
+                quads: 1 << 12,
+                models: 1 << 12,
+                faces: 1 << 14,
+                groups: 1 << 12,
+                sections: 1 << 10,
+                tint_size: [512; 2],
+            },
+            Uploads::default(),
+        );
+        let mut cave = CaveCull::new(1 << 10);
+
+        // Streams growing at their own rates leave the arena holding its room in pieces: at
+        // 342 sections these three want 256, 1024 and 2048 records, which is 3584 of the 4096
+        // the arena has and more than any one piece of what is left holds.
+        let counts = [1u32, 3, 2];
+        let placed = 342u32;
+        for index in 0..placed {
+            loader
+                .place(
+                    greedy_groups([index as i32, 0, 0], index, counts),
+                    index,
+                    &mut cave,
+                )
+                .unwrap_or_else(|_| panic!("the arena has room"));
+            loader
+                .flush()
+                .expect("a flush hands over the whole draw list");
+        }
+
+        let draws = loader
+            .flush()
+            .expect("a flush hands over the whole draw list")
+            .draws
+            .expect("the whole draw list");
+        assert_eq!(
+            [
+                draws[0].group_count,
+                draws[2].group_count,
+                draws[4].group_count
+            ],
+            counts.map(|count| count * placed),
+            "every record placed is one the draw reaches"
+        );
+    }
+
+    #[test]
+    fn a_stream_the_arena_cannot_hold_stops_asking_instead_of_sending_itself_again() {
+        let mut loader = Loader::new(
+            &Budget {
+                quads: 1 << 13,
+                models: 1 << 12,
+                faces: 1 << 16,
+                groups: 1 << 12,
+                sections: 1 << 13,
+                tint_size: [512; 2],
+            },
+            Uploads::default(),
+        );
+        let mut cave = CaveCull::new(1 << 13);
+
+        let placed = 5000u32;
+        for index in 0..placed {
+            loader
+                .place(
+                    one_greedy_group([index as i32, 0, 0], index, 1),
+                    index,
+                    &mut cave,
+                )
+                .unwrap_or_else(|_| panic!("the arena has room"));
+            loader
+                .flush()
+                .expect("a flush hands over the whole draw list");
+        }
+
+        let flushed = loader
+            .flush()
+            .expect("a flush hands over the whole draw list");
+        assert_eq!(
+            flushed.draws.expect("the whole draw list")[0].group_count,
+            1 << 12,
+            "a stream past what the arena can ever give it draws what its block holds"
+        );
+        assert!(
+            flushed.groups.is_empty(),
+            "and stops packing and sending itself again for the room that is not coming"
+        );
     }
 
     #[test]
