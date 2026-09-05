@@ -153,6 +153,11 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_block"]
 opt-level = 3
 
+# The light engine runs a frontier relaxation over millions of cells every time
+# a column arrives, so it belongs with the other per-column hot paths.
+[profile.dev.package."mcrs_minecraft_light"]
+opt-level = 3
+
 [profile.dev.package."mcrs_minecraft_server"]
 opt-level = 2
 
