@@ -15,7 +15,7 @@ use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::lifecycle::markers::{ChunkFresh, ChunkLoaded};
 use mcrs_voxel_world::world::storage::column::ColumnIndex;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
@@ -54,7 +54,7 @@ impl Plugin for DimLightPlugin {
 
 fn feed_light_edits(
     mut pending: ResMut<PendingEdits>,
-    loaded: Query<(&ChunkPos, &BlockPalette), Added<ChunkLoaded>>,
+    loaded: Query<(&ChunkPos, &BlockPalette), (Added<ChunkLoaded>, With<ChunkFresh>)>,
     positions: Query<&ChunkPos>,
     players: Query<&Transform, With<Player>>,
     mut unloaded: RemovedComponents<ChunkLoaded>,

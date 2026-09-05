@@ -63,6 +63,16 @@ pub struct EpochTimings {
     pub read_back: Duration,
 }
 
+/// Returning the old value instead of the equal new one is not a no-op: it
+/// keeps the buffer the world already points at, so the later publish settles
+/// for a pointer compare.
+fn keep_published(published: Option<LightStorage>, computed: LightStorage) -> LightStorage {
+    match published {
+        Some(old) if old == computed => old,
+        _ => computed,
+    }
+}
+
 /// A prepared, self-contained unit of work. Holds no borrows on the world, so
 /// it can be sent to a worker thread and outlive further edits to the world.
 pub struct LightJob {
@@ -93,7 +103,7 @@ impl LightJob {
             registry,
             layout,
             blocks,
-            published,
+            mut published,
             erase_plan,
             sky_floors,
         } = self;
@@ -202,10 +212,11 @@ impl LightJob {
             if !blocks.section_loaded(section_index) {
                 continue;
             }
+            let (was_block, was_sky) = published[section_index].take().unzip();
             sections.push(SectionLight {
                 pos: section_pos,
-                block_light: block_field.section_light(section_index),
-                sky_light: sky_field.section_light(section_index),
+                block_light: keep_published(was_block, block_field.section_light(section_index)),
+                sky_light: keep_published(was_sky, sky_field.section_light(section_index)),
             });
         }
 
@@ -267,7 +278,9 @@ impl LightWorld {
 
         for column in columns_to_rescan {
             if self.column_is_loaded(column) {
-                self.rescan_column(column);
+                if let Some(core) = self.rescan_column(column) {
+                    work.push((column, Influence::new(core, INFLUENCE_RADIUS)));
+                }
             } else {
                 self.forget_sky_floors(column);
             }

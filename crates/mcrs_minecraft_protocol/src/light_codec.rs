@@ -301,8 +301,9 @@ fn build_light_data(
     let mut block_mask: Vec<u64> = Vec::new();
     let mut empty_sky_mask: Vec<u64> = Vec::new();
     let mut empty_block_mask: Vec<u64> = Vec::new();
-    let mut sky_arrays: Vec<LightChunk> = Vec::new();
-    let mut block_arrays: Vec<LightChunk> = Vec::new();
+    let rows = wire_rows(chunk_index).count();
+    let mut sky_arrays: Vec<LightChunk> = Vec::with_capacity(rows);
+    let mut block_arrays: Vec<LightChunk> = Vec::with_capacity(rows);
 
     for (bit_idx, lookup) in wire_rows(chunk_index).enumerate() {
         let chunk_entity = match lookup {
@@ -359,6 +360,7 @@ mod tests {
     use bevy_ecs::prelude::{In, World};
     use bevy_ecs::system::RunSystemOnce;
     use mcrs_minecraft_light::nibble::LightNibbles;
+    use std::sync::Arc;
 
     fn fake_entity(index: u32) -> Entity {
         Entity::from_raw_u32(index + 1).expect("valid entity index")
@@ -455,7 +457,7 @@ mod tests {
     fn pack_chunk_loaded_mixed_block_sets_block_mask_and_appends_array() {
         let mut nibble = LightNibbles::zeros();
         nibble.set(3, 7, 11, 0xA);
-        let storage = LightStorage::Dense(Box::new(nibble.clone()));
+        let storage = LightStorage::Dense(Arc::new(nibble.clone()));
 
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
@@ -688,7 +690,7 @@ mod tests {
             (WireRow::Unloaded, None, None),
             (
                 WireRow::Loaded(fake_entity(1)),
-                Some(LightStorage::Dense(Box::new(nibble.clone()))),
+                Some(LightStorage::Dense(Arc::new(nibble.clone()))),
                 Some(LightStorage::Uniform(0xF)),
             ),
             (
@@ -704,7 +706,7 @@ mod tests {
             (
                 WireRow::Loaded(fake_entity(4)),
                 Some(LightStorage::Uniform(0)),
-                Some(LightStorage::Dense(Box::new(nibble))),
+                Some(LightStorage::Dense(Arc::new(nibble))),
             ),
             (WireRow::Unloaded, None, None),
             (WireRow::TopPadding, None, None),
@@ -872,7 +874,7 @@ mod tests {
         nibbles.set(1, 2, 3, 0xB);
         world
             .entity_mut(sections[2])
-            .insert(BlockLight(LightStorage::Dense(Box::new(nibbles.clone()))));
+            .insert(BlockLight(LightStorage::Dense(Arc::new(nibbles.clone()))));
 
         let data = delta(&mut world, column, vec![sections[2]], Vec::new());
         let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");

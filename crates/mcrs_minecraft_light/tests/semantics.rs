@@ -475,3 +475,26 @@ fn uniform_sections_agree_with_the_reference_solver() {
         panic!("engine disagrees with the reference solver: {diff}");
     }
 }
+
+#[test]
+fn a_section_the_epoch_recomputed_but_did_not_change_keeps_its_buffer() {
+    let mut world = TestWorld::new(3, 1, 1);
+    world.set(BlockPos::new(8, 8, 8), TORCH);
+    let lit = ChunkPos::new(0, 0, 0);
+    let before = world.world.section(lit).unwrap().block_light.clone();
+
+    let stats = world.set(BlockPos::new(24, 8, 8), STONE);
+    assert!(
+        stats.area_cells > 16 * 16 * 16,
+        "the second edit has to reach past its own section for this to say anything"
+    );
+
+    let after = &world.world.section(lit).unwrap().block_light;
+    match (&before, after) {
+        (LightStorage::Dense(before), LightStorage::Dense(after)) => assert!(
+            Arc::ptr_eq(before, after),
+            "unchanged light was recomputed into a fresh buffer"
+        ),
+        (before, after) => panic!("expected dense light on both sides, got {before:?} / {after:?}"),
+    }
+}

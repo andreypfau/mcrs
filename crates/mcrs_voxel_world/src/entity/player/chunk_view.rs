@@ -1,6 +1,6 @@
 use crate::entity::physics::Transform;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
-use crate::world::lifecycle::markers::ChunkLoaded;
+use crate::world::lifecycle::markers::{ChunkFresh, ChunkLoaded};
 use crate::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketCommand, TicketKind};
 use crate::world::lifecycle::trace::{self, ColumnStage};
 use crate::world::storage::chunk::ChunkIndex;
@@ -13,6 +13,7 @@ use bevy_ecs::schedule::SystemSet;
 use bevy_ecs_macros::Message;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
+use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
 
 const MAX_LOADS: usize = 4096;
@@ -86,6 +87,7 @@ fn update_view(
                 observer.unload_queue.clear();
                 observer.load_queue.clear();
                 observer.loading_queue.clear();
+                observer.loading_wait.clear();
                 observer.last_in_dim = Some(current_in_dim);
             }
             let chunk_pos = ChunkPos::from(transform.translation);
@@ -179,9 +181,14 @@ fn update_unload_queue(
         let Ok(mut tickets) = dimensions.get_mut(dim.entity()) else {
             return;
         };
-        let observer = &mut *observer;
-        unload_requests.write_batch(observer.unload_queue.drain(..).map(|chunk_pos| {
+        let PlayerChunkObserver {
+            unload_queue,
+            loading_wait,
+            ..
+        } = &mut *observer;
+        unload_requests.write_batch(unload_queue.drain(..).map(|chunk_pos| {
             tickets.remove_ticket(chunk_pos, TicketKind::PlayerLoading);
+            loading_wait.remove(&chunk_pos);
             PlayerChunkUnloadRequest { player, chunk_pos }
         }));
     });
@@ -189,16 +196,15 @@ fn update_unload_queue(
 
 /// Raises a load request for every ticketed chunk that has landed. Runs on the tick and again
 /// whenever the game drains what landed off the tick, so it is safe to run more than once
-/// between ticks. A chunk still loading is left in the queue without holding back the ones
-/// behind it.
+/// between ticks. A chunk still loading is left waiting without holding back the ones behind
+/// it.
 pub fn update_loading_queue(
     mut players: Query<(Entity, &mut PlayerChunkObserver, &InDimension)>,
     dims: Query<&ChunkIndex>,
     chunks: Query<Entity, With<ChunkLoaded>>,
+    landed: Query<(Entity, &ChunkPos, &InDimension), (With<ChunkLoaded>, With<ChunkFresh>)>,
     mut load_requests: MessageWriter<PlayerChunkLoadRequest>,
 ) {
-    const MAX_SENDS: usize = 64 * 16;
-
     players.iter_mut().for_each(|(player, mut observer, dim)| {
         let Ok(chunk_index) = dims.get(**dim) else {
             return;
@@ -207,28 +213,42 @@ pub fn update_loading_queue(
         let Some(last_view) = observer.last_last_chunk_tracking_view else {
             return;
         };
-        let mut sends = 0;
-        observer.loading_queue.retain(|&chunk_pos| {
+
+        while let Some(chunk_pos) = observer.loading_queue.pop_front() {
             if !last_view.contains(&chunk_pos) {
-                return false;
+                continue;
             }
-            if sends >= MAX_SENDS {
-                return true;
+            match chunk_index.get(chunk_pos) {
+                Some(chunk) if chunks.contains(chunk) => {
+                    load_requests.write(PlayerChunkLoadRequest {
+                        player,
+                        chunk_pos,
+                        chunk,
+                    });
+                }
+                _ => {
+                    observer.loading_wait.insert(chunk_pos);
+                }
             }
-            let Some(chunk) = chunk_index.get(chunk_pos) else {
-                return true;
-            };
-            if chunks.get(chunk).is_err() {
-                return true;
+        }
+
+        if observer.loading_wait.is_empty() {
+            return;
+        }
+        // A landed section is only offered here while it is `ChunkFresh`, so this loop cannot
+        // be capped: a section skipped now is never offered again.
+        for (chunk, &chunk_pos, chunk_dim) in landed.iter() {
+            if chunk_dim.entity() != **dim || !observer.loading_wait.remove(&chunk_pos) {
+                continue;
             }
-            load_requests.write(PlayerChunkLoadRequest {
-                player,
-                chunk_pos,
-                chunk,
-            });
-            sends += 1;
-            false
-        });
+            if last_view.contains(&chunk_pos) {
+                load_requests.write(PlayerChunkLoadRequest {
+                    player,
+                    chunk_pos,
+                    chunk,
+                });
+            }
+        }
     })
 }
 
@@ -288,6 +308,9 @@ pub struct PlayerChunkObserver {
     pub unload_queue: VecDeque<ChunkPos>,
     pub load_queue: VecDeque<ChunkPos>,
     pub loading_queue: VecDeque<ChunkPos>,
+    /// Sections still wanted whose entity has not published `ChunkLoaded`. Only the arrival
+    /// or the unload of one takes it out.
+    pub loading_wait: FxHashSet<ChunkPos>,
     pub delayed_ticket_ops: VecDeque<TicketCommand>,
     /// Last `InDimension` entity observed when `update_view` ran. A
     /// dimension transition leaves the cached `last_last_chunk_tracking_view`
@@ -510,5 +533,76 @@ mod contains_column_tests {
         assert!(view.contains_column(12, -12));
         assert!(!view.contains_column(13, 0));
         assert!(!view.contains_column(0, -13));
+    }
+}
+
+#[cfg(test)]
+mod loading_queue_tests {
+    use super::*;
+    use bevy_ecs::message::Messages;
+    use bevy_ecs::system::RunSystemOnce;
+    use bevy_ecs::world::World;
+
+    fn requests(world: &mut World) -> Vec<ChunkPos> {
+        world
+            .resource_mut::<Messages<PlayerChunkLoadRequest>>()
+            .drain()
+            .map(|req| req.chunk_pos)
+            .collect()
+    }
+
+    #[test]
+    fn a_section_is_raised_whether_it_landed_before_or_after_the_player_asked() {
+        let mut world = World::new();
+        world.init_resource::<Messages<PlayerChunkLoadRequest>>();
+        let dim = world.spawn(ChunkIndex::new()).id();
+
+        let already = ChunkPos::new(1, 0, 0);
+        let later = ChunkPos::new(2, 0, 0);
+        let already_e = world.spawn((already, InDimension(dim), ChunkLoaded)).id();
+        let later_e = world.spawn((later, InDimension(dim))).id();
+        let mut index = world.get_mut::<ChunkIndex>(dim).unwrap();
+        index.insert(already, already_e);
+        index.insert(later, later_e);
+
+        let observer = PlayerChunkObserver {
+            last_last_chunk_tracking_view: Some(ChunkTrackingView::default()),
+            loading_queue: VecDeque::from([already, later]),
+            ..Default::default()
+        };
+        let player = world.spawn((observer, InDimension(dim))).id();
+
+        world
+            .run_system_once(update_loading_queue)
+            .expect("the drain runs");
+        assert_eq!(requests(&mut world), vec![already]);
+        assert!(
+            world
+                .get::<PlayerChunkObserver>(player)
+                .unwrap()
+                .loading_wait
+                .contains(&later)
+        );
+
+        world
+            .run_system_once(update_loading_queue)
+            .expect("the drain runs");
+        assert!(
+            requests(&mut world).is_empty(),
+            "nothing landed, so nothing is raised twice"
+        );
+
+        world.entity_mut(later_e).insert(ChunkLoaded);
+        world
+            .run_system_once(update_loading_queue)
+            .expect("the drain runs");
+        assert_eq!(requests(&mut world), vec![later]);
+        assert!(
+            world
+                .get::<PlayerChunkObserver>(player)
+                .unwrap()
+                .loading_wait
+                .is_empty()
+        );
     }
 }

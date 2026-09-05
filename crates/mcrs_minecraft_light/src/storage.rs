@@ -1,13 +1,18 @@
+use std::sync::Arc;
+
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 
 use crate::nibble::LightNibbles;
 
-#[derive(Clone, Debug, Default, PartialEq)]
+/// `Eq` is load-bearing: `Arc` compares its pointers first only when the payload
+/// is `Eq`, and that shortcut is why the dense payload is shared rather than
+/// owned.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum LightStorage {
     #[default]
     Empty,
     Uniform(u8),
-    Dense(Box<LightNibbles>),
+    Dense(Arc<LightNibbles>),
 }
 
 impl LightStorage {
@@ -18,7 +23,7 @@ impl LightStorage {
         for (byte, pair) in arr.0.iter_mut().zip(cells.chunks_exact(2)) {
             *byte = (pair[0] & 0x0F) | ((pair[1] & 0x0F) << 4);
         }
-        LightStorage::Dense(Box::new(arr)).compact()
+        LightStorage::Dense(Arc::new(arr)).compact()
     }
 
     pub fn write_field(&self, cells: &mut [u8; BLOCKS::VOLUME]) {
@@ -35,7 +40,7 @@ impl LightStorage {
     }
 
     pub fn from_nibbles(bytes: Box<[u8; BLOCKS::HALF_VOLUME]>) -> Self {
-        LightStorage::Dense(Box::new(LightNibbles(bytes))).compact()
+        LightStorage::Dense(Arc::new(LightNibbles(bytes))).compact()
     }
 
     #[inline]
@@ -54,7 +59,7 @@ impl LightStorage {
                 if val != 0 {
                     let mut arr = LightNibbles::zeros();
                     arr.set(x, y, z, val);
-                    *self = LightStorage::Dense(Box::new(arr));
+                    *self = LightStorage::Dense(Arc::new(arr));
                 }
             }
             LightStorage::Uniform(current) => {
@@ -63,10 +68,10 @@ impl LightStorage {
                 }
                 let mut arr = LightNibbles::filled(*current);
                 arr.set(x, y, z, val);
-                *self = LightStorage::Dense(Box::new(arr));
+                *self = LightStorage::Dense(Arc::new(arr));
             }
             LightStorage::Dense(arr) => {
-                arr.set(x, y, z, val);
+                Arc::make_mut(arr).set(x, y, z, val);
             }
         }
     }
@@ -206,6 +211,17 @@ mod tests {
     }
 
     #[test]
+    fn writing_a_shared_dense_storage_leaves_the_other_holder_alone() {
+        let mut original = LightStorage::Uniform(5);
+        original.set(0, 0, 0, 9);
+        let shared = original.clone();
+        original.set(1, 0, 0, 2);
+        assert_eq!(original.get(1, 0, 0), 2);
+        assert_eq!(shared.get(1, 0, 0), 5);
+        assert_eq!(shared.get(0, 0, 0), 9);
+    }
+
+    #[test]
     fn compact_null_passthrough() {
         let s = LightStorage::Empty.compact();
         assert!(matches!(s, LightStorage::Empty));
@@ -220,14 +236,14 @@ mod tests {
     #[test]
     fn compact_mixed_all_zero_becomes_null() {
         let arr = LightNibbles::zeros();
-        let s = LightStorage::Dense(Box::new(arr)).compact();
+        let s = LightStorage::Dense(Arc::new(arr)).compact();
         assert!(matches!(s, LightStorage::Empty));
     }
 
     #[test]
     fn compact_mixed_all_uniform_becomes_uniform_n() {
         let arr = LightNibbles::filled(8);
-        let s = LightStorage::Dense(Box::new(arr)).compact();
+        let s = LightStorage::Dense(Arc::new(arr)).compact();
         assert!(matches!(s, LightStorage::Uniform(8)));
     }
 
@@ -236,7 +252,7 @@ mod tests {
         let mut arr = LightNibbles::filled(3);
         arr.set(5, 5, 5, 12);
         arr.set(10, 1, 2, 7);
-        let s = LightStorage::Dense(Box::new(arr)).compact();
+        let s = LightStorage::Dense(Arc::new(arr)).compact();
         match s {
             LightStorage::Dense(a) => {
                 assert_eq!(a.get(5, 5, 5), 12);

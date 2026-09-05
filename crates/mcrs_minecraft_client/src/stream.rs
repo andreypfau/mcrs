@@ -21,16 +21,6 @@ use crate::render::{Animation, AtlasUpdate, Budget, Placement, SectionDesc, Uplo
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 
-const FACE_NEIGHBOURHOOD: [[i32; 3]; 7] = [
-    [0, 0, 0],
-    [-1, 0, 0],
-    [1, 0, 0],
-    [0, -1, 0],
-    [0, 1, 0],
-    [0, 0, -1],
-    [0, 0, 1],
-];
-
 const SECTIONS_IN_FLIGHT: usize = 128;
 
 const SECTIONS_PER_FRAME: usize = 32;
@@ -418,9 +408,17 @@ impl Loader {
                     self.enqueue_around(pos, extent, store);
                 }
                 ColumnChange::Relit(pos, rows) => {
+                    // A vertex takes its shade from the four cells around it, so
+                    // a section's mesh depends on the sections diagonally past
+                    // its edges as much as on the ones across its faces. Leaving
+                    // the diagonals stale draws a dark line along the seam.
                     for sy in rows {
-                        for [dx, dy, dz] in FACE_NEIGHBOURHOOD {
-                            self.relit.insert([pos.x + dx, sy + dy, pos.z + dz]);
+                        for dy in -1..=1 {
+                            for dz in -1..=1 {
+                                for dx in -1..=1 {
+                                    self.relit.insert([pos.x + dx, sy + dy, pos.z + dz]);
+                                }
+                            }
                         }
                     }
                 }

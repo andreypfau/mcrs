@@ -9,13 +9,12 @@
 // uses `min_y` as the "nothing found" sentinel.
 
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
-use crate::world::lifecycle::markers::ChunkLoaded;
-use crate::world::lifecycle::markers::ChunkUnloading;
+use crate::world::lifecycle::markers::{ChunkFresh, ChunkLoaded, ChunkUnloading};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{
     Added, ApplyDeferred, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query, Res,
-    Resource, SystemSet,
+    Resource, SystemSet, With,
 };
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
@@ -309,9 +308,13 @@ pub enum ColumnLifecycleSet {
 
 /// Stage 1: when a chunk becomes `ChunkLoaded` (or `ChunkUnloading`),
 /// create / refcount its owning column entity.
+///
+/// Only a section Stage 2 gave an `InColumn` was ever counted, so only such a
+/// section may decrement: one cancelled before it loaded reaches `ChunkUnloading`
+/// having never joined a column.
 pub fn reconcile_column_existence(
-    newly_loaded: Query<(&ChunkPos, &InDimension), Added<ChunkLoaded>>,
-    newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,
+    newly_loaded: Query<(&ChunkPos, &InDimension), (Added<ChunkLoaded>, With<ChunkFresh>)>,
+    newly_unloading: Query<(&ChunkPos, &InDimension), (Added<ChunkUnloading>, With<InColumn>)>,
     mut dimensions: Query<&mut ColumnIndex>,
     dim_configs: Query<&DimensionTypeConfig>,
     scalars: Res<ColumnScalarRegistry>,
@@ -386,8 +389,8 @@ pub fn reconcile_column_existence(
 /// Deliberately takes no lighting-table resource: heightmap priming
 /// (Stage 2.5) lives in the lighting crate.
 pub fn reconcile_column_chunks(
-    newly_loaded: Query<(Entity, &ChunkPos, &InDimension), Added<ChunkLoaded>>,
-    newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,
+    newly_loaded: Query<(Entity, &ChunkPos, &InDimension), (Added<ChunkLoaded>, With<ChunkFresh>)>,
+    newly_unloading: Query<(&ChunkPos, &InDimension), (Added<ChunkUnloading>, With<InColumn>)>,
     dimensions: Query<&ColumnIndex>,
     mut columns: Query<&mut ColumnChunks>,
     mut commands: Commands,
@@ -453,6 +456,38 @@ mod tests {
 
     fn fake_entity(index: u32) -> Entity {
         Entity::from_raw_u32(index + 1).expect("valid entity index")
+    }
+
+    #[test]
+    fn a_section_cancelled_before_it_loaded_does_not_decrement_its_column() {
+        let mut app = App::new();
+        app.init_resource::<ColumnScalarRegistry>();
+        app.add_systems(
+            FixedUpdate,
+            (
+                reconcile_column_existence,
+                ApplyDeferred,
+                reconcile_column_chunks,
+            )
+                .chain(),
+        );
+        let dim = app
+            .world_mut()
+            .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))
+            .id();
+        let pos = ChunkPos::new(0, 0, 0);
+        app.world_mut().spawn((pos, InDimension(dim), ChunkLoaded));
+        app.world_mut().run_schedule(FixedUpdate);
+
+        app.world_mut()
+            .spawn((ChunkPos::new(0, 1, 0), InDimension(dim), ChunkUnloading));
+        app.world_mut().run_schedule(FixedUpdate);
+
+        let index = app.world().get::<ColumnIndex>(dim).expect("column index");
+        assert_eq!(
+            index.0.get(&ColumnPos::new(0, 0)).map(|s| s.section_count),
+            Some(1),
+        );
     }
 
     #[test]

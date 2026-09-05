@@ -320,10 +320,20 @@ fn loading_a_stack_of_sections_produces_work_for_each() {
         .collect();
 
     let work = world.apply_edits(loads);
-    assert_eq!(work.len(), 4);
+    // One per section, and one more for the run of column that became a sky
+    // source when the stack arrived.
+    assert_eq!(work.len(), 5);
     assert!(
         work.iter().all(|(col, _)| *col == column(0, 0)),
         "all of it belongs to one chunk column"
+    );
+    let bounds = LightBounds::new(0, 3);
+    assert!(
+        work.iter().any(|(_, influence)| {
+            influence.core.min.y == bounds.min_light_y()
+                && influence.core.max.y == bounds.max_light_y()
+        }),
+        "the sky floor run spans the column the load lit"
     );
 }
 

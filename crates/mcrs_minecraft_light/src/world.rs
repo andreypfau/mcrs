@@ -7,6 +7,7 @@ use mcrs_voxel_storage::{PalettedContainer, VoxelId};
 
 use crate::block::{Layer, LightRegistry};
 use crate::level::{BlockColumn, LightBounds, LightLevel, LocalPos, SECTION_WIDTH};
+use crate::region::BlockBox;
 use crate::section::{self, SectionBlocks};
 use crate::storage::LightStorage;
 
@@ -253,23 +254,53 @@ impl LightWorld {
     }
 
     /// Recomputes all 256 sky source floors of one section column.
-    pub(crate) fn rescan_column(&mut self, section_column: ColumnPos) {
+    /// Rescans the column's sky floors and reports the run of cells whose
+    /// source flag moved, if any.
+    ///
+    /// A section arriving can move the floor of a column whose lower sections
+    /// were lit ticks ago, and those cells are further than one section from
+    /// the section that moved it, so the loading influence alone does not reach
+    /// them.
+    pub(crate) fn rescan_column(&mut self, section_column: ColumnPos) -> Option<BlockBox> {
         if !self.sky {
-            return;
+            return None;
         }
         let stack: Vec<_> = self.sky_column_top_down(section_column).collect();
         let mut floors = SkyFloor::new(self.bounds.min_light_y());
+        let mut moved: Option<(i32, i32)> = None;
         for column in Self::block_columns_of(section_column) {
-            floors.set(
-                column,
-                self.scan_sky_floor(
-                    stack.iter().copied(),
-                    local_x_of(column),
-                    local_z_of(column),
-                ),
+            let floor = self.scan_sky_floor(
+                stack.iter().copied(),
+                local_x_of(column),
+                local_z_of(column),
             );
+            floors.set(column, floor);
+            let previous = self.sky_floor(column);
+            if previous != floor {
+                let low = previous.min(floor).max(self.bounds.min_light_y());
+                let high = previous
+                    .max(floor)
+                    .saturating_sub(1)
+                    .min(self.bounds.max_light_y());
+                if low <= high {
+                    moved = Some(match moved {
+                        Some((lo, hi)) => (lo.min(low), hi.max(high)),
+                        None => (low, high),
+                    });
+                }
+            }
         }
         self.sky_floors.insert(section_column, floors);
+        moved.map(|(low, high)| {
+            let (x, z) = (
+                section_column.x * SECTION_WIDTH,
+                section_column.z * SECTION_WIDTH,
+            );
+            BlockBox {
+                min: BlockPos::new(x, low, z),
+                max: BlockPos::new(x + SECTION_WIDTH - 1, high, z + SECTION_WIDTH - 1),
+            }
+        })
     }
 
     /// The vertical stack a sky scan reads, top down and resolved only as far

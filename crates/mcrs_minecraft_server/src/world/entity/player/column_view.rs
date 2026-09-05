@@ -90,6 +90,8 @@ pub struct ColumnView {
     load_queue: VecDeque<ColumnPos>,
     loading_queue: VecDeque<ColumnPos>,
     send_queue: VecDeque<(ColumnPos, Vec<Entity>)>,
+    /// The centre `send_queue` is ordered around; the order goes stale only when it moves.
+    sort_center: Option<ChunkPos>,
     pub sent_columns: FxHashSet<ColumnPos>,
     batch_quota: f32,
     desired_columns_per_tick: f32,
@@ -105,6 +107,7 @@ impl Default for ColumnView {
             load_queue: VecDeque::new(),
             loading_queue: VecDeque::new(),
             send_queue: VecDeque::new(),
+            sort_center: None,
             sent_columns: FxHashSet::default(),
             batch_quota: 0.0,
             desired_columns_per_tick: START_COLUMNS_PER_TICK,
@@ -361,7 +364,7 @@ pub(crate) fn send_column_queue(
                 .last_last_chunk_tracking_view
                 .map(|view| view.center)
                 .unwrap_or(ChunkPos::new(0, 0, 0));
-            {
+            if chunk_view.sort_center != Some(center) {
                 let view = &mut *chunk_view;
                 let desired = &view.desired_columns;
                 view.send_queue.retain(|(pos, _)| desired.contains(pos));
@@ -370,6 +373,7 @@ pub(crate) fn send_column_queue(
                     let dz = (pos.z - center.z) as i64;
                     dx * dx + dz * dz
                 });
+                view.sort_center = Some(center);
             }
 
             let mut index = 0usize;
@@ -382,21 +386,28 @@ pub(crate) fn send_column_queue(
                     break;
                 };
                 let column_pos = *column_pos;
-                let mut ready = true;
-                let mut data = Vec::with_capacity(16 * 1024);
+                if !chunk_view.desired_columns.contains(&column_pos) {
+                    chunk_view.send_queue.remove(index);
+                    continue;
+                }
+                let ready = chunks_e.iter().all(|&chunk_e| {
+                    chunks.contains(chunk_e)
+                        && (!await_light
+                            || (codec_params.block_lights.contains(chunk_e)
+                                && codec_params.sky_lights.contains(chunk_e)))
+                });
+                if !ready {
+                    // Its chunks have not landed yet; the ones behind it may have, and the
+                    // batch is worth more spent on them than on waiting.
+                    index += 1;
+                    continue;
+                }
 
+                let mut data = Vec::with_capacity(16 * 1024);
                 for &chunk_e in chunks_e {
-                    let Ok((blocks, biomes)) = chunks.get(chunk_e) else {
-                        ready = false;
-                        break;
-                    };
-                    if await_light
-                        && (codec_params.block_lights.get(chunk_e).is_err()
-                            || codec_params.sky_lights.get(chunk_e).is_err())
-                    {
-                        ready = false;
-                        break;
-                    }
+                    let (blocks, biomes) = chunks
+                        .get(chunk_e)
+                        .expect("section passed the readiness walk in this same run");
                     // Section layout per vanilla LevelChunkSection.write:
                     //   short non_empty_block_count
                     //   short fluid_count
@@ -420,12 +431,6 @@ pub(crate) fn send_column_queue(
                         .convert_network()
                         .encode(&mut data)
                         .expect("Failed to encode chunk block data");
-                }
-                if !ready {
-                    // Its chunks have not landed yet; the ones behind it may have, and the
-                    // batch is worth more spent on them than on waiting.
-                    index += 1;
-                    continue;
                 }
 
                 let light_data = if crate::lighting_disabled() {
@@ -785,6 +790,39 @@ mod tests {
             .drain()
             .filter(|packet| matches!(packet.data, PacketPayload::ChunkLoad { .. }))
             .count()
+    }
+
+    /// The queue is only re-filtered when the sort centre moves, so a column the view drops
+    /// in between has to be dropped where it is taken.
+    #[test]
+    fn a_column_the_view_dropped_is_not_sent_between_two_sorts() {
+        let mut world = World::new();
+        let sections = queued_column(&mut world);
+        for section in sections {
+            world
+                .entity_mut(section)
+                .insert((BlockLight::default(), SkyLight::default()));
+        }
+
+        let player = world
+            .query_filtered::<Entity, With<ColumnView>>()
+            .single(&world)
+            .expect("one player");
+        let mut view = world.get_mut::<ColumnView>(player).unwrap();
+        view.sort_center = Some(ChunkPos::new(0, 0, 0));
+        view.desired_columns.clear();
+
+        world
+            .run_system_once(send_column_queue)
+            .expect("the send runs");
+        assert_eq!(drain_column_loads(&mut world), 0);
+        assert!(
+            world
+                .get::<ColumnView>(player)
+                .unwrap()
+                .send_queue
+                .is_empty()
+        );
     }
 
     /// A column is sent once and never again, so sending one whose sections the

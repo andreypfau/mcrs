@@ -1,6 +1,7 @@
 //! Chunk tickets.
 
 use crate::world::dimension::InDimension;
+use crate::world::lifecycle::markers::ChunkFresh;
 use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::markers::ChunkUnloaded;
 use crate::world::lifecycle::markers::ChunkUnloading;
@@ -8,7 +9,7 @@ use crate::world::lifecycle::trace::{self, ColumnStage};
 use crate::world::storage::chunk::Chunk;
 use crate::world::storage::chunk::ChunkBundle;
 use crate::world::storage::chunk::ChunkIndex;
-use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_app::{App, First, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::With;
@@ -30,11 +31,23 @@ pub struct ChunkSpawnSet;
 
 impl Plugin for TicketPlugin {
     fn build(&self, app: &mut App) {
+        app.add_systems(First, expire_fresh_chunks);
         app.add_systems(FixedUpdate, spawn_chunks.in_set(ChunkSpawnSet));
         app.add_systems(
             FixedUpdate,
             (unload_chunks, despawn_chunks, remove_tickets_from_chunks),
         );
+    }
+}
+
+/// Sections land after `FixedUpdate` has run, so a section's `ChunkFresh` has to
+/// survive the whole tick after the one it landed in for the once-per-tick readers
+/// of `Added<ChunkLoaded>` to see it.
+fn expire_fresh_chunks(fresh: Query<(Entity, Ref<ChunkFresh>)>, mut commands: Commands) {
+    for (entity, marker) in fresh.iter() {
+        if !marker.is_added() {
+            commands.entity(entity).try_remove::<ChunkFresh>();
+        }
     }
 }
 
@@ -254,4 +267,25 @@ fn remove_tickets_from_chunks(
                     }
                 });
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chunk_fresh_lasts_through_the_tick_after_the_one_it_landed_in() {
+        let mut app = App::new();
+        app.add_systems(First, expire_fresh_chunks);
+        app.update();
+
+        let section = app.world_mut().spawn(ChunkLoaded).id();
+        assert!(app.world().get::<ChunkFresh>(section).is_some());
+
+        app.update();
+        assert!(app.world().get::<ChunkFresh>(section).is_some());
+
+        app.update();
+        assert!(app.world().get::<ChunkFresh>(section).is_none());
+    }
 }
