@@ -23,6 +23,7 @@ pub mod experience;
 pub mod explosion;
 pub mod format;
 pub mod generate;
+pub mod heightmap;
 mod inventory;
 pub mod light;
 pub mod loot;

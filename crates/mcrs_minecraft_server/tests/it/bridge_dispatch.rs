@@ -433,6 +433,7 @@ fn chunk_load_encodes() {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Critical,
             data: PacketPayload::ChunkLoad {
+                heightmaps: vec![],
                 column: ColumnPos::new(0, 0),
                 chunk_bytes: vec![0x80u8; 2000],
                 light_data: LightData::default(),
@@ -622,6 +623,7 @@ fn only_test_remains_counted_drop() {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Critical,
             data: PacketPayload::ChunkLoad {
+                heightmaps: vec![],
                 column: ColumnPos::new(0, 0),
                 chunk_bytes: vec![],
                 light_data: LightData::default(),

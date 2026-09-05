@@ -130,6 +130,7 @@ impl Plugin for MinecraftServerPlugin {
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
         app.add_plugins(crate::block_light_table::BlockLightTablePlugin);
+        app.add_plugins(crate::world::heightmap::HeightmapPredicatesPlugin);
         app.add_plugins(WorldPlugin);
         app.add_plugins(ClientInfoPlugin);
     }

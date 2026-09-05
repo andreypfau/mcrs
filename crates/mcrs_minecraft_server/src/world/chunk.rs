@@ -3,6 +3,9 @@ use crate::world::generate::{
     BetaCaveBlockIds, BetaOreBlockIds, apply_beta_caves, apply_beta_ores, apply_beta_surface,
     generate_column,
 };
+use crate::world::heightmap::{
+    ColumnHeightmapSet, HeightmapPredicates, PendingColumnHeightmaps, build_column_heightmaps,
+};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
@@ -350,6 +353,9 @@ impl ColumnScheduler {
 pub struct ColumnResult {
     /// Generated sections. `None` for cancelled sections.
     pub sections: Vec<(Entity, ChunkPos, Option<SectionData>)>,
+    /// The column's four heightmaps, built off-thread while the blocks are in
+    /// hand. `None` when no predicate table was available.
+    pub heightmaps: Option<ColumnHeightmapSet>,
     /// Where the column came from and how long that took, so a slow column can
     /// name the stage that cost the time.
     pub source: ColumnSource,
@@ -459,6 +465,7 @@ fn report_column_timing(in_flight: &InFlightColumn, result: &ColumnResult) {
 
 pub(crate) fn process_completed_columns(
     mut scheduler: ResMut<ColumnScheduler>,
+    mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
     mut commands: Commands,
 ) {
     // Collect columns to remove from in_flight_index after iteration
@@ -470,6 +477,9 @@ pub(crate) fn process_completed_columns(
             report_column_timing(in_flight, &column_result);
             column_trace::mark(in_flight.col, ColumnStage::Loaded);
             column_trace::set_source(in_flight.col, column_result.source.label());
+            if let Some(heightmaps) = column_result.heightmaps {
+                pending_heightmaps.0.insert(in_flight.col, heightmaps);
+            }
             // Column generation task completed, process all sections
             for (entity, _pos, result) in column_result.sections {
                 match result {
@@ -779,6 +789,7 @@ pub(crate) fn dispatch_column_generation(
     active_biome_source: Option<Res<ActiveBiomeSource>>,
     biome_registry: Option<Res<RegistrySnapshot<Biome>>>,
     saved: Option<Res<SavedColumns>>,
+    heightmap_predicates: Option<Res<HeightmapPredicates>>,
     mut cached_biome_registry: Local<Option<Arc<RegistrySnapshot<Biome>>>>,
 ) {
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
@@ -851,6 +862,7 @@ pub(crate) fn dispatch_column_generation(
         let cancel_clone = cancel.clone();
         let biome_ctx = biome_context.clone();
         let block_definitions = blocks.0.clone();
+        let predicates = heightmap_predicates.as_deref().cloned();
         let saved = saved.as_deref().cloned().zip(biome_snapshot.clone());
 
         // Extract section data for the task
@@ -890,12 +902,16 @@ pub(crate) fn dispatch_column_generation(
             });
 
             if let Some(sections) = loaded {
+                let heightmaps = predicates
+                    .as_ref()
+                    .and_then(|p| build_column_heightmaps(&sections, &y_sections, p));
                 return ColumnResult {
                     sections: sections_data
                         .into_iter()
                         .zip(sections)
                         .map(|((entity, pos), result)| (entity, pos, result))
                         .collect(),
+                    heightmaps,
                     source: ColumnSource::Saved,
                     work: started.elapsed(),
                 };
@@ -970,6 +986,10 @@ pub(crate) fn dispatch_column_generation(
                 );
             }
 
+            let heightmaps = predicates
+                .as_ref()
+                .and_then(|p| build_column_heightmaps(&results, &y_sections, p));
+
             let column_sections = sections_data
                 .into_iter()
                 .zip(results)
@@ -978,6 +998,7 @@ pub(crate) fn dispatch_column_generation(
 
             ColumnResult {
                 sections: column_sections,
+                heightmaps,
                 source: ColumnSource::Generated,
                 work: started.elapsed(),
             }

@@ -42,6 +42,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, LpVec3, PositionFlag, Text, VarInt};
+use std::borrow::Cow;
 use tracing::{debug, trace, warn};
 
 use crate::world::bridge_queue::{
@@ -390,6 +391,7 @@ pub fn dispatch_encode(
                     PacketPayload::ChunkLoad {
                         column,
                         chunk_bytes,
+                        heightmaps,
                         light_data,
                     } => {
                         debug!(
@@ -401,6 +403,10 @@ pub fn dispatch_encode(
                             "dispatch_encode: ChunkLoad"
                         );
                         let chunk_data = ChunkData {
+                            heightmaps: heightmaps
+                                .iter()
+                                .map(|(kind, data)| (*kind, Cow::Borrowed(data.as_slice())))
+                                .collect(),
                             data: chunk_bytes.as_slice(),
                             ..Default::default()
                         };

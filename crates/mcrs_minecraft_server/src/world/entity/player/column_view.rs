@@ -34,6 +34,9 @@ use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnPos as EngineC
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
+use crate::world::heightmap::{
+    MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap, client_heightmaps,
+};
 use rustc_hash::FxHashSet;
 use tracing::trace;
 
@@ -325,6 +328,7 @@ pub(crate) fn send_column_queue(
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
     dim_type_configs: Query<&DimensionTypeConfig>,
+    column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
     lighting: Option<Res<Lighting>>,
     light_queue: Option<Res<mcrs_minecraft_light::prelude::LightWorkQueue>>,
@@ -443,18 +447,26 @@ pub(crate) fn send_column_queue(
                         .expect("Failed to encode chunk block data");
                 }
 
+                let column_entity = column_index.and_then(|idx| {
+                    idx.0
+                        .get(&EngineColumnPos::new(column_pos.x, column_pos.z))
+                        .map(|slot| slot.entity)
+                });
+
                 let light_data = if crate::lighting_disabled() {
                     build_fullbright_light_data(wire_light_rows)
                 } else {
-                    column_index
-                        .and_then(|idx| {
-                            idx.0
-                                .get(&EngineColumnPos::new(column_pos.x, column_pos.z))
-                                .map(|slot| slot.entity)
-                        })
+                    column_entity
                         .map(|column_entity| build_full_light_data(column_entity, &codec_params))
                         .unwrap_or_default()
                 };
+
+                let heightmaps = column_entity
+                    .and_then(|entity| column_heightmaps.get(entity).ok())
+                    .map(|(surface, motion, no_leaves)| {
+                        client_heightmaps(surface, motion, no_leaves)
+                    })
+                    .unwrap_or_default();
 
                 let wire_pos = ColumnPos::new(
                     rep.convert_chunk_x(column_pos.x),
@@ -480,6 +492,7 @@ pub(crate) fn send_column_queue(
                 batch.push(PacketPayload::ChunkLoad {
                     column: wire_pos,
                     chunk_bytes: data,
+                    heightmaps,
                     light_data,
                 });
 

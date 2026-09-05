@@ -616,6 +616,7 @@ fn chunk_delivery_emits_chunkload() {
         &mut world,
         entity,
         PacketPayload::ChunkLoad {
+            heightmaps: vec![],
             column: ColumnPos::new(0, 0),
             chunk_bytes: vec![0u8; 64],
             light_data: LightData::default(),

@@ -41,6 +41,14 @@ pub const SAND: TagKey<Block> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:
 pub const WOOL: TagKey<Block> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:wool"));
 pub const SNOW: TagKey<Block> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:snow"));
 
+// Heightmap predicates
+pub const BLOCKS_MOTION_IN_HEIGHTMAP: TagKey<Block> = TagKey::new(mcrs_minecraft_core::rl!(
+    "minecraft:blocks_motion_in_heightmap"
+));
+pub const BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES: TagKey<Block> = TagKey::new(
+    mcrs_minecraft_core::rl!("minecraft:blocks_motion_in_heightmap_no_leaves"),
+);
+
 // Enchantment-referenced tags
 pub const LIGHTNING_RODS: TagKey<Block> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:lightning_rods"));
@@ -68,6 +76,8 @@ pub const ALL_BLOCK_TAGS: &[TagKey<Block>] = &[
     SAND,
     WOOL,
     SNOW,
+    BLOCKS_MOTION_IN_HEIGHTMAP,
+    BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
     LIGHTNING_RODS,
     SOUL_SPEED_BLOCKS,
     BLOCKS_WIND_CHARGE_EXPLOSIONS,

@@ -1,24 +1,17 @@
-// IMPORTANT: this module MUST NOT depend on the lighting crate. The four-stage
-// ColumnLifecycleSet splits into storage-side (Reconcile, ReconcileIndex) and
-// lighting-side (PrimeHeightmaps, AttachState) stages precisely because this
-// crate sits upstream of lighting in the workspace graph.
-//
-// Heightmaps zero-init convention: `Heightmaps::new` zero-initializes the backing
-// PackedBitStorage long arrays. `get(key, x, z) = min_y` for unprimed columns;
-// downstream game code overwrites with real values before any consumer reads, and
-// uses `min_y` as the "nothing found" sentinel.
+// The ColumnLifecycleSet stages exist so downstream crates can order their own
+// per-column work against the storage-side reconciliation without this crate
+// having to know about them.
 
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use crate::world::lifecycle::markers::{ChunkFresh, ChunkLoaded, ChunkUnloading};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{
-    Added, ApplyDeferred, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query, Res,
-    Resource, SystemSet, With,
+    Added, ApplyDeferred, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query,
+    SystemSet, With,
 };
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_storage::{PackedBitStorage, bits_needed_for};
 use rustc_hash::FxHashMap;
 
 pub use mcrs_voxel_math::ColumnPos;
@@ -44,139 +37,6 @@ pub struct ColumnSlot {
 /// Lives on the Dimension entity (added as a `DimensionBundle` field).
 #[derive(Component, Debug, Default, Deref, DerefMut)]
 pub struct ColumnIndex(pub FxHashMap<ColumnPos, ColumnSlot>);
-
-/// Key into [`Heightmaps`], handed out by [`ColumnScalarRegistry::register`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct ColumnScalarKey(pub usize);
-
-/// The set of per-column scalars the game wants stored on every column.
-/// Registration is idempotent, so a plugin may register its names without
-/// caring whether a sibling plugin got there first.
-#[derive(Resource, Debug, Clone, Default)]
-pub struct ColumnScalarRegistry(Vec<String>);
-
-impl ColumnScalarRegistry {
-    pub fn register(&mut self, name: &str) -> ColumnScalarKey {
-        if let Some(i) = self.0.iter().position(|n| n == name) {
-            return ColumnScalarKey(i);
-        }
-        self.0.push(name.to_owned());
-        ColumnScalarKey(self.0.len() - 1)
-    }
-
-    pub fn key(&self, name: &str) -> Option<ColumnScalarKey> {
-        self.0.iter().position(|n| n == name).map(ColumnScalarKey)
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-/// One packed Y scalar per registered [`ColumnScalarKey`] over the 16x16
-/// column footprint. Indexed by `(x, z)` in `0..16` each; the entry index is
-/// `z * BLOCKS::SIZE + x`. Stored Y values are absolute world Y.
-#[derive(Component, Debug, Clone)]
-pub struct Heightmaps {
-    stores: Box<[PackedBitStorage]>,
-    height: u32,
-    min_y: i32,
-}
-
-impl Heightmaps {
-    /// Create heightmaps sized to the dimension height. `min_y` defaults to 0;
-    /// use `with_min_y` for dimensions whose lowest section is negative.
-    pub fn new(scalar_count: usize, height: u32) -> Self {
-        Self::with_min_y(scalar_count, height, 0)
-    }
-
-    pub fn with_min_y(scalar_count: usize, height: u32, min_y: i32) -> Self {
-        let max_value = height; // stored value range is [0, height]
-        let bits = bits_needed_for(max_value);
-        Self {
-            stores: (0..scalar_count)
-                .map(|_| PackedBitStorage::with_bits(BLOCKS::AREA, bits, max_value))
-                .collect(),
-            height,
-            min_y,
-        }
-    }
-
-    pub fn height(&self) -> u32 {
-        self.height
-    }
-
-    pub fn min_y(&self) -> i32 {
-        self.min_y
-    }
-
-    pub fn scalar_count(&self) -> usize {
-        self.stores.len()
-    }
-
-    #[inline]
-    fn index(x: usize, z: usize) -> usize {
-        debug_assert!(
-            x < BLOCKS::SIZE && z < BLOCKS::SIZE,
-            "Heightmaps index ({x}, {z}) out of range"
-        );
-        (z & BLOCKS::MASK) * BLOCKS::SIZE + (x & BLOCKS::MASK)
-    }
-
-    /// Panics rather than indexing blindly: a column sized before the scalar
-    /// was registered would otherwise fail far from the plugin that skipped it.
-    #[inline]
-    #[track_caller]
-    fn slot(stores: usize, key: ColumnScalarKey) -> usize {
-        assert!(
-            key.0 < stores,
-            "ColumnScalarKey({}) was not registered before this column was spawned (scalar_count={stores})",
-            key.0,
-        );
-        key.0
-    }
-
-    #[inline]
-    fn store(&self, key: ColumnScalarKey) -> &PackedBitStorage {
-        &self.stores[Self::slot(self.stores.len(), key)]
-    }
-
-    pub fn get(&self, key: ColumnScalarKey, x: usize, z: usize) -> i32 {
-        self.store(key).get(Self::index(x, z)) as i32 + self.min_y
-    }
-
-    pub fn set(&mut self, key: ColumnScalarKey, x: usize, z: usize, y: i32) {
-        let max_stored = self.min_y + self.height as i32;
-        debug_assert!(
-            y >= self.min_y && y <= max_stored,
-            "Heightmaps::set y={y} outside [{min}, {max}]",
-            min = self.min_y,
-            max = max_stored,
-        );
-        let rel = (y - self.min_y).clamp(0, self.height as i32);
-        let index = Self::index(x, z);
-        let slot = Self::slot(self.stores.len(), key);
-        self.stores[slot].set(index, rel as u32);
-    }
-
-    pub fn raw_longs(&self, key: ColumnScalarKey) -> &[u64] {
-        self.store(key).raw_longs()
-    }
-
-    pub fn storage(&self, key: ColumnScalarKey) -> &PackedBitStorage {
-        self.store(key)
-    }
-}
-
-// No `Default for Heightmaps`: every column ships with a dimension-shape
-// derived size via `Heightmaps::with_min_y`, and any hardcoded default height
-// would silently mis-size storage for every dimension of a different height.
-// Callers that need a fresh heightmap must go through
-// `DimensionTypeConfig` so the right shape is plumbed in.
 
 /// Result of looking up a chunk by `chunk_y` inside a column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -261,7 +121,6 @@ impl Default for ColumnChunks {
 pub struct ColumnBundle {
     pub col_pos: ColumnPosComponent,
     pub dim: InDimension,
-    pub heightmaps: Heightmaps,
     pub sections: ColumnChunks,
     marker: Column,
 }
@@ -277,33 +136,22 @@ impl From<ColumnPos> for ColumnPosComponent {
 }
 
 impl ColumnBundle {
-    pub fn new(
-        col_pos: ColumnPos,
-        dim: InDimension,
-        dim_config: &DimensionTypeConfig,
-        scalars: &ColumnScalarRegistry,
-    ) -> Self {
+    pub fn new(col_pos: ColumnPos, dim: InDimension, dim_config: &DimensionTypeConfig) -> Self {
         let min_section_y = dim_config.min_y >> BLOCKS::BITS;
         Self {
             col_pos: ColumnPosComponent(col_pos),
             dim,
-            heightmaps: Heightmaps::with_min_y(scalars.len(), dim_config.height, dim_config.min_y),
             sections: ColumnChunks::new(min_section_y, dim_config.section_count as usize),
             marker: Column,
         }
     }
 }
 
-/// Ordered lifecycle stages for chunk-column reconciliation. Stages
-/// `PrimeHeightmaps` and `AttachState` are reserved variants registered by
-/// the lighting plugin (downstream); this plugin only registers
-/// `Reconcile` and `ReconcileIndex`.
+/// Ordered lifecycle stages for chunk-column reconciliation.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ColumnLifecycleSet {
     Reconcile,
     ReconcileIndex,
-    PrimeHeightmaps,
-    AttachState,
 }
 
 /// Stage 1: when a chunk becomes `ChunkLoaded` (or `ChunkUnloading`),
@@ -317,7 +165,6 @@ pub fn reconcile_column_existence(
     newly_unloading: Query<(&ChunkPos, &InDimension), (Added<ChunkUnloading>, With<InColumn>)>,
     mut dimensions: Query<&mut ColumnIndex>,
     dim_configs: Query<&DimensionTypeConfig>,
-    scalars: Res<ColumnScalarRegistry>,
     mut commands: Commands,
 ) {
     for (chunk_pos, in_dim) in newly_loaded.iter() {
@@ -331,7 +178,7 @@ pub fn reconcile_column_existence(
         match column_index.0.entry(col_pos) {
             std::collections::hash_map::Entry::Vacant(v) => {
                 let col_entity = commands
-                    .spawn(ColumnBundle::new(col_pos, *in_dim, dim_config, &scalars))
+                    .spawn(ColumnBundle::new(col_pos, *in_dim, dim_config))
                     .id();
                 v.insert(ColumnSlot {
                     entity: col_entity,
@@ -385,9 +232,6 @@ pub fn reconcile_column_existence(
 /// Stage 2: after Stage 1's `ApplyDeferred` flushes the spawn commands, the
 /// new column entities are visible. Insert the chunk into its column's
 /// `ColumnChunks` and attach the `InColumn` back-link.
-///
-/// Deliberately takes no lighting-table resource: heightmap priming
-/// (Stage 2.5) lives in the lighting crate.
 pub fn reconcile_column_chunks(
     newly_loaded: Query<(Entity, &ChunkPos, &InDimension), (Added<ChunkLoaded>, With<ChunkFresh>)>,
     newly_unloading: Query<(&ChunkPos, &InDimension), (Added<ChunkUnloading>, With<InColumn>)>,
@@ -432,16 +276,12 @@ pub struct ColumnPlugin;
 
 impl Plugin for ColumnPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ColumnScalarRegistry>();
         app.add_systems(
             FixedUpdate,
             (
                 reconcile_column_existence.in_set(ColumnLifecycleSet::Reconcile),
                 ApplyDeferred,
                 reconcile_column_chunks.in_set(ColumnLifecycleSet::ReconcileIndex),
-                // W6: trailing post-Stage-2 ApplyDeferred is intentionally omitted; the
-                // lighting plugin owns the Stage 2 -> Stage 2.5 barrier with a leading
-                // ApplyDeferred at the head of its own chain.
             )
                 .chain(),
         );
@@ -461,7 +301,6 @@ mod tests {
     #[test]
     fn a_section_cancelled_before_it_loaded_does_not_decrement_its_column() {
         let mut app = App::new();
-        app.init_resource::<ColumnScalarRegistry>();
         app.add_systems(
             FixedUpdate,
             (
@@ -488,60 +327,6 @@ mod tests {
             index.0.get(&ColumnPos::new(0, 0)).map(|s| s.section_count),
             Some(1),
         );
-    }
-
-    #[test]
-    fn heightmap_new_dimensions_sized_correctly() {
-        let h = Heightmaps::new(2, 384);
-        assert_eq!(h.storage(ColumnScalarKey(0)).bits_per_entry(), 9);
-        assert_eq!(h.storage(ColumnScalarKey(0)).entry_count(), 256);
-        // 256 entries / (64 / 9 = 7 per long) = 37 longs.
-        assert_eq!(h.raw_longs(ColumnScalarKey(0)).len(), 37);
-        assert_eq!(h.raw_longs(ColumnScalarKey(1)).len(), 37);
-    }
-
-    #[test]
-    fn heightmap_set_get_round_trip() {
-        let mut h = Heightmaps::new(2, 384);
-        for z in 0..BLOCKS::SIZE {
-            for x in 0..BLOCKS::SIZE {
-                let y = (z * BLOCKS::SIZE + x) as i32;
-                h.set(ColumnScalarKey(0), x, z, y);
-            }
-        }
-        for z in 0..BLOCKS::SIZE {
-            for x in 0..BLOCKS::SIZE {
-                let y = (z * BLOCKS::SIZE + x) as i32;
-                assert_eq!(
-                    h.get(ColumnScalarKey(0), x, z),
-                    y,
-                    "scalar mismatch at ({x}, {z})"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
-        // 9 bits per entry, lowest entry in lowest bits of long 0.
-        let mut h = Heightmaps::new(2, 384);
-        // Index 0 = (x=0, z=0); index 1 = (x=1, z=0); index 2 = (x=2, z=0).
-        h.set(ColumnScalarKey(0), 0, 0, 5); // value 5 at sub-position 0
-        h.set(ColumnScalarKey(0), 1, 0, 10); // value 10 at sub-position 1
-        h.set(ColumnScalarKey(0), 2, 0, 15); // value 15 at sub-position 2
-        let expected = 5u64 | (10u64 << 9) | (15u64 << 18);
-        assert_eq!(
-            h.raw_longs(ColumnScalarKey(0))[0],
-            expected,
-            "entry n must occupy bits [n*bits, (n+1)*bits) of the long array"
-        );
-    }
-
-    #[test]
-    fn heightmap_zero_init_returns_min_y_for_unprimed_columns() {
-        let h = Heightmaps::with_min_y(2, 384, -64);
-        assert_eq!(h.get(ColumnScalarKey(0), 0, 0), -64);
-        assert_eq!(h.get(ColumnScalarKey(1), BLOCKS::MASK, BLOCKS::MASK), -64);
     }
 
     #[test]
@@ -606,31 +391,14 @@ mod tests {
     }
 
     #[test]
-    fn column_scalar_registry_is_idempotent() {
-        let mut r = ColumnScalarRegistry::default();
-        let a = r.register("a");
-        let b = r.register("b");
-        assert_eq!(r.register("a"), a);
-        assert_eq!(b, ColumnScalarKey(1));
-        assert_eq!(r.len(), 2);
-        assert_eq!(r.key("b"), Some(b));
-        assert_eq!(r.key("c"), None);
-    }
-
-    #[test]
     fn column_bundle_constructor_uses_dim_config() {
         let dim_config = DimensionTypeConfig::new(-64, 384);
         let in_dim = InDimension(fake_entity(0));
         let col_pos = ColumnPos::new(3, -5);
-        let mut scalars = ColumnScalarRegistry::default();
-        scalars.register("a");
-        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config, &scalars);
-        assert_eq!(bundle.heightmaps.scalar_count(), 1);
+        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config);
         assert_eq!(bundle.col_pos.0, col_pos);
         assert_eq!(bundle.sections.min_section_y, -4);
         assert_eq!(bundle.sections.sections.len(), 24);
-        assert_eq!(bundle.heightmaps.height(), 384);
-        assert_eq!(bundle.heightmaps.min_y(), -64);
     }
 
     #[test]
@@ -638,12 +406,9 @@ mod tests {
         let dim_config = DimensionTypeConfig::new(0, 256);
         let in_dim = InDimension(fake_entity(0));
         let col_pos = ColumnPos::new(0, 0);
-        let scalars = ColumnScalarRegistry::default();
-        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config, &scalars);
+        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config);
         assert_eq!(bundle.sections.min_section_y, 0);
         assert_eq!(bundle.sections.sections.len(), 16);
-        assert_eq!(bundle.heightmaps.height(), 256);
-        assert_eq!(bundle.heightmaps.min_y(), 0);
     }
 
     #[test]
