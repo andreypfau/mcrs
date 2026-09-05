@@ -36,7 +36,7 @@ use mcrs_minecraft_client::{
     stream,
 };
 #[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_network::client::ClientNetworkPlugin;
+use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 
@@ -184,6 +184,7 @@ fn main() {
         username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
         view_distance: config::view_distance(),
     });
+    app.insert_resource(ExitOnDisconnect);
 
     // Inserted after `add_plugins`: `WorldClockPlugin` calls
     // `init_resource::<WorldClocks>()` during its own build, so an earlier

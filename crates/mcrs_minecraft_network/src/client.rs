@@ -2,11 +2,10 @@ use crate::event::ReceivedPacketEvent;
 use crate::packet_io::{ByteStream, PacketIo};
 use crate::{ConnectionState, EngineConnection, RawConnection};
 use anyhow::bail;
-use bevy_app::{App, Plugin, Update};
+use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, On, Query};
-#[cfg(not(target_family = "wasm"))]
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
@@ -24,8 +23,8 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
     ServerboundKeepAlive as ServerboundConfigurationKeepAlive, ServerboundSelectKnownPacks,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundChunkCacheRadius, ClientboundKeepAlive as GameKeepAlive, ClientboundLogin,
-    ClientboundPlayerPosition, ClientboundSetChunkCacheCenter,
+    ClientboundChunkCacheRadius, ClientboundDisconnect, ClientboundKeepAlive as GameKeepAlive,
+    ClientboundLogin, ClientboundPlayerPosition, ClientboundSetChunkCacheCenter,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive as ServerboundGameKeepAlive;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
@@ -138,6 +137,22 @@ pub struct ChunkCacheRadius(pub i32);
 #[derive(Resource)]
 struct ClientRuntime(#[allow(dead_code)] Runtime);
 
+/// Without it a lost connection only logs: a test harness or a browser tab
+/// outlives its connection, a windowed client has nothing left to show.
+#[derive(Resource)]
+pub struct ExitOnDisconnect;
+
+fn end_session(world: &mut World, reason: String) {
+    error!("{reason}");
+    if world.contains_resource::<ExitOnDisconnect>() {
+        world.write_message(AppExit::Success);
+    }
+}
+
+fn end_session_later(commands: &mut Commands, reason: String) {
+    commands.queue(move |world: &mut World| end_session(world, reason));
+}
+
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
         let (send, recv) = channel(1);
@@ -146,12 +161,10 @@ impl Plugin for ClientNetworkPlugin {
         let view_distance = self.view_distance;
 
         let joining = async move {
-            match connect_and_log_in(server, username).await {
-                Ok(connection) => {
-                    let _ = send.send(connection).await;
-                }
-                Err(e) => error!("login failed: {e:#}"),
-            }
+            let outcome = connect_and_log_in(server, username)
+                .await
+                .map_err(|e| format!("{e:#}"));
+            let _ = send.send(outcome).await;
         };
 
         #[cfg(not(target_family = "wasm"))]
@@ -290,12 +303,21 @@ fn client_information(view_distance: u8) -> ClientInformation<'static> {
     }
 }
 
+type LoginOutcome = Result<(RawConnection, ServerProfile), String>;
+
 fn spawn_logged_in_connection(
-    mut logged_in: Receiver<(RawConnection, ServerProfile)>,
+    mut logged_in: Receiver<LoginOutcome>,
     view_distance: u8,
 ) -> impl FnMut(&mut World) {
     move |world: &mut World| {
-        while let Ok((raw, profile)) = logged_in.try_recv() {
+        while let Ok(outcome) = logged_in.try_recv() {
+            let (raw, profile) = match outcome {
+                Ok(connection) => connection,
+                Err(e) => {
+                    end_session(world, format!("the connection failed: {e}"));
+                    continue;
+                }
+            };
             let mut connection = ClientConnection { raw: Box::new(raw) };
             connection.write_packet(&ServerboundClientInformation(client_information(
                 view_distance,
@@ -327,8 +349,8 @@ fn receive_packets(
                 }),
                 Ok(None) => break,
                 Err(_) => {
-                    warn!("the server closed the connection");
                     commands.entity(entity).despawn();
+                    end_session_later(&mut commands, "the server closed the connection".into());
                     break;
                 }
             }
@@ -336,10 +358,16 @@ fn receive_packets(
     }
 }
 
-fn flush(mut connections: Query<&mut ClientConnection>) {
-    for mut connection in connections.iter_mut() {
+fn flush(mut connections: Query<(Entity, &mut ClientConnection)>, mut commands: Commands) {
+    for (entity, mut connection) in connections.iter_mut() {
         if let Err(e) = connection.raw.flush() {
             warn!("failed to send to the server: {e}");
+        }
+        // The flush error above is also raised by a writer that is merely
+        // behind, so the dead writer is what the disconnect is read from.
+        if connection.raw.disconnected() {
+            commands.entity(entity).despawn();
+            end_session_later(&mut commands, "the connection to the server failed".into());
         }
     }
 }
@@ -423,7 +451,16 @@ fn handle_game_packet(
         return;
     }
 
-    if let Some(login) = event.decode::<ClientboundLogin>() {
+    if let Some(disconnect) = event.decode::<ClientboundDisconnect>() {
+        commands.entity(event.entity).despawn();
+        end_session_later(
+            &mut commands,
+            format!(
+                "the server disconnected you: {}",
+                disconnect.reason.to_legacy_lossy()
+            ),
+        );
+    } else if let Some(login) = event.decode::<ClientboundLogin>() {
         commands.entity(event.entity).insert(JoinedGame {
             player_id: login.player_id,
             dimensions: login.dimensions.iter().map(|d| d.to_string()).collect(),
@@ -458,5 +495,81 @@ fn handle_game_packet(
         connection.write_packet(&ServerboundGameKeepAlive(KeepAlive {
             payload: keep_alive.0.payload,
         }));
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests {
+    use super::*;
+    use bevy_app::Update;
+    use mcrs_minecraft_protocol::text::Text;
+    use tokio::sync::mpsc;
+
+    fn client_app(runtime: &Runtime) -> (App, mpsc::Sender<crate::ReceivedPacket>, Entity) {
+        let _guard = runtime.enter();
+        let (raw, _outgoing, inbound) = RawConnection::new_for_test_full(8);
+        let mut app = App::new();
+        app.insert_resource(ExitOnDisconnect);
+        app.add_systems(Update, (receive_packets, flush).chain());
+        app.add_observer(handle_game_packet);
+        let entity = app
+            .world_mut()
+            .spawn((
+                ClientConnection { raw: Box::new(raw) },
+                ConnectionState::Game,
+                PendingTeleports::default(),
+            ))
+            .id();
+        (app, inbound, entity)
+    }
+
+    #[test]
+    fn a_live_connection_does_not_end_the_session() {
+        let runtime = Runtime::new().unwrap();
+        let (mut app, _inbound, _) = client_app(&runtime);
+        app.update();
+        assert!(app.should_exit().is_none());
+    }
+
+    #[test]
+    fn a_closed_connection_ends_the_session() {
+        let runtime = Runtime::new().unwrap();
+        let (mut app, inbound, _) = client_app(&runtime);
+        app.update();
+        drop(inbound);
+        app.update();
+        assert_eq!(app.should_exit(), Some(AppExit::Success));
+    }
+
+    #[test]
+    fn a_disconnect_packet_ends_the_session() {
+        let runtime = Runtime::new().unwrap();
+        let (mut app, inbound, entity) = client_app(&runtime);
+        let mut body = Vec::new();
+        ClientboundDisconnect {
+            reason: Text::text("the server is restarting"),
+        }
+        .encode(&mut body)
+        .unwrap();
+        runtime
+            .block_on(inbound.send(crate::ReceivedPacket {
+                timestamp: crate::Instant::now(),
+                id: ClientboundDisconnect::ID,
+                payload: body.into(),
+            }))
+            .unwrap();
+        app.update();
+        assert_eq!(app.should_exit(), Some(AppExit::Success));
+        assert!(app.world().get_entity(entity).is_err());
+    }
+
+    #[test]
+    fn without_the_resource_a_closed_connection_only_logs() {
+        let runtime = Runtime::new().unwrap();
+        let (mut app, inbound, _) = client_app(&runtime);
+        app.world_mut().remove_resource::<ExitOnDisconnect>();
+        drop(inbound);
+        app.update();
+        assert!(app.should_exit().is_none());
     }
 }
