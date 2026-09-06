@@ -506,7 +506,7 @@ impl ImprovedNoise<f32> {
         let fade_z = smoothstep(local_z);
         let (p0, p1) = self.x_perms(floor_x as i32);
 
-        let mut cell: Option<(i32, [usize; 8])> = None;
+        let mut cell: Option<(i32, CellBlend)> = None;
         for ((y, y_max), slot) in ys.zip(out.iter_mut()) {
             let shifted_y = y + self.origin_y;
             let floor_y = shifted_y.floor();
@@ -521,16 +521,21 @@ impl ImprovedNoise<f32> {
                 fade = ((t / y_scale + 1.0E-7f32 as f64).floor() as i32) as f64 * y_scale;
             }
             let section_y = floor_y as i32;
-            let grads = match cell {
-                Some((cached_y, grads)) if cached_y == section_y => grads,
+            let blend = match cell {
+                Some((cached_y, blend)) if cached_y == section_y => blend,
                 _ => {
-                    let grads = self.corner_grads(p0, p1, section_y, section_z);
-                    cell = Some((section_y, grads));
-                    grads
+                    let blend = cell_blend(
+                        &self.corner_grads(p0, p1, section_y, section_z),
+                        local_x,
+                        local_z,
+                        fade_x,
+                        fade_z,
+                    );
+                    cell = Some((section_y, blend));
+                    blend
                 }
             };
-            *slot = lerp_corners(
-                &grads,
+            *slot = blend.sample(
                 local_x,
                 (local_y - fade) as f32,
                 local_z,
@@ -634,7 +639,7 @@ impl ImprovedNoise<f32> {
                 let local_x = (shifted_x - floor_x) as f32;
                 let fade_x = smoothstep(local_x);
                 let (p0, p1) = self.x_perms(floor_x as i32);
-                let mut cell: Option<(i32, [usize; 8])> = None;
+                let mut cell: Option<(i32, CellBlend)> = None;
 
                 for iy in 0..size.y {
                     let original_y = volume.block_y(iy) as f64 * y_scale;
@@ -652,17 +657,22 @@ impl ImprovedNoise<f32> {
                             * smear_scale_y;
                     }
                     let section_y = floor_y as i32;
-                    let grads = match cell {
-                        Some((cached_y, grads)) if cached_y == section_y => grads,
+                    let blend = match cell {
+                        Some((cached_y, blend)) if cached_y == section_y => blend,
                         _ => {
-                            let grads = self.corner_grads(p0, p1, section_y, section_z);
-                            cell = Some((section_y, grads));
-                            grads
+                            let blend = cell_blend(
+                                &self.corner_grads(p0, p1, section_y, section_z),
+                                local_x,
+                                local_z,
+                                fade_x,
+                                fade_z,
+                            );
+                            cell = Some((section_y, blend));
+                            blend
                         }
                     };
                     out[index] += amplitude
-                        * lerp_corners(
-                            &grads,
+                        * blend.sample(
                             local_x,
                             (local_y - fade) as f32,
                             local_z,
@@ -729,6 +739,185 @@ fn lerp_corners(
         let ll0 = lerp(fade_y, l00, l10);
         let ll1 = lerp(fade_y, l01, l11);
         lerp(fade_z, ll0, ll1)
+    }
+}
+
+#[cfg(feature = "fast")]
+type CellBlend = CellLine;
+#[cfg(not(feature = "fast"))]
+type CellBlend = CellCorners;
+
+#[cfg(feature = "fast")]
+#[inline(always)]
+fn cell_blend(
+    grads: &[usize; 8],
+    local_x: f32,
+    local_z: f32,
+    fade_x: f32,
+    fade_z: f32,
+) -> CellBlend {
+    CellLine::new(grads, local_x, local_z, fade_x, fade_z)
+}
+
+#[cfg(not(feature = "fast"))]
+#[inline(always)]
+fn cell_blend(
+    grads: &[usize; 8],
+    _local_x: f32,
+    _local_z: f32,
+    _fade_x: f32,
+    _fade_z: f32,
+) -> CellBlend {
+    CellCorners(*grads)
+}
+
+#[derive(Clone, Copy)]
+#[allow(dead_code)]
+pub(crate) struct CellCorners(pub [usize; 8]);
+
+#[allow(dead_code)]
+impl CellCorners {
+    #[inline(always)]
+    pub(crate) fn sample(
+        self,
+        local_x: f32,
+        local_y: f32,
+        local_z: f32,
+        fade_x: f32,
+        fade_y: f32,
+        fade_z: f32,
+    ) -> f32 {
+        lerp_corners(&self.0, local_x, local_y, local_z, fade_x, fade_y, fade_z)
+    }
+}
+
+/// The trilinear blend of one lattice cell restricted to a line along y, where x, z and
+/// their smoothsteps are fixed: every corner dot is affine in y, and both the x and the z
+/// lerps are affine with constant weights, so the whole cell collapses to two lines that
+/// the y smoothstep interpolates between.
+#[derive(Clone, Copy)]
+#[allow(dead_code)]
+pub(crate) struct CellLine {
+    lower_at_0: f32,
+    lower_slope: f32,
+    upper_at_0: f32,
+    upper_slope: f32,
+}
+
+#[allow(dead_code)]
+impl CellLine {
+    #[inline(always)]
+    pub(crate) fn new(
+        grads: &[usize; 8],
+        local_x: f32,
+        local_z: f32,
+        fade_x: f32,
+        fade_z: f32,
+    ) -> Self {
+        // SAFETY: as in `lerp_corners`, the gradient indices are (perm & 15) << 2 = [0, 60].
+        unsafe {
+            let x1 = local_x - 1.0;
+            let z1 = local_z - 1.0;
+            let g = &FLAT_SIMPLEX_GRAD;
+            let split = |corner: usize, x: f32, z: f32| {
+                let h = *grads.get_unchecked(corner);
+                (
+                    g.get_unchecked(h + 2).mul_add(z, g.get_unchecked(h) * x),
+                    *g.get_unchecked(h + 1),
+                )
+            };
+            let (c000, y000) = split(0, local_x, local_z);
+            let (c100, y100) = split(1, x1, local_z);
+            let (c010, y010) = split(2, local_x, local_z);
+            let (c110, y110) = split(3, x1, local_z);
+            let (c001, y001) = split(4, local_x, z1);
+            let (c101, y101) = split(5, x1, z1);
+            let (c011, y011) = split(6, local_x, z1);
+            let (c111, y111) = split(7, x1, z1);
+
+            let lerp = |a: f32, p0: f32, p1: f32| p0 + a * (p1 - p0);
+            let lerp_x = |p0: f32, p1: f32| lerp(fade_x, p0, p1);
+            let lerp_z = |p0: f32, p1: f32| lerp(fade_z, p0, p1);
+            Self {
+                lower_at_0: lerp_z(lerp_x(c000, c100), lerp_x(c001, c101)),
+                lower_slope: lerp_z(lerp_x(y000, y100), lerp_x(y001, y101)),
+                upper_at_0: lerp_z(lerp_x(c010, c110), lerp_x(c011, c111)),
+                upper_slope: lerp_z(lerp_x(y010, y110), lerp_x(y011, y111)),
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn sample(
+        self,
+        _local_x: f32,
+        local_y: f32,
+        _local_z: f32,
+        _fade_x: f32,
+        fade_y: f32,
+        _fade_z: f32,
+    ) -> f32 {
+        let lower = self.lower_slope.mul_add(local_y, self.lower_at_0);
+        let upper = self.upper_slope.mul_add(local_y - 1.0, self.upper_at_0);
+        lower + fade_y * (upper - lower)
+    }
+}
+
+#[cfg(test)]
+mod collapsed_cell {
+    use super::{CellCorners, CellLine, smoothstep};
+
+    fn ordered(v: f32) -> i64 {
+        let bits = v.to_bits() as i64;
+        if bits < 0 { 0x8000_0000i64 - bits } else { bits }
+    }
+
+    #[test]
+    fn matches_the_exact_blend() {
+        let mut state = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 40) as f32 / 16777216.0
+        };
+
+        let (mut differing, mut total) = (0u64, 0u64);
+        let (mut max_abs, mut max_ulps, mut sum_abs) = (0.0f32, 0i64, 0.0f64);
+        for _ in 0..4096 {
+            let local_x = next();
+            let local_z = next();
+            let mut grads = [0usize; 8];
+            for g in &mut grads {
+                *g = ((next() * 16.0) as usize & 15) << 2;
+            }
+            let fade_x = smoothstep(local_x);
+            let fade_z = smoothstep(local_z);
+            let corners = CellCorners(grads);
+            let line = CellLine::new(&grads, local_x, local_z, fade_x, fade_z);
+            for _ in 0..8 {
+                let local_y = next();
+                let y = local_y - next() * local_y;
+                let fade_y = smoothstep(local_y);
+                let exact = corners.sample(local_x, y, local_z, fade_x, fade_y, fade_z);
+                let fast = line.sample(local_x, y, local_z, fade_x, fade_y, fade_z);
+                total += 1;
+                if exact != fast {
+                    differing += 1;
+                    let abs = (exact - fast).abs();
+                    max_abs = max_abs.max(abs);
+                    max_ulps = max_ulps.max((ordered(exact) - ordered(fast)).abs());
+                    sum_abs += abs as f64;
+                }
+            }
+        }
+
+        println!(
+            "samples={total} differing={differing} ({:.2}%) max_abs={max_abs:e} max_ulps={max_ulps} mean_abs={:e}",
+            100.0 * differing as f64 / total as f64,
+            sum_abs / total as f64
+        );
+        assert!(max_abs < 1.0e-5, "collapsed blend drifted by {max_abs}");
     }
 }
 
