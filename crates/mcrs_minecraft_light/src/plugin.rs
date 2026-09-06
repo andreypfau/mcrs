@@ -114,7 +114,12 @@ impl Default for LightBudget {
             // queue hands out a block of columns rather than a slice of the ring
             // it orders them in. A few dozen columns of a full-height world.
             cells_per_epoch: 8 << 20,
-            epochs_in_flight: available_parallelism(),
+            // A slot beyond what the pool can actually start holds no epoch but
+            // still blocks its area against the next batch, so the ceiling is
+            // the pool's width and not the machine's.
+            epochs_in_flight: AsyncComputeTaskPool::try_get()
+                .map(|pool| pool.thread_num())
+                .unwrap_or_else(available_parallelism),
         }
     }
 }
