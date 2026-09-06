@@ -108,11 +108,12 @@ pub struct LightBudget {
 impl Default for LightBudget {
     fn default() -> Self {
         Self {
-            // About a dozen columns of a full-height world once the fifteen
-            // cell influence radius and section rounding are paid for on the
-            // perimeter: a few milliseconds of work, and four times the value
-            // per column of lighting one on its own.
-            cells_per_epoch: 4 << 20,
+            // The influence radius and the section rounding are paid for on the
+            // perimeter, and a perimeter grows with the square root of what it
+            // encloses, so a batch is worth making large — but only now that the
+            // queue hands out a block of columns rather than a slice of the ring
+            // it orders them in. A few dozen columns of a full-height world.
+            cells_per_epoch: 8 << 20,
             epochs_in_flight: available_parallelism(),
         }
     }

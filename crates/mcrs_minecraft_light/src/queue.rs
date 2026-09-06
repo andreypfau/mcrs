@@ -4,8 +4,9 @@
 
 use std::collections::BTreeSet;
 
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::ColumnPos;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::region::{BlockBox, Influence};
 
@@ -118,12 +119,10 @@ struct ColumnWork {
 #[derive(Debug, Default)]
 pub struct LightQueue(PriorityColumns<ColumnWork>);
 
-/// Columns that may be passed over before a scan gives up looking for one that
-/// still fits. Priority order is not spatial order, so a ring around the player
-/// arrives interleaved and a few misses in a row mean nothing; a few hundred
-/// mean every open batch is full, and walking the rest of a backlog of
-/// thousands to confirm it costs more than the columns it would find.
-const REJECTIONS_BEFORE_STOP: usize = 256;
+/// Columns off the front of the order to try as batch seeds. A seed already
+/// swept up by an earlier batch's growth is skipped, so there have to be more
+/// candidates than batches, but never so many that a deep backlog is rescanned.
+const SEEDS_PER_BATCH: usize = 32;
 
 impl LightQueue {
     /// Number of columns waiting.
@@ -166,80 +165,104 @@ impl LightQueue {
     /// work, each staying within `budget_cells` and clear of every `avoid` area.
     ///
     /// The budget is in field cells rather than influences because that is what
-    /// an epoch costs: the batch is unioned into one box and both the seeding
-    /// and the read-back pass walk every cell of it. Measuring the union also
-    /// makes a batch spatially coherent for free — a column far from the ones
-    /// already taken blows the budget and is left for the next batch.
+    /// an epoch costs: every pass of the epoch walks the whole box, so a batch
+    /// is worth what its columns bring and costs what its box spans.
     ///
     /// Columns are taken whole: splitting one would mean lighting part of a
     /// column against blocks the rest of the batch is about to change, and the
     /// sky source scan spans the whole column anyway. At least one column is
     /// always taken, so a column larger than the budget still makes progress.
     ///
-    /// A column that does not fit is passed over rather than ending the batch,
-    /// because priority order is not spatial order: a ring of columns around
-    /// the player arrives interleaved, and stopping at the first one that
-    /// overshoots would hand out batches of two.
+    /// A batch is seeded from the most urgent column waiting and then grown
+    /// outwards from that column, not onwards through the order. Priority is
+    /// distance to a player, so the order is a ring: following it drags the box
+    /// sideways across the ring and the halo the box carries never amortises
+    /// against the columns inside it. Growing outwards keeps the box square, and
+    /// a square's halo is a border rather than a second copy of the batch.
     ///
-    /// A column whose field would overlap an `avoid` area is passed over for
-    /// the same reason: those areas belong to work already in flight, which
-    /// publishes every section of its own field and would clobber this batch's
-    /// answer there, or be clobbered by it.
-    ///
-    /// All the batches are filled in one pass, because the scan is over waiting
-    /// columns and repeating it per free epoch slot would make the caller's
-    /// cost scale with the machine's core count.
+    /// A batch whose field would overlap an `avoid` area is passed over: those
+    /// areas belong to work already in flight, which publishes every section of
+    /// its own field and would clobber this batch's answer there, or be
+    /// clobbered by it.
     pub fn drain_batches(
         &mut self,
         budget_cells: u64,
         avoid: &[BlockBox],
         max_batches: usize,
     ) -> Vec<Vec<Influence>> {
-        let mut areas: Vec<BlockBox> = Vec::new();
         let mut fields: Vec<BlockBox> = Vec::new();
-        let mut chosen: Vec<Vec<(Priority, ColumnPos)>> = Vec::new();
+        let mut chosen: Vec<Vec<ColumnPos>> = Vec::new();
+        let mut claimed: FxHashSet<ColumnPos> = FxHashSet::default();
 
-        let mut rejections = 0;
-        'column: for (priority, column) in self.0.order() {
-            if rejections >= REJECTIONS_BEFORE_STOP {
+        let seeds: Vec<ColumnPos> = self
+            .0
+            .order()
+            .map(|(_, column)| column)
+            .take(max_batches * SEEDS_PER_BATCH)
+            .collect();
+
+        for seed in seeds {
+            if chosen.len() >= max_batches {
                 break;
             }
-            let bounds = self.0.get(column).expect("the order names a column").bounds;
-            for index in 0..chosen.len() {
-                let grown = areas[index].union(bounds);
-                // The one cell of margin `prepare_batch` adds is part of the field.
-                let field = grown.expand(1).section_aligned();
-                if field.cells() > budget_cells {
-                    continue;
-                }
-                if collides(field, avoid, &fields, index) {
-                    continue;
-                }
-                areas[index] = grown;
-                fields[index] = field;
-                chosen[index].push((priority, column));
-                rejections = 0;
-                continue 'column;
+            if claimed.contains(&seed) {
+                continue;
             }
-            if chosen.len() < max_batches {
-                let field = bounds.expand(1).section_aligned();
-                if !collides(field, avoid, &fields, chosen.len()) {
-                    areas.push(bounds);
-                    fields.push(field);
-                    chosen.push(vec![(priority, column)]);
-                    rejections = 0;
-                    continue 'column;
+            let Some(work) = self.0.get(seed) else {
+                continue;
+            };
+            let mut area = work.bounds;
+            // The one cell of margin `prepare_batch` adds is part of the field.
+            let mut field = area.expand(1).section_aligned();
+            if collides(field, avoid, &fields) {
+                continue;
+            }
+            let mut batch = vec![seed];
+            claimed.insert(seed);
+
+            let mut ring = Vec::new();
+            for radius in 1..=reach(field, budget_cells) {
+                ring.clear();
+                ring.extend(around(seed, radius));
+                let mut grew = false;
+                for column in ring.drain(..) {
+                    if claimed.contains(&column) {
+                        continue;
+                    }
+                    let Some(work) = self.0.get(column) else {
+                        continue;
+                    };
+                    let grown = area.union(work.bounds);
+                    let candidate = grown.expand(1).section_aligned();
+                    if candidate.cells() > budget_cells
+                        || collides(candidate, avoid, &fields)
+                    {
+                        continue;
+                    }
+                    area = grown;
+                    field = candidate;
+                    batch.push(column);
+                    claimed.insert(column);
+                    grew = true;
+                }
+                // A ring can be empty because the load front has not reached it,
+                // and the one past it be full; two in a row mean this batch has
+                // run out of neighbourhood rather than out of luck.
+                if !grew && radius > 1 {
+                    break;
                 }
             }
-            rejections += 1;
+
+            fields.push(field);
+            chosen.push(batch);
         }
 
         chosen
             .into_iter()
             .map(|batch| {
                 let mut taken = Vec::new();
-                for (_, column) in batch {
-                    let (_, work) = self.0.remove(column).expect("the order names a column");
+                for column in batch {
+                    let (_, work) = self.0.remove(column).expect("a chosen column is waiting");
                     taken.extend(work.influences);
                 }
                 taken
@@ -248,10 +271,29 @@ impl LightQueue {
     }
 }
 
-fn collides(field: BlockBox, avoid: &[BlockBox], fields: &[BlockBox], skip: usize) -> bool {
-    avoid.iter().any(|other| other.intersects(field))
-        || fields
-            .iter()
-            .enumerate()
-            .any(|(index, other)| index != skip && other.intersects(field))
+/// How far out from its seed a batch can reach before the box alone spends the
+/// budget, in section columns.
+fn reach(seed_field: BlockBox, budget_cells: u64) -> i32 {
+    let height = (seed_field.max.y - seed_field.min.y + 1).max(1) as u64;
+    let stack = height * (BLOCKS::AREA as u64);
+    ((budget_cells / stack.max(1)).isqrt() as i32 / 2).max(1)
+}
+
+/// The section columns exactly `radius` steps from `centre`, Chebyshev.
+fn around(centre: ColumnPos, radius: i32) -> impl Iterator<Item = ColumnPos> {
+    let side = -radius..=radius;
+    side.clone()
+        .flat_map(move |dx| {
+            let side = side.clone();
+            side.filter(move |dz| dx.abs() == radius || dz.abs() == radius)
+                .map(move |dz| (dx, dz))
+        })
+        .map(move |(dx, dz)| ColumnPos::new(centre.x + dx, centre.z + dz))
+}
+
+fn collides(field: BlockBox, avoid: &[BlockBox], fields: &[BlockBox]) -> bool {
+    avoid
+        .iter()
+        .chain(fields)
+        .any(|other| other.intersects(field))
 }
