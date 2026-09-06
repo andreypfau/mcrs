@@ -8,6 +8,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet};
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
+use std::collections::VecDeque;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use tracing::{debug, warn};
 
@@ -555,48 +556,33 @@ fn drain_to_dim_inbox(
     }
 }
 
-/// Emit a `FromDim`-channel-full warning on the first drop and then once every
-/// this many further drops, so a saturated channel is visible in logs without
-/// flooding them.
-const FROM_DIM_DROP_LOG_INTERVAL: u64 = 256;
-
 /// Drains the dim's local `Messages<OutboundPlayerPacket>` into the `FromDim`
 /// channel so the host-side `pump_channels` can epoch-stamp and forward them.
 ///
-/// A full channel means the host is not draining fast enough; the packet is
-/// dropped (clientbound packet loss is recoverable like network loss), but the
-/// loss is counted in `FROM_DIM_CHANNEL_DROP_TOTAL` and surfaced via a
-/// rate-limited warning so saturation is not silently invisible.
+/// A tick can emit far more packets than the channel holds — a chunk batch at a
+/// high `desired_columns_per_tick` does it routinely — so a full channel is
+/// backpressure, not a fault, and what does not fit waits here for the next
+/// tick in the order it was written. Nothing is ever dropped: a column is
+/// recorded as sent the moment it is queued and never offered again, so a lost
+/// packet is a hole in the client's world, and a lost batch-finished packet
+/// costs the acknowledgement the whole column stream is paced by.
 pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
     sender: Res<FromDimSender<FromDim>>,
-    mut dropped_since_log: Local<u64>,
+    mut backlog: Local<VecDeque<FromDim>>,
 ) {
     use mcrs_voxel_world::session::PlayerSession;
-    use std::sync::atomic::Ordering;
-    for msg in msgs.drain() {
-        let outbound = FromDim::Clientbound {
-            target: msg.target,
-            priority: msg.priority,
-            data: msg.data,
-            session: PlayerSession(0),
-            epoch: 0,
-        };
-        if sender.0.try_send(outbound).is_err() {
-            mcrs_minecraft_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL
-                .fetch_add(1, Ordering::Relaxed);
-            let total = mcrs_minecraft_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL
-                .load(Ordering::Relaxed);
-            *dropped_since_log += 1;
-            if *dropped_since_log == 1
-                || dropped_since_log.is_multiple_of(FROM_DIM_DROP_LOG_INTERVAL)
-            {
-                warn!(
-                    target: "mcrs_minecraft_server::bridge",
-                    from_dim_drop_total = total,
-                    "FromDim channel full; dropping clientbound packet (host not draining)"
-                );
-            }
+    backlog.extend(msgs.drain().map(|msg| FromDim::Clientbound {
+        target: msg.target,
+        priority: msg.priority,
+        data: msg.data,
+        session: PlayerSession(0),
+        epoch: 0,
+    }));
+    while let Some(outbound) = backlog.pop_front() {
+        if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
+            backlog.push_front(outbound);
+            break;
         }
     }
 }
@@ -674,5 +660,59 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
                 "DimDespawnQueue entity already absent from host world (expected on the OnRemove observer path)"
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::bus::{PacketPayload, PacketPriority, PacketTarget, TestPayload};
+    use bevy_ecs::system::{IntoSystem, System};
+    use mcrs_voxel_world::world::channels::DimSender;
+
+    /// A tick that writes more than the channel holds must not cost a packet: a column is
+    /// recorded as sent when it is queued and never offered again.
+    #[test]
+    fn a_full_channel_holds_the_overflow_back_instead_of_dropping_it() {
+        let written = FROM_DIM_CAPACITY + FROM_DIM_CAPACITY / 2;
+        let (tx, rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+        let mut world = World::new();
+        world.insert_resource(Messages::<OutboundPlayerPacket>::default());
+        world.insert_resource(FromDimSender(DimSender::new(tx)));
+        let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
+        for seq in 0..written as u32 {
+            msgs.write(OutboundPlayerPacket {
+                target: PacketTarget::SinglePlayer(Entity::PLACEHOLDER),
+                priority: PacketPriority::Critical,
+                data: PacketPayload::Test(TestPayload { seq }),
+                session: mcrs_voxel_world::session::PlayerSession(0),
+                epoch: 0,
+            });
+        }
+
+        let mut flush = IntoSystem::into_system(flush_from_dim_outbox);
+        flush.initialize(&mut world);
+        let mut arrived = Vec::new();
+        let mut drain = |arrived: &mut Vec<u32>| {
+            arrived.extend(rx.try_iter().map(|msg| match msg {
+                FromDim::Clientbound {
+                    data: PacketPayload::Test(payload),
+                    ..
+                } => payload.seq,
+                other => panic!("unexpected message {other:?}"),
+            }));
+        };
+
+        flush.run((), &mut world);
+        drain(&mut arrived);
+        assert_eq!(arrived.len(), FROM_DIM_CAPACITY, "the channel takes what it holds");
+
+        flush.run((), &mut world);
+        drain(&mut arrived);
+        assert_eq!(
+            arrived,
+            (0..written as u32).collect::<Vec<_>>(),
+            "every packet arrives, in the order it was written"
+        );
     }
 }
