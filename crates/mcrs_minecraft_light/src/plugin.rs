@@ -6,7 +6,7 @@ use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_tasks::{AsyncComputeTaskPool, Task, available_parallelism, block_on, poll_once};
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
+use mcrs_voxel_math::{BlockPos, ColumnPos};
 
 use crate::block::LightRegistry;
 use crate::epoch::LightUpdate;
@@ -309,27 +309,30 @@ pub fn publish_light(
             None => true,
         });
 
-    let published: Vec<ChunkPos> = finished
+    for published in finished
         .into_iter()
         .flat_map(|update| lighting.0.apply(update))
-        .collect();
-
-    for pos in published {
-        let Some(section) = lighting.0.section(pos) else {
-            continue;
-        };
-        let entity = section.entity;
-        let block = BlockLight(section.block_light.clone());
-        let sky = SkyLight(section.sky_light.clone());
-        match lit.get_mut(entity) {
-            // Only a real change should wake whatever rebuilds meshes.
-            Ok((mut existing_block, mut existing_sky)) => {
-                existing_block.set_if_neq(block);
-                existing_sky.set_if_neq(sky);
+    {
+        match lit.get_mut(published.entity) {
+            // Only a real change should wake whatever rebuilds meshes, and the
+            // epoch already decided that: a layer it hands back is one whose
+            // answer moved, so assigning it wakes nothing that should have slept.
+            Ok((mut block, mut sky)) => {
+                if let Some(light) = published.block_light {
+                    block.0 = light;
+                }
+                if let Some(light) = published.sky_light {
+                    sky.0 = light;
+                }
             }
+            // A section reaches its entity for the first time with both layers
+            // in hand, because nothing was published for it to match against.
             Err(_) => {
-                if let Ok(mut entity) = commands.get_entity(entity) {
-                    entity.insert((block, sky));
+                if let Ok(mut entity) = commands.get_entity(published.entity) {
+                    entity.insert((
+                        BlockLight(published.block_light.unwrap_or_default()),
+                        SkyLight(published.sky_light.unwrap_or_default()),
+                    ));
                 }
             }
         }

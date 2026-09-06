@@ -8,6 +8,7 @@ use rayon::prelude::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use bevy_ecs::prelude::Entity;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
 use mcrs_voxel_storage::VoxelId;
@@ -21,12 +22,22 @@ use crate::relax::relax;
 use crate::storage::LightStorage;
 use crate::world::{Edit, LightWorld, Section, SkyFloor};
 
-/// New light for one section.
+/// New light for one section, per layer. A layer the epoch recomputed to the
+/// light it already had is `None`: the world keeps the buffer it holds, and
+/// nothing downstream is woken for an answer that did not move.
 #[derive(Clone, Debug)]
 pub struct SectionLight {
     pub pos: ChunkPos,
-    pub block_light: LightStorage,
-    pub sky_light: LightStorage,
+    pub block_light: Option<LightStorage>,
+    pub sky_light: Option<LightStorage>,
+}
+
+/// A section whose light moved, and the entity that owns it.
+#[derive(Clone, Debug)]
+pub struct PublishedLight {
+    pub entity: Entity,
+    pub block_light: Option<LightStorage>,
+    pub sky_light: Option<LightStorage>,
 }
 
 /// The finished result of an epoch, ready to be published.
@@ -300,21 +311,19 @@ impl LightJob {
                 return None;
             }
             let (was_block, was_sky) = was.unzip();
-            let block = block_field.section_light_if_changed(section_index, was_block.as_ref());
-            let sky = sky_field.section_light_if_changed(section_index, was_sky.as_ref());
+            let block_light = block_field.section_light_if_changed(section_index, was_block.as_ref());
+            let sky_light = sky_field.section_light_if_changed(section_index, was_sky.as_ref());
             // Most of a field is the halo an epoch drags along to get its own
             // columns right, and a halo section comes back with the light it went
             // in with. Handing that answer on again would have the world store it,
             // every section entity compare it, and the wire consider resending it.
-            if block.is_none() && sky.is_none() {
+            if block_light.is_none() && sky_light.is_none() {
                 return None;
             }
-            // Keeping the buffer the world already points at is not a no-op: the
-            // publish that follows then settles for a pointer compare.
             Some(SectionLight {
                 pos: layout.section_pos(section_index),
-                block_light: block.or(was_block).unwrap_or_default(),
-                sky_light: sky.or(was_sky).unwrap_or_default(),
+                block_light,
+                sky_light,
             })
         };
         let sections: Vec<SectionLight> = if layout.cell_count() >= PARALLEL_SECTION_LIMIT {
@@ -469,18 +478,29 @@ impl LightWorld {
     }
 
     /// Publishes a finished result. Sections unloaded in the meantime are dropped.
-    pub fn apply(&mut self, update: LightUpdate) -> Vec<ChunkPos> {
-        let mut changed = Vec::with_capacity(update.sections.len());
+    ///
+    /// Hands back the entity with the light rather than the position, so the
+    /// caller that has to reach the entity does not look the section up again.
+    pub fn apply(&mut self, update: LightUpdate) -> Vec<PublishedLight> {
+        let mut published = Vec::with_capacity(update.sections.len());
         for section_light in update.sections {
             let Some(section) = self.section_mut(section_light.pos) else {
                 continue;
             };
-            section.block_light = section_light.block_light;
-            section.sky_light = section_light.sky_light;
+            if let Some(light) = &section_light.block_light {
+                section.block_light = light.clone();
+            }
+            if let Some(light) = &section_light.sky_light {
+                section.sky_light = light.clone();
+            }
             section.lit = true;
-            changed.push(section_light.pos);
+            published.push(PublishedLight {
+                entity: section.entity,
+                block_light: section_light.block_light,
+                sky_light: section_light.sky_light,
+            });
         }
-        changed
+        published
     }
 
     /// Applies edits, lights them and publishes the result on this thread.

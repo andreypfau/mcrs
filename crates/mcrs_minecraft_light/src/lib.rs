@@ -43,7 +43,9 @@ pub struct SkyLight(pub LightStorage);
 
 pub mod prelude {
     pub use crate::block::{Layer, LightProperties, LightRegistry, SpecialBlocks};
-    pub use crate::epoch::{EpochStats, EpochTimings, LightJob, LightUpdate, SectionLight};
+    pub use crate::epoch::{
+        EpochStats, EpochTimings, LightJob, LightUpdate, PublishedLight, SectionLight,
+    };
     pub use crate::level::{BlockColumn, LightBounds, LightLevel, LocalPos};
     pub use crate::plugin::{
         IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightSet, LightStatus, LightWorkQueue,
