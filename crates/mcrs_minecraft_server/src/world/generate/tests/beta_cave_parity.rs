@@ -19,6 +19,7 @@ use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
+use crate::world::generate::ColumnBlocks;
 use crate::world::generate::{
     BetaCaveBlockIds, apply_beta_caves, apply_beta_surface, generate_column,
 };
@@ -444,15 +445,20 @@ fn beta_cave_parity_gate() {
             }
         }
 
+        let column = ColumnBlocks::from_sections(&sections, &y_sections);
         apply_beta_caves(
-            &mut sections,
-            &y_sections,
+            &column,
             *cx,
             *cz,
             world_seed,
             &config,
             &ids,
         );
+        for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
+            if let Some((blocks, _)) = section {
+                *blocks = palette;
+            }
+        }
 
         for fix_col in fixture_cols.iter() {
             total_columns += 1;
@@ -574,9 +580,9 @@ fn generate_column_beta_has_caves() {
     );
 
     let mut rng = make_chunk_rng(chunk_x, chunk_z);
+    let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_surface(
-        &mut sections,
-        &y_sections,
+        &column,
         chunk_x * 16,
         chunk_z * 16,
         &router,
@@ -584,16 +590,26 @@ fn generate_column_beta_has_caves() {
         super::corpus(),
         &mut rng,
     );
+    for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
+        if let Some((blocks, _)) = section {
+            *blocks = palette;
+        }
+    }
 
+    let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_caves(
-        &mut sections,
-        &y_sections,
+        &column,
         chunk_x,
         chunk_z,
         world_seed,
         &config,
         &ids,
     );
+    for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
+        if let Some((blocks, _)) = section {
+            *blocks = palette;
+        }
+    }
 
     let air = VoxelId::from(ids.air);
     let lava = VoxelId::from(ids.lava);
@@ -680,9 +696,9 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 &cancel,
             );
             let mut rng = make_chunk_rng(chunk_x, chunk_z);
+            let column = ColumnBlocks::from_sections(&sections, &y_sections);
             apply_beta_surface(
-                &mut sections,
-                &y_sections,
+                &column,
                 chunk_x * 16,
                 chunk_z * 16,
                 &router,
@@ -690,15 +706,25 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 super::corpus(),
                 &mut rng,
             );
+            for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
+                if let Some((blocks, _)) = section {
+                    *blocks = palette;
+                }
+            }
+            let column = ColumnBlocks::from_sections(&sections, &y_sections);
             apply_beta_caves(
-                &mut sections,
-                &y_sections,
+                &column,
                 chunk_x,
                 chunk_z,
                 world_seed,
                 &config,
                 &ids,
             );
+            for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
+                if let Some((blocks, _)) = section {
+                    *blocks = palette;
+                }
+            }
 
             let mut air_below_32 = 0usize;
             for (si, &sy) in y_sections.iter().enumerate() {

@@ -1,4 +1,4 @@
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use crate::world::generate::ColumnBlocks;
 use mcrs_minecraft_decoration::feature::OreFeature;
 use mcrs_minecraft_decoration::feature::config::{OreConfig, OreYOffset, TargetBlockState};
 use mcrs_minecraft_protocol::BlockStateId;
@@ -52,54 +52,6 @@ fn ore_config(stone: BlockStateId, state: BlockStateId, size: i32) -> OreConfig 
     }
 }
 
-fn get_block_from_sections(
-    sections: &[Option<(BlockPalette, BiomePalette)>],
-    y_sections: &[i32],
-    world_x: i32,
-    world_y: i32,
-    world_z: i32,
-    chunk_x: i32,
-    chunk_z: i32,
-) -> BlockStateId {
-    let local_x = world_x - chunk_x * 16;
-    let local_z = world_z - chunk_z * 16;
-    if !(0..16).contains(&local_x) || !(0..16).contains(&local_z) || world_y < 0 {
-        return BlockStateId(0);
-    }
-    let section_y = world_y >> 4;
-    let local_y = world_y & 0xF;
-    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y)
-        && let Some(Some((blocks, _))) = sections.get(si)
-    {
-        return blocks.get(BlockPos::new(local_x, local_y, local_z)).into();
-    }
-    BlockStateId(0)
-}
-
-fn set_block_in_sections(
-    sections: &mut [Option<(BlockPalette, BiomePalette)>],
-    y_sections: &[i32],
-    world_x: i32,
-    world_y: i32,
-    world_z: i32,
-    chunk_x: i32,
-    chunk_z: i32,
-    state: BlockStateId,
-) {
-    let local_x = world_x - chunk_x * 16;
-    let local_z = world_z - chunk_z * 16;
-    if !(0..16).contains(&local_x) || !(0..16).contains(&local_z) || world_y < 0 {
-        return;
-    }
-    let section_y = world_y >> 4;
-    let local_y = world_y & 0xF;
-    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y)
-        && let Some(Some((blocks, _))) = sections.get_mut(si)
-    {
-        blocks.set(BlockPos::new(local_x, local_y, local_z), state.into());
-    }
-}
-
 fn place_ore<R: Random>(
     feature: &OreFeature,
     config: &OreConfig,
@@ -107,12 +59,12 @@ fn place_ore<R: Random>(
     y_bound: i32,
     chunk_x: i32,
     chunk_z: i32,
-    sections: &mut Vec<Option<(BlockPalette, BiomePalette)>>,
-    y_sections: &[i32],
+    column: &ColumnBlocks,
     rng: &mut R,
 ) {
-    // SAFETY: get_block reads from sections while set_block writes — never concurrent.
-    let sections_ptr = sections.as_mut_slice() as *mut [Option<(BlockPalette, BiomePalette)>];
+    // The vein is scanned only inside the column that seeds it; blocks past it
+    // were dropped by the writer anyway.
+    let bounds = (chunk_x * 16, chunk_x * 16 + 15, chunk_z * 16, chunk_z * 16 + 15);
 
     for _ in 0..count {
         let origin_x = chunk_x * 16 + rng.next_i32_bound(16);
@@ -123,16 +75,21 @@ fn place_ore<R: Random>(
         let cz = chunk_z;
 
         let get_block = |wx: i32, wy: i32, wz: i32| -> VoxelId {
-            let sl = unsafe { &*sections_ptr };
-            get_block_from_sections(sl, y_sections, wx, wy, wz, cx, cz).into()
+            column.get(wx - cx * 16, wy, wz - cz * 16).unwrap_or_default()
         };
         let set_block = |wx: i32, wy: i32, wz: i32, state: VoxelId| {
-            let sl = unsafe { &mut *sections_ptr };
-            set_block_in_sections(sl, y_sections, wx, wy, wz, cx, cz, state.into());
+            column.set(wx - cx * 16, wy, wz - cz * 16, state);
         };
 
-        feature.place(
-            config, origin_x, origin_y, origin_z, get_block, set_block, rng,
+        feature.place_within(
+            config,
+            origin_x,
+            origin_y,
+            origin_z,
+            Some(bounds),
+            get_block,
+            set_block,
+            rng,
         );
     }
 }
@@ -142,18 +99,17 @@ fn place_clay<R: Random>(
     chunk_x: i32,
     chunk_z: i32,
     ids: &BetaOreBlockIds,
-    sections: &mut Vec<Option<(BlockPalette, BiomePalette)>>,
-    y_sections: &[i32],
+    column: &ColumnBlocks,
     rng: &mut R,
 ) {
     // Clay (WorldGenClay, size 32): check y-1 for water before placing
     let config = ore_config(ids.stone, ids.clay, 32);
     let feature = OreFeature;
 
-    let sections_ptr = sections.as_mut_slice() as *mut [Option<(BlockPalette, BiomePalette)>];
     let cx = chunk_x;
     let cz = chunk_z;
     let water = ids.water;
+    let bounds = (chunk_x * 16, chunk_x * 16 + 15, chunk_z * 16, chunk_z * 16 + 15);
 
     for _ in 0..count {
         let origin_x = chunk_x * 16 + rng.next_i32_bound(16);
@@ -162,25 +118,30 @@ fn place_clay<R: Random>(
 
         // Beta's WorldGenClay only places clay in shallow-water contexts.
         // Check whether water is present at y-1 (below the origin) as a proxy.
-        let below_state = {
-            let sl = unsafe { &*sections_ptr };
-            get_block_from_sections(sl, y_sections, origin_x, origin_y - 1, origin_z, cx, cz)
-        };
+        let below_state: BlockStateId = column
+            .get(origin_x - cx * 16, origin_y - 1, origin_z - cz * 16)
+            .unwrap_or_default()
+            .into();
         if below_state != water {
             continue;
         }
 
         let get_block = |wx: i32, wy: i32, wz: i32| -> VoxelId {
-            let sl = unsafe { &*sections_ptr };
-            get_block_from_sections(sl, y_sections, wx, wy, wz, cx, cz).into()
+            column.get(wx - cx * 16, wy, wz - cz * 16).unwrap_or_default()
         };
         let set_block = |wx: i32, wy: i32, wz: i32, state: VoxelId| {
-            let sl = unsafe { &mut *sections_ptr };
-            set_block_in_sections(sl, y_sections, wx, wy, wz, cx, cz, state.into());
+            column.set(wx - cx * 16, wy, wz - cz * 16, state);
         };
 
-        feature.place(
-            &config, origin_x, origin_y, origin_z, get_block, set_block, rng,
+        feature.place_within(
+            &config,
+            origin_x,
+            origin_y,
+            origin_z,
+            Some(bounds),
+            get_block,
+            set_block,
+            rng,
         );
     }
 }
@@ -191,8 +152,7 @@ fn place_clay<R: Random>(
 /// The pre-ore lake and dungeon draws are skipped; vein positions diverge from the
 /// reference as a result, so distribution (count + Y-range) is the parity target here.
 pub fn apply_beta_ores(
-    sections: &mut Vec<Option<(BlockPalette, BiomePalette)>>,
-    y_sections: &[i32],
+    column: &ColumnBlocks,
     chunk_x: i32,
     chunk_z: i32,
     world_seed: i64,
@@ -206,15 +166,14 @@ pub fn apply_beta_ores(
         .wrapping_add((chunk_z as i64).wrapping_mul(j1))
         ^ world_seed;
     let mut rng = LegacyRandom::new(populate_seed as u64);
-    place_all_ores(sections, y_sections, chunk_x, chunk_z, &mut rng, ids);
+    place_all_ores(column, chunk_x, chunk_z, &mut rng, ids);
 }
 
 /// Place all nine resource types in Beta order using an externally-supplied RNG
 /// (already seeded with the populate seed). Split from `apply_beta_ores` so the
 /// distribution test can drive it with an instrumented RNG to pin the draw count.
 pub fn place_all_ores<R: Random>(
-    sections: &mut Vec<Option<(BlockPalette, BiomePalette)>>,
-    y_sections: &[i32],
+    column: &ColumnBlocks,
     chunk_x: i32,
     chunk_z: i32,
     rng: &mut R,
@@ -226,12 +185,12 @@ pub fn place_all_ores<R: Random>(
     // Beta placement order from ChunkProviderGenerate.getChunkAt lines 344–406:
 
     // Clay 10×32, Y<128 — water-adjacent check applied
-    place_clay(10, chunk_x, chunk_z, ids, sections, y_sections, rng);
+    place_clay(10, chunk_x, chunk_z, ids, column, rng);
 
     // Dirt 20×32, Y<128
     let dirt_cfg = ore_config(stone, ids.dirt, 32);
     place_ore(
-        &feature, &dirt_cfg, 20, 128, chunk_x, chunk_z, sections, y_sections, rng,
+        &feature, &dirt_cfg, 20, 128, chunk_x, chunk_z, column, rng,
     );
 
     // Gravel 10×32, Y<128
@@ -243,27 +202,26 @@ pub fn place_all_ores<R: Random>(
         128,
         chunk_x,
         chunk_z,
-        sections,
-        y_sections,
+        column,
         rng,
     );
 
     // Coal 20×16, Y<128
     let coal_cfg = ore_config(stone, ids.coal, 16);
     place_ore(
-        &feature, &coal_cfg, 20, 128, chunk_x, chunk_z, sections, y_sections, rng,
+        &feature, &coal_cfg, 20, 128, chunk_x, chunk_z, column, rng,
     );
 
     // Iron 20×8, Y<64
     let iron_cfg = ore_config(stone, ids.iron, 8);
     place_ore(
-        &feature, &iron_cfg, 20, 64, chunk_x, chunk_z, sections, y_sections, rng,
+        &feature, &iron_cfg, 20, 64, chunk_x, chunk_z, column, rng,
     );
 
     // Gold 2×8, Y<32
     let gold_cfg = ore_config(stone, ids.gold, 8);
     place_ore(
-        &feature, &gold_cfg, 2, 32, chunk_x, chunk_z, sections, y_sections, rng,
+        &feature, &gold_cfg, 2, 32, chunk_x, chunk_z, column, rng,
     );
 
     // Redstone 8×7, Y<16
@@ -275,8 +233,7 @@ pub fn place_all_ores<R: Random>(
         16,
         chunk_x,
         chunk_z,
-        sections,
-        y_sections,
+        column,
         rng,
     );
 
@@ -289,8 +246,7 @@ pub fn place_all_ores<R: Random>(
         16,
         chunk_x,
         chunk_z,
-        sections,
-        y_sections,
+        column,
         rng,
     );
 
@@ -300,24 +256,21 @@ pub fn place_all_ores<R: Random>(
     let lapis_origin_z = chunk_z * 16 + rng.next_i32_bound(16);
     let lapis_cfg = ore_config(stone, ids.lapis, 6);
 
-    let sections_ptr = sections.as_mut_slice() as *mut [Option<(BlockPalette, BiomePalette)>];
     let cx = chunk_x;
     let cz = chunk_z;
-    let ys = y_sections;
 
     let get_block = |wx: i32, wy: i32, wz: i32| -> VoxelId {
-        let sl = unsafe { &*sections_ptr };
-        get_block_from_sections(sl, ys, wx, wy, wz, cx, cz).into()
+        column.get(wx - cx * 16, wy, wz - cz * 16).unwrap_or_default()
     };
     let set_block = |wx: i32, wy: i32, wz: i32, state: VoxelId| {
-        let sl = unsafe { &mut *sections_ptr };
-        set_block_in_sections(sl, ys, wx, wy, wz, cx, cz, state.into());
+        column.set(wx - cx * 16, wy, wz - cz * 16, state);
     };
-    feature.place(
+    feature.place_within(
         &lapis_cfg,
         lapis_origin_x,
         lapis_origin_y,
         lapis_origin_z,
+        Some((cx * 16, cx * 16 + 15, cz * 16, cz * 16 + 15)),
         get_block,
         set_block,
         rng,

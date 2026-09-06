@@ -1,8 +1,10 @@
 use crate::world::format::anvil::{SavedColumns, SectionData, column_sections};
 use mcrs_minecraft_block::palette::ChunkBlocks;
+use std::cell::RefCell;
+
 use crate::world::generate::{
     BetaCaveBlockIds, BetaOreBlockIds, apply_beta_caves, apply_beta_ores, apply_beta_surface,
-    generate_column,
+    ColumnBlocks, fill_column_dense_any,
 };
 use crate::world::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, PendingColumnHeightmaps, build_column_heightmaps,
@@ -918,21 +920,45 @@ pub(crate) fn dispatch_column_generation(
                 };
             }
 
-            let mut results = {
+            // One pipeline for both presets: fill the column densely, run the
+            // passes the preset asks for, pack the palettes once at the end.
+            // One dense buffer per worker, reused column after column: a fresh
+            // one costs an allocation the size of the whole column.
+            thread_local! {
+                static COLUMN: RefCell<ColumnBlocks> = RefCell::new(ColumnBlocks::new(&[]));
+            }
+            let mut scratch = COLUMN.with(|c| c.replace(ColumnBlocks::new(&[])));
+            let column = &mut scratch;
+
+            let biome_palette = {
                 let _gen = info_span!("world::column_gen").entered();
-                generate_column(
+                let filled = fill_column_dense_any(
+                    column,
                     col.x,
                     col.z,
                     &y_sections,
                     router,
                     biome_context,
-                    &block_definitions,
                     &cancel_clone,
-                )
+                );
+                match filled {
+                    Some(filled) => filled,
+                    None => {
+                        return ColumnResult {
+                            sections: sections_data
+                                .into_iter()
+                                .map(|(entity, pos)| (entity, pos, None))
+                                .collect(),
+                            heightmaps: None,
+                            source: ColumnSource::Generated,
+                            work: started.elapsed(),
+                        };
+                    }
+                }
             };
 
-            // Beta surface pass: place surface/filler/bedrock blocks with a
-            // single per-chunk RNG seeded from the chunk coords.
+            // Beta surface, caves and ores: the passes vanilla runs from its
+            // material rules and carvers, driven here by the Beta RNG seeding.
             if let Some((src, _)) = &biome_context
                 && matches!(src, BiomeSource::Beta { .. })
             {
@@ -941,8 +967,7 @@ pub(crate) fn dispatch_column_generation(
                     .wrapping_add((col.z as i64).wrapping_mul(132897987541));
                 let mut rng = LegacyRandom::new(seed as u64);
                 apply_beta_surface(
-                    &mut results,
-                    &y_sections,
+                    column,
                     col.x * 16,
                     col.z * 16,
                     router,
@@ -966,26 +991,18 @@ pub(crate) fn dispatch_column_generation(
                     horizontal_radius_multiplier: 1.0,
                     vertical_radius_multiplier: 1.0,
                 };
-                apply_beta_caves(
-                    &mut results,
-                    &y_sections,
-                    col.x,
-                    col.z,
-                    world_seed,
-                    &cave_config,
-                    &cave_ids,
-                );
+                apply_beta_caves(column, col.x, col.z, world_seed, &cave_config, &cave_ids);
 
                 let ore_ids = BetaOreBlockIds::resolve(&block_definitions);
-                apply_beta_ores(
-                    &mut results,
-                    &y_sections,
-                    col.x,
-                    col.z,
-                    world_seed,
-                    &ore_ids,
-                );
+                apply_beta_ores(column, col.x, col.z, world_seed, &ore_ids);
             }
+
+            let results: Vec<_> = column
+                .block_palettes()
+                .into_iter()
+                .map(|blocks| Some((blocks, biome_palette.clone())))
+                .collect();
+            COLUMN.with(|c| c.replace(scratch));
 
             let heightmaps = predicates
                 .as_ref()

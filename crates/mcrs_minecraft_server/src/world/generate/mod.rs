@@ -2,7 +2,6 @@ use crate::world::chunk::CancellationToken;
 use bevy_math::IVec3;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
-use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::biome::Biome;
@@ -11,12 +10,10 @@ use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
-use mcrs_minecraft_worldgen::beta::terrain_f64::BetaTerrainF64;
 use mcrs_minecraft_worldgen::interval::Interval;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use mcrs_minecraft_worldgen::volume::Volume;
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 /// Margin the whole-cell fill keeps away from zero. `final_density_cell_bounds`
@@ -144,8 +141,7 @@ struct FillBuffers {
 ///
 /// Returns `false` if the column was cancelled part-way.
 fn fill_column(
-    sections: &mut [Option<(BlockPalette, BiomePalette)>],
-    y_sections: &[i32],
+    column: &ColumnBlocks,
     block_x: i32,
     block_z: i32,
     noise_router: &NoiseRouter,
@@ -157,15 +153,7 @@ fn fill_column(
     let mut fill = FillBuffers::default();
 
     let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.ws) else {
-        return fill_column_dense(
-            sections,
-            y_sections,
-            block_x,
-            block_z,
-            noise_router,
-            &mut fill,
-            cancel,
-        );
+        return fill_column_dense(column, block_x, block_z, noise_router, &mut fill, cancel);
     };
 
     let cell = lattice.cell;
@@ -183,22 +171,24 @@ fn fill_column(
                     lattice.volume.block_y(cell_y),
                     lattice.volume.block_z(cell_z),
                 );
-                let Some(blocks) = section_blocks(sections, y_sections, world.y) else {
+                let Some(index) = column.section_index(world.y) else {
                     continue;
                 };
                 let base = IVec3::new(cell_x * cell.x, world.y.rem_euclid(16), cell_z * cell.z);
                 match lattice.classify(noise_router, at, sea_level, &mut fill) {
-                    CellFill::Solid => fill_cell_box(blocks, base, cell, default_block),
-                    CellFill::Fluid => fill_cell_box(blocks, base, cell, default_fluid),
+                    CellFill::Solid => fill_cell_box(column, index, base, cell, default_block),
+                    CellFill::Fluid => fill_cell_box(column, index, base, cell, default_fluid),
                     CellFill::Air => {}
                     CellFill::Sea => fill_cell_box(
-                        blocks,
+                        column,
+                        index,
                         base,
                         IVec3::new(cell.x, sea_level - world.y, cell.z),
                         default_fluid,
                     ),
                     CellFill::Mixed => fill_blocks(
-                        blocks,
+                        column,
+                        index,
                         &Volume::dense(cell, world),
                         base,
                         noise_router,
@@ -213,8 +203,7 @@ fn fill_column(
 
 /// The block-by-block fallback for a router whose cells do not tile a section.
 fn fill_column_dense(
-    sections: &mut [Option<(BlockPalette, BiomePalette)>],
-    y_sections: &[i32],
+    column: &ColumnBlocks,
     block_x: i32,
     block_z: i32,
     noise_router: &NoiseRouter,
@@ -223,7 +212,7 @@ fn fill_column_dense(
 ) -> bool {
     let noise_min_y = noise_router.noise_min_y();
     let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
-    for (index, &section_y) in y_sections.iter().enumerate() {
+    for (index, &section_y) in column.y_sections().iter().enumerate() {
         if cancel.is_cancelled() {
             return false;
         }
@@ -231,42 +220,37 @@ fn fill_column_dense(
         if section_min_y >= noise_max_y || section_min_y + 16 <= noise_min_y {
             continue;
         }
-        let Some((blocks, _)) = sections[index].as_mut() else {
-            continue;
-        };
         let volume = Volume::dense(
             IVec3::splat(16),
             IVec3::new(block_x, section_min_y, block_z),
         );
-        fill_blocks(blocks, &volume, IVec3::ZERO, noise_router, fill);
+        fill_blocks(column, index, &volume, IVec3::ZERO, noise_router, fill);
     }
     true
 }
 
-fn section_blocks<'a>(
-    sections: &'a mut [Option<(BlockPalette, BiomePalette)>],
-    y_sections: &[i32],
-    world_y: i32,
-) -> Option<&'a mut BlockPalette> {
-    let section_y = world_y.div_euclid(16);
-    let index = y_sections.iter().position(|&sy| sy == section_y)?;
-    sections[index].as_mut().map(|(blocks, _)| blocks)
-}
-
-fn fill_cell_box(block_states: &mut BlockPalette, base: IVec3, cell: IVec3, state: VoxelId) {
-    block_states.fill_box(
-        base.x as usize,
-        (base.x + cell.x) as usize,
-        base.y as usize,
-        (base.y + cell.y) as usize,
-        base.z as usize,
-        (base.z + cell.z) as usize,
+fn fill_cell_box(
+    column: &ColumnBlocks,
+    index: usize,
+    base: IVec3,
+    cell: IVec3,
+    state: VoxelId,
+) {
+    column.fill_box_in_section(
+        index,
+        base.x,
+        base.x + cell.x,
+        base.y,
+        base.y + cell.y,
+        base.z,
+        base.z + cell.z,
         state,
     );
 }
 
 fn fill_blocks(
-    block_states: &mut BlockPalette,
+    column: &ColumnBlocks,
+    index: usize,
     volume: &Volume,
     origin: IVec3,
     noise_router: &NoiseRouter,
@@ -287,11 +271,11 @@ fn fill_blocks(
         for x in 0..volume.size().x {
             for y in (0..volume.size().y).rev() {
                 let value = fill.density[volume.index_unchecked(x, y, z)];
-                let pos = BlockPos::new(origin.x + x, origin.y + y, origin.z + z);
+                let (px, py, pz) = (origin.x + x, origin.y + y, origin.z + z);
                 if value > 0.0 {
-                    block_states.set(pos, default_block);
+                    column.set_in_section(index, px, py, pz, default_block);
                 } else if volume.block_y(y) < sea_level {
-                    block_states.set(pos, default_fluid);
+                    column.set_in_section(index, px, py, pz, default_fluid);
                 }
             }
         }
@@ -369,75 +353,6 @@ fn beta_biome_palette(
 /// column, then distributes the flat block array into the requested Y sections.
 /// Ice at sea_level-1 is placed here (matching Java's fillDensityTerrain), so the later
 /// apply_beta_surface ice-placement is still correct (it only replaces water→ice).
-fn fill_sections_beta_f64(
-    section_x: i32,
-    section_z: i32,
-    y_sections: &[i32],
-    noise_router: &NoiseRouter,
-    terrain: &BetaTerrainF64,
-    biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
-    blocks: &BlockDefinitions,
-    cancel: &CancellationToken,
-) -> Vec<Option<(BlockPalette, BiomePalette)>> {
-    let block_x = section_x * 16;
-    let block_z = section_z * 16;
-
-    let sea_level = noise_router.sea_level();
-    let stone_id = noise_router.default_block_state().0 as u32;
-    let water_id = noise_router.default_fluid_state().0 as u32;
-    let ice_id = blocks.default_state("minecraft:ice").0 as u32;
-
-    // Sample the 16×16 climate grids needed by computeDensity.
-    let (temp_grid, rain_grid) =
-        noise_router.sample_beta_climate_grids(&mut Workspace::new(), block_x, block_z);
-
-    // Run the f64 density computation and block fill.
-    let density = terrain.compute_density(section_x, section_z, &temp_grid, &rain_grid);
-    let flat =
-        BetaTerrainF64::fill_terrain(&density, &temp_grid, sea_level, stone_id, water_id, ice_id);
-
-    let biome_palette = beta_biome_palette(noise_router, biome_context, block_x, block_z);
-
-    y_sections
-        .iter()
-        .map(|&sy| {
-            if cancel.is_cancelled() {
-                return None;
-            }
-
-            let section_min_y = sy * 16;
-
-            let mut blocks = BlockPalette::default();
-
-            // Only sections in [0, 128) contain Beta terrain blocks.
-            if (0..128).contains(&section_min_y) {
-                for local_y in 0..16i32 {
-                    let world_y = section_min_y + local_y;
-                    if world_y >= 128 {
-                        break;
-                    }
-                    for local_x in 0..16i32 {
-                        for local_z in 0..16i32 {
-                            let flat_idx = (local_x as usize) * 16 * 128
-                                + (local_z as usize) * 128
-                                + world_y as usize;
-                            let block_u32 = flat[flat_idx];
-                            if block_u32 != 0 {
-                                blocks.set(
-                                    BlockPos::new(local_x, local_y, local_z),
-                                    BlockStateId(block_u32 as u16).into(),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-
-            Some((blocks, biome_palette.clone()))
-        })
-        .collect()
-}
-
 /// Generate all sections in a column.
 ///
 /// `final_density` is filled once over the whole column, then walked as a single
@@ -459,38 +374,49 @@ pub fn generate_column(
     blocks: &BlockDefinitions,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
-    // Beta path: use exact f64 density computation instead of the f32 density tree.
-    if let Some(terrain) = noise_router.beta_terrain_f64() {
-        return fill_sections_beta_f64(
-            section_x,
-            section_z,
-            y_sections,
-            noise_router,
-            terrain,
-            biome_context,
-            blocks,
-            cancel,
-        );
-    }
+    let mut column = ColumnBlocks::new(y_sections);
+    let Some(biome_palette) = fill_column_dense_any(
+        &mut column,
+        section_x,
+        section_z,
+        y_sections,
+        noise_router,
+        biome_context,
+        cancel,
+    ) else {
+        return vec![None; y_sections.len()];
+    };
 
+    column
+        .block_palettes()
+        .into_iter()
+        .map(|blocks| Some((blocks, biome_palette.clone())))
+        .collect()
+}
+
+/// Fill a column densely from the density graph, for every preset.
+///
+/// Beta is data here like any other preset: `beta.json` describes its terrain as
+/// density functions, so it runs the same graph, the same cell fill and the same
+/// packing as the overworld. `None` means the column was cancelled.
+pub fn fill_column_dense_any(
+    column: &mut ColumnBlocks,
+    section_x: i32,
+    section_z: i32,
+    y_sections: &[i32],
+    noise_router: &NoiseRouter,
+    biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    cancel: &CancellationToken,
+) -> Option<BiomePalette> {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
-
     let biome_palette = beta_biome_palette(noise_router, biome_context, block_x, block_z);
-    let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> =
-        vec![Some((BlockPalette::default(), biome_palette)); y_sections.len()];
+    column.reset(y_sections);
 
-    if !fill_column(
-        &mut sections,
-        y_sections,
-        block_x,
-        block_z,
-        noise_router,
-        cancel,
-    ) {
-        return vec![None; y_sections.len()];
+    if !fill_column(column, block_x, block_z, noise_router, cancel) {
+        return None;
     }
-    sections
+    Some(biome_palette)
 }
 
 /// Apply the Beta surface pass to a generated chunk column.
@@ -502,8 +428,7 @@ pub fn generate_column(
 /// The caller seeds `rng` once per chunk with seed = chunkX*341873128712 + chunkZ*132897987541.
 /// `rng` must be threaded across section calls so the stream is continuous.
 pub fn apply_beta_surface(
-    sections: &mut Vec<Option<(BlockPalette, BiomePalette)>>,
-    y_sections: &[i32],
+    column: &ColumnBlocks,
     block_x: i32,
     block_z: i32,
     noise_router: &NoiseRouter,
@@ -627,21 +552,11 @@ pub fn apply_beta_surface(
             // Sweep from world Y=127 down to 0 (back2beta: k1 = 127..=0).
             // Bedrock check is interleaved inside this loop.
             for k1 in (0i32..=127).rev() {
-                let section_y = k1 >> 4;
-                let local_y = k1 & 0xF;
-                let si = y_sections.iter().position(|&sy| sy == section_y);
-
                 // Bedrock check (back2beta: k1 <= 0 + this.j.nextInt(5)).
                 if k1 <= rng.next_i32_bound(5) {
-                    if let Some(si) = si
-                        && let Some((blocks, _)) = sections[si].as_mut()
-                    {
-                        blocks.set(BlockPos::new(x_local, local_y, z_local), bedrock);
-                    }
+                    column.set(x_local, k1, z_local, bedrock);
                 } else {
-                    let current_id = si
-                        .and_then(|si| sections[si].as_ref())
-                        .map(|(blocks, _)| blocks.get(BlockPos::new(x_local, local_y, z_local)));
+                    let current_id = column.get(x_local, k1, z_local);
 
                     let current_id = match current_id {
                         Some(id) => id,
@@ -677,19 +592,11 @@ pub fn apply_beta_surface(
                             }
 
                             j1 = i1;
-                            if let Some(si) = si
-                                && let Some((blocks, _)) = sections[si].as_mut()
-                            {
-                                let place = if k1 >= sea_level - 1 { b1 } else { b2 };
-                                blocks.set(BlockPos::new(x_local, local_y, z_local), place);
-                            }
+                            let place = if k1 >= sea_level - 1 { b1 } else { b2 };
+                            column.set(x_local, k1, z_local, place);
                         } else if j1 > 0 {
                             j1 -= 1;
-                            if let Some(si) = si
-                                && let Some((blocks, _)) = sections[si].as_mut()
-                            {
-                                blocks.set(BlockPos::new(x_local, local_y, z_local), b2);
-                            }
+                            column.set(x_local, k1, z_local, b2);
                             if j1 == 0 && b2 == sand {
                                 j1 = rng.next_i32_bound(4);
                                 b2 = sandstone;
@@ -703,21 +610,16 @@ pub fn apply_beta_surface(
             // water with ice. No RNG consumed — must stay after all bedrock draws.
             if temp < 0.5 {
                 let ice_y = sea_level - 1;
-                let ice_section_y = ice_y >> 4;
-                let ice_local_y = ice_y & 0xF;
-                if let Some(si) = y_sections.iter().position(|&sy| sy == ice_section_y)
-                    && let Some((blocks, _)) = sections[si].as_mut()
-                {
-                    let current = blocks.get(BlockPos::new(x_local, ice_local_y, z_local));
-                    if current == default_fluid {
-                        blocks.set(BlockPos::new(x_local, ice_local_y, z_local), ice);
-                    }
+                if column.get(x_local, ice_y, z_local) == Some(default_fluid) {
+                    column.set(x_local, ice_y, z_local, ice);
                 }
             }
         }
     }
 }
 
+pub mod column_blocks;
+pub use column_blocks::ColumnBlocks;
 pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_caves};
 pub mod beta_ores;

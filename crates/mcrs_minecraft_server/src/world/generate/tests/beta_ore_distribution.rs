@@ -11,6 +11,7 @@ use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
+use crate::world::generate::ColumnBlocks;
 use crate::world::generate::{BetaOreBlockIds, place_all_ores};
 
 // ── Counting RNG: pins total LegacyRandom advances for the ore stream ───────────
@@ -331,7 +332,19 @@ fn beta_ore_draw_count_pin() {
     let driver_draws = Rc::new(Cell::new(0u64));
     let mut driver_rng = CountingRng::new(seed as u64, driver_draws.clone());
     let (mut sections, y_sections) = stone_sections();
-    place_all_ores(&mut sections, &y_sections, 0, 0, &mut driver_rng, &ids);
+    let column = ColumnBlocks::from_sections(&sections, &y_sections);
+    place_all_ores(
+        &column,
+        0,
+        0,
+        &mut driver_rng,
+        &ids,
+    );
+    for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
+        if let Some((blocks, _)) = section {
+            *blocks = palette;
+        }
+    }
     let driver_count = driver_draws.get();
 
     // Mirror stream — must consume identical RNG, proving the simulate() replay

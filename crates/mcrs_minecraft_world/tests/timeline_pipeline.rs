@@ -198,5 +198,5 @@ fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds() {
         );
         seen += 1;
     }
-    assert_eq!(seen, 4);
+    assert_eq!(seen, 5);
 }
