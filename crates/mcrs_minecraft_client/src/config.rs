@@ -142,8 +142,10 @@ fn flag(name: &str, default: bool) -> bool {
     }
 }
 
+/// `FULLSCREEN=1` takes over a whole display; a plain window is the default, so
+/// a run never seizes the screen the work is being done on.
 pub fn fullscreen() -> bool {
-    flag("FULLSCREEN", true)
+    flag("FULLSCREEN", false)
 }
 
 /// `LATENCY=<frames>` is how many swapchain images the window may run ahead by, for checking
@@ -263,6 +265,12 @@ pub fn chunk_map() -> bool {
 /// by lifecycle stage, so a headless run can be timed without reading the window.
 pub fn census_interval() -> Option<f32> {
     knob("CENSUS").map(|spec| spec.trim().parse().unwrap_or(1.0))
+}
+
+/// `MONITOR=primary` opens the window on the system's primary display instead of
+/// on the fastest one.
+pub fn monitor_primary() -> bool {
+    knob("MONITOR").as_deref().map(str::trim) == Some("primary")
 }
 
 pub fn light_levels() -> bool {

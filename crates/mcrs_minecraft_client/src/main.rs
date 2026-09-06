@@ -172,6 +172,7 @@ fn main() {
         (
             log_spawned_transforms.after(TransformSystems::Propagate),
             log_monitors,
+            place_window.after(log_monitors),
         ),
     );
 
@@ -245,6 +246,45 @@ fn main() {
     }
 
     app.run();
+}
+
+/// Opens the window on the fastest display rather than on the system's primary
+/// one.
+///
+/// Whenever the engine is quicker than the display, the frame rate a run reads
+/// is the display's: a 60 Hz external panel pins a whole chunk load to sixty
+/// frames a second and everything paced per frame along with it, while the
+/// laptop's own panel does a hundred and twenty. `MCRS_MONITOR=primary` puts it
+/// back. The placement is absolute rather than a `MonitorSelection`, which macOS
+/// ignores once the window exists — which is also why `FULLSCREEN=1` still takes
+/// over the primary display and not this one.
+fn place_window(
+    monitors: Query<(&Monitor, Has<PrimaryMonitor>)>,
+    window: Option<Single<&mut Window>>,
+) {
+    let Some(mut window) = window else {
+        return;
+    };
+    if config::monitor_primary() {
+        return;
+    }
+    let Some((monitor, _)) = monitors
+        .iter()
+        .max_by_key(|(monitor, primary)| (monitor.refresh_rate_millihertz, *primary))
+    else {
+        return;
+    };
+    let free = IVec2::new(
+        monitor.physical_width as i32 - window.resolution.physical_width() as i32,
+        monitor.physical_height as i32 - window.resolution.physical_height() as i32,
+    );
+    window.position = WindowPosition::At(monitor.physical_position + free.max(IVec2::ZERO) / 2);
+    info!(
+        name = monitor.name.as_deref().unwrap_or("?"),
+        hz = monitor.refresh_rate_millihertz.map(|hz| hz as f32 / 1000.0),
+        at = ?window.position,
+        "window monitor"
+    );
 }
 
 fn log_monitors(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>) {
