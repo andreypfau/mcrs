@@ -41,6 +41,11 @@ use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 
 #[cfg(feature = "telemetry-tracy")]
+#[global_allocator]
+static ALLOC: tracing_tracy::client::ProfiledAllocator<std::alloc::System> =
+    tracing_tracy::client::ProfiledAllocator::new(std::alloc::System, 32);
+
+#[cfg(feature = "telemetry-tracy")]
 fn tracy_layer(_: &mut App) -> Option<BoxedLayer> {
     Some(Box::new(tracing_tracy::TracyLayer::default()))
 }
