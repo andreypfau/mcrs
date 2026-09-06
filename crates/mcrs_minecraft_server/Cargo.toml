@@ -66,6 +66,10 @@ criterion = { version = "0.7", features = ["html_reports"] }
 telemetry-tracy = ["mcrs_minecraft_network/telemetry-tracy"]
 
 [[bench]]
+name = "beta_chunks"
+harness = false
+
+[[bench]]
 name = "generate_columns"
 harness = false
 
