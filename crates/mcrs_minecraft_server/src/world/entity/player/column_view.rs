@@ -297,19 +297,30 @@ pub(crate) fn loading_column_queue(
     })
 }
 
-/// The rate the client is asked to answer with, in columns a tick.
+/// The rate the client is asked to answer with, in columns a tick. The ceiling is only a guard
+/// against a nonsense answer: a client on the same machine as its server measures itself able to
+/// take several hundred a tick, and clamping that back to a round number throttles the load for
+/// no reason the client asked for.
 const MIN_COLUMNS_PER_TICK: f32 = 0.01;
-const MAX_COLUMNS_PER_TICK: f32 = 96.0;
+const MAX_COLUMNS_PER_TICK: f32 = 4096.0;
 const START_COLUMNS_PER_TICK: f32 = 9.0;
 
-/// The bridge coalesces a tick's packets into one blob and closes a connection whose blob
-/// passes its cap, so a batch stops well short of it and the quota it did not spend rides to
-/// the next tick.
-const MAX_BATCH_BYTES: usize = mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET / 2;
+/// A ceiling on one batch, not the rate: the client's answer is what paces the load, and a cap
+/// low enough to bind first silently overrides it — at a full render distance a column is some
+/// seventy kilobytes on the wire, so half the socket's queue was barely a hundred of them. The
+/// bridge hands a blob over in pieces and buffers what the writer cannot take, and only kills a
+/// connection sixteen socket queues behind, so a batch this size leaves it several ticks of room.
+const MAX_BATCH_BYTES: usize = 4 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
 /// Batches allowed in flight once the client has answered one. Until then a single batch is
 /// out at a time, so a client that cannot keep up is never sent a second one to prove it.
 const MAX_UNACKNOWLEDGED_BATCHES: u32 = 10;
+
+/// The queue is ordered nearest-first and a column ahead of the batch is one the player wants
+/// sooner, so the walk stops rather than spending the tick proving that thousands of far
+/// columns are still waiting for their light. Whatever it did not reach this tick is where the
+/// next tick starts.
+const SCAN_AHEAD: usize = 256;
 
 /// Chunk-load wire emit routed through the `OutboundPlayerPacket` bus.
 ///
@@ -380,11 +391,15 @@ pub(crate) fn send_column_queue(
             }
 
             let mut index = 0usize;
+            let mut scanned = 0usize;
             loop {
                 if sends >= allowed || batch_bytes >= MAX_BATCH_BYTES {
                     break;
                 }
-
+                if scanned >= allowed + SCAN_AHEAD {
+                    break;
+                }
+                scanned += 1;
                 let Some((column_pos, chunks_e)) = chunk_view.send_queue.get(index) else {
                     break;
                 };

@@ -47,7 +47,7 @@ fn async_compute_threads() -> usize {
 #[cfg(not(target_family = "wasm"))]
 const MESH_IN_FLIGHT: usize = 2048;
 #[cfg(not(target_family = "wasm"))]
-const MESH_PER_FRAME: usize = 256;
+const MESH_PER_FRAME: usize = 2048;
 #[cfg(target_family = "wasm")]
 const MESH_IN_FLIGHT: usize = 128;
 #[cfg(target_family = "wasm")]
