@@ -7,8 +7,14 @@ use crate::pack::QUAD_WORDS;
 use super::upload::Pending;
 use super::{Budget, SECTION_BYTES, VISIBLE_BYTES};
 
-/// Entries the visible list starts at; it doubles from there.
+/// Entries the visible list starts at, and the granularity it grows in.
 const VISIBLE_STEP: usize = 1 << 20;
+
+/// Room left above what a growth was asked for, so a list that creeps up by a
+/// group at a time is not reallocated every frame. Rounding to the next power
+/// of two would leave up to twice the entries unused, and at a full render
+/// distance one entry over sixty-seven million costs another half gigabyte.
+const VISIBLE_HEADROOM: usize = 4;
 
 pub(super) struct Arenas {
     pub quads: Buffer,
@@ -78,7 +84,9 @@ impl Arenas {
         if (entries * VISIBLE_BYTES) as u64 <= self.visible.size() {
             return false;
         }
-        let entries = entries.next_power_of_two().max(VISIBLE_STEP);
+        let entries = (entries + entries / VISIBLE_HEADROOM)
+            .next_multiple_of(VISIBLE_STEP)
+            .max(VISIBLE_STEP);
         bevy::log::info!(entries, "growing the visible list");
         self.visible = visible_list(entries, device);
         true
