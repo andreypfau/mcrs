@@ -130,6 +130,13 @@ impl OctavePerlinNoise<f32> {
         #[cfg(not(feature = "far-lands"))]
         {
             const FACTOR: f64 = 3.3554432E7;
+            // Inside half a period the round-off is the identity, which is
+            // every coordinate short of the far lands; the check is cheaper
+            // than the divide, floor and multiply it skips.
+            const HALF: f64 = 1.6777216E7;
+            if value >= -HALF && value < HALF {
+                return value;
+            }
             value - ((value / FACTOR + 0.5).floor() as i64) as f64 * FACTOR
         }
     }

@@ -13,7 +13,19 @@ pub struct VoxelPalette<V: Hash + Eq + Copy + Default + Send + Sync + 'static, c
 
 impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> VoxelPalette<V, DIM> {
     pub const SIZE: usize = DIM;
+    pub const VOLUME: usize = DIM * DIM * DIM;
     const MASK: usize = DIM - 1;
+
+    /// A section that holds a single value everywhere.
+    pub fn homogeneous(value: V) -> Self {
+        Self(PalettedContainer::Homogeneous(value))
+    }
+
+    /// Build a section from dense cells in the container's own index order:
+    /// y-major, then z, then x.
+    pub fn from_cells(cells: &[V]) -> Self {
+        Self(PalettedContainer::from_cells(cells))
+    }
 
     pub fn fill(&mut self, value: V) {
         self.0 = Homogeneous(value);

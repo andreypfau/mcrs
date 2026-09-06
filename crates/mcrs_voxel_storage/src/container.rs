@@ -81,20 +81,73 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
     pub const SIZE: usize = DIM;
     pub const VOLUME: usize = DIM * DIM * DIM;
 
+    /// Build the two-entry container a homogeneous cube turns into once part of
+    /// it is overwritten. `from_cube` would rediscover the same palette by
+    /// scanning every cell; here both entries and their counts are already
+    /// known. `value_is_first` says whether cell index 0 (x=y=z=0) holds the new
+    /// value, which is what decides the first-appearance order `from_cube`
+    /// would produce.
+    fn from_split_cube(
+        cube: Box<AbstractCube<V, DIM>>,
+        original: V,
+        value: V,
+        value_count: usize,
+        value_is_first: bool,
+    ) -> Self {
+        let original_count = Self::VOLUME - value_count;
+        let (palette, counts) = if value_is_first {
+            (
+                vec![value, original],
+                vec![value_count as u16, original_count as u16],
+            )
+        } else {
+            (
+                vec![original, value],
+                vec![original_count as u16, value_count as u16],
+            )
+        };
+        let index: FxHashMap<V, usize> = palette
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (*v, i))
+            .collect();
+        Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
+            cube,
+            palette,
+            counts,
+            index,
+        }))
+    }
+
     fn from_cube(cube: Box<AbstractCube<V, DIM>>) -> Self {
         let mut palette: Vec<V> = Vec::new();
         let mut counts: Vec<u16> = Vec::new();
         let mut index: FxHashMap<V, usize> = FxHashMap::default();
 
+        // Cubes arrive in runs of one value (terrain layers, air above them),
+        // so remembering the previous cell answers most lookups without hashing.
+        let mut last: Option<(V, usize)> = None;
         for val in cube.as_flattened().as_flattened().iter() {
-            if let Some(&idx) = index.get(val) {
+            if let Some((prev, idx)) = last
+                && prev == *val
+            {
                 counts[idx] += 1;
-            } else {
-                let idx = palette.len();
-                index.insert(*val, idx);
-                palette.push(*val);
-                counts.push(1);
+                continue;
             }
+            let idx = match index.get(val) {
+                Some(&idx) => {
+                    counts[idx] += 1;
+                    idx
+                }
+                None => {
+                    let idx = palette.len();
+                    index.insert(*val, idx);
+                    palette.push(*val);
+                    counts.push(1);
+                    idx
+                }
+            };
+            last = Some((*val, idx));
         }
 
         if palette.len() == 1 {
@@ -212,7 +265,13 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                 if value != original {
                     let mut cube = Box::new([[[original; DIM]; DIM]; DIM]);
                     cube[y][z][x] = value;
-                    *self = Self::from_cube(cube);
+                    *self = Self::from_split_cube(
+                        cube,
+                        original,
+                        value,
+                        1,
+                        x == 0 && y == 0 && z == 0,
+                    );
                 }
                 original
             }
@@ -253,13 +312,24 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                 if value == original {
                     return;
                 }
+                let filled = (x1 - x0) * (y1 - y0) * (z1 - z0);
+                if filled == Self::VOLUME {
+                    *self = Self::Homogeneous(value);
+                    return;
+                }
                 let mut cube = Box::new([[[original; DIM]; DIM]; DIM]);
                 for y in y0..y1 {
                     for z in z0..z1 {
                         cube[y][z][x0..x1].fill(value);
                     }
                 }
-                *self = Self::from_cube(cube);
+                *self = Self::from_split_cube(
+                    cube,
+                    original,
+                    value,
+                    filled,
+                    x0 == 0 && y0 == 0 && z0 == 0,
+                );
             }
             Self::Heterogeneous(data) => {
                 // Memoized palette indices; invalidated whenever palette

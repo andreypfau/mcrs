@@ -1,19 +1,9 @@
-use crate::noise::gradient::GRADIENTS;
+use crate::noise::gradient::{GRADIENTS, NoiseFloat};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::volume::Volume;
 use mcrs_minecraft_random::{Random, RandomSource};
 use num_traits::{Float, ToPrimitive};
 use std::marker::PhantomData;
-
-// SIMD-packed f32 mirror of `GRADIENTS` for the hot f32 path (`lerp_corners`):
-// 16 gradients × {x, y, z, pad} so each lookup is a contiguous slice. Kept in sync with
-// `GRADIENTS` by the `flat_grad_matches_gradients` test.
-const FLAT_SIMPLEX_GRAD: [f32; 64] = [
-    1.0, 1.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 1.0, 0.0,
-    1.0, 0.0, -1.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-    0.0, -1.0, 1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, -1.0,
-    1.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0, -1.0, -1.0, 0.0,
-];
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImprovedNoise<F: Float> {
@@ -56,41 +46,18 @@ impl<F: Float> ImprovedNoise<F> {
     }
 }
 
-/// Java-exact 3D gradient dot-product, matching `NoiseGeneratorPerlin.a(int,double,double,double)`.
-/// Indices 4-7 differ from the standard Ken Perlin table stored in GRADIENTS; using the standard
-/// table produces correct signs statistically but diverges by up to ~1.4 per sample at those indices.
+/// Java-exact 3D gradient, matching `NoiseGeneratorPerlin.a(int,double,double,double)`.
+/// Java picks a component and a sign per axis; the shared table does it as a dot.
 #[inline(always)]
 fn grad3_java(hash: usize, x: f64, y: f64, z: f64) -> f64 {
-    let j = hash & 15;
-    let d3 = if j < 8 { x } else { y };
-    let d4 = if j < 4 {
-        y
-    } else if j == 12 || j == 14 {
-        x
-    } else {
-        z
-    };
-    let r = if (j & 1) == 0 { d3 } else { -d3 };
-    let s = if (j & 2) == 0 { d4 } else { -d4 };
-    r + s
+    f64::grad_dot(hash, x, y, z)
 }
 
 /// Java-exact 2D gradient (ySize==1 branch), matching `NoiseGeneratorPerlin.a(int,double,double)`.
 /// x_frac=d0, z_frac=d1 per Java's array-fill variable names.
 #[inline(always)]
 fn grad2_java(hash: usize, x_frac: f64, z_frac: f64) -> f64 {
-    let j = hash & 15;
-    let d2 = (1 - ((j & 8) >> 3)) as f64 * x_frac;
-    let d3 = if j < 4 {
-        0.0
-    } else if j == 12 || j == 14 {
-        x_frac
-    } else {
-        z_frac
-    };
-    let r = if (j & 1) == 0 { d2 } else { -d2 };
-    let s = if (j & 2) == 0 { d3 } else { -d3 };
-    r + s
+    f64::grad_dot_xz(hash, x_frac, z_frac)
 }
 
 impl ImprovedNoise<f64> {
@@ -201,78 +168,10 @@ impl ImprovedNoise<f64> {
         z_scale: f64,
         inv_freq: f64,
     ) {
-        let perm = &self.permutation;
-        let p = |i: usize| perm[i & 0xFF] as usize;
-
-        let mut idx = 0usize;
-        let mut y_lattice_cache: i32 = -1;
-        let mut d16 = 0.0f64;
-        let mut d7c = 0.0f64;
-        let mut d17 = 0.0f64;
-        let mut d8c = 0.0f64;
-
-        for j1 in 0..x_size {
-            let x_coord = (x_start + j1 as f64) * x_scale + self.origin_x;
-            let xi = x_coord.floor() as i32;
-            let l1 = (xi & 0xFF) as usize;
-            let lx = x_coord - xi as f64;
-            let fade_x = fade_curve(lx);
-
-            for l3 in 0..z_size {
-                let z_coord = (z_start + l3 as f64) * z_scale + self.origin_z;
-                let zi = z_coord.floor() as i32;
-                let j4 = (zi & 0xFF) as usize;
-                let lz = z_coord - zi as f64;
-                let fade_z = fade_curve(lz);
-
-                for k4 in 0..y_size {
-                    let y_coord = (y_start + k4 as f64) * y_scale + self.origin_y;
-                    let yi = y_coord.floor() as i32;
-                    let i5 = yi & 0xFF;
-                    let ly = y_coord - yi as f64;
-                    let fade_y = fade_curve(ly);
-
-                    if k4 == 0 || i5 != y_lattice_cache {
-                        y_lattice_cache = i5;
-                        let i5u = i5 as usize;
-                        // Java: j5 = d[l1] + i5  (add outside permutation lookup)
-                        let j5 = p(l1).wrapping_add(i5u);
-                        let k5 = p(j5).wrapping_add(j4);
-                        let l5 = p(j5.wrapping_add(1)).wrapping_add(j4);
-                        let i6 = p(l1.wrapping_add(1)).wrapping_add(i5u);
-                        let j2 = p(i6).wrapping_add(j4);
-                        let j6 = p(i6.wrapping_add(1)).wrapping_add(j4);
-
-                        d16 = lerp(
-                            fade_x,
-                            grad3_java(p(k5), lx, ly, lz),
-                            grad3_java(p(j2), lx - 1.0, ly, lz),
-                        );
-                        d7c = lerp(
-                            fade_x,
-                            grad3_java(p(l5), lx, ly - 1.0, lz),
-                            grad3_java(p(j6), lx - 1.0, ly - 1.0, lz),
-                        );
-                        d17 = lerp(
-                            fade_x,
-                            grad3_java(p(k5.wrapping_add(1)), lx, ly, lz - 1.0),
-                            grad3_java(p(j2.wrapping_add(1)), lx - 1.0, ly, lz - 1.0),
-                        );
-                        d8c = lerp(
-                            fade_x,
-                            grad3_java(p(l5.wrapping_add(1)), lx, ly - 1.0, lz - 1.0),
-                            grad3_java(p(j6.wrapping_add(1)), lx - 1.0, ly - 1.0, lz - 1.0),
-                        );
-                    }
-
-                    let d22 = lerp(fade_y, d16, d7c);
-                    let d23 = lerp(fade_y, d17, d8c);
-                    let d24 = lerp(fade_z, d22, d23);
-                    out[idx] += d24 * inv_freq;
-                    idx += 1;
-                }
-            }
-        }
+        self.fill_3d_bulk_at::<f64>(
+            out, x_start, y_start, z_start, x_size, y_size, z_size, x_scale, y_scale, z_scale,
+            inv_freq,
+        );
     }
 
     /// 2D sample matching Java's `NoiseGeneratorPerlin.a(double[],...)` ySize==1 branch.
@@ -548,28 +447,25 @@ impl ImprovedNoise<f32> {
 
     #[inline(always)]
     fn x_perms(&self, section_x: i32) -> (usize, usize) {
-        // SAFETY: both indices are masked with & 0xFF, so they are in [0, 255].
-        unsafe {
-            let perm = &self.permutation;
-            (
-                *perm.get_unchecked((section_x & 0xFF) as usize) as usize,
-                *perm.get_unchecked((section_x.wrapping_add(1) & 0xFF) as usize) as usize,
-            )
-        }
+        // Masking with 0xFF is what proves the reads in bounds, as on the Beta path.
+        let perm = &self.permutation;
+        (
+            perm[(section_x & 0xFF) as usize] as usize,
+            perm[(section_x.wrapping_add(1) & 0xFF) as usize] as usize,
+        )
     }
 
     #[inline(always)]
     fn corner_grads(&self, p0: usize, p1: usize, section_y: i32, section_z: i32) -> [usize; 8] {
-        // SAFETY: every permutation index is masked with & 0xFF, so it is in [0, 255].
-        unsafe {
+        {
             let perm = &self.permutation;
             let sy = section_y as usize;
-            let p4 = *perm.get_unchecked(p0.wrapping_add(sy) & 0xFF) as usize;
-            let p5 = *perm.get_unchecked(p1.wrapping_add(sy) & 0xFF) as usize;
-            let p6 = *perm.get_unchecked(p0.wrapping_add(sy).wrapping_add(1) & 0xFF) as usize;
-            let p7 = *perm.get_unchecked(p1.wrapping_add(sy).wrapping_add(1) & 0xFF) as usize;
+            let p4 = perm[p0.wrapping_add(sy) & 0xFF] as usize;
+            let p5 = perm[p1.wrapping_add(sy) & 0xFF] as usize;
+            let p6 = perm[p0.wrapping_add(sy).wrapping_add(1) & 0xFF] as usize;
+            let p7 = perm[p1.wrapping_add(sy).wrapping_add(1) & 0xFF] as usize;
             let sz = section_z as usize;
-            let grad = |base: usize| ((*perm.get_unchecked(base & 0xFF) & 15) as usize) << 2;
+            let grad = |base: usize| ((perm[base & 0xFF] & 15) as usize) << 2;
             [
                 grad(p4.wrapping_add(sz)),
                 grad(p5.wrapping_add(sz)),
@@ -707,20 +603,13 @@ fn lerp_corners(
     fade_y: f32,
     fade_z: f32,
 ) -> f32 {
-    // SAFETY: gradient indices are (perm & 15) << 2 = [0, 60], accessed with offsets +0/+1/+2,
-    // so the max index is 62, within FLAT_SIMPLEX_GRAD's 64 elements.
-    unsafe {
+    {
         let x1 = local_x - 1.0;
         let y1 = local_y - 1.0;
         let z1 = local_z - 1.0;
 
-        // Vanilla evaluates these as plain float ops; fusing them into FMAs changes
-        // the rounding and breaks bit-parity with the oracle.
-        let g = &FLAT_SIMPLEX_GRAD;
         let dot = |corner: usize, x: f32, y: f32, z: f32| {
-            let h = *grads.get_unchecked(corner);
-            g.get_unchecked(h + 2)
-                .mul_add(z, g.get_unchecked(h + 1).mul_add(y, g.get_unchecked(h) * x))
+            f32::grad_dot_at(grads[corner], x, y, z)
         };
         let d000 = dot(0, local_x, local_y, local_z);
         let d100 = dot(1, x1, local_y, local_z);
@@ -814,17 +703,12 @@ impl CellLine {
         fade_x: f32,
         fade_z: f32,
     ) -> Self {
-        // SAFETY: as in `lerp_corners`, the gradient indices are (perm & 15) << 2 = [0, 60].
-        unsafe {
+        {
             let x1 = local_x - 1.0;
             let z1 = local_z - 1.0;
-            let g = &FLAT_SIMPLEX_GRAD;
             let split = |corner: usize, x: f32, z: f32| {
-                let h = *grads.get_unchecked(corner);
-                (
-                    g.get_unchecked(h + 2).mul_add(z, g.get_unchecked(h) * x),
-                    *g.get_unchecked(h + 1),
-                )
+                let h = grads[corner];
+                (f32::grad_dot_xz_at(h, x, z), f32::grad_y_at(h))
             };
             let (c000, y000) = split(0, local_x, local_z);
             let (c100, y100) = split(1, x1, local_z);
@@ -1050,22 +934,20 @@ mod test {
 
     #[test]
     fn flat_grad_matches_gradients() {
-        use crate::noise::gradient::GRADIENTS;
-        use crate::noise::improved_noise::FLAT_SIMPLEX_GRAD;
-        for (i, grad) in GRADIENTS.iter().enumerate() {
-            assert_eq!(FLAT_SIMPLEX_GRAD[i * 4] as f64, grad.x, "x mismatch at {i}");
-            assert_eq!(
-                FLAT_SIMPLEX_GRAD[i * 4 + 1] as f64,
-                grad.y,
-                "y mismatch at {i}"
-            );
-            assert_eq!(
-                FLAT_SIMPLEX_GRAD[i * 4 + 2] as f64,
-                grad.z,
-                "z mismatch at {i}"
-            );
-            assert_eq!(FLAT_SIMPLEX_GRAD[i * 4 + 3], 0.0, "pad nonzero at {i}");
+        use crate::noise::gradient::{GRADIENTS, NoiseFloat};
+
+        fn check<F: NoiseFloat + std::fmt::Debug>() {
+            for (i, grad) in GRADIENTS.iter().enumerate() {
+                let flat = F::GRAD_FLAT;
+                assert_eq!(flat[i * 4].to_f64().unwrap(), grad.x, "x at {i}");
+                assert_eq!(flat[i * 4 + 1].to_f64().unwrap(), grad.y, "y at {i}");
+                assert_eq!(flat[i * 4 + 2].to_f64().unwrap(), grad.z, "z at {i}");
+                assert_eq!(flat[i * 4 + 3].to_f64().unwrap(), 0.0, "pad at {i}");
+            }
         }
+
+        check::<f32>();
+        check::<f64>();
     }
 
     #[test]
@@ -1095,6 +977,163 @@ mod test {
                             "column hoist diverged at x={x} z={z} y={y} y_scale={y_scale}"
                         );
                     }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod grad_tests {
+    use super::grad3_java;
+
+    /// The table must reproduce Java's branchy `grad` bit for bit, for every
+    /// hash and both signs of every component.
+    ///
+    /// The one exception is the sign of zero: the dot product carries a third
+    /// `0.0 * z` term Java never evaluates, so a result that is exactly zero can
+    /// come out `+0.0` where Java produced `-0.0`. That needs all three
+    /// fractional coordinates to land exactly on the lattice, and the value then
+    /// only ever feeds lerps and threshold comparisons, where the two zeroes are
+    /// indistinguishable.
+    #[test]
+    fn the_gradient_table_matches_javas_branchy_grad() {
+        fn java_grad(hash: usize, x: f64, y: f64, z: f64) -> f64 {
+            let j = hash & 15;
+            let d3 = if j < 8 { x } else { y };
+            let d4 = if j < 4 {
+                y
+            } else if j == 12 || j == 14 {
+                x
+            } else {
+                z
+            };
+            let r = if (j & 1) == 0 { d3 } else { -d3 };
+            let s = if (j & 2) == 0 { d4 } else { -d4 };
+            r + s
+        }
+
+        for hash in 0..256usize {
+            for &(x, y, z) in &[
+                (0.37, -0.81, 0.62),
+                (-0.5, 0.25, -0.125),
+                (1.0, 1.0, 1.0),
+                (0.0, -0.0, 0.0),
+            ] {
+                let ours = grad3_java(hash, x, y, z);
+                let java = java_grad(hash, x, y, z);
+                assert_eq!(ours, java, "hash {hash} at {x},{y},{z}");
+                if java != 0.0 {
+                    assert_eq!(
+                        ours.to_bits(),
+                        java.to_bits(),
+                        "hash {hash} at {x},{y},{z}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+impl<F: Float> ImprovedNoise<F> {
+    /// The bulk fill at a chosen value width.
+    ///
+    /// Lattice and coordinates stay `f64` — vanilla keeps positions in double on
+    /// every path — and only the sampled value, its fades and the accumulation
+    /// follow `V`. At `V = f64` this is the Beta kernel unchanged; at `V = f32`
+    /// it is the same kernel in the modern path's width.
+    pub fn fill_3d_bulk_at<V: NoiseFloat>(
+        &self,
+        out: &mut [V],
+        x_start: f64,
+        y_start: f64,
+        z_start: f64,
+        x_size: usize,
+        y_size: usize,
+        z_size: usize,
+        x_scale: f64,
+        y_scale: f64,
+        z_scale: f64,
+        inv_freq: f64,
+    ) {
+        let perm = &self.permutation;
+        let p = |i: usize| perm[i & 0xFF] as usize;
+        let fade = |t: V| {
+            let six = V::from_f64(6.0);
+            let fifteen = V::from_f64(15.0);
+            let ten = V::from_f64(10.0);
+            t * t * t * (t * (t * six - fifteen) + ten)
+        };
+        let lerp_v = |t: V, a: V, b: V| a + t * (b - a);
+        let one = V::from_f64(1.0);
+        let inv_freq = V::from_f64(inv_freq);
+
+        let mut idx = 0usize;
+        let mut y_lattice_cache: i32 = -1;
+        let mut d16 = V::from_f64(0.0);
+        let mut d7c = V::from_f64(0.0);
+        let mut d17 = V::from_f64(0.0);
+        let mut d8c = V::from_f64(0.0);
+
+        for j1 in 0..x_size {
+            let x_coord = (x_start + j1 as f64) * x_scale + self.origin_x;
+            let xi = x_coord.floor() as i32;
+            let l1 = (xi & 0xFF) as usize;
+            let lx = V::from_f64(x_coord - xi as f64);
+            let fade_x = fade(lx);
+
+            for l3 in 0..z_size {
+                let z_coord = (z_start + l3 as f64) * z_scale + self.origin_z;
+                let zi = z_coord.floor() as i32;
+                let j4 = (zi & 0xFF) as usize;
+                let lz = V::from_f64(z_coord - zi as f64);
+                let fade_z = fade(lz);
+
+                for k4 in 0..y_size {
+                    let y_coord = (y_start + k4 as f64) * y_scale + self.origin_y;
+                    let yi = y_coord.floor() as i32;
+                    let i5 = yi & 0xFF;
+                    let ly = V::from_f64(y_coord - yi as f64);
+                    let fade_y = fade(ly);
+
+                    if k4 == 0 || i5 != y_lattice_cache {
+                        y_lattice_cache = i5;
+                        let i5u = i5 as usize;
+                        // Java: j5 = d[l1] + i5  (add outside permutation lookup)
+                        let j5 = p(l1).wrapping_add(i5u);
+                        let k5 = p(j5).wrapping_add(j4);
+                        let l5 = p(j5.wrapping_add(1)).wrapping_add(j4);
+                        let i6 = p(l1.wrapping_add(1)).wrapping_add(i5u);
+                        let j2 = p(i6).wrapping_add(j4);
+                        let j6 = p(i6.wrapping_add(1)).wrapping_add(j4);
+
+                        d16 = lerp_v(
+                            fade_x,
+                            V::grad_dot(p(k5), lx, ly, lz),
+                            V::grad_dot(p(j2), lx - one, ly, lz),
+                        );
+                        d7c = lerp_v(
+                            fade_x,
+                            V::grad_dot(p(l5), lx, ly - one, lz),
+                            V::grad_dot(p(j6), lx - one, ly - one, lz),
+                        );
+                        d17 = lerp_v(
+                            fade_x,
+                            V::grad_dot(p(k5.wrapping_add(1)), lx, ly, lz - one),
+                            V::grad_dot(p(j2.wrapping_add(1)), lx - one, ly, lz - one),
+                        );
+                        d8c = lerp_v(
+                            fade_x,
+                            V::grad_dot(p(l5.wrapping_add(1)), lx, ly - one, lz - one),
+                            V::grad_dot(p(j6.wrapping_add(1)), lx - one, ly - one, lz - one),
+                        );
+                    }
+
+                    let d22 = lerp_v(fade_y, d16, d7c);
+                    let d23 = lerp_v(fade_y, d17, d8c);
+                    let d24 = lerp_v(fade_z, d22, d23);
+                    out[idx] = out[idx] + d24 * inv_freq;
+                    idx += 1;
                 }
             }
         }
