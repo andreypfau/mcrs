@@ -132,16 +132,6 @@ pub struct EpochTimings {
     pub read_back: Duration,
 }
 
-/// Returning the old value instead of the equal new one is not a no-op: it
-/// keeps the buffer the world already points at, so the later publish settles
-/// for a pointer compare.
-fn keep_published(published: Option<LightStorage>, computed: LightStorage) -> LightStorage {
-    match published {
-        Some(old) if old == computed => old,
-        _ => computed,
-    }
-}
-
 /// A prepared, self-contained unit of work. Holds no borrows on the world, so
 /// it can be sent to a worker thread and outlive further edits to the world.
 pub struct LightJob {
@@ -303,14 +293,28 @@ impl LightJob {
         let relax_time = started.elapsed();
         let started = Instant::now();
 
-        // Independent per section like the seeding pass, and just as expensive:
-        // 4096 loads and a repack each.
+        // Independent per section like the seeding pass: 4096 loads each, and a
+        // repack only where the answer moved.
         let read_back = |(section_index, was): (usize, Option<(LightStorage, LightStorage)>)| {
+            if !blocks.section_loaded(section_index) {
+                return None;
+            }
             let (was_block, was_sky) = was.unzip();
-            blocks.section_loaded(section_index).then(|| SectionLight {
+            let block = block_field.section_light_if_changed(section_index, was_block.as_ref());
+            let sky = sky_field.section_light_if_changed(section_index, was_sky.as_ref());
+            // Most of a field is the halo an epoch drags along to get its own
+            // columns right, and a halo section comes back with the light it went
+            // in with. Handing that answer on again would have the world store it,
+            // every section entity compare it, and the wire consider resending it.
+            if block.is_none() && sky.is_none() {
+                return None;
+            }
+            // Keeping the buffer the world already points at is not a no-op: the
+            // publish that follows then settles for a pointer compare.
+            Some(SectionLight {
                 pos: layout.section_pos(section_index),
-                block_light: keep_published(was_block, block_field.section_light(section_index)),
-                sky_light: keep_published(was_sky, sky_field.section_light(section_index)),
+                block_light: block.or(was_block).unwrap_or_default(),
+                sky_light: sky.or(was_sky).unwrap_or_default(),
             })
         };
         let sections: Vec<SectionLight> = if layout.cell_count() >= PARALLEL_SECTION_LIMIT {
@@ -427,10 +431,11 @@ impl LightWorld {
             match self.section(section_pos) {
                 Some(section) => {
                     sections.push(SectionSource::Loaded(Arc::clone(&section.blocks)));
-                    published.push(Some((
-                        section.block_light.clone(),
-                        section.sky_light.clone(),
-                    )));
+                    published.push(
+                        section
+                            .lit
+                            .then(|| (section.block_light.clone(), section.sky_light.clone())),
+                    );
                 }
                 // Absent sections start dark whatever a reader would be told
                 // about them; what differs is whether they pass light.
@@ -472,6 +477,7 @@ impl LightWorld {
             };
             section.block_light = section_light.block_light;
             section.sky_light = section_light.sky_light;
+            section.lit = true;
             changed.push(section_light.pos);
         }
         changed

@@ -290,7 +290,21 @@ impl LightField {
         }
     }
 
-    pub fn section_light(&self, section_index: usize) -> LightStorage {
+    /// The section's light, or `None` when it is bit for bit what was published
+    /// for it and the world has nothing to take.
+    pub fn section_light_if_changed(
+        &self,
+        section_index: usize,
+        published: Option<&LightStorage>,
+    ) -> Option<LightStorage> {
+        let cells = self.section_cells(section_index);
+        match published {
+            Some(published) if published.matches_field(&cells) => None,
+            _ => Some(LightStorage::from_field(&cells)),
+        }
+    }
+
+    fn section_cells(&self, section_index: usize) -> [u8; BLOCKS::VOLUME] {
         let base = section_index * BLOCKS::VOLUME;
         let mut cells = [0u8; BLOCKS::VOLUME];
         for (value, cell) in cells
@@ -299,7 +313,7 @@ impl LightField {
         {
             *value = cell.load(Ordering::Relaxed);
         }
-        LightStorage::from_field(&cells)
+        cells
     }
 }
 

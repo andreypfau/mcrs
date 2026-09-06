@@ -36,6 +36,23 @@ impl LightStorage {
         LightStorage::Dense(Arc::new(arr))
     }
 
+    /// Whether a working field already holds what this storage does.
+    ///
+    /// Answering without packing is the point: most sections of an epoch's field
+    /// come back with the light they went in with, and packing two kilobytes and
+    /// allocating an `Arc` to discover that is what reading a section back costs.
+    pub fn matches_field(&self, cells: &[u8; BLOCKS::VOLUME]) -> bool {
+        match self {
+            LightStorage::Empty => cells.iter().all(|&cell| cell & 0x0F == 0),
+            LightStorage::Uniform(value) => cells.iter().all(|&cell| cell & 0x0F == *value),
+            LightStorage::Dense(packed) => packed
+                .0
+                .iter()
+                .zip(cells.chunks_exact(2))
+                .all(|(byte, pair)| *byte == (pair[0] & 0x0F) | ((pair[1] & 0x0F) << 4)),
+        }
+    }
+
     pub fn write_field(&self, cells: &mut [u8; BLOCKS::VOLUME]) {
         match self {
             LightStorage::Empty => cells.fill(0),

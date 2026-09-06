@@ -21,6 +21,11 @@ pub struct Section {
     pub blocks: Arc<SectionBlocks>,
     pub block_light: LightStorage,
     pub sky_light: LightStorage,
+    /// Whether `entity` has been handed light yet. A dark section's answer is
+    /// the same as the nothing it starts with, so without this an epoch could
+    /// skip publishing it and the entity would never gain the components a
+    /// column is not sent without.
+    pub lit: bool,
 }
 
 impl Section {
@@ -30,6 +35,7 @@ impl Section {
             blocks,
             block_light: LightStorage::Empty,
             sky_light: LightStorage::Empty,
+            lit: false,
         }
     }
 
