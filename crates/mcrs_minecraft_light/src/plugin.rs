@@ -120,10 +120,9 @@ impl Default for LightBudget {
 
 /// How many section columns one tick may take in.
 ///
-/// Loading a column costs a 256 block column sky rescan: 34us measured over a
-/// 137x137 bulk load. Only section loads and unloads are held back — a block
-/// change takes effect the tick it is pushed, and there are never thousands of
-/// those in one tick.
+/// Loading a column costs a 256 block column sky rescan. Only section loads and
+/// unloads are held back — a block change takes effect the tick it is pushed,
+/// and there are never thousands of those in one tick.
 #[derive(Resource, Copy, Clone, Debug)]
 pub struct IntakeBudget {
     pub columns_per_tick: usize,
@@ -131,11 +130,13 @@ pub struct IntakeBudget {
 
 impl Default for IntakeBudget {
     fn default() -> Self {
-        // 2ms of a 50ms tick at the measured 34us per column. The ceiling that
-        // matters is the 15s keep-alive window, which this misses by four
-        // orders of magnitude however many columns finish loading at once.
+        // The rescan is cheap next to the epochs it feeds, and holding it back
+        // only starves them: a bulk load at render distance 96 admits its whole
+        // 38025 columns in under a second of intake and spends the rest of the
+        // load relaxing. The ceiling that matters is the 15s keep-alive window,
+        // which this misses by orders of magnitude however many land at once.
         Self {
-            columns_per_tick: 58,
+            columns_per_tick: 1024,
         }
     }
 }
@@ -190,7 +191,10 @@ impl LightStatus<'_> {
     /// is fine for rendering and not fine for simulation.
     pub fn settled(&self) -> bool {
         self.epoch.as_ref().is_none_or(|epoch| !epoch.is_running())
-            && self.pending.as_ref().is_none_or(|pending| pending.is_empty())
+            && self
+                .pending
+                .as_ref()
+                .is_none_or(|pending| pending.is_empty())
             && self.queue.as_ref().is_none_or(|queue| queue.0.is_empty())
     }
 
@@ -234,10 +238,7 @@ impl LightStatus<'_> {
                 (column.z + 2) * SECTION_WIDTH - 1,
             ),
         };
-        !self
-            .epoch
-            .as_ref()
-            .is_some_and(|epoch| epoch.touches(area))
+        !self.epoch.as_ref().is_some_and(|epoch| epoch.touches(area))
     }
 }
 

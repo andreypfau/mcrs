@@ -23,6 +23,36 @@ const MODEL_MB_PER_FILE: usize = 208;
 const FACE_MB_PER_FILE: usize = 40;
 
 const UPLOAD_MB: usize = 4;
+
+/// Bevy's stock split caps async compute at four threads whatever the machine has, and on
+/// this one the mesher, the column decode and the embedded server's lighting all live there.
+/// Everything but a handful of cores kept for the render and io pools does better.
+#[cfg(not(target_family = "wasm"))]
+fn async_compute_threads() -> usize {
+    bevy::tasks::available_parallelism()
+        .saturating_sub(4)
+        .max(4)
+}
+
+/// The browser has no worker pool to spread across.
+#[cfg(target_family = "wasm")]
+fn async_compute_threads() -> usize {
+    1
+}
+
+/// Sections the mesher may admit in one frame, and how many may be in flight across frames.
+/// The per-frame figure paces the main-thread placement that follows each finished mesh; the
+/// in-flight figure is what keeps the pool fed while a frame is long. On the web both jobs run
+/// on the thread that renders, so the frame is the budget and vanilla's pacing is right.
+#[cfg(not(target_family = "wasm"))]
+const MESH_IN_FLIGHT: usize = 2048;
+#[cfg(not(target_family = "wasm"))]
+const MESH_PER_FRAME: usize = 256;
+#[cfg(target_family = "wasm")]
+const MESH_IN_FLIGHT: usize = 128;
+#[cfg(target_family = "wasm")]
+const MESH_PER_FRAME: usize = 32;
+
 /// The browser keeps vanilla's default; the desktop asks for three times vanilla's maximum.
 #[cfg(not(target_family = "wasm"))]
 const VIEW_DISTANCE: u8 = 96;
@@ -231,6 +261,32 @@ pub fn chunk_map() -> bool {
 
 pub fn light_levels() -> bool {
     flag("LIGHT_LEVELS", false)
+}
+
+/// Bevy's stock split gives async compute a quarter of the cores capped at four, which on a
+/// sixteen-core machine leaves meshing, column decode and the embedded server's lighting to
+/// share four threads while twelve idle. `ASYNC=<threads>` moves the cap.
+pub fn task_pool_options() -> bevy::app::TaskPoolOptions {
+    let mut options = bevy::app::TaskPoolOptions::default();
+    options.async_compute.max_threads = knob("ASYNC")
+        .and_then(|spec| spec.trim().parse().ok())
+        .unwrap_or_else(async_compute_threads);
+    options.async_compute.percent = 1.0;
+    options
+}
+
+/// `MESH=<per frame>` and `MESH_FLIGHT=<jobs>` bound how fast the mesher may run: how many
+/// sections it admits in one frame and how many may be in flight at once.
+pub fn mesh_per_frame() -> usize {
+    knob("MESH")
+        .and_then(|spec| spec.trim().parse().ok())
+        .unwrap_or(MESH_PER_FRAME)
+}
+
+pub fn mesh_in_flight() -> usize {
+    knob("MESH_FLIGHT")
+        .and_then(|spec| spec.trim().parse().ok())
+        .unwrap_or(MESH_IN_FLIGHT)
 }
 
 pub fn stats_interval() -> Option<f32> {

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
@@ -21,9 +21,9 @@ use crate::render::{Animation, AtlasUpdate, Budget, Placement, SectionDesc, Uplo
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 
-const SECTIONS_IN_FLIGHT: usize = 128;
+static SECTIONS_IN_FLIGHT: LazyLock<usize> = LazyLock::new(crate::config::mesh_in_flight);
 
-const SECTIONS_PER_FRAME: usize = 32;
+static SECTIONS_PER_FRAME: LazyLock<usize> = LazyLock::new(crate::config::mesh_per_frame);
 
 const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
 
@@ -945,7 +945,7 @@ pub fn advance(
     }
     let _admitting = info_span!("stream admit").entered();
     let room = SECTIONS_IN_FLIGHT.saturating_sub(loader.meshing.len());
-    let wanted = loader.take_wanted(room.min(SECTIONS_PER_FRAME), store);
+    let wanted = loader.take_wanted(room.min(*SECTIONS_PER_FRAME), store);
     for (taken, &at) in wanted.iter().enumerate() {
         let Some(slot) = loader.take_slot() else {
             for &back in &wanted[taken..] {

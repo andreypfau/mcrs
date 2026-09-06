@@ -48,6 +48,77 @@ pub struct EpochStats {
 /// field costs less to walk than a thread pool costs to start.
 const PARALLEL_SECTION_LIMIT: usize = 1 << 18;
 
+/// Which sky-source cells of a section column can still raise a neighbour.
+///
+/// A source cell sits at `LightLevel::MAX`, and so does every source cell
+/// around it, so relaxing one against another can never raise anything: the
+/// only source cells worth seeding are those touching a cell that is not a
+/// source. Above the terrain that is a thin skin instead of the whole shaft,
+/// which is most of the field.
+struct SkyFrontier {
+    floor: [i32; BLOCKS::AREA],
+    /// The highest floor among a column's four horizontal neighbours. A source
+    /// cell below it faces a non-source and has to be seeded.
+    neighbour_top: [i32; BLOCKS::AREA],
+}
+
+impl SkyFrontier {
+    fn of<'a>(
+        floors: &SkyFloor,
+        section_pos: ChunkPos,
+        neighbour: impl Fn(i32, i32) -> Option<&'a SkyFloor>,
+    ) -> Self {
+        let sides = [
+            (-1, 0, neighbour(-1, 0)),
+            (1, 0, neighbour(1, 0)),
+            (0, -1, neighbour(0, -1)),
+            (0, 1, neighbour(0, 1)),
+        ];
+        let base_x = section_pos.x << BLOCKS::BITS;
+        let base_z = section_pos.z << BLOCKS::BITS;
+        let mut floor = [0i32; BLOCKS::AREA];
+        let mut neighbour_top = [i32::MIN; BLOCKS::AREA];
+        for index in 0..BLOCKS::AREA {
+            let lx = (index & BLOCKS::MASK) as i32;
+            let lz = (index >> BLOCKS::BITS) as i32;
+            let (x, z) = (base_x + lx, base_z + lz);
+            floor[index] = floors.get(BlockColumn { x, z });
+            for (dx, dz, side) in &sides {
+                let (nx, nz) = (lx + dx, lz + dz);
+                let inside = (0..BLOCKS::SIZE as i32).contains(&nx)
+                    && (0..BLOCKS::SIZE as i32).contains(&nz);
+                let across = match (inside, side) {
+                    (true, _) => Some(floors),
+                    // Off the layout, or a column the world holds no sky scan
+                    // for: assume the worst and let every source cell seed.
+                    (false, None) => None,
+                    (false, Some(side)) => Some(*side),
+                };
+                let top = match across {
+                    Some(across) => across.get(BlockColumn {
+                        x: x + dx,
+                        z: z + dz,
+                    }),
+                    None => i32::MAX,
+                };
+                neighbour_top[index] = neighbour_top[index].max(top);
+            }
+        }
+        Self {
+            floor,
+            neighbour_top,
+        }
+    }
+
+    fn holds(&self, local: LocalPos, y: i32) -> bool {
+        let index = (local.x() as usize) | ((local.z() as usize) << BLOCKS::BITS);
+        let floor = self.floor[index];
+        // Below the floor it is not a source at all: its value came from
+        // propagation, and relaxation still has to start from it.
+        y <= floor || y < self.neighbour_top[index]
+    }
+}
+
 /// Where the time inside one epoch went. Costs a handful of clock reads.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EpochTimings {
@@ -138,7 +209,15 @@ impl LightJob {
 
             let section_base = layout.section_base(section_index);
             let section_pos = layout.section_pos(section_index);
-            let floors = sky_floors[layout.column_index(section_index)].as_deref();
+            let column_index = layout.column_index(section_index);
+            let floors = sky_floors[column_index].as_deref();
+            let sky_frontier = floors.map(|floors| {
+                SkyFrontier::of(floors, section_pos, |dx, dz| {
+                    layout
+                        .column_step(column_index, dx, dz)
+                        .and_then(|neighbour| sky_floors[neighbour].as_deref())
+                })
+            });
             let source = blocks.section(section_index);
             let erase = erase_plan.meets(BlockBox::of_section(section_pos));
 
@@ -176,7 +255,8 @@ impl LightJob {
                         LightLevel::ZERO
                     };
                     sky_field.set(index, sky);
-                    if !sky.is_zero() {
+                    if !sky.is_zero() && sky_frontier.as_ref().is_none_or(|f| f.holds(local, pos.y))
+                    {
                         sky_seeds.push(index);
                     }
                 } else {
@@ -186,7 +266,9 @@ impl LightJob {
                     if !block_field.get(index).is_zero() {
                         block_seeds.push(index);
                     }
-                    if !sky_field.get(index).is_zero() {
+                    if !sky_field.get(index).is_zero()
+                        && sky_frontier.as_ref().is_none_or(|f| f.holds(local, pos.y))
+                    {
                         sky_seeds.push(index);
                     }
                 }
@@ -225,21 +307,24 @@ impl LightJob {
         // 4096 loads and a repack each.
         let read_back = |(section_index, was): (usize, Option<(LightStorage, LightStorage)>)| {
             let (was_block, was_sky) = was.unzip();
-            blocks
-                .section_loaded(section_index)
-                .then(|| SectionLight {
-                    pos: layout.section_pos(section_index),
-                    block_light: keep_published(
-                        was_block,
-                        block_field.section_light(section_index),
-                    ),
-                    sky_light: keep_published(was_sky, sky_field.section_light(section_index)),
-                })
+            blocks.section_loaded(section_index).then(|| SectionLight {
+                pos: layout.section_pos(section_index),
+                block_light: keep_published(was_block, block_field.section_light(section_index)),
+                sky_light: keep_published(was_sky, sky_field.section_light(section_index)),
+            })
         };
         let sections: Vec<SectionLight> = if layout.cell_count() >= PARALLEL_SECTION_LIMIT {
-            published.into_par_iter().enumerate().filter_map(read_back).collect()
+            published
+                .into_par_iter()
+                .enumerate()
+                .filter_map(read_back)
+                .collect()
         } else {
-            published.into_iter().enumerate().filter_map(read_back).collect()
+            published
+                .into_iter()
+                .enumerate()
+                .filter_map(read_back)
+                .collect()
         };
 
         LightUpdate {
@@ -282,7 +367,11 @@ impl LightWorld {
             let column = edit.column();
             let influence = match edit {
                 Edit::SetBlock { pos, block } => self.edit_block(pos, block),
-                Edit::LoadSection { pos, entity, blocks } => {
+                Edit::LoadSection {
+                    pos,
+                    entity,
+                    blocks,
+                } => {
                     self.insert_section(pos, Section::new(entity, blocks));
                     columns_to_rescan.insert(column);
                     Some(Influence::new(BlockBox::of_section(pos)))

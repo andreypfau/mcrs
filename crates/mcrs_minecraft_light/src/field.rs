@@ -67,6 +67,15 @@ impl FieldLayout {
         section_index % self.column_count()
     }
 
+    /// The section column one step from `column_index` in x and z, or `None`
+    /// where that step leaves the layout.
+    pub fn column_step(&self, column_index: usize, dx: i32, dz: i32) -> Option<usize> {
+        let x = (column_index as i32 % self.dim_x) + dx;
+        let z = (column_index as i32 / self.dim_x) + dz;
+        (x >= 0 && x < self.dim_x && z >= 0 && z < self.dim_z)
+            .then(|| (z * self.dim_x + x) as usize)
+    }
+
     pub fn cell_count(&self) -> usize {
         self.section_count() * BLOCKS::VOLUME
     }

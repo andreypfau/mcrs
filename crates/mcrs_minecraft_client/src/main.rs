@@ -89,6 +89,9 @@ fn main() {
     let mut app = App::new();
     app.add_plugins(
         DefaultPlugins
+            .set(bevy::app::TaskPoolPlugin {
+                task_pool_options: config::task_pool_options(),
+            })
             .set(AssetPlugin {
                 file_path: assets.clone(),
                 ..default()
