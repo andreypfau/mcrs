@@ -291,7 +291,7 @@ impl Plugin for LightPlugin {
     }
 }
 
-fn publish_light(
+pub fn publish_light(
     mut lighting: ResMut<Lighting>,
     mut running: ResMut<LightEpoch>,
     mut commands: Commands,
@@ -354,7 +354,7 @@ fn intake_edits(
     }
 }
 
-fn dispatch_epoch(
+pub fn dispatch_epoch(
     mut lighting: ResMut<Lighting>,
     mut queue: ResMut<LightWorkQueue>,
     mut running: ResMut<LightEpoch>,

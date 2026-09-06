@@ -279,6 +279,19 @@ pub fn spawn_dim_subapp(
                     mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter,
                 >,
             ),
+            // A finished epoch frees its slot and unblocks its area only when it is
+            // retired, so retiring once a tick leaves most of the light engine's
+            // concurrency idle while columns arrive many times a tick. Retire and
+            // re-dispatch here, where the columns land, and a column's light is
+            // published in time for the send that follows it in this same drain.
+            (
+                mcrs_minecraft_light::prelude::publish_light,
+                mcrs_minecraft_light::prelude::dispatch_epoch,
+            )
+                .chain()
+                .run_if(bevy_ecs::prelude::resource_exists::<
+                    mcrs_minecraft_light::prelude::Lighting,
+                >),
             crate::world::entity::player::column_view::loading_column_queue,
             crate::world::entity::player::column_view::send_column_queue,
             flush_from_dim_outbox,
