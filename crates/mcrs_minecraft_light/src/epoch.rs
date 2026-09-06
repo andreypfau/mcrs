@@ -71,6 +71,10 @@ struct SkyFrontier {
     /// The highest floor among a column's four horizontal neighbours. A source
     /// cell below it faces a non-source and has to be seeded.
     neighbour_top: [i32; BLOCKS::AREA],
+    /// The lowest section base from which a whole section is sky source with no
+    /// cell of it on the frontier. Above the terrain that is most of a field, and
+    /// there the layer is a constant with nothing to decide cell by cell.
+    clear_above: i32,
 }
 
 impl SkyFrontier {
@@ -115,10 +119,21 @@ impl SkyFrontier {
                 neighbour_top[index] = neighbour_top[index].max(top);
             }
         }
+        let clear_above = floor
+            .iter()
+            .map(|floor| floor + 1)
+            .chain(neighbour_top.iter().copied())
+            .max()
+            .unwrap_or(i32::MIN);
         Self {
             floor,
             neighbour_top,
+            clear_above,
         }
+    }
+
+    fn clears(&self, base_y: i32) -> bool {
+        base_y >= self.clear_above
     }
 
     fn holds(&self, local: LocalPos, y: i32) -> bool {
@@ -243,6 +258,21 @@ impl LightJob {
             let sky_frontier = sky_frontiers[column_index].as_ref();
             let source = blocks.section(section_index);
             let erase = erase_plan.meets(BlockBox::of_section(section_pos));
+
+            // Clear of the terrain with no block layer to compute: every cell is
+            // a sky source and none of them can raise a neighbour, so the section
+            // is a constant and the walk below has nothing to find in it.
+            if dark
+                && erase == SectionErase::All
+                && sky_frontier.is_some_and(|frontier| {
+                    frontier.clears(section_pos.y << BLOCKS::BITS)
+                })
+            {
+                for local in LocalPos::all() {
+                    sky_field.set(section_base | local.index() as u32, LightLevel::MAX);
+                }
+                return (block_seeds, sky_seeds);
+            }
 
             // Every cell of a uniform section emits the same light, and most
             // sections of a loading world are uniform air.
