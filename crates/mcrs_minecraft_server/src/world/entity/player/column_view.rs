@@ -94,6 +94,8 @@ pub struct ColumnView {
     send_queue: VecDeque<(ColumnPos, Vec<Entity>)>,
     /// The centre `send_queue` is ordered around; the order goes stale only when it moves.
     sort_center: Option<ChunkPos>,
+    /// Where the last tick's walk of `send_queue` stopped.
+    scan_cursor: usize,
     pub sent_columns: FxHashSet<ColumnPos>,
     batch_quota: f32,
     desired_columns_per_tick: f32,
@@ -110,6 +112,7 @@ impl Default for ColumnView {
             loading_queue: VecDeque::new(),
             send_queue: VecDeque::new(),
             sort_center: None,
+            scan_cursor: 0,
             sent_columns: FxHashSet::default(),
             batch_quota: 0.0,
             desired_columns_per_tick: START_COLUMNS_PER_TICK,
@@ -388,9 +391,13 @@ pub(crate) fn send_column_queue(
                     dx * dx + dz * dz
                 });
                 view.sort_center = Some(center);
+                view.scan_cursor = 0;
             }
 
-            let mut index = 0usize;
+            let mut index = match chunk_view.scan_cursor < chunk_view.send_queue.len() {
+                true => chunk_view.scan_cursor,
+                false => 0,
+            };
             let mut scanned = 0usize;
             loop {
                 if sends >= allowed || batch_bytes >= MAX_BATCH_BYTES {
@@ -502,6 +509,12 @@ pub(crate) fn send_column_queue(
 
                 sends += 1;
             }
+            // A walk that ran off the end starts near again; one cut short by its budget
+            // carries on from where it stopped, so a stuck head cannot starve the queue.
+            chunk_view.scan_cursor = match index < chunk_view.send_queue.len() {
+                true => index,
+                false => 0,
+            };
             if batch.is_empty() {
                 return;
             }
