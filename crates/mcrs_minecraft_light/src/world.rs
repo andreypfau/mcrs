@@ -26,16 +26,31 @@ pub struct Section {
     /// skip publishing it and the entity would never gain the components a
     /// column is not sent without.
     pub lit: bool,
+    /// Whether any block here emits. Read off the palette once, when the section
+    /// arrives, because the answer cannot change while the blocks do not: ground
+    /// straight out of the generator holds no torch and no redstone, and a field
+    /// of such sections has no block layer to compute at all.
+    pub emits: bool,
 }
 
 impl Section {
-    pub fn new(entity: Entity, blocks: Arc<SectionBlocks>) -> Self {
+    pub fn new(registry: &LightRegistry, entity: Entity, blocks: Arc<SectionBlocks>) -> Self {
+        let emits = match &blocks.0 {
+            PalettedContainer::Homogeneous(block) => !registry.emission(*block).is_zero(),
+            // The palette keeps entries a `set` has emptied, so this errs towards
+            // saying yes, which only ever costs the work it would have skipped.
+            PalettedContainer::Heterogeneous(data) => data
+                .palette
+                .iter()
+                .any(|block| !registry.emission(*block).is_zero()),
+        };
         Self {
             entity,
             blocks,
             block_light: LightStorage::Empty,
             sky_light: LightStorage::Empty,
             lit: false,
+            emits,
         }
     }
 

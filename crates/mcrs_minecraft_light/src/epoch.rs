@@ -154,6 +154,11 @@ pub struct LightJob {
     /// worker, not on the thread that asked for the work.
     published: Vec<Option<(LightStorage, LightStorage)>>,
     erase_plan: ErasePlan,
+    /// Nothing in the field emits and nothing in it was published with block
+    /// light, so that layer is zero everywhere and stays so: no seed can appear
+    /// and nothing outside the field can reach in. Every pass that would walk it
+    /// is skipped, and its own field is allocated zeroed and never touched.
+    dark: bool,
     /// One entry per section column of the layout, shared with the world rather
     /// than copied: the scan that produced them is the world's own.
     sky_floors: Vec<Option<Arc<SkyFloor>>>,
@@ -178,6 +183,7 @@ impl LightJob {
             published,
             erase_plan,
             sky_floors,
+            dark,
         } = self;
 
         let started = Instant::now();
@@ -243,11 +249,13 @@ impl LightJob {
                     SectionErase::Partial => erase_plan.covers(pos),
                 };
                 if erased {
-                    let emission = uniform_emission
-                        .unwrap_or_else(|| registry.emission(source.block_at(local)));
-                    block_field.set(index, emission);
-                    if !emission.is_zero() {
-                        block_seeds.push(index);
+                    if !dark {
+                        let emission = uniform_emission
+                            .unwrap_or_else(|| registry.emission(source.block_at(local)));
+                        block_field.set(index, emission);
+                        if !emission.is_zero() {
+                            block_seeds.push(index);
+                        }
                     }
 
                     let sky = if floors.is_some_and(|f| f.is_source(pos.x, pos.y, pos.z)) {
@@ -264,7 +272,7 @@ impl LightJob {
                     // Untouched cells are already at their final value and
                     // act as the fixed boundary that holds the calculation
                     // in place.
-                    if !block_field.get(index).is_zero() {
+                    if !dark && !block_field.get(index).is_zero() {
                         block_seeds.push(index);
                     }
                     if !sky_field.get(index).is_zero()
@@ -311,7 +319,13 @@ impl LightJob {
                 return None;
             }
             let (was_block, was_sky) = was.unzip();
-            let block_light = block_field.section_light_if_changed(section_index, was_block.as_ref());
+            let block_light = if dark {
+                // Zero is what the layer already holds wherever it was published,
+                // so only a section still owed its first answer takes one.
+                was_block.is_none().then_some(LightStorage::Empty)
+            } else {
+                block_field.section_light_if_changed(section_index, was_block.as_ref())
+            };
             let sky_light = sky_field.section_light_if_changed(section_index, was_sky.as_ref());
             // Most of a field is the halo an epoch drags along to get its own
             // columns right, and a halo section comes back with the light it went
@@ -385,7 +399,8 @@ impl LightWorld {
                     entity,
                     blocks,
                 } => {
-                    self.insert_section(pos, Section::new(entity, blocks));
+                    let section = Section::new(self.registry(), entity, blocks);
+                    self.insert_section(pos, section);
                     columns_to_rescan.insert(column);
                     Some(Influence::new(BlockBox::of_section(pos)))
                 }
@@ -435,10 +450,14 @@ impl LightWorld {
         let mut sections: Vec<SectionSource> = Vec::with_capacity(layout.section_count());
         let mut published: Vec<Option<(LightStorage, LightStorage)>> =
             Vec::with_capacity(layout.section_count());
+        // An absent section is never seeded, so it cannot be the source this asks
+        // about; open space can be, if the block standing for it emits.
+        let mut dark = self.registry().emission(self.registry().outside()).is_zero();
 
         for (_, section_pos) in layout.sections() {
             match self.section(section_pos) {
                 Some(section) => {
+                    dark &= !section.emits && section.block_light == LightStorage::Empty;
                     sections.push(SectionSource::Loaded(Arc::clone(&section.blocks)));
                     published.push(
                         section
@@ -466,7 +485,6 @@ impl LightWorld {
             })
             .collect();
         let erase_plan = regions.erase_plan(layout.cell_count() as u64, influenced);
-
         Some(LightJob {
             registry: Arc::clone(self.registry()),
             blocks: BlockSnapshot::new(&layout, sections),
@@ -474,6 +492,7 @@ impl LightWorld {
             published,
             erase_plan,
             sky_floors,
+            dark,
         })
     }
 
@@ -522,6 +541,7 @@ impl LightWorld {
             return None;
         }
         Arc::make_mut(&mut section.blocks).set(pos, block);
+        section.emits |= !registry.emission(block).is_zero();
         // Past the early return above, so a write the scan cannot tell apart
         // from what it replaced keeps the bound: equal light properties give
         // equal seams, whatever the surface now says about that block.
