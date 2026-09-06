@@ -200,6 +200,28 @@ impl LightJob {
         let fill = started.elapsed();
         let started = Instant::now();
 
+        // The frontier is a property of the section column, not of the section:
+        // it reads the column's sky floors and its four neighbours' and nothing
+        // else. A field is a couple of dozen sections tall, so building it per
+        // section built the same answer that many times over. Built here it is
+        // still one independent piece of work per column, because a serial
+        // prologue costs an epoch more than the repetition it saves.
+        let sky_frontiers: Vec<Option<SkyFrontier>> = (0..layout.column_count())
+            .into_par_iter()
+            .map(|column_index| {
+                let floors = sky_floors[column_index].as_deref()?;
+                Some(SkyFrontier::of(
+                    floors,
+                    layout.section_pos(column_index),
+                    |dx, dz| {
+                        layout
+                            .column_step(column_index, dx, dz)
+                            .and_then(|neighbour| sky_floors[neighbour].as_deref())
+                    },
+                ))
+            })
+            .collect();
+
         // One independent piece of work per section, which is what makes this
         // parallel: sections share no cells, and the field takes writes through
         // a shared reference. Below the threshold the thread pool costs more
@@ -218,13 +240,7 @@ impl LightJob {
             let section_pos = layout.section_pos(section_index);
             let column_index = layout.column_index(section_index);
             let floors = sky_floors[column_index].as_deref();
-            let sky_frontier = floors.map(|floors| {
-                SkyFrontier::of(floors, section_pos, |dx, dz| {
-                    layout
-                        .column_step(column_index, dx, dz)
-                        .and_then(|neighbour| sky_floors[neighbour].as_deref())
-                })
-            });
+            let sky_frontier = sky_frontiers[column_index].as_ref();
             let source = blocks.section(section_index);
             let erase = erase_plan.meets(BlockBox::of_section(section_pos));
 
@@ -264,7 +280,7 @@ impl LightJob {
                         LightLevel::ZERO
                     };
                     sky_field.set(index, sky);
-                    if !sky.is_zero() && sky_frontier.as_ref().is_none_or(|f| f.holds(local, pos.y))
+                    if !sky.is_zero() && sky_frontier.is_none_or(|f| f.holds(local, pos.y))
                     {
                         sky_seeds.push(index);
                     }
@@ -276,7 +292,7 @@ impl LightJob {
                         block_seeds.push(index);
                     }
                     if !sky_field.get(index).is_zero()
-                        && sky_frontier.as_ref().is_none_or(|f| f.holds(local, pos.y))
+                        && sky_frontier.is_none_or(|f| f.holds(local, pos.y))
                     {
                         sky_seeds.push(index);
                     }
