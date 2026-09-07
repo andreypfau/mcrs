@@ -4,7 +4,6 @@
 
 use crate::mock_connection;
 
-use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::observer::On;
@@ -117,9 +116,6 @@ fn run_inbound(world: &mut World) {
 struct EventCounter {
     count: usize,
 }
-
-#[derive(Component, Default)]
-struct EntityEventCount(usize);
 
 // ---------------------------------------------------------------------------
 // bridge_inbound_emits_received_packet_event

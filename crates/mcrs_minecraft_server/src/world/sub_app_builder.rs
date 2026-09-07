@@ -693,7 +693,7 @@ mod tests {
         let mut flush = IntoSystem::into_system(flush_from_dim_outbox);
         flush.initialize(&mut world);
         let mut arrived = Vec::new();
-        let mut drain = |arrived: &mut Vec<u32>| {
+        let drain = |arrived: &mut Vec<u32>| {
             arrived.extend(rx.try_iter().map(|msg| match msg {
                 FromDim::Clientbound {
                     data: PacketPayload::Test(payload),
@@ -703,7 +703,7 @@ mod tests {
             }));
         };
 
-        flush.run((), &mut world);
+        flush.run((), &mut world).unwrap();
         drain(&mut arrived);
         assert_eq!(
             arrived.len(),
@@ -711,7 +711,7 @@ mod tests {
             "the channel takes what it holds"
         );
 
-        flush.run((), &mut world);
+        flush.run((), &mut world).unwrap();
         drain(&mut arrived);
         assert_eq!(
             arrived,

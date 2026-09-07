@@ -112,23 +112,6 @@ fn enqueue_critical(world: &mut World, entity: Entity, count: usize) {
     }
 }
 
-/// Push `count` High-priority test packets directly into `entity`'s
-/// `OutboundQueue`.
-fn enqueue_high(world: &mut World, entity: Entity, count: usize) {
-    let mut q = world
-        .get_mut::<OutboundQueue>(entity)
-        .expect("OutboundQueue present");
-    for i in 0..count {
-        q.push(OutboundPlayerPacket {
-            target: PacketTarget::AllPlayers,
-            priority: PacketPriority::High,
-            data: PacketPayload::Test(TestPayload { seq: i as u32 }),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-    }
-}
-
 fn run_dispatch(world: &mut World) {
     let mut sys = IntoSystem::into_system(dispatch_encode);
     sys.initialize(world);

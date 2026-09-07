@@ -811,7 +811,12 @@ mod test {
     #[test]
     fn beta_improved_noise_origin() {
         let fx = load_fixture().improved_noise_beta;
-        let noise = ImprovedNoise::<f64>::from_random(&mut LegacyRandom::new(845));
+        let mut random = LegacyRandom::new(845);
+        let noise = ImprovedNoise::<f64>::from_random(&mut random);
+        assert_eq!(
+            random.seed, fx.rng_seed_after_construction,
+            "rng seed after construction mismatch"
+        );
         assert!(
             (noise.origin_x - fx.origin_x).abs() < 1e-6,
             "origin_x mismatch: got {}, expected {}",

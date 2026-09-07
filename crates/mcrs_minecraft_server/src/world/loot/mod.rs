@@ -369,10 +369,12 @@ impl BlockLootTables {
             table_id: Some(table_id.as_str().to_owned()),
         };
         debug!(table = %table_id, path = %path, "requesting loot table load");
-        let handle: Handle<LootTableAsset> =
-            asset_server.load_with_settings(&path, move |s: &mut LootTableLoaderSettings| {
+        let handle: Handle<LootTableAsset> = asset_server
+            .load_builder()
+            .with_settings(move |s: &mut LootTableLoaderSettings| {
                 *s = settings.clone();
-            });
+            })
+            .load(&path);
         self.handles.push(handle);
         false
     }

@@ -1,5 +1,3 @@
-mod common;
-
 use mcrs_minecraft_network::metrics::{self, BRIDGE_DROP_NORMAL_TOTAL};
 use std::sync::atomic::Ordering;
 

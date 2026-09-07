@@ -1377,7 +1377,7 @@ mod tests {
     fn a_column_is_meshed_only_once_every_column_it_borders_has_arrived() {
         use mcrs_minecraft_network::columns::{Column, Extent};
 
-        let mut loader = loader();
+        let loader = loader();
         let mut store = ColumnStore::default();
         store.enter(Extent {
             min_section_y: 0,

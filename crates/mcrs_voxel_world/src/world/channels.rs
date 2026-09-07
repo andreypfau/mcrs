@@ -26,10 +26,6 @@ impl<T> DimSender<T> {
     pub fn try_send(&self, msg: T) -> Result<(), flume::TrySendError<T>> {
         self.0.try_send(msg)
     }
-
-    pub(crate) fn inner(&self) -> &flume::Sender<T> {
-        &self.0
-    }
 }
 
 pub struct DimReceiver<T>(flume::Receiver<T>);
