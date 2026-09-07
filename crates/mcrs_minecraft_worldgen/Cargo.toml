@@ -22,7 +22,7 @@ thiserror = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 [features]
-default = ["bevy"]
+default = ["bevy", "fast"]
 bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect", "dep:thiserror"]
 # The precision profile of `docs/worldgen.md` §15, one feature per technique so
 # a divergence can be bisected to the one that caused it. `fast` is the shipping
