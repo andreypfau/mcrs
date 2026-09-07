@@ -6,7 +6,7 @@ use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_decoration::carver::WorldCarver;
-use mcrs_minecraft_decoration::carver::cave::CaveWorldCarver;
+use mcrs_minecraft_decoration::carver::beta::CaveWorldCarver;
 use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
 use mcrs_minecraft_decoration::carver::mask::CarvingMask;
 use mcrs_minecraft_decoration::carver::water::WaterMask;
@@ -259,7 +259,7 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
     draws.set(draws.get() + 2); // two draws for l and i1
 
     let water = WaterMask::default();
-    let mut mask = CarvingMask::new(16, 1, 119);
+    let mut mask = CarvingMask::new(16, 1, 120);
     let radius = config.source_radius;
 
     for origin_x in (chunk_x - radius)..=(chunk_x + radius) {

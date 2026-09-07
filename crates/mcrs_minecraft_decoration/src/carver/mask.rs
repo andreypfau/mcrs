@@ -24,6 +24,14 @@ impl CarvingMask {
         }
     }
 
+    pub fn min_y(&self) -> i32 {
+        self.min_y
+    }
+
+    pub fn max_y(&self) -> i32 {
+        self.min_y + self.height - 1
+    }
+
     pub fn clear(&mut self) {
         self.bits.clear();
     }

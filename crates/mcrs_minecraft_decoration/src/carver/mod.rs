@@ -1,6 +1,7 @@
-pub mod cave;
+pub mod beta;
 pub mod config;
 pub mod mask;
+pub mod tunnel;
 pub mod water;
 
 use crate::carver::config::BetaCaveCarverConfig;
@@ -27,46 +28,54 @@ pub fn can_replace_block(config: &BetaCaveCarverConfig, state: VoxelId) -> bool 
     state == config.stone_state || state == config.dirt_state || state == config.grass_state
 }
 
-/// Mark the ellipsoid at (d0, d1, d2), horizontal radius d6 and vertical radius
-/// d7, as carved in `mask`, in chunk-local coordinates.
+/// Mark the ellipsoid at (x, y, z), horizontal radius `horizontal_radius` and
+/// vertical radius `vertical_radius`, as carved in `mask`.
 ///
-/// The marked Y is the one the ellipsoid test accepts; Beta writes the block one
-/// above it, which is the substance pass's business, not this one's.
-///
-/// Returns false if carving was aborted because water touches the shell.
+/// Returns false if nothing was rasterised: either the ellipsoid misses the
+/// target chunk entirely, or water touches the shell of its bounds and Beta's
+/// abort applies. Modern carvers pass an empty water mask and never abort.
+#[allow(clippy::too_many_arguments)]
 pub fn carve_ellipsoid(
     chunk_x: i32,
     chunk_z: i32,
-    d0: f64,
-    d1: f64,
-    d2: f64,
-    d6: f64,
-    d7: f64,
+    x: f64,
+    y: f64,
+    z: f64,
+    horizontal_radius: f64,
+    vertical_radius: f64,
+    floor_level: f64,
     water: &WaterMask,
     mask: &mut CarvingMask,
 ) -> bool {
-    let k1 = ((d0 - d6).floor() as i32 - chunk_x * 16 - 1).max(0);
-    let l1 = ((d0 + d6).floor() as i32 - chunk_x * 16 + 1).min(16);
-    let i2 = ((d1 - d7).floor() as i32 - 1).max(1);
-    let j2 = ((d1 + d7).floor() as i32 + 1).min(120);
-    let k2 = ((d2 - d6).floor() as i32 - chunk_z * 16 - 1).max(0);
-    let l2 = ((d2 + d6).floor() as i32 - chunk_z * 16 + 1).min(16);
-
-    if water_abort_scan(water, k1, l1, i2, j2, k2, l2) {
+    let center_x = chunk_x as f64 * 16.0 + 8.0;
+    let center_z = chunk_z as f64 * 16.0 + 8.0;
+    let max_delta = 16.0 + horizontal_radius * 2.0;
+    if (x - center_x).abs() > max_delta || (z - center_z).abs() > max_delta {
         return false;
     }
 
-    for lx in k1..l1 {
-        let d12 = ((lx + chunk_x * 16) as f64 + 0.5 - d0) / d6;
-        for lz in k2..l2 {
-            let d13 = ((lz + chunk_z * 16) as f64 + 0.5 - d2) / d6;
-            if d12 * d12 + d13 * d13 >= 1.0 {
+    let min_x = ((x - horizontal_radius).floor() as i32 - chunk_x * 16 - 1).max(0);
+    let max_x = ((x + horizontal_radius).floor() as i32 - chunk_x * 16).min(15);
+    let min_y = ((y - vertical_radius).floor() as i32 - 1).max(mask.min_y());
+    let max_y = ((y + vertical_radius).floor() as i32 + 1).min(mask.max_y());
+    let min_z = ((z - horizontal_radius).floor() as i32 - chunk_z * 16 - 1).max(0);
+    let max_z = ((z + horizontal_radius).floor() as i32 - chunk_z * 16).min(15);
+
+    if water_abort_scan(water, min_x, max_x + 1, min_y, max_y, min_z, max_z + 1) {
+        return false;
+    }
+
+    for local_x in min_x..=max_x {
+        let xd = ((local_x + chunk_x * 16) as f64 + 0.5 - x) / horizontal_radius;
+        for local_z in min_z..=max_z {
+            let zd = ((local_z + chunk_z * 16) as f64 + 0.5 - z) / horizontal_radius;
+            if xd * xd + zd * zd >= 1.0 {
                 continue;
             }
-            for world_y in i2..j2 {
-                let d14 = (world_y as f64 + 0.5 - d1) / d7;
-                if d14 > -0.7 && d12 * d12 + d14 * d14 + d13 * d13 < 1.0 {
-                    mask.carve(lx, world_y, lz);
+            for world_y in (min_y + 1..=max_y).rev() {
+                let yd = (world_y as f64 - 0.5 - y) / vertical_radius;
+                if yd > floor_level && xd * xd + yd * yd + zd * zd < 1.0 {
+                    mask.carve(local_x, world_y, local_z);
                 }
             }
         }

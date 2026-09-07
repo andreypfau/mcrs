@@ -1,5 +1,5 @@
 use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
-use mcrs_minecraft_decoration::carver::cave::CaveWorldCarver;
+use mcrs_minecraft_decoration::carver::beta::CaveWorldCarver;
 use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
 use mcrs_minecraft_decoration::carver::mask::CarvingMask;
 use mcrs_minecraft_decoration::carver::water::WaterMask;
@@ -64,10 +64,10 @@ fn water_mask(column: &ColumnBlocks, ids: &BetaCaveBlockIds) -> WaterMask {
     mask
 }
 
-/// Beta's geometry Y range: the ellipsoid bounds clamp to `1..=119`, and the
-/// block written for a marked Y sits one above it.
+/// What Beta's ellipsoid bounds clamp to. The rasteriser marks `min_y + 1`
+/// upwards, so the lowest block it can free is Y 2.
 const MASK_MIN_Y: i32 = 1;
-const MASK_MAX_Y: i32 = 119;
+const MASK_MAX_Y: i32 = 120;
 
 /// Fill the space the carver freed: lava under the lava level, air above it,
 /// and dirt turned to grass directly under the first grass seen coming down.
@@ -84,20 +84,21 @@ fn apply_cave_substance(
     mask.visit(|x, z, bottom_y, top_y| {
         let mut has_grass = false;
         for y in (bottom_y..=top_y).rev() {
-            let cell_y = y + 1;
-            let state = column.get(x, cell_y, z).unwrap_or(air);
+            let state = column.get(x, y, z).unwrap_or(air);
             if state == config.grass_state {
                 has_grass = true;
             }
             if !can_replace_block(config, state) {
                 continue;
             }
-            if y < config.lava_level {
-                column.set(x, cell_y, z, config.lava_state);
+            // Beta's lava threshold is on the Y the ellipsoid test accepted,
+            // which is one below the block that test frees.
+            if y - 1 < config.lava_level {
+                column.set(x, y, z, config.lava_state);
             } else {
-                column.set(x, cell_y, z, config.air_state);
-                if has_grass && column.get(x, y, z) == Some(config.dirt_state) {
-                    column.set(x, y, z, config.grass_state);
+                column.set(x, y, z, config.air_state);
+                if has_grass && column.get(x, y - 1, z) == Some(config.dirt_state) {
+                    column.set(x, y - 1, z, config.grass_state);
                 }
             }
         }
