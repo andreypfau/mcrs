@@ -1217,6 +1217,71 @@ fn lattice_volume(volume: &Volume, axes: Axes, cell_xz: i32, cell_y: i32) -> Vol
     Volume::new(last - first + IVec3::splat(2), first * cell, cell)
 }
 
+/// The value ramp along Y inside one interpolated cell.
+///
+/// Vanilla walks it a row at a time, so the strict profile carries the same
+/// chain of roundings. The fast profile evaluates the closed form: it agrees on
+/// a cell's first row and drifts by the rounding the accumulator would have
+/// picked up over the rows after it. What it buys is the loop-carried
+/// dependency, without which the row fill cannot vectorise at all.
+#[cfg(not(feature = "fast_ramp"))]
+struct YRamp {
+    value: f32,
+    step: f32,
+    row: i32,
+}
+
+#[cfg(not(feature = "fast_ramp"))]
+impl YRamp {
+    #[inline(always)]
+    fn new(bottom: f32, step: f32, first: i32) -> Self {
+        Self {
+            value: jmath::mul_add(step, first as f32, bottom),
+            step,
+            row: first,
+        }
+    }
+
+    /// `local` never moves backwards, so winding forward visits every row of the
+    /// cell exactly once even when the volume's stride drops some of them.
+    #[inline(always)]
+    fn at(&mut self, local: i32) -> f32 {
+        while self.row < local {
+            self.value += self.step;
+            self.row += 1;
+        }
+        self.value
+    }
+}
+
+#[cfg(feature = "fast_ramp")]
+struct YRamp {
+    bottom: f32,
+    step: f32,
+}
+
+#[cfg(feature = "fast_ramp")]
+impl YRamp {
+    #[inline(always)]
+    fn new(bottom: f32, step: f32, _first: i32) -> Self {
+        Self { bottom, step }
+    }
+
+    #[inline(always)]
+    fn at(&mut self, local: i32) -> f32 {
+        jmath::mul_add(self.step, local as f32, self.bottom)
+    }
+}
+
+/// One column's contiguous run of rows inside a cell, starting at row `first`.
+#[inline(always)]
+fn fill_rows(out: &mut [f32], bottom: f32, step: f32, first: i32) {
+    let mut ramp = YRamp::new(bottom, step, first);
+    for (k, slot) in out.iter_mut().enumerate() {
+        *slot = ramp.at(first + k as i32);
+    }
+}
+
 /// `InterpolatedFunction.Sampler.fillCell` for one column: Z innermost, then X,
 /// then Y accumulated one block at a time from the cell's first row. The Y
 /// accumulation runs over every block row the cell covers, including rows a
@@ -1262,17 +1327,11 @@ fn interpolate(
         let bottom = jmath::lerp(alpha_x, v00, v10);
         let top = jmath::lerp(alpha_x, v01, v11);
         let value_step = (top - bottom) * inv_y;
-        let mut row = (min_y - cell_base).max(0);
-        let mut value = jmath::mul_add(value_step, row as f32, bottom);
+        let mut ramp = YRamp::new(bottom, value_step, (min_y - cell_base).max(0));
 
         let cell_end = cell_base + cell_y;
         while i < out.len() && block_y < cell_end {
-            let local = block_y - cell_base;
-            while row < local {
-                value += value_step;
-                row += 1;
-            }
-            out[i] = value;
+            out[i] = ramp.at(block_y - cell_base);
             i += 1;
             block_y += step_y;
         }
@@ -1285,9 +1344,8 @@ fn interpolate(
 /// the Y run each column contributes is a contiguous write.
 ///
 /// Ranges are clipped to `ext` on every axis rather than assumed to be whole
-/// cells, and the Y accumulator keeps `interpolate`'s single multiply into the
-/// first row followed by repeated addition: a multiply per row would land a
-/// bit away from vanilla.
+/// cells, and the rows go through [`YRamp`] like the strided walk's do, so both
+/// carry whichever of the two profiles' roundings is built.
 fn interpolate_cells(
     out: &mut [f32],
     ext: &Volume,
@@ -1338,13 +1396,9 @@ fn interpolate_cells(
                         let bottom = jmath::lerp(alpha_x, v00, v10);
                         let top = jmath::lerp(alpha_x, v01, v11);
                         let value_step = (top - bottom) * inv_y;
-                        let mut value = jmath::mul_add(value_step, dy0 as f32, bottom);
                         let start =
                             ext.index_unchecked(base_x + dx - min.x, base_y + dy0 - min.y, out_z);
-                        for slot in &mut out[start..start + rows] {
-                            *slot = value;
-                            value += value_step;
-                        }
+                        fill_rows(&mut out[start..start + rows], bottom, value_step, dy0);
                     }
                 }
             }
@@ -1607,6 +1661,47 @@ mod tests {
     fn the_fast_affine_fuses_into_one_rounding() {
         let (evaluated, x, scale, offset) = affine_at_a_rounding_boundary();
         assert_eq!(evaluated, x.mul_add(scale, offset));
+    }
+
+    /// A ramp built both ways over operands that make the two forms disagree,
+    /// which is what makes either direction of this observable at all.
+    fn ramp_at_a_rounding_boundary() -> ([f32; 8], [f32; 8], f32, f32) {
+        let (bottom, step) = (1.0_f32, 0.1_f32);
+        let mut rows = [0.0f32; 8];
+        fill_rows(&mut rows, bottom, step, 0);
+
+        let mut accumulated = [0.0f32; 8];
+        let mut value = bottom;
+        for slot in accumulated.iter_mut() {
+            *slot = value;
+            value += step;
+        }
+        (rows, accumulated, bottom, step)
+    }
+
+    #[cfg(not(feature = "fast_ramp"))]
+    #[test]
+    fn the_strict_ramp_accumulates_a_row_at_a_time() {
+        let (rows, accumulated, bottom, step) = ramp_at_a_rounding_boundary();
+        assert_ne!(
+            accumulated[7],
+            jmath::mul_add(step, 7.0, bottom),
+            "the operands must separate the two forms"
+        );
+        assert_eq!(rows, accumulated);
+    }
+
+    #[cfg(feature = "fast_ramp")]
+    #[test]
+    fn the_fast_ramp_evaluates_the_closed_form() {
+        let (rows, accumulated, bottom, step) = ramp_at_a_rounding_boundary();
+        assert_ne!(
+            rows[7], accumulated[7],
+            "the operands must separate the two forms"
+        );
+        for (k, &value) in rows.iter().enumerate() {
+            assert_eq!(value, jmath::mul_add(step, k as f32, bottom));
+        }
     }
 
     #[test]
