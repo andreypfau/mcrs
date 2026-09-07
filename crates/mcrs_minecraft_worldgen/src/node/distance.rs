@@ -1,4 +1,4 @@
-use crate::jmath::{jmax, sqrt};
+use crate::jmath::{jmax, mul_add, sqrt};
 use crate::volume::Volume;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -15,10 +15,15 @@ impl DistanceMetric {
     /// The squared sum accumulates in `f32`, as `Mth.lengthSquared` does.
     /// Summing in `f64` and narrowing at the end moves the last bits.
     #[inline]
+    fn length_squared(dx: f32, dy: f32, dz: f32) -> f32 {
+        mul_add(dz, dz, mul_add(dy, dy, dx * dx))
+    }
+
+    #[inline]
     pub fn compute(self, dx: f32, dy: f32, dz: f32) -> f32 {
         match self {
-            Self::Euclidean => sqrt(dx * dx + dy * dy + dz * dz),
-            Self::EuclideanSquared => dx * dx + dy * dy + dz * dz,
+            Self::Euclidean => sqrt(Self::length_squared(dx, dy, dz)),
+            Self::EuclideanSquared => Self::length_squared(dx, dy, dz),
             Self::Manhattan => dx.abs() + dy.abs() + dz.abs(),
             Self::Chebyshev => jmax(jmax(dx.abs(), dy.abs()), dz.abs()),
         }
@@ -71,15 +76,19 @@ mod tests {
         run(params, Volume::point(IVec3::new(x, y, z)))[0]
     }
 
+    /// The fast profile fuses the products into the sum. That is one correctly
+    /// rounded result rather than a wider accumulator, but on this offset it
+    /// happens to land on the value widening would have given, so the narrow
+    /// accumulation is pinned in the strict profile alone.
     #[test]
     fn the_square_sum_rounds_in_f32_not_at_the_end() {
         let p = DistanceParams::new(3, 4, 4097, DistanceMetric::EuclideanSquared);
-        assert_eq!(at(&p, 0, 0, 0), 16785432.0);
-        assert_eq!(
-            (3i64 * 3 + 4 * 4 + 4097i64 * 4097) as f64 as f32,
-            16785434.0,
-            "an f64 accumulation would answer this instead"
-        );
+        let widened = (3i64 * 3 + 4 * 4 + 4097i64 * 4097) as f64 as f32;
+        assert_eq!(widened, 16785434.0);
+        #[cfg(not(feature = "fast"))]
+        assert_eq!(at(&p, 0, 0, 0), 16785432.0, "an f64 accumulation answers {widened}");
+        #[cfg(feature = "fast")]
+        assert_eq!(at(&p, 0, 0, 0), widened);
     }
 
     #[test]

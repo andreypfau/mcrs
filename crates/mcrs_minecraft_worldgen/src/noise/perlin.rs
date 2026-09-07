@@ -1,4 +1,4 @@
-use crate::jmath::lerp;
+use crate::jmath::{lerp, mul_add, mul_add64};
 use crate::noise::gradient::{GradientNoise, NoiseFloat, wrap};
 use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
@@ -315,15 +315,18 @@ impl GradientNoise {
                             blend
                         }
                     };
-                    out[index] += amplitude
-                        * blend.sample(
+                    out[index] = mul_add(
+                        amplitude,
+                        blend.sample(
                             local_x,
                             fudged as f32,
                             local_z,
                             fade_x,
                             smoothstep(local_y as f32),
                             fade_z,
-                        );
+                        ),
+                        out[index],
+                    );
                     index += 1;
                 }
             }
@@ -356,21 +359,21 @@ impl GradientNoise {
         let (mut lower_far, mut upper_far) = (0.0f32, 0.0f32);
 
         for ix in 0..size[0] {
-            let x = (offset[0] + ix as f64) * scale[0] + self.offset_x;
+            let x = mul_add64(offset[0] + ix as f64, scale[0], self.offset_x);
             let floor_x = x.floor();
             let perm_x = (floor_x as i32 & 0xFF) as usize;
             let local_x = (x - floor_x) as f32;
             let fade_x = smoothstep(local_x);
 
             for iz in 0..size[2] {
-                let z = (offset[2] + iz as f64) * scale[2] + self.offset_z;
+                let z = mul_add64(offset[2] + iz as f64, scale[2], self.offset_z);
                 let floor_z = z.floor();
                 let perm_z = (floor_z as i32 & 0xFF) as usize;
                 let local_z = (z - floor_z) as f32;
                 let fade_z = smoothstep(local_z);
 
                 for iy in 0..size[1] {
-                    let y = (offset[1] + iy as f64) * scale[1] + self.offset_y;
+                    let y = mul_add64(offset[1] + iy as f64, scale[1], self.offset_y);
                     let floor_y = y.floor();
                     let cell = floor_y as i32 & 0xFF;
                     let local_y = (y - floor_y) as f32;
@@ -408,7 +411,7 @@ impl GradientNoise {
 
                     let near = lerp(fade_y, lower_near, upper_near);
                     let far = lerp(fade_y, lower_far, upper_far);
-                    out[index] += amplitude * lerp(fade_z, near, far);
+                    out[index] = mul_add(amplitude, lerp(fade_z, near, far), out[index]);
                     index += 1;
                 }
             }
@@ -418,7 +421,7 @@ impl GradientNoise {
 
 #[inline(always)]
 pub(crate) fn smoothstep(t: f32) -> f32 {
-    t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+    t * t * t * mul_add(t, mul_add(t, 6.0, -15.0), 10.0)
 }
 #[inline(always)]
 fn lerp_corners(
@@ -564,7 +567,7 @@ impl CellLine {
     ) -> f32 {
         let lower = self.lower_slope.mul_add(local_y, self.lower_at_0);
         let upper = self.upper_slope.mul_add(local_y - 1.0, self.upper_at_0);
-        lower + fade_y * (upper - lower)
+        lerp(fade_y, lower, upper)
     }
 }#[cfg(test)]
 mod collapsed_cell {

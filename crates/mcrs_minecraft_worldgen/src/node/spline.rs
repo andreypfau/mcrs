@@ -1,5 +1,5 @@
 use crate::interval::Interval;
-use crate::jmath::{jmax, jmin, lerp};
+use crate::jmath::{jmax, jmin, lerp, mul_add};
 use crate::kernel::{Runs, at, each_column};
 use crate::volume::Volume;
 
@@ -67,9 +67,9 @@ fn sample<'a>(value: &SplineValue, read: &dyn Fn(usize) -> &'a [f32], i: usize) 
     let y2 = sample(&m.values[start + 1], read, i);
     let d1 = m.derivatives[start];
     let d2 = m.derivatives[start + 1];
-    let a = d1 * (x2 - x1) - (y2 - y1);
-    let b = -d2 * (x2 - x1) + (y2 - y1);
-    lerp(t, y1, y2) + t * (1.0 - t) * lerp(t, a, b)
+    let a = mul_add(d1, x2 - x1, -(y2 - y1));
+    let b = mul_add(-d2, x2 - x1, y2 - y1);
+    mul_add(t * (1.0 - t), lerp(t, a, b), lerp(t, y1, y2))
 }
 
 /// `Mth.binarySearch(0, len, i -> input < locations[i]) - 1`, transcribed rather
@@ -105,7 +105,7 @@ fn linear_extend(
     if derivative == 0.0 {
         value
     } else {
-        value + derivative * (input - locations[index])
+        mul_add(derivative, input - locations[index], value)
     }
 }
 

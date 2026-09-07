@@ -934,7 +934,7 @@ impl Program {
                 if drops_offset(o) {
                     map_columns(out, &ext, read(*input), |v| v * s)
                 } else {
-                    map_columns(out, &ext, read(*input), |v| v * s + o)
+                    map_columns(out, &ext, read(*input), |v| jmath::mul_add(v, s, o))
                 }
             }
             Node::PiecewiseAffine {
@@ -948,7 +948,11 @@ impl Program {
                     map_columns(out, &ext, read(*input), |v| if v < 0.0 { v * n } else { v * p })
                 } else {
                     map_columns(out, &ext, read(*input), |v| {
-                        if v < 0.0 { v * n + o } else { v * p + o }
+                        if v < 0.0 {
+                            jmath::mul_add(v, n, o)
+                        } else {
+                            jmath::mul_add(v, p, o)
+                        }
                     })
                 }
             }
@@ -1259,7 +1263,7 @@ fn interpolate(
         let top = jmath::lerp(alpha_x, v01, v11);
         let value_step = (top - bottom) * inv_y;
         let mut row = (min_y - cell_base).max(0);
-        let mut value = bottom + value_step * row as f32;
+        let mut value = jmath::mul_add(value_step, row as f32, bottom);
 
         let cell_end = cell_base + cell_y;
         while i < out.len() && block_y < cell_end {
@@ -1334,7 +1338,7 @@ fn interpolate_cells(
                         let bottom = jmath::lerp(alpha_x, v00, v10);
                         let top = jmath::lerp(alpha_x, v01, v11);
                         let value_step = (top - bottom) * inv_y;
-                        let mut value = bottom + value_step * dy0 as f32;
+                        let mut value = jmath::mul_add(value_step, dy0 as f32, bottom);
                         let start =
                             ext.index_unchecked(base_x + dx - min.x, base_y + dy0 - min.y, out_z);
                         for slot in &mut out[start..start + rows] {
@@ -1568,8 +1572,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn affine_rounds_twice_and_never_fuses() {
+    /// Operands chosen so the fused and the unfused form disagree, which is
+    /// what makes either direction of this observable at all.
+    fn affine_at_a_rounding_boundary() -> (f32, f32, f32, f32) {
         let x = 1.000_000_1_f32;
         let (scale, offset) = (3.000_000_5_f32, -3.000_001_5_f32);
         let nodes = vec![
@@ -1581,12 +1586,27 @@ mod tests {
             },
         ];
         let p = program(nodes, vec![NO_AXES; 2], vec![1]);
-        let v = Volume::point(IVec3::ZERO);
-        assert_eq!(
-            run(&p, &v, 0)[0],
+        let evaluated = run(&p, &Volume::point(IVec3::ZERO), 0)[0];
+        (evaluated, x, scale, offset)
+    }
+
+    #[cfg(not(feature = "fast"))]
+    #[test]
+    fn the_strict_affine_rounds_twice_as_java_does() {
+        let (evaluated, x, scale, offset) = affine_at_a_rounding_boundary();
+        assert_ne!(
             x * scale + offset,
-            "two roundings, as Java does; mul_add would round once"
+            x.mul_add(scale, offset),
+            "the operands must separate the two forms"
         );
+        assert_eq!(evaluated, x * scale + offset);
+    }
+
+    #[cfg(feature = "fast")]
+    #[test]
+    fn the_fast_affine_fuses_into_one_rounding() {
+        let (evaluated, x, scale, offset) = affine_at_a_rounding_boundary();
+        assert_eq!(evaluated, x.mul_add(scale, offset));
     }
 
     #[test]

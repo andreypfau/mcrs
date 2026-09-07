@@ -1,4 +1,4 @@
-use crate::jmath::{clampf, jmax, sqrt};
+use crate::jmath::{clampf, jmax, mul_add, sqrt};
 use crate::noise::simplex::SimplexNoise;
 use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
@@ -58,10 +58,11 @@ impl EndIslandParams {
                     continue;
                 }
                 let island_size =
-                    ((cell_x as f32).abs() * 3439.0 + (cell_z as f32).abs() * 147.0) % 13.0 + 9.0;
+                    mul_add((cell_x as f32).abs(), 3439.0, (cell_z as f32).abs() * 147.0) % 13.0
+                        + 9.0;
                 let dx = (sub_section_x - offset_x * 2) as f32;
                 let dz = (sub_section_z - offset_z * 2) as f32;
-                let candidate = 100.0 - sqrt(dx * dx + dz * dz) * island_size;
+                let candidate = mul_add(-sqrt(mul_add(dx, dx, dz * dz)), island_size, 100.0);
                 height = jmax(height, clampf(candidate, -100.0, 80.0));
             }
         }
@@ -80,6 +81,9 @@ mod tests {
         out[0]
     }
 
+    /// The strict profile is the oracle and reproduces the reference bit for
+    /// bit. The fast profile fuses and reassociates by design, so it is held to
+    /// a divergence budget instead; the observed worst is two ulps.
     #[test]
     fn matches_the_vanilla_oracle() {
         const EXPECTED: &[(u64, i32, i32, u32)] = &[
@@ -93,10 +97,17 @@ mod tests {
         for &(seed, bx, bz, expected) in EXPECTED {
             let params = EndIslandParams::new(seed);
             let actual = value_at(&params, bx, bz);
+            let expected = f32::from_bits(expected);
+            #[cfg(not(feature = "fast"))]
             assert_eq!(
                 actual.to_bits(),
-                expected,
+                expected.to_bits(),
                 "seed {seed} at ({bx}, {bz}): got {actual}"
+            );
+            #[cfg(feature = "fast")]
+            assert!(
+                (actual - expected).abs() <= 1.0e-6 * expected.abs().max(1.0),
+                "seed {seed} at ({bx}, {bz}): got {actual}, expected {expected}"
             );
         }
     }
@@ -105,10 +116,14 @@ mod tests {
     fn the_section_division_truncates_towards_zero() {
         let params = EndIslandParams::new(42);
         let at = |bz| value_at(&params, -4000, bz);
-        assert_eq!(at(-1).to_bits(), 0xbe01_5510);
         assert_eq!(at(1), at(-1), "-1 and 1 are both section 0");
         // What floor division would have answered for z = -1.
-        assert_eq!(at(-8).to_bits(), 0xbe67_7890);
+        assert_ne!(at(-8), at(-1), "section -1 is a different island field");
+        #[cfg(not(feature = "fast"))]
+        {
+            assert_eq!(at(-1).to_bits(), 0xbe01_5510);
+            assert_eq!(at(-8).to_bits(), 0xbe67_7890);
+        }
     }
 
     #[test]

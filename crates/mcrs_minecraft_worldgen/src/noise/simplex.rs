@@ -1,3 +1,4 @@
+use crate::jmath::mul_add64;
 use crate::noise::gradient::{GradientNoise, NoiseFloat};
 use mcrs_minecraft_random::Random;
 
@@ -13,7 +14,7 @@ pub struct SimplexNoise(GradientNoise);
 /// which zeroes the gradient's z component.
 #[inline(always)]
 fn corner(gradient_index: usize, x: f64, y: f64, z: f64, distance: f64) -> f64 {
-    let t = distance - x * x - y * y - z * z;
+    let t = mul_add64(-z, z, mul_add64(-y, y, mul_add64(-x, x, distance)));
     if t < 0.0 {
         0.0
     } else {
@@ -46,8 +47,8 @@ impl SimplexNoise {
     }
 
     pub fn sample_2d(&self, x: f64, z: f64, scale_x: f64, scale_z: f64) -> f64 {
-        let px = x * scale_x + self.0.offset_x;
-        let py = z * scale_z + self.0.offset_y;
+        let px = mul_add64(x, scale_x, self.0.offset_x);
+        let py = mul_add64(z, scale_z, self.0.offset_y);
 
         let skew = (px + py) * Self::SKEW_2D;
         let i = (px + skew).floor() as i32;

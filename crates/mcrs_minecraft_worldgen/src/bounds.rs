@@ -1,5 +1,5 @@
 use crate::interval::Interval;
-use crate::jmath::jmax;
+use crate::jmath::{jmax, mul_add};
 use crate::program::{BinaryOp, Node, NodeId, RoundKind, UnaryOp};
 
 /// Which of the two bounds a walk over the graph is after. The arithmetic over
@@ -37,10 +37,14 @@ pub fn node_bounds(
             scale,
             offset,
         } => {
-            // Two roundings, matching the sampler: a fused multiply-add here
-            // would place the bound an ulp off the values it must contain.
+            // Rounded the way the sampler rounds: a bound that fuses where the
+            // sampler does not, or the other way round, lands an ulp off the
+            // values it has to contain.
             let input = at(*input);
-            Interval::encapsulating(input.min() * scale + offset, input.max() * scale + offset)
+            Interval::encapsulating(
+                mul_add(input.min(), *scale, *offset),
+                mul_add(input.max(), *scale, *offset),
+            )
         }
         Node::PiecewiseAffine {
             input,
@@ -50,9 +54,9 @@ pub fn node_bounds(
         } => {
             let apply = |v: f32| {
                 if v < 0.0 {
-                    v * neg_scale + offset
+                    mul_add(v, *neg_scale, *offset)
                 } else {
-                    v * pos_scale + offset
+                    mul_add(v, *pos_scale, *offset)
                 }
             };
             let input = at(*input);

@@ -244,9 +244,9 @@ mod bound_tests {
         ];
         #[cfg(feature = "fast")]
         let expected: [[u32; 3]; 3] = [
-            [0x3e680480, 0x3e2b16cf, 0xbf10532f],
-            [0x3de878bf, 0x3dab6c84, 0xbe909b7c],
-            [0x3db7593b, 0x3d87335e, 0xbe6419f0],
+            [0x3e68046b, 0x3e2b16eb, 0xbf10532f],
+            [0x3de878aa, 0x3dab6ca1, 0xbe909b7e],
+            [0x3db75929, 0x3d873374, 0xbe6419f4],
         ];
         for (mode, bits) in [
             Normalization::Disabled,

@@ -1,4 +1,4 @@
-use crate::jmath::{floor_div, floor_mod};
+use crate::jmath::{floor_div, floor_mod, mul_add};
 use crate::volume::{Axis, Volume};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
@@ -39,11 +39,11 @@ impl GradientParams {
                 // The clamp uses the sorted pair while the offset uses the
                 // original from_coordinate; a descending gradient needs both.
                 self.fill(out, ext, |c| {
-                    base + (c.clamp(lo, hi) - from_coordinate) as f32 * factor
+                    mul_add((c.clamp(lo, hi) - from_coordinate) as f32, factor, base)
                 })
             }
             Tiling::Repeat => self.fill(out, ext, |c| {
-                base + floor_mod(c - from_coordinate, range) as f32 * factor
+                mul_add(floor_mod(c - from_coordinate, range) as f32, factor, base)
             }),
             Tiling::MirroredRepeat => self.fill(out, ext, |c| {
                 let relative = c - from_coordinate;
@@ -52,7 +52,7 @@ impl GradientParams {
                 // Two's-complement parity, which stays correct for a negative
                 // tile; `tile % 2 == 0` does not.
                 let offset = if tile & 1 == 0 { local } else { range - local };
-                base + offset as f32 * factor
+                mul_add(offset as f32, factor, base)
             }),
         }
     }

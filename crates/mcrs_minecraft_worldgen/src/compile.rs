@@ -691,7 +691,7 @@ impl<'a> Compiler<'a> {
     /// while `(v * s1) * s2` and `v * (s1 * s2)` are not.
     fn affine(&mut self, input: NodeId, scale: f32, offset: f32) -> NodeId {
         if let Some(value) = self.as_constant(input) {
-            return self.constant(value * scale + offset);
+            return self.constant(jmath::mul_add(value, scale, offset));
         }
         if scale == 1.0 && offset == 0.0 {
             return input;
@@ -745,7 +745,7 @@ impl<'a> Compiler<'a> {
             return self.constant(if drops_offset(offset) {
                 value * scale
             } else {
-                value * scale + offset
+                jmath::mul_add(value, scale, offset)
             });
         }
         self.intern(

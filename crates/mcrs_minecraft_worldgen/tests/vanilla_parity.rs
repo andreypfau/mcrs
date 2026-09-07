@@ -13,7 +13,7 @@ const MAGIC: &[u8; 8] = b"MCDFORCL";
 /// The strict profile is the oracle and must reproduce the dumps bit for bit.
 /// The fast profile reassociates and fuses roundings by design, so it is held to
 /// a divergence budget instead — the divergence is measured, not waived. The
-/// observed worst is 2.8e-6 on `final_density`; a break in the function itself
+/// observed worst is 3.3e-6 on `final_density`; a break in the function itself
 /// would be orders of magnitude wider.
 #[cfg(not(feature = "fast"))]
 const DIVERGENCE_BUDGET: Option<f32> = None;

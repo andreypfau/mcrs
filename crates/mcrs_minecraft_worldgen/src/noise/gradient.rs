@@ -1,3 +1,4 @@
+use crate::jmath::mul_add64;
 use mcrs_minecraft_random::Random;
 
 /// The 16-entry Ken Perlin gradient table shared by the Perlin (`ImprovedNoise`) and
@@ -31,19 +32,11 @@ pub trait NoiseFloat:
     ///
     /// Masking with 60 keeps the three reads provably inside the table, which is
     /// what lets the bounds checks go without `unsafe`.
-    #[inline(always)]
-    fn grad_dot_at(index: usize, x: Self, y: Self, z: Self) -> Self {
-        let i = index & 60;
-        Self::GRAD_FLAT[i] * x + Self::GRAD_FLAT[i | 1] * y + Self::GRAD_FLAT[i | 2] * z
-    }
+    fn grad_dot_at(index: usize, x: Self, y: Self, z: Self) -> Self;
 
     /// Dot without the y term — vanilla's `dotXz`. The 2D fills and the modern
     /// path's column split both need the xz plane on its own.
-    #[inline(always)]
-    fn grad_dot_xz_at(index: usize, x: Self, z: Self) -> Self {
-        let i = index & 60;
-        Self::GRAD_FLAT[i] * x + Self::GRAD_FLAT[i | 2] * z
-    }
+    fn grad_dot_xz_at(index: usize, x: Self, z: Self) -> Self;
 
     /// The gradient's y component, which the modern path carries as the slope of
     /// a column rather than folding it into the dot.
@@ -80,6 +73,24 @@ impl NoiseFloat for f64 {
     #[inline(always)]
     fn from_f64(value: f64) -> f64 {
         value
+    }
+
+    /// Every gradient has one zero component, so one of the three products is
+    /// always ±0 and the nesting cannot move the strict result.
+    #[inline(always)]
+    fn grad_dot_at(index: usize, x: f64, y: f64, z: f64) -> f64 {
+        let i = index & 60;
+        mul_add64(
+            Self::GRAD_FLAT[i | 2],
+            z,
+            mul_add64(Self::GRAD_FLAT[i | 1], y, Self::GRAD_FLAT[i] * x),
+        )
+    }
+
+    #[inline(always)]
+    fn grad_dot_xz_at(index: usize, x: f64, z: f64) -> f64 {
+        let i = index & 60;
+        mul_add64(Self::GRAD_FLAT[i | 2], z, Self::GRAD_FLAT[i] * x)
     }
 }
 

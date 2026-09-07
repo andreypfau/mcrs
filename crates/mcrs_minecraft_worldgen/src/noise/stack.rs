@@ -1,4 +1,5 @@
 use crate::interval::Interval;
+use crate::jmath::mul_add;
 use crate::noise::Noise;
 use crate::noise::gradient::GradientNoise;
 use crate::noise::perlin::{LegacyPerlin2dNoise, PerlinNoise, SmearedPerlinNoise};
@@ -273,7 +274,7 @@ impl<N: Noise> NoiseStack<N> {
         let mut value = 0.0f32;
         for layer in &self.layers {
             let f = layer.frequency;
-            value += layer.amplitude * layer.noise.get(x * f, y * f, z * f);
+            value = mul_add(layer.amplitude, layer.noise.get(x * f, y * f, z * f), value);
         }
         value
     }
@@ -299,7 +300,7 @@ impl<N: Noise> NoiseStack<N> {
                 .noise
                 .get_column(x * f, z * f, &scratch.scaled, &mut scratch.layer);
             for (slot, &sampled) in out.iter_mut().zip(scratch.layer.iter()) {
-                *slot += layer.amplitude * sampled;
+                *slot = mul_add(layer.amplitude, sampled, *slot);
             }
         }
     }
@@ -332,7 +333,7 @@ impl<N: Noise> NoiseStack<N> {
                 &mut scratch.layer,
             );
             for (slot, &sampled) in out.iter_mut().zip(scratch.layer.iter()) {
-                *slot += layer.amplitude * sampled;
+                *slot = mul_add(layer.amplitude, sampled, *slot);
             }
         }
     }
