@@ -205,10 +205,15 @@ fn unload_chunks(
     })
 }
 
+/// A chunk awaiting despawn must not be handed the ticket: `despawn_chunks`
+/// takes it with the entity, and nothing re-raises a ticket a view already
+/// believes it has placed, so the section never loads again. The ticket stays
+/// queued instead and spawns a fresh entity once the old one is gone.
 pub fn spawn_chunks(
     mut dims: Query<(Entity, &mut ChunkTicketsCommands, &mut ChunkIndex)>,
     mut commands: Commands,
     mut chunks: Query<(Entity, &mut ChunkTicketHolder), With<Chunk>>,
+    condemned: Query<(), Or<(With<ChunkUnloading>, With<ChunkUnloaded>)>>,
 ) {
     for (dim, mut chunk_tickets, mut chunk_index) in dims.iter_mut() {
         if chunk_tickets.add_tickets.is_empty() {
@@ -223,6 +228,9 @@ pub fn spawn_chunks(
             .collect();
 
         for pos in keys_to_process {
+            if chunk_index.get(pos).is_some_and(|e| condemned.contains(e)) {
+                continue;
+            }
             let Some(tickets) = chunk_tickets.add_tickets.swap_remove(&pos) else {
                 continue;
             };
@@ -280,6 +288,46 @@ fn remove_tickets_from_chunks(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_ticket_outlives_the_chunk_it_arrived_too_late_for() {
+        let mut app = App::new();
+        app.add_systems(FixedUpdate, (spawn_chunks, despawn_chunks).chain());
+        let dim = app
+            .world_mut()
+            .spawn((ChunkTicketsCommands::default(), ChunkIndex::new()))
+            .id();
+        let pos = ChunkPos::new(0, 0, 0);
+        let dying = app
+            .world_mut()
+            .spawn((
+                ChunkBundle::new(InDimension(dim), pos),
+                ChunkTicketHolder(Vec::new()),
+                ChunkUnloaded,
+            ))
+            .id();
+        let mut dim_entity = app.world_mut().entity_mut(dim);
+        dim_entity
+            .get_mut::<ChunkIndex>()
+            .expect("chunk index")
+            .insert(pos, dying);
+        dim_entity
+            .get_mut::<ChunkTicketsCommands>()
+            .expect("ticket commands")
+            .add_ticket(pos, Ticket::new(TicketKind::Forced));
+
+        app.world_mut().run_schedule(FixedUpdate);
+        assert!(app.world().get_entity(dying).is_err());
+
+        app.world_mut().run_schedule(FixedUpdate);
+        let respawned = app
+            .world()
+            .get::<ChunkIndex>(dim)
+            .expect("chunk index")
+            .get(pos)
+            .expect("the ticket spawns a fresh section once the old one is gone");
+        assert_ne!(respawned, dying);
+    }
 
     #[test]
     fn chunk_fresh_lasts_through_the_tick_after_the_one_it_landed_in() {

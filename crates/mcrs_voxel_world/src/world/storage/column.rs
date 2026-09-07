@@ -1,14 +1,10 @@
-// The ColumnLifecycleSet stages exist so downstream crates can order their own
-// per-column work against the storage-side reconciliation without this crate
-// having to know about them.
-
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
-use crate::world::lifecycle::markers::{ChunkFresh, ChunkLoaded, ChunkUnloading};
+use crate::world::lifecycle::markers::{ChunkFresh, ChunkLoaded, ChunkUnloaded, ChunkUnloading};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{
-    Added, ApplyDeferred, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query,
-    SystemSet, With, Without,
+    Added, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query, SystemSet, With,
+    Without,
 };
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
@@ -21,8 +17,10 @@ pub use mcrs_voxel_math::ColumnPos;
 #[component(storage = "SparseSet")]
 pub struct Column;
 
-/// Back-link from a chunk entity to its owning column entity.
-/// Inserted by `reconcile_column_chunks` (Stage 2).
+/// Back-link from a chunk entity to its owning column entity. It is what says a
+/// section is counted in its column's `section_count`: `reconcile_columns`
+/// attaches it as the section joins and takes it off as the section leaves, in
+/// the same run as the matching increment or decrement.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct InColumn(pub Entity);
 
@@ -147,33 +145,44 @@ impl ColumnBundle {
     }
 }
 
-/// Ordered lifecycle stages for chunk-column reconciliation.
+/// Anchor for downstream per-column work to order itself against.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ColumnLifecycleSet {
-    Reconcile,
-    ReconcileIndex,
-}
+pub struct ColumnLifecycleSet;
 
-/// Stage 1: when a chunk becomes `ChunkLoaded` (or `ChunkUnloading`),
-/// create / refcount its owning column entity.
+/// Reconciles the column index against the sections that landed or left this
+/// run. One system rather than two: a split pair has one `Added` window per
+/// system, and the two instances of the pair (the tick and the column drain)
+/// interleave, so a section could be counted by one half and not the other.
 ///
-/// `InColumn` is what says a section is counted: Stage 2 attaches it when the
-/// section joins and takes it off when it leaves, so a section counts once no
-/// matter how many times it is loaded or unloaded. A section may be marked
-/// `ChunkUnloading` again after the marker was stripped — a chunk awaiting
-/// despawn can still be handed tickets and lose them — and each such edge would
-/// otherwise decrement a column that section left long ago.
-pub fn reconcile_column_existence(
+/// A section already on its way out is not counted at all. Cancelling one whose
+/// generation had finished leaves it holding `ChunkLoaded` and `ChunkUnloading`
+/// together, and counting it would spend an unloading edge that has already
+/// gone by — the column would then hold a section that never leaves it.
+pub fn reconcile_columns(
     newly_loaded: Query<
-        (&ChunkPos, &InDimension),
-        (Added<ChunkLoaded>, With<ChunkFresh>, Without<InColumn>),
+        (Entity, &ChunkPos, &InDimension),
+        (
+            Added<ChunkLoaded>,
+            With<ChunkFresh>,
+            Without<InColumn>,
+            Without<ChunkUnloading>,
+            Without<ChunkUnloaded>,
+        ),
     >,
-    newly_unloading: Query<(&ChunkPos, &InDimension), (Added<ChunkUnloading>, With<InColumn>)>,
+    newly_unloading: Query<
+        (Entity, &ChunkPos, &InDimension),
+        (Added<ChunkUnloading>, With<InColumn>),
+    >,
     mut dimensions: Query<&mut ColumnIndex>,
     dim_configs: Query<&DimensionTypeConfig>,
+    mut columns: Query<&mut ColumnChunks>,
     mut commands: Commands,
 ) {
-    for (chunk_pos, in_dim) in newly_loaded.iter() {
+    // A column spawned this run is not in `columns` yet, so its sections are
+    // gathered here and land with the entity's own `ColumnChunks`.
+    let mut spawned: FxHashMap<Entity, ColumnChunks> = FxHashMap::default();
+
+    for (chunk_entity, chunk_pos, in_dim) in newly_loaded.iter() {
         let col_pos = ColumnPos::from(*chunk_pos);
         let Ok(mut column_index) = dimensions.get_mut(in_dim.0) else {
             continue;
@@ -181,103 +190,67 @@ pub fn reconcile_column_existence(
         let Ok(dim_config) = dim_configs.get(in_dim.0) else {
             continue;
         };
-        match column_index.0.entry(col_pos) {
+        let slot = *match column_index.0.entry(col_pos) {
             std::collections::hash_map::Entry::Vacant(v) => {
                 let col_entity = commands
                     .spawn(ColumnBundle::new(col_pos, *in_dim, dim_config))
                     .id();
+                spawned.insert(
+                    col_entity,
+                    ColumnChunks::new(
+                        dim_config.min_y >> BLOCKS::BITS,
+                        dim_config.section_count as usize,
+                    ),
+                );
                 v.insert(ColumnSlot {
                     entity: col_entity,
                     section_count: 1,
-                });
+                })
             }
-            std::collections::hash_map::Entry::Occupied(mut o) => {
-                o.get_mut().section_count += 1;
-            }
-        }
-    }
-
-    for (chunk_pos, in_dim) in newly_unloading.iter() {
-        let col_pos = ColumnPos::from(*chunk_pos);
-        let Ok(mut column_index) = dimensions.get_mut(in_dim.0) else {
-            continue;
-        };
-        let despawned = match column_index.0.get_mut(&col_pos) {
-            Some(slot) => {
-                if slot.section_count > 0 {
-                    slot.section_count -= 1;
-                } else {
-                    tracing::warn!(
-                        ?col_pos,
-                        dim = ?in_dim.0,
-                        "ChunkUnloading decrement past zero suppressed; refcount bug upstream"
-                    );
-                }
-                if slot.section_count == 0 {
-                    Some(slot.entity)
-                } else {
-                    None
-                }
-            }
-            None => {
-                tracing::warn!(
-                    ?col_pos,
-                    dim = ?in_dim.0,
-                    "ChunkUnloading observed for chunk with no matching ColumnSlot entry"
-                );
-                None
+            std::collections::hash_map::Entry::Occupied(o) => {
+                let slot = o.into_mut();
+                slot.section_count += 1;
+                slot
             }
         };
-        if let Some(entity) = despawned {
-            commands.entity(entity).despawn();
-            column_index.0.remove(&col_pos);
-        }
-    }
-}
-
-/// Stage 2: after Stage 1's `ApplyDeferred` flushes the spawn commands, the
-/// new column entities are visible. Insert the chunk into its column's
-/// `ColumnChunks` and attach the `InColumn` back-link.
-pub fn reconcile_column_chunks(
-    newly_loaded: Query<(Entity, &ChunkPos, &InDimension), (Added<ChunkLoaded>, With<ChunkFresh>)>,
-    newly_unloading: Query<
-        (Entity, &ChunkPos, &InDimension),
-        (Added<ChunkUnloading>, With<InColumn>),
-    >,
-    dimensions: Query<&ColumnIndex>,
-    mut columns: Query<&mut ColumnChunks>,
-    mut commands: Commands,
-) {
-    for (chunk_entity, chunk_pos, in_dim) in newly_loaded.iter() {
-        let col_pos = ColumnPos::from(*chunk_pos);
-        let Ok(column_index) = dimensions.get(in_dim.0) else {
-            continue;
-        };
-        let Some(slot) = column_index.0.get(&col_pos) else {
-            tracing::warn!(
-                ?col_pos,
-                dim = ?in_dim.0,
-                "ChunkLoaded reached Stage 2 with no ColumnSlot — Stage 1 ApplyDeferred barrier failed"
-            );
-            continue;
-        };
-        if let Ok(mut column_chunks) = columns.get_mut(slot.entity) {
-            column_chunks.set_loaded(chunk_pos.y, chunk_entity);
+        match spawned.get_mut(&slot.entity) {
+            Some(column_chunks) => column_chunks.set_loaded(chunk_pos.y, chunk_entity),
+            None => columns
+                .get_mut(slot.entity)
+                .unwrap_or_else(|_| {
+                    panic!("column {col_pos:?} is in the index without its ColumnChunks")
+                })
+                .set_loaded(chunk_pos.y, chunk_entity),
         }
         commands.entity(chunk_entity).insert(InColumn(slot.entity));
+    }
+
+    for (col_entity, column_chunks) in spawned {
+        commands.entity(col_entity).insert(column_chunks);
     }
 
     for (chunk_entity, chunk_pos, in_dim) in newly_unloading.iter() {
         commands.entity(chunk_entity).try_remove::<InColumn>();
         let col_pos = ColumnPos::from(*chunk_pos);
-        let Ok(column_index) = dimensions.get(in_dim.0) else {
+        let Ok(mut column_index) = dimensions.get_mut(in_dim.0) else {
             continue;
         };
-        let Some(slot) = column_index.0.get(&col_pos) else {
-            continue;
-        };
-        if let Ok(mut column_chunks) = columns.get_mut(slot.entity) {
+        let slot = column_index.0.get_mut(&col_pos).unwrap_or_else(|| {
+            panic!("section of {col_pos:?} holds InColumn but the column left the index")
+        });
+        assert!(
+            slot.section_count > 0,
+            "column {col_pos:?} counts fewer sections than hold its InColumn",
+        );
+        slot.section_count -= 1;
+        let column_entity = slot.entity;
+        let emptied = slot.section_count == 0;
+        if let Ok(mut column_chunks) = columns.get_mut(column_entity) {
             column_chunks.set_unloaded(chunk_pos.y);
+        }
+        if emptied {
+            column_index.0.remove(&col_pos);
+            commands.entity(column_entity).despawn();
         }
     }
 }
@@ -286,15 +259,7 @@ pub struct ColumnPlugin;
 
 impl Plugin for ColumnPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            FixedUpdate,
-            (
-                reconcile_column_existence.in_set(ColumnLifecycleSet::Reconcile),
-                ApplyDeferred,
-                reconcile_column_chunks.in_set(ColumnLifecycleSet::ReconcileIndex),
-            )
-                .chain(),
-        );
+        app.add_systems(FixedUpdate, reconcile_columns.in_set(ColumnLifecycleSet));
     }
 }
 
@@ -311,15 +276,7 @@ mod tests {
     #[test]
     fn a_section_cancelled_before_it_loaded_does_not_decrement_its_column() {
         let mut app = App::new();
-        app.add_systems(
-            FixedUpdate,
-            (
-                reconcile_column_existence,
-                ApplyDeferred,
-                reconcile_column_chunks,
-            )
-                .chain(),
-        );
+        app.add_systems(FixedUpdate, reconcile_columns);
         let dim = app
             .world_mut()
             .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))
@@ -342,15 +299,7 @@ mod tests {
     #[test]
     fn a_section_unloaded_twice_only_decrements_once() {
         let mut app = App::new();
-        app.add_systems(
-            FixedUpdate,
-            (
-                reconcile_column_existence,
-                ApplyDeferred,
-                reconcile_column_chunks,
-            )
-                .chain(),
-        );
+        app.add_systems(FixedUpdate, reconcile_columns);
         let dim = app
             .world_mut()
             .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))
@@ -390,6 +339,39 @@ mod tests {
         assert_eq!(count(&app), Some(1));
 
         assert!(app.world().get::<InColumn>(kept).is_some());
+    }
+
+    /// A section cancelled after its generation finished carries `ChunkUnloading`
+    /// and `ChunkLoaded` at once, and the tick's reconciler and the drain's see
+    /// that pair through separate `Added` windows.
+    #[test]
+    fn a_section_that_lands_already_cancelled_leaves_no_column_behind() {
+        #[derive(bevy_ecs::schedule::ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
+        struct Drain;
+
+        let mut app = App::new();
+        app.add_systems(FixedUpdate, reconcile_columns);
+        app.add_systems(Drain, reconcile_columns);
+        let dim = app
+            .world_mut()
+            .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))
+            .id();
+
+        let chunk = app
+            .world_mut()
+            .spawn((ChunkPos::new(0, 0, 0), InDimension(dim), ChunkUnloading))
+            .id();
+        app.world_mut().run_schedule(FixedUpdate);
+        app.world_mut().entity_mut(chunk).insert(ChunkLoaded);
+        app.world_mut().run_schedule(Drain);
+        app.world_mut().run_schedule(FixedUpdate);
+        app.world_mut().run_schedule(Drain);
+
+        let index = app.world().get::<ColumnIndex>(dim).expect("column index");
+        assert_eq!(
+            index.0.get(&ColumnPos::new(0, 0)).map(|s| s.section_count),
+            None
+        );
     }
 
     #[test]

@@ -271,8 +271,7 @@ pub fn spawn_dim_subapp(
             crate::world::chunk::process_completed_columns,
             // The light packet walks the column index, which is rebuilt here rather than left
             // to the tick: a column sent before its sections are in it goes out unlit.
-            mcrs_voxel_world::world::storage::column::reconcile_column_existence,
-            mcrs_voxel_world::world::storage::column::reconcile_column_chunks,
+            mcrs_voxel_world::world::storage::column::reconcile_columns,
             crate::world::heightmap::prime_column_heightmaps,
             mcrs_voxel_world::entity::player::chunk_view::update_loading_queue,
             crate::world::entity::player::column_view::load_chunk_request,
