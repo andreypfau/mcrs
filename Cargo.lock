@@ -3564,6 +3564,7 @@ dependencies = [
 name = "mcrs_minecraft_decoration"
 version = "0.1.0"
 dependencies = [
+ "fixedbitset",
  "mcrs_minecraft_random",
  "mcrs_voxel_storage",
 ]

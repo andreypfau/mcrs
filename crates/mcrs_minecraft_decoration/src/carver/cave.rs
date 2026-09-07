@@ -1,15 +1,15 @@
 use crate::carver::config::BetaCaveCarverConfig;
+use crate::carver::mask::CarvingMask;
 use crate::carver::water::WaterMask;
 use crate::carver::{WorldCarver, carve_ellipsoid};
 use crate::math::{cos as math_helper_cos, sin as math_helper_sin};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_voxel_storage::VoxelId;
 
 pub struct CaveWorldCarver;
 
 impl WorldCarver for CaveWorldCarver {
-    fn carve<R: Random, G, S>(
+    fn carve<R: Random>(
         &self,
         config: &BetaCaveCarverConfig,
         chunk_x: i32,
@@ -17,14 +17,9 @@ impl WorldCarver for CaveWorldCarver {
         origin_x: i32,
         origin_z: i32,
         water: &WaterMask,
-        get_block: G,
-        set_block: S,
+        mask: &mut CarvingMask,
         rng: &mut R,
-    ) where
-        G: Fn(i32, i32, i32) -> VoxelId,
-        S: FnMut(i32, i32, i32, VoxelId),
-    {
-        let mut set_block = set_block;
+    ) {
         let cave_count = {
             let a = rng.next_i32_bound(40) + 1;
             let b = rng.next_i32_bound(a) + 1;
@@ -61,8 +56,7 @@ impl WorldCarver for CaveWorldCarver {
                     -1,
                     0.5,
                     water,
-                    &get_block,
-                    &mut set_block,
+                    mask,
                     &mut tunnel_rng,
                     rng,
                 );
@@ -90,8 +84,7 @@ impl WorldCarver for CaveWorldCarver {
                     0,
                     1.0,
                     water,
-                    &get_block,
-                    &mut set_block,
+                    mask,
                     &mut tunnel_rng,
                     rng,
                 );
@@ -106,7 +99,7 @@ impl WorldCarver for CaveWorldCarver {
 /// `parent_rng` is the per-carve-origin Random, used only for seeding split sub-tunnels
 /// (mirrors Java `this.b.nextLong()` in recursive calls).
 #[allow(clippy::too_many_arguments)]
-fn create_tunnel<R: Random, G, S>(
+fn create_tunnel<R: Random>(
     config: &BetaCaveCarverConfig,
     chunk_x: i32,
     chunk_z: i32,
@@ -120,15 +113,10 @@ fn create_tunnel<R: Random, G, S>(
     total_steps: i32,
     d3: f64,
     water: &WaterMask,
-    get_block: &G,
-    set_block: &mut S,
+    mask: &mut CarvingMask,
     rng: &mut LegacyRandom,
     parent_rng: &mut R,
-) where
-    R: Random,
-    G: Fn(i32, i32, i32) -> VoxelId,
-    S: FnMut(i32, i32, i32, VoxelId),
-{
+) {
     let range = config.range;
     let mut total_steps = total_steps;
 
@@ -190,8 +178,7 @@ fn create_tunnel<R: Random, G, S>(
                 total_steps,
                 1.0,
                 water,
-                get_block,
-                set_block,
+                mask,
                 &mut rng_a,
                 parent_rng,
             );
@@ -212,8 +199,7 @@ fn create_tunnel<R: Random, G, S>(
                 total_steps,
                 1.0,
                 water,
-                get_block,
-                set_block,
+                mask,
                 &mut rng_b,
                 parent_rng,
             );
@@ -236,9 +222,7 @@ fn create_tunnel<R: Random, G, S>(
                 && d0 <= d4 + 16.0 + d6 * 2.0
                 && d2 <= d5 + 16.0 + d6 * 2.0
             {
-                let carved = carve_ellipsoid(
-                    config, chunk_x, chunk_z, d0, d1, d2, d6, d7, water, get_block, set_block,
-                );
+                let carved = carve_ellipsoid(chunk_x, chunk_z, d0, d1, d2, d6, d7, water, mask);
                 // A room (single-step carve) stops after carving one ellipsoid,
                 // unless water-abort skipped the carve. Mirrors Beta's `if(flag) break`.
                 if is_room && carved {
@@ -255,10 +239,10 @@ fn create_tunnel<R: Random, G, S>(
 mod tests {
     use super::*;
     use crate::carver::carve_ellipsoid;
-    use crate::carver::config::BetaCaveCarverConfig;
+    use crate::carver::water::WaterMask;
     use mcrs_minecraft_random::Random;
     use mcrs_minecraft_random::legacy::LegacyRandom;
-    use std::cell::Cell;
+    use mcrs_voxel_storage::VoxelId;
 
     fn beta_config() -> BetaCaveCarverConfig {
         BetaCaveCarverConfig {
@@ -297,97 +281,57 @@ mod tests {
         // A draw-count pin for the full carve-mask is validated in the cave parity integration test.
     }
 
+    /// The mask marks the Y the ellipsoid test accepts, which sits within the
+    /// vertical radius and never below the -0.7 floor.
     #[test]
-    fn carving_writes_correct_states_by_y_level() {
+    fn the_ellipsoid_marks_only_its_own_interior() {
+        let mut mask = CarvingMask::new(16, 1, 119);
+        assert!(carve_ellipsoid(
+            0,
+            0,
+            8.0,
+            50.0,
+            8.0,
+            3.0,
+            2.0,
+            &WaterMask::default(),
+            &mut mask,
+        ));
+
+        let mut columns = 0;
+        mask.visit(|x, z, bottom, top| {
+            columns += 1;
+            let dx = (x as f64 + 0.5 - 8.0) / 3.0;
+            let dz = (z as f64 + 0.5 - 8.0) / 3.0;
+            assert!(dx * dx + dz * dz < 1.0, "column ({x}, {z}) is outside");
+            assert!(bottom as f64 + 0.5 >= 50.0 - 0.7 * 2.0 - 1.0);
+            assert!(top <= 52);
+        });
+        assert!(columns > 0);
+    }
+
+    #[test]
+    fn a_water_abort_marks_nothing_and_reports_it() {
+        let mut water = WaterMask::default();
+        water.insert(4, 50, 8);
+        let mut mask = CarvingMask::new(16, 1, 119);
+        assert!(!carve_ellipsoid(
+            0, 0, 8.0, 50.0, 8.0, 3.0, 2.0, &water, &mut mask,
+        ));
+        assert!(mask.is_empty());
+    }
+
+    #[test]
+    fn the_config_carries_the_beta_substance_states() {
         let config = beta_config();
-        let air = config.air_state;
-        let lava = config.lava_state;
-        let stone = config.stone_state;
-
-        const WIDTH: usize = 16;
-        const HEIGHT: usize = 128;
-
-        let blocks: Vec<Cell<VoxelId>> = (0..WIDTH * WIDTH * HEIGHT)
-            .map(|_| Cell::new(stone))
-            .collect();
-
-        let idx = |lx: i32, wy: i32, lz: i32| -> usize {
-            (lx as usize * WIDTH + lz as usize) * HEIGHT + wy as usize
-        };
-
-        let get_block = |lx: i32, wy: i32, lz: i32| -> VoxelId {
-            if wy < 0
-                || wy >= HEIGHT as i32
-                || lx < 0
-                || lx >= WIDTH as i32
-                || lz < 0
-                || lz >= WIDTH as i32
-            {
-                return VoxelId(0);
-            }
-            blocks[idx(lx, wy, lz)].get()
-        };
-
-        let mut carved_above: Vec<(i32, i32, i32, VoxelId)> = Vec::new();
-        carve_ellipsoid(
+        assert_eq!(config.lava_level, 10);
+        assert!(crate::carver::can_replace_block(
             &config,
-            0,
-            0,
-            8.0,
-            15.0,
-            8.0,
-            3.0,
-            2.0,
-            &WaterMask::default(),
-            &get_block,
-            &mut |lx, wy, lz, state| {
-                carved_above.push((lx, wy, lz, state));
-                blocks[idx(lx, wy, lz)].set(state);
-            },
-        );
-
-        for (_, wy, _, state) in &carved_above {
-            if *wy >= config.lava_level {
-                assert_eq!(*state, air, "Y={} should be air", wy);
-            } else {
-                assert_eq!(*state, lava, "Y={} should be lava", wy);
-            }
-        }
-
-        let blocks2: Vec<Cell<VoxelId>> = (0..WIDTH * WIDTH * HEIGHT)
-            .map(|_| Cell::new(stone))
-            .collect();
-        let get_block2 = |lx: i32, wy: i32, lz: i32| -> VoxelId {
-            if wy < 0
-                || wy >= HEIGHT as i32
-                || lx < 0
-                || lx >= WIDTH as i32
-                || lz < 0
-                || lz >= WIDTH as i32
-            {
-                return VoxelId(0);
-            }
-            blocks2[idx(lx, wy, lz)].get()
-        };
-        carve_ellipsoid(
+            config.stone_state
+        ));
+        assert!(!crate::carver::can_replace_block(
             &config,
-            0,
-            0,
-            8.0,
-            5.0,
-            8.0,
-            3.0,
-            2.0,
-            &WaterMask::default(),
-            &get_block2,
-            &mut |lx, wy, lz, state| {
-                if wy < config.lava_level {
-                    assert_eq!(state, lava, "Y={} below lava_level must be lava", wy);
-                } else {
-                    assert_eq!(state, air, "Y={} above lava_level must be air", wy);
-                }
-                blocks2[idx(lx, wy, lz)].set(state);
-            },
-        );
+            config.lava_state
+        ));
     }
 }

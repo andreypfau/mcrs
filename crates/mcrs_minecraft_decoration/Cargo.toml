@@ -8,5 +8,6 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+fixedbitset.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_voxel_storage.workspace = true

@@ -17,6 +17,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+fixedbitset = "0.5.7"
 bevy_ecs = { version = "0.19.1", features = ["trace"] }
 bevy_ecs_macros = "0.19.1"
 bevy_app = { version = "0.19.1" }

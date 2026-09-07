@@ -8,6 +8,8 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_decoration::carver::WorldCarver;
 use mcrs_minecraft_decoration::carver::cave::CaveWorldCarver;
 use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
+use mcrs_minecraft_decoration::carver::mask::CarvingMask;
+use mcrs_minecraft_decoration::carver::water::WaterMask;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -247,36 +249,17 @@ impl Random for CountingRng {
 /// Count the total RNG draw operations consumed by the 17x17 loop for one chunk.
 fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64 {
     let draws = std::rc::Rc::new(std::cell::Cell::new(0u64));
-    let (config, ids) = make_cave_config();
+    let (config, _ids) = make_cave_config();
     let carver = CaveWorldCarver;
-
-    // Stone-filled dummy sections so the carver has blocks to process.
-    let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> = (0..8)
-        .map(|_| {
-            let mut p = BlockPalette::default();
-            let b = BiomePalette::default();
-            for x in 0..16i32 {
-                for y in 0..16i32 {
-                    for z in 0..16i32 {
-                        p.set(BlockPos::new(x, y, z), ids.stone.into());
-                    }
-                }
-            }
-            Some((p, b))
-        })
-        .collect();
-
-    let y_sections: Vec<i32> = (0..8).collect();
 
     let mut seed_rng = LegacyRandom::new(world_seed as u64);
     let l: i64 = seed_rng.next_i64() / 2 * 2 + 1;
     let i1: i64 = seed_rng.next_i64() / 2 * 2 + 1;
     draws.set(draws.get() + 2); // two draws for l and i1
 
+    let water = WaterMask::default();
+    let mut mask = CarvingMask::new(16, 1, 119);
     let radius = config.range;
-    let sections_ptr = sections.as_mut_slice() as *mut [Option<(BlockPalette, BiomePalette)>];
-    let ys = y_sections.as_slice();
-    let air = ids.air;
 
     for origin_x in (chunk_x - radius)..=(chunk_x + radius) {
         for origin_z in (chunk_z - radius)..=(chunk_z + radius) {
@@ -287,37 +270,14 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
 
             let mut counting_rng = CountingRng::new(seed as u64, draws.clone());
 
-            let get_block = |local_x: i32, world_y: i32, local_z: i32| -> VoxelId {
-                let sl = unsafe { &*sections_ptr };
-                let section_y = world_y >> 4;
-                let local_y = world_y & 0xF;
-                if let Some(si) = ys.iter().position(|&sy| sy == section_y)
-                    && let Some(Some((blocks, _))) = sl.get(si)
-                {
-                    return blocks.get(BlockPos::new(local_x, local_y, local_z));
-                }
-                air.into()
-            };
-            let set_block = |local_x: i32, world_y: i32, local_z: i32, state: VoxelId| {
-                let sl = unsafe { &mut *sections_ptr };
-                let section_y = world_y >> 4;
-                let local_y = world_y & 0xF;
-                if let Some(si) = ys.iter().position(|&sy| sy == section_y)
-                    && let Some(Some((blocks, _))) = sl.get_mut(si)
-                {
-                    blocks.set(BlockPos::new(local_x, local_y, local_z), state);
-                }
-            };
-
             carver.carve(
                 &config,
                 chunk_x,
                 chunk_z,
                 origin_x,
                 origin_z,
-                &Default::default(),
-                get_block,
-                set_block,
+                &water,
+                &mut mask,
                 &mut counting_rng,
             );
         }

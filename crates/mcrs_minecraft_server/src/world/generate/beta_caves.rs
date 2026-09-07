@@ -1,8 +1,9 @@
 use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
-use mcrs_minecraft_decoration::carver::WorldCarver;
 use mcrs_minecraft_decoration::carver::cave::CaveWorldCarver;
 use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
+use mcrs_minecraft_decoration::carver::mask::CarvingMask;
 use mcrs_minecraft_decoration::carver::water::WaterMask;
+use mcrs_minecraft_decoration::carver::{WorldCarver, can_replace_block};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
@@ -63,6 +64,46 @@ fn water_mask(column: &ColumnBlocks, ids: &BetaCaveBlockIds) -> WaterMask {
     mask
 }
 
+/// Beta's geometry Y range: the ellipsoid bounds clamp to `1..=119`, and the
+/// block written for a marked Y sits one above it.
+const MASK_MIN_Y: i32 = 1;
+const MASK_MAX_Y: i32 = 119;
+
+/// Fill the space the carver freed: lava under the lava level, air above it,
+/// and dirt turned to grass directly under the first grass seen coming down.
+///
+/// One pass per carved run, top down, which is where the grass fixup has to
+/// look: the block it converts is the next Y the same run visits.
+fn apply_cave_substance(
+    column: &ColumnBlocks,
+    mask: &CarvingMask,
+    config: &BetaCaveCarverConfig,
+    ids: &BetaCaveBlockIds,
+) {
+    let air: VoxelId = ids.air.into();
+    mask.visit(|x, z, bottom_y, top_y| {
+        let mut has_grass = false;
+        for y in (bottom_y..=top_y).rev() {
+            let cell_y = y + 1;
+            let state = column.get(x, cell_y, z).unwrap_or(air);
+            if state == config.grass_state {
+                has_grass = true;
+            }
+            if !can_replace_block(config, state) {
+                continue;
+            }
+            if y < config.lava_level {
+                column.set(x, cell_y, z, config.lava_state);
+            } else {
+                column.set(x, cell_y, z, config.air_state);
+                if has_grass && column.get(x, y, z) == Some(config.dirt_state) {
+                    column.set(x, y, z, config.grass_state);
+                }
+            }
+        }
+    });
+}
+
 pub fn apply_beta_caves(
     column: &ColumnBlocks,
     chunk_x: i32,
@@ -73,14 +114,7 @@ pub fn apply_beta_caves(
 ) {
     let carver = CaveWorldCarver;
     let water = water_mask(column, ids);
-
-    let air: VoxelId = ids.air.into();
-    let get_block = |local_x: i32, world_y: i32, local_z: i32| -> VoxelId {
-        column.get(local_x, world_y, local_z).unwrap_or(air)
-    };
-    let set_block = |local_x: i32, world_y: i32, local_z: i32, state: VoxelId| {
-        column.set(local_x, world_y, local_z, state);
-    };
+    let mut mask = CarvingMask::new(16, MASK_MIN_Y, MASK_MAX_Y);
 
     let radius = config.range;
     for origin_x in (chunk_x - radius)..=(chunk_x + radius) {
@@ -95,10 +129,11 @@ pub fn apply_beta_caves(
                 origin_x,
                 origin_z,
                 &water,
-                &get_block,
-                &set_block,
+                &mut mask,
                 &mut carve_rng,
             );
         }
     }
+
+    apply_cave_substance(column, &mask, config, ids);
 }
