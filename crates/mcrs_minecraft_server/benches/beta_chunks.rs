@@ -4,7 +4,7 @@
 //!
 //! Mirrors the server's Beta column pipeline: terrain, surface, caves, ores.
 
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::time::Instant;
 
 use bevy_asset::Assets;
@@ -188,13 +188,20 @@ fn generate_range(
     from: i32,
     to: i32,
     y_sections: &[i32],
-) -> (Vec<f64>, Stages) {
+    start: Option<&Barrier>,
+) -> (Vec<f64>, Stages, f64) {
     let router = build_settings_router("beta", seed);
     let (biome_source, snapshot) = build_beta_biome_source();
     let cancel = CancellationToken::new();
-    let mut times = Vec::new();
+    let mut times = Vec::with_capacity((to - from).max(0) as usize * side.max(0) as usize);
     let mut stages = Stages::default();
     let mut column = ColumnBlocks::new(y_sections);
+    // Building the router parses the whole density-function registry off disk.
+    // That is harness cost, not generation, so it stays outside the wall clock.
+    if let Some(start) = start {
+        start.wait();
+    }
+    let loop_start = Instant::now();
     for cx in from..to {
         for cz in 0..side {
             let (ms, s) = generate_chunk(
@@ -211,7 +218,7 @@ fn generate_range(
             stages.add(s);
         }
     }
-    (times, stages)
+    (times, stages, loop_start.elapsed().as_secs_f64() * 1000.0)
 }
 
 /// Non-air blocks in one column, to confirm a section span actually carries terrain.
@@ -306,27 +313,32 @@ fn main() {
 
     // Warm-up: the block corpus, the router tables and first-touch page faults
     // shouldn't land in the measurement.
-    let _ = generate_range(seed, 4, -4, 0, &y_sections);
+    let _ = generate_range(seed, 4, -4, 0, &y_sections, None);
 
-    let wall_start = Instant::now();
     let mut times: Vec<f64> = Vec::new();
     let mut stages = Stages::default();
+    let mut thread_walls: Vec<f64> = Vec::new();
+    let start = Barrier::new(threads as usize);
     std::thread::scope(|scope| {
         let handles: Vec<_> = (0..threads)
             .map(|t| {
                 let from = side * t / threads;
                 let to = side * (t + 1) / threads;
                 let y_sections = y_sections.as_slice();
-                scope.spawn(move || generate_range(seed, side, from, to, y_sections))
+                let start = &start;
+                scope.spawn(move || generate_range(seed, side, from, to, y_sections, Some(start)))
             })
             .collect();
         for h in handles {
-            let (t, s) = h.join().expect("worker");
+            let (t, s, thread_wall) = h.join().expect("worker");
             times.extend(t);
             stages.add(s);
+            thread_walls.push(thread_wall);
         }
     });
-    let wall = wall_start.elapsed().as_secs_f64() * 1000.0;
+    // Every worker leaves the barrier together, so the slowest one is the wall.
+    let wall = thread_walls.iter().copied().fold(0.0, f64::max);
+    let mean_thread_wall = thread_walls.iter().sum::<f64>() / thread_walls.len() as f64;
 
     times.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let n = times.len();
@@ -336,7 +348,10 @@ fn main() {
         "mcrs beta worldgen: {n} chunks, {threads} thread(s), seed {seed}, {} sections from {min_section}",
         y_sections.len()
     );
-    println!("  wall        {wall:.1} ms");
+    println!(
+        "  wall        {wall:.1} ms (slowest worker; mean {mean_thread_wall:.1} ms, imbalance {:.1}%)",
+        100.0 * (wall - mean_thread_wall) / wall,
+    );
     println!("  throughput  {:.1} chunks/s", n as f64 / (wall / 1000.0));
     println!(
         "  per chunk   mean {:.3} ms | p50 {:.3} | p95 {:.3} | max {:.3}",
