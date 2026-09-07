@@ -2,6 +2,7 @@ use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
 use mcrs_minecraft_decoration::carver::WorldCarver;
 use mcrs_minecraft_decoration::carver::cave::CaveWorldCarver;
 use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
+use mcrs_minecraft_decoration::carver::water::WaterMask;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
@@ -34,6 +35,34 @@ impl BetaCaveBlockIds {
     }
 }
 
+/// Every water block of the column, as the carver's abort oracle.
+///
+/// Section cells are dense and in palette index order, so one linear scan per
+/// section covers the whole column.
+fn water_mask(column: &ColumnBlocks, ids: &BetaCaveBlockIds) -> WaterMask {
+    let water: VoxelId = ids.water.into();
+    let stationary: VoxelId = ids.stationary_water.into();
+    let mut mask = WaterMask::default();
+    for (slot, &section_y) in column.y_sections().iter().enumerate() {
+        let base_y = section_y * 16;
+        if base_y >= 128 || base_y + 16 <= 0 {
+            continue;
+        }
+        for (index, cell) in column.section_cells(slot).iter().enumerate() {
+            let state = cell.get();
+            if state != water && state != stationary {
+                continue;
+            }
+            mask.insert(
+                (index % 16) as i32,
+                base_y + (index / 256) as i32,
+                ((index / 16) % 16) as i32,
+            );
+        }
+    }
+    mask
+}
+
 pub fn apply_beta_caves(
     column: &ColumnBlocks,
     chunk_x: i32,
@@ -43,6 +72,7 @@ pub fn apply_beta_caves(
     ids: &BetaCaveBlockIds,
 ) {
     let carver = CaveWorldCarver;
+    let water = water_mask(column, ids);
 
     let air: VoxelId = ids.air.into();
     let get_block = |local_x: i32, world_y: i32, local_z: i32| -> VoxelId {
@@ -64,6 +94,7 @@ pub fn apply_beta_caves(
                 chunk_z,
                 origin_x,
                 origin_z,
+                &water,
                 &get_block,
                 &set_block,
                 &mut carve_rng,

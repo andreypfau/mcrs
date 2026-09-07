@@ -983,8 +983,6 @@ pub(crate) fn dispatch_column_generation(
                             stone_state: cave_ids.stone.into(),
                             dirt_state: cave_ids.dirt.into(),
                             grass_state: cave_ids.grass.into(),
-                            water_state: cave_ids.water.into(),
-                            stationary_water_state: cave_ids.stationary_water.into(),
                             lava_level: 10,
                             range: 8,
                             horizontal_radius_multiplier: 1.0,

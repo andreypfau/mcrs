@@ -1,7 +1,9 @@
 pub mod cave;
 pub mod config;
+pub mod water;
 
 use crate::carver::config::BetaCaveCarverConfig;
+use crate::carver::water::{WaterMask, water_abort_scan};
 use mcrs_minecraft_random::Random;
 use mcrs_voxel_storage::VoxelId;
 
@@ -13,6 +15,7 @@ pub trait WorldCarver {
         chunk_z: i32,
         origin_x: i32,
         origin_z: i32,
+        water: &WaterMask,
         get_block: G,
         set_block: S,
         rng: &mut R,
@@ -23,54 +26,6 @@ pub trait WorldCarver {
 
 pub fn can_replace_block(config: &BetaCaveCarverConfig, state: VoxelId) -> bool {
     state == config.stone_state || state == config.dirt_state || state == config.grass_state
-}
-
-/// Returns false if carving should be aborted due to water adjacency.
-///
-/// Ports MapGenCaves water-abort scan (lines 98–113): outer Y-loop from j2+1 down
-/// to i2-1, skipping interior via early-set `l3 = i2` — identical to the Java idiom.
-pub fn water_abort_scan<G>(
-    x_min: i32,
-    x_max: i32,
-    y_min: i32,
-    y_max: i32,
-    z_min: i32,
-    z_max: i32,
-    water_state: VoxelId,
-    stationary_water_state: VoxelId,
-    get_block: &G,
-) -> bool
-where
-    G: Fn(i32, i32, i32) -> VoxelId,
-{
-    let mut abort = false;
-    let mut x = x_min;
-    while !abort && x < x_max {
-        let mut z = z_min;
-        while !abort && z < z_max {
-            let mut y = y_max + 1;
-            while !abort && y >= y_min - 1 {
-                if (0..128).contains(&y) {
-                    let state = get_block(x, y, z);
-                    if state == water_state || state == stationary_water_state {
-                        abort = true;
-                    }
-                    if y != y_min - 1
-                        && x != x_min
-                        && x != x_max - 1
-                        && z != z_min
-                        && z != z_max - 1
-                    {
-                        y = y_min;
-                    }
-                }
-                y -= 1;
-            }
-            z += 1;
-        }
-        x += 1;
-    }
-    abort
 }
 
 /// Carve an ellipsoid at (d0, d1, d2) with horizontal radius d6 and vertical radius d7.
@@ -86,8 +41,7 @@ pub fn carve_ellipsoid<G, S>(
     d2: f64,
     d6: f64,
     d7: f64,
-    water_state: VoxelId,
-    stationary_water_state: VoxelId,
+    water: &WaterMask,
     get_block: &G,
     set_block: &mut S,
 ) -> bool
@@ -109,17 +63,7 @@ where
     let k2 = k2.max(0);
     let l2 = l2.min(16);
 
-    if water_abort_scan(
-        k1,
-        l1,
-        i2,
-        j2,
-        k2,
-        l2,
-        water_state,
-        stationary_water_state,
-        get_block,
-    ) {
+    if water_abort_scan(water, k1, l1, i2, j2, k2, l2) {
         return false;
     }
 

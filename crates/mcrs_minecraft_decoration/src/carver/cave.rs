@@ -1,10 +1,10 @@
 use crate::carver::config::BetaCaveCarverConfig;
+use crate::carver::water::WaterMask;
 use crate::carver::{WorldCarver, carve_ellipsoid};
 use crate::math::{cos as math_helper_cos, sin as math_helper_sin};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_voxel_storage::VoxelId;
-
 
 pub struct CaveWorldCarver;
 
@@ -16,6 +16,7 @@ impl WorldCarver for CaveWorldCarver {
         chunk_z: i32,
         origin_x: i32,
         origin_z: i32,
+        water: &WaterMask,
         get_block: G,
         set_block: S,
         rng: &mut R,
@@ -59,6 +60,7 @@ impl WorldCarver for CaveWorldCarver {
                     -1,
                     -1,
                     0.5,
+                    water,
                     &get_block,
                     &mut set_block,
                     &mut tunnel_rng,
@@ -87,6 +89,7 @@ impl WorldCarver for CaveWorldCarver {
                     0,
                     0,
                     1.0,
+                    water,
                     &get_block,
                     &mut set_block,
                     &mut tunnel_rng,
@@ -116,6 +119,7 @@ fn create_tunnel<R: Random, G, S>(
     mut step: i32,
     total_steps: i32,
     d3: f64,
+    water: &WaterMask,
     get_block: &G,
     set_block: &mut S,
     rng: &mut LegacyRandom,
@@ -185,6 +189,7 @@ fn create_tunnel<R: Random, G, S>(
                 step,
                 total_steps,
                 1.0,
+                water,
                 get_block,
                 set_block,
                 &mut rng_a,
@@ -206,6 +211,7 @@ fn create_tunnel<R: Random, G, S>(
                 step,
                 total_steps,
                 1.0,
+                water,
                 get_block,
                 set_block,
                 &mut rng_b,
@@ -231,18 +237,7 @@ fn create_tunnel<R: Random, G, S>(
                 && d2 <= d5 + 16.0 + d6 * 2.0
             {
                 let carved = carve_ellipsoid(
-                    config,
-                    chunk_x,
-                    chunk_z,
-                    d0,
-                    d1,
-                    d2,
-                    d6,
-                    d7,
-                    config.water_state,
-                    config.stationary_water_state,
-                    get_block,
-                    set_block,
+                    config, chunk_x, chunk_z, d0, d1, d2, d6, d7, water, get_block, set_block,
                 );
                 // A room (single-step carve) stops after carving one ellipsoid,
                 // unless water-abort skipped the carve. Mirrors Beta's `if(flag) break`.
@@ -272,8 +267,6 @@ mod tests {
             stone_state: VoxelId(1),
             dirt_state: VoxelId(2),
             grass_state: VoxelId(3),
-            water_state: VoxelId(0),
-            stationary_water_state: VoxelId(0),
             lava_level: 10,
             range: 8,
             horizontal_radius_multiplier: 1.0,
@@ -345,8 +338,7 @@ mod tests {
             8.0,
             3.0,
             2.0,
-            VoxelId(0),
-            VoxelId(0),
+            &WaterMask::default(),
             &get_block,
             &mut |lx, wy, lz, state| {
                 carved_above.push((lx, wy, lz, state));
@@ -386,8 +378,7 @@ mod tests {
             8.0,
             3.0,
             2.0,
-            VoxelId(0),
-            VoxelId(0),
+            &WaterMask::default(),
             &get_block2,
             &mut |lx, wy, lz, state| {
                 if wy < config.lava_level {
