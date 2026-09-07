@@ -877,21 +877,29 @@ radii — single digits.
 Field stages are unconditionally parallel by C3. Scattering stages need a test:
 
 ```
-conflict(U₁, U₂) ⟺ |Δx| ≤ r_w + r_r  AND  |Δz| ≤ r_w + r_r
+d = max(2·r_w, r_w + r_r)
+conflict(U₁, U₂) ⟺ |Δx| ≤ d  AND  |Δz| ≤ d
 ```
+
+C3 asks for two disjointnesses, and each fixes its own separation: `W∩W = ∅`
+needs the units more than `2r_w` apart, `W∩R = ∅` more than `r_w + r_r`. The
+binding one is whichever is larger, so a single `d` covers both.
 
 A conjunction, not a disjunction: footprints are squares, and two squares miss
 each other if they separate far enough on *either* axis. Phrasing it with "or"
 gives an incorrect, needlessly conservative conflict set.
 
-Colouring by residue: `colour(U) = (x mod k, z mod k)` where `k = r_w + r_r + 1`.
-Within one colour any two distinct units differ by at least `k` on at least one
-axis, and `k > r_w + r_r`, so by the predicate they do not conflict.
+Colouring by residue: `colour(U) = (x mod k, z mod k)` where `k = d + 1`. Within
+one colour any two distinct units differ by at least `k` on at least one axis,
+and `k > d`, so by the predicate they do not conflict.
 
-**N1.** The colouring is correct for reads as well, because `k` is computed from
-the sum of both radii. Taking `k = 2r_w + 1` and forgetting the read footprint is
-a bug that surfaces as rare, irreproducible seam artefacts. **N2.** The colour
-order is fixed, so write order is reproducible, so W1 holds. This is how the
+**N1.** Neither radius may be dropped from `d`. Taking `k = 2r_w + 1` forgets the
+read footprint whenever `r_r > r_w`; taking `k = r_w + r_r + 1` forgets that two
+writers overlap whenever `r_w > r_r`. Both bugs surface the same way, as rare and
+irreproducible seam artefacts. Where the two radii are equal — which is every
+scattering stage in the table above — the two formulas coincide, which is exactly
+why the error survives testing. **N2.** The colour order is fixed, so write order
+is reproducible, so W1 holds. This is how the
 nondeterminism gets fixed, not merely how throughput improves. **N3.** The wave
 barrier between colours is paid for at the maximum unit cost in the batch, not the
 mean. The variance is large: a unit containing a structure costs several times an
@@ -1026,7 +1034,7 @@ different world under the same seed, a hundred percent different rather than fiv
 | Fused multiply-add | no | yes | One rounding instead of two |
 | Vectorising across noise octaves | no | yes | Reassociates a sequential accumulator |
 | Fast approximations of elementary functions | no | yes | Selectively, guided by a profile |
-| Own seeded spawn draw | no | yes | Fixes the reference implementation's irreproducibility |
+| Own seeded spawn draw | **yes** | yes | Not a precision trade: the unseeded draw computes no function of the seed at all |
 | Single-precision noise coordinates | no | **no** | Far from the origin the step is comparable to a block |
 | A different RNG or hash | no | **no** | Changes the function, not the precision |
 | A different topological sort order | no | **no** | Same |
@@ -1087,9 +1095,10 @@ regenerate them on load. The conditions under which that is legal:
 
 **St1. Generation really is deterministic.** The reference implementation is
 defective here: the generation-time creature draw consults an unseeded level-wide
-randomness source. Our own seeded draw fixes it, but by §15 that is available only
-in the fast profile. **St2. The "untouched" flag is raised on entity entry too**,
-not only on a block write. A creature that wandered in from a neighbouring unit is
+randomness source. Our own seeded draw fixes it, and it is the one item of §15
+that both profiles carry: a strict profile drawing from an unseeded source would
+be no oracle, because it would not reproduce itself. **St2. The "untouched" flag
+is raised on entity entry too**, not only on a block write. A creature that wandered in from a neighbouring unit is
 also a state change, invisible to a block dirty bit. **St3. A configuration hash
 is stored alongside.** Regeneration is valid only while the generator version, the
 precision profile and the data set are unchanged. Otherwise a server update
@@ -1196,9 +1205,10 @@ evaluate one root.** Cost grows multiplicatively in the number of independent
 interpolations (E7). **Treat scattering order as an implementation detail.** It
 feeds the seed through the object index (F2) and the result through overlapping
 write footprints (W1). **Write the conflict predicate with "or".** Footprints are
-squares; the predicate is a conjunction. **Derive the colouring step from the
-write radius alone.** It is the sum of write and read radii plus one (N1). **Put
-block-scale fields below the interpolation.** They will not blur, they will vanish
+squares; the predicate is a conjunction. **Derive the colouring step from one
+radius alone.** It is the larger of twice the write radius and the sum of the two,
+plus one (N1). **Put block-scale fields below the interpolation.** They will not
+blur, they will vanish
 (L2). **Treat the preliminary surface as a three-dimensional field.** It is rank
 XZ (P1). **Derive the fluid skip threshold from the column-wide surface maximum.**
 One peak denies the cheap path to all 256 strips (A4). **Count on an early exit

@@ -259,7 +259,10 @@ of a different family, and it cannot be derived from the block maps by an
 equality.
 
 **Definition.** `LowestSourceY(x,z)` is the smallest `Y` such that every block of
-the strip at that height and above receives full sky light.
+the strip at that height and above receives full sky light **from directly
+above**. Light that arrives sideways from a neighbouring strip is the business of
+propagation, and counting it here would defeat the map's whole purpose: it is a
+seed for propagation, not a record of how deep the light finally reaches.
 
 **The predicate is defined on an edge, not on a block.** An edge is a pair of
 vertically adjacent positions:
@@ -317,11 +320,17 @@ For each strip, fill 15 from the top down to `LowestSourceY`. What goes into the
 queue is not everything, but only the cells on the boundary of the lit region:
 
 ```
-for each strip c, for y from the top down to LowestSourceY(c):
+for each strip c, for y from the top down to max(LowestSourceY(c), minY):
     light(c, y) := 15
-    enqueue(c, y)  ⟺  y = LowestSourceY(c)
+    enqueue(c, y)  ⟺  (y = LowestSourceY(c) ∧ y ≥ minY)
                    ∨  y < max over the 4 neighbours n of LowestSourceY(n)
 ```
+
+Both bounds are written against the sentinel of §6, not merely against the value.
+`LowestSourceY(c) = minY − 1` says the strip has no occluding edge anywhere, and
+the loop must stop at `minY` rather than step onto a row that is not in the world.
+There is no downward boundary cell in that case either: the strip is lit to the
+floor, so there is nothing underneath for light to descend into.
 
 The first condition is the bottom of the lit column: light needs to go down from
 there. The second covers cells whose neighbouring strip is darker to the side:
@@ -380,8 +389,11 @@ the heightmap-specific case of the classification in `worldgen.md` §16.
 
 When loading heightmaps:
 
-- check the array length against the current world height; on a mismatch **rebuild
-  rather than trust** — the world height may have changed between sessions;
+- check the stored coordinate system — the lowest row and the height, not merely
+  the array length it implies, since two ranges of equal height give arrays of
+  equal size while numbering their rows differently; on any mismatch **rebuild
+  rather than trust**, because the world's vertical range may have changed
+  between sessions;
 - treat the values as untrusted input. The map arrives from disk and over the
   network, and the bit field is wider than the real height range (for a height of
   384, nine bits hold up to 511). If a map value is used as a section index — and
