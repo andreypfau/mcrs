@@ -116,7 +116,7 @@ pub fn apply_beta_caves(
     let water = water_mask(column, ids);
     let mut mask = CarvingMask::new(16, MASK_MIN_Y, MASK_MAX_Y);
 
-    let radius = config.range;
+    let radius = config.source_radius;
     for origin_x in (chunk_x - radius)..=(chunk_x + radius) {
         for origin_z in (chunk_z - radius)..=(chunk_z + radius) {
             let mut carve_rng =

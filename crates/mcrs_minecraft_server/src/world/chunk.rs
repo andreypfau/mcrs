@@ -984,7 +984,8 @@ pub(crate) fn dispatch_column_generation(
                             dirt_state: cave_ids.dirt.into(),
                             grass_state: cave_ids.grass.into(),
                             lava_level: 10,
-                            range: 8,
+                            source_radius: 8,
+                            tunnel_length: 112,
                             horizontal_radius_multiplier: 1.0,
                             vertical_radius_multiplier: 1.0,
                         };

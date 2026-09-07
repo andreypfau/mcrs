@@ -117,12 +117,11 @@ fn create_tunnel<R: Random>(
     rng: &mut LegacyRandom,
     parent_rng: &mut R,
 ) {
-    let range = config.range;
     let mut total_steps = total_steps;
 
     if total_steps <= 0 {
-        let i1 = range * 16 - 16;
-        total_steps = i1 - rng.next_i32_bound(i1 / 4);
+        let length = config.tunnel_length;
+        total_steps = length - rng.next_i32_bound(length / 4);
     }
 
     let mut is_room = false;
@@ -252,7 +251,8 @@ mod tests {
             dirt_state: VoxelId(2),
             grass_state: VoxelId(3),
             lava_level: 10,
-            range: 8,
+            source_radius: 8,
+            tunnel_length: 112,
             horizontal_radius_multiplier: 1.0,
             vertical_radius_multiplier: 1.0,
         }

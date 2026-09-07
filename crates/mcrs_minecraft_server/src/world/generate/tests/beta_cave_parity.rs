@@ -140,7 +140,8 @@ fn make_cave_config() -> (BetaCaveCarverConfig, BetaCaveBlockIds) {
         dirt_state: ids.dirt.into(),
         grass_state: ids.grass.into(),
         lava_level: 10,
-        range: 8,
+        source_radius: 8,
+        tunnel_length: 112,
         horizontal_radius_multiplier: 1.0,
         vertical_radius_multiplier: 1.0,
     };
@@ -259,7 +260,7 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
 
     let water = WaterMask::default();
     let mut mask = CarvingMask::new(16, 1, 119);
-    let radius = config.range;
+    let radius = config.source_radius;
 
     for origin_x in (chunk_x - radius)..=(chunk_x + radius) {
         for origin_z in (chunk_z - radius)..=(chunk_z + radius) {
