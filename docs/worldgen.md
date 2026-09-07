@@ -548,27 +548,51 @@ What is not: remove the search itself without changing the world.
 Fill produces a world of one material. Surface rules turn it into a world of sand,
 grass, gravel and snow.
 
+The data model the rules are written in, their compiled representation and the
+prerequisites they impose are specified in `surface.md`; this section states only
+the invariants of the stage.
+
 A rule is a tree of conditions and substitutions, evaluated at every point of a
 strip from the top down. The result is either a new block state or "leave alone".
+The tree is a **graph, not a tree**: rules and conditions are loadable registries,
+any node may be a reference to a named one, and the handful of shared conditions
+are referenced dozens of times across one dimension's rules. M3 below turns that
+sharing into work saved, so the sharing must survive into the compiled form
+rather than being inlined away.
+
 Conditions are not tested against blocks directly but against a **context**:
 
 ```
-context = { depthAbove, depthBelow, waterLevel,
-            biome, surfaceLevel, gradientX, gradientZ, y }
+context = { depthAbove, depthBelow, waterLevel, biome, y,
+            surfaceDepth, surfaceSecondary, surfaceLevel,
+            gradientX, gradientZ }
 ```
 
 `depthAbove` — how many solid blocks run upward from here; reset by air. "How deep
 below the surface." `depthBelow` — the distance down to the nearest void, from a
 look-ahead scan. "How close is the cave ceiling below." `waterLevel` — the height
 of the last fluid seen from above. Distinguishes a lake bed from a hillside.
+`surfaceDepth` — how thick the cover is at this strip, from a 2D noise and one
+draw. `surfaceSecondary` — a second 2D noise, which the deeper rules use to
+stretch that thickness. `surfaceLevel` — the preliminary surface of §6, offset
+down by a fixed margin; it is what "above the preliminary surface" tests.
 `gradient` — the height difference between neighbouring strips. Distinguishes a
 slope from a plateau: gravel instead of grass.
 
+**Sf0. `surfaceDepth` may be zero or negative**, and that is not a degenerate
+case but a definition: a non-positive value *is* the "hole" the rules test for,
+and it is what puts gravel and open air at the bottom of a pit. **The biome is
+read at block resolution through the zoom of §12**, not from the coarse lattice
+cell directly; the zoom's corners reach outside the column, so they must be
+answered by re-evaluating climate rather than by reading a neighbour's stored
+palette, which is what keeps this stage's read footprint at zero (§13).
+
 ### Memoisation as a consequence of the definition
 
-Context quantities change at different rates: biome, steepness and 2D noises are
-constant over a strip, while depths and water level change at every step downward.
-From this follows an exact caching scheme with no hash tables and no keys.
+Context quantities change at different rates: steepness, the two surface noises
+and the preliminary level are constant over a strip, while depths, water level,
+the biome and any 3D noise change at every step downward. From this follows an
+exact caching scheme with no hash tables and no keys.
 
 ```
 the context holds two counters: genXZ and genY
@@ -809,7 +833,13 @@ block.** A biome is defined on a lattice with a step of several blocks. This is
 both an economy and a substantive decision: a biome is a property of terrain, not
 of a point. **Cl3.** Climate space is an **input, not an output**. The climate
 fields are evaluated by the graph of §3 and are also used by the terrain splines;
-by D4 they are evaluated once.
+by D4 they are evaluated once. **Cl4. The lattice is not read directly at block
+resolution.** Asking "which biome is at this block" resolves to the nearest of
+the eight surrounding lattice cells under a deterministically perturbed distance,
+seeded from the world seed. Without the perturbation the boundaries of Cl2 would
+be visible as straight lattice-aligned edges. The consumer that cares is the
+surface stage (§8): the eight cells reach outside the column, so the query must
+be answered from climate, never from a neighbour's stored palette.
 
 ### Search structure
 
@@ -1325,6 +1355,7 @@ For checking behaviour against, not for copying. Paths are relative to
 | The decoration loop and structure materialisation | `world/level/chunk/ChunkGenerator.java:388-471, :422` |
 | The placement modifier machine | `world/level/levelgen/placement/FeaturePlacer.java` |
 | Biome classification and quantisation | `world/level/biome/Climate.java` |
+| The block-resolution biome query and its perturbation | `world/level/biome/BiomeManager.java` |
 | Batched climate sampling | `world/level/biome/MultiNoiseBiomeSource.java:70-115` |
 | Sections, palette, counters | `world/level/chunk/LevelChunkSection.java:63-105`, `PalettedContainer.java` |
 | Heightmaps | `world/level/levelgen/Heightmap.java` |
