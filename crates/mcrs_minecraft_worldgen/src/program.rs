@@ -1,14 +1,14 @@
 use crate::branch::{self, Fallback, GuardTest, Step};
 use crate::interval::Interval;
 use crate::jmath;
-use crate::kernel::{Runs, at, each_column, map1, zip2, zip3};
-use crate::node::blended::BlendedParams;
+use crate::kernel::{Runs, at, each_column, map_columns, zip2_columns, zip3_columns};
+use crate::noise::blended::BlendedNoise;
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
-use crate::strata::{ALL_AXES, AXIS_Y, Axes, extent, stratum};
+use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, extent, stratum};
 use crate::volume::Volume;
 use bevy_math::IVec3;
 use std::sync::Arc;
@@ -99,6 +99,13 @@ impl RoundKind {
 
 pub type NodeId = u32;
 
+/// Adding `+0.0` would turn a `-0.0` product into `+0.0`, which the bare
+/// constant multiply the affine kinds fold from does not do.
+#[inline]
+pub(crate) fn drops_offset(offset: f32) -> bool {
+    offset == 0.0 && offset.is_sign_positive()
+}
+
 /// One operation in the flat graph. Inputs are indices into the same array, so a
 /// node reachable from two parents exists once and is evaluated once.
 ///
@@ -120,7 +127,7 @@ pub enum Node {
     },
     DistanceToPoint(DistanceParams),
     EndOuterIslands(Arc<EndIslandParams>),
-    OldBlendedNoise(Arc<BlendedParams>),
+    OldBlendedNoise(Arc<BlendedNoise>),
 
     // --- one input ---
     Affine {
@@ -137,10 +144,6 @@ pub enum Node {
     Unary {
         op: UnaryOp,
         input: NodeId,
-    },
-    LeakyRelu {
-        input: NodeId,
-        negative_scale: f32,
     },
     Clamp {
         input: NodeId,
@@ -282,7 +285,6 @@ impl Node {
             Node::Affine { input, .. }
             | Node::PiecewiseAffine { input, .. }
             | Node::Unary { input, .. }
-            | Node::LeakyRelu { input, .. }
             | Node::Clamp { input, .. }
             | Node::ConstMin { input, .. }
             | Node::ConstMax { input, .. }
@@ -387,6 +389,36 @@ impl Node {
 /// The stratum replaces vanilla's `Slice`. A fill evaluates one node at a time
 /// over the whole volume, and each node's buffer holds only the axes it varies
 /// over: a node that ignores Y holds one value per column, and one that ignores
+/// A node's stratum, from the strata of its inputs. The union of the inputs'
+/// axes, with the exceptions vanilla's `domainAxes` names: a zero sampling scale
+/// sheds an axis, the transposed shift and the end islands are flat, and the
+/// vertical surface search always answers per column.
+pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
+    let at = |id: NodeId| axes[id as usize];
+    match node {
+        Node::Constant(_) => NO_AXES,
+        Node::Gradient(g) => g.axis.bit(),
+        Node::Noise { params } => params.axes(),
+        Node::ShiftedNoise { params, x, y, z } => params.axes() | at(*x) | at(*y) | at(*z),
+        Node::ShiftB { .. } | Node::EndOuterIslands(_) => AXIS_X | AXIS_Z,
+        Node::DistanceToPoint(_) | Node::OldBlendedNoise(_) => ALL_AXES,
+        Node::FindTopSurface {
+            density,
+            upper_bound,
+            ..
+        } => (at(*density) | at(*upper_bound)) & !AXIS_Y,
+        // The lattice is addressed by the column being filled, which the
+        // per-fill phase has none of, so this never lands there however little
+        // its input varies.
+        Node::Interpolated { input, .. } => at(*input) | AXIS_X | AXIS_Z,
+        other => {
+            let mut union = NO_AXES;
+            other.visit_inputs(&mut |id| union |= at(id));
+            union
+        }
+    }
+}
+
 /// X and Z holds one value for the fill. Both fall out of `axes`, with no
 /// rewrite pass and no slice node.
 pub struct Program {
@@ -899,9 +931,7 @@ impl Program {
                 offset: o,
             } => {
                 let (s, o) = (*scale, *o);
-                // Adding +0.0 would turn a -0.0 product into +0.0, which the bare
-                // constant multiply this folds from does not do.
-                if o == 0.0 && o.is_sign_positive() {
+                if drops_offset(o) {
                     map_columns(out, &ext, read(*input), |v| v * s)
                 } else {
                     map_columns(out, &ext, read(*input), |v| v * s + o)
@@ -914,20 +944,17 @@ impl Program {
                 offset: o,
             } => {
                 let (n, p, o) = (*neg_scale, *pos_scale, *o);
-                map_columns(out, &ext, read(*input), |v| {
-                    if v < 0.0 { v * n + o } else { v * p + o }
-                })
+                if drops_offset(o) {
+                    map_columns(out, &ext, read(*input), |v| if v < 0.0 { v * n } else { v * p })
+                } else {
+                    map_columns(out, &ext, read(*input), |v| {
+                        if v < 0.0 { v * n + o } else { v * p + o }
+                    })
+                }
             }
             Node::Unary { op, input } => {
                 let op = *op;
                 map_columns(out, &ext, read(*input), |v| op.apply(v))
-            }
-            Node::LeakyRelu {
-                input,
-                negative_scale,
-            } => {
-                let k = *negative_scale;
-                map_columns(out, &ext, read(*input), |v| if v > 0.0 { v } else { v * k })
             }
             Node::Clamp { input, min, max } => {
                 let (lo, hi) = (*min, *max);
@@ -1146,38 +1173,6 @@ fn other_slot<'a>(
     } else {
         &above[off - end..off - end + len]
     }
-}
-
-#[inline]
-fn map_columns(out: &mut [f32], ext: &Volume, a: Runs<'_>, f: impl Fn(f32) -> f32) {
-    each_column(out, ext, |run, ix, iz| map1(run, a.col(ix, iz), &f));
-}
-
-#[inline]
-fn zip2_columns(
-    out: &mut [f32],
-    ext: &Volume,
-    a: Runs<'_>,
-    b: Runs<'_>,
-    f: impl Fn(f32, f32) -> f32,
-) {
-    each_column(out, ext, |run, ix, iz| {
-        zip2(run, a.col(ix, iz), b.col(ix, iz), &f)
-    });
-}
-
-#[inline]
-fn zip3_columns(
-    out: &mut [f32],
-    ext: &Volume,
-    a: Runs<'_>,
-    b: Runs<'_>,
-    c: Runs<'_>,
-    f: impl Fn(f32, f32, f32) -> f32,
-) {
-    each_column(out, ext, |run, ix, iz| {
-        zip3(run, a.col(ix, iz), b.col(ix, iz), c.col(ix, iz), &f)
-    });
 }
 
 /// Whether `volume` already samples the cell lattice, in which case vanilla

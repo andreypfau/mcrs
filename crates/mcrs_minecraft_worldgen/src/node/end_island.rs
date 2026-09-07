@@ -6,6 +6,11 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 
 const ISLAND_THRESHOLD: f32 = -0.9;
 
+/// `EndIslandFunction.range()`.
+pub fn range() -> crate::interval::Interval {
+    crate::interval::Interval::of(-0.84375, 0.5625)
+}
+
 #[derive(Clone, Debug)]
 pub struct EndIslandParams {
     noise: SimplexNoise,

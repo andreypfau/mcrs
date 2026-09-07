@@ -1,6 +1,6 @@
 use crate::interval::Interval;
 use crate::noise::Noise;
-use crate::noise::gradient::wrap;
+use crate::noise::gradient::GradientNoise;
 use crate::noise::perlin::{LegacyPerlin2dNoise, PerlinNoise, SmearedPerlinNoise};
 use crate::noise::simplex::SimplexNoise;
 use crate::volume::Volume;
@@ -22,21 +22,74 @@ pub struct NoiseStack<N> {
     range: Interval,
 }
 
-impl Noise for PerlinNoise {
-    const NEEDS_UNWRAPPED: bool = false;
+/// Which sampler a layer of a mixed stack carries. Vanilla holds its layers
+/// behind the `Noise` interface; the enum is the same choice made once per
+/// layer instead of once per virtual call.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Octave {
+    Perlin(PerlinNoise),
+    /// Beta's `ySize == 1` branch, which is a different noise over the same
+    /// lattice rather than the 3D one evaluated at y = 0.
+    Perlin2d(LegacyPerlin2dNoise),
+    Simplex(SimplexNoise),
+}
 
+impl Noise for Octave {
+    fn range(&self) -> Interval {
+        match self {
+            Self::Perlin(n) => n.range(),
+            Self::Perlin2d(n) => n.range(),
+            Self::Simplex(n) => n.range(),
+        }
+    }
+
+    #[inline]
+    fn get(&self, x: f64, y: f64, z: f64) -> f32 {
+        match self {
+            Self::Perlin(n) => n.get(x, y, z),
+            Self::Perlin2d(n) => n.get(x, y, z),
+            Self::Simplex(n) => n.get(x, y, z),
+        }
+    }
+
+    #[inline]
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+        match self {
+            Self::Perlin(n) => n.get_column(x, z, ys, out),
+            Self::Perlin2d(n) => n.get_column(x, z, ys, out),
+            Self::Simplex(n) => n.get_column(x, z, ys, out),
+        }
+    }
+
+    fn add_to_volume(
+        &self,
+        out: &mut [f32],
+        volume: &Volume,
+        xz_scale: f64,
+        y_scale: f64,
+        amplitude: f32,
+    ) {
+        match self {
+            Self::Perlin(n) => Noise::add_to_volume(n, out, volume, xz_scale, y_scale, amplitude),
+            Self::Perlin2d(n) => Noise::add_to_volume(n, out, volume, xz_scale, y_scale, amplitude),
+            Self::Simplex(n) => Noise::add_to_volume(n, out, volume, xz_scale, y_scale, amplitude),
+        }
+    }
+}
+
+impl Noise for PerlinNoise {
     fn range(&self) -> Interval {
         Interval::symmetric(2.0)
     }
 
     #[inline(always)]
-    fn sample(&self, x: f64, y: f64, z: f64) -> f32 {
-        PerlinNoise::sample(self, x, y, z)
+    fn get(&self, x: f64, y: f64, z: f64) -> f32 {
+        PerlinNoise::get(self, x, y, z)
     }
 
     #[inline]
-    fn sample_column(&self, x: f64, z: f64, ys: &[f64], _unwrapped_ys: &[f64], out: &mut [f32]) {
-        PerlinNoise::sample_column(self, x, z, ys, out);
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+        PerlinNoise::get_column(self, x, z, ys, out);
     }
 
     fn add_to_volume(
@@ -52,22 +105,20 @@ impl Noise for PerlinNoise {
 }
 
 impl Noise for SmearedPerlinNoise {
-    const NEEDS_UNWRAPPED: bool = true;
-
     fn range(&self) -> Interval {
         Interval::symmetric((self.fudge_y_scale().abs() + 2.0) as f32)
     }
 
     #[inline(always)]
-    fn sample(&self, x: f64, y: f64, z: f64) -> f32 {
+    fn get(&self, x: f64, y: f64, z: f64) -> f32 {
         let mut out = [0.0f32; 1];
-        self.sample_column(x, z, &[y], &[y], &mut out);
+        self.get_column(x, z, &[y], &mut out);
         out[0]
     }
 
     #[inline]
-    fn sample_column(&self, x: f64, z: f64, ys: &[f64], unwrapped_ys: &[f64], out: &mut [f32]) {
-        SmearedPerlinNoise::sample_column(self, x, z, ys, unwrapped_ys, out);
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+        SmearedPerlinNoise::get_column(self, x, z, ys, out);
     }
 
     fn add_to_volume(
@@ -83,21 +134,19 @@ impl Noise for SmearedPerlinNoise {
 }
 
 impl Noise for LegacyPerlin2dNoise {
-    const NEEDS_UNWRAPPED: bool = false;
-
     fn range(&self) -> Interval {
         Interval::symmetric(2.0)
     }
 
     #[inline(always)]
-    fn sample(&self, x: f64, _y: f64, z: f64) -> f32 {
-        self.sample_xz(x, z)
+    fn get(&self, x: f64, _y: f64, z: f64) -> f32 {
+        self.get_xz(x, z)
     }
 
     #[inline]
-    fn sample_column(&self, x: f64, z: f64, ys: &[f64], _unwrapped_ys: &[f64], out: &mut [f32]) {
-        out.fill(self.sample_xz(x, z));
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
+        out.fill(self.get_xz(x, z));
     }
 
     fn add_to_volume(
@@ -113,21 +162,19 @@ impl Noise for LegacyPerlin2dNoise {
 }
 
 impl Noise for SimplexNoise {
-    const NEEDS_UNWRAPPED: bool = false;
-
     fn range(&self) -> Interval {
         Interval::symmetric(2.0)
     }
 
     #[inline(always)]
-    fn sample(&self, x: f64, _y: f64, z: f64) -> f32 {
+    fn get(&self, x: f64, _y: f64, z: f64) -> f32 {
         self.sample_2d(x, z, 1.0, 1.0) as f32
     }
 
     #[inline]
-    fn sample_column(&self, x: f64, z: f64, ys: &[f64], _unwrapped_ys: &[f64], out: &mut [f32]) {
-        out.fill(self.sample_2d(x, z, 1.0, 1.0) as f32);
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
+        out.fill(self.sample_2d(x, z, 1.0, 1.0) as f32);
     }
 
     fn add_to_volume(
@@ -141,9 +188,9 @@ impl Noise for SimplexNoise {
         let size = volume.size();
         let mut index = 0usize;
         for iz in 0..size.z {
-            let z = wrap(volume.block_z(iz) as f64 * xz_scale);
+            let z = volume.block_z(iz) as f64 * xz_scale;
             for ix in 0..size.x {
-                let x = wrap(volume.block_x(ix) as f64 * xz_scale);
+                let x = volume.block_x(ix) as f64 * xz_scale;
                 let value = amplitude * self.sample_2d(x, z, 1.0, 1.0) as f32;
                 for _ in 0..size.y {
                     out[index] += value;
@@ -182,9 +229,9 @@ impl NoiseStack<PerlinNoise> {
 /// frequency halves each step and the contribution is divided by that frequency
 /// rather than normalised. As a stack that is a layer per octave weighing
 /// `1 / frequency`, summed in Beta's own order.
-pub fn legacy_fbm<N: Noise>(
-    lattices: Vec<Option<crate::noise::gradient::GradientNoise>>,
-    layer: impl Fn(crate::noise::gradient::GradientNoise) -> N,
+pub fn beta_fbm<N: Noise>(
+    lattices: Vec<Option<GradientNoise>>,
+    layer: impl Fn(GradientNoise) -> N,
 ) -> NoiseStack<N> {
     let mut stack = NoiseStack::builder();
     let mut frequency = 1.0f64;
@@ -201,7 +248,6 @@ pub fn legacy_fbm<N: Noise>(
 #[derive(Default)]
 pub struct ColumnScratch {
     scaled: Vec<f64>,
-    unwrapped: Vec<f64>,
     layer: Vec<f32>,
 }
 
@@ -227,7 +273,7 @@ impl<N: Noise> NoiseStack<N> {
         let mut value = 0.0f32;
         for layer in &self.layers {
             let f = layer.frequency;
-            value += layer.amplitude * layer.noise.sample(wrap(x * f), wrap(y * f), wrap(z * f));
+            value += layer.amplitude * layer.noise.get(x * f, y * f, z * f);
         }
         value
     }
@@ -243,23 +289,15 @@ impl<N: Noise> NoiseStack<N> {
         scratch: &mut ColumnScratch,
     ) {
         out.fill(0.0);
-        scratch.resize(ys.len(), N::NEEDS_UNWRAPPED);
+        scratch.resize(ys.len());
         for layer in &self.layers {
             let f = layer.frequency;
-            for (i, &y) in ys.iter().enumerate() {
-                let scaled = y * f;
-                if N::NEEDS_UNWRAPPED {
-                    scratch.unwrapped[i] = scaled;
-                }
-                scratch.scaled[i] = wrap(scaled);
+            for (slot, &y) in scratch.scaled.iter_mut().zip(ys) {
+                *slot = y * f;
             }
-            layer.noise.sample_column(
-                wrap(x * f),
-                wrap(z * f),
-                &scratch.scaled,
-                &scratch.unwrapped,
-                &mut scratch.layer,
-            );
+            layer
+                .noise
+                .get_column(x * f, z * f, &scratch.scaled, &mut scratch.layer);
             for (slot, &sampled) in out.iter_mut().zip(scratch.layer.iter()) {
                 *slot += layer.amplitude * sampled;
             }
@@ -279,24 +317,18 @@ impl<N: Noise> NoiseStack<N> {
         scratch: &mut ColumnScratch,
     ) {
         out.fill(0.0);
-        scratch.resize(out.len(), N::NEEDS_UNWRAPPED);
+        scratch.resize(out.len());
         for layer in &self.layers {
             let f = layer.frequency;
             let layer_xz = xz_scale * f;
             let layer_y = y_scale * f;
-            for i in 0..out.len() {
-                // The smear compares against the scaled y before it is wrapped.
-                let scaled = volume.block_y(i as i32) as f64 * layer_y;
-                if N::NEEDS_UNWRAPPED {
-                    scratch.unwrapped[i] = scaled;
-                }
-                scratch.scaled[i] = wrap(scaled);
+            for (i, slot) in scratch.scaled.iter_mut().enumerate() {
+                *slot = volume.block_y(i as i32) as f64 * layer_y;
             }
-            layer.noise.sample_column(
-                wrap(block_x as f64 * layer_xz),
-                wrap(block_z as f64 * layer_xz),
+            layer.noise.get_column(
+                block_x as f64 * layer_xz,
+                block_z as f64 * layer_xz,
                 &scratch.scaled,
-                &scratch.unwrapped,
                 &mut scratch.layer,
             );
             for (slot, &sampled) in out.iter_mut().zip(scratch.layer.iter()) {
@@ -327,13 +359,11 @@ impl<N: Noise> NoiseStack<N> {
 }
 
 impl ColumnScratch {
-    fn resize(&mut self, len: usize, needs_unwrapped: bool) {
+    fn resize(&mut self, len: usize) {
         self.scaled.clear();
         self.scaled.resize(len, 0.0);
         self.layer.clear();
         self.layer.resize(len, 0.0);
-        self.unwrapped.clear();
-        self.unwrapped.resize(if needs_unwrapped { len } else { 0 }, 0.0);
     }
 }
 

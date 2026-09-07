@@ -106,34 +106,41 @@ impl NoiseFloat for f32 {
     }
 }
 
-/// Perlin lattice state: the permutation table and the per-instance origin.
+/// Perlin lattice state: the permutation table and the per-instance offset.
 /// `PerlinNoise`, `SmearedPerlinNoise` and the Beta sampler all build on it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GradientNoise {
-    pub(crate) permutation: [u8; 256],
-    pub origin_x: f64,
-    pub origin_y: f64,
-    pub origin_z: f64,
+    pub(crate) perms: [u8; 256],
+    pub offset_x: f64,
+    pub offset_y: f64,
+    pub offset_z: f64,
 }
 
 impl GradientNoise {
     pub fn from_random<T: Random>(random: &mut T) -> Self {
-        let origin_x = random.next_f64() * 256.0;
-        let origin_y = random.next_f64() * 256.0;
-        let origin_z = random.next_f64() * 256.0;
-        let mut permutation = [0u8; 256];
+        Self::from_random_scaled(random, 256.0)
+    }
+
+    /// Vanilla's second constructor: the three offset draws still happen, so the
+    /// stream advances the same way, but a scale of zero pins the lattice to the
+    /// world origin.
+    pub fn from_random_scaled<T: Random>(random: &mut T, offset_scale: f64) -> Self {
+        let offset_x = random.next_f64() * offset_scale;
+        let offset_y = random.next_f64() * offset_scale;
+        let offset_z = random.next_f64() * offset_scale;
+        let mut perms = [0u8; 256];
         for i in 0..256 {
-            permutation[i] = i as u8;
+            perms[i] = i as u8;
         }
         for i in 0..256 {
             let j = random.next_u32_bound(256 - i);
-            permutation.swap(i as usize, (i + j) as usize);
+            perms.swap(i as usize, (i + j) as usize);
         }
         Self {
-            permutation,
-            origin_x,
-            origin_y,
-            origin_z,
+            perms,
+            offset_x,
+            offset_y,
+            offset_z,
         }
     }
 
@@ -190,7 +197,7 @@ impl GradientNoise {
 
     #[inline(always)]
     pub(crate) fn permute(&self, index: usize) -> usize {
-        self.permutation[index & 0xFF] as usize
+        self.perms[index & 0xFF] as usize
     }
 
     #[inline(always)]

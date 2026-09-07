@@ -61,7 +61,7 @@ pub fn each_column(out: &mut [f32], ext: &Volume, mut f: impl FnMut(&mut [f32], 
 }
 
 #[inline]
-pub fn map1(out: &mut [f32], a: &[f32], f: impl Fn(f32) -> f32) {
+fn map1(out: &mut [f32], a: &[f32], f: impl Fn(f32) -> f32) {
     if a.len() == out.len() {
         for (o, &x) in out.iter_mut().zip(a) {
             *o = f(x);
@@ -73,7 +73,7 @@ pub fn map1(out: &mut [f32], a: &[f32], f: impl Fn(f32) -> f32) {
 }
 
 #[inline]
-pub fn zip2(out: &mut [f32], a: &[f32], b: &[f32], f: impl Fn(f32, f32) -> f32) {
+fn zip2(out: &mut [f32], a: &[f32], b: &[f32], f: impl Fn(f32, f32) -> f32) {
     let n = out.len();
     match (a.len() == n, b.len() == n) {
         (true, true) => {
@@ -98,7 +98,7 @@ pub fn zip2(out: &mut [f32], a: &[f32], b: &[f32], f: impl Fn(f32, f32) -> f32) 
 }
 
 #[inline]
-pub fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f32, f32) -> f32) {
+fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f32, f32) -> f32) {
     let n = out.len();
     if a.len() == n && b.len() == n && c.len() == n {
         for (i, o) in out.iter_mut().enumerate() {
@@ -110,6 +110,38 @@ pub fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f3
     for (i, o) in out.iter_mut().enumerate() {
         *o = f(pick(a, i), pick(b, i), pick(c, i));
     }
+}
+
+#[inline]
+pub fn map_columns(out: &mut [f32], ext: &Volume, a: Runs<'_>, f: impl Fn(f32) -> f32) {
+    each_column(out, ext, |run, ix, iz| map1(run, a.col(ix, iz), &f));
+}
+
+#[inline]
+pub fn zip2_columns(
+    out: &mut [f32],
+    ext: &Volume,
+    a: Runs<'_>,
+    b: Runs<'_>,
+    f: impl Fn(f32, f32) -> f32,
+) {
+    each_column(out, ext, |run, ix, iz| {
+        zip2(run, a.col(ix, iz), b.col(ix, iz), &f)
+    });
+}
+
+#[inline]
+pub fn zip3_columns(
+    out: &mut [f32],
+    ext: &Volume,
+    a: Runs<'_>,
+    b: Runs<'_>,
+    c: Runs<'_>,
+    f: impl Fn(f32, f32, f32) -> f32,
+) {
+    each_column(out, ext, |run, ix, iz| {
+        zip3(run, a.col(ix, iz), b.col(ix, iz), c.col(ix, iz), &f)
+    });
 }
 
 /// Reads element `i` of a run that may be a broadcast scalar. Only for paths

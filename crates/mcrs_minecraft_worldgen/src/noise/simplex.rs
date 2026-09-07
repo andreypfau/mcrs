@@ -1,16 +1,11 @@
-use crate::noise::gradient::NoiseFloat;
+use crate::noise::gradient::{GradientNoise, NoiseFloat};
 use mcrs_minecraft_random::Random;
 
 /// Simplex noise shared by Beta worldgen (`NoiseGenerator2`) and modern vanilla
 /// (`SimplexNoise`). The generator is parameterized over the RNG, so the same struct
 /// serves the legacy (`LegacyRandom`) and modern (`Xoroshiro`) initialization paths.
 #[derive(Clone, PartialEq, Debug)]
-pub struct SimplexNoise {
-    permutation: [u8; 256],
-    pub origin_x: f64,
-    pub origin_y: f64,
-    pub origin_z: f64,
-}
+pub struct SimplexNoise(GradientNoise);
 
 /// Single simplex corner contribution: `(distance - |d|²)⁴ · (grad · d)`, clamped at 0.
 ///
@@ -37,44 +32,22 @@ impl SimplexNoise {
     const UNSKEW_3D_3: f64 = 0.5;
 
     pub fn from_random<T: Random>(random: &mut T) -> Self {
-        let origin_x = random.next_f64() * 256.0;
-        let origin_y = random.next_f64() * 256.0;
-        let origin_z = random.next_f64() * 256.0;
-        let mut permutation = [0u8; 256];
-        for i in 0..256 {
-            permutation[i] = i as u8;
-        }
-        for i in 0..256u32 {
-            let j = random.next_u32_bound(256 - i);
-            permutation.swap(i as usize, (i + j) as usize);
-        }
-        Self {
-            permutation,
-            origin_x,
-            origin_y,
-            origin_z,
-        }
+        Self(GradientNoise::from_random(random))
     }
 
-    /// Vanilla's `new SimplexNoise(random, true)`: the three origin draws still happen,
-    /// but are scaled by zero.
+    /// Vanilla's `new SimplexNoise(random, true)`.
     pub fn from_random_at_origin<T: Random>(random: &mut T) -> Self {
-        Self {
-            origin_x: 0.0,
-            origin_y: 0.0,
-            origin_z: 0.0,
-            ..Self::from_random(random)
-        }
+        Self(GradientNoise::from_random_scaled(random, 0.0))
     }
 
     #[inline(always)]
     fn map(&self, input: i32) -> i32 {
-        self.permutation[(input & 0xFF) as usize] as i32
+        self.0.permute(input as usize) as i32
     }
 
     pub fn sample_2d(&self, x: f64, z: f64, scale_x: f64, scale_z: f64) -> f64 {
-        let px = x * scale_x + self.origin_x;
-        let py = z * scale_z + self.origin_y;
+        let px = x * scale_x + self.0.offset_x;
+        let py = z * scale_z + self.0.offset_y;
 
         let skew = (px + py) * Self::SKEW_2D;
         let i = (px + skew).floor() as i32;
@@ -222,9 +195,9 @@ mod test {
         assert_eq!(rng.next_i32(), -1467508761);
         let noise = SimplexNoise::from_random(&mut rng);
 
-        assert_eq!(noise.origin_x, 48.58072036717974);
-        assert_eq!(noise.origin_y, 110.73235882678037);
-        assert_eq!(noise.origin_z, 65.26438852860176);
+        assert_eq!(noise.0.offset_x, 48.58072036717974);
+        assert_eq!(noise.0.offset_y, 110.73235882678037);
+        assert_eq!(noise.0.offset_z, 65.26438852860176);
 
         let cases = [
             (

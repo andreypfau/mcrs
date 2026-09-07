@@ -26,16 +26,18 @@ impl PerlinNoise {
     }
 
     #[inline(always)]
-    pub fn sample(&self, x: f64, y: f64, z: f64) -> f32 {
-        self.0.sample_f32(x, y, z)
+    pub fn get(&self, x: f64, y: f64, z: f64) -> f32 {
+        let mut out = [0.0f32; 1];
+        self.0.column::<false>(x, z, &[y], 0.0, &mut out);
+        out[0]
     }
 
     /// Samples one x/z column: the lattice hashes and the x/z smoothsteps are computed once,
     /// and the eight corner gradients only when the y lattice cell changes.
     #[inline]
-    pub fn sample_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+    pub fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
-        self.0.column::<false>(x, z, ys, &[], 0.0, out);
+        self.0.column::<false>(x, z, ys, 0.0, out);
     }
 
     pub fn legacy_fill(
@@ -80,9 +82,9 @@ impl LegacyPerlin2dNoise {
     /// first would quantise the lattice to whole blocks a few hundred thousand
     /// blocks out.
     #[inline]
-    pub fn sample_xz(&self, x: f64, z: f64) -> f32 {
-        let shifted_x = x + self.0.origin_x;
-        let shifted_z = z + self.0.origin_z;
+    pub fn get_xz(&self, x: f64, z: f64) -> f32 {
+        let shifted_x = wrap(x) + self.0.offset_x;
+        let shifted_z = wrap(z) + self.0.offset_z;
         let floor_x = shifted_x.floor();
         let floor_z = shifted_z.floor();
         self.0.sample_and_lerp(
@@ -107,9 +109,9 @@ impl LegacyPerlin2dNoise {
         let size = volume.size();
         let mut index = 0usize;
         for iz in 0..size.z {
-            let z = wrap(volume.block_z(iz) as f64 * xz_scale);
+            let z = volume.block_z(iz) as f64 * xz_scale;
             for ix in 0..size.x {
-                let value = amplitude * self.sample_xz(wrap(volume.block_x(ix) as f64 * xz_scale), z);
+                let value = amplitude * self.get_xz(volume.block_x(ix) as f64 * xz_scale, z);
                 for _ in 0..size.y {
                     out[index] += value;
                     index += 1;
@@ -138,15 +140,13 @@ impl SmearedPerlinNoise {
         self.fudge_y_scale
     }
 
-    /// `ys` are the wrapped coordinates the lattice is read at; `unwrapped_ys`
-    /// are the same coordinates before [`wrap`], which is what the smear
-    /// quantises against.
+    /// `ys` arrive unfolded: the lattice reads them through [`wrap`], while the
+    /// smear quantises against the value before it.
     #[inline]
-    pub fn sample_column(&self, x: f64, z: f64, ys: &[f64], unwrapped_ys: &[f64], out: &mut [f32]) {
+    pub fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
-        debug_assert_eq!(unwrapped_ys.len(), ys.len());
         self.base
-            .column::<true>(x, z, ys, unwrapped_ys, self.fudge_y_scale, out);
+            .column::<true>(x, z, ys, self.fudge_y_scale, out);
     }
 
     pub fn add_to_volume(
@@ -189,13 +189,6 @@ fn fudged_local_y<const SMEARED: bool>(
 
 impl GradientNoise {
     #[inline(always)]
-    pub(crate) fn sample_f32(&self, x: f64, y: f64, z: f64) -> f32 {
-        let mut out = [0.0f32; 1];
-        self.column::<false>(x, z, &[y], &[], 0.0, &mut out);
-        out[0]
-    }
-
-    #[inline(always)]
     pub(crate) fn sample_and_lerp(
         &self,
         section_x: i32,
@@ -225,12 +218,11 @@ impl GradientNoise {
         x: f64,
         z: f64,
         ys: &[f64],
-        unwrapped_ys: &[f64],
         fudge_y_scale: f64,
         out: &mut [f32],
     ) {
-        let shifted_x = x + self.origin_x;
-        let shifted_z = z + self.origin_z;
+        let shifted_x = wrap(x) + self.offset_x;
+        let shifted_z = wrap(z) + self.offset_z;
         let floor_x = shifted_x.floor();
         let floor_z = shifted_z.floor();
         let local_x = (shifted_x - floor_x) as f32;
@@ -241,12 +233,11 @@ impl GradientNoise {
         let (p0, p1) = self.x_perms(floor_x as i32);
 
         let mut cell: Option<(i32, CellBlend)> = None;
-        for (j, (&y, slot)) in ys.iter().zip(out.iter_mut()).enumerate() {
-            let shifted_y = y + self.origin_y;
+        for (&y, slot) in ys.iter().zip(out.iter_mut()) {
+            let shifted_y = wrap(y) + self.offset_y;
             let floor_y = shifted_y.floor();
             let local_y = shifted_y - floor_y;
-            let original_y = if SMEARED { unwrapped_ys[j] } else { 0.0 };
-            let fudged = fudged_local_y::<SMEARED>(local_y, original_y, fudge_y_scale);
+            let fudged = fudged_local_y::<SMEARED>(local_y, y, fudge_y_scale);
             let section_y = floor_y as i32;
             let blend = match cell {
                 Some((cached_y, blend)) if cached_y == section_y => blend,
@@ -289,14 +280,14 @@ impl GradientNoise {
         let size = volume.size();
         let mut index = 0usize;
         for iz in 0..size.z {
-            let shifted_z = wrap(volume.block_z(iz) as f64 * xz_scale) + self.origin_z;
+            let shifted_z = wrap(volume.block_z(iz) as f64 * xz_scale) + self.offset_z;
             let floor_z = shifted_z.floor();
             let local_z = (shifted_z - floor_z) as f32;
             let section_z = floor_z as i32;
             let fade_z = smoothstep(local_z);
 
             for ix in 0..size.x {
-                let shifted_x = wrap(volume.block_x(ix) as f64 * xz_scale) + self.origin_x;
+                let shifted_x = wrap(volume.block_x(ix) as f64 * xz_scale) + self.offset_x;
                 let floor_x = shifted_x.floor();
                 let local_x = (shifted_x - floor_x) as f32;
                 let fade_x = smoothstep(local_x);
@@ -305,7 +296,7 @@ impl GradientNoise {
 
                 for iy in 0..size.y {
                     let original_y = volume.block_y(iy) as f64 * y_scale;
-                    let shifted_y = wrap(original_y) + self.origin_y;
+                    let shifted_y = wrap(original_y) + self.offset_y;
                     let floor_y = shifted_y.floor();
                     let local_y = shifted_y - floor_y;
                     let fudged = fudged_local_y::<SMEARED>(local_y, original_y, fudge_y_scale);
@@ -365,21 +356,21 @@ impl GradientNoise {
         let (mut lower_far, mut upper_far) = (0.0f32, 0.0f32);
 
         for ix in 0..size[0] {
-            let x = (offset[0] + ix as f64) * scale[0] + self.origin_x;
+            let x = (offset[0] + ix as f64) * scale[0] + self.offset_x;
             let floor_x = x.floor();
             let perm_x = (floor_x as i32 & 0xFF) as usize;
             let local_x = (x - floor_x) as f32;
             let fade_x = smoothstep(local_x);
 
             for iz in 0..size[2] {
-                let z = (offset[2] + iz as f64) * scale[2] + self.origin_z;
+                let z = (offset[2] + iz as f64) * scale[2] + self.offset_z;
                 let floor_z = z.floor();
                 let perm_z = (floor_z as i32 & 0xFF) as usize;
                 let local_z = (z - floor_z) as f32;
                 let fade_z = smoothstep(local_z);
 
                 for iy in 0..size[1] {
-                    let y = (offset[1] + iy as f64) * scale[1] + self.origin_y;
+                    let y = (offset[1] + iy as f64) * scale[1] + self.offset_y;
                     let floor_y = y.floor();
                     let cell = floor_y as i32 & 0xFF;
                     let local_y = (y - floor_y) as f32;
@@ -644,7 +635,7 @@ mod modern {
     /// Vanilla `GradientNoise` keeps its offsets in double regardless of the lattice
     /// precision, so the modern sampler must hold the undegraded f64 draws.
     #[test]
-    fn modern_origin_is_vanilla() {
+    fn modern_offset_is_vanilla() {
         use mcrs_minecraft_random::Random;
         let noise = GradientNoise::from_random(&mut LegacyRandom::new(845));
         let mut rng = LegacyRandom::new(845);
@@ -652,16 +643,16 @@ mod modern {
         let expected_y = rng.next_f64() * 256.0;
         let expected_z = rng.next_f64() * 256.0;
         assert_eq!(
-            noise.origin_x, expected_x,
-            "origin_x must equal vanilla next_f64()*256"
+            noise.offset_x, expected_x,
+            "offset_x must equal vanilla next_f64()*256"
         );
         assert_eq!(
-            noise.origin_y, expected_y,
-            "origin_y must equal vanilla next_f64()*256"
+            noise.offset_y, expected_y,
+            "offset_y must equal vanilla next_f64()*256"
         );
         assert_eq!(
-            noise.origin_z, expected_z,
-            "origin_z must equal vanilla next_f64()*256"
+            noise.offset_z, expected_z,
+            "offset_z must equal vanilla next_f64()*256"
         );
     }
 
@@ -670,31 +661,25 @@ mod modern {
         let lattice = GradientNoise::from_random(&mut LegacyRandom::new(845));
         let plain = PerlinNoise::from_gradient(lattice.clone());
         // Steps far below one lattice cell, so consecutive entries reuse the hoisted corners.
-        for (y_step, fudge, y_max) in [
-            (0.03_f64, 0.0_f64, 0.0_f64),
-            (0.03, 0.25, 0.4),
-            (0.37, 2.0, -1.0),
-            (1.5, 0.0, 0.0),
-        ] {
+        for (y_step, fudge) in [(0.03_f64, 0.0_f64), (0.03, 0.25), (0.37, 2.0), (1.5, 0.0)] {
             let smeared = SmearedPerlinNoise::from_gradient(lattice.clone(), fudge);
             for xi in 0..7 {
                 for zi in 0..7 {
                     let x = -12.5 + xi as f64 * 3.7;
                     let z = 7.25 + zi as f64 * 5.3;
                     let ys: Vec<f64> = (0..49).map(|k| -64.0 + k as f64 * y_step).collect();
-                    let maxes = vec![y_max; ys.len()];
                     let mut column = vec![0.0f32; ys.len()];
                     if fudge == 0.0 {
-                        plain.sample_column(x, z, &ys, &mut column);
+                        plain.get_column(x, z, &ys, &mut column);
                     } else {
-                        smeared.sample_column(x, z, &ys, &maxes, &mut column);
+                        smeared.get_column(x, z, &ys, &mut column);
                     }
                     for (j, &y) in ys.iter().enumerate() {
                         let mut one = [0.0f32; 1];
                         if fudge == 0.0 {
-                            one[0] = plain.sample(x, y, z);
+                            one[0] = plain.get(x, y, z);
                         } else {
-                            smeared.sample_column(x, z, &[y], &[y_max], &mut one);
+                            smeared.get_column(x, z, &[y], &mut one);
                         }
                         assert_eq!(
                             column[j].to_bits(),

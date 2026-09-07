@@ -1,19 +1,23 @@
 use crate::beta::seed::{BetaClimateNoises, BetaTerrainNoises};
 use crate::interval::Interval;
 use crate::jmath;
-use crate::node::blended::{BlendedParams, NOISE_SEED};
+use crate::noise::blended::{BlendedNoise, NOISE_SEED};
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::{CompiledSpline, Multipoint, SplineValue};
-use crate::noise::normal::NoiseSampler;
-use crate::program::{BinaryOp, Node, NodeId, Program, RoundKind, UnaryOp};
+use crate::noise::normal::NormalNoise;
+use crate::noise::stack::{NoiseStack, Octave};
+use crate::bounds::{self, Bounds};
+use crate::program::{
+    BinaryOp, Node, NodeId, Program, RoundKind, UnaryOp, drops_offset, node_axes,
+};
 use crate::proto::{
-    self, DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, ProtoSpline,
+    DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, ProtoSpline,
 };
 use crate::router::{NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES};
-use crate::strata::{AXIS_X, AXIS_Z, Axes, NO_AXES};
+use crate::strata::{Axes, NO_AXES};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
@@ -68,11 +72,9 @@ pub fn build_router(
         }
     }
 
-    let roots = [0, 1, 2, 3, 4, 5, 6, 7];
     let program = compiler.into_program(nodes);
     Ok(NoiseRouter::new(
         program,
-        roots,
         failed,
         settings,
         seed,
@@ -89,19 +91,15 @@ pub struct Compiler<'a> {
     random: RandomSource,
     nodes: Vec<Node>,
     axes: Vec<Axes>,
-    /// The bound every holder that compiled to a node declared, widened over all
-    /// of them. `None` is a node no holder landed on directly, which the program
-    /// must treat as unbounded.
-    node_ranges: Vec<Option<Interval>>,
+    node_ranges: Vec<Interval>,
     interned: HashMap<Key, NodeId>,
     compiled: HashMap<DensityFunctionHolder, NodeId>,
     inlined: HashMap<ResourceLocation, DensityFunctionHolder>,
     inlining: Vec<ResourceLocation>,
-    ranges: HashMap<DensityFunctionHolder, Interval>,
-    samplers: HashMap<NoiseHolder, Arc<NoiseSampler>>,
+    samplers: HashMap<NoiseHolder, Arc<NoiseStack<Octave>>>,
     noise_params: HashMap<(usize, u64, u64), Arc<NoiseFunctionParams>>,
     splines: HashMap<ProtoSpline, Arc<CompiledSpline>>,
-    blended: HashMap<[u64; 5], Arc<BlendedParams>>,
+    blended: HashMap<[u64; 5], Arc<BlendedNoise>>,
     end_islands: Option<Arc<EndIslandParams>>,
     /// Both are an 82- and a 10-octave `LegacyRandom` walk; the ids that resolve
     /// to them are separate assets, so without this each one reseeds from zero.
@@ -130,7 +128,6 @@ impl<'a> Compiler<'a> {
             compiled: HashMap::new(),
             inlined: HashMap::new(),
             inlining: Vec::new(),
-            ranges: HashMap::new(),
             samplers: HashMap::new(),
             noise_params: HashMap::new(),
             splines: HashMap::new(),
@@ -159,33 +156,55 @@ impl<'a> Compiler<'a> {
     /// its partial subgraph behind, and `Program::fill` evaluates the whole
     /// array rather than a reachable subset.
     pub fn into_program(self, roots: Vec<NodeId>) -> Program {
-        let ranges = self
-            .node_ranges
-            .into_iter()
-            .map(|range| range.unwrap_or(Interval::INFINITE))
-            .collect();
-        let (nodes, axes, ranges, roots) = prune(self.nodes, self.axes, ranges, roots);
+        let (nodes, axes, ranges, roots) = prune(self.nodes, self.axes, self.node_ranges, roots);
         Program::new(nodes, axes, ranges, roots)
     }
 
-    fn intern(&mut self, key: Key, node: Node, axes: Axes) -> NodeId {
+    /// A node's stratum and its declared bound are both functions of its own
+    /// kind and of its inputs, which are interned before it. Deriving them here
+    /// is what keeps them off a second walk over the tree the node came from.
+    fn intern(&mut self, key: Key, node: Node) -> NodeId {
         if let Some(&id) = self.interned.get(&key) {
             return id;
         }
+        let axes = node_axes(&node, &self.axes);
+        let range = self.declared_range(&node);
+        self.push(key, node, axes, range)
+    }
+
+    fn declared_range(&self, node: &Node) -> Interval {
+        let ranges = &self.node_ranges;
+        bounds::node_bounds(node, Bounds::Declared, &|id| ranges[id as usize])
+            .expect("every kind declares a bound")
+    }
+
+    fn push(&mut self, key: Key, node: Node, axes: Axes, range: Interval) -> NodeId {
         let id = self.nodes.len() as NodeId;
         self.nodes.push(node);
         self.axes.push(axes);
-        self.node_ranges.push(None);
+        self.node_ranges.push(range);
         self.interned.insert(key, id);
         id
     }
 
     pub fn constant(&mut self, value: f32) -> NodeId {
-        self.intern(
-            Key::Constant(value.to_bits()),
-            Node::Constant(value),
-            NO_AXES,
-        )
+        self.intern(Key::Constant(value.to_bits()), Node::Constant(value))
+    }
+
+    /// The value vanilla's fallback returns where this build has no blender and
+    /// no beardifier, carrying the wider bound the real function declares. A key
+    /// of its own keeps it off the plain constant of the same value, whose bound
+    /// is exact and would delete branches vanilla keeps.
+    fn declared_constant(&mut self, value: f32, declared: Interval) -> NodeId {
+        let key = Key::DeclaredConstant(
+            value.to_bits(),
+            declared.min().to_bits(),
+            declared.max().to_bits(),
+        );
+        if let Some(&id) = self.interned.get(&key) {
+            return id;
+        }
+        self.push(key, Node::Constant(value), NO_AXES, declared)
     }
 
     fn as_constant(&self, id: NodeId) -> Option<f32> {
@@ -224,8 +243,7 @@ impl<'a> Compiler<'a> {
             DensityFunctionHolder::Owned(function) => {
                 // A cache memoizes for an engine that re-walks the graph per
                 // position; the flat array evaluates every node once per fill,
-                // so the marker is its input and is dropped here rather than at
-                // compile time, where `domain_axes` and `range` would meet it.
+                // so the marker is its input and is dropped here.
                 if let ProtoDensityFunction::Cache(inner) = &**function {
                     return self.inline(&inner.input);
                 }
@@ -245,47 +263,6 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    // --- ranges -------------------------------------------------------------
-
-    /// `Interval::INFINITE` where a noise the corpus never declared is in play:
-    /// `proto::range` panics on one, and a bound nobody can compute must not
-    /// delete a branch.
-    fn range_of(&mut self, holder: &DensityFunctionHolder) -> Interval {
-        if let Some(&range) = self.ranges.get(holder) {
-            return range;
-        }
-        let range = if self.noises_declared(holder) {
-            proto::holder_range(self.noises, holder)
-        } else {
-            Interval::INFINITE
-        };
-        self.ranges.insert(holder.clone(), range);
-        range
-    }
-
-    fn noises_declared(&self, holder: &DensityFunctionHolder) -> bool {
-        let DensityFunctionHolder::Owned(function) = holder else {
-            return true;
-        };
-        let declared = |noise: &NoiseHolder| match noise {
-            NoiseHolder::Owned(_) => true,
-            NoiseHolder::Reference(id) => self.noises.contains_key(id),
-        };
-        let here = match &**function {
-            ProtoDensityFunction::Noise { noise, .. }
-            | ProtoDensityFunction::Shift { noise }
-            | ProtoDensityFunction::ShiftA { noise }
-            | ProtoDensityFunction::ShiftB { noise } => declared(noise),
-            _ => true,
-        };
-        if !here {
-            return false;
-        }
-        let mut all = true;
-        function.visit_children(&mut |child| all &= self.noises_declared(child));
-        all
-    }
-
     // --- compilation --------------------------------------------------------
 
     fn compile(&mut self, holder: &DensityFunctionHolder) -> Result<NodeId, CompileError> {
@@ -293,12 +270,6 @@ impl<'a> Compiler<'a> {
             return Ok(id);
         }
         let id = self.compile_uncached(holder)?;
-        let range = self.range_of(holder);
-        let slot = &mut self.node_ranges[id as usize];
-        *slot = Some(match *slot {
-            Some(known) => known.union(range),
-            None => range,
-        });
         self.compiled.insert(holder.clone(), id);
         Ok(id)
     }
@@ -311,7 +282,6 @@ impl<'a> Compiler<'a> {
             }
             DensityFunctionHolder::Owned(function) => function,
         };
-        let axes = proto::domain_axes(function);
         use ProtoDensityFunction as P;
         match &**function {
             P::Constant(value) => Ok(self.constant(value.value.0 as f32)),
@@ -320,9 +290,9 @@ impl<'a> Compiler<'a> {
             // fallback returns. Their declared ranges stay conservative, which
             // is what keeps branch elimination from deleting a branch vanilla
             // would keep.
-            P::BlendAlpha => Ok(self.constant(1.0)),
-            P::BlendOffset => Ok(self.constant(0.0)),
-            P::Beardifier => Ok(self.constant(0.0)),
+            P::BlendAlpha => Ok(self.declared_constant(1.0, Interval::of(0.0, 1.0))),
+            P::BlendOffset => Ok(self.declared_constant(0.0, Interval::INFINITE)),
+            P::Beardifier => Ok(self.declared_constant(0.0, Interval::INFINITE)),
             P::BlendDensity(x) => self.compile(&x.input),
 
             P::Cache(_) => unreachable!("cache survived inlining"),
@@ -344,16 +314,14 @@ impl<'a> Compiler<'a> {
                     params.from_value.to_bits(),
                     params.to_value.to_bits(),
                 );
-                Ok(self.intern(key, Node::Gradient(params), axes))
+                Ok(self.intern(key, Node::Gradient(params)))
             }
 
             P::DistanceToPoint { point, metric } => {
                 let params = DistanceParams::new(point[0], point[1], point[2], *metric);
                 Ok(self.intern(
                     Key::DistanceToPoint(params),
-                    Node::DistanceToPoint(params),
-                    axes,
-                ))
+                    Node::DistanceToPoint(params),                ))
             }
 
             P::EndOuterIslands => {
@@ -366,7 +334,7 @@ impl<'a> Compiler<'a> {
                     }
                 };
                 let key = Key::EndOuterIslands(Arc::as_ptr(&params) as usize);
-                Ok(self.intern(key, Node::EndOuterIslands(params), axes))
+                Ok(self.intern(key, Node::EndOuterIslands(params)))
             }
 
             P::OldBlendedNoise(x) => {
@@ -378,7 +346,7 @@ impl<'a> Compiler<'a> {
                     x.smear_scale_multiplier.0,
                 );
                 let key = Key::OldBlendedNoise(Arc::as_ptr(&params) as usize);
-                Ok(self.intern(key, Node::OldBlendedNoise(params), axes))
+                Ok(self.intern(key, Node::OldBlendedNoise(params)))
             }
 
             P::Noise {
@@ -396,46 +364,44 @@ impl<'a> Compiler<'a> {
                     && shift_y.is_zero_constant()
                     && shift_z.is_zero_constant()
                 {
-                    return Ok(self.intern(Key::Noise(pointer), Node::Noise { params }, axes));
+                    return Ok(self.intern(Key::Noise(pointer), Node::Noise { params }));
                 }
                 let x = self.compile(shift_x)?;
                 let y = self.compile(shift_y)?;
                 let z = self.compile(shift_z)?;
                 Ok(self.intern(
                     Key::ShiftedNoise(pointer, x, y, z),
-                    Node::ShiftedNoise { params, x, y, z },
-                    axes,
-                ))
+                    Node::ShiftedNoise { params, x, y, z },                ))
             }
 
             // `shift` and `shift_a` are a plain noise scaled by four, so they
             // lower onto nodes a bare `noise` of the same parameters shares.
-            P::ShiftA { noise } => self.compile_shift(noise, 0.0, axes),
-            P::Shift { noise } => self.compile_shift(noise, 0.25, axes),
+            P::ShiftA { noise } => self.compile_shift(noise, 0.0),
+            P::Shift { noise } => self.compile_shift(noise, 0.25),
             P::ShiftB { noise } => {
                 let sampler = self.noise_sampler(noise)?;
                 let params = self.shift_b_params(&sampler);
                 let key = Key::ShiftB(Arc::as_ptr(&params) as usize);
-                Ok(self.intern(key, Node::ShiftB { params }, axes))
+                Ok(self.intern(key, Node::ShiftB { params }))
             }
 
-            P::Abs(x) => self.compile_unary(UnaryOp::Abs, &x.input, axes),
-            P::Square(x) => self.compile_unary(UnaryOp::Square, &x.input, axes),
-            P::Cube(x) => self.compile_unary(UnaryOp::Cube, &x.input, axes),
-            P::Sqrt(x) => self.compile_unary(UnaryOp::Sqrt, &x.input, axes),
-            P::Reciprocal(x) => self.compile_unary(UnaryOp::Reciprocal, &x.input, axes),
-            P::Negate(x) => self.compile_unary(UnaryOp::Negate, &x.input, axes),
-            P::Squeeze(x) => self.compile_unary(UnaryOp::Squeeze, &x.input, axes),
-            P::Log(x) => self.compile_unary(UnaryOp::Log, &x.input, axes),
-            P::Sign(x) => self.compile_unary(UnaryOp::Sign, &x.input, axes),
+            P::Abs(x) => self.compile_unary(UnaryOp::Abs, &x.input),
+            P::Square(x) => self.compile_unary(UnaryOp::Square, &x.input),
+            P::Cube(x) => self.compile_unary(UnaryOp::Cube, &x.input),
+            P::Sqrt(x) => self.compile_unary(UnaryOp::Sqrt, &x.input),
+            P::Reciprocal(x) => self.compile_unary(UnaryOp::Reciprocal, &x.input),
+            P::Negate(x) => self.compile_unary(UnaryOp::Negate, &x.input),
+            P::Squeeze(x) => self.compile_unary(UnaryOp::Squeeze, &x.input),
+            P::Log(x) => self.compile_unary(UnaryOp::Log, &x.input),
+            P::Sign(x) => self.compile_unary(UnaryOp::Sign, &x.input),
 
             P::HalfNegative(x) => {
                 let input = self.compile(&x.input)?;
-                Ok(self.leaky_relu(input, 0.5, axes))
+                Ok(self.leaky_relu(input, 0.5))
             }
             P::QuarterNegative(x) => {
                 let input = self.compile(&x.input)?;
-                Ok(self.leaky_relu(input, 0.25, axes))
+                Ok(self.leaky_relu(input, 0.25))
             }
 
             P::Clamp(x) => {
@@ -446,46 +412,42 @@ impl<'a> Compiler<'a> {
                 }
                 Ok(self.intern(
                     Key::Clamp(input, min.to_bits(), max.to_bits()),
-                    Node::Clamp { input, min, max },
-                    axes,
-                ))
+                    Node::Clamp { input, min, max },                ))
             }
 
-            P::Floor(x) => self.compile_round(RoundKind::Floor, &x.input, &x.multiple, axes),
-            P::Round(x) => self.compile_round(RoundKind::Round, &x.input, &x.multiple, axes),
-            P::Ceil(x) => self.compile_round(RoundKind::Ceil, &x.input, &x.multiple, axes),
-            P::Truncate(x) => self.compile_round(RoundKind::Truncate, &x.input, &x.multiple, axes),
+            P::Floor(x) => self.compile_round(RoundKind::Floor, &x.input, &x.multiple),
+            P::Round(x) => self.compile_round(RoundKind::Round, &x.input, &x.multiple),
+            P::Ceil(x) => self.compile_round(RoundKind::Ceil, &x.input, &x.multiple),
+            P::Truncate(x) => self.compile_round(RoundKind::Truncate, &x.input, &x.multiple),
 
             P::Add(x) => {
                 let (left, right) = self.operands(&x.left, &x.right)?;
-                Ok(self.add(left, right, axes))
+                Ok(self.add(left, right))
             }
             P::Sub(x) => {
                 let (left, right) = self.operands(&x.left, &x.right)?;
-                Ok(self.sub(left, right, axes))
+                Ok(self.sub(left, right))
             }
             P::Mul(x) => {
                 let (left, right) = self.operands(&x.left, &x.right)?;
-                Ok(self.mul(left, right, axes))
+                Ok(self.mul(left, right))
             }
             P::Div(x) => {
                 let (left, right) = self.operands(&x.left, &x.right)?;
-                Ok(self.div(left, right, axes))
+                Ok(self.div(left, right))
             }
             P::Min(x) => {
                 let (left, right) = self.operands(&x.left, &x.right)?;
-                let bounds = (self.range_of(&x.left), self.range_of(&x.right));
-                Ok(self.extremum(BinaryOp::Min, left, right, bounds, axes))
+                Ok(self.extremum(BinaryOp::Min, left, right))
             }
             P::Max(x) => {
                 let (left, right) = self.operands(&x.left, &x.right)?;
-                let bounds = (self.range_of(&x.left), self.range_of(&x.right));
-                Ok(self.extremum(BinaryOp::Max, left, right, bounds, axes))
+                Ok(self.extremum(BinaryOp::Max, left, right))
             }
 
             P::Pow(x) => {
                 let (base, exponent) = self.operands(&x.base, &x.exponent)?;
-                Ok(self.pow(base, exponent, axes))
+                Ok(self.pow(base, exponent))
             }
 
             P::Lerp {
@@ -496,7 +458,7 @@ impl<'a> Compiler<'a> {
                 let alpha = self.compile(alpha)?;
                 let first = self.compile(first)?;
                 let second = self.compile(second)?;
-                Ok(self.lerp(alpha, first, second, axes))
+                Ok(self.lerp(alpha, first, second))
             }
 
             P::RangeChoice {
@@ -526,9 +488,7 @@ impl<'a> Compiler<'a> {
                             max_exclusive,
                             when_in,
                             when_out,
-                        },
-                        axes,
-                    )),
+                        },                    )),
                     _ => Ok(self.intern(
                         Key::RangeChoice(
                             input,
@@ -543,9 +503,7 @@ impl<'a> Compiler<'a> {
                             max_exclusive,
                             when_in,
                             when_out,
-                        },
-                        axes,
-                    )),
+                        },                    )),
                 }
             }
 
@@ -566,9 +524,7 @@ impl<'a> Compiler<'a> {
                             threshold,
                             below,
                             above,
-                        },
-                        axes,
-                    ));
+                        },                    ));
                 }
                 let key = Key::IntervalSelect(
                     input,
@@ -581,19 +537,18 @@ impl<'a> Compiler<'a> {
                         input,
                         thresholds: thresholds.into(),
                         arms: arms.into(),
-                    },
-                    axes,
-                ))
+                    },                ))
             }
 
-            P::Spline { spline } => self.compile_spline(spline, axes),
+            P::Spline { spline } => self.compile_spline(spline),
 
             // A slice whose input already ignores the sliced axis is the
             // identity; anything else needs the input evaluated at a
             // substituted coordinate, which the flat program cannot do.
             P::Slice { axis, input, .. } => {
-                if proto::holder_axes(input) & proto::axes_from(*axis) == 0 {
-                    return self.compile(input);
+                let input = self.compile(input)?;
+                if self.axes[input as usize] & axis.bit() == 0 {
+                    return Ok(input);
                 }
                 Err(CompileError::Unsupported("slice"))
             }
@@ -620,7 +575,6 @@ impl<'a> Compiler<'a> {
                         cell_y: cell_size_y.get() as i32,
                         cell,
                     },
-                    axes | AXIS_X | AXIS_Z,
                 ))
             }
 
@@ -636,9 +590,7 @@ impl<'a> Compiler<'a> {
                         upper_bound,
                         lower_bound,
                         cell_height: cell_height as i32,
-                    },
-                    axes,
-                ))
+                    },                ))
             }
         }
     }
@@ -655,10 +607,9 @@ impl<'a> Compiler<'a> {
         &mut self,
         op: UnaryOp,
         input: &DensityFunctionHolder,
-        axes: Axes,
     ) -> Result<NodeId, CompileError> {
         let input = self.compile(input)?;
-        Ok(self.unary(op, input, axes))
+        Ok(self.unary(op, input))
     }
 
     fn compile_round(
@@ -666,27 +617,25 @@ impl<'a> Compiler<'a> {
         kind: RoundKind,
         input: &DensityFunctionHolder,
         multiple: &DensityFunctionHolder,
-        axes: Axes,
     ) -> Result<NodeId, CompileError> {
         let input = self.compile(input)?;
         let multiple = self.compile(multiple)?;
-        Ok(self.round(kind, input, multiple, axes))
+        Ok(self.round(kind, input, multiple))
     }
 
     fn compile_shift(
         &mut self,
         noise: &NoiseHolder,
         y_scale: f64,
-        axes: Axes,
     ) -> Result<NodeId, CompileError> {
         let sampler = self.noise_sampler(noise)?;
         let params = self.noise_params(&sampler, 0.25, y_scale);
         let key = Key::Noise(Arc::as_ptr(&params) as usize);
-        let inner = self.intern(key, Node::Noise { params }, axes);
-        Ok(self.affine(inner, 4.0, 0.0, axes))
+        let inner = self.intern(key, Node::Noise { params });
+        Ok(self.affine(inner, 4.0, 0.0))
     }
 
-    fn compile_spline(&mut self, spline: &ProtoSpline, axes: Axes) -> Result<NodeId, CompileError> {
+    fn compile_spline(&mut self, spline: &ProtoSpline) -> Result<NodeId, CompileError> {
         if let ProtoSpline::Constant(value) = spline {
             return Ok(self.constant(*value));
         }
@@ -716,48 +665,31 @@ impl<'a> Compiler<'a> {
             Node::Spline {
                 spline: compiled,
                 coords: coords.into(),
-            },
-            axes,
-        ))
+            },        ))
     }
 
     // --- the specialization ladder -----------------------------------------
 
-    fn unary(&mut self, op: UnaryOp, input: NodeId, axes: Axes) -> NodeId {
+    fn unary(&mut self, op: UnaryOp, input: NodeId) -> NodeId {
         if let Some(value) = self.as_constant(input) {
             return self.constant(op.apply(value));
         }
         self.intern(
             Key::Unary(unary_tag(op), input),
-            Node::Unary { op, input },
-            axes,
-        )
+            Node::Unary { op, input },        )
     }
 
-    fn leaky_relu(&mut self, input: NodeId, negative_scale: f32, axes: Axes) -> NodeId {
-        if let Some(value) = self.as_constant(input) {
-            let folded = if value > 0.0 {
-                value
-            } else {
-                value * negative_scale
-            };
-            return self.constant(folded);
-        }
-        self.intern(
-            Key::LeakyRelu(input, negative_scale.to_bits()),
-            Node::LeakyRelu {
-                input,
-                negative_scale,
-            },
-            axes,
-        )
+    /// The rectifier vanilla emits for `half_negative` and `quarter_negative`:
+    /// unit slope above zero, `negative_scale` below.
+    fn leaky_relu(&mut self, input: NodeId, negative_scale: f32) -> NodeId {
+        self.piecewise_affine(input, negative_scale, 1.0, 0.0)
     }
 
     /// `input * scale + offset`, with the two chained forms vanilla emits as
     /// separate samplers folded into one node. Only the scale-then-offset order
     /// fuses: `(v * s + 0) + o` and `v * s + o` are the same two roundings,
     /// while `(v * s1) * s2` and `v * (s1 * s2)` are not.
-    fn affine(&mut self, input: NodeId, scale: f32, offset: f32, axes: Axes) -> NodeId {
+    fn affine(&mut self, input: NodeId, scale: f32, offset: f32) -> NodeId {
         if let Some(value) = self.as_constant(input) {
             return self.constant(value * scale + offset);
         }
@@ -770,29 +702,26 @@ impl<'a> Compiler<'a> {
                 scale: inner_scale,
                 offset: inner_offset,
             } if scale == 1.0 && *inner_offset == 0.0 => Fusion::Affine(*inner, *inner_scale),
-            Node::LeakyRelu {
-                input: inner,
-                negative_scale,
-            } => Fusion::LeakyRelu(*inner, *negative_scale),
+            // Multiplying by a power of two is exact, so `(v*m)*s` and
+            // `v*(m*s)` round once on the same real number and the two slopes
+            // may absorb the outer scale. The rectifier's are 0.5 and 0.25.
             Node::PiecewiseAffine {
                 input: inner,
                 neg_scale,
                 pos_scale,
                 offset: inner_offset,
-            } if scale == 1.0 && *inner_offset == 0.0 => {
-                Fusion::PiecewiseAffine(*inner, *neg_scale, *pos_scale)
+            } if *inner_offset == 0.0
+                && (scale == 1.0
+                    || (is_power_of_two(*neg_scale) && is_power_of_two(*pos_scale))) =>
+            {
+                Fusion::PiecewiseAffine(*inner, *neg_scale * scale, *pos_scale * scale)
             }
             _ => Fusion::None,
         };
         match fusion {
-            Fusion::Affine(inner, inner_scale) => self.affine(inner, inner_scale, offset, axes),
-            // The rectifier's negative slope is a power of two, so folding it
-            // into the scale is exact and the piecewise node still rounds twice.
-            Fusion::LeakyRelu(inner, negative_scale) => {
-                self.piecewise_affine(inner, negative_scale * scale, scale, offset, axes)
-            }
+            Fusion::Affine(inner, inner_scale) => self.affine(inner, inner_scale, offset),
             Fusion::PiecewiseAffine(inner, neg_scale, pos_scale) => {
-                self.piecewise_affine(inner, neg_scale, pos_scale, offset, axes)
+                self.piecewise_affine(inner, neg_scale, pos_scale, offset)
             }
             Fusion::None => self.intern(
                 Key::Affine(input, scale.to_bits(), offset.to_bits()),
@@ -800,9 +729,7 @@ impl<'a> Compiler<'a> {
                     input,
                     scale,
                     offset,
-                },
-                axes,
-            ),
+                },            ),
         }
     }
 
@@ -812,11 +739,14 @@ impl<'a> Compiler<'a> {
         neg_scale: f32,
         pos_scale: f32,
         offset: f32,
-        axes: Axes,
     ) -> NodeId {
         if let Some(value) = self.as_constant(input) {
             let scale = if value < 0.0 { neg_scale } else { pos_scale };
-            return self.constant(value * scale + offset);
+            return self.constant(if drops_offset(offset) {
+                value * scale
+            } else {
+                value * scale + offset
+            });
         }
         self.intern(
             Key::PiecewiseAffine(
@@ -830,29 +760,25 @@ impl<'a> Compiler<'a> {
                 neg_scale,
                 pos_scale,
                 offset,
-            },
-            axes,
-        )
+            },        )
     }
 
-    fn binary(&mut self, op: BinaryOp, a: NodeId, b: NodeId, axes: Axes) -> NodeId {
+    fn binary(&mut self, op: BinaryOp, a: NodeId, b: NodeId) -> NodeId {
         self.intern(
             Key::Binary(binary_tag(op), a, b),
-            Node::Binary { op, a, b },
-            axes,
-        )
+            Node::Binary { op, a, b },        )
     }
 
-    fn add(&mut self, left: NodeId, right: NodeId, axes: Axes) -> NodeId {
+    fn add(&mut self, left: NodeId, right: NodeId) -> NodeId {
         match (self.as_constant(left), self.as_constant(right)) {
             (Some(a), Some(b)) => self.constant(a + b),
-            (Some(c), None) => self.affine(right, 1.0, c, axes),
-            (None, Some(c)) => self.affine(left, 1.0, c, axes),
-            (None, None) => self.binary(BinaryOp::Add, left, right, axes),
+            (Some(c), None) => self.affine(right, 1.0, c),
+            (None, Some(c)) => self.affine(left, 1.0, c),
+            (None, None) => self.binary(BinaryOp::Add, left, right),
         }
     }
 
-    fn sub(&mut self, left: NodeId, right: NodeId, axes: Axes) -> NodeId {
+    fn sub(&mut self, left: NodeId, right: NodeId) -> NodeId {
         match (self.as_constant(left), self.as_constant(right)) {
             (Some(a), Some(b)) => self.constant(a - b),
             (Some(value), None) => self.intern(
@@ -860,25 +786,23 @@ impl<'a> Compiler<'a> {
                 Node::ConstSub {
                     input: right,
                     value,
-                },
-                axes,
-            ),
+                },            ),
             // `x - c` is `x + (-c)`: negation is exact in binary floating point.
-            (None, Some(c)) => self.affine(left, 1.0, -c, axes),
-            (None, None) => self.binary(BinaryOp::Sub, left, right, axes),
+            (None, Some(c)) => self.affine(left, 1.0, -c),
+            (None, None) => self.binary(BinaryOp::Sub, left, right),
         }
     }
 
-    fn mul(&mut self, left: NodeId, right: NodeId, axes: Axes) -> NodeId {
+    fn mul(&mut self, left: NodeId, right: NodeId) -> NodeId {
         match (self.as_constant(left), self.as_constant(right)) {
             (Some(a), Some(b)) => self.constant(a * b),
-            (Some(c), None) => self.affine(right, c, 0.0, axes),
-            (None, Some(c)) => self.affine(left, c, 0.0, axes),
-            (None, None) => self.binary(BinaryOp::Mul, left, right, axes),
+            (Some(c), None) => self.affine(right, c, 0.0),
+            (None, Some(c)) => self.affine(left, c, 0.0),
+            (None, None) => self.binary(BinaryOp::Mul, left, right),
         }
     }
 
-    fn div(&mut self, left: NodeId, right: NodeId, axes: Axes) -> NodeId {
+    fn div(&mut self, left: NodeId, right: NodeId) -> NodeId {
         match (self.as_constant(left), self.as_constant(right)) {
             (Some(a), Some(b)) => self.constant(a / b),
             (Some(value), None) => self.intern(
@@ -886,26 +810,18 @@ impl<'a> Compiler<'a> {
                 Node::ConstDiv {
                     input: right,
                     value,
-                },
-                axes,
-            ),
+                },            ),
             // Vanilla compiles `x / c` to the reciprocal multiply, not to a
             // division, and the two disagree in the last bit for a divisor that
             // is not a power of two.
-            (None, Some(c)) => self.affine(left, 1.0 / c, 0.0, axes),
-            (None, None) => self.binary(BinaryOp::Div, left, right, axes),
+            (None, Some(c)) => self.affine(left, 1.0 / c, 0.0),
+            (None, None) => self.binary(BinaryOp::Div, left, right),
         }
     }
 
-    fn extremum(
-        &mut self,
-        op: BinaryOp,
-        left: NodeId,
-        right: NodeId,
-        bounds: (Interval, Interval),
-        axes: Axes,
-    ) -> NodeId {
-        let (left_range, right_range) = bounds;
+    fn extremum(&mut self, op: BinaryOp, left: NodeId, right: NodeId) -> NodeId {
+        let left_range = self.node_ranges[left as usize];
+        let right_range = self.node_ranges[right as usize];
         let constants = (self.as_constant(left), self.as_constant(right));
         // The accumulator is the operand that is not the baked-in constant, so
         // the fold takes the operands in the order the sampler would.
@@ -936,29 +852,25 @@ impl<'a> Compiler<'a> {
             return if left_wins { left } else { right };
         }
         match constants {
-            (Some(value), None) => self.const_extremum(op, right, value, axes),
-            (None, Some(value)) => self.const_extremum(op, left, value, axes),
-            _ => self.binary(op, left, right, axes),
+            (Some(value), None) => self.const_extremum(op, right, value),
+            (None, Some(value)) => self.const_extremum(op, left, value),
+            _ => self.binary(op, left, right),
         }
     }
 
-    fn const_extremum(&mut self, op: BinaryOp, input: NodeId, value: f32, axes: Axes) -> NodeId {
+    fn const_extremum(&mut self, op: BinaryOp, input: NodeId, value: f32) -> NodeId {
         let bits = value.to_bits();
         match op {
             BinaryOp::Min => self.intern(
                 Key::ConstMin(input, bits),
-                Node::ConstMin { input, value },
-                axes,
-            ),
+                Node::ConstMin { input, value },            ),
             _ => self.intern(
                 Key::ConstMax(input, bits),
-                Node::ConstMax { input, value },
-                axes,
-            ),
+                Node::ConstMax { input, value },            ),
         }
     }
 
-    fn pow(&mut self, base: NodeId, exponent: NodeId, axes: Axes) -> NodeId {
+    fn pow(&mut self, base: NodeId, exponent: NodeId) -> NodeId {
         match (self.as_constant(base), self.as_constant(exponent)) {
             (Some(a), Some(b)) => self.constant(jmath::pow(a, b)),
             (Some(value), None) => self.intern(
@@ -966,44 +878,40 @@ impl<'a> Compiler<'a> {
                 Node::ConstBasePow {
                     base: value,
                     exponent,
-                },
-                axes,
-            ),
-            (None, Some(value)) => self.const_exponent_pow(base, value, axes),
+                },            ),
+            (None, Some(value)) => self.const_exponent_pow(base, value),
             (None, None) => {
-                self.intern(Key::Pow(base, exponent), Node::Pow { base, exponent }, axes)
+                self.intern(Key::Pow(base, exponent), Node::Pow { base, exponent })
             }
         }
     }
 
-    fn const_exponent_pow(&mut self, base: NodeId, exponent: f32, axes: Axes) -> NodeId {
+    fn const_exponent_pow(&mut self, base: NodeId, exponent: f32) -> NodeId {
         let magnitude = exponent.abs();
         let special = if magnitude == 0.5 {
-            Some(self.unary(UnaryOp::Sqrt, base, axes))
+            Some(self.unary(UnaryOp::Sqrt, base))
         } else if magnitude == 1.0 {
             Some(base)
         } else if magnitude == 2.0 {
-            Some(self.unary(UnaryOp::Square, base, axes))
+            Some(self.unary(UnaryOp::Square, base))
         } else if magnitude == 3.0 {
-            Some(self.unary(UnaryOp::Cube, base, axes))
+            Some(self.unary(UnaryOp::Cube, base))
         } else {
             None
         };
         match special {
             Some(id) if exponent >= 0.0 => id,
-            Some(id) => self.unary(UnaryOp::Reciprocal, id, axes),
+            Some(id) => self.unary(UnaryOp::Reciprocal, id),
             None => self.intern(
                 Key::ConstExponentPow(base, exponent.to_bits()),
                 Node::ConstExponentPow {
                     input: base,
                     exponent,
-                },
-                axes,
-            ),
+                },            ),
         }
     }
 
-    fn round(&mut self, kind: RoundKind, input: NodeId, multiple: NodeId, axes: Axes) -> NodeId {
+    fn round(&mut self, kind: RoundKind, input: NodeId, multiple: NodeId) -> NodeId {
         if let Some(m) = self.as_constant(multiple) {
             if let Some(value) = self.as_constant(input) {
                 let folded = if m == 0.0 {
@@ -1024,9 +932,7 @@ impl<'a> Compiler<'a> {
                     input,
                     multiple: m,
                     kind,
-                },
-                axes,
-            );
+                },            );
         }
         self.intern(
             Key::Round(input, multiple, round_tag(kind)),
@@ -1034,12 +940,10 @@ impl<'a> Compiler<'a> {
                 value: input,
                 multiple,
                 kind,
-            },
-            axes,
-        )
+            },        )
     }
 
-    fn lerp(&mut self, alpha: NodeId, first: NodeId, second: NodeId, axes: Axes) -> NodeId {
+    fn lerp(&mut self, alpha: NodeId, first: NodeId, second: NodeId) -> NodeId {
         let constants = (
             self.as_constant(alpha),
             self.as_constant(first),
@@ -1055,9 +959,7 @@ impl<'a> Compiler<'a> {
                     alpha,
                     first: value,
                     second,
-                },
-                axes,
-            );
+                },            );
         }
         if let Some(value) = constants.2 {
             return self.intern(
@@ -1066,9 +968,7 @@ impl<'a> Compiler<'a> {
                     alpha,
                     first,
                     second: value,
-                },
-                axes,
-            );
+                },            );
         }
         self.intern(
             Key::Lerp(alpha, first, second),
@@ -1076,16 +976,14 @@ impl<'a> Compiler<'a> {
                 alpha,
                 first,
                 second,
-            },
-            axes,
-        )
+            },        )
     }
 
     // --- noise construction -------------------------------------------------
 
     fn noise_params(
         &mut self,
-        sampler: &Arc<NoiseSampler>,
+        sampler: &Arc<NoiseStack<Octave>>,
         xz_scale: f64,
         y_scale: f64,
     ) -> Arc<NoiseFunctionParams> {
@@ -1102,7 +1000,7 @@ impl<'a> Compiler<'a> {
         params
     }
 
-    fn shift_b_params(&mut self, sampler: &Arc<NoiseSampler>) -> Arc<NoiseFunctionParams> {
+    fn shift_b_params(&mut self, sampler: &Arc<NoiseStack<Octave>>) -> Arc<NoiseFunctionParams> {
         let key = (Arc::as_ptr(sampler) as usize, u64::MAX, u64::MAX);
         if let Some(params) = self.noise_params.get(&key) {
             return Arc::clone(params);
@@ -1119,7 +1017,7 @@ impl<'a> Compiler<'a> {
         xz_factor: f64,
         y_factor: f64,
         smear_scale_multiplier: f64,
-    ) -> Arc<BlendedParams> {
+    ) -> Arc<BlendedNoise> {
         let key = [
             xz_scale.to_bits(),
             y_scale.to_bits(),
@@ -1138,7 +1036,7 @@ impl<'a> Compiler<'a> {
             let mut root = self.random.clone();
             root.fork_hash(NOISE_SEED)
         };
-        let params = Arc::new(BlendedParams::new(
+        let params = Arc::new(BlendedNoise::new(
             &mut random,
             xz_scale,
             y_scale,
@@ -1150,7 +1048,7 @@ impl<'a> Compiler<'a> {
         params
     }
 
-    fn noise_sampler(&mut self, holder: &NoiseHolder) -> Result<Arc<NoiseSampler>, CompileError> {
+    fn noise_sampler(&mut self, holder: &NoiseHolder) -> Result<Arc<NoiseStack<Octave>>, CompileError> {
         if let Some(sampler) = self.samplers.get(holder) {
             return Ok(Arc::clone(sampler));
         }
@@ -1159,33 +1057,27 @@ impl<'a> Compiler<'a> {
         Ok(sampler)
     }
 
-    fn create_noise(&mut self, holder: &NoiseHolder) -> Result<NoiseSampler, CompileError> {
+    fn create_noise(&mut self, holder: &NoiseHolder) -> Result<NoiseStack<Octave>, CompileError> {
         match holder {
             NoiseHolder::Owned(param) => {
                 let mut random = self.random.clone();
-                Ok(NoiseSampler::from_params(&mut random, param))
+                Ok(NormalNoise::new(param.clone()).create(&mut random))
             }
             NoiseHolder::Reference(id) => self.create_named_noise(id),
         }
     }
 
-    fn create_named_noise(&mut self, id: &ResourceLocation) -> Result<NoiseSampler, CompileError> {
+    fn create_named_noise(&mut self, id: &ResourceLocation) -> Result<NoiseStack<Octave>, CompileError> {
         // The two nether climate noises are seeded from the raw world seed, not
         // from the hashed fork every other noise takes.
         match id.as_str() {
             "minecraft:nether/temperature" => {
-                return Ok(NoiseSampler::new(
-                    &mut LegacyRandom::new(self.seed),
-                    -7,
-                    vec![1.0, 1.0],
-                ));
+                return Ok(NormalNoise::create_parity(-7, &[1.0, 1.0])
+                    .create(&mut LegacyRandom::new(self.seed)));
             }
             "minecraft:nether/vegetation" => {
-                return Ok(NoiseSampler::new(
-                    &mut LegacyRandom::new(self.seed.wrapping_add(1)),
-                    -7,
-                    vec![1.0, 1.0],
-                ));
+                return Ok(NormalNoise::create_parity(-7, &[1.0, 1.0])
+                    .create(&mut LegacyRandom::new(self.seed.wrapping_add(1))));
             }
             _ => {}
         }
@@ -1202,7 +1094,7 @@ impl<'a> Compiler<'a> {
             .ok_or_else(|| CompileError::UnknownNoise(id.as_str().to_string()))?;
         let mut root = self.random.clone();
         let mut random = root.fork_hash(id.as_str());
-        Ok(NoiseSampler::from_params(&mut random, param))
+        Ok(NormalNoise::new(param.clone()).create(&mut random))
     }
 
     fn beta_terrain(&mut self) -> Arc<BetaTerrainNoises> {
@@ -1221,12 +1113,12 @@ impl<'a> Compiler<'a> {
 
     /// The Beta noises are drawn from the pre-26.3 `LegacyRandom` streams and
     /// have no `worldgen/noise` entry, so the ids are resolved here instead.
-    fn create_legacy_noise(&mut self, id: &ResourceLocation) -> Option<NoiseSampler> {
+    fn create_legacy_noise(&mut self, id: &ResourceLocation) -> Option<NoiseStack<Octave>> {
         match id.as_str() {
             "minecraft:offset" => {
                 let mut root = self.random.clone();
                 let mut random = root.fork_hash("minecraft:offset");
-                Some(NoiseSampler::new(&mut random, 0, vec![0.0]))
+                Some(NormalNoise::create_parity(0, &[0.0]).create(&mut random))
             }
             "mcrs:beta/scale" => Some(self.beta_terrain().scale.clone()),
             "mcrs:beta/depth" => Some(self.beta_terrain().depth.clone()),
@@ -1282,8 +1174,13 @@ fn prune(
 enum Fusion {
     None,
     Affine(NodeId, f32),
-    LeakyRelu(NodeId, f32),
     PiecewiseAffine(NodeId, f32, f32),
+}
+
+/// Excludes zero and the infinities, both of which share a power of two's zero
+/// mantissa.
+fn is_power_of_two(value: f32) -> bool {
+    value != 0.0 && value.is_finite() && value.to_bits() & 0x007f_ffff == 0
 }
 
 fn spline_value(spline: &ProtoSpline, order: &[DensityFunctionHolder]) -> SplineValue {
@@ -1322,7 +1219,6 @@ fn remap_inputs(node: &mut Node, map: &[NodeId]) {
         Node::Affine { input, .. }
         | Node::PiecewiseAffine { input, .. }
         | Node::Unary { input, .. }
-        | Node::LeakyRelu { input, .. }
         | Node::Clamp { input, .. }
         | Node::ConstMin { input, .. }
         | Node::ConstMax { input, .. }
@@ -1411,6 +1307,7 @@ fn remap_inputs(node: &mut Node, map: &[NodeId]) {
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum Key {
     Constant(u32),
+    DeclaredConstant(u32, u32, u32),
     Gradient(u8, u8, u32, u32, u32, u32),
     Noise(usize),
     ShiftB(usize),
@@ -1420,7 +1317,6 @@ enum Key {
     Affine(NodeId, u32, u32),
     PiecewiseAffine(NodeId, u32, u32, u32),
     Unary(u8, NodeId),
-    LeakyRelu(NodeId, u32),
     Clamp(NodeId, u32, u32),
     ConstMin(NodeId, u32),
     ConstMax(NodeId, u32),
@@ -1491,6 +1387,7 @@ fn tiling_tag(tiling: crate::node::gradient::Tiling) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z};
     use crate::program::Workspace;
     use crate::volume::Volume;
     use bevy_math::IVec3;
@@ -1506,12 +1403,22 @@ mod tests {
 
     struct Built {
         nodes: Vec<Node>,
+        axes: Vec<Axes>,
+        ranges: Vec<Interval>,
         root: NodeId,
     }
 
     impl Built {
         fn node(&self) -> &Node {
             &self.nodes[self.root as usize]
+        }
+
+        fn axes(&self) -> Axes {
+            self.axes[self.root as usize]
+        }
+
+        fn range(&self) -> Interval {
+            self.ranges[self.root as usize]
         }
     }
 
@@ -1522,10 +1429,12 @@ mod tests {
         let noises = no_noises();
         let mut compiler = Compiler::new(&functions, &noises, 0, false);
         let root = compiler.compile_root(&holder).expect("compiles");
-        let ranges = vec![Interval::INFINITE; compiler.nodes.len()];
-        let (nodes, _, _, roots) = prune(compiler.nodes, compiler.axes, ranges, vec![root]);
+        let (nodes, axes, ranges, roots) =
+            prune(compiler.nodes, compiler.axes, compiler.node_ranges, vec![root]);
         Built {
             nodes,
+            axes,
+            ranges,
             root: roots[0],
         }
     }
@@ -1546,6 +1455,106 @@ mod tests {
     const Y_GRADIENT: &str = r#"{"type":"gradient","axis":"y","from_coordinate":0,"to_coordinate":16,"from_value":0.0,"to_value":16.0}"#;
     /// Straddles zero, so the rectifier's negative half is reachable.
     const SIGNED_Y_GRADIENT: &str = r#"{"type":"gradient","axis":"y","from_coordinate":-16,"to_coordinate":16,"from_value":-16.0,"to_value":16.0}"#;
+
+
+    /// The input's range would confine this to the out-of-range branch, and
+    /// vanilla still reports the hull of both.
+    #[test]
+    fn range_choice_keeps_the_unreachable_branch() {
+        let bounds = build(
+            r#"{"type":"minecraft:range_choice","input":100.0,"min_inclusive":0.0,"max_exclusive":1.0,
+                "when_in_range":-5.0,"when_out_of_range":5.0}"#,
+        )
+        .range();
+        assert_eq!((bounds.min(), bounds.max()), (-5.0, 5.0));
+    }
+
+    /// `interval_select` is the mirror image: the input is excluded from the
+    /// range and included in the axes.
+    #[test]
+    fn interval_select_ignores_its_input() {
+        let bounds = build(
+            r#"{"type":"minecraft:interval_select","input":-1000.0,"thresholds":[0.0],"functions":[1.0,2.0]}"#,
+        )
+        .range();
+        assert_eq!((bounds.min(), bounds.max()), (1.0, 2.0));
+    }
+
+    /// A flat segment must not pick up the ±0.25 overshoot term, and the end
+    /// probes are strict, so a coordinate inside the span adds nothing either.
+    #[test]
+    fn a_flat_spline_is_exactly_its_values() {
+        let bounds = build(
+            r#"{"type":"minecraft:spline","spline":{"coordinate":0.5,"points":[
+                {"location":0.0,"value":1.0,"derivative":0.0},
+                {"location":1.0,"value":3.0,"derivative":0.0}]}}"#,
+        )
+        .range();
+        assert_eq!((bounds.min(), bounds.max()), (1.0, 3.0));
+
+        let sloped = build(
+            r#"{"type":"minecraft:spline","spline":{"coordinate":0.5,"points":[
+                {"location":0.0,"value":1.0,"derivative":1.0},
+                {"location":1.0,"value":3.0,"derivative":0.0}]}}"#,
+        )
+        .range();
+        assert!(sloped.max() > 3.0, "the overshoot term widens it");
+    }
+
+    #[test]
+    fn a_wholly_negative_sqrt_is_unknown_rather_than_zero() {
+        assert!(build(r#"{"type":"minecraft:sqrt","input":-4.0}"#).range().is_nai());
+    }
+
+    /// The clamp-alpha lerp cannot leave the two limit noises' common interval,
+    /// so the declared bound is one fbm's.
+    #[test]
+    fn the_overworld_blended_noise_matches_its_published_bound() {
+        let bounds = build(
+            r#"{"type":"minecraft:old_blended_noise","xz_scale":0.25,"y_scale":0.125,
+                "xz_factor":80.0,"y_factor":160.0,"smear_scale_multiplier":8.0}"#,
+        )
+        .range();
+        assert_eq!(bounds.max(), 2.1670623);
+        assert_eq!(bounds.min(), -2.1670623);
+    }
+
+    /// A zero scale is the only way a `noise` sheds an axis, and the shifts add
+    /// theirs back on top of whatever survives.
+    #[test]
+    fn a_zero_scale_drops_the_axes_it_flattens() {
+        let flat_y = build(
+            r#"{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":1.0,"y_scale":0.0}"#,
+        );
+        assert_eq!(flat_y.axes(), AXIS_X | AXIS_Z);
+
+        let flat_xz = build(
+            r#"{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":0.0,"y_scale":0.0}"#,
+        );
+        assert_eq!(flat_xz.axes(), NO_AXES);
+
+        let shifted = build(
+            r#"{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":0.0,"y_scale":0.0,
+                "shift_x":{"type":"minecraft:gradient","axis":"y","from_coordinate":0,"to_coordinate":1,"from_value":0.0,"to_value":1.0}}"#,
+        );
+        assert_eq!(shifted.axes(), AXIS_Y);
+    }
+
+    #[test]
+    fn slice_and_find_top_surface_subtract_their_axis() {
+        let sliced = build(
+            r#"{"type":"minecraft:slice","axis":"x","coordinate":0,
+                "input":{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":0.0,"y_scale":1.0}}"#,
+        );
+        assert_eq!(sliced.axes(), AXIS_Y);
+
+        let surface = build(
+            r#"{"type":"minecraft:find_top_surface","lower_bound":-64,"cell_height":8,
+                "density":{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":1.0,"y_scale":1.0},
+                "upper_bound":0.0}"#,
+        );
+        assert_eq!(surface.axes(), AXIS_X | AXIS_Z);
+    }
 
     #[test]
     fn two_constant_operands_leave_one_node() {

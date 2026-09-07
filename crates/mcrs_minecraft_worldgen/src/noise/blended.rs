@@ -5,10 +5,15 @@ use crate::noise::perlin::SmearedPerlinNoise;
 use crate::noise::stack::{ColumnScratch, NoiseStack};
 use crate::volume::Volume;
 use mcrs_minecraft_random::RandomSource;
+use std::cell::RefCell;
 use std::fmt;
 use std::sync::Arc;
 
 pub const NOISE_SEED: &str = "minecraft:terrain";
+
+thread_local! {
+    static LIMITS: RefCell<(Vec<f32>, ColumnScratch)> = RefCell::new(Default::default());
+}
 
 const BASE_SCALE: f64 = 684.412;
 /// Java writes the float literal `0.99998474F` into a `double` field, so the
@@ -19,41 +24,56 @@ const MAIN_FACTOR: f64 = 12.75;
 const LIMIT_FIRST_OCTAVE: i32 = -15;
 const MAIN_FIRST_OCTAVE: i32 = -7;
 
+/// The three fbm stacks one `BlendedNoise` draws, in stream order. Vanilla's
+/// `BlendedNoise.FbmSet`.
+struct FbmSet {
+    min_limit: NoiseStack<SmearedPerlinNoise>,
+    max_limit: NoiseStack<SmearedPerlinNoise>,
+    main: NoiseStack<SmearedPerlinNoise>,
+}
+
 struct Inner {
     xz_scale: f64,
     y_scale: f64,
     xz_factor: f64,
     y_factor: f64,
     smear_scale_multiplier: f64,
+    range: Interval,
     xz_multiplier: f64,
     y_multiplier: f64,
     main_xz_multiplier: f64,
     main_y_multiplier: f64,
-    min_limit: NoiseStack<SmearedPerlinNoise>,
-    max_limit: NoiseStack<SmearedPerlinNoise>,
-    main: NoiseStack<SmearedPerlinNoise>,
+    fbm: FbmSet,
 }
 
-/// Vanilla's `BlendedNoise.createFbm`: octaves highest frequency first, which is
-/// the order they draw from the stream, each carrying its own smear scale.
+/// Vanilla's `BlendedNoise.createFbm` schedule: octaves highest frequency
+/// first, which is the order they draw from the stream, each halving both its
+/// frequency and its smear scale while its weight doubles.
+fn fbm_layers(first_octave: i32, value_factor: f64) -> impl Iterator<Item = (f64, f64)> {
+    let octaves = -first_octave + 1;
+    let mut frequency = 1.0f64;
+    let mut value_factor = value_factor / (2.0f64.powi(octaves) - 1.0);
+    (0..octaves).map(move |_| {
+        let layer = (frequency, value_factor);
+        frequency *= 0.5;
+        value_factor *= 2.0;
+        layer
+    })
+}
+
 fn create_fbm(
     random: &mut RandomSource,
     first_octave: i32,
     smear_scale_y: f64,
     value_factor: f64,
 ) -> NoiseStack<SmearedPerlinNoise> {
-    let octaves = -first_octave + 1;
-    let mut frequency = 1.0f64;
-    let mut value_factor = value_factor / (2.0f64.powi(octaves) - 1.0);
     let mut stack = NoiseStack::builder();
-    for _ in 0..octaves {
+    for (frequency, value_factor) in fbm_layers(first_octave, value_factor) {
         stack.add(
             SmearedPerlinNoise::from_random(random, smear_scale_y * frequency),
             frequency,
             value_factor as f32,
         );
-        frequency *= 0.5;
-        value_factor *= 2.0;
     }
     stack.build()
 }
@@ -63,28 +83,23 @@ fn create_fbm(
 ///
 /// The per-layer bound is the smeared noise's `±(|fudge_y_scale| + 2.0)`, not a
 /// plain Perlin's flat `±2.0`.
-pub fn declared_range(y_scale: f64, smear_scale_multiplier: f64) -> Interval {
+fn declared_range(y_scale: f64, smear_scale_multiplier: f64) -> Interval {
     let smear_scale_y = (BASE_SCALE * y_scale) * smear_scale_multiplier;
-    let octaves = -LIMIT_FIRST_OCTAVE + 1;
-    let mut frequency = 1.0f64;
-    let mut value_factor = LIMIT_FACTOR / (2.0f64.powi(octaves) - 1.0);
     let mut range = Interval::exact(0.0);
-    for _ in 0..octaves {
-        let layer = Interval::symmetric(((smear_scale_y * frequency).abs() + 2.0) as f32)
-            * Interval::exact(value_factor as f32);
-        range = range + layer;
-        frequency *= 0.5;
-        value_factor *= 2.0;
+    for (frequency, value_factor) in fbm_layers(LIMIT_FIRST_OCTAVE, LIMIT_FACTOR) {
+        range = range
+            + Interval::symmetric(((smear_scale_y * frequency).abs() + 2.0) as f32)
+                * Interval::exact(value_factor as f32);
     }
     range
 }
 
 #[derive(Clone)]
-pub struct BlendedParams {
+pub struct BlendedNoise {
     inner: Arc<Inner>,
 }
 
-impl BlendedParams {
+impl BlendedNoise {
     pub fn new(
         random: &mut RandomSource,
         xz_scale: f64,
@@ -111,85 +126,95 @@ impl BlendedParams {
                 xz_factor,
                 y_factor,
                 smear_scale_multiplier,
+                range: declared_range(y_scale, smear_scale_multiplier),
                 xz_multiplier,
                 y_multiplier,
                 main_xz_multiplier: xz_multiplier / xz_factor,
                 main_y_multiplier: y_multiplier / y_factor,
-                min_limit,
-                max_limit,
-                main,
+                fbm: FbmSet {
+                    min_limit,
+                    max_limit,
+                    main,
+                },
             }),
         }
     }
 
+    /// `BlendedNoise.range()`.
+    pub fn range(&self) -> Interval {
+        self.inner.range
+    }
+
     pub fn eval(&self, out: &mut [f32], ext: &Volume) {
         let n = ext.size().y as usize;
-        let mut floats = vec![0.0f32; 2 * n];
-        let mut scratch = ColumnScratch::default();
         let inner = &*self.inner;
 
-        each_column(out, ext, |run, ix, iz| {
-            let (min, max) = floats.split_at_mut(n);
-            let bx = ext.block_x(ix as i32);
-            let bz = ext.block_z(iz as i32);
+        LIMITS.with_borrow_mut(|(floats, scratch)| {
+            floats.clear();
+            floats.resize(2 * n, 0.0);
+            each_column(out, ext, |run, ix, iz| {
+                let (min, max) = floats.split_at_mut(n);
+                let bx = ext.block_x(ix as i32);
+                let bz = ext.block_z(iz as i32);
 
-            inner.main.fill_column_at(
-                run,
-                bx,
-                bz,
-                ext,
-                inner.main_xz_multiplier,
-                inner.main_y_multiplier,
-                &mut scratch,
-            );
-            for alpha in run.iter_mut() {
-                *alpha = jmath::clampf(*alpha + 0.5, 0.0, 1.0);
-            }
-            // An alpha pinned to an endpoint returns one limit untouched, so the
-            // other stack is never read and its sixteen octaves need not be
-            // sampled. The test is per column, which is where it pays.
-            if run.iter().any(|&alpha| alpha != 1.0) {
-                inner.min_limit.fill_column_at(
-                    min,
+                inner.fbm.main.fill_column_at(
+                    run,
                     bx,
                     bz,
                     ext,
-                    inner.xz_multiplier,
-                    inner.y_multiplier,
-                    &mut scratch,
+                    inner.main_xz_multiplier,
+                    inner.main_y_multiplier,
+                    scratch,
                 );
-            }
-            if run.iter().any(|&alpha| alpha != 0.0) {
-                inner.max_limit.fill_column_at(
-                    max,
-                    bx,
-                    bz,
-                    ext,
-                    inner.xz_multiplier,
-                    inner.y_multiplier,
-                    &mut scratch,
-                );
-            }
+                for alpha in run.iter_mut() {
+                    *alpha = jmath::clampf(*alpha + 0.5, 0.0, 1.0);
+                }
+                // An alpha pinned to an endpoint returns one limit untouched, so the
+                // other stack is never read and its sixteen octaves need not be
+                // sampled. The test is per column, which is where it pays.
+                if run.iter().any(|&alpha| alpha != 1.0) {
+                    inner.fbm.min_limit.fill_column_at(
+                        min,
+                        bx,
+                        bz,
+                        ext,
+                        inner.xz_multiplier,
+                        inner.y_multiplier,
+                        scratch,
+                    );
+                }
+                if run.iter().any(|&alpha| alpha != 0.0) {
+                    inner.fbm.max_limit.fill_column_at(
+                        max,
+                        bx,
+                        bz,
+                        ext,
+                        inner.xz_multiplier,
+                        inner.y_multiplier,
+                        scratch,
+                    );
+                }
 
-            for (i, slot) in run.iter_mut().enumerate() {
-                let alpha = *slot;
-                *slot = if alpha == 0.0 {
-                    min[i]
-                } else if alpha == 1.0 {
-                    max[i]
-                } else {
-                    jmath::lerp(alpha, min[i], max[i])
-                };
-            }
+                for (i, slot) in run.iter_mut().enumerate() {
+                    let alpha = *slot;
+                    *slot = if alpha == 0.0 {
+                        min[i]
+                    } else if alpha == 1.0 {
+                        max[i]
+                    } else {
+                        jmath::lerp(alpha, min[i], max[i])
+                    };
+                }
+            });
         });
     }
 }
 
 /// Hand-written because the derived form would print forty octaves of
 /// 256-byte permutation table.
-impl fmt::Debug for BlendedParams {
+impl fmt::Debug for BlendedNoise {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BlendedParams")
+        f.debug_struct("BlendedNoise")
             .field("xz_scale", &self.inner.xz_scale)
             .field("y_scale", &self.inner.y_scale)
             .field("xz_factor", &self.inner.xz_factor)
@@ -212,9 +237,9 @@ mod tests {
         )
     }
 
-    fn overworld() -> BlendedParams {
+    fn overworld() -> BlendedNoise {
         let mut random = RandomSource::new(42, false);
-        BlendedParams::new(&mut random, 0.25, 0.125, 80.0, 160.0, 8.0)
+        BlendedNoise::new(&mut random, 0.25, 0.125, 80.0, 160.0, 8.0)
     }
 
     #[test]
@@ -266,11 +291,11 @@ mod tests {
     fn every_limit_amplitude_is_an_exact_power_of_two() {
         let params = overworld();
         let expected: Vec<f32> = (0..16).map(|i| 2.0f32.powi(i - 16)).collect();
-        assert_eq!(params.inner.min_limit.amplitudes(), expected);
+        assert_eq!(params.inner.fbm.min_limit.amplitudes(), expected);
         // 12.75 / 255 is exactly 0.05, so the main stack is exact too.
-        assert_eq!(params.inner.main.layer_count(), 8);
-        assert_eq!(params.inner.main.layer(0).2, 0.05);
-        assert_eq!(params.inner.main.layer(7).2, 6.4);
+        assert_eq!(params.inner.fbm.main.layer_count(), 8);
+        assert_eq!(params.inner.fbm.main.layer(0).2, 0.05);
+        assert_eq!(params.inner.fbm.main.layer(7).2, 6.4);
     }
 
     #[test]
@@ -278,11 +303,11 @@ mod tests {
         let params = overworld();
         let inner = &params.inner;
         assert_eq!(
-            inner.min_limit.layer(0).0.fudge_y_scale(),
+            inner.fbm.min_limit.layer(0).0.fudge_y_scale(),
             684.412 * 0.125 * 8.0
         );
         assert_eq!(
-            inner.main.layer(0).0.fudge_y_scale(),
+            inner.fbm.main.layer(0).0.fudge_y_scale(),
             (684.412 * 0.125 * 8.0) / 160.0
         );
         // Sampling scales are pre-divided by the factors, never divided per sample.
@@ -291,22 +316,22 @@ mod tests {
         assert_eq!(inner.main_y_multiplier, (684.412 * 0.125) / 160.0);
         // Each layer halves its smear together with its frequency.
         assert_eq!(
-            inner.min_limit.layer(1).0.fudge_y_scale(),
-            inner.min_limit.layer(0).0.fudge_y_scale() * 0.5
+            inner.fbm.min_limit.layer(1).0.fudge_y_scale(),
+            inner.fbm.min_limit.layer(0).0.fudge_y_scale() * 0.5
         );
         assert_eq!(
-            inner.min_limit.layer(1).1,
-            inner.min_limit.layer(0).1 * 0.5
+            inner.fbm.min_limit.layer(1).1,
+            inner.fbm.min_limit.layer(0).1 * 0.5
         );
     }
 
     #[test]
     fn the_three_stacks_draw_from_one_stream_in_order() {
         let params = overworld();
-        let min0 = params.inner.min_limit.layer(0).0;
-        let max0 = params.inner.max_limit.layer(0).0;
+        let min0 = params.inner.fbm.min_limit.layer(0).0;
+        let max0 = params.inner.fbm.max_limit.layer(0).0;
         assert_ne!(min0, max0, "the two limit stacks must not share octaves");
-        assert_ne!(min0, params.inner.main.layer(0).0);
+        assert_ne!(min0, params.inner.fbm.main.layer(0).0);
     }
 
     #[test]

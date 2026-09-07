@@ -1,5 +1,5 @@
 use crate::kernel::{Runs, at, each_column};
-use crate::noise::normal::NoiseSampler;
+use crate::noise::stack::{NoiseStack, Octave};
 use crate::noise::stack::ColumnScratch;
 use crate::volume::Volume;
 use bevy_math::IVec3;
@@ -14,13 +14,13 @@ thread_local! {
 
 #[derive(Clone, Debug)]
 pub struct NoiseFunctionParams {
-    noise: Arc<NoiseSampler>,
+    noise: Arc<NoiseStack<Octave>>,
     xz_scale: f64,
     y_scale: f64,
 }
 
 impl NoiseFunctionParams {
-    pub fn new(noise: Arc<NoiseSampler>, xz_scale: f64, y_scale: f64) -> Self {
+    pub fn new(noise: Arc<NoiseStack<Octave>>, xz_scale: f64, y_scale: f64) -> Self {
         Self {
             noise,
             xz_scale,
@@ -28,9 +28,28 @@ impl NoiseFunctionParams {
         }
     }
 
+    /// The declared bound of the octaves behind it. `NoiseFunction.range()`.
+    pub fn range(&self) -> crate::interval::Interval {
+        self.noise.range()
+    }
+
+    /// A zero scale is the only way a noise sheds an axis: the coordinate is
+    /// multiplied by it before the lattice sees it.
+    pub fn axes(&self) -> crate::strata::Axes {
+        use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z};
+        let mut axes = ALL_AXES;
+        if self.y_scale == 0.0 {
+            axes &= !AXIS_Y;
+        }
+        if self.xz_scale == 0.0 {
+            axes &= !(AXIS_X | AXIS_Z);
+        }
+        axes
+    }
+
     /// `shift_b` reads the noise transposed and scales its result by 4, but the
     /// coordinate factor is the same 0.25 a plain `shift` uses.
-    pub fn shift_b(noise: Arc<NoiseSampler>) -> Self {
+    pub fn shift_b(noise: Arc<NoiseStack<Octave>>) -> Self {
         Self::new(noise, 0.25, 0.25)
     }
 
@@ -97,7 +116,7 @@ impl NoiseFunctionParams {
                 let z = base_z + zs[0] as f64;
                 scaled_ys.clear();
                 scaled_ys.extend((0..run.len()).map(|i| block_y(i) + at(ys, i) as f64));
-                self.noise.get_column(x, z, scaled_ys, run, scratch);
+                self.noise.fill_column(run, x, z, scaled_ys, scratch);
             });
         });
     }
@@ -109,16 +128,15 @@ mod tests {
     use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
     use mcrs_minecraft_random::RandomSource;
 
-    fn sampler(seed: u64, first_octave: i32, amplitudes: Vec<f32>) -> Arc<NoiseSampler> {
-        Arc::new(NoiseSampler::new(
-            &mut RandomSource::new(seed, false),
-            first_octave,
-            amplitudes,
-        ))
+    fn sampler(seed: u64, first_octave: i32, amplitudes: &[f64]) -> Arc<NoiseStack<Octave>> {
+        Arc::new(
+            crate::noise::normal::NormalNoise::create_parity(first_octave, amplitudes)
+                .create(&mut RandomSource::new(seed, false)),
+        )
     }
 
-    fn noise(seed: u64) -> Arc<NoiseSampler> {
-        sampler(seed, -6, vec![1.0, 1.0, 1.0])
+    fn noise(seed: u64) -> Arc<NoiseStack<Octave>> {
+        sampler(seed, -6, &[1.0, 1.0, 1.0])
     }
 
     fn column(bx: i32, bz: i32, min_y: i32, step_y: i32, sy: usize) -> Volume {
@@ -255,7 +273,7 @@ mod tests {
         // by an f64 ulp, which survives the narrowing to f32 only rarely; a sweep this
         // wide at a non-power-of-two scale is what it takes to catch one. Reusing the
         // point kernel here would silently unify them and zero this count.
-        let n = sampler(9, 0, vec![1.0; 9]);
+        let n = sampler(9, 0, &[1.0; 9]);
         let p = NoiseFunctionParams::new(n.clone(), 0.6, 0.0);
         let mut differing = 0;
         for bx in -10000..10000 {

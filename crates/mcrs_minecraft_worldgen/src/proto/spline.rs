@@ -26,7 +26,7 @@ pub struct ProtoMultipoint {
 
 impl ProtoSpline {
     /// Pre-order over every coordinate density function: the multipoint's own
-    /// first, then each point's sub-spline in list order. `domain_axes` and the
+    /// first, then each point's sub-spline in list order. The axes walk and the
     /// compiler's coordinate deduplication both depend on this order.
     pub fn visit_coordinates(&self, f: &mut impl FnMut(&DensityFunctionHolder)) {
         if let ProtoSpline::Multipoint(m) = self {

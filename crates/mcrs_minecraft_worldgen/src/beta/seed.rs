@@ -1,8 +1,8 @@
 use crate::noise::gradient::GradientNoise;
-use crate::noise::normal::NoiseSampler;
 use crate::noise::perlin::{LegacyPerlin2dNoise, PerlinNoise};
-use crate::noise::stack::{NoiseStack, legacy_fbm};
-use mcrs_minecraft_random::legacy::LegacyRandom;
+use crate::noise::simplex::SimplexNoise;
+use crate::noise::stack::{NoiseStack, Octave, beta_fbm};
+use mcrs_minecraft_random::{Random, legacy::LegacyRandom};
 
 /// Beta's octave counts are contiguous from `first_octave` up, and every octave
 /// carries weight, so the amplitude list is only ever a run of ones.
@@ -11,33 +11,64 @@ fn lattices(random: &mut LegacyRandom, octave_count: usize) -> Vec<Option<Gradie
     GradientNoise::legacy_octaves(random, first_octave, &vec![1.0; octave_count])
 }
 
+/// Beta's unnormalised fbm over the shared lattice, read through its 2D branch,
+/// which is what the terrain scale and depth nodes use.
+fn perlin_2d_fbm(lattices: Vec<Option<GradientNoise>>) -> NoiseStack<Octave> {
+    beta_fbm(lattices, |lattice| {
+        Octave::Perlin2d(LegacyPerlin2dNoise::from_gradient(lattice))
+    })
+}
+
+/// Beta's simplex octaves: the frequency multiplies by `lacunarity` and the
+/// weight is `0.55` over a persistence that halves. Nothing is normalised.
+fn simplex_fbm<R: Random>(
+    random: &mut R,
+    octave_count: usize,
+    lacunarity: f64,
+    persistence: f64,
+) -> NoiseStack<Octave> {
+    let mut stack = NoiseStack::builder();
+    let mut frequency = 1.0f64;
+    let mut amplitude = 1.0f64;
+    for _ in 0..octave_count {
+        stack.add(
+            Octave::Simplex(SimplexNoise::from_random(random)),
+            frequency,
+            (0.55 / amplitude) as f32,
+        );
+        frequency *= lacunarity;
+        amplitude *= persistence;
+    }
+    stack.build()
+}
+
 /// The Beta climate generators, each off its own `LegacyRandom` and unrelated to
 /// the terrain stream: mixing them shifts terrain parity.
 ///
 /// The scale each is sampled at, and the post-processing around it, live in the
 /// `mcrs:beta/{temperature,vegetation,climate_detail}` density functions.
 pub struct BetaClimateNoises {
-    pub temperature: NoiseSampler,
-    pub vegetation: NoiseSampler,
-    pub detail: NoiseSampler,
+    pub temperature: NoiseStack<Octave>,
+    pub vegetation: NoiseStack<Octave>,
+    pub detail: NoiseStack<Octave>,
 }
 
 impl BetaClimateNoises {
     pub fn new(seed: u64) -> Self {
         Self {
-            temperature: NoiseSampler::legacy_simplex(
+            temperature: simplex_fbm(
                 &mut LegacyRandom::new(seed.wrapping_mul(9871)),
                 4,
                 0.25,
                 0.5,
             ),
-            vegetation: NoiseSampler::legacy_simplex(
+            vegetation: simplex_fbm(
                 &mut LegacyRandom::new(seed.wrapping_mul(39811)),
                 4,
                 1.0 / 3.0,
                 0.5,
             ),
-            detail: NoiseSampler::legacy_simplex(
+            detail: simplex_fbm(
                 &mut LegacyRandom::new(seed.wrapping_mul(543321)),
                 2,
                 1.0 / 1.7,
@@ -59,15 +90,15 @@ impl BetaClimateNoises {
 /// the 3D one for the sand and gravel field, the `ySize == 1` one for the gravel
 /// override, which is a different noise over the same lattice.
 ///
-/// Beach and surface stay concrete stacks rather than [`NoiseSampler`] because
-/// only they are read through [`NoiseStack::fill_legacy_grid`], which the density
-/// graph has no way to ask for.
+/// Beach and surface stay `NoiseStack<PerlinNoise>` rather than the mixed layer
+/// type because only they are read through [`NoiseStack::fill_legacy_grid`],
+/// which the density graph has no way to ask for.
 pub struct BetaTerrainNoises {
     pub beach: NoiseStack<PerlinNoise>,
     pub beach_flat: NoiseStack<LegacyPerlin2dNoise>,
     pub surface: NoiseStack<PerlinNoise>,
-    pub scale: NoiseSampler,
-    pub depth: NoiseSampler,
+    pub scale: NoiseStack<Octave>,
+    pub depth: NoiseStack<Octave>,
 }
 
 impl BetaTerrainNoises {
@@ -81,11 +112,11 @@ impl BetaTerrainNoises {
         let scale = lattices(&mut rng, 10);
         let depth = lattices(&mut rng, 16);
         Self {
-            beach_flat: legacy_fbm(beach.clone(), LegacyPerlin2dNoise::from_gradient),
-            beach: legacy_fbm(beach, PerlinNoise::from_gradient),
-            surface: legacy_fbm(surface, PerlinNoise::from_gradient),
-            scale: NoiseSampler::legacy_perlin_2d(scale),
-            depth: NoiseSampler::legacy_perlin_2d(depth),
+            beach_flat: beta_fbm(beach.clone(), LegacyPerlin2dNoise::from_gradient),
+            beach: beta_fbm(beach, PerlinNoise::from_gradient),
+            surface: beta_fbm(surface, PerlinNoise::from_gradient),
+            scale: perlin_2d_fbm(scale),
+            depth: perlin_2d_fbm(depth),
         }
     }
 }
@@ -146,7 +177,7 @@ mod tests {
         for count in [16, 16, 4, 4] {
             let _ = lattices(&mut rng, count);
         }
-        let shifted = NoiseSampler::legacy_perlin_2d(lattices(&mut rng, 10));
+        let shifted = perlin_2d_fbm(lattices(&mut rng, 10));
 
         assert_ne!(kept.get(100.0, 0.0, 300.0), shifted.get(100.0, 0.0, 300.0));
     }
@@ -221,31 +252,4 @@ mod tests {
         );
     }
 
-    #[test]
-    #[ignore = "bootstrap: capture beta_climate.json for seed 12345"]
-    fn bootstrap_beta_climate() {
-        let climate = BetaClimateNoises::new(12345);
-        println!("{{");
-        println!("  \"schema_version\": 1,");
-        println!("  \"seed\": 12345,");
-        println!(
-            "  \"temperature_at_0_0\": {:?},",
-            sample_temperature(&climate, 0.0, 0.0)
-        );
-        println!(
-            "  \"humidity_at_0_0\": {:?}",
-            sample_humidity(&climate, 0.0, 0.0)
-        );
-        println!("}}");
-    }
-
-    #[test]
-    #[ignore = "bootstrap: print the post-construction seed for seed 845"]
-    fn bootstrap_beta_draw_counts() {
-        let mut rng = LegacyRandom::new(845);
-        for count in [16, 16, 8, 4, 4, 10, 16, 8] {
-            let _ = lattices(&mut rng, count);
-        }
-        println!("post_construction_rng_seed = {}", rng.seed);
-    }
 }

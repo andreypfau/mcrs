@@ -24,6 +24,11 @@ pub const ROOT_NAMES: [&str; 8] = [
 
 pub const TEMPERATURE: usize = 0;
 pub const VEGETATION: usize = 1;
+pub const CONTINENTS: usize = 2;
+pub const EROSION: usize = 3;
+pub const DEPTH: usize = 4;
+pub const RIDGES: usize = 5;
+pub const CHUNK_SURFACE_LEVEL: usize = 6;
 pub const FINAL_DENSITY: usize = 7;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -114,7 +119,6 @@ pub struct NoiseGeneratorSettings {
 /// do compile stay usable.
 pub struct NoiseRouter {
     program: Program,
-    roots: [usize; 8],
     failed: Box<[(&'static str, CompileError)]>,
     sea_level: i32,
     noise_min_y: i32,
@@ -129,17 +133,15 @@ pub struct NoiseRouter {
 impl NoiseRouter {
     pub(crate) fn new(
         program: Program,
-        roots: [usize; 8],
         failed: Vec<(&'static str, CompileError)>,
         settings: &NoiseGeneratorSettings,
         world_seed: u64,
         default_block_state: VoxelId,
         default_fluid_state: VoxelId,
     ) -> Self {
-        let cell_bounds = CellBounds::new(&program, program.root_node(roots[FINAL_DENSITY]));
+        let cell_bounds = CellBounds::new(&program, program.root_node(FINAL_DENSITY));
         Self {
             program,
-            roots,
             failed: failed.into_boxed_slice(),
             sea_level: settings.sea_level,
             noise_min_y: settings.noise.min_y,
@@ -159,35 +161,35 @@ impl NoiseRouter {
     }
 
     pub fn temperature(&self) -> usize {
-        self.roots[TEMPERATURE]
+        TEMPERATURE
     }
 
     pub fn vegetation(&self) -> usize {
-        self.roots[VEGETATION]
+        VEGETATION
     }
 
     pub fn continents(&self) -> usize {
-        self.roots[2]
+        CONTINENTS
     }
 
     pub fn erosion(&self) -> usize {
-        self.roots[3]
+        EROSION
     }
 
     pub fn depth(&self) -> usize {
-        self.roots[4]
+        DEPTH
     }
 
     pub fn ridges(&self) -> usize {
-        self.roots[5]
+        RIDGES
     }
 
     pub fn chunk_surface_level(&self) -> usize {
-        self.roots[6]
+        CHUNK_SURFACE_LEVEL
     }
 
     pub fn final_density(&self) -> usize {
-        self.roots[FINAL_DENSITY]
+        FINAL_DENSITY
     }
 
     /// The roots replaced by a constant zero, named as in [`ROOT_NAMES`].

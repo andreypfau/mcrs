@@ -394,21 +394,21 @@ pub struct NoiseParamAsset {
     pub noise: NoiseParam,
 }
 
-#[derive(Default, TypePath)]
-pub struct NoiseGeneratorSettingsLoader;
-
 #[derive(Debug, Error)]
-pub enum NoiseGeneratorSettingsLoaderError {
+pub enum WorldgenLoaderError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     LoadDirectError(#[from] LoadDirectError),
 }
 
+#[derive(Default, TypePath)]
+pub struct NoiseGeneratorSettingsLoader;
+
 impl AssetLoader for NoiseGeneratorSettingsLoader {
     type Asset = NoiseGeneratorSettingsAsset;
     type Settings = ();
-    type Error = NoiseGeneratorSettingsLoaderError;
+    type Error = WorldgenLoaderError;
 
     async fn load(
         &self,
@@ -436,18 +436,10 @@ impl AssetLoader for NoiseGeneratorSettingsLoader {
 #[derive(Default, TypePath)]
 pub struct NoiseParamLoader;
 
-#[derive(Debug, Error)]
-pub enum NoiseParamLoaderError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    LoadDirectError(#[from] LoadDirectError),
-}
-
 impl AssetLoader for NoiseParamLoader {
     type Asset = NoiseParamAsset;
     type Settings = ();
-    type Error = NoiseParamLoaderError;
+    type Error = WorldgenLoaderError;
 
     async fn load(
         &self,
@@ -466,18 +458,10 @@ impl AssetLoader for NoiseParamLoader {
 #[derive(Default, TypePath)]
 pub struct DensityFunctionLoader;
 
-#[derive(Debug, Error)]
-pub enum DensityFunctionLoaderError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    LoadDirectError(#[from] LoadDirectError),
-}
-
 impl AssetLoader for DensityFunctionLoader {
     type Asset = DensityFunctionAsset;
     type Settings = ();
-    type Error = DensityFunctionLoaderError;
+    type Error = WorldgenLoaderError;
 
     async fn load(
         &self,

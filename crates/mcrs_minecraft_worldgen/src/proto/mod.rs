@@ -1,7 +1,5 @@
 pub mod args;
-pub mod axes;
 pub mod noise;
-pub mod range;
 pub mod settings;
 pub mod spline;
 
@@ -10,9 +8,7 @@ pub use args::{
     IntervalSelectArguments, PowFunctionArguments, RoundFunctionArguments, ScaleValue,
     SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction,
 };
-pub use axes::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, NO_AXES, axes_from, domain_axes, holder_axes};
 pub use noise::{NoiseHolder, NoiseParam, Normalization};
-pub use range::{holder_range, range, round_range};
 pub use settings::{BlockState, Either, ValueRange};
 pub use spline::{ProtoMultipoint, ProtoSpline};
 

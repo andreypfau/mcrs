@@ -1,4 +1,5 @@
 pub mod beta;
+pub mod bounds;
 #[cfg(feature = "bevy")]
 pub mod bevy;
 mod branch;

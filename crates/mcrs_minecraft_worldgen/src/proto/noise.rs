@@ -24,6 +24,9 @@ pub const MIN_BASE_AMPLITUDE: f64 = 1.0e-5f32 as f64;
 const TARGET_DEVIATION: f64 = 0.3333333333333333;
 const PERLIN_STANDARD_DEVIATION: f64 = 0.2702247831245211;
 
+/// `NormalNoise.Parameters`: the datapack shape alone. Everything derived from
+/// it — the surviving octaves, their weights and the declared range — belongs to
+/// [`crate::noise::normal::NormalNoise`].
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, try_from = "UncheckedNoiseParam")]
 pub struct NoiseParam {
@@ -137,13 +140,6 @@ impl NoiseParam {
             .collect()
     }
 
-    /// The declared value bound, a pure function of the parameters — no
-    /// `RandomSource`, no seed. `min`/`max` branch elimination reads it, so a
-    /// bound one ulp off vanilla's can delete a branch vanilla keeps.
-    pub fn range(&self) -> Interval {
-        declared_range(self.octaves().target_amplitude)
-    }
-
     /// Everything the parameters decide before a seed is drawn: which octaves
     /// survive, what each weighs, and the factor that scales them all. Building
     /// the sampler reads this rather than deriving it a second time.
@@ -190,6 +186,7 @@ impl NoiseParam {
 }
 
 /// What [`NoiseParam::octaves`] decides before any seed is drawn.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Octaves {
     /// One entry per declared octave; `None` where the modifier was zero and the
     /// octave is dropped rather than weighted to nothing.
@@ -300,6 +297,7 @@ impl<'de> Deserialize<'de> for Normalization {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::noise::normal::NormalNoise;
 
     fn param(json: &str) -> NoiseParam {
         serde_json::from_str(json).unwrap()
@@ -358,15 +356,16 @@ mod tests {
         let solid = param(
             r#"{"base_octave":-9,"octave_count":3,"amplitude_modifiers":[1.0,1.0,1.0],"normalize":"legacy"}"#,
         );
-        assert!(gapped.range().max() < solid.range().max());
-        assert!(gapped.range().max() > 0.0);
+        let range = |p: &NoiseParam| NormalNoise::new(p.clone()).range().max();
+        assert!(range(&gapped) < range(&solid));
+        assert!(range(&gapped) > 0.0);
     }
 
     #[test]
     fn a_disabled_normalization_keeps_the_base_amplitude() {
         let disabled = param(r#"{"base_octave":-3,"octave_count":1,"normalize":false}"#);
         assert_eq!(
-            disabled.range().max(),
+            NormalNoise::new(disabled).range().max(),
             (1.0f64 * 0.3333333333333333 * 6.0) as f32
         );
     }
