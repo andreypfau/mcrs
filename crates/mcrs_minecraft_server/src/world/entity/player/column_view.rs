@@ -761,11 +761,7 @@ mod tests {
         let sections: Vec<Entity> = (0..SECTIONS)
             .map(|_| {
                 world
-                    .spawn((
-                        ChunkBlocks::default(),
-                        BiomePalette::default(),
-                        ChunkLoaded,
-                    ))
+                    .spawn((ChunkBlocks::default(), BiomePalette::default(), ChunkLoaded))
                     .id()
             })
             .collect();

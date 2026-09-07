@@ -264,9 +264,8 @@ impl LightJob {
             // is a constant and the walk below has nothing to find in it.
             if dark
                 && erase == SectionErase::All
-                && sky_frontier.is_some_and(|frontier| {
-                    frontier.clears(section_pos.y << BLOCKS::BITS)
-                })
+                && sky_frontier
+                    .is_some_and(|frontier| frontier.clears(section_pos.y << BLOCKS::BITS))
             {
                 for local in LocalPos::all() {
                     sky_field.set(section_base | local.index() as u32, LightLevel::MAX);
@@ -310,8 +309,7 @@ impl LightJob {
                         LightLevel::ZERO
                     };
                     sky_field.set(index, sky);
-                    if !sky.is_zero() && sky_frontier.is_none_or(|f| f.holds(local, pos.y))
-                    {
+                    if !sky.is_zero() && sky_frontier.is_none_or(|f| f.holds(local, pos.y)) {
                         sky_seeds.push(index);
                     }
                 } else {
@@ -498,7 +496,10 @@ impl LightWorld {
             Vec::with_capacity(layout.section_count());
         // An absent section is never seeded, so it cannot be the source this asks
         // about; open space can be, if the block standing for it emits.
-        let mut dark = self.registry().emission(self.registry().outside()).is_zero();
+        let mut dark = self
+            .registry()
+            .emission(self.registry().outside())
+            .is_zero();
 
         for (_, section_pos) in layout.sections() {
             match self.section(section_pos) {

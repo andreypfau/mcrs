@@ -15,6 +15,7 @@ use mcrs_minecraft_worldgen::program::Workspace;
 
 use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
+use crate::world::generate::ColumnBlocks;
 use crate::world::generate::{apply_beta_surface, generate_column};
 
 // ── Corpus deserialization ────────────────────────────────────────────────────
@@ -395,15 +396,14 @@ fn beta_surface_parity_gate() {
             &y_sections,
             &router,
             Some((&biome_source, &snapshot)),
-            super::corpus(),
             &cancel,
         );
 
         // Apply the surface pass (also places bedrock).
         let mut rng = make_chunk_rng(*cx, *cz);
+        let column = ColumnBlocks::from_sections(&sections, &y_sections);
         apply_beta_surface(
-            &mut sections,
-            &y_sections,
+            &column,
             block_x,
             block_z,
             &router,
@@ -411,6 +411,7 @@ fn beta_surface_parity_gate() {
             super::corpus(),
             &mut rng,
         );
+        column.write_back(&mut sections);
 
         // For each fixture column in this chunk, build a flat [BlockStateId; 128] view.
         for fix_col in fixture_cols {

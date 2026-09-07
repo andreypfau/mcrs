@@ -1,8 +1,10 @@
 use crate::world::format::anvil::{SavedColumns, SectionData, column_sections};
 use mcrs_minecraft_block::palette::ChunkBlocks;
+use std::cell::RefCell;
+
 use crate::world::generate::{
-    BetaCaveBlockIds, BetaOreBlockIds, apply_beta_caves, apply_beta_ores, apply_beta_surface,
-    generate_column,
+    BetaCaveBlockIds, BetaOreBlockIds, ColumnBlocks, apply_beta_caves, apply_beta_ores,
+    apply_beta_surface, fill_column_dense_any,
 };
 use crate::world::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, PendingColumnHeightmaps, build_column_heightmaps,
@@ -488,16 +490,16 @@ pub(crate) fn process_completed_columns(
                         // Section completed successfully - mark as loaded with data
                         commands
                             .entity(entity)
-                            .insert((ChunkLoaded, ChunkBlocks::new(blocks), biomes))
-                            .remove::<ChunkGenerating>();
+                            .try_insert((ChunkLoaded, ChunkBlocks::new(blocks), biomes))
+                            .try_remove::<ChunkGenerating>();
                     }
                     None => {
                         // Section was cancelled before generation could complete
                         // Mark for unloading so the entity gets cleaned up
                         commands
                             .entity(entity)
-                            .insert(ChunkUnloading)
-                            .remove::<ChunkGenerating>();
+                            .try_insert(ChunkUnloading)
+                            .try_remove::<ChunkGenerating>();
                     }
                 }
             }
@@ -676,8 +678,8 @@ fn cancel_stale_columns(
         for entity in entities {
             commands
                 .entity(entity)
-                .insert(ChunkUnloading)
-                .remove::<ChunkGenerating>();
+                .try_insert(ChunkUnloading)
+                .try_remove::<ChunkGenerating>();
         }
     }
 
@@ -918,91 +920,101 @@ pub(crate) fn dispatch_column_generation(
                 };
             }
 
-            let mut results = {
-                let _gen = info_span!("world::column_gen").entered();
-                generate_column(
-                    col.x,
-                    col.z,
-                    &y_sections,
-                    router,
-                    biome_context,
-                    &block_definitions,
-                    &cancel_clone,
-                )
-            };
-
-            // Beta surface pass: place surface/filler/bedrock blocks with a
-            // single per-chunk RNG seeded from the chunk coords.
-            if let Some((src, _)) = &biome_context
-                && matches!(src, BiomeSource::Beta { .. })
-            {
-                let seed = (col.x as i64)
-                    .wrapping_mul(341873128712)
-                    .wrapping_add((col.z as i64).wrapping_mul(132897987541));
-                let mut rng = LegacyRandom::new(seed as u64);
-                apply_beta_surface(
-                    &mut results,
-                    &y_sections,
-                    col.x * 16,
-                    col.z * 16,
-                    router,
-                    src,
-                    &block_definitions,
-                    &mut rng,
-                );
-
-                let world_seed = router.world_seed() as i64;
-                let cave_ids = BetaCaveBlockIds::resolve(&block_definitions);
-                let cave_config = mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig {
-                    air_state: cave_ids.air.into(),
-                    lava_state: cave_ids.lava.into(),
-                    stone_state: cave_ids.stone.into(),
-                    dirt_state: cave_ids.dirt.into(),
-                    grass_state: cave_ids.grass.into(),
-                    water_state: cave_ids.water.into(),
-                    stationary_water_state: cave_ids.stationary_water.into(),
-                    lava_level: 10,
-                    range: 8,
-                    horizontal_radius_multiplier: 1.0,
-                    vertical_radius_multiplier: 1.0,
+            // One pipeline for both presets: fill the column densely, run the
+            // passes the preset asks for, pack the palettes once at the end.
+            // One dense buffer per worker, reused column after column: a fresh
+            // one costs an allocation the size of the whole column.
+            thread_local! {
+                static COLUMN: RefCell<ColumnBlocks> = RefCell::new(ColumnBlocks::new(&[]));
+            }
+            COLUMN.with_borrow_mut(|column| {
+                let biome_palette = {
+                    let _gen = info_span!("world::column_gen").entered();
+                    let filled = fill_column_dense_any(
+                        column,
+                        col.x,
+                        col.z,
+                        &y_sections,
+                        router,
+                        biome_context,
+                        &cancel_clone,
+                    );
+                    match filled {
+                        Some(filled) => filled,
+                        None => {
+                            return ColumnResult {
+                                sections: sections_data
+                                    .into_iter()
+                                    .map(|(entity, pos)| (entity, pos, None))
+                                    .collect(),
+                                heightmaps: None,
+                                source: ColumnSource::Generated,
+                                work: started.elapsed(),
+                            };
+                        }
+                    }
                 };
-                apply_beta_caves(
-                    &mut results,
-                    &y_sections,
-                    col.x,
-                    col.z,
-                    world_seed,
-                    &cave_config,
-                    &cave_ids,
-                );
 
-                let ore_ids = BetaOreBlockIds::resolve(&block_definitions);
-                apply_beta_ores(
-                    &mut results,
-                    &y_sections,
-                    col.x,
-                    col.z,
-                    world_seed,
-                    &ore_ids,
-                );
-            }
+                // Beta surface, caves and ores: the passes vanilla runs from its
+                // material rules and carvers, driven here by the Beta RNG seeding.
+                if let Some((src, _)) = &biome_context
+                    && matches!(src, BiomeSource::Beta { .. })
+                {
+                    let seed = (col.x as i64)
+                        .wrapping_mul(341873128712)
+                        .wrapping_add((col.z as i64).wrapping_mul(132897987541));
+                    let mut rng = LegacyRandom::new(seed as u64);
+                    apply_beta_surface(
+                        column,
+                        col.x * 16,
+                        col.z * 16,
+                        router,
+                        src,
+                        &block_definitions,
+                        &mut rng,
+                    );
 
-            let heightmaps = predicates
-                .as_ref()
-                .and_then(|p| build_column_heightmaps(&results, &y_sections, p));
+                    let world_seed = router.world_seed() as i64;
+                    let cave_ids = BetaCaveBlockIds::resolve(&block_definitions);
+                    let cave_config =
+                        mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig {
+                            air_state: cave_ids.air.into(),
+                            lava_state: cave_ids.lava.into(),
+                            stone_state: cave_ids.stone.into(),
+                            dirt_state: cave_ids.dirt.into(),
+                            grass_state: cave_ids.grass.into(),
+                            water_state: cave_ids.water.into(),
+                            stationary_water_state: cave_ids.stationary_water.into(),
+                            lava_level: 10,
+                            range: 8,
+                            horizontal_radius_multiplier: 1.0,
+                            vertical_radius_multiplier: 1.0,
+                        };
+                    apply_beta_caves(column, col.x, col.z, world_seed, &cave_config, &cave_ids);
 
-            let column_sections = sections_data
-                .into_iter()
-                .zip(results)
-                .map(|((entity, pos), result)| (entity, pos, result))
-                .collect();
+                    let ore_ids = BetaOreBlockIds::resolve(&block_definitions);
+                    apply_beta_ores(column, col.x, col.z, world_seed, &ore_ids);
+                }
 
-            ColumnResult {
-                sections: column_sections,
-                heightmaps,
-                source: ColumnSource::Generated,
-                work: started.elapsed(),
-            }
+                let results: Vec<_> = column.into_sections(&biome_palette);
+
+                let heightmaps = predicates
+                    .as_ref()
+                    .and_then(|p| build_column_heightmaps(&results, &y_sections, p));
+
+                let column_sections = sections_data
+                    .into_iter()
+                    .zip(results)
+                    .map(|((entity, pos), result)| (entity, pos, result))
+                    .collect();
+
+                ColumnResult {
+                    sections: column_sections,
+                    heightmaps,
+                    source: ColumnSource::Generated,
+                    work: started.elapsed(),
+                }
+            })
         });
 
         // Create in-flight entry

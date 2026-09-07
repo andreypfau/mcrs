@@ -1,6 +1,6 @@
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::generate_column;
-use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -29,16 +29,16 @@ fn main() {
         let mut legend = BTreeMap::new();
         for i in 0..64i32 {
             let results =
-                generate_column(ox + i % 8, oz + i / 8, &y_sections, &router, None, corpus(), &cancel);
+                generate_column(ox + i % 8, oz + i / 8, &y_sections, &router, None, &cancel);
             for (blocks, _) in results.iter().flatten() {
                 for y in 0..16 {
                     for z in 0..16 {
                         for x in 0..16 {
                             let id = blocks.get(BlockPos::new(x, y, z));
                             ids.extend_from_slice(&(id.0 as u32).to_le_bytes());
-                            legend
-                                .entry(id.0 as u32)
-                                .or_insert_with(|| corpus().owner(BlockStateId(id.0)).identifier.to_string());
+                            legend.entry(id.0 as u32).or_insert_with(|| {
+                                corpus().owner(BlockStateId(id.0)).identifier.to_string()
+                            });
                         }
                     }
                 }

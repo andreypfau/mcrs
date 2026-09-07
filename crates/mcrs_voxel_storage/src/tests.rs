@@ -143,3 +143,55 @@ fn a_single_out_of_range_entry_is_found_wherever_it_sits() {
         }
     }
 }
+
+/// The O(1) split of a homogeneous cube must produce exactly what a full
+/// `from_cube` scan of the same cells would: same palette order, same counts.
+#[test]
+fn splitting_a_homogeneous_cube_matches_a_full_scan() {
+    type C = PalettedContainer<u16, 16>;
+    const V: usize = C::VOLUME;
+
+    let reference = |cells: &[u16]| {
+        let c = C::from_cells(cells);
+        match c {
+            PalettedContainer::Homogeneous(v) => (vec![v], vec![V as u16]),
+            PalettedContainer::Heterogeneous(d) => (d.palette.clone(), d.counts.clone()),
+        }
+    };
+    let actual = |c: &C| match c {
+        PalettedContainer::Homogeneous(v) => (vec![*v], vec![V as u16]),
+        PalettedContainer::Heterogeneous(d) => (d.palette.clone(), d.counts.clone()),
+    };
+
+    for &(x, y, z) in &[
+        (0usize, 0usize, 0usize),
+        (1, 0, 0),
+        (0, 1, 0),
+        (5, 9, 13),
+        (15, 15, 15),
+    ] {
+        let mut cells = vec![7u16; V];
+        cells[y * 256 + z * 16 + x] = 42;
+        let mut c = C::Homogeneous(7);
+        c.set(x, y, z, 42);
+        assert_eq!(actual(&c), reference(&cells), "set at {x},{y},{z}");
+    }
+
+    for &(x0, x1, y0, y1, z0, z1) in &[
+        (0usize, 4usize, 0usize, 4usize, 0usize, 4usize),
+        (2, 16, 3, 9, 0, 16),
+        (0, 16, 0, 16, 0, 16),
+    ] {
+        let mut cells = vec![7u16; V];
+        for y in y0..y1 {
+            for z in z0..z1 {
+                for x in x0..x1 {
+                    cells[y * 256 + z * 16 + x] = 42;
+                }
+            }
+        }
+        let mut c = C::Homogeneous(7);
+        c.fill_box(x0, x1, y0, y1, z0, z1, 42);
+        assert_eq!(actual(&c), reference(&cells), "fill_box {x0}..{x1}");
+    }
+}

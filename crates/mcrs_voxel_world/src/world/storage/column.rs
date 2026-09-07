@@ -8,7 +8,7 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{
     Added, ApplyDeferred, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query,
-    SystemSet, With,
+    SystemSet, With, Without,
 };
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
@@ -157,11 +157,17 @@ pub enum ColumnLifecycleSet {
 /// Stage 1: when a chunk becomes `ChunkLoaded` (or `ChunkUnloading`),
 /// create / refcount its owning column entity.
 ///
-/// Only a section Stage 2 gave an `InColumn` was ever counted, so only such a
-/// section may decrement: one cancelled before it loaded reaches `ChunkUnloading`
-/// having never joined a column.
+/// `InColumn` is what says a section is counted: Stage 2 attaches it when the
+/// section joins and takes it off when it leaves, so a section counts once no
+/// matter how many times it is loaded or unloaded. A section may be marked
+/// `ChunkUnloading` again after the marker was stripped — a chunk awaiting
+/// despawn can still be handed tickets and lose them — and each such edge would
+/// otherwise decrement a column that section left long ago.
 pub fn reconcile_column_existence(
-    newly_loaded: Query<(&ChunkPos, &InDimension), (Added<ChunkLoaded>, With<ChunkFresh>)>,
+    newly_loaded: Query<
+        (&ChunkPos, &InDimension),
+        (Added<ChunkLoaded>, With<ChunkFresh>, Without<InColumn>),
+    >,
     newly_unloading: Query<(&ChunkPos, &InDimension), (Added<ChunkUnloading>, With<InColumn>)>,
     mut dimensions: Query<&mut ColumnIndex>,
     dim_configs: Query<&DimensionTypeConfig>,
@@ -234,7 +240,10 @@ pub fn reconcile_column_existence(
 /// `ColumnChunks` and attach the `InColumn` back-link.
 pub fn reconcile_column_chunks(
     newly_loaded: Query<(Entity, &ChunkPos, &InDimension), (Added<ChunkLoaded>, With<ChunkFresh>)>,
-    newly_unloading: Query<(&ChunkPos, &InDimension), (Added<ChunkUnloading>, With<InColumn>)>,
+    newly_unloading: Query<
+        (Entity, &ChunkPos, &InDimension),
+        (Added<ChunkUnloading>, With<InColumn>),
+    >,
     dimensions: Query<&ColumnIndex>,
     mut columns: Query<&mut ColumnChunks>,
     mut commands: Commands,
@@ -258,7 +267,8 @@ pub fn reconcile_column_chunks(
         commands.entity(chunk_entity).insert(InColumn(slot.entity));
     }
 
-    for (chunk_pos, in_dim) in newly_unloading.iter() {
+    for (chunk_entity, chunk_pos, in_dim) in newly_unloading.iter() {
+        commands.entity(chunk_entity).try_remove::<InColumn>();
         let col_pos = ColumnPos::from(*chunk_pos);
         let Ok(column_index) = dimensions.get(in_dim.0) else {
             continue;
@@ -327,6 +337,59 @@ mod tests {
             index.0.get(&ColumnPos::new(0, 0)).map(|s| s.section_count),
             Some(1),
         );
+    }
+
+    #[test]
+    fn a_section_unloaded_twice_only_decrements_once() {
+        let mut app = App::new();
+        app.add_systems(
+            FixedUpdate,
+            (
+                reconcile_column_existence,
+                ApplyDeferred,
+                reconcile_column_chunks,
+            )
+                .chain(),
+        );
+        let dim = app
+            .world_mut()
+            .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))
+            .id();
+        let kept = app
+            .world_mut()
+            .spawn((ChunkPos::new(0, 0, 0), InDimension(dim), ChunkLoaded))
+            .id();
+        let leaving = app
+            .world_mut()
+            .spawn((ChunkPos::new(0, 1, 0), InDimension(dim), ChunkLoaded))
+            .id();
+        app.world_mut().run_schedule(FixedUpdate);
+
+        let count = |app: &App| {
+            app.world()
+                .get::<ColumnIndex>(dim)
+                .expect("column index")
+                .0
+                .get(&ColumnPos::new(0, 0))
+                .map(|s| s.section_count)
+        };
+        assert_eq!(count(&app), Some(2));
+
+        app.world_mut().entity_mut(leaving).insert(ChunkUnloading);
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(count(&app), Some(1));
+
+        // A chunk waiting to despawn can be handed tickets and lose them again,
+        // so the same section reaches `ChunkUnloading` a second time.
+        app.world_mut()
+            .entity_mut(leaving)
+            .remove::<ChunkUnloading>();
+        app.world_mut().run_schedule(FixedUpdate);
+        app.world_mut().entity_mut(leaving).insert(ChunkUnloading);
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(count(&app), Some(1));
+
+        assert!(app.world().get::<InColumn>(kept).is_some());
     }
 
     #[test]

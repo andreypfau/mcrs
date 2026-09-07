@@ -19,6 +19,7 @@ use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
+use crate::world::generate::ColumnBlocks;
 use crate::world::generate::{
     BetaCaveBlockIds, apply_beta_caves, apply_beta_surface, generate_column,
 };
@@ -444,15 +445,9 @@ fn beta_cave_parity_gate() {
             }
         }
 
-        apply_beta_caves(
-            &mut sections,
-            &y_sections,
-            *cx,
-            *cz,
-            world_seed,
-            &config,
-            &ids,
-        );
+        let column = ColumnBlocks::from_sections(&sections, &y_sections);
+        apply_beta_caves(&column, *cx, *cz, world_seed, &config, &ids);
+        column.write_back(&mut sections);
 
         for fix_col in fixture_cols.iter() {
             total_columns += 1;
@@ -569,14 +564,13 @@ fn generate_column_beta_has_caves() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
-        super::corpus(),
         &cancel,
     );
 
     let mut rng = make_chunk_rng(chunk_x, chunk_z);
+    let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_surface(
-        &mut sections,
-        &y_sections,
+        &column,
         chunk_x * 16,
         chunk_z * 16,
         &router,
@@ -584,16 +578,11 @@ fn generate_column_beta_has_caves() {
         super::corpus(),
         &mut rng,
     );
+    column.write_back(&mut sections);
 
-    apply_beta_caves(
-        &mut sections,
-        &y_sections,
-        chunk_x,
-        chunk_z,
-        world_seed,
-        &config,
-        &ids,
-    );
+    let column = ColumnBlocks::from_sections(&sections, &y_sections);
+    apply_beta_caves(&column, chunk_x, chunk_z, world_seed, &config, &ids);
+    column.write_back(&mut sections);
 
     let air = VoxelId::from(ids.air);
     let lava = VoxelId::from(ids.lava);
@@ -676,13 +665,12 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 &y_sections,
                 &router,
                 Some((&biome_source, &snapshot)),
-                super::corpus(),
                 &cancel,
             );
             let mut rng = make_chunk_rng(chunk_x, chunk_z);
+            let column = ColumnBlocks::from_sections(&sections, &y_sections);
             apply_beta_surface(
-                &mut sections,
-                &y_sections,
+                &column,
                 chunk_x * 16,
                 chunk_z * 16,
                 &router,
@@ -690,15 +678,10 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 super::corpus(),
                 &mut rng,
             );
-            apply_beta_caves(
-                &mut sections,
-                &y_sections,
-                chunk_x,
-                chunk_z,
-                world_seed,
-                &config,
-                &ids,
-            );
+            column.write_back(&mut sections);
+            let column = ColumnBlocks::from_sections(&sections, &y_sections);
+            apply_beta_caves(&column, chunk_x, chunk_z, world_seed, &config, &ids);
+            column.write_back(&mut sections);
 
             let mut air_below_32 = 0usize;
             for (si, &sy) in y_sections.iter().enumerate() {

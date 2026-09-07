@@ -322,7 +322,7 @@ mod tests {
             );
             count += 1;
         }
-        assert_eq!(count, 4);
+        assert_eq!(count, 5);
     }
 
     #[test]

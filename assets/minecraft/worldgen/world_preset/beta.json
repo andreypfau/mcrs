@@ -1,7 +1,7 @@
 {
   "dimensions": {
     "minecraft:overworld": {
-      "type": "minecraft:overworld",
+      "type": "minecraft:beta",
       "generator": {
         "type": "minecraft:noise",
         "biome_source": {

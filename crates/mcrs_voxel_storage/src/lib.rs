@@ -4,10 +4,10 @@ pub mod nibbles;
 pub mod packed_bit_storage;
 pub mod voxel_palette;
 
-pub use container::{AbstractCube, HeterogeneousPaletteData, PalettedContainer};
-pub use packed_bit_storage::{PackedBitStorage, bits_needed_for};
 pub use column_heights::ColumnHeights;
+pub use container::{AbstractCube, HeterogeneousPaletteData, PalettedContainer};
 pub use nibbles::SectionNibbles;
+pub use packed_bit_storage::{PackedBitStorage, bits_needed_for};
 pub use voxel_palette::{SharedVoxelPalette, VoxelPalette};
 
 /// An opaque voxel identifier. The engine never interprets it: the game assigns

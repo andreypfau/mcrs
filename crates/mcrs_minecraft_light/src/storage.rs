@@ -135,7 +135,10 @@ mod tests {
         let cells = field_of(|i| (i % 16) as u8);
         let storage = LightStorage::from_field(&cells);
         assert!(matches!(storage, LightStorage::Dense(_)));
-        assert_eq!(storage.get(3, 7, 11), cells[SectionNibbles::index(3, 7, 11)]);
+        assert_eq!(
+            storage.get(3, 7, 11),
+            cells[SectionNibbles::index(3, 7, 11)]
+        );
 
         let mut back = Box::new([0u8; BLOCKS::VOLUME]);
         storage.write_field(&mut back);

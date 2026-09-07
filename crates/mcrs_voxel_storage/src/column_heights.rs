@@ -66,4 +66,3 @@ impl ColumnHeights {
         &self.store
     }
 }
-

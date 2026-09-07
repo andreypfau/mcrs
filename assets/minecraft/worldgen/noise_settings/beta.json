@@ -19,36 +19,41 @@
     "depth": 0.0,
     "erosion": 0.0,
     "final_density": {
-      "left": {
+      "type": "minecraft:interpolated",
+      "cell_size_xz": 4,
+      "cell_size_y": 8,
+      "input": {
         "left": {
           "left": {
-            "smear_scale_multiplier": 8.0,
-            "type": "minecraft:old_blended_noise",
-            "xz_factor": 80.0,
-            "xz_scale": 0.25,
-            "y_factor": 160.0,
-            "y_scale": 0.125
+            "left": {
+              "smear_scale_multiplier": 8.0,
+              "type": "minecraft:old_blended_noise",
+              "xz_factor": 80.0,
+              "xz_scale": 0.25,
+              "y_factor": 160.0,
+              "y_scale": 0.125
+            },
+            "right": "minecraft:beta/falloff",
+            "type": "minecraft:add"
           },
-          "right": "minecraft:beta/falloff",
-          "type": "minecraft:add"
+          "right": {
+            "left": 1.0,
+            "right": {
+              "left": "minecraft:beta/top_slide",
+              "right": -1.0,
+              "type": "minecraft:mul"
+            },
+            "type": "minecraft:add"
+          },
+          "type": "minecraft:mul"
         },
         "right": {
-          "left": 1.0,
-          "right": {
-            "left": "minecraft:beta/top_slide",
-            "right": -1.0,
-            "type": "minecraft:mul"
-          },
-          "type": "minecraft:add"
+          "left": "minecraft:beta/top_slide",
+          "right": -10.0,
+          "type": "minecraft:mul"
         },
-        "type": "minecraft:mul"
-      },
-      "right": {
-        "left": "minecraft:beta/top_slide",
-        "right": -10.0,
-        "type": "minecraft:mul"
-      },
-      "type": "minecraft:add"
+        "type": "minecraft:add"
+      }
     },
     "ridges": 0.0,
     "temperature": "minecraft:beta/temperature",

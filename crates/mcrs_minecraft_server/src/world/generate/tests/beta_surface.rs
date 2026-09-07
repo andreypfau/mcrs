@@ -10,6 +10,7 @@ use mcrs_voxel_storage::VoxelId;
 
 use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
+use crate::world::generate::ColumnBlocks;
 use crate::world::generate::{apply_beta_surface, generate_column};
 
 fn make_beta_biome() -> Biome {
@@ -96,15 +97,14 @@ fn apply_beta_surface_places_surface_and_bedrock() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
-        super::corpus(),
         &cancel,
     );
 
     let mut rng = make_chunk_rng(chunk_x, chunk_z);
 
+    let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_surface(
-        &mut sections,
-        &y_sections,
+        &column,
         block_x,
         block_z,
         &router,
@@ -112,6 +112,7 @@ fn apply_beta_surface_places_surface_and_bedrock() {
         super::corpus(),
         &mut rng,
     );
+    column.write_back(&mut sections);
 
     let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
     let grass_id = VoxelId::from(super::corpus().default_state("minecraft:grass_block"));
@@ -187,14 +188,13 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
-        super::corpus(),
         &cancel,
     );
 
     let mut rng = make_chunk_rng(chunk_x, chunk_z);
+    let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_surface(
-        &mut sections,
-        &y_sections,
+        &column,
         block_x,
         block_z,
         &router,
@@ -202,6 +202,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         super::corpus(),
         &mut rng,
     );
+    column.write_back(&mut sections);
 
     let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
     let section0 = sections[0].as_ref().expect("section 0 must be present");
@@ -394,7 +395,6 @@ fn beta_terrain_height_matches_back2beta_oracle() {
                 &y_sections,
                 &router,
                 Some((&biome_source, &snapshot)),
-                super::corpus(),
                 &cancel,
             )
         });
@@ -457,15 +457,14 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
-        super::corpus(),
         &cancel,
     );
 
     let mut rng = make_chunk_rng(chunk_x, chunk_z);
 
+    let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_surface(
-        &mut sections,
-        &y_sections,
+        &column,
         block_x,
         block_z,
         &router,
@@ -473,6 +472,7 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
         super::corpus(),
         &mut rng,
     );
+    column.write_back(&mut sections);
 
     let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be present").0;

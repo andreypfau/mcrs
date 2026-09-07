@@ -1,4 +1,3 @@
-use crate::beta::terrain_f64::BetaTerrainF64;
 use crate::cell::CellBounds;
 use crate::compile::CompileError;
 use crate::interval::Interval;
@@ -152,7 +151,6 @@ impl BetaSurfaceNoise {
 pub struct BetaNoises {
     pub beach: BetaSurfaceNoise,
     pub surface: BetaSurfaceNoise,
-    pub terrain: BetaTerrainF64,
 }
 
 impl BetaNoises {
@@ -163,7 +161,6 @@ impl BetaNoises {
         Self {
             beach: BetaSurfaceNoise(beach),
             surface: BetaSurfaceNoise(surface),
-            terrain: BetaTerrainF64::new(seed),
         }
     }
 }
@@ -290,10 +287,6 @@ impl NoiseRouter {
 
     pub fn beta_surface_noise(&self) -> Option<&BetaSurfaceNoise> {
         self.beta.as_ref().map(|beta| &beta.surface)
-    }
-
-    pub fn beta_terrain_f64(&self) -> Option<&BetaTerrainF64> {
-        self.beta.as_ref().map(|beta| &beta.terrain)
     }
 }
 

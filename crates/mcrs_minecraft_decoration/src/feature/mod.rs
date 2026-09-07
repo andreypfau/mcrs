@@ -28,17 +28,45 @@ impl OreFeature {
         G: Fn(i32, i32, i32) -> VoxelId,
         S: FnMut(i32, i32, i32, VoxelId),
     {
+        self.place_within(
+            config, origin_x, origin_y, origin_z, None, get_block, set_block, rng,
+        )
+    }
+
+    /// As `place`, but scanning only inside `xz_bounds` — `(min_x, max_x, min_z,
+    /// max_z)`, inclusive.
+    ///
+    /// A vein reaches past the column that seeds it, and those blocks are
+    /// dropped by the writer anyway. Every RNG draw happens before the spatial
+    /// loops, so narrowing them changes nothing but the work.
+    #[allow(clippy::too_many_arguments)]
+    pub fn place_within<R: Random, G, S>(
+        &self,
+        config: &OreConfig,
+        origin_x: i32,
+        origin_y: i32,
+        origin_z: i32,
+        xz_bounds: Option<(i32, i32, i32, i32)>,
+        get_block: G,
+        set_block: S,
+        rng: &mut R,
+    ) where
+        G: Fn(i32, i32, i32) -> VoxelId,
+        S: FnMut(i32, i32, i32, VoxelId),
+    {
         do_place(
-            config, origin_x, origin_y, origin_z, get_block, set_block, rng,
+            config, origin_x, origin_y, origin_z, xz_bounds, get_block, set_block, rng,
         );
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn do_place<R: Random, G, S>(
     config: &OreConfig,
     origin_x: i32,
     origin_y: i32,
     origin_z: i32,
+    xz_bounds: Option<(i32, i32, i32, i32)>,
     get_block: G,
     mut set_block: S,
     rng: &mut R,
@@ -84,7 +112,14 @@ fn do_place<R: Random, G, S>(
         let i2 = (d7 + d11 / 2.0).floor() as i32;
         let j2 = (d8 + d10 / 2.0).floor() as i32;
 
-        for k2 in i1..=l1 {
+        let (scan_x0, scan_x1, scan_z0, scan_z1) = match xz_bounds {
+            Some((min_x, max_x, min_z, max_z)) => {
+                (i1.max(min_x), l1.min(max_x), k1.max(min_z), j2.min(max_z))
+            }
+            None => (i1, l1, k1, j2),
+        };
+
+        for k2 in scan_x0..=scan_x1 {
             let d12 = (k2 as f64 + 0.5 - d6) / (d10 / 2.0);
             if d12 * d12 >= 1.0 {
                 continue;
@@ -94,7 +129,7 @@ fn do_place<R: Random, G, S>(
                 if d12 * d12 + d13 * d13 >= 1.0 {
                     continue;
                 }
-                for i3 in k1..=j2 {
+                for i3 in scan_z0..=scan_z1 {
                     let d14 = (i3 as f64 + 0.5 - d8) / (d10 / 2.0);
                     if d12 * d12 + d13 * d13 + d14 * d14 < 1.0 {
                         let current = get_block(k2, l2, i3);

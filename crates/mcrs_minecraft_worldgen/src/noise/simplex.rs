@@ -1,4 +1,4 @@
-use crate::noise::gradient::GRADIENTS;
+use crate::noise::gradient::NoiseFloat;
 use mcrs_minecraft_random::Random;
 
 /// Simplex noise shared by Beta worldgen (`NoiseGenerator2`) and modern vanilla
@@ -23,7 +23,7 @@ fn corner(gradient_index: usize, x: f64, y: f64, z: f64, distance: f64) -> f64 {
         0.0
     } else {
         let t2 = t * t;
-        t2 * t2 * GRADIENTS[gradient_index].dot(x, y, z)
+        t2 * t2 * f64::grad_dot_at(gradient_index << 2, x, y, z)
     }
 }
 

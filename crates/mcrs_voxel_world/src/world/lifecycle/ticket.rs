@@ -15,7 +15,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::query::With;
 use indexmap::IndexMap;
 use mcrs_voxel_math::ChunkPos;
-use rustc_hash::{FxBuildHasher, FxHashSet};
+use rustc_hash::{FxBuildHasher, FxHashMap};
 
 const MAX_DESPAWNS_PER_TICK: usize = 1024;
 /// A view's row is 27 columns of 24 sections, and a column whose sections straddle two ticks
@@ -122,7 +122,7 @@ pub struct ChunkTicketsCommands {
     /// Insertion-ordered map so chunks are spawned in the order they were requested
     /// (closest to player first, since the view system adds them in distance order).
     add_tickets: IndexMap<ChunkPos, Vec<Ticket>, FxBuildHasher>,
-    remove_tickets: FxHashSet<(ChunkPos, Vec<TicketKind>)>,
+    remove_tickets: FxHashMap<ChunkPos, Vec<TicketKind>>,
 }
 
 #[derive(Component, Deref, DerefMut)]
@@ -151,12 +151,20 @@ impl ChunkTicketsCommands {
         self.add_tickets.entry(chunk_pos).or_default().push(ticket);
     }
 
+    /// A ticket still queued is cancelled where it waits; one already handed to a
+    /// spawned chunk has to be taken off that chunk's holder instead, or the chunk
+    /// keeps a ticket nobody holds and never unloads.
     pub fn remove_ticket(&mut self, chunk_pos: ChunkPos, ticket_kind: TicketKind) {
         if let Some(tickets) = self.add_tickets.get_mut(&chunk_pos)
             && let Some(i) = tickets.iter().position(|t| t.kind == ticket_kind)
         {
             tickets.swap_remove(i);
+            return;
         }
+        self.remove_tickets
+            .entry(chunk_pos)
+            .or_default()
+            .push(ticket_kind);
     }
 }
 
@@ -181,7 +189,7 @@ fn despawn_chunks(
         if let Ok(mut chunk_index) = dims.get_mut(**dim) {
             chunk_index.remove(*chunk_pos);
         }
-        commands.entity(chunk).despawn();
+        commands.entity(chunk).try_despawn();
     }
 }
 
@@ -192,8 +200,8 @@ fn unload_chunks(
     chunk_statuses.iter().for_each(|(chunk, _chunk_pos, _dim)| {
         commands
             .entity(chunk)
-            .remove::<ChunkUnloading>()
-            .insert(ChunkUnloaded);
+            .try_remove::<ChunkUnloading>()
+            .try_insert(ChunkUnloaded);
     })
 }
 
@@ -261,8 +269,8 @@ fn remove_tickets_from_chunks(
                         if ticket_holder.0.is_empty() {
                             commands
                                 .entity(chunk_entity)
-                                .remove::<ChunkLoaded>()
-                                .insert(ChunkUnloading);
+                                .try_remove::<ChunkLoaded>()
+                                .try_insert(ChunkUnloading);
                         }
                     }
                 });

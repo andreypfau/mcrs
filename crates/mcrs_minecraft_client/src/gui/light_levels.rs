@@ -80,14 +80,14 @@ impl Plugin for LightLevelsPlugin {
         } else {
             LightLevels::Off
         })
-            .add_systems(Update, (toggle, sync_pool).chain())
-            .add_systems(
-                PostUpdate,
-                render
-                    .after(TransformSystems::Propagate)
-                    .before(UiSystems::Layout)
-                    .run_if(|levels: Res<LightLevels>| levels.visible()),
-            );
+        .add_systems(Update, (toggle, sync_pool).chain())
+        .add_systems(
+            PostUpdate,
+            render
+                .after(TransformSystems::Propagate)
+                .before(UiSystems::Layout)
+                .run_if(|levels: Res<LightLevels>| levels.visible()),
+        );
     }
 }
 
@@ -249,9 +249,10 @@ mod tests {
 
     #[test]
     fn the_key_cycles_both_layers_on_and_back_off() {
-        let seen: Vec<_> = std::iter::successors(Some(LightLevels::Off), |levels| Some(levels.next()))
-            .take(5)
-            .collect();
+        let seen: Vec<_> =
+            std::iter::successors(Some(LightLevels::Off), |levels| Some(levels.next()))
+                .take(5)
+                .collect();
         assert_eq!(
             seen,
             [
@@ -270,7 +271,10 @@ mod tests {
     #[test]
     fn a_label_takes_the_colour_of_the_level_it_prints() {
         assert_eq!(Srgba::from(colour(0, SKY_DIM, SKY_BRIGHT)), SKY_DIM);
-        assert_eq!(Srgba::from(colour(15, BLOCK_DIM, BLOCK_BRIGHT)), BLOCK_BRIGHT);
+        assert_eq!(
+            Srgba::from(colour(15, BLOCK_DIM, BLOCK_BRIGHT)),
+            BLOCK_BRIGHT
+        );
         assert!(scale_at(0.5) <= SCALE_MAX && scale_at(100.0) >= SCALE_MIN);
     }
 }
