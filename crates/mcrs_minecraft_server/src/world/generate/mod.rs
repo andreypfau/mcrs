@@ -592,6 +592,7 @@ pub use column_blocks::ColumnBlocks;
 pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_caves};
 pub mod beta_ores;
+pub mod modern_carvers;
 pub use beta_ores::{BetaOreBlockIds, apply_beta_ores, place_all_ores};
 
 #[cfg(test)]

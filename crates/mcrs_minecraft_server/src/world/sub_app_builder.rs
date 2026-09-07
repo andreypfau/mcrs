@@ -89,6 +89,7 @@ pub struct DimRegistryBundle {
     pub heightmap_predicates: Option<HeightmapPredicates>,
     pub biome_registry: RegistrySnapshot<Biome>,
     pub active_biome_source: Option<ActiveBiomeSource>,
+    pub modern_carver_biomes: Option<crate::world::generate::modern_carvers::ModernCarverBiomes>,
     pub world_save: Option<WorldSave>,
     pub world_gen_config: WorldGenConfig,
 }
@@ -105,6 +106,9 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
         active_biome_source: world.get_resource::<ActiveBiomeSource>().cloned(),
+        modern_carver_biomes: world
+            .get_resource::<crate::world::generate::modern_carvers::ModernCarverBiomes>()
+            .cloned(),
         world_save: world.get_resource::<WorldSave>().cloned(),
         world_gen_config: world
             .get_resource::<WorldGenConfig>()
@@ -376,6 +380,9 @@ pub fn spawn_dim_subapp(
         sub_app.insert_resource(predicates.clone());
     }
     sub_app.insert_resource(registries.biome_registry.clone());
+    if let Some(carver_biomes) = &registries.modern_carver_biomes {
+        sub_app.insert_resource(carver_biomes.clone());
+    }
     if let Some(active_biome_source) = &registries.active_biome_source {
         sub_app.insert_resource(active_biome_source.clone());
     }

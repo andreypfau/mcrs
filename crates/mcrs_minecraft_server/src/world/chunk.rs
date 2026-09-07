@@ -2,6 +2,9 @@ use crate::world::format::anvil::{SavedColumns, SectionData, column_sections};
 use mcrs_minecraft_block::palette::ChunkBlocks;
 use std::cell::RefCell;
 
+use crate::world::generate::modern_carvers::{
+    ModernCarverBiomes, ModernCarverBlockIds, apply_modern_carvers,
+};
 use crate::world::generate::{
     BetaCaveBlockIds, BetaOreBlockIds, ColumnBlocks, apply_beta_caves, apply_beta_ores,
     apply_beta_surface, fill_column_dense_any,
@@ -18,18 +21,22 @@ use bevy_ecs::system::{Commands, Local, Res, ResMut};
 use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
+use mcrs_minecraft_core::DynTagRegistry;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::BiomeSource;
+use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_world::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
 use mcrs_minecraft_worldgen::bevy::{
     BuildNoiseRouter, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,
     OverworldNoiseRouter, WorldGenConfig,
 };
+use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
+use mcrs_minecraft_worldgen::value_provider::HeightContext;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
@@ -793,7 +800,10 @@ pub(crate) fn dispatch_column_generation(
     biome_registry: Option<Res<RegistrySnapshot<Biome>>>,
     saved: Option<Res<SavedColumns>>,
     heightmap_predicates: Option<Res<HeightmapPredicates>>,
+    carver_biomes: Option<Res<ModernCarverBiomes>>,
+    block_tags: Option<Res<DynTagRegistry<VanillaBlock>>>,
     mut cached_biome_registry: Local<Option<Arc<RegistrySnapshot<Biome>>>>,
+    mut cached_carver_blocks: Local<Option<Arc<ModernCarverBlockIds>>>,
 ) {
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
 
@@ -829,6 +839,19 @@ pub(crate) fn dispatch_column_generation(
         }
         cached_biome_registry.as_ref().unwrap().clone()
     });
+    // The carver substance set is the same for every column of the dimension,
+    // and resolving it walks the uncarvable tag, so it is resolved once.
+    let carver_context = carver_biomes.as_deref().map(|biomes| {
+        let ids = cached_carver_blocks.get_or_insert_with(|| {
+            Arc::new(ModernCarverBlockIds::resolve(
+                &blocks.0,
+                &overworld_noise_router.0,
+                block_tags.as_deref(),
+            ))
+        });
+        (biomes.0.clone(), ids.clone())
+    });
+
     let biome_snapshot = biome_registry_arc.clone();
     let biome_context: Option<(Arc<BiomeSource>, Arc<RegistrySnapshot<Biome>>)> =
         match (active_biome_source.as_deref(), biome_registry_arc) {
@@ -864,6 +887,7 @@ pub(crate) fn dispatch_column_generation(
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
         let biome_ctx = biome_context.clone();
+        let carver_ctx = carver_context.clone();
         let block_definitions = blocks.0.clone();
         let predicates = heightmap_predicates.as_deref().cloned();
         let saved = saved.as_deref().cloned().zip(biome_snapshot.clone());
@@ -993,6 +1017,28 @@ pub(crate) fn dispatch_column_generation(
 
                     let ore_ids = BetaOreBlockIds::resolve(&block_definitions);
                     apply_beta_ores(column, col.x, col.z, world_seed, &ore_ids);
+                }
+
+                if let Some((carver_biomes, carver_blocks)) = &carver_ctx
+                    && let Some((src, _)) = &biome_context
+                    && matches!(src, BiomeSource::MultiNoise(_))
+                {
+                    let world_seed = router.world_seed() as i64;
+                    let min_y = y_sections.first().copied().unwrap_or(0) * 16;
+                    apply_modern_carvers(
+                        column,
+                        col.x,
+                        col.z,
+                        world_seed,
+                        router,
+                        &mut Workspace::new(),
+                        carver_biomes,
+                        HeightContext {
+                            min_y,
+                            depth: (y_sections.len() as i32) * 16,
+                        },
+                        carver_blocks,
+                    );
                 }
 
                 let results: Vec<_> = column.into_sections(&biome_palette);

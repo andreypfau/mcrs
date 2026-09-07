@@ -150,16 +150,215 @@ impl TargetPoint {
     }
 }
 
+/// The seven-dimensional point a search compares against: the six sampled
+/// coordinates, plus a zero the offset penalty is measured from.
+type Coords = [i64; 7];
+
+impl ParameterPoint {
+    fn space(&self) -> [Parameter; 7] {
+        [
+            self.temperature,
+            self.humidity,
+            self.continentalness,
+            self.erosion,
+            self.depth,
+            self.weirdness,
+            Parameter {
+                min: self.offset,
+                max: self.offset,
+            },
+        ]
+    }
+}
+
+impl TargetPoint {
+    fn coords(self) -> Coords {
+        [
+            self.temperature,
+            self.humidity,
+            self.continentalness,
+            self.erosion,
+            self.depth,
+            self.weirdness,
+            0,
+        ]
+    }
+}
+
+fn bound_distance(space: &[Parameter; 7], target: &Coords) -> i64 {
+    let mut total = 0;
+    for (parameter, coordinate) in space.iter().zip(target) {
+        let distance = parameter.distance(*coordinate);
+        total += distance * distance;
+    }
+    total
+}
+
+/// An R-tree node over the parameter space. A subtree's own space is the union
+/// of its children's, which is what lets a search skip a whole branch.
+#[derive(Debug, Clone)]
+enum Node<T> {
+    Leaf {
+        space: [Parameter; 7],
+        value: T,
+    },
+    SubTree {
+        space: [Parameter; 7],
+        children: Vec<Node<T>>,
+    },
+}
+
+impl<T> Node<T> {
+    fn space(&self) -> &[Parameter; 7] {
+        match self {
+            Node::Leaf { space, .. } | Node::SubTree { space, .. } => space,
+        }
+    }
+
+    /// The nearest leaf, given a candidate to beat. A branch whose own bound is
+    /// already further than the candidate is not entered at all.
+    fn search<'a>(&'a self, target: &Coords, best: Option<(&'a T, i64)>) -> Option<(&'a T, i64)> {
+        match self {
+            Node::Leaf { space, value } => Some((value, bound_distance(space, target))),
+            Node::SubTree { children, .. } => {
+                let mut best = best;
+                for child in children {
+                    let nearest = best.map_or(i64::MAX, |(_, distance)| distance);
+                    if nearest <= bound_distance(child.space(), target) {
+                        continue;
+                    }
+                    if let Some(found) = child.search(target, best)
+                        && best.map_or(i64::MAX, |(_, distance)| distance) > found.1
+                    {
+                        best = Some(found);
+                    }
+                }
+                best
+            }
+        }
+    }
+}
+
+const CHILDREN_PER_NODE: usize = 19;
+
+fn union_space<T>(children: &[Node<T>]) -> [Parameter; 7] {
+    let mut space = *children[0].space();
+    for child in &children[1..] {
+        for (slot, parameter) in space.iter_mut().zip(child.space()) {
+            *slot = slot.union(*parameter);
+        }
+    }
+    space
+}
+
+/// Sort by how far the node sits from the origin overall. This is the order a
+/// node's own children end up in, and it is a different key from the one the
+/// bucketing uses.
+fn sort_by_total_magnitude<T>(nodes: &mut [Node<T>]) {
+    nodes.sort_by_key(|node| {
+        node.space()
+            .iter()
+            .map(|parameter| ((parameter.min + parameter.max) / 2).abs())
+            .sum::<i64>()
+    });
+}
+
+/// Sort by the centre of `dimension`, then by the centres of the dimensions
+/// after it, wrapping around.
+fn sort_nodes<T>(nodes: &mut [Node<T>], dimension: usize, absolute: bool) {
+    let key = |node: &Node<T>| -> [i64; 7] {
+        let space = node.space();
+        let mut out = [0i64; 7];
+        for step in 0..7 {
+            let parameter = space[(dimension + step) % 7];
+            let centre = (parameter.min + parameter.max) / 2;
+            out[step] = if absolute { centre.abs() } else { centre };
+        }
+        out
+    };
+    nodes.sort_by_key(key);
+}
+
+/// How many nodes go in each bucket: the largest power of the branching factor
+/// that still leaves more than one bucket.
+fn bucket_size(count: usize, children_per_node: usize) -> usize {
+    children_per_node
+        .pow(((count as f64 - 0.01).ln() / (children_per_node as f64).ln()).floor() as u32)
+        .max(1)
+}
+
+fn space_cost(space: &[Parameter; 7]) -> i64 {
+    space
+        .iter()
+        .map(|parameter| (parameter.max - parameter.min).abs())
+        .sum()
+}
+
+fn bucketed_cost<T>(children: &[Node<T>], per_bucket: usize) -> i64 {
+    children
+        .chunks(per_bucket)
+        .map(|bucket| space_cost(&union_space(bucket)))
+        .sum()
+}
+
+/// Group the nodes along whichever dimension gives the tightest bounds, so a
+/// search prunes as much as possible.
+fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Node<T> {
+    if children.len() == 1 {
+        return children.pop().expect("one child");
+    }
+    if children.len() <= children_per_node {
+        sort_by_total_magnitude(&mut children);
+        return Node::SubTree {
+            space: union_space(&children),
+            children,
+        };
+    }
+
+    let per_bucket = bucket_size(children.len(), children_per_node);
+    let mut best_dimension = 0;
+    let mut lowest_cost = i64::MAX;
+    for dimension in 0..7 {
+        sort_nodes(&mut children, dimension, false);
+        let cost = bucketed_cost(&children, per_bucket);
+        if cost < lowest_cost {
+            lowest_cost = cost;
+            best_dimension = dimension;
+        }
+    }
+
+    sort_nodes(&mut children, best_dimension, false);
+    let mut buckets: Vec<Node<T>> = Vec::new();
+    let mut rest = children;
+    while !rest.is_empty() {
+        let take = per_bucket.min(rest.len());
+        let bucket: Vec<Node<T>> = rest.drain(..take).collect();
+        buckets.push(Node::SubTree {
+            space: union_space(&bucket),
+            children: bucket,
+        });
+    }
+    // The reference orders the buckets before descending into them, along the
+    // dimension it bucketed on, so the child order is the bucketing's order.
+    sort_nodes(&mut buckets, best_dimension, true);
+    let subtrees: Vec<Node<T>> = buckets
+        .into_iter()
+        .map(|bucket| match bucket {
+            Node::SubTree { children, .. } => build_node(children, children_per_node),
+            leaf => leaf,
+        })
+        .collect();
+    Node::SubTree {
+        space: union_space(&subtrees),
+        children: subtrees,
+    }
+}
+
 /// A biome table, searched by nearest climate.
-///
-/// The reference indexes this with an R-tree over the seven-dimensional
-/// parameter space. A linear scan returns the same entry — the tree only
-/// prunes — and callers reach this once per chunk, memoized, rather than once
-/// per block, so the tree's build cost buys nothing yet. It becomes worth
-/// having the moment something needs a per-block biome.
 #[derive(Debug, Clone)]
 pub struct ParameterList<T> {
     values: Vec<(ParameterPoint, T)>,
+    index: Node<usize>,
 }
 
 impl<T> ParameterList<T> {
@@ -168,7 +367,16 @@ impl<T> ParameterList<T> {
             !values.is_empty(),
             "a climate table needs at least one entry"
         );
-        ParameterList { values }
+        let leaves = values
+            .iter()
+            .enumerate()
+            .map(|(slot, (point, _))| Node::Leaf {
+                space: point.space(),
+                value: slot,
+            })
+            .collect();
+        let index = build_node(leaves, CHILDREN_PER_NODE);
+        ParameterList { values, index }
     }
 
     pub fn values(&self) -> &[(ParameterPoint, T)] {
@@ -183,9 +391,17 @@ impl<T> ParameterList<T> {
         self.values.is_empty()
     }
 
-    /// The entry whose climate fits `target` best. Ties go to the earlier
-    /// entry, which is the order the table was built in.
+    /// The entry whose climate fits `target` best.
     pub fn find_value(&self, target: TargetPoint) -> &T {
+        let coords = target.coords();
+        let (slot, _) = self.index.search(&coords, None).expect("a non-empty tree");
+        &self.values[*slot].1
+    }
+
+    /// The same answer by scanning every entry, which is what the tree has to
+    /// agree with. Ties go to the earlier entry here; the tree visits its own
+    /// sorted order, so a tie can land elsewhere and the tree is the authority.
+    pub fn find_value_brute_force(&self, target: TargetPoint) -> &T {
         let mut best = &self.values[0];
         let mut best_fitness = best.0.fitness(target);
         for candidate in &self.values[1..] {
@@ -282,6 +498,56 @@ mod tests {
         let mut only_depth = point(0.0, 0.0);
         only_depth.depth = Parameter::point(1.0);
         assert_eq!(only_depth.fitness(target), 10000 * 10000);
+    }
+
+    /// The tree only prunes, so it has to reach the same entry a full scan
+    /// does. Ties can land elsewhere, since the tree walks its own sorted
+    /// order, and the tree is the authority there.
+    #[test]
+    fn the_index_agrees_with_a_full_scan() {
+        let mut rng = 0x2545F4914F6CDD1Du64;
+        let mut next = || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            ((rng >> 11) as f32 / (1u64 << 53) as f32) * 4.0 - 2.0
+        };
+        let table = ParameterList::new(
+            (0..400)
+                .map(|slot| {
+                    let low = next();
+                    let high = low + next().abs();
+                    (
+                        ParameterPoint {
+                            temperature: Parameter::span(low.min(high), high.max(low)),
+                            humidity: Parameter::point(next()),
+                            continentalness: Parameter::point(next()),
+                            erosion: Parameter::point(next()),
+                            depth: Parameter::point(next()),
+                            weirdness: Parameter::point(next()),
+                            offset: 0,
+                        },
+                        slot,
+                    )
+                })
+                .collect(),
+        );
+        let mut checked = 0;
+        for _ in 0..2000 {
+            let target = TargetPoint::new(next(), next(), next(), next(), next(), next());
+            let indexed = *table.find_value(target);
+            let scanned = *table.find_value_brute_force(target);
+            if indexed != scanned {
+                // Only a tie may differ, and then both must fit equally well.
+                assert_eq!(
+                    table.values()[indexed].0.fitness(target),
+                    table.values()[scanned].0.fitness(target),
+                    "the index found a worse entry than the scan"
+                );
+            }
+            checked += 1;
+        }
+        assert_eq!(checked, 2000);
     }
 
     /// The explicit `biomes` form of a multi-noise source carries the same
