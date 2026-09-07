@@ -412,13 +412,18 @@ struct Plan {
     /// The `Interpolated` nodes reached, whose lattices are materialized before
     /// the order runs.
     lattice: Box<[NodeId]>,
+    /// Which buffer each position in `order` writes, numbered within the run of
+    /// buffers that share its node's axes.
+    slot: Box<[u32]>,
+    /// Buffers needed per axes combination, so a fill holds the width of the
+    /// graph rather than one stratum per node.
+    slot_count: [u32; 8],
 }
 
 #[derive(Default)]
 pub struct Workspace {
-    /// Every node's whole stratum, laid out in evaluation order so a node's
-    /// offset sits above every offset it reads. That ordering is what lets
-    /// `eval` split the buffer.
+    /// One stratum per live slot. Slots are recycled, so a node's offset may sit
+    /// either side of an offset it reads.
     values: Vec<f32>,
     offset: Vec<u32>,
     lattices: Vec<Lattice>,
@@ -489,7 +494,7 @@ impl Program {
         let mut plans = Vec::with_capacity(entries.len());
         for (index, &entry) in entries.iter().enumerate() {
             plan_of[entry as usize] = index as u32;
-            plans.push(Plan::new(&nodes, &ranges, entry));
+            plans.push(Plan::new(&nodes, &axes, &ranges, entry));
         }
 
         Self {
@@ -792,10 +797,11 @@ impl Program {
         let off = ws.offset[fallback.site as usize] as usize;
         let source_off = ws.offset[fallback.source as usize] as usize;
 
-        let (done, rest) = ws.values.split_at_mut(off);
-        let out = &mut rest[..extent(axes, volume)];
+        let len = extent(axes, volume);
+        let (below, rest) = ws.values.split_at_mut(off);
+        let (out, above) = rest.split_at_mut(len);
         let source = Runs::new(
-            &done[source_off..source_off + extent(source_axes, volume)],
+            other_slot(below, above, off + len, source_off, extent(source_axes, volume)),
             source_axes,
             volume,
         );
@@ -841,14 +847,20 @@ impl Program {
             lattices,
             ..
         } = ws;
-        let (done, rest) = values.split_at_mut(off);
-        let done: &[f32] = done;
-        let out = &mut rest[..extent(axes, volume)];
+        let len = extent(axes, volume);
+        let (below, rest) = values.split_at_mut(off);
+        let (out, above) = rest.split_at_mut(len);
+        let (below, above): (&[f32], &[f32]) = (below, above);
+        let end = off + len;
 
         let read = |j: NodeId| -> Runs<'_> {
             let j_axes = self.axes[j as usize];
             let j_off = offset[j as usize] as usize;
-            Runs::new(&done[j_off..j_off + extent(j_axes, volume)], j_axes, volume)
+            Runs::new(
+                other_slot(below, above, end, j_off, extent(j_axes, volume)),
+                j_axes,
+                volume,
+            )
         };
 
         match &self.nodes[id as usize] {
@@ -1095,6 +1107,25 @@ impl Program {
     }
 }
 
+/// A slot other than the one being written. Recycling puts a node's inputs on
+/// either side of its output, so the buffer splits in three and the read picks
+/// the side its offset falls on; an offset inside the output would mean a node
+/// aliasing its own input, and panics here rather than returning wrong values.
+#[inline]
+fn other_slot<'a>(
+    below: &'a [f32],
+    above: &'a [f32],
+    end: usize,
+    off: usize,
+    len: usize,
+) -> &'a [f32] {
+    if off < below.len() {
+        &below[off..off + len]
+    } else {
+        &above[off - end..off - end + len]
+    }
+}
+
 #[inline]
 fn map_columns(out: &mut [f32], ext: &Volume, a: Runs<'_>, f: impl Fn(f32) -> f32) {
     each_column(out, ext, |run, ix, iz| map1(run, a.col(ix, iz), &f));
@@ -1301,7 +1332,7 @@ fn interpolate_cells(
 }
 
 impl Plan {
-    fn new(nodes: &[Node], ranges: &[Interval], target: NodeId) -> Self {
+    fn new(nodes: &[Node], axes: &[Axes], ranges: &[Interval], target: NodeId) -> Self {
         let mut live = vec![false; nodes.len()];
         live[target as usize] = true;
         for i in (0..nodes.len()).rev() {
@@ -1320,10 +1351,43 @@ impl Plan {
             }
         }
         let (order, steps) = branch::build(nodes, ranges, target, &order);
+
+        let mut last_use = vec![usize::MAX; nodes.len()];
+        for (p, &id) in order.iter().enumerate() {
+            nodes[id as usize].visit_local_inputs(&mut |j| last_use[j as usize] = p);
+        }
+        // The fill reads the target after the schedule ends, so its slot outlives
+        // every other and is never handed back.
+        last_use[target as usize] = usize::MAX;
+
+        let mut node_slot = vec![0u32; nodes.len()];
+        let mut free: [Vec<u32>; 8] = Default::default();
+        let mut slot_count = [0u32; 8];
+        let mut slot = Vec::with_capacity(order.len());
+        for (p, &id) in order.iter().enumerate() {
+            // Taking the output slot before releasing the inputs is what keeps a
+            // node from writing over a buffer it still reads.
+            let a = axes[id as usize] as usize;
+            let taken = free[a].pop().unwrap_or_else(|| {
+                slot_count[a] += 1;
+                slot_count[a] - 1
+            });
+            node_slot[id as usize] = taken;
+            slot.push(taken);
+            nodes[id as usize].visit_local_inputs(&mut |j| {
+                if last_use[j as usize] == p {
+                    last_use[j as usize] = usize::MAX;
+                    free[axes[j as usize] as usize].push(node_slot[j as usize]);
+                }
+            });
+        }
+
         Self {
             order: order.into_boxed_slice(),
             steps: steps.into_boxed_slice(),
             lattice: lattice.into_boxed_slice(),
+            slot: slot.into_boxed_slice(),
+            slot_count,
         }
     }
 }
@@ -1344,17 +1408,23 @@ impl Workspace {
         self.count.skipped += inner.skipped;
     }
 
-    /// Lays out one stratum per node in evaluation order, so a node's offset
-    /// always sits above every offset it reads. That ordering is what lets `eval`
-    /// split the buffer.
+    /// Sizes the plan's slots for this volume and points every node in the plan
+    /// at the one it writes. Nodes outside the plan keep whatever offset a
+    /// previous fill left them; nothing reads them.
     fn prepare(&mut self, program: &Program, plan: &Plan, volume: &Volume) {
-        self.offset.clear();
-        self.offset.resize(program.len(), 0);
+        if self.offset.len() < program.len() {
+            self.offset.resize(program.len(), 0);
+        }
 
+        let mut base = [0u32; 8];
         let mut len = 0usize;
-        for &id in &plan.order {
-            self.offset[id as usize] = len as u32;
-            len += extent(program.axes_of(id), volume);
+        for (axes, &count) in plan.slot_count.iter().enumerate() {
+            base[axes] = len as u32;
+            len += count as usize * extent(axes as Axes, volume);
+        }
+        for (&id, &slot) in plan.order.iter().zip(plan.slot.iter()) {
+            let axes = program.axes_of(id);
+            self.offset[id as usize] = base[axes as usize] + slot * extent(axes, volume) as u32;
         }
         // Every node writes its whole stratum before anything reads it, so the
         // buffer is grown rather than cleared: re-zeroing it costs more than the
