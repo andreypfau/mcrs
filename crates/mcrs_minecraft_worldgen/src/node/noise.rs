@@ -245,6 +245,10 @@ mod tests {
         }
     }
 
+    /// The fast profile is allowed to reassociate, so the two orders are no
+    /// longer required to differ there and the ulp this counts falls below its
+    /// rounding.
+    #[cfg(not(feature = "fast"))]
     #[test]
     fn eval_plain_folds_the_scale_into_the_frequency() {
         // `block * (xz_scale * frequency)` and `(block * xz_scale) * frequency` differ

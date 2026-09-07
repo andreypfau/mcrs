@@ -342,13 +342,24 @@ mod bound_tests {
 
     // Unlike the octave factors and ranges above, these bits are pinned from our own
     // sampler, not derived from the reference: a drift guard, not a parity check.
+    //
+    // The fast profile collapses a lattice cell to a line and lands a few ulps
+    // away, so it carries its own table. A tolerance wide enough to cover both
+    // would stop catching drift in either.
     #[test]
     fn the_modes_sample_apart() {
         let positions = [(0.0, 0.0, 0.0), (0.5, 4.0, -2.0), (-204.0, 28.0, 12.0)];
+        #[cfg(not(feature = "fast"))]
         let expected: [[u32; 3]; 3] = [
             [0x3e68047a, 0x3e2b16cf, 0xbf105330],
             [0x3de878b7, 0x3dab6c85, 0xbe909b7e],
             [0x3db75933, 0x3d87335d, 0xbe6419f3],
+        ];
+        #[cfg(feature = "fast")]
+        let expected: [[u32; 3]; 3] = [
+            [0x3e680480, 0x3e2b16cf, 0xbf10532f],
+            [0x3de878bf, 0x3dab6c84, 0xbe909b7c],
+            [0x3db7593b, 0x3d87335e, 0xbe6419f0],
         ];
         for (mode, bits) in [
             Normalization::Disabled,

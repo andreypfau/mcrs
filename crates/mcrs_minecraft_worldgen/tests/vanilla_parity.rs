@@ -10,6 +10,15 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 const MAGIC: &[u8; 8] = b"MCDFORCL";
+/// The strict profile is the oracle and must reproduce the dumps bit for bit.
+/// The fast profile reassociates and fuses roundings by design, so it is held to
+/// a divergence budget instead — the divergence is measured, not waived. The
+/// observed worst is 2.8e-6 on `final_density`; a break in the function itself
+/// would be orders of magnitude wider.
+#[cfg(not(feature = "fast"))]
+const DIVERGENCE_BUDGET: Option<f32> = None;
+#[cfg(feature = "fast")]
+const DIVERGENCE_BUDGET: Option<f32> = Some(1.0e-5);
 /// `SharedConstants.WORLD_VERSION` of the snapshot the dumps came from. Asserted
 /// rather than skipped, so a corpus bump cannot silently invalidate the oracle.
 const WORLD_VERSION: u32 = 5015;
@@ -236,7 +245,11 @@ fn supported_roots_match_the_vanilla_oracle() {
                 None => String::new(),
             }
         ));
-        if d.mismatched != 0 {
+        let within = match DIVERGENCE_BUDGET {
+            None => d.mismatched == 0,
+            Some(budget) => d.worst <= budget,
+        };
+        if !within {
             bad = true;
         }
     }
@@ -285,9 +298,12 @@ fn final_density_matches_the_dense_oracle() {
             }
         }
     }
-    assert_eq!(
-        mismatched,
-        0,
+    let within = match DIVERGENCE_BUDGET {
+        None => mismatched == 0,
+        Some(budget) => worst <= budget,
+    };
+    assert!(
+        within,
         "{mismatched}/{} mismatched, worst {worst:e} {example:?}",
         v.values.len()
     );

@@ -1,3 +1,4 @@
+use crate::jmath::lerp;
 use crate::noise::gradient::{GradientNoise, NoiseFloat, wrap};
 use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
@@ -358,7 +359,6 @@ impl GradientNoise {
         scale: [f64; 3],
         amplitude: f32,
     ) {
-        let p = |i: usize| self.permutation[i & 0xFF] as usize;
         let mut index = 0usize;
         let mut cached_cell = -1i32;
         let (mut lower_near, mut upper_near) = (0.0f32, 0.0f32);
@@ -387,42 +387,34 @@ impl GradientNoise {
 
                     if iy == 0 || cell != cached_cell {
                         cached_cell = cell;
-                        let a = p(perm_x).wrapping_add(cell as usize);
-                        let a0 = p(a).wrapping_add(perm_z);
-                        let a1 = p(a.wrapping_add(1)).wrapping_add(perm_z);
-                        let b = p(perm_x.wrapping_add(1)).wrapping_add(cell as usize);
-                        let b0 = p(b).wrapping_add(perm_z);
-                        let b1 = p(b.wrapping_add(1)).wrapping_add(perm_z);
-                        let dot = |h: usize, x: f32, y: f32, z: f32| f32::grad_dot(h, x, y, z);
-                        let lerp = |t: f32, a: f32, b: f32| a + t * (b - a);
-                        lower_near = lerp(
-                            fade_x,
-                            dot(p(a0), local_x, local_y, local_z),
-                            dot(p(b0), local_x - 1.0, local_y, local_z),
-                        );
-                        upper_near = lerp(
-                            fade_x,
-                            dot(p(a1), local_x, local_y - 1.0, local_z),
-                            dot(p(b1), local_x - 1.0, local_y - 1.0, local_z),
-                        );
-                        lower_far = lerp(
-                            fade_x,
-                            dot(p(a0.wrapping_add(1)), local_x, local_y, local_z - 1.0),
-                            dot(p(b0.wrapping_add(1)), local_x - 1.0, local_y, local_z - 1.0),
-                        );
-                        upper_far = lerp(
-                            fade_x,
-                            dot(p(a1.wrapping_add(1)), local_x, local_y - 1.0, local_z - 1.0),
-                            dot(
-                                p(b1.wrapping_add(1)),
-                                local_x - 1.0,
-                                local_y - 1.0,
-                                local_z - 1.0,
-                            ),
-                        );
+                        let a = self.permute(perm_x).wrapping_add(cell as usize);
+                        let a0 = self.permute(a).wrapping_add(perm_z);
+                        let a1 = self.permute(a.wrapping_add(1)).wrapping_add(perm_z);
+                        let b = self
+                            .permute(perm_x.wrapping_add(1))
+                            .wrapping_add(cell as usize);
+                        let b0 = self.permute(b).wrapping_add(perm_z);
+                        let b1 = self.permute(b.wrapping_add(1)).wrapping_add(perm_z);
+                        let x1 = local_x - 1.0;
+                        let y1 = local_y - 1.0;
+                        let z1 = local_z - 1.0;
+
+                        let d000 = f32::grad_dot(self.permute(a0), local_x, local_y, local_z);
+                        let d100 = f32::grad_dot(self.permute(b0), x1, local_y, local_z);
+                        let d010 = f32::grad_dot(self.permute(a1), local_x, y1, local_z);
+                        let d110 = f32::grad_dot(self.permute(b1), x1, y1, local_z);
+                        let d001 =
+                            f32::grad_dot(self.permute(a0.wrapping_add(1)), local_x, local_y, z1);
+                        let d101 = f32::grad_dot(self.permute(b0.wrapping_add(1)), x1, local_y, z1);
+                        let d011 = f32::grad_dot(self.permute(a1.wrapping_add(1)), local_x, y1, z1);
+                        let d111 = f32::grad_dot(self.permute(b1.wrapping_add(1)), x1, y1, z1);
+
+                        lower_near = lerp(fade_x, d000, d100);
+                        upper_near = lerp(fade_x, d010, d110);
+                        lower_far = lerp(fade_x, d001, d101);
+                        upper_far = lerp(fade_x, d011, d111);
                     }
 
-                    let lerp = |t: f32, a: f32, b: f32| a + t * (b - a);
                     let near = lerp(fade_y, lower_near, upper_near);
                     let far = lerp(fade_y, lower_far, upper_far);
                     out[index] += amplitude * lerp(fade_z, near, far);
@@ -451,17 +443,15 @@ fn lerp_corners(
     let y1 = local_y - 1.0;
     let z1 = local_z - 1.0;
 
-    let dot = |corner: usize, x: f32, y: f32, z: f32| f32::grad_dot_at(grads[corner], x, y, z);
-    let d000 = dot(0, local_x, local_y, local_z);
-    let d100 = dot(1, x1, local_y, local_z);
-    let d010 = dot(2, local_x, y1, local_z);
-    let d110 = dot(3, x1, y1, local_z);
-    let d001 = dot(4, local_x, local_y, z1);
-    let d101 = dot(5, x1, local_y, z1);
-    let d011 = dot(6, local_x, y1, z1);
-    let d111 = dot(7, x1, y1, z1);
+    let d000 = f32::grad_dot_at(grads[0], local_x, local_y, local_z);
+    let d100 = f32::grad_dot_at(grads[1], x1, local_y, local_z);
+    let d010 = f32::grad_dot_at(grads[2], local_x, y1, local_z);
+    let d110 = f32::grad_dot_at(grads[3], x1, y1, local_z);
+    let d001 = f32::grad_dot_at(grads[4], local_x, local_y, z1);
+    let d101 = f32::grad_dot_at(grads[5], x1, local_y, z1);
+    let d011 = f32::grad_dot_at(grads[6], local_x, y1, z1);
+    let d111 = f32::grad_dot_at(grads[7], x1, y1, z1);
 
-    let lerp = |a: f32, p0: f32, p1: f32| p0 + a * (p1 - p0);
     let l00 = lerp(fade_x, d000, d100);
     let l10 = lerp(fade_x, d010, d110);
     let l01 = lerp(fade_x, d001, d101);
@@ -545,27 +535,29 @@ impl CellLine {
     ) -> Self {
         let x1 = local_x - 1.0;
         let z1 = local_z - 1.0;
-        let split = |corner: usize, x: f32, z: f32| {
-            let h = grads[corner];
-            (f32::grad_dot_xz_at(h, x, z), f32::grad_y_at(h))
-        };
-        let (c000, y000) = split(0, local_x, local_z);
-        let (c100, y100) = split(1, x1, local_z);
-        let (c010, y010) = split(2, local_x, local_z);
-        let (c110, y110) = split(3, x1, local_z);
-        let (c001, y001) = split(4, local_x, z1);
-        let (c101, y101) = split(5, x1, z1);
-        let (c011, y011) = split(6, local_x, z1);
-        let (c111, y111) = split(7, x1, z1);
+        let c000 = f32::grad_dot_xz_at(grads[0], local_x, local_z);
+        let c100 = f32::grad_dot_xz_at(grads[1], x1, local_z);
+        let c010 = f32::grad_dot_xz_at(grads[2], local_x, local_z);
+        let c110 = f32::grad_dot_xz_at(grads[3], x1, local_z);
+        let c001 = f32::grad_dot_xz_at(grads[4], local_x, z1);
+        let c101 = f32::grad_dot_xz_at(grads[5], x1, z1);
+        let c011 = f32::grad_dot_xz_at(grads[6], local_x, z1);
+        let c111 = f32::grad_dot_xz_at(grads[7], x1, z1);
 
-        let lerp = |a: f32, p0: f32, p1: f32| p0 + a * (p1 - p0);
-        let lerp_x = |p0: f32, p1: f32| lerp(fade_x, p0, p1);
-        let lerp_z = |p0: f32, p1: f32| lerp(fade_z, p0, p1);
+        let y000 = f32::grad_y_at(grads[0]);
+        let y100 = f32::grad_y_at(grads[1]);
+        let y010 = f32::grad_y_at(grads[2]);
+        let y110 = f32::grad_y_at(grads[3]);
+        let y001 = f32::grad_y_at(grads[4]);
+        let y101 = f32::grad_y_at(grads[5]);
+        let y011 = f32::grad_y_at(grads[6]);
+        let y111 = f32::grad_y_at(grads[7]);
+
         Self {
-            lower_at_0: lerp_z(lerp_x(c000, c100), lerp_x(c001, c101)),
-            lower_slope: lerp_z(lerp_x(y000, y100), lerp_x(y001, y101)),
-            upper_at_0: lerp_z(lerp_x(c010, c110), lerp_x(c011, c111)),
-            upper_slope: lerp_z(lerp_x(y010, y110), lerp_x(y011, y111)),
+            lower_at_0: lerp(fade_z, lerp(fade_x, c000, c100), lerp(fade_x, c001, c101)),
+            lower_slope: lerp(fade_z, lerp(fade_x, y000, y100), lerp(fade_x, y001, y101)),
+            upper_at_0: lerp(fade_z, lerp(fade_x, c010, c110), lerp(fade_x, c011, c111)),
+            upper_slope: lerp(fade_z, lerp(fade_x, y010, y110), lerp(fade_x, y011, y111)),
         }
     }
 

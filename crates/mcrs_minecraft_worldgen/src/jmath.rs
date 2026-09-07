@@ -88,10 +88,18 @@ pub fn clampf(v: f32, min: f32, max: f32) -> f32 {
     }
 }
 
-/// `Mth.lerp(float delta, float from, float to)`.
-#[inline]
+/// `Mth.lerp(float delta, float from, float to)`. Always inlined: the noise
+/// kernels call it eight times per lattice cell.
+///
+/// The fast profile fuses the multiply and the add into one rounding, which is
+/// the trade `docs/worldgen.md` §15 lists for that profile; the strict profile
+/// keeps vanilla's two.
+#[inline(always)]
 pub fn lerp(delta: f32, from: f32, to: f32) -> f32 {
-    from + delta * (to - from)
+    #[cfg(feature = "fast")]
+    return delta.mul_add(to - from, from);
+    #[cfg(not(feature = "fast"))]
+    return from + delta * (to - from);
 }
 
 /// The lerp every `LerpFunction` sampler computes, which is not `Mth.lerp`: an
