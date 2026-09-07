@@ -189,7 +189,7 @@ fn despawn_chunks(
         if let Ok(mut chunk_index) = dims.get_mut(**dim) {
             chunk_index.remove(*chunk_pos);
         }
-        commands.entity(chunk).despawn();
+        commands.entity(chunk).try_despawn();
     }
 }
 
@@ -200,8 +200,8 @@ fn unload_chunks(
     chunk_statuses.iter().for_each(|(chunk, _chunk_pos, _dim)| {
         commands
             .entity(chunk)
-            .remove::<ChunkUnloading>()
-            .insert(ChunkUnloaded);
+            .try_remove::<ChunkUnloading>()
+            .try_insert(ChunkUnloaded);
     })
 }
 
@@ -269,8 +269,8 @@ fn remove_tickets_from_chunks(
                         if ticket_holder.0.is_empty() {
                             commands
                                 .entity(chunk_entity)
-                                .remove::<ChunkLoaded>()
-                                .insert(ChunkUnloading);
+                                .try_remove::<ChunkLoaded>()
+                                .try_insert(ChunkUnloading);
                         }
                     }
                 });
