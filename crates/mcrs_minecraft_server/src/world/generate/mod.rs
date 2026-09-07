@@ -384,7 +384,7 @@ fn column_biome_palettes(
 ///
 /// The density program fills a whole strided volume in one pass, so asking for
 /// the column's cells at once costs a fraction of evaluating them one by one.
-pub(crate) fn multi_noise_palettes(
+pub fn multi_noise_palettes(
     noise_router: &NoiseRouter,
     table: &MultiNoiseBiomeTable,
     block_x: i32,
@@ -412,16 +412,20 @@ pub(crate) fn multi_noise_palettes(
     let mut ws = Workspace::new();
     noise_router.fill_roots(&mut ws, &volume, &roots, &mut values);
 
+    let mut last = None;
     let ids: Vec<u8> = (0..points)
         .map(|at| {
-            table.biome_at(TargetPoint::new(
-                values[at],
-                values[points + at],
-                values[2 * points + at],
-                values[3 * points + at],
-                values[4 * points + at],
-                values[5 * points + at],
-            ))
+            table.biome_at_from(
+                TargetPoint::new(
+                    values[at],
+                    values[points + at],
+                    values[2 * points + at],
+                    values[3 * points + at],
+                    values[4 * points + at],
+                    values[5 * points + at],
+                ),
+                &mut last,
+            )
         })
         .collect();
 

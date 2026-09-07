@@ -80,3 +80,7 @@ harness = false
 [[bench]]
 name = "tr07_baseline"
 harness = false
+
+[[bench]]
+name = "overworld_pipeline"
+harness = false

@@ -192,13 +192,13 @@ impl CarverBiomeTable {
         ParameterList::new(values)
     }
 
-    fn carvers_at(&self, target: TargetPoint) -> &[CarverConfig] {
-        self.table.find_value(target)
+    fn carvers_at(&self, target: TargetPoint, last: &mut Option<usize>) -> &[CarverConfig] {
+        self.table.find_value_from(target, last)
     }
 
     #[cfg(test)]
     pub fn carvers_at_for_test(&self, target: TargetPoint) -> &[CarverConfig] {
-        self.carvers_at(target)
+        self.carvers_at(target, &mut None)
     }
 }
 
@@ -286,13 +286,14 @@ pub fn apply_modern_carvers(
     let mut targets = Vec::new();
     climate_targets_for_sources(router, ws, chunk_x, chunk_z, &mut targets);
     let side = SOURCE_RADIUS * 2 + 1;
+    let mut last = None;
 
     for source_x in (chunk_x - SOURCE_RADIUS)..=(chunk_x + SOURCE_RADIUS) {
         for source_z in (chunk_z - SOURCE_RADIUS)..=(chunk_z + SOURCE_RADIUS) {
             let slot =
                 (source_x - chunk_x + SOURCE_RADIUS) * side + (source_z - chunk_z + SOURCE_RADIUS);
             let target = targets[slot as usize];
-            for (index, config) in biomes.carvers_at(target).iter().enumerate() {
+            for (index, config) in biomes.carvers_at(target, &mut last).iter().enumerate() {
                 let seed = world_seed.wrapping_add(index as i64);
                 let mut rng =
                     LegacyRandom::new(large_feature_seed(seed, source_x, source_z) as u64);
