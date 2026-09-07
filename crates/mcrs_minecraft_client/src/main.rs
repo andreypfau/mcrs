@@ -43,7 +43,7 @@ use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 #[cfg(feature = "telemetry-tracy")]
 #[global_allocator]
 static ALLOC: tracing_tracy::client::ProfiledAllocator<std::alloc::System> =
-    tracing_tracy::client::ProfiledAllocator::new(std::alloc::System, 32);
+    tracing_tracy::client::ProfiledAllocator::new(std::alloc::System, 8);
 
 #[cfg(feature = "telemetry-tracy")]
 fn tracy_layer(_: &mut App) -> Option<BoxedLayer> {

@@ -269,8 +269,8 @@ fn report_content(y_sections: &[i32], seed: u64) {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
-    let side: i32 = args.first().and_then(|a| a.parse().ok()).unwrap_or(32);
-    let threads: i32 = args.get(1).and_then(|a| a.parse().ok()).unwrap_or(1);
+    let side: i32 = args.first().and_then(|a| a.parse().ok()).filter(|&v| v > 0).unwrap_or(32);
+    let threads: i32 = args.get(1).and_then(|a| a.parse().ok()).filter(|&v| v > 0).unwrap_or(1);
     let seed: u64 = args.get(2).and_then(|a| a.parse().ok()).unwrap_or(12345);
 
     if args.first().map(String::as_str) == Some("content") {
