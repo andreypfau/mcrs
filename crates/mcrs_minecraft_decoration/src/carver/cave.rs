@@ -1,26 +1,10 @@
 use crate::carver::config::BetaCaveCarverConfig;
 use crate::carver::{WorldCarver, carve_ellipsoid};
+use crate::math::{cos as math_helper_cos, sin as math_helper_sin};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_voxel_storage::VoxelId;
 
-/// Java beta `MathHelper.sin(x)`: lookup-table approximation matching the 65536-entry table
-/// built at class-load time via `(float)Math.sin(i * PI * 2.0 / 65536.0)`.
-///
-/// Using accurate `f32::sin` instead shifts ellipsoid radii at boundary cases,
-/// causing single-block carve/no-carve divergence from the Java reference.
-fn math_helper_sin(x: f32) -> f32 {
-    let idx = ((x * 10430.378_f32) as i32 as u32) & 0xFFFF;
-    f64::sin(idx as f64 * (std::f64::consts::TAU / 65536.0)) as f32
-}
-
-/// Java beta `MathHelper.cos(x)`: same table as `math_helper_sin`, offset by π/2.
-///
-/// Java: `SIN_TABLE[(int)(x * 10430.378F + 16384.0F) & 65535]`
-fn math_helper_cos(x: f32) -> f32 {
-    let idx = ((x * 10430.378_f32 + 16384.0_f32) as i32 as u32) & 0xFFFF;
-    f64::sin(idx as f64 * (std::f64::consts::TAU / 65536.0)) as f32
-}
 
 pub struct CaveWorldCarver;
 
