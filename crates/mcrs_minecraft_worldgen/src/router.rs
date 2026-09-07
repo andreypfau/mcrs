@@ -1,7 +1,7 @@
 use crate::cell::CellBounds;
 use crate::compile::CompileError;
 use crate::interval::Interval;
-use crate::noise::octave_perlin_noise::OctavePerlinNoise;
+use crate::noise::beta::octave::BetaOctaveNoise;
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{BlockState, DensityFunctionHolder, HashableF64, ValueRange};
 use crate::volume::Volume;
@@ -112,7 +112,7 @@ pub type NoiseGeneratorSettings = GeneratorSettings;
 
 /// One of the two four-octave Beta noises the surface pass reads directly,
 /// outside the density graph.
-pub struct BetaSurfaceNoise(OctavePerlinNoise<f64>);
+pub struct BetaSurfaceNoise(BetaOctaveNoise);
 
 impl BetaSurfaceNoise {
     #[allow(clippy::too_many_arguments)]

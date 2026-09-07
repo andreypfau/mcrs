@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen::noise::gradient::NoiseFloat;
-use mcrs_minecraft_worldgen::noise::improved_noise::ImprovedNoise;
+use mcrs_minecraft_worldgen::noise::gradient::GradientNoise;
 
 const GRID_X: usize = 5;
 const GRID_Y: usize = 17;
@@ -17,10 +17,10 @@ const GRID_Z: usize = 5;
 const POINTS: usize = GRID_X * GRID_Y * GRID_Z;
 const SCALE: f64 = 684.412;
 
-fn column<V: NoiseFloat>(octaves: &[ImprovedNoise<V>], out: &mut [V], chunk_x: f64, chunk_z: f64) {
+fn column<V: NoiseFloat>(octaves: &[GradientNoise], out: &mut [V], chunk_x: f64, chunk_z: f64) {
     for (index, noise) in octaves.iter().enumerate() {
         let d = (0.5f64).powi(index as i32 % 16);
-        noise.fill_3d_bulk_at(
+        noise.fill_3d_bulk_at::<V>(
             out,
             chunk_x * 4.0,
             0.0,
@@ -39,8 +39,8 @@ fn column<V: NoiseFloat>(octaves: &[ImprovedNoise<V>], out: &mut [V], chunk_x: f
 fn run<V: NoiseFloat>(label: &str, columns: usize) -> f64 {
     // 16 + 16 + 8 octaves, seeded once so both widths walk the same lattice.
     let mut rng = LegacyRandom::new(12345);
-    let octaves: Vec<ImprovedNoise<V>> = (0..40)
-        .map(|_| ImprovedNoise::from_random(&mut rng))
+    let octaves: Vec<GradientNoise> = (0..40)
+        .map(|_| GradientNoise::from_random(&mut rng))
         .collect();
     let mut out = vec![V::from_f64(0.0); POINTS];
 

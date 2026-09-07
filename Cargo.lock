@@ -3772,7 +3772,6 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
  "mcrs_voxel_storage",
- "num-traits",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

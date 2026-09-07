@@ -141,10 +141,13 @@ impl NoiseParam {
     /// `RandomSource`, no seed. `min`/`max` branch elimination reads it, so a
     /// bound one ulp off vanilla's can delete a branch vanilla keeps.
     pub fn range(&self) -> Interval {
-        Interval::symmetric((self.target_amplitude() * TARGET_DEVIATION * 6.0) as f32)
+        Interval::symmetric((self.octaves().target_amplitude * TARGET_DEVIATION * 6.0) as f32)
     }
 
-    fn target_amplitude(&self) -> f64 {
+    /// Everything the parameters decide before a seed is drawn: which octaves
+    /// survive, what each weighs, and the factor that scales them all. Building
+    /// the sampler reads this rather than deriving it a second time.
+    pub fn octaves(&self) -> Octaves {
         let modifiers = self.octave_amplitudes();
         let count = modifiers.len() as i32;
         let base_amplitude = self.base_amplitude.0;
@@ -155,42 +158,65 @@ impl NoiseParam {
 
         // Octaves with a zero modifier are dropped, not zeroed: they contribute
         // to neither the amplitude sum nor the deviation.
-        let mut octaves = Vec::with_capacity(modifiers.len());
+        let mut amplitudes = Vec::with_capacity(modifiers.len());
         for modifier in &modifiers {
-            if *modifier != 0.0 {
-                octaves.push(amplitude * *modifier);
-            }
+            amplitudes.push((*modifier != 0.0).then_some(amplitude * *modifier));
             amplitude *= 0.5;
         }
 
-        let mut target = compensated_sum(octaves.iter().map(|a| a.abs()));
-        let mut variance = 0.0f64;
-        for a in &octaves {
-            let layer_deviation = PERLIN_STANDARD_DEVIATION * a.abs();
-            variance += layer_deviation * layer_deviation;
-        }
-        let input_deviation = variance.sqrt();
-        let normalization_factor = if input_deviation == 0.0 {
+        let mut target_amplitude = compensated_sum(amplitudes.iter().flatten().map(|a| a.abs()));
+        let input_deviation = deviation(amplitudes.iter().flatten().copied());
+        let mut factor = if input_deviation == 0.0 {
             0.0
         } else {
-            (target * TARGET_DEVIATION) / (input_deviation * std::f64::consts::SQRT_2)
+            (target_amplitude * TARGET_DEVIATION) / (input_deviation * std::f64::consts::SQRT_2)
         };
 
-        if self.normalize == Normalization::Legacy && normalization_factor != 0.0 {
+        if self.normalize == Normalization::Legacy && factor != 0.0 {
             let lowest = modifiers.iter().position(|m| *m != 0.0).unwrap();
             let highest = modifiers.iter().rposition(|m| *m != 0.0).unwrap();
-            let span = (highest - lowest) as f64;
-            let parity =
-                base_amplitude * 0.5 * TARGET_DEVIATION / (0.1 * (1.0 + 1.0 / (span + 1.0)));
-            target *= parity / normalization_factor;
+            let parity = parity_normalization_factor(base_amplitude, (highest - lowest) as f64);
+            target_amplitude *= parity / factor;
+            factor = parity;
         }
-        target
+
+        Octaves {
+            amplitudes,
+            factor,
+            target_amplitude,
+        }
     }
+
+}
+
+/// What [`NoiseParam::octaves`] decides before any seed is drawn.
+pub struct Octaves {
+    /// One entry per declared octave; `None` where the modifier was zero and the
+    /// octave is dropped rather than weighted to nothing.
+    pub amplitudes: Vec<Option<f64>>,
+    /// Scales every layer so the summed octaves reach the target deviation.
+    pub factor: f64,
+    /// The summed absolute octave amplitudes, after the legacy adjustment.
+    pub target_amplitude: f64,
+}
+
+pub(crate) fn deviation(amplitudes: impl Iterator<Item = f64>) -> f64 {
+    let mut variance = 0.0f64;
+    for a in amplitudes {
+        let layer_deviation = PERLIN_STANDARD_DEVIATION * a.abs();
+        variance += layer_deviation * layer_deviation;
+    }
+    variance.sqrt()
+}
+
+pub(crate) fn parity_normalization_factor(base_amplitude: f64, octave_span: f64) -> f64 {
+    let expected_deviation = 0.1 * (1.0 + 1.0 / (octave_span + 1.0));
+    base_amplitude * 0.5 * TARGET_DEVIATION / expected_deviation
 }
 
 /// `DoubleStream.sum` is Kahan-compensated and falls back to the naive total
 /// when compensation produces a NaN from infinite inputs.
-fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
+pub(crate) fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
     let mut sum = 0.0f64;
     let mut compensation = 0.0f64;
     let mut simple = 0.0f64;

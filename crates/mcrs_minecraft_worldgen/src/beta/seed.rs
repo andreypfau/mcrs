@@ -1,5 +1,5 @@
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
-use crate::noise::octave_perlin_noise::OctavePerlinNoise;
+use crate::noise::beta::octave::BetaOctaveNoise;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
 /// Build Beta climate noise from three independent LegacyRandom instances.
@@ -31,7 +31,7 @@ pub fn seed_beta_climate(
 ///   low(16), high(16), selector(8), beach(4), surface(4), scale(10), depth(16), forest(8)
 /// = 82 octaves total, sequential, NO discards.
 ///
-/// Forest is constructed as a real `OctavePerlinNoise<f32>` and dropped to consume the
+/// Forest is constructed as a real `BetaOctaveNoise` and dropped to consume the
 /// exact variable-length stream it produces. A fixed-count drain would diverge because
 /// `next_u32_bound` can loop for non-power-of-2 bounds.
 ///
@@ -40,24 +40,24 @@ pub fn seed_beta_climate(
 pub fn seed_beta_terrain(
     seed: u64,
 ) -> (
-    OctavePerlinNoise<f32>,
-    OctavePerlinNoise<f32>,
-    OctavePerlinNoise<f32>,
-    OctavePerlinNoise<f32>,
-    OctavePerlinNoise<f32>,
-    OctavePerlinNoise<f32>,
-    OctavePerlinNoise<f32>,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
 ) {
     let mut rng = LegacyRandom::new(seed);
 
-    let low = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
-    let high = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
-    let selector = OctavePerlinNoise::<f32>::new(&mut rng, -7, vec![1.0f32; 8], true);
-    let beach = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
-    let surface = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
-    let scale = OctavePerlinNoise::<f32>::new(&mut rng, -9, vec![1.0f32; 10], true);
-    let depth = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
-    let _forest = OctavePerlinNoise::<f32>::new(&mut rng, -7, vec![1.0f32; 8], true);
+    let low = BetaOctaveNoise::new(&mut rng, -15, 16);
+    let high = BetaOctaveNoise::new(&mut rng, -15, 16);
+    let selector = BetaOctaveNoise::new(&mut rng, -7, 8);
+    let beach = BetaOctaveNoise::new(&mut rng, -3, 4);
+    let surface = BetaOctaveNoise::new(&mut rng, -3, 4);
+    let scale = BetaOctaveNoise::new(&mut rng, -9, 10);
+    let depth = BetaOctaveNoise::new(&mut rng, -15, 16);
+    let _forest = BetaOctaveNoise::new(&mut rng, -7, 8);
 
     (low, high, selector, beach, surface, scale, depth)
 }
@@ -69,29 +69,29 @@ pub fn seed_beta_terrain(
 /// the five used in `computeDensity`: low (k), high (l), selector (m), scale (a), depth (b).
 /// Beach, surface and forest are consumed but not returned (same as seed_beta_terrain).
 ///
-/// Returns (low, high, selector, scale, depth) as `OctavePerlinNoise<f64>`.
+/// Returns (low, high, selector, scale, depth) as `BetaOctaveNoise`.
 pub fn seed_beta_terrain_f64(
     seed: u64,
 ) -> (
-    OctavePerlinNoise<f64>,
-    OctavePerlinNoise<f64>,
-    OctavePerlinNoise<f64>,
-    OctavePerlinNoise<f64>,
-    OctavePerlinNoise<f64>,
-    OctavePerlinNoise<f64>,
-    OctavePerlinNoise<f64>,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
+    BetaOctaveNoise,
 ) {
     let mut rng = LegacyRandom::new(seed);
 
-    let low = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
-    let high = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
-    let selector = OctavePerlinNoise::<f64>::new(&mut rng, -7, vec![1.0f64; 8], true);
-    let beach = OctavePerlinNoise::<f64>::new(&mut rng, -3, vec![1.0f64; 4], true);
-    let surface = OctavePerlinNoise::<f64>::new(&mut rng, -3, vec![1.0f64; 4], true);
-    let scale = OctavePerlinNoise::<f64>::new(&mut rng, -9, vec![1.0f64; 10], true);
-    let depth = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
+    let low = BetaOctaveNoise::new(&mut rng, -15, 16);
+    let high = BetaOctaveNoise::new(&mut rng, -15, 16);
+    let selector = BetaOctaveNoise::new(&mut rng, -7, 8);
+    let beach = BetaOctaveNoise::new(&mut rng, -3, 4);
+    let surface = BetaOctaveNoise::new(&mut rng, -3, 4);
+    let scale = BetaOctaveNoise::new(&mut rng, -9, 10);
+    let depth = BetaOctaveNoise::new(&mut rng, -15, 16);
     // forest (c): consume 8 octaves but not returned
-    let _forest = OctavePerlinNoise::<f64>::new(&mut rng, -7, vec![1.0f64; 8], true);
+    let _forest = BetaOctaveNoise::new(&mut rng, -7, 8);
 
     (low, high, selector, beach, surface, scale, depth)
 }
@@ -118,14 +118,14 @@ mod tests {
         assert_eq!(fixture.seed, 845, "fixture seed mismatch");
 
         let mut rng = LegacyRandom::new(845);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -7, vec![1.0f32; 8], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -9, vec![1.0f32; 10], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -7, vec![1.0f32; 8], true);
+        let _ = BetaOctaveNoise::new(&mut rng, -15, 16);
+        let _ = BetaOctaveNoise::new(&mut rng, -15, 16);
+        let _ = BetaOctaveNoise::new(&mut rng, -7, 8);
+        let _ = BetaOctaveNoise::new(&mut rng, -3, 4);
+        let _ = BetaOctaveNoise::new(&mut rng, -3, 4);
+        let _ = BetaOctaveNoise::new(&mut rng, -9, 10);
+        let _ = BetaOctaveNoise::new(&mut rng, -15, 16);
+        let _ = BetaOctaveNoise::new(&mut rng, -7, 8);
 
         assert_eq!(
             rng.seed, fixture.post_construction_rng_seed,
@@ -156,13 +156,13 @@ mod tests {
 
         // Swapped: build selector(8) first, then low(16) — low now reads stream position 2+
         let mut rng_swapped = LegacyRandom::new(845);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng_swapped, -7, vec![1.0f32; 8], true);
+        let _ = BetaOctaveNoise::new(&mut rng_swapped, -7, 8);
         let low_swapped =
-            OctavePerlinNoise::<f32>::new(&mut rng_swapped, -15, vec![1.0f32; 16], true);
+            BetaOctaveNoise::new(&mut rng_swapped, -15, 16);
 
         // Sample both at an arbitrary non-zero position
-        let v_correct = low_correct.get(100.0, 200.0, 300.0);
-        let v_swapped = low_swapped.get(100.0, 200.0, 300.0);
+        let v_correct = low_correct.sample_xyz_beta(100.0, 200.0, 300.0, 1.0, 1.0, 1.0);
+        let v_swapped = low_swapped.sample_xyz_beta(100.0, 200.0, 300.0, 1.0, 1.0, 1.0);
         assert_ne!(
             v_correct, v_swapped,
             "building selector before low must produce a different low noise (order is load-bearing)"
@@ -185,7 +185,7 @@ mod tests {
     fn beta_climate_seeding_independent_from_terrain() {
         let terrain_climate_overlap = {
             let mut rng_terrain = LegacyRandom::new(12345);
-            let _ = OctavePerlinNoise::<f32>::new(&mut rng_terrain, -15, vec![1.0f32; 16], true);
+            let _ = BetaOctaveNoise::new(&mut rng_terrain, -15, 16);
             rng_terrain.seed
         };
         let climate_temp_seed_start = LegacyRandom::new(12345u64.wrapping_mul(9871)).seed;
@@ -300,14 +300,14 @@ mod tests {
     #[ignore = "bootstrap: print post-construction seed for seed 845"]
     fn bootstrap_beta_draw_counts() {
         let mut rng = LegacyRandom::new(845);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -7, vec![1.0f32; 8], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -9, vec![1.0f32; 10], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
-        let _ = OctavePerlinNoise::<f32>::new(&mut rng, -7, vec![1.0f32; 8], true);
+        let _ = BetaOctaveNoise::new(&mut rng, -15, 16);
+        let _ = BetaOctaveNoise::new(&mut rng, -15, 16);
+        let _ = BetaOctaveNoise::new(&mut rng, -7, 8);
+        let _ = BetaOctaveNoise::new(&mut rng, -3, 4);
+        let _ = BetaOctaveNoise::new(&mut rng, -3, 4);
+        let _ = BetaOctaveNoise::new(&mut rng, -9, 10);
+        let _ = BetaOctaveNoise::new(&mut rng, -15, 16);
+        let _ = BetaOctaveNoise::new(&mut rng, -7, 8);
         println!("post_construction_rng_seed = {}", rng.seed);
     }
 }

@@ -1,5 +1,6 @@
 use crate::kernel::{Runs, at, each_column};
-use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
+use crate::noise::normal::NoiseSampler;
+use crate::noise::stack::ColumnScratch;
 use crate::volume::Volume;
 use bevy_math::IVec3;
 use std::cell::RefCell;

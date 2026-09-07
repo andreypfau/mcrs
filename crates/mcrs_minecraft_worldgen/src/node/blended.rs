@@ -1,7 +1,7 @@
 use crate::jmath;
 use crate::kernel::each_column;
-use crate::noise::improved_noise::ImprovedNoise;
-use crate::noise::octave_perlin_noise::OctavePerlinNoise;
+use crate::noise::perlin::SmearedPerlinNoise;
+use crate::noise::stack::{ColumnScratch, NoiseStack};
 use crate::volume::Volume;
 use mcrs_minecraft_random::RandomSource;
 use std::fmt;
@@ -18,88 +18,6 @@ const MAIN_FACTOR: f64 = 12.75;
 const LIMIT_FIRST_OCTAVE: i32 = -15;
 const MAIN_FIRST_OCTAVE: i32 = -7;
 
-#[inline]
-fn wrap(value: f64) -> f64 {
-    OctavePerlinNoise::<f32>::maintain_precission(value)
-}
-
-struct Layer {
-    noise: ImprovedNoise<f32>,
-    xz_scale: f64,
-    y_scale: f64,
-    smear_scale_y: f64,
-    amplitude: f32,
-}
-
-struct Fbm {
-    layers: Box<[Layer]>,
-}
-
-impl Fbm {
-    fn new(
-        random: &mut RandomSource,
-        first_octave: i32,
-        smear_scale_y: f64,
-        value_factor: f64,
-        xz_scale: f64,
-        y_scale: f64,
-    ) -> Self {
-        let octaves = -first_octave + 1;
-        let mut frequency = 1.0f64;
-        let mut value_factor = value_factor / (2.0f64.powi(octaves) - 1.0);
-        let mut layers = Vec::with_capacity(octaves as usize);
-        // Highest frequency first: that is the order the layers draw from the stream.
-        for _ in 0..octaves {
-            layers.push(Layer {
-                noise: ImprovedNoise::<f32>::from_random(random),
-                xz_scale: xz_scale * frequency,
-                y_scale: y_scale * frequency,
-                smear_scale_y: smear_scale_y * frequency,
-                amplitude: value_factor as f32,
-            });
-            frequency *= 0.5;
-            value_factor *= 2.0;
-        }
-        Self {
-            layers: layers.into_boxed_slice(),
-        }
-    }
-
-    fn fill(&self, out: &mut [f32], bx: i32, bz: i32, ext: &Volume, scratch: &mut Scratch<'_>) {
-        out.fill(0.0);
-        for layer in self.layers.iter() {
-            for (i, (y, unwrapped)) in scratch
-                .ys
-                .iter_mut()
-                .zip(scratch.unwrapped.iter_mut())
-                .enumerate()
-            {
-                // The smear compares against the scaled y before it is wrapped.
-                let scaled = ext.block_y(i as i32) as f64 * layer.y_scale;
-                *unwrapped = scaled;
-                *y = wrap(scaled);
-            }
-            layer.noise.sample_column(
-                wrap(bx as f64 * layer.xz_scale),
-                wrap(bz as f64 * layer.xz_scale),
-                scratch.ys,
-                layer.smear_scale_y,
-                scratch.unwrapped,
-                scratch.samples,
-            );
-            for (o, &s) in out.iter_mut().zip(scratch.samples.iter()) {
-                *o += layer.amplitude * s;
-            }
-        }
-    }
-}
-
-struct Scratch<'a> {
-    ys: &'a mut [f64],
-    unwrapped: &'a mut [f64],
-    samples: &'a mut [f32],
-}
-
 struct Inner {
     xz_scale: f64,
     y_scale: f64,
@@ -110,9 +28,37 @@ struct Inner {
     /// omits the trailing division by 128 that those factors fold in, so its
     /// terrain is exactly 128 times larger. A power of two, so this is exact.
     final_scale: f32,
-    min_limit: Fbm,
-    max_limit: Fbm,
-    main: Fbm,
+    xz_multiplier: f64,
+    y_multiplier: f64,
+    main_xz_multiplier: f64,
+    main_y_multiplier: f64,
+    min_limit: NoiseStack<SmearedPerlinNoise>,
+    max_limit: NoiseStack<SmearedPerlinNoise>,
+    main: NoiseStack<SmearedPerlinNoise>,
+}
+
+/// Vanilla's `BlendedNoise.createFbm`: octaves highest frequency first, which is
+/// the order they draw from the stream, each carrying its own smear scale.
+fn create_fbm(
+    random: &mut RandomSource,
+    first_octave: i32,
+    smear_scale_y: f64,
+    value_factor: f64,
+) -> NoiseStack<SmearedPerlinNoise> {
+    let octaves = -first_octave + 1;
+    let mut frequency = 1.0f64;
+    let mut value_factor = value_factor / (2.0f64.powi(octaves) - 1.0);
+    let mut stack = NoiseStack::builder();
+    for _ in 0..octaves {
+        stack.add(
+            SmearedPerlinNoise::from_random(random, smear_scale_y * frequency),
+            frequency,
+            value_factor as f32,
+        );
+        frequency *= 0.5;
+        value_factor *= 2.0;
+    }
+    stack.build()
 }
 
 #[derive(Clone)]
@@ -138,30 +84,9 @@ impl BlendedParams {
 
         // The three stacks share one stream in this order; the `let` bindings are
         // what fixes it, so do not fold them into the struct literal.
-        let min_limit = Fbm::new(
-            random,
-            LIMIT_FIRST_OCTAVE,
-            limit_smear_scale_y,
-            LIMIT_FACTOR,
-            xz_multiplier,
-            y_multiplier,
-        );
-        let max_limit = Fbm::new(
-            random,
-            LIMIT_FIRST_OCTAVE,
-            limit_smear_scale_y,
-            LIMIT_FACTOR,
-            xz_multiplier,
-            y_multiplier,
-        );
-        let main = Fbm::new(
-            random,
-            MAIN_FIRST_OCTAVE,
-            main_smear_scale_y,
-            MAIN_FACTOR,
-            xz_multiplier / xz_factor,
-            y_multiplier / y_factor,
-        );
+        let min_limit = create_fbm(random, LIMIT_FIRST_OCTAVE, limit_smear_scale_y, LIMIT_FACTOR);
+        let max_limit = create_fbm(random, LIMIT_FIRST_OCTAVE, limit_smear_scale_y, LIMIT_FACTOR);
+        let main = create_fbm(random, MAIN_FIRST_OCTAVE, main_smear_scale_y, MAIN_FACTOR);
 
         Self {
             inner: Arc::new(Inner {
@@ -171,6 +96,10 @@ impl BlendedParams {
                 y_factor,
                 smear_scale_multiplier,
                 final_scale,
+                xz_multiplier,
+                y_multiplier,
+                main_xz_multiplier: xz_multiplier / xz_factor,
+                main_y_multiplier: y_multiplier / y_factor,
                 min_limit,
                 max_limit,
                 main,
@@ -180,23 +109,24 @@ impl BlendedParams {
 
     pub fn eval(&self, out: &mut [f32], ext: &Volume) {
         let n = ext.size().y as usize;
-        let mut floats = vec![0.0f32; 3 * n];
-        let mut doubles = vec![0.0f64; 2 * n];
+        let mut floats = vec![0.0f32; 2 * n];
+        let mut scratch = ColumnScratch::default();
         let inner = &*self.inner;
 
         each_column(out, ext, |run, ix, iz| {
-            let (min, tail) = floats.split_at_mut(n);
-            let (max, samples) = tail.split_at_mut(n);
-            let (ys, unwrapped) = doubles.split_at_mut(n);
-            let mut scratch = Scratch {
-                ys,
-                unwrapped,
-                samples,
-            };
+            let (min, max) = floats.split_at_mut(n);
             let bx = ext.block_x(ix as i32);
             let bz = ext.block_z(iz as i32);
 
-            inner.main.fill(run, bx, bz, ext, &mut scratch);
+            inner.main.fill_column_at(
+                run,
+                bx,
+                bz,
+                ext,
+                inner.main_xz_multiplier,
+                inner.main_y_multiplier,
+                &mut scratch,
+            );
             for alpha in run.iter_mut() {
                 *alpha = jmath::clampf(*alpha + 0.5, 0.0, 1.0);
             }
@@ -204,10 +134,26 @@ impl BlendedParams {
             // other stack is never read and its sixteen octaves need not be
             // sampled. The test is per column, which is where it pays.
             if run.iter().any(|&alpha| alpha != 1.0) {
-                inner.min_limit.fill(min, bx, bz, ext, &mut scratch);
+                inner.min_limit.fill_column_at(
+                    min,
+                    bx,
+                    bz,
+                    ext,
+                    inner.xz_multiplier,
+                    inner.y_multiplier,
+                    &mut scratch,
+                );
             }
             if run.iter().any(|&alpha| alpha != 0.0) {
-                inner.max_limit.fill(max, bx, bz, ext, &mut scratch);
+                inner.max_limit.fill_column_at(
+                    max,
+                    bx,
+                    bz,
+                    ext,
+                    inner.xz_multiplier,
+                    inner.y_multiplier,
+                    &mut scratch,
+                );
             }
 
             for (i, slot) in run.iter_mut().enumerate() {
@@ -330,44 +276,48 @@ mod tests {
     #[test]
     fn every_limit_amplitude_is_an_exact_power_of_two() {
         let params = overworld();
-        let amplitudes: Vec<f32> = params
-            .inner
-            .min_limit
-            .layers
-            .iter()
-            .map(|l| l.amplitude)
-            .collect();
         let expected: Vec<f32> = (0..16).map(|i| 2.0f32.powi(i - 16)).collect();
-        assert_eq!(amplitudes, expected);
+        assert_eq!(params.inner.min_limit.amplitudes(), expected);
         // 12.75 / 255 is exactly 0.05, so the main stack is exact too.
-        assert_eq!(params.inner.main.layers.len(), 8);
-        assert_eq!(params.inner.main.layers[0].amplitude, 0.05);
-        assert_eq!(params.inner.main.layers[7].amplitude, 6.4);
+        assert_eq!(params.inner.main.layer_count(), 8);
+        assert_eq!(params.inner.main.layer(0).2, 0.05);
+        assert_eq!(params.inner.main.layer(7).2, 6.4);
     }
 
     #[test]
     fn the_main_smear_divides_by_the_y_factor_a_second_time() {
         let params = overworld();
-        let limit = &params.inner.min_limit.layers;
-        let main = &params.inner.main.layers;
-        assert_eq!(limit[0].smear_scale_y, 684.412 * 0.125 * 8.0);
-        assert_eq!(main[0].smear_scale_y, (684.412 * 0.125 * 8.0) / 160.0);
+        let inner = &params.inner;
+        assert_eq!(
+            inner.min_limit.layer(0).0.fudge_y_scale(),
+            684.412 * 0.125 * 8.0
+        );
+        assert_eq!(
+            inner.main.layer(0).0.fudge_y_scale(),
+            (684.412 * 0.125 * 8.0) / 160.0
+        );
         // Sampling scales are pre-divided by the factors, never divided per sample.
-        assert_eq!(limit[0].xz_scale, 684.412 * 0.25);
-        assert_eq!(main[0].xz_scale, (684.412 * 0.25) / 80.0);
-        assert_eq!(main[0].y_scale, (684.412 * 0.125) / 160.0);
-        // Each layer halves every scale together with its frequency.
-        assert_eq!(limit[1].smear_scale_y, limit[0].smear_scale_y * 0.5);
-        assert_eq!(limit[1].y_scale, limit[0].y_scale * 0.5);
+        assert_eq!(inner.xz_multiplier, 684.412 * 0.25);
+        assert_eq!(inner.main_xz_multiplier, (684.412 * 0.25) / 80.0);
+        assert_eq!(inner.main_y_multiplier, (684.412 * 0.125) / 160.0);
+        // Each layer halves its smear together with its frequency.
+        assert_eq!(
+            inner.min_limit.layer(1).0.fudge_y_scale(),
+            inner.min_limit.layer(0).0.fudge_y_scale() * 0.5
+        );
+        assert_eq!(
+            inner.min_limit.layer(1).1,
+            inner.min_limit.layer(0).1 * 0.5
+        );
     }
 
     #[test]
     fn the_three_stacks_draw_from_one_stream_in_order() {
         let params = overworld();
-        let min0 = &params.inner.min_limit.layers[0].noise;
-        let max0 = &params.inner.max_limit.layers[0].noise;
+        let min0 = params.inner.min_limit.layer(0).0;
+        let max0 = params.inner.max_limit.layer(0).0;
         assert_ne!(min0, max0, "the two limit stacks must not share octaves");
-        assert_ne!(min0, &params.inner.main.layers[0].noise);
+        assert_ne!(min0, params.inner.main.layer(0).0);
     }
 
     #[test]

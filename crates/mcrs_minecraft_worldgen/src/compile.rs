@@ -7,7 +7,7 @@ use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseParams;
 use crate::node::spline::{CompiledSpline, Multipoint, SplineValue};
-use crate::noise::normal_noise::NoiseSampler;
+use crate::noise::normal::NoiseSampler;
 use crate::program::{BinaryOp, Node, NodeId, Program, RoundKind, UnaryOp};
 use crate::proto::{
     self, DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, ProtoSpline,
@@ -1158,13 +1158,7 @@ impl<'a> Compiler<'a> {
         match holder {
             NoiseHolder::Owned(param) => {
                 let mut random = self.random.clone();
-                Ok(NoiseSampler::from_params(
-                    &mut random,
-                    param.base_octave,
-                    param.octave_amplitudes(),
-                    param.base_amplitude.0,
-                    param.normalize,
-                ))
+                Ok(NoiseSampler::from_params(&mut random, param))
             }
             NoiseHolder::Reference(id) => self.create_named_noise(id),
         }
@@ -1203,13 +1197,7 @@ impl<'a> Compiler<'a> {
             .ok_or_else(|| CompileError::UnknownNoise(id.as_str().to_string()))?;
         let mut root = self.random.clone();
         let mut random = root.fork_hash(id.as_str());
-        Ok(NoiseSampler::from_params(
-            &mut random,
-            param.base_octave,
-            param.octave_amplitudes(),
-            param.base_amplitude.0,
-            param.normalize,
-        ))
+        Ok(NoiseSampler::from_params(&mut random, param))
     }
 
     /// The Beta noises are drawn from the pre-26.3 `LegacyRandom` streams and
