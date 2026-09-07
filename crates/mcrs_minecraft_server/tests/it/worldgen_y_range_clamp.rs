@@ -1,4 +1,3 @@
-use crate::support;
 use mcrs_minecraft_block::palette::AirCount;
 
 use mcrs_minecraft_core::ResourceLocation;
@@ -81,7 +80,6 @@ fn beta_sections_outside_noise_range_are_air() {
         &y_sections,
         &router,
         None,
-        support::standalone_corpus(),
         &cancel,
     );
     assert_eq!(results.len(), y_sections.len());

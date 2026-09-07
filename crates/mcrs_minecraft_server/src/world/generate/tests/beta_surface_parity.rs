@@ -396,7 +396,6 @@ fn beta_surface_parity_gate() {
             &y_sections,
             &router,
             Some((&biome_source, &snapshot)),
-            super::corpus(),
             &cancel,
         );
 
@@ -412,11 +411,7 @@ fn beta_surface_parity_gate() {
             super::corpus(),
             &mut rng,
         );
-        for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-            if let Some((blocks, _)) = section {
-                *blocks = palette;
-            }
-        }
+        column.write_back(&mut sections);
 
         // For each fixture column in this chunk, build a flat [BlockStateId; 128] view.
         for fix_col in fixture_cols {

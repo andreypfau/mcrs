@@ -29,7 +29,7 @@ fn main() {
         let mut legend = BTreeMap::new();
         for i in 0..64i32 {
             let results =
-                generate_column(ox + i % 8, oz + i / 8, &y_sections, &router, None, corpus(), &cancel);
+                generate_column(ox + i % 8, oz + i / 8, &y_sections, &router, None, &cancel);
             for (blocks, _) in results.iter().flatten() {
                 for y in 0..16 {
                     for z in 0..16 {

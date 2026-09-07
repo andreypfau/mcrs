@@ -454,11 +454,7 @@ fn beta_cave_parity_gate() {
             &config,
             &ids,
         );
-        for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-            if let Some((blocks, _)) = section {
-                *blocks = palette;
-            }
-        }
+        column.write_back(&mut sections);
 
         for fix_col in fixture_cols.iter() {
             total_columns += 1;
@@ -575,7 +571,6 @@ fn generate_column_beta_has_caves() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
-        super::corpus(),
         &cancel,
     );
 
@@ -590,11 +585,7 @@ fn generate_column_beta_has_caves() {
         super::corpus(),
         &mut rng,
     );
-    for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-        if let Some((blocks, _)) = section {
-            *blocks = palette;
-        }
-    }
+    column.write_back(&mut sections);
 
     let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_caves(
@@ -605,11 +596,7 @@ fn generate_column_beta_has_caves() {
         &config,
         &ids,
     );
-    for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-        if let Some((blocks, _)) = section {
-            *blocks = palette;
-        }
-    }
+    column.write_back(&mut sections);
 
     let air = VoxelId::from(ids.air);
     let lava = VoxelId::from(ids.lava);
@@ -692,7 +679,6 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 &y_sections,
                 &router,
                 Some((&biome_source, &snapshot)),
-                super::corpus(),
                 &cancel,
             );
             let mut rng = make_chunk_rng(chunk_x, chunk_z);
@@ -706,11 +692,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 super::corpus(),
                 &mut rng,
             );
-            for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-                if let Some((blocks, _)) = section {
-                    *blocks = palette;
-                }
-            }
+            column.write_back(&mut sections);
             let column = ColumnBlocks::from_sections(&sections, &y_sections);
             apply_beta_caves(
                 &column,
@@ -720,11 +702,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 &config,
                 &ids,
             );
-            for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-                if let Some((blocks, _)) = section {
-                    *blocks = palette;
-                }
-            }
+            column.write_back(&mut sections);
 
             let mut air_below_32 = 0usize;
             for (si, &sy) in y_sections.iter().enumerate() {

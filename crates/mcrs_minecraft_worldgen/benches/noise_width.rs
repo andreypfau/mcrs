@@ -1,8 +1,8 @@
 //! Beta terrain noise at both value widths, same kernel, same lattice.
 //!
-//! One "column" here is what `BetaTerrainF64::compute_density` asks of the
-//! Perlin generators for one chunk: the low and high noises at 16 octaves each
-//! and the selector at 8, all over the 5×17×5 density grid.
+//! One "column" here is what the Beta density functions ask of the Perlin
+//! generators for one chunk: the low and high noises at 16 octaves each and the
+//! selector at 8, all over the 5×17×5 density grid.
 
 use std::hint::black_box;
 use std::time::Instant;

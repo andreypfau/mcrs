@@ -1,4 +1,4 @@
-use crate::world::generate::ColumnBlocks;
+use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
 use mcrs_minecraft_decoration::carver::WorldCarver;
 use mcrs_minecraft_decoration::carver::cave::CaveWorldCarver;
 use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
@@ -44,27 +44,19 @@ pub fn apply_beta_caves(
 ) {
     let carver = CaveWorldCarver;
 
-    let mut seed_rng = LegacyRandom::new(world_seed as u64);
-    let l: i64 = seed_rng.next_java_long() / 2 * 2 + 1;
-    let i1: i64 = seed_rng.next_java_long() / 2 * 2 + 1;
+    let air: VoxelId = ids.air.into();
+    let get_block = |local_x: i32, world_y: i32, local_z: i32| -> VoxelId {
+        column.get(local_x, world_y, local_z).unwrap_or(air)
+    };
+    let set_block = |local_x: i32, world_y: i32, local_z: i32, state: VoxelId| {
+        column.set(local_x, world_y, local_z, state);
+    };
 
     let radius = config.range;
     for origin_x in (chunk_x - radius)..=(chunk_x + radius) {
         for origin_z in (chunk_z - radius)..=(chunk_z + radius) {
-            let seed: i64 = (origin_x as i64)
-                .wrapping_mul(l)
-                .wrapping_add((origin_z as i64).wrapping_mul(i1))
-                ^ world_seed;
-            let mut carve_rng = LegacyRandom::new(seed as u64);
-
-            let air: VoxelId = ids.air.into();
-            let get_block = |local_x: i32, world_y: i32, local_z: i32| -> VoxelId {
-                column.get(local_x, world_y, local_z).unwrap_or(air)
-            };
-
-            let set_block = |local_x: i32, world_y: i32, local_z: i32, state: VoxelId| {
-                column.set(local_x, world_y, local_z, state);
-            };
+            let mut carve_rng =
+                LegacyRandom::new(beta_chunk_seed(world_seed, origin_x, origin_z) as u64);
 
             carver.carve(
                 config,
@@ -72,8 +64,8 @@ pub fn apply_beta_caves(
                 chunk_z,
                 origin_x,
                 origin_z,
-                get_block,
-                set_block,
+                &get_block,
+                &set_block,
                 &mut carve_rng,
             );
         }

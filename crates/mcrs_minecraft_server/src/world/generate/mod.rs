@@ -347,12 +347,21 @@ fn beta_biome_palette(
     biomes
 }
 
-/// Fill section block palettes for the Beta terrain using the exact-precision f64 path.
+/// The per-chunk seed Beta derives for its population passes: two odd multipliers
+/// drawn once from the world seed, dotted with the chunk coordinate.
 ///
-/// Runs `BetaTerrainF64::compute_density` + `fill_terrain` once for the whole 16×128×16
-/// column, then distributes the flat block array into the requested Y sections.
-/// Ice at sea_level-1 is placed here (matching Java's fillDensityTerrain), so the later
-/// apply_beta_surface ice-placement is still correct (it only replaces water→ice).
+/// Caves feed it the *neighbouring* chunk they are carving from, ores the chunk
+/// itself, so the coordinate is a parameter rather than the chunk under work.
+pub fn beta_chunk_seed(world_seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
+    let mut rng = LegacyRandom::new(world_seed as u64);
+    let x_multiplier = rng.next_java_long() / 2 * 2 + 1;
+    let z_multiplier = rng.next_java_long() / 2 * 2 + 1;
+    (chunk_x as i64)
+        .wrapping_mul(x_multiplier)
+        .wrapping_add((chunk_z as i64).wrapping_mul(z_multiplier))
+        ^ world_seed
+}
+
 /// Generate all sections in a column.
 ///
 /// `final_density` is filled once over the whole column, then walked as a single
@@ -371,7 +380,6 @@ pub fn generate_column(
     y_sections: &[i32],
     noise_router: &NoiseRouter,
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
-    blocks: &BlockDefinitions,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let mut column = ColumnBlocks::new(y_sections);
@@ -387,11 +395,7 @@ pub fn generate_column(
         return vec![None; y_sections.len()];
     };
 
-    column
-        .block_palettes()
-        .into_iter()
-        .map(|blocks| Some((blocks, biome_palette.clone())))
-        .collect()
+    column.into_sections(&biome_palette)
 }
 
 /// Fill a column densely from the density graph, for every preset.
@@ -518,6 +522,8 @@ pub fn apply_beta_surface(
     );
 
     let mut ws = Workspace::new();
+    let (temperatures, humidities) =
+        noise_router.sample_beta_climate_grids(&mut ws, block_x, block_z);
 
     // back2beta replaceBlocksForBiome: outer loop kk=0..16 is Z, inner ll=0..16 is X.
     // Noise arrays r/s/t are filled at index x*16+z (geographic) and read at ll*16+kk
@@ -531,9 +537,7 @@ pub fn apply_beta_surface(
             let flag1 = s[idx] + rng.next_java_double() * 0.2 > 3.0;
             let i1 = (t[idx] / 3.0 + 3.0 + rng.next_java_double() * 0.25) as i32;
 
-            let climate_x = block_x + x_local;
-            let climate_z = block_z + z_local;
-            let (temp, humidity) = noise_router.sample_beta_climate(&mut ws, climate_x, climate_z);
+            let (temp, humidity) = (temperatures[idx], humidities[idx]);
             let biome_land: BetaLandBiome = if let Some(table) = beta_lookup {
                 beta_biome_from_climate(table, temp, humidity)
             } else {

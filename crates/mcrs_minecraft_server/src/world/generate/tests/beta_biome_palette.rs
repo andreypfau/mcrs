@@ -140,7 +140,6 @@ fn generate_column_beta_biome_not_default() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
-        super::corpus(),
         &cancel,
     );
 
@@ -160,7 +159,6 @@ fn generate_column_beta_biome_not_default() {
         &[0, 1, 2, 3, 4, 5],
         &router,
         None,
-        super::corpus(),
         &cancel,
     );
     for (idx, r) in results_modern.iter().enumerate() {

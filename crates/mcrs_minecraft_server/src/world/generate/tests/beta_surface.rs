@@ -97,7 +97,6 @@ fn apply_beta_surface_places_surface_and_bedrock() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
-        super::corpus(),
         &cancel,
     );
 
@@ -113,11 +112,7 @@ fn apply_beta_surface_places_surface_and_bedrock() {
         super::corpus(),
         &mut rng,
     );
-    for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-        if let Some((blocks, _)) = section {
-            *blocks = palette;
-        }
-    }
+    column.write_back(&mut sections);
 
     let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
     let grass_id = VoxelId::from(super::corpus().default_state("minecraft:grass_block"));
@@ -193,7 +188,6 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
-        super::corpus(),
         &cancel,
     );
 
@@ -208,11 +202,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         super::corpus(),
         &mut rng,
     );
-    for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-        if let Some((blocks, _)) = section {
-            *blocks = palette;
-        }
-    }
+    column.write_back(&mut sections);
 
     let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
     let section0 = sections[0].as_ref().expect("section 0 must be present");
@@ -405,7 +395,6 @@ fn beta_terrain_height_matches_back2beta_oracle() {
                 &y_sections,
                 &router,
                 Some((&biome_source, &snapshot)),
-                super::corpus(),
                 &cancel,
             )
         });
@@ -468,7 +457,6 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
-        super::corpus(),
         &cancel,
     );
 
@@ -484,11 +472,7 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
         super::corpus(),
         &mut rng,
     );
-    for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-        if let Some((blocks, _)) = section {
-            *blocks = palette;
-        }
-    }
+    column.write_back(&mut sections);
 
     let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be present").0;

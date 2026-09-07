@@ -24,7 +24,6 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         &y_sections,
         &router,
         None,
-        super::corpus(),
         &CancellationToken::new(),
     );
 

@@ -340,11 +340,7 @@ fn beta_ore_draw_count_pin() {
         &mut driver_rng,
         &ids,
     );
-    for (section, palette) in sections.iter_mut().zip(column.block_palettes()) {
-        if let Some((blocks, _)) = section {
-            *blocks = palette;
-        }
-    }
+    column.write_back(&mut sections);
     let driver_count = driver_draws.get();
 
     // Mirror stream — must consume identical RNG, proving the simulate() replay

@@ -1,6 +1,5 @@
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
 /// Build Beta climate noise from three independent LegacyRandom instances.

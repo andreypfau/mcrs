@@ -7,7 +7,7 @@ use std::hint::black_box;
 #[path = "../src/world/generate/tests/support.rs"]
 mod support;
 
-use support::{build_settings_router, corpus};
+use support::build_settings_router;
 
 /// Full overworld dimension: y -64..320.
 fn y_sections() -> Vec<i32> {
@@ -22,7 +22,7 @@ fn checksum(label: &str, router: &mcrs_minecraft_worldgen::router::NoiseRouter) 
     let y = y_sections();
     let mut checksum = 0u64;
     for i in 0..4 {
-        let results = generate_column(i, -i, &y, router, None, corpus(), &cancel);
+        let results = generate_column(i, -i, &y, router, None, &cancel);
         for (blocks, _) in results.iter().flatten() {
             for y in 0..16 {
                 for z in 0..16 {
@@ -58,7 +58,6 @@ fn bench_settings(c: &mut Criterion, label: &str) {
                 &y,
                 &router,
                 None,
-                corpus(),
                 &cancel,
             ))
         });

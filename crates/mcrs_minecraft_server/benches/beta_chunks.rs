@@ -168,11 +168,7 @@ fn generate_chunk(
     stages.ores = t.elapsed().as_secs_f64() * 1000.0;
 
     let t = Instant::now();
-    let sections: Vec<_> = column
-        .block_palettes()
-        .into_iter()
-        .map(|blocks| Some((blocks, biome_palette.clone())))
-        .collect();
+    let sections: Vec<_> = column.into_sections(&biome_palette);
     stages.pack = t.elapsed().as_secs_f64() * 1000.0;
 
     std::hint::black_box(&sections);

@@ -490,16 +490,16 @@ pub(crate) fn process_completed_columns(
                         // Section completed successfully - mark as loaded with data
                         commands
                             .entity(entity)
-                            .insert((ChunkLoaded, ChunkBlocks::new(blocks), biomes))
-                            .remove::<ChunkGenerating>();
+                            .try_insert((ChunkLoaded, ChunkBlocks::new(blocks), biomes))
+                            .try_remove::<ChunkGenerating>();
                     }
                     None => {
                         // Section was cancelled before generation could complete
                         // Mark for unloading so the entity gets cleaned up
                         commands
                             .entity(entity)
-                            .insert(ChunkUnloading)
-                            .remove::<ChunkGenerating>();
+                            .try_insert(ChunkUnloading)
+                            .try_remove::<ChunkGenerating>();
                     }
                 }
             }
@@ -678,8 +678,8 @@ fn cancel_stale_columns(
         for entity in entities {
             commands
                 .entity(entity)
-                .insert(ChunkUnloading)
-                .remove::<ChunkGenerating>();
+                .try_insert(ChunkUnloading)
+                .try_remove::<ChunkGenerating>();
         }
     }
 
@@ -927,8 +927,7 @@ pub(crate) fn dispatch_column_generation(
             thread_local! {
                 static COLUMN: RefCell<ColumnBlocks> = RefCell::new(ColumnBlocks::new(&[]));
             }
-            let mut scratch = COLUMN.with(|c| c.replace(ColumnBlocks::new(&[])));
-            let column = &mut scratch;
+            COLUMN.with_borrow_mut(|column| {
 
             let biome_palette = {
                 let _gen = info_span!("world::column_gen").entered();
@@ -997,12 +996,7 @@ pub(crate) fn dispatch_column_generation(
                 apply_beta_ores(column, col.x, col.z, world_seed, &ore_ids);
             }
 
-            let results: Vec<_> = column
-                .block_palettes()
-                .into_iter()
-                .map(|blocks| Some((blocks, biome_palette.clone())))
-                .collect();
-            COLUMN.with(|c| c.replace(scratch));
+            let results: Vec<_> = column.into_sections(&biome_palette);
 
             let heightmaps = predicates
                 .as_ref()
@@ -1020,6 +1014,7 @@ pub(crate) fn dispatch_column_generation(
                 source: ColumnSource::Generated,
                 work: started.elapsed(),
             }
+            })
         });
 
         // Create in-flight entry

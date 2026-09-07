@@ -1,7 +1,6 @@
 use std::cell::Cell;
 
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 /// Every block of one column, dense, in the section palette's own index order:
@@ -22,7 +21,6 @@ pub struct ColumnBlocks {
 
 impl ColumnBlocks {
     pub const SECTION_VOLUME: usize = BlockPalette::VOLUME;
-
 
     pub fn new(y_sections: &[i32]) -> Self {
         Self {
@@ -56,15 +54,12 @@ impl ColumnBlocks {
         let column = Self::new(y_sections);
         for (index, section) in sections.iter().enumerate() {
             let Some((blocks, _)) = section else { continue };
-            let cells = &column.cells[index * Self::SECTION_VOLUME..][..Self::SECTION_VOLUME];
-            for y in 0..16i32 {
-                for z in 0..16i32 {
-                    for x in 0..16i32 {
-                        cells[(y as usize) * 256 + (z as usize) * 16 + x as usize]
-                            .set(blocks.get(BlockPos::new(x, y, z)));
-                    }
-                }
-            }
+            let cells = column.section_cells(index);
+            let mut at = 0usize;
+            blocks.0.for_each(|value| {
+                cells[at].set(value);
+                at += 1;
+            });
         }
         column
     }
@@ -181,5 +176,26 @@ impl ColumnBlocks {
                 BlockPalette::from_cells(&scratch)
             })
             .collect()
+    }
+
+    /// Pack every section, pairing each block palette with the column's biomes.
+    pub fn into_sections(
+        &self,
+        biomes: &BiomePalette,
+    ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
+        self.block_palettes()
+            .into_iter()
+            .map(|blocks| Some((blocks, biomes.clone())))
+            .collect()
+    }
+
+    /// Write each section's packed palette back over `sections`, the inverse of
+    /// [`Self::from_sections`].
+    pub fn write_back(&self, sections: &mut [Option<(BlockPalette, BiomePalette)>]) {
+        for (section, palette) in sections.iter_mut().zip(self.block_palettes()) {
+            if let Some((blocks, _)) = section {
+                *blocks = palette;
+            }
+        }
     }
 }
