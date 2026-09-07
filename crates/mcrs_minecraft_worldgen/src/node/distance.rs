@@ -85,9 +85,9 @@ mod tests {
         let p = DistanceParams::new(3, 4, 4097, DistanceMetric::EuclideanSquared);
         let widened = (3i64 * 3 + 4 * 4 + 4097i64 * 4097) as f64 as f32;
         assert_eq!(widened, 16785434.0);
-        #[cfg(not(feature = "fast"))]
+        #[cfg(not(feature = "fast_fma"))]
         assert_eq!(at(&p, 0, 0, 0), 16785432.0, "an f64 accumulation answers {widened}");
-        #[cfg(feature = "fast")]
+        #[cfg(feature = "fast_fma")]
         assert_eq!(at(&p, 0, 0, 0), widened);
     }
 

@@ -24,5 +24,14 @@ tracing = { workspace = true }
 [features]
 default = ["bevy"]
 bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect", "dep:thiserror"]
-fast = []
+# The precision profile of `docs/worldgen.md` §15, one feature per technique so
+# a divergence can be bisected to the one that caused it. `fast` is the shipping
+# union; the parts are for measuring, not for shipping separately.
+fast = ["fast_fma", "fast_cell"]
+# One rounding instead of two wherever a sampler computes `a * b + c`. Needs an
+# FMA instruction to be a win: `target-cpu=native`, or `+fma` on x86-64.
+fast_fma = []
+# Collapses a lattice cell to a line along Y, which is the direct formula for
+# the vertical interpolation recurrence.
+fast_cell = []
 far-lands = []

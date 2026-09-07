@@ -98,13 +98,13 @@ mod tests {
             let params = EndIslandParams::new(seed);
             let actual = value_at(&params, bx, bz);
             let expected = f32::from_bits(expected);
-            #[cfg(not(feature = "fast"))]
+            #[cfg(not(feature = "fast_fma"))]
             assert_eq!(
                 actual.to_bits(),
                 expected.to_bits(),
                 "seed {seed} at ({bx}, {bz}): got {actual}"
             );
-            #[cfg(feature = "fast")]
+            #[cfg(feature = "fast_fma")]
             assert!(
                 (actual - expected).abs() <= 1.0e-6 * expected.abs().max(1.0),
                 "seed {seed} at ({bx}, {bz}): got {actual}, expected {expected}"
@@ -119,7 +119,7 @@ mod tests {
         assert_eq!(at(1), at(-1), "-1 and 1 are both section 0");
         // What floor division would have answered for z = -1.
         assert_ne!(at(-8), at(-1), "section -1 is a different island field");
-        #[cfg(not(feature = "fast"))]
+        #[cfg(not(feature = "fast_fma"))]
         {
             assert_eq!(at(-1).to_bits(), 0xbe01_5510);
             assert_eq!(at(-8).to_bits(), 0xbe67_7890);

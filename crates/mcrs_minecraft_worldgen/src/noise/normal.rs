@@ -227,27 +227,43 @@ mod bound_tests {
         }
     }
 
-    // Unlike the octave factors and ranges above, these bits are pinned from our own
-    // sampler, not derived from the reference: a drift guard, not a parity check.
-    //
-    // The fast profile collapses a lattice cell to a line and lands a few ulps
-    // away, so it carries its own table. A tolerance wide enough to cover both
-    // would stop catching drift in either.
-    #[test]
-    fn the_modes_sample_apart() {
-        let positions = [(0.0, 0.0, 0.0), (0.5, 4.0, -2.0), (-204.0, 28.0, 12.0)];
-        #[cfg(not(feature = "fast"))]
-        let expected: [[u32; 3]; 3] = [
+    /// The table this profile is pinned to, and whether it has to match bit for
+    /// bit. The two shipping profiles each carry their own, because a tolerance
+    /// wide enough to cover both would stop catching drift in either. A build
+    /// with one half of `fast` exists to bisect a divergence rather than to ship,
+    /// so it is held to a budget against the strict table instead of a table
+    /// nobody reads.
+    fn pinned_samples() -> ([[u32; 3]; 3], bool) {
+        const STRICT: [[u32; 3]; 3] = [
             [0x3e68047a, 0x3e2b16cf, 0xbf105330],
             [0x3de878b7, 0x3dab6c85, 0xbe909b7e],
             [0x3db75933, 0x3d87335d, 0xbe6419f3],
         ];
-        #[cfg(feature = "fast")]
-        let expected: [[u32; 3]; 3] = [
-            [0x3e68046b, 0x3e2b16eb, 0xbf10532f],
-            [0x3de878aa, 0x3dab6ca1, 0xbe909b7e],
-            [0x3db75929, 0x3d873374, 0xbe6419f4],
-        ];
+        #[cfg(not(any(feature = "fast_fma", feature = "fast_cell")))]
+        return (STRICT, true);
+        #[cfg(all(feature = "fast_fma", feature = "fast_cell"))]
+        return (
+            [
+                [0x3e68046b, 0x3e2b16eb, 0xbf10532f],
+                [0x3de878aa, 0x3dab6ca1, 0xbe909b7e],
+                [0x3db75929, 0x3d873374, 0xbe6419f4],
+            ],
+            true,
+        );
+        #[cfg(all(
+            any(feature = "fast_fma", feature = "fast_cell"),
+            not(all(feature = "fast_fma", feature = "fast_cell"))
+        ))]
+        return (STRICT, false);
+    }
+
+    /// Unlike the octave factors and ranges above, these bits are pinned from our
+    /// own sampler, not derived from the reference: a drift guard, not a parity
+    /// check.
+    #[test]
+    fn the_modes_sample_apart() {
+        let positions = [(0.0, 0.0, 0.0), (0.5, 4.0, -2.0), (-204.0, 28.0, 12.0)];
+        let (expected, exact) = pinned_samples();
         for (mode, bits) in [
             Normalization::Disabled,
             Normalization::Enabled,
@@ -257,11 +273,21 @@ mod bound_tests {
         .zip(expected)
         {
             let noise = sampler(&CONTINENTALNESS_MODIFIERS, CONTINENTALNESS_AMPLITUDE, mode);
-            let actual: Vec<u32> = positions
+            let actual: Vec<f32> = positions
                 .iter()
-                .map(|(x, y, z)| noise.get(*x, *y, *z).to_bits())
+                .map(|(x, y, z)| noise.get(*x, *y, *z))
                 .collect();
-            assert_eq!(actual, bits.to_vec(), "{mode:?}");
+            if exact {
+                let got: Vec<u32> = actual.iter().map(|v| v.to_bits()).collect();
+                assert_eq!(got, bits.to_vec(), "{mode:?}");
+                continue;
+            }
+            for (value, want) in actual.iter().zip(bits.map(f32::from_bits)) {
+                assert!(
+                    (value - want).abs() <= 1.0e-6 * want.abs().max(1.0),
+                    "{mode:?}: {value} against the strict {want}"
+                );
+            }
         }
     }
 }

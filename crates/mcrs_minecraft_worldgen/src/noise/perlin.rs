@@ -455,12 +455,12 @@ fn lerp_corners(
     lerp(fade_z, ll0, ll1)
 }
 
-#[cfg(feature = "fast")]
+#[cfg(feature = "fast_cell")]
 type CellBlend = CellLine;
-#[cfg(not(feature = "fast"))]
+#[cfg(not(feature = "fast_cell"))]
 type CellBlend = CellCorners;
 
-#[cfg(feature = "fast")]
+#[cfg(feature = "fast_cell")]
 #[inline(always)]
 fn cell_blend(
     grads: &[usize; 8],
@@ -472,7 +472,7 @@ fn cell_blend(
     CellLine::new(grads, local_x, local_z, fade_x, fade_z)
 }
 
-#[cfg(not(feature = "fast"))]
+#[cfg(not(feature = "fast_cell"))]
 #[inline(always)]
 fn cell_blend(
     grads: &[usize; 8],

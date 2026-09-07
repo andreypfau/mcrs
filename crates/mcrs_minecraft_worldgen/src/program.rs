@@ -1590,7 +1590,7 @@ mod tests {
         (evaluated, x, scale, offset)
     }
 
-    #[cfg(not(feature = "fast"))]
+    #[cfg(not(feature = "fast_fma"))]
     #[test]
     fn the_strict_affine_rounds_twice_as_java_does() {
         let (evaluated, x, scale, offset) = affine_at_a_rounding_boundary();
@@ -1602,7 +1602,7 @@ mod tests {
         assert_eq!(evaluated, x * scale + offset);
     }
 
-    #[cfg(feature = "fast")]
+    #[cfg(feature = "fast_fma")]
     #[test]
     fn the_fast_affine_fuses_into_one_rounding() {
         let (evaluated, x, scale, offset) = affine_at_a_rounding_boundary();
