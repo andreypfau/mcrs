@@ -10,7 +10,9 @@ References to the reference implementation are collected in the appendix — for
 checking against, not for copying.
 
 The numbers in §17 come from counting operations and reading sources. Not one of
-them was measured on a running server.
+them was measured on a running server. The exception is §15, whose one paragraph
+of measured figures is marked as such — and it contradicts what that section had
+predicted.
 
 Heightmaps are specified separately in `heightmap.md`, which this document defers
 to rather than restates: the lattice of predicates, the merged descent,
@@ -1030,7 +1032,7 @@ different world under the same seed, a hundred percent different rather than fiv
 
 | Technique | strict | fast | Note |
 | --- | --- | --- | --- |
-| Replacing the vertical interpolation recurrence with the direct formula | no | yes | **The main one.** Enables vectorising along the contiguous axis without transposition |
+| Replacing the vertical interpolation recurrence with the direct formula | no | yes | Drops the loop-carried dependency in the row fill. Worth much less than it reads; measured below |
 | Fused multiply-add | no | yes | One rounding instead of two |
 | Vectorising across noise octaves | no | yes | Reassociates a sequential accumulator |
 | Fast approximations of elementary functions | no | yes | Selectively, guided by a profile |
@@ -1039,6 +1041,17 @@ different world under the same seed, a hundred percent different rather than fiv
 | A different RNG or hash | no | **no** | Changes the function, not the precision |
 | A different topological sort order | no | **no** | Same |
 | A different structure placement lattice | no | **no** | Same |
+
+**The recurrence is not the main one.** It reads as though it should dominate
+the table: the accumulator serialises the innermost loop that runs per block, and
+nothing downstream of it vectorises while the loop stands. Measured on the column
+benchmark, the closed form moves an overworld column by about one percent, and
+replacing the ramp with a constant fill — the ceiling for any work on it
+whatsoever — moves it by 2.3. L4 is the reason: cell bounds settle most cells
+before the interpolation is reached, so the loop the recurrence serialises covers
+a small share of the volume. That is §17's rule one layer down. What an
+optimisation is worth is set by what stands next to it, and here a cheaper thing
+got there first.
 
 **R1.** The strict profile **must remain buildable** even when the fast one ships:
 it serves as the oracle. **R2. Divergence is measured, not estimated.** The
