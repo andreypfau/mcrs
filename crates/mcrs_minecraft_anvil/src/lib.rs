@@ -16,8 +16,8 @@ pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 
 use std::path::PathBuf;
 
-/// 26.3 Pre-Release 1; the oldest accepted is snapshot 10, the first with this layout.
-pub const DATA_VERSION: i32 = 5017;
+/// 26.3 Pre-Release 2; the oldest accepted is snapshot 10, the first with this layout.
+pub const DATA_VERSION: i32 = 5018;
 pub const OLDEST_DATA_VERSION: i32 = 5015;
 
 pub fn accepts_data_version(found: i32) -> bool {

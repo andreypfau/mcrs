@@ -7,8 +7,8 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;
 use crate::{
-    AnvilError, Biomes, BlockStateLookup, BlockStates, DATA_VERSION, ErrorKind, Properties,
-    RegionFile,
+    AnvilError, Biomes, BlockStateLookup, BlockStates, DATA_VERSION, ErrorKind,
+    OLDEST_DATA_VERSION, Properties, RegionFile,
 };
 
 const GZIP: u8 = 1;
@@ -843,14 +843,15 @@ fn a_stale_data_version_is_a_loud_error() {
             err.kind,
             ErrorKind::DataVersion {
                 found: 4903,
-                expected: 5017
+                expected: DATA_VERSION
             }
         ),
         "{err}"
     );
     assert!(
-        err.to_string()
-            .ends_with("DataVersion 4903, expected 5015 to 5017"),
+        err.to_string().ends_with(&format!(
+            "DataVersion 4903, expected {OLDEST_DATA_VERSION} to {DATA_VERSION}"
+        )),
         "{err}"
     );
 }
@@ -883,7 +884,12 @@ fn a_chunk_older_than_the_version_tag_says_so() {
     root.put_component("Level", NbtCompound::new());
     let err = read_one(&fixture, ZLIB, &root).unwrap_err();
     assert!(
-        matches!(err.kind, ErrorKind::MissingDataVersion { expected: 5017 }),
+        matches!(
+            err.kind,
+            ErrorKind::MissingDataVersion {
+                expected: DATA_VERSION
+            }
+        ),
         "{err}"
     );
 }
@@ -903,7 +909,7 @@ fn an_older_layout_reports_its_version_not_its_first_odd_field() {
             err.kind,
             ErrorKind::DataVersion {
                 found: 1343,
-                expected: 5017
+                expected: DATA_VERSION
             }
         ),
         "{err}"
