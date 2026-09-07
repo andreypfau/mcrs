@@ -54,8 +54,10 @@ where
     T: Into<IVec3>,
 {
     let pos = pos.into();
+    // The asymmetry is the data: Java's `x * 3129871` is an int multiply that wraps at 32
+    // bits, while `z * 116129781L` is a long multiply that does not.
     let mut l = (pos.x.wrapping_mul(3129871) as i64)
-        ^ (pos.z.wrapping_mul(116129781) as i64)
+        ^ (pos.z as i64).wrapping_mul(116129781)
         ^ (pos.y as i64);
     l = l
         .wrapping_mul(l)
@@ -171,5 +173,45 @@ impl Random for RandomSource {
             RandomSource::Legacy(random) => RandomSource::Legacy(random.fork_hash(seed)),
             RandomSource::Xoroshiro(random) => RandomSource::Xoroshiro(random.fork_hash(seed)),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn block_pos_seed_matches_java() {
+        for (pos, expected) in [
+            ([100, 64, 100], -52100398098179i64),
+            ([5, 64, 19], -38667155502638),
+            ([-2048, -64, 3000], -67643415488191),
+            ([0, 0, 0], 0),
+            ([-1, -1, -1], 60311958933234),
+        ] {
+            let pos = IVec3::new(pos[0], pos[1], pos[2]);
+            assert_eq!(block_pos_seed(pos) as i64, expected, "{pos:?}");
+        }
+    }
+
+    #[test]
+    fn a_legacy_positional_factory_matches_java() {
+        let mut root = LegacyRandom::new(42);
+        assert_eq!(
+            root.clone().fork_hash("minecraft:bedrock_roof"),
+            LegacyRandom::new(-5025562857781560243i64 as u64)
+        );
+        assert_eq!(
+            root.clone().fork_hash("minecraft:bedrock_floor"),
+            LegacyRandom::new(-5025562856259330031i64 as u64)
+        );
+        assert_eq!(
+            root.clone().fork_hash("octave_-3"),
+            LegacyRandom::new(-5025562857811928990i64 as u64)
+        );
+        assert_eq!(
+            root.fork_at(IVec3::new(100, 64, 100)),
+            LegacyRandom::new(5025539619815019018i64 as u64)
+        );
     }
 }
