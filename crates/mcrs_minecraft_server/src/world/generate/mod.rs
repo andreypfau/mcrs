@@ -68,6 +68,7 @@ impl CellLattice {
         let inputs = noise_router.cell_inputs();
         let mut values = vec![0.0f32; inputs.len() * volume.len()];
         noise_router.fill_nodes(ws, &volume, inputs, &mut values);
+        noise_router.pin_cell_lattice(ws, &volume, &values);
         Some(Self {
             volume,
             cell,

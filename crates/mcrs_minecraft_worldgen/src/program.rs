@@ -448,7 +448,22 @@ struct Lattice {
     /// The fill's own volume already was the cell lattice, so `values` holds the
     /// input at exactly the positions asked for and is read straight back.
     direct: bool,
+    /// Supplied from outside over a region wider than one fill, so a fill whose
+    /// cells it already covers reads it instead of sampling the input again.
+    pinned: bool,
     values: Vec<f32>,
+}
+
+impl Lattice {
+    /// Whether a pinned lattice already holds every corner `wanted` would sample.
+    fn covers(&self, wanted: &Volume) -> bool {
+        let Some(held) = self.volume.filter(|_| self.pinned) else {
+            return false;
+        };
+        held.step_block() == wanted.step_block()
+            && held.min_block().cmple(wanted.min_block()).all()
+            && held.max_block().cmpge(wanted.max_block()).all()
+    }
 }
 
 impl Program {
@@ -637,9 +652,13 @@ impl Program {
             } else {
                 lattice_volume(volume, self.axes_of(id), cell_xz, cell_y)
             };
+            if ws.lattices[cell].covers(&lattice) {
+                continue;
+            }
             let slot = &mut ws.lattices[cell];
             slot.volume = Some(lattice);
             slot.direct = direct;
+            slot.pinned = false;
             slot.values.clear();
             slot.values.resize(lattice.len(), 0.0);
             self.fill_node(&mut nested, &lattice, input, &mut ws.lattices[cell].values);
@@ -1083,6 +1102,7 @@ impl Program {
                     volume: Some(lattice),
                     direct,
                     values,
+                    ..
                 } = &lattices[*cell]
                 else {
                     unreachable!("every interpolated node in the plan holds a lattice")
@@ -1442,6 +1462,21 @@ impl Workspace {
             self.lattices
                 .resize_with(program.cell_count, Lattice::default);
         }
+    }
+
+    /// Hands one `Interpolated` node's lattice in ready-made, so every fill whose
+    /// cells it covers interpolates from it instead of sampling the input again.
+    /// A fill reaching past it samples as usual.
+    pub(crate) fn pin_lattice(&mut self, cell: usize, volume: &Volume, values: &[f32]) {
+        if self.lattices.len() <= cell {
+            self.lattices.resize_with(cell + 1, Lattice::default);
+        }
+        let slot = &mut self.lattices[cell];
+        slot.volume = Some(*volume);
+        slot.direct = false;
+        slot.pinned = true;
+        slot.values.clear();
+        slot.values.extend_from_slice(values);
     }
 
     fn read<'a>(&'a self, program: &Program, id: NodeId, volume: &Volume) -> &'a [f32] {

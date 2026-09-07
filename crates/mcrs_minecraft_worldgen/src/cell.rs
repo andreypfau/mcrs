@@ -94,6 +94,11 @@ impl CellBounds {
         &self.inputs
     }
 
+    /// The `interpolated` nodes themselves, parallel to [`Self::inputs`].
+    pub fn wrappers(&self) -> &[NodeId] {
+        &self.wrappers
+    }
+
     #[inline]
     pub fn cell_size(&self) -> Option<IVec3> {
         self.cell_size
