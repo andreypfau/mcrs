@@ -1,8 +1,9 @@
 pub mod beta;
-pub mod bounds;
 #[cfg(feature = "bevy")]
 pub mod bevy;
+pub mod bounds;
 mod branch;
+pub mod carver;
 pub mod cell;
 pub mod compile;
 pub mod interval;
@@ -14,6 +15,7 @@ pub mod program;
 pub mod proto;
 pub mod router;
 pub mod strata;
+pub mod value_provider;
 pub mod volume;
 
 pub use interval::Interval;

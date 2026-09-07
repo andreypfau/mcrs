@@ -189,10 +189,12 @@ impl Plugin for WorldgenAssetsPlugin {
             .init_asset::<NoiseGeneratorSettingsAsset>()
             .init_asset::<NoiseParamAsset>()
             .init_asset::<WorldPresetAsset>()
+            .init_asset::<CarverConfigAsset>()
             .register_asset_loader(DensityFunctionLoader)
             .register_asset_loader(NoiseGeneratorSettingsLoader)
             .register_asset_loader(NoiseParamLoader)
-            .register_asset_loader(WorldPresetLoader);
+            .register_asset_loader(WorldPresetLoader)
+            .register_asset_loader(CarverConfigLoader);
     }
 }
 
@@ -452,6 +454,43 @@ impl AssetLoader for NoiseParamLoader {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
         Ok(NoiseParamAsset { noise })
+    }
+}
+
+#[derive(TypePath, Debug, Clone)]
+pub struct CarverConfigAsset {
+    pub config: crate::carver::CarverConfig,
+}
+
+impl Asset for CarverConfigAsset {}
+
+impl VisitAssetDependencies for CarverConfigAsset {
+    fn visit_dependencies(&self, _visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {}
+}
+
+#[derive(Default, TypePath)]
+pub struct CarverConfigLoader;
+
+impl AssetLoader for CarverConfigLoader {
+    type Asset = CarverConfigAsset;
+    type Settings = ();
+    type Error = WorldgenLoaderError;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        _load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let bytes = read_all(reader).await?;
+        Ok(CarverConfigAsset {
+            config: serde_json::from_slice(&bytes)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
+        })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &[]
     }
 }
 
