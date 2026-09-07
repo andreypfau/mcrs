@@ -2,7 +2,7 @@ use crate::cell::CellBounds;
 use crate::compile::CompileError;
 use crate::interval::Interval;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-use crate::program::{NodeId, Program, Workspace};
+use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{BlockState, DensityFunctionHolder, HashableF64, ValueRange};
 use crate::volume::Volume;
 use bevy_math::IVec3;
@@ -326,6 +326,24 @@ impl NoiseRouter {
         for (k, &node) in nodes.iter().enumerate() {
             self.program
                 .fill_node(ws, volume, node, &mut out[k * n..(k + 1) * n]);
+        }
+    }
+
+    /// Hand `ws` the cell lattice already sampled over `volume`, laid out one row
+    /// per [`NoiseRouter::cell_inputs`] entry, so the block fills that follow
+    /// interpolate from it instead of resampling every input once per cell.
+    pub fn pin_cell_lattice(&self, ws: &mut Workspace, volume: &Volume, values: &[f32]) {
+        let stride = volume.len();
+        assert_eq!(
+            values.len(),
+            self.cell_bounds.wrappers().len() * stride,
+            "one row per interpolated wrapper"
+        );
+        for (k, &wrapper) in self.cell_bounds.wrappers().iter().enumerate() {
+            let Node::Interpolated { cell, .. } = self.program.node(wrapper) else {
+                unreachable!("the wrapper list holds only interpolated nodes")
+            };
+            ws.pin_lattice(*cell, volume, &values[k * stride..(k + 1) * stride]);
         }
     }
 
