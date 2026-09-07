@@ -86,6 +86,17 @@ impl<T> PriorityColumns<T> {
         }
     }
 
+    /// Re-scores every waiting column. The order is rebuilt in one pass rather than by moving
+    /// columns one at a time: what scores a column is where the player stands, so when that
+    /// moves, every score changes at once.
+    pub fn reprioritize(&mut self, mut score: impl FnMut(ColumnPos) -> Priority) {
+        self.order.clear();
+        for (column, (priority, _)) in self.columns.iter_mut() {
+            *priority = score(*column);
+            self.order.insert((*priority, *column));
+        }
+    }
+
     /// Re-orders a column, as vanilla does when a chunk's ticket level changes.
     pub fn set_priority(&mut self, column: ColumnPos, priority: Priority) {
         let Some((waiting, _)) = self.columns.get_mut(&column) else {
@@ -159,6 +170,10 @@ impl LightQueue {
 
     pub fn set_priority(&mut self, column: ColumnPos, priority: Priority) {
         self.0.set_priority(column, priority);
+    }
+
+    pub fn reprioritize(&mut self, score: impl FnMut(ColumnPos) -> Priority) {
+        self.0.reprioritize(score);
     }
 
     /// Fills up to `max_batches` non-overlapping batches of the most urgent

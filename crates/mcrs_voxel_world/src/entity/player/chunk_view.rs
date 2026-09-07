@@ -1,22 +1,18 @@
 use crate::entity::physics::Transform;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
-use crate::world::lifecycle::markers::{ChunkFresh, ChunkLoaded};
-use crate::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketCommand, TicketKind};
+use crate::world::lifecycle::ticket::MAX_SPAWNS_PER_TICK;
 use crate::world::lifecycle::trace::{self, ColumnStage};
-use crate::world::storage::chunk::ChunkIndex;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
     Added, Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs,
-    MessageWriter, Or, ParallelCommands, Query, With,
+    MessageWriter, Or, ParallelCommands, Query,
 };
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs_macros::Message;
-use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::{ChunkPos, ColumnPos};
 use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
-
-const MAX_LOADS: usize = 4096;
 
 pub struct ChunkViewPlugin;
 
@@ -31,12 +27,7 @@ impl Plugin for ChunkViewPlugin {
         app.add_message::<PlayerChunkUnloadRequest>();
         app.add_systems(
             FixedUpdate,
-            (
-                update_view,
-                update_unload_queue,
-                update_load_queue,
-                update_loading_queue,
-            )
+            (update_view, update_unload_queue, update_load_queue)
                 .chain()
                 .in_set(ChunkViewSet),
         );
@@ -86,8 +77,6 @@ fn update_view(
                 observer.last_last_chunk_tracking_view = None;
                 observer.unload_queue.clear();
                 observer.load_queue.clear();
-                observer.loading_queue.clear();
-                observer.loading_wait.clear();
                 observer.last_in_dim = Some(current_in_dim);
             }
             let chunk_pos = ChunkPos::from(transform.translation);
@@ -111,13 +100,10 @@ fn update_view(
             );
 
             let Some(last_view) = observer.last_last_chunk_tracking_view else {
-                let capacity = new_view.size();
-                let mut load_queue = Vec::with_capacity(capacity);
-                new_view.for_each(|pos| {
-                    load_queue.push(pos);
+                observer.load_queue.reserve(new_view.column_count());
+                new_view.each_column(|col| {
+                    observer.load_queue.insert(col);
                 });
-                load_queue.sort_unstable_by_key(|pos| pos.distance_squared(*chunk_pos));
-                observer.load_queue.extend(load_queue);
                 observer.last_last_chunk_tracking_view = Some(new_view);
                 commands.command_scope(|mut cmd| {
                     cmd.trigger(ChunkTrackingViewUpdateEvent {
@@ -139,21 +125,14 @@ fn update_view(
                 });
             });
 
-            let mut load_queue = Vec::new();
-
-            // println!("Updating chunk view from {:?} to {:?}", last_view, new_view);
-
-            ChunkTrackingView::diff(&last_view, &new_view, |a| match a {
-                ChunkViewAction::LoadChunk(pos) => {
-                    load_queue.push(pos);
-                }
-                ChunkViewAction::UnloadChunk(pos) => {
-                    observer.unload_queue.push_back(pos);
-                }
-            });
-
-            load_queue.sort_unstable_by_key(|pos| pos.distance_squared(*chunk_pos));
-            observer.load_queue.extend(load_queue);
+            ChunkTrackingView::diff_columns(
+                &last_view,
+                &new_view,
+                |col| {
+                    observer.load_queue.insert(col);
+                },
+                |col| observer.unload_queue.push_back(col),
+            );
             observer.last_last_chunk_tracking_view = Some(new_view);
         },
     );
@@ -162,137 +141,75 @@ fn update_view(
 #[derive(Debug, Message)]
 pub struct PlayerChunkUnloadRequest {
     pub player: Entity,
-    pub chunk_pos: ChunkPos,
+    pub column_pos: ColumnPos,
 }
 
 #[derive(Debug, Message)]
 pub struct PlayerChunkLoadRequest {
     pub player: Entity,
-    pub chunk_pos: ChunkPos,
-    pub chunk: Entity,
+    pub column_pos: ColumnPos,
 }
 
 fn update_unload_queue(
-    mut query: Query<(Entity, &InDimension, &mut PlayerChunkObserver)>,
-    mut dimensions: Query<&mut ChunkTicketsCommands>,
+    mut query: Query<(Entity, &mut PlayerChunkObserver)>,
     mut unload_requests: MessageWriter<PlayerChunkUnloadRequest>,
 ) {
-    query.iter_mut().for_each(|(player, dim, mut observer)| {
-        let Ok(mut tickets) = dimensions.get_mut(dim.entity()) else {
-            return;
-        };
-        let PlayerChunkObserver {
-            unload_queue,
-            loading_wait,
-            ..
-        } = &mut *observer;
-        unload_requests.write_batch(unload_queue.drain(..).map(|chunk_pos| {
-            tickets.remove_ticket(chunk_pos, TicketKind::PlayerLoading);
-            loading_wait.remove(&chunk_pos);
-            PlayerChunkUnloadRequest { player, chunk_pos }
-        }));
+    query.iter_mut().for_each(|(player, mut observer)| {
+        unload_requests.write_batch(
+            observer
+                .unload_queue
+                .drain(..)
+                .map(|column_pos| PlayerChunkUnloadRequest { player, column_pos }),
+        );
     });
 }
 
-/// Raises a load request for every ticketed chunk that has landed. Runs on the tick and again
-/// whenever the game drains what landed off the tick, so it is safe to run more than once
-/// between ticks. A chunk still loading is left waiting without holding back the ones behind
-/// it.
-pub fn update_loading_queue(
+/// Raises what the view wants with the send layer, nearest first.
+///
+/// It raises columns and holds no ticket of its own: the send layer needs every section of a
+/// column and already forces them, so a second ticket over the vertical slice of the view
+/// would only duplicate that — and duplicate it faster than sections can be spawned.
+///
+/// The budget is columns rather than sections for the same reason: raising a column costs a
+/// whole column's worth of spawns, so counting sections here would let the view ask for more
+/// than `spawn_chunks` can ever hand out and grow the queue without bound.
+fn update_load_queue(
     mut players: Query<(Entity, &mut PlayerChunkObserver, &InDimension)>,
-    dims: Query<&ChunkIndex>,
-    chunks: Query<Entity, With<ChunkLoaded>>,
-    landed: Query<(Entity, &ChunkPos, &InDimension), (With<ChunkLoaded>, With<ChunkFresh>)>,
+    dimensions: Query<&DimensionTypeConfig>,
     mut load_requests: MessageWriter<PlayerChunkLoadRequest>,
 ) {
     players.iter_mut().for_each(|(player, mut observer, dim)| {
-        let Ok(chunk_index) = dims.get(**dim) else {
-            return;
-        };
         let observer = &mut *observer;
         let Some(last_view) = observer.last_last_chunk_tracking_view else {
             return;
         };
-
-        while let Some(chunk_pos) = observer.loading_queue.pop_front() {
-            if !last_view.contains(&chunk_pos) {
-                continue;
-            }
-            match chunk_index.get(chunk_pos) {
-                Some(chunk) if chunks.contains(chunk) => {
-                    load_requests.write(PlayerChunkLoadRequest {
-                        player,
-                        chunk_pos,
-                        chunk,
-                    });
-                }
-                _ => {
-                    observer.loading_wait.insert(chunk_pos);
-                }
-            }
-        }
-
-        if observer.loading_wait.is_empty() {
+        observer
+            .load_queue
+            .retain(|col| last_view.contains_column(col.x, col.z));
+        if observer.load_queue.is_empty() {
             return;
         }
-        // A landed section is only offered here while it is `ChunkFresh`, so this loop cannot
-        // be capped: a section skipped now is never offered again.
-        for (chunk, &chunk_pos, chunk_dim) in landed.iter() {
-            if chunk_dim.entity() != **dim || !observer.loading_wait.remove(&chunk_pos) {
-                continue;
-            }
-            if last_view.contains(&chunk_pos) {
-                load_requests.write(PlayerChunkLoadRequest {
-                    player,
-                    chunk_pos,
-                    chunk,
-                });
-            }
-        }
-    })
-}
+        let sections_per_column = dimensions
+            .get(dim.entity())
+            .map(|config| config.section_count.max(1) as usize)
+            .unwrap_or(1);
+        let budget = (MAX_SPAWNS_PER_TICK / sections_per_column).max(1);
 
-fn update_load_queue(
-    mut players: Query<(&mut PlayerChunkObserver, &InDimension)>,
-    mut dimensions: Query<&mut ChunkTicketsCommands>,
-) {
-    players.iter_mut().for_each(|(mut observer, _dim)| {
-        let observer = &mut *observer;
-        let Some(last_view) = observer.last_last_chunk_tracking_view else {
-            return;
-        };
-
-        while observer.delayed_ticket_ops.len() < MAX_LOADS {
-            let Some(pos) = observer.load_queue.pop_front() else {
-                return;
-            };
-            if !last_view.contains(&pos) {
-                continue;
-            }
-            trace::mark(pos.into(), ColumnStage::Ticketed);
-            observer.delayed_ticket_ops.push_back(TicketCommand::Add {
-                chunk_pos: pos,
-                ticket: Ticket::new(TicketKind::PlayerLoading),
+        let center = last_view.center;
+        let mut nearest: Vec<ColumnPos> = observer.load_queue.iter().copied().collect();
+        if budget < nearest.len() {
+            nearest.select_nth_unstable_by_key(budget, |col| {
+                col.distance_squared(ColumnPos::new(center.x, center.z))
             });
-            observer.loading_queue.push_back(pos);
+            nearest.truncate(budget);
         }
-    });
-    players.iter_mut().for_each(|(mut observer, dim)| {
-        if let Ok(mut chunks) = dimensions.get_mut(**dim) {
-            observer
-                .delayed_ticket_ops
-                .drain(..)
-                .for_each(|cmd| match cmd {
-                    TicketCommand::Add { chunk_pos, ticket } => {
-                        chunks.add_ticket(chunk_pos, ticket);
-                    }
-                    TicketCommand::Remove {
-                        chunk_pos,
-                        ticket_kind,
-                    } => {
-                        chunks.remove_ticket(chunk_pos, ticket_kind);
-                    }
-                });
+        nearest
+            .sort_unstable_by_key(|col| col.distance_squared(ColumnPos::new(center.x, center.z)));
+
+        for column_pos in nearest {
+            observer.load_queue.remove(&column_pos);
+            trace::mark(column_pos, ColumnStage::Ticketed);
+            load_requests.write(PlayerChunkLoadRequest { player, column_pos });
         }
     });
 }
@@ -305,13 +222,11 @@ fn update_load_queue(
 #[derive(Component, Debug, Default)]
 pub struct PlayerChunkObserver {
     pub last_last_chunk_tracking_view: Option<ChunkTrackingView>,
-    pub unload_queue: VecDeque<ChunkPos>,
-    pub load_queue: VecDeque<ChunkPos>,
-    pub loading_queue: VecDeque<ChunkPos>,
-    /// Sections still wanted whose entity has not published `ChunkLoaded`. Only the arrival
-    /// or the unload of one takes it out.
-    pub loading_wait: FxHashSet<ChunkPos>,
-    pub delayed_ticket_ops: VecDeque<TicketCommand>,
+    pub unload_queue: VecDeque<ColumnPos>,
+    /// Wanted by the view, not yet raised with the send layer. Unordered: what is raised next
+    /// is the nearest to where the player is now, and a player crossing the view invalidates
+    /// any order settled when a column was first revealed.
+    pub load_queue: FxHashSet<ColumnPos>,
     /// Last `InDimension` entity observed when `update_view` ran. A
     /// dimension transition leaves the cached `last_last_chunk_tracking_view`
     /// referencing the previous dim's coordinate frame, and the next diff
@@ -409,11 +324,6 @@ impl ChunkTrackingView {
         self.center.z + (self.distance as i32 + 1)
     }
 
-    fn size(&self) -> usize {
-        let y_extent = (self.max_y() - self.min_y() + 1).max(0) as usize;
-        (self.distance as usize * 2 + 1) * (self.distance as usize * 2 + 1) * y_extent
-    }
-
     fn intersects(&self, other: &ChunkTrackingView) -> bool {
         self.min_x() <= other.max_x()
             && self.max_x() >= other.min_x()
@@ -466,6 +376,54 @@ impl ChunkTrackingView {
             for x in x_lo..=x_hi {
                 for z in z_lo..=z_hi {
                     f(ChunkPos::new(x, y, z));
+                }
+            }
+        }
+    }
+
+    /// Every column the view holds. The vertical extent is not part of it: a column is sent
+    /// whole, so what the player is owed is decided in XZ alone.
+    fn each_column(&self, mut f: impl FnMut(ColumnPos)) {
+        let d = self.distance as i32;
+        for x in self.center.x.saturating_sub(d)..=self.center.x.saturating_add(d) {
+            for z in self.center.z.saturating_sub(d)..=self.center.z.saturating_add(d) {
+                f(ColumnPos::new(x, z));
+            }
+        }
+    }
+
+    fn column_count(&self) -> usize {
+        let span = self.distance as usize * 2 + 1;
+        span * span
+    }
+
+    /// The columns the move added and dropped. A step that only changes the player's height
+    /// moves no column either way, which is what keeps a vertical step from tearing down and
+    /// re-sending the whole view.
+    pub fn diff_columns(
+        old: &ChunkTrackingView,
+        new: &ChunkTrackingView,
+        mut on_load: impl FnMut(ColumnPos),
+        mut on_unload: impl FnMut(ColumnPos),
+    ) {
+        if old.center.x == new.center.x
+            && old.center.z == new.center.z
+            && old.distance == new.distance
+        {
+            return;
+        }
+        let min_x = old.min_x().min(new.min_x());
+        let max_x = old.max_x().max(new.max_x());
+        let min_z = old.min_z().min(new.min_z());
+        let max_z = old.max_z().max(new.max_z());
+        for x in min_x..=max_x {
+            for z in min_z..=max_z {
+                let was = old.contains_column(x, z);
+                let is = new.contains_column(x, z);
+                match (was, is) {
+                    (false, true) => on_load(ColumnPos::new(x, z)),
+                    (true, false) => on_unload(ColumnPos::new(x, z)),
+                    _ => {}
                 }
             }
         }
@@ -537,72 +495,79 @@ mod contains_column_tests {
 }
 
 #[cfg(test)]
-mod loading_queue_tests {
+mod load_queue_tests {
     use super::*;
+    use crate::world::dimension::DimensionTypeConfig;
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
 
-    fn requests(world: &mut World) -> Vec<ChunkPos> {
+    fn requests(world: &mut World) -> Vec<ColumnPos> {
         world
             .resource_mut::<Messages<PlayerChunkLoadRequest>>()
             .drain()
-            .map(|req| req.chunk_pos)
+            .map(|req| req.column_pos)
             .collect()
     }
 
-    #[test]
-    fn a_section_is_raised_whether_it_landed_before_or_after_the_player_asked() {
-        let mut world = World::new();
+    fn one_player_looking_at_the_origin(world: &mut World, wants: &[ColumnPos]) -> Entity {
         world.init_resource::<Messages<PlayerChunkLoadRequest>>();
-        let dim = world.spawn(ChunkIndex::new()).id();
-
-        let already = ChunkPos::new(1, 0, 0);
-        let later = ChunkPos::new(2, 0, 0);
-        let already_e = world.spawn((already, InDimension(dim), ChunkLoaded)).id();
-        let later_e = world.spawn((later, InDimension(dim))).id();
-        let mut index = world.get_mut::<ChunkIndex>(dim).unwrap();
-        index.insert(already, already_e);
-        index.insert(later, later_e);
-
+        let dim = world.spawn(DimensionTypeConfig::new(0, 16)).id();
         let observer = PlayerChunkObserver {
             last_last_chunk_tracking_view: Some(ChunkTrackingView::default()),
-            loading_queue: VecDeque::from([already, later]),
+            load_queue: wants.iter().copied().collect(),
             ..Default::default()
         };
-        let player = world.spawn((observer, InDimension(dim))).id();
+        world.spawn((observer, InDimension(dim)));
+        dim
+    }
+
+    #[test]
+    fn a_wanted_column_is_raised_without_waiting_for_it_to_land() {
+        let mut world = World::new();
+        let near = ColumnPos::new(0, 0);
+        let middle = ColumnPos::new(0, 2);
+        let far = ColumnPos::new(4, 0);
+        one_player_looking_at_the_origin(&mut world, &[far, near, middle]);
 
         world
-            .run_system_once(update_loading_queue)
+            .run_system_once(update_load_queue)
             .expect("the drain runs");
-        assert_eq!(requests(&mut world), vec![already]);
-        assert!(
-            world
-                .get::<PlayerChunkObserver>(player)
-                .unwrap()
-                .loading_wait
-                .contains(&later)
+
+        assert_eq!(
+            requests(&mut world),
+            vec![near, middle, far],
+            "nothing has landed, and all three are raised nearest first"
         );
+    }
+
+    /// Raising a column costs a whole column's worth of spawns. Counting the budget in
+    /// sections would let the view ask for more than `spawn_chunks` can hand out, and the
+    /// ticket queue would grow every tick without ever draining.
+    #[test]
+    fn the_view_never_raises_more_columns_than_a_tick_can_spawn() {
+        let mut world = World::new();
+        let sections_per_column = 16usize;
+        let wants: Vec<ColumnPos> = (0..MAX_SPAWNS_PER_TICK as i32)
+            .map(|x| ColumnPos::new(x, 0))
+            .collect();
+        one_player_looking_at_the_origin(&mut world, &wants);
+        // The view reaches every one of them, so only the budget can hold it back.
+        let mut observer = world
+            .query::<&mut PlayerChunkObserver>()
+            .single_mut(&mut world)
+            .expect("one player");
+        observer.last_last_chunk_tracking_view =
+            Some(ChunkTrackingView::new(ChunkPos::new(0, 0, 0), u8::MAX, 8));
 
         world
-            .run_system_once(update_loading_queue)
+            .run_system_once(update_load_queue)
             .expect("the drain runs");
-        assert!(
-            requests(&mut world).is_empty(),
-            "nothing landed, so nothing is raised twice"
-        );
 
-        world.entity_mut(later_e).insert(ChunkLoaded);
-        world
-            .run_system_once(update_loading_queue)
-            .expect("the drain runs");
-        assert_eq!(requests(&mut world), vec![later]);
-        assert!(
-            world
-                .get::<PlayerChunkObserver>(player)
-                .unwrap()
-                .loading_wait
-                .is_empty()
+        assert_eq!(
+            requests(&mut world).len(),
+            MAX_SPAWNS_PER_TICK / sections_per_column,
+            "the budget is columns, sized so a tick's spawns can absorb them"
         );
     }
 }

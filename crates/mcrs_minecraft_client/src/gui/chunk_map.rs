@@ -283,16 +283,18 @@ fn render(
             Some(_) => sources[1] += 1,
             None => {}
         }
-        if sample.stage < ColumnStage::Meshed
-            && slowest.is_none_or(|(_, _, worst)| sample.in_stage > worst)
-        {
-            slowest = Some((sample.pos, sample.stage, sample.in_stage));
-        }
         let dx = sample.pos.x - centre.x;
         let dz = sample.pos.z - centre.z;
         if dx.abs() > half || dz.abs() > half {
             off_map += 1;
             continue;
+        }
+        // A column the player flew past keeps its last stage until something forgets it, and
+        // it is always the oldest. Only a column still on the map is a hole worth naming.
+        if sample.stage < ColumnStage::Meshed
+            && slowest.is_none_or(|(_, _, worst)| sample.in_stage > worst)
+        {
+            slowest = Some((sample.pos, sample.stage, sample.in_stage));
         }
         stages.insert(sample.pos, sample.stage);
     }

@@ -273,9 +273,7 @@ pub fn spawn_dim_subapp(
             // to the tick: a column sent before its sections are in it goes out unlit.
             mcrs_voxel_world::world::storage::column::reconcile_columns,
             crate::world::heightmap::prime_column_heightmaps,
-            mcrs_voxel_world::entity::player::chunk_view::update_loading_queue,
-            crate::world::entity::player::column_view::load_chunk_request,
-            crate::world::entity::player::column_view::load_column_queue,
+            crate::world::entity::player::column_view::request_columns,
             mcrs_voxel_world::world::lifecycle::ticket::spawn_chunks,
             crate::world::chunk::enqueue_pending_columns,
             crate::world::chunk::dispatch_column_generation.run_if(
@@ -296,7 +294,7 @@ pub fn spawn_dim_subapp(
                 .run_if(
                     bevy_ecs::prelude::resource_exists::<mcrs_minecraft_light::prelude::Lighting>,
                 ),
-            crate::world::entity::player::column_view::loading_column_queue,
+            crate::world::entity::player::column_view::project_ready_columns,
             crate::world::entity::player::column_view::send_column_queue,
             flush_from_dim_outbox,
         )

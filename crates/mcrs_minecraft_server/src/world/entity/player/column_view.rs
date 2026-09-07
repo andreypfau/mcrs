@@ -37,7 +37,7 @@ use crate::world::heightmap::{
     MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap, client_heightmaps,
 };
 use rustc_hash::FxHashSet;
-use tracing::trace;
+use tracing::{trace, warn};
 
 pub struct ColumnViewPlugin;
 
@@ -61,9 +61,8 @@ impl Plugin for ColumnViewPlugin {
             FixedUpdate,
             (
                 unload_chunk_request,
-                load_chunk_request,
-                load_column_queue,
-                loading_column_queue,
+                request_columns,
+                project_ready_columns,
                 send_column_queue,
             )
                 .chain()
@@ -85,17 +84,21 @@ impl Plugin for ColumnViewPlugin {
     }
 }
 
+/// What a player is owed, split by how far along it is. A column the view wants sits in
+/// exactly one of the three sets, so the sets together are the view's want list and no fourth
+/// copy of it is kept.
+///
+/// Neither pending set is ordered. A batch takes the columns nearest the player's position at
+/// the moment it goes out, so any order stored earlier could only be a stale one — the player
+/// turns, and the front of the queue is behind them.
 #[derive(Component)]
 pub struct ColumnView {
-    desired_columns: FxHashSet<ColumnPos>,
+    /// Wanted, but not every section has landed or its light has not settled.
+    awaiting_columns: FxHashSet<ColumnPos>,
+    /// Ready to go out on the wire, not yet sent.
+    pending_send: FxHashSet<ColumnPos>,
+    /// Columns this view holds forced tickets on.
     loaded_columns: FxHashSet<ColumnPos>,
-    load_queue: VecDeque<ColumnPos>,
-    loading_queue: VecDeque<ColumnPos>,
-    send_queue: VecDeque<(ColumnPos, Vec<Entity>)>,
-    /// The centre `send_queue` is ordered around; the order goes stale only when it moves.
-    sort_center: Option<ChunkPos>,
-    /// Where the last tick's walk of `send_queue` stopped.
-    scan_cursor: usize,
     pub sent_columns: FxHashSet<ColumnPos>,
     batch_quota: f32,
     desired_columns_per_tick: f32,
@@ -106,13 +109,9 @@ pub struct ColumnView {
 impl Default for ColumnView {
     fn default() -> Self {
         Self {
-            desired_columns: FxHashSet::default(),
+            awaiting_columns: FxHashSet::default(),
+            pending_send: FxHashSet::default(),
             loaded_columns: FxHashSet::default(),
-            load_queue: VecDeque::new(),
-            loading_queue: VecDeque::new(),
-            send_queue: VecDeque::new(),
-            sort_center: None,
-            scan_cursor: 0,
             sent_columns: FxHashSet::default(),
             batch_quota: 0.0,
             desired_columns_per_tick: START_COLUMNS_PER_TICK,
@@ -123,6 +122,18 @@ impl Default for ColumnView {
 }
 
 impl ColumnView {
+    /// Whether this view already owes the player the column, at any stage.
+    fn wants(&self, col: ColumnPos) -> bool {
+        self.awaiting_columns.contains(&col)
+            || self.pending_send.contains(&col)
+            || self.sent_columns.contains(&col)
+    }
+
+    fn forget(&mut self, col: ColumnPos) {
+        self.awaiting_columns.remove(&col);
+        self.pending_send.remove(&col);
+    }
+
     /// The client has taken a batch and says how many columns a tick it managed while doing so.
     pub fn acknowledge_batch(&mut self, desired_columns_per_tick: f32) {
         self.unacknowledged_batches = self.unacknowledged_batches.saturating_sub(1);
@@ -148,26 +159,38 @@ fn handle_batch_acknowledgement(on: On<ReceivedPacketEvent>, mut players: Query<
     chunk_view.acknowledge_batch(ack.desired_chunks_per_tick);
 }
 
-pub(crate) fn load_chunk_request(
+/// Takes a column into the view's want list and forces its sections to stay loaded while it is
+/// there. The only writer that puts a column into `awaiting_columns`.
+pub(crate) fn request_columns(
     mut message: MessageReader<PlayerChunkLoadRequest>,
-    mut players: Query<&mut ColumnView>,
+    mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
+    mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
 ) {
     message.read().for_each(|req| {
-        let Ok(mut chunk_view) = players.get_mut(req.player) else {
+        let Ok((mut chunk_view, dim, rep)) = players.get_mut(req.player) else {
             return;
         };
-        let column_pos = ColumnPos::from(req.chunk_pos);
-        if chunk_view.sent_columns.contains(&column_pos) {
+        let column_pos = req.column_pos;
+        if chunk_view.wants(column_pos) {
             return;
         }
-
-        if chunk_view.desired_columns.insert(column_pos) {
-            trace!(
-                "Player {:?} requested load of chunk column {:?}",
-                req.player, column_pos
+        let Ok((mut cmds, type_config)) = dims.get_mut(dim.entity()) else {
+            return;
+        };
+        chunk_view.awaiting_columns.insert(column_pos);
+        if chunk_view.loaded_columns.insert(column_pos) {
+            apply_forced_tickets(
+                &mut cmds,
+                column_pos,
+                offset_sections(rep, type_config.min_y),
+                type_config.section_count,
+                true,
             );
-            chunk_view.load_queue.push_back(column_pos);
         }
+        trace!(
+            "Player {:?} requested load of chunk column {:?}",
+            req.player, column_pos
+        );
     })
 }
 
@@ -176,34 +199,17 @@ pub(crate) fn load_chunk_request(
 /// other radius leaves a column the server will never send again.
 fn unload_chunk_request(
     mut message: MessageReader<PlayerChunkUnloadRequest>,
-    mut players: Query<(
-        &mut ColumnView,
-        &InDimension,
-        &Reposition,
-        &PlayerChunkObserver,
-        &HostAnchor,
-    )>,
+    mut players: Query<(&mut ColumnView, &InDimension, &Reposition, &HostAnchor)>,
     mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     message.read().for_each(|req| {
-        let Ok((mut chunk_view, in_dim, rep, observer, host_anchor)) = players.get_mut(req.player)
-        else {
+        let Ok((mut chunk_view, in_dim, rep, host_anchor)) = players.get_mut(req.player) else {
             return;
         };
-        let column_pos = ColumnPos::from(req.chunk_pos);
-        // The queue evicts one section at a time, but a column is sent and
-        // dropped whole. Crossing a section boundary vertically evicts one
-        // section from every column in view, and tearing those columns down
-        // for it would re-send the entire view.
-        if observer
-            .last_last_chunk_tracking_view
-            .is_some_and(|view| view.contains_column(column_pos.x, column_pos.z))
-        {
-            return;
-        }
+        let column_pos = req.column_pos;
         column_trace::forget(column_pos);
-        chunk_view.desired_columns.remove(&column_pos);
+        chunk_view.forget(column_pos);
         if chunk_view.sent_columns.remove(&column_pos) {
             packet_writer.write(OutboundPlayerPacket {
                 target: PacketTarget::SinglePlayer(host_anchor.0),
@@ -232,69 +238,67 @@ fn unload_chunk_request(
     });
 }
 
-pub(crate) fn load_column_queue(
-    mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
-    mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
-) {
-    players.iter_mut().for_each(|(mut chunk_view, dim, rep)| {
-        let Ok((mut cmds, type_config)) = dims.get_mut(dim.0) else {
-            return;
-        };
-        let section_count = type_config.section_count;
-        while let Some(col) = chunk_view.load_queue.pop_front() {
-            if chunk_view.desired_columns.contains(&col) {
-                if chunk_view.loaded_columns.insert(col) {
-                    apply_forced_tickets(
-                        &mut cmds,
-                        col,
-                        offset_sections(rep, type_config.min_y),
-                        section_count,
-                        true,
-                    );
-                    trace!("Added tickets to col: {:?}", col);
-                }
-                chunk_view.loading_queue.push_back(col);
-            }
-        }
-    })
+/// The column entity and the sections it hands the client, in client order, or `None` while
+/// the engine is still short of either. The single place a column's presence is decided, so
+/// readiness and the send that follows it cannot disagree about what the column is made of.
+///
+/// The column entity is part of that answer, not a detail of the send: light and heightmaps
+/// are read off it, and a column sent before `reconcile_columns` has indexed it would carry
+/// neither. It goes out once and never again, so it would stay black.
+fn resolve_column(
+    chunk_index: &ChunkIndex,
+    column_index: &ColumnIndex,
+    col: ColumnPos,
+    section_count: i32,
+    off: i32,
+) -> Option<(Entity, Vec<Entity>)> {
+    let column = column_index
+        .0
+        .get(&EngineColumnPos::new(col.x, col.z))
+        .map(|slot| slot.entity)?;
+    let sections = (0..section_count)
+        .map(|client_y| chunk_index.get(ChunkPos::new(col.x, client_y - off, col.z)))
+        .collect::<Option<Vec<_>>>()?;
+    Some((column, sections))
 }
 
-pub(crate) fn loading_column_queue(
+/// Moves a column from "wanted" to "ready to send" once every section it carries has landed
+/// and its light has settled. The only writer of that transition.
+///
+/// The light gate belongs here rather than at the send: a column goes out once and never
+/// again, so sending one before its light has settled leaves it permanently black on the
+/// client.
+pub(crate) fn project_ready_columns(
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
-    dims: Query<(&ChunkIndex, &DimensionTypeConfig)>,
+    dims: Query<(&ChunkIndex, &ColumnIndex, &DimensionTypeConfig)>,
     chunks: Query<Entity, With<ChunkLoaded>>,
+    codec_params: LightCodecParams,
+    light_status: mcrs_minecraft_light::prelude::LightStatus,
 ) {
+    let await_light = light_status.is_installed() && !crate::lighting_disabled();
     players.iter_mut().for_each(|(mut chunk_view, dim, rep)| {
-        let Ok((chunk_index, type_config)) = dims.get(dim.entity()) else {
+        let Ok((chunk_index, column_index, type_config)) = dims.get(dim.entity()) else {
             return;
         };
         let section_count = type_config.section_count as i32;
         let off = offset_sections(rep, type_config.min_y);
-        // A column that is still loading must not hold back the ones behind it: a column read
-        // from the save lands in a fraction of a millisecond while a generated one takes
-        // several ticks, and they share this queue.
-        let ColumnView {
-            loading_queue,
-            send_queue,
-            desired_columns,
-            ..
-        } = &mut *chunk_view;
-        loading_queue.retain(|&col| {
-            if !desired_columns.contains(&col) {
-                return false;
+        let view = &mut *chunk_view;
+        view.awaiting_columns.retain(|&col| {
+            let landed = resolve_column(chunk_index, column_index, col, section_count, off)
+                .is_some_and(|(_, sections)| {
+                    sections.iter().all(|&chunk_e| {
+                        chunks.contains(chunk_e)
+                            && (!await_light
+                                || (codec_params.block_lights.contains(chunk_e)
+                                    && codec_params.sky_lights.contains(chunk_e)))
+                    })
+                });
+            if !landed || (await_light && !light_status.settled_around(col)) {
+                return true;
             }
-            let mut chunks_entities = Vec::with_capacity(section_count as usize);
-            for client_y in 0..section_count {
-                let server_y = client_y - off;
-                let pos = ChunkPos::new(col.x, server_y, col.z);
-                match chunk_index.get(pos) {
-                    Some(chunk_e) if chunks.contains(chunk_e) => chunks_entities.push(chunk_e),
-                    _ => return true,
-                }
-            }
-            trace!("Column {:?} loaded", col);
+            trace!("Column {:?} ready", col);
             column_trace::mark(col, ColumnStage::Ready);
-            send_queue.push_back((col, chunks_entities));
+            view.pending_send.insert(col);
             false
         });
     })
@@ -319,11 +323,12 @@ const MAX_BATCH_BYTES: usize = 4 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_
 /// out at a time, so a client that cannot keep up is never sent a second one to prove it.
 const MAX_UNACKNOWLEDGED_BATCHES: u32 = 10;
 
-/// The queue is ordered nearest-first and a column ahead of the batch is one the player wants
-/// sooner, so the walk stops rather than spending the tick proving that thousands of far
-/// columns are still waiting for their light. Whatever it did not reach this tick is where the
-/// next tick starts.
-const SCAN_AHEAD: usize = 256;
+/// Squared XZ distance from a column to the centre of the player's view.
+fn column_distance_sq(pos: ColumnPos, center: ChunkPos) -> i64 {
+    let dx = (pos.x - center.x) as i64;
+    let dz = (pos.z - center.z) as i64;
+    dx * dx + dz * dz
+}
 
 /// Chunk-load wire emit routed through the `OutboundPlayerPacket` bus.
 ///
@@ -339,27 +344,31 @@ pub(crate) fn send_column_queue(
         &HostAnchor,
     )>,
     chunks: Query<(&ChunkBlocks, &BiomePalette), With<ChunkLoaded>>,
+    dim_chunk_indexes: Query<&ChunkIndex>,
     dim_column_indexes: Query<&ColumnIndex>,
     dim_type_configs: Query<&DimensionTypeConfig>,
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
-    light_status: mcrs_minecraft_light::prelude::LightStatus,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     use std::sync::atomic::Ordering;
-    // A column is sent once and never again, so it has to wait for its light the
-    // way vanilla waits for a chunk to reach `light`: sending first would put a
-    // permanently black column on the client.
-    let await_light = light_status.is_installed() && !crate::lighting_disabled();
     players
         .iter_mut()
         .for_each(|(mut chunk_view, observer, rep, in_dim, host_anchor)| {
             let host = host_anchor.0;
-            let column_index = dim_column_indexes.get(in_dim.entity()).ok();
-            let wire_light_rows = dim_type_configs
-                .get(in_dim.entity())
-                .map(|config| config.section_count as usize + 2)
-                .unwrap_or(0);
+            let Ok(chunk_index) = dim_chunk_indexes.get(in_dim.entity()) else {
+                return;
+            };
+            let Ok(column_index) = dim_column_indexes.get(in_dim.entity()) else {
+                return;
+            };
+            let Ok(type_config) = dim_type_configs.get(in_dim.entity()) else {
+                return;
+            };
+            let wire_light_rows = type_config.section_count as usize + 2;
+            let section_count = type_config.section_count as i32;
+            let off = offset_sections(rep, type_config.min_y);
+
             if chunk_view.unacknowledged_batches >= chunk_view.max_unacknowledged_batches {
                 return;
             }
@@ -369,78 +378,61 @@ pub(crate) fn send_column_queue(
                 return;
             }
             let allowed = chunk_view.batch_quota as usize;
-            let mut sends = 0usize;
-            let mut batch_bytes = 0usize;
-            let mut batch = Vec::with_capacity(allowed);
+            if allowed == 0 || chunk_view.pending_send.is_empty() {
+                return;
+            }
 
-            // A column the view has since dropped would spend a batch on terrain the player
-            // has already flown past, and one further out would spend it ahead of the ground
-            // under their feet, so the queue is cut down to what is still wanted and taken
-            // nearest first.
+            // Nearest to where the player is now, not to where they were when the column came
+            // ready: one step of the player invalidates any order settled earlier. The ready
+            // set is bounded by the view, so taking the batch out of it costs one pass and a
+            // partial selection rather than a kept ordering that goes stale on its own.
             let center = observer
                 .last_last_chunk_tracking_view
                 .map(|view| view.center)
                 .unwrap_or(ChunkPos::new(0, 0, 0));
-            if chunk_view.sort_center != Some(center) {
-                let view = &mut *chunk_view;
-                let desired = &view.desired_columns;
-                view.send_queue.retain(|(pos, _)| desired.contains(pos));
-                view.send_queue.make_contiguous().sort_by_key(|(pos, _)| {
-                    let dx = (pos.x - center.x) as i64;
-                    let dz = (pos.z - center.z) as i64;
-                    dx * dx + dz * dz
-                });
-                view.sort_center = Some(center);
-                view.scan_cursor = 0;
+            let mut nearest: Vec<ColumnPos> = chunk_view.pending_send.iter().copied().collect();
+            if allowed < nearest.len() {
+                nearest.select_nth_unstable_by_key(allowed, |pos| column_distance_sq(*pos, center));
+                nearest.truncate(allowed);
             }
+            nearest.sort_unstable_by_key(|pos| column_distance_sq(*pos, center));
 
-            let mut index = match chunk_view.scan_cursor < chunk_view.send_queue.len() {
-                true => chunk_view.scan_cursor,
-                false => 0,
-            };
-            let mut scanned = 0usize;
-            loop {
-                if sends >= allowed || batch_bytes >= MAX_BATCH_BYTES {
+            let mut sends = 0usize;
+            let mut batch_bytes = 0usize;
+            let mut batch = Vec::with_capacity(nearest.len());
+
+            for column_pos in nearest {
+                if batch_bytes >= MAX_BATCH_BYTES {
                     break;
                 }
-                if scanned >= allowed + SCAN_AHEAD {
-                    break;
-                }
-                scanned += 1;
-                let Some((column_pos, chunks_e)) = chunk_view.send_queue.get(index) else {
-                    break;
+
+                // The forced tickets this view holds keep every section of a pending column
+                // loaded, so losing one here means the ticket and the send disagree about
+                // what the view owns. Send nothing rather than a column the client can never
+                // be sent again to fix.
+                let held =
+                    resolve_column(chunk_index, column_index, column_pos, section_count, off).map(
+                        |(column_entity, sections)| {
+                            sections
+                                .into_iter()
+                                .map(|chunk_e| chunks.get(chunk_e))
+                                .collect::<Result<Vec<_>, _>>()
+                                .map(|sections| (column_entity, sections))
+                        },
+                    );
+                let Some(Ok((column_entity, sections))) = held else {
+                    warn!(
+                        col_x = column_pos.x,
+                        col_z = column_pos.z,
+                        "a pending column lost a section it holds a ticket on"
+                    );
+                    chunk_view.pending_send.remove(&column_pos);
+                    chunk_view.awaiting_columns.insert(column_pos);
+                    continue;
                 };
-                let column_pos = *column_pos;
-                if !chunk_view.desired_columns.contains(&column_pos) {
-                    chunk_view.send_queue.remove(index);
-                    continue;
-                }
-                let ready = chunks_e.iter().all(|&chunk_e| {
-                    chunks.contains(chunk_e)
-                        && (!await_light
-                            || (codec_params.block_lights.contains(chunk_e)
-                                && codec_params.sky_lights.contains(chunk_e)))
-                }) && (!await_light || light_status.settled_around(column_pos));
-                if !ready {
-                    // Its chunks have not landed yet; the ones behind it may have, and the
-                    // batch is worth more spent on them than on waiting.
-                    index += 1;
-                    continue;
-                }
 
                 let mut data = Vec::with_capacity(16 * 1024);
-                for &chunk_e in chunks_e {
-                    let (blocks, biomes) = chunks
-                        .get(chunk_e)
-                        .expect("section passed the readiness walk in this same run");
-                    // Section layout per vanilla LevelChunkSection.write:
-                    //   short non_empty_block_count
-                    //   short fluid_count
-                    //   PalettedContainer<BlockState>
-                    //   PalettedContainer<Biome>
-                    //
-                    // The client reads both shorts unconditionally; omitting the
-                    // fluid count desynchronises the reader by two bytes per
+                for (blocks, biomes) in sections {
                     // section and turns the rest of the column into garbage.
                     blocks
                         .non_air_block_count()
@@ -457,23 +449,14 @@ pub(crate) fn send_column_queue(
                         .encode(&mut data)
                         .expect("Failed to encode chunk block data");
                 }
-
-                let column_entity = column_index.and_then(|idx| {
-                    idx.0
-                        .get(&EngineColumnPos::new(column_pos.x, column_pos.z))
-                        .map(|slot| slot.entity)
-                });
-
                 let light_data = if crate::lighting_disabled() {
                     build_fullbright_light_data(wire_light_rows)
                 } else {
-                    column_entity
-                        .map(|column_entity| build_full_light_data(column_entity, &codec_params))
-                        .unwrap_or_default()
+                    build_full_light_data(column_entity, &codec_params)
                 };
 
-                let heightmaps = column_entity
-                    .and_then(|entity| column_heightmaps.get(entity).ok())
+                let heightmaps = column_heightmaps
+                    .get(column_entity)
                     .map(|(surface, motion, no_leaves)| {
                         client_heightmaps(surface, motion, no_leaves)
                     })
@@ -485,7 +468,7 @@ pub(crate) fn send_column_queue(
                 );
 
                 column_trace::mark(column_pos, ColumnStage::Sent);
-                chunk_view.send_queue.remove(index);
+                chunk_view.pending_send.remove(&column_pos);
                 chunk_view.sent_columns.insert(column_pos);
 
                 trace!(
@@ -509,12 +492,6 @@ pub(crate) fn send_column_queue(
 
                 sends += 1;
             }
-            // A walk that ran off the end starts near again; one cut short by its budget
-            // carries on from where it stopped, so a stuck head cannot starve the queue.
-            chunk_view.scan_cursor = match index < chunk_view.send_queue.len() {
-                true => index,
-                false => 0,
-            };
             if batch.is_empty() {
                 return;
             }
@@ -754,56 +731,71 @@ mod tests {
     };
     use mcrs_voxel_world::world::dimension::HasSkyLight;
     use mcrs_voxel_world::world::storage::column::{ColumnChunks, ColumnSlot};
+    use rustc_hash::FxHashMap;
 
     const SECTIONS: u32 = 2;
 
-    fn queued_column(world: &mut World) -> Vec<Entity> {
-        let sections: Vec<Entity> = (0..SECTIONS)
-            .map(|_| {
-                world
-                    .spawn((ChunkBlocks::default(), BiomePalette::default(), ChunkLoaded))
-                    .id()
-            })
-            .collect();
+    struct Fixture {
+        dim: Entity,
+        player: Entity,
+        sections: FxHashMap<ColumnPos, Vec<Entity>>,
+    }
 
+    /// A dimension holding `columns`, each with every section loaded, and one player looking at
+    /// the origin. Sections carry no light yet.
+    fn fixture(world: &mut World, columns: &[ColumnPos]) -> Fixture {
         let dim = world.spawn_empty().id();
-        let column = world
-            .spawn((
-                ColumnChunks {
-                    min_section_y: 0,
-                    sections: sections.iter().copied().map(Some).collect(),
+        let mut chunk_index = ChunkIndex::new();
+        let mut column_index = ColumnIndex::default();
+        let mut sections = FxHashMap::default();
+
+        for &col in columns {
+            let entities: Vec<Entity> = (0..SECTIONS as i32)
+                .map(|y| {
+                    let section = world
+                        .spawn((ChunkBlocks::default(), BiomePalette::default(), ChunkLoaded))
+                        .id();
+                    chunk_index.insert(ChunkPos::new(col.x, y, col.z), section);
+                    section
+                })
+                .collect();
+            let column = world
+                .spawn((
+                    ColumnChunks {
+                        min_section_y: 0,
+                        sections: entities.iter().copied().map(Some).collect(),
+                    },
+                    InDimension(dim),
+                ))
+                .id();
+            column_index.0.insert(
+                EngineColumnPos::new(col.x, col.z),
+                ColumnSlot {
+                    entity: column,
+                    section_count: SECTIONS,
                 },
-                InDimension(dim),
-            ))
-            .id();
+            );
+            sections.insert(col, entities);
+        }
+
         world.entity_mut(dim).insert((
             DimensionTypeConfig::new(0, SECTIONS << 4),
             HasSkyLight,
-            ColumnIndex(
-                [(
-                    EngineColumnPos::new(0, 0),
-                    ColumnSlot {
-                        entity: column,
-                        section_count: SECTIONS,
-                    },
-                )]
-                .into_iter()
-                .collect(),
-            ),
+            ChunkTicketsCommands::default(),
+            chunk_index,
+            column_index,
         ));
 
-        let pos = ColumnPos::new(0, 0);
-        let mut view = ColumnView::default();
-        view.desired_columns.insert(pos);
-        view.send_queue.push_back((pos, sections.clone()));
         let host = world.spawn_empty().id();
-        world.spawn((
-            view,
-            PlayerChunkObserver::default(),
-            Reposition::default(),
-            InDimension(dim),
-            HostAnchor(host),
-        ));
+        let player = world
+            .spawn((
+                ColumnView::default(),
+                PlayerChunkObserver::default(),
+                Reposition::default(),
+                InDimension(dim),
+                HostAnchor(host),
+            ))
+            .id();
 
         let registry = std::sync::Arc::new(LightRegistry::new(
             vec![LightProperties::AIR, LightProperties::SOLID],
@@ -817,81 +809,132 @@ mod tests {
             LightBounds::new(0, SECTIONS as i32 - 1),
         )));
         world.init_resource::<Messages<OutboundPlayerPacket>>();
-        sections
+
+        Fixture {
+            dim,
+            player,
+            sections,
+        }
     }
 
-    fn drain_column_loads(world: &mut World) -> usize {
+    fn light(world: &mut World, sections: &[Entity]) {
+        for &section in sections {
+            world
+                .entity_mut(section)
+                .insert((BlockLight::default(), SkyLight::default()));
+        }
+    }
+
+    fn sent_columns(world: &mut World) -> Vec<ColumnPos> {
         world
             .resource_mut::<Messages<OutboundPlayerPacket>>()
             .drain()
-            .filter(|packet| matches!(packet.data, PacketPayload::ChunkLoad { .. }))
-            .count()
+            .filter_map(|packet| match packet.data {
+                PacketPayload::ChunkLoad { column, .. } => Some(column),
+                _ => None,
+            })
+            .collect()
     }
 
-    /// The queue is only re-filtered when the sort centre moves, so a column the view drops
-    /// in between has to be dropped where it is taken.
+    /// The whole point of holding the ready columns unordered: the batch is chosen against
+    /// where the player is when it goes out, so the nearest column always leads it however the
+    /// columns happened to arrive.
     #[test]
-    fn a_column_the_view_dropped_is_not_sent_between_two_sorts() {
+    fn a_batch_goes_out_nearest_first() {
         let mut world = World::new();
-        let sections = queued_column(&mut world);
-        for section in sections {
-            world
-                .entity_mut(section)
-                .insert((BlockLight::default(), SkyLight::default()));
+        let far = ColumnPos::new(5, 0);
+        let near = ColumnPos::new(1, 0);
+        let middle = ColumnPos::new(0, 3);
+        let fx = fixture(&mut world, &[far, near, middle]);
+        for sections in fx.sections.values() {
+            let sections = sections.clone();
+            light(&mut world, &sections);
         }
 
-        let player = world
-            .query_filtered::<Entity, With<ColumnView>>()
-            .single(&world)
-            .expect("one player");
-        let mut view = world.get_mut::<ColumnView>(player).unwrap();
-        view.sort_center = Some(ChunkPos::new(0, 0, 0));
-        view.desired_columns.clear();
+        let mut view = world.get_mut::<ColumnView>(fx.player).unwrap();
+        view.desired_columns_per_tick = 3.0;
+        for col in [far, near, middle] {
+            view.pending_send.insert(col);
+        }
 
         world
             .run_system_once(send_column_queue)
             .expect("the send runs");
-        assert_eq!(drain_column_loads(&mut world), 0);
-        assert!(
-            world
-                .get::<ColumnView>(player)
-                .unwrap()
-                .send_queue
-                .is_empty()
-        );
+
+        assert_eq!(sent_columns(&mut world), vec![near, middle, far]);
     }
 
-    /// A column is sent once and never again, so sending one whose sections the
-    /// engine has not published yet puts a permanently black column on the client.
+    /// A column is sent once and never again, so one that goes out before its light has settled
+    /// is permanently black on the client. Readiness, not the send, is where that is decided.
     #[test]
     fn a_column_waits_for_the_light_of_every_section_it_carries() {
         let mut world = World::new();
-        let sections = queued_column(&mut world);
+        let col = ColumnPos::new(0, 0);
+        let fx = fixture(&mut world, &[col]);
+        let sections = fx.sections[&col].clone();
+
+        world
+            .get_mut::<ColumnView>(fx.player)
+            .unwrap()
+            .awaiting_columns
+            .insert(col);
+
+        for (i, &section) in sections.iter().enumerate() {
+            world
+                .run_system_once(project_ready_columns)
+                .expect("the projection runs");
+            assert!(
+                world
+                    .get::<ColumnView>(fx.player)
+                    .unwrap()
+                    .pending_send
+                    .is_empty(),
+                "{} of {} sections lit",
+                i,
+                sections.len()
+            );
+            light(&mut world, &[section]);
+        }
+
+        world
+            .run_system_once(project_ready_columns)
+            .expect("the projection runs");
+        assert!(
+            world
+                .get::<ColumnView>(fx.player)
+                .unwrap()
+                .pending_send
+                .contains(&col)
+        );
+    }
+
+    /// The forced tickets make this unreachable, so the guard is what stops a broken
+    /// invariant from putting half a column on the wire.
+    #[test]
+    fn a_column_missing_a_section_goes_back_to_waiting_instead_of_out() {
+        let mut world = World::new();
+        let col = ColumnPos::new(0, 0);
+        let fx = fixture(&mut world, &[col]);
+        let sections = fx.sections[&col].clone();
+        light(&mut world, &sections);
+
+        world
+            .get_mut::<ColumnView>(fx.player)
+            .unwrap()
+            .pending_send
+            .insert(col);
+        world
+            .get_mut::<ChunkIndex>(fx.dim)
+            .unwrap()
+            .remove(ChunkPos::new(col.x, 1, col.z));
 
         world
             .run_system_once(send_column_queue)
             .expect("the send runs");
-        assert_eq!(
-            drain_column_loads(&mut world),
-            0,
-            "no section has published light yet"
-        );
 
-        for (i, &section) in sections.iter().enumerate() {
-            world
-                .entity_mut(section)
-                .insert((BlockLight::default(), SkyLight::default()));
-            world
-                .run_system_once(send_column_queue)
-                .expect("the send runs");
-            let expected = usize::from(i + 1 == sections.len());
-            assert_eq!(
-                drain_column_loads(&mut world),
-                expected,
-                "{} of {} sections lit",
-                i + 1,
-                sections.len()
-            );
-        }
+        assert!(sent_columns(&mut world).is_empty());
+        let view = world.get::<ColumnView>(fx.player).unwrap();
+        assert!(view.pending_send.is_empty());
+        assert!(view.awaiting_columns.contains(&col));
     }
 }

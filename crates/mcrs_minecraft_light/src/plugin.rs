@@ -52,6 +52,10 @@ impl PendingEdits {
         self.columns.is_empty()
     }
 
+    pub fn reprioritize(&mut self, score: impl FnMut(ColumnPos) -> Priority) {
+        self.columns.reprioritize(score);
+    }
+
     /// Whether this column has edits that have not reached the world yet.
     pub fn holds(&self, column: ColumnPos) -> bool {
         self.columns.contains(column)

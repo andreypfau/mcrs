@@ -5,6 +5,7 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_light::block::LightRegistry;
+use mcrs_minecraft_light::prelude::LightWorkQueue;
 use mcrs_minecraft_light::prelude::{
     BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SkyLight,
 };
@@ -45,6 +46,9 @@ impl Plugin for DimLightPlugin {
             Last,
             (
                 feed_light_edits.before(LightSet::Intake),
+                reprioritize_light_work
+                    .after(feed_light_edits)
+                    .before(LightSet::Intake),
                 // After the block edits it bounds, and after the maps have taken
                 // this tick's edits: a bound must never describe blocks the
                 // light world has not been handed.
@@ -56,6 +60,40 @@ impl Plugin for DimLightPlugin {
             ),
         );
     }
+}
+
+/// Re-scores the waiting light work against where the players stand now.
+///
+/// A column is not sent until the light around it has settled, so work scored when it was
+/// raised carries the distance from wherever the player was then. One flight across the world
+/// and the queue is sorted by a position nobody occupies, which leaves the column under the
+/// player waiting behind thousands raised earlier and further away.
+fn reprioritize_light_work(
+    mut pending: ResMut<PendingEdits>,
+    mut queue: ResMut<LightWorkQueue>,
+    players: Query<&Transform, With<Player>>,
+    mut scored_for: Local<Vec<ColumnPos>>,
+) {
+    if pending.is_empty() && queue.0.is_empty() {
+        return;
+    }
+    let player_columns: Vec<ColumnPos> = players
+        .iter()
+        .map(|at| ColumnPos::from(at.translation))
+        .collect();
+    // Nothing to score against, and a score is only stale once a player has moved to another
+    // column: the walk is worth its cost then and wasted otherwise.
+    if player_columns.is_empty() || *scored_for == player_columns {
+        return;
+    }
+    scored_for.clone_from(&player_columns);
+
+    let score = |column: ColumnPos| {
+        crate::world::chunk::min_column_distance(&column, &player_columns)
+            .clamp(0, Priority::MAX as i32) as Priority
+    };
+    pending.reprioritize(score);
+    queue.0.reprioritize(score);
 }
 
 fn feed_light_edits(

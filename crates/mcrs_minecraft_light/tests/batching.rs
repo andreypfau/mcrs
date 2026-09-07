@@ -80,6 +80,29 @@ fn a_column_can_be_pulled_forward_after_it_was_queued() {
     );
 }
 
+/// A score is the distance to a player, so a flight across the world restates every score at
+/// once. Moving them one at a time would leave the queue sorted by a position nobody occupies.
+#[test]
+fn every_waiting_column_is_rescored_when_the_player_moves() {
+    let mut queue = LightQueue::default();
+    queue.push_with_priority(column(9, 9), influence_at(144, 8, 144), 100);
+    queue.push_with_priority(column(1, 1), influence_at(16, 8, 16), 10);
+
+    // The player is now next to the column that was queued as the far one.
+    queue.reprioritize(|col| ((col.x - 9).pow(2) + (col.z - 9).pow(2)) as u16);
+
+    assert_eq!(
+        drain_one(&mut queue, 1, &[])[0].core.min,
+        BlockPos::new(144, 8, 144),
+        "the column under the player goes first, however it was scored when it was raised"
+    );
+    assert_eq!(
+        drain_one(&mut queue, 1, &[])[0].core.min,
+        BlockPos::new(16, 8, 16),
+        "and the one they flew away from follows"
+    );
+}
+
 #[test]
 fn a_column_bigger_than_the_budget_still_makes_progress() {
     let mut queue = LightQueue::default();
