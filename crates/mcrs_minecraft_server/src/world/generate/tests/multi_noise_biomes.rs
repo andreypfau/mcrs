@@ -9,6 +9,7 @@ use super::build_settings_router;
 use crate::world::generate::modern_carvers::climate_target_at;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::multi_noise_palettes;
+use bevy_math::IVec3;
 
 /// The preset's biomes numbered in the order the preset names them, which is
 /// all a palette needs of a registry: distinct ids that round-trip.
@@ -28,7 +29,7 @@ fn overworld_table() -> (MultiNoiseBiomeTable, HashMap<String, u8>) {
         biomes: None,
     };
     let table = MultiNoiseBiomeTable::resolve(&source, |biome| {
-        *ids.get(biome).expect("the preset names its own biome")
+        Some(*ids.get(biome).expect("the preset names its own biome"))
     })
     .expect("the overworld preset resolves");
     (table, ids)
@@ -56,7 +57,7 @@ fn the_batched_column_agrees_with_sampling_each_cell() {
     let sections = y_sections();
     let (chunk_x, chunk_z) = (26, 90);
 
-    let palettes = multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
+    let (palettes, _) = multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
     assert_eq!(palettes.len(), sections.len());
 
     let mut ws = Workspace::new();
@@ -91,7 +92,7 @@ fn a_column_carries_its_cave_biome_under_its_surface_biome() {
     let (table, ids) = overworld_table();
     let sections = y_sections();
 
-    let palettes = multi_noise_palettes(&router, &table, 0, 0, &sections);
+    let (palettes, _) = multi_noise_palettes(&router, &table, 0, 0, &sections);
     let column: Vec<u8> = palettes.iter().map(|p| p.get_cell(0, 0, 0)).collect();
     let distinct: std::collections::BTreeSet<u8> = column.iter().copied().collect();
 
@@ -130,8 +131,8 @@ fn an_explicit_entry_list_resolves_by_location() {
         ]),
     };
     let table = MultiNoiseBiomeTable::resolve(&source, |biome| match biome {
-        "minecraft:plains" => 7,
-        "minecraft:desert" => 9,
+        "minecraft:plains" => Some(7),
+        "minecraft:desert" => Some(9),
         other => panic!("unexpected biome {other}"),
     })
     .expect("an explicit list resolves");
@@ -161,13 +162,36 @@ fn entry(
     }
 }
 
+/// The palette stores a biome in a byte. A registry that grew past 256 entries
+/// would narrow an id into a different biome's, which nothing downstream can
+/// see, so the table refuses to be built at all.
+#[test]
+fn a_biome_whose_id_does_not_fit_a_byte_refuses_the_table() {
+    let ids = preset_ids();
+    let source = MultiNoiseBiomeSource {
+        preset: Some(mcrs_minecraft_core::ResourceLocation::parse("minecraft:overworld").unwrap()),
+        biomes: None,
+    };
+    let oversized = "minecraft:eroded_badlands";
+    assert!(ids.contains_key(oversized), "the preset names it");
+
+    let table = MultiNoiseBiomeTable::resolve(&source, |biome| {
+        if biome == oversized {
+            u8::try_from(260u32).ok()
+        } else {
+            Some(*ids.get(biome).expect("the preset names its own biome"))
+        }
+    });
+    assert!(table.is_none());
+}
+
 #[test]
 fn an_unknown_preset_is_not_resolved() {
     let source = MultiNoiseBiomeSource {
         preset: Some(mcrs_minecraft_core::ResourceLocation::parse("minecraft:the_end").unwrap()),
         biomes: None,
     };
-    assert!(MultiNoiseBiomeTable::resolve(&source, |_| 0).is_none());
+    assert!(MultiNoiseBiomeTable::resolve(&source, |_| Some(0)).is_none());
 }
 
 #[test]
@@ -190,4 +214,57 @@ fn measure_multi_noise_palettes() {
     }
     let each = started.elapsed().as_secs_f64() * 1000.0 / columns as f64;
     println!("MEASURE multi-noise biomes {each:.3} ms/column");
+}
+
+/// The zoom reads eight quart corners around a block and they reach outside the
+/// column on all three axes, so the grid carries a ring of cells the palette
+/// does not store — and the palette must still come from the cells it used to.
+#[test]
+fn the_grid_rings_the_column_by_one_quart_cell() {
+    let router = build_settings_router("overworld", 2);
+    let (table, _) = overworld_table();
+    let sections = y_sections();
+    let (chunk_x, chunk_z) = (26, 90);
+    let first = sections[0];
+
+    let (palettes, grid) = multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
+    let grid = grid.expect("the multi-noise path builds a grid");
+    assert_eq!(
+        grid.volume.size(),
+        IVec3::new(6, sections.len() as i32 * 4 + 2, 6)
+    );
+    assert_eq!(
+        grid.volume.min_block(),
+        IVec3::new(chunk_x * 16 - 4, first * 16 - 4, chunk_z * 16 - 4)
+    );
+
+    for (index, &section_y) in sections.iter().enumerate() {
+        for cx in 0..4 {
+            for cy in 0..4 {
+                for cz in 0..4 {
+                    assert_eq!(
+                        grid.get(cx + 1, (section_y - first) * 4 + cy + 1, cz + 1),
+                        palettes[index].get_cell(cx as usize, cy as usize, cz as usize),
+                        "cell {cx},{cy},{cz} of section {section_y}"
+                    );
+                }
+            }
+        }
+    }
+
+    let mut ws = Workspace::new();
+    for (gx, gy, gz) in [(0, 0, 0), (5, grid.volume.size().y - 1, 5), (2, 7, 5)] {
+        let target = climate_target_at(
+            &router,
+            &mut ws,
+            grid.volume.block_x(gx) >> 2,
+            grid.volume.block_y(gy) >> 2,
+            grid.volume.block_z(gz) >> 2,
+        );
+        assert_eq!(
+            grid.get(gx, gy, gz),
+            table.biome_at(target),
+            "grid cell {gx},{gy},{gz}"
+        );
+    }
 }

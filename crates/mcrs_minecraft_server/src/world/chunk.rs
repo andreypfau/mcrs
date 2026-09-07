@@ -7,8 +7,8 @@ use crate::world::generate::modern_carvers::{
 };
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::{
-    BetaCaveBlockIds, BetaOreBlockIds, ColumnBlocks, apply_beta_caves, apply_beta_ores,
-    apply_beta_surface, fill_column_dense_any,
+    BetaCaveBlockIds, BetaOreBlockIds, ColumnBlocks, SurfaceIds, apply_beta_caves, apply_beta_ores,
+    apply_beta_surface, apply_material_surface, fill_column_dense_any, spans_dimension,
 };
 use crate::world::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, PendingColumnHeightmaps, build_column_heightmaps,
@@ -32,9 +32,10 @@ use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_world::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
 use mcrs_minecraft_worldgen::bevy::{
-    BuildNoiseRouter, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,
+    BuildNoiseRouter, MaterialResolvers, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,
     OverworldNoiseRouter, WorldGenConfig,
 };
+use mcrs_minecraft_worldgen::material::MaterialScratch;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
@@ -89,17 +90,46 @@ fn resolve_state(
     blocks: &BlockDefinitions,
     state: &ProtoBlockState,
 ) -> mcrs_minecraft_protocol::BlockStateId {
-    let name = state.name.as_str();
-    let block = blocks
-        .block(name)
-        .unwrap_or_else(|| panic!("the noise settings name `{name}`, which no block declares"));
+    try_resolve_state(blocks, state).unwrap_or_else(|| {
+        panic!(
+            "the noise settings name the block state `{}`, which the corpus does not resolve",
+            state.name.as_str()
+        )
+    })
+}
+
+pub(crate) fn try_resolve_state(
+    blocks: &BlockDefinitions,
+    state: &ProtoBlockState,
+) -> Option<mcrs_minecraft_protocol::BlockStateId> {
+    let block = blocks.block(state.name.as_str())?;
     let mut id = block.default_state_id;
     for (property, value) in state.properties.iter().flatten() {
-        id = block
-            .with_text(id, property, value)
-            .unwrap_or_else(|| panic!("`{name}` declares no `{property}` that reads `{value}`"));
+        id = block.with_text(id, property, value)?;
     }
-    id
+    Some(id)
+}
+
+/// The material rules resolve their block states and their biome ids against
+/// the same two registries the rest of generation uses. Biome ids in particular
+/// must come from this snapshot, because it is what `MultiNoiseBiomeTable` fills
+/// the column's biome grid with.
+fn provide_material_resolvers(
+    mut commands: Commands,
+    blocks: Res<Blocks>,
+    biomes: Res<RegistrySnapshot<Biome>>,
+) {
+    let block_definitions = blocks.0.clone();
+    let biome_ids: HashMap<Box<str>, u32> = biomes
+        .iter()
+        .map(|(network_id, entry)| (Box::from(entry.location.as_str()), network_id))
+        .collect();
+    commands.insert_resource(MaterialResolvers {
+        block: Arc::new(move |state| try_resolve_state(&block_definitions, state).map(Into::into)),
+        biome: Arc::new(move |id: &mcrs_minecraft_core::ResourceLocation| {
+            biome_ids.get(id.as_str()).copied()
+        }),
+    });
 }
 
 /// Ordering anchor for the worldgen ingest path. The lighting plugin chains
@@ -120,6 +150,7 @@ impl Plugin for ChunkPlugin {
         if !app.world().contains_resource::<WorldGenConfig>() {
             app.insert_resource(WorldGenConfig::from_env());
         }
+        app.add_systems(bevy_app::Startup, provide_material_resolvers);
         app.add_systems(
             bevy_app::Update,
             resolve_worldgen_default_states.before(BuildNoiseRouter),
@@ -149,7 +180,7 @@ impl Plugin for ChunkPlugin {
     }
 }
 
-static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
+pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
 
 /// Token for cooperative cancellation of chunk generation tasks.
 ///
@@ -401,6 +432,25 @@ static SLOW_COLUMN: LazyLock<Duration> = LazyLock::new(|| {
 /// When the last slow column was reported, and how many have gone unreported
 /// since.
 static SLOW_COLUMN_SAMPLE: Mutex<(Option<Instant>, u64)> = Mutex::new((None, 0));
+
+/// The sections a dispatch owes, taken out of the whole column it generated.
+/// `bottom` is the section the column buffer starts at.
+fn carried_sections(
+    sections_data: Vec<(Entity, ChunkPos)>,
+    mut column: Vec<Option<SectionData>>,
+    bottom: i32,
+) -> Vec<(Entity, ChunkPos, Option<SectionData>)> {
+    sections_data
+        .into_iter()
+        .map(|(entity, pos)| {
+            let section = usize::try_from(pos.y - bottom)
+                .ok()
+                .and_then(|slot| column.get_mut(slot))
+                .and_then(Option::take);
+            (entity, pos, section)
+        })
+        .collect()
+}
 
 /// Squared XZ (column) distance from a chunk to the nearest player.
 pub(crate) fn min_column_distance(pos: &ColumnPos, players: &[ColumnPos]) -> i32 {
@@ -878,14 +928,20 @@ pub(crate) fn dispatch_column_generation(
             .is_some_and(|(for_registry, _)| Arc::ptr_eq(for_registry, registry));
         if !cached {
             let table = MultiNoiseBiomeTable::resolve(multi, |location| {
-                match registry.by_location(location) {
-                    Some(id) => id as u8,
+                // The palette stores a biome in a byte, so an id past 255 would
+                // silently alias another biome rather than fail anywhere.
+                match registry.by_location(location).map(u8::try_from) {
+                    Some(Ok(id)) => Some(id),
+                    Some(Err(_)) => {
+                        tracing::error!(
+                            biome = location,
+                            "biome id is past the 256 the palette can store"
+                        );
+                        None
+                    }
                     None => {
-                        // Falling back to id 0 renders a plausible-but-wrong biome, so a
-                        // registry that cannot resolve its own source's biome is loud.
                         tracing::error!(biome = location, "biome missing from the registry");
-                        debug_assert!(false, "unresolved multi-noise biome location");
-                        0
+                        None
                     }
                 }
             })
@@ -942,7 +998,24 @@ pub(crate) fn dispatch_column_generation(
             .map(|(entity, y)| (*entity, ChunkPos::new(col.x, *y, col.z)))
             .collect();
 
-        let y_sections: Vec<i32> = pending_column.sections.iter().map(|(_, y)| *y).collect();
+        // A dispatch owes only the sections it carries, and generates the column
+        // whole anyway: the material rules descend a strip from its highest
+        // block to the bedrock floor, so a slice would be surfaced as if its cut
+        // were the sky and would never reach the floor at all.
+        let dimension_bottom = overworld_noise_router.0.noise_min_y() >> 4;
+        let dimension_top =
+            dimension_bottom + (overworld_noise_router.0.noise_height() as i32 >> 4);
+        let bottom = pending_column
+            .sections
+            .first()
+            .map_or(dimension_bottom, |(_, y)| *y)
+            .min(dimension_bottom);
+        let top = pending_column
+            .sections
+            .last()
+            .map_or(dimension_top, |(_, y)| *y + 1)
+            .max(dimension_top);
+        let y_sections: Vec<i32> = (bottom..top).collect();
 
         // Spawn the generation task
         let task = task_pool.spawn(async move {
@@ -976,11 +1049,7 @@ pub(crate) fn dispatch_column_generation(
                     .as_ref()
                     .and_then(|p| build_column_heightmaps(&sections, &y_sections, p));
                 return ColumnResult {
-                    sections: sections_data
-                        .into_iter()
-                        .zip(sections)
-                        .map(|((entity, pos), result)| (entity, pos, result))
-                        .collect(),
+                    sections: carried_sections(sections_data, sections, bottom),
                     heightmaps,
                     source: ColumnSource::Saved,
                     work: started.elapsed(),
@@ -995,7 +1064,7 @@ pub(crate) fn dispatch_column_generation(
                 static COLUMN: RefCell<ColumnBlocks> = RefCell::new(ColumnBlocks::new(&[]));
             }
             COLUMN.with_borrow_mut(|column| {
-                let biome_palette = {
+                let mut filled = {
                     let _gen = info_span!("world::column_gen").entered();
                     let filled = fill_column_dense_any(
                         column,
@@ -1063,6 +1132,35 @@ pub(crate) fn dispatch_column_generation(
                     apply_beta_ores(column, col.x, col.z, world_seed, &ore_ids);
                 }
 
+                // The material rules run between the fill they read and the
+                // carvers, because carved rock is not re-surfaced.
+                if let Some((source, biomes)) = &biome_context
+                    && matches!(source, BiomeSource::MultiNoise(_))
+                    && let Some(grid) = filled.biome_grid.as_ref()
+                {
+                    thread_local! {
+                        static MATERIAL: RefCell<MaterialScratch> =
+                            RefCell::new(MaterialScratch::default());
+                    }
+                    debug_assert!(
+                        spans_dimension(&y_sections, router),
+                        "the descent needs the whole column, not the sections this dispatch owes"
+                    );
+                    let ids = SurfaceIds::resolve(&block_definitions, biomes);
+                    MATERIAL.with_borrow_mut(|scratch| {
+                        apply_material_surface(
+                            column,
+                            col.x,
+                            col.z,
+                            &mut filled.tops,
+                            grid,
+                            router,
+                            &ids,
+                            scratch,
+                        );
+                    });
+                }
+
                 if let Some((carver_biomes, carver_blocks)) = &carver_ctx
                     && let Some((src, _)) = &biome_context
                     && matches!(src, BiomeSource::MultiNoise(_))
@@ -1084,25 +1182,20 @@ pub(crate) fn dispatch_column_generation(
                         HeightContext {
                             min_y: router.noise_min_y(),
                             depth: router.noise_height() as i32,
+                            sea_level: router.sea_level(),
                         },
                         carver_blocks,
                     );
                 }
 
-                let results: Vec<_> = column.into_sections(&biome_palette);
+                let results: Vec<_> = column.into_sections(&filled.biomes);
 
                 let heightmaps = predicates
                     .as_ref()
                     .and_then(|p| build_column_heightmaps(&results, &y_sections, p));
 
-                let column_sections = sections_data
-                    .into_iter()
-                    .zip(results)
-                    .map(|((entity, pos), result)| (entity, pos, result))
-                    .collect();
-
                 ColumnResult {
-                    sections: column_sections,
+                    sections: carried_sections(sections_data, results, bottom),
                     heightmaps,
                     source: ColumnSource::Generated,
                     work: started.elapsed(),

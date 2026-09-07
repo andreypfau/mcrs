@@ -1,15 +1,16 @@
 use crate::beta::seed::{BetaClimateNoises, BetaTerrainNoises};
+use crate::bounds::{self, Bounds};
 use crate::interval::Interval;
 use crate::jmath;
-use crate::noise::blended::{BlendedNoise, NOISE_SEED};
+use crate::material::compile::{MaterialInputs, compile_material};
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::{CompiledSpline, Multipoint, SplineValue};
+use crate::noise::blended::{BlendedNoise, NOISE_SEED};
 use crate::noise::normal::NormalNoise;
 use crate::noise::stack::{NoiseStack, Octave};
-use crate::bounds::{self, Bounds};
 use crate::program::{
     BinaryOp, Node, NodeId, Program, RoundKind, UnaryOp, drops_offset, node_axes,
 };
@@ -34,6 +35,12 @@ pub enum CompileError {
     UnknownFunction(String),
     UnknownNoise(String),
     ReferenceCycle(String),
+    UnknownRule(String),
+    UnknownCondition(String),
+    UnknownBlockState(String),
+    UnknownBiome(String),
+    /// A condition kind this build parses but cannot evaluate.
+    UnsupportedCondition(&'static str),
 }
 
 impl fmt::Display for CompileError {
@@ -42,7 +49,15 @@ impl fmt::Display for CompileError {
             CompileError::Unsupported(kind) => write!(f, "unsupported density function: {kind}"),
             CompileError::UnknownFunction(id) => write!(f, "unknown density function: {id}"),
             CompileError::UnknownNoise(id) => write!(f, "unknown noise: {id}"),
-            CompileError::ReferenceCycle(id) => write!(f, "density function cycle through {id}"),
+            CompileError::ReferenceCycle(id) => write!(f, "reference cycle through {id}"),
+            CompileError::UnknownRule(id) => write!(f, "unknown material rule: {id}"),
+            CompileError::UnknownCondition(id) => write!(f, "unknown material condition: {id}"),
+            CompileError::UnknownBlockState(id) => write!(f, "unknown block state: {id}"),
+            CompileError::UnknownBiome(id) => write!(f, "unknown biome: {id}"),
+            CompileError::UnsupportedCondition(kind) => write!(
+                f,
+                "material condition minecraft:{kind} cannot be evaluated by this build"
+            ),
         }
     }
 }
@@ -56,6 +71,7 @@ pub fn build_router(
     seed: u64,
     default_block: VoxelId,
     default_fluid: VoxelId,
+    material: Option<&MaterialInputs<'_>>,
 ) -> Result<NoiseRouter, CompileError> {
     let mut compiler = Compiler::new(registry, noises, seed, settings.legacy_random_source);
     let mut nodes = Vec::with_capacity(8);
@@ -72,10 +88,19 @@ pub fn build_router(
         }
     }
 
+    // A density root that fails degrades to a constant so the rest of the
+    // terrain still generates; a material rule that fails does not, because
+    // every column in the world would come out as bare stone.
+    let material = match material {
+        Some(inputs) => Some(compile_material(&mut compiler, &mut nodes, settings, inputs)?),
+        None => None,
+    };
+
     let program = compiler.into_program(nodes);
     Ok(NoiseRouter::new(
         program,
         failed,
+        material,
         settings,
         seed,
         default_block,
@@ -319,9 +344,7 @@ impl<'a> Compiler<'a> {
 
             P::DistanceToPoint { point, metric } => {
                 let params = DistanceParams::new(point[0], point[1], point[2], *metric);
-                Ok(self.intern(
-                    Key::DistanceToPoint(params),
-                    Node::DistanceToPoint(params),                ))
+                Ok(self.intern(Key::DistanceToPoint(params), Node::DistanceToPoint(params)))
             }
 
             P::EndOuterIslands => {
@@ -371,7 +394,8 @@ impl<'a> Compiler<'a> {
                 let z = self.compile(shift_z)?;
                 Ok(self.intern(
                     Key::ShiftedNoise(pointer, x, y, z),
-                    Node::ShiftedNoise { params, x, y, z },                ))
+                    Node::ShiftedNoise { params, x, y, z },
+                ))
             }
 
             // `shift` and `shift_a` are a plain noise scaled by four, so they
@@ -412,7 +436,8 @@ impl<'a> Compiler<'a> {
                 }
                 Ok(self.intern(
                     Key::Clamp(input, min.to_bits(), max.to_bits()),
-                    Node::Clamp { input, min, max },                ))
+                    Node::Clamp { input, min, max },
+                ))
             }
 
             P::Floor(x) => self.compile_round(RoundKind::Floor, &x.input, &x.multiple),
@@ -488,7 +513,8 @@ impl<'a> Compiler<'a> {
                             max_exclusive,
                             when_in,
                             when_out,
-                        },                    )),
+                        },
+                    )),
                     _ => Ok(self.intern(
                         Key::RangeChoice(
                             input,
@@ -503,7 +529,8 @@ impl<'a> Compiler<'a> {
                             max_exclusive,
                             when_in,
                             when_out,
-                        },                    )),
+                        },
+                    )),
                 }
             }
 
@@ -524,7 +551,8 @@ impl<'a> Compiler<'a> {
                             threshold,
                             below,
                             above,
-                        },                    ));
+                        },
+                    ));
                 }
                 let key = Key::IntervalSelect(
                     input,
@@ -537,7 +565,8 @@ impl<'a> Compiler<'a> {
                         input,
                         thresholds: thresholds.into(),
                         arms: arms.into(),
-                    },                ))
+                    },
+                ))
             }
 
             P::Spline { spline } => self.compile_spline(spline),
@@ -590,7 +619,8 @@ impl<'a> Compiler<'a> {
                         upper_bound,
                         lower_bound,
                         cell_height: cell_height as i32,
-                    },                ))
+                    },
+                ))
             }
         }
     }
@@ -623,11 +653,7 @@ impl<'a> Compiler<'a> {
         Ok(self.round(kind, input, multiple))
     }
 
-    fn compile_shift(
-        &mut self,
-        noise: &NoiseHolder,
-        y_scale: f64,
-    ) -> Result<NodeId, CompileError> {
+    fn compile_shift(&mut self, noise: &NoiseHolder, y_scale: f64) -> Result<NodeId, CompileError> {
         let sampler = self.noise_sampler(noise)?;
         let params = self.noise_params(&sampler, 0.25, y_scale);
         let key = Key::Noise(Arc::as_ptr(&params) as usize);
@@ -665,7 +691,8 @@ impl<'a> Compiler<'a> {
             Node::Spline {
                 spline: compiled,
                 coords: coords.into(),
-            },        ))
+            },
+        ))
     }
 
     // --- the specialization ladder -----------------------------------------
@@ -674,9 +701,7 @@ impl<'a> Compiler<'a> {
         if let Some(value) = self.as_constant(input) {
             return self.constant(op.apply(value));
         }
-        self.intern(
-            Key::Unary(unary_tag(op), input),
-            Node::Unary { op, input },        )
+        self.intern(Key::Unary(unary_tag(op), input), Node::Unary { op, input })
     }
 
     /// The rectifier vanilla emits for `half_negative` and `quarter_negative`:
@@ -729,7 +754,8 @@ impl<'a> Compiler<'a> {
                     input,
                     scale,
                     offset,
-                },            ),
+                },
+            ),
         }
     }
 
@@ -760,13 +786,12 @@ impl<'a> Compiler<'a> {
                 neg_scale,
                 pos_scale,
                 offset,
-            },        )
+            },
+        )
     }
 
     fn binary(&mut self, op: BinaryOp, a: NodeId, b: NodeId) -> NodeId {
-        self.intern(
-            Key::Binary(binary_tag(op), a, b),
-            Node::Binary { op, a, b },        )
+        self.intern(Key::Binary(binary_tag(op), a, b), Node::Binary { op, a, b })
     }
 
     fn add(&mut self, left: NodeId, right: NodeId) -> NodeId {
@@ -786,7 +811,8 @@ impl<'a> Compiler<'a> {
                 Node::ConstSub {
                     input: right,
                     value,
-                },            ),
+                },
+            ),
             // `x - c` is `x + (-c)`: negation is exact in binary floating point.
             (None, Some(c)) => self.affine(left, 1.0, -c),
             (None, None) => self.binary(BinaryOp::Sub, left, right),
@@ -810,7 +836,8 @@ impl<'a> Compiler<'a> {
                 Node::ConstDiv {
                     input: right,
                     value,
-                },            ),
+                },
+            ),
             // Vanilla compiles `x / c` to the reciprocal multiply, not to a
             // division, and the two disagree in the last bit for a divisor that
             // is not a power of two.
@@ -861,12 +888,10 @@ impl<'a> Compiler<'a> {
     fn const_extremum(&mut self, op: BinaryOp, input: NodeId, value: f32) -> NodeId {
         let bits = value.to_bits();
         match op {
-            BinaryOp::Min => self.intern(
-                Key::ConstMin(input, bits),
-                Node::ConstMin { input, value },            ),
-            _ => self.intern(
-                Key::ConstMax(input, bits),
-                Node::ConstMax { input, value },            ),
+            BinaryOp::Min => {
+                self.intern(Key::ConstMin(input, bits), Node::ConstMin { input, value })
+            }
+            _ => self.intern(Key::ConstMax(input, bits), Node::ConstMax { input, value }),
         }
     }
 
@@ -878,11 +903,10 @@ impl<'a> Compiler<'a> {
                 Node::ConstBasePow {
                     base: value,
                     exponent,
-                },            ),
+                },
+            ),
             (None, Some(value)) => self.const_exponent_pow(base, value),
-            (None, None) => {
-                self.intern(Key::Pow(base, exponent), Node::Pow { base, exponent })
-            }
+            (None, None) => self.intern(Key::Pow(base, exponent), Node::Pow { base, exponent }),
         }
     }
 
@@ -907,7 +931,8 @@ impl<'a> Compiler<'a> {
                 Node::ConstExponentPow {
                     input: base,
                     exponent,
-                },            ),
+                },
+            ),
         }
     }
 
@@ -932,7 +957,8 @@ impl<'a> Compiler<'a> {
                     input,
                     multiple: m,
                     kind,
-                },            );
+                },
+            );
         }
         self.intern(
             Key::Round(input, multiple, round_tag(kind)),
@@ -940,7 +966,8 @@ impl<'a> Compiler<'a> {
                 value: input,
                 multiple,
                 kind,
-            },        )
+            },
+        )
     }
 
     fn lerp(&mut self, alpha: NodeId, first: NodeId, second: NodeId) -> NodeId {
@@ -959,7 +986,8 @@ impl<'a> Compiler<'a> {
                     alpha,
                     first: value,
                     second,
-                },            );
+                },
+            );
         }
         if let Some(value) = constants.2 {
             return self.intern(
@@ -968,7 +996,8 @@ impl<'a> Compiler<'a> {
                     alpha,
                     first,
                     second: value,
-                },            );
+                },
+            );
         }
         self.intern(
             Key::Lerp(alpha, first, second),
@@ -976,7 +1005,8 @@ impl<'a> Compiler<'a> {
                 alpha,
                 first,
                 second,
-            },        )
+            },
+        )
     }
 
     // --- noise construction -------------------------------------------------
@@ -995,7 +1025,11 @@ impl<'a> Compiler<'a> {
         if let Some(params) = self.noise_params.get(&key) {
             return Arc::clone(params);
         }
-        let params = Arc::new(NoiseFunctionParams::new(Arc::clone(sampler), xz_scale, y_scale));
+        let params = Arc::new(NoiseFunctionParams::new(
+            Arc::clone(sampler),
+            xz_scale,
+            y_scale,
+        ));
         self.noise_params.insert(key, Arc::clone(&params));
         params
     }
@@ -1048,7 +1082,10 @@ impl<'a> Compiler<'a> {
         params
     }
 
-    fn noise_sampler(&mut self, holder: &NoiseHolder) -> Result<Arc<NoiseStack<Octave>>, CompileError> {
+    pub(crate) fn noise_sampler(
+        &mut self,
+        holder: &NoiseHolder,
+    ) -> Result<Arc<NoiseStack<Octave>>, CompileError> {
         if let Some(sampler) = self.samplers.get(holder) {
             return Ok(Arc::clone(sampler));
         }
@@ -1067,7 +1104,10 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn create_named_noise(&mut self, id: &ResourceLocation) -> Result<NoiseStack<Octave>, CompileError> {
+    fn create_named_noise(
+        &mut self,
+        id: &ResourceLocation,
+    ) -> Result<NoiseStack<Octave>, CompileError> {
         // The two nether climate noises are seeded from the raw world seed, not
         // from the hashed fork every other noise takes.
         match id.as_str() {
@@ -1095,6 +1135,19 @@ impl<'a> Compiler<'a> {
         let mut root = self.random.clone();
         let mut random = root.fork_hash(id.as_str());
         Ok(NormalNoise::new(param.clone()).create(&mut random))
+    }
+
+    /// The unnamed `PositionalRandomFactory` the whole generator forks from,
+    /// which the surface depth draw and the iceberg draw use directly.
+    pub(crate) fn positional_random(&self) -> RandomSource {
+        self.random.clone()
+    }
+
+    /// `PositionalRandomFactory` for a named stream: the returned source is the
+    /// factory itself, and `fork_at` on a clone of it is one `at(x, y, z)`.
+    pub(crate) fn hashed_random(&self, name: &str) -> RandomSource {
+        let mut root = self.random.clone();
+        root.fork_hash(name)
     }
 
     fn beta_terrain(&mut self) -> Arc<BetaTerrainNoises> {
@@ -1385,10 +1438,10 @@ fn tiling_tag(tiling: crate::node::gradient::Tiling) -> u8 {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
-    use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z};
     use crate::program::Workspace;
+    use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z};
     use crate::volume::Volume;
     use bevy_math::IVec3;
     use std::path::{Path, PathBuf};
@@ -1429,8 +1482,12 @@ mod tests {
         let noises = no_noises();
         let mut compiler = Compiler::new(&functions, &noises, 0, false);
         let root = compiler.compile_root(&holder).expect("compiles");
-        let (nodes, axes, ranges, roots) =
-            prune(compiler.nodes, compiler.axes, compiler.node_ranges, vec![root]);
+        let (nodes, axes, ranges, roots) = prune(
+            compiler.nodes,
+            compiler.axes,
+            compiler.node_ranges,
+            vec![root],
+        );
         Built {
             nodes,
             axes,
@@ -1455,7 +1512,6 @@ mod tests {
     const Y_GRADIENT: &str = r#"{"type":"gradient","axis":"y","from_coordinate":0,"to_coordinate":16,"from_value":0.0,"to_value":16.0}"#;
     /// Straddles zero, so the rectifier's negative half is reachable.
     const SIGNED_Y_GRADIENT: &str = r#"{"type":"gradient","axis":"y","from_coordinate":-16,"to_coordinate":16,"from_value":-16.0,"to_value":16.0}"#;
-
 
     /// The input's range would confine this to the out-of-range branch, and
     /// vanilla still reports the hull of both.
@@ -1503,7 +1559,11 @@ mod tests {
 
     #[test]
     fn a_wholly_negative_sqrt_is_unknown_rather_than_zero() {
-        assert!(build(r#"{"type":"minecraft:sqrt","input":-4.0}"#).range().is_nai());
+        assert!(
+            build(r#"{"type":"minecraft:sqrt","input":-4.0}"#)
+                .range()
+                .is_nai()
+        );
     }
 
     /// The clamp-alpha lerp cannot leave the two limit noises' common interval,
@@ -1733,11 +1793,11 @@ mod tests {
 
     // --- the shipped corpus -------------------------------------------------
 
-    fn assets() -> PathBuf {
+    pub(crate) fn assets() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/minecraft/worldgen")
     }
 
-    fn load_dir<T: serde::de::DeserializeOwned>(
+    pub(crate) fn load_dir<T: serde::de::DeserializeOwned>(
         root: &Path,
         dir: &Path,
         out: &mut BTreeMap<ResourceLocation, T>,
@@ -1760,7 +1820,7 @@ mod tests {
         }
     }
 
-    fn corpus() -> (
+    pub(crate) fn corpus() -> (
         BTreeMap<ResourceLocation, DensityFunctionHolder>,
         BTreeMap<ResourceLocation, NoiseParam>,
     ) {
@@ -1804,8 +1864,16 @@ mod tests {
             &std::fs::read(assets().join("noise_settings/overworld.json")).unwrap(),
         )
         .unwrap();
-        let router =
-            build_router(&settings, &functions, &noises, 42, VoxelId(1), VoxelId(2)).unwrap();
+        let router = build_router(
+            &settings,
+            &functions,
+            &noises,
+            42,
+            VoxelId(1),
+            VoxelId(2),
+            None,
+        )
+        .unwrap();
 
         let failed: Vec<&str> = router
             .failed_roots()
@@ -1842,8 +1910,16 @@ mod tests {
             &std::fs::read(assets().join("noise_settings/overworld.json")).unwrap(),
         )
         .unwrap();
-        let router =
-            build_router(&settings, &functions, &noises, 42, VoxelId(1), VoxelId(2)).unwrap();
+        let router = build_router(
+            &settings,
+            &functions,
+            &noises,
+            42,
+            VoxelId(1),
+            VoxelId(2),
+            None,
+        )
+        .unwrap();
 
         let volume = Volume::new(
             IVec3::new(5, 3, 5),
@@ -1891,8 +1967,16 @@ mod tests {
             let settings: NoiseGeneratorSettings =
                 serde_json::from_slice(&std::fs::read(&path).unwrap())
                     .unwrap_or_else(|e| panic!("{name}: {e}"));
-            let router = build_router(&settings, &functions, &noises, 42, VoxelId(1), VoxelId(2))
-                .unwrap_or_else(|e| panic!("{name}: {e}"));
+            let router = build_router(
+                &settings,
+                &functions,
+                &noises,
+                42,
+                VoxelId(1),
+                VoxelId(2),
+                None,
+            )
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
             for (root, error) in router.failed_roots() {
                 assert!(
                     matches!(error, CompileError::Unsupported(_)),

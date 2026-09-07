@@ -59,7 +59,16 @@ fn router(seed: u64) -> NoiseRouter {
         .iter()
         .filter_map(|(id, d)| serde_json::from_slice(d).ok().map(|v| (id.clone(), v)))
         .collect();
-    build_router(&settings, &registry, &noises, seed, VoxelId(1), VoxelId(2)).unwrap()
+    build_router(
+        &settings,
+        &registry,
+        &noises,
+        seed,
+        VoxelId(1),
+        VoxelId(2),
+        None,
+    )
+    .unwrap()
 }
 
 /// The corner hull of one cell, per lattice row.

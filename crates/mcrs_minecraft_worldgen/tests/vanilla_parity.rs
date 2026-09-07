@@ -150,8 +150,16 @@ fn overworld_router(seed: u64) -> NoiseRouter {
     let registry: BTreeMap<ResourceLocation, DensityFunctionHolder> =
         load("minecraft/worldgen/density_function");
     let noises: BTreeMap<ResourceLocation, NoiseParam> = load("minecraft/worldgen/noise");
-    build_router(&settings, &registry, &noises, seed, VoxelId(1), VoxelId(2))
-        .expect("overworld router")
+    build_router(
+        &settings,
+        &registry,
+        &noises,
+        seed,
+        VoxelId(1),
+        VoxelId(2),
+        None,
+    )
+    .expect("overworld router")
 }
 
 fn fill(router: &NoiseRouter, root: usize, v: &DumpVolume) -> Vec<f32> {

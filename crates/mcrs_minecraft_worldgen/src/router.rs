@@ -1,7 +1,8 @@
+use crate::beta::seed::BetaTerrainNoises;
 use crate::cell::CellBounds;
 use crate::compile::CompileError;
 use crate::interval::Interval;
-use crate::beta::seed::BetaTerrainNoises;
+use crate::material::compile::MaterialProgram;
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{BlockState, DensityFunctionHolder, HashableF64, ValueRange};
 use crate::volume::Volume;
@@ -120,6 +121,7 @@ pub struct NoiseGeneratorSettings {
 pub struct NoiseRouter {
     program: Program,
     failed: Box<[(&'static str, CompileError)]>,
+    material: Option<MaterialProgram>,
     sea_level: i32,
     noise_min_y: i32,
     noise_height: u32,
@@ -134,6 +136,7 @@ impl NoiseRouter {
     pub(crate) fn new(
         program: Program,
         failed: Vec<(&'static str, CompileError)>,
+        material: Option<MaterialProgram>,
         settings: &NoiseGeneratorSettings,
         world_seed: u64,
         default_block_state: VoxelId,
@@ -143,6 +146,7 @@ impl NoiseRouter {
         Self {
             program,
             failed: failed.into_boxed_slice(),
+            material,
             sea_level: settings.sea_level,
             noise_min_y: settings.noise.min_y,
             noise_height: settings.noise.height,
@@ -158,6 +162,12 @@ impl NoiseRouter {
 
     pub fn program(&self) -> &Program {
         &self.program
+    }
+
+    /// `None` where the caller supplied no material rule registry, which is
+    /// every path that only wants the density graph.
+    pub fn material(&self) -> Option<&MaterialProgram> {
+        self.material.as_ref()
     }
 
     pub fn temperature(&self) -> usize {

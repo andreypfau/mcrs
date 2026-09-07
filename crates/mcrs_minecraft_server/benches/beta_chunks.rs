@@ -126,7 +126,8 @@ fn generate_chunk(
         None,
         cancel,
     )
-    .expect("the column is not cancelled");
+    .expect("the column is not cancelled")
+    .biomes;
     stages.terrain = t.elapsed().as_secs_f64() * 1000.0;
 
     let t = Instant::now();

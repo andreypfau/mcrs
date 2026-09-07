@@ -11,7 +11,7 @@ use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::generate_column;
 
-fn make_beta_biome() -> Biome {
+pub(super) fn make_beta_biome() -> Biome {
     Biome {
         temperature: 0.5,
         downfall: 0.5,

@@ -64,6 +64,7 @@ fn beta_sections_outside_noise_range_are_air() {
         42,
         mcrs_minecraft_protocol::BlockStateId(1).into(),
         mcrs_minecraft_protocol::BlockStateId(86).into(),
+        None,
     )
     .expect("the beta noise router compiles");
 

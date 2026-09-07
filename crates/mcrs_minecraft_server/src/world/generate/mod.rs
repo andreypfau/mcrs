@@ -1,5 +1,5 @@
 use crate::world::chunk::CancellationToken;
-use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::world::generate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
 use bevy_math::IVec3;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
@@ -127,6 +127,20 @@ impl CellLattice {
     }
 }
 
+/// A strip whose blocks are all air.
+pub const NO_TOP: i32 = i32::MIN;
+
+/// What one dense fill of a column leaves behind besides the blocks themselves.
+pub struct FilledColumn {
+    pub biomes: Vec<BiomePalette>,
+    /// Highest non-air block per strip, indexed `z * 16 + x`, `NO_TOP` where
+    /// the strip holds none.
+    pub tops: [i32; 256],
+    /// `None` outside the multi-noise path, which is the only one that needs
+    /// the zoom.
+    pub biome_grid: Option<BiomeGrid>,
+}
+
 /// Buffers every fill in a chunk column reuses.
 #[derive(Default)]
 struct FillBuffers {
@@ -148,6 +162,7 @@ fn fill_column(
     block_x: i32,
     block_z: i32,
     noise_router: &NoiseRouter,
+    tops: &mut [i32; 256],
     cancel: &CancellationToken,
 ) -> bool {
     let sea_level = noise_router.sea_level();
@@ -156,7 +171,7 @@ fn fill_column(
     let mut fill = FillBuffers::default();
 
     let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.ws) else {
-        return fill_column_dense(column, block_x, block_z, noise_router, &mut fill, cancel);
+        return fill_column_dense(column, block_x, block_z, noise_router, tops, &mut fill, cancel);
     };
 
     let cell = lattice.cell;
@@ -179,22 +194,32 @@ fn fill_column(
                 };
                 let base = IVec3::new(cell_x * cell.x, world.y.rem_euclid(16), cell_z * cell.z);
                 match lattice.classify(noise_router, at, sea_level, &mut fill) {
-                    CellFill::Solid => fill_cell_box(column, index, base, cell, default_block),
-                    CellFill::Fluid => fill_cell_box(column, index, base, cell, default_fluid),
+                    CellFill::Solid => {
+                        fill_cell_box(column, index, base, cell, default_block);
+                        record_tops(tops, base, cell, world.y + cell.y - 1);
+                    }
+                    CellFill::Fluid => {
+                        fill_cell_box(column, index, base, cell, default_fluid);
+                        record_tops(tops, base, cell, world.y + cell.y - 1);
+                    }
                     CellFill::Air => {}
-                    CellFill::Sea => fill_cell_box(
-                        column,
-                        index,
-                        base,
-                        IVec3::new(cell.x, sea_level - world.y, cell.z),
-                        default_fluid,
-                    ),
+                    CellFill::Sea => {
+                        fill_cell_box(
+                            column,
+                            index,
+                            base,
+                            IVec3::new(cell.x, sea_level - world.y, cell.z),
+                            default_fluid,
+                        );
+                        record_tops(tops, base, cell, sea_level - 1);
+                    }
                     CellFill::Mixed => fill_blocks(
                         column,
                         index,
                         &Volume::dense(cell, world),
                         base,
                         noise_router,
+                        tops,
                         &mut fill,
                     ),
                 }
@@ -210,6 +235,7 @@ fn fill_column_dense(
     block_x: i32,
     block_z: i32,
     noise_router: &NoiseRouter,
+    tops: &mut [i32; 256],
     fill: &mut FillBuffers,
     cancel: &CancellationToken,
 ) -> bool {
@@ -227,9 +253,21 @@ fn fill_column_dense(
             IVec3::splat(16),
             IVec3::new(block_x, section_min_y, block_z),
         );
-        fill_blocks(column, index, &volume, IVec3::ZERO, noise_router, fill);
+        fill_blocks(column, index, &volume, IVec3::ZERO, noise_router, tops, fill);
     }
     true
+}
+
+/// Settle every strip a whole-class cell covers at the highest block its box
+/// actually reaches, which for a sea cell is one below sea level rather than
+/// the cell top.
+fn record_tops(tops: &mut [i32; 256], base: IVec3, cell: IVec3, top: i32) {
+    for z in base.z..base.z + cell.z {
+        for x in base.x..base.x + cell.x {
+            let slot = &mut tops[(z * 16 + x) as usize];
+            *slot = (*slot).max(top);
+        }
+    }
 }
 
 fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, state: VoxelId) {
@@ -251,6 +289,7 @@ fn fill_blocks(
     volume: &Volume,
     origin: IVec3,
     noise_router: &NoiseRouter,
+    tops: &mut [i32; 256],
     fill: &mut FillBuffers,
 ) {
     let sea_level = noise_router.sea_level();
@@ -269,10 +308,19 @@ fn fill_blocks(
             for y in (0..volume.size().y).rev() {
                 let value = fill.density[volume.index_unchecked(x, y, z)];
                 let (px, py, pz) = (origin.x + x, origin.y + y, origin.z + z);
-                if value > 0.0 {
+                let world_y = volume.block_y(y);
+                let placed = if value > 0.0 {
                     column.set_in_section(index, px, py, pz, default_block);
-                } else if volume.block_y(y) < sea_level {
+                    true
+                } else if world_y < sea_level {
                     column.set_in_section(index, px, py, pz, default_fluid);
+                    true
+                } else {
+                    false
+                };
+                if placed {
+                    let slot = &mut tops[(pz * 16 + px) as usize];
+                    *slot = (*slot).max(world_y);
                 }
             }
         }
@@ -318,17 +366,21 @@ fn column_biome_palettes(
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
-) -> Vec<BiomePalette> {
+) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
     if let Some((BiomeSource::MultiNoise(_), _)) = biome_context {
         return match multi_noise {
             Some(table) => multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
-            None => vec![BiomePalette::default(); y_sections.len()],
+            None => (vec![BiomePalette::default(); y_sections.len()], None),
         };
     }
-    vec![beta_biome_palette(noise_router, biome_context, block_x, block_z); y_sections.len()]
+    (
+        vec![beta_biome_palette(noise_router, biome_context, block_x, block_z); y_sections.len()],
+        None,
+    )
 }
 
-/// The climate at every 4x4x4 cell of the column, resolved to a biome.
+/// The climate at every quart cell of the column and of the ring of cells
+/// around it, resolved to a biome.
 ///
 /// The density program fills a whole strided volume in one pass, so asking for
 /// the column's cells at once costs a fraction of evaluating them one by one.
@@ -338,13 +390,13 @@ pub(crate) fn multi_noise_palettes(
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
-) -> Vec<BiomePalette> {
+) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
     let (Some(&first), Some(&last)) = (y_sections.first(), y_sections.last()) else {
-        return Vec::new();
+        return (Vec::new(), None);
     };
     let volume = Volume::new(
-        IVec3::new(4, (last - first + 1) * 4, 4),
-        IVec3::new(block_x, first * 16, block_z),
+        IVec3::new(6, (last - first + 1) * 4 + 2, 6),
+        IVec3::new(block_x - 4, first * 16 - 4, block_z - 4),
         IVec3::splat(4),
     );
     let roots = [
@@ -360,35 +412,37 @@ pub(crate) fn multi_noise_palettes(
     let mut ws = Workspace::new();
     noise_router.fill_roots(&mut ws, &volume, &roots, &mut values);
 
-    y_sections
+    let ids: Vec<u8> = (0..points)
+        .map(|at| {
+            table.biome_at(TargetPoint::new(
+                values[at],
+                values[points + at],
+                values[2 * points + at],
+                values[3 * points + at],
+                values[4 * points + at],
+                values[5 * points + at],
+            ))
+        })
+        .collect();
+
+    let palettes = y_sections
         .iter()
         .map(|&section_y| {
             let mut biomes = BiomePalette::default();
-            let base_y = (section_y - first) * 4;
+            let base_y = (section_y - first) * 4 + 1;
             for cx in 0..4 {
                 for cy in 0..4 {
                     for cz in 0..4 {
-                        let at = volume.index_unchecked(cx, base_y + cy, cz);
-                        let target = TargetPoint::new(
-                            values[at],
-                            values[points + at],
-                            values[2 * points + at],
-                            values[3 * points + at],
-                            values[4 * points + at],
-                            values[5 * points + at],
-                        );
-                        biomes.set_cell(
-                            cx as usize,
-                            cy as usize,
-                            cz as usize,
-                            table.biome_at(target),
-                        );
+                        let at = volume.index_unchecked(cx + 1, base_y + cy, cz + 1);
+                        biomes.set_cell(cx as usize, cy as usize, cz as usize, ids[at]);
                     }
                 }
             }
             biomes
         })
-        .collect()
+        .collect();
+
+    (palettes, Some(BiomeGrid { volume, ids }))
 }
 
 /// The `BiomePalette` every section of a Beta column shares.
@@ -464,7 +518,7 @@ pub fn generate_column(
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let mut column = ColumnBlocks::new(y_sections);
-    let Some(biome_palettes) = fill_column_dense_any(
+    let Some(filled) = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
@@ -477,7 +531,7 @@ pub fn generate_column(
         return vec![None; y_sections.len()];
     };
 
-    column.into_sections(&biome_palettes)
+    column.into_sections(&filled.biomes)
 }
 
 /// Fill a column densely from the density graph, for every preset.
@@ -494,10 +548,10 @@ pub fn fill_column_dense_any(
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
     multi_noise: Option<&MultiNoiseBiomeTable>,
     cancel: &CancellationToken,
-) -> Option<Vec<BiomePalette>> {
+) -> Option<FilledColumn> {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
-    let biome_palettes = column_biome_palettes(
+    let (biomes, biome_grid) = column_biome_palettes(
         noise_router,
         biome_context,
         multi_noise,
@@ -507,10 +561,15 @@ pub fn fill_column_dense_any(
     );
     column.reset(y_sections);
 
-    if !fill_column(column, block_x, block_z, noise_router, cancel) {
+    let mut tops = [NO_TOP; 256];
+    if !fill_column(column, block_x, block_z, noise_router, &mut tops, cancel) {
         return None;
     }
-    Some(biome_palettes)
+    Some(FilledColumn {
+        biomes,
+        tops,
+        biome_grid,
+    })
 }
 
 /// Apply the Beta surface pass to a generated chunk column.
@@ -689,7 +748,9 @@ pub use beta_caves::{BetaCaveBlockIds, apply_beta_caves};
 pub mod beta_ores;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;
+pub mod surface;
 pub use beta_ores::{BetaOreBlockIds, apply_beta_ores, place_all_ores};
+pub use surface::{SurfaceIds, apply_material_surface, spans_dimension};
 
 #[cfg(test)]
 mod tests;

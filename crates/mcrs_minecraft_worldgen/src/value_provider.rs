@@ -14,14 +14,16 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub struct HeightContext {
     pub min_y: i32,
     pub depth: i32,
+    pub sea_level: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum VerticalAnchor {
     Absolute(i32),
     AboveBottom(i32),
     BelowTop(i32),
+    RelativeToSeaLevel(i32),
 }
 
 impl VerticalAnchor {
@@ -30,6 +32,7 @@ impl VerticalAnchor {
             VerticalAnchor::Absolute(y) => y,
             VerticalAnchor::AboveBottom(offset) => context.min_y + offset,
             VerticalAnchor::BelowTop(offset) => context.min_y + context.depth - 1 - offset,
+            VerticalAnchor::RelativeToSeaLevel(offset) => context.sea_level + offset,
         }
     }
 }
@@ -413,6 +416,10 @@ mod tests {
             round_trip::<HeightProvider>(r#"{"below_top":1}"#),
             HeightProvider::Constant(VerticalAnchor::BelowTop(1))
         );
+        assert_eq!(
+            round_trip::<HeightProvider>(r#"{"relative_to_sea_level":0}"#),
+            HeightProvider::Constant(VerticalAnchor::RelativeToSeaLevel(0))
+        );
     }
 
     #[test]
@@ -431,10 +438,15 @@ mod tests {
         let overworld = HeightContext {
             min_y: -64,
             depth: 384,
+            sea_level: 63,
         };
         assert_eq!(VerticalAnchor::Absolute(180).resolve_y(overworld), 180);
         assert_eq!(VerticalAnchor::AboveBottom(8).resolve_y(overworld), -56);
         assert_eq!(VerticalAnchor::BelowTop(1).resolve_y(overworld), 318);
+        assert_eq!(
+            VerticalAnchor::RelativeToSeaLevel(3).resolve_y(overworld),
+            66
+        );
     }
 
     /// Every provider draws exactly the values Java's own `sample` does, in the

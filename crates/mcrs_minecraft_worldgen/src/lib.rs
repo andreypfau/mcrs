@@ -9,6 +9,7 @@ pub mod compile;
 pub mod interval;
 pub mod jmath;
 pub mod kernel;
+pub mod material;
 pub mod node;
 pub mod noise;
 pub mod program;
