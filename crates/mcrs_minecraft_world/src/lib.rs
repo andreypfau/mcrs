@@ -144,6 +144,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.init_asset::<test_types::TestInstance>();
         app.register_asset_loader(test_types::TestInstanceLoader);
         app.add_plugins(world_clock::WorldClockPlugin);
+        app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<StaticRegistry<item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()
             .init_resource::<StaticRegistry<entity::EntityType>>()
@@ -535,6 +536,12 @@ fn request_data_pack_assets(
 ) {
     use registry_files::*;
     request_registry::<biome::Biome>(&asset_server, &mut loaded, FOLDER_BIOME, FILES_BIOME);
+    request_registry::<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_CARVER,
+        FILES_CARVER,
+    );
     request_registry::<dimension::dimension_type::DimensionType>(
         &asset_server,
         &mut loaded,

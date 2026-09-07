@@ -396,6 +396,7 @@ fn beta_surface_parity_gate() {
             &y_sections,
             &router,
             Some((&biome_source, &snapshot)),
+            None,
             &cancel,
         );
 

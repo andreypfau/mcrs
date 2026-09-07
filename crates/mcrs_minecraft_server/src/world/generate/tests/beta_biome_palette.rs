@@ -140,6 +140,7 @@ fn generate_column_beta_biome_not_default() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        None,
         &cancel,
     );
 
@@ -153,7 +154,7 @@ fn generate_column_beta_biome_not_default() {
     }
 
     // Verify modern path: with no biome_context, all palette cells default to 0.
-    let results_modern = generate_column(0, 0, &[0, 1, 2, 3, 4, 5], &router, None, &cancel);
+    let results_modern = generate_column(0, 0, &[0, 1, 2, 3, 4, 5], &router, None, None, &cancel);
     for (idx, r) in results_modern.iter().enumerate() {
         let (_, biomes) = r.as_ref().expect("modern section must not be cancelled");
         let net = biomes.convert_network();

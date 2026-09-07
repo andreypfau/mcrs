@@ -455,7 +455,15 @@ pub fn resolve_carver_biomes(
             .map(|names| {
                 names
                     .iter()
-                    .filter_map(|name| config_by_location.get(name).cloned())
+                    .filter_map(|name| match config_by_location.get(name) {
+                        Some(config) => Some(config.clone()),
+                        None => {
+                            // A biome naming a carver nobody loaded carves nothing
+                            // at all, and does it without a symptom to notice.
+                            tracing::error!(biome, carver = name, "carver not loaded");
+                            None
+                        }
+                    })
                     .collect()
             })
             .unwrap_or_else(|| Arc::from(Vec::new()))

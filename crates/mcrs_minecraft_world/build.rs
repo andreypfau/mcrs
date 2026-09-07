@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 /// — the build script will pick it up on the next rebuild.
 const REGISTRY_FOLDERS: &[(&str, &str)] = &[
     ("BIOME", "minecraft/worldgen/biome"),
+    ("CARVER", "minecraft/worldgen/carver"),
     ("CHAT_TYPE", "minecraft/chat_type"),
     ("DIMENSION_TYPE", "minecraft/dimension_type"),
     ("TRIM_PATTERN", "minecraft/trim_pattern"),

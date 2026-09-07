@@ -122,7 +122,6 @@ impl Plugin for MinecraftServerPlugin {
         app.insert_resource(world_gen);
         app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
-        app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,
         });

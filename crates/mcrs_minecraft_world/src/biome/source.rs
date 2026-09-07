@@ -227,6 +227,10 @@ pub struct MultiNoiseBiomeSource {
 pub struct MultiNoiseBiomeEntry {
     pub parameters: ClimateParameters,
     pub biome: Handle<Biome>,
+    /// Parallel to the handle: chunk generation runs in a per-dim sub-app whose
+    /// AssetServer assigns different AssetIds than the host that built the biome
+    /// snapshot, so the network id is resolved by location and never by handle.
+    pub location: ResourceLocation<Arc<str>>,
 }
 
 // ===========================================================================
@@ -334,6 +338,7 @@ impl ProtoMultiNoiseBiomeSource {
                     .map(|e| MultiNoiseBiomeEntry {
                         parameters: e.parameters,
                         biome: Biome::load(ctx, &e.biome),
+                        location: e.biome,
                     })
                     .collect()
             }),

@@ -524,6 +524,7 @@ fn generate_column_beta_has_caves() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        None,
         &cancel,
     );
 
@@ -625,6 +626,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 &y_sections,
                 &router,
                 Some((&biome_source, &snapshot)),
+                None,
                 &cancel,
             );
             let mut rng = make_chunk_rng(chunk_x, chunk_z);

@@ -22,7 +22,7 @@ fn checksum(label: &str, router: &mcrs_minecraft_worldgen::router::NoiseRouter) 
     let y = y_sections();
     let mut checksum = 0u64;
     for i in 0..4 {
-        let results = generate_column(i, -i, &y, router, None, &cancel);
+        let results = generate_column(i, -i, &y, router, None, None, &cancel);
         for (blocks, _) in results.iter().flatten() {
             for y in 0..16 {
                 for z in 0..16 {
@@ -52,7 +52,7 @@ fn bench_settings(c: &mut Criterion, label: &str) {
         b.iter(|| {
             let (cx, cz) = (i % 8, i / 8);
             i = (i + 1) % 64;
-            black_box(generate_column(cx, cz, &y, &router, None, &cancel))
+            black_box(generate_column(cx, cz, &y, &router, None, None, &cancel))
         });
     });
     group.finish();

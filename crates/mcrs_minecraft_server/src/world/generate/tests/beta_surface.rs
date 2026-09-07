@@ -97,6 +97,7 @@ fn apply_beta_surface_places_surface_and_bedrock() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        None,
         &cancel,
     );
 
@@ -188,6 +189,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        None,
         &cancel,
     );
 
@@ -395,6 +397,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
                 &y_sections,
                 &router,
                 Some((&biome_source, &snapshot)),
+                None,
                 &cancel,
             )
         });
@@ -457,6 +460,7 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        None,
         &cancel,
     );
 

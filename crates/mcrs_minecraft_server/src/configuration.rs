@@ -339,7 +339,7 @@ fn process_loaded_world_preset(
     loaded_preset.dimensions = dimensions;
     loaded_preset.is_loaded = true;
 
-    if let Some(source) = overworld_beta_biome_source(&loaded_preset, &dim_defs) {
+    if let Some(source) = overworld_biome_source(&loaded_preset, &dim_defs) {
         commands.insert_resource(ActiveBiomeSource(Arc::new(source)));
     }
 
@@ -350,7 +350,7 @@ fn process_loaded_world_preset(
     );
 }
 
-fn overworld_beta_biome_source(
+fn overworld_biome_source(
     preset: &LoadedWorldPreset,
     dim_defs: &Assets<DimensionDefinition>,
 ) -> Option<BiomeSource> {
@@ -365,8 +365,7 @@ fn overworld_beta_biome_source(
     let ChunkGenerator::Noise(generator) = &definition.generator else {
         return None;
     };
-    matches!(generator.biome_source, BiomeSource::Beta { .. })
-        .then(|| generator.biome_source.clone())
+    Some(generator.biome_source.clone())
 }
 
 /// Kicks connected players back into Configuration when a dimension type asset

@@ -1,4 +1,5 @@
 use crate::world::chunk::CancellationToken;
+use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use bevy_math::IVec3;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
@@ -6,6 +7,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::beta_surface::beta_surface_blocks;
+use mcrs_minecraft_world::biome::climate::TargetPoint;
 use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
@@ -302,11 +304,94 @@ fn beta_climate_cells(noise_router: &NoiseRouter, block_x: i32, block_z: i32) ->
     cells
 }
 
-/// The `BiomePalette` every section of a chunk column shares, empty unless the
-/// source is Beta.
+/// One `BiomePalette` per section of the column, empty when no source can
+/// answer for the position.
 ///
-/// A Beta biome comes from temperature and humidity at `(x, z)` alone, with no
-/// Y or sea-level dependence, so one palette serves the whole column.
+/// The two sources answer at different resolutions: a Beta biome comes from
+/// temperature and humidity at `(x, z)` alone, so one palette is cloned down
+/// the column, while a multi-noise biome is sampled per 4x4x4 cell and every
+/// section gets its own.
+fn column_biome_palettes(
+    noise_router: &NoiseRouter,
+    biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    multi_noise: Option<&MultiNoiseBiomeTable>,
+    block_x: i32,
+    block_z: i32,
+    y_sections: &[i32],
+) -> Vec<BiomePalette> {
+    if let Some((BiomeSource::MultiNoise(_), _)) = biome_context {
+        return match multi_noise {
+            Some(table) => multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
+            None => vec![BiomePalette::default(); y_sections.len()],
+        };
+    }
+    vec![beta_biome_palette(noise_router, biome_context, block_x, block_z); y_sections.len()]
+}
+
+/// The climate at every 4x4x4 cell of the column, resolved to a biome.
+///
+/// The density program fills a whole strided volume in one pass, so asking for
+/// the column's cells at once costs a fraction of evaluating them one by one.
+pub(crate) fn multi_noise_palettes(
+    noise_router: &NoiseRouter,
+    table: &MultiNoiseBiomeTable,
+    block_x: i32,
+    block_z: i32,
+    y_sections: &[i32],
+) -> Vec<BiomePalette> {
+    let (Some(&first), Some(&last)) = (y_sections.first(), y_sections.last()) else {
+        return Vec::new();
+    };
+    let volume = Volume::new(
+        IVec3::new(4, (last - first + 1) * 4, 4),
+        IVec3::new(block_x, first * 16, block_z),
+        IVec3::splat(4),
+    );
+    let roots = [
+        noise_router.temperature(),
+        noise_router.vegetation(),
+        noise_router.continents(),
+        noise_router.erosion(),
+        noise_router.depth(),
+        noise_router.ridges(),
+    ];
+    let points = volume.len();
+    let mut values = vec![0.0f32; roots.len() * points];
+    let mut ws = Workspace::new();
+    noise_router.fill_roots(&mut ws, &volume, &roots, &mut values);
+
+    y_sections
+        .iter()
+        .map(|&section_y| {
+            let mut biomes = BiomePalette::default();
+            let base_y = (section_y - first) * 4;
+            for cx in 0..4 {
+                for cy in 0..4 {
+                    for cz in 0..4 {
+                        let at = volume.index_unchecked(cx, base_y + cy, cz);
+                        let target = TargetPoint::new(
+                            values[at],
+                            values[points + at],
+                            values[2 * points + at],
+                            values[3 * points + at],
+                            values[4 * points + at],
+                            values[5 * points + at],
+                        );
+                        biomes.set_cell(
+                            cx as usize,
+                            cy as usize,
+                            cz as usize,
+                            table.biome_at(target),
+                        );
+                    }
+                }
+            }
+            biomes
+        })
+        .collect()
+}
+
+/// The `BiomePalette` every section of a Beta column shares.
 fn beta_biome_palette(
     noise_router: &NoiseRouter,
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
@@ -375,22 +460,24 @@ pub fn generate_column(
     y_sections: &[i32],
     noise_router: &NoiseRouter,
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    multi_noise: Option<&MultiNoiseBiomeTable>,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let mut column = ColumnBlocks::new(y_sections);
-    let Some(biome_palette) = fill_column_dense_any(
+    let Some(biome_palettes) = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         y_sections,
         noise_router,
         biome_context,
+        multi_noise,
         cancel,
     ) else {
         return vec![None; y_sections.len()];
     };
 
-    column.into_sections(&biome_palette)
+    column.into_sections(&biome_palettes)
 }
 
 /// Fill a column densely from the density graph, for every preset.
@@ -405,17 +492,25 @@ pub fn fill_column_dense_any(
     y_sections: &[i32],
     noise_router: &NoiseRouter,
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    multi_noise: Option<&MultiNoiseBiomeTable>,
     cancel: &CancellationToken,
-) -> Option<BiomePalette> {
+) -> Option<Vec<BiomePalette>> {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
-    let biome_palette = beta_biome_palette(noise_router, biome_context, block_x, block_z);
+    let biome_palettes = column_biome_palettes(
+        noise_router,
+        biome_context,
+        multi_noise,
+        block_x,
+        block_z,
+        y_sections,
+    );
     column.reset(y_sections);
 
     if !fill_column(column, block_x, block_z, noise_router, cancel) {
         return None;
     }
-    Some(biome_palette)
+    Some(biome_palettes)
 }
 
 /// Apply the Beta surface pass to a generated chunk column.
@@ -593,6 +688,7 @@ pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_caves};
 pub mod beta_ores;
 pub mod modern_carvers;
+pub mod multi_noise_biomes;
 pub use beta_ores::{BetaOreBlockIds, apply_beta_ores, place_all_ores};
 
 #[cfg(test)]

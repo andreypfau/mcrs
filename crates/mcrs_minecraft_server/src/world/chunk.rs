@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use crate::world::generate::modern_carvers::{
     ModernCarverBiomes, ModernCarverBlockIds, apply_modern_carvers,
 };
+use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::{
     BetaCaveBlockIds, BetaOreBlockIds, ColumnBlocks, apply_beta_caves, apply_beta_ores,
     apply_beta_surface, fill_column_dense_any,
@@ -804,6 +805,12 @@ pub(crate) fn dispatch_column_generation(
     block_tags: Option<Res<DynTagRegistry<VanillaBlock>>>,
     mut cached_biome_registry: Local<Option<Arc<RegistrySnapshot<Biome>>>>,
     mut cached_carver_blocks: Local<Option<Arc<ModernCarverBlockIds>>>,
+    mut cached_multi_noise: Local<
+        Option<(
+            Arc<RegistrySnapshot<Biome>>,
+            Option<Arc<MultiNoiseBiomeTable>>,
+        )>,
+    >,
 ) {
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
 
@@ -859,6 +866,41 @@ pub(crate) fn dispatch_column_generation(
             _ => None,
         };
 
+    // The climate table maps a sampled point to the network id the palette
+    // stores, so it is tied to the snapshot that assigned those ids and is
+    // rebuilt only when a different snapshot arrives.
+    let multi_noise_table = biome_context.as_ref().and_then(|(source, registry)| {
+        let BiomeSource::MultiNoise(multi) = source.as_ref() else {
+            return None;
+        };
+        let cached = cached_multi_noise
+            .as_ref()
+            .is_some_and(|(for_registry, _)| Arc::ptr_eq(for_registry, registry));
+        if !cached {
+            let table = MultiNoiseBiomeTable::resolve(multi, |location| {
+                match registry.by_location(location) {
+                    Some(id) => id as u8,
+                    None => {
+                        // Falling back to id 0 renders a plausible-but-wrong biome, so a
+                        // registry that cannot resolve its own source's biome is loud.
+                        tracing::error!(biome = location, "biome missing from the registry");
+                        debug_assert!(false, "unresolved multi-noise biome location");
+                        0
+                    }
+                }
+            })
+            .map(Arc::new);
+            match &table {
+                Some(table) => tracing::info!(entries = table.len(), "resolved the biome table"),
+                None => tracing::warn!("no biome table for this biome source"),
+            }
+            *cached_multi_noise = Some((registry.clone(), table));
+        }
+        cached_multi_noise
+            .as_ref()
+            .and_then(|(_, table)| table.clone())
+    });
+
     let mut dispatched = 0usize;
 
     // Pop columns from priority queue in order (lowest distance first)
@@ -887,6 +929,7 @@ pub(crate) fn dispatch_column_generation(
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
         let biome_ctx = biome_context.clone();
+        let multi_noise = multi_noise_table.clone();
         let carver_ctx = carver_context.clone();
         let block_definitions = blocks.0.clone();
         let predicates = heightmap_predicates.as_deref().cloned();
@@ -961,6 +1004,7 @@ pub(crate) fn dispatch_column_generation(
                         &y_sections,
                         router,
                         biome_context,
+                        multi_noise.as_deref(),
                         &cancel_clone,
                     );
                     match filled {
@@ -1024,7 +1068,6 @@ pub(crate) fn dispatch_column_generation(
                     && matches!(src, BiomeSource::MultiNoise(_))
                 {
                     let world_seed = router.world_seed() as i64;
-                    let min_y = y_sections.first().copied().unwrap_or(0) * 16;
                     apply_modern_carvers(
                         column,
                         col.x,
@@ -1033,9 +1076,14 @@ pub(crate) fn dispatch_column_generation(
                         router,
                         &mut Workspace::new(),
                         carver_biomes,
+                        // The carvers draw against the dimension, not against
+                        // the slice of sections this dispatch happens to carry:
+                        // a column arrives in several vertical pieces, and a
+                        // per-piece height would give each its own random
+                        // stream and its own idea of where the bottom is.
                         HeightContext {
-                            min_y,
-                            depth: (y_sections.len() as i32) * 16,
+                            min_y: router.noise_min_y(),
+                            depth: router.noise_height() as i32,
                         },
                         carver_blocks,
                     );

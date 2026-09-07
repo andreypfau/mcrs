@@ -181,11 +181,12 @@ impl ColumnBlocks {
     /// Pack every section, pairing each block palette with the column's biomes.
     pub fn into_sections(
         &self,
-        biomes: &BiomePalette,
+        biomes: &[BiomePalette],
     ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
         self.block_palettes()
             .into_iter()
-            .map(|blocks| Some((blocks, biomes.clone())))
+            .zip(biomes)
+            .map(|(blocks, biomes)| Some((blocks, biomes.clone())))
             .collect()
     }
 
