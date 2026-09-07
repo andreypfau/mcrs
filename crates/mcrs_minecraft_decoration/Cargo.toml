@@ -10,4 +10,5 @@ doctest = false
 [dependencies]
 fixedbitset.workspace = true
 mcrs_minecraft_random.workspace = true
+mcrs_minecraft_worldgen = { workspace = true, default-features = false }
 mcrs_voxel_storage.workspace = true

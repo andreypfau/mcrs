@@ -1,6 +1,8 @@
 pub mod beta;
+pub mod canyon;
 pub mod config;
 pub mod mask;
+pub mod modern;
 pub mod tunnel;
 pub mod water;
 
@@ -28,6 +30,23 @@ pub fn can_replace_block(config: &BetaCaveCarverConfig, state: VoxelId) -> bool 
     state == config.stone_state || state == config.dirt_state || state == config.grass_state
 }
 
+/// Which cells of the bounding box a carver's cross-section leaves out.
+///
+/// Java hands the rasteriser a `CarveSkipChecker` lambda per ellipsoid. Naming
+/// the two shapes instead keeps the test out of a closure call: the rasteriser
+/// matches once per ellipsoid and runs a loop that has no indirection in it.
+#[derive(Clone, Copy)]
+pub enum CarveShape<'a> {
+    /// An ellipsoid cut off below `floor_level`. Both cave carvers.
+    Cave { floor_level: f64 },
+    /// A cross-section modulated by the canyon's per-height width table, with
+    /// the vertical stretched by the `yd * yd / 6` term.
+    Canyon {
+        width_factors: &'a [f32],
+        min_y: i32,
+    },
+}
+
 /// Mark the ellipsoid at (x, y, z), horizontal radius `horizontal_radius` and
 /// vertical radius `vertical_radius`, as carved in `mask`.
 ///
@@ -43,7 +62,7 @@ pub fn carve_ellipsoid(
     z: f64,
     horizontal_radius: f64,
     vertical_radius: f64,
-    floor_level: f64,
+    shape: CarveShape<'_>,
     water: &WaterMask,
     mask: &mut CarvingMask,
 ) -> bool {
@@ -65,17 +84,43 @@ pub fn carve_ellipsoid(
         return false;
     }
 
-    for local_x in min_x..=max_x {
-        let xd = ((local_x + chunk_x * 16) as f64 + 0.5 - x) / horizontal_radius;
-        for local_z in min_z..=max_z {
-            let zd = ((local_z + chunk_z * 16) as f64 + 0.5 - z) / horizontal_radius;
-            if xd * xd + zd * zd >= 1.0 {
-                continue;
+    match shape {
+        CarveShape::Cave { floor_level } => {
+            for local_x in min_x..=max_x {
+                let xd = ((local_x + chunk_x * 16) as f64 + 0.5 - x) / horizontal_radius;
+                for local_z in min_z..=max_z {
+                    let zd = ((local_z + chunk_z * 16) as f64 + 0.5 - z) / horizontal_radius;
+                    if xd * xd + zd * zd >= 1.0 {
+                        continue;
+                    }
+                    for world_y in (min_y + 1..=max_y).rev() {
+                        let yd = (world_y as f64 - 0.5 - y) / vertical_radius;
+                        if yd > floor_level && xd * xd + yd * yd + zd * zd < 1.0 {
+                            mask.carve(local_x, world_y, local_z);
+                        }
+                    }
+                }
             }
-            for world_y in (min_y + 1..=max_y).rev() {
-                let yd = (world_y as f64 - 0.5 - y) / vertical_radius;
-                if yd > floor_level && xd * xd + yd * yd + zd * zd < 1.0 {
-                    mask.carve(local_x, world_y, local_z);
+        }
+        CarveShape::Canyon {
+            width_factors,
+            min_y: anchor,
+        } => {
+            for local_x in min_x..=max_x {
+                let xd = ((local_x + chunk_x * 16) as f64 + 0.5 - x) / horizontal_radius;
+                for local_z in min_z..=max_z {
+                    let zd = ((local_z + chunk_z * 16) as f64 + 0.5 - z) / horizontal_radius;
+                    let horizontal = xd * xd + zd * zd;
+                    if horizontal >= 1.0 {
+                        continue;
+                    }
+                    for world_y in (min_y + 1..=max_y).rev() {
+                        let yd = (world_y as f64 - 0.5 - y) / vertical_radius;
+                        let width = width_factors[(world_y - anchor - 1) as usize] as f64;
+                        if horizontal * width + yd * yd / 6.0 < 1.0 {
+                            mask.carve(local_x, world_y, local_z);
+                        }
+                    }
                 }
             }
         }

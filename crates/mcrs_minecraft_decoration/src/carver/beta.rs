@@ -1,8 +1,8 @@
-use crate::carver::WorldCarver;
 use crate::carver::config::BetaCaveCarverConfig;
 use crate::carver::mask::CarvingMask;
 use crate::carver::tunnel::{SplitSeeding, TunnelShape, walk_tunnel};
 use crate::carver::water::WaterMask;
+use crate::carver::{CarveShape, WorldCarver};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
@@ -20,6 +20,9 @@ impl WorldCarver for CaveWorldCarver {
         mask: &mut CarvingMask,
         rng: &mut R,
     ) {
+        let shape_kind = CarveShape::Cave {
+            floor_level: BETA_FLOOR_LEVEL,
+        };
         let cave_count = {
             let a = rng.next_i32_bound(40) + 1;
             let b = rng.next_i32_bound(a) + 1;
@@ -55,6 +58,7 @@ impl WorldCarver for CaveWorldCarver {
                     total_steps,
                     true,
                     SplitSeeding::FromParent,
+                    shape_kind,
                     water,
                     mask,
                     &mut room_rng,
@@ -82,6 +86,7 @@ impl WorldCarver for CaveWorldCarver {
                     total_steps,
                     false,
                     SplitSeeding::FromParent,
+                    shape_kind,
                     water,
                     mask,
                     &mut tunnel_rng,
@@ -99,13 +104,14 @@ fn tunnel_length(config: &BetaCaveCarverConfig, rng: &mut LegacyRandom) -> i32 {
     length - rng.next_i32_bound(length / 4)
 }
 
+const BETA_FLOOR_LEVEL: f64 = -0.7;
+
 fn beta_shape(thickness: f32, y_scale: f64) -> TunnelShape {
     TunnelShape {
         thickness,
         y_scale,
         horizontal_radius_multiplier: 1.0,
         vertical_radius_multiplier: 1.0,
-        floor_level: -0.7,
     }
 }
 
@@ -149,7 +155,9 @@ mod tests {
             8.0,
             3.0,
             2.0,
-            -0.7,
+            CarveShape::Cave {
+                floor_level: BETA_FLOOR_LEVEL,
+            },
             &WaterMask::default(),
             &mut mask,
         ));
@@ -172,7 +180,18 @@ mod tests {
         water.insert(4, 50, 8);
         let mut mask = CarvingMask::new(16, 1, 120);
         assert!(!carve_ellipsoid(
-            0, 0, 8.0, 50.0, 8.0, 3.0, 2.0, -0.7, &water, &mut mask,
+            0,
+            0,
+            8.0,
+            50.0,
+            8.0,
+            3.0,
+            2.0,
+            CarveShape::Cave {
+                floor_level: BETA_FLOOR_LEVEL,
+            },
+            &water,
+            &mut mask,
         ));
         assert!(mask.is_empty());
     }
@@ -188,7 +207,9 @@ mod tests {
             8.0,
             3.0,
             2.0,
-            -0.7,
+            CarveShape::Cave {
+                floor_level: BETA_FLOOR_LEVEL,
+            },
             &WaterMask::default(),
             &mut mask,
         ));

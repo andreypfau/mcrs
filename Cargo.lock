@@ -3566,6 +3566,7 @@ version = "0.1.0"
 dependencies = [
  "fixedbitset",
  "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen",
  "mcrs_voxel_storage",
 ]
 

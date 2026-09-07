@@ -1,6 +1,6 @@
-use crate::carver::carve_ellipsoid;
 use crate::carver::mask::CarvingMask;
 use crate::carver::water::WaterMask;
+use crate::carver::{CarveShape, carve_ellipsoid};
 use crate::math::{cos as math_helper_cos, sin as math_helper_sin};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -13,7 +13,6 @@ pub struct TunnelShape {
     pub y_scale: f64,
     pub horizontal_radius_multiplier: f64,
     pub vertical_radius_multiplier: f64,
-    pub floor_level: f64,
 }
 
 /// Which generator seeds a split tunnel. The two draw from different streams —
@@ -27,7 +26,7 @@ pub enum SplitSeeding {
 
 /// `WorldCarver.canReach`: give up once the target chunk is further away than
 /// the steps left could possibly carry the tunnel.
-fn can_reach(
+pub fn can_reach(
     chunk_x: i32,
     chunk_z: i32,
     x: f64,
@@ -62,6 +61,7 @@ pub fn walk_tunnel<R: Random>(
     total_steps: i32,
     room: bool,
     split_seeding: SplitSeeding,
+    shape_kind: CarveShape<'_>,
     water: &WaterMask,
     mask: &mut CarvingMask,
     rng: &mut LegacyRandom,
@@ -117,6 +117,7 @@ pub fn walk_tunnel<R: Random>(
                     total_steps,
                     false,
                     split_seeding,
+                    shape_kind,
                     water,
                     mask,
                     &mut split_rng,
@@ -138,7 +139,7 @@ pub fn walk_tunnel<R: Random>(
                 z,
                 horizontal_radius * shape.horizontal_radius_multiplier,
                 vertical_radius * shape.vertical_radius_multiplier,
-                shape.floor_level,
+                shape_kind,
                 water,
                 mask,
             );
