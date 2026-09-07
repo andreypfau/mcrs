@@ -2,11 +2,8 @@ use crate::jmath::{floor_div, floor_mod};
 use crate::volume::{Axis, Volume};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(rename_all = "snake_case")
-)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Tiling {
     #[default]
     ClampToEdge,

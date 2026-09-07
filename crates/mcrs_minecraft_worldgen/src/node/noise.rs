@@ -13,13 +13,13 @@ thread_local! {
 }
 
 #[derive(Clone, Debug)]
-pub struct NoiseParams {
+pub struct NoiseFunctionParams {
     noise: Arc<NoiseSampler>,
     xz_scale: f64,
     y_scale: f64,
 }
 
-impl NoiseParams {
+impl NoiseFunctionParams {
     pub fn new(noise: Arc<NoiseSampler>, xz_scale: f64, y_scale: f64) -> Self {
         Self {
             noise,
@@ -129,7 +129,7 @@ mod tests {
         )
     }
 
-    fn shifted(p: &NoiseParams, ext: &Volume, xs: &[f32], ys: &[f32], zs: &[f32]) -> Vec<f32> {
+    fn shifted(p: &NoiseFunctionParams, ext: &Volume, xs: &[f32], ys: &[f32], zs: &[f32]) -> Vec<f32> {
         let axes = |run: &[f32]| if run.len() == 1 { NO_AXES } else { AXIS_Y };
         let mut out = vec![0.0f32; ext.len()];
         p.eval_shifted(
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn a_scalar_run_agrees_with_the_head_of_the_full_run() {
-        let p = NoiseParams::new(noise(7), 0.25, 0.125);
+        let p = NoiseFunctionParams::new(noise(7), 0.25, 0.125);
         let c = column(-9, 13, -8, 2, 5);
         let head = column(-9, 13, -8, 2, 1);
 
@@ -163,7 +163,7 @@ mod tests {
     /// the columns it is made of must not disagree by a bit.
     #[test]
     fn a_whole_extent_batch_agrees_with_the_columns_it_covers() {
-        let p = NoiseParams::new(noise(23), 0.37, 0.11);
+        let p = NoiseFunctionParams::new(noise(23), 0.37, 0.11);
         let ext = Volume::new(
             IVec3::new(3, 5, 2),
             IVec3::new(-9, -8, 13),
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn the_hoisted_column_is_bit_exact_against_point_by_point_get() {
         let n = noise(11);
-        let p = NoiseParams::new(n.clone(), 0.25, 0.125);
+        let p = NoiseFunctionParams::new(n.clone(), 0.25, 0.125);
         let c = column(-9, 13, -8, 2, 5);
         let (sx, sy, sz) = (0.3f32, -0.2f32, 0.7f32);
 
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn a_shift_that_varies_along_y_falls_back_to_the_point_path() {
         let n = noise(11);
-        let p = NoiseParams::new(n.clone(), 0.25, 0.125);
+        let p = NoiseFunctionParams::new(n.clone(), 0.25, 0.125);
         let c = column(4, -6, 0, 1, 3);
         let xs = [0.1f32, 0.9, -0.4];
         let zs = [0.5f32, -0.5, 0.25];
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn a_power_of_two_scale_makes_the_two_coordinate_associations_coincide() {
         let n = noise(5);
-        let p = NoiseParams::new(n.clone(), 0.25, 0.125);
+        let p = NoiseFunctionParams::new(n.clone(), 0.25, 0.125);
         for bx in -40..40 {
             let c = column(bx, 3, -2, 1, 4);
             let mut out = [0.0f32; 4];
@@ -252,7 +252,7 @@ mod tests {
         // wide at a non-power-of-two scale is what it takes to catch one. Reusing the
         // point kernel here would silently unify them and zero this count.
         let n = sampler(9, 0, vec![1.0; 9]);
-        let p = NoiseParams::new(n.clone(), 0.6, 0.0);
+        let p = NoiseFunctionParams::new(n.clone(), 0.6, 0.0);
         let mut differing = 0;
         for bx in -10000..10000 {
             let mut out = [0.0f32; 1];
@@ -263,7 +263,7 @@ mod tests {
         assert_eq!(differing, 1);
     }
 
-    fn shift_b_at(p: &NoiseParams, bx: i32, bz: i32, by: i32) -> f32 {
+    fn shift_b_at(p: &NoiseFunctionParams, bx: i32, bz: i32, by: i32) -> f32 {
         let mut out = [0.0f32; 1];
         p.eval_shift_b(&mut out, &Volume::point(IVec3::new(bx, by, bz)));
         out[0]
@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn shift_b_transposes_x_and_z_and_ignores_y() {
         let n = noise(3);
-        let p = NoiseParams::shift_b(n.clone());
+        let p = NoiseFunctionParams::shift_b(n.clone());
 
         let low = shift_b_at(&p, 5, -17, -60);
         assert_eq!(low.to_bits(), shift_b_at(&p, 5, -17, 100).to_bits());
@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn a_shift_b_extent_lays_its_columns_out_x_fastest() {
-        let p = NoiseParams::shift_b(noise(3));
+        let p = NoiseFunctionParams::shift_b(noise(3));
         let ext = Volume::new(
             IVec3::new(3, 1, 2),
             IVec3::new(11, -64, -4),

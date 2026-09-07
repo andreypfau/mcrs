@@ -141,45 +141,50 @@ impl GradientNoise {
     ///
     /// The draw is width-independent — a permutation and three origins — so both
     /// the modern and the Beta samplers are built from the same stream.
-    ///
-    /// `legacy` walks the octaves in reverse and burns 262 ints per skipped one,
-    /// which is what keeps an unmodified octave from shifting the stream.
-    pub fn octaves<T>(
-        random: &mut T,
-        first_octave: i32,
-        amplitudes: &[f64],
-        legacy: bool,
-    ) -> Vec<Option<Self>>
+    pub fn octaves<T>(random: &mut T, first_octave: i32, amplitudes: &[f64]) -> Vec<Option<Self>>
     where
         T: Random + Clone,
     {
-        let mut octaves = Vec::with_capacity(amplitudes.len());
-        if !legacy {
-            for (i, amplitude) in amplitudes.iter().enumerate() {
-                if *amplitude != 0.0 {
-                    let octave = (i as i32) + first_octave;
+        let octaves = amplitudes
+            .iter()
+            .enumerate()
+            .map(|(i, amplitude)| {
+                (*amplitude != 0.0).then(|| {
+                    let octave = i as i32 + first_octave;
                     let mut octave_random = random
                         .clone()
-                        .fork_hash(format!("octave_{}", octave).as_bytes());
-                    octaves.push(Some(Self::from_random(&mut octave_random)));
+                        .fork_hash(format!("octave_{octave}").as_bytes());
+                    Self::from_random(&mut octave_random)
+                })
+            })
+            .collect();
+        random.fork();
+        octaves
+    }
+
+    /// The pre-26.3 draw, which vanilla keeps as a deprecated class of its own
+    /// rather than a mode of [`Self::octaves`]: it walks the octaves in reverse
+    /// and burns 262 ints per skipped one, which is what keeps an unmodified
+    /// octave from shifting the stream.
+    pub fn legacy_octaves<T: Random>(
+        random: &mut T,
+        first_octave: i32,
+        amplitudes: &[f64],
+    ) -> Vec<Option<Self>> {
+        let mut octaves: Vec<Option<Self>> = (0..=-first_octave as usize)
+            .rev()
+            .map(|i| {
+                if amplitudes.get(i).is_some_and(|a| *a != 0.0) {
+                    Some(Self::from_random(random))
                 } else {
-                    octaves.push(None);
-                }
-            }
-            random.fork();
-        } else {
-            for i in (0..=-first_octave as usize).rev() {
-                if i < amplitudes.len() && amplitudes[i] != 0.0 {
-                    octaves.push(Some(Self::from_random(random)));
-                } else {
-                    octaves.push(None);
                     for _ in 0..262 {
                         random.next_i32();
                     }
+                    None
                 }
-            }
-            octaves.reverse();
-        }
+            })
+            .collect();
+        octaves.reverse();
         octaves
     }
 

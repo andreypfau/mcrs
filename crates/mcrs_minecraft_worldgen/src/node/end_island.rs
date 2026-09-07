@@ -48,7 +48,7 @@ impl EndIslandParams {
                 }
                 // `SimplexNoise.get` returns a float, so the value narrows before
                 // the threshold test rather than being compared as a double.
-                let sample = self.noise.sample(cell_x as f64, cell_z as f64, 1.0, 1.0) as f32;
+                let sample = self.noise.sample_2d(cell_x as f64, cell_z as f64, 1.0, 1.0) as f32;
                 if sample >= ISLAND_THRESHOLD {
                     continue;
                 }

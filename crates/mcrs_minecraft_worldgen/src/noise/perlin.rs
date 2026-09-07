@@ -25,11 +25,6 @@ impl PerlinNoise {
     }
 
     #[inline(always)]
-    pub fn sample_2d(&self, x: f32, z: f32) -> f32 {
-        self.0.sample_2d_f32(x, z)
-    }
-
-    #[inline(always)]
     pub fn sample(&self, x: f64, y: f64, z: f64) -> f32 {
         self.0.sample_f32(x, y, z)
     }
@@ -40,6 +35,17 @@ impl PerlinNoise {
     pub fn sample_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
         self.0.column::<false>(x, z, ys, &[], 0.0, out);
+    }
+
+    pub fn legacy_fill(
+        &self,
+        out: &mut [f32],
+        offset: [f64; 3],
+        size: [usize; 3],
+        scale: [f64; 3],
+        amplitude: f32,
+    ) {
+        self.0.legacy_fill(out, offset, size, scale, amplitude);
     }
 
     /// Accumulates `amplitude * sample` over `volume`, Z outer / X middle / Y inner.
@@ -53,6 +59,62 @@ impl PerlinNoise {
     ) {
         self.0
             .volume::<false>(out, volume, xz_scale, y_scale, 0.0, amplitude);
+    }
+}
+
+/// Beta's `ySize == 1` branch: the y lattice index is pinned to zero, the y
+/// fraction to zero, and the y origin is not added at all. Sampling the 3D path
+/// at y = 0 would add the octave's own y origin and land in a different lattice
+/// cell, so this is a separate noise over the same lattice rather than a special
+/// case of [`PerlinNoise`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct LegacyPerlin2dNoise(GradientNoise);
+
+impl LegacyPerlin2dNoise {
+    pub fn from_gradient(base: GradientNoise) -> Self {
+        Self(base)
+    }
+
+    /// Coordinates stay `f64` to the floor, as they do in Beta: narrowing them
+    /// first would quantise the lattice to whole blocks a few hundred thousand
+    /// blocks out.
+    #[inline]
+    pub fn sample_xz(&self, x: f64, z: f64) -> f32 {
+        let shifted_x = x + self.0.origin_x;
+        let shifted_z = z + self.0.origin_z;
+        let floor_x = shifted_x.floor();
+        let floor_z = shifted_z.floor();
+        self.0.sample_and_lerp(
+            floor_x as i32,
+            0,
+            floor_z as i32,
+            (shifted_x - floor_x) as f32,
+            0.0,
+            (shifted_z - floor_z) as f32,
+            0.0,
+        )
+    }
+
+    /// One value per column, repeated down it.
+    pub fn add_to_volume(
+        &self,
+        out: &mut [f32],
+        volume: &Volume,
+        xz_scale: f64,
+        amplitude: f32,
+    ) {
+        let size = volume.size();
+        let mut index = 0usize;
+        for iz in 0..size.z {
+            let z = wrap(volume.block_z(iz) as f64 * xz_scale);
+            for ix in 0..size.x {
+                let value = amplitude * self.sample_xz(wrap(volume.block_x(ix) as f64 * xz_scale), z);
+                for _ in 0..size.y {
+                    out[index] += value;
+                    index += 1;
+                }
+            }
+        }
     }
 }
 
@@ -125,22 +187,6 @@ fn fudged_local_y<const SMEARED: bool>(
 }
 
 impl GradientNoise {
-    /// 2D sample per the Beta `ySize == 1` array-sampler branch of `NoiseGeneratorPerlin.java:105-147`.
-    ///
-    /// Only xo/zo are added; the y origin is NOT added and the y lattice is pinned to index 0
-    /// with y fraction 0. Sampling the 3D path at y = 0 would add the per-octave y origin and
-    /// land in a different lattice cell — wrong for Beta scale/depth 2D nodes.
-    #[inline(always)]
-    pub(crate) fn sample_2d_f32(&self, x: f32, z: f32) -> f32 {
-        let shifted_x = x + self.origin_x as f32;
-        let shifted_z = z + self.origin_z as f32;
-        let section_x = shifted_x.floor() as i32;
-        let section_z = shifted_z.floor() as i32;
-        let local_x = shifted_x - section_x as f32;
-        let local_z = shifted_z - section_z as f32;
-        self.sample_and_lerp(section_x, 0, section_z, local_x, 0.0, local_z, 0.0)
-    }
-
     #[inline(always)]
     pub(crate) fn sample_f32(&self, x: f64, y: f64, z: f64) -> f32 {
         let mut out = [0.0f32; 1];
@@ -286,6 +332,100 @@ impl GradientNoise {
                             smoothstep(local_y as f32),
                             fade_z,
                         );
+                    index += 1;
+                }
+            }
+        }
+    }
+}
+
+impl GradientNoise {
+    /// Beta's bulk fill, which is **not** a function of position: the eight
+    /// corner dot products are computed once per y lattice cell and reused for
+    /// every later sample in that cell, keeping the first sample's fractional y
+    /// even as the fade advances. Sampling the same coordinates pointwise gives
+    /// different terrain, so the grid — its origin, extent and step — is part of
+    /// the definition.
+    ///
+    /// `out` is accumulated into, so the caller zeroes it. The axes are the
+    /// caller's to permute: Beta hands world Z to the y argument for the surface
+    /// noises. Iteration is x outer, z middle, y inner.
+    pub fn legacy_fill(
+        &self,
+        out: &mut [f32],
+        offset: [f64; 3],
+        size: [usize; 3],
+        scale: [f64; 3],
+        amplitude: f32,
+    ) {
+        let p = |i: usize| self.permutation[i & 0xFF] as usize;
+        let mut index = 0usize;
+        let mut cached_cell = -1i32;
+        let (mut lower_near, mut upper_near) = (0.0f32, 0.0f32);
+        let (mut lower_far, mut upper_far) = (0.0f32, 0.0f32);
+
+        for ix in 0..size[0] {
+            let x = (offset[0] + ix as f64) * scale[0] + self.origin_x;
+            let floor_x = x.floor();
+            let perm_x = (floor_x as i32 & 0xFF) as usize;
+            let local_x = (x - floor_x) as f32;
+            let fade_x = smoothstep(local_x);
+
+            for iz in 0..size[2] {
+                let z = (offset[2] + iz as f64) * scale[2] + self.origin_z;
+                let floor_z = z.floor();
+                let perm_z = (floor_z as i32 & 0xFF) as usize;
+                let local_z = (z - floor_z) as f32;
+                let fade_z = smoothstep(local_z);
+
+                for iy in 0..size[1] {
+                    let y = (offset[1] + iy as f64) * scale[1] + self.origin_y;
+                    let floor_y = y.floor();
+                    let cell = floor_y as i32 & 0xFF;
+                    let local_y = (y - floor_y) as f32;
+                    let fade_y = smoothstep(local_y);
+
+                    if iy == 0 || cell != cached_cell {
+                        cached_cell = cell;
+                        let a = p(perm_x).wrapping_add(cell as usize);
+                        let a0 = p(a).wrapping_add(perm_z);
+                        let a1 = p(a.wrapping_add(1)).wrapping_add(perm_z);
+                        let b = p(perm_x.wrapping_add(1)).wrapping_add(cell as usize);
+                        let b0 = p(b).wrapping_add(perm_z);
+                        let b1 = p(b.wrapping_add(1)).wrapping_add(perm_z);
+                        let dot = |h: usize, x: f32, y: f32, z: f32| f32::grad_dot(h, x, y, z);
+                        let lerp = |t: f32, a: f32, b: f32| a + t * (b - a);
+                        lower_near = lerp(
+                            fade_x,
+                            dot(p(a0), local_x, local_y, local_z),
+                            dot(p(b0), local_x - 1.0, local_y, local_z),
+                        );
+                        upper_near = lerp(
+                            fade_x,
+                            dot(p(a1), local_x, local_y - 1.0, local_z),
+                            dot(p(b1), local_x - 1.0, local_y - 1.0, local_z),
+                        );
+                        lower_far = lerp(
+                            fade_x,
+                            dot(p(a0.wrapping_add(1)), local_x, local_y, local_z - 1.0),
+                            dot(p(b0.wrapping_add(1)), local_x - 1.0, local_y, local_z - 1.0),
+                        );
+                        upper_far = lerp(
+                            fade_x,
+                            dot(p(a1.wrapping_add(1)), local_x, local_y - 1.0, local_z - 1.0),
+                            dot(
+                                p(b1.wrapping_add(1)),
+                                local_x - 1.0,
+                                local_y - 1.0,
+                                local_z - 1.0,
+                            ),
+                        );
+                    }
+
+                    let lerp = |t: f32, a: f32, b: f32| a + t * (b - a);
+                    let near = lerp(fade_y, lower_near, upper_near);
+                    let far = lerp(fade_y, lower_far, upper_far);
+                    out[index] += amplitude * lerp(fade_z, near, far);
                     index += 1;
                 }
             }

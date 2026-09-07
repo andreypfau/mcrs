@@ -136,6 +136,12 @@ impl CellBounds {
     }
 }
 
+/// Interval arithmetic over the operators, deliberately not sharing
+/// [`crate::proto::range`]: that one reports the bound vanilla declares, which
+/// for a noise is statistical and can be exceeded. Here the bound decides
+/// substance for a whole cell without sampling it, so every leaf whose value is
+/// not rigorously bounded answers `None` and sends the cell down the per-block
+/// path instead.
 fn node_bounds(node: &Node, at: &dyn Fn(NodeId) -> Interval) -> Option<Interval> {
     Some(match node {
         Node::Constant(value) => Interval::exact(*value),

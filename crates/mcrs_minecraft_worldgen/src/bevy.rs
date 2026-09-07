@@ -1,6 +1,6 @@
 use crate::compile::build_router;
 use crate::proto::{DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction};
-use crate::router::{GeneratorSettings, NoiseRouter};
+use crate::router::{NoiseGeneratorSettings, NoiseRouter};
 use bevy_app::{App, Plugin, Startup, Update};
 use bevy_asset::io::Reader;
 use bevy_asset::{
@@ -351,7 +351,7 @@ fn collect(
 
 #[derive(TypePath, Debug)]
 pub struct NoiseGeneratorSettingsAsset {
-    pub settings: GeneratorSettings,
+    pub settings: NoiseGeneratorSettings,
     pub density_functions: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
     pub noises: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
 }
@@ -417,7 +417,7 @@ impl AssetLoader for NoiseGeneratorSettingsLoader {
         load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = read_all(reader).await?;
-        let settings = serde_json::from_slice::<GeneratorSettings>(&bytes)
+        let settings = serde_json::from_slice::<NoiseGeneratorSettings>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
         let mut deps = Dependencies::new(load_context);

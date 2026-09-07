@@ -9,7 +9,7 @@
         "left": {
           "type": "minecraft:noise",
           "noise": "mcrs:beta/depth",
-          "xz_scale": 1.0,
+          "xz_scale": 50.0,
           "y_scale": 0.0
         },
         "right": 0.000125
@@ -23,7 +23,7 @@
           "left": {
             "type": "minecraft:noise",
             "noise": "mcrs:beta/depth",
-            "xz_scale": 1.0,
+            "xz_scale": 50.0,
             "y_scale": 0.0
           },
           "right": 0.000125
@@ -35,7 +35,7 @@
         "left": {
           "type": "minecraft:noise",
           "noise": "mcrs:beta/depth",
-          "xz_scale": 1.0,
+          "xz_scale": 50.0,
           "y_scale": 0.0
         },
         "right": 0.000125

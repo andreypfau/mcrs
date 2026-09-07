@@ -1,3 +1,4 @@
+use crate::interval::Interval;
 use crate::jmath;
 use crate::kernel::each_column;
 use crate::noise::perlin::SmearedPerlinNoise;
@@ -24,10 +25,6 @@ struct Inner {
     xz_factor: f64,
     y_factor: f64,
     smear_scale_multiplier: f64,
-    /// 1.0 for 26.3, whose layer value factors already carry the scaling. Beta
-    /// omits the trailing division by 128 that those factors fold in, so its
-    /// terrain is exactly 128 times larger. A power of two, so this is exact.
-    final_scale: f32,
     xz_multiplier: f64,
     y_multiplier: f64,
     main_xz_multiplier: f64,
@@ -61,13 +58,33 @@ fn create_fbm(
     stack.build()
 }
 
+/// `BlendedNoise.range()`. The two limit stacks are what escapes furthest and
+/// the main stack only picks between them, so the bound is one limit fbm.
+///
+/// The per-layer bound is the smeared noise's `±(|fudge_y_scale| + 2.0)`, not a
+/// plain Perlin's flat `±2.0`.
+pub fn declared_range(y_scale: f64, smear_scale_multiplier: f64) -> Interval {
+    let smear_scale_y = (BASE_SCALE * y_scale) * smear_scale_multiplier;
+    let octaves = -LIMIT_FIRST_OCTAVE + 1;
+    let mut frequency = 1.0f64;
+    let mut value_factor = LIMIT_FACTOR / (2.0f64.powi(octaves) - 1.0);
+    let mut range = Interval::exact(0.0);
+    for _ in 0..octaves {
+        let layer = Interval::symmetric(((smear_scale_y * frequency).abs() + 2.0) as f32)
+            * Interval::exact(value_factor as f32);
+        range = range + layer;
+        frequency *= 0.5;
+        value_factor *= 2.0;
+    }
+    range
+}
+
 #[derive(Clone)]
 pub struct BlendedParams {
     inner: Arc<Inner>,
 }
 
 impl BlendedParams {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         random: &mut RandomSource,
         xz_scale: f64,
@@ -75,7 +92,6 @@ impl BlendedParams {
         xz_factor: f64,
         y_factor: f64,
         smear_scale_multiplier: f64,
-        final_scale: f32,
     ) -> Self {
         let xz_multiplier = BASE_SCALE * xz_scale;
         let y_multiplier = BASE_SCALE * y_scale;
@@ -95,7 +111,6 @@ impl BlendedParams {
                 xz_factor,
                 y_factor,
                 smear_scale_multiplier,
-                final_scale,
                 xz_multiplier,
                 y_multiplier,
                 main_xz_multiplier: xz_multiplier / xz_factor,
@@ -166,11 +181,6 @@ impl BlendedParams {
                     jmath::lerp(alpha, min[i], max[i])
                 };
             }
-            if inner.final_scale != 1.0 {
-                for slot in run.iter_mut() {
-                    *slot *= inner.final_scale;
-                }
-            }
         });
     }
 }
@@ -204,28 +214,7 @@ mod tests {
 
     fn overworld() -> BlendedParams {
         let mut random = RandomSource::new(42, false);
-        BlendedParams::new(&mut random, 0.25, 0.125, 80.0, 160.0, 8.0, 1.0)
-    }
-
-    #[test]
-    fn the_beta_scale_is_an_exact_factor_of_128() {
-        let mut a = RandomSource::new(42, false);
-        let modern = BlendedParams::new(&mut a, 0.25, 0.125, 80.0, 160.0, 8.0, 1.0);
-        let mut b = RandomSource::new(42, false);
-        let beta = BlendedParams::new(&mut b, 0.25, 0.125, 80.0, 160.0, 8.0, 128.0);
-
-        let mut m = [0.0f32; 6];
-        let mut t = [0.0f32; 6];
-        modern.eval(&mut m, &column());
-        beta.eval(&mut t, &column());
-        for (i, (&x, &y)) in m.iter().zip(&t).enumerate() {
-            assert_eq!(y, x * 128.0, "element {i}");
-            assert_eq!(y / 128.0, x, "128 is a power of two, so this round-trips");
-        }
-        assert!(
-            m.iter().any(|&v| v != 0.0),
-            "the sample must not be trivial"
-        );
+        BlendedParams::new(&mut random, 0.25, 0.125, 80.0, 160.0, 8.0)
     }
 
     #[test]

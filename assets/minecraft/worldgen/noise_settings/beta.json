@@ -26,12 +26,16 @@
         "left": {
           "left": {
             "left": {
-              "smear_scale_multiplier": 8.0,
-              "type": "minecraft:old_blended_noise",
-              "xz_factor": 80.0,
-              "xz_scale": 0.25,
-              "y_factor": 160.0,
-              "y_scale": 0.125
+              "left": {
+                "smear_scale_multiplier": 8.0,
+                "type": "minecraft:old_blended_noise",
+                "xz_factor": 80.0,
+                "xz_scale": 0.25,
+                "y_factor": 160.0,
+                "y_scale": 0.125
+              },
+              "right": 128.0,
+              "type": "minecraft:mul"
             },
             "right": "minecraft:beta/falloff",
             "type": "minecraft:add"

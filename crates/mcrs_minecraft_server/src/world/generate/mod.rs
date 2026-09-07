@@ -435,10 +435,7 @@ pub fn apply_beta_surface(
     blocks: &BlockDefinitions,
     rng: &mut LegacyRandom,
 ) {
-    let Some(beach_noise) = noise_router.beta_beach_noise() else {
-        return;
-    };
-    let Some(surf_noise) = noise_router.beta_surface_noise() else {
+    let Some(beta) = noise_router.beta_noises() else {
         return;
     };
 
@@ -460,61 +457,34 @@ pub fn apply_beta_surface(
 
     const D0: f64 = 0.03125;
 
-    // Pre-sample noise arrays for the 16x16 chunk footprint using Java-exact bulk fill.
-    // r[x*16+z]: beach XZ noise (gravel/sand condition).
-    // s[x*16+z]: beach noise at Y=109 (gravel override condition).
-    // t[x*16+z]: surface depth noise.
+    // Three 16x16 grids, indexed geographically as x * 16 + z. Beta permutes the
+    // axes: world Z goes to the noise's y argument and its own z is pinned to
+    // zero, so the walk is x outer and world Z inner, which is the index order
+    // the arrays want anyway.
     //
-    // Java call: n.a(r, i*16, jj*16, 0.0, 16, 16, 1, d0, d0, 1.0)
-    // → fill_3d_bulk(x_start=block_x, y_start=block_z, z_start=0, x=16, y=16, z=1, sx=D0, sy=D0, sz=1.0)
-    // Output index j1*16+k4 = x_local*16+z_local = x*16+z. ✓
-    let mut r = [0.0f64; 256];
-    beach_noise.fill_3d_bulk(
-        &mut r,
-        block_x as f64,
-        block_z as f64,
-        0.0,
-        16,
-        16,
-        1,
-        D0,
-        D0,
-        1.0,
-    );
+    //   r: `n.a(r, i*16, jj*16, 0.0, 16, 16, 1, d0, d0, 1.0)`       sand and gravel
+    //   s: `n.a(s, i*16, 109.0134, jj*16, 16, 1, 16, d0, 1.0, d0)`  gravel override
+    //   t: `o.a(t, i*16, jj*16, 0.0, 16, 16, 1, d0*2, d0*2, d0*2)`  surface depth
+    //
+    // r and t go through the grid fill because Beta's reuse of a lattice cell's
+    // corner dots makes that fill depend on the grid and not only on the
+    // position. `s` has ySize 1, so Beta takes the branch that drops the y
+    // offset entirely — the 109.0134 never reaches the lattice — and that branch
+    // is an ordinary function of x and z.
+    let (mut r, mut t) = ([0.0f32; 256], [0.0f32; 256]);
+    let offset = [block_x as f64, block_z as f64, 0.0];
+    beta.beach
+        .fill_legacy_grid(&mut r, offset, [16, 16, 1], [D0, D0, 1.0]);
+    beta.surface
+        .fill_legacy_grid(&mut t, offset, [16, 16, 1], [D0 * 2.0, D0 * 2.0, D0 * 2.0]);
 
-    // Java call: n.a(s, i*16, 109.0134, jj*16, 16, 1, 16, d0, 1.0, d0)
-    // j=ySize=1: uses ySize==1 branch with y-lattice pinned to floor(109.0134*freq+oy).
-    // Per-point via sample_xyz_beta is sufficient for the gravel-only flag1 condition.
-    let mut s = [0.0f64; 256];
-    for x in 0..16usize {
-        for z in 0..16usize {
-            s[x * 16 + z] = beach_noise.sample_xyz_beta(
-                (block_x + x as i32) as f64,
-                109.0134,
-                (block_z + z as i32) as f64,
-                D0,
-                1.0,
-                D0,
-            );
+    let mut s = [0.0f32; 256];
+    for x in 0..16i32 {
+        for z in 0..16i32 {
+            let (wx, wz) = ((block_x + x) as f64, (block_z + z) as f64);
+            s[(x * 16 + z) as usize] = beta.beach_flat.get(wx * D0, 0.0, wz * D0);
         }
     }
-
-    // Java call: o.a(t, i*16, jj*16, 0.0, 16, 16, 1, d0*2, d0*2, d0*2)
-    // → fill_3d_bulk(x_start=block_x, y_start=block_z, z_start=0, x=16, y=16, z=1,
-    //                sx=D0*2, sy=D0*2, sz=D0*2)
-    let mut t = [0.0f64; 256];
-    surf_noise.fill_3d_bulk(
-        &mut t,
-        block_x as f64,
-        block_z as f64,
-        0.0,
-        16,
-        16,
-        1,
-        D0 * 2.0,
-        D0 * 2.0,
-        D0 * 2.0,
-    );
 
     let mut ws = Workspace::new();
     let (temperatures, humidities) =
@@ -528,9 +498,9 @@ pub fn apply_beta_surface(
             let idx = (x_local * 16 + z_local) as usize;
 
             // Three RNG draws per column matching Java's Random.nextDouble() exactly.
-            let flag = r[idx] + rng.next_java_double() * 0.2 > 0.0;
-            let flag1 = s[idx] + rng.next_java_double() * 0.2 > 3.0;
-            let i1 = (t[idx] / 3.0 + 3.0 + rng.next_java_double() * 0.25) as i32;
+            let flag = r[idx] as f64 + rng.next_java_double() * 0.2 > 0.0;
+            let flag1 = s[idx] as f64 + rng.next_java_double() * 0.2 > 3.0;
+            let i1 = (t[idx] as f64 / 3.0 + 3.0 + rng.next_java_double() * 0.25) as i32;
 
             let (temp, humidity) = (temperatures[idx], humidities[idx]);
             let biome_land: BetaLandBiome = if let Some(table) = beta_lookup {

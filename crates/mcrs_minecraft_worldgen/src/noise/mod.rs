@@ -1,4 +1,3 @@
-pub mod beta;
 pub mod gradient;
 pub mod normal;
 pub mod perlin;

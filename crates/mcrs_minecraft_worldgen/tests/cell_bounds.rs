@@ -11,7 +11,7 @@ use mcrs_minecraft_worldgen::compile::build_router;
 use mcrs_minecraft_worldgen::interval::Interval;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
-use mcrs_minecraft_worldgen::router::{GeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen::volume::Volume;
 
 /// The margin the chunk generator keeps away from zero: f32 interval arithmetic
@@ -50,7 +50,7 @@ fn settings_bytes() -> Vec<u8> {
 }
 
 fn router(seed: u64) -> NoiseRouter {
-    let settings: GeneratorSettings = serde_json::from_slice(&settings_bytes()).unwrap();
+    let settings: NoiseGeneratorSettings = serde_json::from_slice(&settings_bytes()).unwrap();
     let registry: BTreeMap<_, DensityFunctionHolder> = raw("minecraft/worldgen/density_function")
         .iter()
         .filter_map(|(id, d)| serde_json::from_slice(d).ok().map(|v| (id.clone(), v)))

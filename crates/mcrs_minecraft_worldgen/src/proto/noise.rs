@@ -141,7 +141,7 @@ impl NoiseParam {
     /// `RandomSource`, no seed. `min`/`max` branch elimination reads it, so a
     /// bound one ulp off vanilla's can delete a branch vanilla keeps.
     pub fn range(&self) -> Interval {
-        Interval::symmetric((self.octaves().target_amplitude * TARGET_DEVIATION * 6.0) as f32)
+        declared_range(self.octaves().target_amplitude)
     }
 
     /// Everything the parameters decide before a seed is drawn: which octaves
@@ -198,6 +198,13 @@ pub struct Octaves {
     pub factor: f64,
     /// The summed absolute octave amplitudes, after the legacy adjustment.
     pub target_amplitude: f64,
+}
+
+/// Six sigma on the summed octaves, deliberately not the analytically rigorous
+/// extreme — that is about twice as wide. Branch elimination consumes this, so
+/// widening it silently changes generated terrain.
+pub(crate) fn declared_range(target_amplitude: f64) -> Interval {
+    Interval::symmetric((target_amplitude * TARGET_DEVIATION * 6.0) as f32)
 }
 
 pub(crate) fn deviation(amplitudes: impl Iterator<Item = f64>) -> f64 {

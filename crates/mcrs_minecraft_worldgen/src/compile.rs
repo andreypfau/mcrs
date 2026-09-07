@@ -1,18 +1,18 @@
-use crate::beta::seed::{seed_beta_climate, seed_beta_terrain};
+use crate::beta::seed::{BetaClimateNoises, BetaTerrainNoises};
 use crate::interval::Interval;
 use crate::jmath;
 use crate::node::blended::{BlendedParams, NOISE_SEED};
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
-use crate::node::noise::NoiseParams;
+use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::{CompiledSpline, Multipoint, SplineValue};
 use crate::noise::normal::NoiseSampler;
 use crate::program::{BinaryOp, Node, NodeId, Program, RoundKind, UnaryOp};
 use crate::proto::{
     self, DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, ProtoSpline,
 };
-use crate::router::{GeneratorSettings, NoiseRouter, ROOT_NAMES};
+use crate::router::{NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES};
 use crate::strata::{AXIS_X, AXIS_Z, Axes, NO_AXES};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -46,7 +46,7 @@ impl fmt::Display for CompileError {
 impl std::error::Error for CompileError {}
 
 pub fn build_router(
-    settings: &GeneratorSettings,
+    settings: &NoiseGeneratorSettings,
     registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
     noises: &BTreeMap<ResourceLocation, NoiseParam>,
     seed: u64,
@@ -99,10 +99,14 @@ pub struct Compiler<'a> {
     inlining: Vec<ResourceLocation>,
     ranges: HashMap<DensityFunctionHolder, Interval>,
     samplers: HashMap<NoiseHolder, Arc<NoiseSampler>>,
-    noise_params: HashMap<(usize, u64, u64), Arc<NoiseParams>>,
+    noise_params: HashMap<(usize, u64, u64), Arc<NoiseFunctionParams>>,
     splines: HashMap<ProtoSpline, Arc<CompiledSpline>>,
     blended: HashMap<[u64; 5], Arc<BlendedParams>>,
     end_islands: Option<Arc<EndIslandParams>>,
+    /// Both are an 82- and a 10-octave `LegacyRandom` walk; the ids that resolve
+    /// to them are separate assets, so without this each one reseeds from zero.
+    beta_terrain: Option<Arc<BetaTerrainNoises>>,
+    beta_climate: Option<Arc<BetaClimateNoises>>,
     cells: usize,
 }
 
@@ -132,6 +136,8 @@ impl<'a> Compiler<'a> {
             splines: HashMap::new(),
             blended: HashMap::new(),
             end_islands: None,
+            beta_terrain: None,
+            beta_climate: None,
             cells: 0,
         }
     }
@@ -1082,7 +1088,7 @@ impl<'a> Compiler<'a> {
         sampler: &Arc<NoiseSampler>,
         xz_scale: f64,
         y_scale: f64,
-    ) -> Arc<NoiseParams> {
+    ) -> Arc<NoiseFunctionParams> {
         let key = (
             Arc::as_ptr(sampler) as usize,
             xz_scale.to_bits(),
@@ -1091,17 +1097,17 @@ impl<'a> Compiler<'a> {
         if let Some(params) = self.noise_params.get(&key) {
             return Arc::clone(params);
         }
-        let params = Arc::new(NoiseParams::new(Arc::clone(sampler), xz_scale, y_scale));
+        let params = Arc::new(NoiseFunctionParams::new(Arc::clone(sampler), xz_scale, y_scale));
         self.noise_params.insert(key, Arc::clone(&params));
         params
     }
 
-    fn shift_b_params(&mut self, sampler: &Arc<NoiseSampler>) -> Arc<NoiseParams> {
+    fn shift_b_params(&mut self, sampler: &Arc<NoiseSampler>) -> Arc<NoiseFunctionParams> {
         let key = (Arc::as_ptr(sampler) as usize, u64::MAX, u64::MAX);
         if let Some(params) = self.noise_params.get(&key) {
             return Arc::clone(params);
         }
-        let params = Arc::new(NoiseParams::shift_b(Arc::clone(sampler)));
+        let params = Arc::new(NoiseFunctionParams::shift_b(Arc::clone(sampler)));
         self.noise_params.insert(key, Arc::clone(&params));
         params
     }
@@ -1139,7 +1145,6 @@ impl<'a> Compiler<'a> {
             xz_factor,
             y_factor,
             smear_scale_multiplier,
-            if self.legacy_random { 128.0 } else { 1.0 },
         ));
         self.blended.insert(key, Arc::clone(&params));
         params
@@ -1200,6 +1205,20 @@ impl<'a> Compiler<'a> {
         Ok(NoiseSampler::from_params(&mut random, param))
     }
 
+    fn beta_terrain(&mut self) -> Arc<BetaTerrainNoises> {
+        Arc::clone(
+            self.beta_terrain
+                .get_or_insert_with(|| Arc::new(BetaTerrainNoises::new(self.seed))),
+        )
+    }
+
+    fn beta_climate(&mut self) -> Arc<BetaClimateNoises> {
+        Arc::clone(
+            self.beta_climate
+                .get_or_insert_with(|| Arc::new(BetaClimateNoises::new(self.seed))),
+        )
+    }
+
     /// The Beta noises are drawn from the pre-26.3 `LegacyRandom` streams and
     /// have no `worldgen/noise` entry, so the ids are resolved here instead.
     fn create_legacy_noise(&mut self, id: &ResourceLocation) -> Option<NoiseSampler> {
@@ -1209,31 +1228,11 @@ impl<'a> Compiler<'a> {
                 let mut random = root.fork_hash("minecraft:offset");
                 Some(NoiseSampler::new(&mut random, 0, vec![0.0]))
             }
-            "mcrs:beta/scale" => {
-                let (_, _, _, _, _, scale, _) = seed_beta_terrain(self.seed);
-                Some(NoiseSampler::beta_octave_2d(scale, 1.121, 2048.0))
-            }
-            "mcrs:beta/depth" => {
-                let (_, _, _, _, _, _, depth) = seed_beta_terrain(self.seed);
-                Some(NoiseSampler::beta_octave_2d(depth, 200.0, 131072.0))
-            }
-            "mcrs:beta/temperature" => {
-                let (temperature, _, _) = seed_beta_climate(self.seed);
-                Some(NoiseSampler::beta_simplex_2d(
-                    temperature,
-                    0.025,
-                    0.25,
-                    16.0,
-                ))
-            }
-            "mcrs:beta/vegetation" => {
-                let (_, rain, _) = seed_beta_climate(self.seed);
-                Some(NoiseSampler::beta_simplex_2d(rain, 0.05, 1.0 / 3.0, 16.0))
-            }
-            "mcrs:beta/climate_detail" => {
-                let (_, _, detail) = seed_beta_climate(self.seed);
-                Some(NoiseSampler::beta_simplex_2d(detail, 0.25, 1.0 / 1.7, 4.0))
-            }
+            "mcrs:beta/scale" => Some(self.beta_terrain().scale.clone()),
+            "mcrs:beta/depth" => Some(self.beta_terrain().depth.clone()),
+            "mcrs:beta/temperature" => Some(self.beta_climate().temperature.clone()),
+            "mcrs:beta/vegetation" => Some(self.beta_climate().vegetation.clone()),
+            "mcrs:beta/climate_detail" => Some(self.beta_climate().detail.clone()),
             _ => None,
         }
     }
@@ -1792,7 +1791,7 @@ mod tests {
     #[test]
     fn the_overworld_router_compiles_to_far_fewer_nodes_than_its_tree_has() {
         let (functions, noises) = corpus();
-        let settings: GeneratorSettings = serde_json::from_slice(
+        let settings: NoiseGeneratorSettings = serde_json::from_slice(
             &std::fs::read(assets().join("noise_settings/overworld.json")).unwrap(),
         )
         .unwrap();
@@ -1830,7 +1829,7 @@ mod tests {
     #[test]
     fn the_overworld_climate_roots_evaluate_over_a_chunk() {
         let (functions, noises) = corpus();
-        let settings: GeneratorSettings = serde_json::from_slice(
+        let settings: NoiseGeneratorSettings = serde_json::from_slice(
             &std::fs::read(assets().join("noise_settings/overworld.json")).unwrap(),
         )
         .unwrap();
@@ -1880,7 +1879,7 @@ mod tests {
             "overworld",
         ] {
             let path = assets().join(format!("noise_settings/{name}.json"));
-            let settings: GeneratorSettings =
+            let settings: NoiseGeneratorSettings =
                 serde_json::from_slice(&std::fs::read(&path).unwrap())
                     .unwrap_or_else(|e| panic!("{name}: {e}"));
             let router = build_router(&settings, &functions, &noises, 42, VoxelId(1), VoxelId(2))

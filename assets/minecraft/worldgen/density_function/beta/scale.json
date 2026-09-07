@@ -14,7 +14,7 @@
             "left": {
               "type": "minecraft:noise",
               "noise": "mcrs:beta/scale",
-              "xz_scale": 1.0,
+              "xz_scale": 0.28025,
               "y_scale": 0.0
             },
             "right": 256.0

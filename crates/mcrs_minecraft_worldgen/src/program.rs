@@ -6,7 +6,7 @@ use crate::node::blended::BlendedParams;
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
-use crate::node::noise::NoiseParams;
+use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
 use crate::strata::{ALL_AXES, AXIS_Y, Axes, extent, stratum};
 use crate::volume::Volume;
@@ -113,10 +113,10 @@ pub enum Node {
     Constant(f32),
     Gradient(GradientParams),
     Noise {
-        params: Arc<NoiseParams>,
+        params: Arc<NoiseFunctionParams>,
     },
     ShiftB {
-        params: Arc<NoiseParams>,
+        params: Arc<NoiseFunctionParams>,
     },
     DistanceToPoint(DistanceParams),
     EndOuterIslands(Arc<EndIslandParams>),
@@ -212,7 +212,7 @@ pub enum Node {
         second: f32,
     },
     ShiftedNoise {
-        params: Arc<NoiseParams>,
+        params: Arc<NoiseFunctionParams>,
         x: NodeId,
         y: NodeId,
         z: NodeId,
@@ -528,10 +528,6 @@ impl Program {
 
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
-    }
-
-    pub fn root_count(&self) -> usize {
-        self.roots.len()
     }
 
     #[inline]

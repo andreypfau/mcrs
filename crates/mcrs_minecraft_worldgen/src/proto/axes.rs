@@ -1,11 +1,7 @@
 use crate::proto::{DensityFunctionHolder, ProtoDensityFunction, ProtoSpline};
 use crate::volume::Axis;
 
-pub const AXIS_X: u8 = 1;
-pub const AXIS_Y: u8 = 2;
-pub const AXIS_Z: u8 = 4;
-pub const NO_AXES: u8 = 0;
-pub const ALL_AXES: u8 = AXIS_X | AXIS_Y | AXIS_Z;
+pub use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
 
 #[inline]
 pub fn axes_from(axis: Axis) -> u8 {

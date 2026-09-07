@@ -1,43 +1,27 @@
 use crate::interval::Interval;
-use crate::noise::beta::octave::BetaOctaveNoise;
-use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::gradient::GradientNoise;
-use crate::noise::perlin::PerlinNoise;
-use crate::noise::stack::{ColumnScratch, NoiseStack};
+use crate::noise::perlin::{LegacyPerlin2dNoise, PerlinNoise};
+use crate::noise::simplex::SimplexNoise;
+use crate::noise::stack::{ColumnScratch, NoiseStack, legacy_fbm};
 use crate::proto::NoiseParam;
-use crate::proto::noise::{deviation, parity_normalization_factor};
+use crate::proto::noise::{declared_range, deviation, parity_normalization_factor};
 use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
 
 /// Every second sub-noise is offset by this ratio so the pair decorrelates.
 const INPUT_FACTOR: f64 = 1.0181268882175227;
-const TARGET_DEVIATION: f64 = 0.3333333333333333;
 
-/// Beta terrain 2D octave noise (scale/depth). Samples at noise-cell coordinates
-/// (block >> 2, matching Java's per-cell sampling) with an id-intrinsic frequency;
-/// y is ignored entirely.
-#[derive(Clone, Debug, PartialEq)]
-pub struct BetaOctave2dNoise {
-    noise: BetaOctaveNoise,
-    frequency: f32,
-    max_value: f32,
-}
-
-/// Beta climate 2D simplex noise (temperature/vegetation/detail). Samples at block
-/// coordinates with id-intrinsic scale/lacunarity constants; y is ignored entirely.
-#[derive(Clone, Debug, PartialEq)]
-pub struct BetaSimplex2dNoise {
-    noise: SimplexOctaveNoise,
-    scale: f64,
-    lacunarity: f64,
-    max_value: f32,
-}
-
+/// A stack of octaves, tagged by what its layers are. Every variant is the same
+/// [`NoiseStack`] machinery over the same lattice; only the sampler differs,
+/// exactly as vanilla's `NoiseStack` holds `PerlinNoise`, `SmearedPerlinNoise`
+/// or `SimplexNoise` layers behind one interface.
 #[derive(Clone, Debug, PartialEq)]
 pub enum NoiseSampler {
-    Normal(NoiseStack<PerlinNoise>),
-    BetaOctave2d(BetaOctave2dNoise),
-    BetaSimplex2d(BetaSimplex2dNoise),
+    Perlin(NoiseStack<PerlinNoise>),
+    /// Beta's `ySize == 1` branch, which is a different noise over the same
+    /// lattice rather than the 3D one evaluated at y = 0.
+    LegacyPerlin2d(NoiseStack<LegacyPerlin2dNoise>),
+    Simplex(NoiseStack<SimplexNoise>),
 }
 
 /// The two decorrelated halves of one noise, drawn back to back. The trailing
@@ -47,9 +31,15 @@ fn draw_pair<R: Random>(
     base_octave: i32,
     modifiers: &[f64],
 ) -> (Vec<Option<GradientNoise>>, Vec<Option<GradientNoise>>) {
-    let legacy = random.is_legacy();
-    let first = GradientNoise::octaves(random, base_octave, modifiers, legacy);
-    let second = GradientNoise::octaves(random, base_octave, modifiers, legacy);
+    let draw = |random: &mut R| {
+        if random.is_legacy() {
+            GradientNoise::legacy_octaves(random, base_octave, modifiers)
+        } else {
+            GradientNoise::octaves(random, base_octave, modifiers)
+        }
+    };
+    let first = draw(random);
+    let second = draw(random);
     (first, second)
 }
 
@@ -76,7 +66,7 @@ fn build_stack(
 }
 
 impl NoiseSampler {
-    /// Vanilla's `NormalNoise.createParity`: the pre-parameters shape, where the
+    /// Vanilla's `NoiseSampler.createParity`: the pre-parameters shape, where the
     /// amplitudes are the octave modifiers and the base amplitude is implied.
     pub fn new<R: Random>(random: &mut R, first_octave: i32, amplitudes: Vec<f32>) -> Self {
         let modifiers: Vec<f64> = amplitudes.iter().map(|a| *a as f64).collect();
@@ -105,22 +95,21 @@ impl NoiseSampler {
                 .enumerate()
                 .map(|(i, a)| persistence * 0.5f64.powi(i as i32) * *a as f64),
         );
-        let range = symmetric_bound(
-            3.0 * std::f64::consts::SQRT_2 * input_deviation * value_factor as f64,
-        );
+        let range =
+            declared_range(3.0 * std::f64::consts::SQRT_2 * input_deviation * value_factor as f64);
 
-        Self::Normal(build_stack(first, second, first_octave, range, |i| {
+        Self::Perlin(build_stack(first, second, first_octave, range, |i| {
             base_persistence * 0.5f32.powi(i as i32) * amplitudes[i] * value_factor
         }))
     }
 
-    /// Vanilla's `NormalNoise.create`: the parameters have already decided every
+    /// Vanilla's `NoiseSampler.create`: the parameters have already decided every
     /// octave's weight and the declared range, so this only draws the lattices.
     pub fn from_params<R: Random>(random: &mut R, params: &NoiseParam) -> Self {
         let modifiers = params.octave_amplitudes();
         let (first, second) = draw_pair(random, params.base_octave, &modifiers);
         let octaves = params.octaves();
-        Self::Normal(build_stack(
+        Self::Perlin(build_stack(
             first,
             second,
             params.base_octave,
@@ -129,50 +118,55 @@ impl NoiseSampler {
         ))
     }
 
-    pub fn beta_octave_2d(noise: BetaOctaveNoise, frequency: f32, max_value: f32) -> Self {
-        Self::BetaOctave2d(BetaOctave2dNoise {
-            noise,
-            frequency,
-            max_value,
-        })
+    /// Beta's unnormalised fbm over the shared lattice, in the 3D sampler.
+    pub fn legacy_perlin(lattices: Vec<Option<GradientNoise>>) -> Self {
+        Self::Perlin(legacy_fbm(lattices, PerlinNoise::from_gradient))
     }
 
-    pub fn beta_simplex_2d(
-        noise: SimplexOctaveNoise,
-        scale: f64,
+    /// The same fbm read through Beta's 2D branch, which is what the terrain
+    /// scale and depth nodes use.
+    pub fn legacy_perlin_2d(lattices: Vec<Option<GradientNoise>>) -> Self {
+        Self::LegacyPerlin2d(legacy_fbm(lattices, LegacyPerlin2dNoise::from_gradient))
+    }
+
+    /// Beta's simplex octaves: the frequency multiplies by `lacunarity` and the
+    /// weight is `0.55` over a persistence that halves. Nothing is normalised.
+    pub fn legacy_simplex<R: Random>(
+        random: &mut R,
+        octave_count: usize,
         lacunarity: f64,
-        max_value: f32,
+        persistence: f64,
     ) -> Self {
-        Self::BetaSimplex2d(BetaSimplex2dNoise {
-            noise,
-            scale,
-            lacunarity,
-            max_value,
-        })
+        let mut stack = NoiseStack::builder();
+        let mut frequency = 1.0f64;
+        let mut amplitude = 1.0f64;
+        for _ in 0..octave_count {
+            stack.add(
+                SimplexNoise::from_random(random),
+                frequency,
+                (0.55 / amplitude) as f32,
+            );
+            frequency *= lacunarity;
+            amplitude *= persistence;
+        }
+        Self::Simplex(stack.build())
     }
 
     /// The declared value bound. Vanilla's `Noise.range()`.
     #[inline]
     pub fn range(&self) -> Interval {
         match self {
-            Self::Normal(n) => n.range(),
-            Self::BetaOctave2d(n) => Interval::symmetric(n.max_value),
-            Self::BetaSimplex2d(n) => Interval::symmetric(n.max_value),
+            Self::Perlin(n) => n.range(),
+            Self::LegacyPerlin2d(n) => n.range(),
+            Self::Simplex(n) => n.range(),
         }
     }
 
     pub fn get(&self, x: f64, y: f64, z: f64) -> f32 {
         match self {
-            Self::Normal(n) => n.get(x, y, z),
-            Self::BetaOctave2d(n) => {
-                let noise_x = ((x as i32) >> 2) as f32;
-                let noise_z = ((z as i32) >> 2) as f32;
-                n.noise
-                    .sample_xz(noise_x, noise_z, n.frequency, n.frequency)
-            }
-            Self::BetaSimplex2d(n) => {
-                n.noise.sample(x, z, n.scale, n.scale, n.lacunarity, 0.5) as f32
-            }
+            Self::Perlin(n) => n.get(x, y, z),
+            Self::LegacyPerlin2d(n) => n.get(x, y, z),
+            Self::Simplex(n) => n.get(x, y, z),
         }
     }
 
@@ -187,12 +181,9 @@ impl NoiseSampler {
         scratch: &mut ColumnScratch,
     ) {
         match self {
-            Self::Normal(n) => n.fill_column(out, x, z, ys, scratch),
-            _ => {
-                for (slot, &y) in out.iter_mut().zip(ys) {
-                    *slot = self.get(x, y, z);
-                }
-            }
+            Self::Perlin(n) => n.fill_column(out, x, z, ys, scratch),
+            Self::LegacyPerlin2d(n) => n.fill_column(out, x, z, ys, scratch),
+            Self::Simplex(n) => n.fill_column(out, x, z, ys, scratch),
         }
     }
 
@@ -205,30 +196,12 @@ impl NoiseSampler {
         y_scale: f64,
         amplitude: f32,
     ) {
-        let Self::Normal(n) = self else {
-            let size = volume.size();
-            let mut i = 0usize;
-            for iz in 0..size.z {
-                let z = volume.block_z(iz) as f64 * xz_scale;
-                for ix in 0..size.x {
-                    let x = volume.block_x(ix) as f64 * xz_scale;
-                    for iy in 0..size.y {
-                        out[i] += amplitude * self.get(x, volume.block_y(iy) as f64 * y_scale, z);
-                        i += 1;
-                    }
-                }
-            }
-            return;
-        };
-        n.add_to_volume(out, volume, xz_scale, y_scale, amplitude);
+        match self {
+            Self::Perlin(n) => n.add_to_volume(out, volume, xz_scale, y_scale, amplitude),
+            Self::LegacyPerlin2d(n) => n.add_to_volume(out, volume, xz_scale, y_scale, amplitude),
+            Self::Simplex(n) => n.add_to_volume(out, volume, xz_scale, y_scale, amplitude),
+        }
     }
-}
-
-// Deliberately a six-sigma statistical bound on the summed octaves, not the analytically
-// rigorous extreme (which is ~2x wider). Branch elimination consumes it, and widening it
-// to the rigorous form silently changes generated terrain.
-fn symmetric_bound(target_amplitude: f64) -> Interval {
-    Interval::symmetric((target_amplitude * TARGET_DEVIATION * 6.0) as f32)
 }
 
 #[cfg(test)]
@@ -254,7 +227,7 @@ mod bound_tests {
     }
 
     fn octave_factors(sampler: &NoiseSampler) -> Vec<f32> {
-        let NoiseSampler::Normal(noise) = sampler else {
+        let NoiseSampler::Perlin(noise) = sampler else {
             unreachable!()
         };
         noise.amplitudes().chunks(2).map(|pair| pair[0]).collect()

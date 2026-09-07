@@ -13,7 +13,7 @@
             "left": {
               "type": "minecraft:noise",
               "noise": "mcrs:beta/vegetation",
-              "xz_scale": 1.0,
+              "xz_scale": 0.03333333333333333,
               "y_scale": 0.0
             },
             "right": 0.15

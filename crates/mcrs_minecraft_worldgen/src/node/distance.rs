@@ -2,11 +2,8 @@ use crate::jmath::{jmax, sqrt};
 use crate::volume::Volume;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(rename_all = "snake_case")
-)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DistanceMetric {
     Euclidean,
     EuclideanSquared,

@@ -1,7 +1,8 @@
 use crate::interval::Interval;
 use crate::noise::Noise;
 use crate::noise::gradient::wrap;
-use crate::noise::perlin::{PerlinNoise, SmearedPerlinNoise};
+use crate::noise::perlin::{LegacyPerlin2dNoise, PerlinNoise, SmearedPerlinNoise};
+use crate::noise::simplex::SimplexNoise;
 use crate::volume::Volume;
 
 /// One octave's contribution: a lattice, the frequency its coordinates are
@@ -79,6 +80,121 @@ impl Noise for SmearedPerlinNoise {
     ) {
         SmearedPerlinNoise::add_to_volume(self, out, volume, xz_scale, y_scale, amplitude);
     }
+}
+
+impl Noise for LegacyPerlin2dNoise {
+    const NEEDS_UNWRAPPED: bool = false;
+
+    fn range(&self) -> Interval {
+        Interval::symmetric(2.0)
+    }
+
+    #[inline(always)]
+    fn sample(&self, x: f64, _y: f64, z: f64) -> f32 {
+        self.sample_xz(x, z)
+    }
+
+    #[inline]
+    fn sample_column(&self, x: f64, z: f64, ys: &[f64], _unwrapped_ys: &[f64], out: &mut [f32]) {
+        out.fill(self.sample_xz(x, z));
+        debug_assert_eq!(ys.len(), out.len());
+    }
+
+    fn add_to_volume(
+        &self,
+        out: &mut [f32],
+        volume: &Volume,
+        xz_scale: f64,
+        _y_scale: f64,
+        amplitude: f32,
+    ) {
+        LegacyPerlin2dNoise::add_to_volume(self, out, volume, xz_scale, amplitude);
+    }
+}
+
+impl Noise for SimplexNoise {
+    const NEEDS_UNWRAPPED: bool = false;
+
+    fn range(&self) -> Interval {
+        Interval::symmetric(2.0)
+    }
+
+    #[inline(always)]
+    fn sample(&self, x: f64, _y: f64, z: f64) -> f32 {
+        self.sample_2d(x, z, 1.0, 1.0) as f32
+    }
+
+    #[inline]
+    fn sample_column(&self, x: f64, z: f64, ys: &[f64], _unwrapped_ys: &[f64], out: &mut [f32]) {
+        out.fill(self.sample_2d(x, z, 1.0, 1.0) as f32);
+        debug_assert_eq!(ys.len(), out.len());
+    }
+
+    fn add_to_volume(
+        &self,
+        out: &mut [f32],
+        volume: &Volume,
+        xz_scale: f64,
+        _y_scale: f64,
+        amplitude: f32,
+    ) {
+        let size = volume.size();
+        let mut index = 0usize;
+        for iz in 0..size.z {
+            let z = wrap(volume.block_z(iz) as f64 * xz_scale);
+            for ix in 0..size.x {
+                let x = wrap(volume.block_x(ix) as f64 * xz_scale);
+                let value = amplitude * self.sample_2d(x, z, 1.0, 1.0) as f32;
+                for _ in 0..size.y {
+                    out[index] += value;
+                    index += 1;
+                }
+            }
+        }
+    }
+}
+
+impl NoiseStack<PerlinNoise> {
+    /// [`PerlinNoise::legacy_fill`] summed over the layers, which is how Beta
+    /// reads its beach and surface octaves.
+    pub fn fill_legacy_grid(
+        &self,
+        out: &mut [f32],
+        offset: [f64; 3],
+        size: [usize; 3],
+        scale: [f64; 3],
+    ) {
+        out.fill(0.0);
+        for layer in &self.layers {
+            let f = layer.frequency;
+            layer.noise.legacy_fill(
+                out,
+                offset,
+                size,
+                [scale[0] * f, scale[1] * f, scale[2] * f],
+                layer.amplitude,
+            );
+        }
+    }
+}
+
+/// Beta's fbm: the octaves are walked from the first drawn to the last, the
+/// frequency halves each step and the contribution is divided by that frequency
+/// rather than normalised. As a stack that is a layer per octave weighing
+/// `1 / frequency`, summed in Beta's own order.
+pub fn legacy_fbm<N: Noise>(
+    lattices: Vec<Option<crate::noise::gradient::GradientNoise>>,
+    layer: impl Fn(crate::noise::gradient::GradientNoise) -> N,
+) -> NoiseStack<N> {
+    let mut stack = NoiseStack::builder();
+    let mut frequency = 1.0f64;
+    for lattice in lattices.into_iter().rev() {
+        if let Some(lattice) = lattice {
+            stack.add(layer(lattice), frequency, (1.0 / frequency) as f32);
+        }
+        frequency *= 0.5;
+    }
+    stack.build()
 }
 
 /// Reused across the layers of one column fill.

@@ -27,7 +27,7 @@
                       "left": {
                         "type": "minecraft:noise",
                         "noise": "mcrs:beta/temperature",
-                        "xz_scale": 1.0,
+                        "xz_scale": 0.016666666666666666,
                         "y_scale": 0.0
                       },
                       "right": 0.15

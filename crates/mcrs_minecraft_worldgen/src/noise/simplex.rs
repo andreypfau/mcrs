@@ -72,7 +72,7 @@ impl SimplexNoise {
         self.permutation[(input & 0xFF) as usize] as i32
     }
 
-    pub fn sample(&self, x: f64, z: f64, scale_x: f64, scale_z: f64) -> f64 {
+    pub fn sample_2d(&self, x: f64, z: f64, scale_x: f64, scale_z: f64) -> f64 {
         let px = x * scale_x + self.origin_x;
         let py = z * scale_z + self.origin_y;
 
@@ -199,7 +199,7 @@ mod test {
     #[test]
     fn simplex_reachable() {
         let noise = SimplexNoise::from_random(&mut LegacyRandom::new(845));
-        let v = noise.sample(0.5, 0.5, 1.0, 1.0);
+        let v = noise.sample_2d(0.5, 0.5, 1.0, 1.0);
         assert!(v.is_finite(), "sample must return a finite f64");
     }
 

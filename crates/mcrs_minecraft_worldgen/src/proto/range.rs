@@ -11,6 +11,14 @@ use std::collections::BTreeMap;
 /// Runs after reference inlining and after cache preparation, so there is
 /// neither a `Reference` arm nor a `Cache` arm.
 ///
+/// The bound vanilla *declares*, which branch elimination reads. For a noise it
+/// is a six-sigma statistical bound on the summed octaves, so a sample may
+/// legitimately fall outside it.
+///
+/// That is why [`crate::cell::CellBounds`] cannot reuse this and computes its
+/// own: a cell bound decides substance without sampling, so it has to be
+/// rigorous, and a statistical bound would write stone through air.
+///
 /// Unlike `domain_axes`, this needs the noise registry: `noise`, `shift`,
 /// `shift_a` and `shift_b` all report the amplitude bound of a noise that may
 /// be named rather than inlined.
@@ -35,11 +43,9 @@ pub fn range(
         EndOuterIslands => Interval::of(-0.84375, 0.5625),
         DistanceToPoint { .. } => Interval::of(0.0, f32::INFINITY),
         Gradient(x) => Interval::encapsulating(x.from_value.0 as f32, x.to_value.0 as f32),
-        OldBlendedNoise(x) => fbm_range(
-            -15,
-            (684.412 * x.y_scale.0) * x.smear_scale_multiplier.0,
-            LIMIT_FACTOR,
-        ),
+        OldBlendedNoise(x) => {
+            crate::node::blended::declared_range(x.y_scale.0, x.smear_scale_multiplier.0)
+        }
         Abs(x) => r(&x.input).abs(),
         Square(x) => r(&x.input).square(),
         Cube(x) => r(&x.input).map_monotonic(|v| (v * v) * v),
@@ -125,27 +131,6 @@ fn noise_range(noises: &BTreeMap<ResourceLocation, NoiseParam>, holder: &NoiseHo
             .unwrap_or_else(|| panic!("unknown noise {id}"))
             .range(),
     }
-}
-
-/// `0.99998474F` assigned to a `double` field: the value is
-/// `0.9999847412109375`, not the decimal it is written as.
-const LIMIT_FACTOR: f64 = 0.99998474f32 as f64;
-
-/// The per-layer bound is the smeared noise's `±(|fudge_y_scale| + 2.0)`, not a
-/// plain Perlin's flat `±2.0`.
-fn fbm_range(first_octave: i32, smear_scale_y: f64, value_factor: f64) -> Interval {
-    let octaves = -first_octave + 1;
-    let mut factor = 1.0f64;
-    let mut value_factor = value_factor / (2.0f64.powi(octaves) - 1.0);
-    let mut range = Interval::exact(0.0);
-    for _ in 0..octaves {
-        let layer = Interval::symmetric(((smear_scale_y * factor).abs() + 2.0) as f32)
-            * Interval::exact(value_factor as f32);
-        range = range + layer;
-        factor /= 2.0;
-        value_factor *= 2.0;
-    }
-    range
 }
 
 fn spline_range(noises: &BTreeMap<ResourceLocation, NoiseParam>, spline: &ProtoSpline) -> Interval {

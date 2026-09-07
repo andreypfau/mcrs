@@ -1,7 +1,7 @@
 use crate::cell::CellBounds;
 use crate::compile::CompileError;
 use crate::interval::Interval;
-use crate::noise::beta::octave::BetaOctaveNoise;
+use crate::beta::seed::BetaTerrainNoises;
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{BlockState, DensityFunctionHolder, HashableF64, ValueRange};
 use crate::volume::Volume;
@@ -91,7 +91,7 @@ pub type SpawnTargetPoint = BTreeMap<ResourceLocation, ValueRange<HashableF64>>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
-pub struct GeneratorSettings {
+pub struct NoiseGeneratorSettings {
     pub noise: NoiseSettings,
     pub default_block: BlockState,
     pub default_fluid: BlockState,
@@ -105,64 +105,6 @@ pub struct GeneratorSettings {
     pub legacy_random_source: bool,
     #[serde(default)]
     pub debug_functions: Vec<DebugFunction>,
-}
-
-/// The historic name for [`GeneratorSettings`], which is the same type.
-pub type NoiseGeneratorSettings = GeneratorSettings;
-
-/// One of the two four-octave Beta noises the surface pass reads directly,
-/// outside the density graph.
-pub struct BetaSurfaceNoise(BetaOctaveNoise);
-
-impl BetaSurfaceNoise {
-    #[allow(clippy::too_many_arguments)]
-    pub fn fill_3d_bulk(
-        &self,
-        out: &mut [f64],
-        x_start: f64,
-        y_start: f64,
-        z_start: f64,
-        x_size: usize,
-        y_size: usize,
-        z_size: usize,
-        x_scale: f64,
-        y_scale: f64,
-        z_scale: f64,
-    ) {
-        self.0.fill_3d_bulk(
-            out, x_start, y_start, z_start, x_size, y_size, z_size, x_scale, y_scale, z_scale,
-        )
-    }
-
-    pub fn sample_xyz_beta(
-        &self,
-        x: f64,
-        y: f64,
-        z: f64,
-        x_scale: f64,
-        y_scale: f64,
-        z_scale: f64,
-    ) -> f64 {
-        self.0.sample_xyz_beta(x, y, z, x_scale, y_scale, z_scale)
-    }
-}
-
-/// Everything the Beta terrain path needs and the density graph cannot express.
-pub struct BetaNoises {
-    pub beach: BetaSurfaceNoise,
-    pub surface: BetaSurfaceNoise,
-}
-
-impl BetaNoises {
-    /// Stream positions 4 and 5 of `seed_beta_terrain` are the beach and surface
-    /// octaves; the rest of the draws belong to the terrain noises.
-    pub fn new(seed: u64) -> Self {
-        let (_, _, _, beach, surface, _, _) = crate::beta::seed::seed_beta_terrain_f64(seed);
-        Self {
-            beach: BetaSurfaceNoise(beach),
-            surface: BetaSurfaceNoise(surface),
-        }
-    }
 }
 
 /// A compiled density graph plus the eight root indices the generator reads.
@@ -180,7 +122,7 @@ pub struct NoiseRouter {
     world_seed: u64,
     default_block_state: VoxelId,
     default_fluid_state: VoxelId,
-    beta: Option<Box<BetaNoises>>,
+    beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
 }
 
@@ -189,7 +131,7 @@ impl NoiseRouter {
         program: Program,
         roots: [usize; 8],
         failed: Vec<(&'static str, CompileError)>,
-        settings: &GeneratorSettings,
+        settings: &NoiseGeneratorSettings,
         world_seed: u64,
         default_block_state: VoxelId,
         default_fluid_state: VoxelId,
@@ -207,7 +149,7 @@ impl NoiseRouter {
             default_fluid_state,
             beta: settings
                 .legacy_random_source
-                .then(|| Box::new(BetaNoises::new(world_seed))),
+                .then(|| Box::new(BetaTerrainNoises::new(world_seed))),
             cell_bounds,
         }
     }
@@ -248,10 +190,6 @@ impl NoiseRouter {
         self.roots[FINAL_DENSITY]
     }
 
-    pub fn root(&self, index: usize) -> usize {
-        self.roots[index]
-    }
-
     /// The roots replaced by a constant zero, named as in [`ROOT_NAMES`].
     pub fn failed_roots(&self) -> &[(&'static str, CompileError)] {
         &self.failed
@@ -281,12 +219,10 @@ impl NoiseRouter {
         self.default_fluid_state
     }
 
-    pub fn beta_beach_noise(&self) -> Option<&BetaSurfaceNoise> {
-        self.beta.as_ref().map(|beta| &beta.beach)
-    }
-
-    pub fn beta_surface_noise(&self) -> Option<&BetaSurfaceNoise> {
-        self.beta.as_ref().map(|beta| &beta.surface)
+    /// The Beta noises the surface rules read directly, outside the density
+    /// graph. `None` on a modern generator.
+    pub fn beta_noises(&self) -> Option<&BetaTerrainNoises> {
+        self.beta.as_deref()
     }
 }
 
@@ -345,12 +281,6 @@ impl NoiseRouter {
             };
             ws.pin_lattice(*cell, volume, &values[k * stride..(k + 1) * stride]);
         }
-    }
-
-    pub fn sample_value(&self, ws: &mut Workspace, root: usize, pos: IVec3) -> f32 {
-        let mut out = [0.0f32];
-        self.program.fill(ws, &Volume::point(pos), root, &mut out);
-        out[0]
     }
 
     /// The `interpolated` inputs to sample over the cell-corner lattice, in the

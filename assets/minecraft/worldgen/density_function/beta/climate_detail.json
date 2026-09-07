@@ -7,7 +7,7 @@
       "left": {
         "type": "minecraft:noise",
         "noise": "mcrs:beta/climate_detail",
-        "xz_scale": 1.0,
+        "xz_scale": 0.16666666666666666,
         "y_scale": 0.0
       },
       "right": 1.1

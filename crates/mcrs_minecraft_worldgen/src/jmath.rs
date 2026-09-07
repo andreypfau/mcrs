@@ -66,10 +66,12 @@ pub fn pow(a: f32, b: f32) -> f32 {
     (a as f64).powf(b as f64) as f32
 }
 
-/// `(float)Math.sqrt(x)`.
+/// `(float)Math.sqrt(x)`. Unlike `log` and `pow` the detour through double is
+/// not observable: square root is correctly rounded and double carries more than
+/// twice float's significand, so the two roundings collapse into one.
 #[inline]
 pub fn sqrt(v: f32) -> f32 {
-    (v as f64).sqrt() as f32
+    v.sqrt()
 }
 
 /// `Mth.clamp(float, float, float)`. Returns `min` when the value is NaN,
@@ -104,35 +106,6 @@ pub fn sampler_lerp(alpha: f32, first: f32, second: f32) -> f32 {
     } else {
         lerp(alpha, first, second)
     }
-}
-
-/// `Mth.lerp2`: bilinear over the four corners, X inner.
-#[inline]
-pub fn lerp2(dx: f32, dy: f32, v00: f32, v10: f32, v01: f32, v11: f32) -> f32 {
-    lerp(dy, lerp(dx, v00, v10), lerp(dx, v01, v11))
-}
-
-/// `Mth.lerp3`: trilinear, X inner then Y then Z.
-#[allow(clippy::too_many_arguments)]
-#[inline]
-pub fn lerp3(
-    dx: f32,
-    dy: f32,
-    dz: f32,
-    v000: f32,
-    v100: f32,
-    v010: f32,
-    v110: f32,
-    v001: f32,
-    v101: f32,
-    v011: f32,
-    v111: f32,
-) -> f32 {
-    lerp(
-        dz,
-        lerp2(dx, dy, v000, v100, v010, v110),
-        lerp2(dx, dy, v001, v101, v011, v111),
-    )
 }
 
 /// `Mth.floor(float)`, which is `(int)Math.floor(v)`: the narrowing cast

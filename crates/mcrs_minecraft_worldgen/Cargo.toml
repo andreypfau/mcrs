@@ -16,18 +16,13 @@ bevy_app = { workspace = true, optional = true }
 bevy_asset = { workspace = true, optional = true }
 bevy_reflect = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
 thiserror = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 [features]
-default = ["serde", "bevy"]
-serde = ["dep:serde", "dep:serde_json"]
+default = ["bevy"]
 bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect", "dep:thiserror"]
 fast = []
 far-lands = []
-
-[[bench]]
-name = "noise_width"
-harness = false

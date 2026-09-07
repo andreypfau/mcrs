@@ -3,7 +3,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::compile::build_router;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
-use mcrs_minecraft_worldgen::router::{GeneratorSettings, NoiseRouter, ROOT_NAMES};
+use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES};
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
 use std::collections::BTreeMap;
@@ -133,7 +133,7 @@ fn load<T: serde::de::DeserializeOwned>(sub: &str) -> BTreeMap<ResourceLocation,
 }
 
 fn overworld_router(seed: u64) -> NoiseRouter {
-    let settings: GeneratorSettings = serde_json::from_slice(
+    let settings: NoiseGeneratorSettings = serde_json::from_slice(
         &std::fs::read(assets_dir().join("minecraft/worldgen/noise_settings/overworld.json"))
             .unwrap(),
     )
