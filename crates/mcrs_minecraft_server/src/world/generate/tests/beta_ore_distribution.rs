@@ -333,13 +333,7 @@ fn beta_ore_draw_count_pin() {
     let mut driver_rng = CountingRng::new(seed as u64, driver_draws.clone());
     let (mut sections, y_sections) = stone_sections();
     let column = ColumnBlocks::from_sections(&sections, &y_sections);
-    place_all_ores(
-        &column,
-        0,
-        0,
-        &mut driver_rng,
-        &ids,
-    );
+    place_all_ores(&column, 0, 0, &mut driver_rng, &ids);
     column.write_back(&mut sections);
     let driver_count = driver_draws.get();
 

@@ -89,10 +89,7 @@ impl NoiseFloat for f32 {
     #[inline(always)]
     fn grad_dot_at(index: usize, x: f32, y: f32, z: f32) -> f32 {
         let i = index & 60;
-        Self::GRAD_FLAT[i | 2].mul_add(
-            z,
-            Self::GRAD_FLAT[i | 1].mul_add(y, Self::GRAD_FLAT[i] * x),
-        )
+        Self::GRAD_FLAT[i | 2].mul_add(z, Self::GRAD_FLAT[i | 1].mul_add(y, Self::GRAD_FLAT[i] * x))
     }
 
     #[inline(always)]

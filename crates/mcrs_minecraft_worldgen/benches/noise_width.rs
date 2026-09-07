@@ -39,8 +39,9 @@ fn column<V: NoiseFloat>(octaves: &[ImprovedNoise<V>], out: &mut [V], chunk_x: f
 fn run<V: NoiseFloat>(label: &str, columns: usize) -> f64 {
     // 16 + 16 + 8 octaves, seeded once so both widths walk the same lattice.
     let mut rng = LegacyRandom::new(12345);
-    let octaves: Vec<ImprovedNoise<V>> =
-        (0..40).map(|_| ImprovedNoise::from_random(&mut rng)).collect();
+    let octaves: Vec<ImprovedNoise<V>> = (0..40)
+        .map(|_| ImprovedNoise::from_random(&mut rng))
+        .collect();
     let mut out = vec![V::from_f64(0.0); POINTS];
 
     for i in 0..64 {

@@ -288,7 +288,6 @@ impl NoiseRouter {
     pub fn beta_surface_noise(&self) -> Option<&BetaSurfaceNoise> {
         self.beta.as_ref().map(|beta| &beta.surface)
     }
-
 }
 
 impl NoiseRouter {

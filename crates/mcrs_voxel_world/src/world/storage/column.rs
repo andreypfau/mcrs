@@ -381,7 +381,9 @@ mod tests {
 
         // A chunk waiting to despawn can be handed tickets and lose them again,
         // so the same section reaches `ChunkUnloading` a second time.
-        app.world_mut().entity_mut(leaving).remove::<ChunkUnloading>();
+        app.world_mut()
+            .entity_mut(leaving)
+            .remove::<ChunkUnloading>();
         app.world_mut().run_schedule(FixedUpdate);
         app.world_mut().entity_mut(leaving).insert(ChunkUnloading);
         app.world_mut().run_schedule(FixedUpdate);

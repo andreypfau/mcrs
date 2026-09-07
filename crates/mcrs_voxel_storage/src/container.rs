@@ -106,11 +106,7 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                 vec![original_count as u16, value_count as u16],
             )
         };
-        let index: FxHashMap<V, usize> = palette
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (*v, i))
-            .collect();
+        let index: FxHashMap<V, usize> = palette.iter().enumerate().map(|(i, v)| (*v, i)).collect();
         Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
             cube,
             palette,
@@ -265,13 +261,8 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                 if value != original {
                     let mut cube = Box::new([[[original; DIM]; DIM]; DIM]);
                     cube[y][z][x] = value;
-                    *self = Self::from_split_cube(
-                        cube,
-                        original,
-                        value,
-                        1,
-                        x == 0 && y == 0 && z == 0,
-                    );
+                    *self =
+                        Self::from_split_cube(cube, original, value, 1, x == 0 && y == 0 && z == 0);
                 }
                 original
             }

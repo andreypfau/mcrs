@@ -229,13 +229,7 @@ fn fill_column_dense(
     true
 }
 
-fn fill_cell_box(
-    column: &ColumnBlocks,
-    index: usize,
-    base: IVec3,
-    cell: IVec3,
-    state: VoxelId,
-) {
+fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, state: VoxelId) {
     column.fill_box_in_section(
         index,
         base.x,

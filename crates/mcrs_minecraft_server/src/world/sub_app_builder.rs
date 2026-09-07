@@ -8,8 +8,8 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet};
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
-use std::collections::VecDeque;
 use bevy_time::{Fixed, Real, Time, Virtual};
+use std::collections::VecDeque;
 use tracing::{debug, warn};
 
 use crate::world::bus::{
@@ -290,9 +290,9 @@ pub fn spawn_dim_subapp(
                 mcrs_minecraft_light::prelude::dispatch_epoch,
             )
                 .chain()
-                .run_if(bevy_ecs::prelude::resource_exists::<
-                    mcrs_minecraft_light::prelude::Lighting,
-                >),
+                .run_if(
+                    bevy_ecs::prelude::resource_exists::<mcrs_minecraft_light::prelude::Lighting>,
+                ),
             crate::world::entity::player::column_view::loading_column_queue,
             crate::world::entity::player::column_view::send_column_queue,
             flush_from_dim_outbox,
@@ -705,7 +705,11 @@ mod tests {
 
         flush.run((), &mut world);
         drain(&mut arrived);
-        assert_eq!(arrived.len(), FROM_DIM_CAPACITY, "the channel takes what it holds");
+        assert_eq!(
+            arrived.len(),
+            FROM_DIM_CAPACITY,
+            "the channel takes what it holds"
+        );
 
         flush.run((), &mut world);
         drain(&mut arrived);

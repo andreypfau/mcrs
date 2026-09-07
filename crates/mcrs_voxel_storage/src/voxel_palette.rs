@@ -88,7 +88,6 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Vo
     }
 }
 
-
 /// A section's voxels as a world holds them.
 ///
 /// Shared rather than owned, because a subsystem that runs off the tick loop —

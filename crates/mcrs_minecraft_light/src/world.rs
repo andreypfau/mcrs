@@ -210,7 +210,10 @@ impl LightWorld {
     pub(crate) fn insert_section(&mut self, pos: ChunkPos, section: Section) {
         self.forget_column_surface(ColumnPos::from(pos));
         if self.sections.insert(pos, section).is_none() {
-            *self.loaded_per_column.entry(ColumnPos::from(pos)).or_default() += 1;
+            *self
+                .loaded_per_column
+                .entry(ColumnPos::from(pos))
+                .or_default() += 1;
         }
     }
 
@@ -443,8 +446,7 @@ impl LightWorld {
                 // seals no seam a uniform one would not: the entry seam and one
                 // air-over-air test settle all sixteen levels.
                 SkyColumnSection::Blocks(blocks) if section_y * SECTION_WIDTH >= surface => {
-                    let air =
-                        blocks.get_cell(local_x as usize, BLOCKS::MASK, local_z as usize);
+                    let air = blocks.get_cell(local_x as usize, BLOCKS::MASK, local_z as usize);
                     match top(air) {
                         Ok(block) => above = block,
                         Err(floor) => return floor,

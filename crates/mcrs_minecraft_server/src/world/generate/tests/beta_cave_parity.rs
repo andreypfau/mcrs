@@ -446,14 +446,7 @@ fn beta_cave_parity_gate() {
         }
 
         let column = ColumnBlocks::from_sections(&sections, &y_sections);
-        apply_beta_caves(
-            &column,
-            *cx,
-            *cz,
-            world_seed,
-            &config,
-            &ids,
-        );
+        apply_beta_caves(&column, *cx, *cz, world_seed, &config, &ids);
         column.write_back(&mut sections);
 
         for fix_col in fixture_cols.iter() {
@@ -588,14 +581,7 @@ fn generate_column_beta_has_caves() {
     column.write_back(&mut sections);
 
     let column = ColumnBlocks::from_sections(&sections, &y_sections);
-    apply_beta_caves(
-        &column,
-        chunk_x,
-        chunk_z,
-        world_seed,
-        &config,
-        &ids,
-    );
+    apply_beta_caves(&column, chunk_x, chunk_z, world_seed, &config, &ids);
     column.write_back(&mut sections);
 
     let air = VoxelId::from(ids.air);
@@ -694,14 +680,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
             );
             column.write_back(&mut sections);
             let column = ColumnBlocks::from_sections(&sections, &y_sections);
-            apply_beta_caves(
-                &column,
-                chunk_x,
-                chunk_z,
-                world_seed,
-                &config,
-                &ids,
-            );
+            apply_beta_caves(&column, chunk_x, chunk_z, world_seed, &config, &ids);
             column.write_back(&mut sections);
 
             let mut air_below_32 = 0usize;

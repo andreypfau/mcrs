@@ -801,7 +801,13 @@ impl Program {
         let (below, rest) = ws.values.split_at_mut(off);
         let (out, above) = rest.split_at_mut(len);
         let source = Runs::new(
-            other_slot(below, above, off + len, source_off, extent(source_axes, volume)),
+            other_slot(
+                below,
+                above,
+                off + len,
+                source_off,
+                extent(source_axes, volume),
+            ),
             source_axes,
             volume,
         );

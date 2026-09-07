@@ -6,8 +6,7 @@ use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::prelude::{
-    BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority,
-    SkyLight,
+    BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SkyLight,
 };
 use mcrs_minecraft_protocol::light_codec::{LightCodecParams, build_delta_light_data};
 use mcrs_voxel_math::{ChunkPos, ColumnPos};

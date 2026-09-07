@@ -6,8 +6,8 @@ mod common;
 
 use std::sync::Arc;
 
-use common::{AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry};
 use bevy_ecs::prelude::Entity;
+use common::{AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry};
 use mcrs_minecraft_light::prelude::*;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};

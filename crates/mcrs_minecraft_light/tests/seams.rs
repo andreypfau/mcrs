@@ -6,8 +6,8 @@ mod common;
 
 use std::sync::Arc;
 
-use common::{AIR, Reference, STONE, WATER, filled, registry};
 use bevy_ecs::prelude::Entity;
+use common::{AIR, Reference, STONE, WATER, filled, registry};
 use mcrs_minecraft_light::prelude::*;
 use mcrs_voxel_math::{BlockPos, ChunkPos};
 use mcrs_voxel_storage::VoxelId;
@@ -137,11 +137,7 @@ fn load_ocean_column(world: &mut LightWorld, x: i32, z: i32, water_sections: i32
         .map(|y| Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
             pos: ChunkPos::new(x, y, z),
-            blocks: Arc::new(filled(if y < water_sections {
-                WATER
-            } else {
-                AIR
-            })),
+            blocks: Arc::new(filled(if y < water_sections { WATER } else { AIR })),
         })
         .collect();
     world.update_now(loads);

@@ -122,8 +122,7 @@ fn place_clay<R: Random>(
 
         // Beta's WorldGenClay only places clay in shallow-water contexts.
         // Check whether water is present at y-1 (below the origin) as a proxy.
-        let below_state: BlockStateId =
-            get_block(origin_x, origin_y - 1, origin_z).into();
+        let below_state: BlockStateId = get_block(origin_x, origin_y - 1, origin_z).into();
         if below_state != water {
             continue;
         }

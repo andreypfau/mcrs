@@ -726,7 +726,11 @@ mod collapsed_cell {
 
     fn ordered(v: f32) -> i64 {
         let bits = v.to_bits() as i64;
-        if bits < 0 { 0x8000_0000i64 - bits } else { bits }
+        if bits < 0 {
+            0x8000_0000i64 - bits
+        } else {
+            bits
+        }
     }
 
     #[test]
@@ -979,11 +983,7 @@ mod grad_tests {
                 let java = java_grad(hash, x, y, z);
                 assert_eq!(ours, java, "hash {hash} at {x},{y},{z}");
                 if java != 0.0 {
-                    assert_eq!(
-                        ours.to_bits(),
-                        java.to_bits(),
-                        "hash {hash} at {x},{y},{z}"
-                    );
+                    assert_eq!(ours.to_bits(), java.to_bits(), "hash {hash} at {x},{y},{z}");
                 }
             }
         }

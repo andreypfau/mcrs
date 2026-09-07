@@ -163,7 +163,13 @@ fn splitting_a_homogeneous_cube_matches_a_full_scan() {
         PalettedContainer::Heterogeneous(d) => (d.palette.clone(), d.counts.clone()),
     };
 
-    for &(x, y, z) in &[(0usize, 0usize, 0usize), (1, 0, 0), (0, 1, 0), (5, 9, 13), (15, 15, 15)] {
+    for &(x, y, z) in &[
+        (0usize, 0usize, 0usize),
+        (1, 0, 0),
+        (0, 1, 0),
+        (5, 9, 13),
+        (15, 15, 15),
+    ] {
         let mut cells = vec![7u16; V];
         cells[y * 256 + z * 16 + x] = 42;
         let mut c = C::Homogeneous(7);

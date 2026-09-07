@@ -483,8 +483,7 @@ fn block_at(
         return VoxelId::default();
     };
     match palettes.get(section) {
-        Ok(blocks) => blocks
-            .get_cell(x, y.rem_euclid(BLOCKS::SIZE as i32) as usize, z),
+        Ok(blocks) => blocks.get_cell(x, y.rem_euclid(BLOCKS::SIZE as i32) as usize, z),
         Err(_) => VoxelId::default(),
     }
 }

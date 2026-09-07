@@ -52,14 +52,7 @@ fn bench_settings(c: &mut Criterion, label: &str) {
         b.iter(|| {
             let (cx, cz) = (i % 8, i / 8);
             i = (i + 1) % 64;
-            black_box(generate_column(
-                cx,
-                cz,
-                &y,
-                &router,
-                None,
-                &cancel,
-            ))
+            black_box(generate_column(cx, cz, &y, &router, None, &cancel))
         });
     });
     group.finish();
