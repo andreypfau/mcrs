@@ -4,12 +4,13 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::biome::zoom::{obfuscate_seed, quart_cell};
+use mcrs_minecraft_world::biome::zoom::{FiddleCache, obfuscate_seed, quart_cell};
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::material::compile::MaterialProgram;
 use mcrs_minecraft_worldgen::material::{MaterialEval, MaterialScratch, NO_WATER, SurfaceNoise};
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use mcrs_voxel_storage::VoxelId;
+use std::cell::RefCell;
 
 /// The blocks and biomes the two hardcoded landforms name, which no rule does.
 pub struct SurfaceIds {
@@ -73,6 +74,27 @@ pub fn apply_material_surface(
     ids: &SurfaceIds,
     scratch: &mut MaterialScratch,
 ) {
+    thread_local! {
+        static FIDDLE: RefCell<FiddleCache> = RefCell::new(FiddleCache::default());
+    }
+    FIDDLE.with_borrow_mut(|fiddle| {
+        apply_material_surface_with(
+            column, section_x, section_z, tops, grid, router, ids, scratch, fiddle,
+        )
+    });
+}
+
+fn apply_material_surface_with(
+    column: &ColumnBlocks,
+    section_x: i32,
+    section_z: i32,
+    tops: &mut [i32; 256],
+    grid: &BiomeGrid,
+    router: &NoiseRouter,
+    ids: &SurfaceIds,
+    scratch: &mut MaterialScratch,
+    fiddle: &mut FiddleCache,
+) {
     let Some(program) = router.material() else {
         return;
     };
@@ -94,10 +116,17 @@ pub fn apply_material_surface(
     let biomes: Vec<u32> = (0..256u32).filter(|id| present[*id as usize]).collect();
 
     let top = tops.iter().copied().max().unwrap_or(NO_TOP).max(min_y);
+    // Every corner the eight-way pick can reach from a block of this column:
+    // the parent cell of the lowest block, and one past that of the highest.
+    fiddle.begin(
+        zoom_seed,
+        [(block_x - 2) >> 2, (min_y - 2) >> 2, (block_z - 2) >> 2],
+        [6, ((top + 1 - min_y) >> 2) + 3, 6],
+    );
     let Some(mut eval) = MaterialEval::new(
         router,
         scratch,
-        |x, y, z| zoom_biome(grid, zoom_seed, x, y, z),
+        |x, y, z| grid_biome(grid, fiddle.quart_cell(x, y, z)),
         block_x,
         block_z,
         top,
@@ -274,7 +303,10 @@ fn height_of(tops: &[i32; 256], x: i32, z: i32, min_y: i32) -> i32 {
 /// The biome the fiddled zoom selects, read out of the widened grid rather than
 /// out of a neighbouring column's stored palette.
 fn zoom_biome(grid: &BiomeGrid, zoom_seed: i64, x: i32, y: i32, z: i32) -> u32 {
-    let (qx, qy, qz) = quart_cell(zoom_seed, x, y, z);
+    grid_biome(grid, quart_cell(zoom_seed, x, y, z))
+}
+
+fn grid_biome(grid: &BiomeGrid, (qx, qy, qz): (i32, i32, i32)) -> u32 {
     let min = grid.volume.min_block();
     let size = grid.volume.size();
     // A strip with no blocks at all starts its descent below the sections this
