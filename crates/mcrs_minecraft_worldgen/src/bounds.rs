@@ -26,7 +26,7 @@ pub enum Bounds {
 
 /// Interval arithmetic over the operators. `at` answers for a node's inputs,
 /// which are always resolved first.
-pub fn node_bounds(node: &Node, mode: Bounds, at: &dyn Fn(NodeId) -> Interval) -> Option<Interval> {
+pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -> Option<Interval> {
     Some(match node {
         // A fold can land a NaN in a constant, and nothing is known about it.
         Node::Constant(value) if value.is_nan() => Interval::NAI,
@@ -193,7 +193,7 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: &dyn Fn(NodeId) -> Interval) -
         | Node::ShiftedNoise { .. }
         | Node::Spline { .. }
         | Node::FindTopSurface { .. } => match mode {
-            Bounds::Declared => declared_leaf(node, at),
+            Bounds::Declared => declared_leaf(node, &at),
             Bounds::Cell { .. } => return None,
         },
     })
@@ -202,7 +202,7 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: &dyn Fn(NodeId) -> Interval) -
 /// The bound each leaf publishes about itself, which for a noise is the
 /// six-sigma estimate its parameters declare rather than anything the sampler
 /// is held to.
-fn declared_leaf(node: &Node, at: &dyn Fn(NodeId) -> Interval) -> Interval {
+fn declared_leaf(node: &Node, at: impl Fn(NodeId) -> Interval) -> Interval {
     match node {
         Node::Noise { params } | Node::ShiftedNoise { params, .. } => params.range(),
         Node::ShiftB { params } => params.range() * Interval::exact(4.0),

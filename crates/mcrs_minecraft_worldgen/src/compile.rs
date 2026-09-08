@@ -199,7 +199,7 @@ impl<'a> Compiler<'a> {
 
     fn declared_range(&self, node: &Node) -> Interval {
         let ranges = &self.node_ranges;
-        bounds::node_bounds(node, Bounds::Declared, &|id| ranges[id as usize])
+        bounds::node_bounds(node, Bounds::Declared, |id| ranges[id as usize])
             .expect("every kind declares a bound")
     }
 
