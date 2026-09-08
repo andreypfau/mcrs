@@ -11,88 +11,83 @@ use mcrs_minecraft_random::Random;
 /// Every second sub-noise is offset by this ratio so the pair decorrelates.
 const INPUT_FACTOR: f64 = 1.0181268882175227;
 
-/// The parameters of a `worldgen/noise` entry together with everything they
-/// decide before a seed is drawn. Vanilla's `NormalNoise`: a description, not a
-/// sampler — [`NormalNoise::create`] draws the lattices and returns the stack.
-#[derive(Clone, Debug, PartialEq)]
-pub struct NormalNoise {
-    params: NoiseParam,
-    octaves: Octaves,
+/// Vanilla's `NormalNoise.createParity`: the pre-parameters shape, where the
+/// amplitudes are the octave modifiers and the base amplitude is whatever makes
+/// the modern normalization reproduce the old one.
+pub fn parity_params(base_octave: i32, amplitudes: &[f64]) -> NoiseParam {
+    let params = |base_amplitude: f64| NoiseParam {
+        base_octave,
+        base_amplitude: HashableF64(base_amplitude),
+        octave_count: amplitudes.len(),
+        normalize: Normalization::Enabled,
+        amplitude_modifiers: amplitudes.iter().map(|a| HashableF64(*a)).collect(),
+    };
+    let probe = params(1.0).octaves();
+    let base_amplitude = if probe.factor == 0.0 {
+        1.0
+    } else {
+        let lowest = amplitudes.iter().position(|a| *a != 0.0).unwrap();
+        let highest = amplitudes.iter().rposition(|a| *a != 0.0).unwrap();
+        parity_normalization_factor(1.0, (highest - lowest) as f64) / probe.factor
+    };
+    params(base_amplitude)
 }
 
-impl NormalNoise {
-    pub fn new(params: NoiseParam) -> Self {
-        let octaves = params.octaves();
-        Self { params, octaves }
-    }
+/// [`create`] over the parity shape, which is how every id with no
+/// `worldgen/noise` entry of its own is drawn.
+pub fn create_parity<R: Random>(
+    base_octave: i32,
+    amplitudes: &[f64],
+    random: &mut R,
+) -> NoiseStack<Octave> {
+    create(&parity_params(base_octave, amplitudes), random)
+}
 
-    /// Vanilla's `NormalNoise.createParity`: the pre-parameters shape, where the
-    /// amplitudes are the octave modifiers and the base amplitude is whatever
-    /// makes the modern normalization reproduce the old one.
-    pub fn create_parity(base_octave: i32, amplitudes: &[f64]) -> Self {
-        let params = |base_amplitude: f64| NoiseParam {
-            base_octave,
-            base_amplitude: HashableF64(base_amplitude),
-            octave_count: amplitudes.len(),
-            normalize: Normalization::Enabled,
-            amplitude_modifiers: amplitudes.iter().map(|a| HashableF64(*a)).collect(),
-        };
-        let probe = params(1.0).octaves();
-        let base_amplitude = if probe.factor == 0.0 {
-            1.0
+/// The declared value bound. Vanilla's `Noise.range()`, six sigma on the summed
+/// octaves.
+pub fn range(params: &NoiseParam) -> Interval {
+    declared_range(params.octaves().target_amplitude)
+}
+
+/// Vanilla's `NormalNoise`: draws the two decorrelated halves back to back and
+/// lays them out as one stack, the trailing `fork` inside each draw being what
+/// separates them.
+pub fn create<R: Random>(params: &NoiseParam, random: &mut R) -> NoiseStack<Octave> {
+    let octaves: Octaves = params.octaves();
+    let modifiers = params.octave_amplitudes();
+    let base_octave = params.base_octave;
+    let draw = |random: &mut R| {
+        if random.is_legacy() {
+            GradientNoise::legacy_octaves(random, base_octave, &modifiers)
         } else {
-            let lowest = amplitudes.iter().position(|a| *a != 0.0).unwrap();
-            let highest = amplitudes.iter().rposition(|a| *a != 0.0).unwrap();
-            parity_normalization_factor(1.0, (highest - lowest) as f64) / probe.factor
-        };
-        Self::new(params(base_amplitude))
-    }
-
-    /// The declared value bound. Vanilla's `Noise.range()`, six sigma on the
-    /// summed octaves.
-    pub fn range(&self) -> Interval {
-        declared_range(self.octaves.target_amplitude)
-    }
-
-    /// Draws the two decorrelated halves back to back and lays them out as one
-    /// stack, the trailing `fork` inside each draw being what separates them.
-    pub fn create<R: Random>(&self, random: &mut R) -> NoiseStack<Octave> {
-        let modifiers = self.params.octave_amplitudes();
-        let base_octave = self.params.base_octave;
-        let draw = |random: &mut R| {
-            if random.is_legacy() {
-                GradientNoise::legacy_octaves(random, base_octave, &modifiers)
-            } else {
-                GradientNoise::octaves(random, base_octave, &modifiers)
-            }
-        };
-        let first = draw(random);
-        let second = draw(random);
-
-        let mut stack = NoiseStack::builder();
-        for (i, (a, b)) in first.into_iter().zip(second).enumerate() {
-            let (Some(a), Some(b)) = (a, b) else { continue };
-            let frequency = 2.0f64.powi(base_octave + i as i32);
-            let amplitude =
-                (self.octaves.factor * self.octaves.amplitudes[i].unwrap_or(0.0)) as f32;
-            stack.add(
-                Octave::Perlin(PerlinNoise::from_gradient(a)),
-                frequency,
-                amplitude,
-            );
-            stack.add(
-                Octave::Perlin(PerlinNoise::from_gradient(b)),
-                frequency * INPUT_FACTOR,
-                amplitude,
-            );
+            GradientNoise::octaves(random, base_octave, &modifiers)
         }
-        stack.build_with_range(self.range())
+    };
+    let first = draw(random);
+    let second = draw(random);
+
+    let mut stack = NoiseStack::builder();
+    for (i, (a, b)) in first.into_iter().zip(second).enumerate() {
+        let (Some(a), Some(b)) = (a, b) else { continue };
+        let frequency = 2.0f64.powi(base_octave + i as i32);
+        let amplitude = (octaves.factor * octaves.amplitudes[i].unwrap_or(0.0)) as f32;
+        stack.add(
+            Octave::Perlin(PerlinNoise::from_gradient(a)),
+            frequency,
+            amplitude,
+        );
+        stack.add(
+            Octave::Perlin(PerlinNoise::from_gradient(b)),
+            frequency * INPUT_FACTOR,
+            amplitude,
+        );
     }
+    stack.build_with_range(declared_range(octaves.target_amplitude))
 }
 
 #[cfg(test)]
 mod bound_tests {
-    use super::NormalNoise;
+    use super::create;
     use crate::noise::stack::{NoiseStack, Octave};
     use crate::proto::HashableF64;
     use crate::proto::noise::{NoiseParam, Normalization};
@@ -114,7 +109,7 @@ mod bound_tests {
             normalize,
             amplitude_modifiers: modifiers.iter().map(|m| HashableF64(*m)).collect(),
         };
-        NormalNoise::new(params).create(&mut LegacyRandom::new(1))
+        create(&params, &mut LegacyRandom::new(1))
     }
 
     fn octave_factors(noise: &NoiseStack<Octave>) -> Vec<f32> {

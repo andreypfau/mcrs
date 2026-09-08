@@ -277,7 +277,7 @@ impl<'de> Deserialize<'de> for Normalization {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::noise::normal::NormalNoise;
+    use crate::noise::normal;
 
     fn param(json: &str) -> NoiseParam {
         serde_json::from_str(json).unwrap()
@@ -336,7 +336,7 @@ mod tests {
         let solid = param(
             r#"{"base_octave":-9,"octave_count":3,"amplitude_modifiers":[1.0,1.0,1.0],"normalize":"legacy"}"#,
         );
-        let range = |p: &NoiseParam| NormalNoise::new(p.clone()).range().max();
+        let range = |p: &NoiseParam| normal::range(p).max();
         assert!(range(&gapped) < range(&solid));
         assert!(range(&gapped) > 0.0);
     }
@@ -345,7 +345,7 @@ mod tests {
     fn a_disabled_normalization_keeps_the_base_amplitude() {
         let disabled = param(r#"{"base_octave":-3,"octave_count":1,"normalize":false}"#);
         assert_eq!(
-            NormalNoise::new(disabled).range().max(),
+            normal::range(&disabled).max(),
             (1.0f64 * 0.3333333333333333 * 6.0) as f32
         );
     }

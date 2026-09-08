@@ -221,6 +221,77 @@ fn fudged_local_y<const SMEARED: bool>(local_y: f64, original_y: f64, fudge_y_sc
     local_y - ((t / fudge_y_scale + 1.0E-7f32 as f64).floor() as i32) as f64 * fudge_y_scale
 }
 
+/// One column of the lattice: what x and z alone decide, plus the y cell whose
+/// corner blend is reused until y leaves it. The shifted coordinates are the
+/// caller's to form, because the two callers form them differently.
+struct Lane {
+    p0: usize,
+    p1: usize,
+    section_z: i32,
+    local_x: f32,
+    local_z: f32,
+    fade_x: f32,
+    fade_z: f32,
+    cell: Option<(i32, CellBlend)>,
+}
+
+impl Lane {
+    #[inline(always)]
+    fn new(noise: &GradientNoise, shifted_x: f64, shifted_z: f64) -> Self {
+        let floor_x = shifted_x.floor();
+        let floor_z = shifted_z.floor();
+        let local_x = (shifted_x - floor_x) as f32;
+        let local_z = (shifted_z - floor_z) as f32;
+        let (p0, p1) = noise.x_perms(floor_x as i32);
+        Self {
+            p0,
+            p1,
+            section_z: floor_z as i32,
+            local_x,
+            local_z,
+            fade_x: smoothstep(local_x),
+            fade_z: smoothstep(local_z),
+            cell: None,
+        }
+    }
+
+    #[inline(always)]
+    fn sample<const SMEARED: bool>(
+        &mut self,
+        noise: &GradientNoise,
+        shifted_y: f64,
+        original_y: f64,
+        fudge_y_scale: f64,
+    ) -> f32 {
+        let floor_y = shifted_y.floor();
+        let local_y = shifted_y - floor_y;
+        let fudged = fudged_local_y::<SMEARED>(local_y, original_y, fudge_y_scale);
+        let section_y = floor_y as i32;
+        let blend = match self.cell {
+            Some((cached_y, blend)) if cached_y == section_y => blend,
+            _ => {
+                let blend = cell_blend(
+                    &noise.corner_grads(self.p0, self.p1, section_y, self.section_z),
+                    self.local_x,
+                    self.local_z,
+                    self.fade_x,
+                    self.fade_z,
+                );
+                self.cell = Some((section_y, blend));
+                blend
+            }
+        };
+        blend.sample(
+            self.local_x,
+            fudged as f32,
+            self.local_z,
+            self.fade_x,
+            smoothstep(local_y as f32),
+            self.fade_z,
+        )
+    }
+}
+
 impl GradientNoise {
     #[inline(always)]
     pub(crate) fn sample_and_lerp(
@@ -255,46 +326,9 @@ impl GradientNoise {
         fudge_y_scale: f64,
         out: &mut [f32],
     ) {
-        let shifted_x = wrap(x) + self.offset_x;
-        let shifted_z = wrap(z) + self.offset_z;
-        let floor_x = shifted_x.floor();
-        let floor_z = shifted_z.floor();
-        let local_x = (shifted_x - floor_x) as f32;
-        let local_z = (shifted_z - floor_z) as f32;
-        let section_z = floor_z as i32;
-        let fade_x = smoothstep(local_x);
-        let fade_z = smoothstep(local_z);
-        let (p0, p1) = self.x_perms(floor_x as i32);
-
-        let mut cell: Option<(i32, CellBlend)> = None;
+        let mut lane = Lane::new(self, wrap(x) + self.offset_x, wrap(z) + self.offset_z);
         for (&y, slot) in ys.iter().zip(out.iter_mut()) {
-            let shifted_y = wrap(y) + self.offset_y;
-            let floor_y = shifted_y.floor();
-            let local_y = shifted_y - floor_y;
-            let fudged = fudged_local_y::<SMEARED>(local_y, y, fudge_y_scale);
-            let section_y = floor_y as i32;
-            let blend = match cell {
-                Some((cached_y, blend)) if cached_y == section_y => blend,
-                _ => {
-                    let blend = cell_blend(
-                        &self.corner_grads(p0, p1, section_y, section_z),
-                        local_x,
-                        local_z,
-                        fade_x,
-                        fade_z,
-                    );
-                    cell = Some((section_y, blend));
-                    blend
-                }
-            };
-            *slot = blend.sample(
-                local_x,
-                fudged as f32,
-                local_z,
-                fade_x,
-                smoothstep(local_y as f32),
-                fade_z,
-            );
+            *slot = lane.sample::<SMEARED>(self, wrap(y) + self.offset_y, y, fudge_y_scale);
         }
     }
 
@@ -315,52 +349,20 @@ impl GradientNoise {
         let mut index = 0usize;
         for iz in 0..size.z {
             let shifted_z = wrap(volume.block_z(iz) as f64 * xz_scale) + self.offset_z;
-            let floor_z = shifted_z.floor();
-            let local_z = (shifted_z - floor_z) as f32;
-            let section_z = floor_z as i32;
-            let fade_z = smoothstep(local_z);
 
             for ix in 0..size.x {
                 let shifted_x = wrap(volume.block_x(ix) as f64 * xz_scale) + self.offset_x;
-                let floor_x = shifted_x.floor();
-                let local_x = (shifted_x - floor_x) as f32;
-                let fade_x = smoothstep(local_x);
-                let (p0, p1) = self.x_perms(floor_x as i32);
-                let mut cell: Option<(i32, CellBlend)> = None;
+                let mut lane = Lane::new(self, shifted_x, shifted_z);
 
                 for iy in 0..size.y {
                     let original_y = volume.block_y(iy) as f64 * y_scale;
-                    let shifted_y = wrap(original_y) + self.offset_y;
-                    let floor_y = shifted_y.floor();
-                    let local_y = shifted_y - floor_y;
-                    let fudged = fudged_local_y::<SMEARED>(local_y, original_y, fudge_y_scale);
-                    let section_y = floor_y as i32;
-                    let blend = match cell {
-                        Some((cached_y, blend)) if cached_y == section_y => blend,
-                        _ => {
-                            let blend = cell_blend(
-                                &self.corner_grads(p0, p1, section_y, section_z),
-                                local_x,
-                                local_z,
-                                fade_x,
-                                fade_z,
-                            );
-                            cell = Some((section_y, blend));
-                            blend
-                        }
-                    };
-                    out[index] = mul_add(
-                        amplitude,
-                        blend.sample(
-                            local_x,
-                            fudged as f32,
-                            local_z,
-                            fade_x,
-                            smoothstep(local_y as f32),
-                            fade_z,
-                        ),
-                        out[index],
+                    let value = lane.sample::<SMEARED>(
+                        self,
+                        wrap(original_y) + self.offset_y,
+                        original_y,
+                        fudge_y_scale,
                     );
+                    out[index] = mul_add(amplitude, value, out[index]);
                     index += 1;
                 }
             }

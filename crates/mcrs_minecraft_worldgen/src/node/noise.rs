@@ -129,10 +129,11 @@ mod tests {
     use mcrs_minecraft_random::RandomSource;
 
     fn sampler(seed: u64, first_octave: i32, amplitudes: &[f64]) -> Arc<NoiseStack<Octave>> {
-        Arc::new(
-            crate::noise::normal::NormalNoise::create_parity(first_octave, amplitudes)
-                .create(&mut RandomSource::new(seed, false)),
-        )
+        Arc::new(crate::noise::normal::create_parity(
+            first_octave,
+            amplitudes,
+            &mut RandomSource::new(seed, false),
+        ))
     }
 
     fn noise(seed: u64) -> Arc<NoiseStack<Octave>> {

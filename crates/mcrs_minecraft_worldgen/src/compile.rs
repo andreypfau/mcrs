@@ -9,7 +9,7 @@ use crate::node::gradient::{GradientParams, Tiling};
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::{CompiledSpline, Multipoint, SplineValue};
 use crate::noise::blended::{BlendedNoise, NOISE_SEED};
-use crate::noise::normal::NormalNoise;
+use crate::noise::normal as normal_noise;
 use crate::noise::stack::{NoiseStack, Octave};
 use crate::program::{
     BinaryOp, Node, NodeId, Program, RoundKind, UnaryOp, drops_offset, node_axes,
@@ -1029,7 +1029,7 @@ impl<'a> Compiler<'a> {
         match holder {
             NoiseHolder::Owned(param) => {
                 let mut random = self.random.clone();
-                Ok(NormalNoise::new(param.clone()).create(&mut random))
+                Ok(normal_noise::create(param, &mut random))
             }
             NoiseHolder::Reference(id) => self.create_named_noise(id),
         }
@@ -1043,12 +1043,18 @@ impl<'a> Compiler<'a> {
         // from the hashed fork every other noise takes.
         match id.as_str() {
             "minecraft:nether/temperature" => {
-                return Ok(NormalNoise::create_parity(-7, &[1.0, 1.0])
-                    .create(&mut LegacyRandom::new(self.seed)));
+                return Ok(normal_noise::create_parity(
+                    -7,
+                    &[1.0, 1.0],
+                    &mut LegacyRandom::new(self.seed),
+                ));
             }
             "minecraft:nether/vegetation" => {
-                return Ok(NormalNoise::create_parity(-7, &[1.0, 1.0])
-                    .create(&mut LegacyRandom::new(self.seed.wrapping_add(1))));
+                return Ok(normal_noise::create_parity(
+                    -7,
+                    &[1.0, 1.0],
+                    &mut LegacyRandom::new(self.seed.wrapping_add(1)),
+                ));
             }
             _ => {}
         }
@@ -1065,7 +1071,7 @@ impl<'a> Compiler<'a> {
             .ok_or_else(|| CompileError::UnknownNoise(id.as_str().to_string()))?;
         let mut root = self.random.clone();
         let mut random = root.fork_hash(id.as_str());
-        Ok(NormalNoise::new(param.clone()).create(&mut random))
+        Ok(normal_noise::create(param, &mut random))
     }
 
     /// The unnamed `PositionalRandomFactory` the whole generator forks from,
@@ -1102,7 +1108,7 @@ impl<'a> Compiler<'a> {
             "minecraft:offset" => {
                 let mut root = self.random.clone();
                 let mut random = root.fork_hash("minecraft:offset");
-                Some(NormalNoise::create_parity(0, &[0.0]).create(&mut random))
+                Some(normal_noise::create_parity(0, &[0.0], &mut random))
             }
             "mcrs:beta/scale" => Some(self.beta_terrain().scale.clone()),
             "mcrs:beta/depth" => Some(self.beta_terrain().depth.clone()),
