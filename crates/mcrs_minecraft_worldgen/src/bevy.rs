@@ -9,17 +9,19 @@ use crate::router::{NoiseGeneratorSettings, NoiseRouter};
 use bevy_app::{App, Plugin, Startup, Update};
 use bevy_asset::io::Reader;
 use bevy_asset::{
-    Asset, AssetApp, AssetLoader, AssetServer, Assets, Handle, LoadContext, LoadDirectError,
-    RecursiveDependencyLoadState, VisitAssetDependencies,
+    Asset, AssetApp, AssetEvent, AssetId, AssetLoader, AssetServer, Assets, Handle, LoadContext,
+    LoadDirectError, LoadState, VisitAssetDependencies,
 };
-use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource, not, resource_exists};
-use bevy_ecs::schedule::SystemCondition;
+use bevy_ecs::message::MessageReader;
+use bevy_ecs::prelude::{Commands, Local, Res, Resource};
 use bevy_reflect::TypePath;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::asset::read_all;
 use mcrs_voxel_storage::VoxelId;
-use std::collections::{BTreeMap, BTreeSet};
+use serde::de::DeserializeOwned;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::env;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info};
@@ -180,13 +182,13 @@ impl Plugin for WorldgenAssetsPlugin {
             .init_asset::<CarverConfigAsset>()
             .init_asset::<MaterialRuleAsset>()
             .init_asset::<MaterialConditionAsset>()
-            .register_asset_loader(DensityFunctionLoader)
-            .register_asset_loader(NoiseGeneratorSettingsLoader)
-            .register_asset_loader(NoiseParamLoader)
-            .register_asset_loader(WorldPresetLoader)
-            .register_asset_loader(CarverConfigLoader)
-            .register_asset_loader(MaterialRuleLoader)
-            .register_asset_loader(MaterialConditionLoader);
+            .register_asset_loader(JsonLoader::<DensityFunctionAsset>::default())
+            .register_asset_loader(JsonLoader::<NoiseGeneratorSettingsAsset>::default())
+            .register_asset_loader(JsonLoader::<NoiseParamAsset>::default())
+            .register_asset_loader(JsonLoader::<CarverConfigAsset>::default())
+            .register_asset_loader(JsonLoader::<MaterialRuleAsset>::default())
+            .register_asset_loader(JsonLoader::<MaterialConditionAsset>::default())
+            .register_asset_loader(WorldPresetLoader);
     }
 }
 
@@ -199,14 +201,7 @@ impl Plugin for NoiseGeneratorSettingsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(WorldgenAssetsPlugin)
             .add_systems(Startup, request_world_preset)
-            .add_systems(
-                Update,
-                build_overworld_noise_router.run_if(
-                    resource_exists::<WorldgenDefaultStates>
-                        .and_then(resource_exists::<MaterialResolvers>)
-                        .and_then(not(resource_exists::<NoiseRouterSettled>)),
-                ),
-            );
+            .add_systems(Update, build_overworld_noise_router);
     }
 }
 
@@ -216,12 +211,6 @@ pub struct WorldPresetHandle(pub Handle<WorldPresetAsset>);
 
 #[derive(Resource)]
 pub struct OverworldNoiseRouter(pub Arc<NoiseRouter>);
-
-/// The router build has reached a verdict, so it stops being scheduled. Present
-/// whether the router was built or the preset failed to load: a second attempt
-/// would read the same assets and reach the same answer.
-#[derive(Resource)]
-pub struct NoiseRouterSettled;
 
 /// The terrain block and the sea fluid the active noise settings name, resolved
 /// against the block registry this crate does not have. Inserted whole from the
@@ -254,8 +243,19 @@ fn request_world_preset(
     commands.insert_resource(WorldPresetHandle(asset_server.load(asset_path)));
 }
 
+/// Compiles the router once three things have arrived: the noise settings the
+/// preset names, loaded together with every asset they reference, and the two
+/// registries this crate cannot resolve itself.
+///
+/// They arrive independently and in no fixed order, so the load message is
+/// latched rather than acted on where it lands — gating the system on the two
+/// resources would drop the message on the ticks before they exist.
+#[allow(clippy::too_many_arguments)]
 fn build_overworld_noise_router(
     mut commands: Commands,
+    mut settled: Local<bool>,
+    mut loaded_settings: Local<HashSet<AssetId<NoiseGeneratorSettingsAsset>>>,
+    mut messages: MessageReader<AssetEvent<NoiseGeneratorSettingsAsset>>,
     asset_server: Res<AssetServer>,
     preset_handle: Option<Res<WorldPresetHandle>>,
     presets: Res<Assets<WorldPresetAsset>>,
@@ -264,28 +264,38 @@ fn build_overworld_noise_router(
     noises: Res<Assets<NoiseParamAsset>>,
     rules: Res<Assets<MaterialRuleAsset>>,
     conditions: Res<Assets<MaterialConditionAsset>>,
-    resolvers: Res<MaterialResolvers>,
-    defaults: Res<WorldgenDefaultStates>,
+    resolvers: Option<Res<MaterialResolvers>>,
+    defaults: Option<Res<WorldgenDefaultStates>>,
     config: Res<WorldGenConfig>,
 ) {
+    for message in messages.read() {
+        if let AssetEvent::LoadedWithDependencies { id } = message {
+            loaded_settings.insert(*id);
+        }
+    }
+    if *settled {
+        return;
+    }
     let Some(preset_handle) = preset_handle.as_deref() else {
         return;
     };
-    match asset_server.recursive_dependency_load_state(preset_handle.0.id()) {
-        RecursiveDependencyLoadState::Loaded => {}
-        RecursiveDependencyLoadState::Failed(error) => {
-            commands.insert_resource(NoiseRouterSettled);
-            error!(%error, "the world preset did not load");
-            return;
-        }
-        _ => return,
+    if let LoadState::Failed(error) = asset_server.load_state(preset_handle.0.id()) {
+        *settled = true;
+        error!(%error, "the world preset did not load");
+        return;
     }
+    let (Some(resolvers), Some(defaults)) = (resolvers, defaults) else {
+        return;
+    };
     let Some(settings_handle) = presets
         .get(&preset_handle.0)
         .map(|p| &p.overworld_noise_settings)
     else {
         return;
     };
+    if !loaded_settings.contains(&settings_handle.id()) {
+        return;
+    }
     let Some(asset) = noise_settings.get(settings_handle) else {
         return;
     };
@@ -297,9 +307,7 @@ fn build_overworld_noise_router(
         conditions: &conditions,
     };
     let mut loaded = Loaded::default();
-    loaded.collect_noises(&asset.noises, &tables);
-    loaded.collect_functions(&asset.density_functions, &tables);
-    loaded.collect_rules(&asset.material_rules, &tables);
+    loaded.collect(&asset.deps, &tables);
 
     let seed = config.seed;
     info!(
@@ -308,7 +316,7 @@ fn build_overworld_noise_router(
         "Building OverworldNoiseRouter"
     );
 
-    commands.insert_resource(NoiseRouterSettled);
+    *settled = true;
     let material = MaterialInputs {
         rules: &loaded.rules,
         conditions: &loaded.conditions,
@@ -357,24 +365,15 @@ struct AssetTables<'a> {
 }
 
 impl Loaded {
-    fn collect_noises(
-        &mut self,
-        handles: &BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
-        tables: &AssetTables<'_>,
-    ) {
-        for (id, handle) in handles {
+    /// An id is recorded before its own references are followed, so a reference
+    /// cycle in the corpus terminates here rather than recursing forever.
+    fn collect(&mut self, refs: &AssetRefs, tables: &AssetTables<'_>) {
+        for (id, handle) in &refs.noises {
             if let Some(asset) = tables.noises.get(handle) {
                 self.noises.insert(id.clone(), asset.noise.clone());
             }
         }
-    }
-
-    fn collect_functions(
-        &mut self,
-        handles: &BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
-        tables: &AssetTables<'_>,
-    ) {
-        for (id, handle) in handles {
+        for (id, handle) in &refs.density_functions {
             if self.density_functions.contains_key(id) {
                 continue;
             }
@@ -383,17 +382,9 @@ impl Loaded {
             };
             self.density_functions
                 .insert(id.clone(), asset.function.clone());
-            self.collect_noises(&asset.noise_deps, tables);
-            self.collect_functions(&asset.deps, tables);
+            self.collect(&asset.deps, tables);
         }
-    }
-
-    fn collect_conditions(
-        &mut self,
-        handles: &BTreeMap<ResourceLocation, Handle<MaterialConditionAsset>>,
-        tables: &AssetTables<'_>,
-    ) {
-        for (id, handle) in handles {
+        for (id, handle) in &refs.conditions {
             if self.conditions.contains_key(id) {
                 continue;
             }
@@ -401,17 +392,9 @@ impl Loaded {
                 continue;
             };
             self.conditions.insert(id.clone(), asset.condition.clone());
-            self.collect_noises(&asset.noises, tables);
-            self.collect_conditions(&asset.conditions, tables);
+            self.collect(&asset.deps, tables);
         }
-    }
-
-    fn collect_rules(
-        &mut self,
-        handles: &BTreeMap<ResourceLocation, Handle<MaterialRuleAsset>>,
-        tables: &AssetTables<'_>,
-    ) {
-        for (id, handle) in handles {
+        for (id, handle) in &refs.rules {
             if self.rules.contains_key(id) {
                 continue;
             }
@@ -419,169 +402,81 @@ impl Loaded {
                 continue;
             };
             self.rules.insert(id.clone(), asset.rule.clone());
-            self.collect_noises(&asset.noises, tables);
-            self.collect_functions(&asset.density_functions, tables);
-            self.collect_conditions(&asset.conditions, tables);
-            self.collect_rules(&asset.rules, tables);
+            self.collect(&asset.deps, tables);
         }
     }
 }
 
-#[derive(TypePath, Debug)]
-pub struct NoiseGeneratorSettingsAsset {
-    pub settings: NoiseGeneratorSettings,
+/// The handles one asset's references resolve to. Every worldgen asset names ids
+/// from the same four registries, so one dependency visitor and one loader serve
+/// all of them.
+#[derive(Default, Debug, Clone)]
+pub struct AssetRefs {
     pub density_functions: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
     pub noises: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
-    pub material_rules: BTreeMap<ResourceLocation, Handle<MaterialRuleAsset>>,
-}
-
-impl Asset for NoiseGeneratorSettingsAsset {}
-
-impl bevy_asset::VisitAssetDependencies for NoiseGeneratorSettingsAsset {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {
-        for handle in self.density_functions.values() {
-            visit(handle.id().untyped());
-        }
-        for handle in self.noises.values() {
-            visit(handle.id().untyped());
-        }
-        for handle in self.material_rules.values() {
-            visit(handle.id().untyped());
-        }
-    }
-}
-
-#[derive(TypePath, Debug, Clone)]
-pub struct MaterialRuleAsset {
-    pub rule: MaterialRuleHolder,
     pub rules: BTreeMap<ResourceLocation, Handle<MaterialRuleAsset>>,
     pub conditions: BTreeMap<ResourceLocation, Handle<MaterialConditionAsset>>,
-    pub density_functions: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
-    pub noises: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
 }
 
-impl Asset for MaterialRuleAsset {}
-
-impl VisitAssetDependencies for MaterialRuleAsset {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {
-        for handle in self.rules.values() {
-            visit(handle.id().untyped());
-        }
-        for handle in self.conditions.values() {
-            visit(handle.id().untyped());
-        }
-        for handle in self.density_functions.values() {
-            visit(handle.id().untyped());
-        }
-        for handle in self.noises.values() {
-            visit(handle.id().untyped());
-        }
-    }
-}
-
-#[derive(TypePath, Debug, Clone)]
-pub struct MaterialConditionAsset {
-    pub condition: MaterialConditionHolder,
-    pub conditions: BTreeMap<ResourceLocation, Handle<MaterialConditionAsset>>,
-    pub noises: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
-}
-
-impl Asset for MaterialConditionAsset {}
-
-impl VisitAssetDependencies for MaterialConditionAsset {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {
-        for handle in self.conditions.values() {
-            visit(handle.id().untyped());
-        }
-        for handle in self.noises.values() {
-            visit(handle.id().untyped());
-        }
-    }
-}
-
-#[derive(Default, TypePath)]
-pub struct MaterialRuleLoader;
-
-impl AssetLoader for MaterialRuleLoader {
-    type Asset = MaterialRuleAsset;
-    type Settings = ();
-    type Error = WorldgenLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let bytes = read_all(reader).await?;
-        let rule = serde_json::from_slice::<MaterialRuleHolder>(&bytes)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
-        let mut refs = References::default();
-        refs.visit_rule_holder(&rule);
-
-        Ok(MaterialRuleAsset {
-            rule,
-            rules: handles(&refs.rules, "material_rule", load_context),
-            conditions: handles(&refs.conditions, "material_condition", load_context),
+impl AssetRefs {
+    fn load(refs: &References, load_context: &mut LoadContext<'_>) -> Self {
+        Self {
             density_functions: handles(&refs.density_functions, "density_function", load_context),
             noises: handles(&refs.noises, "noise", load_context),
-        })
-    }
-}
-
-#[derive(Default, TypePath)]
-pub struct MaterialConditionLoader;
-
-impl AssetLoader for MaterialConditionLoader {
-    type Asset = MaterialConditionAsset;
-    type Settings = ();
-    type Error = WorldgenLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let bytes = read_all(reader).await?;
-        let condition = serde_json::from_slice::<MaterialConditionHolder>(&bytes)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
-        let mut refs = References::default();
-        refs.visit_condition_holder(&condition);
-
-        Ok(MaterialConditionAsset {
-            condition,
+            rules: handles(&refs.rules, "material_rule", load_context),
             conditions: handles(&refs.conditions, "material_condition", load_context),
-            noises: handles(&refs.noises, "noise", load_context),
-        })
+        }
     }
 }
 
-#[derive(TypePath, Debug, Clone)]
+impl VisitAssetDependencies for AssetRefs {
+    fn visit_dependencies(&self, visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {
+        let ids = (self.density_functions.values().map(|h| h.id().untyped()))
+            .chain(self.noises.values().map(|h| h.id().untyped()))
+            .chain(self.rules.values().map(|h| h.id().untyped()))
+            .chain(self.conditions.values().map(|h| h.id().untyped()));
+        for id in ids {
+            visit(id);
+        }
+    }
+}
+
+#[derive(Asset, TypePath, Debug)]
+pub struct NoiseGeneratorSettingsAsset {
+    pub settings: NoiseGeneratorSettings,
+    #[dependency]
+    pub deps: AssetRefs,
+}
+
+#[derive(Asset, TypePath, Debug, Clone)]
 pub struct DensityFunctionAsset {
     pub function: DensityFunctionHolder,
-    pub deps: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
-    pub noise_deps: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
+    #[dependency]
+    pub deps: AssetRefs,
 }
 
-impl Asset for DensityFunctionAsset {}
-
-impl bevy_asset::VisitAssetDependencies for DensityFunctionAsset {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {
-        for handle in self.deps.values() {
-            visit(handle.id().untyped());
-        }
-        for handle in self.noise_deps.values() {
-            visit(handle.id().untyped());
-        }
-    }
+#[derive(Asset, TypePath, Debug, Clone)]
+pub struct MaterialRuleAsset {
+    pub rule: MaterialRuleHolder,
+    #[dependency]
+    pub deps: AssetRefs,
 }
 
-#[derive(TypePath, Asset, Debug, Clone)]
+#[derive(Asset, TypePath, Debug, Clone)]
+pub struct MaterialConditionAsset {
+    pub condition: MaterialConditionHolder,
+    #[dependency]
+    pub deps: AssetRefs,
+}
+
+#[derive(Asset, TypePath, Debug, Clone)]
 pub struct NoiseParamAsset {
     pub noise: NoiseParam,
+}
+
+#[derive(Asset, TypePath, Debug, Clone)]
+pub struct CarverConfigAsset {
+    pub config: crate::carver::CarverConfig,
 }
 
 #[derive(Debug, Error)]
@@ -592,110 +487,119 @@ pub enum WorldgenLoaderError {
     LoadDirectError(#[from] LoadDirectError),
 }
 
-#[derive(Default, TypePath)]
-pub struct NoiseGeneratorSettingsLoader;
+/// The JSON a worldgen asset parses from and the ids that JSON names. Loading is
+/// the same for every one of them: parse, turn the ids into handles, keep both.
+trait WorldgenAsset: Asset {
+    type Proto: DeserializeOwned;
 
-impl AssetLoader for NoiseGeneratorSettingsLoader {
-    type Asset = NoiseGeneratorSettingsAsset;
-    type Settings = ();
-    type Error = WorldgenLoaderError;
+    fn references(proto: &Self::Proto) -> References;
 
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let bytes = read_all(reader).await?;
-        let settings = serde_json::from_slice::<NoiseGeneratorSettings>(&bytes)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    fn build(proto: Self::Proto, deps: AssetRefs) -> Self;
+}
 
-        let refs = References::of_settings(&settings);
+impl WorldgenAsset for NoiseGeneratorSettingsAsset {
+    type Proto = NoiseGeneratorSettings;
 
-        Ok(NoiseGeneratorSettingsAsset {
-            settings,
-            density_functions: handles(&refs.density_functions, "density_function", load_context),
-            noises: handles(&refs.noises, "noise", load_context),
-            material_rules: handles(&refs.rules, "material_rule", load_context),
-        })
+    fn references(settings: &Self::Proto) -> References {
+        References::of_settings(settings)
+    }
+
+    fn build(settings: Self::Proto, deps: AssetRefs) -> Self {
+        Self { settings, deps }
     }
 }
 
-#[derive(Default, TypePath)]
-pub struct NoiseParamLoader;
+impl WorldgenAsset for DensityFunctionAsset {
+    type Proto = DensityFunctionHolder;
 
-impl AssetLoader for NoiseParamLoader {
-    type Asset = NoiseParamAsset;
-    type Settings = ();
-    type Error = WorldgenLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        _load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let bytes = read_all(reader).await?;
-        let noise = serde_json::from_slice::<NoiseParam>(&bytes)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
-        Ok(NoiseParamAsset { noise })
-    }
-}
-
-#[derive(Asset, TypePath, Debug, Clone)]
-pub struct CarverConfigAsset {
-    pub config: crate::carver::CarverConfig,
-}
-
-#[derive(Default, TypePath)]
-pub struct CarverConfigLoader;
-
-impl AssetLoader for CarverConfigLoader {
-    type Asset = CarverConfigAsset;
-    type Settings = ();
-    type Error = WorldgenLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        _load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let bytes = read_all(reader).await?;
-        Ok(CarverConfigAsset {
-            config: serde_json::from_slice(&bytes)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
-        })
-    }
-}
-
-#[derive(Default, TypePath)]
-pub struct DensityFunctionLoader;
-
-impl AssetLoader for DensityFunctionLoader {
-    type Asset = DensityFunctionAsset;
-    type Settings = ();
-    type Error = WorldgenLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let bytes = read_all(reader).await?;
-        let function = serde_json::from_slice::<DensityFunctionHolder>(&bytes)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
+    fn references(function: &Self::Proto) -> References {
         let mut refs = References::default();
-        refs.visit_holder(&function);
+        refs.visit_holder(function);
+        refs
+    }
 
-        Ok(DensityFunctionAsset {
-            function,
-            deps: handles(&refs.density_functions, "density_function", load_context),
-            noise_deps: handles(&refs.noises, "noise", load_context),
-        })
+    fn build(function: Self::Proto, deps: AssetRefs) -> Self {
+        Self { function, deps }
+    }
+}
+
+impl WorldgenAsset for MaterialRuleAsset {
+    type Proto = MaterialRuleHolder;
+
+    fn references(rule: &Self::Proto) -> References {
+        let mut refs = References::default();
+        refs.visit_rule_holder(rule);
+        refs
+    }
+
+    fn build(rule: Self::Proto, deps: AssetRefs) -> Self {
+        Self { rule, deps }
+    }
+}
+
+impl WorldgenAsset for MaterialConditionAsset {
+    type Proto = MaterialConditionHolder;
+
+    fn references(condition: &Self::Proto) -> References {
+        let mut refs = References::default();
+        refs.visit_condition_holder(condition);
+        refs
+    }
+
+    fn build(condition: Self::Proto, deps: AssetRefs) -> Self {
+        Self { condition, deps }
+    }
+}
+
+impl WorldgenAsset for NoiseParamAsset {
+    type Proto = NoiseParam;
+
+    fn references(_: &Self::Proto) -> References {
+        References::default()
+    }
+
+    fn build(noise: Self::Proto, _: AssetRefs) -> Self {
+        Self { noise }
+    }
+}
+
+impl WorldgenAsset for CarverConfigAsset {
+    type Proto = crate::carver::CarverConfig;
+
+    fn references(_: &Self::Proto) -> References {
+        References::default()
+    }
+
+    fn build(config: Self::Proto, _: AssetRefs) -> Self {
+        Self { config }
+    }
+}
+
+#[derive(TypePath)]
+pub struct JsonLoader<A: TypePath>(PhantomData<fn() -> A>);
+
+impl<A: TypePath> Default for JsonLoader<A> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<A: WorldgenAsset> AssetLoader for JsonLoader<A> {
+    type Asset = A;
+    type Settings = ();
+    type Error = WorldgenLoaderError;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let bytes = read_all(reader).await?;
+        let proto = serde_json::from_slice::<A::Proto>(&bytes)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        let deps = AssetRefs::load(&A::references(&proto), load_context);
+        Ok(A::build(proto, deps))
     }
 }
 
@@ -1068,9 +972,7 @@ mod tests {
             conditions: world.resource::<Assets<MaterialConditionAsset>>(),
         };
         let mut collected = Loaded::default();
-        collected.collect_noises(&asset.noises, &tables);
-        collected.collect_functions(&asset.density_functions, &tables);
-        collected.collect_rules(&asset.material_rules, &tables);
+        collected.collect(&asset.deps, &tables);
 
         for name in SURFACE_NOISE_NAMES {
             let id = format!("minecraft:{name}");
@@ -1119,6 +1021,81 @@ mod tests {
         assert_eq!(
             WorldGenConfig::default().preset_asset_path(),
             "minecraft/worldgen/world_preset/normal.json"
+        );
+    }
+
+    /// The load message and the two registries the compiler needs arrive from
+    /// three different sides in no fixed order. This drives the worst order:
+    /// the settings finish loading, the message ages past the two updates a
+    /// `Messages` buffer keeps it for, and only then do the registries land.
+    /// A build that read the message where it landed would never fire.
+    #[test]
+    fn the_router_is_built_when_the_registries_arrive_after_the_load_message() {
+        use super::{
+            MaterialResolvers, NoiseGeneratorSettingsPlugin, OverworldNoiseRouter,
+            WorldgenDefaultStates,
+        };
+        use crate::proto::BlockState;
+        use bevy_app::App;
+        use bevy_asset::{AssetPlugin, AssetServer, RecursiveDependencyLoadState};
+        use mcrs_voxel_storage::VoxelId;
+        use std::sync::Arc;
+
+        let mut app = App::new();
+        app.add_plugins(bevy_app::TaskPoolPlugin::default());
+        app.add_plugins(AssetPlugin {
+            watch_for_changes_override: Some(false),
+            ..AssetPlugin::default()
+        });
+        app.insert_resource(WorldGenConfig::default());
+        app.add_plugins(NoiseGeneratorSettingsPlugin);
+
+        let mut loaded = false;
+        for _ in 0..10_000 {
+            app.update();
+            let handle = app.world().get_resource::<super::WorldPresetHandle>();
+            let Some(handle) = handle.map(|h| h.0.clone()) else {
+                continue;
+            };
+            match app
+                .world()
+                .resource::<AssetServer>()
+                .recursive_dependency_load_state(handle.id())
+            {
+                RecursiveDependencyLoadState::Loaded => {
+                    loaded = true;
+                    break;
+                }
+                RecursiveDependencyLoadState::Failed(error) => panic!("{error}"),
+                _ => std::thread::sleep(std::time::Duration::from_millis(1)),
+            }
+        }
+        assert!(loaded, "the world preset never finished loading");
+
+        // Well past the two updates a message survives for.
+        for _ in 0..8 {
+            app.update();
+        }
+        assert!(
+            app.world().get_resource::<OverworldNoiseRouter>().is_none(),
+            "the router cannot be built before the registries arrive"
+        );
+
+        app.insert_resource(WorldgenDefaultStates {
+            block: VoxelId(1),
+            fluid: VoxelId(2),
+        });
+        app.insert_resource(MaterialResolvers {
+            block: Arc::new(|_: &BlockState| Some(VoxelId(1))),
+            biome: Arc::new(|_: &ResourceLocation| Some(0)),
+        });
+
+        for _ in 0..4 {
+            app.update();
+        }
+        assert!(
+            app.world().get_resource::<OverworldNoiseRouter>().is_some(),
+            "the latched load message did not reach the router build"
         );
     }
 }
