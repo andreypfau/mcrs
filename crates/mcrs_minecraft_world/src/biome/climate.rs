@@ -214,32 +214,76 @@ impl<T> Node<T> {
             Node::Leaf { space, .. } | Node::SubTree { space, .. } => space,
         }
     }
+}
 
-    /// The nearest leaf, given a candidate to beat. A branch whose own bound is
-    /// already further than the candidate is not entered at all.
-    fn search(&self, target: &Coords, best: Option<(T, i64)>) -> Option<(T, i64)>
-    where
-        T: Copy,
-    {
-        match self {
-            Node::Leaf { space, value } => Some((*value, bound_distance(space, target))),
+/// The tree laid out in one array, breadth first, so a node's children sit
+/// next to each other and the walk streams them instead of chasing a `Vec` per
+/// node. The order within a node is the order the tree built, which is what
+/// decides a tie.
+#[derive(Debug, Clone)]
+struct FlatNode {
+    space: [Parameter; 7],
+    /// The entry a leaf answers with. A subtree carries children instead.
+    value: u32,
+    children_start: u32,
+    children_count: u32,
+}
+
+fn flatten<T>(root: Node<T>) -> Vec<FlatNode>
+where
+    T: Copy + Into<u32>,
+{
+    let reserve = |space: &[Parameter; 7]| FlatNode {
+        space: *space,
+        value: 0,
+        children_start: 0,
+        children_count: 0,
+    };
+    let mut nodes = vec![reserve(root.space())];
+    let mut queue = std::collections::VecDeque::from([(root, 0usize)]);
+    while let Some((node, at)) = queue.pop_front() {
+        match node {
+            Node::Leaf { value, .. } => nodes[at].value = value.into(),
             Node::SubTree { children, .. } => {
-                let mut best = best;
-                for child in children {
-                    let nearest = best.map_or(i64::MAX, |(_, distance)| distance);
-                    if nearest <= bound_distance(child.space(), target) {
-                        continue;
-                    }
-                    if let Some(found) = child.search(target, best)
-                        && best.map_or(i64::MAX, |(_, distance)| distance) > found.1
-                    {
-                        best = Some(found);
-                    }
+                let start = nodes.len();
+                nodes[at].children_start = start as u32;
+                nodes[at].children_count = children.len() as u32;
+                nodes.extend(children.iter().map(|child| reserve(child.space())));
+                for (offset, child) in children.into_iter().enumerate() {
+                    queue.push_back((child, start + offset));
                 }
-                best
             }
         }
     }
+    nodes
+}
+
+/// The nearest leaf under `at`, given a candidate to beat. A branch whose own
+/// bound is already further than the candidate is not entered at all.
+fn search(
+    nodes: &[FlatNode],
+    at: usize,
+    target: &Coords,
+    best: Option<(u32, i64)>,
+) -> Option<(u32, i64)> {
+    let node = &nodes[at];
+    if node.children_count == 0 {
+        return Some((node.value, bound_distance(&node.space, target)));
+    }
+    let mut best = best;
+    let start = node.children_start as usize;
+    for child in start..start + node.children_count as usize {
+        let nearest = best.map_or(i64::MAX, |(_, distance)| distance);
+        if nearest <= bound_distance(&nodes[child].space, target) {
+            continue;
+        }
+        if let Some(found) = search(nodes, child, target, best)
+            && best.map_or(i64::MAX, |(_, distance)| distance) > found.1
+        {
+            best = Some(found);
+        }
+    }
+    best
 }
 
 const CHILDREN_PER_NODE: usize = 19;
@@ -361,7 +405,7 @@ fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Node<T
 #[derive(Debug, Clone)]
 pub struct ParameterList<T> {
     values: Vec<(ParameterPoint, T)>,
-    index: Node<usize>,
+    nodes: Vec<FlatNode>,
 }
 
 impl<T> ParameterList<T> {
@@ -375,11 +419,11 @@ impl<T> ParameterList<T> {
             .enumerate()
             .map(|(slot, (point, _))| Node::Leaf {
                 space: point.space(),
-                value: slot,
+                value: slot as u32,
             })
             .collect();
-        let index = build_node(leaves, CHILDREN_PER_NODE);
-        ParameterList { values, index }
+        let nodes = flatten(build_node(leaves, CHILDREN_PER_NODE));
+        ParameterList { values, nodes }
     }
 
     pub fn values(&self) -> &[(ParameterPoint, T)] {
@@ -411,10 +455,15 @@ impl<T> ParameterList<T> {
     /// [`Self::values`] rather than the entry.
     pub fn find_slot_from(&self, target: TargetPoint, last: &mut Option<usize>) -> usize {
         let coords = target.coords();
-        let seed = last.map(|slot| (slot, bound_distance(&self.values[slot].0.space(), &coords)));
-        let (slot, _) = self.index.search(&coords, seed).expect("a non-empty tree");
-        *last = Some(slot);
-        slot
+        let seed = last.map(|slot| {
+            (
+                slot as u32,
+                bound_distance(&self.values[slot].0.space(), &coords),
+            )
+        });
+        let (slot, _) = search(&self.nodes, 0, &coords, seed).expect("a non-empty tree");
+        *last = Some(slot as usize);
+        slot as usize
     }
 
     /// The same answer by scanning every entry, which is what the tree has to
