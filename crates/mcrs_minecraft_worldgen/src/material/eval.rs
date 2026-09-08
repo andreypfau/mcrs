@@ -51,6 +51,18 @@ pub struct MaterialScratch {
 /// Runs shorter than this are walked block by block rather than settled.
 const SHORT_RUN: i32 = 8;
 
+/// Where settling a piece of a run stopped: on an answer, on a guard that could
+/// still go either way, or on a rule no piece can settle at all.
+enum Settled {
+    Answer(Option<VoxelId>),
+    Open {
+        condition: CondId,
+        on_true: usize,
+        on_false: usize,
+    },
+    Blocked,
+}
+
 /// A condition's answer along one solid run of a strip.
 enum Split {
     Always(bool),
@@ -330,42 +342,101 @@ where
 
         let mut hi = top;
         for &lo in &breaks {
-            if let Some(state) = self.settle(lo, hi) {
-                out.push((lo, hi, state));
-            }
+            self.settle_piece(lo, hi, out);
             hi = lo - 1;
         }
-        if hi >= bottom
-            && let Some(state) = self.settle(bottom, hi)
-        {
-            out.push((bottom, hi, state));
+        if hi >= bottom {
+            self.settle_piece(bottom, hi, out);
         }
         self.scratch.breaks = breaks;
     }
 
+    /// What the piece `lo..=hi` answers, appended to `out`.
+    ///
+    /// A piece the tape leaves open on a vertical gradient is still worth
+    /// settling: inside the band the draw is the only thing that varies, so if
+    /// both sides of the guard settle, each y is one draw against the band's
+    /// probability instead of a walk of the whole tape. The draw is a fork of
+    /// the stream at the block, so making it here rather than during the
+    /// descent asks the same stream the same question.
+    fn settle_piece(&mut self, lo: i32, hi: i32, out: &mut Vec<(i32, i32, Option<VoxelId>)>) {
+        let (condition, on_true, on_false) = match self.settle_from(0, lo, hi) {
+            Settled::Answer(state) => return out.push((lo, hi, state)),
+            Settled::Blocked => return,
+            Settled::Open {
+                condition,
+                on_true,
+                on_false,
+            } => (condition, on_true, on_false),
+        };
+        let Condition::VerticalGradient {
+            random,
+            true_at_and_below,
+            false_at_and_above,
+        } = self.program.conditions()[condition as usize].kind
+        else {
+            return;
+        };
+        if lo <= true_at_and_below || hi >= false_at_and_above {
+            return;
+        }
+        let (Settled::Answer(whenever), Settled::Answer(otherwise)) = (
+            self.settle_from(on_true, lo, hi),
+            self.settle_from(on_false, lo, hi),
+        ) else {
+            return;
+        };
+        if whenever == otherwise {
+            return out.push((lo, hi, whenever));
+        }
+        for y in (lo..=hi).rev() {
+            let probability = map(
+                f64::from(y),
+                f64::from(true_at_and_below),
+                f64::from(false_at_and_above),
+                1.0,
+                0.0,
+            );
+            let mut draw = self
+                .program
+                .random_at(random, IVec3::new(self.block_x, y, self.block_z));
+            let state = if f64::from(draw.next_f32()) < probability {
+                whenever
+            } else {
+                otherwise
+            };
+            out.push((y, y, state));
+        }
+    }
+
     /// What the tape returns for every y in `lo..=hi` of the run, if it is the
     /// same block, or the same nothing, throughout.
-    fn settle(&mut self, lo: i32, hi: i32) -> Option<Option<VoxelId>> {
+    fn settle_from(&mut self, mut pc: usize, lo: i32, hi: i32) -> Settled {
         let program = self.program;
-        let mut pc = 0usize;
         while let Some(op) = program.tape().get(pc) {
             match *op {
                 Op::Guard { condition, skip_to } => match self.over(condition, lo, hi) {
                     Some(true) => pc += 1,
                     Some(false) => pc = skip_to as usize,
-                    None => return None,
+                    None => {
+                        return Settled::Open {
+                            condition,
+                            on_true: pc + 1,
+                            on_false: skip_to as usize,
+                        };
+                    }
                 },
-                Op::Block { state } => return Some(Some(state)),
-                Op::Bandlands => return None,
+                Op::Block { state } => return Settled::Answer(Some(state)),
+                Op::Bandlands => return Settled::Blocked,
                 Op::OreVein { vein } => {
                     if self.vein_open_in(vein as usize, lo, hi) {
-                        return None;
+                        return Settled::Blocked;
                     }
                     pc += 1;
                 }
             }
         }
-        Some(None)
+        Settled::Answer(None)
     }
 
     /// The condition's answer if it is the same for every y in `lo..=hi`.
