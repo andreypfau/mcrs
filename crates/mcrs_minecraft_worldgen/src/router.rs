@@ -178,38 +178,6 @@ impl NoiseRouter {
         self.material.as_ref()
     }
 
-    pub fn temperature(&self) -> usize {
-        TEMPERATURE
-    }
-
-    pub fn vegetation(&self) -> usize {
-        VEGETATION
-    }
-
-    pub fn continents(&self) -> usize {
-        CONTINENTS
-    }
-
-    pub fn erosion(&self) -> usize {
-        EROSION
-    }
-
-    pub fn depth(&self) -> usize {
-        DEPTH
-    }
-
-    pub fn ridges(&self) -> usize {
-        RIDGES
-    }
-
-    pub fn chunk_surface_level(&self) -> usize {
-        CHUNK_SURFACE_LEVEL
-    }
-
-    pub fn final_density(&self) -> usize {
-        FINAL_DENSITY
-    }
-
     /// The roots replaced by a constant zero, named as in [`ROOT_NAMES`].
     pub fn failed_roots(&self) -> &[(&'static str, CompileError)] {
         &self.failed
@@ -366,12 +334,7 @@ impl NoiseRouter {
             IVec3::ONE,
         );
         let mut values = vec![0.0f32; 2 * volume.len()];
-        self.fill_roots(
-            ws,
-            &volume,
-            &[self.temperature(), self.vegetation()],
-            &mut values,
-        );
+        self.fill_roots(ws, &volume, &[TEMPERATURE, VEGETATION], &mut values);
         let mut temperature = [0.0f32; 256];
         let mut vegetation = [0.0f32; 256];
         for x in 0..16i32 {
@@ -393,12 +356,7 @@ impl NoiseRouter {
     ) -> (f32, f32) {
         let volume = Volume::point(IVec3::new(block_x, 0, block_z));
         let mut values = [0.0f32; 2];
-        self.fill_roots(
-            ws,
-            &volume,
-            &[self.temperature(), self.vegetation()],
-            &mut values,
-        );
+        self.fill_roots(ws, &volume, &[TEMPERATURE, VEGETATION], &mut values);
         (values[0], values[1])
     }
 }

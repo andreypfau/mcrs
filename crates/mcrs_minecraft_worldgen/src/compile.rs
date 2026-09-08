@@ -1441,6 +1441,7 @@ fn tiling_tag(tiling: crate::node::gradient::Tiling) -> u8 {
 pub(crate) mod tests {
     use super::*;
     use crate::program::Workspace;
+    use crate::router::{CONTINENTS, DEPTH, EROSION, RIDGES, TEMPERATURE, VEGETATION};
     use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z};
     use crate::volume::Volume;
     use bevy_math::IVec3;
@@ -1928,14 +1929,7 @@ pub(crate) mod tests {
         );
         let mut workspace = Workspace::new();
         let mut out = vec![0.0f32; volume.len()];
-        for root in [
-            router.temperature(),
-            router.vegetation(),
-            router.continents(),
-            router.erosion(),
-            router.depth(),
-            router.ridges(),
-        ] {
+        for root in [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES] {
             router
                 .program()
                 .fill(&mut workspace, &volume, root, &mut out);

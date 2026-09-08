@@ -15,7 +15,9 @@ use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::cell::CELL_BOUNDS_SLACK;
 use mcrs_minecraft_worldgen::interval::Interval;
 use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen::router::{
+    CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
+};
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
 use std::cell::RefCell;
@@ -424,12 +426,7 @@ fn fill_blocks(
     let default_fluid = noise_router.default_fluid_state();
     fill.density.clear();
     fill.density.resize(volume.len(), 0.0);
-    noise_router.fill(
-        &mut fill.ws,
-        volume,
-        noise_router.final_density(),
-        &mut fill.density,
-    );
+    noise_router.fill(&mut fill.ws, volume, FINAL_DENSITY, &mut fill.density);
     for z in 0..volume.size().z {
         for x in 0..volume.size().x {
             for y in (0..volume.size().y).rev() {
@@ -466,7 +463,7 @@ fn beta_climate_cells(noise_router: &NoiseRouter, block_x: i32, block_z: i32) ->
     noise_router.fill_roots(
         &mut Workspace::new(),
         &volume,
-        &[noise_router.temperature(), noise_router.vegetation()],
+        &[TEMPERATURE, VEGETATION],
         &mut values,
     );
     let mut cells = [(0.0f32, 0.0f32); 16];
@@ -526,14 +523,7 @@ pub fn multi_noise_palettes(
         IVec3::new(block_x - 4, first * 16 - 4, block_z - 4),
         IVec3::splat(4),
     );
-    let roots = [
-        noise_router.temperature(),
-        noise_router.vegetation(),
-        noise_router.continents(),
-        noise_router.erosion(),
-        noise_router.depth(),
-        noise_router.ridges(),
-    ];
+    let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
     let points = volume.len();
     let mut values = vec![0.0f32; roots.len() * points];
     let mut ws = Workspace::new();

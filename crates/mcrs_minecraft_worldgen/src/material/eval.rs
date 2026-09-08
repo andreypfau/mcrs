@@ -6,7 +6,7 @@ use crate::material::compile::{
     VeinId,
 };
 use crate::program::{NodeId, Workspace};
-use crate::router::NoiseRouter;
+use crate::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
 use crate::volume::Volume;
 use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
@@ -212,7 +212,7 @@ where
         router.fill(
             &mut scratch.workspace,
             &preliminary,
-            router.chunk_surface_level(),
+            CHUNK_SURFACE_LEVEL,
             &mut scratch.preliminary,
         );
 
@@ -630,7 +630,7 @@ where
         {
             Some(index) => self.scratch.preliminary[index],
             None => self.sample(
-                self.router.chunk_surface_level(),
+                CHUNK_SURFACE_LEVEL,
                 IVec3::new(self.block_x, 0, self.block_z),
             ),
         };

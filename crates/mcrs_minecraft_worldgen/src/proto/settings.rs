@@ -11,29 +11,6 @@ pub enum Either<L, R> {
     Right(R),
 }
 
-impl<L, R> Either<L, R> {
-    pub fn left(&self) -> Option<&L> {
-        match self {
-            Either::Left(l) => Some(l),
-            Either::Right(_) => None,
-        }
-    }
-
-    pub fn right(&self) -> Option<&R> {
-        match self {
-            Either::Left(_) => None,
-            Either::Right(r) => Some(r),
-        }
-    }
-
-    pub fn map<T>(self, left: impl FnOnce(L) -> T, right: impl FnOnce(R) -> T) -> T {
-        match self {
-            Either::Left(l) => left(l),
-            Either::Right(r) => right(r),
-        }
-    }
-}
-
 /// A block state as the noise settings write it: a bare block id, or an id with
 /// stated property values.
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]

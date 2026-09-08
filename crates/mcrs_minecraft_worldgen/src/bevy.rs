@@ -12,7 +12,8 @@ use bevy_asset::{
     Asset, AssetApp, AssetLoader, AssetServer, Assets, Handle, LoadContext, LoadDirectError,
     RecursiveDependencyLoadState, VisitAssetDependencies,
 };
-use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Local, Res, Resource};
+use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource, not, resource_exists};
+use bevy_ecs::schedule::SystemCondition;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::asset::read_all;
@@ -33,12 +34,6 @@ pub struct WorldGenConfig {
     pub preset_namespace: Arc<str>,
     pub preset_path: Arc<str>,
     pub seed: u64,
-    /// The terrain block and the sea fluid the active noise settings state,
-    /// resolved against the block registry by whoever runs before
-    /// [`BuildNoiseRouter`]. Unset until then, and the router refuses to build
-    /// on a guess.
-    pub default_block_state_id: Option<mcrs_voxel_storage::VoxelId>,
-    pub default_fluid_state_id: Option<mcrs_voxel_storage::VoxelId>,
 }
 
 impl Default for WorldGenConfig {
@@ -47,8 +42,6 @@ impl Default for WorldGenConfig {
             preset_namespace: Arc::from("minecraft"),
             preset_path: Arc::from("normal"),
             seed: 0,
-            default_block_state_id: None,
-            default_fluid_state_id: None,
         }
     }
 }
@@ -81,8 +74,6 @@ impl WorldGenConfig {
             preset_namespace,
             preset_path,
             seed,
-            default_block_state_id: None,
-            default_fluid_state_id: None,
         }
     }
 
@@ -115,17 +106,10 @@ enum ProtoChunkGenerator {
 
 /// The overworld noise settings a world preset names, as a handle rather than
 /// an id, so the whole density-function graph is pulled in with it.
-#[derive(TypePath, Debug)]
+#[derive(Asset, TypePath, Debug)]
 pub struct WorldPresetAsset {
+    #[dependency]
     pub overworld_noise_settings: Handle<NoiseGeneratorSettingsAsset>,
-}
-
-impl Asset for WorldPresetAsset {}
-
-impl VisitAssetDependencies for WorldPresetAsset {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {
-        visit(self.overworld_noise_settings.id().untyped());
-    }
 }
 
 #[derive(Default, TypePath)]
@@ -180,8 +164,6 @@ impl AssetLoader for WorldPresetLoader {
     }
 }
 
-pub struct NoiseGeneratorSettingsPlugin;
-
 /// Registers the worldgen asset types and their loaders, and nothing else.
 ///
 /// A world preset names its noise settings, so loading one allocates a
@@ -208,21 +190,25 @@ impl Plugin for WorldgenAssetsPlugin {
     }
 }
 
+/// [`WorldgenAssetsPlugin`] plus the systems that load the world preset and
+/// compile its noise router. A dimension sub-app wants this one; the main app,
+/// which only reads presets, wants the assets plugin alone.
+pub struct NoiseGeneratorSettingsPlugin;
+
 impl Plugin for NoiseGeneratorSettingsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(WorldgenAssetsPlugin)
             .add_systems(Startup, request_world_preset)
             .add_systems(
                 Update,
-                build_overworld_noise_router.in_set(BuildNoiseRouter),
+                build_overworld_noise_router.run_if(
+                    resource_exists::<WorldgenDefaultStates>
+                        .and_then(resource_exists::<MaterialResolvers>)
+                        .and_then(not(resource_exists::<NoiseRouterSettled>)),
+                ),
             );
     }
 }
-
-/// The router reads the block state ids out of [`WorldGenConfig`], so whoever
-/// resolves them against the block registry runs before this.
-#[derive(bevy_ecs::schedule::SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct BuildNoiseRouter;
 
 /// Retains the handle so the preset and everything it names stay loaded.
 #[derive(Resource)]
@@ -231,10 +217,25 @@ pub struct WorldPresetHandle(pub Handle<WorldPresetAsset>);
 #[derive(Resource)]
 pub struct OverworldNoiseRouter(pub Arc<NoiseRouter>);
 
+/// The router build has reached a verdict, so it stops being scheduled. Present
+/// whether the router was built or the preset failed to load: a second attempt
+/// would read the same assets and reach the same answer.
+#[derive(Resource)]
+pub struct NoiseRouterSettled;
+
+/// The terrain block and the sea fluid the active noise settings name, resolved
+/// against the block registry this crate does not have. Inserted whole from the
+/// side that owns that registry, which is what the router build waits on.
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct WorldgenDefaultStates {
+    pub block: VoxelId,
+    pub fluid: VoxelId,
+}
+
 /// The two lookups the material rules need and this crate cannot perform: a
 /// rule's `result_state` becomes a stored block id, and a `biome_is` id becomes
-/// the integer the column's biome grid holds. Insert before [`BuildNoiseRouter`]
-/// from the side that owns those registries, as the default block states are.
+/// the integer the column's biome grid holds. Inserted from the side that owns
+/// those registries, as [`WorldgenDefaultStates`] is.
 #[derive(Resource, Clone)]
 pub struct MaterialResolvers {
     pub block: Arc<dyn Fn(&BlockState) -> Option<VoxelId> + Send + Sync>,
@@ -255,7 +256,6 @@ fn request_world_preset(
 
 fn build_overworld_noise_router(
     mut commands: Commands,
-    mut settled: Local<bool>,
     asset_server: Res<AssetServer>,
     preset_handle: Option<Res<WorldPresetHandle>>,
     presets: Res<Assets<WorldPresetAsset>>,
@@ -264,19 +264,17 @@ fn build_overworld_noise_router(
     noises: Res<Assets<NoiseParamAsset>>,
     rules: Res<Assets<MaterialRuleAsset>>,
     conditions: Res<Assets<MaterialConditionAsset>>,
-    resolvers: Option<Res<MaterialResolvers>>,
+    resolvers: Res<MaterialResolvers>,
+    defaults: Res<WorldgenDefaultStates>,
     config: Res<WorldGenConfig>,
 ) {
-    if *settled {
-        return;
-    }
     let Some(preset_handle) = preset_handle.as_deref() else {
         return;
     };
     match asset_server.recursive_dependency_load_state(preset_handle.0.id()) {
         RecursiveDependencyLoadState::Loaded => {}
         RecursiveDependencyLoadState::Failed(error) => {
-            *settled = true;
+            commands.insert_resource(NoiseRouterSettled);
             error!(%error, "the world preset did not load");
             return;
         }
@@ -289,20 +287,6 @@ fn build_overworld_noise_router(
         return;
     };
     let Some(asset) = noise_settings.get(settings_handle) else {
-        return;
-    };
-
-    // `resolve_worldgen_default_states` reads these off the same asset one
-    // system earlier, so an unresolved pair means its message has not landed
-    // yet, not that nobody will ever state them.
-    let (Some(default_block), Some(default_fluid)) =
-        (config.default_block_state_id, config.default_fluid_state_id)
-    else {
-        return;
-    };
-    // Inserted by the side that owns the block and biome registries, which this
-    // crate does not have; absent means that system has not run yet.
-    let Some(resolvers) = resolvers.as_deref() else {
         return;
     };
 
@@ -324,7 +308,7 @@ fn build_overworld_noise_router(
         "Building OverworldNoiseRouter"
     );
 
-    *settled = true;
+    commands.insert_resource(NoiseRouterSettled);
     let material = MaterialInputs {
         rules: &loaded.rules,
         conditions: &loaded.conditions,
@@ -336,8 +320,8 @@ fn build_overworld_noise_router(
         &loaded.density_functions,
         &loaded.noises,
         seed,
-        default_block,
-        default_fluid,
+        defaults.block,
+        defaults.fluid,
         Some(&material),
     ) {
         Ok(router) => {
@@ -659,15 +643,9 @@ impl AssetLoader for NoiseParamLoader {
     }
 }
 
-#[derive(TypePath, Debug, Clone)]
+#[derive(Asset, TypePath, Debug, Clone)]
 pub struct CarverConfigAsset {
     pub config: crate::carver::CarverConfig,
-}
-
-impl Asset for CarverConfigAsset {}
-
-impl VisitAssetDependencies for CarverConfigAsset {
-    fn visit_dependencies(&self, _visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {}
 }
 
 #[derive(Default, TypePath)]
@@ -689,10 +667,6 @@ impl AssetLoader for CarverConfigLoader {
             config: serde_json::from_slice(&bytes)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
         })
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &[]
     }
 }
 

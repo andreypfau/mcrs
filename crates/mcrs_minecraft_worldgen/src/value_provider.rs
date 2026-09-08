@@ -3,11 +3,9 @@
 //! generators need. An unnamed form is a datapack this build does not
 //! understand, so it is a load error rather than a value to guess at.
 
-use std::fmt;
-
+use crate::proto::Either;
 use mcrs_minecraft_random::Random;
-use serde::de::{self, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 /// Where a vertical anchor sits, given the dimension's own extent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +35,8 @@ impl VerticalAnchor {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "IntProviderRepr", into = "IntProviderRepr")]
 pub enum IntProvider {
     Constant(i32),
     Uniform {
@@ -70,7 +69,8 @@ impl IntProvider {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(from = "FloatProviderRepr", into = "FloatProviderRepr")]
 pub enum FloatProvider {
     Constant(f32),
     Uniform {
@@ -101,7 +101,8 @@ impl FloatProvider {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "HeightProviderRepr", into = "HeightProviderRepr")]
 pub enum HeightProvider {
     Constant(VerticalAnchor),
     Uniform {
@@ -129,7 +130,14 @@ impl HeightProvider {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+/// The wire shape all three providers share: a bare value, or an object naming
+/// its `type`. `Codec.either` in vanilla, and the same `Either` the block states
+/// and value ranges of `proto::settings` round-trip through.
+type IntProviderRepr = Either<i32, DispatchedIntProvider>;
+type FloatProviderRepr = Either<f32, DispatchedFloatProvider>;
+type HeightProviderRepr = Either<VerticalAnchor, DispatchedHeightProvider>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 enum DispatchedIntProvider {
     #[serde(rename = "minecraft:uniform")]
@@ -144,7 +152,7 @@ enum DispatchedIntProvider {
     },
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 enum DispatchedFloatProvider {
     #[serde(rename = "minecraft:uniform")]
@@ -156,7 +164,7 @@ enum DispatchedFloatProvider {
     Trapezoid { min: f32, max: f32, plateau: f32 },
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 enum DispatchedHeightProvider {
     #[serde(rename = "minecraft:uniform")]
@@ -166,179 +174,112 @@ enum DispatchedHeightProvider {
     },
 }
 
-impl<'de> Deserialize<'de> for IntProvider {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = IntProvider;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("an integer or an int provider object")
-            }
-
-            fn visit_i64<E: de::Error>(self, v: i64) -> Result<IntProvider, E> {
-                i32::try_from(v)
-                    .map(IntProvider::Constant)
-                    .map_err(|_| E::custom(format!("int provider constant {v} is out of range")))
-            }
-
-            fn visit_u64<E: de::Error>(self, v: u64) -> Result<IntProvider, E> {
-                i32::try_from(v)
-                    .map(IntProvider::Constant)
-                    .map_err(|_| E::custom(format!("int provider constant {v} is out of range")))
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<IntProvider, A::Error> {
-                Ok(
-                    match DispatchedIntProvider::deserialize(
-                        de::value::MapAccessDeserializer::new(map),
-                    )? {
-                        DispatchedIntProvider::Uniform {
-                            min_inclusive,
-                            max_inclusive,
-                        } => IntProvider::Uniform {
-                            min_inclusive,
-                            max_inclusive,
-                        },
-                        DispatchedIntProvider::VeryBiasedToBottom {
-                            min_inclusive,
-                            max_inclusive,
-                        } => IntProvider::VeryBiasedToBottom {
-                            min_inclusive,
-                            max_inclusive,
-                        },
-                    },
-                )
-            }
+impl From<IntProviderRepr> for IntProvider {
+    fn from(repr: IntProviderRepr) -> Self {
+        match repr {
+            Either::Left(value) => IntProvider::Constant(value),
+            Either::Right(DispatchedIntProvider::Uniform {
+                min_inclusive,
+                max_inclusive,
+            }) => IntProvider::Uniform {
+                min_inclusive,
+                max_inclusive,
+            },
+            Either::Right(DispatchedIntProvider::VeryBiasedToBottom {
+                min_inclusive,
+                max_inclusive,
+            }) => IntProvider::VeryBiasedToBottom {
+                min_inclusive,
+                max_inclusive,
+            },
         }
-
-        d.deserialize_any(V)
     }
 }
 
-impl Serialize for IntProvider {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match *self {
-            IntProvider::Constant(value) => s.serialize_i32(value),
+impl From<IntProvider> for IntProviderRepr {
+    fn from(provider: IntProvider) -> Self {
+        match provider {
+            IntProvider::Constant(value) => Either::Left(value),
             IntProvider::Uniform {
                 min_inclusive,
                 max_inclusive,
-            } => DispatchedIntProvider::Uniform {
+            } => Either::Right(DispatchedIntProvider::Uniform {
                 min_inclusive,
                 max_inclusive,
-            }
-            .serialize(s),
+            }),
             IntProvider::VeryBiasedToBottom {
                 min_inclusive,
                 max_inclusive,
-            } => DispatchedIntProvider::VeryBiasedToBottom {
+            } => Either::Right(DispatchedIntProvider::VeryBiasedToBottom {
                 min_inclusive,
                 max_inclusive,
-            }
-            .serialize(s),
+            }),
         }
     }
 }
 
-impl<'de> Deserialize<'de> for FloatProvider {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = FloatProvider;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a number or a float provider object")
-            }
-
-            fn visit_f64<E: de::Error>(self, v: f64) -> Result<FloatProvider, E> {
-                Ok(FloatProvider::Constant(v as f32))
-            }
-
-            fn visit_i64<E: de::Error>(self, v: i64) -> Result<FloatProvider, E> {
-                Ok(FloatProvider::Constant(v as f32))
-            }
-
-            fn visit_u64<E: de::Error>(self, v: u64) -> Result<FloatProvider, E> {
-                Ok(FloatProvider::Constant(v as f32))
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<FloatProvider, A::Error> {
-                Ok(
-                    match DispatchedFloatProvider::deserialize(
-                        de::value::MapAccessDeserializer::new(map),
-                    )? {
-                        DispatchedFloatProvider::Uniform {
-                            min_inclusive,
-                            max_exclusive,
-                        } => FloatProvider::Uniform {
-                            min_inclusive,
-                            max_exclusive,
-                        },
-                        DispatchedFloatProvider::Trapezoid { min, max, plateau } => {
-                            FloatProvider::Trapezoid { min, max, plateau }
-                        }
-                    },
-                )
+impl From<FloatProviderRepr> for FloatProvider {
+    fn from(repr: FloatProviderRepr) -> Self {
+        match repr {
+            Either::Left(value) => FloatProvider::Constant(value),
+            Either::Right(DispatchedFloatProvider::Uniform {
+                min_inclusive,
+                max_exclusive,
+            }) => FloatProvider::Uniform {
+                min_inclusive,
+                max_exclusive,
+            },
+            Either::Right(DispatchedFloatProvider::Trapezoid { min, max, plateau }) => {
+                FloatProvider::Trapezoid { min, max, plateau }
             }
         }
-
-        d.deserialize_any(V)
     }
 }
 
-impl Serialize for FloatProvider {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match *self {
-            FloatProvider::Constant(value) => s.serialize_f32(value),
+impl From<FloatProvider> for FloatProviderRepr {
+    fn from(provider: FloatProvider) -> Self {
+        match provider {
+            FloatProvider::Constant(value) => Either::Left(value),
             FloatProvider::Uniform {
                 min_inclusive,
                 max_exclusive,
-            } => DispatchedFloatProvider::Uniform {
+            } => Either::Right(DispatchedFloatProvider::Uniform {
                 min_inclusive,
                 max_exclusive,
-            }
-            .serialize(s),
+            }),
             FloatProvider::Trapezoid { min, max, plateau } => {
-                DispatchedFloatProvider::Trapezoid { min, max, plateau }.serialize(s)
+                Either::Right(DispatchedFloatProvider::Trapezoid { min, max, plateau })
             }
         }
     }
 }
 
-impl<'de> Deserialize<'de> for HeightProvider {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = serde_json::Value::deserialize(d)?;
-        if value.get("type").is_some() {
-            return match DispatchedHeightProvider::deserialize(value).map_err(de::Error::custom)? {
-                DispatchedHeightProvider::Uniform {
-                    min_inclusive,
-                    max_inclusive,
-                } => Ok(HeightProvider::Uniform {
-                    min_inclusive,
-                    max_inclusive,
-                }),
-            };
+impl From<HeightProviderRepr> for HeightProvider {
+    fn from(repr: HeightProviderRepr) -> Self {
+        match repr {
+            Either::Left(anchor) => HeightProvider::Constant(anchor),
+            Either::Right(DispatchedHeightProvider::Uniform {
+                min_inclusive,
+                max_inclusive,
+            }) => HeightProvider::Uniform {
+                min_inclusive,
+                max_inclusive,
+            },
         }
-        VerticalAnchor::deserialize(value)
-            .map(HeightProvider::Constant)
-            .map_err(de::Error::custom)
     }
 }
 
-impl Serialize for HeightProvider {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match *self {
-            HeightProvider::Constant(anchor) => anchor.serialize(s),
+impl From<HeightProvider> for HeightProviderRepr {
+    fn from(provider: HeightProvider) -> Self {
+        match provider {
+            HeightProvider::Constant(anchor) => Either::Left(anchor),
             HeightProvider::Uniform {
                 min_inclusive,
                 max_inclusive,
-            } => DispatchedHeightProvider::Uniform {
+            } => Either::Right(DispatchedHeightProvider::Uniform {
                 min_inclusive,
                 max_inclusive,
-            }
-            .serialize(s),
+            }),
         }
     }
 }
@@ -350,7 +291,7 @@ mod tests {
 
     fn round_trip<T>(json: &str) -> T
     where
-        T: Serialize + for<'de> Deserialize<'de> + PartialEq + fmt::Debug,
+        T: Serialize + for<'de> Deserialize<'de> + PartialEq + std::fmt::Debug,
     {
         let parsed: T = serde_json::from_str(json).expect("parses");
         let written = serde_json::to_string(&parsed).expect("writes");

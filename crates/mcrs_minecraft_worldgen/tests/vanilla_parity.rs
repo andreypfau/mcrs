@@ -3,7 +3,9 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::compile::build_router;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
-use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES};
+use mcrs_minecraft_worldgen::router::{
+    FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES,
+};
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
 use std::collections::BTreeMap;
@@ -292,7 +294,7 @@ fn final_density_matches_the_dense_oracle() {
         .expect("dense dump holds final_density");
     assert_eq!(v.values.len(), 98_304, "16x384x16 dense");
 
-    let ours = fill(&router, router.final_density(), v);
+    let ours = fill(&router, FINAL_DENSITY, v);
     let mut mismatched = 0usize;
     let mut worst = 0.0f32;
     let mut example = None;
@@ -334,7 +336,7 @@ fn the_branch_schedule_skips_a_real_share_of_an_overworld_chunk() {
     ws.take_count();
     router
         .program()
-        .fill(&mut ws, &volume, router.final_density(), &mut out);
+        .fill(&mut ws, &volume, FINAL_DENSITY, &mut out);
 
     let count = ws.take_count();
     let total = count.evaluated + count.skipped;

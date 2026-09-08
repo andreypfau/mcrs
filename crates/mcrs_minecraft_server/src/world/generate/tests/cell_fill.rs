@@ -1,5 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen::router::FINAL_DENSITY;
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
@@ -41,7 +42,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
             IVec3::new(section_x * 16, section_y * 16, section_z * 16),
         );
         let mut density = vec![0.0f32; volume.len()];
-        router.fill(&mut ws, &volume, router.final_density(), &mut density);
+        router.fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
         for z in 0..16 {
             for x in 0..16 {
                 for y in 0..16 {
@@ -107,5 +108,8 @@ fn the_fill_records_the_top_of_every_strip() {
             settled += (expected != NO_TOP) as usize;
         }
     }
-    assert_eq!(settled, 256, "every strip of an overworld column holds blocks");
+    assert_eq!(
+        settled, 256,
+        "every strip of an overworld column holds blocks"
+    );
 }

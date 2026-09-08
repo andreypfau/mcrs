@@ -15,7 +15,7 @@ use mcrs_minecraft_worldgen::material::{
 };
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
-use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen::router::{FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen::volume::Volume;
 
 /// The margin the chunk generator keeps away from zero: f32 interval arithmetic
@@ -125,7 +125,7 @@ fn lattice_size(cell: IVec3, height: i32) -> IVec3 {
 #[test]
 fn a_settled_cell_bound_contains_every_block_density_in_it() {
     let router = router(845);
-    let checked = check_root(&router, router.final_density(), |corners, min, max| {
+    let checked = check_root(&router, FINAL_DENSITY, |corners, min, max| {
         router.final_density_cell_bounds(corners, min, max)
     });
     assert!(checked > 0, "no cell produced a bound");
@@ -156,7 +156,7 @@ fn check_root(
     root: usize,
     eval: impl Fn(&[Interval], IVec3, IVec3) -> Option<Interval>,
 ) -> usize {
-    let bounds = if root == router.final_density() {
+    let bounds = if root == FINAL_DENSITY {
         None
     } else {
         let veins = router.material().unwrap().veins();

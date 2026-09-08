@@ -38,4 +38,3 @@ fast_cell = []
 # accumulating it a row at a time. Drops the loop-carried dependency the
 # accumulator imposes; needs the same FMA target as `fast_fma` to pay off.
 fast_ramp = []
-far-lands = []

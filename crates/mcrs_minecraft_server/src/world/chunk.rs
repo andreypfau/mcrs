@@ -32,8 +32,8 @@ use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_world::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
 use mcrs_minecraft_worldgen::bevy::{
-    BuildNoiseRouter, MaterialResolvers, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,
-    OverworldNoiseRouter, WorldGenConfig,
+    MaterialResolvers, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,
+    OverworldNoiseRouter, WorldGenConfig, WorldgenDefaultStates,
 };
 use mcrs_minecraft_worldgen::material::MaterialScratch;
 use mcrs_minecraft_worldgen::program::Workspace;
@@ -65,7 +65,7 @@ fn resolve_worldgen_default_states(
     >,
     settings: Res<bevy_asset::Assets<NoiseGeneratorSettingsAsset>>,
     blocks: Res<Blocks>,
-    mut config: ResMut<WorldGenConfig>,
+    mut commands: Commands,
 ) {
     for message in messages.read() {
         let bevy_asset::AssetEvent::LoadedWithDependencies { id } = message else {
@@ -76,8 +76,10 @@ fn resolve_worldgen_default_states(
         };
         let default_block = resolve_state(&blocks, &asset.settings.default_block);
         let default_fluid = resolve_state(&blocks, &asset.settings.default_fluid);
-        config.default_block_state_id = Some(default_block.into());
-        config.default_fluid_state_id = Some(default_fluid.into());
+        commands.insert_resource(WorldgenDefaultStates {
+            block: default_block.into(),
+            fluid: default_fluid.into(),
+        });
         trace!(
             default_block = default_block.0,
             default_fluid = default_fluid.0,
@@ -151,10 +153,7 @@ impl Plugin for ChunkPlugin {
             app.insert_resource(WorldGenConfig::from_env());
         }
         app.add_systems(bevy_app::Startup, provide_material_resolvers);
-        app.add_systems(
-            bevy_app::Update,
-            resolve_worldgen_default_states.before(BuildNoiseRouter),
-        );
+        app.add_systems(bevy_app::Update, resolve_worldgen_default_states);
         let scheduler = ColumnScheduler::default();
         CHUNK_TASK_POOL.get_or_init(|| {
             TaskPoolBuilder::new()

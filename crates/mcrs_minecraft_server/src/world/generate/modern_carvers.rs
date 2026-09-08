@@ -18,7 +18,9 @@ use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::carver::CarverConfig;
 use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen::router::{
+    CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
+};
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
@@ -50,14 +52,7 @@ pub fn climate_target_at(
         IVec3::new(quart_x * 4, quart_y * 4, quart_z * 4),
         IVec3::ONE,
     );
-    let roots = [
-        router.temperature(),
-        router.vegetation(),
-        router.continents(),
-        router.erosion(),
-        router.depth(),
-        router.ridges(),
-    ];
+    let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
     let mut values = [0.0f32; 6];
     router.fill_roots(ws, &volume, &roots, &mut values);
     TargetPoint::new(
@@ -242,14 +237,7 @@ impl CarverBiomeTable {
             IVec3::new(tile_x * TILE * 16, 0, tile_z * TILE * 16),
             IVec3::new(16, 1, 16),
         );
-        let roots = [
-            router.temperature(),
-            router.vegetation(),
-            router.continents(),
-            router.erosion(),
-            router.depth(),
-            router.ridges(),
-        ];
+        let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
         let points = volume.len();
         let mut values = vec![0.0f32; roots.len() * points];
         router.fill_roots(ws, &volume, &roots, &mut values);
