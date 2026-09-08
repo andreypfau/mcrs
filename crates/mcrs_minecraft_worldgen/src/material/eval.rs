@@ -45,6 +45,9 @@ pub struct MaterialScratch {
     breaks: Vec<i32>,
 }
 
+/// Runs shorter than this are walked block by block rather than settled.
+const SHORT_RUN: i32 = 8;
+
 /// A condition's answer along one solid run of a strip.
 enum Split {
     Always(bool),
@@ -268,7 +271,8 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
         out: &mut Vec<(i32, i32, Option<VoxelId>)>,
     ) {
         out.clear();
-        if self.scratch.bypass_settled_runs {
+        // Splitting a run costs about as much as walking a few blocks of it.
+        if self.scratch.bypass_settled_runs || top - bottom < SHORT_RUN {
             return;
         }
         self.run_top = top;
@@ -844,15 +848,20 @@ fn prefill_veins(
                 for cy in 0..size.y {
                     let cell_min = min + IVec3::new(cx, cy, cz) * cell;
                     let cell_max = cell_min + cell - 1;
-                    corner_bounds(
-                        &scratch.lattice,
-                        &lattice,
-                        IVec3::new(cx, cy, cz),
-                        &mut scratch.corners,
-                    );
-                    let settled = bounds
-                        .eval(router.program(), &scratch.corners, cell_min, cell_max)
-                        .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK);
+                    // Cells above the column's top are left open: the descent
+                    // reaches them only under a badlands pillar, and samples
+                    // the point there.
+                    let settled = cell_min.y <= veins.max_block().y && {
+                        corner_bounds(
+                            &scratch.lattice,
+                            &lattice,
+                            IVec3::new(cx, cy, cz),
+                            &mut scratch.corners,
+                        );
+                        bounds
+                            .eval(router.program(), &scratch.corners, cell_min, cell_max)
+                            .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK)
+                    };
                     scratch.vein_cells.push(!settled);
                     if settled {
                         continue;
