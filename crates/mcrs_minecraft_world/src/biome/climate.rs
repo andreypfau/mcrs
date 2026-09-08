@@ -61,10 +61,9 @@ impl Parameter {
     }
 
     /// How far `target` lies outside the span, zero when inside it.
+    #[inline]
     pub fn distance(self, target: i64) -> i64 {
-        let above = target - self.max;
-        let below = self.min - target;
-        if above > 0 { above } else { below.max(0) }
+        (target - self.max).max(self.min - target).max(0)
     }
 }
 
@@ -185,10 +184,11 @@ impl TargetPoint {
     }
 }
 
+#[inline]
 fn bound_distance(space: &[Parameter; 7], target: &Coords) -> i64 {
     let mut total = 0;
-    for (parameter, coordinate) in space.iter().zip(target) {
-        let distance = parameter.distance(*coordinate);
+    for axis in 0..7 {
+        let distance = space[axis].distance(target[axis]);
         total += distance * distance;
     }
     total
