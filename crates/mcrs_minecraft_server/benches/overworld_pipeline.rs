@@ -1,6 +1,6 @@
 //! Overworld column pipeline, one stage at a time.
 //!
-//! usage: cargo bench --bench overworld_pipeline -- [columns_per_side] [seed]
+//! usage: cargo bench --bench overworld_pipeline -- [columns_per_side] [seed] [column_offset]
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -13,7 +13,8 @@ use mcrs_minecraft_server::world::generate::modern_carvers::{
 };
 use mcrs_minecraft_server::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_server::world::generate::{
-    ColumnBlocks, SurfaceIds, apply_material_surface, fill_column_dense_any, multi_noise_palettes,
+    ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
+    multi_noise_palettes,
 };
 use mcrs_minecraft_world::biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_world::biome::source::MultiNoiseBiomeSource;
@@ -110,8 +111,13 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let side: i32 = args.first().and_then(|s| s.parse().ok()).unwrap_or(8);
     let seed: u64 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(845);
+    let offset: i32 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
 
     let ids = biome_ids();
+    let mut names = vec![String::from("?"); ids.len().max(ABSENT_BIOME as usize + 1)];
+    for (name, &id) in &ids {
+        names[id as usize] = name.strip_prefix("minecraft:").unwrap_or(name).to_owned();
+    }
     let router = material_router(seed, &ids);
     let table = MultiNoiseBiomeTable::resolve(
         &MultiNoiseBiomeSource {
@@ -150,7 +156,7 @@ fn main() {
                ws: &mut Workspace,
                x: i32,
                z: i32|
-     -> (Stages, u64) {
+     -> (Stages, u64, u8) {
         let mut s = Stages::default();
         let t = Instant::now();
         let mut filled = fill_column_dense_any(
@@ -168,6 +174,31 @@ fn main() {
         let t = Instant::now();
         let (biomes, grid) = multi_noise_palettes(&router, &table, x * 16, z * 16, &y_sections);
         s.biomes = t.elapsed();
+
+        let dominant = {
+            let g = grid.as_ref().unwrap();
+            let mut counts = [0u32; 256];
+            for cz in 0..4i32 {
+                for cx in 0..4i32 {
+                    let top = filled.tops[((cz * 4 + 1) * 16 + cx * 4 + 1) as usize];
+                    let block_y = if top == NO_TOP {
+                        g.volume.min_block().y
+                    } else {
+                        top
+                    };
+                    let cy = (block_y - g.volume.min_block().y)
+                        .div_euclid(4)
+                        .clamp(0, g.volume.size().y - 1);
+                    counts[g.get(cx + 1, cy, cz + 1) as usize] += 1;
+                }
+            }
+            counts
+                .iter()
+                .enumerate()
+                .max_by_key(|&(_, &c)| c)
+                .map(|(id, _)| id as u8)
+                .unwrap()
+        };
 
         let t = Instant::now();
         apply_material_surface(
@@ -199,24 +230,38 @@ fn main() {
         let t = Instant::now();
         let sections = column.into_sections(&biomes);
         s.pack = t.elapsed();
-        (s, sections.len() as u64)
+        (s, sections.len() as u64, dominant)
     };
 
     // Warm up: caches, thread-locals, lazy tables.
     for x in 0..2 {
-        run(&mut column, &mut scratch, &mut ws, x, -1);
+        run(&mut column, &mut scratch, &mut ws, offset + x, offset - 1);
     }
+
+    let mut per_column: Vec<f64> = Vec::with_capacity((side * side) as usize);
+    let mut per_biome: BTreeMap<u8, (u32, Stages)> = BTreeMap::new();
 
     let started = Instant::now();
     for z in 0..side {
         for x in 0..side {
-            let (s, n) = run(&mut column, &mut scratch, &mut ws, x, z);
+            let (s, n, dominant) =
+                run(&mut column, &mut scratch, &mut ws, offset + x, offset + z);
             total.fill += s.fill;
             total.biomes += s.biomes;
             total.surface += s.surface;
             total.carve += s.carve;
             total.pack += s.pack;
             sink += n;
+
+            let one = s.fill + s.biomes + s.surface + s.carve + s.pack;
+            per_column.push(one.as_secs_f64() * 1e3);
+            let slot = per_biome.entry(dominant).or_default();
+            slot.0 += 1;
+            slot.1.fill += s.fill;
+            slot.1.biomes += s.biomes;
+            slot.1.surface += s.surface;
+            slot.1.carve += s.carve;
+            slot.1.pack += s.pack;
         }
     }
     let wall = started.elapsed();
@@ -225,8 +270,9 @@ fn main() {
     let all = total.fill + total.biomes + total.surface + total.carve + total.pack;
     let pct = |d: Duration| 100.0 * d.as_secs_f64() / all.as_secs_f64();
     println!(
-        "columns={} sections={sink} wall={:.1} ms",
+        "seed={seed} columns={} at [{offset}..{}) sections={sink} wall={:.1} ms",
         side * side,
+        offset + side,
         wall.as_secs_f64() * 1e3
     );
     println!("per column: {:.3} ms", ms(all));
@@ -255,4 +301,30 @@ fn main() {
         ms(total.pack),
         pct(total.pack)
     );
+
+    per_column.sort_by(f64::total_cmp);
+    let at = |q: f64| per_column[(((per_column.len() as f64) * q) as usize).min(per_column.len() - 1)];
+    println!(
+        "spread: p50 {:.3} ms  p90 {:.3} ms  max {:.3} ms",
+        at(0.5),
+        at(0.9),
+        per_column[per_column.len() - 1]
+    );
+
+    let mut rows: Vec<_> = per_biome.into_iter().collect();
+    rows.sort_by_key(|(_, (n, _))| std::cmp::Reverse(*n));
+    println!("by dominant biome:      cols     all    fill  biomes surface");
+    for (id, (n, s)) in rows {
+        let each = |d: Duration| d.as_secs_f64() * 1e3 / n as f64;
+        let all = s.fill + s.biomes + s.surface + s.carve + s.pack;
+        println!(
+            "  {:<22} {:4}  {:6.3}  {:6.3}  {:6.3}  {:6.3}",
+            names.get(id as usize).map_or("?", String::as_str),
+            n,
+            each(all),
+            each(s.fill),
+            each(s.biomes),
+            each(s.surface),
+        );
+    }
 }
