@@ -31,10 +31,7 @@ use mcrs_minecraft_world::biome::source::BiomeSource;
 use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_world::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
-use mcrs_minecraft_worldgen::bevy::{
-    DimensionNoiseRouter, MaterialResolvers, NoiseGeneratorSettingsAsset,
-    NoiseGeneratorSettingsPlugin, WorldgenDefaultStates,
-};
+use mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter;
 use mcrs_minecraft_worldgen::material::MaterialScratch;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
@@ -56,50 +53,6 @@ use std::sync::{Arc, LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 use tracing::{error, info, info_span, trace};
 
-/// The noise settings state which block fills the terrain and which fluid fills
-/// the sea (`minecraft:stone` and `minecraft:water` for the overworld), so the
-/// ids the generator writes come from that asset resolved against the corpus.
-fn resolve_worldgen_default_states(
-    mut messages: bevy_ecs::message::MessageReader<
-        bevy_asset::AssetEvent<NoiseGeneratorSettingsAsset>,
-    >,
-    settings: Res<bevy_asset::Assets<NoiseGeneratorSettingsAsset>>,
-    blocks: Res<Blocks>,
-    mut commands: Commands,
-) {
-    for message in messages.read() {
-        let bevy_asset::AssetEvent::LoadedWithDependencies { id } = message else {
-            continue;
-        };
-        let Some(asset) = settings.get(*id) else {
-            continue;
-        };
-        let default_block = resolve_state(&blocks, &asset.settings.default_block);
-        let default_fluid = resolve_state(&blocks, &asset.settings.default_fluid);
-        commands.insert_resource(WorldgenDefaultStates {
-            block: default_block.into(),
-            fluid: default_fluid.into(),
-        });
-        trace!(
-            default_block = default_block.0,
-            default_fluid = default_fluid.0,
-            "resolved the noise settings default states"
-        );
-    }
-}
-
-fn resolve_state(
-    blocks: &BlockDefinitions,
-    state: &ProtoBlockState,
-) -> mcrs_minecraft_protocol::BlockStateId {
-    try_resolve_state(blocks, state).unwrap_or_else(|| {
-        panic!(
-            "the noise settings name the block state `{}`, which the corpus does not resolve",
-            state.name.as_str()
-        )
-    })
-}
-
 pub(crate) fn try_resolve_state(
     blocks: &BlockDefinitions,
     state: &ProtoBlockState,
@@ -110,27 +63,6 @@ pub(crate) fn try_resolve_state(
         id = block.with_text(id, property, value)?;
     }
     Some(id)
-}
-
-/// The material rules resolve their block states and their biome ids against
-/// the same two registries the rest of generation uses. Biome ids in particular
-/// must come from this snapshot, because it is what `MultiNoiseBiomeTable` fills
-/// the column's biome grid with.
-fn provide_material_resolvers(
-    mut commands: Commands,
-    blocks: Res<Blocks>,
-    biomes: Res<RegistrySnapshot<Biome>>,
-) {
-    let block_definitions = blocks.0.clone();
-    commands.insert_resource(MaterialResolvers {
-        block: Arc::new(move |state| try_resolve_state(&block_definitions, state).map(Into::into)),
-        biome: Arc::new(
-            biomes
-                .iter()
-                .map(|(network_id, entry)| (entry.location.clone(), network_id))
-                .collect(),
-        ),
-    });
 }
 
 /// Ordering anchor for the worldgen ingest path. The lighting plugin chains
@@ -146,10 +78,7 @@ pub struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(NoiseGeneratorSettingsPlugin);
         app.add_plugins(BetaBiomeSourcePlugin);
-        app.add_systems(bevy_app::Startup, provide_material_resolvers);
-        app.add_systems(bevy_app::Update, resolve_worldgen_default_states);
         let scheduler = ColumnScheduler::default();
         CHUNK_TASK_POOL.get_or_init(|| {
             TaskPoolBuilder::new()
@@ -1258,16 +1187,16 @@ mod tests {
     fn the_terrain_block_and_the_sea_come_from_the_noise_settings() {
         let blocks = corpus();
 
-        let stone = resolve_state(blocks, &noise_settings_state("default_block"));
+        let stone = try_resolve_state(blocks, &noise_settings_state("default_block"));
         assert_eq!(
             stone,
-            blocks.block("minecraft:stone").unwrap().default_state_id
+            Some(blocks.block("minecraft:stone").unwrap().default_state_id)
         );
 
-        let water = resolve_state(blocks, &noise_settings_state("default_fluid"));
+        let water = try_resolve_state(blocks, &noise_settings_state("default_fluid"));
         assert_eq!(
             water,
-            blocks.block("minecraft:water").unwrap().default_state_id
+            Some(blocks.block("minecraft:water").unwrap().default_state_id)
         );
     }
 
@@ -1280,10 +1209,8 @@ mod tests {
         )
         .expect("the state parses");
         assert_eq!(
-            resolve_state(blocks, &state),
-            water
-                .with(water.default_state_id, "level", &PropertyValue::Int(3))
-                .unwrap()
+            try_resolve_state(blocks, &state),
+            water.with(water.default_state_id, "level", &PropertyValue::Int(3))
         );
     }
 

@@ -1,4 +1,4 @@
-use crate::compile::build_router;
+use crate::compile::{CompileError, build_router};
 use crate::material::compile::SURFACE_NOISE_NAMES;
 use crate::material::proto::{MaterialCondition, MaterialRule};
 use crate::material::{MaterialConditionHolder, MaterialInputs, MaterialRuleHolder};
@@ -6,15 +6,13 @@ use crate::proto::{
     BlockState, DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction,
 };
 use crate::router::{NoiseGeneratorSettings, NoiseRouter};
-use bevy_app::{App, Plugin, Startup, Update};
+use bevy_app::{App, Plugin};
 use bevy_asset::io::Reader;
 use bevy_asset::{
-    Asset, AssetApp, AssetLoader, AssetServer, Assets, Handle, LoadContext, LoadDirectError,
-    LoadState, UntypedAssetId, VisitAssetDependencies,
+    Asset, AssetApp, AssetLoader, Assets, Handle, LoadContext, LoadDirectError, UntypedAssetId,
+    VisitAssetDependencies,
 };
-use bevy_ecs::prelude::{
-    Commands, IntoScheduleConfigs, Res, Resource, SystemCondition, not, resource_exists,
-};
+use bevy_ecs::prelude::Resource;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::asset::{JsonLoader, read_all};
@@ -24,131 +22,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{error, info};
-
-/// Which world preset to generate, which of its dimensions this world is, and
-/// the seed. A dimension sub-app inserts its own copy with `dimension` set to
-/// the one it runs; the default names the overworld.
-#[derive(Resource, Clone, Debug)]
-pub struct WorldGenConfig {
-    pub preset: ResourceLocation,
-    pub dimension: ResourceLocation,
-    pub seed: u64,
-}
-
-impl Default for WorldGenConfig {
-    fn default() -> Self {
-        Self {
-            preset: ResourceLocation::minecraft("normal"),
-            dimension: ResourceLocation::minecraft("overworld"),
-            seed: 0,
-        }
-    }
-}
-
-impl WorldGenConfig {
-    pub fn preset_asset_path(&self) -> String {
-        format!(
-            "{}/worldgen/world_preset/{}.json",
-            self.preset.namespace(),
-            self.preset.path()
-        )
-    }
-}
-
-#[derive(serde::Deserialize)]
-struct ProtoWorldPreset {
-    dimensions: BTreeMap<ResourceLocation, ProtoLevelStem>,
-}
-
-#[derive(serde::Deserialize)]
-struct ProtoLevelStem {
-    generator: ProtoChunkGenerator,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(tag = "type")]
-enum ProtoChunkGenerator {
-    #[serde(rename = "minecraft:noise")]
-    Noise { settings: ResourceLocation },
-    /// A flat or debug generator. This worldgen only drives noise generators, so
-    /// the dimension is left out of the map rather than refused: a preset naming
-    /// one still serves whichever of its dimensions does use noise.
-    #[serde(other)]
-    Unsupported,
-}
-
-/// The noise settings each of a preset's dimensions names, as handles rather
-/// than ids, so a dimension's whole density-function graph is pulled in with it.
-#[derive(Default, Debug, Clone)]
-pub struct DimensionSettings(pub BTreeMap<ResourceLocation, Handle<NoiseGeneratorSettingsAsset>>);
-
-impl VisitAssetDependencies for DimensionSettings {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        for handle in self.0.values() {
-            visit(handle.id().untyped());
-        }
-    }
-}
-
-#[derive(Asset, TypePath, Debug)]
-pub struct WorldPresetAsset {
-    #[dependency]
-    pub noise_settings: DimensionSettings,
-}
-
-#[derive(Default, TypePath)]
-pub struct WorldPresetLoader;
-
-#[derive(Debug, Error)]
-pub enum WorldPresetLoaderError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
-}
-
-impl AssetLoader for WorldPresetLoader {
-    type Asset = WorldPresetAsset;
-    type Settings = ();
-    type Error = WorldPresetLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let bytes = read_all(reader).await?;
-        let preset = serde_json::from_slice::<ProtoWorldPreset>(&bytes)?;
-
-        let noise_settings = preset
-            .dimensions
-            .into_iter()
-            .filter_map(|(dimension, stem)| match stem.generator {
-                ProtoChunkGenerator::Noise { settings } => {
-                    let handle = load_context.load(format!(
-                        "{}/worldgen/noise_settings/{}.json",
-                        settings.namespace(),
-                        settings.path()
-                    ));
-                    Some((dimension, handle))
-                }
-                ProtoChunkGenerator::Unsupported => None,
-            })
-            .collect();
-
-        Ok(WorldPresetAsset {
-            noise_settings: DimensionSettings(noise_settings),
-        })
-    }
-}
+use tracing::error;
 
 /// Registers the worldgen asset types and their loaders, and nothing else.
 ///
-/// A world preset names its noise settings, so loading one allocates a
-/// `NoiseGeneratorSettingsAsset` handle. Any app that reads a preset therefore
-/// needs these types even when it never builds a noise router itself.
+/// The world preset that names these settings is loaded by whoever owns the
+/// dimension list; this crate is handed the settings asset it produced.
 pub struct WorldgenAssetsPlugin;
 
 impl Plugin for WorldgenAssetsPlugin {
@@ -156,7 +35,6 @@ impl Plugin for WorldgenAssetsPlugin {
         app.init_asset::<DensityFunctionAsset>()
             .init_asset::<NoiseGeneratorSettingsAsset>()
             .init_asset::<NoiseParamAsset>()
-            .init_asset::<WorldPresetAsset>()
             .init_asset::<CarverConfigAsset>()
             .init_asset::<MaterialRuleAsset>()
             .init_asset::<MaterialConditionAsset>()
@@ -165,180 +43,57 @@ impl Plugin for WorldgenAssetsPlugin {
             .register_asset_loader(JsonLoader::<NoiseParamAsset>::default())
             .register_asset_loader(JsonLoader::<CarverConfigAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<MaterialRuleAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<MaterialConditionAsset>::default())
-            .register_asset_loader(WorldPresetLoader);
+            .register_asset_loader(WorldgenAssetLoader::<MaterialConditionAsset>::default());
     }
 }
 
-/// [`WorldgenAssetsPlugin`] plus the systems that load the world preset and
-/// compile its noise router. A dimension sub-app wants this one; the main app,
-/// which only reads presets, wants the assets plugin alone.
-pub struct NoiseGeneratorSettingsPlugin;
-
-impl Plugin for NoiseGeneratorSettingsPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(WorldgenAssetsPlugin)
-            .init_resource::<WorldGenConfig>()
-            .add_systems(Startup, request_world_preset)
-            .add_systems(
-                Update,
-                build_dimension_noise_router.run_if(
-                    not(resource_exists::<DimensionNoiseRouter>)
-                        .and_then(not(resource_exists::<NoiseRouterUnavailable>))
-                        .and_then(resource_exists::<WorldPresetHandle>)
-                        .and_then(resource_exists::<MaterialResolvers>)
-                        .and_then(resource_exists::<WorldgenDefaultStates>),
-                ),
-            );
-    }
-}
-
-/// Retains the handle so the preset and everything it names stay loaded.
-#[derive(Resource)]
-pub struct WorldPresetHandle(pub Handle<WorldPresetAsset>);
-
-/// The compiled router for the dimension [`WorldGenConfig::dimension`] names.
-/// Each dimension sub-app builds its own in its own world.
+/// One dimension's compiled router. Built once where the assets are loaded and
+/// handed to that dimension's sub-app as a read-only snapshot.
 #[derive(Resource)]
 pub struct DimensionNoiseRouter(pub Arc<NoiseRouter>);
 
-/// Inserted where this dimension can never get a router: the preset failed to
-/// load, names no noise generator for it, or its material rules did not
-/// compile. Stops the build retrying every tick for the life of the process.
-#[derive(Resource)]
-pub struct NoiseRouterUnavailable;
-
-/// The terrain block and the sea fluid the active noise settings name, resolved
-/// against the block registry this crate does not have. Inserted whole from the
-/// side that owns that registry, which is what the router build waits on.
-#[derive(Resource, Clone, Copy, Debug)]
-pub struct WorldgenDefaultStates {
-    pub block: VoxelId,
-    pub fluid: VoxelId,
-}
-
-/// The two lookups the material rules need and this crate cannot perform: a
-/// rule's `result_state` becomes a stored block id, and a `biome_is` id becomes
-/// the integer the column's biome grid holds. Inserted from the side that owns
-/// those registries, as [`WorldgenDefaultStates`] is.
+/// Compiles one dimension's router from its loaded noise settings.
 ///
-/// A block state is resolved by applying its properties to a definition, which
-/// is a computation this crate has no types for; a biome id is a lookup, so it
-/// crosses as the table itself.
-#[derive(Resource, Clone)]
-pub struct MaterialResolvers {
-    pub block: Arc<dyn Fn(&BlockState) -> Option<VoxelId> + Send + Sync>,
-    pub biome: Arc<BTreeMap<ResourceLocation, u32>>,
-}
-
-fn request_world_preset(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    world_gen_config: Res<WorldGenConfig>,
-) {
-    let asset_path = world_gen_config.preset_asset_path();
-
-    info!(asset_path = %asset_path, "Loading world preset");
-
-    commands.insert_resource(WorldPresetHandle(asset_server.load(asset_path)));
-}
-
-/// Compiles this dimension's router once three things have arrived: the noise
-/// settings the preset names for it, loaded together with every asset they
-/// reference, and the two registries this crate cannot resolve itself. Which
-/// of the three have landed is the run condition's question; what is left here
-/// is whether the assets behind them finished loading.
-///
-/// They arrive independently and in no fixed order, so readiness is asked of
-/// the asset server rather than latched from a load message that a tick before
-/// the registries exist would drop.
-#[allow(clippy::too_many_arguments)]
-fn build_dimension_noise_router(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    preset_handle: Res<WorldPresetHandle>,
-    presets: Res<Assets<WorldPresetAsset>>,
-    noise_settings: Res<Assets<NoiseGeneratorSettingsAsset>>,
-    density_functions: Res<Assets<DensityFunctionAsset>>,
-    noises: Res<Assets<NoiseParamAsset>>,
-    rules: Res<Assets<MaterialRuleAsset>>,
-    conditions: Res<Assets<MaterialConditionAsset>>,
-    resolvers: Res<MaterialResolvers>,
-    defaults: Res<WorldgenDefaultStates>,
-    config: Res<WorldGenConfig>,
-) {
-    if let LoadState::Failed(error) = asset_server.load_state(preset_handle.0.id()) {
-        error!(%error, "the world preset did not load");
-        commands.insert_resource(NoiseRouterUnavailable);
-        return;
-    }
-    let Some(preset) = presets.get(&preset_handle.0) else {
-        return;
-    };
-    let Some(settings_handle) = preset.noise_settings.0.get(&config.dimension) else {
-        error!(
-            dimension = %config.dimension,
-            preset = %config.preset,
-            "the world preset names no noise generator for this dimension"
-        );
-        commands.insert_resource(NoiseRouterUnavailable);
-        return;
-    };
-    if !asset_server.is_loaded_with_dependencies(settings_handle.id()) {
-        return;
-    }
-    let Some(asset) = noise_settings.get(settings_handle) else {
-        return;
-    };
-
-    let tables = AssetTables {
-        density_functions: &density_functions,
-        noises: &noises,
-        rules: &rules,
-        conditions: &conditions,
-    };
+/// `block` resolves a datapack block state against the block registry this
+/// crate does not have, and `biome` an id against the numbering the column's
+/// biome grid holds. Both are lookups the caller owns; the terrain block and
+/// the sea fluid come from the settings themselves, so they are per dimension
+/// rather than global.
+pub fn build_dimension_router(
+    settings: &NoiseGeneratorSettingsAsset,
+    assets: &WorldgenAssets<'_>,
+    seed: u64,
+    block: &dyn Fn(&BlockState) -> Option<VoxelId>,
+    biome: &dyn Fn(&ResourceLocation) -> Option<u32>,
+) -> Result<NoiseRouter, CompileError> {
     let mut loaded = Loaded::default();
-    loaded.collect(&asset.deps, &tables);
+    loaded.collect(&settings.deps, assets);
 
-    let seed = config.seed;
-    info!(
-        dimension = %config.dimension,
-        noise_settings = ?settings_handle.path(),
-        seed = seed,
-        "Building DimensionNoiseRouter"
-    );
+    let resolve = |state: &BlockState| {
+        block(state).ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
+    };
+    let default_block = resolve(&settings.settings.default_block)?;
+    let default_fluid = resolve(&settings.settings.default_fluid)?;
 
-    let biome = |id: &ResourceLocation| resolvers.biome.get(id).copied();
     let material = MaterialInputs {
         rules: &loaded.rules,
         conditions: &loaded.conditions,
-        block: &*resolvers.block,
-        biome: &biome,
+        block,
+        biome,
     };
-    match build_router(
-        &asset.settings,
+    let router = build_router(
+        &settings.settings,
         &loaded.density_functions,
         &loaded.noises,
         seed,
-        defaults.block,
-        defaults.fluid,
+        default_block,
+        default_fluid,
         Some(&material),
-    ) {
-        Ok(router) => {
-            for (name, error) in router.failed_roots() {
-                error!(root = name, %error, "density root did not compile");
-            }
-            commands.insert_resource(DimensionNoiseRouter(Arc::new(router)));
-        }
-        Err(error) => {
-            error!(
-                material_rule = %asset.settings.material_rule,
-                %error,
-                "the material rules did not compile; no columns will generate"
-            );
-            commands.insert_resource(NoiseRouterUnavailable);
-        }
+    )?;
+    for (name, error) in router.failed_roots() {
+        error!(root = name, %error, "density root did not compile");
     }
+    Ok(router)
 }
 
 /// The four registries a worldgen asset can name. Each one is spelled here
@@ -399,16 +154,18 @@ macro_rules! registries {
             $($nname: BTreeMap<ResourceLocation, $nvalue>,)*
         }
 
-        struct AssetTables<'a> {
-            $($lname: &'a Assets<$lasset>,)*
-            $($nname: &'a Assets<$nasset>,)*
+        /// The loaded worldgen registries a router is compiled out of, as the
+        /// asset collections themselves rather than a copy of their contents.
+        pub struct WorldgenAssets<'a> {
+            $(pub $lname: &'a Assets<$lasset>,)*
+            $(pub $nname: &'a Assets<$nasset>,)*
         }
 
         impl Loaded {
             /// An id is recorded before its own references are followed, so a
             /// reference cycle in the corpus terminates here rather than
             /// recursing forever.
-            fn collect(&mut self, refs: &AssetRefs, tables: &AssetTables<'_>) {
+            fn collect(&mut self, refs: &AssetRefs, tables: &WorldgenAssets<'_>) {
                 $(for (id, handle) in &refs.$lname {
                     if let Some(asset) = tables.$lname.get(handle) {
                         self.$lname.insert(id.clone(), asset.$lfield.clone());
@@ -710,7 +467,7 @@ fn noise_holder(function: &ProtoDensityFunction) -> Option<&NoiseHolder> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ProtoChunkGenerator, ProtoWorldPreset, References, WorldGenConfig};
+    use super::References;
     use crate::material::compile::SURFACE_NOISE_NAMES;
     use crate::material::{MaterialConditionHolder, MaterialRuleHolder};
     use crate::router::NoiseGeneratorSettings;
@@ -869,25 +626,12 @@ mod tests {
         assert_eq!(reached.rules.len(), rules.len());
     }
 
-    fn overworld_settings(preset: &str) -> ResourceLocation {
-        let preset: ProtoWorldPreset = read("world_preset", &ResourceLocation::minecraft(preset));
-        match &preset.dimensions[&ResourceLocation::minecraft("overworld")].generator {
-            ProtoChunkGenerator::Noise { settings } => settings.clone(),
-            ProtoChunkGenerator::Unsupported => panic!("expected a noise generator"),
-        }
-    }
-
-    /// The walk above proves the ids are named; this proves they arrive. A
-    /// handle map left out of `visit_dependencies` or a branch missing from the
-    /// collect walk loses the assets with no error anywhere.
-    #[test]
-    fn the_asset_pipeline_delivers_the_material_registries() {
-        use super::{
-            AssetTables, DensityFunctionAsset, Loaded, MaterialConditionAsset, MaterialRuleAsset,
-            NoiseGeneratorSettingsAsset, NoiseParamAsset, WorldgenAssetsPlugin,
-        };
+    /// Drives a real asset server over the shipped corpus until the named noise
+    /// settings and everything they reference have landed.
+    fn load_settings(name: &str) -> bevy_app::App {
+        use super::{NoiseGeneratorSettingsAsset, WorldgenAssetsPlugin};
         use bevy_app::App;
-        use bevy_asset::{AssetPlugin, AssetServer, Assets, Handle, RecursiveDependencyLoadState};
+        use bevy_asset::{AssetPlugin, AssetServer, Handle, RecursiveDependencyLoadState};
 
         let mut app = App::new();
         app.add_plugins(bevy_app::TaskPoolPlugin::default());
@@ -900,9 +644,9 @@ mod tests {
         let handle: Handle<NoiseGeneratorSettingsAsset> = app
             .world()
             .resource::<AssetServer>()
-            .load("minecraft/worldgen/noise_settings/overworld.json");
+            .load(format!("minecraft/worldgen/noise_settings/{name}.json"));
+        app.insert_resource(SettingsHandle(handle.clone()));
 
-        let mut loaded = false;
         for _ in 0..10_000 {
             app.update();
             match app
@@ -910,30 +654,47 @@ mod tests {
                 .resource::<AssetServer>()
                 .recursive_dependency_load_state(handle.id())
             {
-                RecursiveDependencyLoadState::Loaded => {
-                    loaded = true;
-                    break;
-                }
+                RecursiveDependencyLoadState::Loaded => return app,
                 RecursiveDependencyLoadState::Failed(error) => panic!("{error}"),
                 _ => std::thread::sleep(std::time::Duration::from_millis(1)),
             }
         }
-        assert!(
-            loaded,
-            "the overworld noise settings never finished loading"
-        );
+        panic!("the {name} noise settings never finished loading");
+    }
 
-        let world = app.world();
-        let settings = world.resource::<Assets<NoiseGeneratorSettingsAsset>>();
-        let asset = settings.get(&handle).unwrap();
-        let tables = AssetTables {
+    #[derive(bevy_ecs::prelude::Resource)]
+    struct SettingsHandle(bevy_asset::Handle<super::NoiseGeneratorSettingsAsset>);
+
+    fn assets_of(world: &bevy_ecs::world::World) -> super::WorldgenAssets<'_> {
+        use super::{
+            DensityFunctionAsset, MaterialConditionAsset, MaterialRuleAsset, NoiseParamAsset,
+        };
+        use bevy_asset::Assets;
+        super::WorldgenAssets {
             density_functions: world.resource::<Assets<DensityFunctionAsset>>(),
             noises: world.resource::<Assets<NoiseParamAsset>>(),
             rules: world.resource::<Assets<MaterialRuleAsset>>(),
             conditions: world.resource::<Assets<MaterialConditionAsset>>(),
-        };
+        }
+    }
+
+    /// The walk above proves the ids are named; this proves they arrive. A
+    /// handle map left out of `visit_dependencies` or a branch missing from the
+    /// collect walk loses the assets with no error anywhere.
+    #[test]
+    fn the_asset_pipeline_delivers_the_material_registries() {
+        use super::{Loaded, NoiseGeneratorSettingsAsset};
+        use bevy_asset::Assets;
+
+        let app = load_settings("overworld");
+        let world = app.world();
+        let handle = world.resource::<SettingsHandle>().0.clone();
+        let asset = world
+            .resource::<Assets<NoiseGeneratorSettingsAsset>>()
+            .get(&handle)
+            .unwrap();
         let mut collected = Loaded::default();
-        collected.collect(&asset.deps, &tables);
+        collected.collect(&asset.deps, &assets_of(world));
 
         for name in SURFACE_NOISE_NAMES {
             let id = format!("minecraft:{name}");
@@ -967,94 +728,49 @@ mod tests {
         assert_eq!(ids(&collected.noises), expected.noises);
     }
 
+    /// End to end over the shipped corpus: what the asset pipeline delivers is
+    /// what the compiler needs, the terrain block and the sea fluid included —
+    /// those come from the settings asset itself, so each dimension gets its
+    /// own rather than whichever settings loaded last.
     #[test]
-    fn noise_settings_for_normal_preset_is_overworld() {
-        assert_eq!(overworld_settings("normal").as_str(), "minecraft:overworld");
-    }
-
-    #[test]
-    fn noise_settings_for_beta_preset_is_beta() {
-        assert_eq!(overworld_settings("beta").as_str(), "minecraft:beta");
-    }
-
-    #[test]
-    fn default_config_names_the_normal_preset_asset() {
-        assert_eq!(
-            WorldGenConfig::default().preset_asset_path(),
-            "minecraft/worldgen/world_preset/normal.json"
-        );
-    }
-
-    /// The assets and the two registries the compiler needs arrive from three
-    /// different sides in no fixed order. This drives the worst order: the
-    /// settings finish loading, several ticks pass, and only then do the
-    /// registries land.
-    #[test]
-    fn the_router_is_built_when_the_registries_arrive_after_the_assets() {
-        use super::{
-            DimensionNoiseRouter, MaterialResolvers, NoiseGeneratorSettingsPlugin,
-            WorldgenDefaultStates,
-        };
+    fn the_loaded_settings_compile_into_a_router() {
+        use super::{NoiseGeneratorSettingsAsset, build_dimension_router};
         use crate::proto::BlockState;
-        use bevy_app::App;
-        use bevy_asset::{AssetPlugin, AssetServer, RecursiveDependencyLoadState};
+        use bevy_asset::Assets;
         use mcrs_voxel_storage::VoxelId;
-        use std::sync::Arc;
 
-        let mut app = App::new();
-        app.add_plugins(bevy_app::TaskPoolPlugin::default());
-        app.add_plugins(AssetPlugin {
-            watch_for_changes_override: Some(false),
-            ..AssetPlugin::default()
-        });
-        app.insert_resource(WorldGenConfig::default());
-        app.add_plugins(NoiseGeneratorSettingsPlugin);
+        let biomes = shipped_biome_ids();
+        for name in ["overworld", "nether", "end"] {
+            let app = load_settings(name);
+            let world = app.world();
+            let handle = world.resource::<SettingsHandle>().0.clone();
+            let asset = world
+                .resource::<Assets<NoiseGeneratorSettingsAsset>>()
+                .get(&handle)
+                .unwrap();
 
-        let mut loaded = false;
-        for _ in 0..10_000 {
-            app.update();
-            let handle = app.world().get_resource::<super::WorldPresetHandle>();
-            let Some(handle) = handle.map(|h| h.0.clone()) else {
-                continue;
+            // Every distinct state gets a distinct id, so a router that mixed
+            // the terrain block up with the sea fluid would not compare equal.
+            let states = std::cell::RefCell::new(BTreeMap::<String, VoxelId>::new());
+            let block = |state: &BlockState| {
+                let mut states = states.borrow_mut();
+                let next = VoxelId(states.len() as u16 + 1);
+                Some(*states.entry(state.name.as_str().to_owned()).or_insert(next))
             };
-            match app
-                .world()
-                .resource::<AssetServer>()
-                .recursive_dependency_load_state(handle.id())
-            {
-                RecursiveDependencyLoadState::Loaded => {
-                    loaded = true;
-                    break;
-                }
-                RecursiveDependencyLoadState::Failed(error) => panic!("{error}"),
-                _ => std::thread::sleep(std::time::Duration::from_millis(1)),
-            }
-        }
-        assert!(loaded, "the world preset never finished loading");
+            let router = build_dimension_router(
+                asset,
+                &assets_of(world),
+                0,
+                &block,
+                &|id: &ResourceLocation| biomes.get(id).copied(),
+            )
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
 
-        for _ in 0..8 {
-            app.update();
+            assert!(router.material().is_some(), "{name} has no material rules");
+            assert_ne!(
+                router.default_block_state, router.default_fluid_state,
+                "{name} resolved the terrain block and the sea fluid to one id"
+            );
         }
-        assert!(
-            app.world().get_resource::<DimensionNoiseRouter>().is_none(),
-            "the router cannot be built before the registries arrive"
-        );
-
-        app.insert_resource(WorldgenDefaultStates {
-            block: VoxelId(1),
-            fluid: VoxelId(2),
-        });
-        app.insert_resource(MaterialResolvers {
-            block: Arc::new(|_: &BlockState| Some(VoxelId(1))),
-            biome: Arc::new(shipped_biome_ids()),
-        });
-
-        for _ in 0..4 {
-            app.update();
-        }
-        assert!(
-            app.world().get_resource::<DimensionNoiseRouter>().is_some(),
-            "the registries arriving late did not reach the router build"
-        );
     }
 }

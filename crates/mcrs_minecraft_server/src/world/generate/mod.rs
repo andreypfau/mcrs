@@ -887,8 +887,10 @@ pub use beta_caves::{BetaCaveBlockIds, apply_beta_caves};
 pub mod beta_ores;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;
+pub mod routers;
 pub mod surface;
 pub use beta_ores::{BetaOreBlockIds, apply_beta_ores, place_all_ores};
+pub use routers::DimensionRouters;
 pub use surface::{SurfaceIds, apply_material_surface, spans_dimension};
 
 #[cfg(test)]

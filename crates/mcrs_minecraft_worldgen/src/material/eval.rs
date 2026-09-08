@@ -94,7 +94,7 @@ impl MaterialScratch {
 /// the router and the position.
 pub struct MaterialEval<'a, B, R> {
     router: &'a NoiseRouter,
-    program: &'a MaterialProgram,
+    pub(crate) program: &'a MaterialProgram,
     scratch: &'a mut MaterialScratch,
     biome_at: B,
     reachable_at: R,
@@ -112,19 +112,19 @@ pub struct MaterialEval<'a, B, R> {
     run_depth: i32,
     gen_xz: u32,
     gen_y: u32,
-    block_x: i32,
-    block_z: i32,
-    gradient_x: i32,
-    gradient_z: i32,
-    surface_depth: i32,
+    pub(crate) block_x: i32,
+    pub(crate) block_z: i32,
+    pub(crate) gradient_x: i32,
+    pub(crate) gradient_z: i32,
+    pub(crate) surface_depth: i32,
     surface_secondary: f64,
     surface_secondary_stamp: u32,
     min_surface_level: i32,
     min_surface_level_stamp: u32,
-    block_y: i32,
-    depth_above: i32,
-    depth_below: i32,
-    water_level: i32,
+    pub(crate) block_y: i32,
+    pub(crate) depth_above: i32,
+    pub(crate) depth_below: i32,
+    pub(crate) water_level: i32,
     biome: u32,
     biome_stamp: u32,
 }
@@ -805,46 +805,6 @@ where
 
 #[cfg(test)]
 impl<B, R> MaterialEval<'_, B, R> {
-    pub(crate) fn program(&self) -> &MaterialProgram {
-        self.program
-    }
-
-    pub(crate) fn block_x(&self) -> i32 {
-        self.block_x
-    }
-
-    pub(crate) fn block_y(&self) -> i32 {
-        self.block_y
-    }
-
-    pub(crate) fn block_z(&self) -> i32 {
-        self.block_z
-    }
-
-    pub(crate) fn depth_above(&self) -> i32 {
-        self.depth_above
-    }
-
-    pub(crate) fn depth_below(&self) -> i32 {
-        self.depth_below
-    }
-
-    pub(crate) fn water_level(&self) -> i32 {
-        self.water_level
-    }
-
-    pub(crate) fn surface_depth(&self) -> i32 {
-        self.surface_depth
-    }
-
-    pub(crate) fn gradient_x(&self) -> i32 {
-        self.gradient_x
-    }
-
-    pub(crate) fn gradient_z(&self) -> i32 {
-        self.gradient_z
-    }
-
     /// Reaches the depths the surface noise would only reach at rare positions.
     /// The stamp goes back to zero because `begin_strip` never leaves `gen_xz`
     /// there, so the preliminary level recomputes against the new depth.

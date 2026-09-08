@@ -123,11 +123,11 @@ impl<'a> MaterialOracle<'a> {
                 surface_type,
             } => {
                 let depth = match surface_type {
-                    CaveSurface::Ceiling => eval.depth_below(),
-                    CaveSurface::Floor => eval.depth_above(),
+                    CaveSurface::Ceiling => eval.depth_below,
+                    CaveSurface::Floor => eval.depth_above,
                 };
                 let surface = if *add_surface_depth {
-                    eval.surface_depth()
+                    eval.surface_depth
                 } else {
                     0
                 };
@@ -150,15 +150,15 @@ impl<'a> MaterialOracle<'a> {
                 add_stone_depth,
             } => {
                 let stone = if *add_stone_depth {
-                    eval.depth_above()
+                    eval.depth_above
                 } else {
                     0
                 };
-                let value = eval.water_level() == NO_WATER
-                    || eval.block_y() + stone
-                        >= eval.water_level()
+                let value = eval.water_level == NO_WATER
+                    || eval.block_y + stone
+                        >= eval.water_level
                             + offset
-                            + eval.surface_depth() * surface_depth_multiplier;
+                            + eval.surface_depth * surface_depth_multiplier;
                 ("water", value)
             }
             MaterialCondition::YAbove {
@@ -167,13 +167,13 @@ impl<'a> MaterialOracle<'a> {
                 add_stone_depth,
             } => {
                 let stone = if *add_stone_depth {
-                    eval.depth_above()
+                    eval.depth_above
                 } else {
                     0
                 };
-                let value = eval.block_y() + stone
+                let value = eval.block_y + stone
                     >= anchor.resolve_y(self.height)
-                        + eval.surface_depth() * surface_depth_multiplier;
+                        + eval.surface_depth * surface_depth_multiplier;
                 ("y_above", value)
             }
             MaterialCondition::Biome { biome_is } => {
@@ -191,7 +191,7 @@ impl<'a> MaterialOracle<'a> {
                 is_3d,
             } => {
                 let id = eval
-                    .program()
+                    .program
                     .noise_id(noise, *is_3d)
                     .expect("a compiled noise");
                 let value = eval.noise(id, *is_3d);
@@ -207,7 +207,7 @@ impl<'a> MaterialOracle<'a> {
             } => {
                 let below = true_at_and_below.resolve_y(self.height);
                 let above = false_at_and_above.resolve_y(self.height);
-                let y = eval.block_y();
+                let y = eval.block_y;
                 let value = if y <= below {
                     true
                 } else if y >= above {
@@ -216,23 +216,21 @@ impl<'a> MaterialOracle<'a> {
                     let probability =
                         map(f64::from(y), f64::from(below), f64::from(above), 1.0, 0.0);
                     let id = eval
-                        .program()
+                        .program
                         .random_id(random_name)
                         .expect("a compiled random");
                     let mut random = eval
-                        .program()
-                        .random_at(id, IVec3::new(eval.block_x(), y, eval.block_z()));
+                        .program
+                        .random_at(id, IVec3::new(eval.block_x, y, eval.block_z));
                     f64::from(random.next_f32()) < probability
                 };
                 ("vertical_gradient", value)
             }
-            MaterialCondition::Steep => {
-                ("steep", eval.gradient_x() <= -4 || eval.gradient_z() >= 4)
-            }
-            MaterialCondition::Hole => ("hole", eval.surface_depth() <= 0),
+            MaterialCondition::Steep => ("steep", eval.gradient_x <= -4 || eval.gradient_z >= 4),
+            MaterialCondition::Hole => ("hole", eval.surface_depth <= 0),
             MaterialCondition::AbovePreliminarySurface => (
                 "above_preliminary_surface",
-                eval.block_y() >= eval.min_surface_level(),
+                eval.block_y >= eval.min_surface_level(),
             ),
             MaterialCondition::Not { invert } => ("not", !self.condition(invert, eval, visited)),
             MaterialCondition::Temperature => {
