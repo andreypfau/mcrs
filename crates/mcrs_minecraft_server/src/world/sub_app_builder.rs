@@ -10,7 +10,7 @@ use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use std::collections::VecDeque;
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
 use crate::world::bus::{
     InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn, InboundPlayerSpawn,
@@ -113,7 +113,7 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         world_gen_config: world
             .get_resource::<WorldGenConfig>()
             .cloned()
-            .unwrap_or_else(WorldGenConfig::from_env),
+            .unwrap_or_default(),
     }
 }
 
@@ -278,7 +278,7 @@ pub fn spawn_dim_subapp(
             crate::world::chunk::enqueue_pending_columns,
             crate::world::chunk::dispatch_column_generation.run_if(
                 bevy_ecs::prelude::resource_exists::<
-                    mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter,
+                    mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter,
                 >,
             ),
             // A finished epoch frees its slot and unblocks its area only when it is
@@ -324,7 +324,15 @@ pub fn spawn_dim_subapp(
     // per-dim entry-point that turns DimSpawnRequest into populated columns.
     // It is distinct from the engine-level `storage::chunk::ChunkPlugin` that
     // DimensionPlugin adds (which only contributes TicketPlugin).
-    sub_app.insert_resource(registries.world_gen_config.clone());
+    let mut world_gen_config = registries.world_gen_config.clone();
+    match mcrs_minecraft_core::ResourceLocation::parse(&request.dimension_id.0) {
+        Ok(dimension) => world_gen_config.dimension = dimension,
+        Err(error) => {
+            error!(%error, "the dimension id is not a resource location; it will generate nothing");
+            sub_app.insert_resource(mcrs_minecraft_worldgen::bevy::NoiseRouterUnavailable);
+        }
+    }
+    sub_app.insert_resource(world_gen_config);
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
     // Per-dim composition of the simulation plugins. Each plugin's
     // schedule placements (`MinecraftBlockPlugin`, `ExplosionPlugin`,

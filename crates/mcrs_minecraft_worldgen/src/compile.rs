@@ -1,4 +1,4 @@
-use crate::beta::seed::{BetaClimateNoises, BetaTerrainNoises};
+use crate::beta::{BetaClimateNoises, BetaTerrainNoises};
 use crate::bounds::{self, Bounds};
 use crate::interval::Interval;
 use crate::jmath;
@@ -1515,9 +1515,9 @@ pub(crate) mod tests {
         out[0]
     }
 
-    const Y_GRADIENT: &str = r#"{"type":"gradient","axis":"y","from_coordinate":0,"to_coordinate":16,"from_value":0.0,"to_value":16.0}"#;
+    const Y_GRADIENT: &str = r#"{"type":"minecraft:gradient","axis":"y","from_coordinate":0,"to_coordinate":16,"from_value":0.0,"to_value":16.0}"#;
     /// Straddles zero, so the rectifier's negative half is reachable.
-    const SIGNED_Y_GRADIENT: &str = r#"{"type":"gradient","axis":"y","from_coordinate":-16,"to_coordinate":16,"from_value":-16.0,"to_value":16.0}"#;
+    const SIGNED_Y_GRADIENT: &str = r#"{"type":"minecraft:gradient","axis":"y","from_coordinate":-16,"to_coordinate":16,"from_value":-16.0,"to_value":16.0}"#;
 
     /// The input's range would confine this to the out-of-range branch, and
     /// vanilla still reports the hull of both.
@@ -1624,21 +1624,22 @@ pub(crate) mod tests {
 
     #[test]
     fn two_constant_operands_leave_one_node() {
-        let built = build(r#"{"type":"add","left":2.0,"right":3.0}"#);
+        let built = build(r#"{"type":"minecraft:add","left":2.0,"right":3.0}"#);
         assert_eq!(built.nodes.len(), 1);
         assert!(matches!(built.node(), Node::Constant(v) if *v == 5.0));
 
-        let built =
-            build(r#"{"type":"mul","left":{"type":"sub","left":10.0,"right":4.0},"right":0.5}"#);
+        let built = build(
+            r#"{"type":"minecraft:mul","left":{"type":"minecraft:sub","left":10.0,"right":4.0},"right":0.5}"#,
+        );
         assert!(matches!(built.node(), Node::Constant(v) if *v == 3.0));
     }
 
     #[test]
     fn a_constant_folds_through_a_unary_and_a_round() {
-        let built = build(r#"{"type":"square","input":-3.0}"#);
+        let built = build(r#"{"type":"minecraft:square","input":-3.0}"#);
         assert!(matches!(built.node(), Node::Constant(v) if *v == 9.0));
 
-        let built = build(r#"{"type":"floor","input":7.5,"multiple":2.0}"#);
+        let built = build(r#"{"type":"minecraft:floor","input":7.5,"multiple":2.0}"#);
         assert!(matches!(built.node(), Node::Constant(v) if *v == 6.0));
     }
 
@@ -1646,7 +1647,7 @@ pub(crate) mod tests {
     /// because the generic sampler returns the input untouched there.
     #[test]
     fn a_zero_multiple_round_is_the_identity() {
-        let json = format!(r#"{{"type":"floor","input":{Y_GRADIENT},"multiple":0.0}}"#);
+        let json = format!(r#"{{"type":"minecraft:floor","input":{Y_GRADIENT},"multiple":0.0}}"#);
         let built = build(&json);
         assert!(matches!(built.node(), Node::Gradient(_)));
     }
@@ -1654,7 +1655,7 @@ pub(crate) mod tests {
     #[test]
     fn a_scale_and_an_offset_fuse_into_one_affine() {
         let json = format!(
-            r#"{{"type":"add","left":{{"type":"mul","left":{Y_GRADIENT},"right":3.0}},"right":-1.0}}"#
+            r#"{{"type":"minecraft:add","left":{{"type":"minecraft:mul","left":{Y_GRADIENT},"right":3.0}},"right":-1.0}}"#
         );
         let built = build(&json);
         assert_eq!(built.nodes.len(), 2, "the gradient and one affine");
@@ -1670,10 +1671,10 @@ pub(crate) mod tests {
 
     #[test]
     fn a_unit_affine_is_the_identity_and_a_division_becomes_a_reciprocal_multiply() {
-        let json = format!(r#"{{"type":"mul","left":{Y_GRADIENT},"right":1.0}}"#);
+        let json = format!(r#"{{"type":"minecraft:mul","left":{Y_GRADIENT},"right":1.0}}"#);
         assert!(matches!(build(&json).node(), Node::Gradient(_)));
 
-        let json = format!(r#"{{"type":"div","left":{Y_GRADIENT},"right":4.0}}"#);
+        let json = format!(r#"{{"type":"minecraft:div","left":{Y_GRADIENT},"right":4.0}}"#);
         match build(&json).node() {
             Node::Affine { scale, offset, .. } => {
                 assert_eq!(*scale, 0.25);
@@ -1686,7 +1687,7 @@ pub(crate) mod tests {
     #[test]
     fn a_scaled_rectifier_becomes_one_piecewise_affine() {
         let json = format!(
-            r#"{{"type":"add","left":{{"type":"mul","left":{{"type":"half_negative","input":{SIGNED_Y_GRADIENT}}},"right":2.0}},"right":1.0}}"#
+            r#"{{"type":"minecraft:add","left":{{"type":"minecraft:mul","left":{{"type":"minecraft:half_negative","input":{SIGNED_Y_GRADIENT}}},"right":2.0}},"right":1.0}}"#
         );
         let built = build(&json);
         assert_eq!(
@@ -1714,19 +1715,19 @@ pub(crate) mod tests {
 
     #[test]
     fn a_non_overlapping_extremum_drops_the_operand_that_cannot_win() {
-        let json = format!(r#"{{"type":"min","left":{Y_GRADIENT},"right":100.0}}"#);
+        let json = format!(r#"{{"type":"minecraft:min","left":{Y_GRADIENT},"right":100.0}}"#);
         let built = build(&json);
         assert_eq!(built.nodes.len(), 1);
         assert!(matches!(built.node(), Node::Gradient(_)));
 
-        let json = format!(r#"{{"type":"max","left":{Y_GRADIENT},"right":100.0}}"#);
+        let json = format!(r#"{{"type":"minecraft:max","left":{Y_GRADIENT},"right":100.0}}"#);
         let built = build(&json);
         assert!(matches!(built.node(), Node::Constant(v) if *v == 100.0));
     }
 
     #[test]
     fn an_overlapping_extremum_keeps_the_constant_operand_baked_in() {
-        let json = format!(r#"{{"type":"min","left":{Y_GRADIENT},"right":8.0}}"#);
+        let json = format!(r#"{{"type":"minecraft:min","left":{Y_GRADIENT},"right":8.0}}"#);
         match build(&json).node() {
             Node::ConstMin { value, .. } => assert_eq!(*value, 8.0),
             other => panic!("expected a const min, got {other:?}"),
@@ -1738,14 +1739,14 @@ pub(crate) mod tests {
     #[test]
     fn a_single_threshold_select_and_a_two_constant_range_choice_specialize() {
         let json = format!(
-            r#"{{"type":"interval_select","input":{Y_GRADIENT},"thresholds":[4.0],"functions":[-1.0,1.0]}}"#
+            r#"{{"type":"minecraft:interval_select","input":{Y_GRADIENT},"thresholds":[4.0],"functions":[-1.0,1.0]}}"#
         );
         assert!(matches!(build(&json).node(), Node::SingleThreshold { .. }));
         assert_eq!(sample(&json, IVec3::new(0, 0, 0)), -1.0);
         assert_eq!(sample(&json, IVec3::new(0, 8, 0)), 1.0);
 
         let json = format!(
-            r#"{{"type":"range_choice","input":{Y_GRADIENT},"min_inclusive":0.0,"max_exclusive":4.0,"when_in_range":1.0,"when_out_of_range":-1.0}}"#
+            r#"{{"type":"minecraft:range_choice","input":{Y_GRADIENT},"min_inclusive":0.0,"max_exclusive":4.0,"when_in_range":1.0,"when_out_of_range":-1.0}}"#
         );
         assert!(matches!(build(&json).node(), Node::ConstRangeChoice { .. }));
         assert_eq!(sample(&json, IVec3::new(0, 2, 0)), 1.0);
@@ -1754,7 +1755,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_constant_exponent_lowers_to_the_unary_it_names() {
-        let json = format!(r#"{{"type":"pow","base":{Y_GRADIENT},"exponent":2.0}}"#);
+        let json = format!(r#"{{"type":"minecraft:pow","base":{Y_GRADIENT},"exponent":2.0}}"#);
         assert!(matches!(
             build(&json).node(),
             Node::Unary {
@@ -1763,7 +1764,7 @@ pub(crate) mod tests {
             }
         ));
 
-        let json = format!(r#"{{"type":"pow","base":{Y_GRADIENT},"exponent":-1.0}}"#);
+        let json = format!(r#"{{"type":"minecraft:pow","base":{Y_GRADIENT},"exponent":-1.0}}"#);
         assert!(matches!(
             build(&json).node(),
             Node::Unary {
@@ -1776,7 +1777,7 @@ pub(crate) mod tests {
     #[test]
     fn a_shared_subtree_is_one_node() {
         let json = format!(
-            r#"{{"type":"add","left":{{"type":"square","input":{Y_GRADIENT}}},"right":{{"type":"square","input":{Y_GRADIENT}}}}}"#
+            r#"{{"type":"minecraft:add","left":{{"type":"minecraft:square","input":{Y_GRADIENT}}},"right":{{"type":"minecraft:square","input":{Y_GRADIENT}}}}}"#
         );
         let built = build(&json);
         assert_eq!(built.nodes.len(), 3, "gradient, square, add");
@@ -1785,7 +1786,7 @@ pub(crate) mod tests {
     #[test]
     fn an_unsupported_kind_names_itself() {
         let holder: DensityFunctionHolder = serde_json::from_str(&format!(
-            r#"{{"type":"slice","axis":"y","coordinate":0,"input":{Y_GRADIENT}}}"#
+            r#"{{"type":"minecraft:slice","axis":"y","coordinate":0,"input":{Y_GRADIENT}}}"#
         ))
         .unwrap();
         let functions = no_functions();

@@ -32,8 +32,8 @@ use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_world::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
 use mcrs_minecraft_worldgen::bevy::{
-    MaterialResolvers, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,
-    OverworldNoiseRouter, WorldGenConfig, WorldgenDefaultStates,
+    DimensionNoiseRouter, MaterialResolvers, NoiseGeneratorSettingsAsset,
+    NoiseGeneratorSettingsPlugin, WorldgenDefaultStates,
 };
 use mcrs_minecraft_worldgen::material::MaterialScratch;
 use mcrs_minecraft_worldgen::program::Workspace;
@@ -149,9 +149,6 @@ impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NoiseGeneratorSettingsPlugin);
         app.add_plugins(BetaBiomeSourcePlugin);
-        if !app.world().contains_resource::<WorldGenConfig>() {
-            app.insert_resource(WorldGenConfig::from_env());
-        }
         app.add_systems(bevy_app::Startup, provide_material_resolvers);
         app.add_systems(bevy_app::Update, resolve_worldgen_default_states);
         let scheduler = ColumnScheduler::default();
@@ -171,7 +168,7 @@ impl Plugin for ChunkPlugin {
                 enqueue_pending_columns,
                 cancel_stale_columns,
                 reprioritize_columns,
-                dispatch_column_generation.run_if(resource_exists::<OverworldNoiseRouter>),
+                dispatch_column_generation.run_if(resource_exists::<DimensionNoiseRouter>),
             )
                 .chain()
                 .after(mcrs_voxel_world::world::lifecycle::ticket::ChunkSpawnSet),
@@ -844,7 +841,7 @@ fn reprioritize_columns(
 /// - Bounded dispatch prevents task queue explosion during player teleports
 pub(crate) fn dispatch_column_generation(
     mut scheduler: ResMut<ColumnScheduler>,
-    overworld_noise_router: Res<OverworldNoiseRouter>,
+    noise_router: Res<DimensionNoiseRouter>,
     blocks: Res<Blocks>,
     active_biome_source: Option<Res<ActiveBiomeSource>>,
     biome_registry: Option<Res<RegistrySnapshot<Biome>>>,
@@ -901,7 +898,7 @@ pub(crate) fn dispatch_column_generation(
         let ids = cached_carver_blocks.get_or_insert_with(|| {
             Arc::new(ModernCarverBlockIds::resolve(
                 &blocks.0,
-                &overworld_noise_router.0,
+                &noise_router.0,
                 block_tags.as_deref(),
             ))
         });
@@ -980,7 +977,7 @@ pub(crate) fn dispatch_column_generation(
         column_trace::mark(col, ColumnStage::Generating);
 
         // Prepare data for the async task
-        let router = overworld_noise_router.0.clone();
+        let router = noise_router.0.clone();
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
         let biome_ctx = biome_context.clone();
@@ -1001,9 +998,8 @@ pub(crate) fn dispatch_column_generation(
         // whole anyway: the material rules descend a strip from its highest
         // block to the bedrock floor, so a slice would be surfaced as if its cut
         // were the sky and would never reach the floor at all.
-        let dimension_bottom = overworld_noise_router.0.noise_min_y() >> 4;
-        let dimension_top =
-            dimension_bottom + (overworld_noise_router.0.noise_height() as i32 >> 4);
+        let dimension_bottom = noise_router.0.noise_min_y() >> 4;
+        let dimension_top = dimension_bottom + (noise_router.0.noise_height() as i32 >> 4);
         let bottom = pending_column
             .sections
             .first()

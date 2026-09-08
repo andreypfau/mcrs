@@ -1,4 +1,4 @@
-use crate::beta::seed::BetaTerrainNoises;
+use crate::beta::BetaTerrainNoises;
 use crate::cell::CellBounds;
 use crate::compile::CompileError;
 use crate::interval::Interval;

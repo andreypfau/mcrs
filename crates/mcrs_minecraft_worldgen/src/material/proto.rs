@@ -29,18 +29,18 @@ pub enum MaterialConditionHolder {
 #[serde(tag = "type")]
 #[serde(deny_unknown_fields)]
 pub enum MaterialRule {
-    #[serde(rename = "minecraft:block", alias = "block")]
+    #[serde(rename = "minecraft:block")]
     Block { result_state: BlockState },
-    #[serde(rename = "minecraft:sequence", alias = "sequence")]
+    #[serde(rename = "minecraft:sequence")]
     Sequence { sequence: Vec<MaterialRuleHolder> },
-    #[serde(rename = "minecraft:condition", alias = "condition")]
+    #[serde(rename = "minecraft:condition")]
     Condition {
         if_true: MaterialConditionHolder,
         then_run: MaterialRuleHolder,
     },
-    #[serde(rename = "minecraft:bandlands", alias = "bandlands")]
+    #[serde(rename = "minecraft:bandlands")]
     Bandlands,
-    #[serde(rename = "minecraft:ore_vein", alias = "ore_vein")]
+    #[serde(rename = "minecraft:ore_vein")]
     OreVein {
         ore_block: BlockState,
         raw_ore_block: BlockState,
@@ -56,9 +56,9 @@ pub enum MaterialRule {
 #[serde(tag = "type")]
 #[serde(deny_unknown_fields)]
 pub enum MaterialCondition {
-    #[serde(rename = "minecraft:biome", alias = "biome")]
+    #[serde(rename = "minecraft:biome")]
     Biome { biome_is: BiomeSet },
-    #[serde(rename = "minecraft:noise_threshold", alias = "noise_threshold")]
+    #[serde(rename = "minecraft:noise_threshold")]
     NoiseThreshold {
         noise: ResourceLocation,
         min_threshold: HashableF64,
@@ -66,38 +66,35 @@ pub enum MaterialCondition {
         #[serde(default, skip_serializing_if = "is_false")]
         is_3d: bool,
     },
-    #[serde(rename = "minecraft:vertical_gradient", alias = "vertical_gradient")]
+    #[serde(rename = "minecraft:vertical_gradient")]
     VerticalGradient {
         random_name: ResourceLocation,
         true_at_and_below: VerticalAnchor,
         false_at_and_above: VerticalAnchor,
     },
-    #[serde(rename = "minecraft:y_above", alias = "y_above")]
+    #[serde(rename = "minecraft:y_above")]
     YAbove {
         anchor: VerticalAnchor,
         surface_depth_multiplier: i32,
         add_stone_depth: bool,
     },
-    #[serde(rename = "minecraft:water", alias = "water")]
+    #[serde(rename = "minecraft:water")]
     Water {
         offset: i32,
         surface_depth_multiplier: i32,
         add_stone_depth: bool,
     },
-    #[serde(rename = "minecraft:temperature", alias = "temperature")]
+    #[serde(rename = "minecraft:temperature")]
     Temperature,
-    #[serde(rename = "minecraft:steep", alias = "steep")]
+    #[serde(rename = "minecraft:steep")]
     Steep,
-    #[serde(rename = "minecraft:not", alias = "not")]
+    #[serde(rename = "minecraft:not")]
     Not { invert: MaterialConditionHolder },
-    #[serde(rename = "minecraft:hole", alias = "hole")]
+    #[serde(rename = "minecraft:hole")]
     Hole,
-    #[serde(
-        rename = "minecraft:above_preliminary_surface",
-        alias = "above_preliminary_surface"
-    )]
+    #[serde(rename = "minecraft:above_preliminary_surface")]
     AbovePreliminarySurface,
-    #[serde(rename = "minecraft:stone_depth", alias = "stone_depth")]
+    #[serde(rename = "minecraft:stone_depth")]
     StoneDepth {
         offset: i32,
         add_surface_depth: bool,

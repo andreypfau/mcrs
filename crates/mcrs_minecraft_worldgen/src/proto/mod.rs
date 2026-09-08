@@ -179,15 +179,15 @@ impl From<SingleArgumentFunction> for DensityFunctionHolder {
 #[serde(tag = "type")]
 #[serde(deny_unknown_fields)]
 pub enum ProtoDensityFunction {
-    #[serde(rename = "minecraft:constant", alias = "constant")]
+    #[serde(rename = "minecraft:constant")]
     Constant(ConstantValue),
-    #[serde(rename = "minecraft:blend_alpha", alias = "blend_alpha")]
+    #[serde(rename = "minecraft:blend_alpha")]
     BlendAlpha,
-    #[serde(rename = "minecraft:blend_offset", alias = "blend_offset")]
+    #[serde(rename = "minecraft:blend_offset")]
     BlendOffset,
-    #[serde(rename = "minecraft:beardifier", alias = "beardifier")]
+    #[serde(rename = "minecraft:beardifier")]
     Beardifier,
-    #[serde(rename = "minecraft:noise", alias = "noise")]
+    #[serde(rename = "minecraft:noise")]
     Noise {
         noise: NoiseHolder,
         xz_scale: HashableF64,
@@ -199,76 +199,76 @@ pub enum ProtoDensityFunction {
         #[serde(default = "zero_holder", skip_serializing_if = "is_zero_holder")]
         shift_z: DensityFunctionHolder,
     },
-    #[serde(rename = "minecraft:end_outer_islands", alias = "end_outer_islands")]
+    #[serde(rename = "minecraft:end_outer_islands")]
     EndOuterIslands,
-    #[serde(rename = "minecraft:distance_to_point", alias = "distance_to_point")]
+    #[serde(rename = "minecraft:distance_to_point")]
     DistanceToPoint {
         point: [i32; 3],
         metric: DistanceMetric,
     },
-    #[serde(rename = "minecraft:gradient", alias = "gradient")]
+    #[serde(rename = "minecraft:gradient")]
     Gradient(GradientArguments),
-    #[serde(rename = "minecraft:shift_a", alias = "shift_a")]
+    #[serde(rename = "minecraft:shift_a")]
     ShiftA { noise: NoiseHolder },
-    #[serde(rename = "minecraft:shift_b", alias = "shift_b")]
+    #[serde(rename = "minecraft:shift_b")]
     ShiftB { noise: NoiseHolder },
-    #[serde(rename = "minecraft:shift", alias = "shift")]
+    #[serde(rename = "minecraft:shift")]
     Shift { noise: NoiseHolder },
-    #[serde(rename = "minecraft:abs", alias = "abs")]
+    #[serde(rename = "minecraft:abs")]
     Abs(SingleArgumentFunction),
-    #[serde(rename = "minecraft:square", alias = "square")]
+    #[serde(rename = "minecraft:square")]
     Square(SingleArgumentFunction),
-    #[serde(rename = "minecraft:cube", alias = "cube")]
+    #[serde(rename = "minecraft:cube")]
     Cube(SingleArgumentFunction),
-    #[serde(rename = "minecraft:sqrt", alias = "sqrt")]
+    #[serde(rename = "minecraft:sqrt")]
     Sqrt(SingleArgumentFunction),
-    #[serde(rename = "minecraft:half_negative", alias = "half_negative")]
+    #[serde(rename = "minecraft:half_negative")]
     HalfNegative(SingleArgumentFunction),
-    #[serde(rename = "minecraft:quarter_negative", alias = "quarter_negative")]
+    #[serde(rename = "minecraft:quarter_negative")]
     QuarterNegative(SingleArgumentFunction),
-    #[serde(rename = "minecraft:reciprocal", alias = "reciprocal")]
+    #[serde(rename = "minecraft:reciprocal")]
     Reciprocal(SingleArgumentFunction),
-    #[serde(rename = "minecraft:negate", alias = "negate")]
+    #[serde(rename = "minecraft:negate")]
     Negate(SingleArgumentFunction),
-    #[serde(rename = "minecraft:squeeze", alias = "squeeze")]
+    #[serde(rename = "minecraft:squeeze")]
     Squeeze(SingleArgumentFunction),
-    #[serde(rename = "minecraft:log", alias = "log")]
+    #[serde(rename = "minecraft:log")]
     Log(SingleArgumentFunction),
-    #[serde(rename = "minecraft:sign", alias = "sign")]
+    #[serde(rename = "minecraft:sign")]
     Sign(SingleArgumentFunction),
-    #[serde(rename = "minecraft:floor", alias = "floor")]
+    #[serde(rename = "minecraft:floor")]
     Floor(RoundFunctionArguments),
-    #[serde(rename = "minecraft:round", alias = "round")]
+    #[serde(rename = "minecraft:round")]
     Round(RoundFunctionArguments),
-    #[serde(rename = "minecraft:ceil", alias = "ceil")]
+    #[serde(rename = "minecraft:ceil")]
     Ceil(RoundFunctionArguments),
-    #[serde(rename = "minecraft:truncate", alias = "truncate")]
+    #[serde(rename = "minecraft:truncate")]
     Truncate(RoundFunctionArguments),
-    #[serde(rename = "minecraft:add", alias = "add")]
+    #[serde(rename = "minecraft:add")]
     Add(TwoArgumentFunction),
-    #[serde(rename = "minecraft:sub", alias = "sub")]
+    #[serde(rename = "minecraft:sub")]
     Sub(TwoArgumentFunction),
-    #[serde(rename = "minecraft:mul", alias = "mul")]
+    #[serde(rename = "minecraft:mul")]
     Mul(TwoArgumentFunction),
-    #[serde(rename = "minecraft:div", alias = "div")]
+    #[serde(rename = "minecraft:div")]
     Div(TwoArgumentFunction),
-    #[serde(rename = "minecraft:min", alias = "min")]
+    #[serde(rename = "minecraft:min")]
     Min(TwoArgumentFunction),
-    #[serde(rename = "minecraft:max", alias = "max")]
+    #[serde(rename = "minecraft:max")]
     Max(TwoArgumentFunction),
-    #[serde(rename = "minecraft:pow", alias = "pow")]
+    #[serde(rename = "minecraft:pow")]
     Pow(PowFunctionArguments),
-    #[serde(rename = "minecraft:spline", alias = "spline")]
+    #[serde(rename = "minecraft:spline")]
     Spline { spline: ProtoSpline },
-    #[serde(rename = "minecraft:lerp", alias = "lerp")]
+    #[serde(rename = "minecraft:lerp")]
     Lerp {
         alpha: DensityFunctionHolder,
         first: DensityFunctionHolder,
         second: DensityFunctionHolder,
     },
-    #[serde(rename = "minecraft:clamp", alias = "clamp")]
+    #[serde(rename = "minecraft:clamp")]
     Clamp(ClampArguments),
-    #[serde(rename = "minecraft:range_choice", alias = "range_choice")]
+    #[serde(rename = "minecraft:range_choice")]
     RangeChoice {
         input: DensityFunctionHolder,
         min_inclusive: NoiseValue,
@@ -276,27 +276,27 @@ pub enum ProtoDensityFunction {
         when_in_range: DensityFunctionHolder,
         when_out_of_range: DensityFunctionHolder,
     },
-    #[serde(rename = "minecraft:interval_select", alias = "interval_select")]
+    #[serde(rename = "minecraft:interval_select")]
     IntervalSelect(IntervalSelectArguments),
-    #[serde(rename = "minecraft:cache", alias = "cache")]
+    #[serde(rename = "minecraft:cache")]
     Cache(SingleArgumentFunction),
-    #[serde(rename = "minecraft:blend_density", alias = "blend_density")]
+    #[serde(rename = "minecraft:blend_density")]
     BlendDensity(SingleArgumentFunction),
-    #[serde(rename = "minecraft:interpolated", alias = "interpolated")]
+    #[serde(rename = "minecraft:interpolated")]
     Interpolated {
         input: DensityFunctionHolder,
         cell_size_xz: NonZeroU32,
         cell_size_y: NonZeroU32,
     },
-    #[serde(rename = "minecraft:slice", alias = "slice")]
+    #[serde(rename = "minecraft:slice")]
     Slice {
         axis: Axis,
         coordinate: i32,
         input: DensityFunctionHolder,
     },
-    #[serde(rename = "minecraft:find_top_surface", alias = "find_top_surface")]
+    #[serde(rename = "minecraft:find_top_surface")]
     FindTopSurface(FindTopSurfaceArguments),
-    #[serde(rename = "minecraft:old_blended_noise", alias = "old_blended_noise")]
+    #[serde(rename = "minecraft:old_blended_noise")]
     OldBlendedNoise(BlendedNoiseArguments),
 }
 
@@ -514,12 +514,22 @@ mod tests {
     }
 
     #[test]
-    fn a_tagged_constant_re_encodes_with_the_namespace() {
+    fn a_tagged_constant_round_trips() {
         let parsed: ProtoDensityFunction =
-            serde_json::from_str(r#"{"type":"constant","value":1.5}"#).unwrap();
+            serde_json::from_str(r#"{"type":"minecraft:constant","value":1.5}"#).unwrap();
         assert_eq!(
             serde_json::to_string(&parsed).unwrap(),
             r#"{"type":"minecraft:constant","value":1.5}"#
+        );
+    }
+
+    /// The corpus always writes the namespace. A datapack that leaves it off is
+    /// naming a kind this build does not have, not the `minecraft` one.
+    #[test]
+    fn a_type_without_a_namespace_is_a_load_error() {
+        assert!(
+            serde_json::from_str::<ProtoDensityFunction>(r#"{"type":"constant","value":1.5}"#)
+                .is_err()
         );
     }
 

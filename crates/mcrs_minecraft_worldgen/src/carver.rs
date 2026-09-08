@@ -72,7 +72,9 @@ impl CarverConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::value_provider::VerticalAnchor;
+    use crate::value_provider::{
+        DispatchedFloatProvider, DispatchedHeightProvider, DispatchedIntProvider, VerticalAnchor,
+    };
     use std::path::PathBuf;
 
     fn carver_dir() -> PathBuf {
@@ -156,25 +158,25 @@ mod tests {
         assert_eq!(probability, 0.15);
         assert_eq!(
             y,
-            HeightProvider::Uniform {
+            HeightProvider::Dispatched(DispatchedHeightProvider::Uniform {
                 min_inclusive: VerticalAnchor::AboveBottom(8),
                 max_inclusive: VerticalAnchor::Absolute(180),
-            }
+            })
         );
         assert_eq!(
             count,
-            IntProvider::VeryBiasedToBottom {
+            IntProvider::Dispatched(DispatchedIntProvider::VeryBiasedToBottom {
                 min_inclusive: 0,
                 max_inclusive: 14
-            }
+            })
         );
         assert_eq!(
             thickness,
-            FloatProvider::Trapezoid {
+            FloatProvider::Dispatched(DispatchedFloatProvider::Trapezoid {
                 min: 0.0,
                 max: 3.0,
                 plateau: 1.0
-            }
+            })
         );
         assert!(weird_thickness_bias);
         // Absent from cave.json, and the reference defaults it to one.
@@ -184,10 +186,10 @@ mod tests {
         );
         assert_eq!(
             floor_level,
-            FloatProvider::Uniform {
+            FloatProvider::Dispatched(DispatchedFloatProvider::Uniform {
                 min_inclusive: -1.0,
                 max_exclusive: -0.4
-            }
+            })
         );
     }
 
@@ -223,10 +225,10 @@ mod tests {
         assert!(!weird_thickness_bias);
         assert_eq!(
             y,
-            HeightProvider::Uniform {
+            HeightProvider::Dispatched(DispatchedHeightProvider::Uniform {
                 min_inclusive: VerticalAnchor::Absolute(0),
                 max_inclusive: VerticalAnchor::BelowTop(1),
-            }
+            })
         );
     }
 
@@ -245,10 +247,10 @@ mod tests {
         assert_eq!(probability, 0.01);
         assert_eq!(
             vertical_rotation,
-            FloatProvider::Uniform {
+            FloatProvider::Dispatched(DispatchedFloatProvider::Uniform {
                 min_inclusive: -0.125,
                 max_exclusive: 0.125
-            }
+            })
         );
         assert_eq!(shape.width_smoothness, 3);
         assert_eq!(shape.vertical_radius_default_factor, 1.0);

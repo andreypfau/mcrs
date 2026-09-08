@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn beta_seeding_no_discard_draw_count() {
         let fixture: DrawCountFixture =
-            serde_json::from_str(include_str!("fixtures/beta_draw_counts.json"))
+            serde_json::from_str(include_str!("beta/fixtures/beta_draw_counts.json"))
                 .expect("valid fixture JSON");
         assert_eq!(fixture.seed, 845, "fixture seed mismatch");
 
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn beta_climate_postprocess_values_match_fixture() {
         let fixture: ClimateFixture =
-            serde_json::from_str(include_str!("fixtures/beta_climate.json"))
+            serde_json::from_str(include_str!("beta/fixtures/beta_climate.json"))
                 .expect("valid beta_climate.json fixture");
         let climate = BetaClimateNoises::new(fixture.seed);
         let temp = sample_temperature(&climate, 0.0, 0.0);

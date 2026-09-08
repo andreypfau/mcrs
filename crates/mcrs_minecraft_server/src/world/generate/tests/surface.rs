@@ -420,7 +420,7 @@ fn a_dispatch_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     use mcrs_minecraft_protocol::ColumnPos;
     use mcrs_minecraft_world::biome::source::BiomeSource;
     use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
-    use mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter;
+    use mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter;
     use std::sync::Arc;
 
     use super::blocks;
@@ -433,7 +433,7 @@ fn a_dispatch_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(1).build());
 
     let mut app = App::new();
-    app.insert_resource(OverworldNoiseRouter(Arc::new(router)));
+    app.insert_resource(DimensionNoiseRouter(Arc::new(router)));
     app.insert_resource(blocks().clone());
     app.insert_resource(registry);
     app.insert_resource(ActiveBiomeSource(Arc::new(BiomeSource::MultiNoise(
