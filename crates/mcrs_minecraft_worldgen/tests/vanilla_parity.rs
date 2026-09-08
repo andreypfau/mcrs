@@ -17,9 +17,9 @@ const MAGIC: &[u8; 8] = b"MCDFORCL";
 /// a divergence budget instead — the divergence is measured, not waived. The
 /// observed worst is 3.3e-6 on `final_density`; a break in the function itself
 /// would be orders of magnitude wider.
-#[cfg(not(any(feature = "fast_fma", feature = "fast_cell", feature = "fast_ramp")))]
+#[cfg(not(feature = "fast"))]
 const DIVERGENCE_BUDGET: Option<f32> = None;
-#[cfg(any(feature = "fast_fma", feature = "fast_cell", feature = "fast_ramp"))]
+#[cfg(feature = "fast")]
 const DIVERGENCE_BUDGET: Option<f32> = Some(1.0e-5);
 /// `SharedConstants.WORLD_VERSION` of the snapshot the dumps came from. Asserted
 /// rather than skipped, so a corpus bump cannot silently invalidate the oracle.

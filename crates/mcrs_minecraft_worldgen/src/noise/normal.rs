@@ -228,34 +228,22 @@ mod bound_tests {
         }
     }
 
-    /// The table this profile is pinned to, and whether it has to match bit for
-    /// bit. The two shipping profiles each carry their own, because a tolerance
-    /// wide enough to cover both would stop catching drift in either. A build
-    /// with one half of `fast` exists to bisect a divergence rather than to ship,
-    /// so it is held to a budget against the strict table instead of a table
-    /// nobody reads.
-    fn pinned_samples() -> ([[u32; 3]; 3], bool) {
-        const STRICT: [[u32; 3]; 3] = [
+    /// The table this profile is pinned to. The two profiles each carry their
+    /// own, because a tolerance wide enough to cover both would stop catching
+    /// drift in either.
+    fn pinned_samples() -> [[u32; 3]; 3] {
+        #[cfg(not(feature = "fast"))]
+        return [
             [0x3e68047a, 0x3e2b16cf, 0xbf105330],
             [0x3de878b7, 0x3dab6c85, 0xbe909b7e],
             [0x3db75933, 0x3d87335d, 0xbe6419f3],
         ];
-        #[cfg(not(any(feature = "fast_fma", feature = "fast_cell")))]
-        return (STRICT, true);
-        #[cfg(all(feature = "fast_fma", feature = "fast_cell"))]
-        return (
-            [
-                [0x3e68046b, 0x3e2b16eb, 0xbf10532f],
-                [0x3de878aa, 0x3dab6ca1, 0xbe909b7e],
-                [0x3db75929, 0x3d873374, 0xbe6419f4],
-            ],
-            true,
-        );
-        #[cfg(all(
-            any(feature = "fast_fma", feature = "fast_cell"),
-            not(all(feature = "fast_fma", feature = "fast_cell"))
-        ))]
-        return (STRICT, false);
+        #[cfg(feature = "fast")]
+        return [
+            [0x3e68046b, 0x3e2b16eb, 0xbf10532f],
+            [0x3de878aa, 0x3dab6ca1, 0xbe909b7e],
+            [0x3db75929, 0x3d873374, 0xbe6419f4],
+        ];
     }
 
     /// Unlike the octave factors and ranges above, these bits are pinned from our
@@ -264,7 +252,7 @@ mod bound_tests {
     #[test]
     fn the_modes_sample_apart() {
         let positions = [(0.0, 0.0, 0.0), (0.5, 4.0, -2.0), (-204.0, 28.0, 12.0)];
-        let (expected, exact) = pinned_samples();
+        let expected = pinned_samples();
         for (mode, bits) in [
             Normalization::Disabled,
             Normalization::Enabled,
@@ -278,17 +266,8 @@ mod bound_tests {
                 .iter()
                 .map(|(x, y, z)| noise.get(*x, *y, *z))
                 .collect();
-            if exact {
-                let got: Vec<u32> = actual.iter().map(|v| v.to_bits()).collect();
-                assert_eq!(got, bits.to_vec(), "{mode:?}");
-                continue;
-            }
-            for (value, want) in actual.iter().zip(bits.map(f32::from_bits)) {
-                assert!(
-                    (value - want).abs() <= 1.0e-6 * want.abs().max(1.0),
-                    "{mode:?}: {value} against the strict {want}"
-                );
-            }
+            let got: Vec<u32> = actual.iter().map(|v| v.to_bits()).collect();
+            assert_eq!(got, bits.to_vec(), "{mode:?}");
         }
     }
 }

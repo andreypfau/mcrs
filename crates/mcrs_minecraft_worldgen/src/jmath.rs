@@ -97,18 +97,18 @@ pub fn clampf(v: f32, min: f32, max: f32) -> f32 {
 /// enabled (`target-cpu=native`, or `+fma` on x86-64).
 #[inline(always)]
 pub fn mul_add(a: f32, b: f32, c: f32) -> f32 {
-    #[cfg(feature = "fast_fma")]
+    #[cfg(feature = "fast")]
     return a.mul_add(b, c);
-    #[cfg(not(feature = "fast_fma"))]
+    #[cfg(not(feature = "fast"))]
     return a * b + c;
 }
 
 /// [`mul_add`] over the width the lattice coordinates keep.
 #[inline(always)]
 pub fn mul_add64(a: f64, b: f64, c: f64) -> f64 {
-    #[cfg(feature = "fast_fma")]
+    #[cfg(feature = "fast")]
     return a.mul_add(b, c);
-    #[cfg(not(feature = "fast_fma"))]
+    #[cfg(not(feature = "fast"))]
     return a * b + c;
 }
 

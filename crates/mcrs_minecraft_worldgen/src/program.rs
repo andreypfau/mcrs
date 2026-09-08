@@ -1222,21 +1222,14 @@ fn lattice_volume(volume: &Volume, axes: Axes, cell_xz: i32, cell_y: i32) -> Vol
     Volume::new(last - first + IVec3::splat(2), first * cell, cell)
 }
 
-/// The value ramp along Y inside one interpolated cell.
-///
-/// Vanilla walks it a row at a time, so the strict profile carries the same
-/// chain of roundings. The fast profile evaluates the closed form: it agrees on
-/// a cell's first row and drifts by the rounding the accumulator would have
-/// picked up over the rows after it. What it buys is the loop-carried
-/// dependency, without which the row fill cannot vectorise at all.
-#[cfg(not(feature = "fast_ramp"))]
+/// The value ramp along Y inside one interpolated cell, walked a row at a time
+/// as vanilla walks it, so the chain of roundings is the same.
 struct YRamp {
     value: f32,
     step: f32,
     row: i32,
 }
 
-#[cfg(not(feature = "fast_ramp"))]
 impl YRamp {
     #[inline(always)]
     fn new(bottom: f32, step: f32, first: i32) -> Self {
@@ -1256,25 +1249,6 @@ impl YRamp {
             self.row += 1;
         }
         self.value
-    }
-}
-
-#[cfg(feature = "fast_ramp")]
-struct YRamp {
-    bottom: f32,
-    step: f32,
-}
-
-#[cfg(feature = "fast_ramp")]
-impl YRamp {
-    #[inline(always)]
-    fn new(bottom: f32, step: f32, _first: i32) -> Self {
-        Self { bottom, step }
-    }
-
-    #[inline(always)]
-    fn at(&mut self, local: i32) -> f32 {
-        jmath::mul_add(self.step, local as f32, self.bottom)
     }
 }
 
@@ -1649,7 +1623,7 @@ mod tests {
         (evaluated, x, scale, offset)
     }
 
-    #[cfg(not(feature = "fast_fma"))]
+    #[cfg(not(feature = "fast"))]
     #[test]
     fn the_strict_affine_rounds_twice_as_java_does() {
         let (evaluated, x, scale, offset) = affine_at_a_rounding_boundary();
@@ -1661,7 +1635,7 @@ mod tests {
         assert_eq!(evaluated, x * scale + offset);
     }
 
-    #[cfg(feature = "fast_fma")]
+    #[cfg(feature = "fast")]
     #[test]
     fn the_fast_affine_fuses_into_one_rounding() {
         let (evaluated, x, scale, offset) = affine_at_a_rounding_boundary();
@@ -1684,9 +1658,8 @@ mod tests {
         (rows, accumulated, bottom, step)
     }
 
-    #[cfg(not(feature = "fast_ramp"))]
     #[test]
-    fn the_strict_ramp_accumulates_a_row_at_a_time() {
+    fn the_ramp_accumulates_a_row_at_a_time() {
         let (rows, accumulated, bottom, step) = ramp_at_a_rounding_boundary();
         assert_ne!(
             accumulated[7],
@@ -1694,19 +1667,6 @@ mod tests {
             "the operands must separate the two forms"
         );
         assert_eq!(rows, accumulated);
-    }
-
-    #[cfg(feature = "fast_ramp")]
-    #[test]
-    fn the_fast_ramp_evaluates_the_closed_form() {
-        let (rows, accumulated, bottom, step) = ramp_at_a_rounding_boundary();
-        assert_ne!(
-            rows[7], accumulated[7],
-            "the operands must separate the two forms"
-        );
-        for (k, &value) in rows.iter().enumerate() {
-            assert_eq!(value, jmath::mul_add(step, k as f32, bottom));
-        }
     }
 
     #[test]
