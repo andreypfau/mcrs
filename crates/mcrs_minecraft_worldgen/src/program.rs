@@ -329,6 +329,92 @@ impl Node {
         }
     }
 
+    /// [`Node::visit_inputs`] with the ids handed over for rewriting, which is
+    /// what renumbering the arena after a compaction needs.
+    pub(crate) fn visit_inputs_mut(&mut self, f: &mut impl FnMut(&mut NodeId)) {
+        fn rewrite_all(slice: &mut Arc<[NodeId]>, f: &mut impl FnMut(&mut NodeId)) {
+            let mut owned = slice.to_vec();
+            owned.iter_mut().for_each(&mut *f);
+            *slice = owned.into();
+        }
+        match self {
+            Node::Constant(_)
+            | Node::Gradient(_)
+            | Node::Noise { .. }
+            | Node::ShiftB { .. }
+            | Node::DistanceToPoint(_)
+            | Node::EndOuterIslands(_)
+            | Node::OldBlendedNoise(_) => {}
+
+            Node::Affine { input, .. }
+            | Node::PiecewiseAffine { input, .. }
+            | Node::Unary { input, .. }
+            | Node::Clamp { input, .. }
+            | Node::ConstBinary { input, .. }
+            | Node::IntegerMultipleRound { input, .. }
+            | Node::ConstRangeChoice { input, .. }
+            | Node::Interpolated { input, .. } => f(input),
+
+            Node::Binary { a, b, .. } => {
+                f(a);
+                f(b);
+            }
+            Node::Round {
+                value, multiple, ..
+            } => {
+                f(value);
+                f(multiple);
+            }
+            Node::Lerp {
+                alpha,
+                first,
+                second,
+            } => {
+                f(alpha);
+                f(first);
+                f(second);
+            }
+            Node::ShiftedNoise { x, y, z, .. } => {
+                f(x);
+                f(y);
+                f(z);
+            }
+            Node::RangeChoice {
+                input,
+                when_in,
+                when_out,
+                ..
+            } => {
+                f(input);
+                f(when_in);
+                f(when_out);
+            }
+            Node::SingleThreshold {
+                input,
+                below,
+                above,
+                ..
+            } => {
+                f(input);
+                f(below);
+                f(above);
+            }
+            Node::IntervalSelect { input, arms, .. } => {
+                f(input);
+                rewrite_all(arms, f);
+            }
+            Node::Spline { coords, .. } => rewrite_all(coords, f),
+            Node::FindTopSurface {
+                density,
+                upper_bound,
+                ..
+            } => {
+                f(density);
+                f(upper_bound);
+            }
+        }
+    }
+
     /// The inputs this node reads at the position being filled. The two kinds
     /// that sample elsewhere hide those inputs here, so a plan built from this
     /// walk never evaluates a subtree at the wrong position — and never at all
@@ -345,9 +431,6 @@ impl Node {
 /// A compiled density graph: nodes in topological order, each tagged with the
 /// axes it varies over.
 ///
-/// The stratum replaces vanilla's `Slice`. A fill evaluates one node at a time
-/// over the whole volume, and each node's buffer holds only the axes it varies
-/// over: a node that ignores Y holds one value per column, and one that ignores
 /// A node's stratum, from the strata of its inputs. The union of the inputs'
 /// axes, with the exceptions vanilla's `domainAxes` names: a zero sampling scale
 /// sheds an axis, the transposed shift and the end islands are flat, and the
@@ -378,6 +461,12 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
     }
 }
 
+/// A compiled density graph: nodes in topological order, each tagged with the
+/// axes it varies over.
+///
+/// The stratum replaces vanilla's `Slice`. A fill evaluates one node at a time
+/// over the whole volume, and each node's buffer holds only the axes it varies
+/// over: a node that ignores Y holds one value per column, and one that ignores
 /// X and Z holds one value for the fill. Both fall out of `axes`, with no
 /// rewrite pass and no slice node.
 pub struct Program {
@@ -457,6 +546,7 @@ impl Lattice {
     }
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl Program {
     pub fn new(
         nodes: Vec<Node>,
@@ -515,10 +605,6 @@ impl Program {
 
     pub fn len(&self) -> usize {
         self.nodes.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
     }
 
     #[inline]

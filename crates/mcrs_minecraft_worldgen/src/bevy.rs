@@ -105,8 +105,33 @@ pub fn build_dimension_router(
 macro_rules! registries {
     (
         leaf { $(($lname:ident, $lfolder:literal, $lasset:ty, $lvalue:ty, $lfield:ident)),* $(,)? }
-        nested { $(($nname:ident, $nfolder:literal, $nasset:ty, $nvalue:ty, $nfield:ident)),* $(,)? }
+        nested {
+            $(($nname:ident, $nfolder:literal, $nasset:ident, $nvalue:ty, $nfield:ident, $nvisit:ident)),* $(,)?
+        }
     ) => {
+        $(
+            #[derive(Asset, TypePath, Debug, Clone)]
+            pub struct $nasset {
+                pub $nfield: $nvalue,
+                #[dependency]
+                pub deps: AssetRefs,
+            }
+
+            impl WorldgenAsset for $nasset {
+                type Proto = $nvalue;
+
+                fn references(proto: &Self::Proto) -> References {
+                    let mut refs = References::default();
+                    refs.$nvisit(proto);
+                    refs
+                }
+
+                fn build(proto: Self::Proto, deps: AssetRefs) -> Self {
+                    Self { $nfield: proto, deps }
+                }
+            }
+        )*
+
         /// The ids one asset names, one level deep: a referenced asset's own
         /// references are collected when that asset loads.
         #[derive(Default, Debug, PartialEq, Eq)]
@@ -196,43 +221,31 @@ registries! {
             "density_function",
             DensityFunctionAsset,
             DensityFunctionHolder,
-            function
+            function,
+            visit_holder
         ),
         (
             conditions,
             "material_condition",
             MaterialConditionAsset,
             MaterialConditionHolder,
-            condition
+            condition,
+            visit_condition_holder
         ),
-        (rules, "material_rule", MaterialRuleAsset, MaterialRuleHolder, rule),
+        (
+            rules,
+            "material_rule",
+            MaterialRuleAsset,
+            MaterialRuleHolder,
+            rule,
+            visit_rule_holder
+        ),
     }
 }
 
 #[derive(Asset, TypePath, Debug)]
 pub struct NoiseGeneratorSettingsAsset {
     pub settings: NoiseGeneratorSettings,
-    #[dependency]
-    pub deps: AssetRefs,
-}
-
-#[derive(Asset, TypePath, Debug, Clone)]
-pub struct DensityFunctionAsset {
-    pub function: DensityFunctionHolder,
-    #[dependency]
-    pub deps: AssetRefs,
-}
-
-#[derive(Asset, TypePath, Debug, Clone)]
-pub struct MaterialRuleAsset {
-    pub rule: MaterialRuleHolder,
-    #[dependency]
-    pub deps: AssetRefs,
-}
-
-#[derive(Asset, TypePath, Debug, Clone)]
-pub struct MaterialConditionAsset {
-    pub condition: MaterialConditionHolder,
     #[dependency]
     pub deps: AssetRefs,
 }
@@ -276,48 +289,6 @@ impl WorldgenAsset for NoiseGeneratorSettingsAsset {
 
     fn build(settings: Self::Proto, deps: AssetRefs) -> Self {
         Self { settings, deps }
-    }
-}
-
-impl WorldgenAsset for DensityFunctionAsset {
-    type Proto = DensityFunctionHolder;
-
-    fn references(function: &Self::Proto) -> References {
-        let mut refs = References::default();
-        refs.visit_holder(function);
-        refs
-    }
-
-    fn build(function: Self::Proto, deps: AssetRefs) -> Self {
-        Self { function, deps }
-    }
-}
-
-impl WorldgenAsset for MaterialRuleAsset {
-    type Proto = MaterialRuleHolder;
-
-    fn references(rule: &Self::Proto) -> References {
-        let mut refs = References::default();
-        refs.visit_rule_holder(rule);
-        refs
-    }
-
-    fn build(rule: Self::Proto, deps: AssetRefs) -> Self {
-        Self { rule, deps }
-    }
-}
-
-impl WorldgenAsset for MaterialConditionAsset {
-    type Proto = MaterialConditionHolder;
-
-    fn references(condition: &Self::Proto) -> References {
-        let mut refs = References::default();
-        refs.visit_condition_holder(condition);
-        refs
-    }
-
-    fn build(condition: Self::Proto, deps: AssetRefs) -> Self {
-        Self { condition, deps }
     }
 }
 

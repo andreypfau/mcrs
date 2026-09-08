@@ -86,8 +86,9 @@ fn lattice_size(cell: IVec3, height: i32) -> IVec3 {
 #[test]
 fn a_settled_cell_bound_contains_every_block_density_in_it() {
     let router = router(845);
+    let mut terms = Vec::new();
     let checked = check_root(&router, FINAL_DENSITY, |corners, min, max| {
-        router.final_density_cell_bounds(corners, min, max)
+        router.final_density_cell_bounds(corners, min, max, &mut terms)
     });
     assert!(checked > 0, "no cell produced a bound");
 }
@@ -103,8 +104,9 @@ fn a_settled_vein_cell_bound_contains_every_block_density_in_it() {
     assert!(!veins.is_empty(), "the overworld ships ore veins");
     for (index, vein) in veins.iter().enumerate() {
         let bounds: &CellBounds = router.vein_cell_bounds(index);
+        let mut terms = Vec::new();
         let checked = check_root(&router, vein.density, |corners, min, max| {
-            bounds.eval(&router.program, corners, min, max)
+            bounds.eval(&router.program, corners, min, max, &mut terms)
         });
         assert!(checked > 0, "vein {index} produced no bound");
     }
@@ -115,7 +117,7 @@ fn a_settled_vein_cell_bound_contains_every_block_density_in_it() {
 fn check_root(
     router: &NoiseRouter,
     root: usize,
-    eval: impl Fn(&[Interval], IVec3, IVec3) -> Option<Interval>,
+    mut eval: impl FnMut(&[Interval], IVec3, IVec3) -> Option<Interval>,
 ) -> usize {
     let bounds = if root == FINAL_DENSITY {
         None

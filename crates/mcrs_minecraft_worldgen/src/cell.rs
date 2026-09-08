@@ -28,10 +28,6 @@ pub struct CellBounds {
 
 const NO_SLOT: u32 = u32::MAX;
 
-thread_local! {
-    static TERM_VALUES: std::cell::Cell<Vec<Interval>> = const { std::cell::Cell::new(Vec::new()) };
-}
-
 impl CellBounds {
     pub(crate) fn new(program: &Program, root: NodeId) -> Self {
         let is_wrapper = |id: NodeId| matches!(program.node(id), Node::Interpolated { .. });
@@ -93,7 +89,7 @@ impl CellBounds {
         // values, so one probe settles it for every cell.
         let probe = vec![Interval::exact(0.0); bounds.wrappers.len()];
         bounds.boundable = bounds
-            .eval(program, &probe, IVec3::ZERO, IVec3::ZERO)
+            .eval(program, &probe, IVec3::ZERO, IVec3::ZERO, &mut Vec::new())
             .is_some();
         bounds
     }
@@ -123,12 +119,17 @@ impl CellBounds {
     ///
     /// `None` when a term has a kind this cannot bound, which simply means the
     /// caller must evaluate the cell block by block.
+    ///
+    /// `values` is one bound per reached term, reused across the few hundred
+    /// calls a column makes; a fresh vector each time would be the allocation,
+    /// not the arithmetic.
     pub fn eval(
         &self,
         program: &Program,
         corners: &[Interval],
         min: IVec3,
         max: IVec3,
+        values: &mut Vec<Interval>,
     ) -> Option<Interval> {
         if !self.boundable {
             return None;
@@ -138,30 +139,21 @@ impl CellBounds {
             self.wrappers.len(),
             "one corner interval per interpolated wrapper"
         );
-        // One bound per cell of a column is a few hundred calls; a fresh
-        // vector each time is the allocation, not the arithmetic.
-        let mut values = TERM_VALUES.take();
         values.clear();
         values.resize(self.terms.len(), Interval::NAI);
         for (k, &id) in self.wrappers.iter().enumerate() {
             values[self.slot[id as usize] as usize] = corners[k];
         }
-        let mut answer = Some(Interval::NAI);
         for &id in self.terms.iter() {
             let node = program.node(id);
             if matches!(node, Node::Interpolated { .. }) {
                 continue;
             }
-            let Some(bound) = node_bounds(node, Bounds::Cell { min, max }, |dep| {
+            let bound = node_bounds(node, Bounds::Cell { min, max }, |dep| {
                 values[self.slot[dep as usize] as usize]
-            }) else {
-                answer = None;
-                break;
-            };
+            })?;
             values[self.slot[id as usize] as usize] = bound;
         }
-        let answer = answer.map(|_| values[self.slot[self.root as usize] as usize]);
-        TERM_VALUES.set(values);
-        answer
+        Some(values[self.slot[self.root as usize] as usize])
     }
 }

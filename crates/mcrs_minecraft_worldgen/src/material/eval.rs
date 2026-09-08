@@ -36,6 +36,9 @@ pub struct MaterialScratch {
     vein_strip: Vec<usize>,
     lattice: Vec<f32>,
     corners: Vec<Interval>,
+    /// One bound per term of a vein's [`crate::cell::CellBounds`], reused
+    /// across every cell of the column.
+    cell_terms: Vec<Interval>,
     cell_density: Vec<f32>,
     /// The conditions whose answer changes with y alone, at a height a strip
     /// knows before its descent: they split a strip into runs.
@@ -966,7 +969,13 @@ fn prefill_veins(
                             &mut scratch.corners,
                         );
                         bounds
-                            .eval(&router.program, &scratch.corners, cell_min, cell_max)
+                            .eval(
+                                &router.program,
+                                &scratch.corners,
+                                cell_min,
+                                cell_max,
+                                &mut scratch.cell_terms,
+                            )
                             .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK)
                     };
                     scratch.vein_cells.push(!settled);

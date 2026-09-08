@@ -589,7 +589,7 @@ impl<'r> Builder<'_, '_, 'r> {
         &mut self,
         holder: &crate::proto::DensityFunctionHolder,
     ) -> Result<usize, CompileError> {
-        let node = self.compiler.compile_root(holder)?;
+        let node = self.compiler.compile(holder)?;
         let root = self.roots.len();
         self.roots.push(node);
         Ok(root)

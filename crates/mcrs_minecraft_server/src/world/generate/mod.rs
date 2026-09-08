@@ -234,9 +234,12 @@ impl CellLattice {
             self.volume.block_y(at.y),
             self.volume.block_z(at.z),
         );
-        let Some(bounds) =
-            noise_router.final_density_cell_bounds(&fill.corners, min, min + self.cell - 1)
-        else {
+        let Some(bounds) = noise_router.final_density_cell_bounds(
+            &fill.corners,
+            min,
+            min + self.cell - 1,
+            &mut fill.cell_terms,
+        ) else {
             return CellFill::Mixed;
         };
         if bounds.min() > CELL_BOUNDS_SLACK {
@@ -276,6 +279,7 @@ struct FillBuffers {
     ws: Workspace,
     density: Vec<f32>,
     corners: Vec<Interval>,
+    cell_terms: Vec<Interval>,
 }
 
 /// Place `final_density` over a whole chunk column.

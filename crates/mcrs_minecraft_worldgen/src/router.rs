@@ -274,8 +274,10 @@ impl NoiseRouter {
         corners: &[Interval],
         min: IVec3,
         max: IVec3,
+        terms: &mut Vec<Interval>,
     ) -> Option<Interval> {
-        self.cell_bounds.eval(&self.program, corners, min, max)
+        self.cell_bounds
+            .eval(&self.program, corners, min, max, terms)
     }
 
     /// The cell bounds of one material ore vein's density, indexed as the

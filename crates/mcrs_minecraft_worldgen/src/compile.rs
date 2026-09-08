@@ -79,7 +79,7 @@ pub fn build_router(
     let mut failed = Vec::new();
 
     for (name, holder) in ROOT_NAMES.iter().zip(settings.noise_router.roots()) {
-        match compiler.compile_root(holder) {
+        match compiler.compile(holder) {
             Ok(id) => nodes.push(id),
             Err(error) => {
                 tracing::warn!(root = name, %error, "density root did not compile");
@@ -166,18 +166,6 @@ impl<'a> Compiler<'a> {
             beta_climate: None,
             cells: 0,
         }
-    }
-
-    pub fn len(&self) -> usize {
-        self.nodes.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
-    }
-
-    pub fn compile_root(&mut self, holder: &DensityFunctionHolder) -> Result<NodeId, CompileError> {
-        self.compile(holder)
     }
 
     /// Drops every node no root can reach — a root that failed halfway leaves
@@ -285,7 +273,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile(&mut self, holder: &DensityFunctionHolder) -> Result<NodeId, CompileError> {
+    pub fn compile(&mut self, holder: &DensityFunctionHolder) -> Result<NodeId, CompileError> {
         if let Some(&id) = self.compiled.get(holder) {
             return Ok(id);
         }
@@ -1215,85 +1203,7 @@ fn spline_value(spline: &ProtoSpline, order: &[DensityFunctionHolder]) -> Spline
 }
 
 fn remap_inputs(node: &mut Node, map: &[NodeId]) {
-    let rewrite = |id: &mut NodeId| *id = map[*id as usize];
-    match node {
-        Node::Constant(_)
-        | Node::Gradient(_)
-        | Node::Noise { .. }
-        | Node::ShiftB { .. }
-        | Node::DistanceToPoint(_)
-        | Node::EndOuterIslands(_)
-        | Node::OldBlendedNoise(_) => {}
-
-        Node::Affine { input, .. }
-        | Node::PiecewiseAffine { input, .. }
-        | Node::Unary { input, .. }
-        | Node::Clamp { input, .. }
-        | Node::ConstBinary { input, .. }
-        | Node::IntegerMultipleRound { input, .. }
-        | Node::ConstRangeChoice { input, .. } => rewrite(input),
-
-        Node::Binary { a, b, .. } => {
-            rewrite(a);
-            rewrite(b);
-        }
-        Node::Round {
-            value, multiple, ..
-        } => {
-            rewrite(value);
-            rewrite(multiple);
-        }
-        Node::Lerp {
-            alpha,
-            first,
-            second,
-        } => {
-            rewrite(alpha);
-            rewrite(first);
-            rewrite(second);
-        }
-        Node::ShiftedNoise { x, y, z, .. } => {
-            rewrite(x);
-            rewrite(y);
-            rewrite(z);
-        }
-        Node::RangeChoice {
-            input,
-            when_in,
-            when_out,
-            ..
-        } => {
-            rewrite(input);
-            rewrite(when_in);
-            rewrite(when_out);
-        }
-        Node::SingleThreshold {
-            input,
-            below,
-            above,
-            ..
-        } => {
-            rewrite(input);
-            rewrite(below);
-            rewrite(above);
-        }
-        Node::IntervalSelect { input, arms, .. } => {
-            rewrite(input);
-            *arms = arms.iter().map(|&arm| map[arm as usize]).collect();
-        }
-        Node::Spline { coords, .. } => {
-            *coords = coords.iter().map(|&coord| map[coord as usize]).collect();
-        }
-        Node::Interpolated { input, .. } => rewrite(input),
-        Node::FindTopSurface {
-            density,
-            upper_bound,
-            ..
-        } => {
-            rewrite(density);
-            rewrite(upper_bound);
-        }
-    }
+    node.visit_inputs_mut(&mut |id| *id = map[*id as usize]);
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -1369,7 +1279,7 @@ pub(crate) mod tests {
         let functions = no_functions();
         let noises = no_noises();
         let mut compiler = Compiler::new(&functions, &noises, 0, false);
-        let root = compiler.compile_root(&holder).expect("compiles");
+        let root = compiler.compile(&holder).expect("compiles");
         let (nodes, axes, ranges, roots) = prune(
             compiler.nodes,
             compiler.axes,
@@ -1389,7 +1299,7 @@ pub(crate) mod tests {
         let functions = no_functions();
         let noises = no_noises();
         let mut compiler = Compiler::new(&functions, &noises, 0, false);
-        let root = compiler.compile_root(&holder).expect("compiles");
+        let root = compiler.compile(&holder).expect("compiles");
         let program = compiler.into_program(vec![root]);
         let volume = Volume::point(at);
         let mut out = vec![0.0; volume.len()];
@@ -1680,7 +1590,7 @@ pub(crate) mod tests {
         let noises = no_noises();
         let mut compiler = Compiler::new(&functions, &noises, 0, false);
         assert_eq!(
-            compiler.compile_root(&holder),
+            compiler.compile(&holder),
             Err(CompileError::Unsupported("slice"))
         );
     }
