@@ -2,8 +2,7 @@ use crate::cell::CELL_BOUNDS_SLACK;
 use crate::interval::Interval;
 use crate::jmath::mth_floor;
 use crate::material::compile::{
-    CondId, Condition, MaterialContext, MaterialProgram, NoiseId, Op, Scope, SurfaceNoise, Tri,
-    VeinId,
+    CondId, Condition, MaterialProgram, NoiseId, Op, Scope, SurfaceNoise, Tri, VeinId,
 };
 use crate::program::{NodeId, Workspace};
 use crate::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
@@ -607,10 +606,30 @@ where
         self.depth_below = depth_below;
     }
 
-    /// The block the rules produce at the current position, if any.
+    /// The block the rules produce at the current position: the tape walked from
+    /// the top, each guard answered against this position.
     pub fn apply(&mut self) -> Option<VoxelId> {
-        let program = self.program;
-        program.run(self)
+        let mut pc = 0usize;
+        while let Some(op) = self.program.tape().get(pc) {
+            match *op {
+                Op::Guard { condition, skip_to } => {
+                    if self.test(condition) {
+                        pc += 1;
+                    } else {
+                        pc = skip_to as usize;
+                    }
+                }
+                Op::Block { state } => return Some(state),
+                Op::Bandlands => return Some(self.bandlands()),
+                Op::OreVein { vein } => {
+                    if let Some(state) = self.ore_vein(vein) {
+                        return Some(state);
+                    }
+                    pc += 1;
+                }
+            }
+        }
+        None
     }
 
     pub fn min_surface_level(&mut self) -> i32 {
@@ -835,12 +854,15 @@ impl<B, R> MaterialEval<'_, B, R> {
     }
 }
 
-impl<B, R> MaterialContext for MaterialEval<'_, B, R>
+impl<B, R> MaterialEval<'_, B, R>
 where
     B: FnMut(i32, i32, i32) -> u32,
     R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
 {
-    fn test(&mut self, condition: CondId) -> bool {
+    /// Answers one guard, memoised against the scope its condition was compiled
+    /// with, so a condition shared by dozens of rules is computed once per strip
+    /// or per y.
+    pub(crate) fn test(&mut self, condition: CondId) -> bool {
         if !self.memoise {
             return self.compute(condition);
         }
@@ -860,7 +882,7 @@ where
         value
     }
 
-    fn bandlands(&mut self) -> VoxelId {
+    pub(crate) fn bandlands(&mut self) -> VoxelId {
         let noise = self.noise(
             self.program.surface_noise(SurfaceNoise::ClayBandsOffset),
             false,
@@ -873,7 +895,7 @@ where
         bands[(self.block_y + offset).rem_euclid(bands.len() as i32) as usize]
     }
 
-    fn ore_vein(&mut self, vein: VeinId) -> Option<VoxelId> {
+    pub(crate) fn ore_vein(&mut self, vein: VeinId) -> Option<VoxelId> {
         if !self.vein_possible(vein as usize) {
             return None;
         }

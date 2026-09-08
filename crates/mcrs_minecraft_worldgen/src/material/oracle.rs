@@ -1,4 +1,4 @@
-use crate::material::compile::{MaterialContext, MaterialInputs, VeinId};
+use crate::material::compile::{MaterialInputs, VeinId};
 use crate::material::eval::{MaterialEval, NO_WATER, map};
 use crate::material::proto::{
     CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule, MaterialRuleHolder,

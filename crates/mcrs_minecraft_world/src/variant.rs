@@ -1,49 +1,6 @@
-use bevy_asset::io::Reader;
-use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
+use bevy_asset::Asset;
 use bevy_reflect::TypePath;
-use mcrs_minecraft_core::asset::read_all;
 use serde::{Deserialize, Serialize};
-
-macro_rules! leaf_asset {
-    ($name:ident, $loader:ident, $error:ident) => {
-        impl Asset for $name {}
-
-        impl VisitAssetDependencies for $name {
-            fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
-        }
-
-        #[derive(Default, TypePath)]
-        pub struct $loader;
-
-        #[derive(Debug, thiserror::Error)]
-        pub enum $error {
-            #[error(transparent)]
-            Io(#[from] std::io::Error),
-            #[error("JSON parse error: {0}")]
-            Json(#[from] serde_json::Error),
-        }
-
-        impl AssetLoader for $loader {
-            type Asset = $name;
-            type Settings = ();
-            type Error = $error;
-
-            async fn load(
-                &self,
-                reader: &mut dyn Reader,
-                _settings: &(),
-                _load_context: &mut LoadContext<'_>,
-            ) -> Result<$name, $error> {
-                let bytes = read_all(reader).await?;
-                Ok(serde_json::from_slice(&bytes)?)
-            }
-
-            fn extensions(&self) -> &[&str] {
-                &[]
-            }
-        }
-    };
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct WolfVariantAssets {
@@ -52,15 +9,13 @@ pub struct WolfVariantAssets {
     pub angry: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct WolfVariant {
     pub assets: WolfVariantAssets,
     pub baby_assets: WolfVariantAssets,
     #[serde(default, skip_serializing)]
     pub spawn_conditions: Option<serde_json::Value>,
 }
-
-leaf_asset!(WolfVariant, WolfVariantLoader, WolfVariantLoaderError);
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct WolfSounds {
@@ -73,17 +28,11 @@ pub struct WolfSounds {
     pub step_sound: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct WolfSoundVariant {
     pub adult_sounds: WolfSounds,
     pub baby_sounds: WolfSounds,
 }
-
-leaf_asset!(
-    WolfSoundVariant,
-    WolfSoundVariantLoader,
-    WolfSoundVariantLoaderError
-);
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct PigSounds {
@@ -103,17 +52,11 @@ pub struct PigSounds {
     pub boost_sound: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct PigSoundVariant {
     pub adult_sounds: PigSounds,
     pub baby_sounds: PigSounds,
 }
-
-leaf_asset!(
-    PigSoundVariant,
-    PigSoundVariantLoader,
-    PigSoundVariantLoaderError
-);
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct CatSounds {
@@ -137,19 +80,13 @@ pub struct CatSounds {
     pub stray_ambient_sound: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct CatSoundVariant {
     pub adult_sounds: CatSounds,
     pub baby_sounds: CatSounds,
 }
 
-leaf_asset!(
-    CatSoundVariant,
-    CatSoundVariantLoader,
-    CatSoundVariantLoaderError
-);
-
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct CowSoundVariant {
     #[serde(default)]
     pub ambient_sound: Option<String>,
@@ -162,12 +99,6 @@ pub struct CowSoundVariant {
     #[serde(default)]
     pub milk_sound: Option<String>,
 }
-
-leaf_asset!(
-    CowSoundVariant,
-    CowSoundVariantLoader,
-    CowSoundVariantLoaderError
-);
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct ChickenSounds {
@@ -183,19 +114,13 @@ pub struct ChickenSounds {
     pub egg_sound: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct ChickenSoundVariant {
     pub adult_sounds: ChickenSounds,
     pub baby_sounds: ChickenSounds,
 }
 
-leaf_asset!(
-    ChickenSoundVariant,
-    ChickenSoundVariantLoader,
-    ChickenSoundVariantLoaderError
-);
-
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct PigVariant {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -205,18 +130,14 @@ pub struct PigVariant {
     pub spawn_conditions: Option<serde_json::Value>,
 }
 
-leaf_asset!(PigVariant, PigVariantLoader, PigVariantLoaderError);
-
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct FrogVariant {
     pub asset_id: String,
     #[serde(default, skip_serializing)]
     pub spawn_conditions: Option<serde_json::Value>,
 }
 
-leaf_asset!(FrogVariant, FrogVariantLoader, FrogVariantLoaderError);
-
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct CatVariant {
     pub asset_id: String,
     pub baby_asset_id: String,
@@ -224,9 +145,7 @@ pub struct CatVariant {
     pub spawn_conditions: Option<serde_json::Value>,
 }
 
-leaf_asset!(CatVariant, CatVariantLoader, CatVariantLoaderError);
-
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct CowVariant {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -236,9 +155,7 @@ pub struct CowVariant {
     pub spawn_conditions: Option<serde_json::Value>,
 }
 
-leaf_asset!(CowVariant, CowVariantLoader, CowVariantLoaderError);
-
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct ChickenVariant {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -248,13 +165,7 @@ pub struct ChickenVariant {
     pub spawn_conditions: Option<serde_json::Value>,
 }
 
-leaf_asset!(
-    ChickenVariant,
-    ChickenVariantLoader,
-    ChickenVariantLoaderError
-);
-
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct ZombieNautilusVariant {
     pub asset_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -262,12 +173,6 @@ pub struct ZombieNautilusVariant {
     #[serde(default, skip_serializing)]
     pub spawn_conditions: Option<serde_json::Value>,
 }
-
-leaf_asset!(
-    ZombieNautilusVariant,
-    ZombieNautilusVariantLoader,
-    ZombieNautilusVariantLoaderError
-);
 
 #[cfg(test)]
 mod tests {

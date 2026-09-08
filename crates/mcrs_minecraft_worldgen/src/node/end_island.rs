@@ -1,4 +1,4 @@
-use crate::jmath::{clampf, jmax, mul_add, sqrt};
+use crate::jmath::{clampf, jmax, mul_add};
 use crate::noise::simplex::SimplexNoise;
 use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
@@ -62,7 +62,7 @@ impl EndIslandParams {
                         + 9.0;
                 let dx = (sub_section_x - offset_x * 2) as f32;
                 let dz = (sub_section_z - offset_z * 2) as f32;
-                let candidate = mul_add(-sqrt(mul_add(dx, dx, dz * dz)), island_size, 100.0);
+                let candidate = mul_add(-mul_add(dx, dx, dz * dz).sqrt(), island_size, 100.0);
                 height = jmax(height, clampf(candidate, -100.0, 80.0));
             }
         }

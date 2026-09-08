@@ -17,22 +17,18 @@ use bevy_ecs::prelude::{
 };
 use bevy_reflect::TypePath;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::asset::read_all;
+use mcrs_minecraft_core::asset::{JsonLoader, read_all};
 use mcrs_voxel_storage::VoxelId;
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
-use std::env;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info};
 
 /// Which world preset to generate, which of its dimensions this world is, and
-/// the seed.
-///
-/// `MCRS_WORLD_PRESET` and `MCRS_WORLD_SEED` override the preset and the seed.
-/// A dimension sub-app inserts its own copy with `dimension` set to the one it
-/// runs; the default names the overworld.
+/// the seed. A dimension sub-app inserts its own copy with `dimension` set to
+/// the one it runs; the default names the overworld.
 #[derive(Resource, Clone, Debug)]
 pub struct WorldGenConfig {
     pub preset: ResourceLocation,
@@ -42,22 +38,10 @@ pub struct WorldGenConfig {
 
 impl Default for WorldGenConfig {
     fn default() -> Self {
-        let preset = env::var("MCRS_WORLD_PRESET")
-            .ok()
-            .map(|raw| raw.trim().to_lowercase())
-            .filter(|raw| !raw.is_empty())
-            .map(|raw| {
-                ResourceLocation::parse(&raw).unwrap_or_else(|_| ResourceLocation::minecraft(&raw))
-            })
-            .unwrap_or_else(|| ResourceLocation::minecraft("normal"));
-        let seed = env::var("MCRS_WORLD_SEED")
-            .ok()
-            .and_then(|raw| raw.trim().parse().ok())
-            .unwrap_or(0);
         Self {
-            preset,
+            preset: ResourceLocation::minecraft("normal"),
             dimension: ResourceLocation::minecraft("overworld"),
-            seed,
+            seed: 0,
         }
     }
 }
@@ -176,12 +160,12 @@ impl Plugin for WorldgenAssetsPlugin {
             .init_asset::<CarverConfigAsset>()
             .init_asset::<MaterialRuleAsset>()
             .init_asset::<MaterialConditionAsset>()
-            .register_asset_loader(JsonLoader::<DensityFunctionAsset>::default())
-            .register_asset_loader(JsonLoader::<NoiseGeneratorSettingsAsset>::default())
+            .register_asset_loader(WorldgenAssetLoader::<DensityFunctionAsset>::default())
+            .register_asset_loader(WorldgenAssetLoader::<NoiseGeneratorSettingsAsset>::default())
             .register_asset_loader(JsonLoader::<NoiseParamAsset>::default())
             .register_asset_loader(JsonLoader::<CarverConfigAsset>::default())
-            .register_asset_loader(JsonLoader::<MaterialRuleAsset>::default())
-            .register_asset_loader(JsonLoader::<MaterialConditionAsset>::default())
+            .register_asset_loader(WorldgenAssetLoader::<MaterialRuleAsset>::default())
+            .register_asset_loader(WorldgenAssetLoader::<MaterialConditionAsset>::default())
             .register_asset_loader(WorldPresetLoader);
     }
 }
@@ -234,10 +218,14 @@ pub struct WorldgenDefaultStates {
 /// rule's `result_state` becomes a stored block id, and a `biome_is` id becomes
 /// the integer the column's biome grid holds. Inserted from the side that owns
 /// those registries, as [`WorldgenDefaultStates`] is.
+///
+/// A block state is resolved by applying its properties to a definition, which
+/// is a computation this crate has no types for; a biome id is a lookup, so it
+/// crosses as the table itself.
 #[derive(Resource, Clone)]
 pub struct MaterialResolvers {
     pub block: Arc<dyn Fn(&BlockState) -> Option<VoxelId> + Send + Sync>,
-    pub biome: Arc<dyn Fn(&ResourceLocation) -> Option<u32> + Send + Sync>,
+    pub biome: Arc<BTreeMap<ResourceLocation, u32>>,
 }
 
 fn request_world_preset(
@@ -321,11 +309,12 @@ fn build_dimension_noise_router(
         "Building DimensionNoiseRouter"
     );
 
+    let biome = |id: &ResourceLocation| resolvers.biome.get(id).copied();
     let material = MaterialInputs {
         rules: &loaded.rules,
         conditions: &loaded.conditions,
         block: &*resolvers.block,
-        biome: &*resolvers.biome,
+        biome: &biome,
     };
     match build_router(
         &asset.settings,
@@ -476,12 +465,14 @@ pub struct MaterialConditionAsset {
     pub deps: AssetRefs,
 }
 
-#[derive(Asset, TypePath, Debug, Clone)]
+#[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
+#[serde(transparent)]
 pub struct NoiseParamAsset {
     pub noise: NoiseParam,
 }
 
-#[derive(Asset, TypePath, Debug, Clone)]
+#[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
+#[serde(transparent)]
 pub struct CarverConfigAsset {
     pub config: crate::carver::CarverConfig,
 }
@@ -558,40 +549,19 @@ impl WorldgenAsset for MaterialConditionAsset {
     }
 }
 
-impl WorldgenAsset for NoiseParamAsset {
-    type Proto = NoiseParam;
-
-    fn references(_: &Self::Proto) -> References {
-        References::default()
-    }
-
-    fn build(noise: Self::Proto, _: AssetRefs) -> Self {
-        Self { noise }
-    }
-}
-
-impl WorldgenAsset for CarverConfigAsset {
-    type Proto = crate::carver::CarverConfig;
-
-    fn references(_: &Self::Proto) -> References {
-        References::default()
-    }
-
-    fn build(config: Self::Proto, _: AssetRefs) -> Self {
-        Self { config }
-    }
-}
-
+/// The JSON loader for an asset that names other worldgen assets: parse, turn
+/// the ids into handles, keep both. A leaf takes
+/// [`mcrs_minecraft_core::asset::JsonLoader`] instead.
 #[derive(TypePath)]
-pub struct JsonLoader<A: TypePath>(PhantomData<fn() -> A>);
+pub struct WorldgenAssetLoader<A: TypePath>(PhantomData<fn() -> A>);
 
-impl<A: TypePath> Default for JsonLoader<A> {
+impl<A: TypePath> Default for WorldgenAssetLoader<A> {
     fn default() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<A: WorldgenAsset> AssetLoader for JsonLoader<A> {
+impl<A: WorldgenAsset> AssetLoader for WorldgenAssetLoader<A> {
     type Asset = A;
     type Settings = ();
     type Error = WorldgenLoaderError;
@@ -754,6 +724,22 @@ mod tests {
             .join(format!("{}.json", id.path()));
         let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    }
+
+    /// Every shipped biome, numbered by its position in the registry directory,
+    /// which is all the material rules need of a biome id.
+    fn shipped_biome_ids() -> BTreeMap<ResourceLocation, u32> {
+        let mut files = Vec::new();
+        json_files(&worldgen_dir().join("biome"), &mut files);
+        files.sort();
+        files
+            .iter()
+            .enumerate()
+            .map(|(index, path)| {
+                let name = path.file_stem().unwrap().to_str().unwrap();
+                (ResourceLocation::minecraft(name), index as u32)
+            })
+            .collect()
     }
 
     fn json_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
@@ -1092,7 +1078,7 @@ mod tests {
         });
         app.insert_resource(MaterialResolvers {
             block: Arc::new(|_: &BlockState| Some(VoxelId(1))),
-            biome: Arc::new(|_: &ResourceLocation| Some(0)),
+            biome: Arc::new(shipped_biome_ids()),
         });
 
         for _ in 0..4 {

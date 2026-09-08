@@ -5,7 +5,7 @@ use crate::jmath;
 use crate::material::compile::{MaterialInputs, compile_material};
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
-use crate::node::gradient::GradientParams;
+use crate::node::gradient::{GradientParams, Tiling};
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::{CompiledSpline, Multipoint, SplineValue};
 use crate::noise::blended::{BlendedNoise, NOISE_SEED};
@@ -19,6 +19,7 @@ use crate::proto::{
 };
 use crate::router::{NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES};
 use crate::strata::{Axes, NO_AXES};
+use crate::volume::Axis;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
@@ -337,8 +338,8 @@ impl<'a> Compiler<'a> {
                     to_value: g.to_value.0 as f32,
                 };
                 let key = Key::Gradient(
-                    g.axis.bit(),
-                    tiling_tag(g.tiling),
+                    g.axis,
+                    g.tiling,
                     params.from.to_bits(),
                     params.to.to_bits(),
                     params.from_value.to_bits(),
@@ -706,7 +707,7 @@ impl<'a> Compiler<'a> {
         if let Some(value) = self.as_constant(input) {
             return self.constant(op.apply(value));
         }
-        self.intern(Key::Unary(unary_tag(op), input), Node::Unary { op, input })
+        self.intern(Key::Unary(op, input), Node::Unary { op, input })
     }
 
     /// The rectifier vanilla emits for `half_negative` and `quarter_negative`:
@@ -796,7 +797,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn binary(&mut self, op: BinaryOp, a: NodeId, b: NodeId) -> NodeId {
-        self.intern(Key::Binary(binary_tag(op), a, b), Node::Binary { op, a, b })
+        self.intern(Key::Binary(op, a, b), Node::Binary { op, a, b })
     }
 
     fn add(&mut self, left: NodeId, right: NodeId) -> NodeId {
@@ -957,7 +958,7 @@ impl<'a> Compiler<'a> {
                 return input;
             }
             return self.intern(
-                Key::IntegerMultipleRound(input, m.to_bits(), round_tag(kind)),
+                Key::IntegerMultipleRound(input, m.to_bits(), kind),
                 Node::IntegerMultipleRound {
                     input,
                     multiple: m,
@@ -966,7 +967,7 @@ impl<'a> Compiler<'a> {
             );
         }
         self.intern(
-            Key::Round(input, multiple, round_tag(kind)),
+            Key::Round(input, multiple, kind),
             Node::Round {
                 value: input,
                 multiple,
@@ -1366,7 +1367,7 @@ fn remap_inputs(node: &mut Node, map: &[NodeId]) {
 enum Key {
     Constant(u32),
     DeclaredConstant(u32, u32, u32),
-    Gradient(u8, u8, u32, u32, u32, u32),
+    Gradient(Axis, Tiling, u32, u32, u32, u32),
     Noise(usize),
     ShiftB(usize),
     DistanceToPoint(DistanceParams),
@@ -1374,7 +1375,7 @@ enum Key {
     OldBlendedNoise(usize),
     Affine(NodeId, u32, u32),
     PiecewiseAffine(NodeId, u32, u32, u32),
-    Unary(u8, NodeId),
+    Unary(UnaryOp, NodeId),
     Clamp(NodeId, u32, u32),
     ConstMin(NodeId, u32),
     ConstMax(NodeId, u32),
@@ -1382,10 +1383,10 @@ enum Key {
     ConstDiv(NodeId, u32),
     ConstBasePow(u32, NodeId),
     ConstExponentPow(NodeId, u32),
-    IntegerMultipleRound(NodeId, u32, u8),
-    Binary(u8, NodeId, NodeId),
+    IntegerMultipleRound(NodeId, u32, RoundKind),
+    Binary(BinaryOp, NodeId, NodeId),
     Pow(NodeId, NodeId),
-    Round(NodeId, NodeId, u8),
+    Round(NodeId, NodeId, RoundKind),
     Lerp(NodeId, NodeId, NodeId),
     ConstFirstLerp(NodeId, u32, NodeId),
     ConstSecondLerp(NodeId, NodeId, u32),
@@ -1397,49 +1398,6 @@ enum Key {
     Spline(usize, Vec<NodeId>),
     Interpolated(NodeId, u32, u32),
     FindTopSurface(NodeId, NodeId, i32, u32),
-}
-
-fn unary_tag(op: UnaryOp) -> u8 {
-    match op {
-        UnaryOp::Abs => 0,
-        UnaryOp::Square => 1,
-        UnaryOp::Cube => 2,
-        UnaryOp::Sqrt => 3,
-        UnaryOp::Reciprocal => 4,
-        UnaryOp::Negate => 5,
-        UnaryOp::Squeeze => 6,
-        UnaryOp::Log => 7,
-        UnaryOp::Sign => 8,
-    }
-}
-
-fn binary_tag(op: BinaryOp) -> u8 {
-    match op {
-        BinaryOp::Add => 0,
-        BinaryOp::Sub => 1,
-        BinaryOp::Mul => 2,
-        BinaryOp::Div => 3,
-        BinaryOp::Min => 4,
-        BinaryOp::Max => 5,
-    }
-}
-
-fn round_tag(kind: RoundKind) -> u8 {
-    match kind {
-        RoundKind::Floor => 0,
-        RoundKind::Round => 1,
-        RoundKind::Ceil => 2,
-        RoundKind::Truncate => 3,
-    }
-}
-
-fn tiling_tag(tiling: crate::node::gradient::Tiling) -> u8 {
-    use crate::node::gradient::Tiling;
-    match tiling {
-        Tiling::ClampToEdge => 0,
-        Tiling::Repeat => 1,
-        Tiling::MirroredRepeat => 2,
-    }
 }
 
 #[cfg(test)]

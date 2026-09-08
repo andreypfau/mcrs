@@ -66,14 +66,6 @@ pub fn pow(a: f32, b: f32) -> f32 {
     (a as f64).powf(b as f64) as f32
 }
 
-/// `(float)Math.sqrt(x)`. Unlike `log` and `pow` the detour through double is
-/// not observable: square root is correctly rounded and double carries more than
-/// twice float's significand, so the two roundings collapse into one.
-#[inline]
-pub fn sqrt(v: f32) -> f32 {
-    v.sqrt()
-}
-
 /// `Mth.clamp(float, float, float)`. Returns `min` when the value is NaN,
 /// because `NaN < min` is false and `NaN > max` is false, leaving the value —
 /// vanilla's `Mth.clamp` is written as nested ternaries with the same outcome.

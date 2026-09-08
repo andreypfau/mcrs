@@ -122,15 +122,14 @@ fn provide_material_resolvers(
     biomes: Res<RegistrySnapshot<Biome>>,
 ) {
     let block_definitions = blocks.0.clone();
-    let biome_ids: HashMap<Box<str>, u32> = biomes
-        .iter()
-        .map(|(network_id, entry)| (Box::from(entry.location.as_str()), network_id))
-        .collect();
     commands.insert_resource(MaterialResolvers {
         block: Arc::new(move |state| try_resolve_state(&block_definitions, state).map(Into::into)),
-        biome: Arc::new(move |id: &mcrs_minecraft_core::ResourceLocation| {
-            biome_ids.get(id.as_str()).copied()
-        }),
+        biome: Arc::new(
+            biomes
+                .iter()
+                .map(|(network_id, entry)| (entry.location.clone(), network_id))
+                .collect(),
+        ),
     });
 }
 

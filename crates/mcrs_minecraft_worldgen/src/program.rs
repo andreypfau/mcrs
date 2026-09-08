@@ -13,7 +13,7 @@ use crate::volume::Volume;
 use bevy_math::IVec3;
 use std::sync::Arc;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UnaryOp {
     Abs,
     Square,
@@ -33,7 +33,10 @@ impl UnaryOp {
             UnaryOp::Abs => v.abs(),
             UnaryOp::Square => v * v,
             UnaryOp::Cube => v * v * v,
-            UnaryOp::Sqrt => jmath::sqrt(v),
+            // `(float)Math.sqrt`: the detour through double is not observable,
+            // because sqrt is correctly rounded and double carries more than
+            // twice float's significand, so the two roundings collapse into one.
+            UnaryOp::Sqrt => v.sqrt(),
             UnaryOp::Reciprocal => 1.0 / v,
             UnaryOp::Negate => -v,
             UnaryOp::Squeeze => {
@@ -46,7 +49,7 @@ impl UnaryOp {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -70,7 +73,7 @@ impl BinaryOp {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RoundKind {
     Floor,
     Round,

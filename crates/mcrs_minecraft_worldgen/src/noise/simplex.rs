@@ -1,5 +1,8 @@
+use crate::interval::Interval;
 use crate::jmath::mul_add64;
+use crate::noise::Noise;
 use crate::noise::gradient::{GradientNoise, NoiseFloat};
+use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
 
 /// Simplex noise shared by Beta worldgen (`NoiseGenerator2`) and modern vanilla
@@ -162,6 +165,46 @@ impl SimplexNoise {
         let n3 = corner(gi3, x3, y3, z3, 0.6);
 
         32.0 * (n0 + n1 + n2 + n3)
+    }
+}
+
+impl Noise for SimplexNoise {
+    fn range(&self) -> Interval {
+        Interval::symmetric(2.0)
+    }
+
+    #[inline(always)]
+    fn get(&self, x: f64, _y: f64, z: f64) -> f32 {
+        self.sample_2d(x, z, 1.0, 1.0) as f32
+    }
+
+    #[inline]
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+        debug_assert_eq!(ys.len(), out.len());
+        out.fill(self.sample_2d(x, z, 1.0, 1.0) as f32);
+    }
+
+    fn add_to_volume(
+        &self,
+        out: &mut [f32],
+        volume: &Volume,
+        xz_scale: f64,
+        _y_scale: f64,
+        amplitude: f32,
+    ) {
+        let size = volume.size();
+        let mut index = 0usize;
+        for iz in 0..size.z {
+            let z = volume.block_z(iz) as f64 * xz_scale;
+            for ix in 0..size.x {
+                let x = volume.block_x(ix) as f64 * xz_scale;
+                let value = amplitude * self.sample_2d(x, z, 1.0, 1.0) as f32;
+                for _ in 0..size.y {
+                    out[index] += value;
+                    index += 1;
+                }
+            }
+        }
     }
 }
 

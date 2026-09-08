@@ -161,15 +161,6 @@ impl BiomeMask {
     }
 }
 
-/// What the tape needs from the position under rewrite. The tape walk itself is
-/// [`MaterialProgram::run`]; everything it cannot answer from the instruction
-/// alone comes from here.
-pub trait MaterialContext {
-    fn test(&mut self, condition: CondId) -> bool;
-    fn bandlands(&mut self) -> VoxelId;
-    fn ore_vein(&mut self, vein: VeinId) -> Option<VoxelId>;
-}
-
 pub struct MaterialProgram {
     tape: Box<[Op]>,
     conditions: Box<[CompiledCondition]>,
@@ -185,30 +176,6 @@ pub struct MaterialProgram {
 }
 
 impl MaterialProgram {
-    pub fn run(&self, context: &mut impl MaterialContext) -> Option<VoxelId> {
-        let mut pc = 0usize;
-        while let Some(op) = self.tape.get(pc) {
-            match *op {
-                Op::Guard { condition, skip_to } => {
-                    if context.test(condition) {
-                        pc += 1;
-                    } else {
-                        pc = skip_to as usize;
-                    }
-                }
-                Op::Block { state } => return Some(state),
-                Op::Bandlands => return Some(context.bandlands()),
-                Op::OreVein { vein } => {
-                    if let Some(state) = context.ore_vein(vein) {
-                        return Some(state);
-                    }
-                    pc += 1;
-                }
-            }
-        }
-        None
-    }
-
     pub fn tape(&self) -> &[Op] {
         &self.tape
     }

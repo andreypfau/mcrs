@@ -797,6 +797,22 @@ impl Default for LoadedWorldPreset {
     }
 }
 
+/// The world generation config the environment names: the preset from
+/// `MCRS_WORLD_PRESET` and the seed from `MCRS_WORLD_SEED`. A save overrides the
+/// seed with the one stored in its level data.
+pub fn world_gen_config() -> mcrs_minecraft_worldgen::bevy::WorldGenConfig {
+    let preset = get_world_preset_name();
+    mcrs_minecraft_worldgen::bevy::WorldGenConfig {
+        preset: ResourceLocation::parse(&preset)
+            .unwrap_or_else(|_| ResourceLocation::minecraft(&preset)),
+        seed: env::var("MCRS_WORLD_SEED")
+            .ok()
+            .and_then(|raw| raw.trim().parse().ok())
+            .unwrap_or(0),
+        ..Default::default()
+    }
+}
+
 /// Get the world preset name from the MCRS_WORLD_PRESET environment variable.
 /// Returns the default 'normal' preset if not set or invalid.
 /// Supports both short names ("normal") and namespaced identifiers ("minecraft:normal").

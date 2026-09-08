@@ -1,4 +1,6 @@
+use crate::interval::Interval;
 use crate::jmath::{lerp, mul_add, mul_add64};
+use crate::noise::Noise;
 use crate::noise::gradient::{GradientNoise, NoiseFloat, wrap};
 use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
@@ -25,21 +27,6 @@ impl PerlinNoise {
         Self(base)
     }
 
-    #[inline(always)]
-    pub fn get(&self, x: f64, y: f64, z: f64) -> f32 {
-        let mut out = [0.0f32; 1];
-        self.0.column::<false>(x, z, &[y], 0.0, &mut out);
-        out[0]
-    }
-
-    /// Samples one x/z column: the lattice hashes and the x/z smoothsteps are computed once,
-    /// and the eight corner gradients only when the y lattice cell changes.
-    #[inline]
-    pub fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
-        debug_assert_eq!(ys.len(), out.len());
-        self.0.column::<false>(x, z, ys, 0.0, out);
-    }
-
     pub fn legacy_fill(
         &self,
         out: &mut [f32],
@@ -50,9 +37,30 @@ impl PerlinNoise {
     ) {
         self.0.legacy_fill(out, offset, size, scale, amplitude);
     }
+}
+
+impl Noise for PerlinNoise {
+    fn range(&self) -> Interval {
+        Interval::symmetric(2.0)
+    }
+
+    #[inline(always)]
+    fn get(&self, x: f64, y: f64, z: f64) -> f32 {
+        let mut out = [0.0f32; 1];
+        self.0.column::<false>(x, z, &[y], 0.0, &mut out);
+        out[0]
+    }
+
+    /// Samples one x/z column: the lattice hashes and the x/z smoothsteps are computed once,
+    /// and the eight corner gradients only when the y lattice cell changes.
+    #[inline]
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+        debug_assert_eq!(ys.len(), out.len());
+        self.0.column::<false>(x, z, ys, 0.0, out);
+    }
 
     /// Accumulates `amplitude * sample` over `volume`, Z outer / X middle / Y inner.
-    pub fn add_to_volume(
+    fn add_to_volume(
         &self,
         out: &mut [f32],
         volume: &Volume,
@@ -97,9 +105,33 @@ impl LegacyPerlin2dNoise {
             0.0,
         )
     }
+}
+
+impl Noise for LegacyPerlin2dNoise {
+    fn range(&self) -> Interval {
+        Interval::symmetric(2.0)
+    }
+
+    #[inline(always)]
+    fn get(&self, x: f64, _y: f64, z: f64) -> f32 {
+        self.get_xz(x, z)
+    }
+
+    #[inline]
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+        debug_assert_eq!(ys.len(), out.len());
+        out.fill(self.get_xz(x, z));
+    }
 
     /// One value per column, repeated down it.
-    pub fn add_to_volume(&self, out: &mut [f32], volume: &Volume, xz_scale: f64, amplitude: f32) {
+    fn add_to_volume(
+        &self,
+        out: &mut [f32],
+        volume: &Volume,
+        xz_scale: f64,
+        _y_scale: f64,
+        amplitude: f32,
+    ) {
         let size = volume.size();
         let mut index = 0usize;
         for iz in 0..size.z {
@@ -133,16 +165,29 @@ impl SmearedPerlinNoise {
     pub fn fudge_y_scale(&self) -> f64 {
         self.fudge_y_scale
     }
+}
+
+impl Noise for SmearedPerlinNoise {
+    fn range(&self) -> Interval {
+        Interval::symmetric((self.fudge_y_scale.abs() + 2.0) as f32)
+    }
+
+    #[inline(always)]
+    fn get(&self, x: f64, y: f64, z: f64) -> f32 {
+        let mut out = [0.0f32; 1];
+        self.get_column(x, z, &[y], &mut out);
+        out[0]
+    }
 
     /// `ys` arrive unfolded: the lattice reads them through [`wrap`], while the
     /// smear quantises against the value before it.
     #[inline]
-    pub fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
         self.base.column::<true>(x, z, ys, self.fudge_y_scale, out);
     }
 
-    pub fn add_to_volume(
+    fn add_to_volume(
         &self,
         out: &mut [f32],
         volume: &Volume,
@@ -622,6 +667,7 @@ mod collapsed_cell {
 }
 #[cfg(test)]
 mod modern {
+    use crate::noise::Noise;
     use crate::noise::gradient::GradientNoise;
     use crate::noise::perlin::{PerlinNoise, SmearedPerlinNoise};
     use mcrs_minecraft_random::legacy::LegacyRandom;

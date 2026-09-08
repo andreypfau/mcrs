@@ -112,7 +112,7 @@ impl Plugin for MinecraftServerPlugin {
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
         });
-        let mut world_gen = mcrs_minecraft_worldgen::bevy::WorldGenConfig::default();
+        let mut world_gen = crate::configuration::world_gen_config();
         if let Some(world) = &self.world {
             app.insert_resource(WorldSave(world.clone()));
             let settings = mcrs_minecraft_world::save::read_world_gen_settings(world)

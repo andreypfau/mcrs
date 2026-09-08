@@ -1,4 +1,4 @@
-use crate::jmath::{jmax, mul_add, sqrt};
+use crate::jmath::{jmax, mul_add};
 use crate::volume::Volume;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -21,7 +21,7 @@ impl DistanceMetric {
     #[inline]
     pub fn compute(self, dx: f32, dy: f32, dz: f32) -> f32 {
         match self {
-            Self::Euclidean => sqrt(Self::length_squared(dx, dy, dz)),
+            Self::Euclidean => Self::length_squared(dx, dy, dz).sqrt(),
             Self::EuclideanSquared => Self::length_squared(dx, dy, dz),
             Self::Manhattan => dx.abs() + dy.abs() + dz.abs(),
             Self::Chebyshev => jmax(jmax(dx.abs(), dy.abs()), dz.abs()),

@@ -2,7 +2,7 @@ use crate::interval::Interval;
 use crate::jmath::mul_add;
 use crate::noise::Noise;
 use crate::noise::gradient::GradientNoise;
-use crate::noise::perlin::{LegacyPerlin2dNoise, PerlinNoise, SmearedPerlinNoise};
+use crate::noise::perlin::{LegacyPerlin2dNoise, PerlinNoise};
 use crate::noise::simplex::SimplexNoise;
 use crate::volume::Volume;
 
@@ -71,133 +71,9 @@ impl Noise for Octave {
         amplitude: f32,
     ) {
         match self {
-            Self::Perlin(n) => Noise::add_to_volume(n, out, volume, xz_scale, y_scale, amplitude),
-            Self::Perlin2d(n) => Noise::add_to_volume(n, out, volume, xz_scale, y_scale, amplitude),
-            Self::Simplex(n) => Noise::add_to_volume(n, out, volume, xz_scale, y_scale, amplitude),
-        }
-    }
-}
-
-impl Noise for PerlinNoise {
-    fn range(&self) -> Interval {
-        Interval::symmetric(2.0)
-    }
-
-    #[inline(always)]
-    fn get(&self, x: f64, y: f64, z: f64) -> f32 {
-        PerlinNoise::get(self, x, y, z)
-    }
-
-    #[inline]
-    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
-        PerlinNoise::get_column(self, x, z, ys, out);
-    }
-
-    fn add_to_volume(
-        &self,
-        out: &mut [f32],
-        volume: &Volume,
-        xz_scale: f64,
-        y_scale: f64,
-        amplitude: f32,
-    ) {
-        PerlinNoise::add_to_volume(self, out, volume, xz_scale, y_scale, amplitude);
-    }
-}
-
-impl Noise for SmearedPerlinNoise {
-    fn range(&self) -> Interval {
-        Interval::symmetric((self.fudge_y_scale().abs() + 2.0) as f32)
-    }
-
-    #[inline(always)]
-    fn get(&self, x: f64, y: f64, z: f64) -> f32 {
-        let mut out = [0.0f32; 1];
-        self.get_column(x, z, &[y], &mut out);
-        out[0]
-    }
-
-    #[inline]
-    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
-        SmearedPerlinNoise::get_column(self, x, z, ys, out);
-    }
-
-    fn add_to_volume(
-        &self,
-        out: &mut [f32],
-        volume: &Volume,
-        xz_scale: f64,
-        y_scale: f64,
-        amplitude: f32,
-    ) {
-        SmearedPerlinNoise::add_to_volume(self, out, volume, xz_scale, y_scale, amplitude);
-    }
-}
-
-impl Noise for LegacyPerlin2dNoise {
-    fn range(&self) -> Interval {
-        Interval::symmetric(2.0)
-    }
-
-    #[inline(always)]
-    fn get(&self, x: f64, _y: f64, z: f64) -> f32 {
-        self.get_xz(x, z)
-    }
-
-    #[inline]
-    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
-        debug_assert_eq!(ys.len(), out.len());
-        out.fill(self.get_xz(x, z));
-    }
-
-    fn add_to_volume(
-        &self,
-        out: &mut [f32],
-        volume: &Volume,
-        xz_scale: f64,
-        _y_scale: f64,
-        amplitude: f32,
-    ) {
-        LegacyPerlin2dNoise::add_to_volume(self, out, volume, xz_scale, amplitude);
-    }
-}
-
-impl Noise for SimplexNoise {
-    fn range(&self) -> Interval {
-        Interval::symmetric(2.0)
-    }
-
-    #[inline(always)]
-    fn get(&self, x: f64, _y: f64, z: f64) -> f32 {
-        self.sample_2d(x, z, 1.0, 1.0) as f32
-    }
-
-    #[inline]
-    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
-        debug_assert_eq!(ys.len(), out.len());
-        out.fill(self.sample_2d(x, z, 1.0, 1.0) as f32);
-    }
-
-    fn add_to_volume(
-        &self,
-        out: &mut [f32],
-        volume: &Volume,
-        xz_scale: f64,
-        _y_scale: f64,
-        amplitude: f32,
-    ) {
-        let size = volume.size();
-        let mut index = 0usize;
-        for iz in 0..size.z {
-            let z = volume.block_z(iz) as f64 * xz_scale;
-            for ix in 0..size.x {
-                let x = volume.block_x(ix) as f64 * xz_scale;
-                let value = amplitude * self.sample_2d(x, z, 1.0, 1.0) as f32;
-                for _ in 0..size.y {
-                    out[index] += value;
-                    index += 1;
-                }
-            }
+            Self::Perlin(n) => n.add_to_volume(out, volume, xz_scale, y_scale, amplitude),
+            Self::Perlin2d(n) => n.add_to_volume(out, volume, xz_scale, y_scale, amplitude),
+            Self::Simplex(n) => n.add_to_volume(out, volume, xz_scale, y_scale, amplitude),
         }
     }
 }
