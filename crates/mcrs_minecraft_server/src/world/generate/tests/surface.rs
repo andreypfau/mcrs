@@ -13,7 +13,7 @@ use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-use crate::world::generate::surface::{descend_strip, set_block};
+use crate::world::generate::surface::{Visit, descend_strip, set_block};
 use crate::world::generate::{
     ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
     multi_noise_palettes, spans_dimension,
@@ -28,15 +28,17 @@ const WATER: VoxelId = VoxelId(2);
 /// Every visit the descent made, as `(y, depth_above, depth_below, water)`.
 fn walk(column: &ColumnBlocks, height: i32, min_y: i32) -> Vec<(i32, i32, i32, i32)> {
     let mut seen = Vec::new();
-    descend_strip(
-        column,
-        0,
-        0,
-        height,
-        min_y,
-        WATER,
-        |y, above, below, water| seen.push((y, above, below, water)),
-    );
+    descend_strip(column, 0, 0, height, min_y, WATER, |step| {
+        if let Visit::Block {
+            y,
+            depth_above,
+            depth_below,
+            water_level,
+        } = step
+        {
+            seen.push((y, depth_above, depth_below, water_level));
+        }
+    });
     seen
 }
 
@@ -182,7 +184,7 @@ pub(super) fn surfaced_column(
     section_x: i32,
     section_z: i32,
     y_sections: &[i32],
-    bypass_caches: bool,
+    bypass_shortcuts: bool,
 ) -> ColumnBlocks {
     let table = MultiNoiseBiomeTable::resolve(
         &MultiNoiseBiomeSource {
@@ -209,7 +211,8 @@ pub(super) fn surfaced_column(
         multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
 
     let mut scratch = MaterialScratch::default();
-    scratch.bypass_caches(bypass_caches);
+    scratch.bypass_caches(bypass_shortcuts);
+    scratch.bypass_settled_runs(bypass_shortcuts);
     apply_material_surface(
         &column,
         section_x,
@@ -296,7 +299,7 @@ fn an_overworld_column_gets_grass_over_dirt_over_stone() {
 /// threshold, so the noise cache's scope is covered as well as the condition
 /// cache's.
 #[test]
-fn bypassing_every_cache_writes_the_same_blocks() {
+fn bypassing_every_shortcut_writes_the_same_blocks() {
     let ids = biome_ids();
     let router = overworld_material_router(2, &ids);
     let sulfur = VoxelId::from(corpus().default_state("minecraft:sulfur"));
@@ -306,6 +309,8 @@ fn bypassing_every_cache_writes_the_same_blocks() {
     for (section_x, section_z, y_sections) in [
         (3, -7, (2..6).collect::<Vec<i32>>()),
         (-22, 38, (-4..0).collect()),
+        (3, -7, (-4..20).collect()),
+        (-22, 38, (-4..20).collect()),
     ] {
         let memoised = surfaced_column(&router, &ids, section_x, section_z, &y_sections, false);
         let bypassed = surfaced_column(&router, &ids, section_x, section_z, &y_sections, true);
@@ -316,7 +321,7 @@ fn bypassing_every_cache_writes_the_same_blocks() {
                 let (left, right) = (left.get(), right.get());
                 assert_eq!(
                     left, right,
-                    "section {section_y} block {at} of {section_x},{section_z} differs with the caches bypassed"
+                    "section {section_y} block {at} of {section_x},{section_z} differs with the shortcuts bypassed"
                 );
                 if left == sulfur || left == cinnabar {
                     banded += 1;

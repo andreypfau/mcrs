@@ -117,6 +117,21 @@ itself.
 **S5. There is no early exit.** Ore vein rules apply at any depth and carry no
 bounding condition, so the descent runs to the bottom of the column (Sf3).
 
+**S5a. A solid run is settled before it is walked.** No early exit does not mean
+every block runs the tape. Along one solid run the depth above is affine in y
+and the depth below likewise, the water level is fixed, and the per-strip
+quantities hold, so every stone-depth, water, height and vertical-gradient
+condition is a threshold in y, a folded biome set is a constant, and an ore vein
+is silent through a cell its bound closed (S16). On entering a run the tape is
+walked once per piece between those thresholds with intervals in place of
+blocks: a piece whose guards all resolve ends at one `block` or at the end of
+the tape, and every block in it takes that answer without a visit to the tape.
+A piece with any other guard on its path — a biome set the column did not fold,
+a 3D noise, a gradient inside its random band — is walked block by block as
+before. Deep stone settles to deepslate this way, and the volume below the
+surface layer to nothing; only the surface layer and the two random bands run
+the tape per block.
+
 ---
 
 ## 4. The data model

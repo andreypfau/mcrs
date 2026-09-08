@@ -106,6 +106,7 @@ pub fn apply_material_surface(
         return;
     };
 
+    let mut settled = Vec::new();
     for x in 0..16 {
         for z in 0..16 {
             let (bx, bz) = (block_x + x, block_z + z);
@@ -133,20 +134,37 @@ pub fn apply_material_surface(
             let gradient_z = height_of(tops, x, (z + 1).min(15), min_y)
                 - height_of(tops, x, (z - 1).max(0), min_y);
             eval.begin_strip(bx, bz, gradient_x, gradient_z);
-            descend_strip(
-                column,
-                x,
-                z,
-                height,
-                min_y,
-                fluid,
-                |y, depth_above, depth_below, water_level| {
-                    eval.update_y(depth_above, depth_below, water_level, y);
-                    if let Some(state) = eval.apply() {
+            let mut run = 0;
+            descend_strip(column, x, z, height, min_y, fluid, |step| match step {
+                Visit::Run {
+                    top,
+                    bottom,
+                    depth_above,
+                    water_level,
+                } => {
+                    eval.settled_runs(top, bottom, depth_above, water_level, &mut settled);
+                    run = 0;
+                }
+                Visit::Block {
+                    y,
+                    depth_above,
+                    depth_below,
+                    water_level,
+                } => {
+                    while run < settled.len() && y < settled[run].0 {
+                        run += 1;
+                    }
+                    let state = if run < settled.len() && y <= settled[run].1 {
+                        settled[run].2
+                    } else {
+                        eval.update_y(depth_above, depth_below, water_level, y);
+                        eval.apply()
+                    };
+                    if let Some(state) = state {
                         set_block(column, tops, min_y, x, y, z, state);
                     }
-                },
-            );
+                }
+            });
 
             if surface_biome == ids.frozen_ocean || surface_biome == ids.deep_frozen_ocean {
                 frozen_ocean(
@@ -169,8 +187,27 @@ pub fn apply_material_surface(
     }
 }
 
+/// What the descent hands its visitor: each solid run as it is entered, with
+/// the depth its top block has — fluid above does not reset it — then every
+/// solid block of it.
+pub(crate) enum Visit {
+    Run {
+        top: i32,
+        bottom: i32,
+        depth_above: i32,
+        water_level: i32,
+    },
+    Block {
+        y: i32,
+        depth_above: i32,
+        depth_below: i32,
+        water_level: i32,
+    },
+}
+
 /// Walk one strip from `height` down to the bottom of the dimension, handing
-/// every solid block its two depths and the water level above it.
+/// every solid block its two depths and the water level above it, and each
+/// solid run its top, its bottom and the water level over it as it is entered.
 ///
 /// A position this dispatch does not carry is skipped rather than ending the
 /// descent, and the look-ahead's read one below the bottom answers non-solid,
@@ -182,7 +219,7 @@ pub(crate) fn descend_strip(
     height: i32,
     min_y: i32,
     fluid: VoxelId,
-    mut visit: impl FnMut(i32, i32, i32, i32),
+    mut visit: impl FnMut(Visit),
 ) {
     let air = VoxelId::default();
     let mut depth_above = 0;
@@ -209,9 +246,20 @@ pub(crate) fn descend_strip(
                         None => look < min_y,
                     })
                     .map_or(min_y, |floor| floor + 1);
+                visit(Visit::Run {
+                    top: y,
+                    bottom: next_ceiling,
+                    depth_above: depth_above + 1,
+                    water_level,
+                });
             }
             depth_above += 1;
-            visit(y, depth_above, y - next_ceiling + 1, water_level);
+            visit(Visit::Block {
+                y,
+                depth_above,
+                depth_below: y - next_ceiling + 1,
+                water_level,
+            });
         }
     }
 }

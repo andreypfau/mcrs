@@ -2,7 +2,8 @@ use crate::cell::CELL_BOUNDS_SLACK;
 use crate::interval::Interval;
 use crate::jmath::mth_floor;
 use crate::material::compile::{
-    CondId, Condition, MaterialContext, MaterialProgram, NoiseId, Scope, SurfaceNoise, Tri, VeinId,
+    CondId, Condition, MaterialContext, MaterialProgram, NoiseId, Op, Scope, SurfaceNoise, Tri,
+    VeinId,
 };
 use crate::program::{NodeId, Workspace};
 use crate::router::NoiseRouter;
@@ -18,6 +19,7 @@ pub const NO_WATER: i32 = i32::MIN;
 #[derive(Default)]
 pub struct MaterialScratch {
     bypass_caches: bool,
+    bypass_settled_runs: bool,
     workspace: Workspace,
     condition_stamp: Vec<u32>,
     condition_value: Vec<bool>,
@@ -37,6 +39,19 @@ pub struct MaterialScratch {
     lattice: Vec<f32>,
     corners: Vec<Interval>,
     cell_density: Vec<f32>,
+    /// The conditions whose answer changes with y alone, at a height a strip
+    /// knows before its descent: they split a strip into runs.
+    splits: Vec<CondId>,
+    breaks: Vec<i32>,
+}
+
+/// A condition's answer along one solid run of a strip.
+enum Split {
+    Always(bool),
+    /// True at and above this y.
+    At(i32),
+    /// True at and below this y.
+    AtOrBelow(i32),
 }
 
 /// How one vein's cells are laid out in `MaterialScratch::vein_cells`: the
@@ -53,6 +68,11 @@ impl MaterialScratch {
     /// against a memoised one.
     pub fn bypass_caches(&mut self, bypass: bool) {
         self.bypass_caches = bypass;
+    }
+
+    /// Report no settled run, so every block goes through the tape.
+    pub fn bypass_settled_runs(&mut self, bypass: bool) {
+        self.bypass_settled_runs = bypass;
     }
 }
 
@@ -71,6 +91,9 @@ pub struct MaterialEval<'a, B> {
     veins: Volume,
     /// Where the current strip starts in a `vein_values` row.
     vein_row: usize,
+    run_top: i32,
+    run_bottom: i32,
+    run_depth: i32,
     gen_xz: u32,
     gen_y: u32,
     block_x: i32,
@@ -123,6 +146,20 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
         scratch.noise_value.clear();
         scratch.noise_value.resize(program.noise_count(), 0.0);
 
+        scratch.splits.clear();
+        for (id, condition) in program.conditions().iter().enumerate() {
+            if matches!(
+                condition.kind,
+                Condition::VerticalGradient { .. }
+                    | Condition::AbovePreliminarySurface
+                    | Condition::YAbove { .. }
+                    | Condition::Water { .. }
+                    | Condition::StoneDepth { .. }
+            ) {
+                scratch.splits.push(id as CondId);
+            }
+        }
+
         scratch.folded.clear();
         for condition in program.conditions() {
             let folded = match condition.kind {
@@ -166,6 +203,9 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
             preliminary,
             veins,
             vein_row: 0,
+            run_top: 0,
+            run_bottom: 0,
+            run_depth: 0,
             gen_xz: 0,
             gen_y: 0,
             block_x,
@@ -207,6 +247,233 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
             *strip =
                 layout.at + (cell.x + cell.z * layout.size.x) as usize * layout.size.y as usize;
         }
+    }
+
+    /// The runs of y, descending, over which the tape answers the same for
+    /// every block — one state, or nothing — so the descent need not run it
+    /// there. Asked once per solid run of a strip, from `top`, whose block sits
+    /// `depth_above` deep, down to `bottom`, with `water_level` above it: along
+    /// such a run the depths are affine in y, so every depth, water and height
+    /// condition is a threshold in y, the y-only ones too; the per-strip ones
+    /// hold across it, a biome set the column folded is settled, and an ore
+    /// vein is silent through a cell its bound closed. The run is split at
+    /// every threshold, and any other guard met on the way leaves the piece
+    /// open.
+    pub fn settled_runs(
+        &mut self,
+        top: i32,
+        bottom: i32,
+        depth_above: i32,
+        water_level: i32,
+        out: &mut Vec<(i32, i32, Option<VoxelId>)>,
+    ) {
+        out.clear();
+        if self.scratch.bypass_settled_runs {
+            return;
+        }
+        self.run_top = top;
+        self.run_bottom = bottom;
+        self.run_depth = depth_above;
+        self.water_level = water_level;
+        let min_y = self.veins.min_block().y;
+        let mut breaks = std::mem::take(&mut self.scratch.breaks);
+        breaks.clear();
+        for k in 0..self.scratch.splits.len() {
+            let id = self.scratch.splits[k];
+            match self.program.conditions()[id as usize].kind {
+                Condition::VerticalGradient {
+                    true_at_and_below,
+                    false_at_and_above,
+                    ..
+                } => breaks.extend([true_at_and_below + 1, false_at_and_above]),
+                _ => {
+                    if let Some(Split::At(at)) | Some(Split::AtOrBelow(at)) = self.split(id) {
+                        breaks.extend([at, at + 1]);
+                    }
+                }
+            }
+        }
+        for (vein, layout) in self.scratch.vein_layout.iter().enumerate() {
+            let at = self.scratch.vein_strip[vein];
+            for cy in 0..layout.size.y {
+                if self.scratch.vein_cells[at + cy as usize] {
+                    let cell_bottom = min_y + cy * layout.cell.y;
+                    breaks.extend([cell_bottom, cell_bottom + layout.cell.y]);
+                }
+            }
+        }
+        breaks.retain(|&y| y > bottom && y <= top);
+        breaks.sort_unstable_by(|a, b| b.cmp(a));
+        breaks.dedup();
+
+        let mut hi = top;
+        for &lo in &breaks {
+            if let Some(state) = self.settle(lo, hi) {
+                out.push((lo, hi, state));
+            }
+            hi = lo - 1;
+        }
+        if hi >= bottom
+            && let Some(state) = self.settle(bottom, hi)
+        {
+            out.push((bottom, hi, state));
+        }
+        self.scratch.breaks = breaks;
+    }
+
+    /// What the tape returns for every y in `lo..=hi` of the run, if it is the
+    /// same block, or the same nothing, throughout.
+    fn settle(&mut self, lo: i32, hi: i32) -> Option<Option<VoxelId>> {
+        let program = self.program;
+        let mut pc = 0usize;
+        while let Some(op) = program.tape().get(pc) {
+            match *op {
+                Op::Guard { condition, skip_to } => match self.over(condition, lo, hi) {
+                    Some(true) => pc += 1,
+                    Some(false) => pc = skip_to as usize,
+                    None => return None,
+                },
+                Op::Block { state } => return Some(Some(state)),
+                Op::Bandlands => return None,
+                Op::OreVein { vein } => {
+                    if self.vein_open_in(vein as usize, lo, hi) {
+                        return None;
+                    }
+                    pc += 1;
+                }
+            }
+        }
+        Some(None)
+    }
+
+    /// The condition's answer if it is the same for every y in `lo..=hi`.
+    fn over(&mut self, condition: CondId, lo: i32, hi: i32) -> Option<bool> {
+        if let Some(value) = self.scratch.folded[condition as usize] {
+            return Some(value);
+        }
+        let compiled = &self.program.conditions()[condition as usize];
+        match compiled.kind {
+            Condition::VerticalGradient {
+                true_at_and_below,
+                false_at_and_above,
+                ..
+            } => {
+                if hi <= true_at_and_below {
+                    Some(true)
+                } else if lo >= false_at_and_above {
+                    Some(false)
+                } else {
+                    None
+                }
+            }
+            Condition::Not(inner) => self.over(inner, lo, hi).map(|value| !value),
+            _ => match self.split(condition) {
+                Some(Split::Always(value)) => Some(value),
+                Some(Split::At(at)) if lo >= at => Some(true),
+                Some(Split::At(at)) if hi < at => Some(false),
+                Some(Split::AtOrBelow(at)) if hi <= at => Some(true),
+                Some(Split::AtOrBelow(at)) if lo > at => Some(false),
+                Some(_) => None,
+                None if compiled.scope == Scope::Xz => Some(self.test(condition)),
+                None => None,
+            },
+        }
+    }
+
+    /// How a condition answers along the current run, where the depth above
+    /// is `run_depth + run_top - y` and the depth below `y - run_bottom + 1`.
+    fn split(&mut self, condition: CondId) -> Option<Split> {
+        let (bottom, water) = (self.run_bottom, self.water_level);
+        // What `y + depth_above` comes to anywhere on the run.
+        let top = self.run_top + self.run_depth - 1;
+        Some(match self.program.conditions()[condition as usize].kind {
+            Condition::StoneDepth {
+                offset,
+                add_surface_depth,
+                secondary_depth_range,
+                ceiling,
+            } => {
+                let limit =
+                    self.stone_depth_limit(offset, add_surface_depth, secondary_depth_range);
+                if ceiling {
+                    Split::AtOrBelow(bottom + limit - 1)
+                } else {
+                    Split::At(top + 1 - limit)
+                }
+            }
+            Condition::Water {
+                offset,
+                surface_depth_multiplier,
+                add_stone_depth,
+            } => {
+                if water == NO_WATER {
+                    Split::Always(true)
+                } else {
+                    let at = water + offset + self.surface_depth * surface_depth_multiplier;
+                    if add_stone_depth {
+                        Split::Always(top + 1 >= at)
+                    } else {
+                        Split::At(at)
+                    }
+                }
+            }
+            Condition::YAbove {
+                anchor,
+                surface_depth_multiplier,
+                add_stone_depth,
+            } => {
+                let at = anchor + self.surface_depth * surface_depth_multiplier;
+                if add_stone_depth {
+                    Split::Always(top + 1 >= at)
+                } else {
+                    Split::At(at)
+                }
+            }
+            Condition::AbovePreliminarySurface => Split::At(self.min_surface_level()),
+            _ => return None,
+        })
+    }
+
+    /// The depth a stone-depth condition admits.
+    fn stone_depth_limit(
+        &mut self,
+        offset: i32,
+        add_surface_depth: bool,
+        secondary_depth_range: i32,
+    ) -> i32 {
+        let surface_depth = if add_surface_depth {
+            self.surface_depth
+        } else {
+            0
+        };
+        let secondary = if secondary_depth_range == 0 {
+            0
+        } else {
+            map(
+                self.surface_secondary(),
+                -1.0,
+                1.0,
+                0.0,
+                f64::from(secondary_depth_range),
+            ) as i32
+        };
+        1 + offset + surface_depth + secondary
+    }
+
+    /// Whether any cell of the vein's lattice meeting `lo..=hi` in this strip
+    /// is open, or the run reaches above the lattice.
+    fn vein_open_in(&self, vein: usize, lo: i32, hi: i32) -> bool {
+        let layout = self.scratch.vein_layout[vein];
+        let min_y = self.veins.min_block().y;
+        let first = (lo - min_y) / layout.cell.y;
+        let last = (hi - min_y) / layout.cell.y;
+        if last >= layout.size.y {
+            return true;
+        }
+        let at = self.scratch.vein_strip[vein];
+        self.scratch.vein_cells[at + first as usize..=at + last as usize]
+            .iter()
+            .any(|&open| open)
     }
 
     pub fn update_y(&mut self, depth_above: i32, depth_below: i32, water_level: i32, block_y: i32) {
@@ -332,23 +599,7 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
                 } else {
                     self.depth_above
                 };
-                let surface_depth = if add_surface_depth {
-                    self.surface_depth
-                } else {
-                    0
-                };
-                let secondary = if secondary_depth_range == 0 {
-                    0
-                } else {
-                    map(
-                        self.surface_secondary(),
-                        -1.0,
-                        1.0,
-                        0.0,
-                        f64::from(secondary_depth_range),
-                    ) as i32
-                };
-                depth <= 1 + offset + surface_depth + secondary
+                depth <= self.stone_depth_limit(offset, add_surface_depth, secondary_depth_range)
             }
             Condition::Water {
                 offset,
