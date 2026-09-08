@@ -90,7 +90,7 @@ impl LegacyPerlin2dNoise {
     /// first would quantise the lattice to whole blocks a few hundred thousand
     /// blocks out.
     #[inline]
-    pub fn get_xz(&self, x: f64, z: f64) -> f32 {
+    pub(crate) fn get_xz(&self, x: f64, z: f64) -> f32 {
         let shifted_x = wrap(x) + self.0.offset_x;
         let shifted_z = wrap(z) + self.0.offset_z;
         let floor_x = shifted_x.floor();

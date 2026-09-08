@@ -12,11 +12,6 @@ pub(crate) enum GuardTest {
         hi: f32,
         want: bool,
     },
-    Below {
-        selector: NodeId,
-        threshold: f32,
-        want: bool,
-    },
     Arm {
         site: NodeId,
         selector: NodeId,
@@ -35,9 +30,7 @@ pub(crate) enum GuardTest {
 impl GuardTest {
     pub(crate) fn selector(self) -> NodeId {
         match self {
-            GuardTest::InRange { selector, .. }
-            | GuardTest::Below { selector, .. }
-            | GuardTest::Arm { selector, .. } => selector,
+            GuardTest::InRange { selector, .. } | GuardTest::Arm { selector, .. } => selector,
             GuardTest::LeftAbove { left, .. }
             | GuardTest::LeftBelow { left, .. }
             | GuardTest::LeftNonZero { left } => left,
@@ -310,22 +303,6 @@ fn site_of(node: &Node, ranges: &[Interval], site: NodeId) -> Option<Site> {
             Some(Site {
                 always: vec![*input],
                 arms: vec![plain(*when_in, test(true)), plain(*when_out, test(false))],
-            })
-        }
-        Node::SingleThreshold {
-            input,
-            threshold,
-            below,
-            above,
-        } => {
-            let test = |want| GuardTest::Below {
-                selector: *input,
-                threshold: *threshold,
-                want,
-            };
-            Some(Site {
-                always: vec![*input],
-                arms: vec![plain(*below, test(true)), plain(*above, test(false))],
             })
         }
         Node::IntervalSelect { input, arms, .. } => Some(Site {

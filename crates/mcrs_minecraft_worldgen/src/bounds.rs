@@ -131,20 +131,6 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
             Interval::exact(*when_in),
             Interval::exact(*when_out),
         ),
-        Node::SingleThreshold {
-            input,
-            threshold,
-            below,
-            above,
-        } => {
-            let input = at(*input);
-            match mode {
-                Bounds::Declared => at(*below).union(at(*above)),
-                Bounds::Cell { .. } if input.max() < *threshold => at(*below),
-                Bounds::Cell { .. } if input.min() >= *threshold => at(*above),
-                Bounds::Cell { .. } => at(*below).union(at(*above)),
-            }
-        }
         Node::IntervalSelect {
             input,
             thresholds,
@@ -244,7 +230,7 @@ fn gradient_over(g: &GradientParams, min: IVec3, max: IVec3) -> Interval {
 /// Does not model the sampler's `multiple == 0.0` passthrough: an exactly
 /// `[0, 0]` multiple yields NaI here while the sampler returns its input.
 /// Vanilla has the same omission.
-pub fn round_range(value: Interval, multiple: Interval, kind: RoundKind) -> Interval {
+pub(crate) fn round_range(value: Interval, multiple: Interval, kind: RoundKind) -> Interval {
     (value / multiple).map_monotonic(|v| kind.apply(v)) * multiple
 }
 

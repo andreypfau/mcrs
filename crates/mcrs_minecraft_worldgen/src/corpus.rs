@@ -44,16 +44,18 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
     ResourceLocation::parse(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
 }
 
-/// One `minecraft/worldgen` registry, parsed. A file that does not parse is a
-/// kind this build does not model, and is left out rather than failing the read.
+/// One `minecraft/worldgen` registry, parsed. Every file in the folder must
+/// parse: dropping the ones that do not would let a test read "the whole corpus
+/// compiles" off a corpus quietly missing the entries that broke.
 pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
     let base = worldgen_dir().join(folder);
     json_files(&base)
         .into_iter()
-        .filter_map(|path| {
+        .map(|path| {
             let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let parsed = serde_json::from_slice::<T>(&bytes).ok()?;
-            Some((id_of(&base, &path), parsed))
+            let parsed = serde_json::from_slice::<T>(&bytes)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            (id_of(&base, &path), parsed)
         })
         .collect()
 }

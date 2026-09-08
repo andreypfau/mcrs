@@ -210,12 +210,6 @@ pub enum Node {
         when_in: f32,
         when_out: f32,
     },
-    SingleThreshold {
-        input: NodeId,
-        threshold: f32,
-        below: NodeId,
-        above: NodeId,
-    },
     IntervalSelect {
         input: NodeId,
         thresholds: Arc<[f32]>,
@@ -301,16 +295,6 @@ impl Node {
                 f(*when_in);
                 f(*when_out);
             }
-            Node::SingleThreshold {
-                input,
-                below,
-                above,
-                ..
-            } => {
-                f(*input);
-                f(*below);
-                f(*above);
-            }
             Node::IntervalSelect { input, arms, .. } => {
                 f(*input);
                 arms.iter().copied().for_each(&mut *f);
@@ -388,16 +372,6 @@ impl Node {
                 f(input);
                 f(when_in);
                 f(when_out);
-            }
-            Node::SingleThreshold {
-                input,
-                below,
-                above,
-                ..
-            } => {
-                f(input);
-                f(below);
-                f(above);
             }
             Node::IntervalSelect { input, arms, .. } => {
                 f(input);
@@ -509,11 +483,14 @@ pub struct Workspace {
     lattices: Vec<Lattice>,
     probe: Vec<f32>,
     nested: Option<Box<Workspace>>,
+    #[cfg(any(test, feature = "corpus"))]
     count: EvalCount,
 }
 
 /// Node evaluations, summed over every fill and every nested fill since the last
-/// [`Workspace::take_count`].
+/// [`Workspace::take_count`]. Only the tests that prove a cone was skipped read
+/// it, so it does not exist in a shipped build.
+#[cfg(any(test, feature = "corpus"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EvalCount {
     pub evaluated: u64,
@@ -613,7 +590,7 @@ impl Program {
     }
 
     #[inline]
-    pub fn axes_of(&self, id: NodeId) -> Axes {
+    pub(crate) fn axes_of(&self, id: NodeId) -> Axes {
         self.axes[id as usize]
     }
 
@@ -641,7 +618,10 @@ impl Program {
             match plan.steps[step] {
                 Step::Eval { end } => {
                     let end = end as usize;
-                    ws.count.evaluated += (end - k) as u64;
+                    #[cfg(any(test, feature = "corpus"))]
+                    {
+                        ws.count.evaluated += (end - k) as u64;
+                    }
                     while k < end {
                         self.eval(plan.order[k], ws, volume);
                         k += 1;
@@ -660,7 +640,10 @@ impl Program {
                         if let Some(fallback) = fallback {
                             self.apply_fallback(fallback, ws, volume);
                         }
-                        ws.count.skipped += (skip_to as usize - k) as u64;
+                        #[cfg(any(test, feature = "corpus"))]
+                        {
+                            ws.count.skipped += (skip_to as usize - k) as u64;
+                        }
                         k = skip_to as usize;
                         step = next_step as usize;
                     }
@@ -736,6 +719,7 @@ impl Program {
             slot.values.resize(lattice.len(), 0.0);
             self.fill_node(&mut nested, &lattice, input, &mut ws.lattices[cell].values);
         }
+        #[cfg(any(test, feature = "corpus"))]
         ws.absorb(&mut nested);
         ws.nested = Some(nested);
     }
@@ -804,6 +788,7 @@ impl Program {
             let mut pinned = [0.0f32];
             let at_zero = Volume::point(IVec3::new(bx, 0, bz));
             self.fill_node(&mut nested, &at_zero, upper_bound, &mut pinned);
+            #[cfg(any(test, feature = "corpus"))]
             ws.absorb(&mut nested);
             ws.nested = Some(nested);
             pinned[0]
@@ -836,6 +821,7 @@ impl Program {
             }
             probe_y = min_y - cell_height;
         }
+        #[cfg(any(test, feature = "corpus"))]
         ws.absorb(&mut nested);
         ws.nested = Some(nested);
         ws.probe = probe;
@@ -852,11 +838,6 @@ impl Program {
                 hi,
                 want,
             } => all(selector).iter().any(|&v| (v >= lo && v < hi) == want),
-            GuardTest::Below {
-                selector,
-                threshold,
-                want,
-            } => all(selector).iter().any(|&v| (v < threshold) == want),
             GuardTest::Arm {
                 site,
                 selector,
@@ -1098,21 +1079,6 @@ impl Program {
                 let (lo, hi, a, b) = (*min_inclusive, *max_exclusive, *when_in, *when_out);
                 map_columns(out, &ext, read(*input), |v| {
                     if v >= lo && v < hi { a } else { b }
-                })
-            }
-            Node::SingleThreshold {
-                input,
-                threshold,
-                below,
-                above,
-            } => {
-                let t = *threshold;
-                let (sel, lo, hi) = (read(*input), read(*below), read(*above));
-                each_column(out, &ext, |run, ix, iz| {
-                    let (sel, lo, hi) = (sel.col(ix, iz), lo.col(ix, iz), hi.col(ix, iz));
-                    for (i, o) in run.iter_mut().enumerate() {
-                        *o = if at(sel, i) < t { at(lo, i) } else { at(hi, i) };
-                    }
                 })
             }
             Node::IntervalSelect {
@@ -1463,10 +1429,12 @@ impl Workspace {
     }
 
     /// The evaluations counted since the last call, cleared.
+    #[cfg(any(test, feature = "corpus"))]
     pub fn take_count(&mut self) -> EvalCount {
         std::mem::take(&mut self.count)
     }
 
+    #[cfg(any(test, feature = "corpus"))]
     fn absorb(&mut self, nested: &mut Workspace) {
         let inner = nested.take_count();
         self.count.evaluated += inner.evaluated;
@@ -1824,10 +1792,10 @@ mod tests {
         );
     }
 
-    /// The two-armed lowering of `interval_select`, which no shipped noise
-    /// settings produces: the corpus only has selects with several thresholds.
+    /// A one-threshold `interval_select`, which no shipped noise settings
+    /// produces: the corpus only has selects with several thresholds.
     #[test]
-    fn a_single_threshold_skips_the_arm_no_position_takes() {
+    fn a_two_armed_select_skips_the_arm_no_position_takes() {
         let nodes = vec![
             gradient(Axis::X, 0.0, 2.0, 0.0, 10.0),
             gradient(Axis::Z, 0.0, 2.0, 0.0, 100.0),
@@ -1836,11 +1804,10 @@ mod tests {
                 input: 1,
             },
             gradient(Axis::Z, 0.0, 2.0, 0.0, 5.0),
-            Node::SingleThreshold {
+            Node::IntervalSelect {
                 input: 0,
-                threshold: 100.0,
-                below: 2,
-                above: 3,
+                thresholds: [100.0].into(),
+                arms: [2, 3].into(),
             },
         ];
         let axes = vec![AXIS_X, AXIS_Z, AXIS_Z, AXIS_Z, AXIS_X | AXIS_Z];

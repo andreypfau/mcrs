@@ -12,7 +12,8 @@ use bevy_asset::{
     Asset, AssetApp, AssetLoader, Assets, Handle, LoadContext, LoadDirectError, UntypedAssetId,
     VisitAssetDependencies,
 };
-use bevy_ecs::prelude::Resource;
+use bevy_ecs::prelude::{Res, Resource};
+use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::asset::{JsonLoader, read_all};
@@ -181,9 +182,10 @@ macro_rules! registries {
 
         /// The loaded worldgen registries a router is compiled out of, as the
         /// asset collections themselves rather than a copy of their contents.
-        pub struct WorldgenAssets<'a> {
-            $(pub $lname: &'a Assets<$lasset>,)*
-            $(pub $nname: &'a Assets<$nasset>,)*
+        #[derive(SystemParam)]
+        pub struct WorldgenAssets<'w> {
+            $(pub $lname: Res<'w, Assets<$lasset>>,)*
+            $(pub $nname: Res<'w, Assets<$nasset>>,)*
         }
 
         impl Loaded {
@@ -636,17 +638,11 @@ mod tests {
     #[derive(bevy_ecs::prelude::Resource)]
     struct SettingsHandle(bevy_asset::Handle<super::NoiseGeneratorSettingsAsset>);
 
-    fn assets_of(world: &bevy_ecs::world::World) -> super::WorldgenAssets<'_> {
-        use super::{
-            DensityFunctionAsset, MaterialConditionAsset, MaterialRuleAsset, NoiseParamAsset,
-        };
-        use bevy_asset::Assets;
-        super::WorldgenAssets {
-            density_functions: world.resource::<Assets<DensityFunctionAsset>>(),
-            noises: world.resource::<Assets<NoiseParamAsset>>(),
-            rules: world.resource::<Assets<MaterialRuleAsset>>(),
-            conditions: world.resource::<Assets<MaterialConditionAsset>>(),
-        }
+    /// The registries as the system that builds a router receives them.
+    fn assets_of(
+        app: &mut bevy_app::App,
+    ) -> bevy_ecs::system::SystemState<super::WorldgenAssets<'static>> {
+        bevy_ecs::system::SystemState::new(app.world_mut())
     }
 
     /// The walk above proves the ids are named; this proves they arrive. A
@@ -657,7 +653,8 @@ mod tests {
         use super::{Loaded, NoiseGeneratorSettingsAsset};
         use bevy_asset::Assets;
 
-        let app = load_settings("overworld");
+        let mut app = load_settings("overworld");
+        let mut state = assets_of(&mut app);
         let world = app.world();
         let handle = world.resource::<SettingsHandle>().0.clone();
         let asset = world
@@ -665,7 +662,7 @@ mod tests {
             .get(&handle)
             .unwrap();
         let mut collected = Loaded::default();
-        collected.collect(&asset.deps, &assets_of(world));
+        collected.collect(&asset.deps, &state.get(world).unwrap());
 
         for name in SURFACE_NOISE_NAMES {
             let id = format!("minecraft:{name}");
@@ -712,7 +709,8 @@ mod tests {
 
         let biomes = shipped_biome_ids();
         for name in ["overworld", "nether", "end", "beta"] {
-            let app = load_settings(name);
+            let mut app = load_settings(name);
+            let mut state = assets_of(&mut app);
             let world = app.world();
             let handle = world.resource::<SettingsHandle>().0.clone();
             let asset = world
@@ -730,7 +728,7 @@ mod tests {
             };
             let router = build_dimension_router(
                 asset,
-                &assets_of(world),
+                &state.get(world).unwrap(),
                 0,
                 &block,
                 &|id: &ResourceLocation| biomes.get(id).copied(),

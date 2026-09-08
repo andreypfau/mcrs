@@ -9,8 +9,7 @@ use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::dimension::level_stem::DimensionDefinition;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::{
-    DensityFunctionAsset, MaterialConditionAsset, MaterialRuleAsset, NoiseGeneratorSettingsAsset,
-    NoiseParamAsset, WorldgenAssets, build_dimension_router,
+    NoiseGeneratorSettingsAsset, WorldgenAssets, build_dimension_router,
 };
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use tracing::{error, info};
@@ -39,19 +38,10 @@ pub(crate) fn build_dimension_routers(
     seed: Res<WorldSeed>,
     definitions: Res<Assets<DimensionDefinition>>,
     settings: Res<Assets<NoiseGeneratorSettingsAsset>>,
-    density_functions: Res<Assets<DensityFunctionAsset>>,
-    noises: Res<Assets<NoiseParamAsset>>,
-    rules: Res<Assets<MaterialRuleAsset>>,
-    conditions: Res<Assets<MaterialConditionAsset>>,
+    assets: WorldgenAssets,
     blocks: Res<Blocks>,
     biome_registry: Res<RegistrySnapshot<Biome>>,
 ) {
-    let assets = WorldgenAssets {
-        density_functions: &density_functions,
-        noises: &noises,
-        rules: &rules,
-        conditions: &conditions,
-    };
     // The material rules take their biome ids from this snapshot, because it is
     // what `MultiNoiseBiomeTable` fills the column's biome grid with.
     let biome_ids: BTreeMap<ResourceLocation, u32> = biome_registry

@@ -114,7 +114,7 @@ pub fn build_router(
     ))
 }
 
-pub struct Compiler<'a> {
+pub(crate) struct Compiler<'a> {
     registry: &'a BTreeMap<ResourceLocation, DensityFunctionHolder>,
     noises: &'a BTreeMap<ResourceLocation, NoiseParam>,
     seed: u64,
@@ -171,7 +171,7 @@ impl<'a> Compiler<'a> {
     /// Drops every node no root can reach — a root that failed halfway leaves
     /// its partial subgraph behind, and `Program::fill` evaluates the whole
     /// array rather than a reachable subset.
-    pub fn into_program(self, roots: Vec<NodeId>) -> Program {
+    pub(crate) fn into_program(self, roots: Vec<NodeId>) -> Program {
         let (nodes, axes, ranges, roots) = prune(self.nodes, self.axes, self.node_ranges, roots);
         Program::new(nodes, axes, ranges, roots)
     }
@@ -525,19 +525,6 @@ impl<'a> Compiler<'a> {
                     arms.push(self.compile(function)?);
                 }
                 let thresholds: Vec<f32> = x.thresholds.iter().map(|t| t.0 as f32).collect();
-                if let [threshold] = thresholds[..] {
-                    let below = arms[0];
-                    let above = arms[arms.len() - 1];
-                    return Ok(self.intern(
-                        Key::SingleThreshold(input, threshold.to_bits(), below, above),
-                        Node::SingleThreshold {
-                            input,
-                            threshold,
-                            below,
-                            above,
-                        },
-                    ));
-                }
                 let key = Key::IntervalSelect(
                     input,
                     thresholds.iter().map(|t| t.to_bits()).collect(),
@@ -1228,7 +1215,6 @@ enum Key {
     ShiftedNoise(usize, NodeId, NodeId, NodeId),
     RangeChoice(NodeId, u32, u32, NodeId, NodeId),
     ConstRangeChoice(NodeId, u32, u32, u32, u32),
-    SingleThreshold(NodeId, u32, NodeId, NodeId),
     IntervalSelect(NodeId, Vec<u32>, Vec<NodeId>),
     Spline(usize, Vec<NodeId>),
     Interpolated(NodeId, u32, u32),
@@ -1534,11 +1520,11 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_single_threshold_select_and_a_two_constant_range_choice_specialize() {
+    fn a_one_threshold_select_and_a_two_constant_range_choice_specialize() {
         let json = format!(
             r#"{{"type":"minecraft:interval_select","input":{Y_GRADIENT},"thresholds":[4.0],"functions":[-1.0,1.0]}}"#
         );
-        assert!(matches!(build(&json).node(), Node::SingleThreshold { .. }));
+        assert!(matches!(build(&json).node(), Node::IntervalSelect { .. }));
         assert_eq!(sample(&json, IVec3::new(0, 0, 0)), -1.0);
         assert_eq!(sample(&json, IVec3::new(0, 8, 0)), 1.0);
 

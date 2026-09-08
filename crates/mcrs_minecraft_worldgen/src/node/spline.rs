@@ -125,7 +125,7 @@ fn value_range(value: &SplineValue, coord_ranges: &[Interval]) -> Interval {
 
 /// `CubicSpline.Multipoint.range()`. `value_ranges` holds the range of each point
 /// value, in point order; the caller owns the recursion over the sub-splines.
-pub fn multipoint_range(
+pub(crate) fn multipoint_range(
     input: Interval,
     locations: &[f32],
     derivatives: &[f32],
