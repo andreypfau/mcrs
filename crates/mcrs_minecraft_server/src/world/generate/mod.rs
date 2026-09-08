@@ -18,6 +18,8 @@ use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 /// The `interpolated` wrapper inputs at every cell corner of a whole chunk
 /// column, laid out one `volume`-shaped row per wrapper.
@@ -26,6 +28,67 @@ struct CellLattice {
     cell: IVec3,
     values: Vec<f32>,
     width: usize,
+}
+
+/// The lattice columns recently produced, so a column reads the two planes it
+/// shares with the neighbours before it instead of evaluating them again.
+///
+/// A node's value is a function of the node and the router alone, never of the
+/// volume it was asked about as part of, so the shared plane is the same plane
+/// (`docs/worldgen.md` §4, L3). A column produces 5 x 49 x 5 nodes and shares
+/// its low planes in x and z, which is nine of the twenty-five node columns:
+/// what stays is a 4 x 49 x 4 evaluation, 64% of the work.
+///
+/// Two generations rather than one map: the useful life of a column is until
+/// the neighbours past it have been filled, and rotating keeps at least
+/// `KEPT_COLUMNS` of the most recent without ever growing without bound. A
+/// worker that jumps between distant columns misses and pays what it paid
+/// before.
+#[derive(Default)]
+struct LatticePlanes {
+    /// Which router these belong to. One worker fills columns for every
+    /// dimension, and a node's value differs by seed and by graph.
+    owner: Option<(usize, u64)>,
+    current: HashMap<i64, Box<[f32]>>,
+    previous: HashMap<i64, Box<[f32]>>,
+}
+
+const KEPT_COLUMNS: usize = 2048;
+
+impl LatticePlanes {
+    fn retarget(&mut self, router: &NoiseRouter) {
+        let owner = (std::ptr::from_ref(router) as usize, router.world_seed());
+        if self.owner != Some(owner) {
+            self.owner = Some(owner);
+            self.current.clear();
+            self.previous.clear();
+        }
+    }
+
+    fn get(&self, key: i64) -> Option<&[f32]> {
+        self.current
+            .get(&key)
+            .or_else(|| self.previous.get(&key))
+            .map(Box::as_ref)
+    }
+
+    fn put(&mut self, key: i64, column: &[f32]) {
+        if self.current.len() >= KEPT_COLUMNS {
+            std::mem::swap(&mut self.current, &mut self.previous);
+            self.current.clear();
+        }
+        self.current.insert(key, column.into());
+    }
+}
+
+thread_local! {
+    static LATTICE_PLANES: RefCell<LatticePlanes> = RefCell::new(LatticePlanes::default());
+}
+
+/// The key one node column answers to. Node coordinates are block coordinates,
+/// which is what makes two columns agree on the plane between them.
+fn plane_key(node_x: i32, node_z: i32) -> i64 {
+    (i64::from(node_x) << 32) | i64::from(node_z as u32)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -64,14 +127,75 @@ impl CellLattice {
             cell,
         );
         let inputs = noise_router.cell_inputs();
-        let mut values = vec![0.0f32; inputs.len() * volume.len()];
-        noise_router.fill_nodes(ws, &volume, inputs, &mut values);
+        let width = inputs.len();
+        let rows = volume.size().y as usize;
+        let (nx, nz) = (volume.size().x, volume.size().z);
+        let mut values = vec![0.0f32; width * volume.len()];
+
+        // The node columns a neighbour already produced: the whole low plane in
+        // x, and the low plane in z above it.
+        let borrowed = (0..nz)
+            .map(|z| (0, z))
+            .chain((1..nx).map(|x| (x, 0)))
+            .collect::<Vec<_>>();
+        let shared = LATTICE_PLANES.with_borrow_mut(|planes| {
+            planes.retarget(noise_router);
+            borrowed.iter().all(|&(x, z)| {
+                let Some(column) = planes.get(plane_key(volume.block_x(x), volume.block_z(z)))
+                else {
+                    return false;
+                };
+                for k in 0..width {
+                    let at = k * volume.len() + volume.index_unchecked(x, 0, z);
+                    values[at..at + rows].copy_from_slice(&column[k * rows..(k + 1) * rows]);
+                }
+                true
+            })
+        });
+
+        if shared {
+            let inner = Volume::new(
+                IVec3::new(nx - 1, volume.size().y, nz - 1),
+                volume.min_block() + IVec3::new(cell.x, 0, cell.z),
+                cell,
+            );
+            let mut inner_values = vec![0.0f32; width * inner.len()];
+            noise_router.fill_nodes(ws, &inner, inputs, &mut inner_values);
+            for z in 0..nz - 1 {
+                for x in 0..nx - 1 {
+                    for k in 0..width {
+                        let from = k * inner.len() + inner.index_unchecked(x, 0, z);
+                        let to = k * volume.len() + volume.index_unchecked(x + 1, 0, z + 1);
+                        values[to..to + rows].copy_from_slice(&inner_values[from..from + rows]);
+                    }
+                }
+            }
+        } else {
+            noise_router.fill_nodes(ws, &volume, inputs, &mut values);
+        }
+
+        // The high planes, which the neighbours after this column read as their
+        // own low ones.
+        let mut column = vec![0.0f32; width * rows];
+        LATTICE_PLANES.with_borrow_mut(|planes| {
+            for (x, z) in (0..nz)
+                .map(|z| (nx - 1, z))
+                .chain((0..nx - 1).map(|x| (x, nz - 1)))
+            {
+                for k in 0..width {
+                    let at = k * volume.len() + volume.index_unchecked(x, 0, z);
+                    column[k * rows..(k + 1) * rows].copy_from_slice(&values[at..at + rows]);
+                }
+                planes.put(plane_key(volume.block_x(x), volume.block_z(z)), &column);
+            }
+        });
+
         noise_router.pin_cell_lattice(ws, &volume, &values);
         Some(Self {
             volume,
             cell,
             values,
-            width: inputs.len(),
+            width,
         })
     }
 

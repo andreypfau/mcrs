@@ -67,3 +67,49 @@ fn census(label: &str, router: &NoiseRouter, columns: i32) {
 fn cell_elimination_census() {
     census("overworld", &build_settings_router("overworld", 845), 16);
 }
+
+/// A lattice node's value is a function of the node, not of the volume it was
+/// asked about as part of. Nothing may share a plane between neighbouring
+/// columns until that holds bit for bit.
+#[test]
+fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
+    use bevy_math::IVec3;
+    use mcrs_minecraft_worldgen::program::Workspace;
+    use mcrs_minecraft_worldgen::volume::Volume;
+
+    let router = build_settings_router("overworld", 777);
+    let cell = router.cell_size().expect("the router has a cell lattice");
+    let mut ws = Workspace::default();
+    let inputs = router.cell_inputs();
+    let min_y = router.noise_min_y();
+    let rows = router.noise_height() as i32 / cell.y + 1;
+
+    let whole = CellLattice::fill(&router, 0, 0, &mut ws).expect("the lattice fills");
+    let part = Volume::new(
+        IVec3::new(4, rows, 4),
+        IVec3::new(cell.x, min_y, cell.z),
+        cell,
+    );
+    let mut values = vec![0.0f32; inputs.len() * part.len()];
+    router.fill_nodes(&mut ws, &part, inputs, &mut values);
+
+    let mut compared = 0;
+    for k in 0..inputs.len() {
+        for x in 0..4 {
+            for z in 0..4 {
+                for y in 0..rows {
+                    let here = values[k * part.len() + part.index_unchecked(x, y, z)];
+                    let there = whole.values
+                        [k * whole.volume.len() + whole.volume.index_unchecked(x + 1, y, z + 1)];
+                    assert_eq!(
+                        here.to_bits(),
+                        there.to_bits(),
+                        "wrapper {k} at node {x},{y},{z}"
+                    );
+                    compared += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(compared, inputs.len() * 4 * 4 * rows as usize);
+}
