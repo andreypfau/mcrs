@@ -43,6 +43,9 @@ pub struct MaterialScratch {
     /// knows before its descent: they split a strip into runs.
     splits: Vec<CondId>,
     breaks: Vec<i32>,
+    /// Every biome the zoom can select for the current strip over the y range
+    /// `reachable_lo..=reachable_hi`, or wider.
+    reachable: Vec<u32>,
 }
 
 /// Runs shorter than this are walked block by block rather than settled.
@@ -84,11 +87,16 @@ impl MaterialScratch {
 /// `biome_at` answers the biome of a block through the zoom, which needs a grid
 /// this crate cannot build; everything else here is a function of the program,
 /// the router and the position.
-pub struct MaterialEval<'a, B> {
+pub struct MaterialEval<'a, B, R> {
     router: &'a NoiseRouter,
     program: &'a MaterialProgram,
     scratch: &'a mut MaterialScratch,
     biome_at: B,
+    reachable_at: R,
+    reachable_lo: i32,
+    reachable_hi: i32,
+    reachable_stamp: u32,
+    reachable_ok: bool,
     memoise: bool,
     preliminary: Volume,
     veins: Volume,
@@ -116,7 +124,11 @@ pub struct MaterialEval<'a, B> {
     biome_stamp: u32,
 }
 
-impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
+impl<'a, B, R> MaterialEval<'a, B, R>
+where
+    B: FnMut(i32, i32, i32) -> u32,
+    R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
+{
     /// `None` for a router built without material rules.
     ///
     /// `top` is the highest non-air block of the column and `biomes` every biome
@@ -127,6 +139,7 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
         router: &'a NoiseRouter,
         scratch: &'a mut MaterialScratch,
         biome_at: B,
+        reachable_at: R,
         block_x: i32,
         block_z: i32,
         top: i32,
@@ -202,6 +215,11 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
             program,
             scratch,
             biome_at,
+            reachable_at,
+            reachable_lo: 0,
+            reachable_hi: 0,
+            reachable_stamp: 0,
+            reachable_ok: false,
             memoise,
             preliminary,
             veins,
@@ -371,6 +389,22 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
                 }
             }
             Condition::Not(inner) => self.over(inner, lo, hi).map(|value| !value),
+            // The column-wide fold above covers the whole grid, ring included,
+            // so any column near a border loses it. Over one strip and one run
+            // the zoom can only reach the four corner quart columns across the
+            // run's cells, which is a far tighter set to fold.
+            Condition::Biome { set } => {
+                if !self.reachable_over(lo, hi) {
+                    return None;
+                }
+                match self.program.biome_sets()[set as usize]
+                    .fold(self.scratch.reachable.iter().copied())
+                {
+                    Tri::Never => Some(false),
+                    Tri::Always => Some(true),
+                    Tri::Maybe => None,
+                }
+            }
             _ => match self.split(condition) {
                 Some(Split::Always(value)) => Some(value),
                 Some(Split::At(at)) if lo >= at => Some(true),
@@ -382,6 +416,26 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
                 None => None,
             },
         }
+    }
+
+    /// Fills `scratch.reachable` with a superset of the biomes the zoom can
+    /// select over `lo..=hi` of the current strip. `false` where the caller
+    /// cannot say, which leaves every biome condition open.
+    fn reachable_over(&mut self, lo: i32, hi: i32) -> bool {
+        if self.memoise
+            && self.reachable_stamp == self.gen_xz
+            && self.reachable_lo == lo
+            && self.reachable_hi == hi
+        {
+            return self.reachable_ok;
+        }
+        let mut reachable = std::mem::take(&mut self.scratch.reachable);
+        self.reachable_ok = (self.reachable_at)(self.block_x, self.block_z, lo, hi, &mut reachable);
+        self.scratch.reachable = reachable;
+        self.reachable_stamp = self.gen_xz;
+        self.reachable_lo = lo;
+        self.reachable_hi = hi;
+        self.reachable_ok
     }
 
     /// How a condition answers along the current run, where the depth above
@@ -666,7 +720,7 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
 }
 
 #[cfg(test)]
-impl<B> MaterialEval<'_, B> {
+impl<B, R> MaterialEval<'_, B, R> {
     pub(crate) fn program(&self) -> &MaterialProgram {
         self.program
     }
@@ -716,7 +770,11 @@ impl<B> MaterialEval<'_, B> {
     }
 }
 
-impl<B: FnMut(i32, i32, i32) -> u32> MaterialContext for MaterialEval<'_, B> {
+impl<B, R> MaterialContext for MaterialEval<'_, B, R>
+where
+    B: FnMut(i32, i32, i32) -> u32,
+    R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
+{
     fn test(&mut self, condition: CondId) -> bool {
         if !self.memoise {
             return self.compute(condition);

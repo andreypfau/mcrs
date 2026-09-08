@@ -305,6 +305,7 @@ fn bypassing_every_shortcut_writes_the_same_blocks() {
     let sulfur = VoxelId::from(corpus().default_state("minecraft:sulfur"));
     let cinnabar = VoxelId::from(corpus().default_state("minecraft:cinnabar"));
     let mut banded = 0;
+    let mut multi_biome = 0;
 
     for (section_x, section_z, y_sections) in [
         (3, -7, (2..6).collect::<Vec<i32>>()),
@@ -312,6 +313,9 @@ fn bypassing_every_shortcut_writes_the_same_blocks() {
         (3, -7, (-4..20).collect()),
         (-22, 38, (-4..20).collect()),
     ] {
+        if grid_biomes(&router, &ids, section_x, section_z, &y_sections) > 1 {
+            multi_biome += 1;
+        }
         let memoised = surfaced_column(&router, &ids, section_x, section_z, &y_sections, false);
         let bypassed = surfaced_column(&router, &ids, section_x, section_z, &y_sections, true);
 
@@ -333,6 +337,37 @@ fn bypassing_every_shortcut_writes_the_same_blocks() {
         banded > 0,
         "no sulfur cave band was painted, so the 3D noise cache went untested"
     );
+    assert!(
+        multi_biome > 0,
+        "every column held one biome, so folding a biome set over a strip went untested"
+    );
+}
+
+/// How many distinct biomes a column's widened grid holds. One means the fold
+/// over the whole column already settles every biome condition, and the
+/// per-strip fold never runs.
+fn grid_biomes(
+    router: &NoiseRouter,
+    ids: &HashMap<String, u32>,
+    section_x: i32,
+    section_z: i32,
+    y_sections: &[i32],
+) -> usize {
+    let table = MultiNoiseBiomeTable::resolve(
+        &MultiNoiseBiomeSource {
+            preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
+            biomes: None,
+        },
+        |biome| u8::try_from(ids[biome]).ok(),
+    )
+    .expect("the overworld preset resolves");
+    let (_, grid) =
+        multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
+    let mut present = [false; 256];
+    for id in &grid.expect("the multi-noise fill widens a grid").ids {
+        present[*id as usize] = true;
+    }
+    present.iter().filter(|seen| **seen).count()
 }
 
 /// The preset's biomes as a registry, and the ids it gave them.

@@ -38,19 +38,22 @@ impl<'a> MaterialOracle<'a> {
         }
     }
 
-    pub(crate) fn apply<B: FnMut(i32, i32, i32) -> u32>(
+    pub(crate) fn apply<
+        B: FnMut(i32, i32, i32) -> u32,
+        R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
+    >(
         &self,
-        eval: &mut MaterialEval<'_, B>,
+        eval: &mut MaterialEval<'_, B, R>,
         visited: &mut Visited,
     ) -> Option<VoxelId> {
         let mut veins = 0;
         self.rule(self.root, eval, &mut veins, visited)
     }
 
-    fn rule<B: FnMut(i32, i32, i32) -> u32>(
+    fn rule<B: FnMut(i32, i32, i32) -> u32, R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool>(
         &self,
         holder: &'a MaterialRuleHolder,
-        eval: &mut MaterialEval<'_, B>,
+        eval: &mut MaterialEval<'_, B, R>,
         veins: &mut VeinId,
         visited: &mut Visited,
     ) -> Option<VoxelId> {
@@ -103,10 +106,13 @@ impl<'a> MaterialOracle<'a> {
         }
     }
 
-    fn condition<B: FnMut(i32, i32, i32) -> u32>(
+    fn condition<
+        B: FnMut(i32, i32, i32) -> u32,
+        R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
+    >(
         &self,
         holder: &'a MaterialConditionHolder,
-        eval: &mut MaterialEval<'_, B>,
+        eval: &mut MaterialEval<'_, B, R>,
         visited: &mut Visited,
     ) -> bool {
         let (kind, value) = match self.resolve_condition(holder) {
@@ -350,6 +356,7 @@ mod tests {
                 &router,
                 &mut scratch,
                 choose,
+                |_, _, _, _, _| false,
                 block_x,
                 block_z,
                 top,

@@ -127,6 +127,7 @@ fn apply_material_surface_with(
         router,
         scratch,
         |x, y, z| grid_biome(grid, fiddle.quart_cell(x, y, z)),
+        |bx, bz, lo, hi, out| reachable_biomes(grid, bx, bz, lo, hi, out),
         block_x,
         block_z,
         top,
@@ -304,6 +305,50 @@ fn height_of(tops: &[i32; 256], x: i32, z: i32, min_y: i32) -> i32 {
 /// out of a neighbouring column's stored palette.
 fn zoom_biome(grid: &BiomeGrid, zoom_seed: i64, x: i32, y: i32, z: i32) -> u32 {
     grid_biome(grid, quart_cell(zoom_seed, x, y, z))
+}
+
+/// Every biome the zoom can select for the strip at `(bx, bz)` anywhere in
+/// `lo..=hi`. The pick reaches the two parent cells around the block in x and
+/// z and, across the range, every cell from the lowest block's parent to one
+/// past the highest block's, so scanning those four grid columns over that
+/// span covers it. A superset is sound: the caller only folds it.
+fn reachable_biomes(
+    grid: &BiomeGrid,
+    bx: i32,
+    bz: i32,
+    lo: i32,
+    hi: i32,
+    out: &mut Vec<u32>,
+) -> bool {
+    let min = grid.volume.min_block();
+    let size = grid.volume.size();
+    let cell = |value: i32, origin: i32, limit: i32| (value - origin).clamp(0, limit - 1);
+    let first = cell(((lo - 2) >> 2) - (min.y >> 2), 0, size.y);
+    let last = cell(((hi - 2) >> 2) + 1 - (min.y >> 2), 0, size.y);
+    let parent_x = ((bx - 2) >> 2) - (min.x >> 2);
+    let parent_z = ((bz - 2) >> 2) - (min.z >> 2);
+
+    out.clear();
+    for corner_z in [parent_z, parent_z + 1] {
+        for corner_x in [parent_x, parent_x + 1] {
+            let at = grid.volume.index_unchecked(
+                cell(corner_x, 0, size.x),
+                first,
+                cell(corner_z, 0, size.z),
+            );
+            let mut previous = u32::MAX;
+            for &id in &grid.ids[at..=at + (last - first) as usize] {
+                let id = u32::from(id);
+                if id != previous {
+                    previous = id;
+                    if !out.contains(&id) {
+                        out.push(id);
+                    }
+                }
+            }
+        }
+    }
+    true
 }
 
 fn grid_biome(grid: &BiomeGrid, (qx, qy, qz): (i32, i32, i32)) -> u32 {
