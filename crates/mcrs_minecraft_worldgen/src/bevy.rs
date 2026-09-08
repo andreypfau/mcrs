@@ -740,7 +740,7 @@ mod tests {
         use mcrs_voxel_storage::VoxelId;
 
         let biomes = shipped_biome_ids();
-        for name in ["overworld", "nether", "end"] {
+        for name in ["overworld", "nether", "end", "beta"] {
             let app = load_settings(name);
             let world = app.world();
             let handle = world.resource::<SettingsHandle>().0.clone();
