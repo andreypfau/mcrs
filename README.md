@@ -3,6 +3,8 @@
 A voxel engine written in Rust, built on [Bevy](https://bevyengine.org) ECS, inspired
 by [Spout](https://github.com/spoutdev/Spout), with a Minecraft gameplay implementation.
 
+Discord: https://discord.gg/ged3nMRzwG
+
 ## Structure
 
 - **mcrs_engine** - Voxel engine core
