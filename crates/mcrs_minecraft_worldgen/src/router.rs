@@ -4,7 +4,7 @@ use crate::compile::CompileError;
 use crate::interval::Interval;
 use crate::material::compile::MaterialProgram;
 use crate::program::{Node, NodeId, Program, Workspace};
-use crate::proto::{BlockState, DensityFunctionHolder, HashableF64, ValueRange};
+use crate::proto::{BlockState, DensityFunctionHolder, ValueRange};
 use crate::volume::Volume;
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
@@ -87,7 +87,7 @@ pub struct DebugFunction {
     pub function: DensityFunctionHolder,
 }
 
-pub type SpawnTargetPoint = BTreeMap<ResourceLocation, ValueRange<HashableF64>>;
+pub type SpawnTargetPoint = BTreeMap<ResourceLocation, ValueRange>;
 
 /// `worldgen/noise_settings/*.json` in full.
 ///
@@ -119,14 +119,14 @@ pub struct NoiseGeneratorSettings {
 /// constant zero and listed in [`NoiseRouter::failed_roots`], so the roots that
 /// do compile stay usable.
 pub struct NoiseRouter {
-    program: Program,
+    pub program: Program,
+    pub sea_level: i32,
+    pub noise: NoiseSettings,
+    pub world_seed: u64,
+    pub default_block_state: VoxelId,
+    pub default_fluid_state: VoxelId,
     failed: Box<[(&'static str, CompileError)]>,
     material: Option<MaterialProgram>,
-    sea_level: i32,
-    noise: NoiseSettings,
-    world_seed: u64,
-    default_block_state: VoxelId,
-    default_fluid_state: VoxelId,
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
     /// One per material ore vein, over its density root.
@@ -166,10 +166,6 @@ impl NoiseRouter {
         }
     }
 
-    pub fn program(&self) -> &Program {
-        &self.program
-    }
-
     /// `None` where the caller supplied no material rule registry, which is
     /// every path that only wants the density graph.
     pub fn material(&self) -> Option<&MaterialProgram> {
@@ -181,30 +177,6 @@ impl NoiseRouter {
         &self.failed
     }
 
-    pub fn sea_level(&self) -> i32 {
-        self.sea_level
-    }
-
-    pub fn noise_min_y(&self) -> i32 {
-        self.noise.min_y
-    }
-
-    pub fn noise_height(&self) -> u32 {
-        self.noise.height
-    }
-
-    pub fn world_seed(&self) -> u64 {
-        self.world_seed
-    }
-
-    pub fn default_block_state(&self) -> VoxelId {
-        self.default_block_state
-    }
-
-    pub fn default_fluid_state(&self) -> VoxelId {
-        self.default_fluid_state
-    }
-
     /// The Beta noises the surface rules read directly, outside the density
     /// graph. `None` on a modern generator.
     pub fn beta_noises(&self) -> Option<&BetaTerrainNoises> {
@@ -213,11 +185,6 @@ impl NoiseRouter {
 }
 
 impl NoiseRouter {
-    /// Writes `volume.len()` values for `root` into `out`.
-    pub fn fill(&self, ws: &mut Workspace, volume: &Volume, root: usize, out: &mut [f32]) {
-        self.program.fill(ws, volume, root, out);
-    }
-
     /// One `volume.len()`-long row per root, in the order given.
     pub fn fill_roots(
         &self,

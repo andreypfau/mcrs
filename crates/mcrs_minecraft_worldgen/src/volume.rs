@@ -1,7 +1,9 @@
 use crate::jmath::{floor_div, floor_mod};
 use bevy_math::IVec3;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Axis {
     X,
     Y,

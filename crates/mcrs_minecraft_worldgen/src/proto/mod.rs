@@ -15,8 +15,7 @@ pub use spline::{ProtoMultipoint, ProtoSpline};
 use crate::node::distance::DistanceMetric;
 use crate::volume::Axis;
 use mcrs_minecraft_core::ResourceLocation;
-use serde::de::Visitor;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU32;
 
@@ -42,6 +41,40 @@ macro_rules! eq_by_bits {
     };
 }
 pub(crate) use eq_by_bits;
+
+/// A codec bound the field list alone does not express. The shape is derived as
+/// usual and `validated!` hangs the check on the way in, so the fields are
+/// spelled once rather than once more in a shadow struct that has to be kept in
+/// step by hand.
+pub(crate) trait Validate: Sized {
+    fn validate(&self) -> Result<(), String>;
+}
+
+/// Turns the inherent codec `#[serde(remote = "Self")]` generates back into the
+/// trait impls, checking [`Validate`] on the way in.
+macro_rules! validated {
+    ($($name:ident),* $(,)?) => {$(
+        impl<'de> serde::Deserialize<'de> for $name {
+            fn deserialize<D: serde::Deserializer<'de>>(
+                deserializer: D,
+            ) -> Result<Self, D::Error> {
+                let value = $name::deserialize(deserializer)?;
+                value.validate().map_err(serde::de::Error::custom)?;
+                Ok(value)
+            }
+        }
+
+        impl serde::Serialize for $name {
+            fn serialize<S: serde::Serializer>(
+                &self,
+                serializer: S,
+            ) -> Result<S::Ok, S::Error> {
+                $name::serialize(self, serializer)
+            }
+        }
+    )*};
+}
+pub(crate) use validated;
 
 /// A `Codec.DOUBLE` payload.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -156,16 +189,6 @@ impl DensityFunctionHolder {
     /// noise sampler.
     pub fn is_zero_constant(&self) -> bool {
         self.as_constant().is_some_and(|v| v.to_bits() == 0)
-    }
-
-    pub fn rewrite_children(
-        &self,
-        rule: &mut dyn FnMut(&DensityFunctionHolder) -> DensityFunctionHolder,
-    ) -> DensityFunctionHolder {
-        match self {
-            Self::Value(_) | Self::Reference(_) => self.clone(),
-            Self::Owned(function) => Self::Owned(Box::new(function.rewrite_children(rule))),
-        }
     }
 }
 
@@ -381,124 +404,6 @@ impl ProtoDensityFunction {
                 f(&x.upper_bound);
             }
         }
-    }
-
-    pub fn visit_children_mut(&mut self, f: &mut impl FnMut(&mut DensityFunctionHolder)) {
-        use ProtoDensityFunction::*;
-        match self {
-            Constant(_)
-            | BlendAlpha
-            | BlendOffset
-            | Beardifier
-            | EndOuterIslands
-            | DistanceToPoint { .. }
-            | Gradient(_)
-            | ShiftA { .. }
-            | ShiftB { .. }
-            | Shift { .. }
-            | OldBlendedNoise(_) => {}
-            Abs(x) | Square(x) | Cube(x) | Sqrt(x) | HalfNegative(x) | QuarterNegative(x)
-            | Reciprocal(x) | Negate(x) | Squeeze(x) | Log(x) | Sign(x) | Cache(x)
-            | BlendDensity(x) => f(&mut x.input),
-            Clamp(x) => f(&mut x.input),
-            Interpolated { input, .. } | Slice { input, .. } => f(input),
-            Noise {
-                shift_x,
-                shift_y,
-                shift_z,
-                ..
-            } => {
-                f(shift_x);
-                f(shift_y);
-                f(shift_z);
-            }
-            Floor(x) | Round(x) | Ceil(x) | Truncate(x) => {
-                f(&mut x.input);
-                f(&mut x.multiple);
-            }
-            Add(x) | Sub(x) | Mul(x) | Div(x) | Min(x) | Max(x) => {
-                f(&mut x.left);
-                f(&mut x.right);
-            }
-            Pow(x) => {
-                f(&mut x.base);
-                f(&mut x.exponent);
-            }
-            Lerp {
-                alpha,
-                first,
-                second,
-            } => {
-                f(alpha);
-                f(first);
-                f(second);
-            }
-            Spline { spline } => spline.visit_coordinates_mut(f),
-            RangeChoice {
-                input,
-                when_in_range,
-                when_out_of_range,
-                ..
-            } => {
-                f(input);
-                f(when_in_range);
-                f(when_out_of_range);
-            }
-            IntervalSelect(x) => {
-                f(&mut x.input);
-                for function in &mut x.functions {
-                    f(function);
-                }
-            }
-            FindTopSurface(x) => {
-                f(&mut x.density);
-                f(&mut x.upper_bound);
-            }
-        }
-    }
-
-    pub fn rewrite_children(
-        &self,
-        rule: &mut dyn FnMut(&DensityFunctionHolder) -> DensityFunctionHolder,
-    ) -> ProtoDensityFunction {
-        let mut rewritten = self.clone();
-        rewritten.visit_children_mut(&mut |child| *child = rule(child));
-        rewritten
-    }
-}
-
-impl Serialize for Axis {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(match self {
-            Axis::X => "x",
-            Axis::Y => "y",
-            Axis::Z => "z",
-        })
-    }
-}
-
-impl<'de> Deserialize<'de> for Axis {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct AxisVisitor;
-
-        impl Visitor<'_> for AxisVisitor {
-            type Value = Axis;
-
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("one of \"x\", \"y\", \"z\"")
-            }
-
-            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Axis, E> {
-                match value {
-                    "x" => Ok(Axis::X),
-                    "y" => Ok(Axis::Y),
-                    "z" => Ok(Axis::Z),
-                    other => Err(E::unknown_variant(other, &["x", "y", "z"])),
-                }
-            }
-        }
-
-        deserializer.deserialize_str(AxisVisitor)
     }
 }
 

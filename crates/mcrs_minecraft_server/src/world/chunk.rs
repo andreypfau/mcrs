@@ -997,8 +997,8 @@ pub(crate) fn dispatch_column_generation(
         // whole anyway: the material rules descend a strip from its highest
         // block to the bedrock floor, so a slice would be surfaced as if its cut
         // were the sky and would never reach the floor at all.
-        let dimension_bottom = noise_router.0.noise_min_y() >> 4;
-        let dimension_top = dimension_bottom + (noise_router.0.noise_height() as i32 >> 4);
+        let dimension_bottom = noise_router.0.noise.min_y >> 4;
+        let dimension_top = dimension_bottom + (noise_router.0.noise.height as i32 >> 4);
         let bottom = pending_column
             .sections
             .first()
@@ -1105,7 +1105,7 @@ pub(crate) fn dispatch_column_generation(
                         &mut rng,
                     );
 
-                    let world_seed = router.world_seed() as i64;
+                    let world_seed = router.world_seed as i64;
                     let cave_ids = BetaCaveBlockIds::resolve(&block_definitions);
                     let cave_config =
                         mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig {
@@ -1159,7 +1159,7 @@ pub(crate) fn dispatch_column_generation(
                     && let Some((src, _)) = &biome_context
                     && matches!(src, BiomeSource::MultiNoise(_))
                 {
-                    let world_seed = router.world_seed() as i64;
+                    let world_seed = router.world_seed as i64;
                     apply_modern_carvers(
                         column,
                         col.x,
@@ -1174,9 +1174,9 @@ pub(crate) fn dispatch_column_generation(
                         // per-piece height would give each its own random
                         // stream and its own idea of where the bottom is.
                         HeightContext {
-                            min_y: router.noise_min_y(),
-                            depth: router.noise_height() as i32,
-                            sea_level: router.sea_level(),
+                            min_y: router.noise.min_y,
+                            depth: router.noise.height as i32,
+                            sea_level: router.sea_level,
                         },
                         carver_blocks,
                     );

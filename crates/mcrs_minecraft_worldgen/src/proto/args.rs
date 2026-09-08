@@ -1,8 +1,15 @@
 use crate::node::gradient::Tiling;
-use crate::proto::{ConstantValue, DensityFunctionHolder, NoiseValue};
+use crate::proto::{ConstantValue, DensityFunctionHolder, NoiseValue, Validate, validated};
 use crate::volume::Axis;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
+
+validated!(
+    ClampArguments,
+    GradientArguments,
+    IntervalSelectArguments,
+    FindTopSurfaceArguments,
+);
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -48,36 +55,22 @@ fn is_default_multiple(multiple: &DensityFunctionHolder) -> bool {
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, try_from = "UncheckedClamp")]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct ClampArguments {
     pub input: DensityFunctionHolder,
     pub min: NoiseValue,
     pub max: NoiseValue,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct UncheckedClamp {
-    input: DensityFunctionHolder,
-    min: NoiseValue,
-    max: NoiseValue,
-}
-
-impl TryFrom<UncheckedClamp> for ClampArguments {
-    type Error = String;
-
-    fn try_from(raw: UncheckedClamp) -> Result<Self, Self::Error> {
-        if raw.max.0 < raw.min.0 {
+impl Validate for ClampArguments {
+    fn validate(&self) -> Result<(), String> {
+        if self.max.0 < self.min.0 {
             return Err(format!(
                 "min ({}) must be less than or equal to max ({})",
-                raw.min.0, raw.max.0
+                self.min.0, self.max.0
             ));
         }
-        Ok(ClampArguments {
-            input: raw.input,
-            min: raw.min,
-            max: raw.max,
-        })
+        Ok(())
     }
 }
 
@@ -86,7 +79,7 @@ fn is_clamp_to_edge(tiling: &Tiling) -> bool {
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, try_from = "UncheckedGradient")]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct GradientArguments {
     pub axis: Axis,
     #[serde(default, skip_serializing_if = "is_clamp_to_edge")]
@@ -97,84 +90,49 @@ pub struct GradientArguments {
     pub to_value: NoiseValue,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct UncheckedGradient {
-    axis: Axis,
-    #[serde(default)]
-    tiling: Tiling,
-    from_coordinate: i32,
-    to_coordinate: i32,
-    from_value: NoiseValue,
-    to_value: NoiseValue,
-}
-
-impl TryFrom<UncheckedGradient> for GradientArguments {
-    type Error = String;
-
-    fn try_from(raw: UncheckedGradient) -> Result<Self, Self::Error> {
-        if raw.from_coordinate == raw.to_coordinate {
+impl Validate for GradientArguments {
+    fn validate(&self) -> Result<(), String> {
+        if self.from_coordinate == self.to_coordinate {
             return Err("from_coordinate cannot be equal to to_coordinate".to_string());
         }
-        Ok(GradientArguments {
-            axis: raw.axis,
-            tiling: raw.tiling,
-            from_coordinate: raw.from_coordinate,
-            to_coordinate: raw.to_coordinate,
-            from_value: raw.from_value,
-            to_value: raw.to_value,
-        })
+        Ok(())
     }
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, try_from = "UncheckedIntervalSelect")]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct IntervalSelectArguments {
     pub input: DensityFunctionHolder,
     pub thresholds: Vec<NoiseValue>,
     pub functions: Vec<DensityFunctionHolder>,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct UncheckedIntervalSelect {
-    input: DensityFunctionHolder,
-    thresholds: Vec<NoiseValue>,
-    functions: Vec<DensityFunctionHolder>,
-}
-
-impl TryFrom<UncheckedIntervalSelect> for IntervalSelectArguments {
-    type Error = String;
-
-    fn try_from(raw: UncheckedIntervalSelect) -> Result<Self, Self::Error> {
-        if raw.functions.len() < 2 {
+impl Validate for IntervalSelectArguments {
+    fn validate(&self) -> Result<(), String> {
+        if self.functions.len() < 2 {
             return Err(format!(
                 "List must have at least 2 elements: {}",
-                raw.functions.len()
+                self.functions.len()
             ));
         }
-        if raw.thresholds.len() != raw.functions.len() - 1 {
+        if self.thresholds.len() != self.functions.len() - 1 {
             return Err(format!(
                 "Expected {} thresholds for {} functions, but got {}",
-                raw.functions.len() - 1,
-                raw.functions.len(),
-                raw.thresholds.len()
+                self.functions.len() - 1,
+                self.functions.len(),
+                self.thresholds.len()
             ));
         }
         // `Comparators.isInOrder(thresholds, Float::compare)`, which orders -0.0
         // below 0.0. A plain `<` on the payload would accept `[0.0, -0.0]`.
-        let out_of_order = raw
+        let out_of_order = self
             .thresholds
             .windows(2)
             .any(|w| (w[0].0 as f32).total_cmp(&(w[1].0 as f32)).is_gt());
         if out_of_order {
             return Err("Threshold values must be ordered from smallest to largest".to_string());
         }
-        Ok(IntervalSelectArguments {
-            input: raw.input,
-            thresholds: raw.thresholds,
-            functions: raw.functions,
-        })
+        Ok(())
     }
 }
 
@@ -182,7 +140,7 @@ pub const MIN_SURFACE_LOWER_BOUND: i32 = -4064;
 pub const MAX_SURFACE_LOWER_BOUND: i32 = 4062;
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, try_from = "UncheckedFindTopSurface")]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct FindTopSurfaceArguments {
     pub density: DensityFunctionHolder,
     pub upper_bound: DensityFunctionHolder,
@@ -190,31 +148,15 @@ pub struct FindTopSurfaceArguments {
     pub cell_height: NonZeroU32,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct UncheckedFindTopSurface {
-    density: DensityFunctionHolder,
-    upper_bound: DensityFunctionHolder,
-    lower_bound: i32,
-    cell_height: NonZeroU32,
-}
-
-impl TryFrom<UncheckedFindTopSurface> for FindTopSurfaceArguments {
-    type Error = String;
-
-    fn try_from(raw: UncheckedFindTopSurface) -> Result<Self, Self::Error> {
-        if !(MIN_SURFACE_LOWER_BOUND..=MAX_SURFACE_LOWER_BOUND).contains(&raw.lower_bound) {
+impl Validate for FindTopSurfaceArguments {
+    fn validate(&self) -> Result<(), String> {
+        if !(MIN_SURFACE_LOWER_BOUND..=MAX_SURFACE_LOWER_BOUND).contains(&self.lower_bound) {
             return Err(format!(
                 "Value must be within range [{MIN_SURFACE_LOWER_BOUND};{MAX_SURFACE_LOWER_BOUND}]: {}",
-                raw.lower_bound
+                self.lower_bound
             ));
         }
-        Ok(FindTopSurfaceArguments {
-            density: raw.density,
-            upper_bound: raw.upper_bound,
-            lower_bound: raw.lower_bound,
-            cell_height: raw.cell_height,
-        })
+        Ok(())
     }
 }
 

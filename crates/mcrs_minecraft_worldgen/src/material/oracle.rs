@@ -324,14 +324,14 @@ mod tests {
             biome: &resolve_biome,
         };
         let height = HeightContext {
-            min_y: router.noise_min_y(),
-            depth: router.noise_height() as i32,
-            sea_level: router.sea_level(),
+            min_y: router.noise.min_y,
+            depth: router.noise.height as i32,
+            sea_level: router.sea_level,
         };
         let oracle =
             MaterialOracle::new(&inputs, &ResourceLocation::minecraft("overworld"), height);
 
-        let min_y = router.noise_min_y();
+        let min_y = router.noise.min_y;
         let top = 96;
         let biomes = tested_biomes(&router);
         // Small palettes so most interned sets fold to `never` or `always` for

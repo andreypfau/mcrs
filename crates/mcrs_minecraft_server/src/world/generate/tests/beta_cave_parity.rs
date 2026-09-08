@@ -512,7 +512,7 @@ fn generate_column_beta_has_caves() {
     let cancel = CancellationToken::new();
     let (config, ids) = make_cave_config();
 
-    let world_seed = router.world_seed() as i64;
+    let world_seed = router.world_seed as i64;
     let y_sections: Vec<i32> = (0..8).collect();
 
     let chunk_x = 0i32;
@@ -611,7 +611,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
     let (biome_source, snapshot) = build_beta_biome_source();
     let cancel = CancellationToken::new();
     let (config, ids) = make_cave_config();
-    let world_seed = router.world_seed() as i64;
+    let world_seed = router.world_seed as i64;
     let y_sections: Vec<i32> = (0..8).collect();
     let air = VoxelId::from(ids.air);
 

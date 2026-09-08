@@ -228,7 +228,7 @@ impl CarverBiomeTable {
     /// One tile's sources, evaluated as a single strided fill the first time
     /// any column needs one of them.
     fn tile(&self, router: &NoiseRouter, ws: &mut Workspace, (tile_x, tile_z): (i32, i32)) -> Tile {
-        let key = (router.world_seed(), tile_x, tile_z);
+        let key = (router.world_seed, tile_x, tile_z);
         if let Some(tile) = self.tiles.lock().expect("carver tiles").get(key) {
             return tile;
         }
@@ -312,8 +312,8 @@ impl ModernCarverBlockIds {
             .collect();
         ModernCarverBlockIds {
             air: blocks.default_state("minecraft:air").into(),
-            fluid: router.default_fluid_state(),
-            sea_level: router.sea_level(),
+            fluid: router.default_fluid_state,
+            sea_level: router.sea_level,
             uncarvable,
         }
     }

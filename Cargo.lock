@@ -3774,6 +3774,7 @@ dependencies = [
  "bevy_reflect",
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen",
  "mcrs_voxel_storage",
  "serde",
  "serde_json",

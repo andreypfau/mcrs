@@ -138,9 +138,9 @@ fn main() {
         packed_ice: corpus().default_state("minecraft:packed_ice").into(),
     };
     let height = HeightContext {
-        min_y: router.noise_min_y(),
-        depth: router.noise_height() as i32,
-        sea_level: router.sea_level(),
+        min_y: router.noise.min_y,
+        depth: router.noise.height as i32,
+        sea_level: router.sea_level,
     };
     let y_sections: Vec<i32> = (-4..20).collect();
     let cancel = CancellationToken::new();

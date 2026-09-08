@@ -29,9 +29,9 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         &CancellationToken::new(),
     );
 
-    let sea_level = router.sea_level();
-    let stone = router.default_block_state();
-    let water = router.default_fluid_state();
+    let sea_level = router.sea_level;
+    let stone = router.default_block_state;
+    let water = router.default_fluid_state;
     let mut ws = Workspace::new();
     let mut checked = 0usize;
 
@@ -42,7 +42,9 @@ fn cell_elimination_matches_the_block_by_block_fill() {
             IVec3::new(section_x * 16, section_y * 16, section_z * 16),
         );
         let mut density = vec![0.0f32; volume.len()];
-        router.fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
+        router
+            .program
+            .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
         for z in 0..16 {
             for x in 0..16 {
                 for y in 0..16 {

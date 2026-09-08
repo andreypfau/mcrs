@@ -57,6 +57,7 @@ pub enum BinaryOp {
     Div,
     Min,
     Max,
+    Pow,
 }
 
 impl BinaryOp {
@@ -69,6 +70,7 @@ impl BinaryOp {
             BinaryOp::Div => a / b,
             BinaryOp::Min => jmath::vmin(a, b),
             BinaryOp::Max => jmath::vmax(a, b),
+            BinaryOp::Pow => jmath::pow(a, b),
         }
     }
 }
@@ -153,31 +155,16 @@ pub enum Node {
         min: f32,
         max: f32,
     },
-    ConstMin {
+    /// A binary operation with one operand folded in as a constant. `swapped`
+    /// puts the constant on the left, which is the only order `min`, `max`,
+    /// subtraction from a constant, division of a constant and a constant base
+    /// raised to a node distinguish; `x + c` and `x * c` fold into `Affine`
+    /// instead.
+    ConstBinary {
+        op: BinaryOp,
         input: NodeId,
         value: f32,
-    },
-    ConstMax {
-        input: NodeId,
-        value: f32,
-    },
-    /// `constant - input`. The other order folds into `Affine`.
-    ConstSub {
-        input: NodeId,
-        value: f32,
-    },
-    /// `constant / input`.
-    ConstDiv {
-        input: NodeId,
-        value: f32,
-    },
-    ConstBasePow {
-        base: f32,
-        exponent: NodeId,
-    },
-    ConstExponentPow {
-        input: NodeId,
-        exponent: f32,
+        swapped: bool,
     },
     IntegerMultipleRound {
         input: NodeId,
@@ -191,10 +178,6 @@ pub enum Node {
         a: NodeId,
         b: NodeId,
     },
-    Pow {
-        base: NodeId,
-        exponent: NodeId,
-    },
     Round {
         value: NodeId,
         multiple: NodeId,
@@ -206,16 +189,6 @@ pub enum Node {
         alpha: NodeId,
         first: NodeId,
         second: NodeId,
-    },
-    ConstFirstLerp {
-        alpha: NodeId,
-        first: f32,
-        second: NodeId,
-    },
-    ConstSecondLerp {
-        alpha: NodeId,
-        first: NodeId,
-        second: f32,
     },
     ShiftedNoise {
         params: Arc<NoiseFunctionParams>,
@@ -289,22 +262,13 @@ impl Node {
             | Node::PiecewiseAffine { input, .. }
             | Node::Unary { input, .. }
             | Node::Clamp { input, .. }
-            | Node::ConstMin { input, .. }
-            | Node::ConstMax { input, .. }
-            | Node::ConstSub { input, .. }
-            | Node::ConstDiv { input, .. }
-            | Node::ConstExponentPow { input, .. }
+            | Node::ConstBinary { input, .. }
             | Node::IntegerMultipleRound { input, .. }
             | Node::ConstRangeChoice { input, .. } => f(*input),
-            Node::ConstBasePow { exponent, .. } => f(*exponent),
 
             Node::Binary { a, b, .. } => {
                 f(*a);
                 f(*b);
-            }
-            Node::Pow { base, exponent } => {
-                f(*base);
-                f(*exponent);
             }
             Node::Round {
                 value, multiple, ..
@@ -321,14 +285,6 @@ impl Node {
                 f(*alpha);
                 f(*first);
                 f(*second);
-            }
-            Node::ConstFirstLerp { alpha, second, .. } => {
-                f(*alpha);
-                f(*second);
-            }
-            Node::ConstSecondLerp { alpha, first, .. } => {
-                f(*alpha);
-                f(*first);
             }
             Node::ShiftedNoise { x, y, z, .. } => {
                 f(*x);
@@ -972,29 +928,18 @@ impl Program {
                 let (lo, hi) = (*min, *max);
                 map_columns(out, &ext, read(*input), |v| jmath::clampf(v, lo, hi))
             }
-            Node::ConstMin { input, value } => {
-                let c = *value;
-                map_columns(out, &ext, read(*input), |v| jmath::vmin(v, c))
-            }
-            Node::ConstMax { input, value } => {
-                let c = *value;
-                map_columns(out, &ext, read(*input), |v| jmath::vmax(v, c))
-            }
-            Node::ConstSub { input, value } => {
-                let c = *value;
-                map_columns(out, &ext, read(*input), |v| c - v)
-            }
-            Node::ConstDiv { input, value } => {
-                let c = *value;
-                map_columns(out, &ext, read(*input), |v| c / v)
-            }
-            Node::ConstBasePow { base, exponent } => {
-                let b = *base;
-                map_columns(out, &ext, read(*exponent), |e| jmath::pow(b, e))
-            }
-            Node::ConstExponentPow { input, exponent } => {
-                let e = *exponent;
-                map_columns(out, &ext, read(*input), |v| jmath::pow(v, e))
+            Node::ConstBinary {
+                op,
+                input,
+                value,
+                swapped,
+            } => {
+                let (op, c) = (*op, *value);
+                if *swapped {
+                    map_columns(out, &ext, read(*input), |v| op.apply(c, v))
+                } else {
+                    map_columns(out, &ext, read(*input), |v| op.apply(v, c))
+                }
             }
             Node::IntegerMultipleRound {
                 input,
@@ -1008,9 +953,6 @@ impl Program {
             Node::Binary { op, a, b } => {
                 let op = *op;
                 zip2_columns(out, &ext, read(*a), read(*b), |x, y| op.apply(x, y))
-            }
-            Node::Pow { base, exponent } => {
-                zip2_columns(out, &ext, read(*base), read(*exponent), jmath::pow)
             }
             Node::Round {
                 value,
@@ -1035,26 +977,6 @@ impl Program {
                 read(*second),
                 jmath::sampler_lerp,
             ),
-            Node::ConstFirstLerp {
-                alpha,
-                first,
-                second,
-            } => {
-                let f = *first;
-                zip2_columns(out, &ext, read(*alpha), read(*second), |a, s| {
-                    jmath::sampler_lerp(a, f, s)
-                })
-            }
-            Node::ConstSecondLerp {
-                alpha,
-                first,
-                second,
-            } => {
-                let s = *second;
-                zip2_columns(out, &ext, read(*alpha), read(*first), |a, f| {
-                    jmath::sampler_lerp(a, f, s)
-                })
-            }
             Node::ShiftedNoise { params, x, y, z } => {
                 params.eval_shifted(out, read(*x), read(*y), read(*z), &ext)
             }

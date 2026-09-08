@@ -1,6 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::compile::build_router;
+use mcrs_minecraft_worldgen::corpus;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
 use mcrs_minecraft_worldgen::router::{
@@ -107,51 +108,16 @@ fn read_dump(path: &Path) -> Dump {
     Dump { seed, volumes }
 }
 
-fn assets_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets")
-}
-
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/vanilla")
 }
 
-fn walk_json(base: &Path, dir: &Path, out: &mut Vec<(ResourceLocation, Vec<u8>)>) {
-    for entry in std::fs::read_dir(dir).unwrap().flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            walk_json(base, &path, out);
-        } else if path.extension().is_some_and(|e| e == "json") {
-            let rel = path.strip_prefix(base).unwrap();
-            let name = rel.with_extension("").to_string_lossy().replace('\\', "/");
-            let ident = ResourceLocation::parse(&format!("minecraft:{name}")).unwrap();
-            out.push((ident, std::fs::read(&path).unwrap()));
-        }
-    }
-}
-
-fn load<T: serde::de::DeserializeOwned>(sub: &str) -> BTreeMap<ResourceLocation, T> {
-    let dir = assets_dir().join(sub);
-    let mut files = Vec::new();
-    walk_json(&dir, &dir, &mut files);
-    files
-        .iter()
-        .filter_map(|(id, data)| {
-            serde_json::from_slice::<T>(data)
-                .ok()
-                .map(|v| (id.clone(), v))
-        })
-        .collect()
-}
-
 fn overworld_router(seed: u64) -> NoiseRouter {
-    let settings: NoiseGeneratorSettings = serde_json::from_slice(
-        &std::fs::read(assets_dir().join("minecraft/worldgen/noise_settings/overworld.json"))
-            .unwrap(),
-    )
-    .unwrap();
+    let settings: NoiseGeneratorSettings =
+        corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
     let registry: BTreeMap<ResourceLocation, DensityFunctionHolder> =
-        load("minecraft/worldgen/density_function");
-    let noises: BTreeMap<ResourceLocation, NoiseParam> = load("minecraft/worldgen/noise");
+        corpus::registry("density_function");
+    let noises: BTreeMap<ResourceLocation, NoiseParam> = corpus::registry("noise");
     build_router(
         &settings,
         &registry,
@@ -172,7 +138,7 @@ fn fill(router: &NoiseRouter, root: usize, v: &DumpVolume) -> Vec<f32> {
     );
     let mut out = vec![f32::NAN; volume.len()];
     let mut ws = Workspace::new();
-    router.program().fill(&mut ws, &volume, root, &mut out);
+    router.program.fill(&mut ws, &volume, root, &mut out);
     out
 }
 
@@ -335,7 +301,7 @@ fn the_branch_schedule_skips_a_real_share_of_an_overworld_chunk() {
     let mut ws = Workspace::new();
     ws.take_count();
     router
-        .program()
+        .program
         .fill(&mut ws, &volume, FINAL_DENSITY, &mut out);
 
     let count = ws.take_count();

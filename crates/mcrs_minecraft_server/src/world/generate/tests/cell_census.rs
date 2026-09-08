@@ -10,7 +10,7 @@ use super::build_settings_router;
 fn census(label: &str, router: &NoiseRouter, columns: i32) {
     let mut counts = [0usize; 5];
     let mut fill = FillBuffers::default();
-    let sea_level = router.sea_level();
+    let sea_level = router.sea_level;
     for i in 0..columns {
         let (cx, cz) = (i % 8, i / 8);
         let lattice = CellLattice::fill(router, cx * 16, cz * 16, &mut fill.ws)
@@ -81,8 +81,8 @@ fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
     let cell = router.cell_size().expect("the router has a cell lattice");
     let mut ws = Workspace::default();
     let inputs = router.cell_inputs();
-    let min_y = router.noise_min_y();
-    let rows = router.noise_height() as i32 / cell.y + 1;
+    let min_y = router.noise.min_y;
+    let rows = router.noise.height as i32 / cell.y + 1;
 
     let whole = CellLattice::fill(&router, 0, 0, &mut ws).expect("the lattice fills");
     let part = Volume::new(

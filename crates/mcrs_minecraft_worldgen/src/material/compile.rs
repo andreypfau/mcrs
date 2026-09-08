@@ -171,7 +171,11 @@ pub struct MaterialProgram {
     noise_random: RandomSource,
     clay_bands: Box<[VoxelId]>,
     surface_noises: [NoiseId; 9],
+    /// The interning tables the builder kept. Only the differential oracle
+    /// reads them back, to name the id a rule resolved to.
+    #[cfg(test)]
     noise_ids: HashMap<(ResourceLocation, bool), NoiseId>,
+    #[cfg(test)]
     random_ids: HashMap<ResourceLocation, RandomId>,
 }
 
@@ -200,11 +204,13 @@ impl MaterialProgram {
         self.noises.len()
     }
 
-    pub fn noise_id(&self, name: &ResourceLocation, is_3d: bool) -> Option<NoiseId> {
+    #[cfg(test)]
+    pub(crate) fn noise_id(&self, name: &ResourceLocation, is_3d: bool) -> Option<NoiseId> {
         self.noise_ids.get(&(name.clone(), is_3d)).copied()
     }
 
-    pub fn random_id(&self, name: &ResourceLocation) -> Option<RandomId> {
+    #[cfg(test)]
+    pub(crate) fn random_id(&self, name: &ResourceLocation) -> Option<RandomId> {
         self.random_ids.get(name).copied()
     }
 
@@ -301,7 +307,9 @@ pub(crate) fn compile_material<'a>(
         noise_random: builder.compiler.positional_random(),
         clay_bands,
         surface_noises,
+        #[cfg(test)]
         noise_ids: builder.noise_ids,
+        #[cfg(test)]
         random_ids: builder.random_ids,
     })
 }
@@ -677,7 +685,7 @@ fn next_i32_between(random: &mut RandomSource, min: i32, max_inclusive: i32) -> 
 pub(crate) mod tests {
     use super::*;
     use crate::compile::build_router;
-    use crate::compile::tests::{assets, corpus, load_dir};
+    use crate::compile::tests::corpus;
     use crate::program::Workspace;
     use crate::volume::Volume;
     use std::collections::BTreeSet;
@@ -686,13 +694,10 @@ pub(crate) mod tests {
         BTreeMap<ResourceLocation, MaterialRuleHolder>,
         BTreeMap<ResourceLocation, MaterialConditionHolder>,
     ) {
-        let mut rules = BTreeMap::new();
-        let root = assets().join("material_rule");
-        load_dir(&root, &root, &mut rules);
-        let mut conditions = BTreeMap::new();
-        let root = assets().join("material_condition");
-        load_dir(&root, &root, &mut conditions);
-        (rules, conditions)
+        (
+            crate::corpus::registry("material_rule"),
+            crate::corpus::registry("material_condition"),
+        )
     }
 
     /// Stands in for the block and biome registries the compiling crate does not
@@ -711,8 +716,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn settings(name: &str) -> NoiseGeneratorSettings {
-        let path = assets().join(format!("noise_settings/{name}.json"));
-        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap()
+        crate::corpus::read("noise_settings", &ResourceLocation::minecraft(name))
     }
 
     pub(crate) fn build(name: &str) -> crate::router::NoiseRouter {
@@ -899,9 +903,7 @@ pub(crate) mod tests {
         for vein in material.veins() {
             for root in [vein.density, vein.richness, vein.filler_gap] {
                 assert!(root >= 8, "vein roots come after the eight terrain roots");
-                router
-                    .program()
-                    .fill(&mut workspace, &volume, root, &mut out);
+                router.program.fill(&mut workspace, &volume, root, &mut out);
                 assert!(out[0].is_finite(), "root {root} is not finite");
             }
         }

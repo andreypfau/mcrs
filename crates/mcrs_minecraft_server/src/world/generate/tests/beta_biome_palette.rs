@@ -42,7 +42,7 @@ pub(super) fn make_beta_biome() -> Biome {
 #[test]
 fn generate_column_beta_biome_not_default() {
     let router = build_beta_router();
-    let sea_level = router.sea_level();
+    let sea_level = router.sea_level;
     assert_eq!(sea_level, 64);
 
     // Build 16 unique biome assets — 11 land + 5 ocean.

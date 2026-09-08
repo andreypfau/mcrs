@@ -234,8 +234,8 @@ fn only_a_whole_column_is_surfaced() {
     let router = overworld_material_router(2, &ids);
     let whole: Vec<i32> = (-4..20).collect();
 
-    assert_eq!(router.noise_min_y(), -64);
-    assert_eq!(router.noise_height(), 384);
+    assert_eq!(router.noise.min_y, -64);
+    assert_eq!(router.noise.height, 384);
     assert!(spans_dimension(&whole, &router));
     assert!(!spans_dimension(&whole[..12], &router));
     assert!(!spans_dimension(&whole[12..], &router));
@@ -258,7 +258,7 @@ fn an_overworld_column_gets_grass_over_dirt_over_stone() {
 
     let grass = VoxelId::from(corpus().default_state("minecraft:grass_block"));
     let dirt = VoxelId::from(corpus().default_state("minecraft:dirt"));
-    let stone = router.default_block_state();
+    let stone = router.default_block_state;
 
     let mut grassed = 0;
     let mut over_stone = 0;
@@ -267,7 +267,7 @@ fn an_overworld_column_gets_grass_over_dirt_over_stone() {
             let Some(top) = (-64..128).rev().find(|&y| {
                 column
                     .get(x, y, z)
-                    .is_some_and(|state| state != AIR && state != router.default_fluid_state())
+                    .is_some_and(|state| state != AIR && state != router.default_fluid_state)
             }) else {
                 continue;
             };

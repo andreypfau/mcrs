@@ -77,8 +77,8 @@ fn ids(router: &mcrs_minecraft_worldgen::router::NoiseRouter) -> ModernCarverBlo
     // way the tag would: bedrock's states.
     ModernCarverBlockIds::for_test(
         corpus().default_state("minecraft:air").into(),
-        router.default_fluid_state(),
-        router.sea_level(),
+        router.default_fluid_state,
+        router.sea_level,
         vec![corpus().default_state("minecraft:bedrock").into()],
     )
 }
@@ -217,8 +217,8 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
                             continue;
                         }
                         freed += 1;
-                        let expected = if world_y < router.sea_level() {
-                            router.default_fluid_state()
+                        let expected = if world_y < router.sea_level {
+                            router.default_fluid_state
                         } else {
                             block_ids.air
                         };

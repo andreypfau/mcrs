@@ -59,7 +59,7 @@ const KEPT_COLUMNS: usize = 2048;
 
 impl LatticePlanes {
     fn retarget(&mut self, router: &NoiseRouter) {
-        let owner = (std::ptr::from_ref(router) as usize, router.world_seed());
+        let owner = (std::ptr::from_ref(router) as usize, router.world_seed);
         if self.owner != Some(owner) {
             self.owner = Some(owner);
             self.current.clear();
@@ -119,13 +119,13 @@ impl CellLattice {
         if 16 % cell.x != 0 || 16 % cell.y != 0 || 16 % cell.z != 0 {
             return None;
         }
-        let height = noise_router.noise_height() as i32;
-        if noise_router.noise_min_y() % 16 != 0 || height % 16 != 0 {
+        let height = noise_router.noise.height as i32;
+        if noise_router.noise.min_y % 16 != 0 || height % 16 != 0 {
             return None;
         }
         let volume = Volume::new(
             IVec3::new(16 / cell.x + 1, height / cell.y + 1, 16 / cell.z + 1),
-            IVec3::new(block_x, noise_router.noise_min_y(), block_z),
+            IVec3::new(block_x, noise_router.noise.min_y, block_z),
             cell,
         );
         let inputs = noise_router.cell_inputs();
@@ -294,9 +294,9 @@ fn fill_column(
     tops: &mut [i32; 256],
     cancel: &CancellationToken,
 ) -> bool {
-    let sea_level = noise_router.sea_level();
-    let default_block = noise_router.default_block_state();
-    let default_fluid = noise_router.default_fluid_state();
+    let sea_level = noise_router.sea_level;
+    let default_block = noise_router.default_block_state;
+    let default_fluid = noise_router.default_fluid_state;
     let mut fill = FillBuffers::default();
 
     let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.ws) else {
@@ -376,8 +376,8 @@ fn fill_column_dense(
     fill: &mut FillBuffers,
     cancel: &CancellationToken,
 ) -> bool {
-    let noise_min_y = noise_router.noise_min_y();
-    let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
+    let noise_min_y = noise_router.noise.min_y;
+    let noise_max_y = noise_min_y + noise_router.noise.height as i32;
     for (index, &section_y) in column.y_sections().iter().enumerate() {
         if cancel.is_cancelled() {
             return false;
@@ -437,12 +437,14 @@ fn fill_blocks(
     tops: &mut [i32; 256],
     fill: &mut FillBuffers,
 ) {
-    let sea_level = noise_router.sea_level();
-    let default_block = noise_router.default_block_state();
-    let default_fluid = noise_router.default_fluid_state();
+    let sea_level = noise_router.sea_level;
+    let default_block = noise_router.default_block_state;
+    let default_fluid = noise_router.default_fluid_state;
     fill.density.clear();
     fill.density.resize(volume.len(), 0.0);
-    noise_router.fill(&mut fill.ws, volume, FINAL_DENSITY, &mut fill.density);
+    noise_router
+        .program
+        .fill(&mut fill.ws, volume, FINAL_DENSITY, &mut fill.density);
     for z in 0..volume.size().z {
         for x in 0..volume.size().x {
             for y in (0..volume.size().y).rev() {
@@ -737,9 +739,9 @@ pub fn apply_beta_surface(
         _ => None,
     };
 
-    let sea_level = noise_router.sea_level();
-    let default_fluid = noise_router.default_fluid_state();
-    let stone = noise_router.default_block_state();
+    let sea_level = noise_router.sea_level;
+    let default_fluid = noise_router.default_fluid_state;
+    let stone = noise_router.default_block_state;
     let bedrock = VoxelId::from(blocks.default_state("minecraft:bedrock"));
     let sandstone = VoxelId::from(blocks.default_state("minecraft:sandstone"));
     let gravel = VoxelId::from(blocks.default_state("minecraft:gravel"));

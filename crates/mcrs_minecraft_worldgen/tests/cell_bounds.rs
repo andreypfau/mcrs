@@ -5,10 +5,10 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_voxel_storage::VoxelId;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_worldgen::cell::CellBounds;
 use mcrs_minecraft_worldgen::compile::build_router;
+use mcrs_minecraft_worldgen::corpus;
 use mcrs_minecraft_worldgen::interval::Interval;
 use mcrs_minecraft_worldgen::material::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
@@ -22,44 +22,6 @@ use mcrs_minecraft_worldgen::volume::Volume;
 /// without outward rounding, so a bound landing on zero is not trustworthy.
 const SLACK: f32 = 1e-5;
 
-fn assets_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets")
-}
-
-fn walk_json(base: &Path, dir: &Path, out: &mut Vec<(ResourceLocation, Vec<u8>)>) {
-    for entry in std::fs::read_dir(dir).unwrap().flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            walk_json(base, &path, out);
-        } else if path.extension().is_some_and(|e| e == "json") {
-            let rel = path.strip_prefix(base).unwrap();
-            let name = rel.with_extension("").to_string_lossy().replace('\\', "/");
-            out.push((
-                ResourceLocation::parse(&format!("minecraft:{name}")).unwrap(),
-                std::fs::read(&path).unwrap(),
-            ));
-        }
-    }
-}
-
-fn raw(sub: &str) -> Vec<(ResourceLocation, Vec<u8>)> {
-    let dir = assets_dir().join(sub);
-    let mut files = Vec::new();
-    walk_json(&dir, &dir, &mut files);
-    files
-}
-
-fn settings_bytes() -> Vec<u8> {
-    std::fs::read(assets_dir().join("minecraft/worldgen/noise_settings/overworld.json")).unwrap()
-}
-
-fn parsed<T: serde::de::DeserializeOwned>(sub: &str) -> BTreeMap<ResourceLocation, T> {
-    raw(sub)
-        .iter()
-        .filter_map(|(id, d)| serde_json::from_slice(d).ok().map(|v| (id.clone(), v)))
-        .collect()
-}
-
 fn router(seed: u64) -> NoiseRouter {
     build(seed, None)
 }
@@ -68,9 +30,8 @@ fn router(seed: u64) -> NoiseRouter {
 /// they name resolved to a placeholder: the bounds under test are over the
 /// vein densities, which read neither.
 fn material_router(seed: u64) -> NoiseRouter {
-    let rules: BTreeMap<_, MaterialRuleHolder> = parsed("minecraft/worldgen/material_rule");
-    let conditions: BTreeMap<_, MaterialConditionHolder> =
-        parsed("minecraft/worldgen/material_condition");
+    let rules: BTreeMap<_, MaterialRuleHolder> = corpus::registry("material_rule");
+    let conditions: BTreeMap<_, MaterialConditionHolder> = corpus::registry("material_condition");
     build(
         seed,
         Some(&MaterialInputs {
@@ -83,10 +44,10 @@ fn material_router(seed: u64) -> NoiseRouter {
 }
 
 fn build(seed: u64, material: Option<&MaterialInputs<'_>>) -> NoiseRouter {
-    let settings: NoiseGeneratorSettings = serde_json::from_slice(&settings_bytes()).unwrap();
-    let registry: BTreeMap<_, DensityFunctionHolder> =
-        parsed("minecraft/worldgen/density_function");
-    let noises: BTreeMap<_, NoiseParam> = parsed("minecraft/worldgen/noise");
+    let settings: NoiseGeneratorSettings =
+        corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
+    let registry: BTreeMap<_, DensityFunctionHolder> = corpus::registry("density_function");
+    let noises: BTreeMap<_, NoiseParam> = corpus::registry("noise");
     build_router(
         &settings,
         &registry,
@@ -143,7 +104,7 @@ fn a_settled_vein_cell_bound_contains_every_block_density_in_it() {
     for (index, vein) in veins.iter().enumerate() {
         let bounds: &CellBounds = router.vein_cell_bounds(index);
         let checked = check_root(&router, vein.density, |corners, min, max| {
-            bounds.eval(router.program(), corners, min, max)
+            bounds.eval(&router.program, corners, min, max)
         });
         assert!(checked > 0, "vein {index} produced no bound");
     }
@@ -166,9 +127,9 @@ fn check_root(
         None => (router.cell_size().unwrap(), router.cell_inputs()),
         Some(bounds) => (bounds.cell_size().unwrap(), bounds.inputs()),
     };
-    let height = router.noise_height() as i32;
+    let height = router.noise.height as i32;
     let size = lattice_size(cell, height);
-    let volume = Volume::new(size, IVec3::new(0, router.noise_min_y(), 0), cell);
+    let volume = Volume::new(size, IVec3::new(0, router.noise.min_y, 0), cell);
     let mut values = vec![0.0f32; inputs.len() * volume.len()];
     let mut ws = Workspace::new();
     router.fill_nodes(&mut ws, &volume, inputs, &mut values);
@@ -190,7 +151,7 @@ fn check_root(
                 };
                 let dense = Volume::dense(cell, origin);
                 let mut density = vec![0.0f32; dense.len()];
-                router.fill(&mut ws, &dense, root, &mut density);
+                router.program.fill(&mut ws, &dense, root, &mut density);
                 for (i, &value) in density.iter().enumerate() {
                     assert!(
                         value >= bounds.min() - SLACK && value <= bounds.max() + SLACK,

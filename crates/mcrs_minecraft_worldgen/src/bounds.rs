@@ -70,12 +70,20 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
         }
         Node::Unary { op, input } => unary_bounds(*op, at(*input)),
         Node::Clamp { input, min, max } => at(*input).clamped(*min, *max),
-        Node::ConstMin { input, value } => at(*input).pointwise_min(Interval::exact(*value)),
-        Node::ConstMax { input, value } => at(*input).pointwise_max(Interval::exact(*value)),
-        Node::ConstSub { input, value } => Interval::exact(*value) - at(*input),
-        Node::ConstDiv { input, value } => Interval::exact(*value) / at(*input),
-        Node::ConstBasePow { base, exponent } => Interval::exact(*base).pow(at(*exponent)),
-        Node::ConstExponentPow { input, exponent } => at(*input).pow(Interval::exact(*exponent)),
+        Node::ConstBinary {
+            op,
+            input,
+            value,
+            swapped,
+        } => {
+            let (input, value) = (at(*input), Interval::exact(*value));
+            let (a, b) = if *swapped {
+                (value, input)
+            } else {
+                (input, value)
+            };
+            binary_bounds(*op, a, b)
+        }
         Node::IntegerMultipleRound {
             input,
             multiple,
@@ -83,7 +91,6 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
         } => round_range(at(*input), Interval::exact(*multiple), *kind),
 
         Node::Binary { op, a, b } => binary_bounds(*op, at(*a), at(*b)),
-        Node::Pow { base, exponent } => at(*base).pow(at(*exponent)),
         Node::Round {
             value,
             multiple,
@@ -95,16 +102,6 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
             first,
             second,
         } => Interval::lerp(at(*alpha), at(*first), at(*second)),
-        Node::ConstFirstLerp {
-            alpha,
-            first,
-            second,
-        } => Interval::lerp(at(*alpha), Interval::exact(*first), at(*second)),
-        Node::ConstSecondLerp {
-            alpha,
-            first,
-            second,
-        } => Interval::lerp(at(*alpha), at(*first), Interval::exact(*second)),
 
         Node::RangeChoice {
             input,
@@ -274,6 +271,7 @@ fn binary_bounds(op: BinaryOp, a: Interval, b: Interval) -> Interval {
         BinaryOp::Div => a / b,
         BinaryOp::Min => a.pointwise_min(b),
         BinaryOp::Max => a.pointwise_max(b),
+        BinaryOp::Pow => a.pow(b),
     }
 }
 

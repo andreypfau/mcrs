@@ -151,7 +151,7 @@ where
         biomes: &[u32],
     ) -> Option<Self> {
         let program = router.material()?;
-        let min_y = router.noise_min_y();
+        let min_y = router.noise.min_y;
         let memoise = !scratch.bypass_shortcuts;
 
         scratch.condition_stamp.clear();
@@ -202,7 +202,7 @@ where
         let preliminary = Volume::dense(IVec3::new(16, 1, 16), IVec3::new(block_x, 0, block_z));
         scratch.preliminary.clear();
         scratch.preliminary.resize(preliminary.len(), 0.0);
-        router.fill(
+        router.program.fill(
             &mut scratch.workspace,
             &preliminary,
             CHUNK_SURFACE_LEVEL,
@@ -698,7 +698,7 @@ where
 
     fn sample(&mut self, root: usize, pos: IVec3) -> f32 {
         let mut out = [0.0f32];
-        self.router.fill(
+        self.router.program.fill(
             &mut self.scratch.workspace,
             &Volume::point(pos),
             root,
@@ -939,7 +939,7 @@ fn prefill_veins(
 ) {
     let points = veins.len();
     let min = veins.min_block();
-    let height = router.noise_height() as i32;
+    let height = router.noise.height as i32;
     scratch.vein_values.clear();
     scratch
         .vein_values
@@ -964,7 +964,9 @@ fn prefill_veins(
                 at,
             });
             scratch.vein_cells.push(true);
-            router.fill(&mut scratch.workspace, veins, vein.density, row);
+            router
+                .program
+                .fill(&mut scratch.workspace, veins, vein.density, row);
             continue;
         };
 
@@ -1004,7 +1006,7 @@ fn prefill_veins(
                             &mut scratch.corners,
                         );
                         bounds
-                            .eval(router.program(), &scratch.corners, cell_min, cell_max)
+                            .eval(&router.program, &scratch.corners, cell_min, cell_max)
                             .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK)
                     };
                     scratch.vein_cells.push(!settled);
@@ -1020,7 +1022,7 @@ fn prefill_veins(
                     let dense = Volume::dense(IVec3::new(cell.x, rows, cell.z), cell_min);
                     scratch.cell_density.clear();
                     scratch.cell_density.resize(dense.len(), 0.0);
-                    router.fill(
+                    router.program.fill(
                         &mut scratch.workspace,
                         &dense,
                         vein.density,

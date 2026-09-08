@@ -36,15 +36,6 @@ impl ProtoSpline {
             }
         }
     }
-
-    pub fn visit_coordinates_mut(&mut self, f: &mut impl FnMut(&mut DensityFunctionHolder)) {
-        if let ProtoSpline::Multipoint(m) = self {
-            f(&mut m.coordinate);
-            for value in m.values.iter_mut() {
-                value.visit_coordinates_mut(f);
-            }
-        }
-    }
 }
 
 impl PartialEq for ProtoSpline {

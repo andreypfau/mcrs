@@ -51,8 +51,8 @@ impl SurfaceIds {
 /// Sections past the noise range are the End's, which the dimension carries and
 /// the noise does not fill.
 pub fn spans_dimension(y_sections: &[i32], router: &NoiseRouter) -> bool {
-    let bottom = router.noise_min_y() >> 4;
-    let top = bottom + (router.noise_height() as i32 >> 4);
+    let bottom = router.noise.min_y >> 4;
+    let top = bottom + (router.noise.height as i32 >> 4);
     let contiguous = y_sections
         .iter()
         .enumerate()
@@ -102,11 +102,11 @@ fn apply_material_surface_with(
     };
     let block_x = section_x * 16;
     let block_z = section_z * 16;
-    let min_y = router.noise_min_y();
-    let sea_level = router.sea_level();
-    let stone = router.default_block_state();
-    let fluid = router.default_fluid_state();
-    let zoom_seed = obfuscate_seed(router.world_seed() as i64);
+    let min_y = router.noise.min_y;
+    let sea_level = router.sea_level;
+    let stone = router.default_block_state;
+    let fluid = router.default_fluid_state;
+    let zoom_seed = obfuscate_seed(router.world_seed as i64);
 
     // The fold runs over the whole grid, border ring included: the zoom can
     // select a cell in the ring, so a biome present only there can still win

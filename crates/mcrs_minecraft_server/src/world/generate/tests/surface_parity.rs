@@ -164,7 +164,7 @@ fn a_surfaced_column_matches_the_vanilla_chunk_where_the_fill_agrees() {
         let dump = read_dump(name);
         let router = overworld_material_router(dump.seed, &ids);
         let y_sections: Vec<i32> = ((dump.min_y / 16)..((dump.min_y + dump.height) / 16)).collect();
-        let fluid = router.default_fluid_state();
+        let fluid = router.default_fluid_state;
         let filled = filled_column(&router, dump.chunk_x, dump.chunk_z, &y_sections);
         let surfaced = surfaced_column(
             &router,

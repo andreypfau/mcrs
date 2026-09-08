@@ -1,3 +1,4 @@
+use crate::proto::HashableF64;
 use mcrs_minecraft_core::ResourceLocation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -59,27 +60,26 @@ impl Serialize for BlockState {
 
 /// A closed range written as a bare value, a two-element array, or an object.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(from = "Either<I, Either<[I; 2], NamedRange<I>>>")]
-#[serde(into = "Either<I, Either<[I; 2], NamedRange<I>>>")]
-pub struct ValueRange<I>
-where
-    I: Clone + PartialEq,
-{
-    pub min: I,
-    pub max: I,
+#[serde(from = "RangeForm")]
+#[serde(into = "RangeForm")]
+pub struct ValueRange {
+    pub min: HashableF64,
+    pub max: HashableF64,
 }
+
+type RangeForm = Either<HashableF64, Either<[HashableF64; 2], NamedRange>>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct NamedRange<I> {
-    min: I,
-    max: I,
+struct NamedRange {
+    min: HashableF64,
+    max: HashableF64,
 }
 
-impl<I: Clone + PartialEq> From<Either<I, Either<[I; 2], NamedRange<I>>>> for ValueRange<I> {
-    fn from(value: Either<I, Either<[I; 2], NamedRange<I>>>) -> Self {
+impl From<RangeForm> for ValueRange {
+    fn from(value: RangeForm) -> Self {
         match value {
             Either::Left(value) => ValueRange {
-                min: value.clone(),
+                min: value,
                 max: value,
             },
             Either::Right(Either::Left([min, max])) => ValueRange { min, max },
@@ -91,8 +91,8 @@ impl<I: Clone + PartialEq> From<Either<I, Either<[I; 2], NamedRange<I>>>> for Va
     }
 }
 
-impl<I: Clone + PartialEq> From<ValueRange<I>> for Either<I, Either<[I; 2], NamedRange<I>>> {
-    fn from(value: ValueRange<I>) -> Self {
+impl From<ValueRange> for RangeForm {
+    fn from(value: ValueRange) -> Self {
         if value.min == value.max {
             Either::Left(value.min)
         } else {
@@ -129,12 +129,12 @@ mod tests {
 
     #[test]
     fn a_range_reads_all_three_shapes() {
-        let bare: ValueRange<f64> = serde_json::from_str("0.5").unwrap();
-        assert_eq!((bare.min, bare.max), (0.5, 0.5));
-        let pair: ValueRange<f64> = serde_json::from_str("[-1.0, 1.0]").unwrap();
-        assert_eq!((pair.min, pair.max), (-1.0, 1.0));
-        let named: ValueRange<f64> = serde_json::from_str(r#"{"min":-1.0,"max":1.0}"#).unwrap();
-        assert_eq!((named.min, named.max), (-1.0, 1.0));
+        let bare: ValueRange = serde_json::from_str("0.5").unwrap();
+        assert_eq!((bare.min.0, bare.max.0), (0.5, 0.5));
+        let pair: ValueRange = serde_json::from_str("[-1.0, 1.0]").unwrap();
+        assert_eq!((pair.min.0, pair.max.0), (-1.0, 1.0));
+        let named: ValueRange = serde_json::from_str(r#"{"min":-1.0,"max":1.0}"#).unwrap();
+        assert_eq!((named.min.0, named.max.0), (-1.0, 1.0));
         assert_eq!(serde_json::to_string(&pair).unwrap(), "[-1.0,1.0]");
     }
 }
