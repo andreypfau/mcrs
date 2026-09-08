@@ -20,26 +20,34 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU32;
 
-/// A `Codec.DOUBLE` payload. Compared and hashed on its bits, because vanilla
+/// Equality and hashing over the raw bits of a `f64` newtype, because vanilla
 /// compares these records with `Double.compare`: `-0.0` and `0.0` are distinct
 /// keys, and a derived `PartialEq` would call them equal while the bit hash
 /// disagreed.
+macro_rules! eq_by_bits {
+    ($name:ident) => {
+        impl PartialEq for $name {
+            fn eq(&self, other: &Self) -> bool {
+                self.0.to_bits() == other.0.to_bits()
+            }
+        }
+
+        impl Eq for $name {}
+
+        impl std::hash::Hash for $name {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                self.0.to_bits().hash(state);
+            }
+        }
+    };
+}
+pub(crate) use eq_by_bits;
+
+/// A `Codec.DOUBLE` payload.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct HashableF64(pub f64);
 
-impl PartialEq for HashableF64 {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.to_bits() == other.0.to_bits()
-    }
-}
-
-impl Eq for HashableF64 {}
-
-impl Hash for HashableF64 {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.to_bits().hash(state);
-    }
-}
+eq_by_bits!(HashableF64);
 
 impl From<f64> for HashableF64 {
     #[inline]

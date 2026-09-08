@@ -1,4 +1,4 @@
-use crate::node::gradient::TilingMode;
+use crate::node::gradient::Tiling;
 use crate::proto::{ConstantValue, DensityFunctionHolder, NoiseValue};
 use crate::volume::Axis;
 use serde::{Deserialize, Serialize};
@@ -81,8 +81,8 @@ impl TryFrom<UncheckedClamp> for ClampArguments {
     }
 }
 
-fn is_clamp_to_edge(tiling: &TilingMode) -> bool {
-    matches!(tiling, TilingMode::ClampToEdge)
+fn is_clamp_to_edge(tiling: &Tiling) -> bool {
+    matches!(tiling, Tiling::ClampToEdge)
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
@@ -90,7 +90,7 @@ fn is_clamp_to_edge(tiling: &TilingMode) -> bool {
 pub struct GradientArguments {
     pub axis: Axis,
     #[serde(default, skip_serializing_if = "is_clamp_to_edge")]
-    pub tiling: TilingMode,
+    pub tiling: Tiling,
     pub from_coordinate: i32,
     pub to_coordinate: i32,
     pub from_value: NoiseValue,
@@ -102,7 +102,7 @@ pub struct GradientArguments {
 struct UncheckedGradient {
     axis: Axis,
     #[serde(default)]
-    tiling: TilingMode,
+    tiling: Tiling,
     from_coordinate: i32,
     to_coordinate: i32,
     from_value: NoiseValue,
@@ -242,19 +242,7 @@ macro_rules! bounded_f64 {
         #[serde(try_from = "f64")]
         pub struct $name(pub f64);
 
-        impl PartialEq for $name {
-            fn eq(&self, other: &Self) -> bool {
-                self.0.to_bits() == other.0.to_bits()
-            }
-        }
-
-        impl Eq for $name {}
-
-        impl std::hash::Hash for $name {
-            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-                self.0.to_bits().hash(state);
-            }
-        }
+        crate::proto::eq_by_bits!($name);
 
         impl TryFrom<f64> for $name {
             type Error = String;

@@ -62,7 +62,7 @@ impl RouterFunctions {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NoiseSettings {
     pub min_y: i32,
@@ -123,8 +123,7 @@ pub struct NoiseRouter {
     failed: Box<[(&'static str, CompileError)]>,
     material: Option<MaterialProgram>,
     sea_level: i32,
-    noise_min_y: i32,
-    noise_height: u32,
+    noise: NoiseSettings,
     world_seed: u64,
     default_block_state: VoxelId,
     default_fluid_state: VoxelId,
@@ -155,8 +154,7 @@ impl NoiseRouter {
             failed: failed.into_boxed_slice(),
             material,
             sea_level: settings.sea_level,
-            noise_min_y: settings.noise.min_y,
-            noise_height: settings.noise.height,
+            noise: settings.noise,
             world_seed,
             default_block_state,
             default_fluid_state,
@@ -188,11 +186,11 @@ impl NoiseRouter {
     }
 
     pub fn noise_min_y(&self) -> i32 {
-        self.noise_min_y
+        self.noise.min_y
     }
 
     pub fn noise_height(&self) -> u32 {
-        self.noise_height
+        self.noise.height
     }
 
     pub fn world_seed(&self) -> u64 {

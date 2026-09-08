@@ -18,8 +18,7 @@ pub const NO_WATER: i32 = i32::MIN;
 /// Every allocation the descent reuses column after column.
 #[derive(Default)]
 pub struct MaterialScratch {
-    bypass_caches: bool,
-    bypass_settled_runs: bool,
+    bypass_shortcuts: bool,
     workspace: Workspace,
     condition_stamp: Vec<u32>,
     condition_value: Vec<bool>,
@@ -82,15 +81,10 @@ struct VeinCells {
 }
 
 impl MaterialScratch {
-    /// Force every cache to miss, so a run can be compared block for block
-    /// against a memoised one.
-    pub fn bypass_caches(&mut self, bypass: bool) {
-        self.bypass_caches = bypass;
-    }
-
-    /// Report no settled run, so every block goes through the tape.
-    pub fn bypass_settled_runs(&mut self, bypass: bool) {
-        self.bypass_settled_runs = bypass;
+    /// Force every cache to miss and report no settled run, so every block
+    /// goes through the tape and can be compared against a memoised descent.
+    pub fn bypass_shortcuts(&mut self, bypass: bool) {
+        self.bypass_shortcuts = bypass;
     }
 }
 
@@ -159,7 +153,7 @@ where
     ) -> Option<Self> {
         let program = router.material()?;
         let min_y = router.noise_min_y();
-        let memoise = !scratch.bypass_caches;
+        let memoise = !scratch.bypass_shortcuts;
 
         scratch.condition_stamp.clear();
         scratch
@@ -302,7 +296,7 @@ where
     ) {
         out.clear();
         // Splitting a run costs about as much as walking a few blocks of it.
-        if self.scratch.bypass_settled_runs || top - bottom < SHORT_RUN {
+        if self.scratch.bypass_shortcuts || top - bottom < SHORT_RUN {
             return;
         }
         self.run_top = top;

@@ -211,8 +211,7 @@ pub(super) fn surfaced_column(
         multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
 
     let mut scratch = MaterialScratch::default();
-    scratch.bypass_caches(bypass_shortcuts);
-    scratch.bypass_settled_runs(bypass_shortcuts);
+    scratch.bypass_shortcuts(bypass_shortcuts);
     apply_material_surface(
         &column,
         section_x,

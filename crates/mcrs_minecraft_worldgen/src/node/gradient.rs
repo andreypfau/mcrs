@@ -12,8 +12,6 @@ pub enum Tiling {
     MirroredRepeat,
 }
 
-pub type TilingMode = Tiling;
-
 #[derive(Clone, Copy, Debug)]
 pub struct GradientParams {
     pub axis: Axis,
