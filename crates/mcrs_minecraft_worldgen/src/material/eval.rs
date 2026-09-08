@@ -1,8 +1,10 @@
+use crate::cell::CELL_BOUNDS_SLACK;
+use crate::interval::Interval;
 use crate::jmath::mth_floor;
 use crate::material::compile::{
     CondId, Condition, MaterialContext, MaterialProgram, NoiseId, Scope, SurfaceNoise, Tri, VeinId,
 };
-use crate::program::Workspace;
+use crate::program::{NodeId, Workspace};
 use crate::router::NoiseRouter;
 use crate::volume::Volume;
 use bevy_math::IVec3;
@@ -23,7 +25,27 @@ pub struct MaterialScratch {
     noise_stamp: Vec<u32>,
     noise_value: Vec<f64>,
     preliminary: Vec<f32>,
+    /// One row per vein over the column's block volume, written only inside
+    /// the cells `vein_cells` leaves open.
     vein_values: Vec<f32>,
+    /// Per vein, per cell of its lattice: whether the vein's density can be
+    /// positive anywhere in the cell. A settled cell never reads `vein_values`.
+    vein_cells: Vec<bool>,
+    vein_layout: Vec<VeinCells>,
+    /// Per vein, where the current strip's cells start in `vein_cells`.
+    vein_strip: Vec<usize>,
+    lattice: Vec<f32>,
+    corners: Vec<Interval>,
+    cell_density: Vec<f32>,
+}
+
+/// How one vein's cells are laid out in `MaterialScratch::vein_cells`: the
+/// column's cells in x, then z, each a run of `size.y` along y.
+#[derive(Clone, Copy)]
+struct VeinCells {
+    cell: IVec3,
+    size: IVec3,
+    at: usize,
 }
 
 impl MaterialScratch {
@@ -47,6 +69,8 @@ pub struct MaterialEval<'a, B> {
     memoise: bool,
     preliminary: Volume,
     veins: Volume,
+    /// Where the current strip starts in a `vein_values` row.
+    vein_row: usize,
     gen_xz: u32,
     gen_y: u32,
     block_x: i32,
@@ -131,22 +155,7 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
             IVec3::new(16, (top - min_y + 1).max(1), 16),
             IVec3::new(block_x, min_y, block_z),
         );
-        let points = veins.len();
-        scratch.vein_values.clear();
-        scratch
-            .vein_values
-            .resize(2 * program.veins().len() * points, 0.0);
-        for (index, vein) in program.veins().iter().enumerate() {
-            for (row, root) in [vein.density, vein.richness].into_iter().enumerate() {
-                let at = (2 * index + row) * points;
-                router.fill(
-                    &mut scratch.workspace,
-                    &veins,
-                    root,
-                    &mut scratch.vein_values[at..at + points],
-                );
-            }
-        }
+        prefill_veins(router, program, scratch, &veins);
 
         Some(Self {
             router,
@@ -156,6 +165,7 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
             memoise,
             preliminary,
             veins,
+            vein_row: 0,
             gen_xz: 0,
             gen_y: 0,
             block_x,
@@ -184,6 +194,19 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
         self.gradient_x = gradient_x;
         self.gradient_z = gradient_z;
         self.surface_depth = self.compute_surface_depth();
+
+        let local = IVec3::new(block_x, 0, block_z) - self.veins.min_block();
+        self.vein_row = (local.x + local.z * 16) as usize * self.veins.size().y as usize;
+        for (strip, layout) in self
+            .scratch
+            .vein_strip
+            .iter_mut()
+            .zip(&self.scratch.vein_layout)
+        {
+            let cell = local / layout.cell;
+            *strip =
+                layout.at + (cell.x + cell.z * layout.size.x) as usize * layout.size.y as usize;
+        }
     }
 
     pub fn update_y(&mut self, depth_above: i32, depth_below: i32, water_level: i32, block_y: i32) {
@@ -275,16 +298,24 @@ impl<'a, B: FnMut(i32, i32, i32) -> u32> MaterialEval<'a, B> {
         out[0]
     }
 
-    /// A density prefilled over the column, point-sampled where the position
-    /// sits above the fill — which a pillar built before the descent can.
-    fn prefilled(&mut self, row: usize, root: usize) -> f32 {
-        match self
-            .veins
-            .index_of_block(self.block_x, self.block_y, self.block_z)
-        {
-            Some(index) => self.scratch.vein_values[row * self.veins.len() + index],
-            None => self.sample(root, IVec3::new(self.block_x, self.block_y, self.block_z)),
+    /// A vein's density prefilled over the column, point-sampled where the
+    /// position sits above the fill — which a pillar built before the descent
+    /// can.
+    fn prefilled(&mut self, vein: usize, root: usize) -> f32 {
+        let dy = self.block_y - self.veins.min_block().y;
+        if (0..self.veins.size().y).contains(&dy) {
+            self.scratch.vein_values[vein * self.veins.len() + self.vein_row + dy as usize]
+        } else {
+            self.sample(root, IVec3::new(self.block_x, self.block_y, self.block_z))
         }
+    }
+
+    /// Whether the vein's density can be positive in the cell holding the
+    /// position; above the classified lattice nothing is known.
+    fn vein_possible(&self, vein: usize) -> bool {
+        let layout = self.scratch.vein_layout[vein];
+        let cy = (self.block_y - self.veins.min_block().y) / layout.cell.y;
+        cy >= layout.size.y || self.scratch.vein_cells[self.scratch.vein_strip[vein] + cy as usize]
     }
 
     fn compute(&mut self, condition: CondId) -> bool {
@@ -465,25 +496,23 @@ impl<B: FnMut(i32, i32, i32) -> u32> MaterialContext for MaterialEval<'_, B> {
     }
 
     fn ore_vein(&mut self, vein: VeinId) -> Option<VoxelId> {
+        if !self.vein_possible(vein as usize) {
+            return None;
+        }
         let ore_vein = self.program.veins()[vein as usize];
-        let density = self.prefilled(2 * vein as usize, ore_vein.density);
+        let density = self.prefilled(vein as usize, ore_vein.density);
         if density <= 0.0 {
             return None;
         }
-        let mut random = self.program.random_at(
-            ore_vein.random,
-            IVec3::new(self.block_x, self.block_y, self.block_z),
-        );
+        let at = IVec3::new(self.block_x, self.block_y, self.block_z);
+        let mut random = self.program.random_at(ore_vein.random, at);
         if random.next_f32() > density {
             return None;
         }
-        let richness = self.prefilled(2 * vein as usize + 1, ore_vein.richness);
-        if random.next_f32() < richness
-            && self.sample(
-                ore_vein.filler_gap,
-                IVec3::new(self.block_x, self.block_y, self.block_z),
-            ) < 0.0
-        {
+        // Richness and the gap are read only inside a vein, a handful of
+        // blocks per column, so neither is worth a prefill.
+        let richness = self.sample(ore_vein.richness, at);
+        if random.next_f32() < richness && self.sample(ore_vein.filler_gap, at) < 0.0 {
             Some(if random.next_f32() < ore_vein.raw_ore_chance {
                 ore_vein.raw_ore
             } else {
@@ -492,6 +521,140 @@ impl<B: FnMut(i32, i32, i32) -> u32> MaterialContext for MaterialEval<'_, B> {
         } else {
             Some(ore_vein.filler)
         }
+    }
+}
+
+/// Classify every cell of each vein's lattice from interval bounds over its
+/// corners, and fill the density block by block only where a bound leaves the
+/// sign open. Veins are rare, so nearly every cell settles as "no vein" from
+/// its eight corners, and the descent then answers the rule without a read.
+///
+/// A vein whose wrappers do not share one lattice tiling the column has no
+/// cells to settle and is filled whole.
+fn prefill_veins(
+    router: &NoiseRouter,
+    program: &MaterialProgram,
+    scratch: &mut MaterialScratch,
+    veins: &Volume,
+) {
+    let points = veins.len();
+    let min = veins.min_block();
+    let height = router.noise_height() as i32;
+    scratch.vein_values.clear();
+    scratch
+        .vein_values
+        .resize(program.veins().len() * points, 0.0);
+    scratch.vein_cells.clear();
+    scratch.vein_layout.clear();
+    scratch.vein_strip.clear();
+    let mut filled: Option<(&[NodeId], Volume)> = None;
+
+    for (index, vein) in program.veins().iter().enumerate() {
+        let row = &mut scratch.vein_values[index * points..(index + 1) * points];
+        let bounds = router.vein_cell_bounds(index);
+        let cell = bounds
+            .cell_size()
+            .filter(|c| 16 % c.x == 0 && 16 % c.z == 0 && height % c.y == 0);
+        let at = scratch.vein_cells.len();
+        scratch.vein_strip.push(at);
+        let Some(cell) = cell else {
+            scratch.vein_layout.push(VeinCells {
+                cell: IVec3::new(16, height, 16),
+                size: IVec3::ONE,
+                at,
+            });
+            scratch.vein_cells.push(true);
+            router.fill(&mut scratch.workspace, veins, vein.density, row);
+            continue;
+        };
+
+        let size = IVec3::new(16 / cell.x, height / cell.y, 16 / cell.z);
+        scratch.vein_layout.push(VeinCells { cell, size, at });
+        let lattice = Volume::new(size + IVec3::ONE, min, cell);
+        let inputs = bounds.inputs();
+        // The veins of one dimension interpolate the same noises, so the
+        // lattice sampled for the first serves the rest.
+        if filled != Some((inputs, lattice)) {
+            scratch.lattice.clear();
+            scratch.lattice.resize(inputs.len() * lattice.len(), 0.0);
+            router.fill_nodes(
+                &mut scratch.workspace,
+                &lattice,
+                inputs,
+                &mut scratch.lattice,
+            );
+            router.pin_lattice_of(bounds, &mut scratch.workspace, &lattice, &scratch.lattice);
+            filled = Some((inputs, lattice));
+        }
+        scratch.corners.resize(inputs.len(), Interval::exact(0.0));
+
+        for cz in 0..size.z {
+            for cx in 0..size.x {
+                for cy in 0..size.y {
+                    let cell_min = min + IVec3::new(cx, cy, cz) * cell;
+                    let cell_max = cell_min + cell - 1;
+                    corner_bounds(
+                        &scratch.lattice,
+                        &lattice,
+                        IVec3::new(cx, cy, cz),
+                        &mut scratch.corners,
+                    );
+                    let settled = bounds
+                        .eval(router.program(), &scratch.corners, cell_min, cell_max)
+                        .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK);
+                    scratch.vein_cells.push(!settled);
+                    if settled {
+                        continue;
+                    }
+                    // Only the part of the cell the column volume covers is
+                    // prefilled; above it the rule samples the point.
+                    let rows = (veins.max_block().y - cell_min.y + 1).min(cell.y);
+                    if rows <= 0 {
+                        continue;
+                    }
+                    let dense = Volume::dense(IVec3::new(cell.x, rows, cell.z), cell_min);
+                    scratch.cell_density.clear();
+                    scratch.cell_density.resize(dense.len(), 0.0);
+                    router.fill(
+                        &mut scratch.workspace,
+                        &dense,
+                        vein.density,
+                        &mut scratch.cell_density,
+                    );
+                    for dz in 0..cell.z {
+                        for dx in 0..cell.x {
+                            let from = dense.index_unchecked(dx, 0, dz);
+                            let to = veins.index_unchecked(
+                                cx * cell.x + dx,
+                                cell_min.y - min.y,
+                                cz * cell.z + dz,
+                            );
+                            row[to..to + rows as usize]
+                                .copy_from_slice(&scratch.cell_density[from..from + rows as usize]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The hull of one cell's eight corner values, per lattice row.
+fn corner_bounds(values: &[f32], lattice: &Volume, at: IVec3, out: &mut [Interval]) {
+    let stride = lattice.len();
+    for (k, bound) in out.iter_mut().enumerate() {
+        let row = &values[k * stride..(k + 1) * stride];
+        let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
+        for dz in 0..2 {
+            for dx in 0..2 {
+                for dy in 0..2 {
+                    let v = row[lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz)];
+                    lo = lo.min(v);
+                    hi = hi.max(v);
+                }
+            }
+        }
+        *bound = Interval::of(lo, hi);
     }
 }
 

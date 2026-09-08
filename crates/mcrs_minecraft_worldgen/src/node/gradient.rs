@@ -25,6 +25,20 @@ pub struct GradientParams {
 
 impl GradientParams {
     pub fn eval(&self, out: &mut [f32], ext: &Volume) {
+        let coordinate: fn(&Volume, i32) -> i32 = match self.axis {
+            Axis::X => Volume::block_x,
+            Axis::Y => Volume::block_y,
+            Axis::Z => Volume::block_z,
+        };
+        self.fill(out, |i| coordinate(ext, i as i32));
+    }
+
+    /// The gradient at each of `coordinates`, in order.
+    pub fn eval_coordinates<const N: usize>(&self, out: &mut [f32; N], coordinates: [i32; N]) {
+        self.fill(out, |i| coordinates[i]);
+    }
+
+    fn fill(&self, out: &mut [f32], coordinate: impl Fn(usize) -> i32) {
         let from_coordinate = self.from as i32;
         let to_coordinate = self.to as i32;
         let range = to_coordinate - from_coordinate;
@@ -38,14 +52,14 @@ impl GradientParams {
                 let hi = from_coordinate.max(to_coordinate);
                 // The clamp uses the sorted pair while the offset uses the
                 // original from_coordinate; a descending gradient needs both.
-                self.fill(out, ext, |c| {
+                self.fill_with(out, coordinate, |c| {
                     mul_add((c.clamp(lo, hi) - from_coordinate) as f32, factor, base)
                 })
             }
-            Tiling::Repeat => self.fill(out, ext, |c| {
+            Tiling::Repeat => self.fill_with(out, coordinate, |c| {
                 mul_add(floor_mod(c - from_coordinate, range) as f32, factor, base)
             }),
-            Tiling::MirroredRepeat => self.fill(out, ext, |c| {
+            Tiling::MirroredRepeat => self.fill_with(out, coordinate, |c| {
                 let relative = c - from_coordinate;
                 let tile = floor_div(relative, range);
                 let local = relative - tile * range;
@@ -59,14 +73,14 @@ impl GradientParams {
 
     /// The stratum of a gradient is exactly its own axis, so the extent has one
     /// sample on the other two and the buffer walks that axis end to end.
-    fn fill(&self, out: &mut [f32], ext: &Volume, compute: impl Fn(i32) -> f32) {
-        let coordinate: fn(&Volume, i32) -> i32 = match self.axis {
-            Axis::X => Volume::block_x,
-            Axis::Y => Volume::block_y,
-            Axis::Z => Volume::block_z,
-        };
+    fn fill_with(
+        &self,
+        out: &mut [f32],
+        coordinate: impl Fn(usize) -> i32,
+        compute: impl Fn(i32) -> f32,
+    ) {
         for (i, o) in out.iter_mut().enumerate() {
-            *o = compute(coordinate(ext, i as i32));
+            *o = compute(coordinate(i));
         }
     }
 }

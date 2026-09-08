@@ -12,16 +12,12 @@ use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
+use mcrs_minecraft_worldgen::cell::CELL_BOUNDS_SLACK;
 use mcrs_minecraft_worldgen::interval::Interval;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
-
-/// Margin the whole-cell fill keeps away from zero. `final_density_cell_bounds`
-/// is f32 interval arithmetic without outward rounding, so a bound that lands
-/// exactly on zero is not trustworthy; cells inside the margin go block by block.
-const CELL_BOUNDS_SLACK: f32 = 1e-5;
 
 /// The `interpolated` wrapper inputs at every cell corner of a whole chunk
 /// column, laid out one `volume`-shaped row per wrapper.
@@ -107,7 +103,14 @@ impl CellLattice {
         fill: &mut FillBuffers,
     ) -> CellFill {
         self.corner_bounds(at, &mut fill.corners);
-        let Some(bounds) = noise_router.final_density_cell_bounds(&fill.corners) else {
+        let min = IVec3::new(
+            self.volume.block_x(at.x),
+            self.volume.block_y(at.y),
+            self.volume.block_z(at.z),
+        );
+        let Some(bounds) =
+            noise_router.final_density_cell_bounds(&fill.corners, min, min + self.cell - 1)
+        else {
             return CellFill::Mixed;
         };
         if bounds.min() > CELL_BOUNDS_SLACK {

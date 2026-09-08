@@ -6,6 +6,11 @@ use bevy_math::IVec3;
 /// The lattice a router with no `interpolated` node is still asked about.
 const DEFAULT_CELL: IVec3 = IVec3::new(4, 8, 4);
 
+/// Margin a whole-cell decision keeps away from zero. [`CellBounds::eval`] is
+/// f32 interval arithmetic without outward rounding, so a bound that lands
+/// exactly on zero is not trustworthy; cells inside the margin go block by block.
+pub const CELL_BOUNDS_SLACK: f32 = 1e-5;
+
 /// One root's subgraph split at every `interpolated` node: the wrappers and
 /// everything above them are bounded per cell, while their inputs are only ever
 /// read off the cell lattice.
@@ -83,7 +88,9 @@ impl CellBounds {
         // Whether a node can be bounded depends on its kind and never on the
         // values, so one probe settles it for every cell.
         let probe = vec![Interval::exact(0.0); bounds.wrappers.len()];
-        bounds.boundable = bounds.eval(program, &probe).is_some();
+        bounds.boundable = bounds
+            .eval(program, &probe, IVec3::ZERO, IVec3::ZERO)
+            .is_some();
         bounds
     }
 
@@ -105,13 +112,20 @@ impl CellBounds {
     }
 
     /// Bounds on the root across a whole cell, given each `interpolated`
-    /// wrapper's own bounds over the cell's eight corners. Trilinear
-    /// interpolation is a convex combination, so it never leaves the corner
-    /// hull; interval arithmetic over the terms above carries that up.
+    /// wrapper's own bounds over the cell's eight corners and the cell's
+    /// inclusive block box. Trilinear interpolation is a convex combination, so
+    /// it never leaves the corner hull; interval arithmetic over the terms above
+    /// carries that up.
     ///
     /// `None` when a term has a kind this cannot bound, which simply means the
     /// caller must evaluate the cell block by block.
-    pub fn eval(&self, program: &Program, corners: &[Interval]) -> Option<Interval> {
+    pub fn eval(
+        &self,
+        program: &Program,
+        corners: &[Interval],
+        min: IVec3,
+        max: IVec3,
+    ) -> Option<Interval> {
         if !self.boundable {
             return None;
         }
@@ -129,7 +143,7 @@ impl CellBounds {
             if matches!(node, Node::Interpolated { .. }) {
                 continue;
             }
-            let bound = node_bounds(node, Bounds::Cell, &|dep| {
+            let bound = node_bounds(node, Bounds::Cell { min, max }, &|dep| {
                 values[self.slot[dep as usize] as usize]
             })?;
             values[self.slot[id as usize] as usize] = bound;

@@ -290,9 +290,14 @@ not fail loudly, it silently becomes some other node's id. Every density functio
 a rule names is appended to the root vector, and the tape refers to it by its
 index there.
 
-**S16. Density and richness are prefilled over the column, the filler gap is
-not.** The first two are read at nearly every position of the descent; the third
-only inside veins.
+**S16. Density is settled per cell, prefilled only where a cell stays open;
+richness and the filler gap are point-sampled.** The density is read at nearly
+every position of the descent, but a vein is rare: over the column's cell
+lattice, interval bounds over a cell's eight corners (`worldgen.md` §4, L4)
+answer "no vein here" for all but a handful of cells, and the descent skips the
+rule in those without a read. The open cells are filled block by block. Richness
+and the gap are read only inside a vein — a few blocks per column — so neither
+is worth a fill.
 
 ---
 

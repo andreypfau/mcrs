@@ -130,6 +130,8 @@ pub struct NoiseRouter {
     default_fluid_state: VoxelId,
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
+    /// One per material ore vein, over its density root.
+    vein_bounds: Box<[CellBounds]>,
 }
 
 impl NoiseRouter {
@@ -143,6 +145,11 @@ impl NoiseRouter {
         default_fluid_state: VoxelId,
     ) -> Self {
         let cell_bounds = CellBounds::new(&program, program.root_node(FINAL_DENSITY));
+        let vein_bounds = material
+            .iter()
+            .flat_map(|material| material.veins())
+            .map(|vein| CellBounds::new(&program, program.root_node(vein.density)))
+            .collect();
         Self {
             program,
             failed: failed.into_boxed_slice(),
@@ -157,6 +164,7 @@ impl NoiseRouter {
                 .legacy_random_source
                 .then(|| Box::new(BetaTerrainNoises::new(world_seed))),
             cell_bounds,
+            vein_bounds,
         }
     }
 
@@ -281,13 +289,25 @@ impl NoiseRouter {
     /// per [`NoiseRouter::cell_inputs`] entry, so the block fills that follow
     /// interpolate from it instead of resampling every input once per cell.
     pub fn pin_cell_lattice(&self, ws: &mut Workspace, volume: &Volume, values: &[f32]) {
+        self.pin_lattice_of(&self.cell_bounds, ws, volume, values);
+    }
+
+    /// [`NoiseRouter::pin_cell_lattice`] for any root's bounds, laid out one row
+    /// per [`CellBounds::inputs`] entry.
+    pub fn pin_lattice_of(
+        &self,
+        bounds: &CellBounds,
+        ws: &mut Workspace,
+        volume: &Volume,
+        values: &[f32],
+    ) {
         let stride = volume.len();
         assert_eq!(
             values.len(),
-            self.cell_bounds.wrappers().len() * stride,
+            bounds.wrappers().len() * stride,
             "one row per interpolated wrapper"
         );
-        for (k, &wrapper) in self.cell_bounds.wrappers().iter().enumerate() {
+        for (k, &wrapper) in bounds.wrappers().iter().enumerate() {
             let Node::Interpolated { cell, .. } = self.program.node(wrapper) else {
                 unreachable!("the wrapper list holds only interpolated nodes")
             };
@@ -311,12 +331,25 @@ impl NoiseRouter {
     }
 
     /// Bounds on `final_density` across a whole cell, given each `interpolated`
-    /// wrapper's own bounds over the cell's eight corners.
+    /// wrapper's own bounds over the cell's eight corners and the cell's
+    /// inclusive block box.
     ///
     /// `None` when a term above the wrappers has a kind interval arithmetic
     /// cannot bound, which means the caller must fill the cell block by block.
-    pub fn final_density_cell_bounds(&self, corners: &[Interval]) -> Option<Interval> {
-        self.cell_bounds.eval(&self.program, corners)
+    pub fn final_density_cell_bounds(
+        &self,
+        corners: &[Interval],
+        min: IVec3,
+        max: IVec3,
+    ) -> Option<Interval> {
+        self.cell_bounds.eval(&self.program, corners, min, max)
+    }
+
+    /// The cell bounds of one material ore vein's density, indexed as the
+    /// material program numbers its veins.
+    #[inline]
+    pub fn vein_cell_bounds(&self, vein: usize) -> &CellBounds {
+        &self.vein_bounds[vein]
     }
 
     /// Temperature and vegetation over the 16x16 block footprint of a chunk,
