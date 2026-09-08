@@ -126,23 +126,21 @@ fn the_climate_sampler_stays_inside_the_parameter_range() {
     }
 }
 
-/// The 17x17 grid is filled in one pass over a strided volume; every point of
-/// it has to be the same climate a single-point evaluation gives.
+/// A tile of sources is filled in one pass over a strided volume; every
+/// source in it has to run the carvers a single-point evaluation resolves to.
 #[test]
-fn the_batched_grid_matches_point_sampling() {
-    use crate::world::generate::modern_carvers::climate_targets_for_sources;
+fn the_tiled_sources_match_point_sampling() {
     let router = build_settings_router("overworld", 12345);
+    let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
     let mut ws = Workspace::new();
-    let mut targets = Vec::new();
     for (chunk_x, chunk_z) in [(0, 0), (-13, 7)] {
-        climate_targets_for_sources(&router, &mut ws, chunk_x, chunk_z, &mut targets);
-        assert_eq!(targets.len(), 17 * 17);
         for source_x in (chunk_x - 8)..=(chunk_x + 8) {
             for source_z in (chunk_z - 8)..=(chunk_z + 8) {
-                let slot = (source_x - chunk_x + 8) * 17 + (source_z - chunk_z + 8);
                 let point = climate_target_at(&router, &mut ws, source_x * 4, 0, source_z * 4);
-                assert_eq!(
-                    targets[slot as usize], point,
+                let expected = table.carvers_at_for_test(point);
+                let tiled = table.carvers_of_source_for_test(&router, &mut ws, source_x, source_z);
+                assert!(
+                    std::ptr::eq(expected.as_ptr(), tiled.as_ptr()),
                     "source ({source_x}, {source_z}) of chunk ({chunk_x}, {chunk_z})"
                 );
             }
@@ -328,21 +326,6 @@ fn measure_modern_carvers() {
     }
     let each = started.elapsed().as_secs_f64() * 1000.0 / columns as f64;
     println!("MEASURE climate point by point {each:.3} ms/column (sink {sink})");
-
-    let mut targets = Vec::new();
-    let started = std::time::Instant::now();
-    for cx in 0..columns {
-        crate::world::generate::modern_carvers::climate_targets_for_sources(
-            &router,
-            &mut ws,
-            cx,
-            0,
-            &mut targets,
-        );
-        sink += targets[0].temperature;
-    }
-    let each = started.elapsed().as_secs_f64() * 1000.0 / columns as f64;
-    println!("MEASURE climate batched {each:.3} ms/column (sink {sink})");
 }
 
 /// The two maps the freeze system reduces the loaded assets to, built the same

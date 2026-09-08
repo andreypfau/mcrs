@@ -404,11 +404,17 @@ impl<T> ParameterList<T> {
     /// is usually the answer or next to it, and its distance prunes most of the
     /// tree before the walk starts.
     pub fn find_value_from(&self, target: TargetPoint, last: &mut Option<usize>) -> &T {
+        &self.values[self.find_slot_from(target, last)].1
+    }
+
+    /// [`Self::find_value_from`], answering with the entry's index into
+    /// [`Self::values`] rather than the entry.
+    pub fn find_slot_from(&self, target: TargetPoint, last: &mut Option<usize>) -> usize {
         let coords = target.coords();
         let seed = last.map(|slot| (slot, bound_distance(&self.values[slot].0.space(), &coords)));
         let (slot, _) = self.index.search(&coords, seed).expect("a non-empty tree");
         *last = Some(slot);
-        &self.values[slot].1
+        slot
     }
 
     /// The same answer by scanning every entry, which is what the tree has to

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
@@ -34,57 +34,6 @@ pub fn large_feature_seed(world_seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
     let x_scale = rng.next_java_long();
     let z_scale = rng.next_java_long();
     (chunk_x as i64).wrapping_mul(x_scale) ^ (chunk_z as i64).wrapping_mul(z_scale) ^ world_seed
-}
-
-/// The climate at every source chunk that can reach one target chunk.
-///
-/// The density program fills a whole strided volume in one pass, so asking for
-/// the 17x17 grid at once costs a fraction of 289 single-point evaluations.
-/// Indexed by `(source_x - chunk_x + SOURCE_RADIUS, source_z - chunk_z +
-/// SOURCE_RADIUS)`, row-major in x.
-pub fn climate_targets_for_sources(
-    router: &NoiseRouter,
-    ws: &mut Workspace,
-    chunk_x: i32,
-    chunk_z: i32,
-    out: &mut Vec<TargetPoint>,
-) {
-    let side = SOURCE_RADIUS * 2 + 1;
-    let volume = Volume::new(
-        IVec3::new(side, 1, side),
-        IVec3::new(
-            (chunk_x - SOURCE_RADIUS) * 16,
-            0,
-            (chunk_z - SOURCE_RADIUS) * 16,
-        ),
-        IVec3::new(16, 1, 16),
-    );
-    let roots = [
-        router.temperature(),
-        router.vegetation(),
-        router.continents(),
-        router.erosion(),
-        router.depth(),
-        router.ridges(),
-    ];
-    let points = volume.len();
-    let mut values = vec![0.0f32; roots.len() * points];
-    router.fill_roots(ws, &volume, &roots, &mut values);
-
-    out.clear();
-    for dx in 0..side {
-        for dz in 0..side {
-            let at = volume.index_unchecked(dx, 0, dz);
-            out.push(TargetPoint::new(
-                values[at],
-                values[points + at],
-                values[2 * points + at],
-                values[3 * points + at],
-                values[4 * points + at],
-                values[5 * points + at],
-            ));
-        }
-    }
 }
 
 /// The six climate roots at one quart position, which is where a carver source
@@ -123,6 +72,69 @@ pub fn climate_target_at(
 /// at the carver list itself, with no name to hash on the way.
 pub struct CarverBiomeTable {
     table: ParameterList<Arc<[CarverConfig]>>,
+    /// Which entry each source chunk resolves to, by tile of `TILE` x `TILE`
+    /// chunks. Every column asks for the 17x17 sources around it, so the
+    /// columns next to it would derive 272 of the same climates again; the
+    /// reference memoises the answer on the source chunk itself.
+    tiles: Mutex<SourceTiles>,
+}
+
+const TILE: i32 = 16;
+type Tile = Arc<[u16; (TILE * TILE) as usize]>;
+/// The seed is part of the key so a table reused across routers cannot answer
+/// with the other's climate.
+type TileKey = (u64, i32, i32);
+
+/// The tiles resolved most recently, at most `KEPT` of them.
+///
+/// The working set is the tiles under the columns in flight: a column touches
+/// up to four, and columns arrive in distance order, so the same few answer
+/// column after column while a player stays, and the ones behind a moving
+/// player go stale. Least recently used is that set, and the capacity bounds
+/// the memory rather than the explored area: `KEPT` tiles are 65k source
+/// chunks, some forty view distances of 32, in 128 KB.
+///
+/// A miss costs one strided fill of the tile, which is worth 256 columns of
+/// hits; the capacity only matters once more tiles than that are in flight at
+/// once, and then a column degrades to filling its own tiles rather than to
+/// anything worse.
+#[derive(Default)]
+struct SourceTiles {
+    entries: Vec<(TileKey, u64, Tile)>,
+    clock: u64,
+}
+
+const KEPT: usize = 256;
+
+impl SourceTiles {
+    fn get(&mut self, key: TileKey) -> Option<Tile> {
+        self.clock += 1;
+        let (_, used, tile) = self.entries.iter_mut().find(|(at, ..)| *at == key)?;
+        *used = self.clock;
+        Some(tile.clone())
+    }
+
+    /// Keeps `tile` unless another worker inserted the key meanwhile, in which
+    /// case theirs is returned: both were computed from the same seed.
+    fn insert(&mut self, key: TileKey, tile: Tile) -> Tile {
+        if let Some(held) = self.get(key) {
+            return held;
+        }
+        let entry = (key, self.clock, tile.clone());
+        if self.entries.len() < KEPT {
+            self.entries.push(entry);
+        } else {
+            let stale = self
+                .entries
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, (_, used, _))| *used)
+                .map(|(index, _)| index)
+                .expect("a full cache has entries");
+            self.entries[stale] = entry;
+        }
+        tile
+    }
 }
 
 impl CarverBiomeTable {
@@ -146,6 +158,7 @@ impl CarverBiomeTable {
         };
         Some(CarverBiomeTable {
             table: Self::map_values(named, lookup),
+            tiles: Mutex::default(),
         })
     }
 
@@ -170,6 +183,7 @@ impl CarverBiomeTable {
             .collect();
         Some(CarverBiomeTable {
             table: ParameterList::new(values),
+            tiles: Mutex::default(),
         })
     }
 
@@ -192,13 +206,92 @@ impl CarverBiomeTable {
         ParameterList::new(values)
     }
 
-    fn carvers_at(&self, target: TargetPoint, last: &mut Option<usize>) -> &[CarverConfig] {
-        self.table.find_value_from(target, last)
+    /// The carvers the source chunk at `(source_x, source_z)` runs.
+    ///
+    /// `held` keeps the tiles one column's window has touched, so the lock is
+    /// taken at most four times per column.
+    fn carvers_of_source<'a>(
+        &'a self,
+        router: &NoiseRouter,
+        ws: &mut Workspace,
+        source_x: i32,
+        source_z: i32,
+        held: &mut Vec<((i32, i32), Tile)>,
+    ) -> &'a [CarverConfig] {
+        let key = (source_x.div_euclid(TILE), source_z.div_euclid(TILE));
+        let tile = match held.iter().position(|(at, _)| *at == key) {
+            Some(index) => &held[index].1,
+            None => {
+                held.push((key, self.tile(router, ws, key)));
+                &held.last().expect("just pushed").1
+            }
+        };
+        let slot = tile[(source_x.rem_euclid(TILE) * TILE + source_z.rem_euclid(TILE)) as usize];
+        &self.table.values()[usize::from(slot)].1
+    }
+
+    /// One tile's sources, evaluated as a single strided fill the first time
+    /// any column needs one of them.
+    fn tile(&self, router: &NoiseRouter, ws: &mut Workspace, (tile_x, tile_z): (i32, i32)) -> Tile {
+        let key = (router.world_seed(), tile_x, tile_z);
+        if let Some(tile) = self.tiles.lock().expect("carver tiles").get(key) {
+            return tile;
+        }
+        let volume = Volume::new(
+            IVec3::new(TILE, 1, TILE),
+            IVec3::new(tile_x * TILE * 16, 0, tile_z * TILE * 16),
+            IVec3::new(16, 1, 16),
+        );
+        let roots = [
+            router.temperature(),
+            router.vegetation(),
+            router.continents(),
+            router.erosion(),
+            router.depth(),
+            router.ridges(),
+        ];
+        let points = volume.len();
+        let mut values = vec![0.0f32; roots.len() * points];
+        router.fill_roots(ws, &volume, &roots, &mut values);
+
+        let mut slots = [0u16; (TILE * TILE) as usize];
+        let mut last = None;
+        for dx in 0..TILE {
+            for dz in 0..TILE {
+                let at = volume.index_unchecked(dx, 0, dz);
+                let target = TargetPoint::new(
+                    values[at],
+                    values[points + at],
+                    values[2 * points + at],
+                    values[3 * points + at],
+                    values[4 * points + at],
+                    values[5 * points + at],
+                );
+                let slot = self.table.find_slot_from(target, &mut last);
+                slots[(dx * TILE + dz) as usize] =
+                    u16::try_from(slot).expect("a climate table fits in u16 slots");
+            }
+        }
+        self.tiles
+            .lock()
+            .expect("carver tiles")
+            .insert(key, Arc::new(slots))
     }
 
     #[cfg(test)]
     pub fn carvers_at_for_test(&self, target: TargetPoint) -> &[CarverConfig] {
-        self.carvers_at(target, &mut None)
+        self.table.find_value(target)
+    }
+
+    #[cfg(test)]
+    pub fn carvers_of_source_for_test(
+        &self,
+        router: &NoiseRouter,
+        ws: &mut Workspace,
+        source_x: i32,
+        source_z: i32,
+    ) -> &[CarverConfig] {
+        self.carvers_of_source(router, ws, source_x, source_z, &mut Vec::new())
     }
 }
 
@@ -283,17 +376,12 @@ pub fn apply_modern_carvers(
     // Modern carvers have no water abort; the empty mask answers in one AND.
     let water = WaterMask::default();
 
-    let mut targets = Vec::new();
-    climate_targets_for_sources(router, ws, chunk_x, chunk_z, &mut targets);
-    let side = SOURCE_RADIUS * 2 + 1;
-    let mut last = None;
+    let mut held = Vec::with_capacity(4);
 
     for source_x in (chunk_x - SOURCE_RADIUS)..=(chunk_x + SOURCE_RADIUS) {
         for source_z in (chunk_z - SOURCE_RADIUS)..=(chunk_z + SOURCE_RADIUS) {
-            let slot =
-                (source_x - chunk_x + SOURCE_RADIUS) * side + (source_z - chunk_z + SOURCE_RADIUS);
-            let target = targets[slot as usize];
-            for (index, config) in biomes.carvers_at(target, &mut last).iter().enumerate() {
+            let carvers = biomes.carvers_of_source(router, ws, source_x, source_z, &mut held);
+            for (index, config) in carvers.iter().enumerate() {
                 let seed = world_seed.wrapping_add(index as i64);
                 let mut rng =
                     LegacyRandom::new(large_feature_seed(seed, source_x, source_z) as u64);
@@ -472,5 +560,44 @@ pub fn resolve_carver_biomes(
     match preset {
         Some(preset) => CarverBiomeTable::resolve(preset, lookup),
         None => explicit.and_then(|entries| CarverBiomeTable::from_entries(entries, lookup)),
+    }
+}
+
+#[cfg(test)]
+mod source_tiles {
+    use super::*;
+
+    fn tile(fill: u16) -> Tile {
+        Arc::new([fill; (TILE * TILE) as usize])
+    }
+
+    #[test]
+    fn keeps_the_recently_used_tiles_and_drops_the_stalest() {
+        let mut tiles = SourceTiles::default();
+        for index in 0..KEPT {
+            tiles.insert((0, index as i32, 0), tile(index as u16));
+        }
+        assert_eq!(tiles.entries.len(), KEPT);
+
+        // Touching the oldest entry makes the one after it the stalest.
+        assert!(tiles.get((0, 0, 0)).is_some());
+        tiles.insert((0, -1, 0), tile(u16::MAX));
+
+        assert_eq!(tiles.entries.len(), KEPT);
+        assert!(tiles.get((0, 0, 0)).is_some(), "the touched tile stays");
+        assert!(
+            tiles.get((0, 1, 0)).is_none(),
+            "the stalest tile is evicted"
+        );
+        assert_eq!(tiles.get((0, -1, 0)).map(|t| t[0]), Some(u16::MAX));
+    }
+
+    #[test]
+    fn a_racing_insert_keeps_the_first_tile() {
+        let mut tiles = SourceTiles::default();
+        let first = tiles.insert((7, 1, 2), tile(1));
+        let second = tiles.insert((7, 1, 2), tile(2));
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(tiles.entries.len(), 1);
     }
 }
