@@ -16,10 +16,7 @@ use mcrs_minecraft_random::Random;
 /// table and the index arithmetic here means an optimization to either lands on
 /// both paths, and the width stays a type parameter rather than a fork.
 pub trait NoiseFloat:
-    Copy
-    + std::ops::Add<Output = Self>
-    + std::ops::Sub<Output = Self>
-    + std::ops::Mul<Output = Self>
+    Copy + std::ops::Add<Output = Self> + std::ops::Sub<Output = Self> + std::ops::Mul<Output = Self>
 {
     /// 16 gradients × {x, y, z, pad}, so a lookup is a shift instead of a multiply.
     const GRAD_FLAT: [Self; 64];
@@ -222,7 +219,13 @@ impl GradientNoise {
     /// The eight corner gradient indices of one lattice cell, pre-shifted by two
     /// so a lookup into `GRAD_FLAT` is an add rather than a multiply.
     #[inline(always)]
-    pub(crate) fn corner_grads(&self, p0: usize, p1: usize, section_y: i32, section_z: i32) -> [usize; 8] {
+    pub(crate) fn corner_grads(
+        &self,
+        p0: usize,
+        p1: usize,
+        section_y: i32,
+        section_z: i32,
+    ) -> [usize; 8] {
         let sy = section_y as usize;
         let p4 = self.permute(p0.wrapping_add(sy));
         let p5 = self.permute(p1.wrapping_add(sy));

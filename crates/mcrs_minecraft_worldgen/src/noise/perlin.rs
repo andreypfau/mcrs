@@ -99,13 +99,7 @@ impl LegacyPerlin2dNoise {
     }
 
     /// One value per column, repeated down it.
-    pub fn add_to_volume(
-        &self,
-        out: &mut [f32],
-        volume: &Volume,
-        xz_scale: f64,
-        amplitude: f32,
-    ) {
+    pub fn add_to_volume(&self, out: &mut [f32], volume: &Volume, xz_scale: f64, amplitude: f32) {
         let size = volume.size();
         let mut index = 0usize;
         for iz in 0..size.z {
@@ -145,8 +139,7 @@ impl SmearedPerlinNoise {
     #[inline]
     pub fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
-        self.base
-            .column::<true>(x, z, ys, self.fudge_y_scale, out);
+        self.base.column::<true>(x, z, ys, self.fudge_y_scale, out);
     }
 
     pub fn add_to_volume(
@@ -171,11 +164,7 @@ impl SmearedPerlinNoise {
 /// The y fraction after the smear. `original_y` is the coordinate before
 /// [`wrap`]; at `SMEARED == false` the whole thing folds away.
 #[inline(always)]
-fn fudged_local_y<const SMEARED: bool>(
-    local_y: f64,
-    original_y: f64,
-    fudge_y_scale: f64,
-) -> f64 {
+fn fudged_local_y<const SMEARED: bool>(local_y: f64, original_y: f64, fudge_y_scale: f64) -> f64 {
     if !SMEARED || fudge_y_scale == 0.0 {
         return local_y;
     }
@@ -569,7 +558,8 @@ impl CellLine {
         let upper = self.upper_slope.mul_add(local_y - 1.0, self.upper_at_0);
         lerp(fade_y, lower, upper)
     }
-}#[cfg(test)]
+}
+#[cfg(test)]
 mod collapsed_cell {
     use super::{CellCorners, CellLine, smoothstep};
 
@@ -629,7 +619,8 @@ mod collapsed_cell {
         );
         assert!(max_abs < 1.0e-5, "collapsed blend drifted by {max_abs}");
     }
-}#[cfg(test)]
+}
+#[cfg(test)]
 mod modern {
     use crate::noise::gradient::GradientNoise;
     use crate::noise::perlin::{PerlinNoise, SmearedPerlinNoise};

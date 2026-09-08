@@ -115,8 +115,18 @@ impl BlendedNoise {
 
         // The three stacks share one stream in this order; the `let` bindings are
         // what fixes it, so do not fold them into the struct literal.
-        let min_limit = create_fbm(random, LIMIT_FIRST_OCTAVE, limit_smear_scale_y, LIMIT_FACTOR);
-        let max_limit = create_fbm(random, LIMIT_FIRST_OCTAVE, limit_smear_scale_y, LIMIT_FACTOR);
+        let min_limit = create_fbm(
+            random,
+            LIMIT_FIRST_OCTAVE,
+            limit_smear_scale_y,
+            LIMIT_FACTOR,
+        );
+        let max_limit = create_fbm(
+            random,
+            LIMIT_FIRST_OCTAVE,
+            limit_smear_scale_y,
+            LIMIT_FACTOR,
+        );
         let main = create_fbm(random, MAIN_FIRST_OCTAVE, main_smear_scale_y, MAIN_FACTOR);
 
         Self {

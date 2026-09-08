@@ -92,7 +92,12 @@ pub fn build_router(
     // terrain still generates; a material rule that fails does not, because
     // every column in the world would come out as bare stone.
     let material = match material {
-        Some(inputs) => Some(compile_material(&mut compiler, &mut nodes, settings, inputs)?),
+        Some(inputs) => Some(compile_material(
+            &mut compiler,
+            &mut nodes,
+            settings,
+            inputs,
+        )?),
         None => None,
     };
 

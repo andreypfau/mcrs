@@ -2,12 +2,12 @@ use crate::branch::{self, Fallback, GuardTest, Step};
 use crate::interval::Interval;
 use crate::jmath;
 use crate::kernel::{Runs, at, each_column, map_columns, zip2_columns, zip3_columns};
-use crate::noise::blended::BlendedNoise;
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
+use crate::noise::blended::BlendedNoise;
 use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, extent, stratum};
 use crate::volume::Volume;
 use bevy_math::IVec3;
@@ -945,7 +945,12 @@ impl Program {
             } => {
                 let (n, p, o) = (*neg_scale, *pos_scale, *o);
                 if drops_offset(o) {
-                    map_columns(out, &ext, read(*input), |v| if v < 0.0 { v * n } else { v * p })
+                    map_columns(
+                        out,
+                        &ext,
+                        read(*input),
+                        |v| if v < 0.0 { v * n } else { v * p },
+                    )
                 } else {
                     map_columns(out, &ext, read(*input), |v| {
                         if v < 0.0 {

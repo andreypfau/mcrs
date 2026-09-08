@@ -35,8 +35,7 @@ mod tests {
             let x = (step as f32 - 5_000.0) * 0.0037;
             let sin_index = ((x * 10430.378_f32) as i32 as u32) & 0xFFFF;
             let cos_index = ((x * 10430.378_f32 + 16384.0_f32) as i32 as u32) & 0xFFFF;
-            let entry =
-                |i: u32| f64::sin(i as f64 * (std::f64::consts::TAU / 65536.0)) as f32;
+            let entry = |i: u32| f64::sin(i as f64 * (std::f64::consts::TAU / 65536.0)) as f32;
             assert_eq!(super::sin(x), entry(sin_index), "sin({x})");
             assert_eq!(super::cos(x), entry(cos_index), "cos({x})");
         }

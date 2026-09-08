@@ -1,8 +1,9 @@
 use crate::jmath::{floor_div, floor_mod, mul_add};
 use crate::volume::{Axis, Volume};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Tiling {
     #[default]

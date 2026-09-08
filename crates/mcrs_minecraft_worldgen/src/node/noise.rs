@@ -1,6 +1,6 @@
 use crate::kernel::{Runs, at, each_column};
-use crate::noise::stack::{NoiseStack, Octave};
 use crate::noise::stack::ColumnScratch;
+use crate::noise::stack::{NoiseStack, Octave};
 use crate::volume::Volume;
 use bevy_math::IVec3;
 use std::cell::RefCell;
@@ -147,7 +147,13 @@ mod tests {
         )
     }
 
-    fn shifted(p: &NoiseFunctionParams, ext: &Volume, xs: &[f32], ys: &[f32], zs: &[f32]) -> Vec<f32> {
+    fn shifted(
+        p: &NoiseFunctionParams,
+        ext: &Volume,
+        xs: &[f32],
+        ys: &[f32],
+        zs: &[f32],
+    ) -> Vec<f32> {
         let axes = |run: &[f32]| if run.len() == 1 { NO_AXES } else { AXIS_Y };
         let mut out = vec![0.0f32; ext.len()];
         p.eval_shifted(

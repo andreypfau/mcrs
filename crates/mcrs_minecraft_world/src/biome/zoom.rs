@@ -58,9 +58,21 @@ fn pick_corner(
     }
 
     (
-        if best & 4 == 0 { parent_x } else { parent_x + 1 },
-        if best & 2 == 0 { parent_y } else { parent_y + 1 },
-        if best & 1 == 0 { parent_z } else { parent_z + 1 },
+        if best & 4 == 0 {
+            parent_x
+        } else {
+            parent_x + 1
+        },
+        if best & 2 == 0 {
+            parent_y
+        } else {
+            parent_y + 1
+        },
+        if best & 1 == 0 {
+            parent_z
+        } else {
+            parent_z + 1
+        },
     )
 }
 
@@ -122,7 +134,11 @@ impl FiddleCache {
 }
 
 fn corner_fiddles(seed: i64, x_random: i32, y_random: i32, z_random: i32) -> [f64; 3] {
-    let (x, y, z) = (i64::from(x_random), i64::from(y_random), i64::from(z_random));
+    let (x, y, z) = (
+        i64::from(x_random),
+        i64::from(y_random),
+        i64::from(z_random),
+    );
     let mut rval = lcg_next(seed, x);
     rval = lcg_next(rval, y);
     rval = lcg_next(rval, z);

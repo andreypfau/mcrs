@@ -101,7 +101,8 @@ fn do_place<R: Random, G, S>(
 
         // next_f64 matches Java nextDouble() draw count (two LCG advances).
         let d9 = rng.next_f64() * size as f64 / 16.0;
-        let sin_step = (crate::math::sin(l as f32 * std::f32::consts::PI / size as f32) + 1.0) as f64;
+        let sin_step =
+            (crate::math::sin(l as f32 * std::f32::consts::PI / size as f32) + 1.0) as f64;
         let d10 = sin_step * d9 + 1.0;
         let d11 = sin_step * d9 + 1.0;
 

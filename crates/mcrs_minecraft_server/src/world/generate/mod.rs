@@ -300,7 +300,15 @@ fn fill_column(
     let mut fill = FillBuffers::default();
 
     let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.ws) else {
-        return fill_column_dense(column, block_x, block_z, noise_router, tops, &mut fill, cancel);
+        return fill_column_dense(
+            column,
+            block_x,
+            block_z,
+            noise_router,
+            tops,
+            &mut fill,
+            cancel,
+        );
     };
 
     let cell = lattice.cell;
@@ -382,7 +390,15 @@ fn fill_column_dense(
             IVec3::splat(16),
             IVec3::new(block_x, section_min_y, block_z),
         );
-        fill_blocks(column, index, &volume, IVec3::ZERO, noise_router, tops, fill);
+        fill_blocks(
+            column,
+            index,
+            &volume,
+            IVec3::ZERO,
+            noise_router,
+            tops,
+            fill,
+        );
     }
     true
 }

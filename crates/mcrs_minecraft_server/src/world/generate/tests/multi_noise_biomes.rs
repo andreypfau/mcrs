@@ -57,7 +57,8 @@ fn the_batched_column_agrees_with_sampling_each_cell() {
     let sections = y_sections();
     let (chunk_x, chunk_z) = (26, 90);
 
-    let (palettes, _) = multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
+    let (palettes, _) =
+        multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
     assert_eq!(palettes.len(), sections.len());
 
     let mut ws = Workspace::new();
@@ -227,7 +228,8 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
     let (chunk_x, chunk_z) = (26, 90);
     let first = sections[0];
 
-    let (palettes, grid) = multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
+    let (palettes, grid) =
+        multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
     let grid = grid.expect("the multi-noise path builds a grid");
     assert_eq!(
         grid.volume.size(),

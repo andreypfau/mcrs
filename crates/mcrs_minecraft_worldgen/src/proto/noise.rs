@@ -182,7 +182,6 @@ impl NoiseParam {
             target_amplitude,
         }
     }
-
 }
 
 /// What [`NoiseParam::octaves`] decides before any seed is drawn.

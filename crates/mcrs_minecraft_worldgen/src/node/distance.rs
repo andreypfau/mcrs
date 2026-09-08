@@ -1,8 +1,7 @@
 use crate::jmath::{jmax, mul_add, sqrt};
 use crate::volume::Volume;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DistanceMetric {
     Euclidean,
@@ -86,7 +85,11 @@ mod tests {
         let widened = (3i64 * 3 + 4 * 4 + 4097i64 * 4097) as f64 as f32;
         assert_eq!(widened, 16785434.0);
         #[cfg(not(feature = "fast_fma"))]
-        assert_eq!(at(&p, 0, 0, 0), 16785432.0, "an f64 accumulation answers {widened}");
+        assert_eq!(
+            at(&p, 0, 0, 0),
+            16785432.0,
+            "an f64 accumulation answers {widened}"
+        );
         #[cfg(feature = "fast_fma")]
         assert_eq!(at(&p, 0, 0, 0), widened);
     }

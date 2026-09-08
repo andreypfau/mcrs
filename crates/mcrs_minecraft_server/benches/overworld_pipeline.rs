@@ -244,8 +244,7 @@ fn main() {
     let started = Instant::now();
     for z in 0..side {
         for x in 0..side {
-            let (s, n, dominant) =
-                run(&mut column, &mut scratch, &mut ws, offset + x, offset + z);
+            let (s, n, dominant) = run(&mut column, &mut scratch, &mut ws, offset + x, offset + z);
             total.fill += s.fill;
             total.biomes += s.biomes;
             total.surface += s.surface;
@@ -303,7 +302,8 @@ fn main() {
     );
 
     per_column.sort_by(f64::total_cmp);
-    let at = |q: f64| per_column[(((per_column.len() as f64) * q) as usize).min(per_column.len() - 1)];
+    let at =
+        |q: f64| per_column[(((per_column.len() as f64) * q) as usize).min(per_column.len() - 1)];
     println!(
         "spread: p50 {:.3} ms  p90 {:.3} ms  max {:.3} ms",
         at(0.5),

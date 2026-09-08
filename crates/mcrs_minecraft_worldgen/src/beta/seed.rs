@@ -161,8 +161,14 @@ mod tests {
     fn beta_seeding_returns_the_five_surviving_noises() {
         let noises = BetaTerrainNoises::new(845);
         assert!(noises.beach.range().max() > 0.0, "beach not constructed");
-        assert!(noises.beach_flat.range().max() > 0.0, "beach_flat not constructed");
-        assert!(noises.surface.range().max() > 0.0, "surface not constructed");
+        assert!(
+            noises.beach_flat.range().max() > 0.0,
+            "beach_flat not constructed"
+        );
+        assert!(
+            noises.surface.range().max() > 0.0,
+            "surface not constructed"
+        );
         assert!(noises.scale.range().max() > 0.0, "scale not constructed");
         assert!(noises.depth.range().max() > 0.0, "depth not constructed");
     }
@@ -221,7 +227,10 @@ mod tests {
             let temp = sample_temperature(&climate, x, z);
             let humidity = sample_humidity(&climate, x, z);
             assert!((0.0..=1.0).contains(&temp), "temperature {temp} at {x},{z}");
-            assert!((0.0..=1.0).contains(&humidity), "humidity {humidity} at {x},{z}");
+            assert!(
+                (0.0..=1.0).contains(&humidity),
+                "humidity {humidity} at {x},{z}"
+            );
         }
     }
 
@@ -251,5 +260,4 @@ mod tests {
             fixture.humidity_at_0_0
         );
     }
-
 }
