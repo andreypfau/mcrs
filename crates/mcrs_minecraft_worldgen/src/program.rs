@@ -8,7 +8,7 @@ use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
 use crate::noise::blended::BlendedNoise;
-use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, extent, stratum};
+use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, stratum};
 use crate::volume::{Axis, Volume};
 use bevy_math::IVec3;
 use std::sync::Arc;
@@ -421,7 +421,7 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
     let at = |id: NodeId| axes[id as usize];
     match node {
         Node::Constant(_) => NO_AXES,
-        Node::Gradient(g) => g.axis.bit(),
+        Node::Gradient(g) => axis_bit(g.axis),
         Node::Noise { params } => params.axes(),
         Node::ShiftedNoise { params, x, y, z } => params.axes() | at(*x) | at(*y) | at(*z),
         Node::ShiftB { .. } | Node::EndOuterIslands(_) => AXIS_X | AXIS_Z,
@@ -435,7 +435,7 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
         // per-fill phase has none of, so this never lands there however little
         // its input varies.
         Node::Interpolated { input, .. } => at(*input) | AXIS_X | AXIS_Z,
-        Node::Slice { input, axis, .. } => at(*input) & !axis.bit(),
+        Node::Slice { input, axis, .. } => at(*input) & !axis_bit(*axis),
         other => {
             let mut union = NO_AXES;
             other.visit_inputs(&mut |id| union |= at(id));

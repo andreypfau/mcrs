@@ -18,7 +18,7 @@ use crate::proto::{
     DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, ProtoSpline,
 };
 use crate::router::{NoiseGeneratorSettings, NoiseRouter};
-use crate::strata::{Axes, NO_AXES};
+use crate::strata::{Axes, NO_AXES, axis_bit};
 use crate::volume::Axis;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -108,7 +108,7 @@ pub(crate) struct Compiler<'a> {
     axes: Vec<Axes>,
     node_ranges: Vec<Interval>,
     interned: HashMap<Key, NodeId>,
-    compiled: HashMap<DensityFunctionHolder, NodeId>,
+    compiled: HashMap<ResourceLocation, NodeId>,
     resolving: Vec<ResourceLocation>,
     samplers: HashMap<NoiseHolder, Arc<NoiseStack<Octave>>>,
     noise_params: HashMap<(usize, u64, u64), Arc<NoiseFunctionParams>>,
@@ -216,7 +216,14 @@ impl<'a> Compiler<'a> {
 
     // --- compilation --------------------------------------------------------
 
+    /// Only a named reference can bring the same subtree back a second time: a
+    /// function spelled inline is a tree, not a shared node. So the memo hangs
+    /// here rather than over every holder, where keying it would clone and hash
+    /// a whole subtree at every level of the walk.
     fn compile_reference(&mut self, id: &ResourceLocation) -> Result<NodeId, CompileError> {
+        if let Some(&node) = self.compiled.get(id) {
+            return Ok(node);
+        }
         if self.resolving.contains(id) {
             return Err(CompileError::ReferenceCycle(id.as_str().to_string()));
         }
@@ -227,6 +234,9 @@ impl<'a> Compiler<'a> {
         self.resolving.push(id.clone());
         let result = self.compile(target);
         self.resolving.pop();
+        if let Ok(node) = result {
+            self.compiled.insert(id.clone(), node);
+        }
         result
     }
 
@@ -258,15 +268,6 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn compile(&mut self, holder: &DensityFunctionHolder) -> Result<NodeId, CompileError> {
-        if let Some(&id) = self.compiled.get(holder) {
-            return Ok(id);
-        }
-        let id = self.compile_uncached(holder)?;
-        self.compiled.insert(holder.clone(), id);
-        Ok(id)
-    }
-
-    fn compile_uncached(&mut self, holder: &DensityFunctionHolder) -> Result<NodeId, CompileError> {
         let function = match holder {
             DensityFunctionHolder::Value(value) => return Ok(self.constant(value.value.0 as f32)),
             DensityFunctionHolder::Reference(id) => return self.compile_reference(id),
@@ -534,7 +535,7 @@ impl<'a> Compiler<'a> {
                 input,
             } => {
                 let input = self.compile(input)?;
-                if self.axes[input as usize] & axis.bit() == 0 {
+                if self.axes[input as usize] & axis_bit(*axis) == 0 {
                     return Ok(input);
                 }
                 Ok(self.intern(
@@ -686,15 +687,16 @@ impl<'a> Compiler<'a> {
         if scale == 1.0 && offset == 0.0 {
             return input;
         }
+        // The slopes the inner node contributes, when it can absorb this one.
+        // Multiplying by a power of two is exact, so `(v*m)*s` and `v*(m*s)`
+        // round once on the same real number and the two slopes may absorb the
+        // outer scale. The rectifier's are 0.5 and 0.25.
         let fusion = match &self.nodes[input as usize] {
             Node::Affine {
                 input: inner,
                 scale: inner_scale,
                 offset: inner_offset,
-            } if scale == 1.0 && *inner_offset == 0.0 => Fusion::Affine(*inner, *inner_scale),
-            // Multiplying by a power of two is exact, so `(v*m)*s` and
-            // `v*(m*s)` round once on the same real number and the two slopes
-            // may absorb the outer scale. The rectifier's are 0.5 and 0.25.
+            } if scale == 1.0 && *inner_offset == 0.0 => Some((*inner, *inner_scale, *inner_scale)),
             Node::PiecewiseAffine {
                 input: inner,
                 neg_scale,
@@ -704,16 +706,18 @@ impl<'a> Compiler<'a> {
                 && (scale == 1.0
                     || (is_power_of_two(*neg_scale) && is_power_of_two(*pos_scale))) =>
             {
-                Fusion::PiecewiseAffine(*inner, *neg_scale * scale, *pos_scale * scale)
+                Some((*inner, *neg_scale * scale, *pos_scale * scale))
             }
-            _ => Fusion::None,
+            _ => None,
         };
         match fusion {
-            Fusion::Affine(inner, inner_scale) => self.affine(inner, inner_scale, offset),
-            Fusion::PiecewiseAffine(inner, neg_scale, pos_scale) => {
+            Some((inner, neg_scale, pos_scale)) if neg_scale == pos_scale => {
+                self.affine(inner, neg_scale, offset)
+            }
+            Some((inner, neg_scale, pos_scale)) => {
                 self.piecewise_affine(inner, neg_scale, pos_scale, offset)
             }
-            Fusion::None => self.intern(
+            None => self.intern(
                 Key::Affine(input, scale.to_bits(), offset.to_bits()),
                 Node::Affine {
                     input,
@@ -1153,12 +1157,6 @@ fn prune(
     }
     let roots = roots.into_iter().map(|root| map[root as usize]).collect();
     (nodes, axes, ranges, roots)
-}
-
-enum Fusion {
-    None,
-    Affine(NodeId, f32),
-    PiecewiseAffine(NodeId, f32, f32),
 }
 
 /// Excludes zero and the infinities, both of which share a power of two's zero

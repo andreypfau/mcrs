@@ -10,18 +10,6 @@ pub enum Axis {
     Z,
 }
 
-impl Axis {
-    /// `DensityFunction.axesFrom`: X = 1, Y = 2, Z = 4.
-    #[inline]
-    pub const fn bit(self) -> u8 {
-        match self {
-            Axis::X => 1,
-            Axis::Y => 2,
-            Axis::Z => 4,
-        }
-    }
-}
-
 /// A strided box of block positions: `size` samples per axis, starting at
 /// `min_block`, spaced `step_block` apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

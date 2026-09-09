@@ -1,4 +1,4 @@
-use crate::volume::Volume;
+use crate::volume::{Axis, Volume};
 use bevy_math::IVec3;
 
 pub type Axes = u8;
@@ -8,6 +8,16 @@ pub const AXIS_X: Axes = 1;
 pub const AXIS_Y: Axes = 2;
 pub const AXIS_Z: Axes = 4;
 pub const ALL_AXES: Axes = 7;
+
+/// `DensityFunction.axesFrom`.
+#[inline]
+pub const fn axis_bit(axis: Axis) -> Axes {
+    match axis {
+        Axis::X => AXIS_X,
+        Axis::Y => AXIS_Y,
+        Axis::Z => AXIS_Z,
+    }
+}
 
 /// How many values a node of this stratum holds within one column: `sy` if it
 /// varies along Y, otherwise a single scalar broadcast over the column.
