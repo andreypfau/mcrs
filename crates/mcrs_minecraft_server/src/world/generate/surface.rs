@@ -7,7 +7,9 @@ use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::zoom::{FiddleCache, obfuscate_seed, quart_cell};
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::material::compile::MaterialProgram;
-use mcrs_minecraft_worldgen::material::{MaterialEval, MaterialScratch, NO_WATER, SurfaceNoise};
+use mcrs_minecraft_worldgen::material::{
+    MaterialEval, MaterialScratch, NO_WATER, SettledState, SurfaceNoise,
+};
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use mcrs_voxel_storage::VoxelId;
 use std::cell::RefCell;
@@ -187,7 +189,10 @@ fn apply_material_surface_with(
                         run += 1;
                     }
                     let state = if run < settled.len() && y <= settled[run].1 {
-                        settled[run].2
+                        match settled[run].2 {
+                            SettledState::Block(state) => state,
+                            SettledState::Bandlands => Some(eval.bandlands_at(y)),
+                        }
                     } else {
                         eval.update_y(depth_above, depth_below, water_level, y);
                         eval.apply()

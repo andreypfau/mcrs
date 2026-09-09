@@ -591,3 +591,120 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
         "the fixed biome did not reach the rule dispatch: two biomes gave one column"
     );
 }
+
+/// The same column under a constant biome grid, with the shortcuts on and off.
+fn surfaced_column_fixed(
+    router: &NoiseRouter,
+    ids: &HashMap<String, u32>,
+    biome: &str,
+    section_x: i32,
+    section_z: i32,
+    y_sections: &[i32],
+    bypass_shortcuts: bool,
+) -> ColumnBlocks {
+    use crate::world::generate::multi_noise_biomes::BiomeGrid;
+    use bevy_math::IVec3;
+    use mcrs_minecraft_worldgen::volume::Volume;
+
+    let mut column = ColumnBlocks::new(y_sections);
+    let mut filled = fill_column_dense_any(
+        &mut column,
+        section_x,
+        section_z,
+        y_sections,
+        router,
+        None,
+        None,
+        &CancellationToken::new(),
+    )
+    .expect("the column fills");
+
+    let (first, last) = (y_sections[0], y_sections[y_sections.len() - 1]);
+    let volume = Volume::new(
+        IVec3::new(6, (last - first + 1) * 4 + 2, 6),
+        IVec3::new(section_x * 16 - 4, first * 16 - 4, section_z * 16 - 4),
+        IVec3::splat(4),
+    );
+    let id = u8::try_from(ids[biome]).expect("a biome id the palette can store");
+    let grid = BiomeGrid {
+        ids: vec![id; volume.len()],
+        volume,
+    };
+
+    let mut scratch = MaterialScratch::default();
+    scratch.bypass_shortcuts(bypass_shortcuts);
+    apply_material_surface(
+        &column,
+        section_x,
+        section_z,
+        &mut filled.tops,
+        &grid,
+        router,
+        &surface_ids(ids),
+        &mut scratch,
+    );
+    column
+}
+
+/// A run that reaches the clay band rule settles, and the band it writes varies
+/// with y inside that run. Nothing else in the corpus reaches that rule, so
+/// without a badlands column the settled path is never walked.
+#[test]
+fn a_settled_badlands_run_writes_the_bands_the_descent_would() {
+    let ids = biome_ids();
+    let router = overworld_material_router(2, &ids);
+    let y_sections: Vec<i32> = (-4..20).collect();
+    let bands: Vec<VoxelId> = router
+        .material()
+        .expect("the router carries material rules")
+        .clay_bands()
+        .to_vec();
+    assert!(!bands.is_empty());
+
+    let mut banded = 0;
+    for biome in [
+        "minecraft:badlands",
+        "minecraft:eroded_badlands",
+        "minecraft:wooded_badlands",
+    ] {
+        for (section_x, section_z) in [(3, -7), (-22, 38)] {
+            let settled = surfaced_column_fixed(
+                &router,
+                &ids,
+                biome,
+                section_x,
+                section_z,
+                &y_sections,
+                false,
+            );
+            let walked = surfaced_column_fixed(
+                &router,
+                &ids,
+                biome,
+                section_x,
+                section_z,
+                &y_sections,
+                true,
+            );
+
+            for index in 0..y_sections.len() {
+                let (left, right) = (settled.section_cells(index), walked.section_cells(index));
+                for (at, (left, right)) in left.iter().zip(right).enumerate() {
+                    let (left, right) = (left.get(), right.get());
+                    assert_eq!(
+                        left, right,
+                        "{biome} block {at} of section {index} at {section_x},{section_z} \
+                         differs between the settled run and the full descent"
+                    );
+                    if bands.contains(&left) {
+                        banded += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        banded > 0,
+        "no clay band was written, so the settled bandlands path went untested"
+    );
+}

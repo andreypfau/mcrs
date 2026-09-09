@@ -5,5 +5,5 @@ mod oracle;
 pub mod proto;
 
 pub use compile::{MaterialInputs, SurfaceNoise};
-pub use eval::{MaterialEval, MaterialScratch, NO_WATER};
+pub use eval::{MaterialEval, MaterialScratch, NO_WATER, SettledState};
 pub use proto::{MaterialConditionHolder, MaterialRuleHolder};

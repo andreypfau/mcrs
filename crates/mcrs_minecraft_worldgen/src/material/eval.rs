@@ -64,10 +64,19 @@ const CELL_UNKNOWN: u8 = 0;
 const CELL_OPEN: u8 = 1;
 const CELL_CLOSED: u8 = 2;
 
+/// What a settled run writes at one y. `Bandlands` settles like any block:
+/// every y of the run reaches the same rule, and only the band the rule indexes
+/// varies with y, which the write site can do without walking the tape.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SettledState {
+    Block(Option<VoxelId>),
+    Bandlands,
+}
+
 /// Where settling a piece of a run stopped: on an answer, on a guard that could
 /// still go either way, or on a rule no piece can settle at all.
 enum Settled {
-    Answer(Option<VoxelId>),
+    Answer(SettledState),
     Open {
         condition: CondId,
         on_true: usize,
@@ -306,7 +315,7 @@ where
         bottom: i32,
         depth_above: i32,
         water_level: i32,
-        out: &mut Vec<(i32, i32, Option<VoxelId>)>,
+        out: &mut Vec<(i32, i32, SettledState)>,
     ) {
         out.clear();
         // Splitting a run costs about as much as walking a few blocks of it.
@@ -374,7 +383,7 @@ where
     /// probability instead of a walk of the whole tape. The draw is a fork of
     /// the stream at the block, so making it here rather than during the
     /// descent asks the same stream the same question.
-    fn settle_piece(&mut self, lo: i32, hi: i32, out: &mut Vec<(i32, i32, Option<VoxelId>)>) {
+    fn settle_piece(&mut self, lo: i32, hi: i32, out: &mut Vec<(i32, i32, SettledState)>) {
         let (condition, on_true, on_false) = match self.settle_from(0, lo, hi) {
             Settled::Answer(state) => return out.push((lo, hi, state)),
             Settled::Blocked => return,
@@ -441,8 +450,8 @@ where
                         };
                     }
                 },
-                Op::Block { state } => return Settled::Answer(Some(state)),
-                Op::Bandlands => return Settled::Blocked,
+                Op::Block { state } => return Settled::Answer(SettledState::Block(Some(state))),
+                Op::Bandlands => return Settled::Answer(SettledState::Bandlands),
                 Op::OreVein { vein } => {
                     if self.vein_open_in(vein as usize, lo, hi) {
                         return Settled::Blocked;
@@ -451,7 +460,7 @@ where
                 }
             }
         }
-        Settled::Answer(None)
+        Settled::Answer(SettledState::Block(None))
     }
 
     /// The condition's answer if it is the same for every y in `lo..=hi`.
@@ -985,7 +994,15 @@ where
         value
     }
 
+    /// The band at the position the descent is on, for the paths that walk the
+    /// tape rather than settle a run.
     pub(crate) fn bandlands(&mut self) -> VoxelId {
+        self.bandlands_at(self.block_y)
+    }
+
+    /// The band `y` lands on. The offset noise is 2D, so it is one draw per
+    /// strip however many y a settled run asks about.
+    pub fn bandlands_at(&mut self, y: i32) -> VoxelId {
         let noise = self.noise(
             self.program.surface_noise(SurfaceNoise::ClayBandsOffset),
             false,
@@ -995,7 +1012,7 @@ where
         // shift the whole band table.
         let offset = ((noise as f32 * 4.0) + 0.5).floor() as i32;
         let bands = self.program.clay_bands();
-        bands[(self.block_y + offset).rem_euclid(bands.len() as i32) as usize]
+        bands[(y + offset).rem_euclid(bands.len() as i32) as usize]
     }
 
     pub(crate) fn ore_vein(&mut self, vein: VeinId) -> Option<VoxelId> {
