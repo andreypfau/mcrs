@@ -106,6 +106,7 @@ mcrs_telemetry.workspace = true
 [dev-dependencies]
 bevy_state.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_world.workspace = true
 mcrs_minecraft_worldgen.workspace = true
 
 [features]

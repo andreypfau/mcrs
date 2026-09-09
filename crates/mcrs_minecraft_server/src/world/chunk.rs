@@ -779,6 +779,7 @@ pub(crate) fn dispatch_column_generation(
     block_tags: Option<Res<DynTagRegistry<VanillaBlock>>>,
     mut cached_biome_registry: Local<Option<Arc<RegistrySnapshot<Biome>>>>,
     mut cached_carver_blocks: Local<Option<Arc<ModernCarverBlockIds>>>,
+    mut cached_surface_ids: Local<Option<(Arc<RegistrySnapshot<Biome>>, Arc<SurfaceIds>)>>,
     mut cached_multi_noise: Local<
         Option<(
             Arc<RegistrySnapshot<Biome>>,
@@ -831,6 +832,20 @@ pub(crate) fn dispatch_column_generation(
             ))
         });
         (biomes.0.clone(), ids.clone())
+    });
+
+    // The surface stage names five registry entries, and they are the same for
+    // every column of the dimension. The snapshot is rebuilt only when the
+    // registry changes, so its identity is what makes these stale.
+    let surface_ids = biome_registry_arc.as_ref().map(|reg| {
+        let stale = cached_surface_ids
+            .as_ref()
+            .is_none_or(|(cached, _)| !Arc::ptr_eq(cached, reg));
+        if stale {
+            *cached_surface_ids =
+                Some((reg.clone(), Arc::new(SurfaceIds::resolve(&blocks.0, reg))));
+        }
+        cached_surface_ids.as_ref().unwrap().1.clone()
     });
 
     let biome_snapshot = biome_registry_arc.clone();
@@ -912,6 +927,7 @@ pub(crate) fn dispatch_column_generation(
         let multi_noise = multi_noise_table.clone();
         let carver_ctx = carver_context.clone();
         let block_definitions = blocks.0.clone();
+        let surface = surface_ids.clone();
         let predicates = heightmap_predicates.as_deref().cloned();
         let saved = saved.as_deref().cloned().zip(biome_snapshot.clone());
 
@@ -1057,7 +1073,7 @@ pub(crate) fn dispatch_column_generation(
 
                 // The material rules run between the fill they read and the
                 // carvers, because carved rock is not re-surfaced.
-                if let Some((_, biomes)) = &biome_context
+                if let Some(ids) = surface.as_deref()
                     && let Some(grid) = filled.biome_grid.as_ref()
                 {
                     thread_local! {
@@ -1068,7 +1084,6 @@ pub(crate) fn dispatch_column_generation(
                         spans_dimension(&y_sections, router),
                         "the descent needs the whole column, not the sections this dispatch owes"
                     );
-                    let ids = SurfaceIds::resolve(&block_definitions, biomes);
                     MATERIAL.with_borrow_mut(|scratch| {
                         apply_material_surface(
                             column,

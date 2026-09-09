@@ -423,6 +423,14 @@ fn apply_carver_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &Moder
 #[derive(bevy_ecs::prelude::Resource, Clone)]
 pub struct ModernCarverBiomes(pub Arc<CarverBiomeTable>);
 
+/// Every dimension's carver table, keyed the way its biome source is: a table
+/// resolves one source's climate entries, so the Nether's carvers are not the
+/// overworld's.
+#[derive(bevy_ecs::prelude::Resource, Default, Clone)]
+pub struct DimensionCarverBiomes(
+    pub std::collections::BTreeMap<mcrs_minecraft_core::ResourceLocation, Arc<CarverBiomeTable>>,
+);
+
 pub struct ModernCarverPlugin;
 
 impl bevy_app::Plugin for ModernCarverPlugin {
@@ -437,16 +445,14 @@ impl bevy_app::Plugin for ModernCarverPlugin {
     }
 }
 
-/// Resolve the active biome source's climate table into carver lists.
+/// Resolve every dimension's biome source climate table into carver lists.
 ///
 /// Both halves are loaded assets: which carvers a biome runs comes from the
 /// biome JSON, and what each carver is comes from the carver JSON, so a
 /// datapack that retunes either is picked up here.
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
-    source: Option<
-        bevy_ecs::prelude::Res<mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource>,
-    >,
+    sources: Option<bevy_ecs::prelude::Res<crate::world::generate::routers::DimensionBiomeSources>>,
     biomes: bevy_ecs::prelude::Res<bevy_asset::Assets<mcrs_minecraft_world::biome::Biome>>,
     carvers: bevy_ecs::prelude::Res<
         bevy_asset::Assets<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>,
@@ -456,15 +462,7 @@ fn build_modern_carver_biomes(
     use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
     use mcrs_minecraft_world::biome::source::BiomeSource;
 
-    let Some(source) = source else { return };
-    // A fixed source answers one biome everywhere, so its table is that biome's
-    // carvers under a point covering the whole climate space: with a single
-    // candidate the nearest-entry search returns it whatever the climate.
-    let (preset, fixed_biome) = match source.0.as_ref() {
-        BiomeSource::MultiNoise(multi) => (Some(multi), None),
-        BiomeSource::Fixed { biome_id, .. } => (None, Some(biome_id.as_str().to_owned())),
-        _ => return,
-    };
+    let Some(sources) = sources else { return };
 
     let mut config_by_location: HashMap<String, CarverConfig> = HashMap::new();
     for (asset_id, asset) in carvers.iter() {
@@ -495,38 +493,52 @@ fn build_modern_carver_biomes(
         );
     }
 
-    let explicit = match (preset, fixed_biome) {
-        (Some(multi), _) => multi.biomes.as_ref().map(|entries| {
-            entries
-                .iter()
-                .filter_map(|entry| {
-                    let path = asset_server.get_path(entry.biome.id())?;
-                    let location = rl_from_asset_path(path.path())?;
-                    Some((
-                        ParameterPoint::from(&entry.parameters),
-                        location.as_str().to_owned(),
-                    ))
-                })
-                .collect()
-        }),
-        (None, Some(biome)) => Some(vec![(whole_climate_space(), biome)]),
-        (None, None) => None,
-    };
+    let mut tables = DimensionCarverBiomes::default();
+    for (dimension, source) in &sources.0 {
+        // A fixed source answers one biome everywhere, so its table is that
+        // biome's carvers under a point covering the whole climate space: with a
+        // single candidate the nearest-entry search returns it whatever the
+        // climate.
+        let (preset, fixed_biome) = match source.as_ref() {
+            BiomeSource::MultiNoise(multi) => (Some(multi), None),
+            BiomeSource::Fixed { biome_id, .. } => (None, Some(biome_id.as_str().to_owned())),
+            _ => continue,
+        };
 
-    match resolve_carver_biomes(
-        preset
-            .and_then(|multi| multi.preset.as_ref())
-            .map(|preset| preset.as_str()),
-        explicit,
-        &carvers_by_biome,
-        &config_by_location,
-    ) {
-        Some(table) => {
-            tracing::info!(entries = table.table.len(), "resolved the carver table");
-            commands.insert_resource(ModernCarverBiomes(Arc::new(table)));
+        let explicit = match (preset, fixed_biome) {
+            (Some(multi), _) => multi.biomes.as_ref().map(|entries| {
+                entries
+                    .iter()
+                    .filter_map(|entry| {
+                        let path = asset_server.get_path(entry.biome.id())?;
+                        let location = rl_from_asset_path(path.path())?;
+                        Some((
+                            ParameterPoint::from(&entry.parameters),
+                            location.as_str().to_owned(),
+                        ))
+                    })
+                    .collect()
+            }),
+            (None, Some(biome)) => Some(vec![(whole_climate_space(), biome)]),
+            (None, None) => None,
+        };
+
+        match resolve_carver_biomes(
+            preset
+                .and_then(|multi| multi.preset.as_ref())
+                .map(|preset| preset.as_str()),
+            explicit,
+            &carvers_by_biome,
+            &config_by_location,
+        ) {
+            Some(table) => {
+                tracing::info!(%dimension, entries = table.table.len(), "resolved the carver table");
+                tables.0.insert(dimension.clone(), Arc::new(table));
+            }
+            None => tracing::info!(%dimension, "no carver table for this biome source"),
         }
-        None => tracing::info!("no carver table for this biome source"),
     }
+    commands.insert_resource(tables);
 }
 
 /// The resolution itself, with the asset lookups already reduced to two maps:

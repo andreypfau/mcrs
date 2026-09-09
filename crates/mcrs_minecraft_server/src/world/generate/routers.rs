@@ -17,6 +17,16 @@ use tracing::{error, info};
 use crate::configuration::{LoadedWorldPreset, WorldSeed};
 use crate::world::chunk::try_resolve_state;
 
+/// Every dimension's biome source, keyed by the id the world preset gave it.
+///
+/// The source decides which biome a column reports and therefore which surface
+/// rules and carvers it runs, so it belongs to the same dimension as the router
+/// it is sampled beside.
+#[derive(Resource, Default, Clone)]
+pub struct DimensionBiomeSources(
+    pub BTreeMap<ResourceLocation, Arc<mcrs_minecraft_world::biome::source::BiomeSource>>,
+);
+
 /// Every dimension's compiled router, keyed by the id the world preset gave it.
 ///
 /// A router is immutable once compiled, so the host builds each one and hands

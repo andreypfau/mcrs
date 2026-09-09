@@ -3,9 +3,11 @@ use bevy_state::state::State;
 use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::MinecraftServerPlugin;
-use mcrs_minecraft_server::world::generate::DimensionRouters;
+use mcrs_minecraft_server::world::generate::{DimensionBiomeSources, DimensionRouters};
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
 use mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// The preset is loaded once, in the host, and every dimension's router is
@@ -57,6 +59,21 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
         "the overworld and the nether were given the same terrain block and fluid"
     );
 
+    let sources = app.world().resource::<DimensionBiomeSources>().clone();
+    // A sub-app is keyed by an entity, so the router it was handed is what says
+    // which dimension it is: the terrain block pair is distinct per dimension,
+    // which the assertion above holds to.
+    let dimension_of: Vec<_> = routers
+        .0
+        .iter()
+        .map(|(id, router)| {
+            (
+                (router.default_block_state, router.default_fluid_state),
+                id.clone(),
+            )
+        })
+        .collect();
+
     let expected = routers.0.len();
     drain_dim_spawn_queue(&mut app);
 
@@ -77,4 +94,30 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
         "{with_router} of {} sub-apps got a router",
         sub_apps.len()
     );
+
+    // The biome source decides the biome a column reports, and with it the
+    // surface rules and the carvers. A single host-wide source would hand the
+    // nether the overworld's biomes while it samples the nether's router.
+    let mut checked = 0;
+    for sub_app in sub_apps.values() {
+        let Some(router) = sub_app.world().get_resource::<DimensionNoiseRouter>() else {
+            continue;
+        };
+        let key = (router.0.default_block_state, router.0.default_fluid_state);
+        let dimension = dimension_of
+            .iter()
+            .find(|(pair, _)| *pair == key)
+            .map(|(_, id)| id)
+            .expect("a sub-app carries a router no dimension compiled");
+        let held = sub_app
+            .world()
+            .get_resource::<ActiveBiomeSource>()
+            .unwrap_or_else(|| panic!("{dimension} reached its sub-app with no biome source"));
+        assert!(
+            Arc::ptr_eq(&held.0, &sources.0[dimension]),
+            "{dimension} was given another dimension's biome source"
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, expected, "a dimension went unchecked");
 }

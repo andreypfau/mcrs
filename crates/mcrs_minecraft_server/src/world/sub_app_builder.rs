@@ -88,8 +88,8 @@ pub struct DimRegistryBundle {
     pub block_tag_registry: DynTagRegistry<Block>,
     pub heightmap_predicates: Option<HeightmapPredicates>,
     pub biome_registry: RegistrySnapshot<Biome>,
-    pub active_biome_source: Option<ActiveBiomeSource>,
-    pub modern_carver_biomes: Option<crate::world::generate::modern_carvers::ModernCarverBiomes>,
+    pub biome_sources: crate::world::generate::routers::DimensionBiomeSources,
+    pub modern_carver_biomes: crate::world::generate::modern_carvers::DimensionCarverBiomes,
     pub world_save: Option<WorldSave>,
     pub noise_routers: DimensionRouters,
 }
@@ -105,10 +105,14 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
-        active_biome_source: world.get_resource::<ActiveBiomeSource>().cloned(),
+        biome_sources: world
+            .get_resource::<crate::world::generate::routers::DimensionBiomeSources>()
+            .cloned()
+            .unwrap_or_default(),
         modern_carver_biomes: world
-            .get_resource::<crate::world::generate::modern_carvers::ModernCarverBiomes>()
-            .cloned(),
+            .get_resource::<crate::world::generate::modern_carvers::DimensionCarverBiomes>()
+            .cloned()
+            .unwrap_or_default(),
         world_save: world.get_resource::<WorldSave>().cloned(),
         noise_routers: world
             .get_resource::<DimensionRouters>()
@@ -328,8 +332,15 @@ pub fn spawn_dim_subapp(
     // The router is compiled host-side and arrives here as a read-only
     // snapshot; a dimension the preset drives with no noise generator simply
     // gets none, and `dispatch_column_generation` never runs for it.
-    match mcrs_minecraft_core::ResourceLocation::parse(&request.dimension_id.0) {
-        Ok(dimension) => match registries.noise_routers.0.get(&dimension) {
+    let dimension = match mcrs_minecraft_core::ResourceLocation::parse(&request.dimension_id.0) {
+        Ok(dimension) => Some(dimension),
+        Err(error) => {
+            error!(%error, "the dimension id is not a resource location; it will generate nothing");
+            None
+        }
+    };
+    if let Some(dimension) = &dimension {
+        match registries.noise_routers.0.get(dimension) {
             Some(router) => {
                 sub_app.insert_resource(mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter(
                     std::sync::Arc::clone(router),
@@ -338,9 +349,6 @@ pub fn spawn_dim_subapp(
             None => {
                 warn!(%dimension, "no noise router for this dimension; it will generate nothing")
             }
-        },
-        Err(error) => {
-            error!(%error, "the dimension id is not a resource location; it will generate nothing")
         }
     }
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
@@ -395,11 +403,15 @@ pub fn spawn_dim_subapp(
         sub_app.insert_resource(predicates.clone());
     }
     sub_app.insert_resource(registries.biome_registry.clone());
-    if let Some(carver_biomes) = &registries.modern_carver_biomes {
-        sub_app.insert_resource(carver_biomes.clone());
-    }
-    if let Some(active_biome_source) = &registries.active_biome_source {
-        sub_app.insert_resource(active_biome_source.clone());
+    if let Some(dimension) = &dimension {
+        if let Some(source) = registries.biome_sources.0.get(dimension) {
+            sub_app.insert_resource(ActiveBiomeSource(std::sync::Arc::clone(source)));
+        }
+        if let Some(table) = registries.modern_carver_biomes.0.get(dimension) {
+            sub_app.insert_resource(crate::world::generate::modern_carvers::ModernCarverBiomes(
+                std::sync::Arc::clone(table),
+            ));
+        }
     }
     if let Some(world_save) = &registries.world_save
         && let Some(saved) = SavedColumns::open(&world_save.0, request.dimension_id.as_str())

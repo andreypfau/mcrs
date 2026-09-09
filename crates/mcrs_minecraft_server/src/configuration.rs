@@ -38,7 +38,6 @@ use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_world::LoadedRegistryAssets;
-use mcrs_minecraft_world::biome::source::BiomeSource;
 use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
@@ -46,7 +45,6 @@ use mcrs_minecraft_world::dimension::level_stem::DimensionDefinition;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_minecraft_world::entity::EntityType as VanillaEntityType;
 use mcrs_minecraft_world::item::Item as VanillaItem;
-use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::{ActiveWorldPreset, WorldPreset};
 use mcrs_voxel_server::dim::send_control_or_teardown;
@@ -59,6 +57,8 @@ use std::collections::HashSet;
 use std::env;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
+
+use crate::world::generate::routers::DimensionBiomeSources;
 
 /// Default world preset name used when MCRS_WORLD_PRESET is not set
 const DEFAULT_WORLD_PRESET: &str = "normal";
@@ -339,9 +339,7 @@ fn process_loaded_world_preset(
     loaded_preset.dimensions = dimensions;
     loaded_preset.is_loaded = true;
 
-    if let Some(source) = overworld_biome_source(&loaded_preset, &dim_defs) {
-        commands.insert_resource(ActiveBiomeSource(Arc::new(source)));
-    }
+    commands.insert_resource(dimension_biome_sources(&loaded_preset, &dim_defs));
 
     debug!(
         preset = %loaded_preset.preset_name,
@@ -350,22 +348,24 @@ fn process_loaded_world_preset(
     );
 }
 
-fn overworld_biome_source(
+fn dimension_biome_sources(
     preset: &LoadedWorldPreset,
     dim_defs: &Assets<DimensionDefinition>,
-) -> Option<BiomeSource> {
-    let (_, handle) = preset
-        .dimensions
-        .iter()
-        .find(|(key, _)| key.as_str() == "minecraft:overworld")?;
-    let Some(definition) = dim_defs.get(handle) else {
-        warn!("overworld dimension definition missing while the world preset loaded");
-        return None;
-    };
-    let ChunkGenerator::Noise(generator) = &definition.generator else {
-        return None;
-    };
-    Some(generator.biome_source.clone())
+) -> DimensionBiomeSources {
+    let mut sources = DimensionBiomeSources::default();
+    for (dimension, handle) in &preset.dimensions {
+        let Some(definition) = dim_defs.get(handle) else {
+            warn!(%dimension, "the dimension definition missing while the world preset loaded");
+            continue;
+        };
+        let ChunkGenerator::Noise(generator) = &definition.generator else {
+            continue;
+        };
+        sources
+            .0
+            .insert(dimension.clone(), Arc::new(generator.biome_source.clone()));
+    }
+    sources
 }
 
 /// Kicks connected players back into Configuration when a dimension type asset
@@ -805,12 +805,22 @@ pub struct WorldSeed(pub u64);
 /// The seed `MCRS_WORLD_SEED` names. A save overrides it with the one stored in
 /// its level data.
 pub fn world_seed_from_env() -> WorldSeed {
-    WorldSeed(
-        env::var("MCRS_WORLD_SEED")
-            .ok()
-            .and_then(|raw| raw.trim().parse().ok())
-            .unwrap_or(0),
-    )
+    let Ok(raw) = env::var("MCRS_WORLD_SEED") else {
+        return WorldSeed(0);
+    };
+    let raw = raw.trim();
+    // A seed is a Java long, so it is written signed; the router hashes the
+    // same bits either way.
+    if let Ok(seed) = raw.parse::<i64>() {
+        return WorldSeed(seed as u64);
+    }
+    match raw.parse::<u64>() {
+        Ok(seed) => WorldSeed(seed),
+        Err(error) => {
+            error!(%error, raw, "MCRS_WORLD_SEED is not a number; generating with seed 0");
+            WorldSeed(0)
+        }
+    }
 }
 
 /// Get the world preset name from the MCRS_WORLD_PRESET environment variable.

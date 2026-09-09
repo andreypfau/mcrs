@@ -800,7 +800,7 @@ where
                 )
                 .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK);
         let closed = closed
-            || ({
+            || (cell_min.y <= self.veins.max_block().y && {
                 sampled_corner_bounds(
                     &self.scratch.lattice,
                     &lattice,
