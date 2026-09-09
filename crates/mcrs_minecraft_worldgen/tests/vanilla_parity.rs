@@ -164,20 +164,11 @@ fn supported_roots_match_the_vanilla_oracle() {
     assert_eq!(dumps.len(), 15, "expected the fifteen lattice dumps");
 
     let mut report: BTreeMap<String, Diff> = BTreeMap::new();
-    let mut unsupported: Vec<String> = Vec::new();
     let mut seen_names: Vec<String> = Vec::new();
 
     for path in &dumps {
         let dump = read_dump(path);
         let router = overworld_router(dump.seed as u64);
-        if unsupported.is_empty() {
-            unsupported = router
-                .failed_roots()
-                .iter()
-                .map(|(name, err)| format!("{name}: {err}"))
-                .collect();
-        }
-        let failed: Vec<&str> = router.failed_roots().iter().map(|(n, _)| *n).collect();
 
         for v in &dump.volumes {
             if !seen_names.contains(&v.name) {
@@ -186,9 +177,6 @@ fn supported_roots_match_the_vanilla_oracle() {
             let Some(root) = ROOT_NAMES.iter().position(|n| *n == v.name) else {
                 continue;
             };
-            if failed.contains(&ROOT_NAMES[root]) {
-                continue;
-            }
             let ours = fill(&router, root, v);
             assert_eq!(ours.len(), v.values.len(), "{} size", v.name);
             let slot = report.entry(v.name.clone()).or_default();
@@ -208,7 +196,6 @@ fn supported_roots_match_the_vanilla_oracle() {
 
     let mut lines = Vec::new();
     lines.push(format!("dump volume names: {seen_names:?}"));
-    lines.push(format!("roots not yet compilable: {unsupported:?}"));
     let mut bad = false;
     for (name, d) in &report {
         lines.push(format!(
@@ -247,11 +234,6 @@ fn final_density_matches_the_dense_oracle() {
     let path = fixtures_dir().join("overworld_s42_c0_0_dense.bin");
     let dump = read_dump(&path);
     let router = overworld_router(dump.seed as u64);
-    assert!(
-        router.failed_roots().is_empty(),
-        "{:?}",
-        router.failed_roots()
-    );
 
     let v = dump
         .volumes

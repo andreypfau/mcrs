@@ -9,7 +9,7 @@ use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
 use crate::noise::blended::BlendedNoise;
 use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, extent, stratum};
-use crate::volume::Volume;
+use crate::volume::{Axis, Volume};
 use bevy_math::IVec3;
 use std::sync::Arc;
 
@@ -229,6 +229,13 @@ pub enum Node {
         cell_y: i32,
         cell: usize,
     },
+    /// `input` with `axis` pinned to `coordinate`, which is a block coordinate
+    /// and not an index into the volume being filled.
+    Slice {
+        input: NodeId,
+        axis: Axis,
+        coordinate: i32,
+    },
     /// The highest cell boundary at or below `upper_bound` where `density` is
     /// positive. `upper_bound` is read at y = 0, never at the filled position.
     FindTopSurface {
@@ -301,7 +308,7 @@ impl Node {
             }
             Node::Spline { coords, .. } => coords.iter().copied().for_each(&mut *f),
 
-            Node::Interpolated { input, .. } => f(*input),
+            Node::Interpolated { input, .. } | Node::Slice { input, .. } => f(*input),
             Node::FindTopSurface {
                 density,
                 upper_bound,
@@ -337,7 +344,8 @@ impl Node {
             | Node::ConstBinary { input, .. }
             | Node::IntegerMultipleRound { input, .. }
             | Node::ConstRangeChoice { input, .. }
-            | Node::Interpolated { input, .. } => f(input),
+            | Node::Interpolated { input, .. }
+            | Node::Slice { input, .. } => f(input),
 
             Node::Binary { a, b, .. } => {
                 f(a);
@@ -395,7 +403,7 @@ impl Node {
     /// unless something else in the plan reads it in place.
     pub(crate) fn visit_local_inputs(&self, f: &mut impl FnMut(NodeId)) {
         match self {
-            Node::Interpolated { .. } => {}
+            Node::Interpolated { .. } | Node::Slice { .. } => {}
             Node::FindTopSurface { upper_bound, .. } => f(*upper_bound),
             other => other.visit_inputs(f),
         }
@@ -427,6 +435,7 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
         // per-fill phase has none of, so this never lands there however little
         // its input varies.
         Node::Interpolated { input, .. } => at(*input) | AXIS_X | AXIS_Z,
+        Node::Slice { input, axis, .. } => at(*input) & !axis.bit(),
         other => {
             let mut union = NO_AXES;
             other.visit_inputs(&mut |id| union |= at(id));
@@ -482,6 +491,7 @@ pub struct Workspace {
     offset: Vec<u32>,
     lattices: Vec<Lattice>,
     probe: Vec<f32>,
+    sliced: Vec<f32>,
     nested: Option<Box<Workspace>>,
     #[cfg(any(test, feature = "corpus"))]
     count: EvalCount,
@@ -549,6 +559,7 @@ impl Program {
                     add(&mut entries, *input);
                     cell_count = cell_count.max(cell + 1);
                 }
+                Node::Slice { input, .. } => add(&mut entries, *input),
                 Node::FindTopSurface {
                     density,
                     upper_bound,
@@ -722,6 +733,36 @@ impl Program {
         #[cfg(any(test, feature = "corpus"))]
         ws.absorb(&mut nested);
         ws.nested = Some(nested);
+    }
+
+    /// `input` over `volume` with `axis` pinned to `coordinate`. The pinned axis
+    /// is one this node's stratum drops, so the nested fill's buffer is already
+    /// laid out exactly as this node's own stratum and lands in it by copy.
+    fn fill_slice(
+        &self,
+        ws: &mut Workspace,
+        volume: &Volume,
+        id: NodeId,
+        input: NodeId,
+        axis: Axis,
+        coordinate: i32,
+    ) {
+        let inner = slice_volume(volume, self.axes_of(input), axis, coordinate);
+        let len = extent(self.axes_of(id), volume);
+        debug_assert_eq!(inner.len(), len, "a slice drops exactly the pinned axis");
+
+        let mut nested = ws.nested.take().unwrap_or_default();
+        let mut sliced = std::mem::take(&mut ws.sliced);
+        sliced.clear();
+        sliced.resize(len, 0.0);
+        self.fill_node(&mut nested, &inner, input, &mut sliced);
+        #[cfg(any(test, feature = "corpus"))]
+        ws.absorb(&mut nested);
+        ws.nested = Some(nested);
+
+        let off = ws.offset[id as usize] as usize;
+        ws.values[off..off + len].copy_from_slice(&sliced);
+        ws.sliced = sliced;
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -898,6 +939,15 @@ impl Program {
     }
 
     fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &Volume) {
+        if let &Node::Slice {
+            input,
+            axis,
+            coordinate,
+        } = &self.nodes[id as usize]
+        {
+            self.fill_slice(ws, volume, id, input, axis, coordinate);
+            return;
+        }
         if let &Node::FindTopSurface {
             density,
             upper_bound,
@@ -1137,7 +1187,9 @@ impl Program {
                 }
             }
 
-            Node::FindTopSurface { .. } => unreachable!("handled before the buffer split"),
+            Node::Slice { .. } | Node::FindTopSurface { .. } => {
+                unreachable!("handled before the buffer split")
+            }
         }
     }
 }
@@ -1173,6 +1225,23 @@ fn is_lattice_volume(volume: &Volume, cell_xz: i32, cell_y: i32) -> bool {
         && jmath::floor_mod(min.x, cell_xz) == 0
         && jmath::floor_mod(min.y, cell_y) == 0
         && jmath::floor_mod(min.z, cell_xz) == 0
+}
+
+/// `volume` as the input of a slice is asked for it: the input's own stratum,
+/// with the pinned axis collapsed to the single block `coordinate`.
+///
+/// Every other axis the input drops is pinned exactly as [`stratum`] pins it,
+/// and the input's axes are a superset of the slice's, so the result indexes
+/// element for element like the slice's own stratum.
+fn slice_volume(volume: &Volume, input_axes: Axes, axis: Axis, coordinate: i32) -> Volume {
+    let ext = stratum(input_axes, volume);
+    let (mut size, mut min) = (ext.size(), ext.min_block());
+    match axis {
+        Axis::X => (size.x, min.x) = (1, coordinate),
+        Axis::Y => (size.y, min.y) = (1, coordinate),
+        Axis::Z => (size.z, min.z) = (1, coordinate),
+    }
+    Volume::new(size, min, ext.step_block())
 }
 
 /// The cell corners enclosing every position `volume` asks for, with one extra
@@ -1497,7 +1566,6 @@ mod tests {
     use super::*;
     use crate::node::gradient::Tiling;
     use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
-    use crate::volume::Axis;
     use bevy_math::IVec3;
 
     fn gradient(axis: Axis, from: f32, to: f32, from_value: f32, to_value: f32) -> Node {
@@ -1702,6 +1770,52 @@ mod tests {
             "the corners at x = 0 and x = 4 are 0 and 16, and the interior is the \
              straight line between them rather than x squared"
         );
+    }
+
+    /// A slice keeps the axes its input has minus the pinned one, so the value
+    /// has to reach every column the pinned axis used to separate — the nested
+    /// fill's buffer lands in the node's own stratum by copy, and a layout that
+    /// disagreed would show up as a transposed column here.
+    #[test]
+    fn a_slice_broadcasts_the_pinned_axis_over_every_column() {
+        let nodes = vec![
+            gradient(Axis::X, 0.0, 4.0, 0.0, 40.0),
+            gradient(Axis::Z, 0.0, 4.0, 0.0, 4.0),
+            Node::Binary {
+                op: BinaryOp::Add,
+                a: 0,
+                b: 1,
+            },
+            Node::Slice {
+                input: 2,
+                axis: Axis::X,
+                coordinate: 3,
+            },
+        ];
+        let p = program(
+            nodes,
+            vec![AXIS_X, AXIS_Z, AXIS_X | AXIS_Z, AXIS_Z],
+            vec![3],
+        );
+        let v = Volume::dense(IVec3::new(2, 1, 4), IVec3::ZERO);
+        let out = run(&p, &v, 0);
+        // x is pinned to 3, so every column reads 30 plus its own z.
+        assert_eq!(out, vec![30.0, 30.0, 31.0, 31.0, 32.0, 32.0, 33.0, 33.0]);
+    }
+
+    #[test]
+    fn a_slice_of_a_node_that_already_drops_the_axis_is_the_input() {
+        let nodes = vec![
+            gradient(Axis::Z, 0.0, 4.0, 0.0, 4.0),
+            Node::Slice {
+                input: 0,
+                axis: Axis::X,
+                coordinate: 100,
+            },
+        ];
+        let p = program(nodes, vec![AXIS_Z, AXIS_Z], vec![1]);
+        let v = Volume::dense(IVec3::new(2, 1, 3), IVec3::ZERO);
+        assert_eq!(run(&p, &v, 0), vec![0.0, 0.0, 1.0, 1.0, 2.0, 2.0]);
     }
 
     fn top_surface(upper_bound: f32, lower_bound: i32) -> Program {

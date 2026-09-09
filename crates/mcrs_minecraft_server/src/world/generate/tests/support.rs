@@ -88,7 +88,7 @@ pub fn build_settings_router(settings_name: &str, seed: u64) -> NoiseRouter {
     let json = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     let settings: NoiseGeneratorSettings =
         serde_json::from_str(&json).unwrap_or_else(|e| panic!("{settings_name}: {e}"));
-    let router = build_router(
+    build_router(
         &settings,
         &density_function_registry(),
         &noise_registry(),
@@ -97,13 +97,7 @@ pub fn build_settings_router(settings_name: &str, seed: u64) -> NoiseRouter {
         corpus().default_state("minecraft:water").into(),
         None,
     )
-    .unwrap_or_else(|e| panic!("{settings_name}: {e}"));
-    assert!(
-        router.failed_roots().is_empty(),
-        "[{settings_name}] roots did not compile: {:?}",
-        router.failed_roots(),
-    );
-    router
+    .unwrap_or_else(|e| panic!("{settings_name}: {e}"))
 }
 
 pub fn build_beta_router() -> NoiseRouter {

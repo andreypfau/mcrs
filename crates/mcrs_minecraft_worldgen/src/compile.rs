@@ -17,7 +17,7 @@ use crate::program::{
 use crate::proto::{
     DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, ProtoSpline,
 };
-use crate::router::{NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES};
+use crate::router::{NoiseGeneratorSettings, NoiseRouter};
 use crate::strata::{Axes, NO_AXES};
 use crate::volume::Axis;
 use mcrs_minecraft_core::ResourceLocation;
@@ -30,9 +30,6 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompileError {
-    /// A kind that needs re-entrant evaluation at a substituted position, which
-    /// the flat program cannot express yet.
-    Unsupported(&'static str),
     UnknownFunction(String),
     UnknownNoise(String),
     ReferenceCycle(String),
@@ -47,7 +44,6 @@ pub enum CompileError {
 impl fmt::Display for CompileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CompileError::Unsupported(kind) => write!(f, "unsupported density function: {kind}"),
             CompileError::UnknownFunction(id) => write!(f, "unknown density function: {id}"),
             CompileError::UnknownNoise(id) => write!(f, "unknown noise: {id}"),
             CompileError::ReferenceCycle(id) => write!(f, "reference cycle through {id}"),
@@ -76,22 +72,11 @@ pub fn build_router(
 ) -> Result<NoiseRouter, CompileError> {
     let mut compiler = Compiler::new(registry, noises, seed, settings.legacy_random_source);
     let mut nodes = Vec::with_capacity(8);
-    let mut failed = Vec::new();
 
-    for (name, holder) in ROOT_NAMES.iter().zip(settings.noise_router.roots()) {
-        match compiler.compile(holder) {
-            Ok(id) => nodes.push(id),
-            Err(error) => {
-                tracing::warn!(root = name, %error, "density root did not compile");
-                failed.push((*name, error));
-                nodes.push(compiler.constant(0.0));
-            }
-        }
+    for holder in settings.noise_router.roots() {
+        nodes.push(compiler.compile(holder)?);
     }
 
-    // A density root that fails degrades to a constant so the rest of the
-    // terrain still generates; a material rule that fails does not, because
-    // every column in the world would come out as bare stone.
     let material = match material {
         Some(inputs) => Some(compile_material(
             &mut compiler,
@@ -105,7 +90,6 @@ pub fn build_router(
     let program = compiler.into_program(nodes);
     Ok(NoiseRouter::new(
         program,
-        failed,
         material,
         settings,
         seed,
@@ -543,14 +527,24 @@ impl<'a> Compiler<'a> {
             P::Spline { spline } => self.compile_spline(spline),
 
             // A slice whose input already ignores the sliced axis is the
-            // identity; anything else needs the input evaluated at a
-            // substituted coordinate, which the flat program cannot do.
-            P::Slice { axis, input, .. } => {
+            // identity.
+            P::Slice {
+                axis,
+                coordinate,
+                input,
+            } => {
                 let input = self.compile(input)?;
                 if self.axes[input as usize] & axis.bit() == 0 {
                     return Ok(input);
                 }
-                Err(CompileError::Unsupported("slice"))
+                Ok(self.intern(
+                    Key::Slice(input, *axis, *coordinate),
+                    Node::Slice {
+                        input,
+                        axis: *axis,
+                        coordinate: *coordinate,
+                    },
+                ))
             }
             P::Interpolated {
                 input,
@@ -1224,6 +1218,7 @@ enum Key {
     IntervalSelect(NodeId, Vec<u32>, Vec<NodeId>),
     Spline(usize, Vec<NodeId>),
     Interpolated(NodeId, u32, u32),
+    Slice(NodeId, Axis, i32),
     FindTopSurface(NodeId, NodeId, i32, u32),
 }
 
@@ -1231,7 +1226,9 @@ enum Key {
 pub(crate) mod tests {
     use super::*;
     use crate::program::Workspace;
-    use crate::router::{CONTINENTS, DEPTH, EROSION, RIDGES, TEMPERATURE, VEGETATION};
+    use crate::router::{
+        CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, RIDGES, TEMPERATURE, VEGETATION,
+    };
     use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z};
     use crate::volume::Volume;
     use bevy_math::IVec3;
@@ -1572,19 +1569,16 @@ pub(crate) mod tests {
         assert_eq!(built.nodes.len(), 3, "gradient, square, add");
     }
 
+    /// The gradient runs 0..16 over y, so pinning y to 3 has to answer 3
+    /// everywhere rather than tracking the position being filled.
     #[test]
-    fn an_unsupported_kind_names_itself() {
-        let holder: DensityFunctionHolder = serde_json::from_str(&format!(
-            r#"{{"type":"minecraft:slice","axis":"y","coordinate":0,"input":{Y_GRADIENT}}}"#
-        ))
-        .unwrap();
-        let functions = no_functions();
-        let noises = no_noises();
-        let mut compiler = Compiler::new(&functions, &noises, 0, false);
-        assert_eq!(
-            compiler.compile(&holder),
-            Err(CompileError::Unsupported("slice"))
+    fn a_slice_pins_its_axis_to_the_coordinate() {
+        let json = format!(
+            r#"{{"type":"minecraft:slice","axis":"y","coordinate":3,"input":{Y_GRADIENT}}}"#
         );
+        assert_eq!(sample(&json, IVec3::new(0, 11, 0)), 3.0);
+        assert_eq!(sample(&json, IVec3::new(0, 0, 0)), 3.0);
+        assert_eq!(build(&json).axes(), NO_AXES, "the pinned axis is dropped");
     }
 
     // --- the shipped corpus -------------------------------------------------
@@ -1638,22 +1632,12 @@ pub(crate) mod tests {
         )
         .unwrap();
 
-        let failed: Vec<&str> = router
-            .failed_roots()
-            .iter()
-            .map(|(name, _)| *name)
-            .collect();
-        assert!(
-            failed.is_empty(),
-            "every overworld root compiles: {failed:?}"
-        );
-
         let mut memo = HashMap::new();
-        let naive: usize = ROOT_NAMES
-            .iter()
-            .zip(settings.noise_router.roots())
-            .filter(|(name, _)| !failed.contains(name))
-            .map(|(_, holder)| tree_size(&functions, holder, &mut memo))
+        let naive: usize = settings
+            .noise_router
+            .roots()
+            .into_iter()
+            .map(|holder| tree_size(&functions, holder, &mut memo))
             .sum();
         let compiled = router.program.len();
         assert!(
@@ -1702,6 +1686,74 @@ pub(crate) mod tests {
         }
     }
 
+    /// `end/islands` is the one shipped graph that slices, and it slices Y over
+    /// a `distance_to_point` that varies along Y. The value is checked against
+    /// the arithmetic by hand, because a slice that tracked the filled position
+    /// instead of the pinned one would still be smooth and still be plausible.
+    #[test]
+    fn the_end_islands_slice_pins_y_to_zero() {
+        let (functions, noises) = corpus();
+        let settings: NoiseGeneratorSettings =
+            crate::corpus::read("noise_settings", &ResourceLocation::minecraft("end"));
+        let router = build_router(
+            &settings,
+            &functions,
+            &noises,
+            42,
+            VoxelId(1),
+            VoxelId(2),
+            None,
+        )
+        .unwrap();
+
+        let volume = Volume::dense(IVec3::new(1, 32, 1), IVec3::new(-25, 0, -25));
+        let mut out = vec![0.0; volume.len()];
+        let mut ws = Workspace::new();
+        router.program.fill(&mut ws, &volume, EROSION, &mut out);
+
+        // euclidean distance from the origin at y = 0, not at the filled y:
+        // (100 - hypot(25, 25) - 8) * 0.0078125.
+        let distance = ((25.0f64 * 25.0 + 25.0 * 25.0) as f32).sqrt();
+        let expected = (100.0f32 - distance - 8.0) * 0.0078125;
+        assert_eq!(out[0], expected);
+        assert!(
+            out.iter().all(|v| *v == out[0]),
+            "the slice pins y, so the column is one value: {out:?}"
+        );
+    }
+
+    /// The regression the removed fallback hid: with `slice` unsupported this
+    /// root compiled to a constant zero and the End generated nothing, with a
+    /// log line as the only symptom.
+    #[test]
+    fn the_end_final_density_is_a_real_field() {
+        let (functions, noises) = corpus();
+        let settings: NoiseGeneratorSettings =
+            crate::corpus::read("noise_settings", &ResourceLocation::minecraft("end"));
+        let router = build_router(
+            &settings,
+            &functions,
+            &noises,
+            42,
+            VoxelId(1),
+            VoxelId(2),
+            None,
+        )
+        .unwrap();
+
+        let volume = Volume::dense(IVec3::new(8, 32, 8), IVec3::new(-32, 0, -32));
+        let mut out = vec![0.0; volume.len()];
+        router
+            .program
+            .fill(&mut Workspace::new(), &volume, FINAL_DENSITY, &mut out);
+        let solid = out.iter().filter(|v| **v > 0.0).count();
+        assert!(
+            solid > 0 && solid < out.len(),
+            "the central island is neither absent nor solid rock: {solid} of {}",
+            out.len()
+        );
+    }
+
     #[test]
     fn every_shipped_noise_settings_builds_a_router() {
         let (functions, noises) = corpus();
@@ -1717,7 +1769,7 @@ pub(crate) mod tests {
         ] {
             let settings: NoiseGeneratorSettings =
                 crate::corpus::read("noise_settings", &ResourceLocation::minecraft(name));
-            let router = build_router(
+            build_router(
                 &settings,
                 &functions,
                 &noises,
@@ -1727,12 +1779,6 @@ pub(crate) mod tests {
                 None,
             )
             .unwrap_or_else(|e| panic!("{name}: {e}"));
-            for (root, error) in router.failed_roots() {
-                assert!(
-                    matches!(error, CompileError::Unsupported(_)),
-                    "{name}/{root}: {error}"
-                );
-            }
         }
     }
 }

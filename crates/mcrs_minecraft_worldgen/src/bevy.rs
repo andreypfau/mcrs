@@ -23,7 +23,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::error;
 
 /// Registers the worldgen asset types and their loaders, and nothing else.
 ///
@@ -82,7 +81,7 @@ pub fn build_dimension_router(
         block,
         biome,
     };
-    let router = build_router(
+    build_router(
         &settings.settings,
         &loaded.density_functions,
         &loaded.noises,
@@ -90,11 +89,7 @@ pub fn build_dimension_router(
         default_block,
         default_fluid,
         Some(&material),
-    )?;
-    for (name, error) in router.failed_roots() {
-        error!(root = name, %error, "density root did not compile");
-    }
-    Ok(router)
+    )
 }
 
 /// The four registries a worldgen asset can name. Each one is spelled here

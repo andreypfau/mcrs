@@ -1,6 +1,5 @@
 use crate::beta::BetaTerrainNoises;
 use crate::cell::CellBounds;
-use crate::compile::CompileError;
 use crate::interval::Interval;
 use crate::material::compile::MaterialProgram;
 use crate::program::{Node, NodeId, Program, Workspace};
@@ -114,10 +113,6 @@ pub struct NoiseGeneratorSettings {
 }
 
 /// A compiled density graph plus the eight root indices the generator reads.
-///
-/// A root that uses a kind the compiler cannot lower yet is replaced by a
-/// constant zero and listed in [`NoiseRouter::failed_roots`], so the roots that
-/// do compile stay usable.
 pub struct NoiseRouter {
     pub program: Program,
     pub sea_level: i32,
@@ -125,7 +120,6 @@ pub struct NoiseRouter {
     pub world_seed: u64,
     pub default_block_state: VoxelId,
     pub default_fluid_state: VoxelId,
-    failed: Box<[(&'static str, CompileError)]>,
     material: Option<MaterialProgram>,
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
@@ -136,7 +130,6 @@ pub struct NoiseRouter {
 impl NoiseRouter {
     pub(crate) fn new(
         program: Program,
-        failed: Vec<(&'static str, CompileError)>,
         material: Option<MaterialProgram>,
         settings: &NoiseGeneratorSettings,
         world_seed: u64,
@@ -151,7 +144,6 @@ impl NoiseRouter {
             .collect();
         Self {
             program,
-            failed: failed.into_boxed_slice(),
             material,
             sea_level: settings.sea_level,
             noise: settings.noise,
@@ -170,11 +162,6 @@ impl NoiseRouter {
     /// every path that only wants the density graph.
     pub fn material(&self) -> Option<&MaterialProgram> {
         self.material.as_ref()
-    }
-
-    /// The roots replaced by a constant zero, named as in [`ROOT_NAMES`].
-    pub fn failed_roots(&self) -> &[(&'static str, CompileError)] {
-        &self.failed
     }
 
     /// The Beta noises the surface rules read directly, outside the density

@@ -103,6 +103,16 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
             second,
         } => Interval::lerp(at(*alpha), at(*first), at(*second)),
 
+        // A slice reads its input at a pinned coordinate, so the input's bound
+        // over *this cell* says nothing about it. The declared bound carries
+        // through; a cell bound gives up and sends the cell down the per-block
+        // path, which no shipped graph reaches because the one slice in the
+        // corpus sits below an interpolation.
+        Node::Slice { input, .. } => match mode {
+            Bounds::Declared => at(*input),
+            Bounds::Cell { .. } => return None,
+        },
+
         Node::RangeChoice {
             input,
             min_inclusive,
