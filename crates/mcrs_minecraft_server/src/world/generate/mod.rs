@@ -12,7 +12,7 @@ use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
-use mcrs_minecraft_worldgen::cell::CELL_BOUNDS_SLACK;
+use mcrs_minecraft_worldgen::cell::{CELL_BOUNDS_SLACK, sampled_range};
 use mcrs_minecraft_worldgen::interval::Interval;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::{
@@ -242,6 +242,28 @@ impl CellLattice {
         ) else {
             return CellFill::Mixed;
         };
+        match self.verdict(bounds, at, sea_level) {
+            CellFill::Mixed => {}
+            settled => return settled,
+        }
+
+        // The hull bounds the closed cell, and the blocks stop one lattice step
+        // short of its far face. Asking again over the range they do reach is
+        // exact and settles cells the hull leaves open; it runs only here, on
+        // the few per column the first pass could not answer.
+        self.sampled_bounds(at, &mut fill.corners);
+        let Some(bounds) = noise_router.final_density_cell_bounds(
+            &fill.corners,
+            min,
+            min + self.cell - 1,
+            &mut fill.cell_terms,
+        ) else {
+            return CellFill::Mixed;
+        };
+        self.verdict(bounds, at, sea_level)
+    }
+
+    fn verdict(&self, bounds: Interval, at: IVec3, sea_level: i32) -> CellFill {
         if bounds.min() > CELL_BOUNDS_SLACK {
             return CellFill::Solid;
         }
@@ -256,6 +278,18 @@ impl CellLattice {
             return CellFill::Sea;
         }
         CellFill::Mixed
+    }
+
+    /// [`Self::corner_bounds`] over the range the blocks of the cell actually
+    /// reach, rather than over the closed cell.
+    fn sampled_bounds(&self, at: IVec3, out: &mut [Interval]) {
+        let stride = self.volume.len();
+        for (k, bound) in out.iter_mut().enumerate() {
+            let row = &self.values[k * stride..(k + 1) * stride];
+            *bound = sampled_range(self.cell, |dx, dy, dz| {
+                row[self.volume.index_unchecked(at.x + dx, at.y + dy, at.z + dz)]
+            });
+        }
     }
 }
 

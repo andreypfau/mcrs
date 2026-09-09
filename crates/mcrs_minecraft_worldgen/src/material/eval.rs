@@ -799,6 +799,25 @@ where
                     &mut self.scratch.cell_terms,
                 )
                 .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK);
+        let closed = closed
+            || ({
+                sampled_corner_bounds(
+                    &self.scratch.lattice,
+                    &lattice,
+                    IVec3::new(cx, cy, cz),
+                    layout.cell,
+                    &mut self.scratch.corners,
+                );
+                bounds
+                    .eval(
+                        &self.router.program,
+                        &self.scratch.corners,
+                        cell_min,
+                        cell_max,
+                        &mut self.scratch.cell_terms,
+                    )
+                    .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK)
+            });
         self.scratch.vein_cells[slot] = if closed { CELL_CLOSED } else { CELL_OPEN };
         if closed {
             return false;
@@ -1096,6 +1115,23 @@ fn plan_veins(
             .resize(at + (size.x * size.y * size.z) as usize, CELL_UNKNOWN);
     }
 }
+/// [`corner_bounds`] over the range the blocks of the cell actually reach.
+fn sampled_corner_bounds(
+    values: &[f32],
+    lattice: &Volume,
+    at: IVec3,
+    cell: IVec3,
+    out: &mut [Interval],
+) {
+    let stride = lattice.len();
+    for (k, bound) in out.iter_mut().enumerate() {
+        let row = &values[k * stride..(k + 1) * stride];
+        *bound = crate::cell::sampled_range(cell, |dx, dy, dz| {
+            row[lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz)]
+        });
+    }
+}
+
 /// The hull of one cell's eight corner values, per lattice row.
 fn corner_bounds(values: &[f32], lattice: &Volume, at: IVec3, out: &mut [Interval]) {
     let stride = lattice.len();
