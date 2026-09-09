@@ -2,6 +2,7 @@ pub mod beta_surface;
 pub mod climate;
 pub mod overworld_preset;
 pub mod source;
+pub mod zoom;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

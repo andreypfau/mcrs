@@ -21,21 +21,18 @@ serde_json.workspace = true
 thiserror = { workspace = true, optional = true }
 tracing = { workspace = true }
 
+[dev-dependencies]
+mcrs_minecraft_worldgen = { path = ".", features = ["corpus"] }
+
 [features]
 default = ["bevy", "fast"]
 bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect", "dep:thiserror"]
-# The precision profile of `docs/worldgen.md` §15, one feature per technique so
-# a divergence can be bisected to the one that caused it. `fast` is the shipping
-# union; the parts are for measuring, not for shipping separately.
-fast = ["fast_fma", "fast_cell", "fast_ramp"]
-# One rounding instead of two wherever a sampler computes `a * b + c`. Needs an
-# FMA instruction to be a win: `target-cpu=native`, or `+fma` on x86-64.
-fast_fma = []
-# Collapses a noise sampler's lattice cell to a line along Y, so its eight
-# corner dots become two ends of a segment.
-fast_cell = []
-# Evaluates an interpolated cell's vertical ramp in closed form instead of
-# accumulating it a row at a time. Drops the loop-carried dependency the
-# accumulator imposes; needs the same FMA target as `fast_fma` to pay off.
-fast_ramp = []
-far-lands = []
+# Reading the shipped asset corpus off disk. Only the tests want it; the self
+# dev-dependency below is what turns it on for them.
+corpus = []
+# The fast precision profile of `docs/worldgen.md` §15: one rounding instead of
+# two wherever a sampler computes `a * b + c`, and a noise sampler's lattice cell
+# collapsed to a line along Y so its eight corner dots become two ends of a
+# segment. Needs an FMA instruction to be a win: `target-cpu=native`, or `+fma`
+# on x86-64. Off is the strict profile, which stays buildable as the oracle.
+fast = []

@@ -269,7 +269,11 @@ evaluated per block. This must be checked **once at compile time**: admissibilit
 depends on the kind of node, never on the values.
 
 The payoff is out of proportion to the cost. Deep below the terrain and high above
-it almost every cell is uniform, and those cells are most of the world's volume.
+it almost every cell is uniform, and those cells are most of the world's volume:
+measured on the overworld, a cell bound settles 89% of a land column's cells and
+96% of an ocean one's, which is that share of the per-block density evaluations
+never made. The gap between the two is the warning — quote the ocean figure alone
+and the scheme reads better than it is.
 
 Why this is stronger than compile-time analysis: branch elimination by D1 works
 with intervals known *for the whole world*, and is therefore conservative to the
@@ -548,27 +552,51 @@ What is not: remove the search itself without changing the world.
 Fill produces a world of one material. Surface rules turn it into a world of sand,
 grass, gravel and snow.
 
+The data model the rules are written in, their compiled representation and the
+prerequisites they impose are specified in `surface.md`; this section states only
+the invariants of the stage.
+
 A rule is a tree of conditions and substitutions, evaluated at every point of a
 strip from the top down. The result is either a new block state or "leave alone".
+The tree is a **graph, not a tree**: rules and conditions are loadable registries,
+any node may be a reference to a named one, and the handful of shared conditions
+are referenced dozens of times across one dimension's rules. M3 below turns that
+sharing into work saved, so the sharing must survive into the compiled form
+rather than being inlined away.
+
 Conditions are not tested against blocks directly but against a **context**:
 
 ```
-context = { depthAbove, depthBelow, waterLevel,
-            biome, surfaceLevel, gradientX, gradientZ, y }
+context = { depthAbove, depthBelow, waterLevel, biome, y,
+            surfaceDepth, surfaceSecondary, surfaceLevel,
+            gradientX, gradientZ }
 ```
 
 `depthAbove` — how many solid blocks run upward from here; reset by air. "How deep
 below the surface." `depthBelow` — the distance down to the nearest void, from a
 look-ahead scan. "How close is the cave ceiling below." `waterLevel` — the height
 of the last fluid seen from above. Distinguishes a lake bed from a hillside.
+`surfaceDepth` — how thick the cover is at this strip, from a 2D noise and one
+draw. `surfaceSecondary` — a second 2D noise, which the deeper rules use to
+stretch that thickness. `surfaceLevel` — the preliminary surface of §6, offset
+down by a fixed margin; it is what "above the preliminary surface" tests.
 `gradient` — the height difference between neighbouring strips. Distinguishes a
 slope from a plateau: gravel instead of grass.
 
+**Sf0. `surfaceDepth` may be zero or negative**, and that is not a degenerate
+case but a definition: a non-positive value *is* the "hole" the rules test for,
+and it is what puts gravel and open air at the bottom of a pit. **The biome is
+read at block resolution through the zoom of §12**, not from the coarse lattice
+cell directly; the zoom's corners reach outside the column, so they must be
+answered by re-evaluating climate rather than by reading a neighbour's stored
+palette, which is what keeps this stage's read footprint at zero (§13).
+
 ### Memoisation as a consequence of the definition
 
-Context quantities change at different rates: biome, steepness and 2D noises are
-constant over a strip, while depths and water level change at every step downward.
-From this follows an exact caching scheme with no hash tables and no keys.
+Context quantities change at different rates: steepness, the two surface noises
+and the preliminary level are constant over a strip, while depths, water level,
+the biome and any 3D noise change at every step downward. From this follows an
+exact caching scheme with no hash tables and no keys.
 
 ```
 the context holds two counters: genXZ and genY
@@ -588,16 +616,46 @@ changed.
   three-dimensional one once per block, **regardless of how many rules referred to
   it**. This is what makes rule trees of hundreds of nodes practical.
 
+### Settling a run
+
+Memoisation makes a condition cheap to ask twice. It does not make the descent
+shorter: every block still walks the tree. What does is the shape of a solid run.
+Along one, the depths are affine in y, so every depth, water and height condition
+is a threshold in y; the per-strip conditions hold throughout; and a biome set the
+column has already folded is settled. Split the run at each threshold and the tree
+answers a whole piece at once.
+
+**M4.** A settled piece is written **without the tree being walked at all** — once
+per piece rather than once per block. What keeps a piece from settling is a guard
+whose answer genuinely varies inside it, and the rules that carry no bounding
+condition: the ore veins of Sf3, and the clay band rule. The band rule settles too,
+once the settled answer is allowed to be "the band at this y" rather than one
+block: every y of the piece reaches the same rule and only the table index moves.
+
 ### Cost
 
-**Sf1. The tree is cheaper than it looks.** The overwhelming majority of nodes sit
-behind one shared condition, "above the preliminary surface". A deep block runs
-through single-digit numbers of nodes, not hundreds. The tree is not what needs
-optimising. **Sf2. Reading the block is expensive.** The descent reads a state at
-every step, and if that read goes through a palette with bit unpacking it
-dominates the stage. A flat strip array removes it entirely. **Sf3. Early exit is
-impossible.** Ore vein rules apply at any depth and carry no bounding condition.
-The descent goes to the bottom.
+The figures here were taken, not counted: a 65,536-column sweep of the overworld
+at one seed, single-threaded, on one machine. Its biome mix is cold, so read them
+as one world's shape rather than every world's.
+
+A column costs about 1.7 ms, of which the **surface stage is 42%** — the largest
+single stage, ahead of the density fill at 28% and biomes at 19%.
+
+**Sf1. The tree is cheaper than it looks — but not on its own.** The tape is an
+eighth of the stage and nine blocks in ten never reach it. That is not the shape
+of the tree, it is M4 removing them: turn settling off and the stage costs two
+thirds again as much. Memoisation is worth a further twelfth, and the two overlap
+almost entirely — without settling, memoisation is worth three times what it is
+with. The tree is still not what needs optimising; the reason is not the one this
+document first gave. **Sf2 was wrong.** Reading the block does not dominate: over
+a flat strip array the write is 4% of the stage. The prescription was right and
+the cost claim behind it was not — a flat array is worth having, and it is not
+where the stage's time goes. **Sf3. Early exit is impossible**, and its price is
+now known. Ore vein rules apply at any depth and carry no bounding condition, so
+the descent goes to the bottom, and it asks about veins the whole way down: the
+median column makes about a thousand vein queries, opens no cell and places no ore
+at all. What answers those queries cheaply is the cell bound of §4 applied to the
+vein's own density, and classifying a cell only when something asks about it.
 
 Some landforms express poorly as rules and are handled by separate passes: eroded
 badlands pillars are built *before* the rule pass, icebergs *after*. The order is
@@ -727,6 +785,18 @@ zero and costs one zero fill — which is the case for the overwhelming majority
 the world's columns. The convolution kernel is a table depending only on geometry
 and is built once per process.
 
+**B4. The addition needs a node that survives compilation.** The datapack spells
+the site as a leaf added to the density root, and with no structures to place it
+is worth zero — so a compiler that folds constants deletes the addition and the
+leaf with it, and the graph then has nowhere to attach the contribution at all.
+The reference keeps the leaf as a sampler that reads a per-chunk slot and falls
+back to a constant, which is why one compiled graph serves every chunk. The leaf
+must be a kind of its own rather than a constant, or the fold sees through it;
+the fold is what erases it, not the bound, which is already the whole line. Until
+there are pieces to place, a leaf that only ever fills its fallback is a
+full-volume buffer and a full-volume add bought for nothing, so the site is
+folded away here and the node is owed at the same time as the first structure.
+
 ---
 
 ## 11. Scattered objects: order as part of the definition
@@ -774,7 +844,8 @@ not recursion or lazy sequences. There are hundreds of objects per unit, and
 allocating intermediate lists dominates the useful work. **F6.** The window's
 biome set is computed **once per batch of units**, not per unit. It reads the
 palettes of every neighbouring section. **F7.** Block access goes through a flat
-representation of the window, not a palette. Same reason as Sf2.
+representation of the window, not a palette — the same prescription as Sf2, whose
+cost claim measurement refuted but whose flat array is worth having anyway.
 
 Besides scattered objects, this stage also contains **materialisation of structure
 pieces**: template layout, rotations, replacement predicates, thousands of block
@@ -809,7 +880,13 @@ block.** A biome is defined on a lattice with a step of several blocks. This is
 both an economy and a substantive decision: a biome is a property of terrain, not
 of a point. **Cl3.** Climate space is an **input, not an output**. The climate
 fields are evaluated by the graph of §3 and are also used by the terrain splines;
-by D4 they are evaluated once.
+by D4 they are evaluated once. **Cl4. The lattice is not read directly at block
+resolution.** Asking "which biome is at this block" resolves to the nearest of
+the eight surrounding lattice cells under a deterministically perturbed distance,
+seeded from the world seed. Without the perturbation the boundaries of Cl2 would
+be visible as straight lattice-aligned edges. The consumer that cares is the
+surface stage (§8): the eight cells reach outside the column, so the query must
+be answered from climate, never from a neighbour's stored palette.
 
 ### Search structure
 
@@ -827,7 +904,9 @@ bound then prunes almost the whole tree.
 
 Recommendation: start with the linear scan — it is simpler and needs neither
 thread-local state nor an index build — and switch to a tree only if measurement
-justifies it. The stage is single-digit percent of a column's cost.
+justifies it. This document predicted the stage at single-digit percent of a
+column; measured, it is 19%, second only to the surface rules and the fill. The
+recommendation stands and its premise does not.
 
 From Cl2 and D2 it follows that biomes are a **batch stage by construction**: the
 climate fields are evaluated over the lattice in one program run, and
@@ -1131,8 +1210,9 @@ be clamped.
 
 ## 17. Cost and limits
 
-Not one quantity below was measured on a running server. Three numbers the result
-depends on linearly remain unknown; measuring them is step 0 in §19.
+The stage shares in §8 have since been measured; everything below is still
+counted rather than taken, and three numbers the result depends on linearly
+remain unknown. Measuring them is step 0 in §19.
 
 ### How much work a column requires
 
@@ -1325,6 +1405,7 @@ For checking behaviour against, not for copying. Paths are relative to
 | The decoration loop and structure materialisation | `world/level/chunk/ChunkGenerator.java:388-471, :422` |
 | The placement modifier machine | `world/level/levelgen/placement/FeaturePlacer.java` |
 | Biome classification and quantisation | `world/level/biome/Climate.java` |
+| The block-resolution biome query and its perturbation | `world/level/biome/BiomeManager.java` |
 | Batched climate sampling | `world/level/biome/MultiNoiseBiomeSource.java:70-115` |
 | Sections, palette, counters | `world/level/chunk/LevelChunkSection.java:63-105`, `PalettedContainer.java` |
 | Heightmaps | `world/level/levelgen/Heightmap.java` |

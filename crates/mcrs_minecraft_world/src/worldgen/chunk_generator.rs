@@ -3,8 +3,9 @@ use std::sync::Arc;
 use bevy_asset::{Handle, LoadContext, UntypedAssetId};
 use serde::Deserialize;
 
+use mcrs_minecraft_worldgen::bevy::NoiseGeneratorSettingsAsset;
+
 use super::flat::{FlatChunkGenerator, ProtoFlatChunkGenerator};
-use super::noise_settings::NoiseGeneratorSettings;
 use crate::ResourceLocation;
 use crate::biome::source::{BiomeSource, ProtoBiomeSource};
 
@@ -32,7 +33,7 @@ impl ChunkGenerator {
 #[derive(Debug, Clone)]
 pub struct NoiseChunkGenerator {
     pub biome_source: BiomeSource,
-    pub settings: Handle<NoiseGeneratorSettings>,
+    pub settings: Handle<NoiseGeneratorSettingsAsset>,
 }
 
 impl NoiseChunkGenerator {

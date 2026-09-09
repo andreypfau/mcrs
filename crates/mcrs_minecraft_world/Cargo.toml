@@ -33,3 +33,4 @@ bevy_math.workspace = true
 rand.workspace = true
 derive_more.workspace = true
 uuid.workspace = true
+sha2.workspace = true

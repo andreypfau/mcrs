@@ -2,18 +2,18 @@ use crate::branch::{self, Fallback, GuardTest, Step};
 use crate::interval::Interval;
 use crate::jmath;
 use crate::kernel::{Runs, at, each_column, map_columns, zip2_columns, zip3_columns};
-use crate::noise::blended::BlendedNoise;
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
-use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, extent, stratum};
-use crate::volume::Volume;
+use crate::noise::blended::BlendedNoise;
+use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, stratum};
+use crate::volume::{Axis, Volume};
 use bevy_math::IVec3;
 use std::sync::Arc;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UnaryOp {
     Abs,
     Square,
@@ -33,7 +33,10 @@ impl UnaryOp {
             UnaryOp::Abs => v.abs(),
             UnaryOp::Square => v * v,
             UnaryOp::Cube => v * v * v,
-            UnaryOp::Sqrt => jmath::sqrt(v),
+            // `(float)Math.sqrt`: the detour through double is not observable,
+            // because sqrt is correctly rounded and double carries more than
+            // twice float's significand, so the two roundings collapse into one.
+            UnaryOp::Sqrt => v.sqrt(),
             UnaryOp::Reciprocal => 1.0 / v,
             UnaryOp::Negate => -v,
             UnaryOp::Squeeze => {
@@ -46,7 +49,7 @@ impl UnaryOp {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -54,6 +57,7 @@ pub enum BinaryOp {
     Div,
     Min,
     Max,
+    Pow,
 }
 
 impl BinaryOp {
@@ -66,11 +70,12 @@ impl BinaryOp {
             BinaryOp::Div => a / b,
             BinaryOp::Min => jmath::vmin(a, b),
             BinaryOp::Max => jmath::vmax(a, b),
+            BinaryOp::Pow => jmath::pow(a, b),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RoundKind {
     Floor,
     Round,
@@ -150,31 +155,16 @@ pub enum Node {
         min: f32,
         max: f32,
     },
-    ConstMin {
+    /// A binary operation with one operand folded in as a constant. `swapped`
+    /// puts the constant on the left, which is the only order `min`, `max`,
+    /// subtraction from a constant, division of a constant and a constant base
+    /// raised to a node distinguish; `x + c` and `x * c` fold into `Affine`
+    /// instead.
+    ConstBinary {
+        op: BinaryOp,
         input: NodeId,
         value: f32,
-    },
-    ConstMax {
-        input: NodeId,
-        value: f32,
-    },
-    /// `constant - input`. The other order folds into `Affine`.
-    ConstSub {
-        input: NodeId,
-        value: f32,
-    },
-    /// `constant / input`.
-    ConstDiv {
-        input: NodeId,
-        value: f32,
-    },
-    ConstBasePow {
-        base: f32,
-        exponent: NodeId,
-    },
-    ConstExponentPow {
-        input: NodeId,
-        exponent: f32,
+        swapped: bool,
     },
     IntegerMultipleRound {
         input: NodeId,
@@ -188,10 +178,6 @@ pub enum Node {
         a: NodeId,
         b: NodeId,
     },
-    Pow {
-        base: NodeId,
-        exponent: NodeId,
-    },
     Round {
         value: NodeId,
         multiple: NodeId,
@@ -203,16 +189,6 @@ pub enum Node {
         alpha: NodeId,
         first: NodeId,
         second: NodeId,
-    },
-    ConstFirstLerp {
-        alpha: NodeId,
-        first: f32,
-        second: NodeId,
-    },
-    ConstSecondLerp {
-        alpha: NodeId,
-        first: NodeId,
-        second: f32,
     },
     ShiftedNoise {
         params: Arc<NoiseFunctionParams>,
@@ -234,12 +210,6 @@ pub enum Node {
         when_in: f32,
         when_out: f32,
     },
-    SingleThreshold {
-        input: NodeId,
-        threshold: f32,
-        below: NodeId,
-        above: NodeId,
-    },
     IntervalSelect {
         input: NodeId,
         thresholds: Arc<[f32]>,
@@ -258,6 +228,13 @@ pub enum Node {
         cell_xz: i32,
         cell_y: i32,
         cell: usize,
+    },
+    /// `input` with `axis` pinned to `coordinate`, which is a block coordinate
+    /// and not an index into the volume being filled.
+    Slice {
+        input: NodeId,
+        axis: Axis,
+        coordinate: i32,
     },
     /// The highest cell boundary at or below `upper_bound` where `density` is
     /// positive. `upper_bound` is read at y = 0, never at the filled position.
@@ -286,22 +263,13 @@ impl Node {
             | Node::PiecewiseAffine { input, .. }
             | Node::Unary { input, .. }
             | Node::Clamp { input, .. }
-            | Node::ConstMin { input, .. }
-            | Node::ConstMax { input, .. }
-            | Node::ConstSub { input, .. }
-            | Node::ConstDiv { input, .. }
-            | Node::ConstExponentPow { input, .. }
+            | Node::ConstBinary { input, .. }
             | Node::IntegerMultipleRound { input, .. }
             | Node::ConstRangeChoice { input, .. } => f(*input),
-            Node::ConstBasePow { exponent, .. } => f(*exponent),
 
             Node::Binary { a, b, .. } => {
                 f(*a);
                 f(*b);
-            }
-            Node::Pow { base, exponent } => {
-                f(*base);
-                f(*exponent);
             }
             Node::Round {
                 value, multiple, ..
@@ -319,14 +287,6 @@ impl Node {
                 f(*first);
                 f(*second);
             }
-            Node::ConstFirstLerp { alpha, second, .. } => {
-                f(*alpha);
-                f(*second);
-            }
-            Node::ConstSecondLerp { alpha, first, .. } => {
-                f(*alpha);
-                f(*first);
-            }
             Node::ShiftedNoise { x, y, z, .. } => {
                 f(*x);
                 f(*y);
@@ -342,23 +302,13 @@ impl Node {
                 f(*when_in);
                 f(*when_out);
             }
-            Node::SingleThreshold {
-                input,
-                below,
-                above,
-                ..
-            } => {
-                f(*input);
-                f(*below);
-                f(*above);
-            }
             Node::IntervalSelect { input, arms, .. } => {
                 f(*input);
                 arms.iter().copied().for_each(&mut *f);
             }
             Node::Spline { coords, .. } => coords.iter().copied().for_each(&mut *f),
 
-            Node::Interpolated { input, .. } => f(*input),
+            Node::Interpolated { input, .. } | Node::Slice { input, .. } => f(*input),
             Node::FindTopSurface {
                 density,
                 upper_bound,
@@ -370,13 +320,90 @@ impl Node {
         }
     }
 
+    /// [`Node::visit_inputs`] with the ids handed over for rewriting, which is
+    /// what renumbering the arena after a compaction needs.
+    pub(crate) fn visit_inputs_mut(&mut self, f: &mut impl FnMut(&mut NodeId)) {
+        fn rewrite_all(slice: &mut Arc<[NodeId]>, f: &mut impl FnMut(&mut NodeId)) {
+            let mut owned = slice.to_vec();
+            owned.iter_mut().for_each(&mut *f);
+            *slice = owned.into();
+        }
+        match self {
+            Node::Constant(_)
+            | Node::Gradient(_)
+            | Node::Noise { .. }
+            | Node::ShiftB { .. }
+            | Node::DistanceToPoint(_)
+            | Node::EndOuterIslands(_)
+            | Node::OldBlendedNoise(_) => {}
+
+            Node::Affine { input, .. }
+            | Node::PiecewiseAffine { input, .. }
+            | Node::Unary { input, .. }
+            | Node::Clamp { input, .. }
+            | Node::ConstBinary { input, .. }
+            | Node::IntegerMultipleRound { input, .. }
+            | Node::ConstRangeChoice { input, .. }
+            | Node::Interpolated { input, .. }
+            | Node::Slice { input, .. } => f(input),
+
+            Node::Binary { a, b, .. } => {
+                f(a);
+                f(b);
+            }
+            Node::Round {
+                value, multiple, ..
+            } => {
+                f(value);
+                f(multiple);
+            }
+            Node::Lerp {
+                alpha,
+                first,
+                second,
+            } => {
+                f(alpha);
+                f(first);
+                f(second);
+            }
+            Node::ShiftedNoise { x, y, z, .. } => {
+                f(x);
+                f(y);
+                f(z);
+            }
+            Node::RangeChoice {
+                input,
+                when_in,
+                when_out,
+                ..
+            } => {
+                f(input);
+                f(when_in);
+                f(when_out);
+            }
+            Node::IntervalSelect { input, arms, .. } => {
+                f(input);
+                rewrite_all(arms, f);
+            }
+            Node::Spline { coords, .. } => rewrite_all(coords, f),
+            Node::FindTopSurface {
+                density,
+                upper_bound,
+                ..
+            } => {
+                f(density);
+                f(upper_bound);
+            }
+        }
+    }
+
     /// The inputs this node reads at the position being filled. The two kinds
     /// that sample elsewhere hide those inputs here, so a plan built from this
     /// walk never evaluates a subtree at the wrong position — and never at all
     /// unless something else in the plan reads it in place.
     pub(crate) fn visit_local_inputs(&self, f: &mut impl FnMut(NodeId)) {
         match self {
-            Node::Interpolated { .. } => {}
+            Node::Interpolated { .. } | Node::Slice { .. } => {}
             Node::FindTopSurface { upper_bound, .. } => f(*upper_bound),
             other => other.visit_inputs(f),
         }
@@ -386,9 +413,6 @@ impl Node {
 /// A compiled density graph: nodes in topological order, each tagged with the
 /// axes it varies over.
 ///
-/// The stratum replaces vanilla's `Slice`. A fill evaluates one node at a time
-/// over the whole volume, and each node's buffer holds only the axes it varies
-/// over: a node that ignores Y holds one value per column, and one that ignores
 /// A node's stratum, from the strata of its inputs. The union of the inputs'
 /// axes, with the exceptions vanilla's `domainAxes` names: a zero sampling scale
 /// sheds an axis, the transposed shift and the end islands are flat, and the
@@ -397,7 +421,7 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
     let at = |id: NodeId| axes[id as usize];
     match node {
         Node::Constant(_) => NO_AXES,
-        Node::Gradient(g) => g.axis.bit(),
+        Node::Gradient(g) => axis_bit(g.axis),
         Node::Noise { params } => params.axes(),
         Node::ShiftedNoise { params, x, y, z } => params.axes() | at(*x) | at(*y) | at(*z),
         Node::ShiftB { .. } | Node::EndOuterIslands(_) => AXIS_X | AXIS_Z,
@@ -411,6 +435,7 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
         // per-fill phase has none of, so this never lands there however little
         // its input varies.
         Node::Interpolated { input, .. } => at(*input) | AXIS_X | AXIS_Z,
+        Node::Slice { input, axis, .. } => at(*input) & !axis_bit(*axis),
         other => {
             let mut union = NO_AXES;
             other.visit_inputs(&mut |id| union |= at(id));
@@ -419,6 +444,12 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
     }
 }
 
+/// A compiled density graph: nodes in topological order, each tagged with the
+/// axes it varies over.
+///
+/// The stratum replaces vanilla's `Slice`. A fill evaluates one node at a time
+/// over the whole volume, and each node's buffer holds only the axes it varies
+/// over: a node that ignores Y holds one value per column, and one that ignores
 /// X and Z holds one value for the fill. Both fall out of `axes`, with no
 /// rewrite pass and no slice node.
 pub struct Program {
@@ -460,12 +491,16 @@ pub struct Workspace {
     offset: Vec<u32>,
     lattices: Vec<Lattice>,
     probe: Vec<f32>,
+    sliced: Vec<f32>,
     nested: Option<Box<Workspace>>,
+    #[cfg(any(test, feature = "corpus"))]
     count: EvalCount,
 }
 
 /// Node evaluations, summed over every fill and every nested fill since the last
-/// [`Workspace::take_count`].
+/// [`Workspace::take_count`]. Only the tests that prove a cone was skipped read
+/// it, so it does not exist in a shipped build.
+#[cfg(any(test, feature = "corpus"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EvalCount {
     pub evaluated: u64,
@@ -498,6 +533,7 @@ impl Lattice {
     }
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl Program {
     pub fn new(
         nodes: Vec<Node>,
@@ -523,6 +559,7 @@ impl Program {
                     add(&mut entries, *input);
                     cell_count = cell_count.max(cell + 1);
                 }
+                Node::Slice { input, .. } => add(&mut entries, *input),
                 Node::FindTopSurface {
                     density,
                     upper_bound,
@@ -558,17 +595,13 @@ impl Program {
         self.nodes.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
-    }
-
     #[inline]
     pub fn root_node(&self, root: usize) -> NodeId {
         self.roots[root]
     }
 
     #[inline]
-    pub fn axes_of(&self, id: NodeId) -> Axes {
+    pub(crate) fn axes_of(&self, id: NodeId) -> Axes {
         self.axes[id as usize]
     }
 
@@ -596,7 +629,10 @@ impl Program {
             match plan.steps[step] {
                 Step::Eval { end } => {
                     let end = end as usize;
-                    ws.count.evaluated += (end - k) as u64;
+                    #[cfg(any(test, feature = "corpus"))]
+                    {
+                        ws.count.evaluated += (end - k) as u64;
+                    }
                     while k < end {
                         self.eval(plan.order[k], ws, volume);
                         k += 1;
@@ -615,7 +651,10 @@ impl Program {
                         if let Some(fallback) = fallback {
                             self.apply_fallback(fallback, ws, volume);
                         }
-                        ws.count.skipped += (skip_to as usize - k) as u64;
+                        #[cfg(any(test, feature = "corpus"))]
+                        {
+                            ws.count.skipped += (skip_to as usize - k) as u64;
+                        }
                         k = skip_to as usize;
                         step = next_step as usize;
                     }
@@ -691,8 +730,39 @@ impl Program {
             slot.values.resize(lattice.len(), 0.0);
             self.fill_node(&mut nested, &lattice, input, &mut ws.lattices[cell].values);
         }
+        #[cfg(any(test, feature = "corpus"))]
         ws.absorb(&mut nested);
         ws.nested = Some(nested);
+    }
+
+    /// `input` over `volume` with `axis` pinned to `coordinate`. The pinned axis
+    /// is one this node's stratum drops, so the nested fill's buffer is already
+    /// laid out exactly as this node's own stratum and lands in it by copy.
+    fn fill_slice(
+        &self,
+        ws: &mut Workspace,
+        volume: &Volume,
+        id: NodeId,
+        input: NodeId,
+        axis: Axis,
+        coordinate: i32,
+    ) {
+        let inner = slice_volume(volume, self.axes_of(input), axis, coordinate);
+        let len = extent(self.axes_of(id), volume);
+        debug_assert_eq!(inner.len(), len, "a slice drops exactly the pinned axis");
+
+        let mut nested = ws.nested.take().unwrap_or_default();
+        let mut sliced = std::mem::take(&mut ws.sliced);
+        sliced.clear();
+        sliced.resize(len, 0.0);
+        self.fill_node(&mut nested, &inner, input, &mut sliced);
+        #[cfg(any(test, feature = "corpus"))]
+        ws.absorb(&mut nested);
+        ws.nested = Some(nested);
+
+        let off = ws.offset[id as usize] as usize;
+        ws.values[off..off + len].copy_from_slice(&sliced);
+        ws.sliced = sliced;
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -759,6 +829,7 @@ impl Program {
             let mut pinned = [0.0f32];
             let at_zero = Volume::point(IVec3::new(bx, 0, bz));
             self.fill_node(&mut nested, &at_zero, upper_bound, &mut pinned);
+            #[cfg(any(test, feature = "corpus"))]
             ws.absorb(&mut nested);
             ws.nested = Some(nested);
             pinned[0]
@@ -791,6 +862,7 @@ impl Program {
             }
             probe_y = min_y - cell_height;
         }
+        #[cfg(any(test, feature = "corpus"))]
         ws.absorb(&mut nested);
         ws.nested = Some(nested);
         ws.probe = probe;
@@ -807,11 +879,6 @@ impl Program {
                 hi,
                 want,
             } => all(selector).iter().any(|&v| (v >= lo && v < hi) == want),
-            GuardTest::Below {
-                selector,
-                threshold,
-                want,
-            } => all(selector).iter().any(|&v| (v < threshold) == want),
             GuardTest::Arm {
                 site,
                 selector,
@@ -872,6 +939,15 @@ impl Program {
     }
 
     fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &Volume) {
+        if let &Node::Slice {
+            input,
+            axis,
+            coordinate,
+        } = &self.nodes[id as usize]
+        {
+            self.fill_slice(ws, volume, id, input, axis, coordinate);
+            return;
+        }
         if let &Node::FindTopSurface {
             density,
             upper_bound,
@@ -945,7 +1021,12 @@ impl Program {
             } => {
                 let (n, p, o) = (*neg_scale, *pos_scale, *o);
                 if drops_offset(o) {
-                    map_columns(out, &ext, read(*input), |v| if v < 0.0 { v * n } else { v * p })
+                    map_columns(
+                        out,
+                        &ext,
+                        read(*input),
+                        |v| if v < 0.0 { v * n } else { v * p },
+                    )
                 } else {
                     map_columns(out, &ext, read(*input), |v| {
                         if v < 0.0 {
@@ -964,29 +1045,18 @@ impl Program {
                 let (lo, hi) = (*min, *max);
                 map_columns(out, &ext, read(*input), |v| jmath::clampf(v, lo, hi))
             }
-            Node::ConstMin { input, value } => {
-                let c = *value;
-                map_columns(out, &ext, read(*input), |v| jmath::vmin(v, c))
-            }
-            Node::ConstMax { input, value } => {
-                let c = *value;
-                map_columns(out, &ext, read(*input), |v| jmath::vmax(v, c))
-            }
-            Node::ConstSub { input, value } => {
-                let c = *value;
-                map_columns(out, &ext, read(*input), |v| c - v)
-            }
-            Node::ConstDiv { input, value } => {
-                let c = *value;
-                map_columns(out, &ext, read(*input), |v| c / v)
-            }
-            Node::ConstBasePow { base, exponent } => {
-                let b = *base;
-                map_columns(out, &ext, read(*exponent), |e| jmath::pow(b, e))
-            }
-            Node::ConstExponentPow { input, exponent } => {
-                let e = *exponent;
-                map_columns(out, &ext, read(*input), |v| jmath::pow(v, e))
+            Node::ConstBinary {
+                op,
+                input,
+                value,
+                swapped,
+            } => {
+                let (op, c) = (*op, *value);
+                if *swapped {
+                    map_columns(out, &ext, read(*input), |v| op.apply(c, v))
+                } else {
+                    map_columns(out, &ext, read(*input), |v| op.apply(v, c))
+                }
             }
             Node::IntegerMultipleRound {
                 input,
@@ -1000,9 +1070,6 @@ impl Program {
             Node::Binary { op, a, b } => {
                 let op = *op;
                 zip2_columns(out, &ext, read(*a), read(*b), |x, y| op.apply(x, y))
-            }
-            Node::Pow { base, exponent } => {
-                zip2_columns(out, &ext, read(*base), read(*exponent), jmath::pow)
             }
             Node::Round {
                 value,
@@ -1027,26 +1094,6 @@ impl Program {
                 read(*second),
                 jmath::sampler_lerp,
             ),
-            Node::ConstFirstLerp {
-                alpha,
-                first,
-                second,
-            } => {
-                let f = *first;
-                zip2_columns(out, &ext, read(*alpha), read(*second), |a, s| {
-                    jmath::sampler_lerp(a, f, s)
-                })
-            }
-            Node::ConstSecondLerp {
-                alpha,
-                first,
-                second,
-            } => {
-                let s = *second;
-                zip2_columns(out, &ext, read(*alpha), read(*first), |a, f| {
-                    jmath::sampler_lerp(a, f, s)
-                })
-            }
             Node::ShiftedNoise { params, x, y, z } => {
                 params.eval_shifted(out, read(*x), read(*y), read(*z), &ext)
             }
@@ -1082,21 +1129,6 @@ impl Program {
                 let (lo, hi, a, b) = (*min_inclusive, *max_exclusive, *when_in, *when_out);
                 map_columns(out, &ext, read(*input), |v| {
                     if v >= lo && v < hi { a } else { b }
-                })
-            }
-            Node::SingleThreshold {
-                input,
-                threshold,
-                below,
-                above,
-            } => {
-                let t = *threshold;
-                let (sel, lo, hi) = (read(*input), read(*below), read(*above));
-                each_column(out, &ext, |run, ix, iz| {
-                    let (sel, lo, hi) = (sel.col(ix, iz), lo.col(ix, iz), hi.col(ix, iz));
-                    for (i, o) in run.iter_mut().enumerate() {
-                        *o = if at(sel, i) < t { at(lo, i) } else { at(hi, i) };
-                    }
                 })
             }
             Node::IntervalSelect {
@@ -1155,7 +1187,9 @@ impl Program {
                 }
             }
 
-            Node::FindTopSurface { .. } => unreachable!("handled before the buffer split"),
+            Node::Slice { .. } | Node::FindTopSurface { .. } => {
+                unreachable!("handled before the buffer split")
+            }
         }
     }
 }
@@ -1193,6 +1227,23 @@ fn is_lattice_volume(volume: &Volume, cell_xz: i32, cell_y: i32) -> bool {
         && jmath::floor_mod(min.z, cell_xz) == 0
 }
 
+/// `volume` as the input of a slice is asked for it: the input's own stratum,
+/// with the pinned axis collapsed to the single block `coordinate`.
+///
+/// Every other axis the input drops is pinned exactly as [`stratum`] pins it,
+/// and the input's axes are a superset of the slice's, so the result indexes
+/// element for element like the slice's own stratum.
+fn slice_volume(volume: &Volume, input_axes: Axes, axis: Axis, coordinate: i32) -> Volume {
+    let ext = stratum(input_axes, volume);
+    let (mut size, mut min) = (ext.size(), ext.min_block());
+    match axis {
+        Axis::X => (size.x, min.x) = (1, coordinate),
+        Axis::Y => (size.y, min.y) = (1, coordinate),
+        Axis::Z => (size.z, min.z) = (1, coordinate),
+    }
+    Volume::new(size, min, ext.step_block())
+}
+
 /// The cell corners enclosing every position `volume` asks for, with one extra
 /// sample per axis so the far corner of the last cell exists. A node that does
 /// not vary along Y is only ever asked for its first row.
@@ -1217,21 +1268,14 @@ fn lattice_volume(volume: &Volume, axes: Axes, cell_xz: i32, cell_y: i32) -> Vol
     Volume::new(last - first + IVec3::splat(2), first * cell, cell)
 }
 
-/// The value ramp along Y inside one interpolated cell.
-///
-/// Vanilla walks it a row at a time, so the strict profile carries the same
-/// chain of roundings. The fast profile evaluates the closed form: it agrees on
-/// a cell's first row and drifts by the rounding the accumulator would have
-/// picked up over the rows after it. What it buys is the loop-carried
-/// dependency, without which the row fill cannot vectorise at all.
-#[cfg(not(feature = "fast_ramp"))]
+/// The value ramp along Y inside one interpolated cell, walked a row at a time
+/// as vanilla walks it, so the chain of roundings is the same.
 struct YRamp {
     value: f32,
     step: f32,
     row: i32,
 }
 
-#[cfg(not(feature = "fast_ramp"))]
 impl YRamp {
     #[inline(always)]
     fn new(bottom: f32, step: f32, first: i32) -> Self {
@@ -1251,25 +1295,6 @@ impl YRamp {
             self.row += 1;
         }
         self.value
-    }
-}
-
-#[cfg(feature = "fast_ramp")]
-struct YRamp {
-    bottom: f32,
-    step: f32,
-}
-
-#[cfg(feature = "fast_ramp")]
-impl YRamp {
-    #[inline(always)]
-    fn new(bottom: f32, step: f32, _first: i32) -> Self {
-        Self { bottom, step }
-    }
-
-    #[inline(always)]
-    fn at(&mut self, local: i32) -> f32 {
-        jmath::mul_add(self.step, local as f32, self.bottom)
     }
 }
 
@@ -1473,10 +1498,12 @@ impl Workspace {
     }
 
     /// The evaluations counted since the last call, cleared.
+    #[cfg(any(test, feature = "corpus"))]
     pub fn take_count(&mut self) -> EvalCount {
         std::mem::take(&mut self.count)
     }
 
+    #[cfg(any(test, feature = "corpus"))]
     fn absorb(&mut self, nested: &mut Workspace) {
         let inner = nested.take_count();
         self.count.evaluated += inner.evaluated;
@@ -1539,7 +1566,6 @@ mod tests {
     use super::*;
     use crate::node::gradient::Tiling;
     use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
-    use crate::volume::Axis;
     use bevy_math::IVec3;
 
     fn gradient(axis: Axis, from: f32, to: f32, from_value: f32, to_value: f32) -> Node {
@@ -1644,7 +1670,7 @@ mod tests {
         (evaluated, x, scale, offset)
     }
 
-    #[cfg(not(feature = "fast_fma"))]
+    #[cfg(not(feature = "fast"))]
     #[test]
     fn the_strict_affine_rounds_twice_as_java_does() {
         let (evaluated, x, scale, offset) = affine_at_a_rounding_boundary();
@@ -1656,7 +1682,7 @@ mod tests {
         assert_eq!(evaluated, x * scale + offset);
     }
 
-    #[cfg(feature = "fast_fma")]
+    #[cfg(feature = "fast")]
     #[test]
     fn the_fast_affine_fuses_into_one_rounding() {
         let (evaluated, x, scale, offset) = affine_at_a_rounding_boundary();
@@ -1679,9 +1705,8 @@ mod tests {
         (rows, accumulated, bottom, step)
     }
 
-    #[cfg(not(feature = "fast_ramp"))]
     #[test]
-    fn the_strict_ramp_accumulates_a_row_at_a_time() {
+    fn the_ramp_accumulates_a_row_at_a_time() {
         let (rows, accumulated, bottom, step) = ramp_at_a_rounding_boundary();
         assert_ne!(
             accumulated[7],
@@ -1689,19 +1714,6 @@ mod tests {
             "the operands must separate the two forms"
         );
         assert_eq!(rows, accumulated);
-    }
-
-    #[cfg(feature = "fast_ramp")]
-    #[test]
-    fn the_fast_ramp_evaluates_the_closed_form() {
-        let (rows, accumulated, bottom, step) = ramp_at_a_rounding_boundary();
-        assert_ne!(
-            rows[7], accumulated[7],
-            "the operands must separate the two forms"
-        );
-        for (k, &value) in rows.iter().enumerate() {
-            assert_eq!(value, jmath::mul_add(step, k as f32, bottom));
-        }
     }
 
     #[test]
@@ -1758,6 +1770,52 @@ mod tests {
             "the corners at x = 0 and x = 4 are 0 and 16, and the interior is the \
              straight line between them rather than x squared"
         );
+    }
+
+    /// A slice keeps the axes its input has minus the pinned one, so the value
+    /// has to reach every column the pinned axis used to separate — the nested
+    /// fill's buffer lands in the node's own stratum by copy, and a layout that
+    /// disagreed would show up as a transposed column here.
+    #[test]
+    fn a_slice_broadcasts_the_pinned_axis_over_every_column() {
+        let nodes = vec![
+            gradient(Axis::X, 0.0, 4.0, 0.0, 40.0),
+            gradient(Axis::Z, 0.0, 4.0, 0.0, 4.0),
+            Node::Binary {
+                op: BinaryOp::Add,
+                a: 0,
+                b: 1,
+            },
+            Node::Slice {
+                input: 2,
+                axis: Axis::X,
+                coordinate: 3,
+            },
+        ];
+        let p = program(
+            nodes,
+            vec![AXIS_X, AXIS_Z, AXIS_X | AXIS_Z, AXIS_Z],
+            vec![3],
+        );
+        let v = Volume::dense(IVec3::new(2, 1, 4), IVec3::ZERO);
+        let out = run(&p, &v, 0);
+        // x is pinned to 3, so every column reads 30 plus its own z.
+        assert_eq!(out, vec![30.0, 30.0, 31.0, 31.0, 32.0, 32.0, 33.0, 33.0]);
+    }
+
+    #[test]
+    fn a_slice_of_a_node_that_already_drops_the_axis_is_the_input() {
+        let nodes = vec![
+            gradient(Axis::Z, 0.0, 4.0, 0.0, 4.0),
+            Node::Slice {
+                input: 0,
+                axis: Axis::X,
+                coordinate: 100,
+            },
+        ];
+        let p = program(nodes, vec![AXIS_Z, AXIS_Z], vec![1]);
+        let v = Volume::dense(IVec3::new(2, 1, 3), IVec3::ZERO);
+        assert_eq!(run(&p, &v, 0), vec![0.0, 0.0, 1.0, 1.0, 2.0, 2.0]);
     }
 
     fn top_surface(upper_bound: f32, lower_bound: i32) -> Program {
@@ -1848,10 +1906,10 @@ mod tests {
         );
     }
 
-    /// The two-armed lowering of `interval_select`, which no shipped noise
-    /// settings produces: the corpus only has selects with several thresholds.
+    /// A one-threshold `interval_select`, which no shipped noise settings
+    /// produces: the corpus only has selects with several thresholds.
     #[test]
-    fn a_single_threshold_skips_the_arm_no_position_takes() {
+    fn a_two_armed_select_skips_the_arm_no_position_takes() {
         let nodes = vec![
             gradient(Axis::X, 0.0, 2.0, 0.0, 10.0),
             gradient(Axis::Z, 0.0, 2.0, 0.0, 100.0),
@@ -1860,11 +1918,10 @@ mod tests {
                 input: 1,
             },
             gradient(Axis::Z, 0.0, 2.0, 0.0, 5.0),
-            Node::SingleThreshold {
+            Node::IntervalSelect {
                 input: 0,
-                threshold: 100.0,
-                below: 2,
-                above: 3,
+                thresholds: [100.0].into(),
+                arms: [2, 3].into(),
             },
         ];
         let axes = vec![AXIS_X, AXIS_Z, AXIS_Z, AXIS_Z, AXIS_X | AXIS_Z];

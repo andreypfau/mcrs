@@ -1,5 +1,5 @@
 use crate::world::chunk::CancellationToken;
-use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::world::generate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
 use bevy_math::IVec3;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
@@ -12,16 +12,16 @@ use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
+use mcrs_minecraft_worldgen::cell::{CELL_BOUNDS_SLACK, sampled_range};
 use mcrs_minecraft_worldgen::interval::Interval;
 use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen::router::{
+    CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
+};
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
-
-/// Margin the whole-cell fill keeps away from zero. `final_density_cell_bounds`
-/// is f32 interval arithmetic without outward rounding, so a bound that lands
-/// exactly on zero is not trustworthy; cells inside the margin go block by block.
-const CELL_BOUNDS_SLACK: f32 = 1e-5;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 /// The `interpolated` wrapper inputs at every cell corner of a whole chunk
 /// column, laid out one `volume`-shaped row per wrapper.
@@ -30,6 +30,67 @@ struct CellLattice {
     cell: IVec3,
     values: Vec<f32>,
     width: usize,
+}
+
+/// The lattice columns recently produced, so a column reads the two planes it
+/// shares with the neighbours before it instead of evaluating them again.
+///
+/// A node's value is a function of the node and the router alone, never of the
+/// volume it was asked about as part of, so the shared plane is the same plane
+/// (`docs/worldgen.md` §4, L3). A column produces 5 x 49 x 5 nodes and shares
+/// its low planes in x and z, which is nine of the twenty-five node columns:
+/// what stays is a 4 x 49 x 4 evaluation, 64% of the work.
+///
+/// Two generations rather than one map: the useful life of a column is until
+/// the neighbours past it have been filled, and rotating keeps at least
+/// `KEPT_COLUMNS` of the most recent without ever growing without bound. A
+/// worker that jumps between distant columns misses and pays what it paid
+/// before.
+#[derive(Default)]
+struct LatticePlanes {
+    /// Which router these belong to. One worker fills columns for every
+    /// dimension, and a node's value differs by seed and by graph.
+    owner: Option<(usize, u64)>,
+    current: HashMap<i64, Box<[f32]>>,
+    previous: HashMap<i64, Box<[f32]>>,
+}
+
+const KEPT_COLUMNS: usize = 2048;
+
+impl LatticePlanes {
+    fn retarget(&mut self, router: &NoiseRouter) {
+        let owner = (std::ptr::from_ref(router) as usize, router.world_seed);
+        if self.owner != Some(owner) {
+            self.owner = Some(owner);
+            self.current.clear();
+            self.previous.clear();
+        }
+    }
+
+    fn get(&self, key: i64) -> Option<&[f32]> {
+        self.current
+            .get(&key)
+            .or_else(|| self.previous.get(&key))
+            .map(Box::as_ref)
+    }
+
+    fn put(&mut self, key: i64, column: &[f32]) {
+        if self.current.len() >= KEPT_COLUMNS {
+            std::mem::swap(&mut self.current, &mut self.previous);
+            self.current.clear();
+        }
+        self.current.insert(key, column.into());
+    }
+}
+
+thread_local! {
+    static LATTICE_PLANES: RefCell<LatticePlanes> = RefCell::new(LatticePlanes::default());
+}
+
+/// The key one node column answers to. Node coordinates are block coordinates,
+/// which is what makes two columns agree on the plane between them.
+fn plane_key(node_x: i32, node_z: i32) -> i64 {
+    (i64::from(node_x) << 32) | i64::from(node_z as u32)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -58,24 +119,85 @@ impl CellLattice {
         if 16 % cell.x != 0 || 16 % cell.y != 0 || 16 % cell.z != 0 {
             return None;
         }
-        let height = noise_router.noise_height() as i32;
-        if noise_router.noise_min_y() % 16 != 0 || height % 16 != 0 {
+        let height = noise_router.noise.height as i32;
+        if noise_router.noise.min_y % 16 != 0 || height % 16 != 0 {
             return None;
         }
         let volume = Volume::new(
             IVec3::new(16 / cell.x + 1, height / cell.y + 1, 16 / cell.z + 1),
-            IVec3::new(block_x, noise_router.noise_min_y(), block_z),
+            IVec3::new(block_x, noise_router.noise.min_y, block_z),
             cell,
         );
         let inputs = noise_router.cell_inputs();
-        let mut values = vec![0.0f32; inputs.len() * volume.len()];
-        noise_router.fill_nodes(ws, &volume, inputs, &mut values);
+        let width = inputs.len();
+        let rows = volume.size().y as usize;
+        let (nx, nz) = (volume.size().x, volume.size().z);
+        let mut values = vec![0.0f32; width * volume.len()];
+
+        // The node columns a neighbour already produced: the whole low plane in
+        // x, and the low plane in z above it.
+        let borrowed = (0..nz)
+            .map(|z| (0, z))
+            .chain((1..nx).map(|x| (x, 0)))
+            .collect::<Vec<_>>();
+        let shared = LATTICE_PLANES.with_borrow_mut(|planes| {
+            planes.retarget(noise_router);
+            borrowed.iter().all(|&(x, z)| {
+                let Some(column) = planes.get(plane_key(volume.block_x(x), volume.block_z(z)))
+                else {
+                    return false;
+                };
+                for k in 0..width {
+                    let at = k * volume.len() + volume.index_unchecked(x, 0, z);
+                    values[at..at + rows].copy_from_slice(&column[k * rows..(k + 1) * rows]);
+                }
+                true
+            })
+        });
+
+        if shared {
+            let inner = Volume::new(
+                IVec3::new(nx - 1, volume.size().y, nz - 1),
+                volume.min_block() + IVec3::new(cell.x, 0, cell.z),
+                cell,
+            );
+            let mut inner_values = vec![0.0f32; width * inner.len()];
+            noise_router.fill_nodes(ws, &inner, inputs, &mut inner_values);
+            for z in 0..nz - 1 {
+                for x in 0..nx - 1 {
+                    for k in 0..width {
+                        let from = k * inner.len() + inner.index_unchecked(x, 0, z);
+                        let to = k * volume.len() + volume.index_unchecked(x + 1, 0, z + 1);
+                        values[to..to + rows].copy_from_slice(&inner_values[from..from + rows]);
+                    }
+                }
+            }
+        } else {
+            noise_router.fill_nodes(ws, &volume, inputs, &mut values);
+        }
+
+        // The high planes, which the neighbours after this column read as their
+        // own low ones.
+        let mut column = vec![0.0f32; width * rows];
+        LATTICE_PLANES.with_borrow_mut(|planes| {
+            for (x, z) in (0..nz)
+                .map(|z| (nx - 1, z))
+                .chain((0..nx - 1).map(|x| (x, nz - 1)))
+            {
+                for k in 0..width {
+                    let at = k * volume.len() + volume.index_unchecked(x, 0, z);
+                    column[k * rows..(k + 1) * rows].copy_from_slice(&values[at..at + rows]);
+                }
+                planes.put(plane_key(volume.block_x(x), volume.block_z(z)), &column);
+            }
+        });
+
         noise_router.pin_cell_lattice(ws, &volume, &values);
         Some(Self {
             volume,
             cell,
             values,
-            width: inputs.len(),
+            width,
         })
     }
 
@@ -107,9 +229,41 @@ impl CellLattice {
         fill: &mut FillBuffers,
     ) -> CellFill {
         self.corner_bounds(at, &mut fill.corners);
-        let Some(bounds) = noise_router.final_density_cell_bounds(&fill.corners) else {
+        let min = IVec3::new(
+            self.volume.block_x(at.x),
+            self.volume.block_y(at.y),
+            self.volume.block_z(at.z),
+        );
+        let Some(bounds) = noise_router.final_density_cell_bounds(
+            &fill.corners,
+            min,
+            min + self.cell - 1,
+            &mut fill.cell_terms,
+        ) else {
             return CellFill::Mixed;
         };
+        match self.verdict(bounds, at, sea_level) {
+            CellFill::Mixed => {}
+            settled => return settled,
+        }
+
+        // The hull bounds the closed cell, and the blocks stop one lattice step
+        // short of its far face. Asking again over the range they do reach is
+        // exact and settles cells the hull leaves open; it runs only here, on
+        // the few per column the first pass could not answer.
+        self.sampled_bounds(at, &mut fill.corners);
+        let Some(bounds) = noise_router.final_density_cell_bounds(
+            &fill.corners,
+            min,
+            min + self.cell - 1,
+            &mut fill.cell_terms,
+        ) else {
+            return CellFill::Mixed;
+        };
+        self.verdict(bounds, at, sea_level)
+    }
+
+    fn verdict(&self, bounds: Interval, at: IVec3, sea_level: i32) -> CellFill {
         if bounds.min() > CELL_BOUNDS_SLACK {
             return CellFill::Solid;
         }
@@ -125,6 +279,32 @@ impl CellLattice {
         }
         CellFill::Mixed
     }
+
+    /// [`Self::corner_bounds`] over the range the blocks of the cell actually
+    /// reach, rather than over the closed cell.
+    fn sampled_bounds(&self, at: IVec3, out: &mut [Interval]) {
+        let stride = self.volume.len();
+        for (k, bound) in out.iter_mut().enumerate() {
+            let row = &self.values[k * stride..(k + 1) * stride];
+            *bound = sampled_range(self.cell, |dx, dy, dz| {
+                row[self.volume.index_unchecked(at.x + dx, at.y + dy, at.z + dz)]
+            });
+        }
+    }
+}
+
+/// A strip whose blocks are all air.
+pub const NO_TOP: i32 = i32::MIN;
+
+/// What one dense fill of a column leaves behind besides the blocks themselves.
+pub struct FilledColumn {
+    pub biomes: Vec<BiomePalette>,
+    /// Highest non-air block per strip, indexed `z * 16 + x`, `NO_TOP` where
+    /// the strip holds none.
+    pub tops: [i32; 256],
+    /// `None` outside the multi-noise path, which is the only one that needs
+    /// the zoom.
+    pub biome_grid: Option<BiomeGrid>,
 }
 
 /// Buffers every fill in a chunk column reuses.
@@ -133,6 +313,7 @@ struct FillBuffers {
     ws: Workspace,
     density: Vec<f32>,
     corners: Vec<Interval>,
+    cell_terms: Vec<Interval>,
 }
 
 /// Place `final_density` over a whole chunk column.
@@ -148,15 +329,24 @@ fn fill_column(
     block_x: i32,
     block_z: i32,
     noise_router: &NoiseRouter,
+    tops: &mut [i32; 256],
     cancel: &CancellationToken,
 ) -> bool {
-    let sea_level = noise_router.sea_level();
-    let default_block = noise_router.default_block_state();
-    let default_fluid = noise_router.default_fluid_state();
+    let sea_level = noise_router.sea_level;
+    let default_block = noise_router.default_block_state;
+    let default_fluid = noise_router.default_fluid_state;
     let mut fill = FillBuffers::default();
 
     let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.ws) else {
-        return fill_column_dense(column, block_x, block_z, noise_router, &mut fill, cancel);
+        return fill_column_dense(
+            column,
+            block_x,
+            block_z,
+            noise_router,
+            tops,
+            &mut fill,
+            cancel,
+        );
     };
 
     let cell = lattice.cell;
@@ -179,22 +369,32 @@ fn fill_column(
                 };
                 let base = IVec3::new(cell_x * cell.x, world.y.rem_euclid(16), cell_z * cell.z);
                 match lattice.classify(noise_router, at, sea_level, &mut fill) {
-                    CellFill::Solid => fill_cell_box(column, index, base, cell, default_block),
-                    CellFill::Fluid => fill_cell_box(column, index, base, cell, default_fluid),
+                    CellFill::Solid => {
+                        fill_cell_box(column, index, base, cell, default_block);
+                        record_tops(tops, base, cell, world.y + cell.y - 1);
+                    }
+                    CellFill::Fluid => {
+                        fill_cell_box(column, index, base, cell, default_fluid);
+                        record_tops(tops, base, cell, world.y + cell.y - 1);
+                    }
                     CellFill::Air => {}
-                    CellFill::Sea => fill_cell_box(
-                        column,
-                        index,
-                        base,
-                        IVec3::new(cell.x, sea_level - world.y, cell.z),
-                        default_fluid,
-                    ),
+                    CellFill::Sea => {
+                        fill_cell_box(
+                            column,
+                            index,
+                            base,
+                            IVec3::new(cell.x, sea_level - world.y, cell.z),
+                            default_fluid,
+                        );
+                        record_tops(tops, base, cell, sea_level - 1);
+                    }
                     CellFill::Mixed => fill_blocks(
                         column,
                         index,
                         &Volume::dense(cell, world),
                         base,
                         noise_router,
+                        tops,
                         &mut fill,
                     ),
                 }
@@ -210,11 +410,12 @@ fn fill_column_dense(
     block_x: i32,
     block_z: i32,
     noise_router: &NoiseRouter,
+    tops: &mut [i32; 256],
     fill: &mut FillBuffers,
     cancel: &CancellationToken,
 ) -> bool {
-    let noise_min_y = noise_router.noise_min_y();
-    let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
+    let noise_min_y = noise_router.noise.min_y;
+    let noise_max_y = noise_min_y + noise_router.noise.height as i32;
     for (index, &section_y) in column.y_sections().iter().enumerate() {
         if cancel.is_cancelled() {
             return false;
@@ -227,9 +428,29 @@ fn fill_column_dense(
             IVec3::splat(16),
             IVec3::new(block_x, section_min_y, block_z),
         );
-        fill_blocks(column, index, &volume, IVec3::ZERO, noise_router, fill);
+        fill_blocks(
+            column,
+            index,
+            &volume,
+            IVec3::ZERO,
+            noise_router,
+            tops,
+            fill,
+        );
     }
     true
+}
+
+/// Settle every strip a whole-class cell covers at the highest block its box
+/// actually reaches, which for a sea cell is one below sea level rather than
+/// the cell top.
+fn record_tops(tops: &mut [i32; 256], base: IVec3, cell: IVec3, top: i32) {
+    for z in base.z..base.z + cell.z {
+        for x in base.x..base.x + cell.x {
+            let slot = &mut tops[(z * 16 + x) as usize];
+            *slot = (*slot).max(top);
+        }
+    }
 }
 
 fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, state: VoxelId) {
@@ -251,28 +472,35 @@ fn fill_blocks(
     volume: &Volume,
     origin: IVec3,
     noise_router: &NoiseRouter,
+    tops: &mut [i32; 256],
     fill: &mut FillBuffers,
 ) {
-    let sea_level = noise_router.sea_level();
-    let default_block = noise_router.default_block_state();
-    let default_fluid = noise_router.default_fluid_state();
+    let sea_level = noise_router.sea_level;
+    let default_block = noise_router.default_block_state;
+    let default_fluid = noise_router.default_fluid_state;
     fill.density.clear();
     fill.density.resize(volume.len(), 0.0);
-    noise_router.fill(
-        &mut fill.ws,
-        volume,
-        noise_router.final_density(),
-        &mut fill.density,
-    );
+    noise_router
+        .program
+        .fill(&mut fill.ws, volume, FINAL_DENSITY, &mut fill.density);
     for z in 0..volume.size().z {
         for x in 0..volume.size().x {
             for y in (0..volume.size().y).rev() {
                 let value = fill.density[volume.index_unchecked(x, y, z)];
                 let (px, py, pz) = (origin.x + x, origin.y + y, origin.z + z);
-                if value > 0.0 {
+                let world_y = volume.block_y(y);
+                let placed = if value > 0.0 {
                     column.set_in_section(index, px, py, pz, default_block);
-                } else if volume.block_y(y) < sea_level {
+                    true
+                } else if world_y < sea_level {
                     column.set_in_section(index, px, py, pz, default_fluid);
+                    true
+                } else {
+                    false
+                };
+                if placed {
+                    let slot = &mut tops[(pz * 16 + px) as usize];
+                    *slot = (*slot).max(world_y);
                 }
             }
         }
@@ -291,7 +519,7 @@ fn beta_climate_cells(noise_router: &NoiseRouter, block_x: i32, block_z: i32) ->
     noise_router.fill_roots(
         &mut Workspace::new(),
         &volume,
-        &[noise_router.temperature(), noise_router.vegetation()],
+        &[TEMPERATURE, VEGETATION],
         &mut values,
     );
     let mut cells = [(0.0f32, 0.0f32); 16];
@@ -318,77 +546,139 @@ fn column_biome_palettes(
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
-) -> Vec<BiomePalette> {
+) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
     if let Some((BiomeSource::MultiNoise(_), _)) = biome_context {
         return match multi_noise {
             Some(table) => multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
-            None => vec![BiomePalette::default(); y_sections.len()],
+            None => (vec![BiomePalette::default(); y_sections.len()], None),
         };
     }
-    vec![beta_biome_palette(noise_router, biome_context, block_x, block_z); y_sections.len()]
+    if let Some((BiomeSource::Fixed { biome_id, .. }, registry)) = biome_context {
+        return fixed_biome_palettes(biome_id.as_str(), registry, block_x, block_z, y_sections);
+    }
+    (
+        vec![beta_biome_palette(noise_router, biome_context, block_x, block_z); y_sections.len()],
+        None,
+    )
 }
 
-/// The climate at every 4x4x4 cell of the column, resolved to a biome.
+/// The climate at every quart cell of the column and of the ring of cells
+/// around it, resolved to a biome.
 ///
 /// The density program fills a whole strided volume in one pass, so asking for
 /// the column's cells at once costs a fraction of evaluating them one by one.
-pub(crate) fn multi_noise_palettes(
+pub fn multi_noise_palettes(
     noise_router: &NoiseRouter,
     table: &MultiNoiseBiomeTable,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
-) -> Vec<BiomePalette> {
+) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
     let (Some(&first), Some(&last)) = (y_sections.first(), y_sections.last()) else {
-        return Vec::new();
+        return (Vec::new(), None);
     };
     let volume = Volume::new(
-        IVec3::new(4, (last - first + 1) * 4, 4),
-        IVec3::new(block_x, first * 16, block_z),
+        IVec3::new(6, (last - first + 1) * 4 + 2, 6),
+        IVec3::new(block_x - 4, first * 16 - 4, block_z - 4),
         IVec3::splat(4),
     );
-    let roots = [
-        noise_router.temperature(),
-        noise_router.vegetation(),
-        noise_router.continents(),
-        noise_router.erosion(),
-        noise_router.depth(),
-        noise_router.ridges(),
-    ];
+    let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
     let points = volume.len();
     let mut values = vec![0.0f32; roots.len() * points];
     let mut ws = Workspace::new();
     noise_router.fill_roots(&mut ws, &volume, &roots, &mut values);
 
-    y_sections
+    let mut last = None;
+    let ids: Vec<u8> = (0..points)
+        .map(|at| {
+            table.biome_at_from(
+                TargetPoint::new(
+                    values[at],
+                    values[points + at],
+                    values[2 * points + at],
+                    values[3 * points + at],
+                    values[4 * points + at],
+                    values[5 * points + at],
+                ),
+                &mut last,
+            )
+        })
+        .collect();
+
+    let palettes = y_sections
         .iter()
         .map(|&section_y| {
             let mut biomes = BiomePalette::default();
-            let base_y = (section_y - first) * 4;
+            let base_y = (section_y - first) * 4 + 1;
             for cx in 0..4 {
                 for cy in 0..4 {
                     for cz in 0..4 {
-                        let at = volume.index_unchecked(cx, base_y + cy, cz);
-                        let target = TargetPoint::new(
-                            values[at],
-                            values[points + at],
-                            values[2 * points + at],
-                            values[3 * points + at],
-                            values[4 * points + at],
-                            values[5 * points + at],
-                        );
-                        biomes.set_cell(
-                            cx as usize,
-                            cy as usize,
-                            cz as usize,
-                            table.biome_at(target),
-                        );
+                        let at = volume.index_unchecked(cx + 1, base_y + cy, cz + 1);
+                        biomes.set_cell(cx as usize, cy as usize, cz as usize, ids[at]);
                     }
                 }
             }
             biomes
         })
-        .collect()
+        .collect();
+
+    (palettes, Some(BiomeGrid { volume, ids }))
+}
+
+/// The palettes and grid of a `minecraft:fixed` source, which answers the same
+/// biome at every quart cell however it is asked.
+///
+/// The grid keeps the shape `multi_noise_palettes` produces — the column's
+/// cells plus the ring around them — so the surface stage's zoom reads it
+/// exactly as it reads a sampled one.
+fn fixed_biome_palettes(
+    biome_id: &str,
+    registry: &RegistrySnapshot<Biome>,
+    block_x: i32,
+    block_z: i32,
+    y_sections: &[i32],
+) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
+    let (Some(&first), Some(&last)) = (y_sections.first(), y_sections.last()) else {
+        return (Vec::new(), None);
+    };
+    let network_id = match registry
+        .by_location(biome_id)
+        .and_then(|id| u8::try_from(id).ok())
+    {
+        Some(id) => id,
+        None => {
+            // Returning no grid would skip the material stage entirely and hand
+            // back a column of bare stone, so this degrades the way the Beta
+            // palette degrades on the same failure rather than silently
+            // dropping every rule the column owes.
+            tracing::error!(
+                biome = biome_id,
+                "fixed biome is not in the registry snapshot"
+            );
+            debug_assert!(false, "unresolved fixed biome location");
+            0
+        }
+    };
+
+    let volume = Volume::new(
+        IVec3::new(6, (last - first + 1) * 4 + 2, 6),
+        IVec3::new(block_x - 4, first * 16 - 4, block_z - 4),
+        IVec3::splat(4),
+    );
+    let ids = vec![network_id; volume.len()];
+
+    let mut palette = BiomePalette::default();
+    for cx in 0..4 {
+        for cy in 0..4 {
+            for cz in 0..4 {
+                palette.set_cell(cx, cy, cz, network_id);
+            }
+        }
+    }
+    (
+        vec![palette; y_sections.len()],
+        Some(BiomeGrid { volume, ids }),
+    )
 }
 
 /// The `BiomePalette` every section of a Beta column shares.
@@ -464,7 +754,7 @@ pub fn generate_column(
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let mut column = ColumnBlocks::new(y_sections);
-    let Some(biome_palettes) = fill_column_dense_any(
+    let Some(filled) = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
@@ -477,7 +767,7 @@ pub fn generate_column(
         return vec![None; y_sections.len()];
     };
 
-    column.into_sections(&biome_palettes)
+    column.into_sections(&filled.biomes)
 }
 
 /// Fill a column densely from the density graph, for every preset.
@@ -494,10 +784,10 @@ pub fn fill_column_dense_any(
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
     multi_noise: Option<&MultiNoiseBiomeTable>,
     cancel: &CancellationToken,
-) -> Option<Vec<BiomePalette>> {
+) -> Option<FilledColumn> {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
-    let biome_palettes = column_biome_palettes(
+    let (biomes, biome_grid) = column_biome_palettes(
         noise_router,
         biome_context,
         multi_noise,
@@ -507,10 +797,15 @@ pub fn fill_column_dense_any(
     );
     column.reset(y_sections);
 
-    if !fill_column(column, block_x, block_z, noise_router, cancel) {
+    let mut tops = [NO_TOP; 256];
+    if !fill_column(column, block_x, block_z, noise_router, &mut tops, cancel) {
         return None;
     }
-    Some(biome_palettes)
+    Some(FilledColumn {
+        biomes,
+        tops,
+        biome_grid,
+    })
 }
 
 /// Apply the Beta surface pass to a generated chunk column.
@@ -541,9 +836,9 @@ pub fn apply_beta_surface(
         _ => None,
     };
 
-    let sea_level = noise_router.sea_level();
-    let default_fluid = noise_router.default_fluid_state();
-    let stone = noise_router.default_block_state();
+    let sea_level = noise_router.sea_level;
+    let default_fluid = noise_router.default_fluid_state;
+    let stone = noise_router.default_block_state;
     let bedrock = VoxelId::from(blocks.default_state("minecraft:bedrock"));
     let sandstone = VoxelId::from(blocks.default_state("minecraft:sandstone"));
     let gravel = VoxelId::from(blocks.default_state("minecraft:gravel"));
@@ -689,7 +984,11 @@ pub use beta_caves::{BetaCaveBlockIds, apply_beta_caves};
 pub mod beta_ores;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;
+pub mod routers;
+pub mod surface;
 pub use beta_ores::{BetaOreBlockIds, apply_beta_ores, place_all_ores};
+pub use routers::{DimensionBiomeSources, DimensionRouters};
+pub use surface::{SurfaceIds, apply_material_surface, spans_dimension};
 
 #[cfg(test)]
 mod tests;

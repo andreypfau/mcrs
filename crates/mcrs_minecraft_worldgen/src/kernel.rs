@@ -106,9 +106,13 @@ fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f32, f
         }
         return;
     }
-    let pick = |s: &[f32], i: usize| if s.len() == 1 { s[0] } else { s[i] };
+    // A broadcast run holds one value, so its stride is zero and `i * stride`
+    // re-reads element zero for every i. Which operands broadcast is settled
+    // here; the loop that runs carries no test of its own.
+    let stride = |s: &[f32]| usize::from(s.len() == n);
+    let (sa, sb, sc) = (stride(a), stride(b), stride(c));
     for (i, o) in out.iter_mut().enumerate() {
-        *o = f(pick(a, i), pick(b, i), pick(c, i));
+        *o = f(a[i * sa], b[i * sb], c[i * sc]);
     }
 }
 

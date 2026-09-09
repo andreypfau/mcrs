@@ -46,3 +46,50 @@ pub async fn read_all(reader: &mut dyn Reader) -> std::io::Result<Vec<u8>> {
     }
     Ok(bytes)
 }
+
+/// Loads any asset that is nothing but its JSON: parse the file, hand back the
+/// value. An asset that names other assets needs a loader of its own, because
+/// only that loader knows which ids to turn into handles.
+pub struct JsonLoader<A>(std::marker::PhantomData<fn() -> A>);
+
+impl<A> Default for JsonLoader<A> {
+    fn default() -> Self {
+        Self(std::marker::PhantomData)
+    }
+}
+
+impl<A: bevy_reflect::TypePath> bevy_reflect::TypePath for JsonLoader<A> {
+    fn type_path() -> &'static str {
+        "mcrs_minecraft_core::asset::JsonLoader"
+    }
+
+    fn short_type_path() -> &'static str {
+        "JsonLoader"
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum JsonLoaderError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("JSON parse error: {0}")]
+    Json(#[from] serde_json::Error),
+}
+
+impl<A> bevy_asset::AssetLoader for JsonLoader<A>
+where
+    A: bevy_asset::Asset + serde::de::DeserializeOwned,
+{
+    type Asset = A;
+    type Settings = ();
+    type Error = JsonLoaderError;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &(),
+        _load_context: &mut bevy_asset::LoadContext<'_>,
+    ) -> Result<A, JsonLoaderError> {
+        Ok(serde_json::from_slice(&read_all(reader).await?)?)
+    }
+}

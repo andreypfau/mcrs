@@ -1,51 +1,8 @@
-use bevy_asset::io::Reader;
-use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
+use bevy_asset::Asset;
 use bevy_reflect::TypePath;
-use mcrs_minecraft_core::asset::read_all;
 use serde::{Deserialize, Serialize};
 
-macro_rules! leaf_asset {
-    ($name:ident, $loader:ident, $error:ident) => {
-        impl Asset for $name {}
-
-        impl VisitAssetDependencies for $name {
-            fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
-        }
-
-        #[derive(Default, TypePath)]
-        pub struct $loader;
-
-        #[derive(Debug, thiserror::Error)]
-        pub enum $error {
-            #[error(transparent)]
-            Io(#[from] std::io::Error),
-            #[error("JSON parse error: {0}")]
-            Json(#[from] serde_json::Error),
-        }
-
-        impl AssetLoader for $loader {
-            type Asset = $name;
-            type Settings = ();
-            type Error = $error;
-
-            async fn load(
-                &self,
-                reader: &mut dyn Reader,
-                _settings: &(),
-                _load_context: &mut LoadContext<'_>,
-            ) -> Result<$name, $error> {
-                let bytes = read_all(reader).await?;
-                Ok(serde_json::from_slice(&bytes)?)
-            }
-
-            fn extensions(&self) -> &[&str] {
-                &[]
-            }
-        }
-    };
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct TrimPattern {
     pub asset_id: String,
     pub description: serde_json::Value,
@@ -53,15 +10,11 @@ pub struct TrimPattern {
     pub decal: bool,
 }
 
-leaf_asset!(TrimPattern, TrimPatternLoader, TrimPatternLoaderError);
-
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct TrimMaterial {
     pub palette_id: String,
     pub description: serde_json::Value,
 }
-
-leaf_asset!(TrimMaterial, TrimMaterialLoader, TrimMaterialLoaderError);
 
 #[cfg(test)]
 mod tests {

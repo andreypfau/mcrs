@@ -1,7 +1,9 @@
 use crate::interval::Interval;
-use crate::proto::HashableF64;
+use crate::proto::{HashableF64, Validate, validated};
 use mcrs_minecraft_core::ResourceLocation;
 use serde::{Deserialize, Serialize};
+
+validated!(NoiseParam);
 
 /// `RegistryCodecs.holder(Registries.NOISE, …)` with inlining allowed: an id
 /// into `worldgen/noise`, or the parameters object itself.
@@ -28,7 +30,7 @@ const PERLIN_STANDARD_DEVIATION: f64 = 0.2702247831245211;
 /// it — the surviving octaves, their weights and the declared range — belongs to
 /// [`crate::noise::normal::NormalNoise`].
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, try_from = "UncheckedNoiseParam")]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct NoiseParam {
     pub base_octave: i32,
     #[serde(default = "default_base_amplitude", skip_serializing_if = "is_one")]
@@ -42,20 +44,6 @@ pub struct NoiseParam {
     pub normalize: Normalization,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub amplitude_modifiers: Vec<HashableF64>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct UncheckedNoiseParam {
-    base_octave: i32,
-    #[serde(default = "default_base_amplitude")]
-    base_amplitude: HashableF64,
-    #[serde(default = "default_octave_count")]
-    octave_count: usize,
-    #[serde(default)]
-    normalize: Normalization,
-    #[serde(default)]
-    amplitude_modifiers: Vec<HashableF64>,
 }
 
 fn default_base_amplitude() -> HashableF64 {
@@ -74,10 +62,9 @@ fn is_one_octave(count: &usize) -> bool {
     *count == 1
 }
 
-impl TryFrom<UncheckedNoiseParam> for NoiseParam {
-    type Error = String;
-
-    fn try_from(raw: UncheckedNoiseParam) -> Result<Self, Self::Error> {
+impl Validate for NoiseParam {
+    fn validate(&self) -> Result<(), String> {
+        let raw = self;
         if !(MIN_BASE_OCTAVE..=MAX_BASE_OCTAVE).contains(&raw.base_octave) {
             return Err(format!(
                 "Value must be within range [{MIN_BASE_OCTAVE};{MAX_BASE_OCTAVE}]: {}",
@@ -120,13 +107,7 @@ impl TryFrom<UncheckedNoiseParam> for NoiseParam {
                 raw.octave_count
             ));
         }
-        Ok(NoiseParam {
-            base_octave: raw.base_octave,
-            base_amplitude: raw.base_amplitude,
-            octave_count: raw.octave_count,
-            normalize: raw.normalize,
-            amplitude_modifiers: raw.amplitude_modifiers,
-        })
+        Ok(())
     }
 }
 
@@ -182,7 +163,6 @@ impl NoiseParam {
             target_amplitude,
         }
     }
-
 }
 
 /// What [`NoiseParam::octaves`] decides before any seed is drawn.
@@ -297,7 +277,7 @@ impl<'de> Deserialize<'de> for Normalization {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::noise::normal::NormalNoise;
+    use crate::noise::normal;
 
     fn param(json: &str) -> NoiseParam {
         serde_json::from_str(json).unwrap()
@@ -356,7 +336,7 @@ mod tests {
         let solid = param(
             r#"{"base_octave":-9,"octave_count":3,"amplitude_modifiers":[1.0,1.0,1.0],"normalize":"legacy"}"#,
         );
-        let range = |p: &NoiseParam| NormalNoise::new(p.clone()).range().max();
+        let range = |p: &NoiseParam| normal::range(p).max();
         assert!(range(&gapped) < range(&solid));
         assert!(range(&gapped) > 0.0);
     }
@@ -365,7 +345,7 @@ mod tests {
     fn a_disabled_normalization_keeps_the_base_amplitude() {
         let disabled = param(r#"{"base_octave":-3,"octave_count":1,"normalize":false}"#);
         assert_eq!(
-            NormalNoise::new(disabled).range().max(),
+            normal::range(&disabled).max(),
             (1.0f64 * 0.3333333333333333 * 6.0) as f32
         );
     }

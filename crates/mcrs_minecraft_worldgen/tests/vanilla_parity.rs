@@ -1,9 +1,12 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::compile::build_router;
+use mcrs_minecraft_worldgen::corpus;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
-use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES};
+use mcrs_minecraft_worldgen::router::{
+    FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES,
+};
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
 use std::collections::BTreeMap;
@@ -15,9 +18,9 @@ const MAGIC: &[u8; 8] = b"MCDFORCL";
 /// a divergence budget instead — the divergence is measured, not waived. The
 /// observed worst is 3.3e-6 on `final_density`; a break in the function itself
 /// would be orders of magnitude wider.
-#[cfg(not(any(feature = "fast_fma", feature = "fast_cell", feature = "fast_ramp")))]
+#[cfg(not(feature = "fast"))]
 const DIVERGENCE_BUDGET: Option<f32> = None;
-#[cfg(any(feature = "fast_fma", feature = "fast_cell", feature = "fast_ramp"))]
+#[cfg(feature = "fast")]
 const DIVERGENCE_BUDGET: Option<f32> = Some(1.0e-5);
 /// `SharedConstants.WORLD_VERSION` of the snapshot the dumps came from. Asserted
 /// rather than skipped, so a corpus bump cannot silently invalidate the oracle.
@@ -105,53 +108,26 @@ fn read_dump(path: &Path) -> Dump {
     Dump { seed, volumes }
 }
 
-fn assets_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets")
-}
-
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/vanilla")
 }
 
-fn walk_json(base: &Path, dir: &Path, out: &mut Vec<(ResourceLocation, Vec<u8>)>) {
-    for entry in std::fs::read_dir(dir).unwrap().flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            walk_json(base, &path, out);
-        } else if path.extension().is_some_and(|e| e == "json") {
-            let rel = path.strip_prefix(base).unwrap();
-            let name = rel.with_extension("").to_string_lossy().replace('\\', "/");
-            let ident = ResourceLocation::parse(&format!("minecraft:{name}")).unwrap();
-            out.push((ident, std::fs::read(&path).unwrap()));
-        }
-    }
-}
-
-fn load<T: serde::de::DeserializeOwned>(sub: &str) -> BTreeMap<ResourceLocation, T> {
-    let dir = assets_dir().join(sub);
-    let mut files = Vec::new();
-    walk_json(&dir, &dir, &mut files);
-    files
-        .iter()
-        .filter_map(|(id, data)| {
-            serde_json::from_slice::<T>(data)
-                .ok()
-                .map(|v| (id.clone(), v))
-        })
-        .collect()
-}
-
 fn overworld_router(seed: u64) -> NoiseRouter {
-    let settings: NoiseGeneratorSettings = serde_json::from_slice(
-        &std::fs::read(assets_dir().join("minecraft/worldgen/noise_settings/overworld.json"))
-            .unwrap(),
-    )
-    .unwrap();
+    let settings: NoiseGeneratorSettings =
+        corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
     let registry: BTreeMap<ResourceLocation, DensityFunctionHolder> =
-        load("minecraft/worldgen/density_function");
-    let noises: BTreeMap<ResourceLocation, NoiseParam> = load("minecraft/worldgen/noise");
-    build_router(&settings, &registry, &noises, seed, VoxelId(1), VoxelId(2))
-        .expect("overworld router")
+        corpus::registry("density_function");
+    let noises: BTreeMap<ResourceLocation, NoiseParam> = corpus::registry("noise");
+    build_router(
+        &settings,
+        &registry,
+        &noises,
+        seed,
+        VoxelId(1),
+        VoxelId(2),
+        None,
+    )
+    .expect("overworld router")
 }
 
 fn fill(router: &NoiseRouter, root: usize, v: &DumpVolume) -> Vec<f32> {
@@ -162,7 +138,7 @@ fn fill(router: &NoiseRouter, root: usize, v: &DumpVolume) -> Vec<f32> {
     );
     let mut out = vec![f32::NAN; volume.len()];
     let mut ws = Workspace::new();
-    router.program().fill(&mut ws, &volume, root, &mut out);
+    router.program.fill(&mut ws, &volume, root, &mut out);
     out
 }
 
@@ -188,20 +164,11 @@ fn supported_roots_match_the_vanilla_oracle() {
     assert_eq!(dumps.len(), 15, "expected the fifteen lattice dumps");
 
     let mut report: BTreeMap<String, Diff> = BTreeMap::new();
-    let mut unsupported: Vec<String> = Vec::new();
     let mut seen_names: Vec<String> = Vec::new();
 
     for path in &dumps {
         let dump = read_dump(path);
         let router = overworld_router(dump.seed as u64);
-        if unsupported.is_empty() {
-            unsupported = router
-                .failed_roots()
-                .iter()
-                .map(|(name, err)| format!("{name}: {err}"))
-                .collect();
-        }
-        let failed: Vec<&str> = router.failed_roots().iter().map(|(n, _)| *n).collect();
 
         for v in &dump.volumes {
             if !seen_names.contains(&v.name) {
@@ -210,9 +177,6 @@ fn supported_roots_match_the_vanilla_oracle() {
             let Some(root) = ROOT_NAMES.iter().position(|n| *n == v.name) else {
                 continue;
             };
-            if failed.contains(&ROOT_NAMES[root]) {
-                continue;
-            }
             let ours = fill(&router, root, v);
             assert_eq!(ours.len(), v.values.len(), "{} size", v.name);
             let slot = report.entry(v.name.clone()).or_default();
@@ -232,7 +196,6 @@ fn supported_roots_match_the_vanilla_oracle() {
 
     let mut lines = Vec::new();
     lines.push(format!("dump volume names: {seen_names:?}"));
-    lines.push(format!("roots not yet compilable: {unsupported:?}"));
     let mut bad = false;
     for (name, d) in &report {
         lines.push(format!(
@@ -271,11 +234,6 @@ fn final_density_matches_the_dense_oracle() {
     let path = fixtures_dir().join("overworld_s42_c0_0_dense.bin");
     let dump = read_dump(&path);
     let router = overworld_router(dump.seed as u64);
-    assert!(
-        router.failed_roots().is_empty(),
-        "{:?}",
-        router.failed_roots()
-    );
 
     let v = dump
         .volumes
@@ -284,7 +242,7 @@ fn final_density_matches_the_dense_oracle() {
         .expect("dense dump holds final_density");
     assert_eq!(v.values.len(), 98_304, "16x384x16 dense");
 
-    let ours = fill(&router, router.final_density(), v);
+    let ours = fill(&router, FINAL_DENSITY, v);
     let mut mismatched = 0usize;
     let mut worst = 0.0f32;
     let mut example = None;
@@ -325,8 +283,8 @@ fn the_branch_schedule_skips_a_real_share_of_an_overworld_chunk() {
     let mut ws = Workspace::new();
     ws.take_count();
     router
-        .program()
-        .fill(&mut ws, &volume, router.final_density(), &mut out);
+        .program
+        .fill(&mut ws, &volume, FINAL_DENSITY, &mut out);
 
     let count = ws.take_count();
     let total = count.evaluated + count.skipped;

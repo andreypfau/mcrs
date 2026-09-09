@@ -127,9 +127,73 @@ mod tests {
 
     /// The scale each climate noise is sampled at, which the density functions
     /// carry as `xz_scale` and which Beta folds into its 1.5 noise scale.
-    const TEMPERATURE_SCALE: f64 = 0.025 / 1.5;
-    const VEGETATION_SCALE: f64 = 0.05 / 1.5;
+    ///
+    /// Beta writes the first two as `float` literals and the octave sampler
+    /// takes them as `double`, so the datum is the widened float and not the
+    /// decimal it reads as: `0.025f` is `0.02500000037252903`. Dividing the
+    /// clean decimal instead shifts the sampled coordinate by a part in 6.7e7,
+    /// which is nothing at the origin and a fraction of a lattice cell out at
+    /// the world border.
+    const TEMPERATURE_SCALE: f64 = 0.025f32 as f64 / 1.5;
+    const VEGETATION_SCALE: f64 = 0.05f32 as f64 / 1.5;
+    /// A `double` literal in Beta, so this one is the decimal it reads as.
     const DETAIL_SCALE: f64 = 0.25 / 1.5;
+
+    /// Every `noise` node the named density function holds inline, as
+    /// `(noise id, xz_scale)`.
+    fn inline_noise_scales(name: &str) -> Vec<(String, f64)> {
+        use crate::proto::{DensityFunctionHolder, NoiseHolder, ProtoDensityFunction};
+        use mcrs_minecraft_core::ResourceLocation;
+
+        fn walk(holder: &DensityFunctionHolder, out: &mut Vec<(String, f64)>) {
+            let DensityFunctionHolder::Owned(function) = holder else {
+                return;
+            };
+            if let ProtoDensityFunction::Noise {
+                noise: NoiseHolder::Reference(id),
+                xz_scale,
+                ..
+            } = &**function
+            {
+                out.push((id.as_str().to_owned(), xz_scale.0));
+            }
+            function.visit_children(&mut |child| walk(child, out));
+        }
+
+        let mut out = Vec::new();
+        walk(
+            &crate::corpus::read("density_function", &ResourceLocation::minecraft(name)),
+            &mut out,
+        );
+        out
+    }
+
+    /// The shipped density functions must carry the widened-float scales, not
+    /// the decimals they read as. Both are the same to seven digits, so nothing
+    /// near the origin would notice one being replaced by the other.
+    #[test]
+    fn the_climate_density_functions_sample_at_betas_own_scales() {
+        for (name, noise, expected) in [
+            (
+                "beta/temperature",
+                "mcrs:beta/temperature",
+                TEMPERATURE_SCALE,
+            ),
+            ("beta/vegetation", "mcrs:beta/vegetation", VEGETATION_SCALE),
+            (
+                "beta/climate_detail",
+                "mcrs:beta/climate_detail",
+                DETAIL_SCALE,
+            ),
+        ] {
+            let scales = inline_noise_scales(name);
+            assert_eq!(
+                scales,
+                vec![(noise.to_owned(), expected)],
+                "{name} does not sample {noise} at {expected:?}"
+            );
+        }
+    }
 
     #[derive(serde::Deserialize)]
     struct DrawCountFixture {
@@ -143,7 +207,7 @@ mod tests {
     #[test]
     fn beta_seeding_no_discard_draw_count() {
         let fixture: DrawCountFixture =
-            serde_json::from_str(include_str!("fixtures/beta_draw_counts.json"))
+            serde_json::from_str(include_str!("beta/fixtures/beta_draw_counts.json"))
                 .expect("valid fixture JSON");
         assert_eq!(fixture.seed, 845, "fixture seed mismatch");
 
@@ -161,8 +225,14 @@ mod tests {
     fn beta_seeding_returns_the_five_surviving_noises() {
         let noises = BetaTerrainNoises::new(845);
         assert!(noises.beach.range().max() > 0.0, "beach not constructed");
-        assert!(noises.beach_flat.range().max() > 0.0, "beach_flat not constructed");
-        assert!(noises.surface.range().max() > 0.0, "surface not constructed");
+        assert!(
+            noises.beach_flat.range().max() > 0.0,
+            "beach_flat not constructed"
+        );
+        assert!(
+            noises.surface.range().max() > 0.0,
+            "surface not constructed"
+        );
         assert!(noises.scale.range().max() > 0.0, "scale not constructed");
         assert!(noises.depth.range().max() > 0.0, "depth not constructed");
     }
@@ -221,7 +291,10 @@ mod tests {
             let temp = sample_temperature(&climate, x, z);
             let humidity = sample_humidity(&climate, x, z);
             assert!((0.0..=1.0).contains(&temp), "temperature {temp} at {x},{z}");
-            assert!((0.0..=1.0).contains(&humidity), "humidity {humidity} at {x},{z}");
+            assert!(
+                (0.0..=1.0).contains(&humidity),
+                "humidity {humidity} at {x},{z}"
+            );
         }
     }
 
@@ -235,7 +308,7 @@ mod tests {
     #[test]
     fn beta_climate_postprocess_values_match_fixture() {
         let fixture: ClimateFixture =
-            serde_json::from_str(include_str!("fixtures/beta_climate.json"))
+            serde_json::from_str(include_str!("beta/fixtures/beta_climate.json"))
                 .expect("valid beta_climate.json fixture");
         let climate = BetaClimateNoises::new(fixture.seed);
         let temp = sample_temperature(&climate, 0.0, 0.0);
@@ -251,5 +324,4 @@ mod tests {
             fixture.humidity_at_0_0
         );
     }
-
 }

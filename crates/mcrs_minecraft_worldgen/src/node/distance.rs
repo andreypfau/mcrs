@@ -1,8 +1,7 @@
-use crate::jmath::{jmax, mul_add, sqrt};
+use crate::jmath::{jmax, mul_add};
 use crate::volume::Volume;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DistanceMetric {
     Euclidean,
@@ -22,7 +21,7 @@ impl DistanceMetric {
     #[inline]
     pub fn compute(self, dx: f32, dy: f32, dz: f32) -> f32 {
         match self {
-            Self::Euclidean => sqrt(Self::length_squared(dx, dy, dz)),
+            Self::Euclidean => Self::length_squared(dx, dy, dz).sqrt(),
             Self::EuclideanSquared => Self::length_squared(dx, dy, dz),
             Self::Manhattan => dx.abs() + dy.abs() + dz.abs(),
             Self::Chebyshev => jmax(jmax(dx.abs(), dy.abs()), dz.abs()),
@@ -85,9 +84,13 @@ mod tests {
         let p = DistanceParams::new(3, 4, 4097, DistanceMetric::EuclideanSquared);
         let widened = (3i64 * 3 + 4 * 4 + 4097i64 * 4097) as f64 as f32;
         assert_eq!(widened, 16785434.0);
-        #[cfg(not(feature = "fast_fma"))]
-        assert_eq!(at(&p, 0, 0, 0), 16785432.0, "an f64 accumulation answers {widened}");
-        #[cfg(feature = "fast_fma")]
+        #[cfg(not(feature = "fast"))]
+        assert_eq!(
+            at(&p, 0, 0, 0),
+            16785432.0,
+            "an f64 accumulation answers {widened}"
+        );
+        #[cfg(feature = "fast")]
         assert_eq!(at(&p, 0, 0, 0), widened);
     }
 

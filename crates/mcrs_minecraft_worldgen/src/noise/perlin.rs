@@ -1,4 +1,6 @@
+use crate::interval::Interval;
 use crate::jmath::{lerp, mul_add, mul_add64};
+use crate::noise::Noise;
 use crate::noise::gradient::{GradientNoise, NoiseFloat, wrap};
 use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
@@ -25,21 +27,6 @@ impl PerlinNoise {
         Self(base)
     }
 
-    #[inline(always)]
-    pub fn get(&self, x: f64, y: f64, z: f64) -> f32 {
-        let mut out = [0.0f32; 1];
-        self.0.column::<false>(x, z, &[y], 0.0, &mut out);
-        out[0]
-    }
-
-    /// Samples one x/z column: the lattice hashes and the x/z smoothsteps are computed once,
-    /// and the eight corner gradients only when the y lattice cell changes.
-    #[inline]
-    pub fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
-        debug_assert_eq!(ys.len(), out.len());
-        self.0.column::<false>(x, z, ys, 0.0, out);
-    }
-
     pub fn legacy_fill(
         &self,
         out: &mut [f32],
@@ -50,9 +37,30 @@ impl PerlinNoise {
     ) {
         self.0.legacy_fill(out, offset, size, scale, amplitude);
     }
+}
+
+impl Noise for PerlinNoise {
+    fn range(&self) -> Interval {
+        Interval::symmetric(2.0)
+    }
+
+    #[inline(always)]
+    fn get(&self, x: f64, y: f64, z: f64) -> f32 {
+        let mut out = [0.0f32; 1];
+        self.0.column::<false>(x, z, &[y], 0.0, &mut out);
+        out[0]
+    }
+
+    /// Samples one x/z column: the lattice hashes and the x/z smoothsteps are computed once,
+    /// and the eight corner gradients only when the y lattice cell changes.
+    #[inline]
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+        debug_assert_eq!(ys.len(), out.len());
+        self.0.column::<false>(x, z, ys, 0.0, out);
+    }
 
     /// Accumulates `amplitude * sample` over `volume`, Z outer / X middle / Y inner.
-    pub fn add_to_volume(
+    fn add_to_volume(
         &self,
         out: &mut [f32],
         volume: &Volume,
@@ -82,7 +90,7 @@ impl LegacyPerlin2dNoise {
     /// first would quantise the lattice to whole blocks a few hundred thousand
     /// blocks out.
     #[inline]
-    pub fn get_xz(&self, x: f64, z: f64) -> f32 {
+    pub(crate) fn get_xz(&self, x: f64, z: f64) -> f32 {
         let shifted_x = wrap(x) + self.0.offset_x;
         let shifted_z = wrap(z) + self.0.offset_z;
         let floor_x = shifted_x.floor();
@@ -97,13 +105,31 @@ impl LegacyPerlin2dNoise {
             0.0,
         )
     }
+}
+
+impl Noise for LegacyPerlin2dNoise {
+    fn range(&self) -> Interval {
+        Interval::symmetric(2.0)
+    }
+
+    #[inline(always)]
+    fn get(&self, x: f64, _y: f64, z: f64) -> f32 {
+        self.get_xz(x, z)
+    }
+
+    #[inline]
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+        debug_assert_eq!(ys.len(), out.len());
+        out.fill(self.get_xz(x, z));
+    }
 
     /// One value per column, repeated down it.
-    pub fn add_to_volume(
+    fn add_to_volume(
         &self,
         out: &mut [f32],
         volume: &Volume,
         xz_scale: f64,
+        _y_scale: f64,
         amplitude: f32,
     ) {
         let size = volume.size();
@@ -139,17 +165,29 @@ impl SmearedPerlinNoise {
     pub fn fudge_y_scale(&self) -> f64 {
         self.fudge_y_scale
     }
+}
+
+impl Noise for SmearedPerlinNoise {
+    fn range(&self) -> Interval {
+        Interval::symmetric((self.fudge_y_scale.abs() + 2.0) as f32)
+    }
+
+    #[inline(always)]
+    fn get(&self, x: f64, y: f64, z: f64) -> f32 {
+        let mut out = [0.0f32; 1];
+        self.get_column(x, z, &[y], &mut out);
+        out[0]
+    }
 
     /// `ys` arrive unfolded: the lattice reads them through [`wrap`], while the
     /// smear quantises against the value before it.
     #[inline]
-    pub fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
+    fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
-        self.base
-            .column::<true>(x, z, ys, self.fudge_y_scale, out);
+        self.base.column::<true>(x, z, ys, self.fudge_y_scale, out);
     }
 
-    pub fn add_to_volume(
+    fn add_to_volume(
         &self,
         out: &mut [f32],
         volume: &Volume,
@@ -171,11 +209,7 @@ impl SmearedPerlinNoise {
 /// The y fraction after the smear. `original_y` is the coordinate before
 /// [`wrap`]; at `SMEARED == false` the whole thing folds away.
 #[inline(always)]
-fn fudged_local_y<const SMEARED: bool>(
-    local_y: f64,
-    original_y: f64,
-    fudge_y_scale: f64,
-) -> f64 {
+fn fudged_local_y<const SMEARED: bool>(local_y: f64, original_y: f64, fudge_y_scale: f64) -> f64 {
     if !SMEARED || fudge_y_scale == 0.0 {
         return local_y;
     }
@@ -185,6 +219,77 @@ fn fudged_local_y<const SMEARED: bool>(
         local_y
     };
     local_y - ((t / fudge_y_scale + 1.0E-7f32 as f64).floor() as i32) as f64 * fudge_y_scale
+}
+
+/// One column of the lattice: what x and z alone decide, plus the y cell whose
+/// corner blend is reused until y leaves it. The shifted coordinates are the
+/// caller's to form, because the two callers form them differently.
+struct Lane {
+    p0: usize,
+    p1: usize,
+    section_z: i32,
+    local_x: f32,
+    local_z: f32,
+    fade_x: f32,
+    fade_z: f32,
+    cell: Option<(i32, CellBlend)>,
+}
+
+impl Lane {
+    #[inline(always)]
+    fn new(noise: &GradientNoise, shifted_x: f64, shifted_z: f64) -> Self {
+        let floor_x = shifted_x.floor();
+        let floor_z = shifted_z.floor();
+        let local_x = (shifted_x - floor_x) as f32;
+        let local_z = (shifted_z - floor_z) as f32;
+        let (p0, p1) = noise.x_perms(floor_x as i32);
+        Self {
+            p0,
+            p1,
+            section_z: floor_z as i32,
+            local_x,
+            local_z,
+            fade_x: smoothstep(local_x),
+            fade_z: smoothstep(local_z),
+            cell: None,
+        }
+    }
+
+    #[inline(always)]
+    fn sample<const SMEARED: bool>(
+        &mut self,
+        noise: &GradientNoise,
+        shifted_y: f64,
+        original_y: f64,
+        fudge_y_scale: f64,
+    ) -> f32 {
+        let floor_y = shifted_y.floor();
+        let local_y = shifted_y - floor_y;
+        let fudged = fudged_local_y::<SMEARED>(local_y, original_y, fudge_y_scale);
+        let section_y = floor_y as i32;
+        let blend = match self.cell {
+            Some((cached_y, blend)) if cached_y == section_y => blend,
+            _ => {
+                let blend = cell_blend(
+                    &noise.corner_grads(self.p0, self.p1, section_y, self.section_z),
+                    self.local_x,
+                    self.local_z,
+                    self.fade_x,
+                    self.fade_z,
+                );
+                self.cell = Some((section_y, blend));
+                blend
+            }
+        };
+        blend.sample(
+            self.local_x,
+            fudged as f32,
+            self.local_z,
+            self.fade_x,
+            smoothstep(local_y as f32),
+            self.fade_z,
+        )
+    }
 }
 
 impl GradientNoise {
@@ -221,46 +326,9 @@ impl GradientNoise {
         fudge_y_scale: f64,
         out: &mut [f32],
     ) {
-        let shifted_x = wrap(x) + self.offset_x;
-        let shifted_z = wrap(z) + self.offset_z;
-        let floor_x = shifted_x.floor();
-        let floor_z = shifted_z.floor();
-        let local_x = (shifted_x - floor_x) as f32;
-        let local_z = (shifted_z - floor_z) as f32;
-        let section_z = floor_z as i32;
-        let fade_x = smoothstep(local_x);
-        let fade_z = smoothstep(local_z);
-        let (p0, p1) = self.x_perms(floor_x as i32);
-
-        let mut cell: Option<(i32, CellBlend)> = None;
+        let mut lane = Lane::new(self, wrap(x) + self.offset_x, wrap(z) + self.offset_z);
         for (&y, slot) in ys.iter().zip(out.iter_mut()) {
-            let shifted_y = wrap(y) + self.offset_y;
-            let floor_y = shifted_y.floor();
-            let local_y = shifted_y - floor_y;
-            let fudged = fudged_local_y::<SMEARED>(local_y, y, fudge_y_scale);
-            let section_y = floor_y as i32;
-            let blend = match cell {
-                Some((cached_y, blend)) if cached_y == section_y => blend,
-                _ => {
-                    let blend = cell_blend(
-                        &self.corner_grads(p0, p1, section_y, section_z),
-                        local_x,
-                        local_z,
-                        fade_x,
-                        fade_z,
-                    );
-                    cell = Some((section_y, blend));
-                    blend
-                }
-            };
-            *slot = blend.sample(
-                local_x,
-                fudged as f32,
-                local_z,
-                fade_x,
-                smoothstep(local_y as f32),
-                fade_z,
-            );
+            *slot = lane.sample::<SMEARED>(self, wrap(y) + self.offset_y, y, fudge_y_scale);
         }
     }
 
@@ -281,52 +349,20 @@ impl GradientNoise {
         let mut index = 0usize;
         for iz in 0..size.z {
             let shifted_z = wrap(volume.block_z(iz) as f64 * xz_scale) + self.offset_z;
-            let floor_z = shifted_z.floor();
-            let local_z = (shifted_z - floor_z) as f32;
-            let section_z = floor_z as i32;
-            let fade_z = smoothstep(local_z);
 
             for ix in 0..size.x {
                 let shifted_x = wrap(volume.block_x(ix) as f64 * xz_scale) + self.offset_x;
-                let floor_x = shifted_x.floor();
-                let local_x = (shifted_x - floor_x) as f32;
-                let fade_x = smoothstep(local_x);
-                let (p0, p1) = self.x_perms(floor_x as i32);
-                let mut cell: Option<(i32, CellBlend)> = None;
+                let mut lane = Lane::new(self, shifted_x, shifted_z);
 
                 for iy in 0..size.y {
                     let original_y = volume.block_y(iy) as f64 * y_scale;
-                    let shifted_y = wrap(original_y) + self.offset_y;
-                    let floor_y = shifted_y.floor();
-                    let local_y = shifted_y - floor_y;
-                    let fudged = fudged_local_y::<SMEARED>(local_y, original_y, fudge_y_scale);
-                    let section_y = floor_y as i32;
-                    let blend = match cell {
-                        Some((cached_y, blend)) if cached_y == section_y => blend,
-                        _ => {
-                            let blend = cell_blend(
-                                &self.corner_grads(p0, p1, section_y, section_z),
-                                local_x,
-                                local_z,
-                                fade_x,
-                                fade_z,
-                            );
-                            cell = Some((section_y, blend));
-                            blend
-                        }
-                    };
-                    out[index] = mul_add(
-                        amplitude,
-                        blend.sample(
-                            local_x,
-                            fudged as f32,
-                            local_z,
-                            fade_x,
-                            smoothstep(local_y as f32),
-                            fade_z,
-                        ),
-                        out[index],
+                    let value = lane.sample::<SMEARED>(
+                        self,
+                        wrap(original_y) + self.offset_y,
+                        original_y,
+                        fudge_y_scale,
                     );
+                    out[index] = mul_add(amplitude, value, out[index]);
                     index += 1;
                 }
             }
@@ -455,12 +491,12 @@ fn lerp_corners(
     lerp(fade_z, ll0, ll1)
 }
 
-#[cfg(feature = "fast_cell")]
+#[cfg(feature = "fast")]
 type CellBlend = CellLine;
-#[cfg(not(feature = "fast_cell"))]
+#[cfg(not(feature = "fast"))]
 type CellBlend = CellCorners;
 
-#[cfg(feature = "fast_cell")]
+#[cfg(feature = "fast")]
 #[inline(always)]
 fn cell_blend(
     grads: &[usize; 8],
@@ -472,7 +508,7 @@ fn cell_blend(
     CellLine::new(grads, local_x, local_z, fade_x, fade_z)
 }
 
-#[cfg(not(feature = "fast_cell"))]
+#[cfg(not(feature = "fast"))]
 #[inline(always)]
 fn cell_blend(
     grads: &[usize; 8],
@@ -569,7 +605,8 @@ impl CellLine {
         let upper = self.upper_slope.mul_add(local_y - 1.0, self.upper_at_0);
         lerp(fade_y, lower, upper)
     }
-}#[cfg(test)]
+}
+#[cfg(test)]
 mod collapsed_cell {
     use super::{CellCorners, CellLine, smoothstep};
 
@@ -629,8 +666,10 @@ mod collapsed_cell {
         );
         assert!(max_abs < 1.0e-5, "collapsed blend drifted by {max_abs}");
     }
-}#[cfg(test)]
+}
+#[cfg(test)]
 mod modern {
+    use crate::noise::Noise;
     use crate::noise::gradient::GradientNoise;
     use crate::noise::perlin::{PerlinNoise, SmearedPerlinNoise};
     use mcrs_minecraft_random::legacy::LegacyRandom;

@@ -64,11 +64,12 @@ fn beta_sections_outside_noise_range_are_air() {
         42,
         mcrs_minecraft_protocol::BlockStateId(1).into(),
         mcrs_minecraft_protocol::BlockStateId(86).into(),
+        None,
     )
     .expect("the beta noise router compiles");
 
-    assert_eq!(router.noise_min_y(), 0);
-    assert_eq!(router.noise_height(), 128);
+    assert_eq!(router.noise.min_y, 0);
+    assert_eq!(router.noise.height, 128);
 
     // Request the full overworld section range a 1.19+ client sends (-4..=19)
     let y_sections: Vec<i32> = (-4..=19).collect();

@@ -1,23 +1,13 @@
 use crate::jmath::{floor_div, floor_mod};
 use bevy_math::IVec3;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Axis {
     X,
     Y,
     Z,
-}
-
-impl Axis {
-    /// `DensityFunction.axesFrom`: X = 1, Y = 2, Z = 4.
-    #[inline]
-    pub const fn bit(self) -> u8 {
-        match self {
-            Axis::X => 1,
-            Axis::Y => 2,
-            Axis::Z => 4,
-        }
-    }
 }
 
 /// A strided box of block positions: `size` samples per axis, starting at
@@ -141,33 +131,6 @@ impl Volume {
             )
         })
     }
-
-    /// This volume collapsed to one sample on `axis` at `coordinate`, keeping the
-    /// original step on that axis. Vanilla keeps it, and `Volume` equality is
-    /// what a cache cell keys on, so a differing step would miss every hit.
-    pub fn pin(&self, axis: Axis, coordinate: i32) -> Volume {
-        let mut size = self.size;
-        let mut min = self.min_block;
-        match axis {
-            Axis::X => {
-                size.x = 1;
-                min.x = coordinate;
-            }
-            Axis::Y => {
-                size.y = 1;
-                min.y = coordinate;
-            }
-            Axis::Z => {
-                size.z = 1;
-                min.z = coordinate;
-            }
-        }
-        Volume {
-            size,
-            min_block: min,
-            step_block: self.step_block,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -214,18 +177,5 @@ mod tests {
             IVec3::new(4, 1, 1),
         );
         assert_eq!(v.index_of_block(-4, 0, 0), None);
-    }
-
-    #[test]
-    fn pin_keeps_step() {
-        let v = Volume::new(
-            IVec3::new(4, 8, 4),
-            IVec3::new(0, -64, 0),
-            IVec3::new(1, 2, 1),
-        );
-        let p = v.pin(Axis::Y, 7);
-        assert_eq!(p.size(), IVec3::new(4, 1, 4));
-        assert_eq!(p.min_block(), IVec3::new(0, 7, 0));
-        assert_eq!(p.step_block(), v.step_block());
     }
 }

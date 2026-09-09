@@ -176,6 +176,7 @@ mod tests {
         HeightContext {
             min_y: -64,
             depth: 384,
+            sea_level: 63,
         }
     }
 

@@ -111,7 +111,7 @@ fn generate_chunk(
     snapshot: &RegistrySnapshot<Biome>,
     cancel: &CancellationToken,
 ) -> (f64, Stages) {
-    let world_seed = router.world_seed() as i64;
+    let world_seed = router.world_seed as i64;
     let mut stages = Stages::default();
     let started = Instant::now();
 
@@ -126,7 +126,8 @@ fn generate_chunk(
         None,
         cancel,
     )
-    .expect("the column is not cancelled");
+    .expect("the column is not cancelled")
+    .biomes;
     stages.terrain = t.elapsed().as_secs_f64() * 1000.0;
 
     let t = Instant::now();
@@ -241,7 +242,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
     let seedr = (0i64).wrapping_mul(341873128712);
     let mut rng = LegacyRandom::new(seedr as u64);
     apply_beta_surface(&column, 0, 0, &router, &biome_source, corpus(), &mut rng);
-    let world_seed = router.world_seed() as i64;
+    let world_seed = router.world_seed as i64;
     let cave_ids = BetaCaveBlockIds::resolve(corpus());
     let cave_config = mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig {
         air_state: cave_ids.air.into(),

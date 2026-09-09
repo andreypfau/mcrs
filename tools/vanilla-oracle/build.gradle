@@ -22,3 +22,27 @@ tasks.register('dumpOracle', JavaExec) {
 	jvmArgs '-Xmx2G'
 	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
 }
+
+tasks.register('dumpSurface', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.SurfaceOracle'
+	jvmArgs '-Xmx2G', '-DMC_DEBUG_ENABLED', '-DMC_DEBUG_DISABLE_CARVERS'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('findBiomes', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.SurfaceOracle'
+	jvmArgs '-Xmx2G', '-DMC_DEBUG_ENABLED', '-DMC_DEBUG_DISABLE_CARVERS'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString(), 'search']
+}
+
+tasks.register('findIcebergs', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.SurfaceOracle'
+	jvmArgs '-Xmx2G', '-DMC_DEBUG_ENABLED', '-DMC_DEBUG_DISABLE_CARVERS'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString(), 'ice']
+}

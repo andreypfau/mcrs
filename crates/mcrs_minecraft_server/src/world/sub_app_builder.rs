@@ -10,7 +10,7 @@ use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use std::collections::VecDeque;
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
 use crate::world::bus::{
     InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn, InboundPlayerSpawn,
@@ -61,6 +61,7 @@ use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
 use crate::world::format::anvil::SavedColumns;
+use crate::world::generate::DimensionRouters;
 use crate::world::heightmap::{DimHeightmapPlugin, HeightmapPredicates};
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
@@ -73,7 +74,6 @@ use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
-use mcrs_minecraft_worldgen::bevy::WorldGenConfig;
 use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_voxel_world::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -88,10 +88,10 @@ pub struct DimRegistryBundle {
     pub block_tag_registry: DynTagRegistry<Block>,
     pub heightmap_predicates: Option<HeightmapPredicates>,
     pub biome_registry: RegistrySnapshot<Biome>,
-    pub active_biome_source: Option<ActiveBiomeSource>,
-    pub modern_carver_biomes: Option<crate::world::generate::modern_carvers::ModernCarverBiomes>,
+    pub biome_sources: crate::world::generate::routers::DimensionBiomeSources,
+    pub modern_carver_biomes: crate::world::generate::modern_carvers::DimensionCarverBiomes,
     pub world_save: Option<WorldSave>,
-    pub world_gen_config: WorldGenConfig,
+    pub noise_routers: DimensionRouters,
 }
 
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
@@ -105,15 +105,19 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
-        active_biome_source: world.get_resource::<ActiveBiomeSource>().cloned(),
-        modern_carver_biomes: world
-            .get_resource::<crate::world::generate::modern_carvers::ModernCarverBiomes>()
-            .cloned(),
-        world_save: world.get_resource::<WorldSave>().cloned(),
-        world_gen_config: world
-            .get_resource::<WorldGenConfig>()
+        biome_sources: world
+            .get_resource::<crate::world::generate::routers::DimensionBiomeSources>()
             .cloned()
-            .unwrap_or_else(WorldGenConfig::from_env),
+            .unwrap_or_default(),
+        modern_carver_biomes: world
+            .get_resource::<crate::world::generate::modern_carvers::DimensionCarverBiomes>()
+            .cloned()
+            .unwrap_or_default(),
+        world_save: world.get_resource::<WorldSave>().cloned(),
+        noise_routers: world
+            .get_resource::<DimensionRouters>()
+            .cloned()
+            .unwrap_or_default(),
     }
 }
 
@@ -278,7 +282,7 @@ pub fn spawn_dim_subapp(
             crate::world::chunk::enqueue_pending_columns,
             crate::world::chunk::dispatch_column_generation.run_if(
                 bevy_ecs::prelude::resource_exists::<
-                    mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter,
+                    mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter,
                 >,
             ),
             // A finished epoch frees its slot and unblocks its area only when it is
@@ -319,12 +323,34 @@ pub fn spawn_dim_subapp(
         file_path: asset_root,
         ..AssetPlugin::default()
     });
-    // The worldgen `ChunkPlugin` (NoiseGeneratorSettings, ColumnScheduler, the
-    // CHUNK_TASK_POOL, and the five FixedPreUpdate worldgen systems) is the
-    // per-dim entry-point that turns DimSpawnRequest into populated columns.
-    // It is distinct from the engine-level `storage::chunk::ChunkPlugin` that
-    // DimensionPlugin adds (which only contributes TicketPlugin).
-    sub_app.insert_resource(registries.world_gen_config.clone());
+    // The worldgen `ChunkPlugin` (ColumnScheduler, the CHUNK_TASK_POOL, and the
+    // five FixedPreUpdate worldgen systems) is the per-dim entry-point that
+    // turns DimSpawnRequest into populated columns. It is distinct from the
+    // engine-level `storage::chunk::ChunkPlugin` that DimensionPlugin adds
+    // (which only contributes TicketPlugin).
+    //
+    // The router is compiled host-side and arrives here as a read-only
+    // snapshot; a dimension the preset drives with no noise generator simply
+    // gets none, and `dispatch_column_generation` never runs for it.
+    let dimension = match mcrs_minecraft_core::ResourceLocation::parse(&request.dimension_id.0) {
+        Ok(dimension) => Some(dimension),
+        Err(error) => {
+            error!(%error, "the dimension id is not a resource location; it will generate nothing");
+            None
+        }
+    };
+    if let Some(dimension) = &dimension {
+        match registries.noise_routers.0.get(dimension) {
+            Some(router) => {
+                sub_app.insert_resource(mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter(
+                    std::sync::Arc::clone(router),
+                ));
+            }
+            None => {
+                warn!(%dimension, "no noise router for this dimension; it will generate nothing")
+            }
+        }
+    }
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
     // Per-dim composition of the simulation plugins. Each plugin's
     // schedule placements (`MinecraftBlockPlugin`, `ExplosionPlugin`,
@@ -377,11 +403,15 @@ pub fn spawn_dim_subapp(
         sub_app.insert_resource(predicates.clone());
     }
     sub_app.insert_resource(registries.biome_registry.clone());
-    if let Some(carver_biomes) = &registries.modern_carver_biomes {
-        sub_app.insert_resource(carver_biomes.clone());
-    }
-    if let Some(active_biome_source) = &registries.active_biome_source {
-        sub_app.insert_resource(active_biome_source.clone());
+    if let Some(dimension) = &dimension {
+        if let Some(source) = registries.biome_sources.0.get(dimension) {
+            sub_app.insert_resource(ActiveBiomeSource(std::sync::Arc::clone(source)));
+        }
+        if let Some(table) = registries.modern_carver_biomes.0.get(dimension) {
+            sub_app.insert_resource(crate::world::generate::modern_carvers::ModernCarverBiomes(
+                std::sync::Arc::clone(table),
+            ));
+        }
     }
     if let Some(world_save) = &registries.world_save
         && let Some(saved) = SavedColumns::open(&world_save.0, request.dimension_id.as_str())

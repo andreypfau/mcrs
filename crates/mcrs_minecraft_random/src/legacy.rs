@@ -1,6 +1,5 @@
 use crate::{Random, block_pos_seed};
 use bevy_math::IVec3;
-use md5::{Digest, Md5};
 use rand_xoshiro::rand_core::{Rng, TryRng};
 use std::convert::Infallible;
 
@@ -126,21 +125,24 @@ impl Random for LegacyRandom {
     }
 
     fn fork(&mut self) -> Self {
-        LegacyRandom::new(self.next_u64())
+        LegacyRandom::new(self.next_java_long() as u64)
     }
 
     fn fork_at<T>(&mut self, pos: T) -> Self
     where
         T: Into<IVec3>,
     {
-        LegacyRandom::new(self.next_u64() ^ block_pos_seed(pos))
+        LegacyRandom::new(self.next_java_long() as u64 ^ block_pos_seed(pos))
     }
 
+    /// The legacy factory hashes with `String.hashCode`, not MD5 — MD5 is the Xoroshiro path.
+    /// The fold is over bytes, which equals Java's UTF-16 fold for the ASCII names we pass.
     fn fork_hash(&mut self, seed: impl AsRef<[u8]>) -> Self {
-        let mut hasher = Md5::new();
-        hasher.update(seed);
-        let hash = hasher.finalize();
-        LegacyRandom::new(self.next_u64() ^ u64::from_le_bytes(hash[0..8].try_into().unwrap()))
+        let hash = seed
+            .as_ref()
+            .iter()
+            .fold(0i32, |h, &c| h.wrapping_mul(31).wrapping_add(c as i32));
+        LegacyRandom::new(self.next_java_long() as u64 ^ hash as i64 as u64)
     }
 }
 

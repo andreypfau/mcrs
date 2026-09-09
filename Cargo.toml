@@ -66,6 +66,7 @@ num-traits = "0.2.19"
 tokio = {  version = "1.48.0", features = ["full"] }
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 md-5 = "0.11.0-rc.3"
+sha2 = "0.11.0"
 rand_xoshiro = "0.8.0-rc.0"
 flume = { version = "0.12.0", default-features = false }
 rayon = "1"
@@ -101,6 +102,12 @@ tokio = { version = "1", features = ["full"] }
 mcrs_minecraft_server.workspace = true
 mcrs_minecraft_network.workspace = true
 mcrs_telemetry.workspace = true
+
+[dev-dependencies]
+bevy_state.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_world.workspace = true
+mcrs_minecraft_worldgen.workspace = true
 
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]

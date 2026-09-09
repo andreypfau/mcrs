@@ -11,7 +11,7 @@ use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::generate_column;
 
-fn make_beta_biome() -> Biome {
+pub(super) fn make_beta_biome() -> Biome {
     Biome {
         temperature: 0.5,
         downfall: 0.5,
@@ -42,7 +42,7 @@ fn make_beta_biome() -> Biome {
 #[test]
 fn generate_column_beta_biome_not_default() {
     let router = build_beta_router();
-    let sea_level = router.sea_level();
+    let sea_level = router.sea_level;
     assert_eq!(sea_level, 64);
 
     // Build 16 unique biome assets — 11 land + 5 ocean.

@@ -1,6 +1,6 @@
 use crate::kernel::{Runs, at, each_column};
-use crate::noise::stack::{NoiseStack, Octave};
 use crate::noise::stack::ColumnScratch;
+use crate::noise::stack::{NoiseStack, Octave};
 use crate::volume::Volume;
 use bevy_math::IVec3;
 use std::cell::RefCell;
@@ -129,10 +129,11 @@ mod tests {
     use mcrs_minecraft_random::RandomSource;
 
     fn sampler(seed: u64, first_octave: i32, amplitudes: &[f64]) -> Arc<NoiseStack<Octave>> {
-        Arc::new(
-            crate::noise::normal::NormalNoise::create_parity(first_octave, amplitudes)
-                .create(&mut RandomSource::new(seed, false)),
-        )
+        Arc::new(crate::noise::normal::create_parity(
+            first_octave,
+            amplitudes,
+            &mut RandomSource::new(seed, false),
+        ))
     }
 
     fn noise(seed: u64) -> Arc<NoiseStack<Octave>> {
@@ -147,7 +148,13 @@ mod tests {
         )
     }
 
-    fn shifted(p: &NoiseFunctionParams, ext: &Volume, xs: &[f32], ys: &[f32], zs: &[f32]) -> Vec<f32> {
+    fn shifted(
+        p: &NoiseFunctionParams,
+        ext: &Volume,
+        xs: &[f32],
+        ys: &[f32],
+        zs: &[f32],
+    ) -> Vec<f32> {
         let axes = |run: &[f32]| if run.len() == 1 { NO_AXES } else { AXIS_Y };
         let mut out = vec![0.0f32; ext.len()];
         p.eval_shifted(
@@ -266,7 +273,7 @@ mod tests {
     /// The fast profile is allowed to reassociate, so the two orders are no
     /// longer required to differ there and the ulp this counts falls below its
     /// rounding.
-    #[cfg(not(any(feature = "fast_fma", feature = "fast_cell")))]
+    #[cfg(not(feature = "fast"))]
     #[test]
     fn eval_plain_folds_the_scale_into_the_frequency() {
         // `block * (xz_scale * frequency)` and `(block * xz_scale) * frequency` differ

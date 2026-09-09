@@ -6,9 +6,12 @@ mod branch;
 pub mod carver;
 pub mod cell;
 pub mod compile;
+#[cfg(any(test, feature = "corpus"))]
+pub mod corpus;
 pub mod interval;
-pub mod jmath;
-pub mod kernel;
+pub(crate) mod jmath;
+pub(crate) mod kernel;
+pub mod material;
 pub mod node;
 pub mod noise;
 pub mod program;

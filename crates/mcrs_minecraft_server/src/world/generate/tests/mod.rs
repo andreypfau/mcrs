@@ -7,6 +7,8 @@ mod cell_census;
 mod cell_fill;
 mod modern_carvers;
 mod multi_noise_biomes;
+mod surface;
+mod surface_parity;
 
 mod support;
 pub use support::*;
