@@ -84,3 +84,7 @@ harness = false
 [[bench]]
 name = "overworld_pipeline"
 harness = false
+
+[[bench]]
+name = "biome_matrix"
+harness = false
