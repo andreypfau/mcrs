@@ -16,6 +16,7 @@ use mcrs_minecraft_world::biome::overworld_preset::{
 };
 use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
+use mcrs_minecraft_worldgen::aquifer::{FluidField, point_barrier};
 use mcrs_minecraft_worldgen::carver::CarverConfig;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::{
@@ -283,11 +284,8 @@ impl CarverBiomeTable {
     }
 }
 
-/// What the substance pass writes, and what it must leave alone.
+/// What the substance pass must leave alone.
 pub struct ModernCarverBlockIds {
-    pub air: VoxelId,
-    pub fluid: VoxelId,
-    pub sea_level: i32,
     /// Every state of every block in the `uncarvable` tag.
     uncarvable: Box<[VoxelId]>,
 }
@@ -295,7 +293,6 @@ pub struct ModernCarverBlockIds {
 impl ModernCarverBlockIds {
     pub fn resolve(
         blocks: &BlockDefinitions,
-        router: &NoiseRouter,
         block_tags: Option<&DynTagRegistry<VanillaBlock>>,
     ) -> Self {
         let key: TagKey<VanillaBlock, Arc<str>> =
@@ -310,25 +307,12 @@ impl ModernCarverBlockIds {
                     .map(move |offset| VoxelId::from(entry.base_state_id.0 + offset))
             })
             .collect();
-        ModernCarverBlockIds {
-            air: blocks.default_state("minecraft:air").into(),
-            fluid: router.default_fluid_state,
-            sea_level: router.sea_level,
-            uncarvable,
-        }
+        ModernCarverBlockIds { uncarvable }
     }
 
     #[cfg(test)]
-    pub fn for_test(
-        air: VoxelId,
-        fluid: VoxelId,
-        sea_level: i32,
-        uncarvable: Vec<VoxelId>,
-    ) -> Self {
+    pub fn for_test(uncarvable: Vec<VoxelId>) -> Self {
         ModernCarverBlockIds {
-            air,
-            fluid,
-            sea_level,
             uncarvable: uncarvable.into_boxed_slice(),
         }
     }
@@ -355,6 +339,7 @@ pub fn apply_modern_carvers(
     biomes: &CarverBiomeTable,
     height: HeightContext,
     ids: &ModernCarverBlockIds,
+    fluid: &mut FluidField<'_>,
 ) {
     let mut mask = CarvingMask::new(
         16,
@@ -390,17 +375,27 @@ pub fn apply_modern_carvers(
         }
     }
 
-    apply_carver_substance(column, &mask, ids);
+    apply_carver_substance(column, chunk_x, chunk_z, router, ws, &mask, ids, fluid);
 }
 
-/// Fill the freed space, with the same rule the terrain fill uses: the
-/// dimension's fluid below its sea level, air above it.
-///
-/// This is `Aquifer.createDisabled` over a global fluid picker. Neither this
-/// pass nor the terrain fill implements the noise aquifer or the overworld's
-/// separate lava level, and they agree because they use the one rule.
-fn apply_carver_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &ModernCarverBlockIds) {
+/// Fill the freed space by asking the fluid field with zero density: the same
+/// field the terrain fill used, so a positive barrier alone keeps a carved
+/// tunnel through a lake shore walled, and a block it calls solid is left as
+/// it was.
+#[allow(clippy::too_many_arguments)]
+fn apply_carver_substance(
+    column: &ColumnBlocks,
+    chunk_x: i32,
+    chunk_z: i32,
+    router: &NoiseRouter,
+    ws: &mut Workspace,
+    mask: &CarvingMask,
+    ids: &ModernCarverBlockIds,
+    fluid: &mut FluidField<'_>,
+) {
+    let mut barrier_at = point_barrier(router, ws);
     mask.visit(|x, z, bottom_y, top_y| {
+        let (world_x, world_z) = (chunk_x * 16 + x, chunk_z * 16 + z);
         for y in (bottom_y..=top_y).rev() {
             let Some(state) = column.get(x, y, z) else {
                 continue;
@@ -408,10 +403,9 @@ fn apply_carver_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &Moder
             if ids.is_uncarvable(state) {
                 continue;
             }
-            let substance = if y < ids.sea_level {
-                ids.fluid
-            } else {
-                ids.air
+            let Some(substance) = fluid.substance_settled(world_x, y, world_z, 0.0, &mut barrier_at)
+            else {
+                continue;
             };
             column.set(x, y, z, substance);
         }

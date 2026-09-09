@@ -37,7 +37,16 @@ use std::path::{Path, PathBuf};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::compile::build_router;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
-use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
+
+pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
+    RouterBlocks {
+        default_block: blocks.default_state("minecraft:stone").into(),
+        default_fluid: blocks.default_state("minecraft:water").into(),
+        water: blocks.default_state("minecraft:water").into(),
+        lava: blocks.default_state("minecraft:lava").into(),
+    }
+}
 
 pub fn assets_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/minecraft/worldgen")
@@ -93,8 +102,7 @@ pub fn build_settings_router(settings_name: &str, seed: u64) -> NoiseRouter {
         &density_function_registry(),
         &noise_registry(),
         seed,
-        corpus().default_state("minecraft:stone").into(),
-        corpus().default_state("minecraft:water").into(),
+        router_blocks(corpus()),
         None,
     )
     .unwrap_or_else(|e| panic!("{settings_name}: {e}"))
@@ -150,8 +158,7 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
             &functions,
             &noises,
             42,
-            corpus().default_state("minecraft:stone").into(),
-            corpus().default_state("minecraft:water").into(),
+            router_blocks(corpus()),
             Some(&inputs),
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"));

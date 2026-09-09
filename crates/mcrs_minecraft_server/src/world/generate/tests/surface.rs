@@ -19,7 +19,9 @@ use crate::world::generate::{
     multi_noise_palettes, spans_dimension,
 };
 
-use super::{assets_root, corpus, density_function_registry, load_json_dir, noise_registry};
+use super::{
+    assets_root, corpus, density_function_registry, load_json_dir, noise_registry, router_blocks,
+};
 
 const AIR: VoxelId = VoxelId(0);
 const STONE: VoxelId = VoxelId(1);
@@ -28,7 +30,7 @@ const WATER: VoxelId = VoxelId(2);
 /// Every visit the descent made, as `(y, depth_above, depth_below, water)`.
 fn walk(column: &ColumnBlocks, height: i32, min_y: i32) -> Vec<(i32, i32, i32, i32)> {
     let mut seen = Vec::new();
-    descend_strip(column, 0, 0, height, min_y, WATER, |step| {
+    descend_strip(column, 0, 0, height, min_y, [WATER, VoxelId(3)], |step| {
         if let Visit::Block {
             y,
             depth_above,
@@ -159,8 +161,7 @@ pub(super) fn overworld_material_router(seed: u64, ids: &HashMap<String, u32>) -
         &density_function_registry(),
         &noise_registry(),
         seed,
-        corpus().default_state("minecraft:stone").into(),
-        corpus().default_state("minecraft:water").into(),
+        router_blocks(corpus()),
         Some(&inputs),
     )
     .expect("the overworld material rule compiles")

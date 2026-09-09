@@ -5,7 +5,7 @@ use mcrs_minecraft_worldgen::corpus;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
 use mcrs_minecraft_worldgen::router::{
-    FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES,
+    FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES, RouterBlocks,
 };
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
@@ -123,8 +123,12 @@ fn overworld_router(seed: u64) -> NoiseRouter {
         &registry,
         &noises,
         seed,
-        VoxelId(1),
-        VoxelId(2),
+        RouterBlocks {
+            default_block: VoxelId(1),
+            default_fluid: VoxelId(2),
+            water: VoxelId(2),
+            lava: VoxelId(3),
+        },
         None,
     )
     .expect("overworld router")

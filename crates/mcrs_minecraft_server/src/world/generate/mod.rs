@@ -12,6 +12,7 @@ use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
+use mcrs_minecraft_worldgen::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen::cell::{CELL_BOUNDS_SLACK, sampled_range};
 use mcrs_minecraft_worldgen::interval::Interval;
 use mcrs_minecraft_worldgen::program::Workspace;
@@ -96,10 +97,8 @@ fn plane_key(node_x: i32, node_z: i32) -> i64 {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum CellFill {
     Solid,
-    Fluid,
-    Air,
-    /// Empty, but crossing sea level: fluid below it, air above.
-    Sea,
+    /// Empty under one fluid status: its fluid below its level, air above.
+    Uniform(FluidStatus),
     Mixed,
 }
 
@@ -225,7 +224,7 @@ impl CellLattice {
         &self,
         noise_router: &NoiseRouter,
         at: IVec3,
-        sea_level: i32,
+        fluid: &mut FluidField<'_>,
         fill: &mut FillBuffers,
     ) -> CellFill {
         self.corner_bounds(at, &mut fill.corners);
@@ -242,7 +241,7 @@ impl CellLattice {
         ) else {
             return CellFill::Mixed;
         };
-        match self.verdict(bounds, at, sea_level) {
+        match self.verdict(bounds, at, fluid) {
             CellFill::Mixed => {}
             settled => return settled,
         }
@@ -260,22 +259,25 @@ impl CellLattice {
         ) else {
             return CellFill::Mixed;
         };
-        self.verdict(bounds, at, sea_level)
+        self.verdict(bounds, at, fluid)
     }
 
-    fn verdict(&self, bounds: Interval, at: IVec3, sea_level: i32) -> CellFill {
+    /// A void cell is settled only where the fluid field is settled over it:
+    /// the barrier adds to the block's density, not to the cell's bound.
+    fn verdict(&self, bounds: Interval, at: IVec3, fluid: &mut FluidField<'_>) -> CellFill {
         if bounds.min() > CELL_BOUNDS_SLACK {
             return CellFill::Solid;
         }
         if bounds.max() < -CELL_BOUNDS_SLACK {
-            let min_y = self.volume.block_y(at.y);
-            if min_y + self.cell.y <= sea_level {
-                return CellFill::Fluid;
-            }
-            if min_y >= sea_level {
-                return CellFill::Air;
-            }
-            return CellFill::Sea;
+            let min = IVec3::new(
+                self.volume.block_x(at.x),
+                self.volume.block_y(at.y),
+                self.volume.block_z(at.z),
+            );
+            return match fluid.settle(min, min + self.cell - 1) {
+                Some(status) => CellFill::Uniform(status),
+                None => CellFill::Mixed,
+            };
         }
         CellFill::Mixed
     }
@@ -297,7 +299,7 @@ impl CellLattice {
 pub const NO_TOP: i32 = i32::MIN;
 
 /// What one dense fill of a column leaves behind besides the blocks themselves.
-pub struct FilledColumn {
+pub struct FilledColumn<'a> {
     pub biomes: Vec<BiomePalette>,
     /// Highest non-air block per strip, indexed `z * 16 + x`, `NO_TOP` where
     /// the strip holds none.
@@ -305,6 +307,9 @@ pub struct FilledColumn {
     /// `None` outside the multi-noise path, which is the only one that needs
     /// the zoom.
     pub biome_grid: Option<BiomeGrid>,
+    /// The fluid field over the column, for the stages after the fill that
+    /// still ask it.
+    pub fluid: FluidField<'a>,
 }
 
 /// Buffers every fill in a chunk column reuses.
@@ -312,6 +317,7 @@ pub struct FilledColumn {
 struct FillBuffers {
     ws: Workspace,
     density: Vec<f32>,
+    barrier: Vec<f32>,
     corners: Vec<Interval>,
     cell_terms: Vec<Interval>,
 }
@@ -330,11 +336,10 @@ fn fill_column(
     block_z: i32,
     noise_router: &NoiseRouter,
     tops: &mut [i32; 256],
+    fluid: &mut FluidField<'_>,
     cancel: &CancellationToken,
 ) -> bool {
-    let sea_level = noise_router.sea_level;
     let default_block = noise_router.default_block_state;
-    let default_fluid = noise_router.default_fluid_state;
     let mut fill = FillBuffers::default();
 
     let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.ws) else {
@@ -344,6 +349,7 @@ fn fill_column(
             block_z,
             noise_router,
             tops,
+            fluid,
             &mut fill,
             cancel,
         );
@@ -368,25 +374,23 @@ fn fill_column(
                     continue;
                 };
                 let base = IVec3::new(cell_x * cell.x, world.y.rem_euclid(16), cell_z * cell.z);
-                match lattice.classify(noise_router, at, sea_level, &mut fill) {
+                match lattice.classify(noise_router, at, fluid, &mut fill) {
                     CellFill::Solid => {
                         fill_cell_box(column, index, base, cell, default_block);
                         record_tops(tops, base, cell, world.y + cell.y - 1);
                     }
-                    CellFill::Fluid => {
-                        fill_cell_box(column, index, base, cell, default_fluid);
-                        record_tops(tops, base, cell, world.y + cell.y - 1);
-                    }
-                    CellFill::Air => {}
-                    CellFill::Sea => {
-                        fill_cell_box(
-                            column,
-                            index,
-                            base,
-                            IVec3::new(cell.x, sea_level - world.y, cell.z),
-                            default_fluid,
-                        );
-                        record_tops(tops, base, cell, sea_level - 1);
+                    CellFill::Uniform(status) => {
+                        let height = (status.level - world.y).clamp(0, cell.y);
+                        if height > 0 {
+                            fill_cell_box(
+                                column,
+                                index,
+                                base,
+                                IVec3::new(cell.x, height, cell.z),
+                                status.fluid,
+                            );
+                            record_tops(tops, base, cell, world.y + height - 1);
+                        }
                     }
                     CellFill::Mixed => fill_blocks(
                         column,
@@ -395,6 +399,7 @@ fn fill_column(
                         base,
                         noise_router,
                         tops,
+                        fluid,
                         &mut fill,
                     ),
                 }
@@ -405,12 +410,14 @@ fn fill_column(
 }
 
 /// The block-by-block fallback for a router whose cells do not tile a section.
+#[allow(clippy::too_many_arguments)]
 fn fill_column_dense(
     column: &ColumnBlocks,
     block_x: i32,
     block_z: i32,
     noise_router: &NoiseRouter,
     tops: &mut [i32; 256],
+    fluid: &mut FluidField<'_>,
     fill: &mut FillBuffers,
     cancel: &CancellationToken,
 ) -> bool {
@@ -435,6 +442,7 @@ fn fill_column_dense(
             IVec3::ZERO,
             noise_router,
             tops,
+            fluid,
             fill,
         );
     }
@@ -466,6 +474,7 @@ fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, 
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn fill_blocks(
     column: &ColumnBlocks,
     index: usize,
@@ -473,34 +482,62 @@ fn fill_blocks(
     origin: IVec3,
     noise_router: &NoiseRouter,
     tops: &mut [i32; 256],
+    fluid: &mut FluidField<'_>,
     fill: &mut FillBuffers,
 ) {
-    let sea_level = noise_router.sea_level;
     let default_block = noise_router.default_block_state;
-    let default_fluid = noise_router.default_fluid_state;
-    fill.density.clear();
-    fill.density.resize(volume.len(), 0.0);
+    let FillBuffers {
+        ws,
+        density,
+        barrier,
+        ..
+    } = fill;
+    density.clear();
+    density.resize(volume.len(), 0.0);
     noise_router
         .program
-        .fill(&mut fill.ws, volume, FINAL_DENSITY, &mut fill.density);
+        .fill(ws, volume, FINAL_DENSITY, density);
+    // The barrier noise over the whole box, sampled on the first block whose
+    // pressure asks for it; the shell asks in runs, one point at a time would
+    // pay the fill's setup per block.
+    barrier.clear();
+    let barrier_root = noise_router.aquifer.as_ref().map(|aquifer| aquifer.barrier);
+    let mut barrier_at = |bx: i32, by: i32, bz: i32| {
+        if barrier.is_empty() {
+            barrier.resize(volume.len(), 0.0);
+            let root = barrier_root.expect("only a field with a barrier asks for it");
+            noise_router.program.fill(ws, volume, root, barrier);
+        }
+        let at = volume
+            .index_of_block(bx, by, bz)
+            .expect("the barrier is read inside the box being filled");
+        f64::from(barrier[at])
+    };
     for z in 0..volume.size().z {
         for x in 0..volume.size().x {
             for y in (0..volume.size().y).rev() {
-                let value = fill.density[volume.index_unchecked(x, y, z)];
+                let value = density[volume.index_unchecked(x, y, z)];
                 let (px, py, pz) = (origin.x + x, origin.y + y, origin.z + z);
-                let world_y = volume.block_y(y);
+                let world = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
                 let placed = if value > 0.0 {
-                    column.set_in_section(index, px, py, pz, default_block);
-                    true
-                } else if world_y < sea_level {
-                    column.set_in_section(index, px, py, pz, default_fluid);
-                    true
+                    Some(default_block)
                 } else {
-                    false
+                    match fluid.substance_settled(
+                        world.x,
+                        world.y,
+                        world.z,
+                        f64::from(value),
+                        &mut barrier_at,
+                    ) {
+                        None => Some(default_block),
+                        Some(VoxelId(0)) => None,
+                        state => state,
+                    }
                 };
-                if placed {
+                if let Some(state) = placed {
+                    column.set_in_section(index, px, py, pz, state);
                     let slot = &mut tops[(pz * 16 + px) as usize];
-                    *slot = (*slot).max(world_y);
+                    *slot = (*slot).max(world.y);
                 }
             }
         }
@@ -775,16 +812,16 @@ pub fn generate_column(
 /// Beta is data here like any other preset: `beta.json` describes its terrain as
 /// density functions, so it runs the same graph, the same cell fill and the same
 /// packing as the overworld. `None` means the column was cancelled.
-pub fn fill_column_dense_any(
+pub fn fill_column_dense_any<'a>(
     column: &mut ColumnBlocks,
     section_x: i32,
     section_z: i32,
     y_sections: &[i32],
-    noise_router: &NoiseRouter,
+    noise_router: &'a NoiseRouter,
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
     multi_noise: Option<&MultiNoiseBiomeTable>,
     cancel: &CancellationToken,
-) -> Option<FilledColumn> {
+) -> Option<FilledColumn<'a>> {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
     let (biomes, biome_grid) = column_biome_palettes(
@@ -798,14 +835,42 @@ pub fn fill_column_dense_any(
     column.reset(y_sections);
 
     let mut tops = [NO_TOP; 256];
-    if !fill_column(column, block_x, block_z, noise_router, &mut tops, cancel) {
+    let mut fluid = column_fluid_field(noise_router, block_x, block_z);
+    if !fill_column(
+        column,
+        block_x,
+        block_z,
+        noise_router,
+        &mut tops,
+        &mut fluid,
+        cancel,
+    ) {
         return None;
     }
     Some(FilledColumn {
         biomes,
         tops,
         biome_grid,
+        fluid,
     })
+}
+
+/// The fluid field over one chunk column of the dimension's whole height.
+pub fn column_fluid_field(
+    noise_router: &NoiseRouter,
+    block_x: i32,
+    block_z: i32,
+) -> FluidField<'_> {
+    let min_y = noise_router.noise.min_y;
+    FluidField::new(
+        noise_router,
+        IVec3::new(block_x, min_y, block_z),
+        IVec3::new(
+            block_x + 15,
+            min_y + noise_router.noise.height as i32 - 1,
+            block_z + 15,
+        ),
+    )
 }
 
 /// Apply the Beta surface pass to a generated chunk column.

@@ -1,3 +1,4 @@
+use crate::aquifer::{AquiferConfig, GlobalFluid};
 use crate::beta::BetaTerrainNoises;
 use crate::cell::CellBounds;
 use crate::interval::Interval;
@@ -112,6 +113,15 @@ pub struct NoiseGeneratorSettings {
     pub debug_functions: Vec<DebugFunction>,
 }
 
+/// The block states a router places that no density function names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RouterBlocks {
+    pub default_block: VoxelId,
+    pub default_fluid: VoxelId,
+    pub water: VoxelId,
+    pub lava: VoxelId,
+}
+
 /// A compiled density graph plus the eight root indices the generator reads.
 pub struct NoiseRouter {
     pub program: Program,
@@ -120,6 +130,11 @@ pub struct NoiseRouter {
     pub world_seed: u64,
     pub default_block_state: VoxelId,
     pub default_fluid_state: VoxelId,
+    pub water_state: VoxelId,
+    pub lava_state: VoxelId,
+    pub global_fluid: GlobalFluid,
+    /// `None` where the settings have no `aquifers`: the global rule alone.
+    pub aquifer: Option<AquiferConfig>,
     material: Option<MaterialProgram>,
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
@@ -133,8 +148,8 @@ impl NoiseRouter {
         material: Option<MaterialProgram>,
         settings: &NoiseGeneratorSettings,
         world_seed: u64,
-        default_block_state: VoxelId,
-        default_fluid_state: VoxelId,
+        blocks: RouterBlocks,
+        aquifer: Option<AquiferConfig>,
     ) -> Self {
         let cell_bounds = CellBounds::new(&program, program.root_node(FINAL_DENSITY));
         let vein_bounds = material
@@ -148,8 +163,12 @@ impl NoiseRouter {
             sea_level: settings.sea_level,
             noise: settings.noise,
             world_seed,
-            default_block_state,
-            default_fluid_state,
+            default_block_state: blocks.default_block,
+            default_fluid_state: blocks.default_fluid,
+            water_state: blocks.water,
+            lava_state: blocks.lava,
+            global_fluid: GlobalFluid::new(settings.sea_level, blocks.default_fluid, blocks.lava),
+            aquifer,
             beta: settings
                 .legacy_random_source
                 .then(|| Box::new(BetaTerrainNoises::new(world_seed))),

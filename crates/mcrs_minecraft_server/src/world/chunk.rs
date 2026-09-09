@@ -827,7 +827,6 @@ pub(crate) fn dispatch_column_generation(
         let ids = cached_carver_blocks.get_or_insert_with(|| {
             Arc::new(ModernCarverBlockIds::resolve(
                 &blocks.0,
-                &noise_router.0,
                 block_tags.as_deref(),
             ))
         });
@@ -1122,6 +1121,7 @@ pub(crate) fn dispatch_column_generation(
                             sea_level: router.sea_level,
                         },
                         carver_blocks,
+                        &mut filled.fluid,
                     );
                 }
 

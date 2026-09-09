@@ -1,17 +1,18 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_worldgen::aquifer::point_barrier;
 use mcrs_minecraft_worldgen::carver::CarverConfig;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
 use mcrs_voxel_storage::VoxelId;
 
 use super::{assets_root, build_settings_router, corpus};
-use crate::world::generate::ColumnBlocks;
 use crate::world::generate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers, climate_target_at,
     large_feature_seed,
 };
+use crate::world::generate::{ColumnBlocks, column_fluid_field};
 
 fn overworld_height() -> HeightContext {
     HeightContext {
@@ -72,15 +73,10 @@ fn stone_column() -> (ColumnBlocks, VoxelId, VoxelId) {
     (column, stone, bedrock)
 }
 
-fn ids(router: &mcrs_minecraft_worldgen::router::NoiseRouter) -> ModernCarverBlockIds {
+fn ids() -> ModernCarverBlockIds {
     // No tag registry in a unit test, so the uncarvable set is supplied the
     // way the tag would: bedrock's states.
-    ModernCarverBlockIds::for_test(
-        corpus().default_state("minecraft:air").into(),
-        router.default_fluid_state,
-        router.sea_level,
-        vec![corpus().default_state("minecraft:bedrock").into()],
-    )
+    ModernCarverBlockIds::for_test(vec![corpus().default_state("minecraft:bedrock").into()])
 }
 
 #[test]
@@ -183,7 +179,7 @@ fn an_unknown_preset_is_not_resolved() {
 fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     let router = build_settings_router("overworld", 12345);
     let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
-    let block_ids = ids(&router);
+    let block_ids = ids();
     let sections = y_sections();
     let mut ws = Workspace::new();
 
@@ -200,8 +196,12 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
             &table,
             overworld_height(),
             &block_ids,
+            &mut column_fluid_field(&router, chunk_x * 16, 0),
         );
 
+        let mut oracle = column_fluid_field(&router, chunk_x * 16, 0);
+        let mut oracle_ws = Workspace::new();
+        let mut barrier = point_barrier(&router, &mut oracle_ws);
         let mut freed = 0;
         for (index, &section_y) in sections.iter().enumerate() {
             for y in 0..16 {
@@ -217,13 +217,11 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
                             continue;
                         }
                         freed += 1;
-                        let expected = if world_y < router.sea_level {
-                            router.default_fluid_state
-                        } else {
-                            block_ids.air
-                        };
+                        let expected =
+                            oracle.substance(chunk_x * 16 + x, world_y, z, 0.0, &mut barrier);
                         assert_eq!(
-                            state, expected,
+                            Some(state),
+                            expected,
                             "wrong substance at Y {world_y} of section {index}"
                         );
                         assert!(
@@ -245,7 +243,7 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
 fn carving_is_deterministic() {
     let router = build_settings_router("overworld", 12345);
     let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
-    let block_ids = ids(&router);
+    let block_ids = ids();
     let sections = y_sections();
 
     let snapshot = |seed: u64| {
@@ -262,6 +260,7 @@ fn carving_is_deterministic() {
             &table,
             overworld_height(),
             &block_ids,
+            &mut column_fluid_field(&router, 16, 32),
         );
         (0..sections.len())
             .flat_map(|index| column.section_cells(index).iter().map(|c| c.get()))
@@ -278,7 +277,7 @@ fn carving_is_deterministic() {
 fn measure_modern_carvers() {
     let router = build_settings_router("overworld", 12345);
     let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
-    let block_ids = ids(&router);
+    let block_ids = ids();
     let mut ws = Workspace::new();
     let (column, _, _) = stone_column();
 
@@ -293,6 +292,7 @@ fn measure_modern_carvers() {
         &table,
         overworld_height(),
         &block_ids,
+        &mut column_fluid_field(&router, 0, 0),
     );
 
     let columns = 32;
@@ -308,6 +308,7 @@ fn measure_modern_carvers() {
             &table,
             overworld_height(),
             &block_ids,
+            &mut column_fluid_field(&router, cx * 16, 0),
         );
     }
     let each = started.elapsed().as_secs_f64() * 1000.0 / columns as f64;

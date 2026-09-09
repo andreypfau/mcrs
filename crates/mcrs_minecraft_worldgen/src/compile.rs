@@ -1,3 +1,4 @@
+use crate::aquifer::AquiferConfig;
 use crate::beta::{BetaClimateNoises, BetaTerrainNoises};
 use crate::bounds::{self, Bounds};
 use crate::interval::Interval;
@@ -17,13 +18,12 @@ use crate::program::{
 use crate::proto::{
     DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, ProtoSpline,
 };
-use crate::router::{NoiseGeneratorSettings, NoiseRouter};
+use crate::router::{Aquifers, NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
 use crate::strata::{Axes, NO_AXES, axis_bit};
 use crate::volume::Axis;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_voxel_storage::VoxelId;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
@@ -66,8 +66,7 @@ pub fn build_router(
     registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
     noises: &BTreeMap<ResourceLocation, NoiseParam>,
     seed: u64,
-    default_block: VoxelId,
-    default_fluid: VoxelId,
+    blocks: RouterBlocks,
     material: Option<&MaterialInputs<'_>>,
 ) -> Result<NoiseRouter, CompileError> {
     let mut compiler = Compiler::new(registry, noises, seed, settings.legacy_random_source);
@@ -87,15 +86,45 @@ pub fn build_router(
         None => None,
     };
 
+    let aquifer = match &settings.aquifers {
+        Some(aquifers) => Some(compile_aquifer(&mut compiler, &mut nodes, aquifers)?),
+        None => None,
+    };
+
     let program = compiler.into_program(nodes);
     Ok(NoiseRouter::new(
-        program,
-        material,
-        settings,
-        seed,
-        default_block,
-        default_fluid,
+        program, material, settings, seed, blocks, aquifer,
     ))
+}
+
+fn compile_aquifer(
+    compiler: &mut Compiler<'_>,
+    nodes: &mut Vec<NodeId>,
+    aquifers: &Aquifers,
+) -> Result<AquiferConfig, CompileError> {
+    let mut root = |holder: &DensityFunctionHolder| -> Result<usize, CompileError> {
+        nodes.push(compiler.compile(holder)?);
+        Ok(nodes.len() - 1)
+    };
+    let barrier = root(&aquifers.barrier)?;
+    let floodedness = root(&aquifers.fluid_level_floodedness)?;
+    let spread = root(&aquifers.fluid_level_spread)?;
+    let lava = root(&aquifers.lava)?;
+    let exclusion = root(&aquifers.exclusion)?;
+    let surface_level = root(&aquifers.surface_level)?;
+    let barrier_max = compiler.node_ranges[nodes[barrier] as usize].max();
+    let (margin_above, margin_below) = AquiferConfig::margins(barrier_max);
+    Ok(AquiferConfig {
+        barrier,
+        floodedness,
+        spread,
+        lava,
+        exclusion,
+        surface_level,
+        random: compiler.hashed_random("minecraft:aquifer"),
+        margin_above,
+        margin_below,
+    })
 }
 
 pub(crate) struct Compiler<'a> {
@@ -1222,6 +1251,13 @@ enum Key {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use mcrs_voxel_storage::VoxelId;
+    pub(crate) const TEST_BLOCKS: RouterBlocks = RouterBlocks {
+        default_block: VoxelId(1),
+        default_fluid: VoxelId(2),
+        water: VoxelId(2),
+        lava: VoxelId(3),
+    };
     use super::*;
     use crate::program::Workspace;
     use crate::router::{
@@ -1619,16 +1655,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
-        let router = build_router(
-            &settings,
-            &functions,
-            &noises,
-            42,
-            VoxelId(1),
-            VoxelId(2),
-            None,
-        )
-        .unwrap();
+        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
 
         let mut memo = HashMap::new();
         let naive: usize = settings
@@ -1653,16 +1680,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
-        let router = build_router(
-            &settings,
-            &functions,
-            &noises,
-            42,
-            VoxelId(1),
-            VoxelId(2),
-            None,
-        )
-        .unwrap();
+        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
 
         let volume = Volume::new(
             IVec3::new(5, 3, 5),
@@ -1693,16 +1711,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("end"));
-        let router = build_router(
-            &settings,
-            &functions,
-            &noises,
-            42,
-            VoxelId(1),
-            VoxelId(2),
-            None,
-        )
-        .unwrap();
+        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
 
         let volume = Volume::dense(IVec3::new(1, 32, 1), IVec3::new(-25, 0, -25));
         let mut out = vec![0.0; volume.len()];
@@ -1728,16 +1737,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("end"));
-        let router = build_router(
-            &settings,
-            &functions,
-            &noises,
-            42,
-            VoxelId(1),
-            VoxelId(2),
-            None,
-        )
-        .unwrap();
+        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
 
         let volume = Volume::dense(IVec3::new(8, 32, 8), IVec3::new(-32, 0, -32));
         let mut out = vec![0.0; volume.len()];
@@ -1767,16 +1767,8 @@ pub(crate) mod tests {
         ] {
             let settings: NoiseGeneratorSettings =
                 crate::corpus::read("noise_settings", &ResourceLocation::minecraft(name));
-            build_router(
-                &settings,
-                &functions,
-                &noises,
-                42,
-                VoxelId(1),
-                VoxelId(2),
-                None,
-            )
-            .unwrap_or_else(|e| panic!("{name}: {e}"));
+            build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None)
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
         }
     }
 }

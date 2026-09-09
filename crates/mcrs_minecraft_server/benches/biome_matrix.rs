@@ -30,7 +30,9 @@ use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter};
 #[path = "../src/world/generate/tests/support.rs"]
 mod support;
 
-use support::{assets_root, corpus, density_function_registry, load_json_dir, noise_registry};
+use support::{
+    assets_root, corpus, density_function_registry, load_json_dir, noise_registry, router_blocks,
+};
 
 const NETHER: [&str; 5] = [
     "nether_wastes",
@@ -111,8 +113,7 @@ fn material_router(seed: u64, names: &[String]) -> NoiseRouter {
         &density_function_registry(),
         &noise_registry(),
         seed,
-        corpus().default_state("minecraft:stone").into(),
-        corpus().default_state("minecraft:water").into(),
+        router_blocks(corpus()),
         Some(&inputs),
     )
     .expect("the overworld compiles")

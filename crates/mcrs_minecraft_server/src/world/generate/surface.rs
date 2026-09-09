@@ -108,6 +108,7 @@ fn apply_material_surface_with(
     let sea_level = router.sea_level;
     let stone = router.default_block_state;
     let fluid = router.default_fluid_state;
+    let lava = router.lava_state;
     let zoom_seed = obfuscate_seed(router.world_seed as i64);
 
     // The fold runs over the whole grid, border ring included: the zoom can
@@ -169,39 +170,47 @@ fn apply_material_surface_with(
                 - height_of(tops, x, (z - 1).max(0), min_y);
             eval.begin_strip(bx, bz, gradient_x, gradient_z);
             let mut run = 0;
-            descend_strip(column, x, z, height, min_y, fluid, |step| match step {
-                Visit::Run {
-                    top,
-                    bottom,
-                    depth_above,
-                    water_level,
-                } => {
-                    eval.settled_runs(top, bottom, depth_above, water_level, &mut settled);
-                    run = 0;
-                }
-                Visit::Block {
-                    y,
-                    depth_above,
-                    depth_below,
-                    water_level,
-                } => {
-                    while run < settled.len() && y < settled[run].0 {
-                        run += 1;
+            descend_strip(
+                column,
+                x,
+                z,
+                height,
+                min_y,
+                [fluid, lava],
+                |step| match step {
+                    Visit::Run {
+                        top,
+                        bottom,
+                        depth_above,
+                        water_level,
+                    } => {
+                        eval.settled_runs(top, bottom, depth_above, water_level, &mut settled);
+                        run = 0;
                     }
-                    let state = if run < settled.len() && y <= settled[run].1 {
-                        match settled[run].2 {
-                            SettledState::Block(state) => state,
-                            SettledState::Bandlands => Some(eval.bandlands_at(y)),
+                    Visit::Block {
+                        y,
+                        depth_above,
+                        depth_below,
+                        water_level,
+                    } => {
+                        while run < settled.len() && y < settled[run].0 {
+                            run += 1;
                         }
-                    } else {
-                        eval.update_y(depth_above, depth_below, water_level, y);
-                        eval.apply()
-                    };
-                    if let Some(state) = state {
-                        set_block(column, tops, min_y, x, y, z, state);
+                        let state = if run < settled.len() && y <= settled[run].1 {
+                            match settled[run].2 {
+                                SettledState::Block(state) => state,
+                                SettledState::Bandlands => Some(eval.bandlands_at(y)),
+                            }
+                        } else {
+                            eval.update_y(depth_above, depth_below, water_level, y);
+                            eval.apply()
+                        };
+                        if let Some(state) = state {
+                            set_block(column, tops, min_y, x, y, z, state);
+                        }
                     }
-                }
-            });
+                },
+            );
 
             if surface_biome == ids.frozen_ocean || surface_biome == ids.deep_frozen_ocean {
                 frozen_ocean(
@@ -245,6 +254,8 @@ pub(crate) enum Visit {
 /// Walk one strip from `height` down to the bottom of the dimension, handing
 /// every solid block its two depths and the water level above it, and each
 /// solid run its top, its bottom and the water level over it as it is entered.
+/// Any of `fluids` counts as fluid, as the reference reads any non-empty fluid
+/// state: lava from the field's floor is not rock to surface.
 ///
 /// A position this dispatch does not carry is skipped rather than ending the
 /// descent, and the look-ahead's read one below the bottom answers non-solid,
@@ -255,10 +266,11 @@ pub(crate) fn descend_strip(
     z: i32,
     height: i32,
     min_y: i32,
-    fluid: VoxelId,
+    fluids: [VoxelId; 2],
     mut visit: impl FnMut(Visit),
 ) {
     let air = VoxelId::default();
+    let is_fluid = |state: VoxelId| fluids.contains(&state);
     let mut depth_above = 0;
     let mut water_level = NO_WATER;
     let mut next_ceiling = i32::MAX;
@@ -270,7 +282,7 @@ pub(crate) fn descend_strip(
         if old == air {
             depth_above = 0;
             water_level = NO_WATER;
-        } else if old == fluid {
+        } else if is_fluid(old) {
             if water_level == NO_WATER {
                 water_level = y + 1;
             }
@@ -279,7 +291,7 @@ pub(crate) fn descend_strip(
                 next_ceiling = (min_y - 1..y)
                     .rev()
                     .find(|&look| match column.get(x, look, z) {
-                        Some(old) => old == air || old == fluid,
+                        Some(old) => old == air || is_fluid(old),
                         None => look < min_y,
                     })
                     .map_or(min_y, |floor| floor + 1);

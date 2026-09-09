@@ -733,8 +733,7 @@ pub(crate) mod tests {
             &functions,
             &noises,
             42,
-            VoxelId(1),
-            VoxelId(2),
+            crate::compile::tests::TEST_BLOCKS,
             Some(&inputs),
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"))
@@ -996,8 +995,7 @@ pub(crate) mod tests {
             &functions,
             &noises,
             42,
-            VoxelId(1),
-            VoxelId(2),
+            crate::compile::tests::TEST_BLOCKS,
             Some(&inputs),
         )
         .map(|_| ())
@@ -1116,8 +1114,7 @@ pub(crate) mod tests {
             &functions,
             &BTreeMap::new(),
             42,
-            VoxelId(1),
-            VoxelId(2),
+            crate::compile::tests::TEST_BLOCKS,
             Some(&inputs),
         )
         .map(|_| ())

@@ -5,7 +5,7 @@ use crate::material::{MaterialConditionHolder, MaterialInputs, MaterialRuleHolde
 use crate::proto::{
     BlockState, DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction,
 };
-use crate::router::{NoiseGeneratorSettings, NoiseRouter};
+use crate::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
 use bevy_app::{App, Plugin};
 use bevy_asset::io::Reader;
 use bevy_asset::{
@@ -72,8 +72,16 @@ pub fn build_dimension_router(
     let resolve = |state: &BlockState| {
         block(state).ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
     };
-    let default_block = resolve(&settings.settings.default_block)?;
-    let default_fluid = resolve(&settings.settings.default_fluid)?;
+    let plain = |name: &str| BlockState {
+        name: ResourceLocation::minecraft(name),
+        properties: None,
+    };
+    let blocks = RouterBlocks {
+        default_block: resolve(&settings.settings.default_block)?,
+        default_fluid: resolve(&settings.settings.default_fluid)?,
+        water: resolve(&plain("water"))?,
+        lava: resolve(&plain("lava"))?,
+    };
 
     let material = MaterialInputs {
         rules: &loaded.rules,
@@ -86,8 +94,7 @@ pub fn build_dimension_router(
         &loaded.density_functions,
         &loaded.noises,
         seed,
-        default_block,
-        default_fluid,
+        blocks,
         Some(&material),
     )
 }
@@ -328,6 +335,18 @@ impl References {
         let mut refs = Self::default();
         for root in settings.noise_router.roots() {
             refs.visit_holder(root);
+        }
+        if let Some(aquifers) = &settings.aquifers {
+            for holder in [
+                &aquifers.barrier,
+                &aquifers.exclusion,
+                &aquifers.fluid_level_floodedness,
+                &aquifers.fluid_level_spread,
+                &aquifers.lava,
+                &aquifers.surface_level,
+            ] {
+                refs.visit_holder(holder);
+            }
         }
         refs.rules.insert(settings.material_rule.clone());
         refs.noises

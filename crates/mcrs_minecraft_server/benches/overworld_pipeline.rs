@@ -30,7 +30,9 @@ use mcrs_minecraft_worldgen::value_provider::HeightContext;
 #[path = "../src/world/generate/tests/support.rs"]
 mod support;
 
-use support::{assets_root, corpus, density_function_registry, load_json_dir, noise_registry};
+use support::{
+    assets_root, corpus, density_function_registry, load_json_dir, noise_registry, router_blocks,
+};
 
 const ABSENT_BIOME: u32 = 250;
 
@@ -65,8 +67,7 @@ fn material_router(seed: u64, ids: &HashMap<String, u32>) -> NoiseRouter {
         &density_function_registry(),
         &noise_registry(),
         seed,
-        corpus().default_state("minecraft:stone").into(),
-        corpus().default_state("minecraft:water").into(),
+        router_blocks(corpus()),
         Some(&inputs),
     )
     .expect("the overworld compiles")
@@ -128,7 +129,7 @@ fn main() {
     )
     .unwrap();
     let carvers = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
-    let carver_ids = ModernCarverBlockIds::resolve(corpus(), &router, None);
+    let carver_ids = ModernCarverBlockIds::resolve(corpus(), None);
     let biome = |name: &str| ids.get(name).copied().unwrap_or(ABSENT_BIOME);
     let surface_ids = SurfaceIds {
         eroded_badlands: biome("minecraft:eroded_badlands"),
@@ -224,6 +225,7 @@ fn main() {
             &carvers,
             height,
             &carver_ids,
+            &mut filled.fluid,
         );
         s.carve = t.elapsed();
 

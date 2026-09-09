@@ -1,25 +1,28 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_worldgen::aquifer::point_barrier;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::FINAL_DENSITY;
 use mcrs_minecraft_worldgen::volume::Volume;
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::CancellationToken;
-use crate::world::generate::{ColumnBlocks, NO_TOP, fill_column_dense_any, generate_column};
+use crate::world::generate::{ColumnBlocks, NO_TOP, column_fluid_field, fill_column_dense_any};
 
 use super::build_settings_router as build_router;
 
-/// Whole-cell elimination and the sea-level split settle most of a chunk from
-/// the corner lattice alone, without ever evaluating `final_density` inside
-/// those cells. This pins the result to what a naive step-1 fill of every
-/// section would have produced.
+/// Whole-cell elimination and the fluid field's lemmas settle most of a chunk
+/// from the corner lattice and the window tables alone, without ever evaluating
+/// `final_density` or running the search inside those cells. This pins the
+/// result, blocks and fluid ticks both, to what the block-by-block fill through
+/// the naive search would have produced.
 #[test]
 fn cell_elimination_matches_the_block_by_block_fill() {
     let router = build_router("overworld", 845);
     let y_sections: Vec<i32> = (-4..20).collect();
     let (section_x, section_z) = (3, -7);
-    let results = generate_column(
+    let mut column = ColumnBlocks::new(&y_sections);
+    fill_column_dense_any(
+        &mut column,
         section_x,
         section_z,
         &y_sections,
@@ -27,16 +30,17 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         None,
         None,
         &CancellationToken::new(),
-    );
+    )
+    .expect("the column is not cancelled");
 
-    let sea_level = router.sea_level;
     let stone = router.default_block_state;
-    let water = router.default_fluid_state;
     let mut ws = Workspace::new();
+    let mut oracle = column_fluid_field(&router, section_x * 16, section_z * 16);
+    let mut barrier_ws = Workspace::new();
+    let mut barrier = point_barrier(&router, &mut barrier_ws);
     let mut checked = 0usize;
 
-    for (index, &section_y) in y_sections.iter().enumerate() {
-        let (blocks, _) = results[index].as_ref().expect("the section generates");
+    for &section_y in &y_sections {
         let volume = Volume::dense(
             IVec3::splat(16),
             IVec3::new(section_x * 16, section_y * 16, section_z * 16),
@@ -48,21 +52,15 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         for z in 0..16 {
             for x in 0..16 {
                 for y in 0..16 {
-                    let world_y = volume.block_y(y);
-                    let expected = if density[volume.index_unchecked(x, y, z)] > 0.0 {
-                        stone
-                    } else if world_y < sea_level {
-                        water
-                    } else {
-                        VoxelId(0)
-                    };
-                    let got = blocks.get(BlockPos::new(x, y, z));
+                    let at = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
+                    let d = f64::from(density[volume.index_unchecked(x, y, z)]);
+                    let expected = oracle
+                        .substance(at.x, at.y, at.z, d, &mut barrier)
+                        .unwrap_or(stone);
+                    let got = column.get(x, at.y, z).expect("the section exists");
                     assert_eq!(
-                        got,
-                        expected,
-                        "block at ({}, {world_y}, {}) differs from the block-by-block fill",
-                        volume.block_x(x),
-                        volume.block_z(z),
+                        got, expected,
+                        "block at {at} differs from the block-by-block fill"
                     );
                     checked += 1;
                 }

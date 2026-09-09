@@ -1153,6 +1153,19 @@ fn corner_bounds(values: &[f32], lattice: &Volume, at: IVec3, out: &mut [Interva
 
 /// A lerp over an inverse lerp, unclamped: a value outside the source range
 /// maps outside the target range.
-pub(crate) fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
+pub fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
     to_min + (value - from_min) / (from_max - from_min) * (to_max - to_min)
+}
+
+/// [`map`] with the source range as a hard clamp: outside it the value maps to
+/// the near end of the target range.
+pub fn clamped_map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
+    let delta = (value - from_min) / (from_max - from_min);
+    if delta < 0.0 {
+        to_min
+    } else if delta > 1.0 {
+        to_max
+    } else {
+        to_min + delta * (to_max - to_min)
+    }
 }

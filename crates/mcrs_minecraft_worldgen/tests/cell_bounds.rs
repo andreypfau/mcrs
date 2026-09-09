@@ -15,7 +15,9 @@ use mcrs_minecraft_worldgen::material::{
 };
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
-use mcrs_minecraft_worldgen::router::{FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen::router::{
+    FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, RouterBlocks,
+};
 use mcrs_minecraft_worldgen::volume::Volume;
 
 /// The margin the chunk generator keeps away from zero: f32 interval arithmetic
@@ -53,8 +55,12 @@ fn build(seed: u64, material: Option<&MaterialInputs<'_>>) -> NoiseRouter {
         &registry,
         &noises,
         seed,
-        VoxelId(1),
-        VoxelId(2),
+        RouterBlocks {
+            default_block: VoxelId(1),
+            default_fluid: VoxelId(2),
+            water: VoxelId(2),
+            lava: VoxelId(3),
+        },
         material,
     )
     .unwrap()
