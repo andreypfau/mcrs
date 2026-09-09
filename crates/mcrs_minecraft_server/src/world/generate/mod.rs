@@ -519,6 +519,9 @@ fn column_biome_palettes(
             None => (vec![BiomePalette::default(); y_sections.len()], None),
         };
     }
+    if let Some((BiomeSource::Fixed { biome_id, .. }, registry)) = biome_context {
+        return fixed_biome_palettes(biome_id.as_str(), registry, block_x, block_z, y_sections);
+    }
     (
         vec![beta_biome_palette(noise_router, biome_context, block_x, block_z); y_sections.len()],
         None,
@@ -586,6 +589,62 @@ pub fn multi_noise_palettes(
         .collect();
 
     (palettes, Some(BiomeGrid { volume, ids }))
+}
+
+/// The palettes and grid of a `minecraft:fixed` source, which answers the same
+/// biome at every quart cell however it is asked.
+///
+/// The grid keeps the shape `multi_noise_palettes` produces — the column's
+/// cells plus the ring around them — so the surface stage's zoom reads it
+/// exactly as it reads a sampled one.
+fn fixed_biome_palettes(
+    biome_id: &str,
+    registry: &RegistrySnapshot<Biome>,
+    block_x: i32,
+    block_z: i32,
+    y_sections: &[i32],
+) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
+    let (Some(&first), Some(&last)) = (y_sections.first(), y_sections.last()) else {
+        return (Vec::new(), None);
+    };
+    let network_id = match registry
+        .by_location(biome_id)
+        .and_then(|id| u8::try_from(id).ok())
+    {
+        Some(id) => id,
+        None => {
+            // Returning no grid would skip the material stage entirely and hand
+            // back a column of bare stone, so this degrades the way the Beta
+            // palette degrades on the same failure rather than silently
+            // dropping every rule the column owes.
+            tracing::error!(
+                biome = biome_id,
+                "fixed biome is not in the registry snapshot"
+            );
+            debug_assert!(false, "unresolved fixed biome location");
+            0
+        }
+    };
+
+    let volume = Volume::new(
+        IVec3::new(6, (last - first + 1) * 4 + 2, 6),
+        IVec3::new(block_x - 4, first * 16 - 4, block_z - 4),
+        IVec3::splat(4),
+    );
+    let ids = vec![network_id; volume.len()];
+
+    let mut palette = BiomePalette::default();
+    for cx in 0..4 {
+        for cy in 0..4 {
+            for cz in 0..4 {
+                palette.set_cell(cx, cy, cz, network_id);
+            }
+        }
+    }
+    (
+        vec![palette; y_sections.len()],
+        Some(BiomeGrid { volume, ids }),
+    )
 }
 
 /// The `BiomePalette` every section of a Beta column shares.

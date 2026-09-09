@@ -1057,8 +1057,7 @@ pub(crate) fn dispatch_column_generation(
 
                 // The material rules run between the fill they read and the
                 // carvers, because carved rock is not re-surfaced.
-                if let Some((source, biomes)) = &biome_context
-                    && matches!(source, BiomeSource::MultiNoise(_))
+                if let Some((_, biomes)) = &biome_context
                     && let Some(grid) = filled.biome_grid.as_ref()
                 {
                     thread_local! {
@@ -1086,7 +1085,7 @@ pub(crate) fn dispatch_column_generation(
 
                 if let Some((carver_biomes, carver_blocks)) = &carver_ctx
                     && let Some((src, _)) = &biome_context
-                    && matches!(src, BiomeSource::MultiNoise(_))
+                    && !matches!(src, BiomeSource::Beta { .. })
                 {
                     let world_seed = router.world_seed as i64;
                     apply_modern_carvers(

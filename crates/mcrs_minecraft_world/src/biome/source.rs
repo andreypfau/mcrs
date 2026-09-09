@@ -110,6 +110,10 @@ pub enum BiomeSource {
     TheEnd,
     Fixed {
         biome: Handle<Biome>,
+        // Parallel to the handle for the same reason the Beta arrays carry ids:
+        // generation runs in a per-dimension sub-app whose AssetServer assigns
+        // different AssetIds than the host that built the biome snapshot.
+        biome_id: ResourceLocation<Arc<str>>,
     },
     Checkerboard {
         biomes: Vec<Handle<Biome>>,
@@ -140,7 +144,7 @@ impl BiomeSource {
                     }
                 }
             }
-            BiomeSource::Fixed { biome } => visit(biome.id().untyped()),
+            BiomeSource::Fixed { biome, .. } => visit(biome.id().untyped()),
             BiomeSource::Checkerboard { biomes, .. } => {
                 for b in biomes {
                     visit(b.id().untyped());
@@ -286,6 +290,7 @@ impl ProtoBiomeSource {
             ProtoBiomeSource::TheEnd {} => BiomeSource::TheEnd,
             ProtoBiomeSource::Fixed { biome } => BiomeSource::Fixed {
                 biome: Biome::load(ctx, &biome),
+                biome_id: biome,
             },
             ProtoBiomeSource::Checkerboard { biomes, scale } => BiomeSource::Checkerboard {
                 biomes: biomes

@@ -486,3 +486,108 @@ fn a_dispatch_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
         "the bottom of the world is open: the material rules never ran over this dispatch"
     );
 }
+
+/// A `minecraft:fixed` source answers one biome at every quart cell, so the
+/// rules that biome selects run over whatever terrain the noise gives. Badlands
+/// is the case worth pinning: it is the sole user of the clay band table, and
+/// no multi-noise sample any test takes reaches it.
+#[test]
+fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
+    use bevy_app::{App, Update};
+    use bevy_ecs::entity::Entity;
+    use bevy_tasks::{TaskPoolBuilder, block_on};
+    use mcrs_minecraft_protocol::ColumnPos;
+    use mcrs_minecraft_world::biome::source::BiomeSource;
+    use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
+    use mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter;
+    use std::sync::Arc;
+
+    use super::blocks;
+    use crate::world::chunk::{
+        CHUNK_TASK_POOL, ColumnKey, ColumnScheduler, PendingColumn, dispatch_column_generation,
+    };
+
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(1).build());
+
+    let generate = |biome: &str| -> (Vec<VoxelId>, Vec<u8>) {
+        let (registry, ids) = overworld_biome_registry();
+        let router = overworld_material_router(2, &ids);
+        let mut app = App::new();
+        app.insert_resource(DimensionNoiseRouter(Arc::new(router)));
+        app.insert_resource(blocks().clone());
+        app.insert_resource(registry);
+        app.insert_resource(ActiveBiomeSource(Arc::new(BiomeSource::Fixed {
+            biome: bevy_asset::Handle::default(),
+            biome_id: ResourceLocation::parse(biome).expect("a biome name"),
+        })));
+
+        let col = ColumnPos::new(3, -7);
+        let carried: Vec<i32> = (-4..20).collect();
+        let sections: Vec<(Entity, i32)> = carried
+            .iter()
+            .map(|&y| (app.world_mut().spawn_empty().id(), y))
+            .collect();
+        let key = ColumnKey::new(0, col);
+        let mut scheduler = ColumnScheduler::default();
+        scheduler.priority_index.insert(col, key);
+        scheduler.pending.insert(key, PendingColumn::new(sections));
+        app.insert_resource(scheduler);
+        app.add_systems(Update, dispatch_column_generation);
+        app.update();
+
+        let in_flight = app
+            .world_mut()
+            .resource_mut::<ColumnScheduler>()
+            .in_flight
+            .pop()
+            .expect("the column was dispatched");
+        let result = block_on(in_flight.task);
+
+        let mut states = Vec::new();
+        let mut biomes = Vec::new();
+        let mut sections: Vec<_> = result.sections.iter().collect();
+        sections.sort_by_key(|(_, pos, _)| pos.y);
+        for (_, _, payload) in sections {
+            let Some((palette, biome_palette)) = payload.as_ref() else {
+                continue;
+            };
+            palette.0.for_each(|state| states.push(state));
+            for cx in 0..4 {
+                for cy in 0..4 {
+                    for cz in 0..4 {
+                        biomes.push(biome_palette.get_cell(cx, cy, cz));
+                    }
+                }
+            }
+        }
+        (states, biomes)
+    };
+
+    let badlands_id = {
+        let (registry, _) = overworld_biome_registry();
+        registry
+            .by_location("minecraft:badlands")
+            .expect("the overworld preset names badlands") as u8
+    };
+
+    let (badlands_blocks, badlands_biomes) = generate("minecraft:badlands");
+    assert!(
+        !badlands_biomes.is_empty() && badlands_biomes.iter().all(|id| *id == badlands_id),
+        "a fixed source must answer one biome at every cell"
+    );
+
+    let terracotta = VoxelId::from(corpus().default_state("minecraft:terracotta"));
+    let orange = VoxelId::from(corpus().default_state("minecraft:orange_terracotta"));
+    assert!(
+        badlands_blocks
+            .iter()
+            .any(|state| *state == terracotta || *state == orange),
+        "the clay band rule never ran: no terracotta anywhere in the column"
+    );
+
+    let (plains_blocks, _) = generate("minecraft:plains");
+    assert_ne!(
+        badlands_blocks, plains_blocks,
+        "the fixed biome did not reach the rule dispatch: two biomes gave one column"
+    );
+}

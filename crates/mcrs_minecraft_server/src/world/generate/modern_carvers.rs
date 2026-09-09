@@ -457,8 +457,13 @@ fn build_modern_carver_biomes(
     use mcrs_minecraft_world::biome::source::BiomeSource;
 
     let Some(source) = source else { return };
-    let BiomeSource::MultiNoise(multi) = source.0.as_ref() else {
-        return;
+    // A fixed source answers one biome everywhere, so its table is that biome's
+    // carvers under a point covering the whole climate space: with a single
+    // candidate the nearest-entry search returns it whatever the climate.
+    let (preset, fixed_biome) = match source.0.as_ref() {
+        BiomeSource::MultiNoise(multi) => (Some(multi), None),
+        BiomeSource::Fixed { biome_id, .. } => (None, Some(biome_id.as_str().to_owned())),
+        _ => return,
     };
 
     let mut config_by_location: HashMap<String, CarverConfig> = HashMap::new();
@@ -490,22 +495,28 @@ fn build_modern_carver_biomes(
         );
     }
 
-    let explicit = multi.biomes.as_ref().map(|entries| {
-        entries
-            .iter()
-            .filter_map(|entry| {
-                let path = asset_server.get_path(entry.biome.id())?;
-                let location = rl_from_asset_path(path.path())?;
-                Some((
-                    ParameterPoint::from(&entry.parameters),
-                    location.as_str().to_owned(),
-                ))
-            })
-            .collect()
-    });
+    let explicit = match (preset, fixed_biome) {
+        (Some(multi), _) => multi.biomes.as_ref().map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| {
+                    let path = asset_server.get_path(entry.biome.id())?;
+                    let location = rl_from_asset_path(path.path())?;
+                    Some((
+                        ParameterPoint::from(&entry.parameters),
+                        location.as_str().to_owned(),
+                    ))
+                })
+                .collect()
+        }),
+        (None, Some(biome)) => Some(vec![(whole_climate_space(), biome)]),
+        (None, None) => None,
+    };
 
     match resolve_carver_biomes(
-        multi.preset.as_ref().map(|preset| preset.as_str()),
+        preset
+            .and_then(|multi| multi.preset.as_ref())
+            .map(|preset| preset.as_str()),
         explicit,
         &carvers_by_biome,
         &config_by_location,
@@ -520,6 +531,20 @@ fn build_modern_carver_biomes(
 
 /// The resolution itself, with the asset lookups already reduced to two maps:
 /// which carvers each biome runs, and what each carver is.
+/// A climate point spanning every parameter, for a source with one biome.
+fn whole_climate_space() -> ParameterPoint {
+    let full = mcrs_minecraft_world::biome::climate::Parameter::span(-2.0, 2.0);
+    ParameterPoint {
+        temperature: full,
+        humidity: full,
+        continentalness: full,
+        erosion: full,
+        depth: full,
+        weirdness: full,
+        offset: 0,
+    }
+}
+
 pub fn resolve_carver_biomes(
     preset: Option<&str>,
     explicit: Option<Vec<(ParameterPoint, String)>>,
@@ -527,6 +552,12 @@ pub fn resolve_carver_biomes(
     config_by_location: &HashMap<String, CarverConfig>,
 ) -> Option<CarverBiomeTable> {
     let lookup = |biome: &str| -> Arc<[CarverConfig]> {
+        if !carvers_by_biome.contains_key(biome) {
+            // The table still resolves and reports success, so a biome absent
+            // from the loaded assets carves nothing at all with no other
+            // symptom — which for a single-biome source is the whole world.
+            tracing::error!(biome, "biome has no loaded definition; it carves nothing");
+        }
         carvers_by_biome
             .get(biome)
             .map(|names| {
