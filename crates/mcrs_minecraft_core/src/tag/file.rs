@@ -44,11 +44,12 @@ impl VisitAssetDependencies for TagFile {
 
 // ─── Serialized JSON forms ────────────────────────────────────────────────────
 
+/// A tag file as its JSON reads, before its references resolve to handles.
 #[derive(Debug, Deserialize)]
-struct SerializedTagFile {
-    values: Vec<SerializedTagEntry>,
+pub struct SerializedTagFile {
+    pub values: Vec<SerializedTagEntry>,
     #[serde(default)]
-    replace: bool,
+    pub replace: bool,
 }
 
 /// An entry in the JSON tag file.  Two forms are supported:
@@ -56,15 +57,15 @@ struct SerializedTagFile {
 /// Short:  `"minecraft:stone"` or `"#minecraft:base_stone_overworld"`
 /// Full:   `{"id": "minecraft:stone", "required": false}`
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SerializedTagEntry {
-    id: TagOrElementLocation,
-    required: bool,
+pub struct SerializedTagEntry {
+    pub id: TagOrElementLocation,
+    pub required: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct TagOrElementLocation {
-    loc: ResourceLocation,
-    is_tag: bool,
+pub struct TagOrElementLocation {
+    pub loc: ResourceLocation,
+    pub is_tag: bool,
 }
 
 impl FromStr for TagOrElementLocation {

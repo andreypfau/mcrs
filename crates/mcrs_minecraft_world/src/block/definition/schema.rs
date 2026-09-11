@@ -9,6 +9,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::tag::file::TagOrElementLocation;
+use mcrs_voxel_math::direction::Direction;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -644,6 +646,28 @@ impl Serialize for MapColor {
     }
 }
 
+/// `canSurvive` as data: the block stands when, for some condition, the
+/// neighbour on one of its `allowed_faces` is in `block_filter`. A face names
+/// the side of the neighbour the block is placed against, so `up` is the block
+/// below.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlacementFilter {
+    pub conditions: Vec<PlacementCondition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlacementCondition {
+    #[serde(default = "every_face")]
+    pub allowed_faces: Vec<Direction>,
+    pub block_filter: Vec<TagOrElementLocation>,
+}
+
+fn every_face() -> Vec<Direction> {
+    Direction::all().to_vec()
+}
+
 macro_rules! components {
     ($($name:literal => $field:ident : $ty:ty),+ $(,)?) => {
         /// Every component the corpus may carry, in either the block-wide map,
@@ -730,6 +754,7 @@ components! {
     "minecraft:block_entity" => block_entity: BlockEntityDef,
     "minecraft:redstone_producer" => redstone_producer: RedstoneProducer,
     "minecraft:loot" => loot: ResourceLocation<Arc<str>>,
+    "minecraft:placement_filter" => placement_filter: PlacementFilter,
     "mcrs:experience_drop" => experience_drop: IntProvider,
     "mcrs:use_shape_for_light_occlusion" => use_shape_for_light_occlusion: bool,
     "mcrs:fluid_state" => fluid_state: FluidStateDef,
@@ -744,6 +769,7 @@ pub const OPTIONAL_COMPONENTS: &[&str] = &[
     "mcrs:fluid_state",
     "mcrs:experience_drop",
     "minecraft:loot",
+    "minecraft:placement_filter",
     "minecraft:replaceable",
     "minecraft:flammable",
     "minecraft:block_entity",

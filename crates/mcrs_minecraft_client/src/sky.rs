@@ -219,7 +219,7 @@ fn build_sky_environment(
         .find(|(asset_id, _)| {
             asset_server
                 .get_path(*asset_id)
-                .and_then(|path| rl_from_asset_path(path.path()))
+                .and_then(|path| rl_from_asset_path(path.path(), "dimension_type"))
                 .is_some_and(|found| found.as_str() == id)
         })
         .and_then(|(_, dimension_type)| dimension_type.default_clock.as_deref())

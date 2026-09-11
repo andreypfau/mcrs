@@ -3568,10 +3568,17 @@ dependencies = [
 name = "mcrs_minecraft_decoration"
 version = "0.1.0"
 dependencies = [
+ "bevy_math",
+ "bytes",
  "fixedbitset",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen",
+ "mcrs_voxel_math",
  "mcrs_voxel_storage",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3702,6 +3709,7 @@ dependencies = [
  "cipher",
  "criterion",
  "derive_more",
+ "fixedbitset",
  "flume",
  "indexmap",
  "mcrs_minecraft_anvil",
@@ -3776,9 +3784,12 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_reflect",
+ "bytes",
+ "fixedbitset",
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen",
+ "mcrs_voxel_math",
  "mcrs_voxel_storage",
  "serde",
  "serde_json",
@@ -3810,14 +3821,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_voxel_persist"
-version = "0.1.0"
-dependencies = [
- "mcrs_voxel_math",
- "mcrs_voxel_worldgen",
-]
-
-[[package]]
 name = "mcrs_voxel_server"
 version = "0.1.0"
 dependencies = [
@@ -3837,6 +3840,7 @@ name = "mcrs_voxel_storage"
 version = "0.1.0"
 dependencies = [
  "bevy_ecs",
+ "bevy_math",
  "mcrs_voxel_math",
  "rustc-hash 2.1.1",
 ]
@@ -3859,16 +3863,6 @@ dependencies = [
  "rustc-hash 2.1.1",
  "smallvec",
  "tracing",
-]
-
-[[package]]
-name = "mcrs_voxel_worldgen"
-version = "0.1.0"
-dependencies = [
- "bevy_ecs",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
- "rustc-hash 2.1.1",
 ]
 
 [[package]]

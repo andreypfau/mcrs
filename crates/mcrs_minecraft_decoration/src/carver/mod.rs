@@ -1,34 +1,12 @@
 pub mod beta;
 pub mod canyon;
-pub mod config;
 pub mod mask;
 pub mod modern;
 pub mod tunnel;
 pub mod water;
 
-use crate::carver::config::BetaCaveCarverConfig;
 use crate::carver::mask::CarvingMask;
 use crate::carver::water::{WaterMask, water_abort_scan};
-use mcrs_minecraft_random::Random;
-use mcrs_voxel_storage::VoxelId;
-
-pub trait WorldCarver {
-    fn carve<R: Random>(
-        &self,
-        config: &BetaCaveCarverConfig,
-        chunk_x: i32,
-        chunk_z: i32,
-        origin_x: i32,
-        origin_z: i32,
-        water: &WaterMask,
-        mask: &mut CarvingMask,
-        rng: &mut R,
-    );
-}
-
-pub fn can_replace_block(config: &BetaCaveCarverConfig, state: VoxelId) -> bool {
-    state == config.stone_state || state == config.dirt_state || state == config.grass_state
-}
 
 /// Which cells of the bounding box a carver's cross-section leaves out.
 ///

@@ -62,6 +62,7 @@ use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
 use crate::world::format::anvil::SavedColumns;
 use crate::world::generate::DimensionRouters;
+use crate::world::generate::stages::{FillContext, dimension_y_sections};
 use crate::world::heightmap::{DimHeightmapPlugin, HeightmapPredicates};
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
@@ -73,7 +74,6 @@ use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
 use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_voxel_world::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -90,6 +90,7 @@ pub struct DimRegistryBundle {
     pub biome_registry: RegistrySnapshot<Biome>,
     pub biome_sources: crate::world::generate::routers::DimensionBiomeSources,
     pub modern_carver_biomes: crate::world::generate::modern_carvers::DimensionCarverBiomes,
+    pub features: crate::world::generate::features::DimensionFeaturePrograms,
     pub world_save: Option<WorldSave>,
     pub noise_routers: DimensionRouters,
 }
@@ -111,6 +112,10 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
             .unwrap_or_default(),
         modern_carver_biomes: world
             .get_resource::<crate::world::generate::modern_carvers::DimensionCarverBiomes>()
+            .cloned()
+            .unwrap_or_default(),
+        features: world
+            .get_resource::<crate::world::generate::features::DimensionFeaturePrograms>()
             .cloned()
             .unwrap_or_default(),
         world_save: world.get_resource::<WorldSave>().cloned(),
@@ -273,18 +278,17 @@ pub fn spawn_dim_subapp(
         ColumnDrain,
         (
             crate::world::chunk::process_completed_columns,
+            crate::world::chunk::deliver_merged_columns,
             // The light packet walks the column index, which is rebuilt here rather than left
             // to the tick: a column sent before its sections are in it goes out unlit.
             mcrs_voxel_world::world::storage::column::reconcile_columns,
+            mcrs_voxel_world::world::storage::block_entity::reconcile_block_entities,
             crate::world::heightmap::prime_column_heightmaps,
             crate::world::entity::player::column_view::request_columns,
             mcrs_voxel_world::world::lifecycle::ticket::spawn_chunks,
             crate::world::chunk::enqueue_pending_columns,
-            crate::world::chunk::dispatch_column_generation.run_if(
-                bevy_ecs::prelude::resource_exists::<
-                    mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter,
-                >,
-            ),
+            crate::world::chunk::dispatch_column_generation
+                .run_if(bevy_ecs::prelude::resource_exists::<FillContext>),
             // A finished epoch frees its slot and unblocks its area only when it is
             // retired, so retiring once a tick leaves most of the light engine's
             // concurrency idle while columns arrive many times a tick. Retire and
@@ -342,8 +346,41 @@ pub fn spawn_dim_subapp(
     if let Some(dimension) = &dimension {
         match registries.noise_routers.0.get(dimension) {
             Some(router) => {
-                sub_app.insert_resource(mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter(
+                let biome_registry = std::sync::Arc::new(registries.biome_registry.clone());
+                let features = registries
+                    .features
+                    .0
+                    .get(dimension)
+                    .map(std::sync::Arc::clone);
+                // A dimension with no program decorates nothing, which is silent
+                // in the world and loud only here.
+                if features.is_none() {
+                    warn!(%dimension, "no feature program for this dimension; it will place no features");
+                }
+                sub_app.insert_resource(FillContext::build(
                     std::sync::Arc::clone(router),
+                    registries.blocks.0.clone(),
+                    dimension_y_sections(
+                        router,
+                        request.type_config.min_y,
+                        request.type_config.section_count,
+                    ),
+                    registries
+                        .biome_sources
+                        .0
+                        .get(dimension)
+                        .map(|source| (std::sync::Arc::clone(source), biome_registry)),
+                    registries.heightmap_predicates.clone(),
+                    registries.world_save.as_ref().and_then(|save| {
+                        SavedColumns::open(&save.0, request.dimension_id.as_str())
+                    }),
+                    registries
+                        .modern_carver_biomes
+                        .0
+                        .get(dimension)
+                        .map(std::sync::Arc::clone),
+                    Some(&registries.block_tag_registry),
+                    features,
                 ));
             }
             None => {
@@ -403,21 +440,6 @@ pub fn spawn_dim_subapp(
         sub_app.insert_resource(predicates.clone());
     }
     sub_app.insert_resource(registries.biome_registry.clone());
-    if let Some(dimension) = &dimension {
-        if let Some(source) = registries.biome_sources.0.get(dimension) {
-            sub_app.insert_resource(ActiveBiomeSource(std::sync::Arc::clone(source)));
-        }
-        if let Some(table) = registries.modern_carver_biomes.0.get(dimension) {
-            sub_app.insert_resource(crate::world::generate::modern_carvers::ModernCarverBiomes(
-                std::sync::Arc::clone(table),
-            ));
-        }
-    }
-    if let Some(world_save) = &registries.world_save
-        && let Some(saved) = SavedColumns::open(&world_save.0, request.dimension_id.as_str())
-    {
-        sub_app.insert_resource(saved);
-    }
 
     // Seed the time resources so an inspector that reads `Res<Time<…>>` on a
     // sub-app that has never been pumped gets a valid default. The extract

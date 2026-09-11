@@ -27,7 +27,7 @@ const MAX_DESPAWNS_PER_TICK: usize = MAX_SPAWNS_PER_TICK;
 /// this: raising more columns a tick than this can spawn grows the queue without bound.
 pub const MAX_SPAWNS_PER_TICK: usize = 4096;
 
-pub(crate) struct TicketPlugin;
+pub struct TicketPlugin;
 
 /// Turns the tick's new tickets into chunk entities. It runs in `FixedUpdate` so the tickets a
 /// view raised this tick become entities this tick, and whatever queues them can follow.

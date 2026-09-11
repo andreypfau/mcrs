@@ -125,15 +125,20 @@ impl<T: Asset> RegistrySnapshot<T> {
     }
 }
 
-/// Convert a Bevy asset path into a `ResourceLocation`.
-///
-/// Asset path shape: `"<namespace>/<registry_dir...>/<name>.json"`.
-/// The namespace is the first path component, the name is the file stem.
-/// Registry directory segments (variable depth) are stripped.
-pub fn rl_from_asset_path(path: &std::path::Path) -> Option<ResourceLocation<Arc<str>>> {
-    let namespace = path.iter().next()?.to_str()?;
-    let stem = path.file_stem()?.to_str()?;
-    ResourceLocation::parse(&format!("{namespace}:{stem}")).ok()
+/// The id an asset at `<namespace>/<registry>/<name>.json` carries: everything
+/// under the registry directory, folders included, so `worldgen/feature/coral/
+/// tube_block.json` is `minecraft:coral/tube_block`. `registry` is the
+/// directory or the registry key (`minecraft:worldgen/feature`); a path outside
+/// it is `None`.
+pub fn rl_from_asset_path(
+    path: &std::path::Path,
+    registry: &str,
+) -> Option<ResourceLocation<Arc<str>>> {
+    let registry = registry.split_once(':').map_or(registry, |(_, dir)| dir);
+    let (namespace, rest) = path.to_str()?.split_once('/')?;
+    let under = rest.strip_prefix(registry)?.strip_prefix('/')?;
+    let name = under.strip_suffix(".json").unwrap_or(under);
+    ResourceLocation::parse(&format!("{namespace}:{name}")).ok()
 }
 
 /// Register `RegistrySnapshot<T>` resources and their WorldgenFreeze builder
@@ -166,7 +171,7 @@ macro_rules! snapshot_registry {
                             .iter()
                             .filter_map(|(asset_id, _)| {
                                 let path = asset_server.get_path(asset_id)?;
-                                let rl = $crate::registry::snapshot::rl_from_asset_path(path.path())?;
+                                let rl = $crate::registry::snapshot::rl_from_asset_path(path.path(), $registry_key)?;
                                 Some((rl, asset_id))
                             })
                             .collect();
@@ -307,21 +312,27 @@ mod tests {
     #[test]
     fn rl_from_asset_path_parses_minecraft_path() {
         let p = std::path::Path::new("minecraft/worldgen/biome/plains.json");
-        let rl = rl_from_asset_path(p).unwrap();
+        let rl = rl_from_asset_path(p, "minecraft:worldgen/biome").unwrap();
         assert_eq!(rl.as_str(), "minecraft:plains");
     }
 
     #[test]
-    fn rl_from_asset_path_nested_path() {
-        let p = std::path::Path::new("minecraft/chat_type/msg_command_incoming.json");
-        let rl = rl_from_asset_path(p).unwrap();
-        assert_eq!(rl.as_str(), "minecraft:msg_command_incoming");
+    fn rl_from_asset_path_keeps_the_folders_under_the_registry() {
+        let p = std::path::Path::new("minecraft/worldgen/feature/coral/tube_block.json");
+        let rl = rl_from_asset_path(p, "worldgen/feature").unwrap();
+        assert_eq!(rl.as_str(), "minecraft:coral/tube_block");
+    }
+
+    #[test]
+    fn rl_from_asset_path_refuses_another_registry() {
+        let p = std::path::Path::new("minecraft/worldgen/feature/ore_coal.json");
+        assert!(rl_from_asset_path(p, "worldgen/placed_feature").is_none());
     }
 
     #[test]
     fn rl_from_asset_path_no_extension_still_works() {
         let p = std::path::Path::new("minecraft/chat_type/chat");
-        let rl = rl_from_asset_path(p).unwrap();
+        let rl = rl_from_asset_path(p, "chat_type").unwrap();
         assert_eq!(rl.as_str(), "minecraft:chat");
     }
 }

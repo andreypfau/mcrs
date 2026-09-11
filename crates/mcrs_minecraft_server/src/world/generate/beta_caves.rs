@@ -1,37 +1,35 @@
-use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
-use mcrs_minecraft_decoration::carver::beta::CaveWorldCarver;
-use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
 use mcrs_minecraft_decoration::carver::mask::CarvingMask;
 use mcrs_minecraft_decoration::carver::water::WaterMask;
-use mcrs_minecraft_decoration::carver::{WorldCarver, can_replace_block};
-use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
+use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen::value_provider::HeightContext;
 use mcrs_voxel_storage::VoxelId;
 
+use crate::world::generate::ColumnBlocks;
+use crate::world::generate::modern_carvers::{CarverBiomeTable, carve_sources};
+
 pub struct BetaCaveBlockIds {
-    pub air: BlockStateId,
-    pub lava: BlockStateId,
-    pub stone: BlockStateId,
-    pub dirt: BlockStateId,
-    pub grass: BlockStateId,
-    pub water: BlockStateId,
-    pub stationary_water: BlockStateId,
+    pub air: VoxelId,
+    pub lava: VoxelId,
+    pub stone: VoxelId,
+    pub dirt: VoxelId,
+    pub grass: VoxelId,
+    /// Beta's abort tests both flowing and stationary water; the fill and the
+    /// surface place only the one source state.
+    pub water: VoxelId,
 }
 
 impl BetaCaveBlockIds {
     pub fn resolve(blocks: &BlockDefinitions) -> Self {
+        let state = |name: &str| -> VoxelId { blocks.default_state(name).into() };
         BetaCaveBlockIds {
-            air: blocks.default_state("minecraft:air"),
-            lava: blocks.default_state("minecraft:lava"),
-            stone: blocks.default_state("minecraft:stone"),
-            dirt: blocks.default_state("minecraft:dirt"),
-            grass: blocks.default_state("minecraft:grass_block"),
-            // Both water and stationary_water map to the same modern water source state.
-            // back2beta captures stationary water (ID 9) at sea-level fill positions;
-            // the surface pass places water source state there, so we check the same ID.
-            water: blocks.default_state("minecraft:water"),
-            stationary_water: blocks.default_state("minecraft:water"),
+            air: state("minecraft:air"),
+            lava: state("minecraft:lava"),
+            stone: state("minecraft:stone"),
+            dirt: state("minecraft:dirt"),
+            grass: state("minecraft:grass_block"),
+            water: state("minecraft:water"),
         }
     }
 }
@@ -40,9 +38,7 @@ impl BetaCaveBlockIds {
 ///
 /// Section cells are dense and in palette index order, so one linear scan per
 /// section covers the whole column.
-fn water_mask(column: &ColumnBlocks, ids: &BetaCaveBlockIds) -> WaterMask {
-    let water: VoxelId = ids.water.into();
-    let stationary: VoxelId = ids.stationary_water.into();
+fn water_mask(column: &ColumnBlocks, water: VoxelId) -> WaterMask {
     let mut mask = WaterMask::default();
     for (slot, &section_y) in column.y_sections().iter().enumerate() {
         let base_y = section_y * 16;
@@ -50,8 +46,7 @@ fn water_mask(column: &ColumnBlocks, ids: &BetaCaveBlockIds) -> WaterMask {
             continue;
         }
         for (index, cell) in column.section_cells(slot).iter().enumerate() {
-            let state = cell.get();
-            if state != water && state != stationary {
+            if cell.get() != water {
                 continue;
             }
             mask.insert(
@@ -64,77 +59,101 @@ fn water_mask(column: &ColumnBlocks, ids: &BetaCaveBlockIds) -> WaterMask {
     mask
 }
 
-/// What Beta's ellipsoid bounds clamp to. The rasteriser marks `min_y + 1`
-/// upwards, so the lowest block it can free is Y 2.
-const MASK_MIN_Y: i32 = 1;
-const MASK_MAX_Y: i32 = 120;
+/// Below this the freed block is lava rather than air.
+const LAVA_LEVEL: i32 = 10;
 
 /// Fill the space the carver freed: lava under the lava level, air above it,
 /// and dirt turned to grass directly under the first grass seen coming down.
 ///
 /// One pass per carved run, top down, which is where the grass fixup has to
 /// look: the block it converts is the next Y the same run visits.
-fn apply_cave_substance(
-    column: &ColumnBlocks,
-    mask: &CarvingMask,
-    config: &BetaCaveCarverConfig,
-    ids: &BetaCaveBlockIds,
-) {
-    let air: VoxelId = ids.air.into();
+fn apply_cave_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &BetaCaveBlockIds) {
     mask.visit(|x, z, bottom_y, top_y| {
         let mut has_grass = false;
         for y in (bottom_y..=top_y).rev() {
-            let state = column.get(x, y, z).unwrap_or(air);
-            if state == config.grass_state {
+            let state = column.get(x, y, z).unwrap_or(ids.air);
+            if state == ids.grass {
                 has_grass = true;
             }
-            if !can_replace_block(config, state) {
+            if state != ids.stone && state != ids.dirt && state != ids.grass {
                 continue;
             }
             // Beta's lava threshold is on the Y the ellipsoid test accepted,
             // which is one below the block that test frees.
-            if y - 1 < config.lava_level {
-                column.set(x, y, z, config.lava_state);
+            if y - 1 < LAVA_LEVEL {
+                column.set(x, y, z, ids.lava);
             } else {
-                column.set(x, y, z, config.air_state);
-                if has_grass && column.get(x, y - 1, z) == Some(config.dirt_state) {
-                    column.set(x, y - 1, z, config.grass_state);
+                column.set(x, y, z, ids.air);
+                if has_grass && column.get(x, y - 1, z) == Some(ids.dirt) {
+                    column.set(x, y - 1, z, ids.grass);
                 }
             }
         }
     });
 }
 
-pub fn apply_beta_caves(
+/// Beta's carving of one column: the source loop every dimension shares, with
+/// Beta's carver in it, then Beta's own fill of what it freed.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_beta_carvers(
     column: &ColumnBlocks,
     chunk_x: i32,
     chunk_z: i32,
     world_seed: i64,
-    config: &BetaCaveCarverConfig,
+    router: &NoiseRouter,
+    ws: &mut Workspace,
+    biomes: &CarverBiomeTable,
+    height: HeightContext,
     ids: &BetaCaveBlockIds,
 ) {
-    let carver = CaveWorldCarver;
-    let water = water_mask(column, ids);
-    let mut mask = CarvingMask::new(16, MASK_MIN_Y, MASK_MAX_Y);
+    let mask = carve_sources(
+        || water_mask(column, ids.water),
+        chunk_x,
+        chunk_z,
+        world_seed,
+        router,
+        ws,
+        biomes,
+        height,
+    );
+    apply_cave_substance(column, &mask, ids);
+}
 
-    let radius = config.source_radius;
-    for origin_x in (chunk_x - radius)..=(chunk_x + radius) {
-        for origin_z in (chunk_z - radius)..=(chunk_z + radius) {
-            let mut carve_rng =
-                LegacyRandom::new(beta_chunk_seed(world_seed, origin_x, origin_z) as u64);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::generate::tests::corpus;
 
-            carver.carve(
-                config,
-                chunk_x,
-                chunk_z,
-                origin_x,
-                origin_z,
-                &water,
-                &mut mask,
-                &mut carve_rng,
-            );
+    #[test]
+    fn the_fill_frees_only_what_beta_carves_and_floors_it_with_lava() {
+        let ids = BetaCaveBlockIds::resolve(corpus());
+        let sand: VoxelId = corpus().default_state("minecraft:sand").into();
+        let sections: Vec<i32> = (0..8).collect();
+        let column = ColumnBlocks::new(&sections);
+        let mut mask = CarvingMask::new(16, 1, 120);
+        for (x, y, state) in [
+            (0, 10, ids.stone),
+            (0, 11, ids.stone),
+            (1, 50, sand),
+            (2, 51, ids.grass),
+            (2, 50, ids.dirt),
+        ] {
+            column.set(x, y, 0, state);
+            mask.carve(x, y, 0);
         }
-    }
+        column.set(2, 49, 0, ids.dirt);
 
-    apply_cave_substance(column, &mask, config, ids);
+        apply_cave_substance(&column, &mask, &ids);
+
+        assert_eq!(column.get(0, 10, 0), Some(ids.lava), "tested at Y 9");
+        assert_eq!(column.get(0, 11, 0), Some(ids.air), "tested at Y 10");
+        assert_eq!(column.get(1, 50, 0), Some(sand), "Beta carves no sand");
+        assert_eq!(column.get(2, 51, 0), Some(ids.air));
+        assert_eq!(column.get(2, 50, 0), Some(ids.air));
+        assert_eq!(
+            column.get(2, 49, 0),
+            Some(ids.grass),
+            "the dirt under a carved lawn turns to grass"
+        );
+    }
 }

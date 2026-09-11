@@ -354,56 +354,7 @@ impl Serialize for NumberProvider {
     }
 }
 
-/// Java's `HolderSet` as a datapack writes it: a tag reference, one identifier,
-/// or a list of identifiers. The three forms are kept apart so a re-encode is
-/// the text the pack shipped.
-#[derive(Debug, Clone, PartialEq)]
-pub enum HolderSet {
-    Tag(String),
-    One(String),
-    List(Vec<String>),
-}
-
-impl<'de> Deserialize<'de> for HolderSet {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = HolderSet;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a tag reference, an identifier, or a list of identifiers")
-            }
-
-            fn visit_str<E: de::Error>(self, v: &str) -> Result<HolderSet, E> {
-                Ok(match v.strip_prefix('#') {
-                    Some(tag) => HolderSet::Tag(tag.to_owned()),
-                    None => HolderSet::One(v.to_owned()),
-                })
-            }
-
-            fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<HolderSet, A::Error> {
-                let mut ids = Vec::with_capacity(seq.size_hint().unwrap_or(1));
-                while let Some(id) = seq.next_element::<String>()? {
-                    ids.push(id);
-                }
-                Ok(HolderSet::List(ids))
-            }
-        }
-
-        d.deserialize_any(V)
-    }
-}
-
-impl Serialize for HolderSet {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match self {
-            HolderSet::Tag(tag) => s.serialize_str(&format!("#{tag}")),
-            HolderSet::One(id) => s.serialize_str(id),
-            HolderSet::List(ids) => ids.serialize(s),
-        }
-    }
-}
+pub type HolderSet = mcrs_minecraft_worldgen::feature::HolderSet<String>;
 
 /// Java's `MinMaxBounds`: a bare number is both ends, an object states either.
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -31,6 +31,11 @@
       "minecraft:replaceable": {},
       "minecraft:destructible_by_mining": true,
       "minecraft:loot": "minecraft:blocks/soul_fire",
+      "minecraft:placement_filter": {
+        "conditions": [
+          { "allowed_faces": ["up"], "block_filter": ["#minecraft:soul_fire_base_blocks"] }
+        ]
+      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false

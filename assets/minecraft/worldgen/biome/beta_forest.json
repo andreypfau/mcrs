@@ -5,6 +5,12 @@
   "effects": {
     "water_color": "#3f76e4"
   },
-  "carvers": [],
-  "features": []
+  "carvers": [
+    "minecraft:beta_cave"
+  ],
+  "features": [
+    [
+      "minecraft:beta_populate"
+    ]
+  ]
 }

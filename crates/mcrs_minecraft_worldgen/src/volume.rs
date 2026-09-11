@@ -1,14 +1,6 @@
 use crate::jmath::{floor_div, floor_mod};
 use bevy_math::IVec3;
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Axis {
-    X,
-    Y,
-    Z,
-}
+pub use mcrs_voxel_math::Axis;
 
 /// A strided box of block positions: `size` samples per axis, starting at
 /// `min_block`, spaced `step_block` apart.

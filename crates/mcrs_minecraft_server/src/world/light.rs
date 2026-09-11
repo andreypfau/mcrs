@@ -23,6 +23,7 @@ use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::column_view::ColumnView;
 
 pub struct DimLightPlugin {
@@ -180,7 +181,7 @@ pub fn emit_light_updates(
         Or<(Changed<BlockLight>, Changed<SkyLight>)>,
     >,
     column_indices: Query<&ColumnIndex>,
-    views: Query<(Entity, &ColumnView)>,
+    views: Query<(&ColumnView, &HostAnchor)>,
     codec_params: LightCodecParams,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
@@ -211,10 +212,13 @@ pub fn emit_light_updates(
         // so for a player standing still every column that finished loading
         // afterwards has an empty observer list and would never see a
         // correction to the light it was sent.
+        // The anchor, not the dimension world's player entity: the session
+        // registry is keyed by anchor, and a target it cannot resolve is
+        // dropped without a trace.
         let targets: SmallVec<[Entity; 8]> = views
             .iter()
-            .filter(|(_, view)| view.sent_columns.contains(&column_pos))
-            .map(|(player, _)| player)
+            .filter(|(view, _)| view.sent_columns.contains(&column_pos))
+            .map(|(_, anchor)| anchor.0)
             .collect();
         if targets.is_empty() {
             continue;

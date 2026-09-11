@@ -310,7 +310,7 @@ pub fn freeze_timelines(
         .iter()
         .filter_map(|(id, timeline)| {
             Some((
-                rl_from_asset_path(asset_server.get_path(id)?.path())?,
+                rl_from_asset_path(asset_server.get_path(id)?.path(), "timeline")?,
                 timeline,
             ))
         })
@@ -330,7 +330,7 @@ pub fn freeze_timelines(
     for (asset_id, dimension_type) in dimension_types.iter() {
         let Some(id) = asset_server
             .get_path(asset_id)
-            .and_then(|path| rl_from_asset_path(path.path()))
+            .and_then(|path| rl_from_asset_path(path.path(), "dimension_type"))
         else {
             continue;
         };

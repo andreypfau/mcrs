@@ -5,25 +5,27 @@ use bevy_asset::Assets;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_decoration::carver::WorldCarver;
-use mcrs_minecraft_decoration::carver::beta::CaveWorldCarver;
-use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
+use mcrs_minecraft_decoration::carver::beta::carve_beta_caves;
 use mcrs_minecraft_decoration::carver::mask::CarvingMask;
+use mcrs_minecraft_decoration::carver::modern::SOURCE_RADIUS;
 use mcrs_minecraft_decoration::carver::water::WaterMask;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
+use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen::router::NoiseRouter;
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_storage::VoxelId;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::ColumnBlocks;
+use crate::world::generate::modern_carvers::CarverBiomeTable;
+use crate::world::generate::stages::extent;
 use crate::world::generate::{
-    BetaCaveBlockIds, apply_beta_caves, apply_beta_surface, generate_column,
+    BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, generate_column,
 };
 
 // ── Corpus deserialization ────────────────────────────────────────────────────
@@ -129,23 +131,28 @@ fn beta_id_for_modern(modern: BlockStateId) -> u8 {
     0
 }
 
-// ── Cave config helper ────────────────────────────────────────────────────────
+// ── Carving helper ────────────────────────────────────────────────────────────
 
-fn make_cave_config() -> (BetaCaveCarverConfig, BetaCaveBlockIds) {
-    let ids = BetaCaveBlockIds::resolve(super::corpus());
-    let config = BetaCaveCarverConfig {
-        air_state: ids.air.into(),
-        lava_state: ids.lava.into(),
-        stone_state: ids.stone.into(),
-        dirt_state: ids.dirt.into(),
-        grass_state: ids.grass.into(),
-        lava_level: 10,
-        source_radius: 8,
-        tunnel_length: 112,
-        horizontal_radius_multiplier: 1.0,
-        vertical_radius_multiplier: 1.0,
-    };
-    (config, ids)
+/// Beta's carving of one column, through the carver loop every dimension shares.
+fn carve(
+    column: &ColumnBlocks,
+    chunk_x: i32,
+    chunk_z: i32,
+    world_seed: i64,
+    router: &NoiseRouter,
+    table: &CarverBiomeTable,
+) {
+    apply_beta_carvers(
+        column,
+        chunk_x,
+        chunk_z,
+        world_seed,
+        router,
+        &mut Workspace::new(),
+        table,
+        extent(router),
+        &BetaCaveBlockIds::resolve(super::corpus()),
+    );
 }
 
 // ── Draw-count instrumentation ────────────────────────────────────────────────
@@ -222,6 +229,10 @@ impl Random for CountingRng {
         self.inner.next_f64()
     }
 
+    fn next_gaussian(&mut self) -> f64 {
+        self.inner.next_gaussian()
+    }
+
     fn fork(&mut self) -> Self {
         self.inc();
         CountingRng {
@@ -250,8 +261,6 @@ impl Random for CountingRng {
 /// Count the total RNG draw operations consumed by the 17x17 loop for one chunk.
 fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64 {
     let draws = std::rc::Rc::new(std::cell::Cell::new(0u64));
-    let (config, _ids) = make_cave_config();
-    let carver = CaveWorldCarver;
 
     let mut seed_rng = LegacyRandom::new(world_seed as u64);
     let l: i64 = seed_rng.next_i64() / 2 * 2 + 1;
@@ -260,7 +269,7 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
 
     let water = WaterMask::default();
     let mut mask = CarvingMask::new(16, 1, 120);
-    let radius = config.source_radius;
+    let radius = SOURCE_RADIUS;
 
     for origin_x in (chunk_x - radius)..=(chunk_x + radius) {
         for origin_z in (chunk_z - radius)..=(chunk_z + radius) {
@@ -271,8 +280,7 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
 
             let mut counting_rng = CountingRng::new(seed as u64, draws.clone());
 
-            carver.carve(
-                &config,
+            carve_beta_caves(
                 chunk_x,
                 chunk_z,
                 origin_x,
@@ -311,18 +319,12 @@ fn make_beta_biome() -> Biome {
 fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let mut assets = Assets::<Biome>::default();
     let land_handles: Vec<_> = (0..11).map(|_| assets.add(make_beta_biome())).collect();
-    let ocean_handles: Vec<_> = (0..5).map(|_| assets.add(make_beta_biome())).collect();
     let land_ids: Vec<_> = land_handles.iter().map(|h| h.id()).collect();
-    let ocean_ids: Vec<_> = ocean_handles.iter().map(|h| h.id()).collect();
     let all_pairs: Vec<(ResourceLocation<Arc<str>>, _)> = (0..11)
         .map(|i| {
             let rl = ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap();
             (rl, land_ids[i])
         })
-        .chain((0..5).map(|i| {
-            let rl = ResourceLocation::parse(&format!("minecraft:ocean_biome_{i}")).unwrap();
-            (rl, ocean_ids[i])
-        }))
         .collect();
     let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
         Ok(mcrs_minecraft_nbt::compound::NbtCompound::new())
@@ -330,14 +332,9 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
         ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
     });
-    let ocean_biome_ids: [ResourceLocation<Arc<str>>; 5] = std::array::from_fn(|i| {
-        ResourceLocation::parse(&format!("minecraft:ocean_biome_{i}")).unwrap()
-    });
     let biome_source = BiomeSource::Beta {
         land_biomes: land_handles.try_into().expect("11 land handles"),
-        ocean_biomes: ocean_handles.try_into().expect("5 ocean handles"),
         land_biome_ids,
-        ocean_biome_ids,
         lookup: Box::new(build_beta_lookup_table()),
     };
     (biome_source, snapshot)
@@ -353,7 +350,7 @@ fn make_chunk_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {
 // ── Parity test ───────────────────────────────────────────────────────────────
 
 /// Carve-mask parity gate: for each chunk in the fixture corpus, build a full
-/// 16x16 section palette from `pre_cave` bytes, run `apply_beta_caves` at seed
+/// 16x16 section palette from `pre_cave` bytes, carve it at seed
 /// 12345, convert the result back to Beta block IDs, and assert equality with
 /// `post_cave`.
 ///
@@ -362,7 +359,8 @@ fn make_chunk_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {
 #[test]
 fn beta_cave_parity_gate() {
     let corpus = load_corpus();
-    let (config, ids) = make_cave_config();
+    let router = build_beta_router();
+    let table = super::beta_carver_table(&build_beta_biome_source().0);
 
     let world_seed: i64 = 12345;
     let y_sections: Vec<i32> = (0..8).collect();
@@ -406,7 +404,7 @@ fn beta_cave_parity_gate() {
         }
 
         let column = ColumnBlocks::from_sections(&sections, &y_sections);
-        apply_beta_caves(&column, *cx, *cz, world_seed, &config, &ids);
+        carve(&column, *cx, *cz, world_seed, &router, &table);
         column.write_back(&mut sections);
 
         for fix_col in fixture_cols.iter() {
@@ -510,7 +508,8 @@ fn generate_column_beta_has_caves() {
     let router = build_beta_router();
     let (biome_source, snapshot) = build_beta_biome_source();
     let cancel = CancellationToken::new();
-    let (config, ids) = make_cave_config();
+    let ids = BetaCaveBlockIds::resolve(super::corpus());
+    let table = super::beta_carver_table(&biome_source);
 
     let world_seed = router.world_seed as i64;
     let y_sections: Vec<i32> = (0..8).collect();
@@ -542,11 +541,11 @@ fn generate_column_beta_has_caves() {
     column.write_back(&mut sections);
 
     let column = ColumnBlocks::from_sections(&sections, &y_sections);
-    apply_beta_caves(&column, chunk_x, chunk_z, world_seed, &config, &ids);
+    carve(&column, chunk_x, chunk_z, world_seed, &router, &table);
     column.write_back(&mut sections);
 
-    let air = VoxelId::from(ids.air);
-    let lava = VoxelId::from(ids.lava);
+    let air = ids.air;
+    let lava = ids.lava;
 
     let mut found_cave_air = false;
     let mut found_lava_below_10 = false;
@@ -600,7 +599,7 @@ fn generate_column_beta_has_caves() {
     );
 }
 
-/// Real-pipeline proof: run generate_column + apply_beta_surface + apply_beta_caves
+/// Real-pipeline proof: run generate_column + apply_beta_surface + apply_beta_carvers
 /// (exactly as `chunk.rs` does) across an 8x8 chunk grid at seed 12345 and count
 /// air voxels strictly below Y 32. Beta produces no noise caverns, so any air that
 /// deep can only come from the carver. Prints per-chunk counts and requires at
@@ -610,10 +609,11 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
     let router = build_beta_router();
     let (biome_source, snapshot) = build_beta_biome_source();
     let cancel = CancellationToken::new();
-    let (config, ids) = make_cave_config();
+    let ids = BetaCaveBlockIds::resolve(super::corpus());
+    let table = super::beta_carver_table(&biome_source);
     let world_seed = router.world_seed as i64;
     let y_sections: Vec<i32> = (0..8).collect();
-    let air = VoxelId::from(ids.air);
+    let air = ids.air;
 
     let mut chunks_with_air = 0usize;
     let mut total_air = 0usize;
@@ -642,7 +642,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
             );
             column.write_back(&mut sections);
             let column = ColumnBlocks::from_sections(&sections, &y_sections);
-            apply_beta_caves(&column, chunk_x, chunk_z, world_seed, &config, &ids);
+            carve(&column, chunk_x, chunk_z, world_seed, &router, &table);
             column.write_back(&mut sections);
 
             let mut air_below_32 = 0usize;

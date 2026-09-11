@@ -22,6 +22,9 @@ use mcrs_voxel_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_voxel_world::world::storage::column::{ChunkLookup, ColumnChunks, ColumnIndex};
 use rustc_hash::FxHashMap;
 
+use crate::world::generate::ColumnBlocks;
+use std::cell::Cell;
+
 pub use mcrs_voxel_storage::ColumnHeights as ColumnHeightmap;
 
 /// Topmost non-air block. The upper bound of every other map.
@@ -156,17 +159,148 @@ impl ColumnHeightmapSet {
             self.no_leaves.0.set(x, z, y);
         }
     }
+
+    pub fn apply_write(
+        &mut self,
+        x: usize,
+        z: usize,
+        y: i32,
+        kinds: HeightmapKinds,
+        predicates: &HeightmapPredicates,
+        read: &impl Fn(i32) -> VoxelId,
+    ) {
+        apply_write(
+            &mut self.surface.0,
+            &mut self.solid.0,
+            &mut self.motion.0,
+            &mut self.no_leaves.0,
+            x,
+            z,
+            y,
+            kinds,
+            predicates,
+            read,
+        );
+    }
+}
+
+/// The two maps a placement modifier reads as `WORLD_SURFACE_WG` and
+/// `OCEAN_FLOOR_WG`: the column as the fill and the surface rules left it,
+/// before any carver cut into it.
+#[derive(Debug, Clone)]
+pub struct PreCarveHeightmaps {
+    pub surface: ColumnHeights,
+    pub solid: ColumnHeights,
+}
+
+/// Carry one block write through the four maps.
+///
+/// The order is mandatory: `MOTION`'s descent stops at the topmost `SOLID`
+/// block, which satisfies `MOTION` too, so `SOLID` must already carry this
+/// write before `MOTION` is asked.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn apply_write(
+    surface: &mut ColumnHeights,
+    solid: &mut ColumnHeights,
+    motion: &mut ColumnHeights,
+    no_leaves: &mut ColumnHeights,
+    x: usize,
+    z: usize,
+    y: i32,
+    kinds: HeightmapKinds,
+    predicates: &HeightmapPredicates,
+    read: &impl Fn(i32) -> VoxelId,
+) {
+    let floor = surface.min_y();
+    for (map, kind) in [
+        (&mut *surface, HeightmapKinds::SURFACE),
+        (&mut *solid, HeightmapKinds::SOLID),
+        (&mut *no_leaves, HeightmapKinds::NO_LEAVES),
+    ] {
+        apply_edit(map, kind, x, z, y, kinds, floor, predicates, read);
+    }
+    let solid_floor = solid.get(x, z);
+    apply_edit(
+        motion,
+        HeightmapKinds::MOTION,
+        x,
+        z,
+        y,
+        kinds,
+        solid_floor,
+        predicates,
+        read,
+    );
+}
+
+/// The pre-carve descent, over the dense buffer the fill still holds: the two
+/// maps a placement modifier reads as `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`.
+pub fn build_pre_carve_heightmaps(
+    column: &ColumnBlocks,
+    predicates: &HeightmapPredicates,
+) -> Option<PreCarveHeightmaps> {
+    let set = descend(
+        column.y_sections(),
+        HeightmapKinds::SURFACE.union(HeightmapKinds::SOLID),
+        |index| Some(SectionCells::Dense(column.section_cells(index))),
+        predicates,
+    )?;
+    Some(PreCarveHeightmaps {
+        surface: set.surface.0,
+        solid: set.solid.0,
+    })
 }
 
 /// One descending pass over the column that closes every map at the first block
 /// satisfying it.
-///
-/// A section whose palette is homogeneous settles all 256 columns from a single
-/// table lookup, so the empty air above the terrain and the open water of an
-/// ocean each cost one test rather than one per block.
 pub fn build_column_heightmaps(
     sections: &[Option<(BlockPalette, BiomePalette)>],
     y_sections: &[i32],
+    predicates: &HeightmapPredicates,
+) -> Option<ColumnHeightmapSet> {
+    descend(
+        y_sections,
+        HeightmapKinds::all(),
+        |index| {
+            let (blocks, _) = sections.get(index)?.as_ref()?;
+            Some(SectionCells::Palette(&blocks.0))
+        },
+        predicates,
+    )
+}
+
+/// A section's blocks as the descent reads them: the fill's dense buffer, or a
+/// packed palette, which settles all 256 columns from one lookup when it is
+/// homogeneous, so the empty air above the terrain and the open water of an
+/// ocean each cost one test rather than one per block.
+enum SectionCells<'a> {
+    Dense(&'a [Cell<VoxelId>]),
+    Palette(&'a PalettedContainer<VoxelId, { BLOCKS::SIZE }>),
+}
+
+impl SectionCells<'_> {
+    fn homogeneous(&self) -> Option<VoxelId> {
+        match self {
+            SectionCells::Palette(PalettedContainer::Homogeneous(id)) => Some(*id),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn get(&self, local_y: usize, cell: usize) -> VoxelId {
+        match self {
+            SectionCells::Dense(cells) => cells[local_y * BLOCKS::AREA + cell].get(),
+            SectionCells::Palette(palette) => {
+                palette.get(cell & BLOCKS::MASK, local_y, cell >> BLOCKS::BITS)
+            }
+        }
+    }
+}
+
+fn descend<'a>(
+    y_sections: &[i32],
+    wanted: HeightmapKinds,
+    section: impl Fn(usize) -> Option<SectionCells<'a>>,
     predicates: &HeightmapPredicates,
 ) -> Option<ColumnHeightmapSet> {
     let first = *y_sections.first()?;
@@ -175,45 +309,39 @@ pub fn build_column_heightmaps(
     let height = ((last - first + 1) * BLOCKS::SIZE as i32) as u32;
 
     let mut set = ColumnHeightmapSet::new(height, min_y);
-    let mut open = [HeightmapKinds::all(); BLOCKS::AREA];
+    let mut open = [wanted; BLOCKS::AREA];
     let mut remaining = BLOCKS::AREA;
 
     for (index, &section_y) in y_sections.iter().enumerate().rev() {
         if remaining == 0 {
             break;
         }
-        let Some((blocks, _)) = sections.get(index).and_then(Option::as_ref) else {
+        let Some(cells) = section(index) else {
             continue;
         };
         let section_min_y = section_y * BLOCKS::SIZE as i32;
-        match &blocks.0 {
-            PalettedContainer::Homogeneous(id) => {
-                let kinds = predicates.get(*id);
-                if kinds.is_empty() {
+        if let Some(id) = cells.homogeneous() {
+            let kinds = predicates.get(id);
+            if kinds.is_empty() {
+                continue;
+            }
+            let top = section_min_y + BLOCKS::SIZE as i32;
+            for (cell, open) in open.iter_mut().enumerate() {
+                remaining -= close(&mut set, open, cell, kinds, top) as usize;
+            }
+            continue;
+        }
+        for local_y in (0..BLOCKS::SIZE).rev() {
+            if remaining == 0 {
+                break;
+            }
+            let top = section_min_y + local_y as i32 + 1;
+            for (cell, open) in open.iter_mut().enumerate() {
+                if open.is_empty() {
                     continue;
                 }
-                let top = section_min_y + BLOCKS::SIZE as i32;
-                for cell in 0..BLOCKS::AREA {
-                    remaining -= close(&mut set, &mut open[cell], cell, kinds, top) as usize;
-                }
-            }
-            PalettedContainer::Heterogeneous(_) => {
-                for local_y in (0..BLOCKS::SIZE).rev() {
-                    if remaining == 0 {
-                        break;
-                    }
-                    let top = section_min_y + local_y as i32 + 1;
-                    for cell in 0..BLOCKS::AREA {
-                        if open[cell].is_empty() {
-                            continue;
-                        }
-                        let id = blocks
-                            .0
-                            .get(cell & BLOCKS::MASK, local_y, cell >> BLOCKS::BITS);
-                        let kinds = predicates.get(id);
-                        remaining -= close(&mut set, &mut open[cell], cell, kinds, top) as usize;
-                    }
-                }
+                let kinds = predicates.get(cells.get(local_y, cell));
+                remaining -= close(&mut set, open, cell, kinds, top) as usize;
             }
         }
     }
@@ -385,51 +513,15 @@ pub fn update_column_heightmaps(
         let kinds = predicates.get(edit.new_state);
         let read = |at: i32| block_at(chunks, &palettes, x, at, z);
 
-        let floor = surface.0.min_y();
-        apply_edit(
+        apply_write(
             &mut surface.0,
-            HeightmapKinds::SURFACE,
-            x,
-            z,
-            y,
-            kinds,
-            floor,
-            &predicates,
-            &read,
-        );
-        apply_edit(
             &mut solid.0,
-            HeightmapKinds::SOLID,
-            x,
-            z,
-            y,
-            kinds,
-            floor,
-            &predicates,
-            &read,
-        );
-        apply_edit(
-            &mut no_leaves.0,
-            HeightmapKinds::NO_LEAVES,
-            x,
-            z,
-            y,
-            kinds,
-            floor,
-            &predicates,
-            &read,
-        );
-        // The descent for MOTION stops at SOLID, whose block satisfies MOTION
-        // too — so SOLID must already carry this edit's value.
-        let solid_floor = solid.0.get(x, z);
-        apply_edit(
             &mut motion.0,
-            HeightmapKinds::MOTION,
+            &mut no_leaves.0,
             x,
             z,
             y,
             kinds,
-            solid_floor,
             &predicates,
             &read,
         );
@@ -437,7 +529,7 @@ pub fn update_column_heightmaps(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn apply_edit(
+pub(crate) fn apply_edit(
     map: &mut ColumnHeights,
     kind: HeightmapKinds,
     x: usize,

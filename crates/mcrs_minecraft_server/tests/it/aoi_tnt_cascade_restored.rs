@@ -22,6 +22,7 @@ use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_server::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload};
+use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::explosion::ExplosionConfig;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
@@ -61,7 +62,10 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
 
     // The player must carry the Player Component so the liveness filter in
     // update_client_blocks_per_dim passes it through.
-    let player = app.world_mut().spawn(Player).id();
+    // The anchor is what the bus addresses; without it the emit resolves no
+    // recipient and the cascade would look silent for the wrong reason.
+    let anchor = app.world_mut().spawn_empty().id();
+    let player = app.world_mut().spawn((Player, HostAnchor(anchor))).id();
     let mut observers = PlayerObservers::default();
     observers.0.push(player);
     let column_entity = app.world_mut().spawn(observers).id();

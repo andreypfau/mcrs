@@ -31,6 +31,11 @@
       "minecraft:replaceable": {},
       "minecraft:destructible_by_mining": true,
       "minecraft:loot": "minecraft:blocks/warped_roots",
+      "minecraft:placement_filter": {
+        "conditions": [
+          { "allowed_faces": ["up"], "block_filter": ["#minecraft:supports_warped_roots"] }
+        ]
+      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false

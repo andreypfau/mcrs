@@ -11,7 +11,7 @@ use crate::world::generate::{ColumnBlocks, NO_TOP, column_fluid_field, fill_colu
 use super::build_settings_router as build_router;
 
 /// Whole-cell elimination and the fluid field's lemmas settle most of a chunk
-/// from the corner lattice and the window tables alone, without ever evaluating
+/// from the corner lattice and the region tables alone, without ever evaluating
 /// `final_density` or running the search inside those cells. This pins the
 /// result, blocks and fluid ticks both, to what the block-by-block fill through
 /// the naive search would have produced.

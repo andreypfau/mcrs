@@ -31,6 +31,7 @@ pub use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use std::sync::atomic::Ordering;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::entity::player::HostAnchor;
 
 /// Per-dim wire emitter. Iterates chunks whose
 /// `ChunkVoxelChanges` changed this tick, resolves the
@@ -62,6 +63,7 @@ pub fn update_client_blocks_per_dim(
     column_indices: Query<&ColumnIndex>,
     observers: Query<&PlayerObservers>,
     live_players: Query<Entity, With<Player>>,
+    anchors: Query<&HostAnchor>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (chunk_pos, in_dim, palette, mut changes) in chunks.iter_mut() {
@@ -80,19 +82,27 @@ pub fn update_client_blocks_per_dim(
 
         crate::world::aoi::retain_live_observers(&mut observer_entities, &live_players);
 
+        // The anchor, not the dimension world's player entity: the session
+        // registry is keyed by anchor, and a target it cannot resolve is
+        // dropped without a trace.
+        let targets: SmallVec<[Entity; 8]> = observer_entities
+            .iter()
+            .filter_map(|observer| anchors.get(*observer).ok().map(|anchor| anchor.0))
+            .collect();
+
         // Drain regardless of whether there are recipients — leaving stale
         // entries in the change set would re-fire `Changed<...>` next tick
         // and keep emitting empty packets, or accumulate unbounded.
         let positions: Vec<_> = changes.changes.drain().collect();
 
-        if observer_entities.is_empty() {
+        if targets.is_empty() {
             continue;
         }
 
         for position in positions {
             let new_state = palette.get(position).into();
             packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::PlayerSet(observer_entities.clone()),
+                target: PacketTarget::PlayerSet(targets.clone()),
                 priority: PacketPriority::Normal,
                 data: PacketPayload::BlockUpdate {
                     position,

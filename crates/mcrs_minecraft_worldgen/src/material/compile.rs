@@ -542,8 +542,11 @@ impl<'r> Builder<'_, '_, 'r> {
     }
 
     fn biome_set(&mut self, set: &BiomeSet) -> Result<BiomeSetId, CompileError> {
-        let mut ids = Vec::with_capacity(set.ids().len());
-        for name in set.ids() {
+        if let BiomeSet::Tag(tag) = set {
+            return Err(CompileError::UnknownBiome(format!("#{tag}")));
+        }
+        let mut ids = Vec::with_capacity(set.entries().len());
+        for name in set.entries() {
             ids.push(
                 (self.inputs.biome)(name)
                     .ok_or_else(|| CompileError::UnknownBiome(name.as_str().to_string()))?,
@@ -644,7 +647,7 @@ fn generate_clay_bands(random: &mut RandomSource, colours: &ClayBandColours) -> 
     make_bands(random, &mut bands, 2, colours.brown);
     make_bands(random, &mut bands, 1, colours.red);
 
-    let white_bands = next_i32_between(random, 9, 15);
+    let white_bands = random.next_int_between_inclusive(9, 15);
     let mut drawn = 0;
     let mut start = 0;
     while drawn < white_bands && start < count {
@@ -663,7 +666,7 @@ fn generate_clay_bands(random: &mut RandomSource, colours: &ClayBandColours) -> 
 }
 
 fn make_bands(random: &mut RandomSource, bands: &mut [VoxelId], base_width: i32, state: VoxelId) {
-    let count = next_i32_between(random, 6, 15);
+    let count = random.next_int_between_inclusive(6, 15);
     for _ in 0..count {
         let width = base_width + random.next_i32_bound(3);
         let start = random.next_i32_bound(bands.len() as i32);
@@ -675,10 +678,6 @@ fn make_bands(random: &mut RandomSource, bands: &mut [VoxelId], base_width: i32,
             bands[at] = state;
         }
     }
-}
-
-fn next_i32_between(random: &mut RandomSource, min: i32, max_inclusive: i32) -> i32 {
-    random.next_i32_bound(max_inclusive - min + 1) + min
 }
 
 #[cfg(test)]
@@ -1011,6 +1010,19 @@ pub(crate) mod tests {
         assert_eq!(
             error,
             CompileError::UnknownBlockState("minecraft:nonesuch".to_string())
+        );
+    }
+
+    #[test]
+    fn a_biome_tag_is_a_compile_error() {
+        let error = compile_alone(
+            r##"{"type":"minecraft:condition","if_true":{"type":"minecraft:biome","biome_is":"#minecraft:is_overworld"},"then_run":{"type":"minecraft:block","result_state":"minecraft:stone"}}"##,
+            &resolve_block,
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            CompileError::UnknownBiome("#minecraft:is_overworld".to_string())
         );
     }
 

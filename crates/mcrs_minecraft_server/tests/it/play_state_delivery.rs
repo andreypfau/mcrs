@@ -620,6 +620,7 @@ fn chunk_delivery_emits_chunkload() {
             column: ColumnPos::new(0, 0),
             chunk_bytes: vec![0u8; 64],
             light_data: LightData::default(),
+            block_entities: Vec::new(),
         },
     );
     run_dispatch(&mut world);

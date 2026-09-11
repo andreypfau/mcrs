@@ -409,71 +409,99 @@ fn overworld_biome_registry() -> (
     (snapshot, ids)
 }
 
-/// A dispatch owes only the sections it carries — the ticket layer caps how many
-/// it spawns a tick and cuts a column's sections across two of them — and the
-/// bedrock floor is a material rule, so a dispatch that skipped the rules over
-/// its slice would leave the world open at the bottom.
-#[test]
-fn a_dispatch_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
-    use bevy_app::{App, Update};
-    use bevy_ecs::entity::Entity;
-    use bevy_tasks::{TaskPoolBuilder, block_on};
-    use mcrs_minecraft_protocol::ColumnPos;
+/// The per-dimension inputs a column stage reads, resolved the way
+/// `dispatch_column_generation` resolves them for the pool.
+fn fill_context(
+    router: NoiseRouter,
+    registry: mcrs_minecraft_core::RegistrySnapshot<mcrs_minecraft_world::biome::Biome>,
+    source: mcrs_minecraft_world::biome::source::BiomeSource,
+) -> crate::world::generate::stages::FillContext {
+    use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
     use mcrs_minecraft_world::biome::source::BiomeSource;
-    use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
-    use mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter;
-    use std::sync::Arc;
 
     use super::blocks;
-    use crate::world::chunk::{
-        CHUNK_TASK_POOL, ColumnKey, ColumnScheduler, PendingColumn, dispatch_column_generation,
+    let registry = std::sync::Arc::new(registry);
+    let surface = std::sync::Arc::new(SurfaceIds::resolve(&blocks().0, &registry));
+    let multi_noise = match &source {
+        BiomeSource::MultiNoise(multi) => MultiNoiseBiomeTable::resolve(multi, |location| {
+            registry.by_location(location).map(|id| id as u8)
+        })
+        .map(std::sync::Arc::new),
+        _ => None,
     };
+    crate::world::generate::stages::FillContext {
+        biome: Some((std::sync::Arc::new(source), registry)),
+        program: crate::world::generate::stages::ColumnProgram {
+            generator: crate::world::generate::stages::ColumnGenerator::Modern {
+                multi_noise,
+                surface: Some(surface),
+                carver_blocks: std::sync::Arc::new(
+                    crate::world::generate::modern_carvers::ModernCarverBlockIds::for_test(
+                        Vec::new(),
+                    ),
+                ),
+            },
+            carvers: None,
+            features: None,
+        },
+        ..super::bare_fill_context(router)
+    }
+}
+
+/// A delivery owes only the sections it was asked for — the ticket layer caps
+/// how many it spawns a tick and cuts a column's sections across two of them —
+/// while the fill covers the whole dimension, because the bedrock floor is a
+/// material rule and a column surfaced over a slice would be left open at the
+/// bottom.
+#[test]
+fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
+    use bevy_app::App;
+    use bevy_ecs::entity::Entity;
+    use mcrs_minecraft_protocol::ColumnPos;
+    use mcrs_minecraft_world::biome::source::BiomeSource;
+    use mcrs_voxel_math::ChunkPos;
+
+    use crate::world::chunk::{CancellationToken, carried_sections};
+    use crate::world::generate::stages::fill_column;
 
     let (registry, ids) = overworld_biome_registry();
     let router = overworld_material_router(2, &ids);
-    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(1).build());
-
-    let mut app = App::new();
-    app.insert_resource(DimensionNoiseRouter(Arc::new(router)));
-    app.insert_resource(blocks().clone());
-    app.insert_resource(registry);
-    app.insert_resource(ActiveBiomeSource(Arc::new(BiomeSource::MultiNoise(
-        MultiNoiseBiomeSource {
+    let ctx = fill_context(
+        router,
+        registry,
+        BiomeSource::MultiNoise(MultiNoiseBiomeSource {
             preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
             biomes: None,
-        },
-    ))));
+        }),
+    );
 
     let col = ColumnPos::new(3, -7);
     let carried = [-4, 3, 4];
-    let sections: Vec<(Entity, i32)> = carried
+    let mut app = App::new();
+    let sections: Vec<(Entity, ChunkPos)> = carried
         .iter()
-        .map(|&y| (app.world_mut().spawn_empty().id(), y))
+        .map(|&y| {
+            (
+                app.world_mut().spawn_empty().id(),
+                ChunkPos::new(col.x, y, col.z),
+            )
+        })
         .collect();
-    let key = ColumnKey::new(0, col);
-    let mut scheduler = ColumnScheduler::default();
-    scheduler.priority_index.insert(col, key);
-    scheduler.pending.insert(key, PendingColumn::new(sections));
-    app.insert_resource(scheduler);
-    app.add_systems(Update, dispatch_column_generation);
-    app.update();
 
-    let in_flight = app
-        .world_mut()
-        .resource_mut::<ColumnScheduler>()
-        .in_flight
-        .pop()
-        .expect("the column was dispatched");
-    let result = block_on(in_flight.task);
+    let y_sections = ctx.y_sections.clone();
+    let mut column = ColumnBlocks::new(&y_sections);
+    let snapshot = fill_column(&ctx, col, &mut column, &CancellationToken::new())
+        .expect("the fill was not cancelled");
 
+    let bottom = y_sections[0];
+    let delivered = carried_sections(&sections, &snapshot.sections, bottom);
     assert_eq!(
-        result.sections.len(),
+        delivered.len(),
         carried.len(),
-        "the dispatch returned sections it was not asked for"
+        "the delivery returned sections it was not asked for"
     );
     let bedrock = VoxelId::from(corpus().default_state("minecraft:bedrock"));
-    let floor = result
-        .sections
+    let floor = delivered
         .iter()
         .find(|(_, pos, _)| pos.y == carried[0])
         .expect("the bottom section came back");
@@ -494,61 +522,37 @@ fn a_dispatch_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
 /// no multi-noise sample any test takes reaches it.
 #[test]
 fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
-    use bevy_app::{App, Update};
-    use bevy_ecs::entity::Entity;
-    use bevy_tasks::{TaskPoolBuilder, block_on};
     use mcrs_minecraft_protocol::ColumnPos;
     use mcrs_minecraft_world::biome::source::BiomeSource;
-    use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
-    use mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter;
-    use std::sync::Arc;
 
-    use super::blocks;
-    use crate::world::chunk::{
-        CHUNK_TASK_POOL, ColumnKey, ColumnScheduler, PendingColumn, dispatch_column_generation,
-    };
-
-    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(1).build());
+    use crate::world::chunk::CancellationToken;
+    use crate::world::generate::stages::fill_column;
 
     let generate = |biome: &str| -> (Vec<VoxelId>, Vec<u8>) {
         let (registry, ids) = overworld_biome_registry();
         let router = overworld_material_router(2, &ids);
-        let mut app = App::new();
-        app.insert_resource(DimensionNoiseRouter(Arc::new(router)));
-        app.insert_resource(blocks().clone());
-        app.insert_resource(registry);
-        app.insert_resource(ActiveBiomeSource(Arc::new(BiomeSource::Fixed {
-            biome: bevy_asset::Handle::default(),
-            biome_id: ResourceLocation::parse(biome).expect("a biome name"),
-        })));
+        let ctx = fill_context(
+            router,
+            registry,
+            BiomeSource::Fixed {
+                biome: bevy_asset::Handle::default(),
+                biome_id: ResourceLocation::parse(biome).expect("a biome name"),
+            },
+        );
 
-        let col = ColumnPos::new(3, -7);
-        let carried: Vec<i32> = (-4..20).collect();
-        let sections: Vec<(Entity, i32)> = carried
-            .iter()
-            .map(|&y| (app.world_mut().spawn_empty().id(), y))
-            .collect();
-        let key = ColumnKey::new(0, col);
-        let mut scheduler = ColumnScheduler::default();
-        scheduler.priority_index.insert(col, key);
-        scheduler.pending.insert(key, PendingColumn::new(sections));
-        app.insert_resource(scheduler);
-        app.add_systems(Update, dispatch_column_generation);
-        app.update();
-
-        let in_flight = app
-            .world_mut()
-            .resource_mut::<ColumnScheduler>()
-            .in_flight
-            .pop()
-            .expect("the column was dispatched");
-        let result = block_on(in_flight.task);
+        let y_sections = ctx.y_sections.clone();
+        let mut column = ColumnBlocks::new(&y_sections);
+        let snapshot = fill_column(
+            &ctx,
+            ColumnPos::new(3, -7),
+            &mut column,
+            &CancellationToken::new(),
+        )
+        .expect("the fill was not cancelled");
 
         let mut states = Vec::new();
         let mut biomes = Vec::new();
-        let mut sections: Vec<_> = result.sections.iter().collect();
-        sections.sort_by_key(|(_, pos, _)| pos.y);
-        for (_, _, payload) in sections {
+        for payload in &snapshot.sections {
             let Some((palette, biome_palette)) = payload.as_ref() else {
                 continue;
             };

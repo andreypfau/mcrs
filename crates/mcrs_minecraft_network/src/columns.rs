@@ -146,6 +146,13 @@ impl ColumnStore {
         self.columns.keys().copied()
     }
 
+    /// The resident columns with the handle each one is held by. The handle's
+    /// address changes whenever a light update rewrites the column, which is how
+    /// a reader tells a column it has already looked at from one it has not.
+    pub fn resident(&self) -> impl Iterator<Item = (ColumnPos, &Arc<Column>)> + '_ {
+        self.columns.iter().map(|(pos, column)| (*pos, column))
+    }
+
     pub fn len(&self) -> usize {
         self.columns.len()
     }

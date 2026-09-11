@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 const REGISTRY_FOLDERS: &[(&str, &str)] = &[
     ("BIOME", "minecraft/worldgen/biome"),
     ("CARVER", "minecraft/worldgen/carver"),
+    ("FEATURE", "minecraft/worldgen/feature"),
+    ("PLACED_FEATURE", "minecraft/worldgen/placed_feature"),
     ("CHAT_TYPE", "minecraft/chat_type"),
     ("DIMENSION_TYPE", "minecraft/dimension_type"),
     ("TRIM_PATTERN", "minecraft/trim_pattern"),

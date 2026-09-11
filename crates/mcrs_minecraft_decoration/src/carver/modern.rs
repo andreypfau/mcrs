@@ -1,8 +1,8 @@
 use crate::carver::CarveShape;
 use crate::carver::mask::CarvingMask;
-use crate::carver::tunnel::{SplitSeeding, TunnelShape, walk_tunnel};
+use crate::carver::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel};
 use crate::carver::water::WaterMask;
-use crate::math::sin as math_helper_sin;
+use crate::math::sin_modern;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen::carver::CarverConfig;
@@ -20,9 +20,11 @@ const fn tunnel_length() -> i32 {
 }
 
 /// Whether this carver starts anything in the source chunk. One draw, taken
-/// before any of the per-cave draws.
+/// before any of the per-cave draws, by a carver that has a probability.
 pub fn is_start_chunk<R: Random>(config: &CarverConfig, rng: &mut R) -> bool {
-    rng.next_f32() <= config.probability()
+    config
+        .probability()
+        .is_none_or(|probability| rng.next_f32() <= probability)
 }
 
 /// `CaveWorldCarver.carve`.
@@ -40,7 +42,7 @@ pub fn carve_caves<R: Random>(
 ) {
     let CarverConfig::Cave {
         y: y_provider,
-        count,
+        ref count,
         thickness: thickness_provider,
         weird_thickness_bias,
         room_vertical_radius_multiplier,
@@ -94,6 +96,7 @@ pub fn carve_caves<R: Random>(
                     y_scale: start_vertical_multiplier,
                     horizontal_radius_multiplier: horizontal_multiplier,
                     vertical_radius_multiplier: vertical_multiplier,
+                    trig: TrigIndex::Modern,
                 },
                 yaw,
                 pitch,
@@ -136,7 +139,8 @@ fn create_room(
     water: &WaterMask,
     mask: &mut CarvingMask,
 ) {
-    let horizontal_radius = 1.5 + (math_helper_sin(std::f32::consts::FRAC_PI_2) * thickness) as f64;
+    let horizontal_radius =
+        1.5 + (sin_modern(f64::from(std::f32::consts::FRAC_PI_2)) * thickness) as f64;
     crate::carver::carve_ellipsoid(
         chunk_x,
         chunk_z,
@@ -286,6 +290,7 @@ mod tests {
                     y_scale: 1.0,
                     horizontal_radius_multiplier: 1.0,
                     vertical_radius_multiplier: 1.0,
+                    trig: TrigIndex::Modern,
                 },
                 yaw,
                 pitch,
@@ -348,8 +353,8 @@ mod tests {
             8.0,
             40.0,
             8.0,
-            1.5 + (math_helper_sin(std::f32::consts::FRAC_PI_2) * 3.0) as f64,
-            1.5 + (math_helper_sin(std::f32::consts::FRAC_PI_2) * 3.0) as f64,
+            1.5 + (sin_modern(f64::from(std::f32::consts::FRAC_PI_2)) * 3.0) as f64,
+            1.5 + (sin_modern(f64::from(std::f32::consts::FRAC_PI_2)) * 3.0) as f64,
             CarveShape::Cave { floor_level: -0.7 },
             &WaterMask::default(),
             &mut centred,
@@ -393,5 +398,44 @@ mod tests {
         let mut out = Vec::new();
         mask.visit(|x, z, bottom, top| out.push((x, z, bottom, top)));
         out
+    }
+
+    fn digest(runs: &[(i32, i32, i32, i32)]) -> u64 {
+        let mut hash = 0xcbf2_9ce4_8422_2325u64;
+        for value in runs.iter().flat_map(|run| [run.0, run.1, run.2, run.3]) {
+            hash = (hash ^ value as u32 as u64).wrapping_mul(0x100_0000_01b3);
+        }
+        hash
+    }
+
+    /// The trajectory these caves walk is `Mth.sin`'s double index, not Beta's
+    /// `f32` one — the two disagree on roughly one argument in four thousand,
+    /// which is enough to move about a quarter of the tunnels. Nothing else
+    /// pins that choice, so this pins the shape it produces.
+    #[test]
+    fn the_modern_caves_walk_on_the_modern_sine_index() {
+        let config = constant_cave(4, true);
+        let mut hash = 0u64;
+        for seed in 0..64u64 {
+            let mut mask = empty_mask();
+            let mut rng = LegacyRandom::new(seed);
+            for source_x in -1..=1 {
+                for source_z in -1..=1 {
+                    carve_caves(
+                        &config,
+                        overworld(),
+                        0,
+                        0,
+                        source_x,
+                        source_z,
+                        &WaterMask::default(),
+                        &mut mask,
+                        &mut rng,
+                    );
+                }
+            }
+            hash ^= digest(&runs(&mask)).rotate_left(seed as u32 & 63);
+        }
+        assert_eq!(hash, 8_741_881_027_217_438_709);
     }
 }
