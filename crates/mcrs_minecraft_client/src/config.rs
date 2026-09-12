@@ -277,6 +277,28 @@ pub fn light_levels() -> bool {
     flag("LIGHT_LEVELS", false)
 }
 
+/// `CHUNK_GUARD=1` takes the client down the moment the player stands in a
+/// column it does not hold; `=warn` only says so.
+pub fn chunk_guard() -> bool {
+    knob("CHUNK_GUARD").is_some_and(|value| value.trim() != "0")
+}
+
+pub fn chunk_guard_panics() -> bool {
+    knob("CHUNK_GUARD").as_deref().map(str::trim) != Some("warn")
+}
+
+pub fn light_guard() -> bool {
+    knob("LIGHT_GUARD").is_some_and(|value| value.trim() != "0")
+}
+
+/// `LIGHT_GUARD=warn` keeps the process alive so a whole load can be measured;
+/// anything else that turns the guard on takes the client down on the first
+/// fault, which is the only way a break that self-heals a frame later cannot be
+/// missed.
+pub fn light_guard_panics() -> bool {
+    knob("LIGHT_GUARD").as_deref().map(str::trim) != Some("warn")
+}
+
 /// Bevy's stock split gives async compute a quarter of the cores capped at four, which on a
 /// sixteen-core machine leaves meshing, column decode and the embedded server's lighting to
 /// share four threads while twelve idle. `ASYNC=<threads>` moves the cap.
