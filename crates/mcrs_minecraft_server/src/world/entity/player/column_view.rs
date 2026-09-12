@@ -36,7 +36,7 @@ use crate::world::entity::player::HostAnchor;
 use crate::world::heightmap::{
     MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap, client_heightmaps,
 };
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tracing::{trace, warn};
 
 pub struct ColumnViewPlugin;
@@ -97,8 +97,11 @@ pub struct ColumnView {
     awaiting_columns: FxHashSet<ColumnPos>,
     /// Ready to go out on the wire, not yet sent.
     pending_send: FxHashSet<ColumnPos>,
-    /// Columns this view holds forced tickets on.
+    /// Columns this view has asked for and holds a margin around.
     loaded_columns: FxHashSet<ColumnPos>,
+    /// Forced tickets, counted: the margins of adjacent columns overlap, so a
+    /// column leaving the view may not release a ticket another still needs.
+    forced_columns: FxHashMap<ColumnPos, u32>,
     pub sent_columns: FxHashSet<ColumnPos>,
     batch_quota: f32,
     desired_columns_per_tick: f32,
@@ -112,6 +115,7 @@ impl Default for ColumnView {
             awaiting_columns: FxHashSet::default(),
             pending_send: FxHashSet::default(),
             loaded_columns: FxHashSet::default(),
+            forced_columns: FxHashMap::default(),
             sent_columns: FxHashSet::default(),
             batch_quota: 0.0,
             desired_columns_per_tick: START_COLUMNS_PER_TICK,
@@ -127,6 +131,29 @@ impl ColumnView {
         self.awaiting_columns.contains(&col)
             || self.pending_send.contains(&col)
             || self.sent_columns.contains(&col)
+    }
+
+    /// Takes a reference on `col`'s forced ticket, reporting whether this is
+    /// the first and the ticket has to be added.
+    fn hold_forced(&mut self, col: ColumnPos) -> bool {
+        let holders = self.forced_columns.entry(col).or_default();
+        *holders += 1;
+        *holders == 1
+    }
+
+    /// Drops a reference, reporting whether it was the last and the ticket has
+    /// to go.
+    fn release_forced(&mut self, col: ColumnPos) -> bool {
+        let std::collections::hash_map::Entry::Occupied(mut slot) = self.forced_columns.entry(col)
+        else {
+            return false;
+        };
+        *slot.get_mut() -= 1;
+        if *slot.get() == 0 {
+            slot.remove();
+            return true;
+        }
+        false
     }
 
     fn forget(&mut self, col: ColumnPos) {
@@ -178,14 +205,16 @@ pub(crate) fn request_columns(
             return;
         };
         chunk_view.awaiting_columns.insert(column_pos);
+        // The margin, not just the column: a column's own light is only final
+        // once the eight around it hold blocks, so the ring past the view has to
+        // be loaded even though it is never sent.
         if chunk_view.loaded_columns.insert(column_pos) {
-            apply_forced_tickets(
-                &mut cmds,
-                column_pos,
-                offset_sections(rep, type_config.min_y),
-                type_config.section_count,
-                true,
-            );
+            let off = offset_sections(rep, type_config.min_y);
+            for col in margin_of(column_pos) {
+                if chunk_view.hold_forced(col) {
+                    apply_forced_tickets(&mut cmds, col, off, type_config.section_count, true);
+                }
+            }
         }
         trace!(
             "Player {:?} requested load of chunk column {:?}",
@@ -227,13 +256,12 @@ fn unload_chunk_request(
         if chunk_view.loaded_columns.remove(&column_pos)
             && let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity())
         {
-            apply_forced_tickets(
-                &mut cmds,
-                column_pos,
-                offset_sections(rep, type_config.min_y),
-                type_config.section_count,
-                false,
-            );
+            let off = offset_sections(rep, type_config.min_y);
+            for col in margin_of(column_pos) {
+                if chunk_view.release_forced(col) {
+                    apply_forced_tickets(&mut cmds, col, off, type_config.section_count, false);
+                }
+            }
         }
     });
 }
@@ -283,17 +311,31 @@ pub(crate) fn project_ready_columns(
         let section_count = type_config.section_count as i32;
         let off = offset_sections(rep, type_config.min_y);
         let view = &mut *chunk_view;
-        view.awaiting_columns.retain(|&col| {
-            let landed = resolve_column(chunk_index, column_index, col, section_count, off)
-                .is_some_and(|(_, sections)| {
-                    sections.iter().all(|&chunk_e| {
-                        chunks.contains(chunk_e)
-                            && (!await_light
-                                || (codec_params.block_lights.contains(chunk_e)
-                                    && codec_params.sky_lights.contains(chunk_e)))
+        let sections_of = |col: ColumnPos| {
+            resolve_column(chunk_index, column_index, col, section_count, off)
+                .filter(|(_, sections)| sections.iter().all(|&e| chunks.contains(e)))
+        };
+        // A cell's light is decided by the blocks within fifteen of it, which
+        // reaches one column out and no further. So the neighbours owe this
+        // column their blocks, never their light: waiting on their light too
+        // would hold every column of a bulk load behind the whole queue.
+        let blocks_landed = |col: ColumnPos| sections_of(col).is_some();
+        let light_landed = |col: ColumnPos| {
+            sections_of(col).is_some_and(|(_, sections)| {
+                !await_light
+                    || sections.iter().all(|&chunk_e| {
+                        codec_params.block_lights.contains(chunk_e)
+                            && codec_params.sky_lights.contains(chunk_e)
                     })
-                });
-            if !landed || (await_light && !light_status.settled_around(col)) {
+            })
+        };
+        view.awaiting_columns.retain(|&col| {
+            // Light computed against a neighbour whose blocks have not arrived
+            // is a seam the column would carry for as long as the client holds
+            // it, because a column goes out once. `settled_around` then waits
+            // for the work those neighbours raised.
+            let ready = light_landed(col) && margin_of(col).all(blocks_landed);
+            if !ready || (await_light && !light_status.settled_around(col)) {
                 return true;
             }
             trace!("Column {:?} ready", col);
@@ -301,7 +343,7 @@ pub(crate) fn project_ready_columns(
             view.pending_send.insert(col);
             false
         });
-    })
+    });
 }
 
 /// The rate the client is asked to answer with, in columns a tick. The ceiling is only a guard
@@ -569,6 +611,22 @@ fn add_player_column_view(
 fn offset_sections(rep: &Reposition, min_y: i32) -> i32 {
     let bits = mcrs_voxel_math::chunk_pos::BLOCKS::BITS as i32;
     (rep.offset_y_blocks() >> bits) - (min_y >> bits)
+}
+
+/// A column and the eight around it, or the column alone while the margin is
+/// off.
+fn margin_of(col: ColumnPos) -> impl Iterator<Item = ColumnPos> {
+    let width = if margin_enabled() { 1 } else { 0 };
+    (-width..=width)
+        .flat_map(move |dz| (-width..=width).map(move |dx| ColumnPos::new(col.x + dx, col.z + dz)))
+}
+
+/// Holding the ring past the view stalls the loader as it stands, so it is off
+/// until that is understood: `MCRS_MARGIN=1` turns it on.
+fn margin_enabled() -> bool {
+    static ON: std::sync::LazyLock<bool> =
+        std::sync::LazyLock::new(|| std::env::var("MCRS_MARGIN").as_deref() == Ok("1"));
+    *ON
 }
 
 fn apply_forced_tickets(
@@ -870,7 +928,16 @@ mod tests {
     fn a_column_waits_for_the_light_of_every_section_it_carries() {
         let mut world = World::new();
         let col = ColumnPos::new(0, 0);
-        let fx = fixture(&mut world, &[col]);
+        // Readiness reads the whole neighbourhood, so the margin is lit up
+        // front and only the column's own sections are left to arrive.
+        let neighbourhood: Vec<ColumnPos> = margin_of(col).collect();
+        let fx = fixture(&mut world, &neighbourhood);
+        for &neighbour in &neighbourhood {
+            if neighbour != col {
+                let lit = fx.sections[&neighbour].clone();
+                light(&mut world, &lit);
+            }
+        }
         let sections = fx.sections[&col].clone();
 
         world
