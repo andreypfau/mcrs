@@ -394,12 +394,7 @@ impl Serialize for NbtTag {
             NbtTag::Float(v) => serializer.serialize_f32(*v),
             NbtTag::Double(v) => serializer.serialize_f64(*v),
             NbtTag::ByteArray(v) => {
-                use serde::ser::SerializeSeq;
-                let mut seq = serializer.serialize_seq(Some(v.len()))?;
-                for byte in v.iter() {
-                    seq.serialize_element(byte)?;
-                }
-                seq.end()
+                serializer.serialize_newtype_variant(NBT_ARRAY_TAG, 0, NBT_BYTE_ARRAY_TAG, v)
             }
             NbtTag::String(v) => serializer.serialize_str(v),
             NbtTag::List(v) => {
@@ -412,20 +407,10 @@ impl Serialize for NbtTag {
             }
             NbtTag::Compound(v) => v.serialize(serializer),
             NbtTag::IntArray(v) => {
-                use serde::ser::SerializeSeq;
-                let mut seq = serializer.serialize_seq(Some(v.len()))?;
-                for int in v.iter() {
-                    seq.serialize_element(int)?;
-                }
-                seq.end()
+                serializer.serialize_newtype_variant(NBT_ARRAY_TAG, 0, NBT_INT_ARRAY_TAG, v)
             }
             NbtTag::LongArray(v) => {
-                use serde::ser::SerializeSeq;
-                let mut seq = serializer.serialize_seq(Some(v.len()))?;
-                for long in v.iter() {
-                    seq.serialize_element(long)?;
-                }
-                seq.end()
+                serializer.serialize_newtype_variant(NBT_ARRAY_TAG, 0, NBT_LONG_ARRAY_TAG, v)
             }
         }
     }
@@ -462,6 +447,10 @@ impl<'de> Deserialize<'de> for NbtTag {
                 Ok(NbtTag::Long(v))
             }
 
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                i64::try_from(v).map(NbtTag::Long).map_err(E::custom)
+            }
+
             fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E> {
                 Ok(NbtTag::Float(v))
             }
@@ -493,8 +482,34 @@ impl<'de> Deserialize<'de> for NbtTag {
                     serde::de::value::MapAccessDeserializer::new(map),
                 )?))
             }
+
+            fn visit_newtype_struct<D: serde::Deserializer<'de>>(
+                self,
+                deserializer: D,
+            ) -> Result<Self::Value, D::Error> {
+                deserializer.deserialize_any(self)
+            }
+
+            fn visit_enum<A: serde::de::EnumAccess<'de>>(
+                self,
+                data: A,
+            ) -> Result<Self::Value, A::Error> {
+                use serde::de::VariantAccess;
+                let (variant, access): (String, _) = data.variant()?;
+                match variant.as_str() {
+                    NBT_BYTE_ARRAY_TAG => Ok(NbtTag::ByteArray(
+                        access.newtype_variant::<Vec<u8>>()?.into_boxed_slice(),
+                    )),
+                    NBT_INT_ARRAY_TAG => Ok(NbtTag::IntArray(access.newtype_variant()?)),
+                    NBT_LONG_ARRAY_TAG => Ok(NbtTag::LongArray(access.newtype_variant()?)),
+                    other => Err(serde::de::Error::unknown_variant(
+                        other,
+                        &[NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG, NBT_LONG_ARRAY_TAG],
+                    )),
+                }
+            }
         }
 
-        deserializer.deserialize_any(NbtTagVisitor)
+        deserializer.deserialize_newtype_struct(NBT_ARRAY_TAG, NbtTagVisitor)
     }
 }

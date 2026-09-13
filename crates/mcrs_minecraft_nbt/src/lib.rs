@@ -561,5 +561,98 @@ mod test {
         assert_eq!(value, reconstructed);
     }
 
-    // TODO: More robust tests
+    fn compound_with_arrays() -> compound::NbtCompound {
+        let mut root = compound::NbtCompound::new();
+        root.put("bytes", tag::NbtTag::ByteArray(Box::new([1, 2, 255])));
+        root.put("ints", tag::NbtTag::IntArray(vec![-1, 0, i32::MAX]));
+        root.put("longs", tag::NbtTag::LongArray(vec![i64::MIN, 7]));
+        root.put_list("list", vec![tag::NbtTag::Int(1), tag::NbtTag::Int(2)]);
+        root
+    }
+
+    #[test]
+    fn a_compound_keeps_its_array_tags_through_serde() {
+        let root = compound_with_arrays();
+        let bytes = Nbt::new(String::new(), root.clone()).write();
+
+        let read: compound::NbtCompound = from_bytes(Cursor::new(bytes.clone())).unwrap();
+        assert_eq!(read, root);
+        assert_eq!(crate::to_nbt_compound(&read).unwrap(), root);
+
+        let mut written = Vec::new();
+        to_bytes(&root, &mut written).unwrap();
+        assert_eq!(written, bytes.to_vec());
+    }
+
+    #[test]
+    fn a_list_of_arrays_keeps_its_array_tags_through_serde() {
+        let mut root = compound::NbtCompound::new();
+        root.put_list(
+            "byte_arrays",
+            vec![
+                tag::NbtTag::ByteArray(Box::new([1, 2])),
+                tag::NbtTag::ByteArray(Box::new([])),
+            ],
+        );
+        root.put_list(
+            "int_arrays",
+            vec![
+                tag::NbtTag::IntArray(vec![-1, i32::MAX]),
+                tag::NbtTag::IntArray(vec![3]),
+            ],
+        );
+        root.put_list(
+            "long_arrays",
+            vec![
+                tag::NbtTag::LongArray(vec![i64::MIN]),
+                tag::NbtTag::LongArray(vec![7, 8]),
+            ],
+        );
+        let bytes = Nbt::new(String::new(), root.clone()).write();
+
+        let mut written = Vec::new();
+        to_bytes(&root, &mut written).unwrap();
+        assert_eq!(written, bytes.to_vec());
+
+        let read: compound::NbtCompound = from_bytes(Cursor::new(bytes)).unwrap();
+        assert_eq!(read, root);
+        assert_eq!(crate::to_nbt_compound(&read).unwrap(), root);
+    }
+
+    #[test]
+    fn a_struct_holding_a_compound_keeps_its_array_tags() {
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Holder {
+            id: i32,
+            nbt: compound::NbtCompound,
+        }
+
+        let value = Holder {
+            id: 3,
+            nbt: compound_with_arrays(),
+        };
+        let mut bytes = Vec::new();
+        to_bytes(&value, &mut bytes).unwrap();
+
+        let read: Holder = from_bytes(Cursor::new(bytes)).unwrap();
+        assert_eq!(read, value);
+        let in_memory = crate::to_nbt_compound(&read).unwrap();
+        assert_eq!(
+            in_memory.get("nbt"),
+            Some(&tag::NbtTag::Compound(value.nbt))
+        );
+    }
+
+    #[test]
+    fn a_json_array_still_reads_as_a_list() {
+        let tag: tag::NbtTag = serde_json::from_value(serde_json::json!([1, 2, 3])).unwrap();
+        assert_eq!(
+            tag,
+            tag::NbtTag::List(vec![
+                tag::NbtTag::Long(1),
+                tag::NbtTag::Long(2),
+                tag::NbtTag::Long(3)
+            ])
+        );
+    }
 }

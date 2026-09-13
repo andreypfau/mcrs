@@ -1,6 +1,6 @@
-use crate::Error;
 use crate::compound::NbtCompound;
 use crate::tag::NbtTag;
+use crate::{Error, NBT_ARRAY_TAG, NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG, NBT_LONG_ARRAY_TAG};
 use serde::ser::Impossible;
 use serde::{Serialize, ser};
 
@@ -140,14 +140,55 @@ impl serde::ser::Serializer for TagSerializer {
         name: &'static str,
         _variant_index: u32,
         variant: &'static str,
-        _value: &T,
+        value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + Serialize,
     {
-        Err(Error::UnsupportedType(format!(
-            "newtype variant {name}::{variant} in in-memory serializer is not implemented"
-        )))
+        if name != NBT_ARRAY_TAG {
+            return Err(Error::UnsupportedType(format!(
+                "newtype variant {name}::{variant} in in-memory serializer is not implemented"
+            )));
+        }
+        let elements = match value.serialize(TagSerializer)? {
+            NbtTag::List(elements) => elements,
+            array @ (NbtTag::ByteArray(_) | NbtTag::IntArray(_) | NbtTag::LongArray(_)) => {
+                return Ok(array);
+            }
+            other => {
+                return Err(Error::SerdeError(format!(
+                    "{variant} expects a sequence, got {other:?}"
+                )));
+            }
+        };
+        let mismatch = |tag: NbtTag| Error::SerdeError(format!("{variant} cannot hold {tag:?}"));
+        match variant {
+            NBT_BYTE_ARRAY_TAG => elements
+                .into_iter()
+                .map(|tag| match tag {
+                    NbtTag::Byte(v) => Ok(v as u8),
+                    other => Err(mismatch(other)),
+                })
+                .collect::<Result<Vec<u8>, _>>()
+                .map(|bytes| NbtTag::ByteArray(bytes.into_boxed_slice())),
+            NBT_INT_ARRAY_TAG => elements
+                .into_iter()
+                .map(|tag| match tag {
+                    NbtTag::Int(v) => Ok(v),
+                    other => Err(mismatch(other)),
+                })
+                .collect::<Result<_, _>>()
+                .map(NbtTag::IntArray),
+            NBT_LONG_ARRAY_TAG => elements
+                .into_iter()
+                .map(|tag| match tag {
+                    NbtTag::Long(v) => Ok(v),
+                    other => Err(mismatch(other)),
+                })
+                .collect::<Result<_, _>>()
+                .map(NbtTag::LongArray),
+            other => Err(Error::UnsupportedType(format!("array variant {other}"))),
+        }
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {

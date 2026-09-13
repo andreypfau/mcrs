@@ -57,6 +57,7 @@ pub struct Serializer<W: Write> {
     state: State,
     handled_root: bool,
     expected_list_tag: u8,
+    pending_array: Option<&'static str>,
 }
 
 impl<W: Write> Serializer<W> {
@@ -66,6 +67,7 @@ impl<W: Write> Serializer<W> {
             state: State::Root(name),
             handled_root: false,
             expected_list_tag: 0,
+            pending_array: None,
         }
     }
 }
@@ -79,21 +81,15 @@ enum State {
     Named(String),
     // Used by maps to check if key is a `String`.
     MapKey,
-    FirstListElement {
-        len: i32,
-    },
+    FirstListElement { len: i32 },
     ListElement,
     CheckedListElement,
-    Array {
-        name: String,
-        array_type: &'static str,
-    },
 }
 
 impl<W: Write> Serializer<W> {
     fn parse_state(&mut self, tag: u8) -> Result<()> {
         match &mut self.state {
-            State::Named(name) | State::Array { name, .. } => {
+            State::Named(name) => {
                 self.output.write_u8_be(tag)?;
                 NbtTag::String(name.clone()).serialize_data(&mut self.output)?;
             }
@@ -330,15 +326,10 @@ impl<W: Write> ser::Serializer for &mut Serializer<W> {
         value: &T,
     ) -> Result<()> {
         if name == NBT_ARRAY_TAG {
-            let name = match self.state {
-                State::Named(ref name) => name.clone(),
-                _ => return Err(Error::SerdeError("Invalid `Serializer` state!".to_string())),
-            };
-
-            self.state = State::Array {
-                name,
-                array_type: variant,
-            };
+            if matches!(self.state, State::Root(_) | State::MapKey) {
+                return Err(Error::SerdeError("Invalid `Serializer` state!".to_string()));
+            }
+            self.pending_array = Some(variant);
         } else {
             return Err(Error::UnsupportedType("newtype variant".to_string()));
         }
@@ -357,9 +348,9 @@ impl<W: Write> ser::Serializer for &mut Serializer<W> {
             return Err(Error::LargeLength(len));
         }
 
-        match &mut self.state {
-            State::Array { array_type, .. } => {
-                let (id, expected_tag) = match *array_type {
+        match self.pending_array.take() {
+            Some(array_type) => {
+                let (id, expected_tag) = match array_type {
                     NBT_BYTE_ARRAY_TAG => (BYTE_ARRAY_ID, BYTE_ID),
                     NBT_INT_ARRAY_TAG => (INT_ARRAY_ID, INT_ID),
                     NBT_LONG_ARRAY_TAG => (LONG_ARRAY_ID, LONG_ID),
@@ -377,7 +368,7 @@ impl<W: Write> ser::Serializer for &mut Serializer<W> {
                 self.expected_list_tag = expected_tag;
                 self.state = State::CheckedListElement;
             }
-            _ => {
+            None => {
                 self.parse_state(LIST_ID)?;
                 self.state = State::FirstListElement { len: len as i32 };
                 if len == 0 {

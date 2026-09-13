@@ -140,7 +140,23 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
 
     forward_to_deserialize_any! {
         char str string unit unit_struct seq tuple tuple_struct
-        newtype_struct
+    }
+
+    fn deserialize_newtype_struct<V: Visitor<'de>>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value> {
+        if name != NBT_ARRAY_TAG {
+            return visitor.visit_newtype_struct(self);
+        }
+        let variant = match self.tag_to_deserialize_stack {
+            Some(BYTE_ARRAY_ID) => NBT_BYTE_ARRAY_TAG,
+            Some(INT_ARRAY_ID) => NBT_INT_ARRAY_TAG,
+            Some(LONG_ARRAY_ID) => NBT_LONG_ARRAY_TAG,
+            _ => return self.deserialize_any(visitor),
+        };
+        visitor.visit_enum(ArrayAccess { de: self, variant })
     }
 
     // The whole payload goes to the visitor in one piece; read element-wise it
@@ -356,6 +372,47 @@ impl<'de, R: Read + Seek> MapAccess<'de> for CompoundAccess<'_, R> {
 
     fn next_value_seed<V: DeserializeSeed<'de>>(&mut self, seed: V) -> Result<V::Value> {
         seed.deserialize(&mut *self.de)
+    }
+}
+
+struct ArrayAccess<'a, R: Read + Seek> {
+    de: &'a mut Deserializer<R>,
+    variant: &'static str,
+}
+
+impl<'de, 'a, R: Read + Seek> de::EnumAccess<'de> for ArrayAccess<'a, R> {
+    type Error = Error;
+    type Variant = Self;
+
+    fn variant_seed<V: DeserializeSeed<'de>>(self, seed: V) -> Result<(V::Value, Self)> {
+        let variant = seed.deserialize(self.variant.into_deserializer())?;
+        Ok((variant, self))
+    }
+}
+
+impl<'de, R: Read + Seek> de::VariantAccess<'de> for ArrayAccess<'_, R> {
+    type Error = Error;
+
+    fn unit_variant(self) -> Result<()> {
+        Err(Error::UnsupportedType("array as unit variant".to_string()))
+    }
+
+    fn newtype_variant_seed<T: DeserializeSeed<'de>>(self, seed: T) -> Result<T::Value> {
+        seed.deserialize(&mut *self.de)
+    }
+
+    fn tuple_variant<V: Visitor<'de>>(self, _len: usize, _visitor: V) -> Result<V::Value> {
+        Err(Error::UnsupportedType("array as tuple variant".to_string()))
+    }
+
+    fn struct_variant<V: Visitor<'de>>(
+        self,
+        _fields: &'static [&'static str],
+        _visitor: V,
+    ) -> Result<V::Value> {
+        Err(Error::UnsupportedType(
+            "array as struct variant".to_string(),
+        ))
     }
 }
 
