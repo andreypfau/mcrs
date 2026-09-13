@@ -1,5 +1,6 @@
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
+use crate::world::heightmap::{HeightmapKinds, HeightmapPredicates};
 use bevy_math::IVec3;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
@@ -12,6 +13,7 @@ use mcrs_minecraft_world::biome::source::{BetaLandBiome, BiomeSource, beta_biome
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen::cell::{CELL_BOUNDS_SLACK, sampled_range};
+use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::interval::Interval;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::{
@@ -495,12 +497,44 @@ fn fill_blocks(
     noise_router
         .program
         .fill(ws, volume, FINAL_DENSITY, density);
-    // The barrier noise over the whole box, sampled on the first block whose
-    // pressure asks for it; the shell asks in runs, one point at a time would
-    // pay the fill's setup per block.
+    let mut barrier_at = volume_barrier(noise_router, ws, volume, barrier);
+    for z in 0..volume.size().z {
+        for x in 0..volume.size().x {
+            for y in (0..volume.size().y).rev() {
+                let value = density[volume.index_unchecked(x, y, z)];
+                let (px, py, pz) = (origin.x + x, origin.y + y, origin.z + z);
+                let world = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
+                let state = column_block(
+                    default_block,
+                    value,
+                    fluid,
+                    world.x,
+                    world.y,
+                    world.z,
+                    &mut barrier_at,
+                );
+                if state != VoxelId(0) {
+                    column.set_in_section(index, px, py, pz, state);
+                    let slot = &mut tops[(pz * 16 + px) as usize];
+                    *slot = (*slot).max(world.y);
+                }
+            }
+        }
+    }
+}
+
+/// The barrier noise over the whole box, sampled on the first block whose
+/// pressure asks for it; the shell asks in runs, one point at a time would
+/// pay the fill's setup per block.
+fn volume_barrier<'a>(
+    noise_router: &'a NoiseRouter,
+    ws: &'a mut Workspace,
+    volume: &'a Volume,
+    barrier: &'a mut Vec<f32>,
+) -> impl FnMut(i32, i32, i32) -> f64 + 'a {
     barrier.clear();
     let barrier_root = noise_router.aquifer.as_ref().map(|aquifer| aquifer.barrier);
-    let mut barrier_at = |bx: i32, by: i32, bz: i32| {
+    move |bx: i32, by: i32, bz: i32| {
         if barrier.is_empty() {
             barrier.resize(volume.len(), 0.0);
             let root = barrier_root.expect("only a field with a barrier asks for it");
@@ -510,36 +544,86 @@ fn fill_blocks(
             .index_of_block(bx, by, bz)
             .expect("the barrier is read inside the box being filled");
         f64::from(barrier[at])
-    };
-    for z in 0..volume.size().z {
-        for x in 0..volume.size().x {
-            for y in (0..volume.size().y).rev() {
-                let value = density[volume.index_unchecked(x, y, z)];
-                let (px, py, pz) = (origin.x + x, origin.y + y, origin.z + z);
-                let world = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
-                let placed = if value > 0.0 {
-                    Some(default_block)
-                } else {
-                    match fluid.substance_settled(
-                        world.x,
-                        world.y,
-                        world.z,
-                        f64::from(value),
-                        &mut barrier_at,
-                    ) {
-                        None => Some(default_block),
-                        Some(VoxelId(0)) => None,
-                        state => state,
-                    }
-                };
-                if let Some(state) = placed {
-                    column.set_in_section(index, px, py, pz, state);
-                    let slot = &mut tops[(pz * 16 + px) as usize];
-                    *slot = (*slot).max(world.y);
-                }
-            }
+    }
+}
+
+/// The block the terrain fill places at one position: `VoxelId(0)` is air.
+#[allow(clippy::too_many_arguments)]
+fn column_block(
+    default_block: VoxelId,
+    density: f32,
+    fluid: &mut FluidField<'_>,
+    x: i32,
+    y: i32,
+    z: i32,
+    barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+) -> VoxelId {
+    if density > 0.0 {
+        return default_block;
+    }
+    fluid
+        .substance_settled(x, y, z, f64::from(density), barrier)
+        .unwrap_or(default_block)
+}
+
+pub fn heightmap_kind(name: HeightmapName) -> HeightmapKinds {
+    match name {
+        HeightmapName::WorldSurfaceWg | HeightmapName::WorldSurface => HeightmapKinds::SURFACE,
+        HeightmapName::OceanFloorWg | HeightmapName::OceanFloor => HeightmapKinds::SOLID,
+        HeightmapName::MotionBlocking => HeightmapKinds::MOTION,
+        HeightmapName::MotionBlockingNoLeaves => HeightmapKinds::NO_LEAVES,
+    }
+}
+
+/// One above the topmost block of the unfilled terrain column at `(x, z)`
+/// satisfying `kind`, over the noise range clipped to the accessor range, or
+/// `accessor_min_y` when no block does.
+#[allow(clippy::too_many_arguments)]
+pub fn base_height(
+    router: &NoiseRouter,
+    ws: &mut Workspace,
+    predicates: &HeightmapPredicates,
+    kind: HeightmapKinds,
+    x: i32,
+    z: i32,
+    accessor_min_y: i32,
+    accessor_height: i32,
+) -> i32 {
+    let min_y = router.noise.min_y.max(accessor_min_y);
+    let height = (router.noise.min_y + router.noise.height as i32)
+        .min(accessor_min_y + accessor_height)
+        - min_y;
+    if height <= 0 {
+        return accessor_min_y;
+    }
+    let volume = Volume::dense(IVec3::new(1, height, 1), IVec3::new(x, min_y, z));
+    let mut density = vec![0.0f32; volume.len()];
+    router
+        .program
+        .fill(ws, &volume, FINAL_DENSITY, &mut density);
+    let mut fluid = FluidField::new(
+        router,
+        IVec3::new(x, min_y, z),
+        IVec3::new(x, min_y + height - 1, z),
+    );
+    let mut barrier_buffer = Vec::new();
+    let mut barrier_at = volume_barrier(router, ws, &volume, &mut barrier_buffer);
+    for y in (0..height).rev() {
+        let block_y = volume.block_y(y);
+        let state = column_block(
+            router.default_block_state,
+            density[volume.index_unchecked(0, y, 0)],
+            &mut fluid,
+            x,
+            block_y,
+            z,
+            &mut barrier_at,
+        );
+        if predicates.get(state).contains(kind) {
+            return block_y + 1;
         }
     }
+    accessor_min_y
 }
 
 /// The (temperature, humidity) pair at each of the sixteen biome-cell columns

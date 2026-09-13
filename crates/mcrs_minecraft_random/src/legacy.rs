@@ -34,6 +34,30 @@ impl LegacyRandom {
         self.seed >> (MODULUS_BITS - bits)
     }
 
+    /// `WorldgenRandom.setLargeFeatureSeed`.
+    ///
+    /// Beta's sibling adds odd-forced products where this one exclusive-ors plain
+    /// ones; the two are the same idea and not the same number.
+    pub fn large_feature_seed(world_seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
+        let mut rng = LegacyRandom::new(world_seed as u64);
+        let x_scale = rng.next_java_long();
+        let z_scale = rng.next_java_long();
+        (chunk_x as i64).wrapping_mul(x_scale) ^ (chunk_z as i64).wrapping_mul(z_scale) ^ world_seed
+    }
+
+    pub fn large_feature(world_seed: i64, chunk_x: i32, chunk_z: i32) -> Self {
+        LegacyRandom::new(Self::large_feature_seed(world_seed, chunk_x, chunk_z) as u64)
+    }
+
+    pub fn large_feature_with_salt(world_seed: i64, x: i32, z: i32, salt: i32) -> Self {
+        let seed = (x as i64)
+            .wrapping_mul(341873128712)
+            .wrapping_add((z as i64).wrapping_mul(132897987541))
+            .wrapping_add(world_seed)
+            .wrapping_add(salt as i64);
+        LegacyRandom::new(seed as u64)
+    }
+
     /// Java-accurate `nextLong()`: both 32-bit halves are sign-extended before combining.
     /// Java's `nextLong` computes `((long)(int)upper << 32) + (long)(int)lower`, so when
     /// the lower half has its high bit set the result is reduced by 2^32 relative to the
@@ -92,16 +116,14 @@ impl Random for LegacyRandom {
             let n = self.next_bits(31);
             return ((bound as u64).wrapping_mul(n) >> 31) as u32;
         }
-        let mut a;
-        let mut b;
+        let bound = bound as i32;
         loop {
-            a = self.next_bits(31) as i64;
-            b = a % bound as i64;
-            if a - b + (bound as i64 - 1) >= 0 {
-                break;
+            let sample = self.next_bits(31) as i32;
+            let modulo = sample % bound;
+            if sample.wrapping_sub(modulo).wrapping_add(bound - 1) >= 0 {
+                return modulo as u32;
             }
         }
-        b as u32
     }
 
     fn next_f32(&mut self) -> f32 {
@@ -172,11 +194,49 @@ mod test {
     }
 
     #[test]
+    fn large_feature_seed_is_the_reference_formula() {
+        for (seed, cx, cz) in [(12345i64, 0i32, 0i32), (-9, 17, -33), (1, -1, 1)] {
+            let mut rng = LegacyRandom::new(seed as u64);
+            let x_scale = rng.next_java_long();
+            let z_scale = rng.next_java_long();
+            let expected =
+                (cx as i64).wrapping_mul(x_scale) ^ (cz as i64).wrapping_mul(z_scale) ^ seed;
+            assert_eq!(LegacyRandom::large_feature_seed(seed, cx, cz), expected);
+        }
+    }
+
+    #[test]
+    fn large_feature_sources_ignore_the_top_sixteen_seed_bits() {
+        let seed = -6_723_991_117_364_058_231i64;
+        for flipped in [seed ^ (1 << 63), seed ^ (0xFFFF << 48)] {
+            assert_eq!(
+                LegacyRandom::large_feature_with_salt(seed, -7, 12, 10387312),
+                LegacyRandom::large_feature_with_salt(flipped, -7, 12, 10387312)
+            );
+            assert_eq!(
+                LegacyRandom::large_feature(seed, -7, 12),
+                LegacyRandom::large_feature(flipped, -7, 12)
+            );
+        }
+        assert_ne!(
+            LegacyRandom::large_feature_with_salt(seed, -7, 12, 10387312),
+            LegacyRandom::large_feature_with_salt(seed ^ 1, -7, 12, 10387312)
+        );
+    }
+
+    #[test]
     fn next_i32_bound() {
         let mut random = LegacyRandom::new(123);
         assert_eq!(random.next_i32_bound(256), 185);
         assert_eq!(random.next_i32_bound(255), 200);
         assert_eq!(random.next_i32_bound(254), 74);
+    }
+
+    #[test]
+    fn next_i32_bound_rejects_the_partial_top_bucket() {
+        let mut random = LegacyRandom::new(256);
+        let draws: Vec<i32> = (0..4).map(|_| random.next_i32_bound(0x6000_0000)).collect();
+        assert_eq!(draws, [1129860750, 1377133019, 321559793, 615784825]);
     }
 
     #[test]

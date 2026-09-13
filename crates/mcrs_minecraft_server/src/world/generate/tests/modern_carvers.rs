@@ -10,7 +10,6 @@ use mcrs_voxel_storage::VoxelId;
 use super::{assets_root, build_settings_router, corpus};
 use crate::world::generate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers, climate_target_at,
-    large_feature_seed,
 };
 use crate::world::generate::{ColumnBlocks, column_fluid_field};
 
@@ -86,18 +85,18 @@ fn large_feature_seed_matches_the_reference_formula() {
         let x_scale = rng.next_java_long();
         let z_scale = rng.next_java_long();
         let expected = (cx as i64).wrapping_mul(x_scale) ^ (cz as i64).wrapping_mul(z_scale) ^ seed;
-        assert_eq!(large_feature_seed(seed, cx, cz), expected);
+        assert_eq!(LegacyRandom::large_feature_seed(seed, cx, cz), expected);
     }
     // Two different sources must not share a stream.
     assert_ne!(
-        large_feature_seed(12345, 0, 0),
-        large_feature_seed(12345, 1, 0)
+        LegacyRandom::large_feature_seed(12345, 0, 0),
+        LegacyRandom::large_feature_seed(12345, 1, 0)
     );
     // The carver index is folded into the seed, so two carvers of one biome
     // draw independently in the same source chunk.
     assert_ne!(
-        large_feature_seed(12345, 4, 4),
-        large_feature_seed(12346, 4, 4)
+        LegacyRandom::large_feature_seed(12345, 4, 4),
+        LegacyRandom::large_feature_seed(12346, 4, 4)
     );
 }
 

@@ -386,6 +386,7 @@ pub fn spawn_dim_subapp(
                         .map(std::sync::Arc::clone),
                     Some(&registries.block_tag_registry),
                     features,
+                    registries.structures.0.get(dimension).cloned(),
                 ));
             }
             None => {

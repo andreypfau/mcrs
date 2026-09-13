@@ -451,3 +451,56 @@ Positions are template-relative. Bit `i` of `nbt_bits` is
 entity compound.
 
 The file ends exactly at the last bitset; there is no trailer.
+
+---
+
+# Structure placement dumps
+
+`PlacementOracle.main` records where vanilla puts structures and whether the
+jigsaw start step yields a site there, for seeds 1, 42, 12345, -7 and
+0x7FFF_FFFF_0000_0001. It runs no server, but it does load the data pack the
+way a server does: `RegistryLayer.createRegistryAccess()`,
+`TagLoader.loadTagsForExistingRegistries` on the static layer,
+`TagLoader.buildUpdatedLookups`, then
+`RegistryDataLoader.load(resources, worldContextRegistries, WORLD_REGISTRIES, executor)`.
+`VanillaRegistries.createWorldLookup()` (what the density and surface dumps use)
+is useless here: it wraps every tag lookup in an empty holder set, so every
+structure's `biomes` tag is empty, `ChunkGeneratorStructureState.createForNormal`
+keeps zero sets, and nothing places. The task throws unless the live set counts
+come out as 18 overworld, 3 nether and 1 end.
+
+Per dimension it builds `NoiseBasedChunkGenerator` over the loaded noise
+settings and a biome source from the loaded parameter list (`TheEndBiomeSource`
+for the end); per seed, `RandomState.create` and
+`ChunkGeneratorStructureState.createForNormal(randomState, seed, ChunkPos.ZERO, biomeSource, structureSets)`.
+For the jigsaw sites a real `StructureTemplateManager` is built over a temporary
+`LevelStorageSource` access, and each `Structure.GenerationContext` is
+constructed the way `StructureCheck.canCreateStructure` constructs it, with a
+climate sampler from `randomState.createClimateSampler(SamplerContext.builder().enableCaches().build())`.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpPlacement --console=plain --no-daemon -PoracleOut=<dir>
+cp <dir>/structure_cells.bin ../../crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/
+cp <dir>/structure_sites.bin ../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/
+```
+
+Two files, both deterministic:
+
+- `structure_cells.bin` (magic `MCPLACE0`): for every random-spread set live in
+  each of the three dimensions, `getPotentialStructureChunk` and the full
+  `isStructureChunk` verdict over the chunk squares `[-24, 25)²` and
+  `[2000, 2025)²`.
+- `structure_sites.bin` (magic `MCSITES0`): the 128 stronghold ring chunks; for
+  every jigsaw structure live in the overworld and the nether, 16 placement
+  chunks found by walking square rings out from (0, 0), with
+  `findGenerationPoint` presence, the stub position, and the
+  `findValidGenerationPoint` biome verdict from a fresh context; and
+  `getBaseHeight` for `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG` at 64 columns per
+  dimension.
+
+The field-by-field layouts, the provenance of every value and the case summaries
+are beside each fixture:
+`crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/structure_cells_capture_procedure.md`
+and
+`crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/structure_sites_capture_procedure.md`.

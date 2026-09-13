@@ -30,17 +30,6 @@ use mcrs_voxel_storage::VoxelId;
 
 use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
 
-/// `WorldgenRandom.setLargeFeatureSeed`.
-///
-/// Beta's sibling adds odd-forced products where this one exclusive-ors plain
-/// ones; the two are the same idea and not the same number.
-pub fn large_feature_seed(world_seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
-    let mut rng = LegacyRandom::new(world_seed as u64);
-    let x_scale = rng.next_java_long();
-    let z_scale = rng.next_java_long();
-    (chunk_x as i64).wrapping_mul(x_scale) ^ (chunk_z as i64).wrapping_mul(z_scale) ^ world_seed
-}
-
 /// The six climate roots at one quart position, which is where a carver source
 /// takes its biome from.
 pub fn climate_target_at(
@@ -446,11 +435,13 @@ pub(crate) fn carve_sources(
             let carvers = biomes.carvers_of_source(router, ws, source_x, source_z, &mut held);
             for (index, config) in carvers.iter().enumerate() {
                 let seed = match config {
-                    CarverConfig::Cave { .. } | CarverConfig::Canyon { .. } => large_feature_seed(
-                        world_seed.wrapping_add(index as i64),
-                        source_x,
-                        source_z,
-                    ),
+                    CarverConfig::Cave { .. } | CarverConfig::Canyon { .. } => {
+                        LegacyRandom::large_feature_seed(
+                            world_seed.wrapping_add(index as i64),
+                            source_x,
+                            source_z,
+                        )
+                    }
                     CarverConfig::BetaCave => beta_chunk_seed(world_seed, source_x, source_z),
                 };
                 let mut rng = LegacyRandom::new(seed as u64);

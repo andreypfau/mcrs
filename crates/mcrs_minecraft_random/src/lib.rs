@@ -81,7 +81,7 @@ impl GaussianBank {
     }
 }
 
-fn block_pos_seed<T>(pos: T) -> u64
+pub fn block_pos_seed<T>(pos: T) -> u64
 where
     T: Into<IVec3>,
 {
@@ -96,6 +96,22 @@ where
         .wrapping_mul(42317861)
         .wrapping_add(l.wrapping_mul(11));
     (l >> 16) as u64
+}
+
+/// `Util.shuffle`: a descending Fisher-Yates that spends `n - 1` draws, a slot
+/// swapped with itself as readily as with any other.
+pub fn shuffle<T, R: Random>(items: &mut [T], rng: &mut R) {
+    for size in (2..=items.len()).rev() {
+        let swap_to = rng.next_i32_bound(size as i32) as usize;
+        items.swap(size - 1, swap_to);
+    }
+}
+
+/// `Util.shuffledCopy`.
+pub fn shuffled<T: Clone, R: Random>(items: &[T], rng: &mut R) -> Vec<T> {
+    let mut copy = items.to_vec();
+    shuffle(&mut copy, rng);
+    copy
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

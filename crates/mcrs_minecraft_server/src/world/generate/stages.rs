@@ -39,6 +39,8 @@ use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::staging::{
     ColumnDelta, FilledSnapshot, RegionSnapshots, cell_index, rank, region_column, region_slot,
 };
+use crate::world::generate::structures::DimensionStructureTables;
+use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
 use crate::world::generate::{
     BetaCaveBlockIds, ColumnBlocks, SurfaceIds, apply_beta_carvers, apply_beta_surface,
     apply_material_surface, fill_column_dense_any, spans_dimension,
@@ -64,6 +66,7 @@ pub struct FillContext {
     /// Read only where `biome` names the registry the save is decoded against.
     pub saved: Option<SavedColumns>,
     pub program: ColumnProgram,
+    pub structures: Option<Arc<StructureIndex>>,
 }
 
 /// What the fill and the run do to a column past the density fill.
@@ -115,36 +118,66 @@ impl FillContext {
         carver_biomes: Option<Arc<CarverBiomeTable>>,
         block_tags: Option<&DynTagRegistry<VanillaBlock>>,
         features: Option<Arc<FeatureProgram>>,
+        structures: Option<Arc<DimensionStructureTables>>,
     ) -> Self {
+        let multi_noise = biome.as_ref().and_then(|(source, registry)| {
+            let BiomeSource::MultiNoise(multi) = source.as_ref() else {
+                return None;
+            };
+            MultiNoiseBiomeTable::resolve(multi, |location| {
+                // The palette stores a biome in a byte, so an id past
+                // 255 would silently alias another biome.
+                match registry.by_location(location).map(u8::try_from) {
+                    Some(Ok(id)) => Some(id),
+                    Some(Err(_)) => {
+                        error!(
+                            biome = location,
+                            "biome id is past the 256 the palette can store"
+                        );
+                        None
+                    }
+                    None => {
+                        error!(biome = location, "biome missing from the registry");
+                        None
+                    }
+                }
+            })
+            .map(Arc::new)
+        });
+        let structures = structures.map(|tables| {
+            let biome_lookup = match (&multi_noise, &biome) {
+                (Some(table), _) => BiomeLookup::MultiNoise(Arc::clone(table)),
+                (None, Some((source, registry))) => match source.as_ref() {
+                    BiomeSource::Fixed { biome_id, .. } => registry
+                        .by_location(biome_id.as_str())
+                        .map_or(BiomeLookup::None, BiomeLookup::Fixed),
+                    _ => BiomeLookup::None,
+                },
+                (None, None) => BiomeLookup::None,
+            };
+            let (min_y, height) = match y_sections.first() {
+                Some(&first) => (
+                    first << BLOCKS::BITS,
+                    (y_sections.len() as i32) << BLOCKS::BITS,
+                ),
+                None => (router.noise.min_y, router.noise.height as i32),
+            };
+            Arc::new(StructureIndex::new(
+                tables,
+                router.world_seed as i64,
+                Arc::clone(&router),
+                biome_lookup,
+                predicates.clone(),
+                min_y,
+                height,
+            ))
+        });
         let generator = match &biome {
             Some((source, _)) if matches!(source.as_ref(), BiomeSource::Beta { .. }) => {
                 ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(&blocks)))
             }
             _ => ColumnGenerator::Modern {
-                multi_noise: biome.as_ref().and_then(|(source, registry)| {
-                    let BiomeSource::MultiNoise(multi) = source.as_ref() else {
-                        return None;
-                    };
-                    MultiNoiseBiomeTable::resolve(multi, |location| {
-                        // The palette stores a biome in a byte, so an id past
-                        // 255 would silently alias another biome.
-                        match registry.by_location(location).map(u8::try_from) {
-                            Some(Ok(id)) => Some(id),
-                            Some(Err(_)) => {
-                                error!(
-                                    biome = location,
-                                    "biome id is past the 256 the palette can store"
-                                );
-                                None
-                            }
-                            None => {
-                                error!(biome = location, "biome missing from the registry");
-                                None
-                            }
-                        }
-                    })
-                    .map(Arc::new)
-                }),
+                multi_noise,
                 surface: biome
                     .as_ref()
                     .map(|(_, registry)| Arc::new(SurfaceIds::resolve(&blocks, registry))),
@@ -164,6 +197,7 @@ impl FillContext {
             biome,
             predicates,
             program,
+            structures,
         }
     }
 

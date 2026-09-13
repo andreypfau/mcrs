@@ -1,3 +1,4 @@
+mod base_height;
 mod beta_biome_palette;
 mod beta_cave_parity;
 mod beta_ore_distribution;
@@ -14,6 +15,8 @@ mod modern_features;
 mod multi_noise_biomes;
 mod perf;
 mod rungs;
+mod structure_index;
+mod structure_sites;
 mod structures;
 mod surface;
 mod surface_parity;
@@ -132,6 +135,7 @@ pub fn fill_context_with(
         predicates: None,
         saved: None,
         program: crate::world::generate::stages::ColumnProgram::modern(features),
+        structures: None,
     }
 }
 

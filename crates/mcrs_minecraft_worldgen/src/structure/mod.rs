@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+pub mod placement;
 pub mod template;
 
 use serde::{Deserialize, Serialize};

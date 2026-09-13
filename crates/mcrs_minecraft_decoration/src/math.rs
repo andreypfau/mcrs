@@ -1,21 +1,5 @@
-use mcrs_minecraft_random::Random;
+pub use mcrs_minecraft_random::{shuffle, shuffled};
 use std::sync::LazyLock;
-
-/// `Util.shuffle`: a descending Fisher-Yates that spends `n - 1` draws, a slot
-/// swapped with itself as readily as with any other.
-pub fn shuffle<T, R: Random>(items: &mut [T], rng: &mut R) {
-    for size in (2..=items.len()).rev() {
-        let swap_to = rng.next_i32_bound(size as i32) as usize;
-        items.swap(size - 1, swap_to);
-    }
-}
-
-/// `Util.shuffledCopy`.
-pub fn shuffled<T: Clone, R: Random>(items: &[T], rng: &mut R) -> Vec<T> {
-    let mut copy = items.to_vec();
-    shuffle(&mut copy, rng);
-    copy
-}
 
 /// Beta's `MathHelper` sine table: 65536 entries of `(float)Math.sin(i * 2π / 65536)`,
 /// built once at first use the way the Java class builds it at class load.

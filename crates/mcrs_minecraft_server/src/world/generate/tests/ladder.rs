@@ -162,6 +162,7 @@ fn fill_context(consumer: Consumer) -> Dimension {
         program,
         router,
         y_sections: y_sections.clone(),
+        structures: None,
     };
     Dimension { ctx, registry }
 }

@@ -150,6 +150,7 @@ pub(super) fn dimension_over(
         },
         router,
         y_sections: y_sections.clone(),
+        structures: None,
     };
     (ctx, y_sections)
 }

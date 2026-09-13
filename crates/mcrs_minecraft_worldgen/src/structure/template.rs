@@ -447,6 +447,28 @@ impl BoundingBox {
             max: a.max(b),
         }
     }
+
+    pub fn moved(self, delta: IVec3) -> Self {
+        BoundingBox {
+            min: self.min + delta,
+            max: self.max + delta,
+        }
+    }
+
+    pub fn inflated(self, n: i32) -> Self {
+        BoundingBox {
+            min: self.min - IVec3::splat(n),
+            max: self.max + IVec3::splat(n),
+        }
+    }
+
+    pub fn intersects(&self, other: &Self) -> bool {
+        (self.max.cmpge(other.min) & self.min.cmple(other.max)).all()
+    }
+
+    pub fn y_span(&self) -> i32 {
+        self.max.y - self.min.y + 1
+    }
 }
 
 pub fn transform(pos: IVec3, rotation: Rotation, pivot: IVec3) -> IVec3 {
@@ -1009,6 +1031,44 @@ mod tests {
                 min: at + IVec3::new(-2, 0, -4),
                 max: at + IVec3::new(0, 3, 0)
             }
+        );
+    }
+
+    #[test]
+    fn box_arithmetic_is_inclusive() {
+        let a = BoundingBox::from_corners(IVec3::new(0, 0, 0), IVec3::new(4, 2, 4));
+        assert_eq!(a.y_span(), 3);
+        assert_eq!(a.moved(IVec3::new(1, -1, 0)).min, IVec3::new(1, -1, 0));
+        assert_eq!(a.inflated(12).max, IVec3::new(16, 14, 16));
+        assert!(a.intersects(&BoundingBox::from_corners(
+            IVec3::new(4, 2, 4),
+            IVec3::splat(9)
+        )));
+        assert!(!a.intersects(&BoundingBox::from_corners(
+            IVec3::new(5, 0, 0),
+            IVec3::splat(9)
+        )));
+    }
+
+    #[test]
+    fn a_rotation_turns_the_horizontal_faces_and_keeps_the_vertical_ones() {
+        assert_eq!(
+            Rotation::Clockwise90.rotate(Direction::North),
+            Direction::East
+        );
+        assert_eq!(
+            Rotation::Clockwise180.rotate(Direction::North),
+            Direction::South
+        );
+        assert_eq!(
+            Rotation::Counterclockwise90.rotate(Direction::North),
+            Direction::West
+        );
+        assert_eq!(Rotation::None.rotate(Direction::West), Direction::West);
+        assert_eq!(Rotation::Clockwise90.rotate(Direction::Up), Direction::Up);
+        assert_eq!(
+            Rotation::ALL[Rotation::ALL.len() - 1],
+            Rotation::Counterclockwise90
         );
     }
 }

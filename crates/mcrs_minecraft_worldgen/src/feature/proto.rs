@@ -617,6 +617,28 @@ pub enum Rotation {
     Counterclockwise90,
 }
 
+impl Rotation {
+    /// `Rotation.values()`, the order `nextInt(4)` indexes.
+    pub const ALL: [Rotation; 4] = [
+        Rotation::None,
+        Rotation::Clockwise90,
+        Rotation::Clockwise180,
+        Rotation::Counterclockwise90,
+    ];
+
+    pub fn rotate(self, direction: Direction) -> Direction {
+        if direction.is_vertical() {
+            return direction;
+        }
+        match self {
+            Rotation::None => direction,
+            Rotation::Clockwise90 => direction.clockwise(),
+            Rotation::Clockwise180 => direction.opposite(),
+            Rotation::Counterclockwise90 => direction.opposite().clockwise(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GeodeBlockSettings {

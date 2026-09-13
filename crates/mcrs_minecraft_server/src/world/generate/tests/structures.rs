@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::{DynRegistryIndex, DynTagRegistry, ResourceLocation};
@@ -73,8 +73,12 @@ fn corpus_registries() -> Corpus {
     }
 }
 
-fn frozen() -> &'static FrozenStructures {
-    static FROZEN: LazyLock<FrozenStructures> = LazyLock::new(|| {
+pub(super) fn frozen() -> &'static FrozenStructures {
+    frozen_shared()
+}
+
+pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
+    static FROZEN: LazyLock<Arc<FrozenStructures>> = LazyLock::new(|| {
         let corpus_registries = corpus_registries();
         freeze(&StructureInputs {
             sets: &corpus_registries.sets,
@@ -86,6 +90,7 @@ fn frozen() -> &'static FrozenStructures {
             biome_tags: biome_tags(),
         })
         .unwrap_or_else(|e| panic!("{e}"))
+        .into()
     });
     &FROZEN
 }
@@ -177,7 +182,7 @@ fn live_set_names(source: &BiomeSource) -> Vec<String> {
         .collect()
 }
 
-fn preset(name: &str) -> BiomeSource {
+pub(super) fn preset(name: &str) -> BiomeSource {
     BiomeSource::MultiNoise(MultiNoiseBiomeSource {
         preset: Some(ResourceLocation::parse(name).unwrap()),
         biomes: None,

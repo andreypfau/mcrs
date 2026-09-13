@@ -3,10 +3,12 @@ use crate::world::bus::{
     ArrivalCause, MovePayload, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 use crate::world::entity::player::HostAnchor;
+use crate::world::generate::stages::FillContext;
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
-use bevy_math::DVec3;
+use bevy_math::{DVec3, IVec3};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
@@ -43,6 +45,7 @@ fn handle_command(
         mcrs_voxel_world::world::channels::FromDimSender<crate::world::channel_types::FromDim>,
     >,
     mut commands: Commands,
+    fill: Option<Res<FillContext>>,
 ) {
     let Some(pkt) = event.decode::<ServerboundChatCommand>() else {
         return;
@@ -125,8 +128,85 @@ fn handle_command(
                     player: Some(session),
                 });
         }
+        Some("locate") => {
+            let (Some("structure"), Some(raw)) = (parts.next(), parts.next()) else {
+                return;
+            };
+            let Ok((host_anchor, transform, _, _)) = sender_query.get(event.entity) else {
+                return;
+            };
+            let id = if raw.contains(':') {
+                raw.to_string()
+            } else {
+                format!("minecraft:{raw}")
+            };
+            let origin = transform.translation.floor().as_ivec3();
+            packet_writer.write(OutboundPlayerPacket {
+                target: PacketTarget::SinglePlayer(host_anchor.0),
+                priority: PacketPriority::Normal,
+                data: PacketPayload::SystemChat {
+                    content: locate_structure(fill.as_deref(), origin, &id),
+                    overlay: false,
+                },
+                session: PlayerSession(0),
+                epoch: 0,
+            });
+        }
         _ => {}
     }
+}
+
+fn locate_structure(fill: Option<&FillContext>, origin: IVec3, id: &str) -> Text {
+    let not_found = || {
+        Text::translate(
+            "commands.locate.structure.not_found",
+            vec![id.to_string().into_text()],
+        )
+        .color(Color::RED)
+    };
+    let Some(index) = fill.and_then(|fill| fill.structures.as_deref()) else {
+        return not_found();
+    };
+    let Some(structure) = ResourceLocation::parse(id)
+        .ok()
+        .and_then(|location| index.tables().frozen.structure_ids.get(&location).copied())
+    else {
+        return Text::translate(
+            "commands.locate.structure.invalid",
+            vec![id.to_string().into_text()],
+        )
+        .color(Color::RED);
+    };
+    let Some((found, _)) = index.locate(origin, &[structure]) else {
+        return not_found();
+    };
+    let dx = found.x.wrapping_sub(origin.x);
+    let dz = found.z.wrapping_sub(origin.z);
+    let distance = (dx.wrapping_mul(dx).wrapping_add(dz.wrapping_mul(dz)) as f32)
+        .sqrt()
+        .floor() as i32;
+    let coordinates = Text::translate(
+        "chat.square_brackets",
+        vec![Text::translate(
+            "chat.coordinates",
+            vec![
+                found.x.to_string().into_text(),
+                "~".into_text(),
+                found.z.to_string().into_text(),
+            ],
+        )],
+    )
+    .color(Color::GREEN)
+    .on_click_suggest_command(format!("/tp @s {} ~ {}", found.x, found.z))
+    .on_hover_show_text(Text::translate("chat.coordinates.tooltip", vec![]));
+    Text::translate(
+        "commands.locate.structure.success",
+        vec![
+            id.to_string().into_text(),
+            coordinates,
+            distance.to_string().into_text(),
+        ],
+    )
 }
 
 fn handle_chat(

@@ -1,3 +1,7 @@
+pub mod index;
+pub mod locate;
+pub mod site;
+
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
