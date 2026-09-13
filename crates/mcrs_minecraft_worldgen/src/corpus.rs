@@ -16,19 +16,28 @@ pub fn worldgen_dir() -> PathBuf {
 
 /// Every `.json` under `dir`, recursively, in a stable order.
 pub fn json_files(dir: &Path) -> Vec<PathBuf> {
+    files_with_extension(dir, "json")
+}
+
+/// Every `.nbt` under `dir`, recursively, in a stable order.
+pub fn nbt_files(dir: &Path) -> Vec<PathBuf> {
+    files_with_extension(dir, "nbt")
+}
+
+fn files_with_extension(dir: &Path, extension: &str) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    collect(dir, &mut out);
+    collect(dir, extension, &mut out);
     out.sort();
     out
 }
 
-fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
+fn collect(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
     let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
     for entry in entries {
         let path = entry.unwrap().path();
         if path.is_dir() {
-            collect(&path, out);
-        } else if path.extension().is_some_and(|e| e == "json") {
+            collect(&path, extension, out);
+        } else if path.extension().is_some_and(|e| e == extension) {
             out.push(path);
         }
     }

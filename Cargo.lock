@@ -3603,6 +3603,7 @@ dependencies = [
  "cesu8",
  "flate2",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 
@@ -3787,6 +3788,7 @@ dependencies = [
  "bytes",
  "fixedbitset",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen",
  "mcrs_voxel_math",
