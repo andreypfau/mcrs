@@ -110,10 +110,7 @@ impl Pump {
         }
         let occupied: Vec<BlockBox> = self.in_flight.iter().map(|(area, _)| *area).collect();
         let free = self.epochs - self.in_flight.len();
-        for batch in self
-            .queue
-            .drain_batches(self.budget_cells, &occupied, free)
-        {
+        for batch in self.queue.drain_batches(self.budget_cells, &occupied, free) {
             let Some(job) = self.world.prepare_batch(batch) else {
                 continue;
             };
@@ -287,10 +284,7 @@ fn a_roof_lit_across_column_seams_matches_one_pass() {
         let mut solid = 0;
         for local_z in 0..BLOCKS::SIZE {
             for local_x in 0..BLOCKS::SIZE {
-                let (x, z) = (
-                    pos.x * 16 + local_x as i32,
-                    pos.z * 16 + local_z as i32,
-                );
+                let (x, z) = (pos.x * 16 + local_x as i32, pos.z * 16 + local_z as i32);
                 for local_y in 0..BLOCKS::SIZE {
                     let y = base_y + local_y as i32;
                     if y <= 20 || (y == 40 && roofed(x, z)) {

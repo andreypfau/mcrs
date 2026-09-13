@@ -172,3 +172,186 @@ runs           (u32 palette index, u32 length) * run_count
 The runs expand to one palette index per position, indexed
 `((z * 16 + x) * height) + (y - min_y)`, and their lengths sum to
 `16 * 16 * height`.
+
+---
+
+# Feature step dumps
+
+`FeatureStepOracle.main` reproduces the ordering `ChunkGenerator` derives from a
+biome source: `FeatureSorter.buildFeaturesPerStep(List.copyOf(biomeSource.possibleBiomes()),
+b -> b.value().getGenerationSettings().features(), true)`, called for the three
+shipped biome sources. It runs no server: `VanillaRegistries.createWorldLookup()`
+supplies the biome, placed-feature and multi-noise-preset registries, exactly as
+`SurfaceOracle` does.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpFeatureSteps --console=plain \
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla
+```
+
+One file, `feature_steps.bin`. Sources and what they resolve to:
+
+| `source_id` | Biome source | Biomes | Steps | Features per step |
+| --- | --- | --- | --- | --- |
+| `minecraft:overworld` | `MultiNoiseBiomeSource.createFromPreset(OVERWORLD)` | 56 | 11 | 0, 4, 5, 4, 4, 0, 34, 7, 3, 109, 1 |
+| `minecraft:the_nether` | `MultiNoiseBiomeSource.createFromPreset(NETHER)` | 5 | 10 | 0, 0, 1, 0, 3, 0, 0, 23, 0, 10 |
+| `minecraft:the_end` | `TheEndBiomeSource.create(biomes)` | 5 | 11 | 1, 0, 0, 0, 2, 0, 0, 0, 0, 1, 1 |
+
+## Binary layout
+
+Little-endian, same primitives as the density dumps.
+
+```
+magic          8 bytes, ASCII "MCFSTEP0"
+format_version u32   currently 1
+world_version  u32   SharedConstants.getCurrentVersion().dataVersion().version()
+source_count   u32
+
+repeated source_count times:
+  source_id    str
+  biome_count  u32
+  biome_ids    str * biome_count      possibleBiomes in List.copyOf order
+  step_count   u32
+  repeated step_count times:
+    feature_count u32
+    feature_ids   str * feature_count  the sorted order of that step
+  repeated biome_count times:          outer loop is the biome
+    repeated step_count times:         inner loop is the step
+      byte_len u32                     == (feature_count of that step + 7) / 8
+      bits     byte * byte_len
+```
+
+The membership bitset is indexed by the position of a placed feature inside that
+step's `feature_ids` list — the same integer `StepFeatureData.indexMapping`
+returns, and the integer `WorldgenRandom.setFeatureSeed` is called with. Bit `i`
+is `bits[i >> 3] & (1 << (i & 7))`. A biome whose own `features()` list is
+shorter than `step_count` still gets an all-zero bitset for the missing steps, so
+the framing is rectangular.
+
+Ordering is the whole point of the fixture, so nothing about it is incidental:
+`biome_ids` is `possibleBiomes()` iteration order, `feature_ids` is the reversed
+DFS post-order over the `TreeMap` keyed by `(step, first-encounter index)`, and
+`indexMapping` returns `-1` for a feature absent from a step (dumping throws
+rather than writing such a bit).
+
+The file ends exactly at the last bitset; there is no trailer.
+
+---
+
+# Ore vein dumps
+
+`OreOracle.main` runs `OreFeature.place` over a world that is stone at every
+in-world position, and records every block the vein writes, in write order, plus
+the random state the call leaves behind. No registries and no level are built —
+only `Bootstrap.bootStrap()`, for the block registry.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpOreVeins --console=plain \
+    -PoracleOut=../../crates/mcrs_minecraft_decoration/tests/fixtures/vanilla
+```
+
+One file, `ore_vein.bin`.
+
+The cases, what each one pins, and the provenance map of the lifted code are
+beside the fixture in
+`crates/mcrs_minecraft_decoration/tests/fixtures/vanilla/capture_procedure.md`.
+
+The random source is `new XoroshiroRandomSource(seed)`. `rng_after_lo` and
+`rng_after_hi` are two `nextLong()` values taken immediately after `place`
+returns; comparing them is what pins the draw count.
+
+## Binary layout
+
+Little-endian, same primitives as the density dumps.
+
+```
+magic          8 bytes, ASCII "MCOREVN0"
+format_version u32   currently 1
+world_version  u32   SharedConstants.getCurrentVersion().dataVersion().version()
+case_count     u32
+
+repeated case_count times:
+  name              str
+  seed              i64
+  origin_x          i32
+  origin_y          i32
+  origin_z          i32
+  size              i32
+  discard_chance    f32
+  target_count      u32
+  repeated target_count times:
+    rule_type       str   "block_match" | "random_block_match" | "always_true"
+    rule_block      str   block id, "" for always_true
+    rule_probability f32  0.0 unless random_block_match
+    state           str   BlockStateParser.serialize of the ore state
+  placed            u32   1 when doPlace returned true
+  rng_after_lo      i64   random.nextLong() after place returned
+  rng_after_hi      i64   the next one
+  palette_count     u32
+  palette           str * palette_count
+  placement_count   u32
+  placements        (i32 x, i32 y, i32 z, u32 palette index) * placement_count
+```
+
+`placements` is in the order `doPlace` wrote them, so it pins the loop order as
+well as the set of positions.
+
+---
+
+# Tree geometry dumps
+
+`TreeOracle.main` runs every shipped `tree` feature over a flat world and
+records the blocks it writes and the random state it leaves behind. It runs no
+server: `VanillaRegistries.createWorldLookup()` supplies the feature registry
+and the overworld `DimensionType`, and the block tags the tree tests against are
+bound from the vanilla data pack through `TagLoader.loadTagsForExistingRegistries`.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpTrees --console=plain \
+    -PoracleOut=../../crates/mcrs_minecraft_decoration/tests/fixtures/vanilla
+```
+
+One file, `tree_geometry.bin`: all 45 `minecraft:tree` features at seeds 42, 1,
+7 and 12345, placed at (0, 64, 0). 180 cases.
+
+The level (`StubLevel`, a `WorldGenLevel` over flat dirt whose every method
+throws until a tree calls it), why the placed object is the codec round-trip
+rather than the bootstrap one, and what the fixture cannot pin, are beside the
+fixture in
+`crates/mcrs_minecraft_decoration/tests/fixtures/vanilla/tree_geometry_capture_procedure.md`.
+`StubGen` prints the stub skeleton for any interface
+(`./gradlew stubGen -PstubClass=net.minecraft.world.level.WorldGenLevel`); run
+it again when a version bump changes `WorldGenLevel`.
+
+## Binary layout
+
+Little-endian, same primitives as the density dumps.
+
+```
+magic          8 bytes, ASCII "MCTREEG0"
+format_version u32   currently 1
+world_version  u32   SharedConstants.getCurrentVersion().dataVersion().version()
+case_count     u32
+
+repeated case_count times:
+  feature_id     str
+  seed           i64
+  origin_x       i32
+  origin_y       i32
+  origin_z       i32
+  placed         u32   1 when place returned true
+  rng_after_lo   i64   random.nextLong() after place returned
+  rng_after_hi   i64   the next one
+  palette_count  u32
+  palette        str * palette_count
+  block_count    u32
+  blocks         (i32 x, i32 y, i32 z, u32 palette index) * block_count
+```
+
+`blocks` is in **first-write order** with the state the position ended up
+holding. The leaf relaxation only rewrites positions already written, so it
+cannot reorder the list; the order is therefore the trunk, foliage and decorator
+order, and a port that visits cells in a different order fails on it.

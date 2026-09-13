@@ -177,7 +177,7 @@ fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds() {
     for (id, dimension_type) in app.world().resource::<Assets<DimensionType>>().iter() {
         let Some(rl) = asset_server
             .get_path(id)
-            .and_then(|path| rl_from_asset_path(path.path()))
+            .and_then(|path| rl_from_asset_path(path.path(), "dimension_type"))
         else {
             continue;
         };

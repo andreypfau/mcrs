@@ -22,6 +22,10 @@ pub trait Random: Rng + Clone {
         self.next_u32_bound(bound as u32) as i32
     }
 
+    fn next_int_between_inclusive(&mut self, min: i32, max: i32) -> i32 {
+        self.next_i32_bound(max - min + 1) + min
+    }
+
     fn next_i64(&mut self) -> i64 {
         self.next_u64() as i64
     }
@@ -40,6 +44,10 @@ pub trait Random: Rng + Clone {
 
     fn next_f64(&mut self) -> f64;
 
+    /// The reference banks the second normal of each polar pair, so a source
+    /// carries that state and a wrapper forwards to the source it wraps.
+    fn next_gaussian(&mut self) -> f64;
+
     fn fork(&mut self) -> Self;
 
     fn fork_at<T>(&mut self, pos: T) -> Self
@@ -47,6 +55,30 @@ pub trait Random: Rng + Clone {
         T: Into<IVec3>;
 
     fn fork_hash(&mut self, seed: impl AsRef<[u8]>) -> Self;
+}
+
+/// The second normal of the last polar pair, kept for the next call the way
+/// `java.util.Random.nextGaussian` keeps it. Raw bits, so the derived `Eq` of
+/// the source that holds it stays derived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct GaussianBank(Option<u64>);
+
+impl GaussianBank {
+    pub(crate) fn next(&mut self, mut next_double: impl FnMut() -> f64) -> f64 {
+        if let Some(bits) = self.0.take() {
+            return f64::from_bits(bits);
+        }
+        loop {
+            let x = 2.0 * next_double() - 1.0;
+            let y = 2.0 * next_double() - 1.0;
+            let radius_squared = x * x + y * y;
+            if radius_squared < 1.0 && radius_squared != 0.0 {
+                let multiplier = (-2.0 * radius_squared.ln() / radius_squared).sqrt();
+                self.0 = Some((y * multiplier).to_bits());
+                return x * multiplier;
+            }
+        }
+    }
 }
 
 fn block_pos_seed<T>(pos: T) -> u64
@@ -148,6 +180,13 @@ impl Random for RandomSource {
         match self {
             RandomSource::Legacy(random) => random.next_f64(),
             RandomSource::Xoroshiro(random) => random.next_f64(),
+        }
+    }
+
+    fn next_gaussian(&mut self) -> f64 {
+        match self {
+            RandomSource::Legacy(random) => random.next_gaussian(),
+            RandomSource::Xoroshiro(random) => random.next_gaussian(),
         }
     }
 

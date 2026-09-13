@@ -188,10 +188,11 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     }
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        // The root of a document is a compound and nothing else, so a value
+        // whose shape is only known from what it holds — an internally tagged
+        // enum, say — reads the root as the map it is.
         let Some(tag_to_deserialize) = self.tag_to_deserialize_stack else {
-            return Err(Error::SerdeError(
-                "The top level must be a component (e.g. a struct)".to_string(),
-            ));
+            return self.deserialize_map(visitor);
         };
 
         match tag_to_deserialize {

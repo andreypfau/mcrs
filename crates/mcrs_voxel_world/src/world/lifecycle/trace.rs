@@ -15,6 +15,9 @@ pub enum ColumnStage {
     Spawned,
     Queued,
     Generating,
+    Filled,
+    Ran,
+    Merged,
     Loaded,
     Ready,
     Sent,
@@ -23,11 +26,14 @@ pub enum ColumnStage {
 }
 
 impl ColumnStage {
-    pub const ALL: [ColumnStage; 9] = [
+    pub const ALL: [ColumnStage; 12] = [
         ColumnStage::Ticketed,
         ColumnStage::Spawned,
         ColumnStage::Queued,
         ColumnStage::Generating,
+        ColumnStage::Filled,
+        ColumnStage::Ran,
+        ColumnStage::Merged,
         ColumnStage::Loaded,
         ColumnStage::Ready,
         ColumnStage::Sent,
@@ -41,6 +47,9 @@ impl ColumnStage {
             ColumnStage::Spawned => "spawn",
             ColumnStage::Queued => "queue",
             ColumnStage::Generating => "gen",
+            ColumnStage::Filled => "fill",
+            ColumnStage::Ran => "run",
+            ColumnStage::Merged => "merge",
             ColumnStage::Loaded => "load",
             ColumnStage::Ready => "ready",
             ColumnStage::Sent => "sent",

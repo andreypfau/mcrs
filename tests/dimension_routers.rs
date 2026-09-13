@@ -3,10 +3,9 @@ use bevy_state::state::State;
 use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::MinecraftServerPlugin;
+use mcrs_minecraft_server::world::generate::stages::FillContext;
 use mcrs_minecraft_server::world::generate::{DimensionBiomeSources, DimensionRouters};
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
-use mcrs_minecraft_worldgen::bevy::DimensionNoiseRouter;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -81,12 +80,7 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     assert!(!sub_apps.is_empty(), "the preset spawned no dimension");
     let with_router = sub_apps
         .values()
-        .filter(|sub_app| {
-            sub_app
-                .world()
-                .get_resource::<DimensionNoiseRouter>()
-                .is_some()
-        })
+        .filter(|sub_app| sub_app.world().get_resource::<FillContext>().is_some())
         .count();
     assert_eq!(
         with_router,
@@ -100,21 +94,24 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     // nether the overworld's biomes while it samples the nether's router.
     let mut checked = 0;
     for sub_app in sub_apps.values() {
-        let Some(router) = sub_app.world().get_resource::<DimensionNoiseRouter>() else {
+        let Some(context) = sub_app.world().get_resource::<FillContext>() else {
             continue;
         };
-        let key = (router.0.default_block_state, router.0.default_fluid_state);
+        let key = (
+            context.router.default_block_state,
+            context.router.default_fluid_state,
+        );
         let dimension = dimension_of
             .iter()
             .find(|(pair, _)| *pair == key)
             .map(|(_, id)| id)
             .expect("a sub-app carries a router no dimension compiled");
-        let held = sub_app
-            .world()
-            .get_resource::<ActiveBiomeSource>()
+        let (held, _) = context
+            .biome
+            .as_ref()
             .unwrap_or_else(|| panic!("{dimension} reached its sub-app with no biome source"));
         assert!(
-            Arc::ptr_eq(&held.0, &sources.0[dimension]),
+            Arc::ptr_eq(held, &sources.0[dimension]),
             "{dimension} was given another dimension's biome source"
         );
         checked += 1;

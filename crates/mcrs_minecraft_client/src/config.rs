@@ -278,25 +278,32 @@ pub fn light_levels() -> bool {
 }
 
 /// `CHUNK_GUARD=1` takes the client down the moment the player stands in a
-/// column it does not hold; `=warn` only says so.
-pub fn chunk_guard() -> bool {
-    knob("CHUNK_GUARD").is_some_and(|value| value.trim() != "0")
+/// column it does not hold, `=warn` only says so, and `0` or unset is off.
+///
+/// A break that self-heals a frame later cannot be missed by a log line, which
+/// is why the loud form is the default once the knob is set at all.
+pub fn chunk_guard() -> Option<Guard> {
+    guard(knob("CHUNK_GUARD"))
 }
 
-pub fn chunk_guard_panics() -> bool {
-    knob("CHUNK_GUARD").as_deref().map(str::trim) != Some("warn")
+/// `LIGHT_GUARD` reads the same way; `warn` keeps the process alive so a whole
+/// load can be measured.
+pub fn light_guard() -> Option<Guard> {
+    guard(knob("LIGHT_GUARD"))
 }
 
-pub fn light_guard() -> bool {
-    knob("LIGHT_GUARD").is_some_and(|value| value.trim() != "0")
+fn guard(value: Option<String>) -> Option<Guard> {
+    match value.as_deref().map(str::trim) {
+        None | Some("0") => None,
+        Some("warn") => Some(Guard::Warn),
+        Some(_) => Some(Guard::Panic),
+    }
 }
 
-/// `LIGHT_GUARD=warn` keeps the process alive so a whole load can be measured;
-/// anything else that turns the guard on takes the client down on the first
-/// fault, which is the only way a break that self-heals a frame later cannot be
-/// missed.
-pub fn light_guard_panics() -> bool {
-    knob("LIGHT_GUARD").as_deref().map(str::trim) != Some("warn")
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum Guard {
+    Warn,
+    Panic,
 }
 
 /// Bevy's stock split gives async compute a quarter of the cores capped at four, which on a

@@ -1,4 +1,5 @@
 use crate::compile::{CompileError, build_router};
+use crate::feature::proto::{Feature, Holder, PlacedFeature};
 use crate::material::compile::SURFACE_NOISE_NAMES;
 use crate::material::proto::{MaterialCondition, MaterialRule};
 use crate::material::{MaterialConditionHolder, MaterialInputs, MaterialRuleHolder};
@@ -12,7 +13,7 @@ use bevy_asset::{
     Asset, AssetApp, AssetLoader, Assets, Handle, LoadContext, LoadDirectError, UntypedAssetId,
     VisitAssetDependencies,
 };
-use bevy_ecs::prelude::{Res, Resource};
+use bevy_ecs::prelude::Res;
 use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_core::ResourceLocation;
@@ -21,7 +22,6 @@ use mcrs_voxel_storage::VoxelId;
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
-use std::sync::Arc;
 use thiserror::Error;
 
 /// Registers the worldgen asset types and their loaders, and nothing else.
@@ -38,19 +38,18 @@ impl Plugin for WorldgenAssetsPlugin {
             .init_asset::<CarverConfigAsset>()
             .init_asset::<MaterialRuleAsset>()
             .init_asset::<MaterialConditionAsset>()
+            .init_asset::<FeatureAsset>()
+            .init_asset::<PlacedFeatureAsset>()
             .register_asset_loader(WorldgenAssetLoader::<DensityFunctionAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<NoiseGeneratorSettingsAsset>::default())
             .register_asset_loader(JsonLoader::<NoiseParamAsset>::default())
             .register_asset_loader(JsonLoader::<CarverConfigAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<MaterialRuleAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<MaterialConditionAsset>::default());
+            .register_asset_loader(WorldgenAssetLoader::<MaterialConditionAsset>::default())
+            .register_asset_loader(WorldgenAssetLoader::<FeatureAsset>::default())
+            .register_asset_loader(WorldgenAssetLoader::<PlacedFeatureAsset>::default());
     }
 }
-
-/// One dimension's compiled router. Built once where the assets are loaded and
-/// handed to that dimension's sub-app as a read-only snapshot.
-#[derive(Resource)]
-pub struct DimensionNoiseRouter(pub Arc<NoiseRouter>);
 
 /// Compiles one dimension's router from its loaded noise settings.
 ///
@@ -244,6 +243,15 @@ registries! {
             rule,
             visit_rule_holder
         ),
+        (features, "feature", FeatureAsset, Feature, feature, visit_feature),
+        (
+            placed_features,
+            "placed_feature",
+            PlacedFeatureAsset,
+            PlacedFeature,
+            placed_feature,
+            visit_placed_feature
+        ),
     }
 }
 
@@ -402,6 +410,24 @@ impl References {
                     self.visit_holder(function);
                 }
             }
+        }
+    }
+
+    pub(crate) fn visit_feature(&mut self, feature: &Feature) {
+        feature.visit_placed_features(&mut |holder| match holder {
+            Holder::Reference(id) => {
+                self.placed_features.insert(id.clone());
+            }
+            Holder::Inline(placed) => self.visit_placed_feature(placed),
+        });
+    }
+
+    pub(crate) fn visit_placed_feature(&mut self, placed: &PlacedFeature) {
+        match &placed.feature {
+            Holder::Reference(id) => {
+                self.features.insert(id.clone());
+            }
+            Holder::Inline(feature) => self.visit_feature(feature),
         }
     }
 

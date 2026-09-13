@@ -4,7 +4,7 @@ use rand_xoshiro::Xoroshiro128PlusPlus;
 use rand_xoshiro::rand_core::{Rng, SeedableRng, TryRng};
 use std::convert::Infallible;
 
-use crate::{Random, block_pos_seed};
+use crate::{GaussianBank, Random, block_pos_seed};
 
 const F32_MULTIPLIER: f32 = 1.0 / (1u64 << 24) as f32;
 const F64_MULTIPLIER: f64 = 1.0 / (1u64 << 53) as f64;
@@ -14,7 +14,10 @@ const SILVER_RATIO: u64 = 0x6a09e667f3bcc909;
 const GOLDEN_RATIO: u64 = 0x9e3779b97f4a7c15;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct XoroshiroRandom(Xoroshiro128PlusPlus);
+pub struct XoroshiroRandom {
+    state: Xoroshiro128PlusPlus,
+    banked_gaussian: GaussianBank,
+}
 
 impl XoroshiroRandom {
     pub fn new(seed: u64) -> Self {
@@ -26,7 +29,10 @@ impl XoroshiroRandom {
         let mut array = [0u8; 16];
         array[..8].copy_from_slice(&lo.to_le_bytes());
         array[8..16].copy_from_slice(&hi.to_le_bytes());
-        Self(Xoroshiro128PlusPlus::from_seed(array))
+        Self {
+            state: Xoroshiro128PlusPlus::from_seed(array),
+            banked_gaussian: GaussianBank::default(),
+        }
     }
 
     fn next_bits(&mut self, bits: usize) -> u64 {
@@ -66,6 +72,13 @@ impl Random for XoroshiroRandom {
         self.next_bits(53) as f64 * F64_MULTIPLIER
     }
 
+    fn next_gaussian(&mut self) -> f64 {
+        let mut bank = self.banked_gaussian;
+        let value = bank.next(|| self.next_f64());
+        self.banked_gaussian = bank;
+        value
+    }
+
     fn fork(&mut self) -> XoroshiroRandom {
         XoroshiroRandom::from_u128_seed(self.next_u64(), self.next_u64())
     }
@@ -97,17 +110,17 @@ impl TryRng for XoroshiroRandom {
 
     #[inline]
     fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-        Ok(self.0.next_u32())
+        Ok(self.state.next_u32())
     }
 
     #[inline]
     fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        Ok(self.0.next_u64())
+        Ok(self.state.next_u64())
     }
 
     #[inline]
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
-        self.0.fill_bytes(dest);
+        self.state.fill_bytes(dest);
         Ok(())
     }
 }
@@ -209,5 +222,42 @@ mod test {
         for &e in &expected {
             assert_eq!(random.next_f64(), e);
         }
+    }
+
+    #[test]
+    fn next_f64_bit_pattern_matches_vanilla() {
+        let mut random = XoroshiroRandom::new(1);
+        for bits in [
+            0x3fee34f5964cec6bu64,
+            0x3fd6623c80cc75fa,
+            0x3fecd6eb0ea62611,
+            0x3fa8b47231560540,
+            0x3fdc15a8878b6f82,
+        ] {
+            assert_eq!(random.next_f64().to_bits(), bits);
+        }
+    }
+
+    #[test]
+    fn next_gaussian_banks_the_second_of_the_polar_pair() {
+        let mut random = XoroshiroRandom::new(1);
+        let mut reference = XoroshiroRandom::new(1);
+
+        let x = 2.0 * reference.next_f64() - 1.0;
+        let y = 2.0 * reference.next_f64() - 1.0;
+        let radius_squared = x * x + y * y;
+        assert!(
+            radius_squared < 1.0 && radius_squared != 0.0,
+            "the fixture assumes the first pair is accepted"
+        );
+        let multiplier = (-2.0 * radius_squared.ln() / radius_squared).sqrt();
+
+        assert_eq!(random.next_gaussian(), x * multiplier);
+        assert_eq!(random.next_gaussian(), y * multiplier);
+        assert_eq!(
+            random.next_f64(),
+            reference.next_f64(),
+            "two gaussians must consume exactly one pair of f64 draws"
+        );
     }
 }

@@ -12,6 +12,7 @@ use tracing::{debug, error, info, warn};
 pub mod aoi;
 pub mod arrival;
 pub mod block;
+pub mod block_entity;
 pub mod block_update;
 pub mod bridge;
 pub mod bridge_queue;

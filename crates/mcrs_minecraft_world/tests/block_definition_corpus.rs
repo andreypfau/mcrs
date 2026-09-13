@@ -286,6 +286,35 @@ fn torch_is_not_a_cube() {
     );
 }
 
+/// `BlockState.isSolid` is the collision shape's bounds, not the occlusion
+/// shape: leaves, ice, glass and a slab are solid to the reference while none
+/// of them fills the cube for rendering.
+#[test]
+fn solidity_follows_the_collision_shape_and_not_the_occlusion_shape() {
+    let (definitions, _) = corpus();
+    for name in [
+        "minecraft:oak_leaves",
+        "minecraft:ice",
+        "minecraft:glass",
+        "minecraft:oak_slab",
+    ] {
+        let block = definitions.block(name).unwrap();
+        let state = definitions.state(block.default_state_id);
+        assert!(
+            state.flags.contains(BlockStateFlags::LEGACY_SOLID),
+            "{name} is solid to the reference"
+        );
+    }
+    for name in ["minecraft:torch", "minecraft:air"] {
+        let block = definitions.block(name).unwrap();
+        let state = definitions.state(block.default_state_id);
+        assert!(
+            !state.flags.contains(BlockStateFlags::LEGACY_SOLID),
+            "{name} has no collision shape"
+        );
+    }
+}
+
 #[test]
 fn a_button_selection_box_varies_with_every_property() {
     let (definitions, _) = corpus();

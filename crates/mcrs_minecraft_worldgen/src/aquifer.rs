@@ -75,7 +75,11 @@ impl GlobalFluid {
                 fluid: lava,
             },
             floor,
-            lava_below: if default_fluid == lava { sea_level } else { floor },
+            lava_below: if default_fluid == lava {
+                sea_level
+            } else {
+                floor
+            },
         }
     }
 
@@ -144,7 +148,7 @@ impl Window {
         }
     }
 
-    /// Lemma U: one status over the whole window. A window of nothing but dry
+    /// Lemma U: one status over the whole volume. A volume of nothing but dry
     /// cells is left to Lemma A, which answers air for every `y` a world holds.
     fn uniform(self) -> Option<FluidStatus> {
         let fluid = self.one_type?;
@@ -176,7 +180,7 @@ pub struct FluidField<'a> {
     surface: Box<[i32]>,
     surface_min_quart: (i32, i32),
     surface_quarts_x: i32,
-    windows: Box<[Option<Window>]>,
+    volumes: Box<[Option<Window>]>,
 }
 
 impl<'a> FluidField<'a> {
@@ -196,7 +200,7 @@ impl<'a> FluidField<'a> {
             surface: Box::new([]),
             surface_min_quart: (0, 0),
             surface_quarts_x: 0,
-            windows: Box::new([]),
+            volumes: Box::new([]),
         };
         let Some(config) = router.aquifer.as_ref() else {
             return field;
@@ -256,8 +260,8 @@ impl<'a> FluidField<'a> {
         field.surface_min_quart = quart_min;
         field.surface_quarts_x = quarts.x;
 
-        let windows = ((grid_size.x - 1) * (grid_size.y - 2) * (grid_size.z - 1)) as usize;
-        field.windows = vec![None; windows].into_boxed_slice();
+        let volumes = ((grid_size.x - 1) * (grid_size.y - 2) * (grid_size.z - 1)) as usize;
+        field.volumes = vec![None; volumes].into_boxed_slice();
         field
     }
 
@@ -518,8 +522,8 @@ impl<'a> FluidField<'a> {
         2.0 * (noise_value + gradient)
     }
 
-    /// The window of the cell `p` anchors to, for any `p` with that anchor.
-    pub fn window(&mut self, anchor: IVec3) -> Window {
+    /// The volume of the cell `p` anchors to, for any `p` with that anchor.
+    pub fn volume(&mut self, anchor: IVec3) -> Window {
         if self.config.is_none() {
             return Window::of(self.global.sea);
         }
@@ -527,8 +531,8 @@ impl<'a> FluidField<'a> {
             anchor - self.min_grid - IVec3::Y,
             self.grid_size - IVec3::new(1, 2, 1),
         );
-        if let Some(window) = self.windows[slot] {
-            return window;
+        if let Some(volume) = self.volumes[slot] {
+            return volume;
         }
         let mut fold: Option<Window> = None;
         for dx in 0..=1 {
@@ -540,9 +544,9 @@ impl<'a> FluidField<'a> {
                 }
             }
         }
-        let window = fold.expect("a window covers twelve cells");
-        self.windows[slot] = Some(window);
-        window
+        let volume = fold.expect("a volume covers twelve cells");
+        self.volumes[slot] = Some(volume);
+        volume
     }
 
     #[inline]
@@ -555,7 +559,7 @@ impl<'a> FluidField<'a> {
     }
 
     /// [`Self::substance`] for a block with non-positive density, answered by
-    /// its cell's window where a lemma applies and by the search otherwise.
+    /// its cell's volume where a lemma applies and by the search otherwise.
     pub fn substance_settled(
         &mut self,
         x: i32,
@@ -600,24 +604,24 @@ impl<'a> FluidField<'a> {
         for gx in lo.x..=hi.x {
             for gy in lo.y..=hi.y {
                 for gz in lo.z..=hi.z {
-                    let window = self.window(IVec3::new(gx, gy, gz));
-                    fold = Some(fold.map_or(window, |acc| acc.merge(window)));
+                    let volume = self.volume(IVec3::new(gx, gy, gz));
+                    fold = Some(fold.map_or(volume, |acc| acc.merge(volume)));
                 }
             }
         }
-        let window = fold.expect("a box anchors to at least one window");
-        if let Some(status) = window.uniform() {
+        let volume = fold.expect("a box anchors to at least one volume");
+        if let Some(status) = volume.uniform() {
             return Some(status);
         }
         let (margin_above, margin_below) = self.margins();
-        if min.y >= window.lmax.saturating_add(margin_above) {
+        if min.y >= volume.lmax.saturating_add(margin_above) {
             return Some(FluidStatus {
                 level: min.y,
                 fluid: AIR,
             });
         }
-        if let Some(fluid) = window.one_type
-            && max.y <= window.lmin - margin_below
+        if let Some(fluid) = volume.one_type
+            && max.y <= volume.lmin - margin_below
         {
             return Some(FluidStatus {
                 level: max.y + 1,

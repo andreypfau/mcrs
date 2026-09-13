@@ -229,15 +229,15 @@ mod bound_tests {
     fn pinned_samples() -> [[u32; 3]; 3] {
         #[cfg(not(feature = "fast"))]
         return [
-            [0x3e68047a, 0x3e2b16cf, 0xbf105330],
-            [0x3de878b7, 0x3dab6c85, 0xbe909b7e],
-            [0x3db75933, 0x3d87335d, 0xbe6419f3],
+            [0x3e680343, 0x3e2b15cf, 0xbf1052a2],
+            [0x3de87782, 0x3dab6b85, 0xbe909aef],
+            [0x3db7583d, 0x3d87328f, 0xbe641913],
         ];
         #[cfg(feature = "fast")]
         return [
-            [0x3e68046b, 0x3e2b16eb, 0xbf10532f],
-            [0x3de878aa, 0x3dab6ca1, 0xbe909b7e],
-            [0x3db75929, 0x3d873374, 0xbe6419f4],
+            [0x3e68034d, 0x3e2b15c1, 0xbf10529e],
+            [0x3de87789, 0x3dab6b77, 0xbe909aeb],
+            [0x3db75845, 0x3d873289, 0xbe64190c],
         ];
     }
 

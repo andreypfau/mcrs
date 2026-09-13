@@ -619,6 +619,85 @@ section already records, and 0.9 of that is the indexed draw's absence; the flig
 6 ms of engine time with the main world at 4 to 4.5, over the ceiling, where it was 15 to 20
 at the start of the day, and the two zones that remain are named above.
 
+## Column staging
+
+The three stages of the `Filled → Run → Merged` ladder, taken on their own rather than through
+a running server:
+
+```
+cargo test --release -p mcrs_minecraft_server the_ladder_costs -- --ignored --nocapture
+```
+
+Scenario: the overworld router at seed 4242, forest everywhere, and the biome's own
+`trees_birch_and_oak_leaf_litter` as the only feature. That is the widest consumer there is —
+a tree's crown and its decorators reach past the column that seeds them, so it is the one that
+reads the ring. A 9x9 region is merged, its runs cover one ring more and its fills two; the two
+outermost rings of each are the warm-up and are discarded, leaving 96 columns. Figures are the
+median over those columns, and the range is over three runs of the whole thing. The dimension
+has no carvers, so `Filled` here is the fill, the biomes and the material surface and nothing
+else; a carved overworld column costs more than this.
+
+| figure | median | over three runs |
+|---|---|---|
+| `Filled` | 2.17 ms | 2.165 to 2.211 |
+| of it, the pre-carve descent | 0.034 ms | 0.033 to 0.035 |
+| `Run` | 0.373 ms | 0.373 to 0.374 |
+| of it, the live centre maps, over 841 updates | 0.013 ms | 0.013 to 0.014 |
+| `Merged` | 0.176 ms | 0.176 to 0.180 |
+| the whole column | 2.72 ms | |
+| unpacking one column into a dense buffer | 0.097 ms | 0.096 to 0.097 |
+| reads per run | 14 440, of them 3385 from the ring | exact |
+| live centre map updates per run | 841 | exact |
+| one staged snapshot | 44 KB over 24 sections | |
+
+The two counts are exact rather than sampled: `Window` counts its own reads and map updates and
+publishes them per run, and the same region gives the same numbers every time. Counting costs
+about 2% of the stage: with the three counters removed the run reads 0.366 ms against 0.373.
+
+The pre-carve descent is 1.6% of the stage that pays for it and the live centre map updates are
+3.5% of theirs. Neither is worth a second look. `Run` is 14% of the column, which is what had to be known
+before the tree consumer was committed to: the parallel `Run` buys little next to
+the fill, and the halo of Q1 costs nothing extra because the fills it forces are fills the view
+was going to want anyway.
+
+The live maps cannot be measured by switching them off. Running the same window with the
+predicate table removed places 1658 writes where the live path places 1205: the four final maps
+are read back within the run, not merely written. The figure above is a replay instead — the
+write list one run produced, applied to the same column and the same starting maps.
+
+**D9 is settled: the ring stays paletted and is not unpacked.** A flat ring means unpacking the
+eight neighbours into dense buffers, at 0.097 ms each: 0.78 ms per run, more than twice the whole
+`Run` stage it would be speeding up, against 3385 reads that are 23% of the run's reads inside a
+stage that is 14% of the column. There is no arrangement of those numbers where it wins, and the
+memory (eight more buffers of 98 304 cells per worker) is on top. The gate set on the flat ring is
+therefore closed against it.
+
+The last-section cache the same decision mentions is not needed either, and the earlier claim
+that one section list per dimension is what makes it pointless holds up. A ring read is pure
+arithmetic: `window_slot` gives the 3x3 slot as an array index, `FilledSnapshot::slot` turns the
+world y into a `Vec` index with a shift and a subtraction, and the palette answers from there.
+Nothing on that path hashes a section position, which is the whole reason `BulkSectionAccess`
+exists. What the path does still do on every ring read is probe an `FxHashMap` — the unit's own
+ring writes, which Wn2 describes as a bit per cell and the code holds as a map. A run that wrote
+into no neighbour pays one emptiness branch for it; one that did pays a hash. At 3385 reads that
+is tens of microseconds of a 330 microsecond stage, so it is recorded and not acted on.
+`FilledSnapshot::block` also recomputes the slot its caller just computed.
+
+**The staging store under a moving player** is bounded by the view and by nothing else.
+`cancel_stale_columns` keeps every column within two of a wanted one, and a merged column is kept
+whole past its delivery so that a section ticketed late is answered from the same blocks rather
+than from the undecorated snapshot the neighbours still read. Both squares are resident at once:
+
+| view distance | filled | merged | store |
+|---|---|---|---|
+| 8 | 441 | 289 | 31 MB |
+| 13 (what the server sends) | 961 | 729 | 72 MB |
+| 32 | 4761 | 4225 | 386 MB |
+| 96 (`MCRS_VIEW=96`) | 38 809 | 37 249 | 3270 MB |
+
+The counts are the halo rule, exact; the bytes are the measured 44 KB a snapshot owns. The 24
+sections are this dimension's; a taller one scales with them.
+
 ## Findings not yet acted on
 
 - The client is built without Bevy's `multi_threaded` feature: the ECS runs on the
@@ -637,3 +716,8 @@ at the start of the day, and the two zones that remain are named above.
 - The tint window must exceed the view's width; a render distance past 31 columns needs it
   widened.
 - Bevy's window screenshot is black on some frames.
+- The staging store holds a merged column whole past its delivery, only so that a section
+  ticketed late can be answered from it; that is half of the 72 MB it holds at 13 columns and
+  half of the 3.3 GB it would hold at 96.
+- A ring read probes the unit's own write map before it reads the snapshot, on every read
+  whether the unit wrote into that neighbour or not.

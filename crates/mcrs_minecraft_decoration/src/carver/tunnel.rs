@@ -1,9 +1,35 @@
 use crate::carver::mask::CarvingMask;
 use crate::carver::water::WaterMask;
 use crate::carver::{CarveShape, carve_ellipsoid};
-use crate::math::{cos as math_helper_cos, sin as math_helper_sin};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+
+/// Which sine table index a walk takes. Beta's `MathHelper` scales an `f32`;
+/// 26.3's `Mth` takes a `double`. The table entries are the same, the index is
+/// not, and one step in a few thousand lands on a different one.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TrigIndex {
+    Beta,
+    Modern,
+}
+
+impl TrigIndex {
+    #[inline]
+    fn sin(self, x: f32) -> f32 {
+        match self {
+            TrigIndex::Beta => crate::math::sin(x),
+            TrigIndex::Modern => crate::math::sin_modern(f64::from(x)),
+        }
+    }
+
+    #[inline]
+    fn cos(self, x: f32) -> f32 {
+        match self {
+            TrigIndex::Beta => crate::math::cos(x),
+            TrigIndex::Modern => crate::math::cos_modern(f64::from(x)),
+        }
+    }
+}
 
 /// How thick a tunnel is and how its radii are scaled. Beta leaves every
 /// multiplier at one; the modern carvers sample each from a provider.
@@ -13,6 +39,7 @@ pub struct TunnelShape {
     pub y_scale: f64,
     pub horizontal_radius_multiplier: f64,
     pub vertical_radius_multiplier: f64,
+    pub trig: TrigIndex,
 }
 
 /// Which generator seeds a split tunnel. The two draw from different streams —
@@ -75,14 +102,16 @@ pub fn walk_tunnel<R: Random>(
     let mut step = step;
     while step < total_steps {
         let horizontal_radius = 1.5
-            + (math_helper_sin(step as f32 * std::f32::consts::PI / total_steps as f32)
+            + (shape
+                .trig
+                .sin(step as f32 * std::f32::consts::PI / total_steps as f32)
                 * shape.thickness) as f64;
         let vertical_radius = horizontal_radius * shape.y_scale;
 
-        let cos_pitch = math_helper_cos(pitch);
-        x += (math_helper_cos(yaw) * cos_pitch) as f64;
-        y += math_helper_sin(pitch) as f64;
-        z += (math_helper_sin(yaw) * cos_pitch) as f64;
+        let cos_pitch = shape.trig.cos(pitch);
+        x += (shape.trig.cos(yaw) * cos_pitch) as f64;
+        y += shape.trig.sin(pitch) as f64;
+        z += (shape.trig.sin(yaw) * cos_pitch) as f64;
 
         pitch *= if steep { 0.92 } else { 0.7 };
         pitch += pitch_velocity * 0.1;

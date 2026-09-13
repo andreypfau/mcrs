@@ -11,14 +11,14 @@ use mcrs_minecraft_network::columns::ColumnStore;
 use mcrs_voxel_math::{BlockPos, ColumnPos};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
+use crate::config::Guard;
 use crate::player::Player;
 
 pub struct ChunkGuardPlugin;
 
 impl Plugin for ChunkGuardPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ChunkGuard>()
-            .add_systems(Update, check);
+        app.init_resource::<ChunkGuard>().add_systems(Update, check);
     }
 }
 
@@ -33,9 +33,9 @@ fn check(
     store: Option<Res<ColumnStore>>,
     camera: Option<Single<&PhysicsTransform, With<Player>>>,
 ) {
-    if !crate::config::chunk_guard() {
+    let Some(level) = crate::config::chunk_guard() else {
         return;
-    }
+    };
     let (Some(store), Some(camera)) = (store, camera) else {
         return;
     };
@@ -64,7 +64,7 @@ fn check(
         resident = store.len(),
         "the player is standing in a column the client does not hold"
     );
-    if crate::config::chunk_guard_panics() {
+    if level == Guard::Panic {
         panic!(
             "chunk guard: the player is at {feet:?}, in column {},{}, which the client does \
              not hold ({} columns resident) — the camera has outrun the loader",

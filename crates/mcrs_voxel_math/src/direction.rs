@@ -1,8 +1,10 @@
 use bevy_math::IVec3;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::BitAndAssign;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Direction {
     Down,
     Up,
@@ -12,7 +14,72 @@ pub enum Direction {
     East,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+impl Axis {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Axis::X => "x",
+            Axis::Y => "y",
+            Axis::Z => "z",
+        }
+    }
+}
+
+/// `BlockPos.distManhattan`.
+pub fn dist_manhattan(a: IVec3, b: IVec3) -> i32 {
+    (a - b).abs().element_sum()
+}
+
 impl Direction {
+    /// `Direction.Plane.HORIZONTAL`, in the array order the plane iterates and
+    /// `getRandomDirection` indexes.
+    pub const HORIZONTAL: [Direction; 4] = [
+        Direction::North,
+        Direction::East,
+        Direction::South,
+        Direction::West,
+    ];
+
+    /// `getClockWise()`, the rotation about Y; the vertical faces keep themselves.
+    pub const fn clockwise(self) -> Direction {
+        match self {
+            Direction::North => Direction::East,
+            Direction::East => Direction::South,
+            Direction::South => Direction::West,
+            Direction::West => Direction::North,
+            vertical => vertical,
+        }
+    }
+
+    pub const fn axis(self) -> Axis {
+        match self {
+            Direction::Down | Direction::Up => Axis::Y,
+            Direction::North | Direction::South => Axis::Z,
+            Direction::West | Direction::East => Axis::X,
+        }
+    }
+
+    pub const fn is_vertical(self) -> bool {
+        matches!(self, Direction::Down | Direction::Up)
+    }
+
+    /// `AxisDirection.POSITIVE`.
+    pub const fn is_positive(self) -> bool {
+        matches!(self, Direction::Up | Direction::South | Direction::East)
+    }
+
+    /// `BlockPos.relative(direction, count)`.
+    pub fn relative(self, pos: IVec3, count: i32) -> IVec3 {
+        pos + self.normal() * count
+    }
+
     pub const fn normal(&self) -> IVec3 {
         match self {
             Direction::Down => IVec3::NEG_Y,

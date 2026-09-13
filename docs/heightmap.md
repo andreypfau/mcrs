@@ -207,13 +207,29 @@ because the generator writes strips top-down, so its updates are all the cheap
 ### On separating maps by lifetime
 
 A map's type is the pair "predicate + lifetime". Two maps with the same predicate
-are the same data, and keeping both is a bookkeeping error, not an optimisation.
-Which maps to persist to disk and which to send to the client should be decided
-independently of which maps are maintained in memory and from what moment.
+over the same blocks are the same data, and keeping both is a bookkeeping error,
+not an optimisation. Which maps to persist to disk and which to send to the
+client should be decided independently of which maps are maintained in memory
+and from what moment.
 
-A reasonable choice: hold `H_SURFACE` from the first block write, add the other
-three once terrain generation completes, and persist and send according to what
-consumers actually need.
+**Two generations of one map are not the same data.** The reference's `_WG`
+pair is maintained by the fill and the surface stage and is never touched by a
+carver or by a decoration write; the four final maps are primed after carving
+and updated on every decoration write. So `WORLD_SURFACE_WG` at decoration time
+is the column before carving, and `WORLD_SURFACE` is the column after carving
+and after the objects placed so far. Twenty-seven shipped placements read the
+pre-carve pair (`scattering.md` §2). The predicates are identical; the blocks
+they were computed over are not. The rule here is therefore: the pre-carve
+`SURFACE` and `SOLID` maps are a second **generation** of the same two maps,
+built by one descent after the surface stage and before carving, held only
+while the column's window is being decorated, and never persisted — one
+descent recovers them, and nothing after decoration reads them
+(`scattering.md` Wn3, D3).
+
+A reasonable choice: hold `H_SURFACE` from the first block write, take the
+pre-carve generation of `SURFACE` and `SOLID` before carving, add the four
+final maps once carving completes, keep them live through decoration, and
+persist and send according to what consumers actually need.
 
 ---
 
@@ -471,10 +487,14 @@ For checking behaviour against. Paths are relative to
 ### Deliberate divergences from the reference
 
 - The reference keeps `WORLD_SURFACE_WG` / `OCEAN_FLOOR_WG` separate from
-  `WORLD_SURFACE` / `OCEAN_FLOOR` even though the predicates in each pair are
-  literally identical — a split by lifetime rather than by meaning. So literally
-  that `ImposterProtoChunk` substitutes one for the other on read. Here that split
-  is discarded (§4).
+  `WORLD_SURFACE` / `OCEAN_FLOOR`. The predicates in each pair are literally
+  identical, and `ImposterProtoChunk` substitutes one for the other on read;
+  but the `_WG` pair is frozen before carving while the final pair is live
+  through decoration (`chunk/status/ChunkStatus.java:17-37`,
+  `chunk/ProtoChunk.java:159-173`), and placements read both. Here the pair is
+  kept as a second generation of `SURFACE` and `SOLID` that lives only during
+  decoration and is never stored (§4, "On separating maps by lifetime");
+  as persisted and sent data there are four maps, not six.
 - The reference builds all four final maps with a full pass from the column
   ceiling, using neither the already-built maps as bounds nor a per-strip start.
 - The reference scans light sources from the top of the column's highest non-empty

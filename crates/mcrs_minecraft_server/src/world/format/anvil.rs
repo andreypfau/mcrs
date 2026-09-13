@@ -8,6 +8,7 @@ use mcrs_minecraft_anvil::{
 };
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
@@ -204,4 +205,25 @@ fn biome_palette(
     let mut cells = vec![0u8; SavedBiomes::ENTRY_COUNT];
     saved.remap_into(&ids, &mut cells);
     Ok(VoxelPalette(PalettedContainer::from_cells(&cells)))
+}
+
+/// The block entities a saved column carries, read back as the type that wrote
+/// them rather than as a compound.
+///
+/// A kind [`GeneratedBlockEntity`] does not name is dropped, which is every
+/// sign of a vanilla save; the ceiling lifts by widening that enum. A kind it
+/// does name that fails to read is an error, never a silently missing entity.
+pub fn saved_block_entities(
+    chunk: &Chunk,
+) -> Result<Vec<GeneratedBlockEntity>, mcrs_minecraft_nbt::Error> {
+    chunk
+        .block_entities
+        .iter()
+        .filter(|compound| {
+            compound
+                .get_string("id")
+                .is_some_and(|id| GeneratedBlockEntity::IDS.contains(&id))
+        })
+        .map(crate::world::block_entity::from_compound)
+        .collect()
 }

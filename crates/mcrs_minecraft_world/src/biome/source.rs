@@ -8,7 +8,7 @@ use super::climate::ClimateParameters;
 use crate::ResourceLocation;
 
 // ===========================================================================
-// Beta biome lookup — enum, cascade, table, ocean mapping
+// Beta biome lookup — enum, cascade, table
 // ===========================================================================
 
 /// Discriminant order is the contract for the `biomes` list order in the
@@ -86,20 +86,6 @@ pub fn beta_biome_from_climate(
     table[ti][ri]
 }
 
-/// Returns the index into the `ocean_biomes` array for a given land bucket.
-/// Ocean array order: [FrozenOcean=0, Ocean=1, WarmOcean=2, LukewarmOcean=3, ColdOcean=4]
-pub fn ocean_biome_for(bucket: BetaLandBiome) -> usize {
-    match bucket {
-        BetaLandBiome::IceDesert => 0,      // FrozenOcean
-        BetaLandBiome::Tundra => 0,         // FrozenOcean
-        BetaLandBiome::Taiga => 0,          // FrozenOcean
-        BetaLandBiome::Swampland => 4,      // ColdOcean
-        BetaLandBiome::SeasonalForest => 3, // LukewarmOcean
-        BetaLandBiome::Rainforest => 2,     // WarmOcean
-        _ => 1,                             // Ocean (desert, savanna, shrubland, forest, plains)
-    }
-}
-
 // ===========================================================================
 // Runtime types
 // ===========================================================================
@@ -123,13 +109,11 @@ pub enum BiomeSource {
         // Array indexed by BetaLandBiome discriminant (0..=10, 11 buckets).
         // JSON biomes list order must match BetaLandBiome discriminant values.
         land_biomes: [Handle<Biome>; 11],
-        ocean_biomes: [Handle<Biome>; 5],
         // Resource locations parallel to the handle arrays. Biome palette fill
         // resolves network IDs by location, not AssetId: chunk generation runs in
         // a per-dim sub-app whose AssetServer assigns different AssetIds than the
         // host that built the biome RegistrySnapshot, so AssetId lookups collide.
         land_biome_ids: [ResourceLocation<Arc<str>>; 11],
-        ocean_biome_ids: [ResourceLocation<Arc<str>>; 5],
         lookup: Box<[[BetaLandBiome; 64]; 64]>,
     },
 }
@@ -150,15 +134,8 @@ impl BiomeSource {
                     visit(b.id().untyped());
                 }
             }
-            BiomeSource::Beta {
-                land_biomes,
-                ocean_biomes,
-                ..
-            } => {
+            BiomeSource::Beta { land_biomes, .. } => {
                 for b in land_biomes {
-                    visit(b.id().untyped());
-                }
-                for b in ocean_biomes {
                     visit(b.id().untyped());
                 }
             }
@@ -166,56 +143,15 @@ impl BiomeSource {
         }
     }
 
-    pub fn beta_biome_id(
-        &self,
-        temp: f32,
-        rain: f32,
-        is_ocean: bool,
-    ) -> bevy_asset::AssetId<Biome> {
-        match self {
-            BiomeSource::Beta {
-                land_biomes,
-                ocean_biomes,
-                lookup,
-                ..
-            } => {
-                let ti = (temp * 63.0).clamp(0.0, 63.0) as usize;
-                let ri = (rain * 63.0).clamp(0.0, 63.0) as usize;
-                let bucket = lookup[ti][ri];
-                if is_ocean {
-                    ocean_biomes[ocean_biome_for(bucket)].id()
-                } else {
-                    land_biomes[bucket as usize].id()
-                }
-            }
-            _ => panic!("beta_biome_id called on non-Beta BiomeSource"),
-        }
-    }
-
     /// Resolve the biome's resource location from Beta climate. Stable across
     /// AssetServers; use with [`RegistrySnapshot::by_location`] to get a network ID.
-    pub fn beta_biome_location(
-        &self,
-        temp: f32,
-        rain: f32,
-        is_ocean: bool,
-    ) -> &ResourceLocation<Arc<str>> {
+    pub fn beta_biome_location(&self, temp: f32, rain: f32) -> &ResourceLocation<Arc<str>> {
         match self {
             BiomeSource::Beta {
                 land_biome_ids,
-                ocean_biome_ids,
                 lookup,
                 ..
-            } => {
-                let ti = (temp * 63.0).clamp(0.0, 63.0) as usize;
-                let ri = (rain * 63.0).clamp(0.0, 63.0) as usize;
-                let bucket = lookup[ti][ri];
-                if is_ocean {
-                    &ocean_biome_ids[ocean_biome_for(bucket)]
-                } else {
-                    &land_biome_ids[bucket as usize]
-                }
-            }
+            } => &land_biome_ids[beta_biome_from_climate(lookup, temp, rain) as usize],
             _ => panic!("beta_biome_location called on non-Beta BiomeSource"),
         }
     }
@@ -259,7 +195,6 @@ pub(crate) enum ProtoBiomeSource {
     #[serde(rename = "mcrs:beta")]
     Beta {
         biomes: Vec<ResourceLocation<Arc<str>>>,
-        ocean_biomes: Vec<ResourceLocation<Arc<str>>>,
     },
 }
 
@@ -299,33 +234,18 @@ impl ProtoBiomeSource {
                     .collect(),
                 scale,
             },
-            ProtoBiomeSource::Beta {
-                biomes,
-                ocean_biomes,
-            } => {
+            ProtoBiomeSource::Beta { biomes } => {
                 let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = biomes
                     .clone()
                     .try_into()
                     .expect("mcrs:beta biome_source requires exactly 11 land biomes");
-                let ocean_biome_ids: [ResourceLocation<Arc<str>>; 5] = ocean_biomes
-                    .clone()
-                    .try_into()
-                    .expect("mcrs:beta biome_source requires exactly 5 ocean biomes");
                 let land_handles: Vec<Handle<Biome>> =
                     biomes.into_iter().map(|l| Biome::load(ctx, &l)).collect();
-                let ocean_handles: Vec<Handle<Biome>> = ocean_biomes
-                    .into_iter()
-                    .map(|l| Biome::load(ctx, &l))
-                    .collect();
                 BiomeSource::Beta {
                     land_biomes: land_handles
                         .try_into()
                         .expect("mcrs:beta biome_source requires exactly 11 land biomes"),
-                    ocean_biomes: ocean_handles
-                        .try_into()
-                        .expect("mcrs:beta biome_source requires exactly 5 ocean biomes"),
                     land_biome_ids,
-                    ocean_biome_ids,
                     lookup: Box::new(build_beta_lookup_table()),
                 }
             }
@@ -435,18 +355,5 @@ mod tests {
         // temp=0.3, rain=0.8 → rain*temp=0.24 >= 0.2, rain*temp <= 0.5 (no swampland), temp < 0.5 → Taiga
         // Without multiplication: rain=0.8 > 0.5 and temp=0.3 < 0.7 → Swampland (wrong)
         assert_eq!(beta_get_biome(0.3, 0.8), BetaLandBiome::Taiga);
-    }
-
-    #[test]
-    fn ocean_biome_mapping() {
-        assert_eq!(ocean_biome_for(BetaLandBiome::IceDesert), 0);
-        assert_eq!(ocean_biome_for(BetaLandBiome::Tundra), 0);
-        assert_eq!(ocean_biome_for(BetaLandBiome::Taiga), 0);
-        assert_eq!(ocean_biome_for(BetaLandBiome::Swampland), 4);
-        assert_eq!(ocean_biome_for(BetaLandBiome::SeasonalForest), 3);
-        assert_eq!(ocean_biome_for(BetaLandBiome::Rainforest), 2);
-        assert_eq!(ocean_biome_for(BetaLandBiome::Desert), 1);
-        assert_eq!(ocean_biome_for(BetaLandBiome::Plains), 1);
-        assert_eq!(ocean_biome_for(BetaLandBiome::Forest), 1);
     }
 }

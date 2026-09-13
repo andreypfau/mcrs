@@ -1,3 +1,5 @@
+use bytes::Buf;
+use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -8,9 +10,6 @@ use super::corpus;
 use super::surface::{biome_ids, overworld_material_router, surfaced_column};
 
 const MAGIC: &[u8; 8] = b"MCSURFC0";
-/// `SharedConstants.WORLD_VERSION` of the snapshot the dumps came from, so a
-/// corpus bump cannot silently invalidate them.
-const WORLD_VERSION: u32 = 5015;
 
 const DUMPS: [&str; 7] = [
     "surface_s42_c0_0.bin",
@@ -44,61 +43,24 @@ impl Dump {
     }
 }
 
-struct Reader<'a> {
-    data: &'a [u8],
-    pos: usize,
-}
-
-impl<'a> Reader<'a> {
-    fn take(&mut self, n: usize) -> &'a [u8] {
-        let out = &self.data[self.pos..self.pos + n];
-        self.pos += n;
-        out
-    }
-    fn u32(&mut self) -> u32 {
-        u32::from_le_bytes(self.take(4).try_into().unwrap())
-    }
-    fn i32(&mut self) -> i32 {
-        i32::from_le_bytes(self.take(4).try_into().unwrap())
-    }
-    fn i64(&mut self) -> i64 {
-        i64::from_le_bytes(self.take(8).try_into().unwrap())
-    }
-    fn string(&mut self) -> String {
-        let len = self.u32() as usize;
-        String::from_utf8(self.take(len).to_vec()).unwrap()
-    }
-}
-
 fn read_dump(name: &str) -> Dump {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("src/world/generate/tests/fixtures")
         .join(name);
-    let data = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let mut r = Reader {
-        data: &data,
-        pos: 0,
-    };
-    assert_eq!(r.take(8), MAGIC, "{name} is not a surface dump");
-    assert_eq!(r.u32(), 1, "unsupported surface dump version");
-    assert_eq!(
-        r.u32(),
-        WORLD_VERSION,
-        "{name} was dumped from a different snapshot than this corpus targets"
-    );
-    assert_eq!(r.string(), "minecraft:overworld");
-    let seed = r.i64() as u64;
-    let chunk_x = r.i32();
-    let chunk_z = r.i32();
-    let min_y = r.i32();
-    let height = r.i32();
-    let palette: Vec<String> = (0..r.u32()).map(|_| r.string()).collect();
+    let mut r = open_dump(&path, MAGIC);
+    assert_eq!(dump_string(&mut r), "minecraft:overworld");
+    let seed = r.get_i64_le() as u64;
+    let chunk_x = r.get_i32_le();
+    let chunk_z = r.get_i32_le();
+    let min_y = r.get_i32_le();
+    let height = r.get_i32_le();
+    let palette: Vec<String> = (0..r.get_u32_le()).map(|_| dump_string(&mut r)).collect();
     let mut cells = Vec::with_capacity((16 * 16 * height) as usize);
-    for _ in 0..r.u32() {
-        let (id, run) = (r.u32(), r.u32());
+    for _ in 0..r.get_u32_le() {
+        let (id, run) = (r.get_u32_le(), r.get_u32_le());
         cells.extend(std::iter::repeat_n(id, run as usize));
     }
-    assert_eq!(r.pos, data.len(), "trailing bytes in {name}");
+    assert!(!r.has_remaining(), "trailing bytes in {name}");
     assert_eq!(cells.len(), (16 * 16 * height) as usize, "{name} is short");
     Dump {
         seed,

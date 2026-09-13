@@ -18,13 +18,6 @@
             "minecraft:beta_plains",
             "minecraft:beta_seasonal_forest",
             "minecraft:beta_rainforest"
-          ],
-          "ocean_biomes": [
-            "minecraft:beta_frozen_ocean",
-            "minecraft:beta_ocean",
-            "minecraft:beta_warm_ocean",
-            "minecraft:beta_lukewarm_ocean",
-            "minecraft:beta_cold_ocean"
           ]
         },
         "settings": "minecraft:beta"

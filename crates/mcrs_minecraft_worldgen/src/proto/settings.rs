@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 /// `Codec.either(A, B)`: a value written either as `A` or as `B`, round-tripping
 /// back into the shape it came from.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Either<L, R> {
     Left(L),

@@ -10,5 +10,5 @@ pub use bit_size::BitSize;
 pub use block_pos::BlockPos;
 pub use chunk_pos::{BLOCKS, ChunkPos};
 pub use column_pos::ColumnPos;
-pub use direction::{Direction, DirectionSet};
+pub use direction::{Axis, Direction, DirectionSet, dist_manhattan};
 pub use region_pos::RegionPos;

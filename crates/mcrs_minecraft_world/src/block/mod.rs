@@ -12,3 +12,12 @@ pub enum Block {}
 impl TaggedRegistry for Block {
     const REGISTRY_PATH: &'static str = "block";
 }
+
+/// The fluid registry, as the tag system names it. The fluids are the ones the
+/// block corpus interns, addressed by their index there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Fluid {}
+
+impl TaggedRegistry for Fluid {
+    const REGISTRY_PATH: &'static str = "fluid";
+}

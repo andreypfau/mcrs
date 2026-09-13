@@ -46,3 +46,34 @@ tasks.register('findIcebergs', JavaExec) {
 	jvmArgs '-Xmx2G', '-DMC_DEBUG_ENABLED', '-DMC_DEBUG_DISABLE_CARVERS'
 	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString(), 'ice']
 }
+
+tasks.register('dumpFeatureSteps', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.FeatureStepOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpOreVeins', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.OreOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('stubGen', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.StubGen'
+	args = [project.findProperty('stubClass') ?: 'net.minecraft.world.level.WorldGenLevel']
+}
+
+tasks.register('dumpTrees', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.TreeOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}

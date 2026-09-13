@@ -10,6 +10,7 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, ChunkBlocks, NetworkPalette};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_protocol::light_codec::{
     LightCodecParams, build_full_light_data, build_fullbright_light_data,
 };
@@ -28,9 +29,11 @@ use mcrs_voxel_world::world::lifecycle::ticket::ChunkSpawnSet;
 use mcrs_voxel_world::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
 use mcrs_voxel_world::world::lifecycle::trace as column_trace;
 use mcrs_voxel_world::world::lifecycle::trace::ColumnStage;
+use mcrs_voxel_world::world::storage::block_entity::SectionBlockEntities;
 use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 
+use crate::world::block_entity::{BlockEntity, packet_entry};
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
 use crate::world::heightmap::{
@@ -385,7 +388,8 @@ pub(crate) fn send_column_queue(
         &InDimension,
         &HostAnchor,
     )>,
-    chunks: Query<(&ChunkBlocks, &BiomePalette), With<ChunkLoaded>>,
+    chunks: Query<(&ChunkBlocks, &BiomePalette, Option<&SectionBlockEntities>), With<ChunkLoaded>>,
+    block_entities_held: Query<&'static BlockEntity>,
     dim_chunk_indexes: Query<&ChunkIndex>,
     dim_column_indexes: Query<&ColumnIndex>,
     dim_type_configs: Query<&DimensionTypeConfig>,
@@ -474,7 +478,17 @@ pub(crate) fn send_column_queue(
                 };
 
                 let mut data = Vec::with_capacity(16 * 1024);
-                for (blocks, biomes) in sections {
+                let mut block_entities: Vec<ChunkDataBlockEntity<'static>> = Vec::new();
+                for (blocks, biomes, section_block_entities) in sections {
+                    for held in section_block_entities.iter().flat_map(|index| index.iter()) {
+                        let Ok(BlockEntity(held)) = block_entities_held.get(*held) else {
+                            continue;
+                        };
+                        match packet_entry(held) {
+                            Ok(entry) => block_entities.push(entry),
+                            Err(err) => warn!(%err, "encoding a block entity for the wire"),
+                        }
+                    }
                     // section and turns the rest of the column into garbage.
                     blocks
                         .non_air_block_count()
@@ -530,6 +544,7 @@ pub(crate) fn send_column_queue(
                     chunk_bytes: data,
                     heightmaps,
                     light_data,
+                    block_entities,
                 });
 
                 sends += 1;

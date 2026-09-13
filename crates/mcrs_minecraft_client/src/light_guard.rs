@@ -18,6 +18,8 @@ use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_world::block::definition::{BlockStateFlags, Blocks};
 use mcrs_voxel_math::ColumnPos;
 
+use crate::config::Guard;
+
 /// Columns handed to a worker per frame, and how many walks may be in flight.
 /// One walk is 256 block columns of the world's height, so a handful of them is
 /// about what a few section meshes cost.
@@ -78,9 +80,7 @@ fn air_table(blocks: &Blocks) -> Arc<[bool]> {
 }
 
 fn surrounded(store: &ColumnStore, pos: ColumnPos) -> bool {
-    (-1..=1).all(|dz| {
-        (-1..=1).all(|dx| store.holds(ColumnPos::new(pos.x + dx, pos.z + dz)))
-    })
+    (-1..=1).all(|dz| (-1..=1).all(|dx| store.holds(ColumnPos::new(pos.x + dx, pos.z + dz))))
 }
 
 fn enqueue(
@@ -88,7 +88,7 @@ fn enqueue(
     store: Option<Res<ColumnStore>>,
     blocks: Option<Res<Blocks>>,
 ) {
-    if !crate::config::light_guard() {
+    if crate::config::light_guard().is_none() {
         return;
     }
     let Some(store) = store else {
@@ -174,7 +174,7 @@ fn collect(mut guard: ResMut<LightGuard>) {
                 "sky light steps by more than one between two air cells"
             );
         }
-        if !crate::config::light_guard_panics() {
+        if crate::config::light_guard() != Some(Guard::Panic) {
             continue;
         }
         let first = &report.faults[0];

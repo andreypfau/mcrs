@@ -12,10 +12,10 @@ pub mod atlas;
 pub mod bake;
 pub mod blocks;
 pub mod camera;
-pub mod chunk_guard;
 #[cfg(target_os = "macos")]
 pub mod capture;
 pub mod cave;
+pub mod chunk_guard;
 pub mod config;
 pub mod gui;
 pub mod input;

@@ -10,29 +10,35 @@ doctest = false
 [dependencies]
 mcrs_minecraft_core.workspace = true
 mcrs_voxel_storage.workspace = true
+mcrs_voxel_math.workspace = true
 mcrs_minecraft_random.workspace = true
 bevy_math.workspace = true
+fixedbitset.workspace = true
+bytes = { workspace = true, optional = true }
 bevy_app = { workspace = true, optional = true }
 bevy_asset = { workspace = true, optional = true }
 bevy_reflect = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
-thiserror = { workspace = true, optional = true }
+thiserror.workspace = true
 tracing = { workspace = true }
 
 [dev-dependencies]
-mcrs_minecraft_worldgen = { path = ".", features = ["corpus"] }
+mcrs_minecraft_worldgen = { path = ".", default-features = false, features = ["corpus", "test-support"] }
 
 [features]
 default = ["bevy", "fast"]
-bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect", "dep:thiserror"]
+bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect"]
 # Reading the shipped asset corpus off disk. Only the tests want it; the self
 # dev-dependency below is what turns it on for them.
-corpus = []
+corpus = ["dep:bytes"]
+# A window over an owned box, for tests of anything that takes a `WindowAccess`.
+test-support = []
 # The fast precision profile of `docs/worldgen.md` §15: one rounding instead of
 # two wherever a sampler computes `a * b + c`, and a noise sampler's lattice cell
 # collapsed to a line along Y so its eight corner dots become two ends of a
 # segment. Needs an FMA instruction to be a win: `target-cpu=native`, or `+fma`
-# on x86-64. Off is the strict profile, which stays buildable as the oracle.
+# on x86-64. Off is the strict profile, which stays buildable as the oracle:
+# `cargo test -p mcrs_minecraft_worldgen --no-default-features --features bevy`.
 fast = []

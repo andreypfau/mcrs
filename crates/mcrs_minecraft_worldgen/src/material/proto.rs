@@ -1,7 +1,6 @@
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
-use crate::proto::{BlockState, DensityFunctionHolder, Either, HashableF64};
+use crate::proto::{BlockState, DensityFunctionHolder, HashableF64};
 use crate::value_provider::VerticalAnchor;
 use mcrs_minecraft_core::ResourceLocation;
 
@@ -110,87 +109,14 @@ pub enum CaveSurface {
     Floor,
 }
 
-/// The biomes a `biome_is` names, written either as one bare id or as a list of
-/// them, and written back the way it came.
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
-pub enum BiomeSet {
-    One(ResourceLocation),
-    Many(Vec<ResourceLocation>),
-}
-
-impl BiomeSet {
-    pub fn ids(&self) -> &[ResourceLocation] {
-        match self {
-            BiomeSet::One(id) => std::slice::from_ref(id),
-            BiomeSet::Many(ids) => ids,
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for BiomeSet {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let set =
-            match Either::<ResourceLocation, Vec<ResourceLocation>>::deserialize(deserializer)? {
-                Either::Left(id) => BiomeSet::One(id),
-                Either::Right(ids) => BiomeSet::Many(ids),
-            };
-        // A tag parses as an ordinary id here — `#minecraft:is_overworld` splits
-        // into namespace `#minecraft` — so it has to be refused by name.
-        if let Some(tag) = set.ids().iter().find(|id| id.as_str().starts_with('#')) {
-            return Err(D::Error::custom(format!(
-                "biome tag {tag} is not supported in biome_is"
-            )));
-        }
-        Ok(set)
-    }
-}
-
-impl Serialize for BiomeSet {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            BiomeSet::One(id) => id.serialize(serializer),
-            BiomeSet::Many(ids) => ids.serialize(serializer),
-        }
-    }
-}
+/// The biomes a `biome_is` names: one id or a list of them. A `#tag` parses
+/// but the material compile refuses it.
+pub type BiomeSet = crate::feature::block_predicate::HolderSet;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::{Path, PathBuf};
-
-    fn worldgen() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/minecraft/worldgen")
-    }
-
-    fn json_files(dir: &Path, out: &mut Vec<PathBuf>) {
-        for entry in std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())) {
-            let path = entry.unwrap().path();
-            if path.is_dir() {
-                json_files(&path, out);
-            } else if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                out.push(path);
-            }
-        }
-    }
-
-    fn round_trips<T: serde::de::DeserializeOwned + Serialize>(directory: &str) -> usize {
-        let mut paths = Vec::new();
-        json_files(&worldgen().join(directory), &mut paths);
-        for path in &paths {
-            let bytes = std::fs::read(path).unwrap();
-            let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-            let parsed: T = serde_json::from_slice(&bytes)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            assert_eq!(
-                serde_json::to_value(&parsed).unwrap(),
-                raw,
-                "{} does not round-trip",
-                path.display()
-            );
-        }
-        paths.len()
-    }
+    use crate::corpus::round_trips;
 
     #[test]
     fn every_shipped_material_rule_and_condition_round_trips() {
@@ -203,17 +129,17 @@ mod tests {
 
     /// Neither shape occurs in the shipped corpus, so nothing else covers them.
     #[test]
-    fn a_stated_result_state_round_trips_and_a_biome_tag_is_refused() {
+    fn a_stated_result_state_and_a_biome_tag_round_trip() {
         let stated = r#"{"type":"minecraft:block","result_state":{"id":"minecraft:snow","properties":{"layers":"1"}}}"#;
         let rule: MaterialRule = serde_json::from_str(stated).unwrap();
         assert_eq!(serde_json::to_string(&rule).unwrap(), stated);
 
-        let error = serde_json::from_str::<MaterialCondition>(
-            r##"{"type":"minecraft:biome","biome_is":"#minecraft:is_overworld"}"##,
-        )
-        .unwrap_err()
-        .to_string();
-        assert!(error.contains("is not supported"), "{error}");
+        let tagged = r##"{"type":"minecraft:biome","biome_is":"#minecraft:is_overworld"}"##;
+        let condition: MaterialCondition = serde_json::from_str(tagged).unwrap();
+        assert!(
+            matches!(&condition, MaterialCondition::Biome { biome_is } if matches!(biome_is, BiomeSet::Tag(_)))
+        );
+        assert_eq!(serde_json::to_string(&condition).unwrap(), tagged);
     }
 
     #[test]

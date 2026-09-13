@@ -15,6 +15,7 @@ mod aoi_stationary_zero_work;
 mod aoi_synchronous_own_pov;
 mod aoi_tnt_cascade_restored;
 mod arrival_end_platform;
+mod block_entities;
 mod block_experience;
 mod block_loot_addressing;
 mod bridge_dispatch;

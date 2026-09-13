@@ -259,7 +259,15 @@ pub struct ColumnPlugin;
 
 impl Plugin for ColumnPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, reconcile_columns.in_set(ColumnLifecycleSet));
+        app.add_systems(
+            FixedUpdate,
+            (
+                reconcile_columns,
+                crate::world::storage::block_entity::reconcile_block_entities,
+            )
+                .chain()
+                .in_set(ColumnLifecycleSet),
+        );
     }
 }
 

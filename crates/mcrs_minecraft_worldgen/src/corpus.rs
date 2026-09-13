@@ -68,3 +68,77 @@ pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
     let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
+
+/// A value as its JSON text reads back. `serde_json::to_value` widens an `f32`
+/// to the `f64` nearest its bits; the text form is the shortest decimal that
+/// reads back as the same `f32`, which is what the pack shipped.
+pub fn reencode<T: serde::Serialize>(value: &T) -> serde_json::Value {
+    serde_json::from_str(&serde_json::to_string(value).unwrap()).unwrap()
+}
+
+/// Every file in one `minecraft/worldgen` folder, parsed and written back,
+/// which must equal what was read. Returns how many files were checked, so a
+/// caller can pin the count and see a corpus change as a failure.
+pub fn round_trips<T: DeserializeOwned + serde::Serialize>(folder: &str) -> usize {
+    let base = worldgen_dir().join(folder);
+    let paths = json_files(&base);
+    for path in &paths {
+        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let raw: serde_json::Value =
+            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let parsed: T =
+            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        assert_eq!(
+            reencode(&parsed),
+            raw,
+            "{} does not round-trip",
+            path.display()
+        );
+    }
+    paths.len()
+}
+
+/// A length-prefixed string of one of the oracle's little-endian dumps.
+pub fn dump_string(r: &mut impl bytes::Buf) -> String {
+    let len = r.get_u32_le() as usize;
+    String::from_utf8(r.copy_to_bytes(len).to_vec()).unwrap()
+}
+
+/// `SharedConstants.WORLD_VERSION` of the snapshot every oracle dump came from,
+/// so a corpus bump cannot silently invalidate a fixture.
+pub const WORLD_VERSION: u32 = 5015;
+
+/// One of the oracle's little-endian dumps past its header: the eight-byte
+/// `magic`, format version 1, and the world version.
+pub fn open_dump(path: &Path, magic: &[u8; 8]) -> bytes::Bytes {
+    use bytes::Buf;
+    let data = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let mut r = bytes::Bytes::from(data);
+    assert_eq!(
+        r.copy_to_bytes(8).as_ref(),
+        magic,
+        "{} is not a {} dump",
+        path.display(),
+        String::from_utf8_lossy(magic)
+    );
+    assert_eq!(r.get_u32_le(), 1, "unsupported oracle format version");
+    assert_eq!(
+        r.get_u32_le(),
+        WORLD_VERSION,
+        "{} was dumped from a different snapshot than this corpus targets",
+        path.display()
+    );
+    r
+}
+
+/// A palette of state names followed by positions indexing into it, as the
+/// oracle dumps every list of placed blocks.
+pub fn dump_placements(r: &mut impl bytes::Buf) -> Vec<([i32; 3], String)> {
+    let palette: Vec<String> = (0..r.get_u32_le()).map(|_| dump_string(r)).collect();
+    (0..r.get_u32_le())
+        .map(|_| {
+            let pos = [r.get_i32_le(), r.get_i32_le(), r.get_i32_le()];
+            (pos, palette[r.get_u32_le() as usize].clone())
+        })
+        .collect()
+}

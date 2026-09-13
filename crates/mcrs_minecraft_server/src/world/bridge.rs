@@ -393,6 +393,7 @@ pub fn dispatch_encode(
                         chunk_bytes,
                         heightmaps,
                         light_data,
+                        block_entities,
                     } => {
                         debug!(
                             target: "mcrs_minecraft_server::bridge",
@@ -408,6 +409,7 @@ pub fn dispatch_encode(
                                 .map(|(kind, data)| (*kind, Cow::Borrowed(data.as_slice())))
                                 .collect(),
                             data: chunk_bytes.as_slice(),
+                            block_entities: Cow::Owned(block_entities),
                             ..Default::default()
                         };
                         conn.raw

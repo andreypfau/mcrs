@@ -48,7 +48,7 @@ impl SurfaceIds {
 /// that height is read off the sections the buffer holds. Given a slice, the cut
 /// is what the descent enters at, with no depth above it — so the top of the
 /// slice is surfaced as if it were the sky, and a sheet of grass over dirt lands
-/// in the middle of the rock. The biome grid and the ore-vein prefill window are
+/// in the middle of the rock. The biome grid and the ore-vein prefill region are
 /// cut the same way, and the rules that lay the bedrock floor are never reached.
 /// Sections past the noise range are the End's, which the dimension carries and
 /// the noise does not fill.

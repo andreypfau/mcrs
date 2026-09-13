@@ -17,8 +17,16 @@ use crate::ResourceLocation;
 use crate::attribute::EnvironmentAttributeMap;
 use crate::value::IntValueProvider;
 use mcrs_minecraft_core::asset::read_all;
+use mcrs_minecraft_worldgen::feature::FeatureStepList;
 
 pub const NATURAL_MOB_SPAWNS: &str = "minecraft:gameplay/natural_mob_spawns";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TemperatureModifier {
+    None,
+    Frozen,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct Biome {
@@ -26,14 +34,14 @@ pub struct Biome {
     pub downfall: f32,
     pub has_precipitation: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub temperature_modifier: Option<String>,
+    pub temperature_modifier: Option<TemperatureModifier>,
     pub effects: BiomeEffects,
     #[serde(default)]
     pub attributes: EnvironmentAttributeMap,
     #[serde(default, deserialize_with = "one_or_many")]
     pub carvers: Vec<ResourceLocation<Arc<str>>>,
     #[serde(default)]
-    pub features: Vec<Vec<ResourceLocation<Arc<str>>>>,
+    pub features: Vec<FeatureStepList>,
 }
 
 impl Biome {
@@ -60,7 +68,7 @@ pub struct NetworkBiome {
     pub downfall: f32,
     pub has_precipitation: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature_modifier: Option<String>,
+    pub temperature_modifier: Option<TemperatureModifier>,
     pub attributes: EnvironmentAttributeMap,
     pub effects: BiomeEffects,
 }
@@ -71,7 +79,7 @@ impl From<&Biome> for NetworkBiome {
             temperature: biome.temperature,
             downfall: biome.downfall,
             has_precipitation: biome.has_precipitation,
-            temperature_modifier: biome.temperature_modifier.clone(),
+            temperature_modifier: biome.temperature_modifier,
             attributes: biome.attributes.filter_syncable(),
             effects: biome.effects.clone(),
         }
