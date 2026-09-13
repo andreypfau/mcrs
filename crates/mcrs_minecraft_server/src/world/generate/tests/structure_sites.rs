@@ -107,14 +107,14 @@ fn read_dump() -> Vec<DumpSeed> {
     seeds
 }
 
-struct Dimension {
-    settings: &'static str,
-    biome_preset: &'static str,
-    accessor_min_y: i32,
-    accessor_height: i32,
+pub(super) struct Dimension {
+    pub(super) settings: &'static str,
+    pub(super) biome_preset: &'static str,
+    pub(super) accessor_min_y: i32,
+    pub(super) accessor_height: i32,
 }
 
-fn dimension(id: &str) -> Dimension {
+pub(super) fn dimension(id: &str) -> Dimension {
     match id {
         "minecraft:overworld" => Dimension {
             settings: "overworld",
@@ -132,7 +132,7 @@ fn dimension(id: &str) -> Dimension {
     }
 }
 
-fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
+pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     let frozen = frozen_shared();
     let source = preset(dimension.biome_preset);
     let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);

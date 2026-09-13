@@ -49,6 +49,13 @@ pub struct PlacedJigsaw<'a> {
     pub top: Direction,
 }
 
+impl PlacedJigsaw<'_> {
+    /// `None` for the feature element's synthetic jigsaw, which any target matches.
+    pub fn name(&self) -> Option<&ResourceLocation> {
+        (!std::ptr::eq(self.block, &*FEATURE_JIGSAW)).then_some(&self.block.name)
+    }
+}
+
 static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
     let empty = ResourceLocation::parse("minecraft:empty").unwrap();
     JigsawBlock {
@@ -108,7 +115,7 @@ pub fn site(
         Some(name) => {
             shuffled_jigsaws(frozen, element, start_pos, rotation, &mut rng)
                 .into_iter()
-                .find(|jigsaw| jigsaw.block.name == *name)?
+                .find(|jigsaw| jigsaw.name() == Some(name))?
                 .pos
         }
         None => start_pos,
@@ -247,10 +254,7 @@ pub fn element_bounds(
         FrozenElement::List { elements, .. } => elements
             .iter()
             .filter_map(|inner| element_bounds(frozen, *inner, position, rotation))
-            .reduce(|a, b| BoundingBox {
-                min: a.min.min(b.min),
-                max: a.max.max(b.max),
-            }),
+            .reduce(BoundingBox::union),
         FrozenElement::Feature { .. } => Some(BoundingBox {
             min: position,
             max: position,

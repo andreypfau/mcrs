@@ -466,6 +466,28 @@ impl BoundingBox {
         (self.max.cmpge(other.min) & self.min.cmple(other.max)).all()
     }
 
+    pub fn contains(&self, other: &Self) -> bool {
+        (other.min.cmpge(self.min) & other.max.cmple(self.max)).all()
+    }
+
+    pub fn is_inside(&self, pos: IVec3) -> bool {
+        (pos.cmpge(self.min) & pos.cmple(self.max)).all()
+    }
+
+    pub fn encapsulating(self, pos: IVec3) -> Self {
+        BoundingBox {
+            min: self.min.min(pos),
+            max: self.max.max(pos),
+        }
+    }
+
+    pub fn union(self, other: Self) -> Self {
+        BoundingBox {
+            min: self.min.min(other.min),
+            max: self.max.max(other.max),
+        }
+    }
+
     pub fn y_span(&self) -> i32 {
         self.max.y - self.min.y + 1
     }

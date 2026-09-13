@@ -28,6 +28,7 @@ import net.minecraft.tags.TagLoader;
 import net.minecraft.util.Util;
 import net.minecraft.util.datafix.DataFixers;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.biome.Climate;
@@ -52,15 +53,16 @@ import net.minecraft.world.level.storage.LevelStorageSource;
 public final class PlacementOracle {
     private static final byte[] CELLS_MAGIC = "MCPLACE0".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SITES_MAGIC = "MCSITES0".getBytes(StandardCharsets.US_ASCII);
-    private static final int FORMAT_VERSION = 1;
-    private static final long[] SEEDS = {1L, 42L, 12345L, -7L, 0x7FFF_FFFF_0000_0001L};
+    static final int FORMAT_VERSION = 1;
+    static final long[] SEEDS = {1L, 42L, 12345L, -7L, 0x7FFF_FFFF_0000_0001L};
     private static final int[][] GRIDS = {{-24, -24, 49}, {2000, 2000, 25}};
     private static final int SITE_CASES = 16;
     private static final int SITE_MAX_RADIUS = 600;
     private static final int HEIGHT_PROBES = 64;
 
-    private record Dim(
+    record Dim(
         String id,
+        ResourceKey<Level> level,
         NoiseBasedChunkGenerator generator,
         BiomeSource biomeSource,
         NoiseGeneratorSettings settings,
@@ -68,7 +70,7 @@ public final class PlacementOracle {
         int expectedSets
     ) {}
 
-    private record SeedState(long seed, RandomState randomState, ChunkGeneratorStructureState state) {}
+    record SeedState(long seed, RandomState randomState, ChunkGeneratorStructureState state) {}
 
     public static void main(final String[] args) throws Exception {
         Path outDir = Path.of(args[0]);
@@ -88,29 +90,13 @@ public final class PlacementOracle {
                 resources, storage, DataFixers.getDataFixer(), BuiltInRegistries.BLOCK
             );
 
-            HolderLookup.RegistryLookup<NoiseGeneratorSettings> noiseSettings = loaded.lookupOrThrow(Registries.NOISE_SETTINGS);
-            var presets = loaded.lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST);
-            List<Dim> dims = List.of(
-                dim("minecraft:overworld", noiseSettings.getOrThrow(NoiseGeneratorSettings.OVERWORLD),
-                    MultiNoiseBiomeSource.createFromPreset(presets.getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD)),
-                    LevelHeightAccessor.create(-64, 384), 18),
-                dim("minecraft:the_nether", noiseSettings.getOrThrow(NoiseGeneratorSettings.NETHER),
-                    MultiNoiseBiomeSource.createFromPreset(presets.getOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER)),
-                    LevelHeightAccessor.create(0, 256), 3),
-                dim("minecraft:the_end", noiseSettings.getOrThrow(NoiseGeneratorSettings.END),
-                    TheEndBiomeSource.create(loaded.lookupOrThrow(Registries.BIOME)),
-                    LevelHeightAccessor.create(0, 256), 1)
-            );
+            List<Dim> dims = dims(loaded);
 
             List<List<SeedState>> states = new ArrayList<>();
             for (Dim dim : dims) {
                 List<SeedState> perSeed = new ArrayList<>();
                 for (long seed : SEEDS) {
-                    RandomState randomState = RandomState.create(loaded.lookupOrThrow(Registries.NOISE), seed, dim.settings());
-                    ChunkGeneratorStructureState state = ChunkGeneratorStructureState.createForNormal(
-                        randomState, seed, ChunkPos.ZERO, dim.biomeSource(), loaded.lookupOrThrow(Registries.STRUCTURE_SET)
-                    );
-                    perSeed.add(new SeedState(seed, randomState, state));
+                    perSeed.add(seedState(loaded, dim, seed));
                 }
                 states.add(perSeed);
                 List<String> sets = perSeed.get(0).state().possibleStructureSets().stream().map(PlacementOracle::id).toList();
@@ -156,7 +142,7 @@ public final class PlacementOracle {
         System.exit(0);
     }
 
-    private static RegistryAccess.Frozen loadWorldRegistries(final MultiPackResourceManager resources) {
+    static RegistryAccess.Frozen loadWorldRegistries(final MultiPackResourceManager resources) {
         LayeredRegistryAccess<RegistryLayer> initialLayers = RegistryLayer.createRegistryAccess();
         List<Registry.PendingTags<?>> staticLayerTags = TagLoader.loadTagsForExistingRegistries(
             resources, initialLayers.getLayer(RegistryLayer.STATIC)
@@ -170,23 +156,89 @@ public final class PlacementOracle {
         return loaded;
     }
 
+    static List<Dim> dims(final RegistryAccess.Frozen loaded) {
+        HolderLookup.RegistryLookup<NoiseGeneratorSettings> noiseSettings = loaded.lookupOrThrow(Registries.NOISE_SETTINGS);
+        var presets = loaded.lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST);
+        return List.of(
+            dim("minecraft:overworld", Level.OVERWORLD, noiseSettings.getOrThrow(NoiseGeneratorSettings.OVERWORLD),
+                MultiNoiseBiomeSource.createFromPreset(presets.getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD)),
+                LevelHeightAccessor.create(-64, 384), 18),
+            dim("minecraft:the_nether", Level.NETHER, noiseSettings.getOrThrow(NoiseGeneratorSettings.NETHER),
+                MultiNoiseBiomeSource.createFromPreset(presets.getOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER)),
+                LevelHeightAccessor.create(0, 256), 3),
+            dim("minecraft:the_end", Level.END, noiseSettings.getOrThrow(NoiseGeneratorSettings.END),
+                TheEndBiomeSource.create(loaded.lookupOrThrow(Registries.BIOME)),
+                LevelHeightAccessor.create(0, 256), 1)
+        );
+    }
+
     private static Dim dim(
         final String id,
+        final ResourceKey<Level> level,
         final Holder<NoiseGeneratorSettings> settings,
         final BiomeSource biomeSource,
         final LevelHeightAccessor heights,
         final int expectedSets
     ) {
-        return new Dim(id, new NoiseBasedChunkGenerator(biomeSource, settings), biomeSource, settings.value(), heights, expectedSets);
+        return new Dim(id, level, new NoiseBasedChunkGenerator(biomeSource, settings), biomeSource, settings.value(), heights, expectedSets);
     }
 
-    private static void header(final OutputStream out, final byte[] magic) throws IOException {
+    static SeedState seedState(final RegistryAccess.Frozen loaded, final Dim dim, final long seed) {
+        RandomState randomState = RandomState.create(loaded.lookupOrThrow(Registries.NOISE), seed, dim.settings());
+        ChunkGeneratorStructureState state = ChunkGeneratorStructureState.createForNormal(
+            randomState, seed, ChunkPos.ZERO, dim.biomeSource(), loaded.lookupOrThrow(Registries.STRUCTURE_SET)
+        );
+        return new SeedState(seed, randomState, state);
+    }
+
+    static Climate.Sampler climate(final SeedState seed) {
+        return seed.randomState().createClimateSampler(SamplerContext.builder().enableCaches().build());
+    }
+
+    static List<Holder.Reference<Structure>> jigsaws(final RegistryAccess.Frozen registries, final ChunkGeneratorStructureState state) {
+        return registries.lookupOrThrow(Registries.STRUCTURE).listElements()
+            .filter(holder -> holder.value() instanceof JigsawStructure && !state.getPlacementsForStructure(holder).isEmpty())
+            .toList();
+    }
+
+    static Holder<StructureSet> singleSet(final ChunkGeneratorStructureState state, final Holder<Structure> holder) {
+        List<StructurePlacement> placements = state.getPlacementsForStructure(holder);
+        if (placements.size() != 1) {
+            throw new IllegalStateException(id(holder) + " has " + placements.size() + " placements");
+        }
+        return state.possibleStructureSets().stream()
+            .filter(candidate -> candidate.value().placement() == placements.get(0))
+            .findFirst()
+            .orElseThrow();
+    }
+
+    static List<ChunkPos> caseChunks(final ChunkGeneratorStructureState state, final StructurePlacement placement) {
+        List<ChunkPos> cases = new ArrayList<>();
+        for (int radius = 0; radius <= SITE_MAX_RADIUS; radius++) {
+            for (int x = -radius; x <= radius; x++) {
+                for (int z = -radius; z <= radius; z++) {
+                    if (Math.max(Math.abs(x), Math.abs(z)) != radius) {
+                        continue;
+                    }
+                    if (placement.isStructureChunk(state, x, z)) {
+                        cases.add(new ChunkPos(x, z));
+                        if (cases.size() == SITE_CASES) {
+                            return cases;
+                        }
+                    }
+                }
+            }
+        }
+        return cases;
+    }
+
+    static void header(final OutputStream out, final byte[] magic) throws IOException {
         out.write(magic);
         Bin.i32(out, FORMAT_VERSION);
         Bin.i32(out, SharedConstants.getCurrentVersion().dataVersion().version());
     }
 
-    private static String id(final Holder<?> holder) {
+    static String id(final Holder<?> holder) {
         return holder.unwrapKey().map(ResourceKey::identifier).orElseThrow().toString();
     }
 
@@ -250,41 +302,15 @@ public final class PlacementOracle {
     ) throws IOException {
         Bin.str(out, dim.id());
         ChunkGeneratorStructureState state = seed.state();
-        List<Holder.Reference<Structure>> jigsaws = registries.lookupOrThrow(Registries.STRUCTURE).listElements()
-            .filter(holder -> holder.value() instanceof JigsawStructure && !state.getPlacementsForStructure(holder).isEmpty())
-            .toList();
+        List<Holder.Reference<Structure>> jigsaws = jigsaws(registries, state);
         Bin.i32(out, jigsaws.size());
-        Climate.Sampler climate = seed.randomState().createClimateSampler(SamplerContext.builder().enableCaches().build());
+        Climate.Sampler climate = climate(seed);
         for (Holder.Reference<Structure> holder : jigsaws) {
             JigsawStructure structure = (JigsawStructure) holder.value();
-            List<StructurePlacement> placements = state.getPlacementsForStructure(holder);
-            if (placements.size() != 1) {
-                throw new IllegalStateException(id(holder) + " has " + placements.size() + " placements");
-            }
-            StructurePlacement placement = placements.get(0);
-            Holder<StructureSet> set = state.possibleStructureSets().stream()
-                .filter(candidate -> candidate.value().placement() == placement)
-                .findFirst()
-                .orElseThrow();
+            Holder<StructureSet> set = singleSet(state, holder);
             Bin.str(out, id(holder));
             Bin.str(out, id(set));
-            List<ChunkPos> cases = new ArrayList<>();
-            search:
-            for (int radius = 0; radius <= SITE_MAX_RADIUS; radius++) {
-                for (int x = -radius; x <= radius; x++) {
-                    for (int z = -radius; z <= radius; z++) {
-                        if (Math.max(Math.abs(x), Math.abs(z)) != radius) {
-                            continue;
-                        }
-                        if (placement.isStructureChunk(state, x, z)) {
-                            cases.add(new ChunkPos(x, z));
-                            if (cases.size() == SITE_CASES) {
-                                break search;
-                            }
-                        }
-                    }
-                }
-            }
+            List<ChunkPos> cases = caseChunks(state, set.value().placement());
             Bin.i32(out, cases.size());
             int present = 0;
             int valid = 0;

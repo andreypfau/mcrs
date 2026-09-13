@@ -1,4 +1,5 @@
 pub mod index;
+pub mod jigsaw;
 pub mod locate;
 pub mod site;
 
@@ -151,6 +152,17 @@ pub enum FrozenElement {
     Empty,
 }
 
+impl FrozenElement {
+    pub fn projection(&self) -> Option<Projection> {
+        match self {
+            FrozenElement::Single { projection, .. }
+            | FrozenElement::List { projection, .. }
+            | FrozenElement::Feature { projection, .. } => Some(*projection),
+            FrozenElement::Empty => None,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct FrozenStructures {
     pub sets: Vec<FrozenSet>,
@@ -184,7 +196,7 @@ pub struct StructureInputs<'a> {
     pub biome_tags: &'a DynTagRegistry<Biome>,
 }
 
-const TERRAIN_MARGIN: i32 = 12;
+pub(super) const TERRAIN_MARGIN: i32 = 12;
 const MAX_JIGSAW_RANGE: i32 = 128;
 const HARDCODED_REACH: u32 = 8;
 

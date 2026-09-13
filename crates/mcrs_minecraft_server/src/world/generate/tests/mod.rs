@@ -16,6 +16,7 @@ mod multi_noise_biomes;
 mod perf;
 mod rungs;
 mod structure_index;
+mod structure_layouts;
 mod structure_sites;
 mod structures;
 mod surface;

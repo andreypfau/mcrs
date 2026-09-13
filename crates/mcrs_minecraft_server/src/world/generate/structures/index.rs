@@ -1,5 +1,4 @@
-use std::sync::{Arc, Mutex, OnceLock};
-use std::thread::JoinHandle;
+use std::sync::Arc;
 
 use bevy_math::IVec3;
 use mcrs_minecraft_world::biome::climate::TargetPoint;
@@ -16,8 +15,8 @@ use mcrs_minecraft_worldgen::structure::placement::{
 };
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
 use mcrs_minecraft_worldgen::volume::Volume;
-use rustc_hash::FxHashMap;
 
+use super::jigsaw::{Piece, Start, layout};
 use super::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
 use super::site::{Site, SiteWorld, site};
 use super::{DimensionStructureTables, SetId, StructureId};
@@ -36,10 +35,6 @@ pub enum BiomeLookup {
 
 const CLIMATE_ROOTS: [usize; 6] = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
 
-struct CellSlot {
-    sites: Box<[OnceLock<Option<Site>>]>,
-}
-
 type RingSets = Vec<(SetId, Vec<(i32, i32)>)>;
 
 pub struct StructureIndex {
@@ -50,10 +45,7 @@ pub struct StructureIndex {
     predicates: Option<HeightmapPredicates>,
     accessor_min_y: i32,
     accessor_height: i32,
-    rings: OnceLock<RingSets>,
-    ring_task: Mutex<Option<JoinHandle<RingSets>>>,
-    // ponytail: the cell memo is unbounded until the staging store evicts it.
-    cells: Mutex<FxHashMap<(i32, i32), Arc<CellSlot>>>,
+    rings: RingSets,
 }
 
 impl StructureIndex {
@@ -78,17 +70,7 @@ impl StructureIndex {
                 tables.frozen.sets[set.0 as usize].id
             );
         }
-        let has_rings = tables
-            .live
-            .iter()
-            .any(|(set, _)| matches!(placement(set), StructurePlacement::ConcentricRings { .. }));
-        let (rings, ring_task) = if has_rings {
-            let inputs = (Arc::clone(&tables), Arc::clone(&router), biomes.clone());
-            let task = std::thread::spawn(move || ring_sets(&inputs.0, seed, &inputs.1, &inputs.2));
-            (OnceLock::new(), Some(task))
-        } else {
-            (OnceLock::from(Vec::new()), None)
-        };
+        let rings = ring_sets(&tables, seed, &router, &biomes);
         StructureIndex {
             tables,
             seed,
@@ -98,8 +80,6 @@ impl StructureIndex {
             accessor_min_y,
             accessor_height,
             rings,
-            ring_task: Mutex::new(ring_task),
-            cells: Mutex::new(FxHashMap::default()),
         }
     }
 
@@ -108,13 +88,7 @@ impl StructureIndex {
     }
 
     pub fn rings(&self, set: SetId) -> Option<&[(i32, i32)]> {
-        let rings = self.rings.get_or_init(|| {
-            let task = self.ring_task.lock().unwrap().take();
-            task.expect("the ring task is joined exactly once")
-                .join()
-                .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
-        });
-        rings
+        self.rings
             .iter()
             .find(|(ring_set, _)| *ring_set == set)
             .map(|(_, positions)| positions.as_slice())
@@ -148,32 +122,61 @@ impl StructureIndex {
         }
     }
 
+    fn view(&self) -> View<'_> {
+        View {
+            index: self,
+            ws: Workspace::new(),
+        }
+    }
+
     pub fn site(&self, chunk: (i32, i32), structure: StructureId) -> Option<Site> {
-        let slot = Arc::clone(self.cells.lock().unwrap().entry(chunk).or_insert_with(|| {
-            Arc::new(CellSlot {
-                sites: (0..self.tables.frozen.structures.len())
-                    .map(|_| OnceLock::new())
-                    .collect(),
-            })
-        }));
-        slot.sites[structure.0 as usize]
-            .get_or_init(|| {
-                let mut view = View {
-                    index: self,
-                    ws: Workspace::new(),
-                };
-                site(
-                    &self.tables.frozen,
+        self.site_in(&mut self.view(), chunk, structure)
+    }
+
+    fn site_in(
+        &self,
+        view: &mut View<'_>,
+        chunk: (i32, i32),
+        structure: StructureId,
+    ) -> Option<Site> {
+        site(
+            &self.tables.frozen,
+            structure,
+            chunk,
+            self.seed,
+            self.height_context(),
+            self.accessor_min_y,
+            self.accessor_height,
+            view,
+        )
+    }
+
+    pub fn starts_at(&self, chunk: (i32, i32)) -> Vec<Start> {
+        let frozen = &self.tables.frozen;
+        let mut view = self.view();
+        self.tables
+            .live
+            .iter()
+            .filter(|(set, _)| self.gate(*set, chunk.0, chunk.1))
+            .filter_map(|(set, _)| {
+                let (structure, site) = self.selected_site(&mut view, *set, chunk)?;
+                let pieces = layout(
+                    frozen,
                     structure,
-                    chunk,
-                    self.seed,
-                    self.height_context(),
+                    site,
                     self.accessor_min_y,
                     self.accessor_height,
                     &mut view,
-                )
+                );
+                (!pieces.is_empty()).then(|| {
+                    Start::new(
+                        frozen,
+                        structure,
+                        pieces.into_iter().map(Piece::Jigsaw).collect(),
+                    )
+                })
             })
-            .clone()
+            .collect()
     }
 
     fn height_context(&self) -> HeightContext {
@@ -190,16 +193,30 @@ impl StructureIndex {
     // mixing one with jigsaw entries picks the jigsaw entry where vanilla would
     // have placed the hardcoded one, until those generators exist.
     pub fn selected(&self, set: SetId, chunk: (i32, i32)) -> Option<StructureId> {
-        select_with_removal(
+        self.selected_site(&mut self.view(), set, chunk)
+            .map(|(structure, _)| structure)
+    }
+
+    fn selected_site(
+        &self,
+        view: &mut View<'_>,
+        set: SetId,
+        chunk: (i32, i32),
+    ) -> Option<(StructureId, Site)> {
+        let mut accepted = None;
+        let structure = select_with_removal(
             self.seed,
             chunk.0,
             chunk.1,
             &self.tables.frozen.sets[set.0 as usize].entries,
             |structure| {
-                self.site(chunk, structure)
-                    .is_some_and(|site| site.biome_ok)
+                accepted = self
+                    .site_in(view, chunk, structure)
+                    .filter(|site| site.biome_ok);
+                accepted.is_some()
             },
-        )
+        )?;
+        Some((structure, accepted?))
     }
 
     pub fn starts_present(&self, set: SetId, chunk: (i32, i32), structure: StructureId) -> bool {
@@ -227,13 +244,19 @@ impl StructureIndex {
                 }
             }
         }
+        let mut view = self.view();
         locate(
             self.seed,
             origin,
             MAX_SEARCH_RADIUS,
             &placements,
             |set| self.rings(set),
-            |set, chunk, structure| self.starts_present(set, chunk, structure),
+            |set, chunk, structure| {
+                self.gate(set, chunk.0, chunk.1)
+                    && self
+                        .selected_site(&mut view, set, chunk)
+                        .is_some_and(|(selected, _)| selected == structure)
+            },
         )
     }
 }
