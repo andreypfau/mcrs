@@ -18,7 +18,7 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 use self::molang::{MolangError, StateCondition};
 use self::schema::{
     BlockBox, BlockDefinitionFile, BlockProperties, Components, Instrument, IntProvider,
-    LavaFlammable, PropertyValue, Sticky,
+    LavaFlammable, PlacementFilter, PropertyValue, Sticky,
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
@@ -45,6 +45,7 @@ bitflags::bitflags! {
         const IS_SIGNAL_SOURCE = 1 << 10;
         const REDSTONE_CONDUCTOR = 1 << 11;
         const STICKY = 1 << 12;
+        const LEGACY_SOLID = 1 << 13;
     }
 }
 
@@ -100,6 +101,7 @@ pub struct BlockEntry {
     pub default_state_id: BlockStateId,
     pub state_count: u16,
     pub properties: BlockProperties,
+    pub placement_filter: Option<PlacementFilter>,
 }
 
 impl BlockEntry {
@@ -206,6 +208,17 @@ impl BlockDefinitions {
         &self.fluids[id.0 as usize]
     }
 
+    pub fn fluid_id(&self, fluid: &str) -> Option<FluidId> {
+        self.fluids
+            .iter()
+            .position(|known| known.as_str() == fluid)
+            .map(|index| FluidId(index as u16))
+    }
+
+    pub fn fluid_count(&self) -> usize {
+        self.fluids.len()
+    }
+
     #[inline]
     pub fn loot_table(&self, id: LootId) -> &ResourceLocation<Arc<str>> {
         &self.loot[id.0 as usize]
@@ -289,6 +302,22 @@ impl mcrs_minecraft_core::tag::registry::TagSource for Blocks {
 
     fn capacity(&self) -> u32 {
         self.blocks.len() as u32
+    }
+}
+
+/// The corpus's interned fluids, which is what `#fluid` tags resolve against.
+#[derive(Debug, Clone, Resource)]
+pub struct Fluids(pub Arc<BlockDefinitions>);
+
+impl mcrs_minecraft_core::tag::registry::TagSource for Fluids {
+    type Id = u32;
+
+    fn id_of(&self, loc: &str) -> Option<u32> {
+        self.0.fluid_id(loc).map(|id| u32::from(id.0))
+    }
+
+    fn capacity(&self) -> u32 {
+        self.0.fluid_count() as u32
     }
 }
 
@@ -607,6 +636,7 @@ impl Builder {
             default_state_id: BlockStateId(default),
             state_count: state_count as u16,
             properties,
+            placement_filter: components.placement_filter,
         });
         Ok(())
     }
@@ -669,6 +699,10 @@ impl Builder {
                 &components.collision_box.as_ref().unwrap().0,
             )),
             BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK,
+        );
+        flag(
+            Some(legacy_solid(&components.collision_box.as_ref().unwrap().0)),
+            BlockStateFlags::LEGACY_SOLID,
         );
         flag(
             Some(components.block_entity.is_some()),
@@ -785,6 +819,27 @@ fn fills_the_cube(boxes: &[BlockBox]) -> bool {
         volume += b.size[0] * b.size[1] * b.size[2];
     }
     (volume - 16.0 * 16.0 * 16.0).abs() < 0.5
+}
+
+/// Java's `BlockBehaviour.calculateSolid`: the collision shape's bounds are
+/// either large enough on average or a full block tall.
+///
+/// The corpus carries no `forceSolidOn`/`forceSolidOff` component, so this is
+/// the shape derivation alone and answers differently from the reference for
+/// the blocks it overrides by hand — signs, pressure plates, cobweb, snow,
+/// azalea, ladders, amethyst clusters, pointed dripstone and corals.
+fn legacy_solid(boxes: &[BlockBox]) -> bool {
+    let Some(first) = boxes.first() else {
+        return false;
+    };
+    let mut min = Vec3::from(first.origin);
+    let mut max = min + Vec3::from(first.size);
+    for b in &boxes[1..] {
+        min = min.min(Vec3::from(b.origin));
+        max = max.max(Vec3::from(b.origin) + Vec3::from(b.size));
+    }
+    let size = (max - min).as_dvec3() / 16.0;
+    size.element_sum() / 3.0 >= 0.7291666666666666 || size.y >= 1.0
 }
 
 /// Bedrock states a box in sixteenths, from the block centre on X and Z and

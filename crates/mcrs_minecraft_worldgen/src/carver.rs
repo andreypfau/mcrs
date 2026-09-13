@@ -43,6 +43,10 @@ pub enum CarverConfig {
         vertical_rotation: FloatProvider,
         shape: CanyonShape,
     },
+    /// Beta's `MapGenCaves`. Nothing about it is configurable: its draws, its
+    /// seed and its abort on water are the carver.
+    #[serde(rename = "mcrs:beta_cave")]
+    BetaCave,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -59,12 +63,14 @@ pub struct CanyonShape {
 
 impl CarverConfig {
     /// Whether this carver seeds a cave in the source chunk at all. The draw
-    /// happens once per source, before any of the per-cave draws.
-    pub fn probability(&self) -> f32 {
+    /// happens once per source, before any of the per-cave draws; a carver with
+    /// no probability takes no such draw.
+    pub fn probability(&self) -> Option<f32> {
         match *self {
             CarverConfig::Cave { probability, .. } | CarverConfig::Canyon { probability, .. } => {
-                probability
+                Some(probability)
             }
+            CarverConfig::BetaCave => None,
         }
     }
 }
@@ -135,7 +141,13 @@ mod tests {
         names.sort();
         assert_eq!(
             names,
-            ["canyon", "cave", "cave_extra_underground", "nether_cave"]
+            [
+                "beta_cave",
+                "canyon",
+                "cave",
+                "cave_extra_underground",
+                "nether_cave"
+            ]
         );
     }
 

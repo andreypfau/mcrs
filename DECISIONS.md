@@ -183,3 +183,11 @@ One line each, with the numbers that justified it. Newest last.
   rejected the cutout finish's `fwidth` behind an `||`, and with it the whole terrain module and
   every wireframe pipeline, and the web client quit on the validation error; naga on native
   never objected.
+- **The generation window's ring stays paletted; it is not unpacked into dense buffers.** Over a
+  forest region decorated by `trees_birch_and_oak_leaf_litter`, the widest consumer there is, a
+  run makes 14 481 reads of which 3383 (23%) leave its own column, and the run is 0.33 ms of a
+  2.64 ms column. Unpacking one column into a dense buffer costs 0.096 ms, so the eight
+  neighbours would cost 0.77 ms — more than twice the stage they would speed up — before the
+  eight extra buffers of 98 304 cells per worker are counted. A section-cache on the read path
+  buys nothing either: one section list per dimension makes the ring slot an array index, so
+  nothing on that path hashes a section position.

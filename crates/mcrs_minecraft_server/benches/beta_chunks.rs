@@ -2,7 +2,8 @@
 //!
 //! usage: cargo bench --bench beta_chunks -- [chunks_per_side] [threads] [seed]
 //!
-//! Mirrors the server's Beta column pipeline: terrain, surface, caves, ores.
+//! Mirrors the server's Beta `Filled` stage: terrain, surface, caves. Ores run
+//! in the `Run` stage over a region; `the_ladder_costs` in the tests times that.
 
 use std::sync::{Arc, Barrier};
 use std::time::Instant;
@@ -13,12 +14,15 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::ColumnBlocks;
+use mcrs_minecraft_server::world::generate::modern_carvers::CarverBiomeTable;
+use mcrs_minecraft_server::world::generate::stages::extent;
 use mcrs_minecraft_server::world::generate::{
-    BetaCaveBlockIds, BetaOreBlockIds, apply_beta_caves, apply_beta_ores, apply_beta_surface,
-    fill_column_dense_any,
+    BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, fill_column_dense_any,
 };
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
+use mcrs_minecraft_worldgen::carver::CarverConfig;
+use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 
 #[path = "../src/world/generate/tests/support.rs"]
@@ -48,18 +52,12 @@ fn make_beta_biome() -> Biome {
 fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let mut assets = Assets::<Biome>::default();
     let land_handles: Vec<_> = (0..11).map(|_| assets.add(make_beta_biome())).collect();
-    let ocean_handles: Vec<_> = (0..5).map(|_| assets.add(make_beta_biome())).collect();
     let land_ids: Vec<_> = land_handles.iter().map(|h| h.id()).collect();
-    let ocean_ids: Vec<_> = ocean_handles.iter().map(|h| h.id()).collect();
     let all_pairs: Vec<(ResourceLocation<Arc<str>>, _)> = (0..11)
         .map(|i| {
             let rl = ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap();
             (rl, land_ids[i])
         })
-        .chain((0..5).map(|i| {
-            let rl = ResourceLocation::parse(&format!("minecraft:ocean_biome_{i}")).unwrap();
-            (rl, ocean_ids[i])
-        }))
         .collect();
     let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
         Ok(mcrs_minecraft_nbt::compound::NbtCompound::new())
@@ -67,17 +65,17 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
         ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
     });
-    let ocean_biome_ids: [ResourceLocation<Arc<str>>; 5] = std::array::from_fn(|i| {
-        ResourceLocation::parse(&format!("minecraft:ocean_biome_{i}")).unwrap()
-    });
     let biome_source = BiomeSource::Beta {
         land_biomes: land_handles.try_into().expect("11 land handles"),
-        ocean_biomes: ocean_handles.try_into().expect("5 ocean handles"),
         land_biome_ids,
-        ocean_biome_ids,
         lookup: Box::new(build_beta_lookup_table()),
     };
     (biome_source, snapshot)
+}
+
+/// Beta's carver in every land biome, as the shipped Beta biomes carry it.
+fn beta_carvers(source: &BiomeSource) -> CarverBiomeTable {
+    CarverBiomeTable::beta(source, |_| Arc::from([CarverConfig::BetaCave])).expect("a Beta source")
 }
 
 #[derive(Default, Clone, Copy)]
@@ -85,7 +83,6 @@ struct Stages {
     terrain: f64,
     surface: f64,
     caves: f64,
-    ores: f64,
     pack: f64,
 }
 
@@ -94,7 +91,6 @@ impl Stages {
         self.terrain += other.terrain;
         self.surface += other.surface;
         self.caves += other.caves;
-        self.ores += other.ores;
         self.pack += other.pack;
     }
 }
@@ -109,6 +105,7 @@ fn generate_chunk(
     router: &NoiseRouter,
     biome_source: &BiomeSource,
     snapshot: &RegistrySnapshot<Biome>,
+    carvers: &CarverBiomeTable,
     cancel: &CancellationToken,
 ) -> (f64, Stages) {
     let world_seed = router.world_seed as i64;
@@ -147,33 +144,18 @@ fn generate_chunk(
     stages.surface = t.elapsed().as_secs_f64() * 1000.0;
 
     let t = Instant::now();
-    let cave_ids = BetaCaveBlockIds::resolve(corpus());
-    let cave_config = mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig {
-        air_state: cave_ids.air.into(),
-        lava_state: cave_ids.lava.into(),
-        stone_state: cave_ids.stone.into(),
-        dirt_state: cave_ids.dirt.into(),
-        grass_state: cave_ids.grass.into(),
-        lava_level: 10,
-        source_radius: 8,
-        tunnel_length: 112,
-        horizontal_radius_multiplier: 1.0,
-        vertical_radius_multiplier: 1.0,
-    };
-    apply_beta_caves(
-        &column,
+    apply_beta_carvers(
+        column,
         chunk_x,
         chunk_z,
         world_seed,
-        &cave_config,
-        &cave_ids,
+        router,
+        &mut Workspace::new(),
+        carvers,
+        extent(router),
+        &BetaCaveBlockIds::resolve(corpus()),
     );
     stages.caves = t.elapsed().as_secs_f64() * 1000.0;
-
-    let t = Instant::now();
-    let ore_ids = BetaOreBlockIds::resolve(corpus());
-    apply_beta_ores(&column, chunk_x, chunk_z, world_seed, &ore_ids);
-    stages.ores = t.elapsed().as_secs_f64() * 1000.0;
 
     let t = Instant::now();
     let sections: Vec<_> = column.into_sections(&biome_palette);
@@ -193,6 +175,7 @@ fn generate_range(
 ) -> (Vec<f64>, Stages, f64) {
     let router = build_settings_router("beta", seed);
     let (biome_source, snapshot) = build_beta_biome_source();
+    let carvers = beta_carvers(&biome_source);
     let cancel = CancellationToken::new();
     let mut times = Vec::with_capacity((to - from).max(0) as usize * side.max(0) as usize);
     let mut stages = Stages::default();
@@ -213,6 +196,7 @@ fn generate_range(
                 &router,
                 &biome_source,
                 &snapshot,
+                &carvers,
                 &cancel,
             );
             times.push(ms);
@@ -243,22 +227,17 @@ fn report_content(y_sections: &[i32], seed: u64) {
     let mut rng = LegacyRandom::new(seedr as u64);
     apply_beta_surface(&column, 0, 0, &router, &biome_source, corpus(), &mut rng);
     let world_seed = router.world_seed as i64;
-    let cave_ids = BetaCaveBlockIds::resolve(corpus());
-    let cave_config = mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig {
-        air_state: cave_ids.air.into(),
-        lava_state: cave_ids.lava.into(),
-        stone_state: cave_ids.stone.into(),
-        dirt_state: cave_ids.dirt.into(),
-        grass_state: cave_ids.grass.into(),
-        lava_level: 10,
-        source_radius: 8,
-        tunnel_length: 112,
-        horizontal_radius_multiplier: 1.0,
-        vertical_radius_multiplier: 1.0,
-    };
-    apply_beta_caves(&column, 0, 0, world_seed, &cave_config, &cave_ids);
-    let ore_ids = BetaOreBlockIds::resolve(corpus());
-    apply_beta_ores(&column, 0, 0, world_seed, &ore_ids);
+    apply_beta_carvers(
+        &column,
+        0,
+        0,
+        world_seed,
+        &router,
+        &mut Workspace::new(),
+        &beta_carvers(&biome_source),
+        extent(&router),
+        &BetaCaveBlockIds::resolve(corpus()),
+    );
 
     let mut non_air = 0u64;
     let mut per_section = Vec::new();
@@ -363,11 +342,10 @@ fn main() {
     );
     let per = |v: f64| v / n as f64;
     println!(
-        "  stages      terrain {:.3} ms | surface {:.3} | caves {:.3} | ores {:.3} | pack {:.3}",
+        "  stages      terrain {:.3} ms | surface {:.3} | caves {:.3} | pack {:.3}",
         per(stages.terrain),
         per(stages.surface),
         per(stages.caves),
-        per(stages.ores),
         per(stages.pack),
     );
 }

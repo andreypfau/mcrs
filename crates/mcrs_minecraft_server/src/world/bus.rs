@@ -2,7 +2,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
-use mcrs_minecraft_protocol::chunk::LightData;
+use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{BlockStateId, VarInt};
 use mcrs_minecraft_protocol::{GameEventKind, GameMode, Look, Text};
@@ -99,6 +99,7 @@ pub enum PacketPayload {
         chunk_bytes: Vec<u8>,
         heightmaps: Vec<(VarInt, Vec<u64>)>,
         light_data: LightData<'static>,
+        block_entities: Vec<ChunkDataBlockEntity<'static>>,
     },
     ChunkUnload {
         column: ColumnPos,

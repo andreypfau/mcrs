@@ -8,9 +8,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::beta_surface::beta_surface_blocks;
 use mcrs_minecraft_world::biome::climate::TargetPoint;
-use mcrs_minecraft_world::biome::source::{
-    BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
-};
+use mcrs_minecraft_world::biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen::cell::{CELL_BOUNDS_SLACK, sampled_range};
@@ -735,7 +733,7 @@ fn beta_biome_palette(
     for cx in 0..4usize {
         for cz in 0..4usize {
             let (temp, humidity) = climate[cx * 4 + cz];
-            let location = biome_source.beta_biome_location(temp, humidity, false);
+            let location = biome_source.beta_biome_location(temp, humidity);
             let network_id = match biome_registry.by_location(location.as_str()) {
                 Some(id) => id as u8,
                 None => {
@@ -894,11 +892,13 @@ pub fn apply_beta_surface(
         return;
     };
 
-    // Extract the quantized biome lookup from the biome source.
     // back2beta's replaceBlocksForBiome reads biomes via getBiomeFromLookup (quantized).
-    let beta_lookup = match biome_source {
-        BiomeSource::Beta { lookup, .. } => Some(lookup.as_ref()),
-        _ => None,
+    let BiomeSource::Beta {
+        lookup: beta_lookup,
+        ..
+    } = biome_source
+    else {
+        panic!("the Beta surface reads a Beta biome source");
     };
 
     let sea_level = noise_router.sea_level;
@@ -953,16 +953,12 @@ pub fn apply_beta_surface(
             let idx = (x_local * 16 + z_local) as usize;
 
             // Three RNG draws per column matching Java's Random.nextDouble() exactly.
-            let flag = r[idx] as f64 + rng.next_java_double() * 0.2 > 0.0;
-            let flag1 = s[idx] as f64 + rng.next_java_double() * 0.2 > 3.0;
-            let i1 = (t[idx] as f64 / 3.0 + 3.0 + rng.next_java_double() * 0.25) as i32;
+            let flag = r[idx] as f64 + rng.next_f64() * 0.2 > 0.0;
+            let flag1 = s[idx] as f64 + rng.next_f64() * 0.2 > 3.0;
+            let i1 = (t[idx] as f64 / 3.0 + 3.0 + rng.next_f64() * 0.25) as i32;
 
             let (temp, humidity) = (temperatures[idx], humidities[idx]);
-            let biome_land: BetaLandBiome = if let Some(table) = beta_lookup {
-                beta_biome_from_climate(table, temp, humidity)
-            } else {
-                beta_get_biome(temp, humidity)
-            };
+            let biome_land: BetaLandBiome = beta_biome_from_climate(beta_lookup, temp, humidity);
             let (top_block, filler_block) = beta_surface_blocks(biome_land, blocks);
             let (top_block, filler_block) = (VoxelId::from(top_block), VoxelId::from(filler_block));
 
@@ -1045,15 +1041,20 @@ pub fn apply_beta_surface(
 pub mod column_blocks;
 pub use column_blocks::ColumnBlocks;
 pub mod beta_caves;
-pub use beta_caves::{BetaCaveBlockIds, apply_beta_caves};
+pub use beta_caves::{BetaCaveBlockIds, apply_beta_carvers};
 pub mod beta_ores;
+pub mod feature_program;
+pub mod features;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;
 pub mod routers;
+pub mod stages;
+pub mod staging;
 pub mod surface;
-pub use beta_ores::{BetaOreBlockIds, apply_beta_ores, place_all_ores};
+pub mod trees;
+pub use beta_ores::{BetaOreBlockIds, place_all_ores};
 pub use routers::{DimensionBiomeSources, DimensionRouters};
 pub use surface::{SurfaceIds, apply_material_surface, spans_dimension};
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

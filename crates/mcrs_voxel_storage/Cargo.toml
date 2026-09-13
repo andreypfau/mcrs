@@ -11,3 +11,4 @@ doctest = false
 rustc-hash.workspace = true
 bevy_ecs.workspace = true
 mcrs_voxel_math.workspace = true
+bevy_math.workspace = true

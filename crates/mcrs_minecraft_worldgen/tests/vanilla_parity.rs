@@ -161,7 +161,7 @@ fn supported_roots_match_the_vanilla_oracle() {
         .unwrap()
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|e| e == "bin"))
+        .filter(|p| std::fs::read(p).is_ok_and(|bytes| bytes.starts_with(MAGIC)))
         .filter(|p| !p.to_string_lossy().contains("dense"))
         .collect();
     dumps.sort();

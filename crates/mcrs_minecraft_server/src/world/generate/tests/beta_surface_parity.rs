@@ -313,18 +313,12 @@ fn make_beta_biome() -> Biome {
 fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let mut assets = Assets::<Biome>::default();
     let land_handles: Vec<_> = (0..11).map(|_| assets.add(make_beta_biome())).collect();
-    let ocean_handles: Vec<_> = (0..5).map(|_| assets.add(make_beta_biome())).collect();
     let land_ids: Vec<_> = land_handles.iter().map(|h| h.id()).collect();
-    let ocean_ids: Vec<_> = ocean_handles.iter().map(|h| h.id()).collect();
     let all_pairs: Vec<(ResourceLocation<Arc<str>>, _)> = (0..11)
         .map(|i| {
             let rl = ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap();
             (rl, land_ids[i])
         })
-        .chain((0..5).map(|i| {
-            let rl = ResourceLocation::parse(&format!("minecraft:ocean_biome_{i}")).unwrap();
-            (rl, ocean_ids[i])
-        }))
         .collect();
     let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
         Ok(mcrs_minecraft_nbt::compound::NbtCompound::new())
@@ -332,14 +326,9 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
         ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
     });
-    let ocean_biome_ids: [ResourceLocation<Arc<str>>; 5] = std::array::from_fn(|i| {
-        ResourceLocation::parse(&format!("minecraft:ocean_biome_{i}")).unwrap()
-    });
     let biome_source = BiomeSource::Beta {
         land_biomes: land_handles.try_into().expect("11 land handles"),
-        ocean_biomes: ocean_handles.try_into().expect("5 ocean handles"),
         land_biome_ids,
-        ocean_biome_ids,
         lookup: Box::new(build_beta_lookup_table()),
     };
     (biome_source, snapshot)

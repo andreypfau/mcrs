@@ -52,16 +52,21 @@ impl ColumnBlocks {
         y_sections: &[i32],
     ) -> Self {
         let column = Self::new(y_sections);
+        column.unpack(sections);
+        column
+    }
+
+    /// Copy each packed section's blocks over the matching slot.
+    pub fn unpack(&self, sections: &[Option<(BlockPalette, BiomePalette)>]) {
         for (index, section) in sections.iter().enumerate() {
             let Some((blocks, _)) = section else { continue };
-            let cells = column.section_cells(index);
+            let cells = self.section_cells(index);
             let mut at = 0usize;
             blocks.0.for_each(|value| {
                 cells[at].set(value);
                 at += 1;
             });
         }
-        column
     }
 
     pub fn y_sections(&self) -> &[i32] {

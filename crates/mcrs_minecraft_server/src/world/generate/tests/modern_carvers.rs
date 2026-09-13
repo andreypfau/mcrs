@@ -463,3 +463,92 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
             .is_empty()
     );
 }
+
+/// The loader hands the freeze each carver under the folder its registry names;
+/// a registry spelled any other way resolves no carver, and every dimension
+/// carves nothing with no other symptom.
+#[test]
+fn a_loaded_carver_asset_names_its_carver() {
+    use crate::world::generate::modern_carvers::CARVER_REGISTRY;
+    use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
+
+    let location = rl_from_asset_path(
+        std::path::Path::new("minecraft/worldgen/carver/cave.json"),
+        CARVER_REGISTRY,
+    );
+    assert_eq!(
+        location.as_ref().map(|location| location.as_str()),
+        Some("minecraft:cave")
+    );
+}
+
+/// Every Beta biome carves with Beta's own carver and nothing else, which is
+/// what makes the shared source loop run `MapGenCaves` over a Beta world.
+#[test]
+fn every_beta_biome_carves_with_the_beta_carver() {
+    let (carvers_by_biome, config_by_location) = asset_maps();
+    let beta: Vec<_> = carvers_by_biome
+        .iter()
+        .filter(|(biome, _)| biome.starts_with("minecraft:beta_"))
+        .collect();
+    assert_eq!(beta.len(), 11);
+    for (biome, names) in beta {
+        let carvers: Vec<&CarverConfig> =
+            names.iter().map(|name| &config_by_location[name]).collect();
+        assert_eq!(carvers, [&CarverConfig::BetaCave], "{biome}");
+    }
+}
+
+/// A Beta source runs the carvers of the land biome the palette gives the
+/// source chunk's first cell.
+#[test]
+fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
+    use bevy_math::IVec3;
+    use mcrs_minecraft_world::biome::source::BiomeSource;
+    use mcrs_minecraft_worldgen::router::{TEMPERATURE, VEGETATION};
+    use mcrs_minecraft_worldgen::volume::Volume;
+
+    let router = super::build_beta_router();
+    let (source, _) = super::beta_surface::build_beta_biome_source();
+    let BiomeSource::Beta { land_biome_ids, .. } = &source else {
+        unreachable!("the helper builds a Beta source");
+    };
+    let cave: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(assets_root().join("carver/cave.json")).unwrap())
+            .unwrap();
+    // A marker per land biome: a cave whose probability is the biome's index.
+    let table = CarverBiomeTable::beta(&source, |biome| {
+        let index = land_biome_ids
+            .iter()
+            .position(|id| id.as_str() == biome)
+            .unwrap();
+        let mut config = cave.clone();
+        config["probability"] = serde_json::json!(index as f32 / 16.0);
+        Arc::from([serde_json::from_value::<CarverConfig>(config).unwrap()])
+    })
+    .unwrap();
+
+    let mut ws = Workspace::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for source_x in (-64..64).step_by(7) {
+        for source_z in (-64..64).step_by(5) {
+            let volume = Volume::new(
+                IVec3::ONE,
+                IVec3::new(source_x * 16, 0, source_z * 16),
+                IVec3::ONE,
+            );
+            let mut climate = [0.0f32; 2];
+            router.fill_roots(&mut ws, &volume, &[TEMPERATURE, VEGETATION], &mut climate);
+            let biome = source.beta_biome_location(climate[0], climate[1]);
+            let index = land_biome_ids.iter().position(|id| id == biome).unwrap();
+            let carvers = table.carvers_of_source_for_test(&router, &mut ws, source_x, source_z);
+            assert_eq!(
+                carvers[0].probability(),
+                Some(index as f32 / 16.0),
+                "source ({source_x}, {source_z})"
+            );
+            seen.insert(index);
+        }
+    }
+    assert!(seen.len() > 1, "the sample crossed only one biome");
+}

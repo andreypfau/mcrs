@@ -32,10 +32,6 @@ impl CarvingMask {
         self.min_y + self.height - 1
     }
 
-    pub fn clear(&mut self) {
-        self.bits.clear();
-    }
-
     pub fn is_empty(&self) -> bool {
         self.bits.is_clear()
     }

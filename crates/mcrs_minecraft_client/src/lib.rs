@@ -15,6 +15,7 @@ pub mod camera;
 #[cfg(target_os = "macos")]
 pub mod capture;
 pub mod cave;
+pub mod chunk_guard;
 pub mod config;
 pub mod gui;
 pub mod input;

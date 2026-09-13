@@ -14,7 +14,7 @@ pub fn display(
     clocks: Res<WorldClocks>,
 ) {
     let Some(day) = timelines.iter().find_map(|(id, timeline)| {
-        let location = rl_from_asset_path(asset_server.get_path(id)?.path())?;
+        let location = rl_from_asset_path(asset_server.get_path(id)?.path(), "timeline")?;
         (location.as_str() == OVERWORLD_DAY).then_some(timeline)
     }) else {
         return;

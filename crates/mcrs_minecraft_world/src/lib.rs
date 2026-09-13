@@ -154,11 +154,12 @@ impl Plugin for MinecraftWorldPlugin {
 
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
-            request_every_block_tag.in_set(TagPhase::Request),
+            (request_every_block_tag, request_every_fluid_tag).in_set(TagPhase::Request),
         );
         app.add_tagged_registry::<block::Block, block::definition::Blocks>(
             block_tags::ALL_BLOCK_TAGS,
         )
+        .add_tagged_registry::<block::Fluid, block::definition::Fluids>(&[])
         .add_tagged_registry::<item::Item, StaticRegistry<item::Item>>(item_tags::ALL_ITEM_TAGS)
         .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>(
             enchantment_tags::ALL_ENCHANTMENT_TAGS,
@@ -400,7 +401,9 @@ impl Plugin for MinecraftWorldPlugin {
                 elapsed = ?report.elapsed,
                 "loaded block definitions"
             );
-            app.insert_resource(block::definition::Blocks(std::sync::Arc::new(definitions)));
+            let definitions = std::sync::Arc::new(definitions);
+            app.insert_resource(block::definition::Fluids(definitions.clone()));
+            app.insert_resource(block::definition::Blocks(definitions));
         }
         {
             let mut items = app.world_mut().resource_mut::<StaticRegistry<item::Item>>();
@@ -542,6 +545,18 @@ fn request_data_pack_assets(
         &mut loaded,
         FOLDER_CARVER,
         FILES_CARVER,
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::FeatureAsset>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_FEATURE,
+        FILES_FEATURE,
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::PlacedFeatureAsset>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_PLACED_FEATURE,
+        FILES_PLACED_FEATURE,
     );
     request_registry::<dimension::dimension_type::DimensionType>(
         &asset_server,
@@ -753,15 +768,30 @@ fn request_every_block_tag(
     mut loader: ResMut<TagLoader<block::Block, u32>>,
     asset_server: Res<AssetServer>,
 ) {
-    let files = list_tag_files(&asset_server, block::Block::REGISTRY_PATH);
+    request_every_tag(&mut loader, &asset_server);
+}
+
+fn request_every_fluid_tag(
+    mut loader: ResMut<TagLoader<block::Fluid, u32>>,
+    asset_server: Res<AssetServer>,
+) {
+    request_every_tag(&mut loader, &asset_server);
+}
+
+fn request_every_tag<T: TaggedRegistry + 'static>(
+    loader: &mut TagLoader<T, u32>,
+    asset_server: &AssetServer,
+) {
+    let files = list_tag_files(asset_server, T::REGISTRY_PATH);
     let count = files.len();
     for (location, _) in files {
-        loader.request(
-            &TagKey::<block::Block, _>::from_location(location),
-            &asset_server,
-        );
+        loader.request(&TagKey::<T, _>::from_location(location), asset_server);
     }
-    tracing::info!(count, "requested every shipped block tag");
+    tracing::info!(
+        count,
+        registry = T::REGISTRY_PATH,
+        "requested every shipped tag"
+    );
 }
 
 /// `minecraft/tags/block/mineable/pickaxe.json` under the root
@@ -824,7 +854,7 @@ fn index_timelines(
 ) {
     let entries: Vec<_> = timelines
         .iter()
-        .filter_map(|(id, _)| rl_from_asset_path(asset_server.get_path(id)?.path()))
+        .filter_map(|(id, _)| rl_from_asset_path(asset_server.get_path(id)?.path(), "timeline"))
         .collect();
     tracing::info!(count = entries.len(), "indexed timelines");
     commands.insert_resource(DynRegistryIndex::<Timeline>::build(entries.into_iter()));

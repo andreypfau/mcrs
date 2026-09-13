@@ -179,7 +179,7 @@ impl<'a> MaterialOracle<'a> {
             MaterialCondition::Biome { biome_is } => {
                 let biome = eval.biome();
                 let value = biome_is
-                    .ids()
+                    .entries()
                     .iter()
                     .any(|name| (self.inputs.biome)(name) == Some(biome));
                 ("biome", value)

@@ -2,7 +2,7 @@ use crate::carver::mask::CarvingMask;
 use crate::carver::tunnel::can_reach;
 use crate::carver::water::WaterMask;
 use crate::carver::{CarveShape, carve_ellipsoid};
-use crate::math::{cos as math_helper_cos, sin as math_helper_sin};
+use crate::math::{cos_modern, sin_modern};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen::carver::{CanyonShape, CarverConfig};
@@ -97,16 +97,17 @@ fn walk_canyon(
 
     for step in 0..distance {
         let mut horizontal_radius = 1.5
-            + (math_helper_sin(step as f32 * std::f32::consts::PI / distance as f32) * thickness)
-                as f64;
+            + (sin_modern(f64::from(
+                step as f32 * std::f32::consts::PI / distance as f32,
+            )) * thickness) as f64;
         let mut vertical_radius = horizontal_radius * y_scale;
         horizontal_radius *= shape.horizontal_radius_factor.sample(rng) as f64;
         vertical_radius = update_vertical_radius(rng, shape, vertical_radius, distance, step);
 
-        let cos_pitch = math_helper_cos(pitch);
-        x += (math_helper_cos(yaw) * cos_pitch) as f64;
-        y += math_helper_sin(pitch) as f64;
-        z += (math_helper_sin(yaw) * cos_pitch) as f64;
+        let cos_pitch = cos_modern(f64::from(pitch));
+        x += (cos_modern(f64::from(yaw)) * cos_pitch) as f64;
+        y += sin_modern(f64::from(pitch)) as f64;
+        z += (sin_modern(f64::from(yaw)) * cos_pitch) as f64;
 
         pitch *= 0.7;
         pitch += pitch_velocity * 0.05;

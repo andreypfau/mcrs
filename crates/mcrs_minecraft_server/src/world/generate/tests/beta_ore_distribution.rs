@@ -1,17 +1,13 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_decoration::feature::OreFeature;
-use mcrs_minecraft_decoration::feature::config::{OreConfig, OreYOffset, TargetBlockState};
-use mcrs_minecraft_protocol::BlockStateId;
+use bevy_math::IVec3;
+use mcrs_minecraft_decoration::feature::ore_beta::{OreConfig, TargetBlockState, place_beta_ore};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_storage::{Blocks, BoxVolume, VoxelId};
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
-use crate::world::generate::ColumnBlocks;
 use crate::world::generate::{BetaOreBlockIds, place_all_ores};
 
 // ── Counting RNG: pins total LegacyRandom advances for the ore stream ───────────
@@ -73,6 +69,10 @@ impl Random for CountingRng {
         self.inc();
         self.inner.next_f64()
     }
+
+    fn next_gaussian(&mut self) -> f64 {
+        self.inner.next_gaussian()
+    }
     fn fork(&mut self) -> Self {
         self.inc();
         CountingRng {
@@ -98,26 +98,23 @@ impl Random for CountingRng {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-fn stone_sections() -> (Vec<Option<(BlockPalette, BiomePalette)>>, Vec<i32>) {
-    let y_sections: Vec<i32> = (0..8).collect();
-    let stone = super::corpus().default_state("minecraft:stone");
-    let sections = (0..8)
-        .map(|_| {
-            let mut p = BlockPalette::default();
-            for x in 0..16 {
-                for y in 0..16 {
-                    for z in 0..16 {
-                        p.set(BlockPos::new(x, y, z), stone.into());
-                    }
-                }
-            }
-            Some((p, BiomePalette::default()))
-        })
-        .collect();
-    (sections, y_sections)
+/// Stone over the 3×3 of columns around chunk (0, 0), in world coordinates: the
+/// region a `Run` sees, so a vein that leaves its own column still lands.
+fn stone_volume(stone: VoxelId) -> BoxVolume {
+    BoxVolume::filled(IVec3::new(-16, 0, -16), IVec3::new(31, 127, 31), stone)
 }
 
-/// Beta populate seed for a chunk (matches apply_beta_ores' derivation).
+/// Every placed block as (column offset from the centre, state), so a census
+/// can tell the half of a vein that stayed home from the half that crossed.
+fn placed(volume: &BoxVolume, stone: VoxelId) -> Vec<((i32, i32), VoxelId)> {
+    volume
+        .iter()
+        .filter(|(_, state)| *state != stone)
+        .map(|(at, state)| ((at.x.div_euclid(16), at.z.div_euclid(16)), state))
+        .collect()
+}
+
+/// Beta populate seed for a chunk (matches apply_beta_ores_in's derivation).
 fn populate_seed(chunk_x: i32, chunk_z: i32, world_seed: i64) -> i64 {
     let mut s = LegacyRandom::new(world_seed as u64);
     let i1 = s.next_java_long() / 2 * 2 + 1;
@@ -140,9 +137,9 @@ const NON_CLAY_TABLE: &[(&str, i32, i32, i32)] = &[
     ("diamond", 1, 7, 16),
 ];
 
-/// RNG-accurate replay of the ore-placement schedule on a stone chunk. Reproduces
+/// RNG-accurate replay of the ore-placement schedule on a stone region. Reproduces
 /// place_all_ores' draw order exactly (clay coord-draws + water-gate, the seven
-/// WorldGenMinable resources, then lapis), calling the real OreFeature::place so
+/// WorldGenMinable resources, then lapis), calling the real place_beta_ore so
 /// the RNG advances identically. Returns each resource's vein count and the list
 /// of origin-Y values drawn. Tied to the real driver by the draw-count pin below.
 fn simulate<R: Random>(
@@ -153,39 +150,27 @@ fn simulate<R: Random>(
     std::collections::BTreeMap<String, Vec<i32>>,
 ) {
     let stone = ids.stone;
-    let feature = OreFeature;
-    let (mut sections, y_sections) = stone_sections();
-    let sections_ptr = sections.as_mut_slice() as *mut [Option<(BlockPalette, BiomePalette)>];
+    let mut volume = stone_volume(stone.into());
 
     let mut counts: std::collections::BTreeMap<String, i32> = Default::default();
     let mut ys: std::collections::BTreeMap<String, Vec<i32>> = Default::default();
 
-    let get = |wx: i32, wy: i32, wz: i32| -> VoxelId {
-        let sl = unsafe { &*sections_ptr };
-        read_block(sl, &y_sections, wx, wy, wz).into()
-    };
-    let set = |wx: i32, wy: i32, wz: i32, st: VoxelId| {
-        let sl = unsafe { &mut *sections_ptr };
-        write_block(sl, &y_sections, wx, wy, wz, st.into());
-    };
-
-    // Clay 10x32: coord draws happen every iteration; placement only when water is
-    // below the origin. On a stone chunk no water exists, so 0 veins place.
+    // Clay 10x32: coord draws happen every iteration; a vein starts only from a
+    // water block and turns sand. On a stone region no water exists, so 0 veins place.
     let clay_cfg = OreConfig {
         targets: vec![TargetBlockState {
-            target: stone.into(),
+            target: ids.sand.into(),
             state: ids.clay.into(),
         }],
         size: 32,
-        y_offset: OreYOffset::BetaPlus2,
     };
     let mut clay_placed = 0;
     for _ in 0..10 {
         let ox = rng.next_i32_bound(16);
         let oy = rng.next_i32_bound(128);
         let oz = rng.next_i32_bound(16);
-        if get(ox, oy - 1, oz) == ids.water.into() {
-            feature.place(&clay_cfg, ox, oy, oz, get, &set, rng);
+        if volume.get(IVec3::new(ox, oy, oz)) == ids.water.into() {
+            place_beta_ore(&clay_cfg, IVec3::new(ox, oy, oz), &mut volume, rng);
             clay_placed += 1;
             ys.entry("clay".into()).or_default().push(oy);
         }
@@ -209,13 +194,12 @@ fn simulate<R: Random>(
                 state: state.into(),
             }],
             size,
-            y_offset: OreYOffset::BetaPlus2,
         };
         for _ in 0..count {
             let ox = rng.next_i32_bound(16);
             let oy = rng.next_i32_bound(ybound);
             let oz = rng.next_i32_bound(16);
-            feature.place(&cfg, ox, oy, oz, get, &set, rng);
+            place_beta_ore(&cfg, IVec3::new(ox, oy, oz), &mut volume, rng);
             ys.entry(name.into()).or_default().push(oy);
         }
         counts.insert(name.into(), count);
@@ -228,56 +212,15 @@ fn simulate<R: Random>(
             state: ids.lapis.into(),
         }],
         size: 6,
-        y_offset: OreYOffset::BetaPlus2,
     };
     let lx = rng.next_i32_bound(16);
     let ly = rng.next_i32_bound(16) + rng.next_i32_bound(16);
     let lz = rng.next_i32_bound(16);
-    feature.place(&lapis_cfg, lx, ly, lz, get, &set, rng);
+    place_beta_ore(&lapis_cfg, IVec3::new(lx, ly, lz), &mut volume, rng);
     ys.entry("lapis".into()).or_default().push(ly);
     counts.insert("lapis".into(), 1);
 
     (counts, ys)
-}
-
-fn read_block(
-    sections: &[Option<(BlockPalette, BiomePalette)>],
-    y_sections: &[i32],
-    wx: i32,
-    wy: i32,
-    wz: i32,
-) -> BlockStateId {
-    if !(0..16).contains(&wx) || !(0..16).contains(&wz) || wy < 0 {
-        return BlockStateId(0);
-    }
-    let si = (wy >> 4) as usize;
-    let ly = wy & 0xF;
-    if y_sections.get(si).copied() == Some(si as i32)
-        && let Some(Some((b, _))) = sections.get(si)
-    {
-        return b.get(BlockPos::new(wx, ly, wz)).into();
-    }
-    BlockStateId(0)
-}
-
-fn write_block(
-    sections: &mut [Option<(BlockPalette, BiomePalette)>],
-    y_sections: &[i32],
-    wx: i32,
-    wy: i32,
-    wz: i32,
-    st: BlockStateId,
-) {
-    if !(0..16).contains(&wx) || !(0..16).contains(&wz) || wy < 0 {
-        return;
-    }
-    let si = (wy >> 4) as usize;
-    let ly = wy & 0xF;
-    if y_sections.get(si).copied() == Some(si as i32)
-        && let Some(Some((b, _))) = sections.get_mut(si)
-    {
-        b.set(BlockPos::new(wx, ly, wz), st.into());
-    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────
@@ -323,19 +266,25 @@ fn beta_ore_distribution() {
 /// change to vein counts/sizes/order shifts this value.
 const ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345: u64 = 3737;
 
+/// Blocks the driver places on the 3×3 stone region from chunk (0,0), seed 12345,
+/// as (own column, columns it crossed into). Re-recorded when the pass moved onto
+/// the ladder's `Run`: it used to write only the first number, the rest of every
+/// bordering vein having been clipped away.
+const ORE_BLOCKS_CHUNK_0_0_SEED_12345: (usize, usize) = (964, 2580);
+
+fn drive(seed: i64, ids: &BetaOreBlockIds) -> (BoxVolume, u64) {
+    let draws = Rc::new(Cell::new(0u64));
+    let mut rng = CountingRng::new(seed as u64, draws.clone());
+    let mut volume = stone_volume(ids.stone.into());
+    place_all_ores(&mut volume, 0, 0, &mut rng, ids);
+    (volume, draws.get())
+}
+
 #[test]
 fn beta_ore_draw_count_pin() {
     let ids = BetaOreBlockIds::resolve(super::corpus());
     let seed = populate_seed(0, 0, 12345);
-
-    // Real driver stream.
-    let driver_draws = Rc::new(Cell::new(0u64));
-    let mut driver_rng = CountingRng::new(seed as u64, driver_draws.clone());
-    let (mut sections, y_sections) = stone_sections();
-    let column = ColumnBlocks::from_sections(&sections, &y_sections);
-    place_all_ores(&column, 0, 0, &mut driver_rng, &ids);
-    column.write_back(&mut sections);
-    let driver_count = driver_draws.get();
+    let (_, driver_count) = drive(seed, &ids);
 
     // Mirror stream — must consume identical RNG, proving the simulate() replay
     // matches the production driver's schedule.
@@ -357,4 +306,92 @@ fn beta_ore_draw_count_pin() {
     } else {
         assert_eq!(driver_count, ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345);
     }
+}
+
+#[test]
+fn veins_cross_the_column_border() {
+    let ids = BetaOreBlockIds::resolve(super::corpus());
+    let (volume, _) = drive(populate_seed(0, 0, 12345), &ids);
+    let placed = placed(&volume, ids.stone.into());
+
+    let own = placed.iter().filter(|(col, _)| *col == (0, 0)).count();
+    let crossed = placed.len() - own;
+
+    assert_eq!((own, crossed), ORE_BLOCKS_CHUNK_0_0_SEED_12345);
+
+    // A vein reaches at most fourteen blocks past an origin inside its own
+    // column, so the writes land in the 3×3 and never beyond it.
+    for (col, _) in &placed {
+        assert!(
+            (-1..=1).contains(&col.0) && (-1..=1).contains(&col.1),
+            "a write reached column {col:?}"
+        );
+    }
+
+    // Every resource of the table places at least one block somewhere.
+    for state in [
+        ids.dirt,
+        ids.gravel,
+        ids.coal,
+        ids.iron,
+        ids.gold,
+        ids.redstone,
+        ids.diamond,
+        ids.lapis,
+    ] {
+        assert!(
+            placed.iter().any(|(_, got)| *got == state.into()),
+            "no block of {state:?} was placed"
+        );
+    }
+}
+
+/// Beta's populate step reached as a feature writes what running it on the
+/// region directly writes: the source the feature's step hands it plays no part.
+#[test]
+fn the_populate_feature_is_the_populate_step() {
+    use std::sync::Arc;
+
+    use mcrs_minecraft_protocol::ColumnPos;
+
+    use crate::world::generate::ColumnBlocks;
+    use crate::world::generate::beta_ores::apply_beta_ores_in;
+    use crate::world::generate::stages::{ColumnRegion, run_column};
+
+    let router = super::build_beta_router();
+    let seed = router.world_seed as i64;
+    let (_, registry) = super::beta_surface::build_beta_biome_source();
+    let program = Arc::new(super::beta_populate_program(&registry, seed));
+    let ctx = super::fill_context_with(router, Some(program));
+    let stone: VoxelId = super::corpus().default_state("minecraft:stone").into();
+    let center = ColumnPos::new(3, -2);
+    let snapshots = super::region_of(center, |col| {
+        super::flat_snapshot(
+            col,
+            &ctx.y_sections,
+            |section_y| (0..8).contains(&section_y).then_some(stone),
+            None,
+        )
+    });
+
+    let writes = |populate: &dyn Fn(&mut ColumnRegion<'_>)| {
+        let column = ColumnBlocks::new(&ctx.y_sections);
+        column.unpack(&snapshots[4].sections);
+        let mut region = ColumnRegion::new(&snapshots, &column, &ctx);
+        populate(&mut region);
+        region
+            .finish()
+            .into_iter()
+            .map(|(col, delta)| (col, delta.writes))
+            .collect::<Vec<_>>()
+    };
+    let ids = BetaOreBlockIds::resolve(super::corpus());
+    let through_program = writes(&|region| run_column(&ctx, region, 0));
+    let direct = writes(&|region| apply_beta_ores_in(region, center.x, center.z, seed, &ids));
+
+    assert!(
+        direct.iter().map(|(_, writes)| writes.len()).sum::<usize>() > 0,
+        "the populate step wrote nothing"
+    );
+    assert_eq!(through_program, direct);
 }

@@ -5,6 +5,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag::key::TagKey;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_decoration::carver::beta::carve_beta_caves;
 use mcrs_minecraft_decoration::carver::canyon::carve_canyon;
 use mcrs_minecraft_decoration::carver::mask::CarvingMask;
 use mcrs_minecraft_decoration::carver::modern::{SOURCE_RADIUS, carve_caves, is_start_chunk};
@@ -14,6 +15,7 @@ use mcrs_minecraft_world::biome::climate::{ParameterList, ParameterPoint, Target
 use mcrs_minecraft_world::biome::overworld_preset::{
     nether_parameter_list, overworld_parameter_list,
 };
+use mcrs_minecraft_world::biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::aquifer::{FluidField, point_barrier};
@@ -26,7 +28,7 @@ use mcrs_minecraft_worldgen::value_provider::HeightContext;
 use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
 
-use crate::world::generate::ColumnBlocks;
+use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
 
 /// `WorldgenRandom.setLargeFeatureSeed`.
 ///
@@ -67,12 +69,43 @@ pub fn climate_target_at(
 /// Resolving at build time rather than per source means a source's lookup ends
 /// at the carver list itself, with no name to hash on the way.
 pub struct CarverBiomeTable {
-    table: ParameterList<Arc<[CarverConfig]>>,
+    biomes: SourceBiomes,
     /// Which entry each source chunk resolves to, by tile of `TILE` x `TILE`
     /// chunks. Every column asks for the 17x17 sources around it, so the
     /// columns next to it would derive 272 of the same climates again; the
     /// reference memoises the answer on the source chunk itself.
     tiles: Mutex<SourceTiles>,
+}
+
+/// How a source chunk's biome is found, and the carvers each answer runs.
+enum SourceBiomes {
+    /// The six climate roots at the source, against a climate table.
+    Climate(ParameterList<Arc<[CarverConfig]>>),
+    /// Temperature and humidity at the source through Beta's lookup grid, which
+    /// only ever answers a land biome: one carver list per land biome, in
+    /// discriminant order.
+    Beta {
+        lookup: Box<[[BetaLandBiome; 64]; 64]>,
+        land: Box<[Arc<[CarverConfig]>]>,
+    },
+}
+
+impl SourceBiomes {
+    fn carvers(&self, slot: u16) -> &[CarverConfig] {
+        match self {
+            SourceBiomes::Climate(table) => &table.values()[usize::from(slot)].1,
+            SourceBiomes::Beta { land, .. } => &land[usize::from(slot)],
+        }
+    }
+
+    fn lists(&self) -> Box<dyn Iterator<Item = &Arc<[CarverConfig]>> + '_> {
+        match self {
+            SourceBiomes::Climate(table) => {
+                Box::new(table.values().iter().map(|(_, carvers)| carvers))
+            }
+            SourceBiomes::Beta { land, .. } => Box::new(land.iter()),
+        }
+    }
 }
 
 const TILE: i32 = 16;
@@ -134,9 +167,13 @@ impl SourceTiles {
 }
 
 impl CarverBiomeTable {
-    #[cfg(test)]
     pub fn entry_count(&self) -> usize {
-        self.table.len()
+        self.biomes.lists().count()
+    }
+
+    /// Whether any biome of the table runs a carver `kind` accepts.
+    pub fn runs(&self, kind: impl Fn(&CarverConfig) -> bool) -> bool {
+        self.biomes.lists().any(|carvers| carvers.iter().any(&kind))
     }
 }
 
@@ -153,7 +190,7 @@ impl CarverBiomeTable {
             _ => return None,
         };
         Some(CarverBiomeTable {
-            table: Self::map_values(named, lookup),
+            biomes: SourceBiomes::Climate(Self::map_values(named, lookup)),
             tiles: Mutex::default(),
         })
     }
@@ -178,7 +215,33 @@ impl CarverBiomeTable {
             })
             .collect();
         Some(CarverBiomeTable {
-            table: ParameterList::new(values),
+            biomes: SourceBiomes::Climate(ParameterList::new(values)),
+            tiles: Mutex::default(),
+        })
+    }
+
+    /// A Beta source, whose biome is a function of temperature and humidity
+    /// alone.
+    pub fn beta(
+        source: &BiomeSource,
+        lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
+    ) -> Option<CarverBiomeTable> {
+        let BiomeSource::Beta {
+            land_biome_ids,
+            lookup: grid,
+            ..
+        } = source
+        else {
+            return None;
+        };
+        Some(CarverBiomeTable {
+            biomes: SourceBiomes::Beta {
+                lookup: grid.clone(),
+                land: land_biome_ids
+                    .iter()
+                    .map(|id| lookup(id.as_str()))
+                    .collect(),
+            },
             tiles: Mutex::default(),
         })
     }
@@ -204,7 +267,7 @@ impl CarverBiomeTable {
 
     /// The carvers the source chunk at `(source_x, source_z)` runs.
     ///
-    /// `held` keeps the tiles one column's window has touched, so the lock is
+    /// `held` keeps the tiles one column's region has touched, so the lock is
     /// taken at most four times per column.
     fn carvers_of_source<'a>(
         &'a self,
@@ -223,7 +286,7 @@ impl CarverBiomeTable {
             }
         };
         let slot = tile[(source_x.rem_euclid(TILE) * TILE + source_z.rem_euclid(TILE)) as usize];
-        &self.table.values()[usize::from(slot)].1
+        self.biomes.carvers(slot)
     }
 
     /// One tile's sources, evaluated as a single strided fill the first time
@@ -238,27 +301,43 @@ impl CarverBiomeTable {
             IVec3::new(tile_x * TILE * 16, 0, tile_z * TILE * 16),
             IVec3::new(16, 1, 16),
         );
-        let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
         let points = volume.len();
-        let mut values = vec![0.0f32; roots.len() * points];
-        router.fill_roots(ws, &volume, &roots, &mut values);
-
         let mut slots = [0u16; (TILE * TILE) as usize];
-        let mut last = None;
-        for dx in 0..TILE {
-            for dz in 0..TILE {
-                let at = volume.index_unchecked(dx, 0, dz);
-                let target = TargetPoint::new(
-                    values[at],
-                    values[points + at],
-                    values[2 * points + at],
-                    values[3 * points + at],
-                    values[4 * points + at],
-                    values[5 * points + at],
-                );
-                let slot = self.table.find_slot_from(target, &mut last);
-                slots[(dx * TILE + dz) as usize] =
-                    u16::try_from(slot).expect("a climate table fits in u16 slots");
+        match &self.biomes {
+            SourceBiomes::Climate(table) => {
+                let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
+                let mut values = vec![0.0f32; roots.len() * points];
+                router.fill_roots(ws, &volume, &roots, &mut values);
+                let mut last = None;
+                for dx in 0..TILE {
+                    for dz in 0..TILE {
+                        let at = volume.index_unchecked(dx, 0, dz);
+                        let target = TargetPoint::new(
+                            values[at],
+                            values[points + at],
+                            values[2 * points + at],
+                            values[3 * points + at],
+                            values[4 * points + at],
+                            values[5 * points + at],
+                        );
+                        let slot = table.find_slot_from(target, &mut last);
+                        slots[(dx * TILE + dz) as usize] =
+                            u16::try_from(slot).expect("a climate table fits in u16 slots");
+                    }
+                }
+            }
+            SourceBiomes::Beta { lookup, .. } => {
+                let roots = [TEMPERATURE, VEGETATION];
+                let mut values = vec![0.0f32; roots.len() * points];
+                router.fill_roots(ws, &volume, &roots, &mut values);
+                for dx in 0..TILE {
+                    for dz in 0..TILE {
+                        let at = volume.index_unchecked(dx, 0, dz);
+                        let biome =
+                            beta_biome_from_climate(lookup, values[at], values[points + at]);
+                        slots[(dx * TILE + dz) as usize] = biome as u16;
+                    }
+                }
             }
         }
         self.tiles
@@ -269,7 +348,10 @@ impl CarverBiomeTable {
 
     #[cfg(test)]
     pub fn carvers_at_for_test(&self, target: TargetPoint) -> &[CarverConfig] {
-        self.table.find_value(target)
+        let SourceBiomes::Climate(table) = &self.biomes else {
+            panic!("only a climate table answers a climate target");
+        };
+        table.find_value(target)
     }
 
     #[cfg(test)]
@@ -326,6 +408,80 @@ impl ModernCarverBlockIds {
 /// The reference protects the top seven blocks of the dimension from carving.
 const PROTECTED_BLOCKS_ON_TOP: i32 = 7;
 
+/// The mask one column's carvers mark, between the floor and the top seven
+/// blocks the reference protects.
+pub(crate) fn carving_mask(height: HeightContext) -> CarvingMask {
+    CarvingMask::new(
+        16,
+        height.min_y + 1,
+        height.min_y + height.depth - 1 - PROTECTED_BLOCKS_ON_TOP,
+    )
+}
+
+/// Every carver of every biome that reaches this chunk, marked into one mask.
+///
+/// `water` answers Beta's abort. It is built the first time a Beta carver
+/// starts in the column, off the blocks as filled: nothing writes to the column
+/// until the whole mask is marked.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn carve_sources(
+    water: impl Fn() -> WaterMask,
+    chunk_x: i32,
+    chunk_z: i32,
+    world_seed: i64,
+    router: &NoiseRouter,
+    ws: &mut Workspace,
+    biomes: &CarverBiomeTable,
+    height: HeightContext,
+) -> CarvingMask {
+    let mut mask = carving_mask(height);
+    // Modern carvers have no water abort; the empty mask answers in one AND.
+    let no_water = WaterMask::default();
+    let mut beta_water = None;
+
+    let mut held = Vec::with_capacity(4);
+
+    for source_x in (chunk_x - SOURCE_RADIUS)..=(chunk_x + SOURCE_RADIUS) {
+        for source_z in (chunk_z - SOURCE_RADIUS)..=(chunk_z + SOURCE_RADIUS) {
+            let carvers = biomes.carvers_of_source(router, ws, source_x, source_z, &mut held);
+            for (index, config) in carvers.iter().enumerate() {
+                let seed = match config {
+                    CarverConfig::Cave { .. } | CarverConfig::Canyon { .. } => large_feature_seed(
+                        world_seed.wrapping_add(index as i64),
+                        source_x,
+                        source_z,
+                    ),
+                    CarverConfig::BetaCave => beta_chunk_seed(world_seed, source_x, source_z),
+                };
+                let mut rng = LegacyRandom::new(seed as u64);
+                if !is_start_chunk(config, &mut rng) {
+                    continue;
+                }
+                match config {
+                    CarverConfig::Cave { .. } => carve_caves(
+                        config, height, chunk_x, chunk_z, source_x, source_z, &no_water, &mut mask,
+                        &mut rng,
+                    ),
+                    CarverConfig::Canyon { .. } => carve_canyon(
+                        config, height, chunk_x, chunk_z, source_x, source_z, &no_water, &mut mask,
+                        &mut rng,
+                    ),
+                    CarverConfig::BetaCave => carve_beta_caves(
+                        chunk_x,
+                        chunk_z,
+                        source_x,
+                        source_z,
+                        beta_water.get_or_insert_with(&water),
+                        &mut mask,
+                        &mut rng,
+                    ),
+                }
+            }
+        }
+    }
+    mask
+}
+
 /// Every carver of every biome that reaches this chunk, then one pass to fill
 /// what they freed.
 #[allow(clippy::too_many_arguments)]
@@ -341,40 +497,16 @@ pub fn apply_modern_carvers(
     ids: &ModernCarverBlockIds,
     fluid: &mut FluidField<'_>,
 ) {
-    let mut mask = CarvingMask::new(
-        16,
-        height.min_y + 1,
-        height.min_y + height.depth - 1 - PROTECTED_BLOCKS_ON_TOP,
+    let mask = carve_sources(
+        || unreachable!("a Beta carver outside a Beta dimension is refused with the tables"),
+        chunk_x,
+        chunk_z,
+        world_seed,
+        router,
+        ws,
+        biomes,
+        height,
     );
-    // Modern carvers have no water abort; the empty mask answers in one AND.
-    let water = WaterMask::default();
-
-    let mut held = Vec::with_capacity(4);
-
-    for source_x in (chunk_x - SOURCE_RADIUS)..=(chunk_x + SOURCE_RADIUS) {
-        for source_z in (chunk_z - SOURCE_RADIUS)..=(chunk_z + SOURCE_RADIUS) {
-            let carvers = biomes.carvers_of_source(router, ws, source_x, source_z, &mut held);
-            for (index, config) in carvers.iter().enumerate() {
-                let seed = world_seed.wrapping_add(index as i64);
-                let mut rng =
-                    LegacyRandom::new(large_feature_seed(seed, source_x, source_z) as u64);
-                if !is_start_chunk(config, &mut rng) {
-                    continue;
-                }
-                match config {
-                    CarverConfig::Cave { .. } => carve_caves(
-                        config, height, chunk_x, chunk_z, source_x, source_z, &water, &mut mask,
-                        &mut rng,
-                    ),
-                    CarverConfig::Canyon { .. } => carve_canyon(
-                        config, height, chunk_x, chunk_z, source_x, source_z, &water, &mut mask,
-                        &mut rng,
-                    ),
-                }
-            }
-        }
-    }
-
     apply_carver_substance(column, chunk_x, chunk_z, router, ws, &mask, ids, fluid);
 }
 
@@ -403,7 +535,8 @@ fn apply_carver_substance(
             if ids.is_uncarvable(state) {
                 continue;
             }
-            let Some(substance) = fluid.substance_settled(world_x, y, world_z, 0.0, &mut barrier_at)
+            let Some(substance) =
+                fluid.substance_settled(world_x, y, world_z, 0.0, &mut barrier_at)
             else {
                 continue;
             };
@@ -412,10 +545,8 @@ fn apply_carver_substance(
     });
 }
 
-/// The dimension's resolved carver table, built once in the host and cloned
-/// into the sub-app the way the other immutable registries are.
-#[derive(bevy_ecs::prelude::Resource, Clone)]
-pub struct ModernCarverBiomes(pub Arc<CarverBiomeTable>);
+/// The folder a carver asset loads from, under its namespace.
+pub(crate) const CARVER_REGISTRY: &str = "worldgen/carver";
 
 /// Every dimension's carver table, keyed the way its biome source is: a table
 /// resolves one source's climate entries, so the Nether's carvers are not the
@@ -454,7 +585,6 @@ fn build_modern_carver_biomes(
     asset_server: bevy_ecs::prelude::Res<bevy_asset::AssetServer>,
 ) {
     use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
-    use mcrs_minecraft_world::biome::source::BiomeSource;
 
     let Some(sources) = sources else { return };
 
@@ -463,7 +593,7 @@ fn build_modern_carver_biomes(
         let Some(path) = asset_server.get_path(asset_id) else {
             continue;
         };
-        let Some(location) = rl_from_asset_path(path.path()) else {
+        let Some(location) = rl_from_asset_path(path.path(), CARVER_REGISTRY) else {
             continue;
         };
         config_by_location.insert(location.as_str().to_owned(), asset.config.clone());
@@ -474,7 +604,7 @@ fn build_modern_carver_biomes(
         let Some(path) = asset_server.get_path(asset_id) else {
             continue;
         };
-        let Some(location) = rl_from_asset_path(path.path()) else {
+        let Some(location) = rl_from_asset_path(path.path(), "worldgen/biome") else {
             continue;
         };
         carvers_by_biome.insert(
@@ -489,6 +619,14 @@ fn build_modern_carver_biomes(
 
     let mut tables = DimensionCarverBiomes::default();
     for (dimension, source) in &sources.0 {
+        if let BiomeSource::Beta { .. } = source.as_ref() {
+            let table = resolve_beta_carver_biomes(source, &carvers_by_biome, &config_by_location)
+                .expect("a Beta source resolves to a Beta table");
+            tracing::info!(%dimension, "resolved the Beta carver table");
+            tables.0.insert(dimension.clone(), Arc::new(table));
+            continue;
+        }
+
         // A fixed source answers one biome everywhere, so its table is that
         // biome's carvers under a point covering the whole climate space: with a
         // single candidate the nearest-entry search returns it whatever the
@@ -505,7 +643,7 @@ fn build_modern_carver_biomes(
                     .iter()
                     .filter_map(|entry| {
                         let path = asset_server.get_path(entry.biome.id())?;
-                        let location = rl_from_asset_path(path.path())?;
+                        let location = rl_from_asset_path(path.path(), "worldgen/biome")?;
                         Some((
                             ParameterPoint::from(&entry.parameters),
                             location.as_str().to_owned(),
@@ -526,7 +664,13 @@ fn build_modern_carver_biomes(
             &config_by_location,
         ) {
             Some(table) => {
-                tracing::info!(%dimension, entries = table.table.len(), "resolved the carver table");
+                // Beta's caves abort on water and leave Beta's substance, which
+                // only the Beta column program answers.
+                assert!(
+                    !table.runs(|carver| matches!(carver, CarverConfig::BetaCave)),
+                    "{dimension}: mcrs:beta_cave carves only over a Beta biome source"
+                );
+                tracing::info!(%dimension, entries = table.entry_count(), "resolved the carver table");
                 tables.0.insert(dimension.clone(), Arc::new(table));
             }
             None => tracing::info!(%dimension, "no carver table for this biome source"),
@@ -557,7 +701,28 @@ pub fn resolve_carver_biomes(
     carvers_by_biome: &HashMap<String, Vec<String>>,
     config_by_location: &HashMap<String, CarverConfig>,
 ) -> Option<CarverBiomeTable> {
-    let lookup = |biome: &str| -> Arc<[CarverConfig]> {
+    let lookup = biome_carvers(carvers_by_biome, config_by_location);
+    match preset {
+        Some(preset) => CarverBiomeTable::resolve(preset, lookup),
+        None => explicit.and_then(|entries| CarverBiomeTable::from_entries(entries, lookup)),
+    }
+}
+
+/// [`resolve_carver_biomes`] for a Beta source.
+pub fn resolve_beta_carver_biomes(
+    source: &BiomeSource,
+    carvers_by_biome: &HashMap<String, Vec<String>>,
+    config_by_location: &HashMap<String, CarverConfig>,
+) -> Option<CarverBiomeTable> {
+    CarverBiomeTable::beta(source, biome_carvers(carvers_by_biome, config_by_location))
+}
+
+/// The carvers a biome runs, by the biome's name.
+fn biome_carvers<'a>(
+    carvers_by_biome: &'a HashMap<String, Vec<String>>,
+    config_by_location: &'a HashMap<String, CarverConfig>,
+) -> impl Fn(&str) -> Arc<[CarverConfig]> + 'a {
+    move |biome: &str| -> Arc<[CarverConfig]> {
         if !carvers_by_biome.contains_key(biome) {
             // The table still resolves and reports success, so a biome absent
             // from the loaded assets carves nothing at all with no other
@@ -581,10 +746,6 @@ pub fn resolve_carver_biomes(
                     .collect()
             })
             .unwrap_or_else(|| Arc::from(Vec::new()))
-    };
-    match preset {
-        Some(preset) => CarverBiomeTable::resolve(preset, lookup),
-        None => explicit.and_then(|entries| CarverBiomeTable::from_entries(entries, lookup)),
     }
 }
 

@@ -1,88 +1,11 @@
 use super::*;
-use bevy_app::TaskPoolPlugin;
-use bevy_asset::{AssetPlugin, AssetServer};
-use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::tag::TagLoader;
-use mcrs_minecraft_world::block::definition::load_block_definitions;
+use crate::world::generate::tests::{block_tags, blocks as corpus, tag_members};
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::sync::OnceLock;
-
-fn workspace_root() -> PathBuf {
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.pop();
-    path.pop();
-    path
-}
-
-fn corpus() -> &'static Blocks {
-    static CORPUS: OnceLock<Blocks> = OnceLock::new();
-    CORPUS.get_or_init(|| {
-        let mut app = App::new();
-        app.add_plugins(TaskPoolPlugin::default());
-        app.add_plugins(AssetPlugin {
-            watch_for_changes_override: Some(false),
-            file_path: workspace_root()
-                .join("assets")
-                .to_string_lossy()
-                .into_owned(),
-            ..Default::default()
-        });
-        let asset_server = app.world().resource::<AssetServer>().clone();
-        let (definitions, _) =
-            load_block_definitions(&asset_server).expect("the block definition corpus loads");
-        Blocks(Arc::new(definitions))
-    })
-}
-
-/// Expands one block tag file from the corpus on disk, following `#` references.
-fn resolve_tag(name: &str, blocks: &Blocks, out: &mut HashSet<u32>) {
-    let path = workspace_root()
-        .join("assets/minecraft/tags/block")
-        .join(format!("{}.json", name.trim_start_matches("minecraft:")));
-    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path:?}: {e}"));
-    let json: serde_json::Value = serde_json::from_str(&text).expect("valid tag file");
-    for value in json["values"].as_array().expect("values array") {
-        let id = match value {
-            serde_json::Value::String(s) => s.as_str(),
-            serde_json::Value::Object(o) => o["id"].as_str().expect("entry id"),
-            _ => continue,
-        };
-        match id.strip_prefix('#') {
-            Some(nested) => resolve_tag(nested, blocks, out),
-            None => {
-                if let Some(index) = blocks.index_of(id) {
-                    out.insert(index);
-                }
-            }
-        }
-    }
-}
-
-fn tag_members(name: &'static str, blocks: &Blocks) -> HashSet<u32> {
-    let mut ids = HashSet::new();
-    resolve_tag(name, blocks, &mut ids);
-    ids
-}
-
-fn tags(blocks: &Blocks) -> DynTagRegistry<Block> {
-    let mut loader = TagLoader::<Block, u32>::new(&[]);
-    for name in [
-        "minecraft:blocks_motion_in_heightmap",
-        "minecraft:blocks_motion_in_heightmap_no_leaves",
-        "minecraft:leaves",
-    ] {
-        let location = ResourceLocation::parse(name)
-            .expect("valid location")
-            .to_arc();
-        loader.insert(location, tag_members(name, blocks));
-    }
-    loader.freeze(blocks)
-}
 
 fn predicates() -> &'static HeightmapPredicates {
     static TABLE: OnceLock<HeightmapPredicates> = OnceLock::new();
-    TABLE.get_or_init(|| heightmap_predicates(corpus(), &tags(corpus())))
+    TABLE.get_or_init(|| heightmap_predicates(corpus(), block_tags()))
 }
 
 fn state_of(block: &str) -> VoxelId {
@@ -132,10 +55,9 @@ fn a_fluid_bearing_state_is_never_air() {
 
 #[test]
 fn blocks_motion_is_exactly_no_leaves_plus_leaves() {
-    let blocks = corpus();
-    let motion = tag_members("minecraft:blocks_motion_in_heightmap", blocks);
-    let no_leaves = tag_members("minecraft:blocks_motion_in_heightmap_no_leaves", blocks);
-    let leaves = tag_members("minecraft:leaves", blocks);
+    let motion = tag_members("minecraft:blocks_motion_in_heightmap");
+    let no_leaves = tag_members("minecraft:blocks_motion_in_heightmap_no_leaves");
+    let leaves = tag_members("minecraft:leaves");
 
     assert!(!motion.is_empty() && !leaves.is_empty());
     let union: HashSet<u32> = no_leaves.union(&leaves).copied().collect();

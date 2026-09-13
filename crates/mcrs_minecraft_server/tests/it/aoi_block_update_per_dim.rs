@@ -11,6 +11,7 @@ use bevy_ecs::system::IntoSystem;
 use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_server::world::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
+use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::ColumnPos;
@@ -30,8 +31,10 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     // chunk entity (the source of block-change events).
     // The player must carry the Player Component so the liveness filter in
     // update_client_blocks_per_dim passes it through (the filter uses
-    // Query<Entity, With<Player>>).
-    let player = app.world_mut().spawn(Player).id();
+    // Query<Entity, With<Player>>), and its HostAnchor because that is what the
+    // bus addresses: the session registry is keyed by anchor.
+    let anchor = app.world_mut().spawn_empty().id();
+    let player = app.world_mut().spawn((Player, HostAnchor(anchor))).id();
 
     let mut observers = PlayerObservers::default();
     observers.0.push(player);
@@ -84,8 +87,8 @@ fn block_update_resolves_observers_per_dim_emit_site() {
         match &pkt.target {
             PacketTarget::PlayerSet(set) => {
                 assert!(
-                    set.contains(&player),
-                    "BlockUpdate PlayerSet target missing the chunk observer"
+                    set.contains(&anchor),
+                    "BlockUpdate PlayerSet target missing the chunk observer's anchor"
                 );
                 block_update_count += 1;
             }

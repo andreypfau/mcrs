@@ -532,6 +532,11 @@ stone, which is how a carved tunnel through a lake shore stays walled. The
 window tables are the same tables — the carver runs on the same region task, or
 recomputes them by Q1 if it does not.
 
+A Beta dimension's carved positions do not ask the field. Its field answers
+water below sea level, which is what floods Beta's oceans, while `MapGenCaves`
+leaves the same positions dry: air, with lava under Y 10. The carve runs the
+shared source loop; only what a freed block becomes is Beta's (`beta_caves.rs`).
+
 The reference re-runs the surface rules at one block when a carver opens a
 cavity under grass; `surface.md` §1 records that this is not implemented. The
 flag from a carved fluid block goes to the same tick list as one from the fill.

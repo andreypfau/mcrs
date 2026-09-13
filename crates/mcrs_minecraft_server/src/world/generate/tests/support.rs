@@ -32,7 +32,7 @@ pub fn blocks() -> &'static Blocks {
 }
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::compile::build_router;
@@ -52,36 +52,8 @@ pub fn assets_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/minecraft/worldgen")
 }
 
-fn walk_json(base: &Path, dir: &Path, out: &mut Vec<(ResourceLocation, String)>) {
-    let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
-    for entry in entries {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            walk_json(base, &path, out);
-        } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            let rel = path.strip_prefix(base).unwrap().with_extension("");
-            let key = format!("minecraft:{}", rel.to_string_lossy().replace('\\', "/"));
-            let ident = key
-                .parse::<ResourceLocation>()
-                .unwrap_or_else(|e| panic!("{key}: {e:?}"));
-            let json = std::fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            out.push((ident, json));
-        }
-    }
-}
-
 pub fn load_json_dir<T: serde::de::DeserializeOwned>(name: &str) -> BTreeMap<ResourceLocation, T> {
-    let dir = assets_root().join(name);
-    let mut files = Vec::new();
-    walk_json(&dir, &dir, &mut files);
-    files
-        .into_iter()
-        .map(|(id, json)| {
-            let value = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{id}: {e}"));
-            (id, value)
-        })
-        .collect()
+    mcrs_minecraft_worldgen::corpus::registry(name)
 }
 
 pub fn density_function_registry() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
@@ -169,4 +141,77 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
         seen += 1;
     }
     assert!(seen >= 8, "only {seen} noise settings were checked");
+}
+
+use std::collections::HashSet;
+
+use mcrs_minecraft_core::tag::TagLoader;
+use mcrs_minecraft_core::tag::file::SerializedTagFile;
+use mcrs_minecraft_core::tag::key::TaggedRegistry;
+use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_core::tag::registry::TagSource;
+use mcrs_minecraft_world::block::definition::Fluids;
+use mcrs_minecraft_world::block::{Block, Fluid};
+
+fn tag_dir(registry: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("../../assets/minecraft/tags/{registry}"))
+}
+
+/// One block tag of the corpus, expanded off the files themselves.
+pub fn tag_members(name: &str) -> HashSet<u32> {
+    let mut members = HashSet::new();
+    collect_tag_members(Block::REGISTRY_PATH, blocks(), name, &mut members);
+    members
+}
+
+fn collect_tag_members<S: TagSource<Id = u32>>(
+    registry: &str,
+    source: &S,
+    name: &str,
+    into: &mut HashSet<u32>,
+) {
+    let path = tag_dir(registry).join(format!("{}.json", name.trim_start_matches("minecraft:")));
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let file: SerializedTagFile = serde_json::from_str(&text).expect("a tag file");
+    for entry in file.values {
+        if entry.id.is_tag {
+            collect_tag_members(registry, source, entry.id.loc.as_str(), into);
+        } else if let Some(index) = source.id_of(entry.id.loc.as_str()) {
+            into.insert(index);
+        }
+    }
+}
+
+/// Every tag file of one registry, expanded off the files themselves.
+fn every_tag<T: TaggedRegistry, S: TagSource<Id = u32>>(source: &S) -> DynTagRegistry<T> {
+    let dir = tag_dir(T::REGISTRY_PATH);
+    let mut loader = TagLoader::<T, u32>::new(&[]);
+    let entries = std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    for entry in entries {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+        let name = format!("minecraft:{}", path.file_stem().unwrap().to_string_lossy());
+        let mut members = HashSet::new();
+        collect_tag_members(T::REGISTRY_PATH, source, &name, &mut members);
+        loader.insert(
+            ResourceLocation::parse(&name).expect("a tag id").to_arc(),
+            members,
+        );
+    }
+    loader.freeze(source)
+}
+
+/// Every block tag of the corpus: what the freeze hands the heightmap table and
+/// the ore rule tests.
+pub fn block_tags() -> &'static DynTagRegistry<Block> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<Block>> = std::sync::OnceLock::new();
+    TAGS.get_or_init(|| every_tag(blocks()))
+}
+
+pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<Fluid>> = std::sync::OnceLock::new();
+    TAGS.get_or_init(|| every_tag(&Fluids(blocks().0.clone())))
 }

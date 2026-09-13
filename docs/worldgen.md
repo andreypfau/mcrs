@@ -994,6 +994,28 @@ implementation there is no race; it appears from the parallelisation itself and
 must be closed explicitly: either declare light's dependency on scattering at
 radius 2, or place a barrier on scattering for light's halo.
 
+### The form in force
+
+The colouring above is the schedule for an **in-place** scattering stage, one
+whose units write into shared storage as they run. It has a second cost beside
+N3 that this section did not derive: a unit may run only when every
+conflicting unit of lower colour has run, those units wait on theirs, and the
+chain is bounded only by the number of colours — with nine colours and `d = 2`
+it reaches sixteen columns. A batch executor absorbs that in its waves; a
+streaming dispatcher, which pops the nearest wanted column and has no batch,
+would have to generate columns nobody asked for up to that distance before
+delivering one at the edge of the view.
+
+The form in force for scattered objects is therefore form 1 of §14: a unit
+reads immutable filled snapshots of its window, writes its own column and
+emits its out-of-column writes as deltas, and a separate merge applies the
+writers of each position in a fixed rank. Every stage is then field-shaped and
+C3 holds with no barrier; the rank is the colour index of this section, so N2
+is kept as the merge order, and N1 becomes vacuous — no conflict predicate is
+ever evaluated. The hole above is closed by delivery rather than by a wider
+dependency: a column becomes visible only when every unit that can write into
+it has been merged. The specification is `scattering.md` §3.
+
 ### Enlarging the region
 
 Three mechanisms benefit from the evaluation unit being larger than the storage
@@ -1077,7 +1099,8 @@ exists precisely so that seeding enqueues boundary cells rather than the whole l
 volume.
 
 1. Compute locally and push cross-border output into a delta queue applied in a
-   separate phase.
+   separate phase. This is the form scattered objects use (§13, "The form in
+   force"; `scattering.md` §3).
 2. The three-dimensional analogue of the §13 colouring: a one-section halo gives
    27 classes.
 3. Give light a whole region and do not split it by section at all.
@@ -1300,7 +1323,11 @@ feeds the seed through the object index (F2) and the result through overlapping
 write footprints (W1). **Write the conflict predicate with "or".** Footprints are
 squares; the predicate is a conjunction. **Derive the colouring step from one
 radius alone.** It is the larger of twice the write radius and the sum of the two,
-plus one (N1). **Put block-scale fields below the interpolation.** They will not
+plus one (N1). Both apply to an in-place stage; scattered objects run in the
+delta form, where the predicate is never evaluated and the colour survives only
+as the merge rank (§13, "The form in force"). **Run an in-place scattering
+stage from a streaming dispatcher.** The colour chain reaches sixteen columns
+past the view. **Put block-scale fields below the interpolation.** They will not
 blur, they will vanish
 (L2). **Treat the preliminary surface as a three-dimensional field.** It is rank
 XZ (P1). **Derive the fluid skip threshold from the column-wide surface maximum.**
@@ -1417,7 +1444,8 @@ For checking behaviour against, not for copying. Paths are relative to
 | Topic | Reference | Here | Reason |
 | --- | --- | --- | --- |
 | Structure placement | a pipeline stage, result stored in a column | a sparse index computed on demand | G1: a pure function of the lattice; removes radius 8 from four stages |
-| Scattering stages | sequential executor, order from the player's route | colouring by footprints, order from the colour | C3 and W1: parallel and deterministic at once |
+| Scattering stages | sequential executor, order from the player's route; a unit sees whatever neighbours were decorated first | private writes merged in a fixed rank; a unit sees the filled window and its own writes only (`scattering.md` §3, Wn2) | C3 and W1 with no barrier and no chain; the reference's read order was never reproducible |
+| Block updates inside a feature | shape updates at a tree's faces, post-processing marks | none | live-world semantics; under the read rule above the affected set is empty (`scattering.md` D7) |
 | Section storage | fixed array per column | sparse index, absence = air | V2: two thirds of the volume is never allocated |
 | Range choice | both arms over the whole volume | exclusive cones and a jump in the schedule | D1 applied at run time, not only at compile time |
 | Cell bounds | none | an interval over eight corners settles a whole cell | The convex hull lemma (§4) |

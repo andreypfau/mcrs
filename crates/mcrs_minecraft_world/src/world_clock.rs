@@ -378,7 +378,9 @@ pub fn seed_world_clocks(
     clocks.reconcile_with_registry(
         assets
             .iter()
-            .filter_map(|(id, _)| rl_from_asset_path(asset_server.get_path(id)?.path()))
+            .filter_map(|(id, _)| {
+                rl_from_asset_path(asset_server.get_path(id)?.path(), "world_clock")
+            })
             .collect::<Vec<_>>(),
     );
     tracing::info!(clocks = clocks.len(), "seeded world clocks");

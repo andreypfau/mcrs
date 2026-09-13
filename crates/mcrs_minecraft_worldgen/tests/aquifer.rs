@@ -33,7 +33,7 @@ fn overworld(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> NoiseRoute
     .unwrap()
 }
 
-/// A coast, a mountain range and deep inland, so the windows seen mix sea
+/// A coast, a mountain range and deep inland, so the volumes seen mix sea
 /// cells with dry ones, hold perched lakes, and reach lava depths.
 const COLUMNS: [(i32, i32); 3] = [(0, 0), (52, 36), (-118, -119)];
 

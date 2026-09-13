@@ -1,107 +1,105 @@
-use crate::carver::config::BetaCaveCarverConfig;
+use crate::carver::CarveShape;
 use crate::carver::mask::CarvingMask;
-use crate::carver::tunnel::{SplitSeeding, TunnelShape, walk_tunnel};
+use crate::carver::modern::SOURCE_RADIUS;
+use crate::carver::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel};
 use crate::carver::water::WaterMask;
-use crate::carver::{CarveShape, WorldCarver};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
-pub struct CaveWorldCarver;
+/// `MapGenCaves`: what one source chunk carves into the target chunk.
+pub fn carve_beta_caves<R: Random>(
+    chunk_x: i32,
+    chunk_z: i32,
+    source_x: i32,
+    source_z: i32,
+    water: &WaterMask,
+    mask: &mut CarvingMask,
+    rng: &mut R,
+) {
+    let shape_kind = CarveShape::Cave {
+        floor_level: BETA_FLOOR_LEVEL,
+    };
+    let cave_count = {
+        let a = rng.next_i32_bound(40) + 1;
+        let b = rng.next_i32_bound(a) + 1;
+        rng.next_i32_bound(b)
+    };
+    let cave_count = if rng.next_i32_bound(15) != 0 {
+        0
+    } else {
+        cave_count
+    };
 
-impl WorldCarver for CaveWorldCarver {
-    fn carve<R: Random>(
-        &self,
-        config: &BetaCaveCarverConfig,
-        chunk_x: i32,
-        chunk_z: i32,
-        origin_x: i32,
-        origin_z: i32,
-        water: &WaterMask,
-        mask: &mut CarvingMask,
-        rng: &mut R,
-    ) {
-        let shape_kind = CarveShape::Cave {
-            floor_level: BETA_FLOOR_LEVEL,
-        };
-        let cave_count = {
-            let a = rng.next_i32_bound(40) + 1;
-            let b = rng.next_i32_bound(a) + 1;
-            rng.next_i32_bound(b)
-        };
-        let cave_count = if rng.next_i32_bound(15) != 0 {
-            0
-        } else {
-            cave_count
-        };
+    for _ in 0..cave_count {
+        let x = (source_x * 16 + rng.next_i32_bound(16)) as f64;
+        let y_bound = rng.next_i32_bound(120) + 8;
+        let y = rng.next_i32_bound(y_bound) as f64;
+        let z = (source_z * 16 + rng.next_i32_bound(16)) as f64;
 
-        for _ in 0..cave_count {
-            let x = (origin_x * 16 + rng.next_i32_bound(16)) as f64;
-            let y_bound = rng.next_i32_bound(120) + 8;
-            let y = rng.next_i32_bound(y_bound) as f64;
-            let z = (origin_z * 16 + rng.next_i32_bound(16)) as f64;
+        let mut tunnels = 1;
+        if rng.next_i32_bound(4) == 0 {
+            let thickness = 1.0 + rng.next_f32() * 6.0;
+            let mut room_rng = LegacyRandom::new(rng.next_java_long() as u64);
+            let total_steps = tunnel_length(&mut room_rng);
+            walk_tunnel(
+                chunk_x,
+                chunk_z,
+                x,
+                y,
+                z,
+                beta_shape(thickness, 0.5),
+                0.0,
+                0.0,
+                total_steps / 2,
+                total_steps,
+                true,
+                SplitSeeding::FromParent,
+                shape_kind,
+                water,
+                mask,
+                &mut room_rng,
+                rng,
+            );
+            tunnels += rng.next_i32_bound(4);
+        }
 
-            let mut tunnels = 1;
-            if rng.next_i32_bound(4) == 0 {
-                let thickness = 1.0 + rng.next_f32() * 6.0;
-                let mut room_rng = LegacyRandom::new(rng.next_java_long() as u64);
-                let total_steps = tunnel_length(config, &mut room_rng);
-                walk_tunnel(
-                    chunk_x,
-                    chunk_z,
-                    x,
-                    y,
-                    z,
-                    beta_shape(thickness, 0.5),
-                    0.0,
-                    0.0,
-                    total_steps / 2,
-                    total_steps,
-                    true,
-                    SplitSeeding::FromParent,
-                    shape_kind,
-                    water,
-                    mask,
-                    &mut room_rng,
-                    rng,
-                );
-                tunnels += rng.next_i32_bound(4);
-            }
-
-            for _ in 0..tunnels {
-                let yaw = rng.next_f32() * std::f32::consts::TAU;
-                let pitch = (rng.next_f32() - 0.5) * 2.0 / 8.0;
-                let thickness = rng.next_f32() * 2.0 + rng.next_f32();
-                let mut tunnel_rng = LegacyRandom::new(rng.next_java_long() as u64);
-                let total_steps = tunnel_length(config, &mut tunnel_rng);
-                walk_tunnel(
-                    chunk_x,
-                    chunk_z,
-                    x,
-                    y,
-                    z,
-                    beta_shape(thickness, 1.0),
-                    yaw,
-                    pitch,
-                    0,
-                    total_steps,
-                    false,
-                    SplitSeeding::FromParent,
-                    shape_kind,
-                    water,
-                    mask,
-                    &mut tunnel_rng,
-                    rng,
-                );
-            }
+        for _ in 0..tunnels {
+            let yaw = rng.next_f32() * std::f32::consts::TAU;
+            let pitch = (rng.next_f32() - 0.5) * 2.0 / 8.0;
+            let thickness = rng.next_f32() * 2.0 + rng.next_f32();
+            let mut tunnel_rng = LegacyRandom::new(rng.next_java_long() as u64);
+            let total_steps = tunnel_length(&mut tunnel_rng);
+            walk_tunnel(
+                chunk_x,
+                chunk_z,
+                x,
+                y,
+                z,
+                beta_shape(thickness, 1.0),
+                yaw,
+                pitch,
+                0,
+                total_steps,
+                false,
+                SplitSeeding::FromParent,
+                shape_kind,
+                water,
+                mask,
+                &mut tunnel_rng,
+                rng,
+            );
         }
     }
 }
 
+/// Beta sizes a tunnel off the same field its source loop walks, so the radius
+/// the loop shares with the modern carvers is the one the length derives from.
+const TUNNEL_LENGTH: i32 = SOURCE_RADIUS * 16 - 16;
+
 /// Beta draws the length from the tunnel's own generator, before the split
 /// point and the steepness; the modern carvers draw it from the source's.
-fn tunnel_length(config: &BetaCaveCarverConfig, rng: &mut LegacyRandom) -> i32 {
-    let length = config.tunnel_length;
-    length - rng.next_i32_bound(length / 4)
+fn tunnel_length(rng: &mut LegacyRandom) -> i32 {
+    TUNNEL_LENGTH - rng.next_i32_bound(TUNNEL_LENGTH / 4)
 }
 
 const BETA_FLOOR_LEVEL: f64 = -0.7;
@@ -112,6 +110,7 @@ fn beta_shape(thickness: f32, y_scale: f64) -> TunnelShape {
         y_scale,
         horizontal_radius_multiplier: 1.0,
         vertical_radius_multiplier: 1.0,
+        trig: TrigIndex::Beta,
     }
 }
 
@@ -119,22 +118,6 @@ fn beta_shape(thickness: f32, y_scale: f64) -> TunnelShape {
 mod tests {
     use super::*;
     use crate::carver::carve_ellipsoid;
-    use mcrs_voxel_storage::VoxelId;
-
-    fn beta_config() -> BetaCaveCarverConfig {
-        BetaCaveCarverConfig {
-            air_state: VoxelId(0),
-            lava_state: VoxelId(11),
-            stone_state: VoxelId(1),
-            dirt_state: VoxelId(2),
-            grass_state: VoxelId(3),
-            lava_level: 10,
-            source_radius: 8,
-            tunnel_length: 112,
-            horizontal_radius_multiplier: 1.0,
-            vertical_radius_multiplier: 1.0,
-        }
-    }
 
     #[test]
     fn next_i32_bound_one_returns_zero() {
@@ -214,19 +197,5 @@ mod tests {
             &mut mask,
         ));
         assert!(mask.is_empty());
-    }
-
-    #[test]
-    fn the_config_carries_the_beta_substance_states() {
-        let config = beta_config();
-        assert_eq!(config.lava_level, 10);
-        assert!(crate::carver::can_replace_block(
-            &config,
-            config.stone_state
-        ));
-        assert!(!crate::carver::can_replace_block(
-            &config,
-            config.lava_state
-        ));
     }
 }

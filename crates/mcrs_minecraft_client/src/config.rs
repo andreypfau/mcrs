@@ -277,6 +277,25 @@ pub fn light_levels() -> bool {
     flag("LIGHT_LEVELS", false)
 }
 
+/// `CHUNK_GUARD=1` takes the client down the moment the player stands in a
+/// column it does not hold, `=warn` only says so, and `0` or unset is off.
+///
+/// A break that self-heals a frame later cannot be missed by a log line, which
+/// is why the loud form is the default once the knob is set at all.
+pub fn chunk_guard() -> Option<Guard> {
+    match knob("CHUNK_GUARD").as_deref().map(str::trim) {
+        None | Some("0") => None,
+        Some("warn") => Some(Guard::Warn),
+        Some(_) => Some(Guard::Panic),
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum Guard {
+    Warn,
+    Panic,
+}
+
 /// Bevy's stock split gives async compute a quarter of the cores capped at four, which on a
 /// sixteen-core machine leaves meshing, column decode and the embedded server's lighting to
 /// share four threads while twelve idle. `ASYNC=<threads>` moves the cap.
