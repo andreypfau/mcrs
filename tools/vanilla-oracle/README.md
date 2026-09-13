@@ -355,3 +355,99 @@ repeated case_count times:
 holding. The leaf relaxation only rewrites positions already written, so it
 cannot reorder the list; the order is therefore the trunk, foliage and decorator
 order, and a port that visits cells in a different order fails on it.
+
+---
+
+# Template dumps
+
+`TemplateOracle.main` loads every structure template the jar ships through the
+loader a server uses — `ResourceManagerTemplateSource` over the vanilla data
+pack, with the real `DataFixers.getDataFixer()` and `BuiltInRegistries.BLOCK` —
+and records, for all 1511 of them, what `StructureTemplate.load` produced: the
+size, the palettes, the three-section block ordering, the file palette entries
+as resolved, and every jigsaw. For 33 listed templates it also writes the full
+ordered block list per palette. It runs no server: only
+`Bootstrap.bootStrap()` and the vanilla pack's `ResourceManager` are built.
+`StructureTemplateManager` is not constructed (it demands a world save
+directory); the resource-manager source it delegates to is called directly, and
+the private `palettes` list is read by reflection.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpTemplates --console=plain --no-daemon \
+    -PoracleOut=../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures
+```
+
+One file, `templates.bin`. The task throws if the pack lists anything other
+than 1511 templates, if any template fails to load, or if a listed id is not
+in the corpus — vanilla substitutes an empty template where it cannot load one,
+and the dump must not.
+
+The listed subset, what each entry pins, and what the fixture cannot pin are
+beside the fixture in
+`crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/templates_capture_procedure.md`.
+
+## Binary layout
+
+Little-endian, same primitives as the density dumps. The block lists in the
+listed section are the same `(palette, blocks)` shape as the ore-vein and tree
+dumps, followed by one extra bitset.
+
+```
+magic            8 bytes, ASCII "MCTMPLT0"
+format_version   u32   currently 1
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
+
+dynamic_count    u32   blocks whose Block.hasDynamicShape() is true
+dynamic_ids      str * dynamic_count      in BuiltInRegistries.BLOCK order
+
+template_count   u32   1511
+repeated template_count times, ids ascending by Identifier.toString():
+  id             str   e.g. "minecraft:village/plains/houses/plains_small_house_1"
+  size_x         i32   StructureTemplate.getSize()
+  size_y         i32
+  size_z         i32
+  palette_count  u32   1, or 8 for the shipwrecks
+  repeated palette_count times:
+    full_count     u32   blocks with no nbt whose state is a full collision
+                         shape and whose block has no dynamic shape
+    other_count    u32   blocks with no nbt that are not full
+    entity_count   u32   blocks with nbt; the three sum to Palette.blocks().size()
+    entry_count    u32   the file's palette list length
+    entries        str * entry_count      BlockStateParser.serialize of
+                                          NbtUtils.readBlockState over each entry
+    jigsaw_count   u32   Palette.jigsaws().size()
+    repeated jigsaw_count times, in Palette.jigsaws() order:
+      x, y, z              i32 * 3
+      state                str   e.g. "minecraft:jigsaw[orientation=up_north]"
+      front                str   JigsawBlock.getFrontFacing(state): "down" … "east"
+      top                  str   JigsawBlock.getTopFacing(state)
+      joint                str   "rollable" | "aligned"
+      name                 str
+      pool                 str
+      target               str
+      placement_priority   i32
+      selection_priority   i32
+      final_state_raw      str   nbt "final_state", or "minecraft:air" when absent
+      final_state          str   BlockStateParser.parseForBlock of the raw string,
+                                 serialized; "" when the parse throws
+
+listed_count     u32   33
+repeated listed_count times:
+  id             str
+  palette_count  u32
+  repeated palette_count times:
+    palette_count  u32
+    palette        str * palette_count    interned in first-use order over Palette.blocks()
+    block_count    u32
+    blocks         (i32 x, i32 y, i32 z, u32 palette index) * block_count
+    nbt_bits       byte * ((block_count + 7) / 8)
+```
+
+`blocks` is `Palette.blocks()` verbatim: the full-block section, then the
+other-block section, then the block entities, each sorted by y, then x, then z.
+Positions are template-relative. Bit `i` of `nbt_bits` is
+`nbt_bits[i >> 3] & (1 << (i & 7))` and is set when block `i` carries a block
+entity compound.
+
+The file ends exactly at the last bitset; there is no trailer.

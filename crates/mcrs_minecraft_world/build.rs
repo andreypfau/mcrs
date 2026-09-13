@@ -2,47 +2,77 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Registry folders whose `.json` files should be enumerated at compile time
-/// and exposed at runtime as `&[&str]` slices in the generated module.
+/// Registry folders whose files with the given extension should be enumerated
+/// at compile time and exposed at runtime as `&[&str]` slices in the generated
+/// module.
 ///
-/// Adding a new dynamic registry: append `(rust_const_name, "<folder under assets/>")`.
-/// Adding a new file to an existing registry: drop the JSON into `assets/<folder>/`
+/// Adding a new dynamic registry: append `(rust_const_name, "<folder under assets/>", "<ext>")`.
+/// Adding a new file to an existing registry: drop it into `assets/<folder>/`
 /// — the build script will pick it up on the next rebuild.
-const REGISTRY_FOLDERS: &[(&str, &str)] = &[
-    ("BIOME", "minecraft/worldgen/biome"),
-    ("CARVER", "minecraft/worldgen/carver"),
-    ("FEATURE", "minecraft/worldgen/feature"),
-    ("PLACED_FEATURE", "minecraft/worldgen/placed_feature"),
-    ("CHAT_TYPE", "minecraft/chat_type"),
-    ("DIMENSION_TYPE", "minecraft/dimension_type"),
-    ("TRIM_PATTERN", "minecraft/trim_pattern"),
-    ("TRIM_MATERIAL", "minecraft/trim_material"),
-    ("WOLF_VARIANT", "minecraft/wolf_variant"),
-    ("WOLF_SOUND_VARIANT", "minecraft/wolf_sound_variant"),
-    ("PIG_SOUND_VARIANT", "minecraft/pig_sound_variant"),
-    ("CAT_SOUND_VARIANT", "minecraft/cat_sound_variant"),
-    ("COW_SOUND_VARIANT", "minecraft/cow_sound_variant"),
-    ("CHICKEN_SOUND_VARIANT", "minecraft/chicken_sound_variant"),
-    ("PIG_VARIANT", "minecraft/pig_variant"),
-    ("FROG_VARIANT", "minecraft/frog_variant"),
-    ("CAT_VARIANT", "minecraft/cat_variant"),
-    ("COW_VARIANT", "minecraft/cow_variant"),
-    ("CHICKEN_VARIANT", "minecraft/chicken_variant"),
+const REGISTRY_FOLDERS: &[(&str, &str, &str)] = &[
+    ("TEMPLATE", "minecraft/structure", "nbt"),
+    ("BIOME", "minecraft/worldgen/biome", "json"),
+    ("CARVER", "minecraft/worldgen/carver", "json"),
+    ("FEATURE", "minecraft/worldgen/feature", "json"),
+    (
+        "PLACED_FEATURE",
+        "minecraft/worldgen/placed_feature",
+        "json",
+    ),
+    ("STRUCTURE_SET", "minecraft/worldgen/structure_set", "json"),
+    ("STRUCTURE", "minecraft/worldgen/structure", "json"),
+    ("TEMPLATE_POOL", "minecraft/worldgen/template_pool", "json"),
+    ("CHAT_TYPE", "minecraft/chat_type", "json"),
+    ("DIMENSION_TYPE", "minecraft/dimension_type", "json"),
+    ("TRIM_PATTERN", "minecraft/trim_pattern", "json"),
+    ("TRIM_MATERIAL", "minecraft/trim_material", "json"),
+    ("WOLF_VARIANT", "minecraft/wolf_variant", "json"),
+    ("WOLF_SOUND_VARIANT", "minecraft/wolf_sound_variant", "json"),
+    ("PIG_SOUND_VARIANT", "minecraft/pig_sound_variant", "json"),
+    ("CAT_SOUND_VARIANT", "minecraft/cat_sound_variant", "json"),
+    ("COW_SOUND_VARIANT", "minecraft/cow_sound_variant", "json"),
+    (
+        "CHICKEN_SOUND_VARIANT",
+        "minecraft/chicken_sound_variant",
+        "json",
+    ),
+    ("PIG_VARIANT", "minecraft/pig_variant", "json"),
+    ("FROG_VARIANT", "minecraft/frog_variant", "json"),
+    ("CAT_VARIANT", "minecraft/cat_variant", "json"),
+    ("COW_VARIANT", "minecraft/cow_variant", "json"),
+    ("CHICKEN_VARIANT", "minecraft/chicken_variant", "json"),
     (
         "ZOMBIE_NAUTILUS_VARIANT",
         "minecraft/zombie_nautilus_variant",
+        "json",
     ),
-    ("PAINTING_VARIANT", "minecraft/painting_variant"),
-    ("DAMAGE_TYPE", "minecraft/damage_type"),
-    ("BANNER_PATTERN", "minecraft/banner_pattern"),
-    ("JUKEBOX_SONG", "minecraft/jukebox_song"),
-    ("INSTRUMENT", "minecraft/instrument"),
-    ("DIALOG", "minecraft/dialog"),
-    ("TIMELINE", "minecraft/timeline"),
-    ("WORLD_CLOCK", "minecraft/world_clock"),
-    ("TEST_ENVIRONMENT", "minecraft/test_environment"),
-    ("TEST_INSTANCE", "minecraft/test_instance"),
+    ("PAINTING_VARIANT", "minecraft/painting_variant", "json"),
+    ("DAMAGE_TYPE", "minecraft/damage_type", "json"),
+    ("BANNER_PATTERN", "minecraft/banner_pattern", "json"),
+    ("JUKEBOX_SONG", "minecraft/jukebox_song", "json"),
+    ("INSTRUMENT", "minecraft/instrument", "json"),
+    ("DIALOG", "minecraft/dialog", "json"),
+    ("TIMELINE", "minecraft/timeline", "json"),
+    ("WORLD_CLOCK", "minecraft/world_clock", "json"),
+    ("TEST_ENVIRONMENT", "minecraft/test_environment", "json"),
+    ("TEST_INSTANCE", "minecraft/test_instance", "json"),
 ];
+
+fn collect_files(dir: &Path, assets_root: &Path, extension: &str, out: &mut Vec<String>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files(&path, assets_root, extension, out);
+        } else if path.extension().and_then(|s| s.to_str()) == Some(extension)
+            && let Ok(relative) = path.strip_prefix(assets_root)
+        {
+            out.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+}
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -57,22 +87,10 @@ fn main() {
     let mut code = String::new();
     code.push_str("// @generated by build.rs — do not edit by hand.\n\n");
 
-    for (const_name, folder) in REGISTRY_FOLDERS {
+    for (const_name, folder, extension) in REGISTRY_FOLDERS {
         let folder_abs = assets_root.join(folder);
-        let mut files: Vec<String> = match fs::read_dir(&folder_abs) {
-            Ok(rd) => rd
-                .filter_map(Result::ok)
-                .filter_map(|e| {
-                    let p = e.path();
-                    if p.extension().and_then(|s| s.to_str()) != Some("json") {
-                        return None;
-                    }
-                    let name = p.file_name()?.to_str()?.to_owned();
-                    Some(format!("{folder}/{name}"))
-                })
-                .collect(),
-            Err(_) => Vec::new(),
-        };
+        let mut files = Vec::new();
+        collect_files(&folder_abs, &assets_root, extension, &mut files);
         files.sort();
         println!("cargo:rerun-if-changed={}", folder_abs.display());
 

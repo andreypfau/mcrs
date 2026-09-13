@@ -131,6 +131,7 @@ impl Plugin for MinecraftServerPlugin {
         app.add_plugins(crate::block_light_table::BlockLightTablePlugin);
         app.add_plugins(crate::world::generate::modern_carvers::ModernCarverPlugin);
         app.add_plugins(crate::world::generate::features::FeaturePlugin);
+        app.add_plugins(crate::world::generate::structures::StructurePlugin);
         app.add_plugins(crate::world::heightmap::HeightmapPredicatesPlugin);
         app.add_plugins(WorldPlugin);
         app.add_plugins(ClientInfoPlugin);

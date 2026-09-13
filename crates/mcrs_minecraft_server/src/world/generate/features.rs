@@ -71,7 +71,7 @@ impl Plugin for FeaturePlugin {
     }
 }
 
-fn registry_of<A: bevy_asset::Asset, T: Clone>(
+pub(crate) fn registry_of<A: bevy_asset::Asset, T: Clone>(
     assets: &Assets<A>,
     asset_server: &AssetServer,
     folder: &str,
@@ -89,7 +89,7 @@ fn registry_of<A: bevy_asset::Asset, T: Clone>(
 
 /// The biomes a source can answer with, in the source's own order and without
 /// repeats — the input the feature order is defined against.
-fn possible_biomes(
+pub(crate) fn possible_biomes(
     source: &BiomeSource,
     named: impl Fn(&bevy_asset::Handle<Biome>) -> Option<ResourceLocation>,
 ) -> Vec<ResourceLocation> {

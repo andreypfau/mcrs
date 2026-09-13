@@ -145,11 +145,13 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
 
 use std::collections::HashSet;
 
+use mcrs_minecraft_core::DynRegistryIndex;
 use mcrs_minecraft_core::tag::TagLoader;
 use mcrs_minecraft_core::tag::file::SerializedTagFile;
 use mcrs_minecraft_core::tag::key::TaggedRegistry;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
 use mcrs_minecraft_core::tag::registry::TagSource;
+use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::definition::Fluids;
 use mcrs_minecraft_world::block::{Block, Fluid};
 
@@ -183,17 +185,17 @@ fn collect_tag_members<S: TagSource<Id = u32>>(
     }
 }
 
-/// Every tag file of one registry, expanded off the files themselves.
+/// Every tag file of one registry, subfolders included, expanded off the
+/// files themselves.
 fn every_tag<T: TaggedRegistry, S: TagSource<Id = u32>>(source: &S) -> DynTagRegistry<T> {
     let dir = tag_dir(T::REGISTRY_PATH);
     let mut loader = TagLoader::<T, u32>::new(&[]);
-    let entries = std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
-    for entry in entries {
-        let path = entry.unwrap().path();
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-        let name = format!("minecraft:{}", path.file_stem().unwrap().to_string_lossy());
+    for path in mcrs_minecraft_worldgen::corpus::json_files(&dir) {
+        let relative = path.strip_prefix(&dir).unwrap().with_extension("");
+        let name = format!(
+            "minecraft:{}",
+            relative.to_string_lossy().replace('\\', "/")
+        );
         let mut members = HashSet::new();
         collect_tag_members(T::REGISTRY_PATH, source, &name, &mut members);
         loader.insert(
@@ -214,4 +216,17 @@ pub fn block_tags() -> &'static DynTagRegistry<Block> {
 pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
     static TAGS: std::sync::OnceLock<DynTagRegistry<Fluid>> = std::sync::OnceLock::new();
     TAGS.get_or_init(|| every_tag(&Fluids(blocks().0.clone())))
+}
+
+/// Every biome id of the corpus, numbered the way the snapshot numbers them.
+pub fn biome_index() -> &'static DynRegistryIndex<Biome> {
+    static INDEX: std::sync::OnceLock<DynRegistryIndex<Biome>> = std::sync::OnceLock::new();
+    INDEX.get_or_init(|| {
+        DynRegistryIndex::build(load_json_dir::<serde::de::IgnoredAny>("biome").into_keys())
+    })
+}
+
+pub fn biome_tags() -> &'static DynTagRegistry<Biome> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<Biome>> = std::sync::OnceLock::new();
+    TAGS.get_or_init(|| every_tag(biome_index()))
 }

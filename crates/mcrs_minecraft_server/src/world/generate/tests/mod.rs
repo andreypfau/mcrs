@@ -14,8 +14,10 @@ mod modern_features;
 mod multi_noise_biomes;
 mod perf;
 mod rungs;
+mod structures;
 mod surface;
 mod surface_parity;
+mod template_manifest;
 mod trees;
 
 mod support;

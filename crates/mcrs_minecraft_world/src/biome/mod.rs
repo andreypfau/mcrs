@@ -44,6 +44,10 @@ pub struct Biome {
     pub features: Vec<FeatureStepList>,
 }
 
+impl mcrs_minecraft_core::tag::key::TaggedRegistry for Biome {
+    const REGISTRY_PATH: &'static str = "worldgen/biome";
+}
+
 impl Biome {
     pub fn load(ctx: &mut LoadContext<'_>, loc: &ResourceLocation<Arc<str>>) -> Handle<Biome> {
         ctx.load(format!(

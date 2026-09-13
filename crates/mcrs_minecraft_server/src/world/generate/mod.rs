@@ -1050,6 +1050,7 @@ pub mod multi_noise_biomes;
 pub mod routers;
 pub mod stages;
 pub mod staging;
+pub mod structures;
 pub mod surface;
 pub mod trees;
 pub use beta_ores::{BetaOreBlockIds, place_all_ores};

@@ -91,6 +91,7 @@ pub struct DimRegistryBundle {
     pub biome_sources: crate::world::generate::routers::DimensionBiomeSources,
     pub modern_carver_biomes: crate::world::generate::modern_carvers::DimensionCarverBiomes,
     pub features: crate::world::generate::features::DimensionFeaturePrograms,
+    pub structures: crate::world::generate::structures::DimensionStructures,
     pub world_save: Option<WorldSave>,
     pub noise_routers: DimensionRouters,
 }
@@ -116,6 +117,10 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
             .unwrap_or_default(),
         features: world
             .get_resource::<crate::world::generate::features::DimensionFeaturePrograms>()
+            .cloned()
+            .unwrap_or_default(),
+        structures: world
+            .get_resource::<crate::world::generate::structures::DimensionStructures>()
             .cloned()
             .unwrap_or_default(),
         world_save: world.get_resource::<WorldSave>().cloned(),
@@ -440,6 +445,7 @@ pub fn spawn_dim_subapp(
         sub_app.insert_resource(predicates.clone());
     }
     sub_app.insert_resource(registries.biome_registry.clone());
+    sub_app.insert_resource(registries.structures.clone());
 
     // Seed the time resources so an inspector that reads `Res<Time<…>>` on a
     // sub-app that has never been pumped gets a valid default. The extract

@@ -73,6 +73,10 @@ impl LoadedRegistryAssets {
     /// dependencies of that, so waiting on the registry asset alone resolves
     /// those tags against a half-loaded tree. Missing or malformed files do not
     /// stall the gate; they are logged once `WorldgenFreeze` proceeds.
+    ///
+    /// A recursive state turns `Failed` as soon as one dependency fails, while
+    /// its siblings may still be in flight, so leaf assets (templates) are
+    /// requested directly and gate on their own load state.
     pub fn all_handles_settled(&self, asset_server: &AssetServer) -> bool {
         use bevy_asset::RecursiveDependencyLoadState;
         self.handles.iter().all(|h| {
@@ -95,7 +99,6 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
         app.init_asset::<biome::Biome>();
         app.register_asset_loader(biome::BiomeLoader);
-        app.init_asset::<worldgen::structure_set::StructureSet>();
         app.init_asset::<variant::WolfVariant>();
         app.register_asset_loader(JsonLoader::<variant::WolfVariant>::default());
         app.init_asset::<variant::WolfSoundVariant>();
@@ -154,7 +157,12 @@ impl Plugin for MinecraftWorldPlugin {
 
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
-            (request_every_block_tag, request_every_fluid_tag).in_set(TagPhase::Request),
+            (
+                request_every_block_tag,
+                request_every_fluid_tag,
+                request_every_biome_tag,
+            )
+                .in_set(TagPhase::Request),
         );
         app.add_tagged_registry::<block::Block, block::definition::Blocks>(
             block_tags::ALL_BLOCK_TAGS,
@@ -167,7 +175,8 @@ impl Plugin for MinecraftWorldPlugin {
         .add_tagged_registry::<entity::EntityType, StaticRegistry<entity::EntityType>>(
             entity_type_tags::ALL_ENTITY_TYPE_TAGS,
         )
-        .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>(&[]);
+        .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>(&[])
+        .add_tagged_registry::<biome::Biome, DynRegistryIndex<biome::Biome>>(&[]);
 
         app.init_resource::<DimensionEnvironments>();
 
@@ -371,7 +380,7 @@ impl Plugin for MinecraftWorldPlugin {
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
                 (
-                    index_timelines.before(TagPhase::Resolve),
+                    (index_timelines, index_biomes).before(TagPhase::Resolve),
                     (resolve_infiniburn_tags, resolve_timeline_tags).in_set(TagPhase::Resolve),
                     freeze_timelines
                         .after(TagPhase::Freeze)
@@ -464,7 +473,7 @@ mod registry_files {
     include!(concat!(env!("OUT_DIR"), "/registry_files.rs"));
 }
 
-/// Resolve the set of `<folder>/<file>.json` paths that should be loaded
+/// Resolve the set of `<folder>/<file>.<extension>` paths that should be loaded
 /// for a registry folder.
 ///
 /// First tries `AssetReader::read_directory` on the default `AssetSource` —
@@ -475,30 +484,17 @@ mod registry_files {
 fn list_registry_files(
     asset_server: &AssetServer,
     folder: &str,
+    extension: &str,
     fallback: &'static [&'static str],
 ) -> Vec<String> {
-    use bevy_asset::io::AssetSourceId;
-    use bevy_tasks::block_on;
-    use futures_lite::StreamExt;
-
     let dynamic: Vec<String> = match asset_server.get_source(AssetSourceId::Default) {
         Ok(source) => {
             let reader = source.reader();
-            let folder_path = std::path::Path::new(folder);
-            block_on(async move {
-                let mut out = Vec::new();
-                if let Ok(mut stream) = reader.read_directory(folder_path).await {
-                    while let Some(p) = stream.next().await {
-                        if p.extension().and_then(|s| s.to_str()) != Some("json") {
-                            continue;
-                        }
-                        if let Some(s) = p.to_str() {
-                            out.push(s.to_owned());
-                        }
-                    }
-                }
-                out
-            })
+            bevy_tasks::block_on(walk_files(reader, std::path::PathBuf::from(folder)))
+                .into_iter()
+                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some(extension))
+                .filter_map(|p| p.to_str().map(str::to_owned))
+                .collect()
         }
         Err(err) => {
             tracing::warn!(folder, %err, "default AssetSource missing");
@@ -519,9 +515,10 @@ fn request_registry<T: Asset>(
     asset_server: &AssetServer,
     loaded: &mut LoadedRegistryAssets,
     folder: &str,
+    extension: &str,
     fallback: &'static [&'static str],
 ) {
-    let files = list_registry_files(asset_server, folder, fallback);
+    let files = list_registry_files(asset_server, folder, extension, fallback);
     let count = files.len();
     for path in files {
         loaded.handles.push(asset_server.load::<T>(path).untyped());
@@ -539,174 +536,242 @@ fn request_data_pack_assets(
     mut loaded: ResMut<LoadedRegistryAssets>,
 ) {
     use registry_files::*;
-    request_registry::<biome::Biome>(&asset_server, &mut loaded, FOLDER_BIOME, FILES_BIOME);
+    request_registry::<biome::Biome>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_BIOME,
+        "json",
+        FILES_BIOME,
+    );
     request_registry::<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>(
         &asset_server,
         &mut loaded,
         FOLDER_CARVER,
+        "json",
         FILES_CARVER,
     );
     request_registry::<mcrs_minecraft_worldgen::bevy::FeatureAsset>(
         &asset_server,
         &mut loaded,
         FOLDER_FEATURE,
+        "json",
         FILES_FEATURE,
     );
     request_registry::<mcrs_minecraft_worldgen::bevy::PlacedFeatureAsset>(
         &asset_server,
         &mut loaded,
         FOLDER_PLACED_FEATURE,
+        "json",
         FILES_PLACED_FEATURE,
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::StructureSetAsset>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_STRUCTURE_SET,
+        "json",
+        FILES_STRUCTURE_SET,
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::StructureAsset>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_STRUCTURE,
+        "json",
+        FILES_STRUCTURE,
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::TemplatePoolAsset>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_TEMPLATE_POOL,
+        "json",
+        FILES_TEMPLATE_POOL,
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::TemplateAsset>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_TEMPLATE,
+        "nbt",
+        FILES_TEMPLATE,
     );
     request_registry::<dimension::dimension_type::DimensionType>(
         &asset_server,
         &mut loaded,
         FOLDER_DIMENSION_TYPE,
+        "json",
         FILES_DIMENSION_TYPE,
     );
     request_registry::<chat_type::ChatType>(
         &asset_server,
         &mut loaded,
         FOLDER_CHAT_TYPE,
+        "json",
         FILES_CHAT_TYPE,
     );
     request_registry::<trim::TrimPattern>(
         &asset_server,
         &mut loaded,
         FOLDER_TRIM_PATTERN,
+        "json",
         FILES_TRIM_PATTERN,
     );
     request_registry::<trim::TrimMaterial>(
         &asset_server,
         &mut loaded,
         FOLDER_TRIM_MATERIAL,
+        "json",
         FILES_TRIM_MATERIAL,
     );
     request_registry::<variant::WolfVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_WOLF_VARIANT,
+        "json",
         FILES_WOLF_VARIANT,
     );
     request_registry::<variant::WolfSoundVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_WOLF_SOUND_VARIANT,
+        "json",
         FILES_WOLF_SOUND_VARIANT,
     );
     request_registry::<variant::PigSoundVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_PIG_SOUND_VARIANT,
+        "json",
         FILES_PIG_SOUND_VARIANT,
     );
     request_registry::<variant::CatSoundVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_CAT_SOUND_VARIANT,
+        "json",
         FILES_CAT_SOUND_VARIANT,
     );
     request_registry::<variant::CowSoundVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_COW_SOUND_VARIANT,
+        "json",
         FILES_COW_SOUND_VARIANT,
     );
     request_registry::<variant::ChickenSoundVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_CHICKEN_SOUND_VARIANT,
+        "json",
         FILES_CHICKEN_SOUND_VARIANT,
     );
     request_registry::<variant::PigVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_PIG_VARIANT,
+        "json",
         FILES_PIG_VARIANT,
     );
     request_registry::<variant::FrogVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_FROG_VARIANT,
+        "json",
         FILES_FROG_VARIANT,
     );
     request_registry::<variant::CatVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_CAT_VARIANT,
+        "json",
         FILES_CAT_VARIANT,
     );
     request_registry::<variant::CowVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_COW_VARIANT,
+        "json",
         FILES_COW_VARIANT,
     );
     request_registry::<variant::ChickenVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_CHICKEN_VARIANT,
+        "json",
         FILES_CHICKEN_VARIANT,
     );
     request_registry::<variant::ZombieNautilusVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_ZOMBIE_NAUTILUS_VARIANT,
+        "json",
         FILES_ZOMBIE_NAUTILUS_VARIANT,
     );
     request_registry::<painting_variant::PaintingVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_PAINTING_VARIANT,
+        "json",
         FILES_PAINTING_VARIANT,
     );
     request_registry::<damage_type::DamageType>(
         &asset_server,
         &mut loaded,
         FOLDER_DAMAGE_TYPE,
+        "json",
         FILES_DAMAGE_TYPE,
     );
     request_registry::<banner_pattern::BannerPattern>(
         &asset_server,
         &mut loaded,
         FOLDER_BANNER_PATTERN,
+        "json",
         FILES_BANNER_PATTERN,
     );
     request_registry::<jukebox_song::JukeboxSong>(
         &asset_server,
         &mut loaded,
         FOLDER_JUKEBOX_SONG,
+        "json",
         FILES_JUKEBOX_SONG,
     );
     request_registry::<instrument::Instrument>(
         &asset_server,
         &mut loaded,
         FOLDER_INSTRUMENT,
+        "json",
         FILES_INSTRUMENT,
     );
-    request_registry::<dialog::Dialog>(&asset_server, &mut loaded, FOLDER_DIALOG, FILES_DIALOG);
+    request_registry::<dialog::Dialog>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_DIALOG,
+        "json",
+        FILES_DIALOG,
+    );
     request_registry::<timeline::Timeline>(
         &asset_server,
         &mut loaded,
         FOLDER_TIMELINE,
+        "json",
         FILES_TIMELINE,
     );
     request_registry::<world_clock::WorldClock>(
         &asset_server,
         &mut loaded,
         FOLDER_WORLD_CLOCK,
+        "json",
         FILES_WORLD_CLOCK,
     );
     request_registry::<test_types::TestEnvironment>(
         &asset_server,
         &mut loaded,
         FOLDER_TEST_ENVIRONMENT,
+        "json",
         FILES_TEST_ENVIRONMENT,
     );
     request_registry::<test_types::TestInstance>(
         &asset_server,
         &mut loaded,
         FOLDER_TEST_INSTANCE,
+        "json",
         FILES_TEST_INSTANCE,
     );
 }
@@ -737,30 +802,41 @@ pub fn list_tag_files(
             roots.push(namespace.join("tags").join(registry_path));
         }
         for root in roots {
-            let mut stack = vec![root.clone()];
-            while let Some(directory) = stack.pop() {
-                let Ok(mut entries) = reader.read_directory(&directory).await else {
+            for path in walk_files(reader, root.clone()).await {
+                let Some(location) = tag_location(&root, &path) else {
                     continue;
                 };
-                while let Some(path) = entries.next().await {
-                    if reader.is_directory(&path).await.unwrap_or(false) {
-                        stack.push(path);
-                        continue;
-                    }
-                    let Some(location) = tag_location(&root, &path) else {
-                        continue;
-                    };
-                    let Some(asset_path) = path.to_str() else {
-                        continue;
-                    };
-                    found.push((location, asset_path.to_owned()));
-                }
+                let Some(asset_path) = path.to_str() else {
+                    continue;
+                };
+                found.push((location, asset_path.to_owned()));
             }
         }
     });
 
     found.sort_by(|a, b| a.1.cmp(&b.1));
     found
+}
+
+async fn walk_files(
+    reader: &dyn bevy_asset::io::ErasedAssetReader,
+    root: std::path::PathBuf,
+) -> Vec<std::path::PathBuf> {
+    let mut files = Vec::new();
+    let mut stack = vec![root];
+    while let Some(directory) = stack.pop() {
+        let Ok(mut entries) = reader.read_directory(&directory).await else {
+            continue;
+        };
+        while let Some(path) = entries.next().await {
+            if reader.is_directory(&path).await.unwrap_or(false) {
+                stack.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -773,6 +849,13 @@ fn request_every_block_tag(
 
 fn request_every_fluid_tag(
     mut loader: ResMut<TagLoader<block::Fluid, u32>>,
+    asset_server: Res<AssetServer>,
+) {
+    request_every_tag(&mut loader, &asset_server);
+}
+
+fn request_every_biome_tag(
+    mut loader: ResMut<TagLoader<biome::Biome, u32>>,
     asset_server: Res<AssetServer>,
 ) {
     request_every_tag(&mut loader, &asset_server);
@@ -858,6 +941,21 @@ fn index_timelines(
         .collect();
     tracing::info!(count = entries.len(), "indexed timelines");
     commands.insert_resource(DynRegistryIndex::<Timeline>::build(entries.into_iter()));
+}
+
+fn index_biomes(
+    biomes: Res<Assets<biome::Biome>>,
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+) {
+    let entries: Vec<_> = biomes
+        .iter()
+        .filter_map(|(id, _)| {
+            rl_from_asset_path(asset_server.get_path(id)?.path(), "worldgen/biome")
+        })
+        .collect();
+    tracing::info!(count = entries.len(), "indexed biomes");
+    commands.insert_resource(DynRegistryIndex::<biome::Biome>::build(entries.into_iter()));
 }
 
 /// Resolve the timeline tag every dimension type names. The tag files were

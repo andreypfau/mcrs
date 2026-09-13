@@ -1,5 +1,5 @@
 use crate::compile::{CompileError, build_router};
-use crate::feature::proto::{Feature, Holder, PlacedFeature};
+use crate::feature::proto::{Feature, Holder, PlacedFeature, StructureProcessorList};
 use crate::material::compile::SURFACE_NOISE_NAMES;
 use crate::material::proto::{MaterialCondition, MaterialRule};
 use crate::material::{MaterialConditionHolder, MaterialInputs, MaterialRuleHolder};
@@ -7,6 +7,8 @@ use crate::proto::{
     BlockState, DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction,
 };
 use crate::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
+use crate::structure::template::{TEMPLATE_DATA_VERSION, Template};
+use crate::structure::{PoolElement, Structure, StructureSet, TemplatePool};
 use bevy_app::{App, Plugin};
 use bevy_asset::io::Reader;
 use bevy_asset::{
@@ -40,6 +42,11 @@ impl Plugin for WorldgenAssetsPlugin {
             .init_asset::<MaterialConditionAsset>()
             .init_asset::<FeatureAsset>()
             .init_asset::<PlacedFeatureAsset>()
+            .init_asset::<StructureSetAsset>()
+            .init_asset::<StructureAsset>()
+            .init_asset::<TemplatePoolAsset>()
+            .init_asset::<ProcessorListAsset>()
+            .init_asset::<TemplateAsset>()
             .register_asset_loader(WorldgenAssetLoader::<DensityFunctionAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<NoiseGeneratorSettingsAsset>::default())
             .register_asset_loader(JsonLoader::<NoiseParamAsset>::default())
@@ -47,7 +54,12 @@ impl Plugin for WorldgenAssetsPlugin {
             .register_asset_loader(WorldgenAssetLoader::<MaterialRuleAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<MaterialConditionAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<FeatureAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<PlacedFeatureAsset>::default());
+            .register_asset_loader(WorldgenAssetLoader::<PlacedFeatureAsset>::default())
+            .register_asset_loader(JsonLoader::<StructureSetAsset>::default())
+            .register_asset_loader(JsonLoader::<StructureAsset>::default())
+            .register_asset_loader(WorldgenAssetLoader::<TemplatePoolAsset>::default())
+            .register_asset_loader(JsonLoader::<ProcessorListAsset>::default())
+            .register_asset_loader(TemplateLoader);
     }
 }
 
@@ -216,12 +228,20 @@ macro_rules! registries {
 
 registries! {
     leaf {
-        (noises, "noise", NoiseParamAsset, NoiseParam, noise),
+        (noises, "worldgen/noise/{}.json", NoiseParamAsset, NoiseParam, noise),
+        (templates, "structure/{}.nbt", TemplateAsset, Template, template),
+        (
+            processor_lists,
+            "worldgen/processor_list/{}.json",
+            ProcessorListAsset,
+            StructureProcessorList,
+            list
+        ),
     }
     nested {
         (
             density_functions,
-            "density_function",
+            "worldgen/density_function/{}.json",
             DensityFunctionAsset,
             DensityFunctionHolder,
             function,
@@ -229,7 +249,7 @@ registries! {
         ),
         (
             conditions,
-            "material_condition",
+            "worldgen/material_condition/{}.json",
             MaterialConditionAsset,
             MaterialConditionHolder,
             condition,
@@ -237,20 +257,28 @@ registries! {
         ),
         (
             rules,
-            "material_rule",
+            "worldgen/material_rule/{}.json",
             MaterialRuleAsset,
             MaterialRuleHolder,
             rule,
             visit_rule_holder
         ),
-        (features, "feature", FeatureAsset, Feature, feature, visit_feature),
+        (features, "worldgen/feature/{}.json", FeatureAsset, Feature, feature, visit_feature),
         (
             placed_features,
-            "placed_feature",
+            "worldgen/placed_feature/{}.json",
             PlacedFeatureAsset,
             PlacedFeature,
             placed_feature,
             visit_placed_feature
+        ),
+        (
+            template_pools,
+            "worldgen/template_pool/{}.json",
+            TemplatePoolAsset,
+            TemplatePool,
+            pool,
+            visit_template_pool
         ),
     }
 }
@@ -272,6 +300,70 @@ pub struct NoiseParamAsset {
 #[serde(transparent)]
 pub struct CarverConfigAsset {
     pub config: crate::carver::CarverConfig,
+}
+
+#[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
+#[serde(transparent)]
+pub struct StructureSetAsset {
+    pub set: StructureSet,
+}
+
+#[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
+#[serde(transparent)]
+pub struct StructureAsset {
+    pub structure: Structure,
+}
+
+#[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
+#[serde(transparent)]
+pub struct ProcessorListAsset {
+    pub list: StructureProcessorList,
+}
+
+#[derive(Asset, TypePath, Debug, Clone)]
+pub struct TemplateAsset {
+    pub template: Template,
+}
+
+#[derive(Debug, Error)]
+pub enum TemplateLoaderError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Nbt(#[from] mcrs_minecraft_nbt::Error),
+    #[error("{path}: DataVersion {found}, expected {TEMPLATE_DATA_VERSION}")]
+    DataVersion { path: String, found: i32 },
+}
+
+#[derive(Default, TypePath)]
+pub struct TemplateLoader;
+
+impl AssetLoader for TemplateLoader {
+    type Asset = TemplateAsset;
+    type Settings = ();
+    type Error = TemplateLoaderError;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let bytes = read_all(reader).await?;
+        let template =
+            mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes::<Template, _>(bytes.as_slice())?;
+        if template.data_version != TEMPLATE_DATA_VERSION {
+            return Err(TemplateLoaderError::DataVersion {
+                path: load_context.path().to_string(),
+                found: template.data_version,
+            });
+        }
+        Ok(TemplateAsset { template })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["nbt"]
+    }
 }
 
 #[derive(Debug, Error)]
@@ -431,6 +523,35 @@ impl References {
         }
     }
 
+    pub(crate) fn visit_template_pool(&mut self, pool: &TemplatePool) {
+        for entry in &pool.elements {
+            self.visit_pool_element(&entry.element);
+        }
+    }
+
+    fn visit_pool_element(&mut self, element: &PoolElement) {
+        match element {
+            PoolElement::Single(single) | PoolElement::LegacySingle(single) => {
+                self.templates.insert(single.location.clone());
+                if let Holder::Reference(id) = &single.processors {
+                    self.processor_lists.insert(id.clone());
+                }
+            }
+            PoolElement::List { elements, .. } => {
+                for element in elements {
+                    self.visit_pool_element(element);
+                }
+            }
+            PoolElement::Feature { feature, .. } => match feature {
+                Holder::Reference(id) => {
+                    self.placed_features.insert(id.clone());
+                }
+                Holder::Inline(placed) => self.visit_placed_feature(placed),
+            },
+            PoolElement::Empty {} => {}
+        }
+    }
+
     pub(crate) fn visit_condition_holder(&mut self, holder: &MaterialConditionHolder) {
         match holder {
             MaterialConditionHolder::Reference(id) => {
@@ -453,15 +574,15 @@ impl References {
 
 fn handles<A: Asset>(
     ids: &BTreeSet<ResourceLocation>,
-    folder: &str,
+    path_template: &str,
     load_context: &mut LoadContext<'_>,
 ) -> BTreeMap<ResourceLocation, Handle<A>> {
     ids.iter()
         .map(|id| {
             let handle = load_context.load(format!(
-                "{}/worldgen/{folder}/{}.json",
+                "{}/{}",
                 id.namespace(),
-                id.path()
+                path_template.replace("{}", id.path())
             ));
             (id.clone(), handle)
         })

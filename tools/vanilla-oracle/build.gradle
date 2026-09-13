@@ -77,3 +77,11 @@ tasks.register('dumpTrees', JavaExec) {
 	jvmArgs '-Xmx2G'
 	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
 }
+
+tasks.register('dumpTemplates', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.TemplateOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
