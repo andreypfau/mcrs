@@ -2,10 +2,10 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{MessageWriter, On};
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundPlayerAction;
 use mcrs_minecraft_protocol::{BlockStateId, Direction};
-use mcrs_voxel_math::BlockPos;
 
 pub struct PlayerActionPlugin;
 

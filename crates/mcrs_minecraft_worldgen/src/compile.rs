@@ -22,9 +22,9 @@ use crate::router::{Aquifers, NoiseGeneratorSettings, NoiseRouter, RouterBlocks}
 use crate::sample_grid::Axis;
 use crate::strata::{Axes, NO_AXES, axis_bit};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::mth;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_voxel_math::mth;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;

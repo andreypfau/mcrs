@@ -3,7 +3,7 @@ use std::time::Duration;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::text::{FontSize, LineBreak};
-use mcrs_voxel_math::{BlockPos, ColumnPos};
+use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_voxel_world::world::lifecycle::trace::{self, ColumnSample, ColumnStage};
 
 use crate::player::Player;

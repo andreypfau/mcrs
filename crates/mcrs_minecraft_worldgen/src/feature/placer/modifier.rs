@@ -1,8 +1,8 @@
 use std::sync::LazyLock;
 
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::placement::{HeightmapName, PlacementModifier, VerticalDirection};

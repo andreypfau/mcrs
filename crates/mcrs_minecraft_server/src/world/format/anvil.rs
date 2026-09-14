@@ -1,12 +1,12 @@
-use mcrs_voxel_math::{ColumnPos, RegionPos};
+use mcrs_minecraft_core::{ColumnPos, RegionPos};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_anvil::{Chunk, PaletteLookup, Properties, RegionFile, Section};
+use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;

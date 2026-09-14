@@ -5,7 +5,7 @@
 
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 

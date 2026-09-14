@@ -1,5 +1,5 @@
-use crate::resource_location::ResourceLocation;
-use crate::tag::key::TaggedRegistry;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;

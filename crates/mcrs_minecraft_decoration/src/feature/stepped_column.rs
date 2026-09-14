@@ -5,7 +5,7 @@ use mcrs_minecraft_worldgen::feature::placer::{Predicate, StateMask, WorldGenVol
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
 
 use crate::feature::tree::provider::StateProvider;
-use mcrs_voxel_math::{BlockPos, dist_manhattan};
+use mcrs_minecraft_core::{BlockPos, dist_manhattan};
 
 /// One `stepped_column_cluster` feature with every name it carries already
 /// resolved.

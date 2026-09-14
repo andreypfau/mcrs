@@ -9,7 +9,7 @@ use bevy_ecs::prelude::{
     MessageWriter, Or, ParallelCommands, Query,
 };
 use bevy_ecs::schedule::SystemSet;
-use mcrs_voxel_math::{ColumnPos, SectionPos};
+use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
 

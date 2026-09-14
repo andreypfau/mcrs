@@ -1,4 +1,4 @@
-use crate::resource_location::ResourceLocation;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -36,7 +36,7 @@ impl<T> std::fmt::Debug for StaticId<T> {
 }
 
 impl<T> StaticId<T> {
-    pub(crate) fn new(id: u32) -> Self {
+    pub fn new(id: u32) -> Self {
         StaticId {
             id,
             _marker: PhantomData,

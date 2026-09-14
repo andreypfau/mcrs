@@ -1,7 +1,7 @@
 //! The biome layer: which biomes surround a position and how their attribute
 //! maps are weighted into one.
 
-use mcrs_voxel_math::mth::lerp;
+use mcrs_minecraft_core::mth::lerp;
 use std::sync::Arc;
 
 use bevy_math::DVec3;

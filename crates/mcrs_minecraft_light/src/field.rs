@@ -5,14 +5,14 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use mcrs_voxel_math::{BlockPos, Direction, SectionPos};
+use mcrs_minecraft_core::{BlockPos, Direction, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelId};
 
 use crate::SectionBlocks;
 use crate::level::{LightLevel, SECTION_WIDTH};
 use crate::storage::LightStorage;
-use mcrs_voxel_math::BoundingBox;
-use mcrs_voxel_math::LocalPos;
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_minecraft_core::LocalPos;
 
 /// Index of a cell within a [`FieldLayout`].
 pub type CellIndex = u32;

@@ -8,7 +8,7 @@ use mcrs_minecraft_worldgen::SampleGrid;
 use mcrs_minecraft_worldgen::beard::{Beard, JunctionPoint, KERNEL, KERNEL_LEN, Rigid};
 use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
 use mcrs_minecraft_worldgen::structure::TerrainAdaptation;
-use mcrs_voxel_math::{BlockPos, BoundingBox};
+use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use std::path::PathBuf;
 
 const MAGIC: &[u8; 8] = b"MCBEARD0";

@@ -1,11 +1,11 @@
-use mcrs_voxel_math::{BlockPos, LocalPos, QuartPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, LocalPos, QuartPos, SectionPos};
 use std::cell::RefCell;
 use std::sync::Arc;
 
 use bevy_ecs::prelude::Resource;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_core::RegistrySnapshot;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;

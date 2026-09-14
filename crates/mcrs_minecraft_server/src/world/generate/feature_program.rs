@@ -5,9 +5,12 @@ use crate::world::generate::trees::{
     build_tree_tables, compile_decorator, compile_provider, compile_tree, state_of, with_property,
 };
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_core::tag::key::TagKey;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_minecraft_core::{RegistrySnapshot, ResourceLocation};
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_decoration::feature::bamboo::{CompiledBamboo, place_bamboo};
 use mcrs_minecraft_decoration::feature::blob::{
@@ -119,8 +122,6 @@ use mcrs_minecraft_worldgen::structure::frozen::{
 use mcrs_minecraft_worldgen::structure::template::{FrozenTemplate, TemplateManifest};
 use mcrs_minecraft_worldgen::structure::{DecorationStep, LiquidSettings};
 use mcrs_minecraft_worldgen::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::voxel_shape::{FACE_MASK_FULL, VoxelShape};
 use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashMap;
 use std::ops::Range;
@@ -2489,7 +2490,7 @@ impl BlockResolver for Resolver<'_> {
             StateQuery::Solid => return Some(self.world.solid.clone()),
             StateQuery::Replaceable => return Some(self.world.replaceable.clone()),
             StateQuery::SturdyFace(direction) => {
-                let face = mcrs_voxel_math::Direction::all()[direction as usize];
+                let face = mcrs_minecraft_core::Direction::all()[direction as usize];
                 let mut covers: FxHashMap<u32, bool> = FxHashMap::default();
                 let mut full = |shape: mcrs_minecraft_world::block::definition::ShapeId| {
                     *covers.entry(shape.0).or_insert_with(|| {

@@ -1,10 +1,10 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_worldgen::aquifer::point_barrier;
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::FINAL_DENSITY;
 use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
-use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::CancellationToken;

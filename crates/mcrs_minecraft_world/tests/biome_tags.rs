@@ -2,10 +2,12 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::DynTagRegistry;
+use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::tag::{DynRegistryIndex, DynTagRegistry, TagKey};
+use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::biome::Biome;
 
@@ -28,7 +30,7 @@ fn run_to_playing() -> App {
         watch_for_changes_override: Some(false),
         ..Default::default()
     });
-    app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
+    app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
     app.add_plugins(MinecraftWorldPlugin);
     app.finish();
     app.cleanup();

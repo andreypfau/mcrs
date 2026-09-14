@@ -4,7 +4,7 @@ use crate::{Decode, Encode};
 use anyhow::bail;
 use bitfield_struct::bitfield;
 use derive_more::From;
-use mcrs_voxel_math::BlockPos;
+use mcrs_minecraft_core::BlockPos;
 use thiserror::Error;
 
 #[bitfield(u64)]

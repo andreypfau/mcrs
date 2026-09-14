@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;

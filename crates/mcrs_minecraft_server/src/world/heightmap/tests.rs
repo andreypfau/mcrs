@@ -366,7 +366,7 @@ fn read_maps(app: &App, column: Entity) -> ColumnHeightmapSet {
 #[test]
 fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
     use mcrs_minecraft_block::block::BlockUpdateFlags;
-    use mcrs_voxel_math::{BlockPos, SectionPos};
+    use mcrs_minecraft_core::{BlockPos, SectionPos};
 
     let table = predicates();
     let (mut sections, y_sections) = sample_column();

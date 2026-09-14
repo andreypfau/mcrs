@@ -1,6 +1,6 @@
 use bevy_app::App;
 use bevy_state::state::State;
-use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::MinecraftServerPlugin;
 use mcrs_minecraft_server::world::generate::stages::FillContext;

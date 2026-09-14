@@ -13,8 +13,9 @@ use bevy_asset::io::AssetSourceId;
 use bevy_tasks::block_on;
 
 use data::ProtoEnchantmentData;
-use mcrs_minecraft_core::asset::read_whole;
-use mcrs_minecraft_core::{ResourceLocation, StaticRegistry};
+use mcrs_minecraft_assets::asset::read_whole;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_registry::StaticRegistry;
 
 /// The 43 vanilla enchantments in Java bootstrap (protocol) order.
 pub const VANILLA_ENCHANTMENTS: &[&str] = &[

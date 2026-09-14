@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};
 use common::{AIR, TORCH, filled, registry};
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::SectionPos;
 
 // The epoch runs on a worker thread, so the loop has to give it a chance to
 // finish rather than spinning the schedule.
@@ -50,7 +50,7 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
     app.world_mut()
         .resource_mut::<PendingEdits>()
         .push(Edit::SetBlock {
-            pos: mcrs_voxel_math::BlockPos::new(8, 8, 8),
+            pos: mcrs_minecraft_core::BlockPos::new(8, 8, 8),
             block: TORCH,
         });
     settle(&mut app);
@@ -169,7 +169,7 @@ fn intake_is_bounded_per_tick_and_loses_nothing() {
 fn a_block_change_is_not_deferred_behind_a_bulk_load() {
     let mut app = budgeted_app();
     let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
-    let pos = mcrs_voxel_math::BlockPos::new(8, 8, 8);
+    let pos = mcrs_minecraft_core::BlockPos::new(8, 8, 8);
     load_columns(&mut app, 1);
     app.update();
 

@@ -1,8 +1,8 @@
 use crate::asset::read_all;
-use crate::resource_location::ResourceLocation;
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
 
@@ -69,7 +69,7 @@ pub struct TagOrElementLocation {
 }
 
 impl FromStr for TagOrElementLocation {
-    type Err = crate::resource_location::ResourceLocationError;
+    type Err = mcrs_minecraft_core::resource_location::ResourceLocationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Some(rest) = s.strip_prefix('#') {

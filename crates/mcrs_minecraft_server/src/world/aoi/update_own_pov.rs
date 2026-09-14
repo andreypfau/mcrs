@@ -5,7 +5,7 @@
 //! (`aoi_mirror_invariant.rs`) hinges on that atomicity.
 
 use bevy_ecs::prelude::{Added, Changed, Commands, Entity, Or, Query, ResMut, With, Without};
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;

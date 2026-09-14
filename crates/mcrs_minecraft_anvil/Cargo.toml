@@ -8,9 +8,9 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_voxel_storage.workspace = true
-mcrs_voxel_math.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 flate2.workspace = true

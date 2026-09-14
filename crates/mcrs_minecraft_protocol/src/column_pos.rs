@@ -2,7 +2,7 @@ use std::io::Write;
 
 use crate::{Decode, Encode, Position};
 
-pub use mcrs_voxel_math::ColumnPos;
+pub use mcrs_minecraft_core::ColumnPos;
 
 impl Encode for ColumnPos {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {

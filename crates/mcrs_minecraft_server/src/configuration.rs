@@ -15,11 +15,12 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::OnEnter;
-use mcrs_minecraft_core::registry::access::ErasedRegistrySnapshot;
-use mcrs_minecraft_core::tag::file::{TagEntry, TagFile, TagFileSettings};
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_minecraft_core::tag::registry::TagRegistry;
-use mcrs_minecraft_core::{AppState, RegistryAccess, ResourceLocation, rl};
+use mcrs_minecraft_assets::access::ErasedRegistrySnapshot;
+use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile, TagFileSettings};
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::tag::registry::TagRegistry;
+use mcrs_minecraft_assets::{AppState, RegistryAccess};
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
@@ -733,7 +734,7 @@ mod tests {
             ..Default::default()
         });
         app.init_asset::<TagFile>();
-        app.register_asset_loader(mcrs_minecraft_core::tag::file::TagFileLoader);
+        app.register_asset_loader(mcrs_minecraft_assets::tag::file::TagFileLoader);
         app.init_resource::<LoadedRegistryAssets>();
         app.init_resource::<DynamicRegistryTagFiles>();
         app.add_systems(bevy_app::Startup, request_dynamic_registry_tags);

@@ -1,11 +1,11 @@
 //! The corpus's own ore features, compiled the way the freeze compiles them,
 //! and the band their veins land in.
 
-use mcrs_voxel_math::BlockPos;
+use mcrs_minecraft_core::BlockPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_decoration::feature::ore_modern::{OreScratch, place_modern_ore};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;

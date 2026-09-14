@@ -3,8 +3,8 @@ use crate::block::definition::BlockDefinitions;
 use crate::block::tags as block_tags;
 use crate::item::component::ItemComponents;
 use bevy_ecs::component::Component;
-use mcrs_minecraft_core::tag::key::TagKey;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_core::tag_key::TagKey;
 
 #[derive(Clone, Copy, Debug, Default, Component)]
 pub struct Tool {

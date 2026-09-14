@@ -1,8 +1,8 @@
 use bevy_ecs::prelude::{Component, Resource};
 use bevy_math::*;
 
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::SectionPos;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::SectionPos;
 
 /// Client-coordinate repositioning (Spout-style).
 ///

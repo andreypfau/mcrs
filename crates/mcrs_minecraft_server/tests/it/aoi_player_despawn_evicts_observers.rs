@@ -10,12 +10,12 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_server::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
-use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;

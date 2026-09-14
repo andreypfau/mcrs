@@ -10,11 +10,11 @@ use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
 use bevy_math::IVec3;
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen::feature::tree::FeatureSize;
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::{Blocks, BlocksMut, BoxVolume, Volume, VoxelId};
 
 use self::decorator::{CompiledTreeDecorator, DecoratorContext, TreePalette, TreeSink};

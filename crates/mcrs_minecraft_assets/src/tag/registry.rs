@@ -1,11 +1,11 @@
-use crate::registry::{StaticId, StaticRegistry};
-use crate::resource_location::ResourceLocation;
-use crate::tag::bitset::{BitSet, TagId};
-use crate::tag::dyn_index::DynRegistryIndex;
 use crate::tag::file::{TagEntry, TagFile, TagFileSettings};
-use crate::tag::key::{TagKey, TaggedRegistry};
 use bevy_asset::{AssetServer, Assets, Handle, RecursiveDependencyLoadState};
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_registry::bitset::{BitSet, TagId};
+use mcrs_minecraft_registry::dyn_index::DynRegistryIndex;
+use mcrs_minecraft_registry::{StaticId, StaticRegistry};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::sync::Arc;

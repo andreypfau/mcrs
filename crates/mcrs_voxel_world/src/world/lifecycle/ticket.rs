@@ -16,7 +16,7 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::With;
 use indexmap::IndexMap;
-use mcrs_voxel_math::SectionPos;
+use mcrs_minecraft_core::SectionPos;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 /// Symmetric with the spawn cap: a pipeline that admits sections faster than it retires them

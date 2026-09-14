@@ -5,8 +5,8 @@
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::SectionPos;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::SectionPos;
 use mcrs_voxel_storage::VoxelId;
 
 #[test]

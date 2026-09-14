@@ -1,14 +1,14 @@
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use bevy_math::IVec3;
 use bytes::Buf;
+use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
 use mcrs_minecraft_worldgen::feature::proto::{Holder, Rotation};
 use mcrs_minecraft_worldgen::structure::Projection;
-use mcrs_voxel_math::BoundingBox;
 
 use super::structure_sites::{build_index, dimension};
 use super::structures::frozen_shared;

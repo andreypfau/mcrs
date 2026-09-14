@@ -3,9 +3,9 @@ use crate::program::{Program, Workspace};
 use crate::router::NoiseRouter;
 use crate::sample_grid::SampleGrid;
 use bevy_math::IVec3;
+use mcrs_minecraft_core::mth::clamped_map;
+use mcrs_minecraft_core::mth::floor_div;
 use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_voxel_math::mth::clamped_map;
-use mcrs_voxel_math::mth::floor_div;
 use mcrs_voxel_storage::VoxelId;
 
 /// `DimensionType.WAY_BELOW_MIN_Y`: the level of a dry cell. Still a number,

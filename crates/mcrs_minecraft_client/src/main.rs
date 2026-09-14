@@ -17,7 +17,7 @@ use bevy::window::{
     WindowPosition, WindowResolution,
 };
 use bevy::winit::{UpdateMode, WinitSettings};
-use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
 use mcrs_minecraft_world::environment::Weather;
@@ -156,7 +156,7 @@ fn main() {
         focused_mode: UpdateMode::Continuous,
         unfocused_mode: UpdateMode::Continuous,
     })
-    .add_plugins(mcrs_minecraft_core::MinecraftCorePlugin)
+    .add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin)
     .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)
     .add_plugins(player::PlayerPlugin)
     .add_plugins(input::ClientInputPlugin)

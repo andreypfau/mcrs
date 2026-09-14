@@ -6,10 +6,10 @@ use bevy_ecs::prelude::{
     Added, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query, SystemSet, With,
     Without,
 };
-use mcrs_voxel_math::SectionPos;
+use mcrs_minecraft_core::SectionPos;
 use rustc_hash::FxHashMap;
 
-pub use mcrs_voxel_math::ColumnPos;
+pub use mcrs_minecraft_core::ColumnPos;
 
 /// Sparse marker component placed on chunk-column entities.
 #[derive(Component, Debug, Default)]
@@ -274,7 +274,7 @@ impl Plugin for ColumnPlugin {
 mod tests {
     use super::*;
     use bevy_ecs::entity::Entity;
-    use mcrs_voxel_math::BlockPos;
+    use mcrs_minecraft_core::BlockPos;
 
     fn fake_entity(index: u32) -> Entity {
         Entity::from_raw_u32(index + 1).expect("valid entity index")

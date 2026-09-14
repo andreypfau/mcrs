@@ -12,8 +12,8 @@ fn combined(world: &LightWorld, pos: BlockPos, sky_darken: u8) -> u8 {
     )
     .get()
 }
+use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{BlockPos, SectionPos};
 use mcrs_voxel_storage::VoxelId;
 
 #[test]

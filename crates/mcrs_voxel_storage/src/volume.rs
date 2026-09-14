@@ -1,5 +1,5 @@
 use bevy_math::{IVec3, UVec3};
-use mcrs_voxel_math::BlockPos;
+use mcrs_minecraft_core::BlockPos;
 
 use crate::VoxelId;
 

@@ -17,16 +17,16 @@ impl TrigIndex {
     #[inline]
     fn sin(self, x: f32) -> f32 {
         match self {
-            TrigIndex::Beta => mcrs_voxel_math::mth::sin(x),
-            TrigIndex::Modern => mcrs_voxel_math::mth::sin_modern(f64::from(x)),
+            TrigIndex::Beta => mcrs_minecraft_core::mth::sin(x),
+            TrigIndex::Modern => mcrs_minecraft_core::mth::sin_modern(f64::from(x)),
         }
     }
 
     #[inline]
     fn cos(self, x: f32) -> f32 {
         match self {
-            TrigIndex::Beta => mcrs_voxel_math::mth::cos(x),
-            TrigIndex::Modern => mcrs_voxel_math::mth::cos_modern(f64::from(x)),
+            TrigIndex::Beta => mcrs_minecraft_core::mth::cos(x),
+            TrigIndex::Modern => mcrs_minecraft_core::mth::cos_modern(f64::from(x)),
         }
     }
 }

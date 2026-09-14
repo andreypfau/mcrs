@@ -2,14 +2,14 @@ use crate::feature::random_direction;
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{BlockLayout, Predicate, WorldGenVolume};
 use mcrs_minecraft_worldgen::noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_worldgen::value_provider::{IntProvider, pick_weighted_by};
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::mth::clamped_map;
 use mcrs_voxel_storage::VoxelId;
 
 pub type SharedNoise = Arc<NoiseStack<Octave>>;

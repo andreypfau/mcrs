@@ -8,8 +8,8 @@
 
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_server::world::aoi::{ChunkSubscriptionSet, TrackedBy};
-use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;

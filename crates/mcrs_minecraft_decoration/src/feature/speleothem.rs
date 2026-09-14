@@ -1,4 +1,6 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
@@ -7,13 +9,11 @@ use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::proto::BlockState;
 use mcrs_minecraft_worldgen::value_provider::{FloatProvider, IntProvider};
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::mth::clamped_map;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::holds;
+use mcrs_minecraft_core::mth::{cos_modern, sin_modern};
 use mcrs_minecraft_worldgen::column::{Column, scan_column};
-use mcrs_voxel_math::mth::{cos_modern, sin_modern};
 
 fn speleothem_profile(
     xz_distance_from_center: f64,

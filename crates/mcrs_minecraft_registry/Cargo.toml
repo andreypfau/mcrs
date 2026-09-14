@@ -1,6 +1,6 @@
 [package]
-name = "mcrs_voxel_math"
-description = "mcrs_voxel_math"
+name = "mcrs_minecraft_registry"
+description = "Static registries, registry indices and id bit sets"
 version.workspace = true
 edition.workspace = true
 
@@ -9,10 +9,9 @@ doctest = false
 
 [dependencies]
 bevy_ecs = { workspace = true, optional = true }
-bevy_math.workspace = true
-serde.workspace = true
+mcrs_minecraft_core.workspace = true
 tracing.workspace = true
 
 [features]
 default = ["bevy"]
-bevy = ["dep:bevy_ecs"]
+bevy = ["dep:bevy_ecs", "mcrs_minecraft_core/bevy"]

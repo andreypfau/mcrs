@@ -2,11 +2,11 @@ use crate::carver::CarveShape;
 use crate::carver::mask::CarvingMask;
 use crate::carver::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel};
 use crate::carver::water::WaterMask;
+use mcrs_minecraft_core::mth::sin_modern;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen::carver::CarverConfig;
 use mcrs_minecraft_worldgen::value_provider::{FloatProvider, HeightContext};
-use mcrs_voxel_math::mth::sin_modern;
 
 /// `WorldCarver.getRange()`. It feeds the tunnel length and nothing else; the
 /// source loop's own radius is [`SOURCE_RADIUS`].

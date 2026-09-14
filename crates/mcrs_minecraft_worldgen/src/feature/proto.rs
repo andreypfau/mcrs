@@ -17,8 +17,8 @@ use super::tree::{
 use crate::material::proto::CaveSurface;
 use crate::proto::{BlockState, Either};
 use crate::value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
+use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_voxel_math::Axis;
 
 /// `RegistryCodecs.holder(registry, direct, allowInline = true)`: an id naming a
 /// registry entry, or the entry itself written out in place.

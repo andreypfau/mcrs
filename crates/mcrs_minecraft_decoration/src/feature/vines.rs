@@ -1,6 +1,6 @@
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 /// `VinesFeature.place`: the first face of `Direction.values()` order, minus

@@ -5,6 +5,9 @@ use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_block::palette::ChunkBlocks;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::LocalPos;
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::world::arrival::ArrivalPlugin;
@@ -16,9 +19,6 @@ use mcrs_minecraft_server::world::bus::{
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_server::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::LocalPos;
-use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
 use mcrs_voxel_world::voxel_update::ChunkVoxelChanges;
 use mcrs_voxel_world::world::channels::{

@@ -26,7 +26,7 @@ pub mod relax;
 pub mod storage;
 pub mod world;
 
-use mcrs_voxel_math::SectionPos;
+use mcrs_minecraft_core::SectionPos;
 use mcrs_voxel_storage::{VoxelId, VoxelPalette};
 
 use crate::storage::LightStorage;

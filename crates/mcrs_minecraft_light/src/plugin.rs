@@ -6,7 +6,7 @@ use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_tasks::{AsyncComputeTaskPool, Task, available_parallelism, block_on, poll_once};
-use mcrs_voxel_math::{BlockPos, ColumnPos};
+use mcrs_minecraft_core::{BlockPos, ColumnPos};
 
 use crate::block::LightRegistry;
 use crate::epoch::LightUpdate;
@@ -14,7 +14,7 @@ use crate::level::{LightBounds, SECTION_WIDTH};
 use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority, PriorityColumns};
 use crate::world::{Edit, LightWorld};
 use crate::{BlockLight, SkyLight};
-use mcrs_voxel_math::BoundingBox;
+use mcrs_minecraft_core::BoundingBox;
 
 /// Owns the block and light data. The ECS holds only what has been published.
 #[derive(Resource)]

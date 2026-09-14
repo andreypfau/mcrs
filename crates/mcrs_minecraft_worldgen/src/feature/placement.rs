@@ -30,11 +30,11 @@ pub enum VerticalDirection {
     Down,
 }
 
-impl From<VerticalDirection> for mcrs_voxel_math::Direction {
+impl From<VerticalDirection> for mcrs_minecraft_core::Direction {
     fn from(direction: VerticalDirection) -> Self {
         match direction {
-            VerticalDirection::Up => mcrs_voxel_math::Direction::Up,
-            VerticalDirection::Down => mcrs_voxel_math::Direction::Down,
+            VerticalDirection::Up => mcrs_minecraft_core::Direction::Up,
+            VerticalDirection::Down => mcrs_minecraft_core::Direction::Down,
         }
     }
 }

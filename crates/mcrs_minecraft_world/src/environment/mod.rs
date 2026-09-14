@@ -14,9 +14,10 @@ use std::sync::{Arc, LazyLock};
 use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
-use mcrs_minecraft_core::tag::file::TagFile;
-use mcrs_minecraft_core::tag::{DynRegistryIndex, resolve_tag_file_ordered};
+use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
+use mcrs_minecraft_assets::tag::file::TagFile;
+use mcrs_minecraft_assets::tag::resolve_tag_file_ordered;
+use mcrs_minecraft_registry::DynRegistryIndex;
 use serde_json::json;
 
 use crate::ResourceLocation;

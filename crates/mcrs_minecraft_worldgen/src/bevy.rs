@@ -19,8 +19,8 @@ use bevy_asset::{
 use bevy_ecs::prelude::Res;
 use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
+use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::asset::{JsonLoader, read_all};
 use mcrs_voxel_storage::VoxelId;
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
@@ -413,7 +413,7 @@ impl WorldgenAsset for NoiseGeneratorSettingsAsset {
 
 /// The JSON loader for an asset that names other worldgen assets: parse, turn
 /// the ids into handles, keep both. A leaf takes
-/// [`mcrs_minecraft_core::asset::JsonLoader`] instead.
+/// [`mcrs_minecraft_assets::asset::JsonLoader`] instead.
 #[derive(TypePath)]
 pub struct WorldgenAssetLoader<A: TypePath>(PhantomData<fn() -> A>);
 

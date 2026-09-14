@@ -1,7 +1,8 @@
 use crate::world::generate::multi_noise_biomes::BiomeGrid;
 use crate::world::generate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
-use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_core::{BlockPos, QuartPos};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::zoom::{FiddleCache, obfuscate_seed, quart_cell};
@@ -11,7 +12,6 @@ use mcrs_minecraft_worldgen::material::{
     MaterialEval, MaterialScratch, NO_WATER, SettledState, SurfaceNoise,
 };
 use mcrs_minecraft_worldgen::router::NoiseRouter;
-use mcrs_voxel_math::{BlockPos, QuartPos};
 use mcrs_voxel_storage::VoxelId;
 use std::cell::RefCell;
 

@@ -10,8 +10,8 @@ use crate::attribute::EnvironmentAttributeMap;
 use crate::block::Block;
 use crate::timeline::Timeline;
 use crate::value::IntValueProvider;
-use mcrs_minecraft_core::asset::read_all;
-use mcrs_minecraft_core::tag::tag_ref::TagRef;
+use mcrs_minecraft_assets::asset::read_all;
+use mcrs_minecraft_assets::tag::tag_ref::TagRef;
 
 // ── Proto (deserialization-only) ──
 

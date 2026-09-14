@@ -1,10 +1,10 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_decoration::feature::ore_beta::{OreConfig, TargetBlockState, place_beta_ore};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::{Blocks, BoxVolume, VoxelId};
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 

@@ -1,5 +1,5 @@
 use super::data::EnchantmentData;
-use mcrs_minecraft_core::tag::key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
 
 impl TaggedRegistry for EnchantmentData {
     const REGISTRY_PATH: &'static str = "enchantment";

@@ -1,6 +1,6 @@
 use bevy_derive::Deref;
 use bevy_ecs::prelude::{Commands, Component, Entity, Query, Without};
-use mcrs_voxel_math::{BlockPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, SectionPos};
 
 use crate::world::dimension::InDimension;
 use crate::world::storage::chunk::ChunkIndex;

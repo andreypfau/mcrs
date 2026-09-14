@@ -1,6 +1,6 @@
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::tag::key::TagKey;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_world::block::Block as VanillaBlock;
 use std::sync::Arc;
 

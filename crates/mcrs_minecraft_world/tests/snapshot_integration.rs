@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bevy_asset::Assets;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_world::biome::{Biome, BiomeEffects, NetworkBiome};
 

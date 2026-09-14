@@ -2,9 +2,9 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::{BlocksMut, VoxelId};
 
 use super::placement::HeightmapName;

@@ -1,10 +1,10 @@
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_core::mth::{lerp, sin_modern};
+use mcrs_minecraft_core::{BlockPos, Direction};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{Rule, WorldGenVolume};
-use mcrs_voxel_math::mth::{lerp, sin_modern};
-use mcrs_voxel_math::{BlockPos, Direction};
 use mcrs_voxel_storage::VoxelId;
 
 #[derive(Clone, Debug)]

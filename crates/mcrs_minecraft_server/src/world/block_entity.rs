@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
 use bevy_ecs::prelude::{Commands, Component};
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_world::world::dimension::InDimension;
 use mcrs_voxel_world::world::storage::block_entity::BlockEntityPos;
 

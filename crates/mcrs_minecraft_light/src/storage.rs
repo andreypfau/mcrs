@@ -1,4 +1,4 @@
-use mcrs_voxel_math::SectionPos;
+use mcrs_minecraft_core::SectionPos;
 use std::sync::Arc;
 
 use mcrs_voxel_storage::SectionNibbles;

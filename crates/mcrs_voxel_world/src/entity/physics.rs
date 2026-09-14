@@ -1,7 +1,7 @@
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::Component;
 use bevy_math::*;
-use mcrs_voxel_math::mth::wrap_degrees;
+use mcrs_minecraft_core::mth::wrap_degrees;
 
 /// Yaw and pitch in degrees. Pitch is clamped to `[-90, 90]` and yaw is
 /// wrapped to `[-180, 180)`, so no consumer has to normalise either.

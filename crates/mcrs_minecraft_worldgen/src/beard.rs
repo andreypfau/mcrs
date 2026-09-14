@@ -2,8 +2,8 @@ use crate::SampleGrid;
 use crate::proto::{DensityFunctionHolder, ProtoDensityFunction};
 use crate::structure::{Projection, TerrainAdaptation};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_voxel_math::mth::{fast_inv_sqrt, floor_div};
-use mcrs_voxel_math::{BlockPos, BoundingBox, ColumnPos};
+use mcrs_minecraft_core::mth::{fast_inv_sqrt, floor_div};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::LazyLock;
 

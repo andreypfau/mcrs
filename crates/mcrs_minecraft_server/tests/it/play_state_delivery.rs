@@ -4,7 +4,7 @@
 //! to the host-resident connection without querying ServerSideConnection.
 
 use crate::mock_connection;
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 
 use std::sync::atomic::Ordering;
 
@@ -19,16 +19,16 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use bytes::Bytes;
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::access::RegistryAccess;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
-use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::runner::pump_channels;
 use mcrs_minecraft_server::world::bridge::dispatch_encode;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
@@ -612,7 +612,7 @@ fn chunk_delivery_emits_chunkload() {
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
 
-    use mcrs_voxel_math::ColumnPos;
+    use mcrs_minecraft_core::ColumnPos;
     push_critical(
         &mut world,
         entity,
@@ -648,7 +648,7 @@ fn light_delivery_emits_lightupdate() {
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
 
-    use mcrs_voxel_math::ColumnPos;
+    use mcrs_minecraft_core::ColumnPos;
     push_critical(
         &mut world,
         entity,

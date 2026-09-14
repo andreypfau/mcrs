@@ -3,10 +3,12 @@ use bevy_asset::AssetPlugin;
 use bevy_asset::{AssetServer, Assets};
 use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
+use mcrs_minecraft_assets::tag::DynTagRegistry;
+use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::tag::{DynRegistryIndex, DynTagRegistry, TagKey};
+use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_minecraft_world::environment::DimensionEnvironments;
@@ -34,7 +36,7 @@ fn run_to_playing() -> App {
         watch_for_changes_override: Some(false),
         ..Default::default()
     });
-    app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
+    app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
     app.add_plugins(MinecraftWorldPlugin);
     app.finish();
     app.cleanup();

@@ -7,9 +7,9 @@ use bevy::render::render_resource::{
     Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension,
 };
 use bevy::transform::TransformSystems;
-use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
 
 use crate::sky_state::{MOON_PHASES, SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_minecraft_world::dimension::dimension_type::DimensionType;

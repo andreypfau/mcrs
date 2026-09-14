@@ -11,7 +11,7 @@ use bevy_ecs::prelude::{
     Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs, Mut,
     Query, Ref, With,
 };
-use mcrs_voxel_math::SectionPos;
+use mcrs_minecraft_core::SectionPos;
 use std::collections::BTreeSet;
 
 pub struct DimensionPlugin;

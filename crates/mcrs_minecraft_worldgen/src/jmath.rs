@@ -6,7 +6,7 @@
 //! that guarantee is ever broken these functions return the wrong operand
 //! silently; `Program::fill` carries the debug assertion that catches it.
 //!
-//! What lives here rather than in `mcrs_voxel_math::mth` is what the `fast`
+//! What lives here rather than in `mcrs_minecraft_core::mth` is what the `fast`
 //! profile changes: moving it down would switch the profile on for every crate
 //! the build unifies with.
 

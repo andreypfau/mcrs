@@ -7,7 +7,7 @@
 //! which is why they are derived here from one `interpolated_lerp` rather than
 //! stored four times.
 
-use mcrs_voxel_math::mth::{lerp, lerp_int, wrap_degrees};
+use mcrs_minecraft_core::mth::{lerp, lerp_int, wrap_degrees};
 use serde_json::Value;
 
 use super::modifier::Operation;

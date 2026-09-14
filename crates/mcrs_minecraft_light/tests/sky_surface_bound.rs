@@ -7,8 +7,8 @@ mod common;
 use std::sync::Arc;
 
 use common::{AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 
 const SECTIONS_Y: i32 = 5;
 

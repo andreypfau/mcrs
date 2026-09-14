@@ -15,7 +15,7 @@ use crate::model::{
 
 const BLOCK_MIDDLE: Vec3 = Vec3::splat(0.5);
 
-pub use mcrs_voxel_math::Direction as Dir;
+pub use mcrs_minecraft_core::Direction as Dir;
 
 fn axis(dir: Dir) -> usize {
     match dir {

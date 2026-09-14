@@ -120,7 +120,7 @@ impl Plugin for MinecraftServerPlugin {
             world_seed.0 = settings.seed as u64;
         }
         app.insert_resource(world_seed);
-        app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
+        app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,

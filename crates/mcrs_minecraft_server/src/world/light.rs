@@ -5,12 +5,12 @@ use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::ChunkBlocks;
+use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::prelude::LightWorkQueue;
 use mcrs_minecraft_light::prelude::{
     BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SkyLight,
 };
-use mcrs_voxel_math::{ColumnPos, SectionPos};
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::session::PlayerSession;

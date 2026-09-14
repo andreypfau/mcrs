@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+mcrs_minecraft_assets.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
     "std",
     "async_executor",
@@ -36,7 +37,6 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world.workspace = true
-mcrs_voxel_math = { workspace = true, features = ["bevy"] }
 mcrs_voxel_storage = { workspace = true, features = ["bevy"] }
 mcrs_voxel_world.workspace = true
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.

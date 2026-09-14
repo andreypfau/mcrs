@@ -5,7 +5,7 @@ use bevy::asset::io::memory::{Dir, MemoryAssetReader};
 use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::math::DVec3;
 use bevy::prelude::*;
-use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_world::environment::Weather;
@@ -108,7 +108,7 @@ pub fn run() {
             .disable::<bevy::pbr::PbrPlugin>()
             .disable::<bevy::light::LightPlugin>(),
     )
-    .add_plugins(mcrs_minecraft_core::MinecraftCorePlugin)
+    .add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin)
     .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)
     .add_plugins(player::PlayerPlugin)
     .add_plugins(input::ClientInputPlugin)

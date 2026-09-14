@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_core::{RegistrySnapshot, ResourceLocation};
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::BiomeSource;
@@ -172,10 +173,10 @@ pub(super) fn dimension_with(
 
 pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     let mut mask = FixedBitSet::with_capacity(blocks().0.state_count());
-    let key: mcrs_minecraft_core::tag::key::TagKey<
+    let key: mcrs_minecraft_core::tag_key::TagKey<
         mcrs_minecraft_world::block::Block,
         std::sync::Arc<str>,
-    > = mcrs_minecraft_core::tag::key::TagKey::from_location(ResourceLocation::parse(tag).unwrap());
+    > = mcrs_minecraft_core::tag_key::TagKey::from_location(ResourceLocation::parse(tag).unwrap());
     for index in block_tags()
         .get(&key)
         .unwrap_or_else(|| panic!("{tag} is not loaded"))

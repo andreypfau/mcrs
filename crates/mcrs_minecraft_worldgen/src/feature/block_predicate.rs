@@ -111,7 +111,7 @@ impl<'de> Deserialize<'de> for Offset {
     }
 }
 
-pub use mcrs_voxel_math::Direction;
+pub use mcrs_minecraft_core::Direction;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]

@@ -1,4 +1,4 @@
-use mcrs_voxel_math::{BlockPos, BoundingBox, ColumnPos};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, OnceLock};

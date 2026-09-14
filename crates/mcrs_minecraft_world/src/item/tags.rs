@@ -1,5 +1,5 @@
 use crate::item::Item;
-use mcrs_minecraft_core::tag::key::TagKey;
+use mcrs_minecraft_core::tag_key::TagKey;
 
 pub const SWORDS: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:swords"));
 pub const PICKAXES: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:pickaxes"));

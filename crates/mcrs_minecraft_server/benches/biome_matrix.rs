@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;

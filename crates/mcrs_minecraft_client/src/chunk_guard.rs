@@ -8,7 +8,7 @@
 
 use crate::columns::ColumnStore;
 use bevy::prelude::*;
-use mcrs_voxel_math::{BlockPos, ColumnPos};
+use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 use crate::config::Guard;

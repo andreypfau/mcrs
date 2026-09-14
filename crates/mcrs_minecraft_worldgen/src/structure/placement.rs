@@ -1,11 +1,11 @@
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use std::f64::consts::PI;
 
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
 use crate::structure::{FrequencyReduction, SpreadType, StructurePlacement};
-use mcrs_voxel_math::mth::floor_div;
+use mcrs_minecraft_core::mth::floor_div;
 
 pub const BIOME_SEARCH_QUARTS: i32 = 112 >> 2;
 

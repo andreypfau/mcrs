@@ -1,9 +1,9 @@
 use crate::feature::holds;
 use bevy_math::IVec3;
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, WorldGenVolume};
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 #[derive(Clone, Debug)]

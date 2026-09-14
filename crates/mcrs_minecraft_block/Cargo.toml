@@ -8,7 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_voxel_math = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 mcrs_voxel_storage = { workspace = true, features = ["bevy"] }
 mcrs_voxel_world.workspace = true
 mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }

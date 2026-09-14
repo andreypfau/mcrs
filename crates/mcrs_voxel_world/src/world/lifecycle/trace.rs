@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use bevy_platform::time::Instant;
 
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use rustc_hash::FxHashMap;
 
 /// How far a column has got on its way from a player's view ticket to a mesh on

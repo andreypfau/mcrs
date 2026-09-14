@@ -192,7 +192,7 @@ pub fn mesh_section(
 #[cfg(test)]
 pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> ColumnStore {
     use crate::columns::{Column, Extent, SECTION_VOLUME, Section};
-    use mcrs_voxel_math::ColumnPos;
+    use mcrs_minecraft_core::ColumnPos;
 
     let mut blocks = Box::new([0u16; SECTION_VOLUME]);
     for y in 0..SECTION_SIZE {

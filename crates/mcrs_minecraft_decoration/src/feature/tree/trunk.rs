@@ -11,8 +11,8 @@ use mcrs_voxel_storage::VoxelId;
 
 use super::provider::StateProvider;
 
-use mcrs_voxel_math::BlockPos;
-pub use mcrs_voxel_math::{Axis, dist_manhattan};
+use mcrs_minecraft_core::BlockPos;
+pub use mcrs_minecraft_core::{Axis, dist_manhattan};
 
 pub fn random_horizontal(rng: &mut XoroshiroRandom) -> Direction {
     Direction::HORIZONTAL[rng.next_i32_bound(Direction::HORIZONTAL.len() as i32) as usize]
@@ -495,8 +495,8 @@ impl Trunk {
             let mut bz = 0;
 
             for b in 0..5 {
-                bx = (1.5 + mcrs_voxel_math::mth::cos_modern(angle as f64) * b as f32) as i32;
-                bz = (1.5 + mcrs_voxel_math::mth::sin_modern(angle as f64) * b as f32) as i32;
+                bx = (1.5 + mcrs_minecraft_core::mth::cos_modern(angle as f64) * b as f32) as i32;
+                bz = (1.5 + mcrs_minecraft_core::mth::sin_modern(angle as f64) * b as f32) as i32;
                 let at = origin + IVec3::new(bx, branch_height - 3 + b / 2, bz);
                 self.place_log(cx, rng, at, None);
             }

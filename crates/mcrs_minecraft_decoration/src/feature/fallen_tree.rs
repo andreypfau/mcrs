@@ -1,10 +1,10 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
-use mcrs_voxel_math::BlockPos;
 
 use std::sync::Arc;
 

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use bevy::asset::io::{AssetSourceId, ErasedAssetReader};
 use bevy::prelude::{AssetServer, Resource};
 use bevy::tasks::futures_lite::StreamExt;
-use mcrs_minecraft_core::asset::read_whole;
+use mcrs_minecraft_assets::asset::read_whole;
 use serde::{Deserialize, Serialize};
 
 /// The folders of the resource pack the renderer draws from. Everything under them is held in

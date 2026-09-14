@@ -1,5 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::mth::clamped_map;
+use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
@@ -18,8 +20,6 @@ use mcrs_minecraft_worldgen::feature::proto::{
 use mcrs_minecraft_worldgen::structure::Projection;
 use mcrs_minecraft_worldgen::structure::template::{FrozenTemplate, JigsawBlock, transform};
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
-use mcrs_voxel_math::mth::clamped_map;
-use mcrs_voxel_math::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
 use mcrs_voxel_storage::VoxelId;
 
 use crate::block_entity::GeneratedBlockEntity;

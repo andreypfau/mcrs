@@ -2,15 +2,15 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 
-use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 
 use crate::SectionBlocks;
 use crate::block::{Layer, LightRegistry};
 use crate::level::{BlockColumn, LightBounds, LightLevel, SECTION_WIDTH};
 use crate::storage::LightStorage;
-use mcrs_voxel_math::BoundingBox;
-use mcrs_voxel_math::LocalPos;
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_minecraft_core::LocalPos;
 
 /// One loaded section: its blocks, the entity that owns them, and the last
 /// published light for both layers.

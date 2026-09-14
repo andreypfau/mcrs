@@ -2,8 +2,8 @@ use crate::block::tags as block_tags;
 use crate::item::Item;
 use crate::item::component::ItemComponents;
 use crate::item::component::tool::ToolMaterial;
-use mcrs_minecraft_core::StaticRegistry;
 use mcrs_minecraft_protocol::ItemId;
+use mcrs_minecraft_registry::StaticRegistry;
 
 pub fn register_all_items(registry: &mut StaticRegistry<Item>) {
     let items: &[&'static Item] = &[

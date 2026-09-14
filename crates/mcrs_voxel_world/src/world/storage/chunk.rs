@@ -1,4 +1,4 @@
-pub use mcrs_voxel_math::SectionPos;
+pub use mcrs_minecraft_core::SectionPos;
 
 use crate::entity::ChunkEntities;
 use crate::world::dimension::InDimension;

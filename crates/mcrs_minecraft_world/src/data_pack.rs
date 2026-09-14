@@ -11,12 +11,15 @@ use bevy_asset::{Asset, AssetServer, Assets};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
-use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
-use mcrs_minecraft_core::tag::file::TagFile;
-use mcrs_minecraft_core::tag::key::TagKey;
-use mcrs_minecraft_core::tag::key::TaggedRegistry;
-use mcrs_minecraft_core::tag::{DynRegistryIndex, DynTagLoader, TagLoader, TagLoadersSettled};
-use mcrs_minecraft_core::{AppState, ResourceLocation, StaticRegistry};
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
+use mcrs_minecraft_assets::tag::file::TagFile;
+use mcrs_minecraft_assets::tag::{DynTagLoader, TagLoader, TagLoadersSettled};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_core::tag_key::TaggedRegistry;
+use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::StaticRegistry;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
@@ -543,34 +546,34 @@ pub(crate) fn register_static_registries_with_access(
     sound_registry: Res<StaticRegistry<sound::SoundEvent>>,
     entity_registry: Res<StaticRegistry<entity::EntityType>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
-    mut access: ResMut<mcrs_minecraft_core::RegistryAccess>,
+    mut access: ResMut<mcrs_minecraft_assets::RegistryAccess>,
 ) {
     access.register(Box::new(
-        mcrs_minecraft_core::RegistrySnapshotErased::from_static(
+        mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
             "minecraft:item",
             &item_registry,
             |_, _| None,
-            Some(mcrs_minecraft_core::PackSource::vanilla_core()),
+            Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
         ),
     ));
     access.register(Box::new(
-        mcrs_minecraft_core::RegistrySnapshotErased::from_static(
+        mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
             "minecraft:sound_event",
             &sound_registry,
             |_, _| None,
-            Some(mcrs_minecraft_core::PackSource::vanilla_core()),
+            Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
         ),
     ));
     access.register(Box::new(
-        mcrs_minecraft_core::RegistrySnapshotErased::from_static(
+        mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
             "minecraft:entity_type",
             &entity_registry,
             |_, _| None,
-            Some(mcrs_minecraft_core::PackSource::vanilla_core()),
+            Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
         ),
     ));
     access.register(Box::new(
-        mcrs_minecraft_core::RegistrySnapshotErased::from_static(
+        mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
             "minecraft:enchantment",
             &enchantment_registry,
             |_, data| {
@@ -578,7 +581,7 @@ pub(crate) fn register_static_registries_with_access(
                 let network = NetworkEnchantmentData::from(data);
                 mcrs_minecraft_nbt::to_nbt_compound(&network).ok()
             },
-            Some(mcrs_minecraft_core::PackSource::vanilla_core()),
+            Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
         ),
     ));
     tracing::info!(count = access.len(), "populated RegistryAccess");

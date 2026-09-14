@@ -1,4 +1,4 @@
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;

@@ -3,7 +3,8 @@
 
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{RegistrySnapshot, ResourceLocation};
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_worldgen::feature::compile::{CompiledPlacedFeature, FeatureSteps};

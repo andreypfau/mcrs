@@ -7,11 +7,11 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::access::RegistryAccess;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
-use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket,

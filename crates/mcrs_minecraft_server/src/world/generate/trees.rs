@@ -3,6 +3,9 @@ use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::voxel_shape::{
+    FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
+};
 use mcrs_minecraft_decoration::feature::tree::decorator::{CompiledTreeDecorator, TreePalette};
 use mcrs_minecraft_decoration::feature::tree::foliage::Foliage;
 use mcrs_minecraft_decoration::feature::tree::provider::{
@@ -32,9 +35,6 @@ use mcrs_minecraft_worldgen::feature::tree::{
     TrunkPlacer as ProtoTrunk,
 };
 use mcrs_minecraft_worldgen::noise::normal as normal_noise;
-use mcrs_voxel_math::voxel_shape::{
-    FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
-};
 use mcrs_voxel_storage::VoxelId;
 
 use super::feature_program::{Resolver, missing, union_masks};
@@ -227,11 +227,11 @@ fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
             .collision_shape;
         let answer = *answers.entry(shape.0).or_insert_with(|| {
             let voxels = VoxelShape::from_boxes(blocks.shape(shape));
-            let up = voxels.face_mask(mcrs_voxel_math::Direction::Up);
+            let up = voxels.face_mask(mcrs_minecraft_core::Direction::Up);
             [
                 *up == FACE_MASK_FULL,
                 *up != FACE_MASK_EMPTY,
-                covers_center(voxels.face_mask(mcrs_voxel_math::Direction::Down)),
+                covers_center(voxels.face_mask(mcrs_minecraft_core::Direction::Down)),
             ]
         });
         for (holds, mask) in

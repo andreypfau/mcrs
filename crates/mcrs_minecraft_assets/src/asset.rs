@@ -60,7 +60,7 @@ impl<A> Default for JsonLoader<A> {
 
 impl<A: bevy_reflect::TypePath> bevy_reflect::TypePath for JsonLoader<A> {
     fn type_path() -> &'static str {
-        "mcrs_minecraft_core::asset::JsonLoader"
+        "mcrs_minecraft_assets::asset::JsonLoader"
     }
 
     fn short_type_path() -> &'static str {

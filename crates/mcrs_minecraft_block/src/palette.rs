@@ -1,4 +1,4 @@
-use mcrs_voxel_math::SectionPos;
+use mcrs_minecraft_core::SectionPos;
 use mcrs_voxel_storage::PalettedContainer::{Heterogeneous, Homogeneous};
 use mcrs_voxel_storage::section::{Biomes, Blocks};
 use mcrs_voxel_storage::{SectionKind, SharedVoxelPalette, VoxelId, VoxelPalette};

@@ -2,11 +2,11 @@
 //! `getPotentialStructureChunk` and `isStructureChunk` over two chunk squares.
 
 use bytes::Buf;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::corpus::{self, dump_string, open_dump};
 use mcrs_minecraft_worldgen::structure::StructureSet;
 use mcrs_minecraft_worldgen::structure::placement::{SpreadPlacement, frequency_gate};
-use mcrs_voxel_math::ColumnPos;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 

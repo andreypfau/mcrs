@@ -1,6 +1,6 @@
 use crate::jmath::mul_add;
 use crate::sample_grid::{Axis, SampleGrid};
-use mcrs_voxel_math::mth::{floor_div, floor_mod};
+use mcrs_minecraft_core::mth::{floor_div, floor_mod};
 
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,

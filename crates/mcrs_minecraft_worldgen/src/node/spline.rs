@@ -2,7 +2,7 @@ use crate::interval::Interval;
 use crate::jmath::{lerp, mul_add};
 use crate::kernel::{Runs, at, each_column};
 use crate::sample_grid::SampleGrid;
-use mcrs_voxel_math::mth::{jmax, jmin};
+use mcrs_minecraft_core::mth::{jmax, jmin};
 
 #[derive(Clone, Debug)]
 pub enum SplineValue {

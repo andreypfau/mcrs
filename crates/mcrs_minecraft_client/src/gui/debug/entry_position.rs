@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_voxel_math::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 use super::{DebugEntryGroup, DebugScreenDisplayer};

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::resource_location::ResourceLocation;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
 
 /// A single entry in a frozen [`RegistrySnapshot`], carrying the
 /// pre-serialized NBT and the original `AssetId` for reverse lookup.
@@ -165,13 +165,13 @@ macro_rules! snapshot_registry {
                         asset_server: ::bevy_ecs::system::Res<::bevy_asset::AssetServer>,
                     | {
                         let pairs: Vec<(
-                            $crate::ResourceLocation<::std::sync::Arc<str>>,
+                            ::mcrs_minecraft_core::ResourceLocation<::std::sync::Arc<str>>,
                             ::bevy_asset::AssetId<$ty>,
                         )> = assets
                             .iter()
                             .filter_map(|(asset_id, _)| {
                                 let path = asset_server.get_path(asset_id)?;
-                                let rl = $crate::registry::snapshot::rl_from_asset_path(path.path(), $registry_key)?;
+                                let rl = $crate::snapshot::rl_from_asset_path(path.path(), $registry_key)?;
                                 Some((rl, asset_id))
                             })
                             .collect();

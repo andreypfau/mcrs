@@ -9,9 +9,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
 use crate::value::IntValueProvider;
+use mcrs_minecraft_assets::tag::file::TagOrElementLocation;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::tag::file::TagOrElementLocation;
-use mcrs_voxel_math::direction::Direction;
+use mcrs_minecraft_core::direction::Direction;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]

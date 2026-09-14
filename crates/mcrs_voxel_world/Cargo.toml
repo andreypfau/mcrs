@@ -8,7 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_voxel_math = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_voxel_storage = { workspace = true, features = ["bevy"] }
 bevy_ecs.workspace = true
 bevy_platform.workspace = true

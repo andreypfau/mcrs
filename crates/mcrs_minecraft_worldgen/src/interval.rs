@@ -1,4 +1,4 @@
-use mcrs_voxel_math::mth;
+use mcrs_minecraft_core::mth;
 
 /// The bounds a value can take. Only ever widened: a bound narrower than the
 /// truth would let the optimiser delete a reachable branch.

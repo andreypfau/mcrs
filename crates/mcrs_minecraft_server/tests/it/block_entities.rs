@@ -7,6 +7,7 @@ use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_anvil::{DATA_VERSION, PaletteLookup, Properties, parse_chunk};
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_decoration::block_entity::{BeeOccupant, EndGatewayData, GeneratedBlockEntity};
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -15,7 +16,6 @@ use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_server::world::block_entity::{BlockEntity, packet_entry, spawn_block_entities};
 use mcrs_minecraft_server::world::format::anvil::saved_block_entities;
-use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::world::dimension::InDimension;
 use mcrs_voxel_world::world::lifecycle::markers::ChunkUnloaded;
 use mcrs_voxel_world::world::lifecycle::ticket::{ChunkTicketsCommands, TicketPlugin};
@@ -46,7 +46,7 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, i32)> {
         (generated_nest(), 33),
         (
             GeneratedBlockEntity::chest(
-                mcrs_voxel_math::BlockPos::new(33, 64, -3),
+                mcrs_minecraft_core::BlockPos::new(33, 64, -3),
                 "minecraft:chests/simple_dungeon".to_owned(),
                 -8_123_456_789,
             ),
@@ -54,7 +54,7 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, i32)> {
         ),
         (
             GeneratedBlockEntity::mob_spawner(
-                mcrs_voxel_math::BlockPos::new(46, 79, -16),
+                mcrs_minecraft_core::BlockPos::new(46, 79, -16),
                 "minecraft:skeleton",
             ),
             9,

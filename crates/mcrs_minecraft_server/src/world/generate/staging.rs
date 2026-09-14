@@ -1,4 +1,4 @@
-use mcrs_voxel_math::{LocalPos, SectionPos};
+use mcrs_minecraft_core::{LocalPos, SectionPos};
 use std::sync::Arc;
 
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;

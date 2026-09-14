@@ -1,7 +1,7 @@
 use crate::block::BlockUpdateFlags;
 use bevy_ecs::entity::Entity;
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_world::voxel_update::{
     VoxelPlaced, VoxelSetRequest, VoxelUpdateFlags, VoxelUpdatePlugin,
 };
@@ -30,7 +30,7 @@ pub fn remove_block<P: Into<BlockPos>>(dimension: Entity, pos: P) -> BlockSetReq
 mod tests {
     use super::*;
     use bevy_ecs::schedule::IntoScheduleConfigs;
-    use mcrs_voxel_math::SectionPos;
+    use mcrs_minecraft_core::SectionPos;
     use mcrs_voxel_world::voxel_update::{VoxelUpdateSet, apply_voxel_set_requests};
 
     #[test]

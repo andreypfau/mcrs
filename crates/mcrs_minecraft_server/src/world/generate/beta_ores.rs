@@ -1,4 +1,4 @@
-use mcrs_voxel_math::BlockPos;
+use mcrs_minecraft_core::BlockPos;
 
 use crate::world::generate::beta_chunk_seed;
 use mcrs_minecraft_decoration::feature::ore_beta::{OreConfig, TargetBlockState, place_beta_ore};

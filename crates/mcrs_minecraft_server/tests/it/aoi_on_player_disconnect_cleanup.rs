@@ -15,6 +15,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_server::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick,
     filter_inflight_for_disconnect, process_disconnect,
@@ -27,7 +28,6 @@ use mcrs_minecraft_server::world::bus::{
 use mcrs_minecraft_server::world::channel_types::FromDim;
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_server::world::player_index::PlayerIndex;
-use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};

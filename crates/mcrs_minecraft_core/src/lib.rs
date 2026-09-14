@@ -2,32 +2,31 @@
 /// version manifest to read it from, so the target version is stated once here.
 pub const VERSION_NAME: &str = "26.3-snapshot-9";
 
-#[cfg(feature = "bevy")]
-pub mod asset;
-#[cfg(feature = "bevy")]
-mod plugin;
-pub mod registry;
+pub mod block_pos;
+pub mod bounding_box;
+pub mod column_pos;
+pub mod direction;
+pub mod local_pos;
+pub mod mth;
+pub mod quart_pos;
+pub mod region_pos;
+pub mod resource_key;
 pub mod resource_location;
-#[cfg(feature = "bevy")]
-pub mod state;
-pub mod tag;
+pub mod section_pos;
+pub mod tag_key;
+pub mod voxel_shape;
 
-#[cfg(feature = "bevy")]
-pub use plugin::MinecraftCorePlugin;
-#[cfg(feature = "bevy")]
-pub use registry::{
-    PackSource, RegistryAccess, RegistrySnapshot, RegistrySnapshotErased, SnapshotEntry,
-};
-pub use registry::{ResourceKey, StaticId, StaticRegistry};
+pub use block_pos::BlockPos;
+pub use bounding_box::BoundingBox;
+pub use column_pos::ColumnPos;
+pub use direction::{Axis, Direction, DirectionSet, dist_manhattan};
+pub use local_pos::LocalPos;
+pub use quart_pos::QuartPos;
+pub use region_pos::RegionPos;
+pub use resource_key::ResourceKey;
 pub use resource_location::ResourceLocation;
-#[cfg(feature = "bevy")]
-pub use state::AppState;
-pub use tag::{DynRegistryIndex, IdBitSet, RawBitSet, TagKey, TaggedRegistry};
-#[cfg(feature = "bevy")]
-pub use tag::{
-    DynTagLoader, DynTagRegistry, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagLoader,
-    TagPhase, TagRef, TagRegistry, TagRegistryAppExt, TagSource,
-};
+pub use section_pos::SectionPos;
+pub use tag_key::{TagKey, TaggedRegistry};
 
 // Re-export the proc macro for the rl! declarative macro.
 #[doc(hidden)]

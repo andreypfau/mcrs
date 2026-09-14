@@ -1,8 +1,8 @@
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res};
 use bevy_state::prelude::OnEnter;
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::tag::TagPhase;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::tag::TagPhase;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::block::light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_world::transition_to_playing;

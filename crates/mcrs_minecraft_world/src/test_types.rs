@@ -1,7 +1,7 @@
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use mcrs_minecraft_core::asset::read_all;
+use mcrs_minecraft_assets::asset::read_all;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]

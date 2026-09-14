@@ -2,14 +2,14 @@
 //! immediately and only the resulting [`Influence`] is deferred. Queuing the
 //! change itself would mean a batched-out edit had not happened yet.
 
-use mcrs_voxel_math::SectionPos;
+use mcrs_minecraft_core::SectionPos;
 use std::collections::BTreeSet;
 
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::region::Influence;
-use mcrs_voxel_math::BoundingBox;
+use mcrs_minecraft_core::BoundingBox;
 
 /// Lower is more urgent, like a vanilla ticket level.
 pub type Priority = u16;

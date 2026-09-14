@@ -7,8 +7,8 @@ use crate::program::Workspace;
 use crate::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
 use crate::sample_grid::SampleGrid;
 use bevy_math::IVec3;
+use mcrs_minecraft_core::mth::mth_floor;
 use mcrs_minecraft_random::Random;
-use mcrs_voxel_math::mth::mth_floor;
 use mcrs_voxel_storage::VoxelId;
 
 /// The water level of a strip in which no fluid has been seen from above.

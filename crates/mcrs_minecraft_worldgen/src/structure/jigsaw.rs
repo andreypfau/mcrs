@@ -6,9 +6,9 @@ use crate::structure::template::Joint;
 use crate::structure::{JigsawConfig, Projection, TerrainAdaptation};
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{shuffle, shuffled};
-use mcrs_voxel_math::{BlockPos, BoundingBox};
 
 use super::frozen::{ElementId, FrozenStructures, PoolId, StructureId, StructureKind};
 use super::site::{PlacedJigsaw, Site, SiteWorld, element_bounds, shuffled_jigsaws};

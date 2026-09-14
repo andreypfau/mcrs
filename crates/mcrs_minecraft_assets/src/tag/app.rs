@@ -1,12 +1,12 @@
 use crate::state::AppState;
-use crate::tag::bitset::TagId;
 use crate::tag::file::TagFile;
-use crate::tag::key::{TagKey, TaggedRegistry};
 use crate::tag::registry::{TagLoader, TagSource, resolve_tag_file};
 use bevy_app::{App, Update};
 use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
+use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_registry::bitset::TagId;
 
 /// The phases a tagged registry passes through, as system sets so callers can
 /// order their own systems against them.

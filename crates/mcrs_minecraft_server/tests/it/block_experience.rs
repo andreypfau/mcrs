@@ -6,11 +6,11 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
-use mcrs_minecraft_core::StaticRegistry;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::enchantment::{EnchantmentData, register_all_enchantments};
 use mcrs_minecraft_world::item::component::Enchantments;
-use mcrs_voxel_math::BlockPos;
 
 fn harness() -> App {
     let mut app = App::new();

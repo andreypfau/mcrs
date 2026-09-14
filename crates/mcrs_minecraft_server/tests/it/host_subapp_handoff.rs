@@ -10,11 +10,11 @@ use bevy_math::{DVec3, Vec2};
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::access::RegistryAccess;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
-use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft_server::world::bus::{
@@ -34,7 +34,7 @@ use mcrs_voxel_world::session::{PlayerSessionCounter, SessionRegistry};
 use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 
 // System under test (Task 1) — must be pub in configuration.rs
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
 
 use crate::support;

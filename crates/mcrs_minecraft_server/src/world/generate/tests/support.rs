@@ -145,12 +145,12 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
 
 use std::collections::HashSet;
 
-use mcrs_minecraft_core::DynRegistryIndex;
-use mcrs_minecraft_core::tag::TagLoader;
-use mcrs_minecraft_core::tag::file::SerializedTagFile;
-use mcrs_minecraft_core::tag::key::TaggedRegistry;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_minecraft_core::tag::registry::TagSource;
+use mcrs_minecraft_assets::tag::TagLoader;
+use mcrs_minecraft_assets::tag::file::SerializedTagFile;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::tag::registry::TagSource;
+use mcrs_minecraft_core::tag_key::TaggedRegistry;
+use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::definition::Fluids;
 use mcrs_minecraft_world::block::{Block, Fluid};

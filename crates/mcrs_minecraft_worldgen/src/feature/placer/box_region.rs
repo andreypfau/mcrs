@@ -1,4 +1,4 @@
-use mcrs_voxel_math::BlockPos;
+use mcrs_minecraft_core::BlockPos;
 use mcrs_voxel_storage::{Blocks, BlocksMut, BoxVolume, Volume, VoxelId};
 
 use crate::feature::placement::HeightmapName;

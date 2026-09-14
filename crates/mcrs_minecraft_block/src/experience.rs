@@ -1,12 +1,12 @@
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_core::StaticRegistry;
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_math::BlockPos;
 use tracing::{debug, warn};
 
 use mcrs_minecraft_world::item::component::Enchantments;

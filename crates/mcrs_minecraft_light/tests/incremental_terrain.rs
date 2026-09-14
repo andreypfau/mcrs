@@ -8,8 +8,8 @@ mod common;
 use std::sync::Arc;
 
 use common::{AIR, Reference, STONE, registry};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelPalette};
 
 const SECTIONS_Y: i32 = 6;

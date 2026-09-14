@@ -11,9 +11,10 @@ use bevy_asset::{
 use bevy_ecs::prelude::*;
 use bevy_reflect::TypePath;
 use bevy_state::state::OnEnter;
-use mcrs_minecraft_core::asset::read_all;
-use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
-use mcrs_minecraft_core::{AppState, ResourceLocation};
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::asset::read_all;
+use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
+use mcrs_minecraft_core::ResourceLocation;
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;

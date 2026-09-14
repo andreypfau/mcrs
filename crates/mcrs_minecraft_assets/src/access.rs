@@ -1,9 +1,9 @@
-use crate::registry::snapshot::RegistrySnapshot;
-use crate::registry::static_registry::StaticRegistry;
-use crate::resource_location::ResourceLocation;
+use crate::snapshot::RegistrySnapshot;
 use bevy_asset::Asset;
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]

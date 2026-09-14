@@ -1,16 +1,16 @@
-use mcrs_voxel_math::LocalPos;
+use mcrs_minecraft_core::LocalPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bevy_asset::Assets;
-use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, build_beta_lookup_table,
 };
-use mcrs_voxel_math::BlockPos;
 
 use mcrs_minecraft_worldgen::program::Workspace;
 

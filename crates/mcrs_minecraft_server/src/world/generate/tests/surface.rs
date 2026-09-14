@@ -373,7 +373,7 @@ fn grid_biomes(
 
 /// The preset's biomes as a registry, and the ids it gave them.
 fn overworld_biome_registry() -> (
-    mcrs_minecraft_core::RegistrySnapshot<Biome>,
+    mcrs_minecraft_assets::RegistrySnapshot<Biome>,
     HashMap<String, u32>,
 ) {
     let mut assets = bevy_asset::Assets::<Biome>::default();
@@ -397,7 +397,7 @@ fn overworld_biome_registry() -> (
             )
         })
         .collect();
-    let snapshot = mcrs_minecraft_core::RegistrySnapshot::<Biome>::build(pairs, &assets, |_| {
+    let snapshot = mcrs_minecraft_assets::RegistrySnapshot::<Biome>::build(pairs, &assets, |_| {
         Ok(mcrs_minecraft_nbt::compound::NbtCompound::new())
     });
     let ids = names
@@ -414,7 +414,7 @@ fn overworld_biome_registry() -> (
 /// `dispatch_column_generation` resolves them for the pool.
 fn fill_context(
     router: NoiseRouter,
-    registry: mcrs_minecraft_core::RegistrySnapshot<mcrs_minecraft_world::biome::Biome>,
+    registry: mcrs_minecraft_assets::RegistrySnapshot<mcrs_minecraft_world::biome::Biome>,
     source: mcrs_minecraft_world::biome::source::BiomeSource,
 ) -> crate::world::generate::stages::FillContext {
     use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
@@ -458,9 +458,9 @@ fn fill_context(
 fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     use bevy_app::App;
     use bevy_ecs::entity::Entity;
+    use mcrs_minecraft_core::SectionPos;
     use mcrs_minecraft_protocol::ColumnPos;
     use mcrs_minecraft_world::biome::source::BiomeSource;
-    use mcrs_voxel_math::SectionPos;
 
     use crate::world::chunk::{CancellationToken, carried_sections};
     use crate::world::generate::stages::fill_column;

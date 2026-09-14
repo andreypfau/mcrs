@@ -7,8 +7,8 @@ use bevy_reflect::TypePath;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use mcrs_minecraft_core::asset::read_all;
-use mcrs_minecraft_core::tag::key::TaggedRegistry;
+use mcrs_minecraft_assets::asset::read_all;
+use mcrs_minecraft_core::tag_key::TaggedRegistry;
 
 use crate::ResourceLocation;
 

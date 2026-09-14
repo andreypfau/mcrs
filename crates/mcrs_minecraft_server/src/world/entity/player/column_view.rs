@@ -9,11 +9,11 @@ use bevy_ecs::prelude::{Added, Component, ContainsEntity, MessageReader, On, Que
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, ChunkBlocks};
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
-use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::entity::player::chunk_view::{
     ChunkTrackingViewUpdateEvent, ChunkViewPlugin, ChunkViewSet, PlayerChunkLoadRequest,
     PlayerChunkObserver, PlayerChunkUnloadRequest,

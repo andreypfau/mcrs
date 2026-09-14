@@ -1,4 +1,4 @@
-use crate::registry::StaticId;
+use crate::StaticId;
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::marker::PhantomData;

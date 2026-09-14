@@ -469,7 +469,7 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
 #[test]
 fn a_loaded_carver_asset_names_its_carver() {
     use crate::world::generate::modern_carvers::CARVER_REGISTRY;
-    use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
+    use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 
     let location = rl_from_asset_path(
         std::path::Path::new("minecraft/worldgen/carver/cave.json"),

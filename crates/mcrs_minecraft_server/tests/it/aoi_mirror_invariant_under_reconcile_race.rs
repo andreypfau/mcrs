@@ -12,9 +12,9 @@ use bevy_app::{App, FixedPostUpdate, FixedPreUpdate};
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_server::world::aoi::{ChunkSubscriptionSet, TrackedBy};
 use mcrs_minecraft_server::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
-use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::world::dimension::{

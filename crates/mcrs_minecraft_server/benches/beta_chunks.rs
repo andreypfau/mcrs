@@ -9,7 +9,7 @@ use std::sync::{Arc, Barrier};
 use std::time::Instant;
 
 use bevy_asset::Assets;
-use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_server::world::chunk::CancellationToken;

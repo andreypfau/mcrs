@@ -1,5 +1,5 @@
 use crate::columns::{BlockSource, SECTION_SIZE};
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 
 use crate::model::{self, Pack};
 

@@ -1,4 +1,4 @@
-use mcrs_voxel_math::ColumnPos;
+use mcrs_minecraft_core::ColumnPos;
 use std::path::PathBuf;
 use std::sync::Arc;
 

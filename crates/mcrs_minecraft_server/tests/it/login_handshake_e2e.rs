@@ -31,13 +31,13 @@ use bevy_math::DVec3;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::access::RegistryAccess;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
-use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::runner::pump_channels;
@@ -140,8 +140,8 @@ fn e2e_login_handshake_completes() {
 /// so the blob is non-empty.
 #[test]
 fn e2e_packet_round_trip() {
+    use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_protocol::BlockStateId;
-    use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_world::session::{SessionEntry, SessionRegistry};
 
     let mut world = World::new();
@@ -226,7 +226,7 @@ fn e2e_packet_round_trip() {
 #[test]
 fn e2e_aoi_surrounding_update() {
     use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
-    use mcrs_voxel_math::ColumnPos;
+    use mcrs_minecraft_core::ColumnPos;
     use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
 
     let mut app = make_aoi_app();
@@ -476,8 +476,8 @@ where
     sys.apply_deferred(world);
 }
 
-fn seed_columns(app: &mut App, dim: Entity, centre: mcrs_voxel_math::ColumnPos, radius: i32) {
-    use mcrs_voxel_math::ColumnPos;
+fn seed_columns(app: &mut App, dim: Entity, centre: mcrs_minecraft_core::ColumnPos, radius: i32) {
+    use mcrs_minecraft_core::ColumnPos;
     use mcrs_voxel_world::aoi::PlayerObservers;
     use mcrs_voxel_world::world::dimension::InDimension;
     use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};

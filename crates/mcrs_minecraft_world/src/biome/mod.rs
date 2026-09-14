@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::ResourceLocation;
 use crate::attribute::EnvironmentAttributeMap;
-use mcrs_minecraft_core::asset::read_all;
+use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_worldgen::feature::FeatureStepList;
 
 pub use mcrs_minecraft_worldgen::structure::{MobCategory, SpawnerData};
@@ -45,7 +45,7 @@ pub struct Biome {
     pub features: Vec<FeatureStepList>,
 }
 
-impl mcrs_minecraft_core::tag::key::TaggedRegistry for Biome {
+impl mcrs_minecraft_core::tag_key::TaggedRegistry for Biome {
     const REGISTRY_PATH: &'static str = "worldgen/biome";
 }
 

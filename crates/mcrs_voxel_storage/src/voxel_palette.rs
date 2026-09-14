@@ -1,6 +1,6 @@
 use crate::PalettedContainer;
 use crate::PalettedContainer::{Heterogeneous, Homogeneous};
-use mcrs_voxel_math::{LocalPos, SectionPos};
+use mcrs_minecraft_core::{LocalPos, SectionPos};
 use std::hash::Hash;
 use std::sync::Arc;
 

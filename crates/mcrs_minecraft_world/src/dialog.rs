@@ -3,9 +3,9 @@ use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDepe
 use bevy_reflect::TypePath;
 use serde::Serialize;
 
-use mcrs_minecraft_core::asset::read_all;
-use mcrs_minecraft_core::tag::key::TaggedRegistry;
-use mcrs_minecraft_core::tag::tag_ref::TagRef;
+use mcrs_minecraft_assets::asset::read_all;
+use mcrs_minecraft_assets::tag::tag_ref::TagRef;
+use mcrs_minecraft_core::tag_key::TaggedRegistry;
 
 impl TaggedRegistry for Dialog {
     const REGISTRY_PATH: &'static str = "dialog";

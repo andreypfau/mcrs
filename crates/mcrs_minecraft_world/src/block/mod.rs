@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::tag::key::TaggedRegistry;
+use mcrs_minecraft_core::tag_key::TaggedRegistry;
 
 pub mod definition;
 pub mod light;

@@ -2,7 +2,7 @@ use crate::{Decode, Encode, VarInt};
 use anyhow::bail;
 use std::io::Write;
 
-pub use mcrs_voxel_math::Direction;
+pub use mcrs_minecraft_core::Direction;
 
 impl Encode for Direction {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {

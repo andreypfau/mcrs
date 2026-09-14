@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bevy_asset::Assets;
-use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};

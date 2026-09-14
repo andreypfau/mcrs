@@ -15,6 +15,7 @@ use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::{
     BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
@@ -29,7 +30,6 @@ use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft_server::world::player_index::PlayerIndex;
-use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::session::PlayerSession;
 use smallvec::SmallVec;
 use tokio::sync::mpsc;
@@ -243,8 +243,8 @@ fn deep_critical_queue_is_not_kicked() {
 /// socket per tick. The receiver side sees exactly one blob arrive.
 #[test]
 fn coalesce_single_write_per_tick() {
+    use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_protocol::BlockStateId;
-    use mcrs_voxel_math::BlockPos;
 
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);

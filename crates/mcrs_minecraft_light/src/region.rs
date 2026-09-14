@@ -1,4 +1,4 @@
-use mcrs_voxel_math::{BlockPos, BoundingBox};
+use mcrs_minecraft_core::{BlockPos, BoundingBox};
 
 /// Maximum distance a single change can travel: every step costs at least one
 /// level and light never exceeds 15, so cells beyond this are still correct and

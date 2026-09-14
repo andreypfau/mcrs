@@ -23,10 +23,10 @@ use self::schema::{
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
 use crate::value::IntValueProvider;
+use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::asset::read_whole;
+use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_voxel_math::voxel_shape::Aabb;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
 
@@ -294,7 +294,7 @@ pub struct Blocks(pub Arc<BlockDefinitions>);
 
 /// Block tags are resolved against the corpus, so every block the game has can
 /// be in a tag — not only the ones a static registry happens to name.
-impl mcrs_minecraft_core::tag::registry::TagSource for Blocks {
+impl mcrs_minecraft_assets::tag::registry::TagSource for Blocks {
     type Id = u32;
 
     fn id_of(&self, loc: &str) -> Option<u32> {
@@ -310,7 +310,7 @@ impl mcrs_minecraft_core::tag::registry::TagSource for Blocks {
 #[derive(Debug, Clone, Resource)]
 pub struct Fluids(pub Arc<BlockDefinitions>);
 
-impl mcrs_minecraft_core::tag::registry::TagSource for Fluids {
+impl mcrs_minecraft_assets::tag::registry::TagSource for Fluids {
     type Id = u32;
 
     fn id_of(&self, loc: &str) -> Option<u32> {

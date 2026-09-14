@@ -12,11 +12,11 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_world::worldgen::beta_biome::BetaBiomeSourcePlugin;
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
-use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
@@ -998,7 +998,7 @@ mod tests {
                 .get::<ChunkBlocks>(*entity)
                 .expect("a delivered section carries its blocks");
             for cell in 0..crate::world::generate::ColumnBlocks::SECTION_VOLUME {
-                let local = mcrs_voxel_math::LocalPos::from_index(cell);
+                let local = mcrs_minecraft_core::LocalPos::from_index(cell);
                 let (x, ly, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
                 assert_eq!(
                     got.get_cell(x, ly, z),

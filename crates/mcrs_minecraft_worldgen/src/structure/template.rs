@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_voxel_math::{BoundingBox, Direction};
 use mcrs_voxel_storage::VoxelId;
 use serde::{Deserialize, Serialize};
 
@@ -459,9 +459,9 @@ pub fn bounding_box(size: [u16; 3], position: IVec3, rotation: Rotation) -> Boun
 mod tests {
     use super::*;
     use crate::corpus::{assets_dir, nbt_files};
+    use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_nbt::nbt_compress::{from_gzip_bytes, read_gzip_compound_tag};
     use mcrs_minecraft_nbt::to_nbt_compound;
-    use mcrs_voxel_math::BlockPos;
     use std::io::Cursor;
 
     fn canonical(compound: &NbtCompound) -> NbtCompound {

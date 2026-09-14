@@ -7,9 +7,9 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 crates=(
     mcrs_minecraft_nbt
     mcrs_minecraft_random
-    mcrs_voxel_math
-    mcrs_voxel_storage
     mcrs_minecraft_core
+    mcrs_voxel_storage
+    mcrs_minecraft_registry
     mcrs_minecraft_protocol
     mcrs_minecraft_anvil
     mcrs_minecraft_worldgen

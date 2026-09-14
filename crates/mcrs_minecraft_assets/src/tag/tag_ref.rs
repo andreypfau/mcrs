@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use bevy_asset::{Handle, LoadContext};
 
-use crate::resource_location::ResourceLocation;
 use crate::tag::file::{TagFile, TagFileSettings};
-use crate::tag::key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
 
 /// A loaded reference to a tag in a typed registry.
 ///
@@ -57,7 +57,7 @@ impl<T: TaggedRegistry> TagRef<T> {
     pub fn load(
         rl_str: &str,
         load_context: &mut LoadContext<'_>,
-    ) -> Result<Self, crate::resource_location::ResourceLocationError> {
+    ) -> Result<Self, mcrs_minecraft_core::resource_location::ResourceLocationError> {
         let rl: ResourceLocation<Arc<str>> = ResourceLocation::parse(rl_str)?;
         let key = TagKey::from_location(rl);
         let handle = load_context

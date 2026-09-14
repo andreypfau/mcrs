@@ -5,10 +5,10 @@ use bevy_app::{App, Plugin};
 use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
-use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
+use mcrs_minecraft_assets::{DynTagRegistry, RegistrySnapshot};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
-use mcrs_minecraft_core::{DynTagRegistry, RegistrySnapshot};
 use mcrs_minecraft_decoration::feature::terrain_skin::BiomeClimate;
 use mcrs_minecraft_world::biome::overworld_preset::{
     nether_parameter_list, overworld_parameter_list,

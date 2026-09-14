@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::tag::key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
 use mcrs_minecraft_protocol::text::Text;
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap};
 

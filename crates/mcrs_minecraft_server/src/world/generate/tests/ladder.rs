@@ -16,11 +16,12 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::IVec3;
 use bevy_tasks::TaskPoolBuilder;
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_block::palette::ChunkBlocks;
-use mcrs_minecraft_core::{RegistrySnapshot, ResourceLocation};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;
-use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_storage::VoxelId;
 use mcrs_voxel_world::world::lifecycle::markers::{ChunkLoaded, ChunkLoading};
 

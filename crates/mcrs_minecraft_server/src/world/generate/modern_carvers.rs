@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use bevy_math::IVec3;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::tag::key::TagKey;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_decoration::carver::beta::carve_beta_caves;
 use mcrs_minecraft_decoration::carver::canyon::carve_canyon;
 use mcrs_minecraft_decoration::carver::mask::CarvingMask;
@@ -552,7 +552,7 @@ pub struct ModernCarverPlugin;
 impl bevy_app::Plugin for ModernCarverPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.add_systems(
-            bevy_state::prelude::OnEnter(mcrs_minecraft_core::AppState::WorldgenFreeze),
+            bevy_state::prelude::OnEnter(mcrs_minecraft_assets::AppState::WorldgenFreeze),
             bevy_ecs::prelude::IntoScheduleConfigs::before(
                 build_modern_carver_biomes,
                 mcrs_minecraft_world::transition_to_playing,
@@ -575,7 +575,7 @@ fn build_modern_carver_biomes(
     >,
     asset_server: bevy_ecs::prelude::Res<bevy_asset::AssetServer>,
 ) {
-    use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
+    use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 
     let Some(sources) = sources else { return };
 

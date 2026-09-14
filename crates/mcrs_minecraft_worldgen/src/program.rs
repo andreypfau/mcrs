@@ -11,7 +11,7 @@ use crate::noise::blended::BlendedNoise;
 use crate::sample_grid::{Axis, SampleGrid};
 use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, stratum};
 use bevy_math::IVec3;
-use mcrs_voxel_math::mth;
+use mcrs_minecraft_core::mth;
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

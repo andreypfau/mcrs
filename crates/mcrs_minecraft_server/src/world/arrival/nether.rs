@@ -2,10 +2,10 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Query;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::palette::ChunkBlocks;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::LocalPos;
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::LocalPos;
-use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 
 const AIR: BlockStateId = BlockStateId(0);

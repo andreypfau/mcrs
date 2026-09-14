@@ -8,7 +8,7 @@ use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::multiface_growth::{MultifaceStates, spread_positions};
 use crate::feature::tree::trunk::all_shuffled;
-use mcrs_voxel_math::{BlockPos, dist_manhattan};
+use mcrs_minecraft_core::{BlockPos, dist_manhattan};
 
 /// `SculkSpreader.createWorldGenSpreader`, which is the only spreader a feature
 /// ever builds.

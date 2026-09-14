@@ -1,6 +1,6 @@
 use crate::jmath::mul_add;
 use crate::sample_grid::SampleGrid;
-use mcrs_voxel_math::mth::jmax;
+use mcrs_minecraft_core::mth::jmax;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]

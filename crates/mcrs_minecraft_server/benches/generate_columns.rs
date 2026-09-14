@@ -1,8 +1,8 @@
 use criterion::{Criterion, criterion_group, criterion_main};
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::generate_column;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::LocalPos;
 use std::hint::black_box;
 
 #[path = "../src/world/generate/tests/support.rs"]
