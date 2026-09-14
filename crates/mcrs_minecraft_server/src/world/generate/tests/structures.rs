@@ -111,7 +111,6 @@ fn the_hardcoded_census_is_pinned() {
         .collect();
     hardcoded.sort();
     assert_eq!(hardcoded, HARDCODED);
-    assert_eq!(structure("minecraft:stronghold").reach_chunks, 8);
 }
 
 #[test]
@@ -138,19 +137,6 @@ fn the_corpus_freezes_to_the_pinned_tables() {
 
     assert_eq!(structure("minecraft:village_plains").step_index, 40);
     assert_eq!(structure("minecraft:ancient_city").step_index, 0);
-
-    for id in [
-        "minecraft:village_plains",
-        "minecraft:village_taiga",
-        "minecraft:abandoned_camp_forest",
-        "minecraft:pillager_outpost",
-    ] {
-        assert_eq!(structure(id).reach_chunks, 6, "{id}");
-    }
-    assert_eq!(structure("minecraft:bastion_remnant").reach_chunks, 5);
-    assert_eq!(structure("minecraft:trail_ruins").reach_chunks, 6);
-    assert_eq!(structure("minecraft:ancient_city").reach_chunks, 8);
-    assert_eq!(structure("minecraft:trial_chambers").reach_chunks, 8);
 
     let empty = frozen.pool_ids[&ResourceLocation::minecraft("empty")];
     let empty_pool = &frozen.pools[empty.0 as usize];

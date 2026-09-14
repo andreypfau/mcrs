@@ -120,3 +120,63 @@ fn the_stronghold_rings_hold_every_position() {
     assert!(index.gate(strongholds, rings[0]));
     assert_eq!(index.rings(set("minecraft:villages")), None);
 }
+
+/// With the villages the only live set, nothing wider widens the scan. This
+/// village's adapted box reaches seven chunks from its start chunk, one past
+/// what `max_distance_from_center` and the margin alone would allow.
+#[test]
+fn every_column_a_village_crosses_finds_its_start() {
+    let frozen = frozen_shared();
+    let villages = set("minecraft:villages");
+    let plains = biome_index().get("minecraft:plains").unwrap();
+    let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
+    mask.insert(plains as usize);
+    let tables = DimensionStructureTables {
+        frozen: Arc::clone(frozen),
+        live: live_sets(frozen, &mask)
+            .into_iter()
+            .filter(|(set, _)| *set == villages)
+            .collect(),
+    };
+    let index = StructureIndex::new(
+        Arc::new(tables),
+        SEED as i64,
+        Arc::new(build_settings_router("overworld", SEED)),
+        BiomeLookup::Fixed(plains),
+        Some(heightmap_predicates(blocks(), block_tags())),
+        -64,
+        384,
+    );
+    let village = frozen.structure_ids[&ResourceLocation::parse("minecraft:village_plains").unwrap()];
+    let chunk = ColumnPos::new(-31, 72);
+    let start = index
+        .starts_at(chunk)
+        .into_iter()
+        .find(|start| start.structure == village)
+        .expect("a plains village starts in the chunk");
+
+    let bounds = start.bounds;
+    let farthest = [
+        (bounds.min.x >> 4) - chunk.x,
+        (bounds.max.x >> 4) - chunk.x,
+        (bounds.min.z >> 4) - chunk.z,
+        (bounds.max.z >> 4) - chunk.z,
+    ]
+    .into_iter()
+    .map(i32::abs)
+    .max()
+    .unwrap();
+    assert_eq!(farthest, 7, "the village no longer reaches seven chunks out");
+    for x in bounds.min.x >> 4..=bounds.max.x >> 4 {
+        for z in bounds.min.z >> 4..=bounds.max.z >> 4 {
+            let column = ColumnPos::new(x, z);
+            assert!(
+                index
+                    .starts_reaching(column)
+                    .iter()
+                    .any(|(from, found)| *from == chunk && found.structure == village),
+                "{column:?} is crossed by the village started in {chunk:?} and does not find it"
+            );
+        }
+    }
+}

@@ -39,6 +39,8 @@ pub enum BiomeLookup {
 
 const CLIMATE_ROOTS: [usize; 6] = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
 
+const MAX_STRUCTURE_DISTANCE: i32 = 8;
+
 type RingSets = Vec<(SetId, Vec<ColumnPos>)>;
 type StartCell = Arc<OnceLock<Option<Start>>>;
 
@@ -222,8 +224,8 @@ impl StructureIndex {
         })
     }
 
-    /// Every start whose bounds cross `column`, from every chunk within the
-    /// live jigsaw structures' reach, in `(step, step_index, chunk.x, chunk.z)`
+    /// Every start whose bounds cross `column`, from every chunk within
+    /// [`MAX_STRUCTURE_DISTANCE`] of it, in `(step, step_index, chunk.x, chunk.z)`
     /// order.
     // ponytail: starts of one structure are ordered by chunk, where the
     // reference walks a `LongOpenHashSet`; only a column two starts of one
@@ -242,36 +244,28 @@ impl StructureIndex {
             let structure = &frozen.structures[id.0 as usize];
             matches!(structure.kind, StructureKind::Jigsaw { .. }) && keep(structure)
         };
-        let set_reach: Vec<(SetId, i32)> = self
+        let sets: Vec<SetId> = self
             .tables
             .live
             .iter()
-            .filter_map(|(set, structures)| {
-                structures
-                    .iter()
-                    .filter(|id| kept(**id))
-                    .map(|id| frozen.structures[id.0 as usize].reach_chunks as i32)
-                    .max()
-                    .map(|reach| (*set, reach))
-            })
+            .filter(|(_, structures)| structures.iter().any(|id| kept(*id)))
+            .map(|(set, _)| *set)
             .collect();
-        let reach = set_reach.iter().map(|(_, reach)| *reach).max().unwrap_or(0);
+        if sets.is_empty() {
+            return Vec::new();
+        }
         let footprint = BoundingBox {
             min: BlockPos::new(column.x * 16, i32::MIN, column.z * 16),
             max: BlockPos::new(column.x * 16 + 15, i32::MAX, column.z * 16 + 15),
         };
         let mut view = self.view();
         let mut starts: Vec<(ColumnPos, Start)> = Vec::new();
-        for dx in -reach..=reach {
-            for dz in -reach..=reach {
+        let radius = MAX_STRUCTURE_DISTANCE;
+        for dx in -radius..=radius {
+            for dz in -radius..=radius {
                 let chunk = ColumnPos::new(column.x + dx, column.z + dz);
-                let distance = dx.abs().max(dz.abs());
-                let sets = set_reach
-                    .iter()
-                    .filter(|(_, reach)| *reach >= distance)
-                    .map(|(set, _)| *set);
                 starts.extend(
-                    self.starts_of(&mut view, chunk, sets, kept)
+                    self.starts_of(&mut view, chunk, sets.iter().copied(), kept)
                         .into_iter()
                         .filter(|start| start.bounds.intersects(footprint))
                         .map(|start| (chunk, start)),

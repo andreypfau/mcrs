@@ -114,7 +114,6 @@ pub struct FrozenStructure {
     pub step: DecorationStep,
     pub step_index: u32,
     pub adaptation: TerrainAdaptation,
-    pub reach_chunks: u32,
     pub biomes: BiomeMask,
     pub kind: StructureKind,
 }
@@ -214,7 +213,6 @@ pub struct StructureInputs<'a> {
 
 pub(super) const TERRAIN_MARGIN: i32 = 12;
 const MAX_JIGSAW_RANGE: i32 = 128;
-const HARDCODED_REACH: u32 = 8;
 
 pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> {
     let mut frozen = FrozenStructures::default();
@@ -426,7 +424,7 @@ fn freeze_structures(
         let settings = structure.settings();
         let step_index = per_step.entry(settings.step).or_default();
         let biomes = biome_mask(inputs, id, &settings.biomes)?;
-        let (kind, reach_chunks) = match structure {
+        let kind = match structure {
             Structure::Jigsaw { jigsaw, .. } => {
                 let start_pool = *frozen.pool_ids.get(&jigsaw.start_pool).ok_or_else(|| {
                     format!(
@@ -449,17 +447,14 @@ fn freeze_structures(
                 let mut aliases = BTreeSet::new();
                 check_aliases(id, &jigsaw.pool_aliases, &frozen.pool_ids, &mut aliases)?;
                 check_jigsaw_targets(id, start_pool, &aliases, frozen)?;
-                (
-                    StructureKind::Jigsaw {
-                        start_pool,
-                        config: jigsaw.clone(),
-                    },
-                    (range as u32).div_ceil(16),
-                )
+                StructureKind::Jigsaw {
+                    start_pool,
+                    config: jigsaw.clone(),
+                }
             }
             _ => {
                 tracing::warn!(structure = %id, "no generator for this structure type; it places nothing");
-                (StructureKind::Hardcoded, HARDCODED_REACH)
+                StructureKind::Hardcoded
             }
         };
         frozen
@@ -470,7 +465,6 @@ fn freeze_structures(
             step: settings.step,
             step_index: *step_index,
             adaptation: settings.terrain_adaptation,
-            reach_chunks,
             biomes,
             kind,
         });

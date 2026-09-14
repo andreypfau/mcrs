@@ -318,10 +318,13 @@ strongholds bound their pieces to 112 blocks from the start
 (`NetherFortressPieces.java:3059-3091`, `StrongholdPieces.java:216-242`),
 mineshafts to 80 (`MineshaftPieces.java:85-112`), and end cities and mansions
 are bounded only by the cap. The index of §8 needs the bound *before* the
-layout exists, so each structure declares a reach in chunks: for jigsaw,
-`⌈(horizontal + margin) / 16⌉`; for the rest a table by type, and `8` where the
-type gives nothing tighter. The actual bounding box, once known, is what the
-query filters on. The constant is older than structures: Beta's cave map-gen
+layout exists, and takes the reference's: every structure is looked for
+within eight chunks. A tighter reach derived from `horizontal + margin` is not
+a bound, because the pieces are held within that distance of the centre
+piece's box centre, not of the start chunk, and a rotated centre piece moves
+that centre outside the chunk; such a reach can fall a chunk short and drop
+the start from the columns at the edge of its box. The actual bounding box,
+once known, is what the query filters on. The constant is older than structures: Beta's cave map-gen
 already visited a radius of 8 (§10.1, B3).
 
 **L6. A piece is its serialised form.** The reference writes each piece as
@@ -751,16 +754,14 @@ level, which holds the pieces. Search fills the first and never the second
 empty.
 
 **I3. The query.** *Starts reaching column `U`*: for each live set, for each
-chunk `C` within the set's reach of `U` (L5), the starts of `C` whose box
+chunk `C` within eight chunks of `U` (L5), the starts of `C` whose box
 intersects `U`'s footprint; for adaptation, only structures with a term, and
 the box already inflated by 12 (L1). For a `random_spread` set the chunks to
 visit are the cells whose potential chunk lies in the square, which for
 `spacing ≥ 20` is a handful; for the three spacing-1 or spacing-2 sets it is
-the square itself, but their reach is small (fossils: one chunk plus the
-margin) or their structures do not adapt. The reference visits the 289 chunks
-of radius 8 for every one of its four dependent statuses; the index visits per
-set what that set can reach, and memo hits are the norm because neighbouring
-columns share the square.
+the square itself. The reference visits the 289 chunks of radius 8 for every
+one of its four dependent statuses; the index visits the same square once per
+query, and memo hits are the norm because neighbouring columns share it.
 
 **I4. Consumers.** Fill (A1); the run of each step slot (M5); the spawner's
 overrides, which ask for every start whose box or whose *pieces* contain a
@@ -1128,8 +1129,6 @@ The freeze resolves and checks, naming the asset on failure:
   exists;
 - exclusion-zone cycles (P3);
 - duplicate aliases (J1);
-- the reach table of L5 for the hardcoded types and the derived reach for
-  each jigsaw structure;
 - the per-structure `(step, index)` of M5, from the sorted structure ids;
 - for each hardcoded type, that a generator exists in this build, as a census
   pinned by name, the way feature types with no generator are
@@ -1416,7 +1415,7 @@ source for its generator exists.** §10.2.
    cost: the template-backed ones (igloo, shipwreck, ocean ruin, ruined
    portal, fossil, end city, mansion), then the scattered three, then the grid
    generators (mineshaft, fortress, stronghold, monument, treasure); each
-   adds its row to the reach table and the "site implies a piece" table.
+   adds its row to the "site implies a piece" table.
 7. The save (I5), explorer maps with their claim (R5), spawn overrides and the
    cat spawner (I4).
 8. The seed searcher (R2, R3) as a tool over the frozen registries, with the
