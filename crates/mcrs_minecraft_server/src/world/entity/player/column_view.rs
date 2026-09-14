@@ -3,6 +3,7 @@ use crate::world::light_codec::{
 };
 use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Added, Component, ContainsEntity, MessageReader, On, Query, With};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
@@ -71,6 +72,7 @@ impl Plugin for ColumnViewPlugin {
         // React to ChunkTrackingView changes (xz-distance changes, movement).
         app.add_observer(on_view_update);
         app.add_observer(handle_batch_acknowledgement);
+        app.add_observer(release_forced_tickets);
 
         // Progressively ticket columns closest to the player, then send loaded ones.
         // app.add_systems(
@@ -260,6 +262,25 @@ fn unload_chunk_request(
             }
         }
     });
+}
+
+/// Only the view knows which sections it forced, so a player leaving the
+/// dimension that does not hand them back here pins them loaded for good.
+fn release_forced_tickets(
+    remove: On<Remove, ColumnView>,
+    players: Query<(&ColumnView, &InDimension, &Reposition)>,
+    mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
+) {
+    let Ok((view, in_dim, rep)) = players.get(remove.event().entity) else {
+        return;
+    };
+    let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity()) else {
+        return;
+    };
+    let off = offset_sections(rep, type_config.min_y);
+    for &col in view.forced_columns.keys() {
+        apply_forced_tickets(&mut cmds, col, off, type_config.section_count, false);
+    }
 }
 
 /// The column entity and the sections it hands the client, in client order, or `None` while
@@ -869,6 +890,40 @@ mod tests {
                 .pending_send
                 .contains(&col)
         );
+    }
+
+    #[test]
+    fn a_despawned_view_hands_back_its_forced_tickets() {
+        let mut world = World::new();
+        let col = ColumnPos::new(0, 0);
+        let fx = fixture(&mut world, &[col]);
+        world.add_observer(release_forced_tickets);
+        world.init_resource::<Messages<PlayerChunkLoadRequest>>();
+        world
+            .resource_mut::<Messages<PlayerChunkLoadRequest>>()
+            .write(PlayerChunkLoadRequest {
+                player: fx.player,
+                column_pos: col,
+            });
+        world
+            .run_system_once(request_columns)
+            .expect("the request runs");
+
+        let queued = |world: &World| -> usize {
+            let tickets = world.get::<ChunkTicketsCommands>(fx.dim).unwrap();
+            (0..SECTIONS as i32)
+                .map(|y| {
+                    tickets
+                        .queued_tickets(SectionPos::new(col.x, y, col.z))
+                        .len()
+                })
+                .sum()
+        };
+        assert_eq!(queued(&world), SECTIONS as usize);
+
+        world.despawn(fx.player);
+
+        assert_eq!(queued(&world), 0);
     }
 
     /// The forced tickets make this unreachable, so the guard is what stops a broken

@@ -506,6 +506,18 @@ impl References {
     }
 
     pub(crate) fn visit_feature(&mut self, feature: &Feature) {
+        if let Feature::Template {
+            templates,
+            processors,
+        } = feature
+        {
+            for entry in templates {
+                self.templates.insert(entry.data.id.clone());
+            }
+            if let Some(Holder::Reference(id)) = processors {
+                self.processor_lists.insert(id.clone());
+            }
+        }
         feature.visit_placed_features(&mut |holder| match holder {
             Holder::Reference(id) => {
                 self.placed_features.insert(id.clone());

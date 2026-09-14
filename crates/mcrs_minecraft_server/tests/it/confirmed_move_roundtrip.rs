@@ -18,7 +18,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use bevy_math::DVec3;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_server::runner::pump_channels;
+use mcrs_minecraft_server::runner::{expire_moves, pump_channels};
 use mcrs_minecraft_server::world::bus::{
     ArrivalCause, InboundConfirmMove, InboundRollbackMove, MovePayload, OutboundPlayerPacket,
 };
@@ -293,12 +293,13 @@ fn never_acked_move_rolls_back_on_tick_timeout() {
 
     let entity = initiate_move(&h, &mut source_dim, move_id);
 
-    // The target never acks. Each host pass advances the tick counter; after the
-    // threshold the host emits RollbackMove. Pump a few passes, draining the
+    // The target never acks. Each host tick advances the tick counter; after the
+    // threshold the host emits RollbackMove. Run a few ticks, draining the
     // source each time, until it un-hides.
     let mut rolled_back = false;
     for _ in 0..6 {
         pump_channels(&mut h.host);
+        expire_moves(&mut h.host);
         drive_dim(&mut source_dim);
         if source_dim.world().get::<InTransit>(entity).is_none() {
             rolled_back = true;
@@ -325,6 +326,33 @@ fn never_acked_move_rolls_back_on_tick_timeout() {
             .translation,
         START_POS,
         "rolled-back entity reappears where it left"
+    );
+}
+
+/// The loop pumps the channels every few milliseconds while it waits for the
+/// next tick, so a timeout counted in pumps would fire in a fraction of its
+/// intended time.
+#[test]
+fn pumping_between_ticks_does_not_age_a_move() {
+    let mut h = build_harness();
+    h.host
+        .world_mut()
+        .resource_mut::<InFlightMoves>()
+        .timeout_ticks = 3;
+    let mut source_dim = build_source_dim(h.source_ctl_rx.clone());
+    let move_id = alloc_move_id();
+
+    let entity = initiate_move(&h, &mut source_dim, move_id);
+
+    for _ in 0..10 {
+        pump_channels(&mut h.host);
+        drive_dim(&mut source_dim);
+    }
+
+    assert!(in_flight_present(&h, move_id), "only ticks age a move");
+    assert!(
+        source_dim.world().get::<InTransit>(entity).is_some(),
+        "the entity stays in transit"
     );
 }
 

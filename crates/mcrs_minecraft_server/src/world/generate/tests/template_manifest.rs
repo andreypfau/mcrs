@@ -109,7 +109,7 @@ fn read_dump() -> (Vec<String>, Vec<DumpManifest>, Vec<DumpListed>) {
     (dynamic, manifests, listed)
 }
 
-fn parse_state(text: &str) -> PaletteState {
+pub(super) fn parse_state(text: &str) -> PaletteState {
     let (name, properties) = match text.split_once('[') {
         Some((name, rest)) => (
             name,
@@ -132,7 +132,7 @@ fn parse_state(text: &str) -> PaletteState {
     }
 }
 
-fn resolve(state: &PaletteState) -> VoxelId {
+pub(super) fn resolve(state: &PaletteState) -> VoxelId {
     resolve_palette_state(corpus(), state)
         .unwrap_or_else(|| panic!("{state} does not resolve"))
         .id

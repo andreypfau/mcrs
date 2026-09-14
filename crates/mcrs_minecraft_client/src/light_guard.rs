@@ -8,12 +8,14 @@
 //! alive, so the walk runs on a worker thread off a snapshot.
 
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
-use mcrs_minecraft_network::columns::{BlockSource, ColumnStore, Neighbourhood, SECTION_SIZE};
+use mcrs_minecraft_network::columns::{
+    BlockSource, Column, ColumnStore, Neighbourhood, SECTION_SIZE,
+};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_world::block::definition::{BlockStateFlags, Blocks};
 use mcrs_voxel_math::ColumnPos;
@@ -48,14 +50,16 @@ pub struct LightGuard {
     waiting: VecDeque<ColumnPos>,
     queued: HashSet<ColumnPos>,
     /// The column handle whose light already checked out. A light update
-    /// replaces the handle, so a rewritten column is examined again.
-    passed: HashMap<ColumnPos, usize>,
+    /// replaces the handle, so a rewritten column is examined again. Held
+    /// weakly because that pins the allocation: a freed column's address cannot
+    /// come back as another column, and a relight cannot rewrite it in place.
+    passed: HashMap<ColumnPos, Weak<Column>>,
     running: Vec<Task<Report>>,
 }
 
 struct Report {
     pos: ColumnPos,
-    handle: usize,
+    handle: Weak<Column>,
     faults: Vec<Fault>,
 }
 
@@ -102,9 +106,13 @@ fn enqueue(
     }
     let air = guard.air.clone().expect("the table was just built");
 
+    guard.passed.retain(|pos, _| store.holds(*pos));
     for (pos, column) in store.resident() {
-        let handle = Arc::as_ptr(column) as usize;
-        if guard.passed.get(&pos) == Some(&handle) || guard.queued.contains(&pos) {
+        let checked = guard
+            .passed
+            .get(&pos)
+            .is_some_and(|handle| handle.as_ptr() == Arc::as_ptr(column));
+        if checked || guard.queued.contains(&pos) {
             continue;
         }
         guard.queued.insert(pos);
@@ -127,9 +135,7 @@ fn enqueue(
             guard.waiting.push_back(pos);
             break;
         }
-        let handle = store
-            .column(pos.x, pos.z)
-            .map_or(0, |column| column as *const _ as usize);
+        let handle = store.get(pos).map_or_else(Weak::new, Arc::downgrade);
         let neighbourhood = store.around(pos);
         let air = Arc::clone(&air);
         started += 1;
@@ -193,7 +199,7 @@ fn collect(mut guard: ResMut<LightGuard>) {
     }
 }
 
-fn check(pos: ColumnPos, handle: usize, world: Neighbourhood, air: Arc<[bool]>) -> Report {
+fn check(pos: ColumnPos, handle: Weak<Column>, world: Neighbourhood, air: Arc<[bool]>) -> Report {
     let mut faults = Vec::new();
     let Some(extent) = world.extent() else {
         return Report {

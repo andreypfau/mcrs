@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap;
 
 use crate::world::chunk::ColumnSource;
 use crate::world::format::anvil::SectionData;
-use crate::world::heightmap::{ColumnHeightmapSet, PreCarveHeightmaps};
+use crate::world::heightmap::{ColumnHeightmapSet, TerrainHeightmaps};
 
 /// How far a column has climbed. The order is the ladder's order, so a
 /// readiness test is a comparison.
@@ -93,8 +93,8 @@ pub struct FilledSnapshot {
     pub col: ColumnPos,
     pub y_sections: Arc<[i32]>,
     pub sections: Vec<Option<SectionData>>,
-    /// `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`, frozen before the carvers ran.
-    pub pre_carve: Option<PreCarveHeightmaps>,
+    /// `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`, frozen as the carvers left them.
+    pub terrain: Option<TerrainHeightmaps>,
     pub maps: Option<ColumnHeightmapSet>,
     pub source: ColumnSource,
     /// What the save held, or what the merged deltas brought.
@@ -363,7 +363,7 @@ mod tests {
             col,
             y_sections: Arc::from(vec![0i32]),
             sections: vec![None],
-            pre_carve: None,
+            terrain: None,
             maps: None,
             source: ColumnSource::Generated,
             block_entities: Vec::new(),

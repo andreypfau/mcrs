@@ -199,6 +199,7 @@ fn a_missing_name_fails_the_build_and_an_unsupported_shape_only_skips() {
         Some(fluid_tags()),
         &registry,
         0,
+        None,
     )
     .err()
     .expect("a missing name fails the build")

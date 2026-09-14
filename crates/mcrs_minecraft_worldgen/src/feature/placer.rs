@@ -51,6 +51,11 @@ pub struct WorldStates {
     /// States whose collision shape is empty.
     pub empty_collision: StateMask,
     pub bedrock: StateMask,
+    /// States whose block declares side properties yet never rotates them:
+    /// fire and chorus plant.
+    pub unrotated: StateMask,
+    /// `BlockState.hasBlockEntity`: the only states a block entity can sit on.
+    pub has_block_entity: StateMask,
     /// The block each state id belongs to; a state past the table is its own
     /// block.
     pub block_of_state: Arc<[u32]>,
@@ -90,7 +95,7 @@ impl BlockLayout {
 
     /// `BlockState.trySetValue`: a property this block lacks, or a value
     /// outside it, leaves the state alone.
-    fn try_set(&self, state: VoxelId, name: &str, value: &str) -> VoxelId {
+    pub fn try_set(&self, state: VoxelId, name: &str, value: &str) -> VoxelId {
         let Some(property) = self.property(name) else {
             return state;
         };

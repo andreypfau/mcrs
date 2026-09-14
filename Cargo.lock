@@ -3539,6 +3539,7 @@ dependencies = [
  "bevy_math",
  "bytes",
  "fixedbitset",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen",

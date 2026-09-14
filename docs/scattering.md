@@ -747,10 +747,12 @@ document. The reasons:
 - Its load profile is the one §17 says must be measured apart from objects.
 
 What this document leaves ready for it: the step slot of S6 and Fe5; and the
-fact that piece materialisation is a write into the own column only — the
-reference clips every piece to the chunk's own box
-(`ChunkGenerator.java:420-425`, `getWritableArea`) — so under the ladder of
-§3.2 it is part of `Run` with `r_w = 0` and needs no fourth stage.
+fact that piece materialisation runs inside `Run` under the ladder of §3.2 and
+needs no fourth stage. Its write radius is one, not zero: the reference clips
+template pieces to the chunk's own box (`ChunkGenerator.java:420-425`,
+`getWritableArea`), but three hardcoded pieces write one column beyond it,
+which Wn5 already routes into a delta. `structures.md` (M1, SD2) is the
+specification.
 
 ---
 

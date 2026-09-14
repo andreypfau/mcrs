@@ -11,10 +11,11 @@ use bevy_math::IVec3;
 use super::block_predicate::{BlockPredicate, Direction, HolderSet, Offset};
 use super::placement::PlacementModifier;
 use super::placer::{BiomeMask, Modifier, Predicate, Rule, StateMask, single_state};
-use super::proto::{Feature, FeatureStepList, Holder, PlacedFeature};
+use super::proto::{Feature, FeatureStepList, Holder, PlacedFeature, StructureProcessorList};
 use super::rule_test::RuleTest;
 use super::sort::build_features_per_step;
 use crate::proto::BlockState;
+use crate::structure::template::Template;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FeatureCompileError {
@@ -24,6 +25,12 @@ pub enum FeatureCompileError {
     UnknownPlacedFeature(ResourceLocation),
     #[error("unknown placed feature tag: {0}")]
     UnknownTag(ResourceLocation),
+    #[error("unknown template: {0}")]
+    UnknownTemplate(ResourceLocation),
+    #[error("unknown processor list: {0}")]
+    UnknownProcessorList(ResourceLocation),
+    #[error("template {0}")]
+    Template(String),
     #[error("feature order cycle through {0}")]
     FeatureCycle(String),
     #[error("unknown block state: {0}")]
@@ -54,11 +61,14 @@ impl FeatureCompileError {
     }
 }
 
-/// Both feature registries as they were loaded, shared by every dimension.
+/// Both feature registries as they were loaded, shared by every dimension,
+/// with the templates and processor lists the features name.
 #[derive(Default)]
 pub struct LoadedFeatures {
     pub features: BTreeMap<ResourceLocation, Feature>,
     pub placed_features: BTreeMap<ResourceLocation, PlacedFeature>,
+    pub templates: BTreeMap<ResourceLocation, Template>,
+    pub processor_lists: BTreeMap<ResourceLocation, StructureProcessorList>,
 }
 
 /// One vertex of the sorted order: a placed feature and, unless it was written

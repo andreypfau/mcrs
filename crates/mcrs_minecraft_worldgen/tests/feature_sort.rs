@@ -73,6 +73,7 @@ fn the_step_order_and_the_per_biome_sets_equal_the_reference() {
     let registries = LoadedFeatures {
         features: corpus::registry("feature"),
         placed_features: corpus::registry("placed_feature"),
+        ..Default::default()
     };
 
     let mut compared = 0;

@@ -1,6 +1,7 @@
 pub mod index;
 pub mod jigsaw;
 pub mod locate;
+pub mod place;
 pub mod site;
 
 use std::borrow::Cow;
@@ -16,6 +17,7 @@ use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
 use mcrs_minecraft_core::{AppState, DynRegistryIndex, DynTagRegistry, ResourceLocation, TagKey};
+use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use mcrs_minecraft_worldgen::bevy::{
@@ -353,9 +355,13 @@ fn freeze_template(
         return Ok(*id);
     }
     let (template, manifest) = match (inputs.template)(location) {
-        Some(template) => template
-            .freeze(location, inputs.resolve)
-            .map_err(|error| error.to_string())?,
+        Some(template) => {
+            let frozen = template
+                .freeze(location, inputs.resolve)
+                .map_err(|error| error.to_string())?;
+            check_block_entity_ids(location, &frozen.0)?;
+            frozen
+        }
         None => {
             tracing::warn!(%pool, %location, "the template is not loaded; the element places nothing");
             (FrozenTemplate::empty(), TemplateManifest::empty())
@@ -366,6 +372,27 @@ fn freeze_template(
     frozen.manifests.push(Arc::new(manifest));
     frozen.template_ids.insert(location.clone(), id);
     Ok(id)
+}
+
+pub(crate) fn check_block_entity_ids(
+    location: &ResourceLocation,
+    template: &FrozenTemplate,
+) -> Result<(), String> {
+    for block in template.palettes.iter().flat_map(|palette| palette.iter()) {
+        let Some(nbt) = &block.nbt else { continue };
+        let id = nbt.get_string("id");
+        if id.is_some_and(|id| {
+            GeneratedBlockEntity::IDS.contains(&id)
+                || matches!(id, "minecraft:jigsaw" | "minecraft:structure_block")
+        }) {
+            continue;
+        }
+        return Err(format!(
+            "{location}: block entity at {:?} has id {id:?}, which is not modelled",
+            block.pos.map(i32::from)
+        ));
+    }
+    Ok(())
 }
 
 fn path_then_namespace(a: &ResourceLocation, b: &ResourceLocation) -> Ordering {
@@ -705,7 +732,7 @@ impl Plugin for StructurePlugin {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_dimension_structures(
+pub(crate) fn build_dimension_structures(
     mut commands: Commands,
     sources: Option<Res<DimensionBiomeSources>>,
     sets: Res<Assets<StructureSetAsset>>,

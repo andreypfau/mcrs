@@ -442,8 +442,11 @@ used, and children of a piece inherit the context their attachment used. The
 expansion hack grows a candidate's *occupancy* box upward to
 `max(expandTo + 1, height)` when the flag is on and the candidate is at most 16
 tall, where `expandTo` is the tallest element of any pool a jigsaw of the
-candidate would attach inside it (`:424-461, 499-506`); the piece's own box is
-untouched. SteelMC's `DeflatedQuarters` octree
+candidate would attach inside it (`:424-461, 499-506`). The grown box is not
+only occupancy: it is the box the accepted piece is constructed with and keeps
+(`PoolElementStructurePiece.java:36-52`), so it is what the start's box unions
+(L1) and what the beardifier reads (§6); only a piece reloaded from the save
+recomputes its box from the element (`:56-66`). SteelMC's `DeflatedQuarters` octree
 (`steel-worldgen/src/structure/box_octree.rs`) is a port of a Fabric mod's
 optimisation, not of the reference; a list of boxes per context is the
 definition, and whether a search structure pays is measured on a village.

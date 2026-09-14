@@ -176,6 +176,11 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
         "host-anchor entity despawned after cleanup",
     );
 
+    assert!(
+        app.world().resource::<PlayerIndex>().is_empty(),
+        "PlayerIndex forgets the username after cleanup",
+    );
+
     let despawn_msgs: Vec<_> = ctl_rx.try_iter().collect();
     assert_eq!(
         despawn_msgs.len(),
@@ -195,6 +200,52 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
         }
         other => panic!("expected ToDim::Despawn, got {other:?}"),
     }
+}
+
+#[test]
+fn a_late_cleanup_leaves_the_name_to_the_player_who_logged_in_again() {
+    let mut app = make_app();
+    let first = insert_accepted_login(&mut app, fresh_profile());
+    let second = insert_accepted_login(&mut app, fresh_profile());
+    let anchor_of = |app: &App, connection: Entity| {
+        app.world()
+            .entity(connection)
+            .get::<HostAnchorRef>()
+            .expect("login observer attached HostAnchorRef")
+            .0
+    };
+    let first_anchor = anchor_of(&app, first);
+    let second_session = app
+        .world()
+        .resource::<SessionRegistry>()
+        .get_by_anchor(&anchor_of(&app, second))
+        .map(|(session, _)| *session)
+        .expect("session present");
+
+    app.world_mut()
+        .run_system_once(
+            move |mut commands: Commands,
+                  mut player_index: ResMut<PlayerIndex>,
+                  mut session_registry: ResMut<SessionRegistry>,
+                  dim_channels: ResMut<DimChannelsResource>| {
+                process_disconnect(
+                    first_anchor,
+                    &mut player_index,
+                    &mut session_registry,
+                    &dim_channels,
+                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
+                    &mut commands,
+                );
+            },
+        )
+        .expect("system runs without panicking");
+
+    assert_eq!(
+        app.world()
+            .resource::<PlayerIndex>()
+            .get_by_username("test_player"),
+        Some(second_session),
+    );
 }
 
 #[test]

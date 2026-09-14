@@ -50,7 +50,7 @@ const HARDCODED: [&str; 24] = [
     "minecraft:swamp_hut",
 ];
 
-fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
+pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
     let path = assets_dir()
         .join("minecraft/structure")
         .join(format!("{}.nbt", id.path()));
@@ -443,6 +443,7 @@ fn a_list_imposes_its_projection_on_every_member() {
 
 fn template_with_a_jigsaw_to(pool: &str) -> Template {
     let mut nbt = NbtCompound::new();
+    nbt.put("id", "minecraft:jigsaw");
     nbt.put("pool", pool);
     Template {
         size: [1, 1, 1],

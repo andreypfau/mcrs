@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::world_clock::ClockState;
 
 /// 26.3 Pre-Release 2; the oldest accepted is snapshot 10, the first with this layout.
-pub const WORLD_VERSION: i32 = 5018;
+pub const WORLD_VERSION: i32 = 5021;
 pub const OLDEST_WORLD_VERSION: i32 = 5015;
 
 #[derive(Debug, thiserror::Error)]

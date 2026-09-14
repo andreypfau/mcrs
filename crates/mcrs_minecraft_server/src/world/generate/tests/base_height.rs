@@ -2,7 +2,7 @@ use mcrs_minecraft_worldgen::program::Workspace;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::{ColumnBlocks, base_height, fill_column_dense_any};
-use crate::world::heightmap::{HeightmapKinds, build_pre_carve_heightmaps, heightmap_predicates};
+use crate::world::heightmap::{HeightmapKinds, build_terrain_heightmaps, heightmap_predicates};
 
 use super::{block_tags, blocks, build_settings_router};
 
@@ -10,10 +10,10 @@ const MIN_Y: i32 = -64;
 const HEIGHT: i32 = 384;
 const COLUMNS: [(i32, i32); 6] = [(0, 0), (15, 15), (7, 8), (3, 12), (15, 0), (0, 15)];
 
-/// The column sampled alone answers what the full chunk fill's pre-carve maps
-/// answer, on land, on the coast and over deep ocean.
+/// The column sampled alone answers what a descent of the raw fill answers, on
+/// land, on the coast and over deep ocean.
 #[test]
-fn base_height_matches_the_pre_carve_heightmaps() {
+fn base_height_matches_a_descent_of_the_raw_fill() {
     let router = build_settings_router("overworld", 42);
     let predicates = heightmap_predicates(blocks(), block_tags());
     let y_sections: Vec<i32> = (-4..20).collect();
@@ -31,7 +31,7 @@ fn base_height_matches_the_pre_carve_heightmaps() {
             &CancellationToken::new(),
         )
         .expect("the column is not cancelled");
-        let maps = build_pre_carve_heightmaps(&column, &predicates).expect("a dense column");
+        let maps = build_terrain_heightmaps(&column, &predicates).expect("a dense column");
         for (lx, lz) in COLUMNS {
             let (x, z) = (chunk_x * 16 + lx, chunk_z * 16 + lz);
             let surface = base_height(

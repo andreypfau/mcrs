@@ -31,6 +31,7 @@ pub mod speleothem_single;
 pub mod spike;
 pub mod spring;
 pub mod stepped_column;
+pub mod template;
 pub mod terrain_skin;
 pub mod tree;
 pub mod vines;

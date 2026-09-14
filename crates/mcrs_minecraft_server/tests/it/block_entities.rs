@@ -13,9 +13,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
-use mcrs_minecraft_server::world::block_entity::{
-    BlockEntity, from_compound, packet_entry, spawn_block_entities,
-};
+use mcrs_minecraft_server::world::block_entity::{BlockEntity, packet_entry, spawn_block_entities};
 use mcrs_minecraft_server::world::format::anvil::saved_block_entities;
 use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::world::dimension::InDimension;
@@ -104,14 +102,14 @@ fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlo
         .expect("every entry names a kind this build reads")
 }
 
-/// A sign is a kind this build does not read and is dropped; a beehive it does
-/// read but cannot parse is an error, so a generated entity never goes
+/// A jukebox is a kind this build does not read and is dropped; a beehive it
+/// does read but cannot parse is an error, so a generated entity never goes
 /// missing without a word.
 #[test]
 fn an_unknown_kind_is_dropped_and_a_broken_known_kind_is_an_error() {
-    let mut sign = NbtCompound::new();
-    sign.put_string("id", "minecraft:sign".to_string());
-    let read = saved_block_entities(&saved_column(vec![sign])).expect("a sign is skipped");
+    let mut jukebox = NbtCompound::new();
+    jukebox.put_string("id", "minecraft:jukebox".to_string());
+    let read = saved_block_entities(&saved_column(vec![jukebox])).expect("a jukebox is skipped");
     assert!(read.is_empty());
 
     let mut broken = NbtCompound::new();
@@ -216,7 +214,8 @@ fn every_generated_kind_survives_a_save_load_round_trip_and_reaches_a_client() {
             kind,
             data,
         } = entry;
-        let read = from_compound(data).expect("the client reads the same type back");
+        let read =
+            GeneratedBlockEntity::from_compound(data).expect("the client reads the same type back");
         let (expected, expected_kind) = kinds
             .iter()
             .find(|(candidate, _)| candidate.position() == read.position())

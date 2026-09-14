@@ -155,6 +155,18 @@ impl Feature {
             | Self::VoidStartPlatform { .. } => {}
         }
     }
+
+    /// This feature, then every feature written inline inside it, in pre-order.
+    pub fn for_each_feature(&self, f: &mut dyn FnMut(&Feature)) {
+        f(self);
+        self.visit_placed_features(&mut |holder| {
+            if let Holder::Inline(placed) = holder
+                && let Holder::Inline(feature) = &placed.feature
+            {
+                feature.for_each_feature(f);
+            }
+        });
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -689,6 +701,13 @@ pub type StructureProcessorList = Either<WrappedProcessors, Vec<StructureProcess
 #[serde(deny_unknown_fields)]
 pub struct WrappedProcessors {
     pub processors: Vec<StructureProcessor>,
+}
+
+pub fn processor_list(list: &StructureProcessorList) -> &[StructureProcessor] {
+    match list {
+        Either::Left(wrapped) => &wrapped.processors,
+        Either::Right(bare) => bare,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

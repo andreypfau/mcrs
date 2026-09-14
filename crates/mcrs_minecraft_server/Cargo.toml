@@ -47,7 +47,7 @@ bitflags = "2.10.0"
 tracing = { workspace = true }
 
 [dev-dependencies]
-mcrs_minecraft_worldgen = { workspace = true, features = ["corpus"] }
+mcrs_minecraft_worldgen = { workspace = true, features = ["corpus", "test-support"] }
 tracing-subscriber = "0.3"
 rand_xoshiro = { workspace = true }
 base64 = { workspace = true }

@@ -25,6 +25,7 @@ pub fn run_server_loop(app: App) {
         DEFAULT_TPS,
         |app| {
             pump_channels(app);
+            expire_moves(app);
             drain_dim_spawn_queue(app);
             drain_dim_despawn_queue(app);
         },
@@ -51,6 +52,10 @@ fn drain_columns(app: &mut App) {
 
 pub fn pump_channels(app: &mut App) {
     mcrs_voxel_server::dim::pump_dim_channels::<MinecraftDims>(app);
+}
+
+pub fn expire_moves(app: &mut App) {
+    mcrs_voxel_server::dim::expire_moves::<MinecraftDims>(app);
 }
 
 pub struct MinecraftDims;

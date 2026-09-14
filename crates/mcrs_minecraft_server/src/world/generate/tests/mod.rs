@@ -2,7 +2,7 @@ mod base_height;
 mod beta_biome_palette;
 mod beta_cave_parity;
 mod beta_ore_distribution;
-mod beta_surface;
+pub(crate) mod beta_surface;
 mod beta_surface_parity;
 mod cell_census;
 mod cell_fill;
@@ -22,6 +22,7 @@ mod structures;
 mod surface;
 mod surface_parity;
 mod template_manifest;
+mod template_parity;
 mod trees;
 
 mod support;
@@ -49,14 +50,44 @@ use crate::world::generate::stages::{FillContext, fill_column, merge_column, run
 use crate::world::generate::staging::{
     FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column,
 };
-use crate::world::heightmap::PreCarveHeightmaps;
+use crate::world::generate::structures::FrozenStructures;
+use crate::world::heightmap::TerrainHeightmaps;
 use mcrs_minecraft_worldgen::feature::compile::{FeatureSteps, LoadedFeatures};
+use mcrs_minecraft_worldgen::feature::proto::{Feature, PlacedFeature};
 
-/// Both feature registries of the shipped corpus, parsed once per test binary.
+/// Both feature registries of the shipped corpus, with every template and
+/// processor list the features name, parsed once per test binary.
 pub fn corpus_features() -> &'static LoadedFeatures {
-    static CORPUS: LazyLock<LoadedFeatures> = LazyLock::new(|| LoadedFeatures {
-        features: load_json_dir("feature"),
-        placed_features: load_json_dir("placed_feature"),
+    static CORPUS: LazyLock<LoadedFeatures> = LazyLock::new(|| {
+        let features: BTreeMap<ResourceLocation, Feature> = load_json_dir("feature");
+        let placed_features: BTreeMap<ResourceLocation, PlacedFeature> =
+            load_json_dir("placed_feature");
+        let mut templates = BTreeMap::new();
+        for feature in features.values() {
+            feature.for_each_feature(&mut |node| {
+                let Feature::Template {
+                    templates: entries, ..
+                } = node
+                else {
+                    return;
+                };
+                for entry in entries {
+                    templates.entry(entry.data.id.clone()).or_insert_with(|| {
+                        structures::template_file(&entry.data.id)
+                            .unwrap_or_else(|| {
+                                panic!("{}: the template is not shipped", entry.data.id)
+                            })
+                            .into_owned()
+                    });
+                }
+            });
+        }
+        LoadedFeatures {
+            features,
+            placed_features,
+            templates,
+            processor_lists: load_json_dir("processor_list"),
+        }
     });
     &CORPUS
 }
@@ -92,6 +123,16 @@ pub fn build_program(
     registry: &RegistrySnapshot<Biome>,
     seed: i64,
 ) -> FeatureProgram {
+    build_program_with(tables, corpus, registry, seed, None)
+}
+
+pub fn build_program_with(
+    tables: &FeatureTables,
+    corpus: &LoadedFeatures,
+    registry: &RegistrySnapshot<Biome>,
+    seed: i64,
+    structures: Option<&FrozenStructures>,
+) -> FeatureProgram {
     let mut tables = tables.clone();
     for entry in registry.entries() {
         tables
@@ -107,6 +148,7 @@ pub fn build_program(
         Some(fluid_tags()),
         registry,
         seed,
+        structures,
     )
     .unwrap_or_else(|error| panic!("the feature program does not resolve: {error}"))
 }
@@ -157,21 +199,21 @@ pub fn biome_registry(names: &[&str]) -> RegistrySnapshot<Biome> {
 }
 
 /// A filled column of one block per section — `None` leaves the section empty
-/// — with both pre-carve maps at `top` and no final maps.
+/// — with both terrain maps at `top` and no final maps.
 pub fn flat_snapshot(
     col: ColumnPos,
     y_sections: &Arc<[i32]>,
     section_block: impl Fn(i32) -> Option<VoxelId>,
     top: Option<i32>,
 ) -> FilledSnapshot {
-    let pre_carve = top.map(|top| {
+    let terrain = top.map(|top| {
         let mut heights = ColumnHeights::new(y_sections.len() as u32 * 16, y_sections[0] * 16);
         for x in 0..16 {
             for z in 0..16 {
                 heights.set(x, z, top);
             }
         }
-        PreCarveHeightmaps {
+        TerrainHeightmaps {
             surface: heights.clone(),
             solid: heights,
         }
@@ -189,7 +231,7 @@ pub fn flat_snapshot(
                 ))
             })
             .collect(),
-        pre_carve,
+        terrain,
         maps: None,
         source: ColumnSource::Generated,
         block_entities: Vec::new(),
@@ -251,7 +293,13 @@ pub fn generate_region(
             let Some(base) = store.base(col, rung).cloned() else {
                 continue;
             };
-            let merged = merge_column(&base, &deltas, ctx.predicates.as_ref());
+            let merged = merge_column(
+                &base,
+                &deltas,
+                ctx.predicates.as_ref(),
+                ctx.features()
+                    .map(|program| &program.world.has_block_entity),
+            );
             store.insert_staged(col, rung, Arc::new(merged));
             store.set_stage(col, Stage::Merged(rung as u8));
         }

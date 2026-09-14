@@ -1,9 +1,9 @@
 use crate::client_info::ClientViewDistance;
+use crate::disconnect::despawn_from_dims;
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
-use crate::world::entity::player::column_view::ColumnView;
 use crate::world::player_index::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, Plugin, Update};
@@ -48,7 +48,6 @@ use mcrs_minecraft_world::item::Item as VanillaItem;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::{ActiveWorldPreset, WorldPreset};
 use mcrs_voxel_server::dim::send_control_or_teardown;
-use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_voxel_world::session::SessionRegistry;
 use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 use std::borrow::Cow;
@@ -372,8 +371,13 @@ fn dimension_biome_sources(
 /// is hot-reloaded, so they re-receive the registry data on reconnect.
 fn sync_dimension_type_changes(
     mut dim_type_events: MessageReader<AssetEvent<DimensionType>>,
-    mut players: Query<(Entity, &mut ServerSideConnection), With<InGameConnectionState>>,
-    mut commands: Commands,
+    mut players: Query<
+        (&mut ServerSideConnection, Option<&HostAnchorRef>),
+        With<InGameConnectionState>,
+    >,
+    mut session_registry: ResMut<SessionRegistry>,
+    dim_channels: Res<DimChannelsResource>,
+    mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
     if !dim_type_events
         .read()
@@ -382,13 +386,29 @@ fn sync_dimension_type_changes(
         return;
     }
 
-    for (entity, mut con) in players.iter_mut() {
+    for (mut con, host_anchor) in players.iter_mut() {
         info!("Sending reconfiguration to connected player");
         con.write_packet(&ClientboundStartConfiguration);
-        commands
-            .entity(entity)
-            .remove::<ColumnView>()
-            .remove::<PlayerChunkObserver>();
+        let Some(host_anchor) = host_anchor.map(|anchor| anchor.0) else {
+            continue;
+        };
+        let Some((session, entry)) = session_registry.get_by_anchor_mut(&host_anchor) else {
+            continue;
+        };
+        // The client drops its level on reconfiguration, so the player leaves its
+        // dimension now and `emit_initial_player_spawn` joins it again once play resumes.
+        despawn_from_dims(
+            host_anchor,
+            session,
+            entry.dim,
+            entry.previous_dim,
+            &dim_channels,
+            &mut despawn_queue,
+        );
+        entry.dim = Entity::PLACEHOLDER;
+        entry.previous_dim = None;
+        entry.in_dim_entity = None;
+        entry.epoch = entry.epoch.wrapping_add(1);
     }
 }
 

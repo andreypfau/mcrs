@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -11,16 +12,21 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.flag.FeatureFlagSet;
+import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.level.CustomSpawner;
+import net.minecraft.world.level.Level;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.attribute.EnvironmentAttributeReader;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeManager;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -29,12 +35,15 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkSource;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.dimension.LevelStem;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.storage.LevelData;
+import net.minecraft.world.level.storage.LevelStorageSource;
+import net.minecraft.world.level.storage.ServerLevelData;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.ticks.LevelTickAccess;
@@ -46,18 +55,35 @@ import net.minecraft.world.ticks.LevelTickAccess;
  * registries.
  */
 public final class StubLevel implements WorldGenLevel {
+    public static final long WORLD_SEED = 0x5EEDL;
+
     private final RegistryAccess registries;
     private final DimensionType dimensionType;
-    private final BlockState floor;
-    private final BlockState air;
-    private final int floorTop;
+    private final Function<BlockPos, BlockState> base;
+    private final BlockState air = Blocks.AIR.defaultBlockState();
+    private final int seaLevel;
     private final RandomSource levelRandom;
 
     private long subTick;
+    private final ServerLevel seedOnlyLevel = SeedOnlyServerLevel.allocate();
     private final Map<BlockPos, BlockEntity> blockEntities = new HashMap<>();
 
     private final Map<BlockPos, BlockState> overrides = new HashMap<>();
     private final List<BlockPos> writeOrder = new ArrayList<>();
+
+    public StubLevel(
+        final RegistryAccess registries,
+        final DimensionType dimensionType,
+        final Function<BlockPos, BlockState> base,
+        final int seaLevel,
+        final RandomSource levelRandom
+    ) {
+        this.registries = registries;
+        this.dimensionType = dimensionType;
+        this.base = base;
+        this.seaLevel = seaLevel;
+        this.levelRandom = levelRandom;
+    }
 
     public StubLevel(
         final RegistryAccess registries,
@@ -67,12 +93,11 @@ public final class StubLevel implements WorldGenLevel {
         final int floorTop,
         final RandomSource levelRandom
     ) {
-        this.registries = registries;
-        this.dimensionType = dimensionType;
-        this.floor = floor;
-        this.air = air;
-        this.floorTop = floorTop;
-        this.levelRandom = levelRandom;
+        this(registries, dimensionType, pos -> pos.getY() <= floorTop ? floor : air, floorTop + 1, levelRandom);
+    }
+
+    public Map<BlockPos, BlockEntity> blockEntities() {
+        return this.blockEntities;
     }
 
     /**
@@ -98,7 +123,7 @@ public final class StubLevel implements WorldGenLevel {
         if (state != null) {
             return state;
         }
-        return pos.getY() <= this.floorTop ? this.floor : this.air;
+        return this.base.apply(pos);
     }
 
     @Override
@@ -157,7 +182,7 @@ public final class StubLevel implements WorldGenLevel {
 
     @Override
     public long getSeed() {
-        throw new UnsupportedOperationException("getSeed");
+        return WORLD_SEED;
     }
 
     @Override
@@ -185,7 +210,7 @@ public final class StubLevel implements WorldGenLevel {
 
     @Override
     public int getSeaLevel() {
-        return this.floorTop + 1;
+        return this.seaLevel;
     }
 
     @Override
@@ -200,7 +225,7 @@ public final class StubLevel implements WorldGenLevel {
 
     @Override
     public ServerLevel getLevel() {
-        throw new UnsupportedOperationException("getLevel");
+        return this.seedOnlyLevel;
     }
 
     @Override
@@ -223,6 +248,7 @@ public final class StubLevel implements WorldGenLevel {
         throw new UnsupportedOperationException("getChunkSource");
     }
 
+    /** Particles, sounds and events are swallowed exactly as `WorldGenRegion` swallows them. */
     @Override
     public void playSound(
         final Entity except,
@@ -232,17 +258,14 @@ public final class StubLevel implements WorldGenLevel {
         final float volume,
         final float pitch
     ) {
-        throw new UnsupportedOperationException("playSound");
     }
 
     @Override
     public void levelEvent(final Entity source, final int type, final BlockPos pos, final int data) {
-        throw new UnsupportedOperationException("levelEvent");
     }
 
     @Override
     public void gameEvent(final Holder<GameEvent> gameEvent, final Vec3 position, final GameEvent.Context context) {
-        throw new UnsupportedOperationException("gameEvent");
     }
 
     @Override
@@ -260,7 +283,6 @@ public final class StubLevel implements WorldGenLevel {
         final double yd,
         final double zd
     ) {
-        throw new UnsupportedOperationException("addParticle");
     }
 
     @Override
@@ -280,7 +302,7 @@ public final class StubLevel implements WorldGenLevel {
 
     @Override
     public FeatureFlagSet enabledFeatures() {
-        throw new UnsupportedOperationException("enabledFeatures");
+        return FeatureFlags.DEFAULT_FLAGS;
     }
 
     @Override
@@ -354,6 +376,53 @@ public final class StubLevel implements WorldGenLevel {
         @Override
         public int count() {
             return 0;
+        }
+    }
+
+    /**
+     * The only thing template placement asks of `getLevel()` is the world seed
+     * (`CappedProcessor.finalizeProcessing`); template entities reach it through
+     * `createEntityIgnoreException`, whose `catch (Exception)` swallows the throws
+     * below, so no entity is ever built. Allocated without running a constructor:
+     * `ServerLevel` has no constructible shape without a server.
+     */
+    public static final class SeedOnlyServerLevel extends ServerLevel {
+        private SeedOnlyServerLevel(
+            final MinecraftServer server,
+            final java.util.concurrent.Executor executor,
+            final LevelStorageSource.LevelStorageAccess storage,
+            final ServerLevelData levelData,
+            final ResourceKey<Level> dimension,
+            final LevelStem stem,
+            final List<CustomSpawner> spawners
+        ) {
+            super(server, executor, storage, levelData, dimension, stem, false, 0L, spawners, false);
+        }
+
+        static ServerLevel allocate() {
+            try {
+                java.lang.reflect.Field theUnsafe = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+                theUnsafe.setAccessible(true);
+                sun.misc.Unsafe unsafe = (sun.misc.Unsafe) theUnsafe.get(null);
+                return (ServerLevel) unsafe.allocateInstance(SeedOnlyServerLevel.class);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("cannot allocate the seed-only level", e);
+            }
+        }
+
+        @Override
+        public long getSeed() {
+            return WORLD_SEED;
+        }
+
+        @Override
+        public int getNextEntityId() {
+            throw new UnsupportedOperationException("getNextEntityId");
+        }
+
+        @Override
+        public FeatureFlagSet enabledFeatures() {
+            throw new UnsupportedOperationException("enabledFeatures");
         }
     }
 }

@@ -139,6 +139,10 @@ impl ColumnStore {
         }
     }
 
+    pub fn get(&self, pos: ColumnPos) -> Option<&Arc<Column>> {
+        self.columns.get(&pos)
+    }
+
     pub fn holds(&self, pos: ColumnPos) -> bool {
         self.columns.contains_key(&pos)
     }
@@ -147,9 +151,10 @@ impl ColumnStore {
         self.columns.keys().copied()
     }
 
-    /// The resident columns with the handle each one is held by. The handle's
-    /// address changes whenever a light update rewrites the column, which is how
-    /// a reader tells a column it has already looked at from one it has not.
+    /// The resident columns with the handle each one is held by. A light update
+    /// rewrites a handle nobody else holds in place, so a reader telling a column
+    /// it has already looked at from one it has not keeps a `Weak` to the handle:
+    /// that moves the rewrite onto a new one.
     pub fn resident(&self) -> impl Iterator<Item = (ColumnPos, &Arc<Column>)> + '_ {
         self.columns.iter().map(|(pos, column)| (*pos, column))
     }
@@ -646,6 +651,29 @@ mod tests {
         let mut nibbles = [0u8; 2048];
         nibbles[cell / 2] = level << ((cell % 2) * 4);
         LightChunk::new(nibbles)
+    }
+
+    #[test]
+    fn a_relight_moves_a_remembered_column_to_a_new_handle() {
+        let pos = ColumnPos::new(0, 0);
+        let mut store = ColumnStore::default();
+        store.insert(
+            pos,
+            Column::unlit(EXTENT.min_section_y, vec![None; EXTENT.sections]),
+        );
+        store.drain_changes(&mut Vec::new());
+        let remembered = Arc::downgrade(store.get(pos).expect("resident"));
+
+        let rows = EXTENT.sections + 2;
+        let mut sky: Vec<RowLight> = (0..rows).map(|_| RowLight::Unchanged).collect();
+        sky[1] = RowLight::Filled(one_lit_cell(0, 15));
+        let block = (0..rows).map(|_| RowLight::Unchanged).collect();
+        store.relight(pos, &ColumnLight { sky, block });
+
+        assert_ne!(
+            remembered.as_ptr(),
+            Arc::as_ptr(store.get(pos).expect("resident"))
+        );
     }
 
     #[test]

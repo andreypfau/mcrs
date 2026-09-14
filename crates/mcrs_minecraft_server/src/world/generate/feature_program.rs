@@ -1,5 +1,9 @@
 use crate::world::generate::beta_ores::{BetaOreBlockIds, apply_beta_ores_in};
 use crate::world::generate::features::FeatureTables;
+use crate::world::generate::structures::{
+    ElementId, FrozenElement, FrozenStructure, FrozenStructures, check_block_entity_ids,
+    resolve_palette_state,
+};
 use crate::world::generate::trees::{
     build_tree_tables, compile_decorator, compile_provider, compile_tree, state_of, with_property,
 };
@@ -76,6 +80,9 @@ use mcrs_minecraft_decoration::feature::spring::{CompiledSpring, place_spring};
 use mcrs_minecraft_decoration::feature::stepped_column::{
     CompiledSteppedColumnCluster, place_stepped_column_cluster,
 };
+use mcrs_minecraft_decoration::feature::template::{
+    ChainKind, CompiledChain, Placement, compile_chain, place_template,
+};
 use mcrs_minecraft_decoration::feature::terrain_skin::{
     BiomeClimate, CompiledBlueIce, CompiledDisk, CompiledFreezeTopLayer, CompiledUnderwaterMagma,
     place_blue_ice, place_disk, place_freeze_top_layer, place_underwater_magma,
@@ -105,9 +112,12 @@ use mcrs_minecraft_worldgen::feature::placer::{
     WorldGenVolume, WorldStates, place,
 };
 use mcrs_minecraft_worldgen::feature::proto::{
-    BlockReplacement, Feature, Holder, PlacedFeature, PlacedFeatureSet, WeightedPlacedFeature,
+    BlockReplacement, Feature, Holder, PlacedFeature, PlacedFeatureSet, Rotation,
+    StructureProcessorList, WeightedPlacedFeature, processor_list,
 };
 use mcrs_minecraft_worldgen::proto::BlockState;
+use mcrs_minecraft_worldgen::structure::template::{FrozenTemplate, TemplateManifest};
+use mcrs_minecraft_worldgen::structure::{DecorationStep, LiquidSettings};
 use mcrs_minecraft_worldgen::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::voxel_shape::{FACE_MASK_FULL, VoxelShape};
@@ -212,6 +222,33 @@ pub enum Generator {
     /// Always reports success, so a sequence holding one does not end on it.
     ReplaceSingleBlock(CompiledReplaceSingleBlock),
     BetaPopulate(Box<BetaPopulate>),
+    Template(Box<CompiledTemplateFeature>),
+}
+
+/// `minecraft:template`: one weighted draw picks the template, one bounded
+/// draw its rotation, and the palette and loot seeds come off the same stream.
+// ponytail: the reference leaves `knownShape` false here and re-derives every
+// placed block's shape from its neighbours afterwards, which a sulfur spike at
+// a template's edge can feel; the upgrade is that post pass over the region.
+pub struct CompiledTemplateFeature {
+    entries: Vec<(i32, FrozenTemplate, Vec<Rotation>)>,
+    chain: CompiledChain,
+}
+
+/// One template pool element with every name in it resolved: what a jigsaw
+/// piece places.
+pub enum CompiledElement {
+    Single {
+        template: Arc<FrozenTemplate>,
+        manifest: Arc<TemplateManifest>,
+        /// `None` when the processor list has a shape this build cannot run;
+        /// the piece then places nothing.
+        chain: Option<Arc<CompiledChain>>,
+        liquid: Option<LiquidSettings>,
+    },
+    List(Vec<ElementId>),
+    Feature(Nested),
+    Empty,
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -256,9 +293,16 @@ pub struct FeatureProgram {
     /// tree's own source, so it is one program-wide generator rather than part
     /// of any tree's configuration.
     moss_patch: Option<Box<Generator>>,
+    /// Indexed by `ElementId`; empty for a dimension without structures.
+    elements: Vec<CompiledElement>,
     rungs: Arc<[Range<usize>]>,
     pub world: Arc<WorldStates>,
 }
+
+/// `GenerationStep.Decoration.values().length`: the reference walks at least
+/// this many steps whether or not any biome lists features for them, and a
+/// structure's step may lie past the last feature step.
+const DECORATION_STEPS: usize = DecorationStep::TopLayerModification as usize + 1;
 
 /// The first step of each rung after the first: a column runs the steps of one
 /// rung against a neighbourhood in which every earlier rung is already merged,
@@ -281,7 +325,7 @@ const RUNG_STARTS: [usize; 2] = [
 /// The rungs `RUNG_STARTS` cuts the steps into, with the ones this dimension
 /// has no feature for dropped: an empty rung is a barrier nothing waits on and
 /// two rings of halo nobody needs.
-fn rungs_of(steps: &[Vec<Nested>]) -> Arc<[Range<usize>]> {
+fn rungs_of(steps: &[Vec<Nested>], structures: &[FrozenStructure]) -> Arc<[Range<usize>]> {
     let bounds = std::iter::once(0)
         .chain(RUNG_STARTS)
         .chain(std::iter::once(steps.len()))
@@ -290,7 +334,10 @@ fn rungs_of(steps: &[Vec<Nested>]) -> Arc<[Range<usize>]> {
     cuts.dedup();
     cuts.windows(2)
         .map(|pair| pair[0]..pair[1])
-        .filter(|rung| steps[rung.clone()].iter().any(|step| !step.is_empty()))
+        .filter(|rung| {
+            steps[rung.clone()].iter().any(|step| !step.is_empty())
+                || structures.iter().any(|s| rung.contains(&(s.step as usize)))
+        })
         .collect()
 }
 
@@ -298,6 +345,7 @@ impl FeatureProgram {
     /// Resolve every name the tables carry, or say which asset does not
     /// resolve. A feature whose shape this build has no code for is not an
     /// error: it is logged, keeps its slot and places nothing.
+    #[allow(clippy::too_many_arguments)]
     pub fn build(
         tables: &FeatureTables,
         corpus: &LoadedFeatures,
@@ -306,6 +354,7 @@ impl FeatureProgram {
         fluid_tags: Option<&DynTagRegistry<Fluid>>,
         biomes: &RegistrySnapshot<Biome>,
         world_seed: i64,
+        structures: Option<&FrozenStructures>,
     ) -> Result<Self, FeatureCompileError> {
         let climate: Vec<BiomeClimate> = (0..biomes.len())
             .map(|id| {
@@ -342,6 +391,7 @@ impl FeatureProgram {
             }
             steps.push(compiled);
         }
+        steps.resize_with(steps.len().max(DECORATION_STEPS), Vec::new);
 
         let mut biome_slot = [None; 256];
         for (slot, id) in tables.biome_order.iter().enumerate() {
@@ -381,17 +431,30 @@ impl FeatureProgram {
             })
             .transpose()?;
 
+        let elements = match structures {
+            Some(frozen) => compile_elements(frozen, &trees, &resolver, corpus)?,
+            None => Vec::new(),
+        };
+
         Ok(FeatureProgram {
-            rungs: rungs_of(&steps),
+            rungs: rungs_of(
+                &steps,
+                structures.map_or(&[][..], |f| f.structures.as_slice()),
+            ),
             features: steps,
             per_biome: tables.features.per_biome.clone(),
             token: tables.features.token.clone(),
             carried,
             biome_slot,
             moss_patch,
+            elements,
             trees,
             world: Arc::new(resolver.world),
         })
+    }
+
+    pub fn element(&self, id: ElementId) -> &CompiledElement {
+        &self.elements[id.0 as usize]
     }
 
     pub fn chain(&self, step: usize, index: usize) -> &[Modifier] {
@@ -731,8 +794,123 @@ impl Generator {
             Generator::ReplaceSingleBlock(config) => {
                 place_replace_single_block(config, region, rng, at)
             }
+            Generator::Template(config) => {
+                let Some((_, template, rotations)) =
+                    pick_weighted_by(&config.entries, |(weight, _, _)| *weight, rng)
+                else {
+                    return false;
+                };
+                let rotation = rotations[rng.next_i32_bound(rotations.len() as i32) as usize];
+                let half = |axis: usize| i32::from(template.size[axis]) / 2;
+                let position = *at
+                    + rotation.rotate(Direction::West).normal() * half(0)
+                    + rotation.rotate(Direction::North).normal() * half(2);
+                if template.palettes.is_empty() {
+                    return false;
+                }
+                let palette = rng.next_i32_bound(template.palettes.len() as i32) as usize;
+                place_template(
+                    &Placement {
+                        template,
+                        jigsaws: &[],
+                        palette,
+                        position,
+                        reference: position,
+                        rotation,
+                        clip: None,
+                        chain: &config.chain,
+                        waterlog: true,
+                    },
+                    region,
+                    rng,
+                    &mut run.entities,
+                )
+            }
         }
     }
+}
+
+fn compile_elements(
+    frozen: &FrozenStructures,
+    trees: &Arc<TreeTables>,
+    resolver: &Resolver<'_>,
+    corpus: &LoadedFeatures,
+) -> Compiled<Vec<CompiledElement>> {
+    let mut chains: Vec<(
+        (&Holder<StructureProcessorList>, ChainKind),
+        Arc<CompiledChain>,
+    )> = Vec::new();
+    frozen
+        .elements
+        .iter()
+        .enumerate()
+        .map(|(index, element)| {
+            let within =
+                |error: FeatureCompileError| error.within(format!("template pool element {index}"));
+            Ok(match element {
+                FrozenElement::Single {
+                    template,
+                    legacy,
+                    processors,
+                    projection,
+                    liquid_settings,
+                } => {
+                    let kind = ChainKind::Piece {
+                        projection: *projection,
+                        legacy: *legacy,
+                    };
+                    let key = (processors, kind);
+                    let chain = match chains.iter().find(|(k, _)| *k == key) {
+                        Some((_, chain)) => Some(Arc::clone(chain)),
+                        None => {
+                            let list = match processors {
+                                Holder::Reference(id) => {
+                                    corpus.processor_lists.get(id).ok_or_else(|| {
+                                        within(FeatureCompileError::UnknownProcessorList(
+                                            id.clone(),
+                                        ))
+                                    })?
+                                }
+                                Holder::Inline(list) => list,
+                            };
+                            match compile_chain(
+                                processor_list(list),
+                                kind,
+                                resolver,
+                                resolver.world_seed,
+                            ) {
+                                Ok(chain) => {
+                                    let chain = Arc::new(chain);
+                                    chains.push((key, Arc::clone(&chain)));
+                                    Some(chain)
+                                }
+                                Err(error) if error.is_unsupported() => {
+                                    tracing::warn!(
+                                        element = index,
+                                        %error,
+                                        "the pool element places nothing"
+                                    );
+                                    None
+                                }
+                                Err(error) => return Err(within(error)),
+                            }
+                        }
+                    };
+                    CompiledElement::Single {
+                        template: Arc::clone(&frozen.templates[template.0 as usize]),
+                        manifest: Arc::clone(&frozen.manifests[template.0 as usize]),
+                        chain,
+                        liquid: *liquid_settings,
+                    }
+                }
+                FrozenElement::List { elements, .. } => CompiledElement::List(elements.clone()),
+                FrozenElement::Feature { feature, .. } => CompiledElement::Feature(
+                    compile_nested(feature, trees, resolver, corpus).map_err(within)?,
+                ),
+                FrozenElement::Empty => CompiledElement::Empty,
+            })
+        })
+        .collect()
 }
 
 type Compiled<T> = Result<T, FeatureCompileError>;
@@ -1537,10 +1715,46 @@ fn compile_generator(
                     .collect::<Compiled<_>>()?,
             })
         }
-        // Both read a structure template out of `assets/minecraft/structure`,
-        // and nothing in this build does.
+        // Reads two structure templates out of `assets/minecraft/structure`
+        // and blends them, which nothing in this build does yet.
         Feature::Fossil { .. } => return Err(unsupported("minecraft:fossil")),
-        Feature::Template { .. } => return Err(unsupported("minecraft:template")),
+        Feature::Template {
+            templates,
+            processors,
+        } => {
+            let entries = templates
+                .iter()
+                .map(|entry| {
+                    let id = &entry.data.id;
+                    let template = corpus
+                        .templates
+                        .get(id)
+                        .ok_or_else(|| FeatureCompileError::UnknownTemplate(id.clone()))?;
+                    let (frozen, _) = template
+                        .freeze(id, &|state| resolve_palette_state(resolver.blocks, state))
+                        .map_err(|error| FeatureCompileError::Template(error.to_string()))?;
+                    check_block_entity_ids(id, &frozen).map_err(FeatureCompileError::Template)?;
+                    let rotations = entry
+                        .data
+                        .rotations
+                        .clone()
+                        .unwrap_or_else(|| Rotation::ALL.to_vec());
+                    Ok((entry.weight.0, frozen, rotations))
+                })
+                .collect::<Compiled<Vec<_>>>()?;
+            let list =
+                match processors {
+                    Some(Holder::Reference(id)) => corpus
+                        .processor_lists
+                        .get(id)
+                        .map(processor_list)
+                        .ok_or_else(|| FeatureCompileError::UnknownProcessorList(id.clone()))?,
+                    Some(Holder::Inline(list)) => processor_list(list),
+                    None => &[],
+                };
+            let chain = compile_chain(list, ChainKind::Feature, resolver, resolver.world_seed)?;
+            Generator::Template(Box::new(CompiledTemplateFeature { entries, chain }))
+        }
     })
 }
 
@@ -2111,6 +2325,8 @@ impl<'a> Resolver<'a> {
             empty_collision: self
                 .state_mask(|state| self.blocks.shape(state.collision_shape).is_empty()),
             bedrock: block("minecraft:bedrock"),
+            unrotated: union_masks(&[&block("minecraft:fire"), &block("minecraft:chorus_plant")]),
+            has_block_entity: self.flag_mask(BlockStateFlags::HAS_BLOCK_ENTITY),
             block_of_state: (0..self.blocks.state_count())
                 .map(|id| self.blocks.block_index(BlockStateId(id as u16)))
                 .collect(),

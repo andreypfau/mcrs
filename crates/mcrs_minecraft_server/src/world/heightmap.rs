@@ -185,10 +185,10 @@ impl ColumnHeightmapSet {
 }
 
 /// The two maps a placement modifier reads as `WORLD_SURFACE_WG` and
-/// `OCEAN_FLOOR_WG`: the column as the fill and the surface rules left it,
-/// before any carver cut into it.
+/// `OCEAN_FLOOR_WG`: the column as the fill, the surface rules and the carvers
+/// left it, before any feature wrote into it.
 #[derive(Debug, Clone)]
-pub struct PreCarveHeightmaps {
+pub struct TerrainHeightmaps {
     pub surface: ColumnHeights,
     pub solid: ColumnHeights,
 }
@@ -233,19 +233,19 @@ pub(crate) fn apply_write(
     );
 }
 
-/// The pre-carve descent, over the dense buffer the fill still holds: the two
+/// The terrain descent, over the dense buffer the fill still holds: the two
 /// maps a placement modifier reads as `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`.
-pub fn build_pre_carve_heightmaps(
+pub fn build_terrain_heightmaps(
     column: &ColumnBlocks,
     predicates: &HeightmapPredicates,
-) -> Option<PreCarveHeightmaps> {
+) -> Option<TerrainHeightmaps> {
     let set = descend(
         column.y_sections(),
         HeightmapKinds::SURFACE.union(HeightmapKinds::SOLID),
         |index| Some(SectionCells::Dense(column.section_cells(index))),
         predicates,
     )?;
-    Some(PreCarveHeightmaps {
+    Some(TerrainHeightmaps {
         surface: set.surface.0,
         solid: set.solid.0,
     })

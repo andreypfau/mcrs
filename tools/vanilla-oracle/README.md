@@ -504,3 +504,126 @@ are beside each fixture:
 `crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/structure_cells_capture_procedure.md`
 and
 `crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/structure_sites_capture_procedure.md`.
+
+---
+
+# Template placement dumps
+
+`TemplatePlacementOracle.main` places every distinct template pool element the
+data pack ships — and the two `minecraft:template` feature nodes
+(`desert_well`, `sulfur_spring`) — into a `StubLevel` over a flat floor and
+records what `StructureTemplate.placeInWorld` wrote: the written positions
+with their final states (hashed, or in full for a fixed subset), every block
+entity it loaded, and the placement random's state afterwards. Ahead of the
+cases it writes three censuses: the `BLOCK_ENTITY_TYPE` registry order, which
+block creates which block entity and whether that entity is a
+`RandomizableContainer`, and every block state that any rotation changes with
+its three rotations.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpTemplatePlacement --console=plain --no-daemon \
+    -PoracleOut=../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures
+```
+
+One file, `template_placement.bin`, deterministic. The run log must contain no
+`Serialization errors` line: `placeInWorld` reports block-entity load problems
+through its logger rather than throwing, and a hit means a compound was not
+loaded the way the fixture claims.
+
+How `StubLevel` stands in for a server, the two entry points the cases go
+through, what each case pins and what the fixture cannot pin are beside the
+fixture in
+`crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/template_placement_capture_procedure.md`.
+
+## Binary layout
+
+Little-endian, same primitives as the other dumps; `u8` is one raw byte.
+
+```
+magic            8 bytes, ASCII "MCTMPLP0"
+format_version   u32   currently 1
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
+
+type_count       u32   BuiltInRegistries.BLOCK_ENTITY_TYPE size
+type_ids         str * type_count          registration order
+
+entity_block_count  u32
+repeated entity_block_count times, BuiltInRegistries.BLOCK order, every
+EntityBlock whose newBlockEntity(ZERO, defaultBlockState()) is non-null:
+  block_id       str
+  type_id        str   BLOCK_ENTITY_TYPE key of the created entity
+  loot_seeded    u8    1 iff the created entity is a RandomizableContainer
+
+rotation_palette_count  u32
+rotation_palette        str * count       BlockStateParser.serialize, interned in
+                                          first-use order over (state, cw90,
+                                          cw180, ccw90)
+rotation_count   u32   states that at least one rotation changes
+repeated rotation_count times, BLOCK order then getPossibleStates() order:
+  state, cw90, cw180, ccw90   u32 * 4     palette indices; state.rotate(
+                                          CLOCKWISE_90 | CLOCKWISE_180 |
+                                          COUNTERCLOCKWISE_90)
+
+palette_count    u32   global block-state palette over every written block,
+palette          str * palette_count      interned in first-use order, file order
+
+case_count       u32
+repeated case_count times:
+  kind           u8    0 template pool element, 1 template feature node
+  template_key   str   kind 0: getTemplateLocation(); kind 1: entry template
+                       ids joined by ","
+  processors_key str   "ref:<processor list id>" | "inline" | "none" (feature
+                       without processors); a kind-0 inline list is always
+                       empty (the dump aborts otherwise), a kind-1 one is the
+                       feature's own list (desert_well's append_loot rule)
+  projection     u8    0 rigid, 1 terrain_matching; kind 1: 0
+  legacy         u8    kind 0: 1 iff LegacySinglePoolElement; kind 1: 0
+  rotation       u8    kind 0: Rotation.values()[caseIndex % 4]; kind 1: 0
+  liquid         u8    kind 0: 1 (ignore_waterlogging) iff caseIndex % 8 == 7;
+                       kind 1: 0
+  px, py, pz     i32 * 3   kind 0: (8, 62, 8); kind 1: origin (8, 64, 8)
+  rx, ry, rz     i32 * 3   kind 0: (center.x, minY, center.z) of
+                           template.getBoundingBox(rotation, position);
+                           kind 1: the origin
+  has_clip       u8    kind 0: 1; kind 1: 0
+  clip           i32 * 6   when has_clip: min x, y, z, max x, y, z, inclusive;
+                           always (0, -63, 0, 15, 319, 15)
+  placement_count  u32   kind 0: 2; kind 1: 6
+  repeated placement_count times:
+    floor          u8    0: dirt for y <= 63; 1: stone for y <= 60, water
+                         source 61..=63; air above either
+    seed           i64   XoroshiroRandomSource(seed) is the placement random;
+                         kind 0: the case index; kind 1: 0, 1, 2
+    template_drawn str   kind 0: template_key; kind 1: the entry the weighted
+                         draw picked
+    rotation_drawn u8    kind 0: rotation; kind 1: the drawn rotation
+    x, y, z        i32 * 3   the position handed to placeInWorld
+    placed         u8    what the placement returned
+    count          u32   distinct written positions
+    hash           u64   FNV-1a 64 over (i32 x, i32 y, i32 z, u32 palette
+                         index) per written entry, first-write order, final
+                         state
+    full           u8    1 when the running placement index % 100 == 0, or
+                         kind 1 with seed 0
+    entries        (i32 x, i32 y, i32 z, u32 palette index) * count, when full
+    entity_count   u32
+    repeated entity_count times, sorted by (x, y, z):
+      x, y, z      i32 * 3
+      type_id      str   BLOCK_ENTITY_TYPE key of be.getType()
+      len          u32
+      nbt          len bytes   NbtIo.write of be.saveWithFullMetadata(access):
+                               uncompressed, named (TAG_Compound, "", payload)
+    rng_lo         i64   random.nextLong() after placement
+    rng_hi         i64   random.nextLong() again
+```
+
+Kind-0 cases come first: pools sorted by `Identifier.toString()`,
+`getTemplates()` raw pairs in order, `ListPoolElement` children in
+`getElements()` order, the first occurrence of each
+`(template, processors, projection, legacy)` key. Kind-1 cases follow:
+`desert_well` then `sulfur_spring`, nodes in
+`Stream.concat(Stream.of(self), getSubFeatures())` order, first occurrence of
+each `(template ids, processors)` key. The case index and the running
+placement index both run over the whole file. The file ends at the last
+`rng_hi`; there is no trailer.

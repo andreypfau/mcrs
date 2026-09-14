@@ -218,6 +218,6 @@ pub fn saved_block_entities(
                 .get_string("id")
                 .is_some_and(|id| GeneratedBlockEntity::IDS.contains(&id))
         })
-        .map(crate::world::block_entity::from_compound)
+        .map(GeneratedBlockEntity::from_compound)
         .collect()
 }

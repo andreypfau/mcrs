@@ -30,8 +30,10 @@ impl PlayerIndex {
         self.players.get(username).copied()
     }
 
-    pub fn remove_username(&mut self, username: &str) -> Option<PlayerSession> {
-        self.players.remove(username)
+    /// Keyed by session rather than name: a player who logs in again before the
+    /// old connection is cleaned up already owns the name.
+    pub fn remove_session(&mut self, session: PlayerSession) {
+        self.players.retain(|_, held| *held != session);
     }
 
     pub fn len(&self) -> usize {
@@ -70,12 +72,15 @@ mod tests {
     }
 
     #[test]
-    fn remove_username_returns_session_then_none() {
+    fn remove_session_drops_only_that_sessions_name() {
         let mut index = PlayerIndex::default();
-        let session = PlayerSession(2);
-        index.insert_username("bob".into(), session);
-        assert_eq!(index.remove_username("bob"), Some(session));
-        assert_eq!(index.remove_username("bob"), None);
+        index.insert_username("bob".into(), PlayerSession(2));
+        index.insert_username("alice".into(), PlayerSession(3));
+        index.remove_session(PlayerSession(2));
+        assert_eq!(index.get_by_username("bob"), None);
+        assert_eq!(index.get_by_username("alice"), Some(PlayerSession(3)));
+        index.remove_session(PlayerSession(2));
+        assert_eq!(index.len(), 1);
     }
 
     #[test]
@@ -87,7 +92,7 @@ mod tests {
         assert!(!index.is_empty());
         index.insert_username("b".into(), PlayerSession(2));
         assert_eq!(index.len(), 2);
-        index.remove_username("a");
+        index.remove_session(PlayerSession(1));
         assert_eq!(index.len(), 1);
     }
 }

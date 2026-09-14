@@ -13,9 +13,11 @@ use std::time::{Duration, Instant};
 use bevy_app::{App, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_math::IVec3;
 use bevy_tasks::TaskPoolBuilder;
+use fixedbitset::FixedBitSet;
 use mcrs_minecraft_block::palette::ChunkBlocks;
-use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_core::{RegistrySnapshot, ResourceLocation};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_voxel_math::SectionPos;
@@ -32,11 +34,17 @@ use crate::world::generate::stages::{
     ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections, fill_pooled, run_region,
 };
 use crate::world::generate::staging::{FilledSnapshot, RegionSnapshots, Stage, region_column};
+use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
+use crate::world::generate::structures::{DimensionStructureTables, live_sets};
 use crate::world::generate::{BetaCaveBlockIds, ColumnBlocks, SurfaceIds};
 use crate::world::heightmap::{PendingColumnHeightmaps, heightmap_predicates};
 
 use super::corpus_ores::{one_biome_registry, ore_program, ore_tables};
-use super::{block_tags, blocks, build_beta_router, generate_region};
+use super::structures::frozen_shared;
+use super::{
+    biome_index, block_tags, blocks, build_beta_router, build_program_with, corpus_features,
+    generate_region, one_step,
+};
 
 /// One decoded column: its sections, each a flat block array in the packed
 /// order of the palettes themselves.
@@ -62,6 +70,12 @@ enum Consumer {
     /// nine columns, which is a far wider and more varied set of deltas than
     /// any single family produces.
     Corpus,
+    /// A plains village over the region's centre: jigsaw pieces that straddle
+    /// columns, each column laying the whole start out again and writing the
+    /// pieces that cross it, block entities included.
+    Village,
+    /// A pillager outpost, the other jigsaw structure a plains column starts.
+    Outpost,
 }
 
 /// The dimension the tree consumer runs in: the overworld router, forest
@@ -74,6 +88,11 @@ const TREE_SEED: u64 = 4242;
 const CORPUS_BIOME: &str = "minecraft:plains";
 const CORPUS_SEED: u64 = 0xC0FFEE;
 
+/// The dimension the two structure consumers run in: no features, so every
+/// write is a structure's.
+const VILLAGE_BIOME: &str = "minecraft:plains";
+const VILLAGE_SEED: u64 = 0x51A6E;
+
 /// One dimension, described once: the context the oracle drives the three stage
 /// functions with, and the resources the dispatcher rebuilds that very context
 /// from. The two must agree, or the comparison below is between two different
@@ -81,6 +100,8 @@ const CORPUS_SEED: u64 = 0xC0FFEE;
 struct Dimension {
     ctx: FillContext,
     registry: Arc<RegistrySnapshot<Biome>>,
+    /// The column the compared region is centred on.
+    centre: ColumnPos,
 }
 
 impl Dimension {
@@ -98,7 +119,66 @@ impl Dimension {
     }
 }
 
+/// The overworld with one fixed biome and the shipped structure sets, centred
+/// on the nearest start of `structure` the index finds from the origin.
+fn structure_dimension(structure: &str) -> Dimension {
+    let frozen = frozen_shared();
+    let seed = VILLAGE_SEED;
+    let (mut ctx, _) = super::trees::dimension_with(
+        VILLAGE_BIOME,
+        |registry| {
+            build_program_with(
+                &one_step(vec![], VILLAGE_BIOME),
+                corpus_features(),
+                registry,
+                seed as i64,
+                Some(frozen),
+            )
+        },
+        seed,
+    );
+    let biome = biome_index()
+        .get(VILLAGE_BIOME)
+        .expect("the biome index holds the corpus");
+    let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
+    mask.insert(biome as usize);
+    let tables = DimensionStructureTables {
+        frozen: Arc::clone(frozen),
+        live: live_sets(frozen, &mask),
+    };
+    let index = StructureIndex::new(
+        Arc::new(tables),
+        seed as i64,
+        Arc::clone(&ctx.router),
+        BiomeLookup::Fixed(biome),
+        ctx.predicates.clone(),
+        -64,
+        384,
+    );
+    let wanted = frozen.structure_ids[&ResourceLocation::parse(structure).unwrap()];
+    let (pos, _) = index
+        .locate(IVec3::ZERO, &[wanted])
+        .unwrap_or_else(|| panic!("no {structure} within the search radius"));
+    let centre = ColumnPos::new(pos.x >> 4, pos.z >> 4);
+    assert!(
+        !index.starts_reaching(centre).is_empty(),
+        "{structure} at {centre:?} does not reach its own column"
+    );
+    ctx.structures = Some(Arc::new(index));
+    let (_, registry) = ctx.biome.clone().expect("the dimension has a biome");
+    Dimension {
+        ctx,
+        registry,
+        centre,
+    }
+}
+
 fn fill_context(consumer: Consumer) -> Dimension {
+    match consumer {
+        Consumer::Village => return structure_dimension("minecraft:village_plains"),
+        Consumer::Outpost => return structure_dimension("minecraft:pillager_outpost"),
+        _ => {}
+    }
     if let Consumer::Tree | Consumer::Corpus = consumer {
         let (ctx, _) = if consumer == Consumer::Tree {
             super::trees::tree_dimension(TREE_BIOME, TREE_FEATURE, TREE_SEED)
@@ -107,7 +187,11 @@ fn fill_context(consumer: Consumer) -> Dimension {
             super::trees::dimension_over(CORPUS_BIOME, tables, CORPUS_SEED)
         };
         let (_, registry) = ctx.biome.clone().expect("the dimension has a biome");
-        return Dimension { ctx, registry };
+        return Dimension {
+            ctx,
+            registry,
+            centre: ColumnPos::new(0, 0),
+        };
     }
     let router = Arc::new(build_beta_router());
     let y_sections = dimension_y_sections(&router, -64, 24);
@@ -120,8 +204,8 @@ fn fill_context(consumer: Consumer) -> Dimension {
             let (tables, _) = ore_tables();
             (None, Arc::new(one_biome_registry()), Some(Arc::new(tables)))
         }
-        Consumer::Tree | Consumer::Corpus => {
-            unreachable!("the feature dimensions returned above")
+        Consumer::Tree | Consumer::Corpus | Consumer::Village | Consumer::Outpost => {
+            unreachable!("the feature and structure dimensions returned above")
         }
     };
     let program = match consumer {
@@ -155,7 +239,7 @@ fn fill_context(consumer: Consumer) -> Dimension {
     let ctx = FillContext {
         blocks: blocks().0.clone(),
         biome: source.clone().map(|src| (src, registry.clone())),
-        // The modern vein probes `OCEAN_FLOOR_WG`, which is a pre-carve map, so
+        // The modern vein probes `OCEAN_FLOOR_WG`, which is a terrain map, so
         // without the table it would place nothing at all.
         predicates: Some(heightmap_predicates(blocks(), block_tags())),
         saved: None,
@@ -164,7 +248,11 @@ fn fill_context(consumer: Consumer) -> Dimension {
         y_sections: y_sections.clone(),
         structures: None,
     };
-    Dimension { ctx, registry }
+    Dimension {
+        ctx,
+        registry,
+        centre: ColumnPos::new(0, 0),
+    }
 }
 
 fn decode(sections: &[Option<SectionData>]) -> Column {
@@ -599,7 +687,10 @@ fn run_writes(dim: &Dimension, wanted: &[ColumnPos]) -> (usize, usize) {
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
-    let wanted = region_columns(radius);
+    let wanted: Vec<ColumnPos> = region_columns(radius)
+        .into_iter()
+        .map(|col| ColumnPos::new(col.x + dim.centre.x, col.z + dim.centre.z))
+        .collect();
     let oracle = run_oracle(&dim, &wanted);
     assert_eq!(
         oracle.len(),
@@ -613,11 +704,18 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         "{consumer:?} wrote nothing anywhere: the comparison below would hold \
          between two pipelines that both do nothing"
     );
-    assert!(
-        crossed > 0,
-        "{consumer:?} wrote only into the columns that ran: nothing reaches the \
-         ring, so no ordering the drives vary is observable"
-    );
+    if consumer != Consumer::Outpost {
+        assert!(
+            crossed > 0,
+            "{consumer:?} wrote only into the columns that ran: nothing reaches the \
+             ring, so no ordering the drives vary is observable"
+        );
+    } else {
+        assert_eq!(
+            crossed, 0,
+            "{consumer:?} wrote past the clip of the column that ran"
+        );
+    }
 
     let mut census = Census::default();
     for drive in drives {
@@ -655,6 +753,8 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         Consumer::ModernOre,
         Consumer::Tree,
         Consumer::Corpus,
+        Consumer::Village,
+        Consumer::Outpost,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }
@@ -670,6 +770,7 @@ fn the_parallel_ladder_delivers_the_large_oracle_region() {
         Consumer::ModernOre,
         Consumer::Tree,
         Consumer::Corpus,
+        Consumer::Village,
     ] {
         assert_region_agrees(consumer, 3, &small_drives());
     }
@@ -710,7 +811,7 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
                 col,
                 y_sections: Arc::from(vec![0, 1].as_slice()),
                 sections: vec![None, None],
-                pre_carve: None,
+                terrain: None,
                 maps: None,
                 source: crate::world::chunk::ColumnSource::Generated,
                 block_entities: vec![GeneratedBlockEntity::Beehive {

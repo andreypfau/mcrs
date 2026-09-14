@@ -22,17 +22,12 @@ use super::{
 const BIOME: &str = "minecraft:badlands";
 
 /// The corpus features this build still cannot place: both are `fossil`, which
-/// wants the structure-template subsystem.
-/// Every one of these needs a structure template out of
-/// `assets/minecraft/structure`, which nothing in this build reads. The two
-/// wells are an `overlay` of nothing but templates, so they compile to a
-/// container and still write no block.
-const EXPECTED_MISSING: [&str; 4] = [
-    "minecraft:desert_well",
-    "minecraft:fossil_coal",
-    "minecraft:fossil_diamonds",
-    "minecraft:sulfur_spring",
-];
+/// blends two templates through a processor pair nothing here runs yet.
+// ponytail: `desert_well` and `sulfur_spring` place their templates without the
+// neighbour-shape pass a `minecraft:template` feature runs afterwards, so a
+// sulfur spike at a template's edge keeps its file state where a real server
+// may recompute its thickness; the upgrade is that post pass over the region.
+const EXPECTED_MISSING: [&str; 2] = ["minecraft:fossil_coal", "minecraft:fossil_diamonds"];
 
 /// Every feature of the corpus as one step, each placed under its own id.
 fn corpus_tables() -> (FeatureTables, &'static LoadedFeatures) {
@@ -300,11 +295,9 @@ fn corpus_feature_types() -> BTreeMap<String, Vec<Feature>> {
         .collect()
 }
 
-/// The types no generator places. Both want the structure-template subsystem,
-/// and `fossil` is the one the file-level census already names; `template` is
-/// reachable only from inside another feature, so a selector over nothing but
-/// it compiles, keeps every draw, and places nothing at all.
-const EXPECTED_MISSING_TYPES: [&str; 2] = ["minecraft:fossil", "minecraft:template"];
+/// The one type no generator places, which the file-level census already
+/// names through its two features.
+const EXPECTED_MISSING_TYPES: [&str; 1] = ["minecraft:fossil"];
 
 /// Every feature type the corpus uses, derived from the assets rather than
 /// listed here, against the generators this build has. A datapack that adds a

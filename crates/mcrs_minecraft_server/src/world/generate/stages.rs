@@ -18,7 +18,7 @@ use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{
-    PlacerScratch, WorldGenVolume, WorldStates, decorate,
+    PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,
 };
 use mcrs_minecraft_worldgen::material::MaterialScratch;
 use mcrs_minecraft_worldgen::program::Workspace;
@@ -40,13 +40,14 @@ use crate::world::generate::staging::{
 };
 use crate::world::generate::structures::DimensionStructureTables;
 use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
+use crate::world::generate::structures::place::{column_clip, place_structures};
 use crate::world::generate::{
     BetaCaveBlockIds, ColumnBlocks, SurfaceIds, apply_beta_carvers, apply_beta_surface,
     apply_material_surface, fill_column_dense_any, spans_dimension,
 };
 use crate::world::heightmap::{
-    ColumnHeightmapSet, HeightmapPredicates, PreCarveHeightmaps, build_column_heightmaps,
-    build_pre_carve_heightmaps,
+    ColumnHeightmapSet, HeightmapPredicates, TerrainHeightmaps, build_column_heightmaps,
+    build_terrain_heightmaps,
 };
 
 /// Everything a column stage reads that is the same for every column of one
@@ -235,10 +236,10 @@ pub fn extent(router: &NoiseRouter) -> HeightContext {
     }
 }
 
-fn pre_carve(ctx: &FillContext, column: &ColumnBlocks) -> Option<PreCarveHeightmaps> {
+fn terrain_maps(ctx: &FillContext, column: &ColumnBlocks) -> Option<TerrainHeightmaps> {
     ctx.predicates.as_ref().and_then(|p| {
-        let _span = info_span!("world::column_pre_carve").entered();
-        build_pre_carve_heightmaps(column, p)
+        let _span = info_span!("world::column_terrain_maps").entered();
+        build_terrain_heightmaps(column, p)
     })
 }
 
@@ -289,9 +290,9 @@ pub fn fill_column(
             .predicates
             .as_ref()
             .and_then(|p| build_column_heightmaps(&sections, y_sections, p));
-        // A saved column was carved before it was written, so the maps it
-        // arrives with are the only answer there is to the pre-carve pair.
-        let pre_carve = maps.as_ref().map(|maps| PreCarveHeightmaps {
+        // A save holds no terrain maps, so the maps it arrives with stand in
+        // for the pair.
+        let terrain = maps.as_ref().map(|maps| TerrainHeightmaps {
             surface: maps.surface.0.clone(),
             solid: maps.solid.0.clone(),
         });
@@ -299,7 +300,7 @@ pub fn fill_column(
             col,
             y_sections: y_sections.clone(),
             sections,
-            pre_carve,
+            terrain,
             maps,
             source: ColumnSource::Saved,
             block_entities,
@@ -373,8 +374,6 @@ pub fn fill_column(
         ColumnGenerator::Modern { surface: None, .. } => {}
     }
 
-    let pre_carve = pre_carve(ctx, column);
-
     if let Some(carvers) = &ctx.program.carvers {
         let world_seed = router.world_seed as i64;
         let mut ws = Workspace::new();
@@ -400,7 +399,12 @@ pub fn fill_column(
         }
     }
 
-    Some(pack(ctx, col, column, &filled.biomes, pre_carve))
+    // The reference keeps the two `_WG` maps live through the carvers and
+    // freezes them only when the terrain step ends, so a cave that opens the
+    // surface lowers them.
+    let terrain = terrain_maps(ctx, column);
+
+    Some(pack(ctx, col, column, &filled.biomes, terrain))
 }
 
 fn pack(
@@ -408,7 +412,7 @@ fn pack(
     col: ColumnPos,
     column: &ColumnBlocks,
     biomes: &[mcrs_minecraft_block::palette::BiomePalette],
-    pre_carve: Option<PreCarveHeightmaps>,
+    terrain: Option<TerrainHeightmaps>,
 ) -> FilledSnapshot {
     let sections = column.into_sections(biomes);
     let maps = ctx
@@ -419,7 +423,7 @@ fn pack(
         col,
         y_sections: ctx.y_sections.clone(),
         sections,
-        pre_carve,
+        terrain,
         maps,
         source: ColumnSource::Generated,
         block_entities: Vec::new(),
@@ -483,8 +487,8 @@ impl<'a> ColumnRegion<'a> {
         ))
     }
 
-    /// The live centre map, or the ring column's frozen one; the two pre-carve
-    /// generations are frozen for every column of the region.
+    /// The live centre map, or the ring column's frozen one; the two terrain
+    /// maps are frozen for every column of the region.
     pub fn map_height(&self, kind: HeightmapName, x: i32, z: i32) -> Option<i32> {
         let (slot, lx, lz) = self.locate(BlockPos::new(x, 0, z))?;
         let snapshot = &self.snapshots[slot];
@@ -496,8 +500,8 @@ impl<'a> ColumnRegion<'a> {
             }
         };
         let heights = match kind {
-            HeightmapName::WorldSurfaceWg => &snapshot.pre_carve.as_ref()?.surface,
-            HeightmapName::OceanFloorWg => &snapshot.pre_carve.as_ref()?.solid,
+            HeightmapName::WorldSurfaceWg => &snapshot.terrain.as_ref()?.surface,
+            HeightmapName::OceanFloorWg => &snapshot.terrain.as_ref()?.solid,
             HeightmapName::WorldSurface => &maps()?.surface.0,
             HeightmapName::OceanFloor => &maps()?.solid.0,
             HeightmapName::MotionBlocking => &maps()?.motion.0,
@@ -700,31 +704,43 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
         }
     }
     let present = program.present(&slots);
-    if present[steps.clone()].iter().all(FixedBitSet::is_clear) {
+    let starts = match &ctx.structures {
+        Some(index) if index.places_in(&steps) => index.starts_reaching(col),
+        _ => Vec::new(),
+    };
+    if starts.is_empty() && present[steps.clone()].iter().all(FixedBitSet::is_clear) {
         return;
     }
 
     let origin = BlockPos::new(col.x * 16, ctx.router.noise.min_y, col.z * 16);
     let seed = decoration_seed(ctx.router.world_seed as i64, origin.x, origin.z);
+    let clip = column_clip(col, &ctx.y_sections);
     thread_local! {
         static SCRATCH: RefCell<(PlacerScratch, RunScratch)> = RefCell::default();
     }
     SCRATCH.with_borrow_mut(|(scratch, pool)| {
         let mut run = program.run(std::mem::take(pool));
-        decorate(
-            &present,
-            steps,
-            &|step, index| program.chain(step, index),
-            &|biome, step, index| program.carries(biome, step, index),
-            region,
-            scratch,
-            origin,
-            seed,
-            &mut |(step, index), region, rng, at, carries| match program.generator_at(step, index) {
-                Some(generator) => generator.place(&mut run, region, rng, at, carries),
-                None => false,
-            },
-        );
+        for step in steps {
+            if let Some(index) = &ctx.structures {
+                place_structures(index, program, &mut run, region, &starts, step, clip, seed);
+            }
+            decorate(
+                &present,
+                step..step + 1,
+                &|step, index| program.chain(step, index),
+                &|biome, step, index| program.carries(biome, step, index),
+                region,
+                scratch,
+                origin,
+                seed,
+                &mut |(step, index), region, rng, at, carries| match program
+                    .generator_at(step, index)
+                {
+                    Some(generator) => generator.place(&mut run, region, rng, at, carries),
+                    None => false,
+                },
+            );
+        }
         (region.block_entities, *pool) = run.finish();
     });
 }
@@ -742,11 +758,13 @@ pub(crate) fn decoration_seed(world_seed: i64, origin_x: i32, origin_z: i32) -> 
 
 /// `Merged`: the column's own writes and the eight incoming deltas, applied in
 /// the order given — ascending rank, as the store hands them out — then the
-/// four maps rebuilt because a neighbour's write can raise them.
+/// four maps rebuilt because a neighbour's write can raise them, and the block
+/// entities settled against the blocks that stand.
 pub fn merge_column(
     snapshot: &FilledSnapshot,
     deltas: &[Arc<ColumnDelta>],
     predicates: Option<&HeightmapPredicates>,
+    has_block_entity: Option<&StateMask>,
 ) -> FilledSnapshot {
     let _span = info_span!("world::column_merge").entered();
     let mut merged = FilledSnapshot {
@@ -756,38 +774,77 @@ pub fn merge_column(
         // The two `_WG` maps are the terrain's, and the reference stops
         // updating them once the terrain step is done; a rung reads them, so
         // they travel with the column rather than being dropped at the merge.
-        pre_carve: snapshot.pre_carve.clone(),
+        terrain: snapshot.terrain.clone(),
         maps: snapshot.maps.clone(),
         source: snapshot.source,
-        block_entities: snapshot
+        block_entities: Vec::new(),
+    };
+    if deltas.iter().any(|delta| !delta.writes.is_empty()) {
+        for &(cell, state) in deltas.iter().flat_map(|delta| &delta.writes) {
+            let (slot, index) = (
+                cell as usize / ColumnBlocks::SECTION_VOLUME,
+                cell as usize % ColumnBlocks::SECTION_VOLUME,
+            );
+            if let Some(Some((blocks, _))) = merged.sections.get_mut(slot) {
+                let local = LocalPos::from_index(index);
+
+                blocks.0.set(
+                    local.x() as usize,
+                    local.y() as usize,
+                    local.z() as usize,
+                    state,
+                );
+            }
+        }
+        merged.maps = predicates
+            .and_then(|p| build_column_heightmaps(&merged.sections, &merged.y_sections, p));
+    }
+    merged.block_entities = settle_block_entities(
+        snapshot
             .block_entities
             .iter()
-            .chain(deltas.iter().flat_map(|delta| delta.block_entities.iter()))
-            .cloned()
-            .collect(),
-    };
-    if deltas.iter().all(|delta| delta.writes.is_empty()) {
-        return merged;
-    }
-    for &(cell, state) in deltas.iter().flat_map(|delta| &delta.writes) {
-        let (slot, index) = (
-            cell as usize / ColumnBlocks::SECTION_VOLUME,
-            cell as usize % ColumnBlocks::SECTION_VOLUME,
-        );
-        if let Some(Some((blocks, _))) = merged.sections.get_mut(slot) {
-            let local = LocalPos::from_index(index);
+            .chain(deltas.iter().flat_map(|delta| delta.block_entities.iter())),
+        &merged,
+        has_block_entity,
+    );
+    merged
+}
 
-            blocks.0.set(
-                local.x() as usize,
-                local.y() as usize,
-                local.z() as usize,
-                state,
-            );
+/// `WorldGenRegion.setBlock` drops the block entity at a position whenever the
+/// new state has none, so the entity that stands is the last one written on a
+/// block that can still hold it.
+fn settle_block_entities<'a>(
+    entities: impl Iterator<Item = &'a GeneratedBlockEntity>,
+    merged: &FilledSnapshot,
+    has_block_entity: Option<&StateMask>,
+) -> Vec<GeneratedBlockEntity> {
+    let mut settled: Vec<GeneratedBlockEntity> = Vec::new();
+    for entity in entities {
+        match settled
+            .iter_mut()
+            .find(|held| held.position() == entity.position())
+        {
+            Some(held) => *held = entity.clone(),
+            None => settled.push(entity.clone()),
         }
     }
-    merged.maps =
-        predicates.and_then(|p| build_column_heightmaps(&merged.sections, &merged.y_sections, p));
-    merged
+    if let Some(mask) = has_block_entity {
+        settled.retain(|entity| {
+            let at = entity.position();
+            let local = LocalPos::from(at);
+            merged
+                .slot(at.y)
+                .and_then(|slot| merged.sections[slot].as_ref())
+                .is_some_and(|(blocks, _)| {
+                    let state =
+                        blocks
+                            .0
+                            .get(local.x() as usize, local.y() as usize, local.z() as usize);
+                    mask.contains(state.0 as usize)
+                })
+        });
+    }
+    settled
 }
 
 /// [`fill_column`] over the worker's own reused buffer.
@@ -954,7 +1011,7 @@ mod tests {
                 },
             );
         }
-        let merged = merge_column(&snapshot, &store.deltas(col, 0), None);
+        let merged = merge_column(&snapshot, &store.deltas(col, 0), None, None);
         let (palette, _) = merged.sections[0].as_ref().expect("the section survives");
         assert_eq!(
             palette.0.get(5, 6, 7),
@@ -979,7 +1036,7 @@ mod tests {
             bees: Vec::new(),
         }];
 
-        let merged = merge_column(&snapshot, &[], None);
+        let merged = merge_column(&snapshot, &[], None, None);
         assert_eq!(
             merged.block_entities, snapshot.block_entities,
             "a saved column's block entities reach its delivery"
@@ -988,19 +1045,135 @@ mod tests {
         let delta = Arc::new(ColumnDelta {
             source_rank: rank(col),
             writes: Vec::new(),
-            block_entities: vec![GeneratedBlockEntity::Chest {
-                x: 21,
-                y: 71,
-                z: -11,
-                loot_table: "minecraft:chests/simple_dungeon".to_owned(),
-                loot_table_seed: 0,
-            }],
+            block_entities: vec![GeneratedBlockEntity::chest(
+                BlockPos::new(21, 71, -11),
+                "minecraft:chests/simple_dungeon".to_owned(),
+                0,
+            )],
         });
-        let merged = merge_column(&snapshot, std::slice::from_ref(&delta), None);
+        let merged = merge_column(&snapshot, std::slice::from_ref(&delta), None, None);
         assert_eq!(
             merged.block_entities.len(),
             2,
             "and the ones a neighbour's run grew join them"
+        );
+    }
+
+    /// A cave that opens the surface lowers `WORLD_SURFACE_WG`: the reference
+    /// keeps the pair live through the carvers, so at the fill the terrain
+    /// maps and the final maps are one descent over the same blocks.
+    #[test]
+    fn the_terrain_maps_are_taken_after_the_carvers() {
+        use crate::world::generate::tests::{beta_carver_table, block_tags, blocks};
+        use crate::world::heightmap::heightmap_predicates;
+
+        let router = Arc::new(build_beta_router());
+        let (source, registry) =
+            crate::world::generate::tests::beta_surface::build_beta_biome_source();
+        let source = Arc::new(source);
+        let carved = FillContext {
+            y_sections: dimension_y_sections(&router, -64, 24),
+            blocks: blocks().0.clone(),
+            biome: Some((Arc::clone(&source), Arc::new(registry))),
+            predicates: Some(heightmap_predicates(blocks(), block_tags())),
+            saved: None,
+            program: ColumnProgram {
+                generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(&blocks().0))),
+                carvers: Some(Arc::new(beta_carver_table(&source))),
+                features: None,
+            },
+            router,
+            structures: None,
+        };
+        let mut uncarved = carved.clone();
+        uncarved.program.carvers = None;
+
+        let cancel = CancellationToken::new();
+        let mut buffer = ColumnBlocks::new(&carved.y_sections);
+        let mut opened = 0;
+        for x in -5..=5 {
+            for z in -5..=5 {
+                let col = ColumnPos::new(x, z);
+                let after = fill_column(&carved, col, &mut buffer, &cancel).unwrap();
+                let before = fill_column(&uncarved, col, &mut buffer, &cancel).unwrap();
+                let (terrain, maps) = (after.terrain.unwrap(), after.maps.unwrap());
+                let before = before.terrain.unwrap();
+                for lx in 0..16 {
+                    for lz in 0..16 {
+                        assert_eq!(
+                            terrain.surface.get(lx, lz),
+                            maps.surface.0.get(lx, lz),
+                            "WORLD_SURFACE_WG of {col:?} at ({lx}, {lz})"
+                        );
+                        assert_eq!(
+                            terrain.solid.get(lx, lz),
+                            maps.solid.0.get(lx, lz),
+                            "OCEAN_FLOOR_WG of {col:?} at ({lx}, {lz})"
+                        );
+                        opened +=
+                            usize::from(terrain.surface.get(lx, lz) < before.surface.get(lx, lz));
+                    }
+                }
+            }
+        }
+        assert!(
+            opened > 0,
+            "no cave opened the surface in the sampled columns"
+        );
+    }
+
+    #[test]
+    fn a_merge_drops_the_block_entity_of_an_overwritten_block() {
+        let y_sections: Arc<[i32]> = Arc::from(vec![4i32]);
+        let col = ColumnPos::new(0, 0);
+        let (stone, chest) = (VoxelId(1), VoxelId(2));
+        let snapshot = flat_snapshot(col, &y_sections, stone);
+        let at = BlockPos::new(3, 70, 5);
+        let cell = cell_index(0, LocalPos::from(at));
+        let entity = |seed| {
+            GeneratedBlockEntity::chest(at, "minecraft:chests/simple_dungeon".to_owned(), seed)
+        };
+        let placed = Arc::new(ColumnDelta {
+            source_rank: 2,
+            writes: vec![(cell, chest)],
+            block_entities: vec![entity(1)],
+        });
+        let has_block_entity = mcrs_minecraft_worldgen::feature::placer::mask_of([chest.0]);
+
+        let merged = merge_column(
+            &snapshot,
+            std::slice::from_ref(&placed),
+            None,
+            Some(&has_block_entity),
+        );
+        assert_eq!(merged.block_entities, vec![entity(1)], "the chest stands");
+
+        let replaced = Arc::new(ColumnDelta {
+            source_rank: 5,
+            writes: vec![(cell, chest)],
+            block_entities: vec![entity(2)],
+        });
+        let merged = merge_column(
+            &snapshot,
+            &[Arc::clone(&placed), replaced],
+            None,
+            Some(&has_block_entity),
+        );
+        assert_eq!(
+            merged.block_entities,
+            vec![entity(2)],
+            "the last entity written at a position stands alone"
+        );
+
+        let buried = Arc::new(ColumnDelta {
+            source_rank: 5,
+            writes: vec![(cell, stone)],
+            block_entities: Vec::new(),
+        });
+        let merged = merge_column(&snapshot, &[placed, buried], None, Some(&has_block_entity));
+        assert!(
+            merged.block_entities.is_empty(),
+            "a block without an entity buries the one written before it"
         );
     }
 
@@ -1016,7 +1189,7 @@ mod tests {
         )
         .expect("the fill was not cancelled");
 
-        let merged = merge_column(&snapshot, &[], None);
+        let merged = merge_column(&snapshot, &[], None, None);
         assert_same_sections(&merged.sections, &snapshot.sections);
     }
 

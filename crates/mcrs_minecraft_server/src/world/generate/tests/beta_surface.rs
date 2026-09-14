@@ -33,7 +33,7 @@ fn make_beta_biome() -> Biome {
     }
 }
 
-pub(super) fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
+pub(crate) fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let mut assets = Assets::<Biome>::default();
     let land_handles: Vec<_> = (0..11).map(|_| assets.add(make_beta_biome())).collect();
     let land_ids: Vec<_> = land_handles.iter().map(|h| h.id()).collect();

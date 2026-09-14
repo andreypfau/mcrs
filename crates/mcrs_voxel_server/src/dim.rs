@@ -92,10 +92,10 @@ fn send_control<P: DimProtocol>(world: &mut World, dim_entity: Entity, msg: P::T
     }
 }
 
-/// Drain every dimension's outbox once and drive the move protocol one tick.
+/// Drain every dimension's outbox once.
 ///
-/// Runs between ticks, outside the ECS schedule, because rollback and teardown
-/// both need `&mut App`.
+/// Runs outside the ECS schedule, because rollback and teardown both need
+/// `&mut App`, and as often as the loop idles between ticks.
 pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
     let world = app.world_mut();
 
@@ -194,8 +194,16 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
     for (move_id, source_dim) in pending_confirms {
         send_control::<P>(world, source_dim, P::confirm(move_id));
     }
+}
 
-    let timed_out = world.resource_mut::<InFlightMoves>().tick_all();
+/// Rolls back the moves no destination acknowledged in time. The timeout is
+/// counted in ticks, so this runs once per tick and never from the idle loop.
+pub fn expire_moves<P: DimProtocol>(app: &mut App) {
+    let world = app.world_mut();
+    let Some(mut in_flight) = world.get_resource_mut::<InFlightMoves>() else {
+        return;
+    };
+    let timed_out = in_flight.tick_all();
     for move_id in timed_out {
         let Some(entry) = world.resource_mut::<InFlightMoves>().remove(move_id) else {
             continue;

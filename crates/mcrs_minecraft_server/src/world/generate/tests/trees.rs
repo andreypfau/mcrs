@@ -14,6 +14,7 @@ use mcrs_minecraft_worldgen::feature::proto::PlacedFeature;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::world::generate::SurfaceIds;
+use crate::world::generate::feature_program::FeatureProgram;
 use crate::world::generate::features::FeatureTables;
 use crate::world::generate::modern_carvers::ModernCarverBlockIds;
 use crate::world::generate::stages::{
@@ -120,14 +121,28 @@ pub(super) fn dimension_over(
     tables: Arc<FeatureTables>,
     seed: u64,
 ) -> (FillContext, Arc<[i32]>) {
+    // The dispatcher builds the program from the router's own seed, and the
+    // geode's noise and the End's spike ring are drawn from it; a program built
+    // against a different seed is a different world.
+    dimension_with(
+        biome,
+        |registry| build_program(&tables, corpus_features(), registry, seed as i64),
+        seed,
+    )
+}
+
+/// The overworld router and one fixed biome, over a program built against the
+/// registry the dimension is given.
+pub(super) fn dimension_with(
+    biome: &str,
+    program: impl FnOnce(&RegistrySnapshot<Biome>) -> FeatureProgram,
+    seed: u64,
+) -> (FillContext, Arc<[i32]>) {
     let registry0 = biome_registry();
     let router = Arc::new(material_router(&registry0, seed));
     let y_sections = dimension_y_sections(&router, -64, 24);
     let registry = Arc::new(registry0);
-    // The dispatcher builds the program from the router's own seed, and the
-    // geode's noise and the End's spike ring are drawn from it; a program built
-    // against a different seed is a different world.
-    let program = build_program(&tables, corpus_features(), &registry, seed as i64);
+    let program = program(&registry);
     let mut assets = bevy_asset::Assets::<Biome>::default();
     let handle = assets.add(super::beta_biome_palette::make_beta_biome());
     let source = Arc::new(BiomeSource::Fixed {

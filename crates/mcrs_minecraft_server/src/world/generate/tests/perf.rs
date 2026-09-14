@@ -1,5 +1,5 @@
 //! What the ladder costs, measured rather than argued: the three stages of a
-//! column, the pre-carve descent inside the first of them, the live centre map
+//! column, the terrain descent inside the first of them, the live centre map
 //! updates inside the second, and what one staged snapshot weighs.
 //!
 //! ```text
@@ -14,7 +14,7 @@ use crate::world::chunk::CancellationToken;
 use crate::world::generate::ColumnBlocks;
 use crate::world::generate::stages::{fill_column, merge_column, run_region};
 use crate::world::generate::staging::{FilledSnapshot, Stage, StagingStore, rank};
-use crate::world::heightmap::{HeightmapPredicates, build_pre_carve_heightmaps};
+use crate::world::heightmap::{HeightmapPredicates, build_terrain_heightmaps};
 
 /// The widest consumer there is: the forest tree feature, whose crowns and
 /// decorators reach past the column that seeds them and so read the ring.
@@ -78,7 +78,7 @@ fn the_ladder_costs() {
         let dense = ColumnBlocks::from_sections(&snapshot.sections, &snapshot.y_sections);
         let unpack = started.elapsed();
         let started = Instant::now();
-        let descent = build_pre_carve_heightmaps(&dense, &predicates);
+        let descent = build_terrain_heightmaps(&dense, &predicates);
         let took = started.elapsed();
         assert!(descent.is_some(), "the descent answered");
 
@@ -118,7 +118,13 @@ fn the_ladder_costs() {
                 continue;
             };
             let started = Instant::now();
-            let merged = merge_column(&snapshot, &deltas, Some(&predicates));
+            let merged = merge_column(
+                &snapshot,
+                &deltas,
+                Some(&predicates),
+                ctx.features()
+                    .map(|program| &program.world.has_block_entity),
+            );
             let took = started.elapsed();
             assert_eq!(merged.sections.len(), snapshot.sections.len());
             if col.x.abs() > WARMUP || col.z.abs() > WARMUP {
@@ -139,7 +145,7 @@ fn the_ladder_costs() {
         runs.len()
     );
     println!("Filled        {:.3} ms", ms(fill));
-    println!("  pre-carve   {:.3} ms", ms(median(descents)));
+    println!("  terrain     {:.3} ms", ms(median(descents)));
     println!("Run           {:.3} ms", ms(run));
     println!(
         "  live maps   {:.3} ms over {map_updates} updates",

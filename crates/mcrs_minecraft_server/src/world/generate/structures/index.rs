@@ -1,4 +1,5 @@
-use mcrs_voxel_math::ColumnPos;
+use mcrs_voxel_math::{BlockPos, BoundingBox, ColumnPos};
+use std::ops::Range;
 use std::sync::Arc;
 
 use bevy_math::IVec3;
@@ -20,7 +21,7 @@ use mcrs_minecraft_worldgen::value_provider::HeightContext;
 use super::jigsaw::{Piece, Start, layout};
 use super::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
 use super::site::{Site, SiteWorld, site};
-use super::{DimensionStructureTables, SetId, StructureId};
+use super::{DimensionStructureTables, SetId, StructureId, StructureKind};
 use crate::world::generate::modern_carvers::climate_target_at;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::stages::extent;
@@ -176,6 +177,58 @@ impl StructureIndex {
                 })
             })
             .collect()
+    }
+
+    /// Whether any live structure places in one of `steps`.
+    pub fn places_in(&self, steps: &Range<usize>) -> bool {
+        let frozen = &self.tables.frozen;
+        self.tables.live.iter().any(|(_, structures)| {
+            structures
+                .iter()
+                .any(|id| steps.contains(&(frozen.structures[id.0 as usize].step as usize)))
+        })
+    }
+
+    /// Every start whose bounds cross `column`, from every chunk within the
+    /// live jigsaw structures' reach, in `(step, step_index, chunk.x, chunk.z)`
+    /// order.
+    // ponytail: recomputed for every column a start reaches, so a village is
+    // laid out again by each of the columns it covers; the upgrade is a
+    // per-chunk once-cell bounded by the staging store's wanted set. Starts of
+    // one structure are ordered by chunk, where the reference walks a
+    // `LongOpenHashSet`; only a column two starts of one structure both cross
+    // can tell the difference.
+    pub fn starts_reaching(&self, column: ColumnPos) -> Vec<(ColumnPos, Start)> {
+        let frozen = &self.tables.frozen;
+        let reach = self
+            .tables
+            .live
+            .iter()
+            .flat_map(|(_, structures)| structures.iter())
+            .map(|id| &frozen.structures[id.0 as usize])
+            .filter(|structure| matches!(structure.kind, StructureKind::Jigsaw { .. }))
+            .map(|structure| structure.reach_chunks as i32)
+            .max()
+            .unwrap_or(0);
+        let footprint = BoundingBox {
+            min: BlockPos::new(column.x * 16, i32::MIN, column.z * 16),
+            max: BlockPos::new(column.x * 16 + 15, i32::MAX, column.z * 16 + 15),
+        };
+        let mut starts: Vec<(ColumnPos, Start)> = (-reach..=reach)
+            .flat_map(|dx| (-reach..=reach).map(move |dz| (dx, dz)))
+            .map(|(dx, dz)| ColumnPos::new(column.x + dx, column.z + dz))
+            .flat_map(|chunk| {
+                self.starts_at(chunk)
+                    .into_iter()
+                    .filter(|start| start.bounds.intersects(footprint))
+                    .map(move |start| (chunk, start))
+            })
+            .collect();
+        starts.sort_by_key(|(chunk, start)| {
+            let structure = &frozen.structures[start.structure.0 as usize];
+            (structure.step, structure.step_index, chunk.x, chunk.z)
+        });
+        starts
     }
 
     fn height_context(&self) -> HeightContext {

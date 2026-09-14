@@ -34,7 +34,7 @@ use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_voxel_server::dim::send_control_or_teardown;
-use mcrs_voxel_world::session::SessionRegistry;
+use mcrs_voxel_world::session::{PlayerSession, SessionRegistry};
 use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 
 /// Per-tick cleanup budget. The initial 32 caps work at 640 disconnects/sec
@@ -185,7 +185,7 @@ pub fn on_player_disconnect(
 /// emit is the chosen trade-off for sub-case-1 idempotency.
 pub fn process_disconnect(
     host_anchor: Entity,
-    _player_index: &mut PlayerIndex,
+    player_index: &mut PlayerIndex,
     session_registry: &mut SessionRegistry,
     dim_channels: &DimChannelsResource,
     despawn_queue: &mut DimDespawnQueue,
@@ -197,34 +197,17 @@ pub fn process_disconnect(
             None => return,
         };
 
-    if let Some(chan) = dim_channels.get(current_dim) {
-        send_control_or_teardown(
-            &chan.control_sender,
-            current_dim,
-            ToDim::Despawn {
-                host_anchor,
-                session,
-            },
-            despawn_queue,
-        );
-    }
-
-    if let Some(prev) = previous_dim
-        && prev != current_dim
-        && let Some(chan) = dim_channels.get(prev)
-    {
-        send_control_or_teardown(
-            &chan.control_sender,
-            prev,
-            ToDim::Despawn {
-                host_anchor,
-                session,
-            },
-            despawn_queue,
-        );
-    }
+    despawn_from_dims(
+        host_anchor,
+        session,
+        current_dim,
+        previous_dim,
+        dim_channels,
+        despawn_queue,
+    );
 
     session_registry.remove(&session);
+    player_index.remove_session(session);
 
     if let Ok(mut socket_entity) = commands.get_entity(connection_entity) {
         socket_entity.try_remove::<crate::world::bridge_queue::OutboundQueue>();
@@ -232,6 +215,32 @@ pub fn process_disconnect(
 
     if let Ok(mut anchor_entity) = commands.get_entity(host_anchor) {
         anchor_entity.despawn();
+    }
+}
+
+/// Routes the player's despawn into its current dimension and, mid-transfer,
+/// into the one it is leaving.
+pub fn despawn_from_dims(
+    host_anchor: Entity,
+    session: PlayerSession,
+    current_dim: Entity,
+    previous_dim: Option<Entity>,
+    dim_channels: &DimChannelsResource,
+    despawn_queue: &mut DimDespawnQueue,
+) {
+    let leaving = previous_dim.filter(|previous| *previous != current_dim);
+    for dim in std::iter::once(current_dim).chain(leaving) {
+        if let Some(chan) = dim_channels.get(dim) {
+            send_control_or_teardown(
+                &chan.control_sender,
+                dim,
+                ToDim::Despawn {
+                    host_anchor,
+                    session,
+                },
+                despawn_queue,
+            );
+        }
     }
 }
 

@@ -805,10 +805,18 @@ pub(crate) fn dispatch_column_generation(
                     break 'wanted;
                 }
                 let predicates = ctx.predicates.clone();
+                let program = ctx.program.features.clone();
                 scheduler.spawn(task_pool, v, Stage::Merging(rung as u8), |_| async move {
                     Some(StageResult::Merged(
                         rung,
-                        Box::new(merge_column(&base, &deltas, predicates.as_ref())),
+                        Box::new(merge_column(
+                            &base,
+                            &deltas,
+                            predicates.as_ref(),
+                            program
+                                .as_deref()
+                                .map(|program| &program.world.has_block_entity),
+                        )),
                     ))
                 });
                 dispatched += 1;
