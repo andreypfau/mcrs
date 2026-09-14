@@ -1,9 +1,9 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{BiomeMask, Predicate, WorldGenVolume};
-use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::holds;
 use crate::feature::tree::provider::StateProvider;
@@ -175,8 +175,8 @@ fn carve_blobs(rng: &mut XoroshiroRandom) -> Vec<bool> {
 
 #[cfg(test)]
 mod tests {
+    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen::feature::placer::mask_of;
-    use mcrs_voxel_storage::Blocks;
     use std::sync::Arc;
 
     use fixedbitset::FixedBitSet;

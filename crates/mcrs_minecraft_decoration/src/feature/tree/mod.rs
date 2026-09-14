@@ -10,12 +10,12 @@ use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::{Blocks, BlocksMut, BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen::feature::tree::FeatureSize;
-use mcrs_voxel_storage::{Blocks, BlocksMut, BoxVolume, Volume, VoxelId};
 
 use self::decorator::{CompiledTreeDecorator, DecoratorContext, TreePalette, TreeSink};
 use self::foliage::Foliage;
@@ -283,12 +283,12 @@ fn update_leaves<W: WorldGenVolume>(
 mod tests {
     use super::*;
     use crate::feature::tree::decorator::EntitiesOnly;
+    use mcrs_minecraft_chunk::{Blocks, BlocksMut};
     use mcrs_minecraft_random::Random;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
     use mcrs_minecraft_worldgen::feature::placer::mask_of;
     use mcrs_minecraft_worldgen::feature::placer::{BoxRegion, WorldStates};
     use mcrs_minecraft_worldgen::feature::tree::{Bounded, TreeDecorator};
-    use mcrs_voxel_storage::{Blocks, BlocksMut};
     use std::sync::Arc;
 
     const AIR: VoxelId = VoxelId(0);

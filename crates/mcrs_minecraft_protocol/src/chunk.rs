@@ -2,12 +2,12 @@ use crate::section::{Biomes, Blocks, NetworkSectionKind, PaletteForm, SectionVal
 use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
 use anyhow::{Context, bail, ensure};
 use bitfield_struct::bitfield;
-use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_voxel_storage::{
+use mcrs_minecraft_chunk::{
     PalettedContainer, SectionKind, VoxelId, any_entry_past, first_entry_past, pack_from,
     packed_len, remap_into, unpack_into,
 };
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::io::Write;

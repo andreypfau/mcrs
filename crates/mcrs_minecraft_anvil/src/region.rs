@@ -7,8 +7,8 @@ use lz4_java_wrc::Lz4BlockInput;
 use crate::chunk::{self, Chunk};
 use crate::palette::PaletteLookup;
 use crate::{AnvilError, ErrorKind};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ColumnPos, RegionPos};
-use mcrs_voxel_storage::VoxelId;
 
 pub const SECTOR_BYTES: usize = 4096;
 pub const REGION_SIDE: i32 = 32;

@@ -6,13 +6,13 @@ use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::BiomeSource;
 use mcrs_minecraft_worldgen::feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen::feature::proto::PlacedFeature;
-use mcrs_voxel_storage::VoxelId;
 
 use crate::world::generate::SurfaceIds;
 use crate::world::generate::feature_program::FeatureProgram;

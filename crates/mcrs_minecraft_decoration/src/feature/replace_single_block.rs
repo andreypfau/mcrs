@@ -1,7 +1,7 @@
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{Rule, WorldGenVolume};
-use mcrs_voxel_storage::VoxelId;
 
 #[derive(Clone, Debug)]
 pub struct Replacement {
@@ -36,9 +36,9 @@ pub fn place_replace_single_block<W: WorldGenVolume>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
     use mcrs_minecraft_worldgen::feature::placer::{BoxRegion, WorldStates, mask_of};
-    use mcrs_voxel_storage::Blocks;
 
     const STONE: VoxelId = VoxelId(1);
     const DEEPSLATE: VoxelId = VoxelId(2);

@@ -1,8 +1,8 @@
+use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId, pack_from, packed_len};
 use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkSection};
 use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_protocol::section::{Biomes, Blocks};
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_voxel_storage::{PalettedContainer, SectionKind, VoxelId, pack_from, packed_len};
 use std::borrow::Cow;
 
 type BlockContainer = PalettedContainer<VoxelId, { Blocks::SIZE }>;

@@ -2,6 +2,7 @@ use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
@@ -35,7 +36,6 @@ use mcrs_minecraft_worldgen::feature::tree::{
     TrunkPlacer as ProtoTrunk,
 };
 use mcrs_minecraft_worldgen::noise::normal as normal_noise;
-use mcrs_voxel_storage::VoxelId;
 
 use super::feature_program::{Resolver, missing, union_masks};
 

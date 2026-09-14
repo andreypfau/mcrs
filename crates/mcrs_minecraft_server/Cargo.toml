@@ -11,7 +11,7 @@ doctest = false
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 fixedbitset.workspace = true
-mcrs_voxel_storage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_voxel_server.workspace = true
 mcrs_voxel_world.workspace = true
 mcrs_minecraft_light = { workspace = true, features = ["bevy"] }

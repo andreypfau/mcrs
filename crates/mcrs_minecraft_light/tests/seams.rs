@@ -7,9 +7,9 @@ mod common;
 use std::sync::Arc;
 
 use common::{AIR, Reference, STONE, WATER, filled, registry};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_storage::VoxelId;
 
 const SECTIONS_Y: i32 = 4;
 

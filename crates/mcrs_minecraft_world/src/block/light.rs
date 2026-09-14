@@ -1,11 +1,11 @@
 use std::sync::{Arc, OnceLock};
 
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::voxel_shape::{ShapeRegistry, VoxelShape};
 use mcrs_minecraft_light::block::{LightProperties, LightRegistry, SpecialBlocks};
 use mcrs_minecraft_light::level::LightLevel;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashMap;
 
 use crate::block::definition::{BlockStateFlags, Blocks, ShapeId};

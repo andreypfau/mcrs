@@ -13,7 +13,7 @@ encryption = ["dep:aes", "dep:cfb8"]
 compression = ["dep:flate2"]
 
 [dependencies]
-mcrs_voxel_storage.workspace = true
+mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true

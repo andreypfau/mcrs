@@ -2,12 +2,12 @@ use crate::feature::{face_bit, holds};
 use mcrs_minecraft_random::{shuffle, shuffled};
 use rustc_hash::FxHashMap as HashMap;
 
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
-use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::tree::trunk::all_shuffled;
 

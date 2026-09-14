@@ -3,10 +3,10 @@
 use std::sync::{Arc, OnceLock};
 
 use bevy_math::Vec3;
+use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_core::voxel_shape::{Aabb, VoxelShape};
 use mcrs_minecraft_core::{BlockPos, Direction, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
 
 pub const AIR: VoxelId = VoxelId(0);
 pub const STONE: VoxelId = VoxelId(1);

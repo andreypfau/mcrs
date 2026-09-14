@@ -1,6 +1,6 @@
+use mcrs_minecraft_chunk::{BlocksMut, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_voxel_storage::{BlocksMut, VoxelId};
 
 #[derive(Clone, Debug)]
 pub struct TargetBlockState {
@@ -90,8 +90,8 @@ pub fn place_beta_ore<R: Random>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
     use mcrs_minecraft_random::legacy::LegacyRandom;
-    use mcrs_voxel_storage::{Blocks, BoxVolume, VoxelId};
 
     const STONE: VoxelId = VoxelId(1);
     const COAL_ORE: VoxelId = VoxelId(16);

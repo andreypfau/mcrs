@@ -5,6 +5,7 @@ use std::sync::{Arc, LazyLock};
 
 use bevy_math::IVec3;
 use bytes::Buf;
+use mcrs_minecraft_chunk::{Blocks, BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
@@ -24,7 +25,6 @@ use mcrs_minecraft_worldgen::feature::proto::{
     Feature, Holder, PlacedFeature, Rotation, processor_list,
 };
 use mcrs_minecraft_worldgen::structure::LiquidSettings;
-use mcrs_voxel_storage::{Blocks, BoxVolume, Volume, VoxelId};
 
 use super::structures::frozen_shared;
 use super::template_manifest::{parse_state, resolve};

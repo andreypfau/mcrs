@@ -1,4 +1,5 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::compile::build_router;
 use mcrs_minecraft_worldgen::corpus;
@@ -8,7 +9,6 @@ use mcrs_minecraft_worldgen::router::{
     FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES, RouterBlocks,
 };
 use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
-use mcrs_voxel_storage::VoxelId;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 

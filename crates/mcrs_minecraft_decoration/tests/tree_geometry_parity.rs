@@ -14,6 +14,8 @@
 
 use bevy_math::IVec3;
 use bytes::Buf;
+use mcrs_minecraft_chunk::Blocks as _;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_decoration::feature::tree::decorator::{
     CompiledTreeDecorator, EntitiesOnly, TreePalette,
@@ -33,8 +35,6 @@ use mcrs_minecraft_worldgen::feature::placer::{
 };
 use mcrs_minecraft_worldgen::feature::proto::Feature;
 use mcrs_minecraft_worldgen::feature::tree::BlockStateProvider;
-use mcrs_voxel_storage::Blocks as _;
-use mcrs_voxel_storage::VoxelId;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;

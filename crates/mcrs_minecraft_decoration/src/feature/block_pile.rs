@@ -83,7 +83,7 @@ mod tests {
 
     use super::*;
     use crate::feature::tree::provider::fake::FakeVolume;
-    use mcrs_voxel_storage::VoxelId;
+    use mcrs_minecraft_chunk::VoxelId;
 
     const SNOW: VoxelId = VoxelId(2);
     const DIRT: VoxelId = VoxelId(3);

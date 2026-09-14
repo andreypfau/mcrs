@@ -8,9 +8,9 @@ use mcrs_minecraft_core::ColumnPos;
 
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;
-use mcrs_voxel_storage::PalettedContainer::Homogeneous;
-use mcrs_voxel_storage::section::{Biomes, Blocks};
-use mcrs_voxel_storage::{SectionKind, VoxelId};
+use mcrs_minecraft_chunk::PalettedContainer::Homogeneous;
+use mcrs_minecraft_chunk::section::{Biomes, Blocks};
+use mcrs_minecraft_chunk::{SectionKind, VoxelId};
 use std::cell::Cell;
 
 use crate::{

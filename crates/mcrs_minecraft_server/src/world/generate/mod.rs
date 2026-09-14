@@ -4,6 +4,7 @@ use crate::world::heightmap::{HeightmapKinds, HeightmapPredicates};
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::biome::Biome;
@@ -21,7 +22,6 @@ use mcrs_minecraft_worldgen::router::{
     CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
 use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
-use mcrs_voxel_storage::VoxelId;
 use std::cell::RefCell;
 use std::collections::HashMap;
 

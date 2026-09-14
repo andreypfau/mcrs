@@ -15,7 +15,7 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, default-features = false }
 rustc-hash.workspace = true
-mcrs_voxel_storage.workspace = true
+mcrs_minecraft_chunk.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

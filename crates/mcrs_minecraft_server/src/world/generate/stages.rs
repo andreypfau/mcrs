@@ -6,6 +6,7 @@ use bevy_ecs::prelude::Resource;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
@@ -24,7 +25,6 @@ use mcrs_minecraft_worldgen::material::MaterialScratch;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
-use mcrs_voxel_storage::{Blocks, BlocksMut, Volume, VoxelId};
 use rustc_hash::FxHashMap;
 use tracing::{error, info_span};
 

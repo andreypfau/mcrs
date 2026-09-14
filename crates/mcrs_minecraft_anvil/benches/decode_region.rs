@@ -3,7 +3,7 @@ use std::hint::black_box;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use mcrs_minecraft_anvil::fixture;
 use mcrs_minecraft_anvil::{PaletteLookup, Properties, parse_chunk};
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
 
 /// A stand-in registry, so the resolve pass does real work.
 struct Names;

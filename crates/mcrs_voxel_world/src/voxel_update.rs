@@ -5,9 +5,9 @@ use bevy_ecs::message::{Message, MessageReader, MessageWriter, Messages};
 use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use mcrs_minecraft_chunk::{SharedVoxelPalette, VoxelId, VoxelPalette};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::{LocalPos, SectionPos};
-use mcrs_voxel_storage::{SharedVoxelPalette, VoxelId, VoxelPalette};
 use rustc_hash::FxHashSet;
 use std::marker::PhantomData;
 

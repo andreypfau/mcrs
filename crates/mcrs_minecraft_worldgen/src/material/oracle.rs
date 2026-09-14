@@ -5,9 +5,9 @@ use crate::material::proto::{
 };
 use crate::value_provider::HeightContext;
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::Random;
-use mcrs_voxel_storage::VoxelId;
 use std::collections::BTreeSet;
 
 /// What each node the walk visited answered, so a differential run can prove it

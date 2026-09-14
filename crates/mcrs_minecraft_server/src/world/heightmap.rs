@@ -9,6 +9,7 @@ use mcrs_minecraft_assets::tag::TagPhase;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette, ChunkBlocks};
+use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_protocol::{BlockStateId, VarInt};
 use mcrs_minecraft_world::block::Block;
@@ -17,7 +18,6 @@ use mcrs_minecraft_world::block::tags::{
     BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
 };
 use mcrs_minecraft_world::transition_to_playing;
-use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_voxel_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_voxel_world::world::storage::column::{ChunkLookup, ColumnChunks, ColumnIndex};
 use rustc_hash::FxHashMap;
@@ -25,7 +25,7 @@ use rustc_hash::FxHashMap;
 use crate::world::generate::ColumnBlocks;
 use std::cell::Cell;
 
-pub use mcrs_voxel_storage::ColumnHeights as ColumnHeightmap;
+pub use mcrs_minecraft_chunk::ColumnHeights as ColumnHeightmap;
 
 /// Topmost non-air block. The upper bound of every other map.
 #[derive(Component, Debug, Clone)]

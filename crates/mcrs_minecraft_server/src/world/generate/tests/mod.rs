@@ -35,10 +35,10 @@ use mcrs_minecraft_decoration::feature::terrain_skin::BiomeClimate;
 
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;
-use mcrs_voxel_storage::{ColumnHeights, VoxelId};
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_worldgen::feature::compile::CompiledPlacedFeature;

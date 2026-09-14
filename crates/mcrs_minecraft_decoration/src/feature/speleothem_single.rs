@@ -1,11 +1,11 @@
 use crate::feature::random_direction;
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
-use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::speleothem::{PointedStates, grow_speleothem};
 

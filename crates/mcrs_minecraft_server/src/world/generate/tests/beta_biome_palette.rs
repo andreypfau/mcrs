@@ -108,7 +108,7 @@ fn generate_column_beta_biome_not_default() {
         assert!(
             matches!(
                 biomes.0,
-                mcrs_voxel_storage::PalettedContainer::Homogeneous(0)
+                mcrs_minecraft_chunk::PalettedContainer::Homogeneous(0)
             ),
             "modern path section y={} must produce default (all-zero) BiomePalette",
             idx

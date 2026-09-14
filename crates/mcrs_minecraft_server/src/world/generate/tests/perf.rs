@@ -8,7 +8,7 @@
 
 use std::time::{Duration, Instant};
 
-use mcrs_voxel_storage::PalettedContainer;
+use mcrs_minecraft_chunk::PalettedContainer;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::ColumnBlocks;

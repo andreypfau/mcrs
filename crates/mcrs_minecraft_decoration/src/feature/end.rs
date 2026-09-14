@@ -8,7 +8,7 @@ use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
 pub use mcrs_minecraft_worldgen::feature::proto::EndSpike;
 
 use crate::block_entity::{EndGatewayData, GeneratedBlockEntity};
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledEndPlatform {
@@ -350,8 +350,8 @@ pub fn iron_bars_index(north: bool, south: bool, west: bool, east: bool) -> usiz
 mod tests {
     use super::*;
     use crate::feature::tree::provider::fake::{AIR, FakeVolume};
+    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-    use mcrs_voxel_storage::Blocks;
 
     const OBSIDIAN: VoxelId = VoxelId(1);
     const BEDROCK: VoxelId = VoxelId(2);

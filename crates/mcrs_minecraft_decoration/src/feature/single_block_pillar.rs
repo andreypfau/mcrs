@@ -48,9 +48,9 @@ where
 #[cfg(test)]
 mod tests {
 
+    use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
     use mcrs_minecraft_worldgen::feature::placer::single_state;
-    use mcrs_voxel_storage::VoxelId;
 
     use bevy_math::IVec3;
 

@@ -49,8 +49,8 @@ fn axis_offset(rng: &mut XoroshiroRandom, max: i32) -> i32 {
 
 #[cfg(test)]
 mod tests {
+    use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-    use mcrs_voxel_storage::VoxelId;
 
     use super::*;
     use crate::feature::ore_modern::OreReplacement;

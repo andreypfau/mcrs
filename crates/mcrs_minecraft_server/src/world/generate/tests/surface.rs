@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::overworld_preset::overworld_parameter_list;
@@ -9,7 +10,6 @@ use mcrs_minecraft_worldgen::material::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch, NO_WATER,
 };
 use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter};
-use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;

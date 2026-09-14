@@ -1,12 +1,12 @@
 use mcrs_minecraft_core::BlockPos;
 
 use crate::world::generate::beta_chunk_seed;
+use mcrs_minecraft_chunk::BlocksMut;
 use mcrs_minecraft_decoration::feature::ore_beta::{OreConfig, TargetBlockState, place_beta_ore};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
-use mcrs_voxel_storage::BlocksMut;
 
 pub struct BetaOreBlockIds {
     pub stone: BlockStateId,
@@ -167,8 +167,8 @@ pub fn place_all_ores<R: Random>(
 mod tests {
     use super::*;
     use crate::world::generate::tests::corpus;
+    use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
     use mcrs_minecraft_random::legacy::LegacyRandom;
-    use mcrs_voxel_storage::{Blocks, BoxVolume, VoxelId};
 
     fn filled(state: BlockStateId) -> BoxVolume {
         BoxVolume::filled(

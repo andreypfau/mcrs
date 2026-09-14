@@ -3459,9 +3459,9 @@ dependencies = [
  "criterion",
  "flate2",
  "lz4-java-wrc",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
- "mcrs_voxel_storage",
  "serde",
  "thiserror 2.0.18",
 ]
@@ -3493,16 +3493,26 @@ dependencies = [
  "bevy_math",
  "bevy_utils",
  "bitflags 2.10.0",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_world",
- "mcrs_voxel_storage",
  "mcrs_voxel_world",
  "rand 0.10.0",
  "rustc-hash 2.1.1",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_chunk"
+version = "0.1.0"
+dependencies = [
+ "bevy_ecs",
+ "bevy_math",
+ "mcrs_minecraft_core",
+ "rustc-hash 2.1.1",
 ]
 
 [[package]]
@@ -3518,13 +3528,13 @@ dependencies = [
  "getrandom 0.3.4",
  "getrandom 0.4.1",
  "mcrs_minecraft_assets",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
- "mcrs_voxel_storage",
  "mcrs_voxel_world",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
@@ -3563,11 +3573,11 @@ dependencies = [
  "bevy_math",
  "bytes",
  "fixedbitset",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen",
- "mcrs_voxel_storage",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -3581,8 +3591,8 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_tasks",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
- "mcrs_voxel_storage",
  "rayon",
  "rustc-hash 2.1.1",
 ]
@@ -3638,10 +3648,10 @@ dependencies = [
  "cfb8",
  "derive_more",
  "flate2",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol_macros",
- "mcrs_voxel_storage",
  "rand 0.10.0",
  "serde",
  "serde_json",
@@ -3701,6 +3711,7 @@ dependencies = [
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_decoration",
  "mcrs_minecraft_light",
@@ -3712,7 +3723,6 @@ dependencies = [
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
  "mcrs_voxel_server",
- "mcrs_voxel_storage",
  "mcrs_voxel_world",
  "proptest",
  "rand 0.10.0",
@@ -3742,13 +3752,13 @@ dependencies = [
  "bevy_tasks",
  "bitflags 2.10.0",
  "mcrs_minecraft_assets",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_light",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen",
- "mcrs_voxel_storage",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -3770,11 +3780,11 @@ dependencies = [
  "bytes",
  "fixedbitset",
  "mcrs_minecraft_assets",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen",
- "mcrs_voxel_storage",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3809,16 +3819,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_voxel_storage"
-version = "0.1.0"
-dependencies = [
- "bevy_ecs",
- "bevy_math",
- "mcrs_minecraft_core",
- "rustc-hash 2.1.1",
-]
-
-[[package]]
 name = "mcrs_voxel_world"
 version = "0.1.0"
 dependencies = [
@@ -3829,8 +3829,8 @@ dependencies = [
  "bevy_platform",
  "flume",
  "indexmap",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
- "mcrs_voxel_storage",
  "rustc-hash 2.1.1",
  "smallvec",
  "tracing",

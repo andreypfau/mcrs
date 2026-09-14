@@ -1,8 +1,8 @@
 use crate::VarInt;
 use anyhow::Context;
-use mcrs_voxel_storage::{SectionKind, VoxelId, ceillog2};
+use mcrs_minecraft_chunk::{SectionKind, VoxelId, ceillog2};
 
-pub use mcrs_voxel_storage::section::{Biomes, Blocks};
+pub use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 
 /// Which of the palette configurations a container of a given size lands in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

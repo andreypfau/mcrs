@@ -4,9 +4,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, TaskPoolPlugin};
+use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
 
 fn filled(block: VoxelId) -> SectionBlocks {
     VoxelPalette(PalettedContainer::Homogeneous(block))

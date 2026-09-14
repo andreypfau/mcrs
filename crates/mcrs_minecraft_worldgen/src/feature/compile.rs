@@ -4,7 +4,7 @@ use std::sync::Arc;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::ResourceLocation;
 
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
 
 use bevy_math::IVec3;
 

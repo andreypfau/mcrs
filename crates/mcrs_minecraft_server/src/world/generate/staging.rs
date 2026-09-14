@@ -1,9 +1,9 @@
 use mcrs_minecraft_core::{LocalPos, SectionPos};
 use std::sync::Arc;
 
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashMap;
 
 use crate::world::chunk::ColumnSource;

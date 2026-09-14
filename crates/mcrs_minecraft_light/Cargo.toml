@@ -9,7 +9,7 @@ doctest = false
 
 [dependencies]
 mcrs_minecraft_core.workspace = true
-mcrs_voxel_storage.workspace = true
+mcrs_minecraft_chunk.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 bevy_app = { workspace = true, optional = true }
 bevy_tasks = { workspace = true, features = ["multi_threaded"], optional = true }

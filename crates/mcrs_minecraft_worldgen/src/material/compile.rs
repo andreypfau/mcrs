@@ -9,9 +9,9 @@ use crate::proto::{BlockState, HashableF64, NoiseHolder};
 use crate::router::NoiseGeneratorSettings;
 use crate::value_provider::HeightContext;
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_voxel_storage::VoxelId;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 

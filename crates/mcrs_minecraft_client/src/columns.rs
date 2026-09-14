@@ -8,6 +8,7 @@ use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::prelude::{IntoScheduleConfigs, On, Query, ResMut, Resource, Single};
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
+use mcrs_minecraft_chunk::PalettedContainer;
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
@@ -18,7 +19,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
-use mcrs_voxel_storage::PalettedContainer;
 
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::Instant;
@@ -561,11 +561,11 @@ fn settle_columns(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_network::client::RegistryEntry;
     use mcrs_minecraft_protocol::chunk::ChunkSection;
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-    use mcrs_voxel_storage::VoxelId;
     use std::borrow::Cow;
 
     const EXTENT: Extent = Extent {

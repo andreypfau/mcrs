@@ -1,4 +1,5 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
@@ -20,7 +21,6 @@ use mcrs_minecraft_worldgen::feature::proto::{
 use mcrs_minecraft_worldgen::structure::Projection;
 use mcrs_minecraft_worldgen::structure::template::{FrozenTemplate, JigsawBlock, transform};
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
-use mcrs_voxel_storage::VoxelId;
 
 use crate::block_entity::GeneratedBlockEntity;
 
@@ -661,9 +661,9 @@ mod tests {
     use fixedbitset::FixedBitSet;
 
     use super::*;
+    use mcrs_minecraft_chunk::{Blocks, BlocksMut};
     use mcrs_minecraft_worldgen::feature::placer::{BoxRegion, PropertyLayout, mask_of};
     use mcrs_minecraft_worldgen::structure::template::FrozenBlock;
-    use mcrs_voxel_storage::{Blocks, BlocksMut};
 
     // Thirty-two ids per block from each layout's base: the plain blocks at 0,
     // then a fence, a candle and a slab.

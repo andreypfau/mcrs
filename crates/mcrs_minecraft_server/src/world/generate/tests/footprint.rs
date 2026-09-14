@@ -6,9 +6,9 @@
 
 use std::sync::Arc;
 
+use mcrs_minecraft_chunk::{Blocks, BlocksMut, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_voxel_storage::{Blocks, BlocksMut, VoxelId};
 
 use crate::world::generate::ColumnBlocks;
 use crate::world::generate::stages::ColumnRegion;

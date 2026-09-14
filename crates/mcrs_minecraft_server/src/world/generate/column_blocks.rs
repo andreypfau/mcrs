@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
 
 /// Every block of one column, dense, in the section palette's own index order:
 /// section, then y, then z, then x.

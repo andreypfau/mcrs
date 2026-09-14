@@ -246,7 +246,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
     for section in 0..y_sections.len() {
         let mut count = 0u32;
         for cell in column.section_cells(section) {
-            if cell.get() != mcrs_voxel_storage::VoxelId::default() {
+            if cell.get() != mcrs_minecraft_chunk::VoxelId::default() {
                 count += 1;
             }
         }

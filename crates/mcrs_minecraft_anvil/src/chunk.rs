@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::io::Cursor;
 
+use mcrs_minecraft_chunk::section::{Biomes, Blocks};
+use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_voxel_storage::section::{Biomes, Blocks};
-use mcrs_voxel_storage::{PalettedContainer, SectionKind, VoxelId};
 use serde::Deserialize;
 
 use crate::palette::{BlockStateList, PaletteLookup};
@@ -14,7 +14,7 @@ use crate::{DATA_VERSION, ErrorKind, accepts_data_version};
 pub const LIGHT_BYTES: usize = 2048;
 
 /// One nibble per cell, indexed the same way block states are.
-pub type Light = mcrs_voxel_storage::SectionNibbles;
+pub type Light = mcrs_minecraft_chunk::SectionNibbles;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Section {
@@ -202,7 +202,7 @@ fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
         return Err(ErrorKind::MissingData { y, field, bits });
     };
     let data = data.0;
-    mcrs_voxel_storage::check_len(bits, &data, K::ENTRY_COUNT).map_err(|e| {
+    mcrs_minecraft_chunk::check_len(bits, &data, K::ENTRY_COUNT).map_err(|e| {
         ErrorKind::DataLength {
             y,
             field,
@@ -212,8 +212,8 @@ fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
         }
     })?;
 
-    if mcrs_voxel_storage::any_entry_past(bits, &data, K::ENTRY_COUNT, len) {
-        let index = mcrs_voxel_storage::first_entry_past(bits, &data, K::ENTRY_COUNT, len)
+    if mcrs_minecraft_chunk::any_entry_past(bits, &data, K::ENTRY_COUNT, len) {
+        let index = mcrs_minecraft_chunk::first_entry_past(bits, &data, K::ENTRY_COUNT, len)
             .expect("the maximum is already past the palette");
         return Err(ErrorKind::PaletteIndex {
             y,
@@ -227,7 +227,7 @@ fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
         .map(|index| resolve(&raw.palette, lookup, index))
         .collect::<Result<Vec<V>, _>>()?;
     let mut cells = vec![V::default(); K::ENTRY_COUNT];
-    mcrs_voxel_storage::remap_into(bits, &data, &entries, &mut cells)
+    mcrs_minecraft_chunk::remap_into(bits, &data, &entries, &mut cells)
         .expect("the data length was checked above");
     Ok(PalettedContainer::from_cells(&cells))
 }
@@ -329,5 +329,5 @@ fn light(bytes: Vec<u8>, y: i8, field: &'static str) -> Result<Light, ErrorKind>
         .into_boxed_slice()
         .try_into()
         .map_err(|_| ErrorKind::LightLength { y, field, found })?;
-    Ok(mcrs_voxel_storage::SectionNibbles(bytes))
+    Ok(mcrs_minecraft_chunk::SectionNibbles(bytes))
 }

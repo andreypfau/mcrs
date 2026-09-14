@@ -1252,7 +1252,7 @@ enum Key {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use mcrs_voxel_storage::VoxelId;
+    use mcrs_minecraft_chunk::VoxelId;
     pub(crate) const TEST_BLOCKS: RouterBlocks = RouterBlocks {
         default_block: VoxelId(1),
         default_fluid: VoxelId(2),

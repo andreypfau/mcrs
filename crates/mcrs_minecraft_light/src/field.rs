@@ -5,8 +5,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
+use mcrs_minecraft_chunk::{PalettedContainer, VoxelId};
 use mcrs_minecraft_core::{BlockPos, Direction, SectionPos};
-use mcrs_voxel_storage::{PalettedContainer, VoxelId};
 
 use crate::SectionBlocks;
 use crate::level::{LightLevel, SECTION_WIDTH};

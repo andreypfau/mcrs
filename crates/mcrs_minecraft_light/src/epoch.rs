@@ -8,8 +8,8 @@ use rayon::prelude::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
-use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashSet;
 
 use crate::block::LightRegistry;

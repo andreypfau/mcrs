@@ -1,6 +1,6 @@
 [package]
-name = "mcrs_voxel_storage"
-description = "mcrs_voxel_storage"
+name = "mcrs_minecraft_chunk"
+description = "mcrs_minecraft_chunk"
 version.workspace = true
 edition.workspace = true
 

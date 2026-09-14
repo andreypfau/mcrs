@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 
+use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
-use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 
 use crate::SectionBlocks;
 use crate::block::{Layer, LightRegistry};

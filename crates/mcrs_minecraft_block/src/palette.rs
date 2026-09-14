@@ -1,7 +1,7 @@
+use mcrs_minecraft_chunk::PalettedContainer::{Heterogeneous, Homogeneous};
+use mcrs_minecraft_chunk::section::{Biomes, Blocks};
+use mcrs_minecraft_chunk::{SectionKind, SharedVoxelPalette, VoxelId, VoxelPalette};
 use mcrs_minecraft_core::SectionPos;
-use mcrs_voxel_storage::PalettedContainer::{Heterogeneous, Homogeneous};
-use mcrs_voxel_storage::section::{Biomes, Blocks};
-use mcrs_voxel_storage::{SectionKind, SharedVoxelPalette, VoxelId, VoxelPalette};
 
 pub type BlockPalette = VoxelPalette<VoxelId, { SectionPos::SIZE }>;
 pub type BiomePalette = VoxelPalette<u8, 4>;

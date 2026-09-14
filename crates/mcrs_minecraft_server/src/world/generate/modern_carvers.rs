@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_decoration::carver::beta::carve_beta_caves;
@@ -26,7 +27,6 @@ use mcrs_minecraft_worldgen::router::{
 };
 use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
-use mcrs_voxel_storage::VoxelId;
 
 use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
 

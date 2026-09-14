@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_voxel_storage::VoxelId;
 use serde::{Deserialize, Serialize};
 
 use crate::feature::proto::Rotation;

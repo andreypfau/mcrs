@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
 
 use super::StateMask;
 

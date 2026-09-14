@@ -1,6 +1,6 @@
 use rustc_hash::FxHashMap as HashMap;
 
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
 
 use crate::feature::huge_mushroom::MushroomFaces;
 use crate::feature::mossy_carpet::MossyCarpetStates;

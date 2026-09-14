@@ -9,7 +9,7 @@ doctest = false
 
 [dependencies]
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_voxel_storage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 bevy_ecs.workspace = true
 bevy_platform.workspace = true
 bevy_derive.workspace = true

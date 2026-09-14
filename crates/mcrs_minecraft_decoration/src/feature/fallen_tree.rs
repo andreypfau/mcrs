@@ -143,13 +143,13 @@ fn decorate<W: WorldGenVolume>(
 #[cfg(test)]
 mod tests {
     use crate::feature::tree::decorator::EntitiesOnly;
+    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen::feature::placer::mask_of;
-    use mcrs_voxel_storage::Blocks;
     use std::sync::Arc;
 
+    use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
     use mcrs_minecraft_worldgen::value_provider::DispatchedIntProvider;
-    use mcrs_voxel_storage::VoxelId;
 
     use super::*;
     use crate::feature::tree::decorator::TreePalette;

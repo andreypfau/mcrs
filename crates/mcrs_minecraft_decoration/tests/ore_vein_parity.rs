@@ -2,6 +2,7 @@
 //! verbatim over a world that is stone everywhere.
 
 use bytes::Buf;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_decoration::feature::ore_modern::{
     CompiledOre, OreReplacement, OreScratch, place_modern_ore,
@@ -10,7 +11,6 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::corpus::{dump_placements, dump_string, open_dump};
 use mcrs_minecraft_worldgen::feature::placer::{BoxRegion, Rule, WorldStates, single_state};
-use mcrs_voxel_storage::VoxelId;
 use std::collections::HashMap;
 use std::path::PathBuf;
 

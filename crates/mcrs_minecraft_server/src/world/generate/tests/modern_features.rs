@@ -4,13 +4,13 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_worldgen::feature::compile::{CompiledPlacedFeature, FeatureSteps};
 use mcrs_minecraft_worldgen::feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen::feature::proto::{Feature, Holder, PlacedFeature};
-use mcrs_voxel_storage::VoxelId;
 
 use crate::world::generate::ColumnBlocks;
 use crate::world::generate::feature_program::FeatureProgram;

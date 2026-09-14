@@ -11,7 +11,7 @@ doctest = false
 mcrs_minecraft_assets = { workspace = true, optional = true }
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_voxel_storage.workspace = true
+mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_random.workspace = true
 bevy_math.workspace = true
 fixedbitset.workspace = true

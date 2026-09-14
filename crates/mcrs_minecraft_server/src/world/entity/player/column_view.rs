@@ -776,8 +776,8 @@ mod tests {
         let registry = std::sync::Arc::new(LightRegistry::new(
             vec![LightProperties::AIR, LightProperties::SOLID],
             SpecialBlocks {
-                unloaded: mcrs_voxel_storage::VoxelId(1),
-                outside: mcrs_voxel_storage::VoxelId(0),
+                unloaded: mcrs_minecraft_chunk::VoxelId(1),
+                outside: mcrs_minecraft_chunk::VoxelId(0),
             },
         ));
         world.insert_resource(mcrs_minecraft_light::prelude::Lighting(LightWorld::new(

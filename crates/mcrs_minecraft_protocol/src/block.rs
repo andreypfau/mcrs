@@ -1,7 +1,7 @@
 use crate::{Decode, Encode, VarInt};
 use anyhow::Context;
 use derive_more::{From, Into};
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
 use std::io::Write;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug, From, Into)]

@@ -20,8 +20,8 @@ use bevy_ecs::prelude::Res;
 use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_voxel_storage::VoxelId;
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
@@ -893,7 +893,7 @@ mod tests {
         use super::{NoiseGeneratorSettingsAsset, build_dimension_router};
         use crate::proto::BlockState;
         use bevy_asset::Assets;
-        use mcrs_voxel_storage::VoxelId;
+        use mcrs_minecraft_chunk::VoxelId;
 
         let biomes = shipped_biome_ids();
         for name in ["overworld", "nether", "end", "beta"] {

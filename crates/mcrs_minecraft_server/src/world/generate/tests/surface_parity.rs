@@ -3,8 +3,8 @@ use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_voxel_storage::VoxelId;
 
 use super::corpus;
 use super::surface::{biome_ids, overworld_material_router, surfaced_column};

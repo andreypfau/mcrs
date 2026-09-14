@@ -1,11 +1,11 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
-use mcrs_voxel_storage::VoxelId;
 
 use super::provider::StateProvider;
 use super::trunk::{TreeContext, dist_manhattan};
@@ -177,8 +177,8 @@ impl MangroveRoots {
 
 #[cfg(test)]
 mod tests {
+    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen::feature::placer::mask_of;
-    use mcrs_voxel_storage::Blocks;
 
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
     use mcrs_minecraft_worldgen::value_provider::IntProvider;

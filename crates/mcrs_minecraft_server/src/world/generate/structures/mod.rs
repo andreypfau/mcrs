@@ -14,6 +14,7 @@ use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::{AppState, DynTagRegistry};
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_registry::DynRegistryIndex;
@@ -33,7 +34,6 @@ use mcrs_minecraft_worldgen::structure::{
     DecorationStep, PoolAlias, PoolElement, Projection, Structure, StructurePlacement,
     StructureSet, TemplatePool, TerrainAdaptation,
 };
-use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::try_resolve_state;
 use crate::world::generate::features::{possible_biomes, registry_of};

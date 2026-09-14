@@ -8,7 +8,7 @@ crates=(
     mcrs_minecraft_nbt
     mcrs_minecraft_random
     mcrs_minecraft_core
-    mcrs_voxel_storage
+    mcrs_minecraft_chunk
     mcrs_minecraft_registry
     mcrs_minecraft_protocol
     mcrs_minecraft_anvil
