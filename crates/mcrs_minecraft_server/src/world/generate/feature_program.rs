@@ -26,95 +26,11 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
-use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
     compile_predicate, compile_rule, state_named, state_of as resolve_state, states_of,
 };
-use mcrs_minecraft_worldgen_feature::place::bamboo::{CompiledBamboo, place_bamboo};
-use mcrs_minecraft_worldgen_feature::place::blob::{
-    CompiledBlockBlob, CompiledDelta, CompiledReplaceBlobs, place_block_blob, place_delta,
-    place_replace_blobs,
-};
-use mcrs_minecraft_worldgen_feature::place::block_column::{
-    ColumnLayer, CompiledBlockColumn, place_block_column,
-};
-use mcrs_minecraft_worldgen_feature::place::block_pile::{CompiledBlockPile, place_block_pile};
-use mcrs_minecraft_worldgen_feature::place::chorus_plant::{
-    CompiledChorusPlant, place_chorus_plant,
-};
-use mcrs_minecraft_worldgen_feature::place::coral::{place_coral_claw, place_coral_tree};
-use mcrs_minecraft_worldgen_feature::place::end::{
-    CompiledEndGateway, CompiledEndIsland, CompiledEndPlatform, CompiledEndPodium,
-    CompiledEndSpikes, CompiledVoidStartPlatform, place_end_gateway, place_end_island,
-    place_end_platform, place_end_podium, place_end_spike, place_void_start_platform, seed_spikes,
-};
-use mcrs_minecraft_worldgen_feature::place::fallen_tree::{CompiledFallenTree, place_fallen_tree};
-use mcrs_minecraft_worldgen_feature::place::fill_layer::{CompiledFillLayer, place_fill_layer};
-use mcrs_minecraft_worldgen_feature::place::geode::{CompiledGeode, GeodeCrystal, place_geode};
-use mcrs_minecraft_worldgen_feature::place::huge_fungus::{CompiledHugeFungus, place_huge_fungus};
-use mcrs_minecraft_worldgen_feature::place::huge_mushroom::{
-    CompiledHugeMushroom, MushroomCap, MushroomFaces, place_huge_mushroom,
-};
-use mcrs_minecraft_worldgen_feature::place::iceberg::{CompiledIceberg, place_iceberg};
-use mcrs_minecraft_worldgen_feature::place::lake::{CompiledLake, place_lake};
-use mcrs_minecraft_worldgen_feature::place::mossy_carpet::{
-    CarpetShape, MossyCarpetStates, SHAPE_COUNT, WallSide,
-};
-use mcrs_minecraft_worldgen_feature::place::multiface_growth::{
-    CompiledMultifaceGrowth, MultifaceStates, place_multiface_growth, valid_directions,
-};
-use mcrs_minecraft_worldgen_feature::place::neighbor_spread::{
-    CompiledNeighborSpread, place_random_neighbor_spread,
-};
-use mcrs_minecraft_worldgen_feature::place::ore_modern::{
-    CompiledOre, OreReplacement, OreScratch, place_modern_ore,
-};
-use mcrs_minecraft_worldgen_feature::place::patch::{
-    CompiledVegetationPatch, Waterlogging, place_vegetation_patch,
-};
-use mcrs_minecraft_worldgen_feature::place::projected_patchy_square::{
-    CompiledProjectedPatchySquare, place_projected_random_patchy_square,
-};
-use mcrs_minecraft_worldgen_feature::place::replace_single_block::{
-    CompiledReplaceSingleBlock, Replacement, place_replace_single_block,
-};
-use mcrs_minecraft_worldgen_feature::place::room::{
-    CompiledBonusChest, CompiledMonsterRoom, place_bonus_chest, place_monster_room,
-};
-use mcrs_minecraft_worldgen_feature::place::root_system::{CompiledRootSystem, place_root_system};
-use mcrs_minecraft_worldgen_feature::place::scattered_ore::place_scattered_ore;
-use mcrs_minecraft_worldgen_feature::place::sculk_patch::{CompiledSculkPatch, place_sculk_patch};
-use mcrs_minecraft_worldgen_feature::place::simple_block::{
-    CompiledSimpleBlock, DoublePlant, place_simple_block,
-};
-use mcrs_minecraft_worldgen_feature::place::single_block_pillar::{
-    CompiledSingleBlockPillar, place_single_block_pillar,
-};
-use mcrs_minecraft_worldgen_feature::place::speleothem::{
-    CompiledLargeDripstone, CompiledSpeleothemCluster, PointedStates, place_large_dripstone,
-    place_speleothem_cluster,
-};
-use mcrs_minecraft_worldgen_feature::place::speleothem_single::{
-    CompiledSpeleothem, place_speleothem,
-};
-use mcrs_minecraft_worldgen_feature::place::spike::{CompiledSpike, place_spike};
-use mcrs_minecraft_worldgen_feature::place::spring::{CompiledSpring, place_spring};
-use mcrs_minecraft_worldgen_feature::place::stepped_column::{
-    CompiledSteppedColumnCluster, place_stepped_column_cluster,
-};
-use mcrs_minecraft_worldgen_feature::place::template::{
-    ChainKind, CompiledChain, Placement, compile_chain, place_template,
-};
-use mcrs_minecraft_worldgen_feature::place::terrain_skin::{
-    BiomeClimate, CompiledBlueIce, CompiledDisk, CompiledFreezeTopLayer, CompiledUnderwaterMagma,
-    place_blue_ice, place_disk, place_freeze_top_layer, place_underwater_magma,
-};
-use mcrs_minecraft_worldgen_feature::place::tree::decorator::TreeSink;
-use mcrs_minecraft_worldgen_feature::place::tree::provider::StateProvider;
-use mcrs_minecraft_worldgen_feature::place::tree::{CompiledTree, TreeTables, place_tree};
-use mcrs_minecraft_worldgen_feature::place::vines::place_vines;
 use mcrs_minecraft_worldgen_feature::placer::{
     BiomeMask, BlockLayout, Modifier, PlacerScratch, Predicate, PropertyLayout, StateMask,
     WorldGenVolume, WorldStates, place,
@@ -123,8 +39,92 @@ use mcrs_minecraft_worldgen_feature::proto::{
     BlockReplacement, Feature, Holder, PlacedFeature, PlacedFeatureSet, StructureProcessorList,
     WeightedPlacedFeature, processor_list,
 };
-use mcrs_minecraft_worldgen_feature::tables::BlockTables;
 use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, TemplateManifest};
+use mcrs_minecraft_worldgen_feature_place::bamboo::{CompiledBamboo, place_bamboo};
+use mcrs_minecraft_worldgen_feature_place::blob::{
+    CompiledBlockBlob, CompiledDelta, CompiledReplaceBlobs, place_block_blob, place_delta,
+    place_replace_blobs,
+};
+use mcrs_minecraft_worldgen_feature_place::block_column::{
+    ColumnLayer, CompiledBlockColumn, place_block_column,
+};
+use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature_place::block_pile::{CompiledBlockPile, place_block_pile};
+use mcrs_minecraft_worldgen_feature_place::chorus_plant::{
+    CompiledChorusPlant, place_chorus_plant,
+};
+use mcrs_minecraft_worldgen_feature_place::coral::{place_coral_claw, place_coral_tree};
+use mcrs_minecraft_worldgen_feature_place::end::{
+    CompiledEndGateway, CompiledEndIsland, CompiledEndPlatform, CompiledEndPodium,
+    CompiledEndSpikes, CompiledVoidStartPlatform, place_end_gateway, place_end_island,
+    place_end_platform, place_end_podium, place_end_spike, place_void_start_platform, seed_spikes,
+};
+use mcrs_minecraft_worldgen_feature_place::fallen_tree::{CompiledFallenTree, place_fallen_tree};
+use mcrs_minecraft_worldgen_feature_place::fill_layer::{CompiledFillLayer, place_fill_layer};
+use mcrs_minecraft_worldgen_feature_place::geode::{CompiledGeode, GeodeCrystal, place_geode};
+use mcrs_minecraft_worldgen_feature_place::huge_fungus::{CompiledHugeFungus, place_huge_fungus};
+use mcrs_minecraft_worldgen_feature_place::huge_mushroom::{
+    CompiledHugeMushroom, MushroomCap, MushroomFaces, place_huge_mushroom,
+};
+use mcrs_minecraft_worldgen_feature_place::iceberg::{CompiledIceberg, place_iceberg};
+use mcrs_minecraft_worldgen_feature_place::lake::{CompiledLake, place_lake};
+use mcrs_minecraft_worldgen_feature_place::mossy_carpet::{
+    CarpetShape, MossyCarpetStates, SHAPE_COUNT, WallSide,
+};
+use mcrs_minecraft_worldgen_feature_place::multiface_growth::{
+    CompiledMultifaceGrowth, MultifaceStates, place_multiface_growth, valid_directions,
+};
+use mcrs_minecraft_worldgen_feature_place::neighbor_spread::{
+    CompiledNeighborSpread, place_random_neighbor_spread,
+};
+use mcrs_minecraft_worldgen_feature_place::ore_modern::{
+    CompiledOre, OreReplacement, OreScratch, place_modern_ore,
+};
+use mcrs_minecraft_worldgen_feature_place::patch::{
+    CompiledVegetationPatch, Waterlogging, place_vegetation_patch,
+};
+use mcrs_minecraft_worldgen_feature_place::projected_patchy_square::{
+    CompiledProjectedPatchySquare, place_projected_random_patchy_square,
+};
+use mcrs_minecraft_worldgen_feature_place::replace_single_block::{
+    CompiledReplaceSingleBlock, Replacement, place_replace_single_block,
+};
+use mcrs_minecraft_worldgen_feature_place::room::{
+    CompiledBonusChest, CompiledMonsterRoom, place_bonus_chest, place_monster_room,
+};
+use mcrs_minecraft_worldgen_feature_place::root_system::{CompiledRootSystem, place_root_system};
+use mcrs_minecraft_worldgen_feature_place::scattered_ore::place_scattered_ore;
+use mcrs_minecraft_worldgen_feature_place::sculk_patch::{CompiledSculkPatch, place_sculk_patch};
+use mcrs_minecraft_worldgen_feature_place::simple_block::{
+    CompiledSimpleBlock, DoublePlant, place_simple_block,
+};
+use mcrs_minecraft_worldgen_feature_place::single_block_pillar::{
+    CompiledSingleBlockPillar, place_single_block_pillar,
+};
+use mcrs_minecraft_worldgen_feature_place::speleothem::{
+    CompiledLargeDripstone, CompiledSpeleothemCluster, PointedStates, place_large_dripstone,
+    place_speleothem_cluster,
+};
+use mcrs_minecraft_worldgen_feature_place::speleothem_single::{
+    CompiledSpeleothem, place_speleothem,
+};
+use mcrs_minecraft_worldgen_feature_place::spike::{CompiledSpike, place_spike};
+use mcrs_minecraft_worldgen_feature_place::spring::{CompiledSpring, place_spring};
+use mcrs_minecraft_worldgen_feature_place::stepped_column::{
+    CompiledSteppedColumnCluster, place_stepped_column_cluster,
+};
+use mcrs_minecraft_worldgen_feature_place::tables::BlockTables;
+use mcrs_minecraft_worldgen_feature_place::template::{
+    ChainKind, CompiledChain, Placement, compile_chain, place_template,
+};
+use mcrs_minecraft_worldgen_feature_place::terrain_skin::{
+    BiomeClimate, CompiledBlueIce, CompiledDisk, CompiledFreezeTopLayer, CompiledUnderwaterMagma,
+    place_blue_ice, place_disk, place_freeze_top_layer, place_underwater_magma,
+};
+use mcrs_minecraft_worldgen_feature_place::tree::decorator::TreeSink;
+use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
+use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, TreeTables, place_tree};
+use mcrs_minecraft_worldgen_feature_place::vines::place_vines;
 use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenStructure, FrozenStructures,
 };

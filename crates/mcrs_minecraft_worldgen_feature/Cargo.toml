@@ -18,7 +18,6 @@ mcrs_minecraft_random.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
-rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

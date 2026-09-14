@@ -339,7 +339,7 @@ fn bee_tables() -> FeatureTables {
 /// silently.
 #[test]
 fn a_generated_bee_nest_carries_its_occupants() {
-    use mcrs_minecraft_worldgen_feature::block_entity::{
+    use mcrs_minecraft_worldgen_feature_place::block_entity::{
         BEE_MIN_TICKS_IN_HIVE, GeneratedBlockEntity,
     };
 

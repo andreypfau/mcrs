@@ -17,6 +17,7 @@ crates=(
     mcrs_minecraft_worldgen_density
     mcrs_minecraft_worldgen_surface
     mcrs_minecraft_worldgen_feature
+    mcrs_minecraft_worldgen_feature_place
     mcrs_minecraft_worldgen_carver
     mcrs_minecraft_worldgen_structure
     mcrs_minecraft_worldgen

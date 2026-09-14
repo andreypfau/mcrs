@@ -25,12 +25,12 @@ use mcrs_minecraft_worldgen::bevy::{
     StructureAsset, StructureSetAsset, TemplateAsset, TemplatePoolAsset,
 };
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
-use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, PaletteState, ResolvedState, Template, TemplateManifest, bounding_box,
 };
+use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_structure::{
     DecorationStep, PoolAlias, PoolElement, Structure, StructurePlacement, StructureSet,
     TemplatePool, TerrainAdaptation,

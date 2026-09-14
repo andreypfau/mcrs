@@ -19,11 +19,11 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
-use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{
     PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,
 };
+use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_surface::MaterialScratch;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use rustc_hash::FxHashMap;

@@ -19,7 +19,7 @@ use mcrs_minecraft_worldgen::bevy::{
     FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, TemplateAsset, TemplatePoolAsset,
 };
 use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures, build_feature_steps};
-use mcrs_minecraft_worldgen_feature::place::terrain_skin::BiomeClimate;
+use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 use crate::world::generate::feature_program::FeatureProgram;
 use crate::world::generate::routers::DimensionBiomeSources;

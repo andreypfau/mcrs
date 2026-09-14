@@ -4,8 +4,8 @@ use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
-use mcrs_minecraft_worldgen_feature::place::template::{Placement, place_template};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
+use mcrs_minecraft_worldgen_feature_place::template::{Placement, place_template};
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
 
 use crate::world::generate::feature_program::{CompiledElement, FeatureProgram, Run};

@@ -7,10 +7,7 @@ pub mod rule_test;
 pub mod sort;
 pub mod tree;
 
-pub mod block_entity;
 pub mod column;
-pub mod place;
-pub mod tables;
 pub mod template;
 
 pub use proto::FeatureStepList;

@@ -153,8 +153,8 @@ fn a_simple_random_selector_compiles_to_equal_weights() {
 /// which of the three shapes each takes.
 #[test]
 fn the_noise_state_providers_resolve_to_a_sampler() {
-    use mcrs_minecraft_worldgen_feature::place::tree::provider::StateProvider;
     use mcrs_minecraft_worldgen_feature::tree::BlockStateProvider;
+    use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
 
     let features: BTreeMap<ResourceLocation, Feature> = load_json_dir("feature");
     let resolve = |name: &str| {
@@ -403,7 +403,7 @@ fn the_pale_garden_carpet_compiles_to_a_shape_table() {
         .expect("the corpus holds pale_moss_carpet");
     assert_eq!(
         carpet.by_state.len(),
-        mcrs_minecraft_worldgen_feature::place::mossy_carpet::SHAPE_COUNT,
+        mcrs_minecraft_worldgen_feature_place::mossy_carpet::SHAPE_COUNT,
         "every state of the block has a shape"
     );
     let moss_block = blocks()
@@ -426,7 +426,7 @@ fn the_pale_garden_carpet_compiles_to_a_shape_table() {
 /// of true for a block that overrides nothing.
 #[test]
 fn every_simple_block_state_is_decided() {
-    use mcrs_minecraft_worldgen_feature::place::tree::survive::family_of;
+    use mcrs_minecraft_worldgen_feature_place::tree::survive::family_of;
 
     let mut by_filter = BTreeSet::new();
     let mut by_family = BTreeSet::new();

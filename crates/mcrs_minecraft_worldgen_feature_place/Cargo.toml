@@ -1,0 +1,32 @@
+[package]
+name = "mcrs_minecraft_worldgen_feature_place"
+description = "The feature generators: trees, ores, geodes, templates and the rest of what a placed feature writes"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_math.workspace = true
+fixedbitset.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_random.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_noise.workspace = true
+mcrs_minecraft_worldgen_surface.workspace = true
+rustc-hash.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_worldgen_testing.workspace = true
+
+[features]
+default = ["fast"]
+fast = ["mcrs_minecraft_worldgen_feature/fast"]

@@ -10,7 +10,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::time::Instant;
 
 use tracing::{debug, error};

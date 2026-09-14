@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use rustc_hash::FxHashMap;
 
 use crate::world::chunk::ColumnSource;

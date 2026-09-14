@@ -249,14 +249,14 @@ only `Bootstrap.bootStrap()`, for the block registry.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpOreVeins --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla
 ```
 
 One file, `ore_vein.bin`.
 
 The cases, what each one pins, and the provenance map of the lifted code are
 beside the fixture in
-`crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla/capture_procedure.md`.
+`crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/capture_procedure.md`.
 
 The random source is `new XoroshiroRandomSource(seed)`. `rng_after_lo` and
 `rng_after_hi` are two `nextLong()` values taken immediately after `place`
@@ -311,7 +311,7 @@ bound from the vanilla data pack through `TagLoader.loadTagsForExistingRegistrie
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpTrees --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla
 ```
 
 One file, `tree_geometry.bin`: all 45 `minecraft:tree` features at seeds 42, 1,
@@ -321,7 +321,7 @@ The level (`StubLevel`, a `WorldGenLevel` over flat dirt whose every method
 throws until a tree calls it), why the placed object is the codec round-trip
 rather than the bootstrap one, and what the fixture cannot pin, are beside the
 fixture in
-`crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla/tree_geometry_capture_procedure.md`.
+`crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/tree_geometry_capture_procedure.md`.
 `StubGen` prints the stub skeleton for any interface
 (`./gradlew stubGen -PstubClass=net.minecraft.world.level.WorldGenLevel`); run
 it again when a version bump changes `WorldGenLevel`.

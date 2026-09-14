@@ -16,25 +16,25 @@ use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
     FeatureCompileError, StateQuery, compile_predicate,
 };
-use mcrs_minecraft_worldgen_feature::place::tree::decorator::{CompiledTreeDecorator, TreePalette};
-use mcrs_minecraft_worldgen_feature::place::tree::foliage::Foliage;
-use mcrs_minecraft_worldgen_feature::place::tree::provider::{
-    SharedNoise, StateProvider, int_property_table, rotation_table,
-};
-use mcrs_minecraft_worldgen_feature::place::tree::root::{AboveRootPlacement, MangroveRoots};
-use mcrs_minecraft_worldgen_feature::place::tree::survive::{
-    CANNOT_SUPPORT_SEAGRASS, OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT, SUPPORTS_CACTUS,
-    SUPPORTS_LILY_PAD, SUPPORTS_SMALL_DRIPLEAF, SUPPORTS_SUGAR_CANE,
-    SUPPORTS_SUGAR_CANE_ADJACENTLY, SUPPORTS_VEGETATION, SurviveFamily, SurviveRule,
-    UNSTABLE_BOTTOM_CENTER, family_of,
-};
-use mcrs_minecraft_worldgen_feature::place::tree::trunk::{TreeStates, Trunk};
-use mcrs_minecraft_worldgen_feature::place::tree::{CompiledTree, LeafDistances, TreeTables};
 use mcrs_minecraft_worldgen_feature::placer::StateMask;
 use mcrs_minecraft_worldgen_feature::tree::{
     BlockStateProvider, RootPlacer as ProtoRootPlacer, TreeConfig, TreeDecorator as ProtoDecorator,
     TrunkPlacer as ProtoTrunk,
 };
+use mcrs_minecraft_worldgen_feature_place::tree::decorator::{CompiledTreeDecorator, TreePalette};
+use mcrs_minecraft_worldgen_feature_place::tree::foliage::Foliage;
+use mcrs_minecraft_worldgen_feature_place::tree::provider::{
+    SharedNoise, StateProvider, int_property_table, rotation_table,
+};
+use mcrs_minecraft_worldgen_feature_place::tree::root::{AboveRootPlacement, MangroveRoots};
+use mcrs_minecraft_worldgen_feature_place::tree::survive::{
+    CANNOT_SUPPORT_SEAGRASS, OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT, SUPPORTS_CACTUS,
+    SUPPORTS_LILY_PAD, SUPPORTS_SMALL_DRIPLEAF, SUPPORTS_SUGAR_CANE,
+    SUPPORTS_SUGAR_CANE_ADJACENTLY, SUPPORTS_VEGETATION, SurviveFamily, SurviveRule,
+    UNSTABLE_BOTTOM_CENTER, family_of,
+};
+use mcrs_minecraft_worldgen_feature_place::tree::trunk::{TreeStates, Trunk};
+use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, LeafDistances, TreeTables};
 use mcrs_minecraft_worldgen_noise::normal as normal_noise;
 
 use super::feature_program::{Resolver, missing, union_masks};

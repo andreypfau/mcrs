@@ -16,12 +16,12 @@ use mcrs_minecraft_nbt::{Nbt, to_nbt_compound};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
-use mcrs_minecraft_worldgen_feature::place::template::rotate_state;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature, processor_list};
+use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature_place::template::rotate_state;
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 

@@ -31,7 +31,7 @@ pub use support::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
-use mcrs_minecraft_worldgen_feature::place::terrain_skin::BiomeClimate;
+use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;

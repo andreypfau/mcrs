@@ -5,7 +5,7 @@ use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen_feature::place::ore_beta::{
+use mcrs_minecraft_worldgen_feature_place::ore_beta::{
     OreConfig, TargetBlockState, place_beta_ore,
 };
 use rand_xoshiro::rand_core::{Infallible, TryRng};
