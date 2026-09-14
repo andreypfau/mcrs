@@ -8,11 +8,11 @@ use std::sync::Arc;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_decoration::feature::ore_modern::{OreScratch, place_modern_ore};
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_worldgen::feature::compile::CompiledPlacedFeature;
-use mcrs_minecraft_worldgen::feature::placer::{PlacerScratch, decorate};
-use mcrs_minecraft_worldgen::feature::proto::{Feature, Holder};
+use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
+use mcrs_minecraft_worldgen_feature::place::ore_modern::{OreScratch, place_modern_ore};
+use mcrs_minecraft_worldgen_feature::placer::{PlacerScratch, decorate};
+use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder};
 
 use crate::world::generate::ColumnBlocks;
 use crate::world::generate::feature_program::{FeatureProgram, Generator};

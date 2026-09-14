@@ -7,12 +7,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen::feature::compile::CompiledPlacedFeature;
-use mcrs_minecraft_worldgen::feature::proto::{Feature, Holder, PlacedFeature};
+use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
+use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature};
 
 use crate::world::generate::feature_program::{FeatureProgram, Generator, Nested, RunScratch};
 use crate::world::generate::features::FeatureTables;
-use mcrs_minecraft_worldgen::feature::compile::LoadedFeatures;
+use mcrs_minecraft_worldgen_feature::compile::LoadedFeatures;
 
 use super::{
     biome_registry, block_tags, blocks, build_program, corpus_features, fluid_tags, load_json_dir,
@@ -153,8 +153,8 @@ fn a_simple_random_selector_compiles_to_equal_weights() {
 /// which of the three shapes each takes.
 #[test]
 fn the_noise_state_providers_resolve_to_a_sampler() {
-    use mcrs_minecraft_decoration::feature::tree::provider::StateProvider;
-    use mcrs_minecraft_worldgen::feature::tree::BlockStateProvider;
+    use mcrs_minecraft_worldgen_feature::place::tree::provider::StateProvider;
+    use mcrs_minecraft_worldgen_feature::tree::BlockStateProvider;
 
     let features: BTreeMap<ResourceLocation, Feature> = load_json_dir("feature");
     let resolve = |name: &str| {
@@ -227,7 +227,7 @@ fn a_pale_oak_runs_its_moss_patch() {
     assert!(
         tree.decorators.iter().any(|decorator| matches!(
             decorator.0,
-            mcrs_minecraft_worldgen::feature::tree::TreeDecorator::PaleMoss { .. }
+            mcrs_minecraft_worldgen_feature::tree::TreeDecorator::PaleMoss { .. }
         )),
         "pale_oak lost its pale moss decorator"
     );
@@ -403,7 +403,7 @@ fn the_pale_garden_carpet_compiles_to_a_shape_table() {
         .expect("the corpus holds pale_moss_carpet");
     assert_eq!(
         carpet.by_state.len(),
-        mcrs_minecraft_decoration::feature::mossy_carpet::SHAPE_COUNT,
+        mcrs_minecraft_worldgen_feature::place::mossy_carpet::SHAPE_COUNT,
         "every state of the block has a shape"
     );
     let moss_block = blocks()
@@ -426,7 +426,7 @@ fn the_pale_garden_carpet_compiles_to_a_shape_table() {
 /// of true for a block that overrides nothing.
 #[test]
 fn every_simple_block_state_is_decided() {
-    use mcrs_minecraft_decoration::feature::tree::survive::family_of;
+    use mcrs_minecraft_worldgen_feature::place::tree::survive::family_of;
 
     let mut by_filter = BTreeSet::new();
     let mut by_family = BTreeSet::new();

@@ -1,10 +1,10 @@
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_decoration::carver::mask::CarvingMask;
-use mcrs_minecraft_decoration::carver::water::WaterMask;
-use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
+use mcrs_minecraft_worldgen_carver::water::WaterMask;
+use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 
 use crate::world::generate::ColumnBlocks;
 use crate::world::generate::modern_carvers::{CarverBiomeTable, carve_sources};

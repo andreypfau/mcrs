@@ -1,4 +1,4 @@
-use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::{ColumnBlocks, base_height, fill_column_dense_any};

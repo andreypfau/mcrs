@@ -12,19 +12,19 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_decoration::carver::beta::carve_beta_caves;
-use mcrs_minecraft_decoration::carver::canyon::carve_canyon;
-use mcrs_minecraft_decoration::carver::mask::CarvingMask;
-use mcrs_minecraft_decoration::carver::modern::{SOURCE_RADIUS, carve_caves, is_start_chunk};
-use mcrs_minecraft_decoration::carver::water::WaterMask;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen::aquifer::{FluidField, point_barrier};
-use mcrs_minecraft_worldgen::carver::CarverConfig;
-use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::{
+use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
+use mcrs_minecraft_worldgen_carver::canyon::carve_canyon;
+use mcrs_minecraft_worldgen_carver::config::CarverConfig;
+use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
+use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_caves, is_start_chunk};
+use mcrs_minecraft_worldgen_carver::water::WaterMask;
+use mcrs_minecraft_worldgen_density::aquifer::{FluidField, point_barrier};
+use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_minecraft_worldgen_density::router::{
     CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
-use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
+use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
 use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
 

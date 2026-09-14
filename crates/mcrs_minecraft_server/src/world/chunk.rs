@@ -26,7 +26,7 @@ use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::worldgen::beta_biome::BetaBiomeSourcePlugin;
-use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
+use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
 use rustc_hash::FxHashMap;
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;

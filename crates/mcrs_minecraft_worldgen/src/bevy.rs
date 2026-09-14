@@ -1,16 +1,4 @@
 use crate::beard::{BeardifierPlacement, beardifier_placement};
-use crate::compile::CompileError;
-use crate::feature::proto::{Feature, Holder, PlacedFeature, StructureProcessorList};
-use crate::material::compile::SURFACE_NOISE_NAMES;
-use crate::material::compile::{MaterialProgram, build_router_and_material};
-use crate::material::proto::{MaterialCondition, MaterialRule};
-use crate::material::{MaterialConditionHolder, MaterialInputs, MaterialRuleHolder};
-use crate::proto::{
-    BlockState, DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction,
-};
-use crate::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
-use crate::structure::template::{TEMPLATE_DATA_VERSION, Template};
-use crate::structure::{PoolElement, Structure, StructureSet, TemplatePool};
 use bevy_app::{App, Plugin};
 use bevy_asset::io::Reader;
 use bevy_asset::{
@@ -23,6 +11,23 @@ use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_worldgen_density::compile::CompileError;
+use mcrs_minecraft_worldgen_density::proto::{
+    BlockState, DensityFunctionHolder, ProtoDensityFunction,
+};
+use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
+use mcrs_minecraft_worldgen_feature::proto::{
+    Feature, Holder, PlacedFeature, StructureProcessorList,
+};
+use mcrs_minecraft_worldgen_feature::template::{TEMPLATE_DATA_VERSION, Template};
+use mcrs_minecraft_worldgen_noise::proto::{NoiseHolder, NoiseParam};
+use mcrs_minecraft_worldgen_structure::{PoolElement, Structure, StructureSet, TemplatePool};
+use mcrs_minecraft_worldgen_surface::compile::SURFACE_NOISE_NAMES;
+use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
+use mcrs_minecraft_worldgen_surface::proto::{MaterialCondition, MaterialRule};
+use mcrs_minecraft_worldgen_surface::{
+    MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
+};
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
@@ -315,7 +320,7 @@ pub struct NoiseParamAsset {
 #[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
 #[serde(transparent)]
 pub struct CarverConfigAsset {
-    pub config: crate::carver::CarverConfig,
+    pub config: mcrs_minecraft_worldgen_carver::config::CarverConfig,
 }
 
 #[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
@@ -630,13 +635,13 @@ fn noise_holder(function: &ProtoDensityFunction) -> Option<&NoiseHolder> {
 #[cfg(test)]
 mod tests {
     use super::References;
-    use crate::material::compile::SURFACE_NOISE_NAMES;
-    use crate::material::{MaterialConditionHolder, MaterialRuleHolder};
-    use crate::router::NoiseGeneratorSettings;
     use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
+    use mcrs_minecraft_worldgen_surface::compile::SURFACE_NOISE_NAMES;
+    use mcrs_minecraft_worldgen_surface::{MaterialConditionHolder, MaterialRuleHolder};
     use std::collections::{BTreeMap, BTreeSet};
 
-    use crate::corpus::{json_files, read, worldgen_dir};
+    use mcrs_minecraft_worldgen_testing::{json_files, read, worldgen_dir};
 
     /// Every shipped biome, numbered by its position in the registry directory,
     /// which is all the material rules need of a biome id.
@@ -892,9 +897,9 @@ mod tests {
     #[test]
     fn the_loaded_settings_compile_into_a_router() {
         use super::{NoiseGeneratorSettingsAsset, build_dimension_router};
-        use crate::proto::BlockState;
         use bevy_asset::Assets;
         use mcrs_minecraft_chunk::VoxelId;
+        use mcrs_minecraft_worldgen_density::proto::BlockState;
 
         let biomes = shipped_biome_ids();
         for name in ["overworld", "nether", "end", "beta"] {

@@ -39,7 +39,7 @@ use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
 use crate::world::generate::structures::live_sets;
 use crate::world::generate::{BetaCaveBlockIds, ColumnBlocks, SurfaceIds};
 use crate::world::heightmap::{PendingColumnHeightmaps, heightmap_predicates};
-use mcrs_minecraft_worldgen::structure::frozen::DimensionStructureTables;
+use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
 use super::corpus_ores::{one_biome_registry, ore_program, ore_tables};
 use super::structures::frozen_shared;
@@ -788,8 +788,8 @@ fn the_parallel_ladder_delivers_the_large_oracle_region() {
 fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
     use crate::world::block_entity::BlockEntity;
     use crate::world::chunk::{ColumnKey, PendingColumn};
-    use mcrs_minecraft_decoration::block_entity::{BeeOccupant, GeneratedBlockEntity};
     use mcrs_minecraft_level::world::dimension::InDimension;
+    use mcrs_minecraft_worldgen_feature::block_entity::{BeeOccupant, GeneratedBlockEntity};
 
     let mut app = App::new();
     app.init_resource::<PendingColumnHeightmaps>();

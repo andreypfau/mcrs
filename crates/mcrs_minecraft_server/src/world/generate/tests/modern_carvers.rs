@@ -3,9 +3,9 @@ use std::sync::Arc;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen::aquifer::point_barrier;
-use mcrs_minecraft_worldgen::carver::CarverConfig;
-use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen_carver::config::CarverConfig;
+use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
+use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::{assets_root, build_settings_router, corpus};
 use crate::world::generate::modern_carvers::{
@@ -504,8 +504,8 @@ fn every_beta_biome_carves_with_the_beta_carver() {
 fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     use bevy_math::IVec3;
     use mcrs_minecraft_biome::source::BiomeSource;
-    use mcrs_minecraft_worldgen::router::{TEMPERATURE, VEGETATION};
-    use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
+    use mcrs_minecraft_worldgen_density::router::{TEMPERATURE, VEGETATION};
+    use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
     let router = super::build_beta_router();
     let (source, _) = super::beta_surface::build_beta_biome_source();

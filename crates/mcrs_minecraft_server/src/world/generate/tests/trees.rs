@@ -1,7 +1,7 @@
 //! The corpus's own tree features over a real overworld column: that they
 //! decorate at all, and that how many they place stays where it was measured.
 
-use mcrs_minecraft_worldgen::material::compile::{MaterialProgram, build_router_and_material};
+use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -12,8 +12,8 @@ use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_worldgen::feature::compile::CompiledPlacedFeature;
-use mcrs_minecraft_worldgen::feature::proto::PlacedFeature;
+use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
+use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
 use crate::world::generate::SurfaceIds;
 use crate::world::generate::feature_program::FeatureProgram;
@@ -24,10 +24,10 @@ use crate::world::generate::stages::{
 };
 use crate::world::heightmap::heightmap_predicates;
 
-use mcrs_minecraft_worldgen::material::{
+use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
 };
-use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter};
 
 use super::{
     block_tags, blocks, build_program, corpus_features, generate_region, load_json_dir, one_step,
@@ -318,7 +318,7 @@ fn plains_forest_and_taiga_decorate_within_their_measured_band() {
 /// rarity filter, which no region this size would reach.
 fn bee_tables() -> FeatureTables {
     let mut tables = tree_tables("minecraft:plains", "minecraft:fancy_oak_bees");
-    let placement: Vec<mcrs_minecraft_worldgen::feature::placement::PlacementModifier> =
+    let placement: Vec<mcrs_minecraft_worldgen_feature::placement::PlacementModifier> =
         serde_json::from_str(
             r#"[{"type":"minecraft:heightmap","heightmap":"OCEAN_FLOOR"},
                 {"type":"minecraft:block_predicate_filter",
@@ -339,7 +339,9 @@ fn bee_tables() -> FeatureTables {
 /// silently.
 #[test]
 fn a_generated_bee_nest_carries_its_occupants() {
-    use mcrs_minecraft_decoration::block_entity::{BEE_MIN_TICKS_IN_HIVE, GeneratedBlockEntity};
+    use mcrs_minecraft_worldgen_feature::block_entity::{
+        BEE_MIN_TICKS_IN_HIVE, GeneratedBlockEntity,
+    };
 
     let (ctx, _) = dimension_over("minecraft:plains", Arc::new(bee_tables()), 4242);
 

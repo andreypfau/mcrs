@@ -21,11 +21,11 @@ use mcrs_minecraft_server::world::generate::multi_noise_biomes::MultiNoiseBiomeT
 use mcrs_minecraft_server::world::generate::{
     ColumnBlocks, SurfaceIds, apply_material_surface, fill_column_dense_any,
 };
-use mcrs_minecraft_worldgen::material::compile::{MaterialProgram, build_router_and_material};
-use mcrs_minecraft_worldgen::material::{
+use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
+use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
 };
-use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter};
 
 #[path = "../src/world/generate/tests/support.rs"]
 mod support;

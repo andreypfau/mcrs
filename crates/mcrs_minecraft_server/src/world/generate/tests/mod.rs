@@ -31,7 +31,7 @@ pub use support::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
-use mcrs_minecraft_decoration::feature::terrain_skin::BiomeClimate;
+use mcrs_minecraft_worldgen_feature::place::terrain_skin::BiomeClimate;
 
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
@@ -41,7 +41,7 @@ use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_protocol::ColumnPos;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_worldgen::feature::compile::CompiledPlacedFeature;
+use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 
 use crate::world::chunk::{CancellationToken, ColumnSource};
 use crate::world::generate::ColumnBlocks;
@@ -52,9 +52,9 @@ use crate::world::generate::staging::{
     FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column,
 };
 use crate::world::heightmap::TerrainHeightmaps;
-use mcrs_minecraft_worldgen::feature::compile::{FeatureSteps, LoadedFeatures};
-use mcrs_minecraft_worldgen::feature::proto::{Feature, PlacedFeature};
-use mcrs_minecraft_worldgen::structure::frozen::FrozenStructures;
+use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures};
+use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
+use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
 
 /// Both feature registries of the shipped corpus, with every template and
 /// processor list the features name, parsed once per test binary.
@@ -156,7 +156,7 @@ pub fn build_program_with(
 
 /// A fill context over one router and the corpus, with nothing else wired in.
 pub fn bare_fill_context(
-    router: impl Into<std::sync::Arc<mcrs_minecraft_worldgen::router::NoiseRouter>>,
+    router: impl Into<std::sync::Arc<mcrs_minecraft_worldgen_density::router::NoiseRouter>>,
 ) -> crate::world::generate::stages::FillContext {
     fill_context_with(router, None)
 }
@@ -167,7 +167,7 @@ pub fn bare_fill_context(
 /// answers every `isAir` and every sturdy-face question with the empty set —
 /// which silently turns the modifiers that walk the ground into no-ops.
 pub fn fill_context_with(
-    router: impl Into<std::sync::Arc<mcrs_minecraft_worldgen::router::NoiseRouter>>,
+    router: impl Into<std::sync::Arc<mcrs_minecraft_worldgen_density::router::NoiseRouter>>,
     features: Option<std::sync::Arc<crate::world::generate::feature_program::FeatureProgram>>,
 ) -> crate::world::generate::stages::FillContext {
     let router = router.into();
@@ -317,7 +317,7 @@ pub fn beta_carver_table(
     source: &mcrs_minecraft_biome::source::BiomeSource,
 ) -> crate::world::generate::modern_carvers::CarverBiomeTable {
     crate::world::generate::modern_carvers::CarverBiomeTable::beta(source, |_| {
-        Arc::from([mcrs_minecraft_worldgen::carver::CarverConfig::BetaCave])
+        Arc::from([mcrs_minecraft_worldgen_carver::config::CarverConfig::BetaCave])
     })
     .expect("a Beta biome source")
 }

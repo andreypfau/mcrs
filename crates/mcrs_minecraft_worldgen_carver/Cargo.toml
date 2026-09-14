@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_worldgen_carver"
+description = "Cave and canyon carvers"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_reflect = { workspace = true, optional = true }
+fixedbitset.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_random.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+
+[features]
+bevy = ["dep:bevy_reflect"]

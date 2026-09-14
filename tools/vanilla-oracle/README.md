@@ -20,7 +20,7 @@ no mixins are applied.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpOracle --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_density/tests/fixtures/vanilla
 ```
 
 Add `--no-daemon` if you hit Gradle lock contention. Never run two Gradle
@@ -187,7 +187,7 @@ supplies the biome, placed-feature and multi-noise-preset registries, exactly as
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpFeatureSteps --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla
 ```
 
 One file, `feature_steps.bin`. Sources and what they resolve to:
@@ -249,14 +249,14 @@ only `Bootstrap.bootStrap()`, for the block registry.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpOreVeins --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_decoration/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla
 ```
 
 One file, `ore_vein.bin`.
 
 The cases, what each one pins, and the provenance map of the lifted code are
 beside the fixture in
-`crates/mcrs_minecraft_decoration/tests/fixtures/vanilla/capture_procedure.md`.
+`crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla/capture_procedure.md`.
 
 The random source is `new XoroshiroRandomSource(seed)`. `rng_after_lo` and
 `rng_after_hi` are two `nextLong()` values taken immediately after `place`
@@ -311,7 +311,7 @@ bound from the vanilla data pack through `TagLoader.loadTagsForExistingRegistrie
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpTrees --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_decoration/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla
 ```
 
 One file, `tree_geometry.bin`: all 45 `minecraft:tree` features at seeds 42, 1,
@@ -321,7 +321,7 @@ The level (`StubLevel`, a `WorldGenLevel` over flat dirt whose every method
 throws until a tree calls it), why the placed object is the codec round-trip
 rather than the bootstrap one, and what the fixture cannot pin, are beside the
 fixture in
-`crates/mcrs_minecraft_decoration/tests/fixtures/vanilla/tree_geometry_capture_procedure.md`.
+`crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla/tree_geometry_capture_procedure.md`.
 `StubGen` prints the stub skeleton for any interface
 (`./gradlew stubGen -PstubClass=net.minecraft.world.level.WorldGenLevel`); run
 it again when a version bump changes `WorldGenLevel`.
@@ -481,7 +481,7 @@ climate sampler from `randomState.createClimateSampler(SamplerContext.builder().
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpPlacement --console=plain --no-daemon -PoracleOut=<dir>
-cp <dir>/structure_cells.bin ../../crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/
+cp <dir>/structure_cells.bin ../../crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/
 cp <dir>/structure_sites.bin ../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/
 ```
 
@@ -501,7 +501,7 @@ Two files, both deterministic:
 
 The field-by-field layouts, the provenance of every value and the case summaries
 are beside each fixture:
-`crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/structure_cells_capture_procedure.md`
+`crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/structure_cells_capture_procedure.md`
 and
 `crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/structure_sites_capture_procedure.md`.
 

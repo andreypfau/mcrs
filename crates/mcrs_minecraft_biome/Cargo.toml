@@ -8,6 +8,8 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_worldgen_structure.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
 bevy_asset.workspace = true
 bevy_reflect.workspace = true
 mcrs_minecraft_assets.workspace = true
@@ -16,7 +18,6 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_worldgen.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

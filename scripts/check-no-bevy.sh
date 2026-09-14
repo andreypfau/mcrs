@@ -12,8 +12,14 @@ crates=(
     mcrs_minecraft_registry
     mcrs_minecraft_protocol
     mcrs_minecraft_anvil
+    mcrs_minecraft_worldgen_testing
+    mcrs_minecraft_worldgen_noise
+    mcrs_minecraft_worldgen_density
+    mcrs_minecraft_worldgen_surface
+    mcrs_minecraft_worldgen_feature
+    mcrs_minecraft_worldgen_carver
+    mcrs_minecraft_worldgen_structure
     mcrs_minecraft_worldgen
-    mcrs_minecraft_decoration
     mcrs_minecraft_light
     mcrs_minecraft_network
 )

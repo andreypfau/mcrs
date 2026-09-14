@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen::structure::{MobCategory, SpawnerData};
+use mcrs_minecraft_worldgen_structure::{MobCategory, SpawnerData};
 use serde::{Deserialize, Serialize};
 
 /// The `minecraft:gameplay/natural_mob_spawns` attribute argument.

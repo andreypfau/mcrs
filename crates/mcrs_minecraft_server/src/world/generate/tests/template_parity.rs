@@ -9,8 +9,6 @@ use mcrs_minecraft_chunk::{Blocks, BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
-use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
-use mcrs_minecraft_decoration::feature::template::rotate_state;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -18,12 +16,14 @@ use mcrs_minecraft_nbt::{Nbt, to_nbt_compound};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
-use mcrs_minecraft_worldgen::feature::compile::CompiledPlacedFeature;
-use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
-use mcrs_minecraft_worldgen::feature::placer::{BoxRegion, WorldStates};
-use mcrs_minecraft_worldgen::feature::proto::{Feature, Holder, PlacedFeature, processor_list};
-use mcrs_minecraft_worldgen::structure::LiquidSettings;
+use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
+use mcrs_minecraft_worldgen_feature::place::template::rotate_state;
+use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
+use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
+use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature, processor_list};
+use mcrs_minecraft_worldgen_structure::LiquidSettings;
+use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
 use super::structures::frozen_shared;
 use super::template_manifest::{parse_state, resolve};
@@ -31,7 +31,7 @@ use super::{biome_registry, build_program_with, corpus, corpus_features, one_ste
 use crate::world::block_entity::BLOCK_ENTITY_TYPES;
 use crate::world::generate::feature_program::{FeatureProgram, RunScratch};
 use crate::world::generate::structures::place::place_element;
-use mcrs_minecraft_worldgen::structure::frozen::{ElementId, FrozenElement};
+use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenElement};
 
 const MAGIC: &[u8; 8] = b"MCTMPLP0";
 const BIOME: &str = "minecraft:plains";
@@ -545,7 +545,7 @@ fn compare(label: &str, expected: &DumpPlacement, got: &Outcome) -> Vec<String> 
 }
 
 fn element_key(
-    frozen: &mcrs_minecraft_worldgen::structure::frozen::FrozenStructures,
+    frozen: &mcrs_minecraft_worldgen_structure::frozen::FrozenStructures,
 ) -> Vec<(CaseKey, ElementId)> {
     let template_named: BTreeMap<u32, &ResourceLocation> = frozen
         .template_ids

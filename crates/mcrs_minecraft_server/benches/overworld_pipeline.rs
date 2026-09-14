@@ -19,13 +19,13 @@ use mcrs_minecraft_server::world::generate::{
     ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
     multi_noise_palettes,
 };
-use mcrs_minecraft_worldgen::carver::CarverConfig;
-use mcrs_minecraft_worldgen::material::compile::{MaterialProgram, build_router_and_material};
-use mcrs_minecraft_worldgen::material::{
+use mcrs_minecraft_worldgen_carver::config::CarverConfig;
+use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
+use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
 };
-use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter};
 
 #[path = "../src/world/generate/tests/support.rs"]
 mod support;

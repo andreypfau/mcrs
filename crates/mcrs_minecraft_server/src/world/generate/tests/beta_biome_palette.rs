@@ -64,7 +64,7 @@ fn generate_column_beta_biome_not_default() {
     };
 
     let (temp_0, hum_0) = router.sample_beta_climate(
-        &mut mcrs_minecraft_worldgen::program::Workspace::new(),
+        &mut mcrs_minecraft_worldgen_density::program::Workspace::new(),
         0,
         0,
     );

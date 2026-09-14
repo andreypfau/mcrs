@@ -21,9 +21,9 @@ use mcrs_minecraft_server::world::generate::stages::extent;
 use mcrs_minecraft_server::world::generate::{
     BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, fill_column_dense_any,
 };
-use mcrs_minecraft_worldgen::carver::CarverConfig;
-use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen_carver::config::CarverConfig;
+use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 
 #[path = "../src/world/generate/tests/support.rs"]
 mod support;

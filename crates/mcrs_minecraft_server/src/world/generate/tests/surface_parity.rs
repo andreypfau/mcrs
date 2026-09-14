@@ -1,5 +1,5 @@
 use bytes::Buf;
-use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
+use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 

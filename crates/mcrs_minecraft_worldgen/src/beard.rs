@@ -1,9 +1,10 @@
-use crate::SampleGrid;
-use crate::proto::{DensityFunctionHolder, ProtoDensityFunction};
-use crate::structure::{Projection, TerrainAdaptation};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth::{fast_inv_sqrt, floor_div};
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
+use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
+use mcrs_minecraft_worldgen_feature::template::Projection;
+use mcrs_minecraft_worldgen_noise::SampleGrid;
+use mcrs_minecraft_worldgen_structure::TerrainAdaptation;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::LazyLock;
 
@@ -604,13 +605,13 @@ mod tests {
 
     fn add(left: DensityFunctionHolder, right: DensityFunctionHolder) -> DensityFunctionHolder {
         owned(ProtoDensityFunction::Add(
-            crate::proto::args::TwoArgumentFunction { left, right },
+            mcrs_minecraft_worldgen_density::proto::args::TwoArgumentFunction { left, right },
         ))
     }
 
     fn squeeze(input: DensityFunctionHolder) -> DensityFunctionHolder {
         owned(ProtoDensityFunction::Squeeze(
-            crate::proto::args::SingleArgumentFunction { input },
+            mcrs_minecraft_worldgen_density::proto::args::SingleArgumentFunction { input },
         ))
     }
 
@@ -699,9 +700,11 @@ mod tests {
     #[test]
     fn every_shipped_noise_settings_adds_the_beardifier_at_its_root() {
         let functions: BTreeMap<ResourceLocation, DensityFunctionHolder> =
-            crate::corpus::registry("density_function");
-        let settings: BTreeMap<ResourceLocation, crate::router::NoiseGeneratorSettings> =
-            crate::corpus::registry("noise_settings");
+            mcrs_minecraft_worldgen_testing::registry("density_function");
+        let settings: BTreeMap<
+            ResourceLocation,
+            mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings,
+        > = mcrs_minecraft_worldgen_testing::registry("noise_settings");
         let placements: Vec<(String, BeardifierPlacement)> = settings
             .iter()
             .map(|(id, settings)| {

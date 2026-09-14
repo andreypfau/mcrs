@@ -3,9 +3,11 @@ use std::rc::Rc;
 
 use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_decoration::feature::ore_beta::{OreConfig, TargetBlockState, place_beta_ore};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_worldgen_feature::place::ore_beta::{
+    OreConfig, TargetBlockState, place_beta_ore,
+};
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::world::generate::{BetaOreBlockIds, place_all_ores};

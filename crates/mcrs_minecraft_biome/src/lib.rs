@@ -15,9 +15,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings};
-use mcrs_minecraft_worldgen::feature::FeatureStepList;
+use mcrs_minecraft_worldgen_feature::FeatureStepList;
 
-pub use mcrs_minecraft_worldgen::structure::{MobCategory, SpawnerData};
+pub use mcrs_minecraft_worldgen_structure::{MobCategory, SpawnerData};
 
 pub const NATURAL_MOB_SPAWNS: &str = "minecraft:gameplay/natural_mob_spawns";
 

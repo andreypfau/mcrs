@@ -6,10 +6,10 @@ use bytes::Buf;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
-use mcrs_minecraft_worldgen::corpus::{assets_dir, dump_placements, dump_string, open_dump};
-use mcrs_minecraft_worldgen::structure::template::{
+use mcrs_minecraft_worldgen_feature::template::{
     FrozenBlock, Joint, PaletteState, Template, TemplateManifest,
 };
+use mcrs_minecraft_worldgen_testing::{assets_dir, dump_placements, dump_string, open_dump};
 
 use super::corpus;
 use crate::world::generate::structures::{DYNAMIC_SHAPE_BLOCKS, resolve_palette_state};

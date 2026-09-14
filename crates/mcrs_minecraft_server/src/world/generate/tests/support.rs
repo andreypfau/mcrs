@@ -35,9 +35,10 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen::compile::build_router;
-use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
-use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
+use mcrs_minecraft_worldgen_density::compile::build_router;
+use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
+use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
+use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 
 pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
     RouterBlocks {
@@ -53,7 +54,7 @@ pub fn assets_root() -> PathBuf {
 }
 
 pub fn load_json_dir<T: serde::de::DeserializeOwned>(name: &str) -> BTreeMap<ResourceLocation, T> {
-    mcrs_minecraft_worldgen::corpus::registry(name)
+    mcrs_minecraft_worldgen_testing::registry(name)
 }
 
 pub fn density_function_registry() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
@@ -90,8 +91,8 @@ pub fn build_beta_router() -> NoiseRouter {
 fn every_shipped_noise_settings_compiles_its_material_rules() {
     use std::collections::HashMap;
 
-    use mcrs_minecraft_worldgen::material::compile::build_router_and_material;
-    use mcrs_minecraft_worldgen::material::{
+    use mcrs_minecraft_worldgen_surface::compile::build_router_and_material;
+    use mcrs_minecraft_worldgen_surface::{
         MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
     };
 
@@ -186,7 +187,7 @@ fn collect_tag_members<S: TagSource<Id = u32>>(
 fn every_tag<T: TaggedRegistry, S: TagSource<Id = u32>>(source: &S) -> DynTagRegistry<T> {
     let dir = tag_dir(T::REGISTRY_PATH);
     let mut loader = TagLoader::<T, u32>::new(&[]);
-    for path in mcrs_minecraft_worldgen::corpus::json_files(&dir) {
+    for path in mcrs_minecraft_worldgen_testing::json_files(&dir) {
         let relative = path.strip_prefix(&dir).unwrap().with_extension("");
         let name = format!(
             "minecraft:{}",

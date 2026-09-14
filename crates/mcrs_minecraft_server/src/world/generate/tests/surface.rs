@@ -5,11 +5,11 @@ use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen::material::compile::{MaterialProgram, build_router_and_material};
-use mcrs_minecraft_worldgen::material::{
+use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
+use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch, NO_WATER,
 };
-use mcrs_minecraft_worldgen::router::{NoiseGeneratorSettings, NoiseRouter};
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
@@ -636,7 +636,7 @@ fn surfaced_column_fixed(
 ) -> ColumnBlocks {
     use crate::world::generate::multi_noise_biomes::BiomeGrid;
     use bevy_math::IVec3;
-    use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
+    use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
     let mut column = ColumnBlocks::new(y_sections);
     let mut filled = fill_column_dense_any(

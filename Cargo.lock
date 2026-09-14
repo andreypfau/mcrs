@@ -3496,7 +3496,8 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
- "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_structure",
  "serde",
  "serde_json",
  "sha2",
@@ -3594,23 +3595,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_minecraft_decoration"
-version = "0.1.0"
-dependencies = [
- "bevy_math",
- "bytes",
- "fixedbitset",
- "mcrs_minecraft_chunk",
- "mcrs_minecraft_core",
- "mcrs_minecraft_nbt",
- "mcrs_minecraft_random",
- "mcrs_minecraft_worldgen",
- "rustc-hash 2.1.1",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "mcrs_minecraft_dimension"
 version = "0.1.0"
 dependencies = [
@@ -3643,7 +3627,7 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_structure",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3830,7 +3814,6 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
- "mcrs_minecraft_decoration",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_item",
@@ -3843,6 +3826,13 @@ dependencies = [
  "mcrs_minecraft_registry",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_carver",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_structure",
+ "mcrs_minecraft_worldgen_surface",
+ "mcrs_minecraft_worldgen_testing",
  "proptest",
  "rand 0.10.0",
  "rand 0.9.2",
@@ -3896,17 +3886,128 @@ dependencies = [
  "bevy_math",
  "bevy_reflect",
  "bytes",
- "fixedbitset",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_random",
- "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_carver",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_structure",
+ "mcrs_minecraft_worldgen_surface",
+ "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_carver"
+version = "0.1.0"
+dependencies = [
+ "bevy_reflect",
+ "bytes",
+ "fixedbitset",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_density"
+version = "0.1.0"
+dependencies = [
+ "bevy_asset",
+ "bevy_math",
+ "bevy_reflect",
+ "bytes",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_testing",
+ "serde",
+ "serde_json",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_feature"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "bytes",
+ "fixedbitset",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_surface",
+ "mcrs_minecraft_worldgen_testing",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_noise"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_structure"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "bytes",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_testing",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_surface"
+version = "0.1.0"
+dependencies = [
+ "bevy_asset",
+ "bevy_math",
+ "bevy_reflect",
+ "bytes",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_testing",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_testing"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "mcrs_minecraft_core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

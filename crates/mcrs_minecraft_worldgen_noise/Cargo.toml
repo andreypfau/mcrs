@@ -1,0 +1,26 @@
+[package]
+name = "mcrs_minecraft_worldgen_noise"
+description = "Perlin, simplex, normal and blended noise and the interval and grid types they sample over"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_math.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_random.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+
+[features]
+default = ["fast"]
+# The fast precision profile of `docs/worldgen.md` §15: one rounding instead of
+# two wherever a sampler computes `a * b + c`, and a noise sampler's lattice cell
+# collapsed to a line along Y so its eight corner dots become two ends of a
+# segment. Needs an FMA instruction to be a win: `target-cpu=native`, or `+fma`
+# on x86-64. Off is the strict profile, which stays buildable as the oracle:
+# `cargo test -p mcrs_minecraft_worldgen_density --no-default-features`.
+fast = []

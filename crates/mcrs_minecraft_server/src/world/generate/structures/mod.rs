@@ -20,29 +20,30 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
-use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_worldgen::bevy::{
     StructureAsset, StructureSetAsset, TemplateAsset, TemplatePoolAsset,
 };
-use mcrs_minecraft_worldgen::feature::placer::BiomeMask;
-use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
-use mcrs_minecraft_worldgen::structure::template::{
+use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
+use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
+use mcrs_minecraft_worldgen_feature::template::Projection;
+use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, PaletteState, ResolvedState, Template, TemplateManifest, bounding_box,
 };
-use mcrs_minecraft_worldgen::structure::{
-    DecorationStep, PoolAlias, PoolElement, Projection, Structure, StructurePlacement,
-    StructureSet, TemplatePool, TerrainAdaptation,
+use mcrs_minecraft_worldgen_structure::{
+    DecorationStep, PoolAlias, PoolElement, Structure, StructurePlacement, StructureSet,
+    TemplatePool, TerrainAdaptation,
 };
 
 use crate::world::chunk::try_resolve_state;
 use crate::world::generate::features::{possible_biomes, registry_of};
 use crate::world::generate::routers::DimensionBiomeSources;
-use mcrs_minecraft_worldgen::structure::frozen::{
+use mcrs_minecraft_worldgen_structure::frozen::{
     DimensionStructureTables, ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure,
     FrozenStructures, PoolId, SetId, StructureId, StructureKind, TemplateId,
 };
-use mcrs_minecraft_worldgen::structure::jigsaw::TERRAIN_MARGIN;
+use mcrs_minecraft_worldgen_structure::jigsaw::TERRAIN_MARGIN;
 
 // Vanilla marks these `dynamicShape()` and never files them as full blocks when
 // ordering a template; the block schema carries no such flag, so the set lives here.

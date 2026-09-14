@@ -1,0 +1,34 @@
+[package]
+name = "mcrs_minecraft_worldgen_feature"
+description = "Configured and placed features, placement modifiers, structure templates and the feature generators"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+thiserror.workspace = true
+bevy_math.workspace = true
+fixedbitset.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_random.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_noise.workspace = true
+mcrs_minecraft_worldgen_surface.workspace = true
+rustc-hash.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+mcrs_minecraft_worldgen_testing.workspace = true
+mcrs_minecraft_worldgen_feature = { path = ".", default-features = false, features = ["test-support"] }
+
+[features]
+default = ["fast"]
+fast = ["mcrs_minecraft_worldgen_noise/fast", "mcrs_minecraft_worldgen_density/fast", "mcrs_minecraft_worldgen_surface/fast"]
+# A window over an owned box, for tests of anything that takes a `WindowAccess`.
+test-support = []

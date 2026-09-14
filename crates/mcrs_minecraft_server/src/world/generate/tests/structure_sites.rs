@@ -7,8 +7,8 @@ use bytes::Buf;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
-use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
 use super::structures::{frozen_shared, preset};
 use super::{biome_index, block_tags, blocks, build_settings_router};
@@ -18,7 +18,7 @@ use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
 use crate::world::generate::structures::live_sets;
 use crate::world::heightmap::{HeightmapKinds, heightmap_predicates};
-use mcrs_minecraft_worldgen::structure::frozen::{DimensionStructureTables, StructureKind};
+use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, StructureKind};
 
 const MAGIC: &[u8; 8] = b"MCSITES0";
 
@@ -170,7 +170,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
 /// that ring position anywhere inside its 57×57-quart search window; the
 /// observed count is one of 640, and a broken ring function would move
 /// positions out of the window, not merely within it.
-const RING_DIVERGENCE_BUDGET: usize = if mcrs_minecraft_worldgen::FAST_PROFILE {
+const RING_DIVERGENCE_BUDGET: usize = if mcrs_minecraft_worldgen_density::FAST_PROFILE {
     1
 } else {
     0

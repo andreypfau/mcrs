@@ -10,18 +10,19 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_registry::DynRegistryIndex;
-use mcrs_minecraft_worldgen::corpus::assets_dir;
-use mcrs_minecraft_worldgen::structure::template::{
+use mcrs_minecraft_worldgen_feature::template::Projection;
+use mcrs_minecraft_worldgen_feature::template::{
     PaletteState, ResolvedState, TEMPLATE_DATA_VERSION, Template, TemplateBlock,
 };
-use mcrs_minecraft_worldgen::structure::{Projection, Structure, StructureSet, TemplatePool};
+use mcrs_minecraft_worldgen_structure::{Structure, StructureSet, TemplatePool};
+use mcrs_minecraft_worldgen_testing::assets_dir;
 
 use super::{biome_index, biome_tags, corpus, load_json_dir};
 use crate::world::generate::features::possible_biomes;
 use crate::world::generate::structures::{
     StructureInputs, freeze, live_sets, resolve_palette_state,
 };
-use mcrs_minecraft_worldgen::structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
+use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
 
 /// Every shipped structure whose type has no generator yet; each is frozen as
 /// a structure that places nothing.
@@ -97,7 +98,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
     &FROZEN
 }
 
-fn structure(id: &str) -> &'static mcrs_minecraft_worldgen::structure::frozen::FrozenStructure {
+fn structure(id: &str) -> &'static mcrs_minecraft_worldgen_structure::frozen::FrozenStructure {
     let frozen = frozen();
     let id = ResourceLocation::parse(id).unwrap();
     &frozen.structures[frozen.structure_ids[&id].0 as usize]

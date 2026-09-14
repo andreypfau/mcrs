@@ -13,19 +13,19 @@ use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
-use mcrs_minecraft_worldgen::feature::placer::{
+use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_minecraft_worldgen_feature::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
+use mcrs_minecraft_worldgen_feature::placer::{
     PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,
 };
-use mcrs_minecraft_worldgen::material::MaterialScratch;
-use mcrs_minecraft_worldgen::material::compile::MaterialProgram;
-use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen_surface::MaterialScratch;
+use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use rustc_hash::FxHashMap;
 use tracing::{error, info_span};
 
@@ -49,7 +49,7 @@ use crate::world::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, TerrainHeightmaps, build_column_heightmaps,
     build_terrain_heightmaps,
 };
-use mcrs_minecraft_worldgen::structure::frozen::DimensionStructureTables;
+use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
 /// Everything a column stage reads that is the same for every column of one
 /// dimension, built once when the dimension spawns. Every field is a handle,
@@ -1145,7 +1145,7 @@ mod tests {
             writes: vec![(cell, chest)],
             block_entities: vec![entity(1)],
         });
-        let has_block_entity = mcrs_minecraft_worldgen::feature::placer::mask_of([chest.0]);
+        let has_block_entity = mcrs_minecraft_worldgen_feature::placer::mask_of([chest.0]);
 
         let merged = merge_column(
             &snapshot,

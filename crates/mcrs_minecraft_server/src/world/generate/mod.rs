@@ -12,16 +12,16 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen::beard::Beard;
-use mcrs_minecraft_worldgen::cell::{CELL_BOUNDS_SLACK, sampled_range};
-use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
-use mcrs_minecraft_worldgen::interval::Interval;
-use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::{
+use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
+use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, sampled_range};
+use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_minecraft_worldgen_density::router::{
     CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
-use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
+use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
+use mcrs_minecraft_worldgen_noise::interval::Interval;
+use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use std::cell::RefCell;
 use std::collections::HashMap;
 

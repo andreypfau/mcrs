@@ -7,16 +7,16 @@ use bytes::Buf;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
-use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
-use mcrs_minecraft_worldgen::feature::proto::Holder;
-use mcrs_minecraft_worldgen::structure::Projection;
+use mcrs_minecraft_worldgen_feature::proto::Holder;
+use mcrs_minecraft_worldgen_feature::template::Projection;
+use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
 use super::structure_sites::{build_index, dimension};
 use super::structures::frozen_shared;
-use mcrs_minecraft_worldgen::structure::frozen::{
+use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenStructures, TemplateId,
 };
-use mcrs_minecraft_worldgen::structure::jigsaw::{Junction, Piece};
+use mcrs_minecraft_worldgen_structure::jigsaw::{Junction, Piece};
 
 const MAGIC: &[u8; 8] = b"MCJIGSW0";
 

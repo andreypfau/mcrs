@@ -15,14 +15,14 @@ use mcrs_minecraft_worldgen::bevy::{
     NoiseGeneratorSettingsAsset, WorldgenAssets, build_dimension_router,
     dimension_beardifier_placement,
 };
-use mcrs_minecraft_worldgen::material::compile::MaterialProgram;
-use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use tracing::{error, info};
 
 use crate::world::chunk::try_resolve_state;
 use crate::world::generate::structures::DimensionStructures;
 use crate::world_options::{LoadedWorldPreset, WorldSeed};
-use mcrs_minecraft_worldgen::structure::frozen::DimensionStructureTables;
+use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
 /// Every dimension's biome source, keyed by the id the world preset gave it.
 ///

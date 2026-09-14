@@ -530,7 +530,7 @@ block's rules, in rule order, `input → location → position` short-circuited
 from a positional fork of the level seed at the piece position
 (`CappedProcessor.java:61-62`). Ten rule tests and three position tests are
 `predicate_type`-dispatched enums, of which `RuleTest` already exists as a
-serde type (`crates/mcrs_minecraft_worldgen/src/feature/rule_test.rs:6-38`), as
+serde type (`crates/mcrs_minecraft_worldgen_feature/src/rule_test.rs:6-38`), as
 does the processor list itself, reached today only through the fossil and
 template features (`feature/proto.rs:664-725`). A `location_predicate`,
 `protected_blocks` and `lava_submerged_block` read the *world* block at the
@@ -602,7 +602,7 @@ corners puts the term inside the squeeze and trilerps it
 
 **A4. The term is added after the graph, not bound inside it.** The compiler
 folds `minecraft:beardifier` to a declared constant zero with the infinite
-interval (`crates/mcrs_minecraft_worldgen/src/compile.rs:316`), and the fold
+interval (`crates/mcrs_minecraft_worldgen_density/src/compile.rs:316`), and the fold
 stays. Because the beardifier is the outermost `add` of `final_density` in
 every shipped router (A3), a fill evaluates the graph over its volume and then
 adds A2 into the density of every block of the volume the affected box
@@ -1018,7 +1018,7 @@ with its own forked random, `:18`). That is "a source cell decides, a target
 receives, within a reach" — the shape of I3 with a reach of 8 and a lattice of
 spacing 1 — and it is what `MapGenStructure` later put a start map on. It is
 also already the carver stage here (`generate/beta_caves.rs`;
-`mcrs_minecraft_decoration/src/carver/beta.rs`) with its parity test, so it
+`mcrs_minecraft_worldgen_carver/src/beta.rs`) with its parity test, so it
 is not a structure and is not made one; it is cited because it explains why
 L5's reach is 8 and why the index needs no new concept for Beta. Two facts
 Betrock records and mcrs must not inherit: its Nether tunnels omit the `0.5`

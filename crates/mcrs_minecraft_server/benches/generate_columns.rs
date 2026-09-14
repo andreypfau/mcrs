@@ -18,7 +18,7 @@ fn y_sections() -> Vec<i32> {
 /// Content fingerprint over a few columns, read back per position rather than
 /// over the packed palette, which also encodes the order blocks were written
 /// in. Printed so before/after runs can be compared for identical output.
-fn checksum(label: &str, router: &mcrs_minecraft_worldgen::router::NoiseRouter) {
+fn checksum(label: &str, router: &mcrs_minecraft_worldgen_density::router::NoiseRouter) {
     let cancel = CancellationToken::new();
     let y = y_sections();
     let mut checksum = 0u64;

@@ -1,5 +1,5 @@
-use mcrs_minecraft_worldgen::interval::Interval;
-use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_minecraft_worldgen_noise::interval::Interval;
 
 use crate::world::generate::{CellFill, CellLattice, FillBuffers, column_fluid_field};
 
@@ -79,8 +79,8 @@ fn cell_elimination_census() {
 #[ignore]
 fn a_cell_bound_contains_every_density_inside_it() {
     use bevy_math::IVec3;
-    use mcrs_minecraft_worldgen::router::FINAL_DENSITY;
-    use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
+    use mcrs_minecraft_worldgen_density::router::FINAL_DENSITY;
+    use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
     /// Chunks per side, per region. Widening this is the whole knob.
     const SIDE: i32 = 64;
@@ -168,8 +168,8 @@ fn a_cell_bound_contains_every_density_inside_it() {
 #[test]
 fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
     use bevy_math::IVec3;
-    use mcrs_minecraft_worldgen::program::Workspace;
-    use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
+    use mcrs_minecraft_worldgen_density::program::Workspace;
+    use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
     let router = build_settings_router("overworld", 777);
     let cell = router.cell_size().expect("the router has a cell lattice");

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use mcrs_minecraft_biome::climate::ClimateParameters;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
-use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_settings_router;
 use crate::world::generate::modern_carvers::climate_target_at;

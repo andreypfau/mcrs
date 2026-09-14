@@ -322,11 +322,11 @@ descent per column before carving, which by the fast path of
 here the batch is the unit, and the set is the union of the distinct entries of
 every section palette of the nine snapshots
 (`ChunkGenerator.java:392-400`; `VoxelPalette::for_each_distinct`,
-`crates/mcrs_voxel_storage/src/voxel_palette.rs:79`), intersected with the
+`crates/mcrs_minecraft_chunk/src/voxel_palette.rs:79`), intersected with the
 biome source's possible biomes as the reference does at line 400. The
 block-resolution biome query the `biome` filter needs (F3, Cl4) reads the
 window's stored palettes through the zoom
-(`crates/mcrs_minecraft_world/src/biome/zoom.rs:10`); unlike the surface stage,
+(`crates/mcrs_minecraft_biome/src/zoom.rs:10`); unlike the surface stage,
 whose read radius is zero and which must re-evaluate climate, this stage has
 the ring in hand.
 
@@ -418,14 +418,14 @@ inline `Feature` — the reference's `Holder` codec — and so is every
 and references one). That is the either-form of `worldgen.md`'s serde section:
 a hand-written `Deserialize` with a symmetric `Serialize`, so the shape
 round-trips unchanged; `BiomeSet` is the in-repo model
-(`crates/mcrs_minecraft_worldgen/src/material/proto.rs:130-160`). `placement`
+(`crates/mcrs_minecraft_worldgen_surface/src/proto.rs:130-160`). `placement`
 is a list of `PlacementModifier`, a tagged enum over the eighteen registered
 types (`placement/PlacementModifierTypes.java:11-28`; the corpus uses fifteen,
 `biome` 211 times, `count` 201, `in_square` 198, `block_predicate_filter` 155,
 `heightmap` 111).
 
 Nested shapes the two registries pull in, each a serde type under
-`crates/mcrs_minecraft_worldgen/src/feature/`:
+`crates/mcrs_minecraft_worldgen_feature/src/`:
 
 | Shape | Reference |
 | --- | --- |
@@ -461,7 +461,7 @@ the serialised form). The shipped corpus uses ids only and ships no
 `tags/worldgen/placed_feature/`, but 26.3 admits all three, so the proto is a
 `Vec<FeatureStepList>` where a step list is the either-form of a tag or a list
 of holders, and the current `Vec<Vec<ResourceLocation>>`
-(`crates/mcrs_minecraft_world/src/biome/mod.rs:36`) changes. At freeze a tag
+(`crates/mcrs_minecraft_biome/src/lib.rs:36`) changes. At freeze a tag
 expands to its entries in the tag file's order, and an inline entry is a vertex
 of its own in the sort (§4.3, D13). The biome asset declares no dependencies
 (`biome/mod.rs:83-85`) and keeps not doing so; the feature registries load
@@ -474,9 +474,9 @@ handles, the dependency walk and the loader for each. `feature` and
 `placed_feature` are two more rows: `placed_feature` is a nested registry
 (it names features and, through selectors, other placed features), `feature`
 is nested for the same reason. The protos live beside the existing ore port in
-`mcrs_minecraft_decoration::feature`; the compiled forms live next to them, in
+`mcrs_minecraft_worldgen_feature::place`; the compiled forms live next to them, in
 the pattern of `material::proto` and `material::compile`
-(`crates/mcrs_minecraft_worldgen/src/material/compile.rs:42-47, 259`).
+(`crates/mcrs_minecraft_worldgen_surface/src/compile.rs:42-47, 259`).
 
 **Fe3. Beta's populate step is one feature.** Beta draws every object of a
 chunk's populate step from one `LegacyRandom` seeded per chunk
@@ -593,7 +593,7 @@ configuration hash (Q3).
 
 Objects see the window through one reader and one writer (Wn2, Wn5), with
 world-absolute coordinates, the same shape the ore port already takes
-(`mcrs_minecraft_decoration/src/feature/mod.rs:18-29`). Beyond blocks a
+(`mcrs_minecraft_worldgen_feature/src/place/mod.rs:18-29`). Beyond blocks a
 generator needs: the six maps of Wn3, the block-resolution biome (Wn4), the
 dimension extent (`value_provider.rs:11`), the block tag registry
 (`DynTagRegistry`, taken at `chunk.rs:779`) resolved to masks at freeze, and
@@ -709,11 +709,11 @@ world — each fixture is a dump from `tools/vanilla-oracle` and carries
 `WORLD_VERSION` 5015:
 
 - the sort, per shipped biome source
-  (`mcrs_minecraft_worldgen/tests/feature_sort.rs`);
+  (`mcrs_minecraft_worldgen_feature/tests/feature_sort.rs`);
 - ore geometry, `OreFeature.doPlace` over a flat all-stone array
-  (`mcrs_minecraft_decoration/tests/ore_vein_parity.rs`);
+  (`mcrs_minecraft_worldgen_feature/tests/ore_vein_parity.rs`);
 - tree geometry, through the oracle's stub level
-  (`mcrs_minecraft_decoration/tests/tree_geometry_parity.rs`).
+  (`mcrs_minecraft_worldgen_feature/tests/tree_geometry_parity.rs`).
 
 Decorated chunks of a real world are not attainable (§15 of `worldgen.md`,
 S3): a dump taken from a running server is a dump of one route.
@@ -800,7 +800,7 @@ schema knows which blocks have one
 is the runtime form. That form is an entity per block entity with a back-link
 to its section, in the shape the column-to-section link already has: a
 custom component naming the parent
-(`mcrs_voxel_world/src/world/storage/column.rs:20-25`, `InColumn`), a forward
+(`mcrs_minecraft_level/src/world/storage/column.rs:20-25`, `InColumn`), a forward
 index on the parent maintained by the same reconcile step that attaches the
 back-link, and not the built-in hierarchy (X8 of `worldgen.md`). The section's
 despawn (`lifecycle/ticket.rs:208-228`) despawns its block entities through

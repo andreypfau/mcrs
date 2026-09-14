@@ -15,13 +15,11 @@ use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::Fluid;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_decoration::feature::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen::bevy::{
     FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, TemplateAsset, TemplatePoolAsset,
 };
-use mcrs_minecraft_worldgen::feature::compile::{
-    FeatureSteps, LoadedFeatures, build_feature_steps,
-};
+use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures, build_feature_steps};
+use mcrs_minecraft_worldgen_feature::place::terrain_skin::BiomeClimate;
 
 use crate::world::generate::feature_program::FeatureProgram;
 use crate::world::generate::routers::DimensionBiomeSources;
@@ -269,14 +267,14 @@ fn build_dimension_features(
 mod tests {
     use super::*;
     use bytes::Buf;
-    use mcrs_minecraft_worldgen::corpus::dump_string;
+    use mcrs_minecraft_worldgen_testing::dump_string;
     use std::path::Path;
 
     /// The reference's own `possibleBiomes`, per source, from the dump the
     /// feature-order oracle wrote.
     fn dumped_biomes() -> BTreeMap<String, Vec<String>> {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../mcrs_minecraft_worldgen/tests/fixtures/vanilla/feature_steps.bin");
+            .join("../mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla/feature_steps.bin");
         let data = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         let mut r: &[u8] = &data;
         r.copy_to_bytes(8);

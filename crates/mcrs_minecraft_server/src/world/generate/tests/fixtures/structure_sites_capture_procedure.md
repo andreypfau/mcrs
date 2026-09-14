@@ -30,7 +30,7 @@ at 64 columns per dimension.
 ## Bootstrap
 
 Identical to `structure_cells.bin` (see
-`crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/structure_cells_capture_procedure.md`):
+`crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/structure_cells_capture_procedure.md`):
 `Bootstrap.bootStrap()`, the vanilla pack's `MultiPackResourceManager`, then
 `RegistryLayer.createRegistryAccess()` → `TagLoader.loadTagsForExistingRegistries`
 → `TagLoader.buildUpdatedLookups` → `RegistryDataLoader.load(..., WORLD_REGISTRIES, ...)`.

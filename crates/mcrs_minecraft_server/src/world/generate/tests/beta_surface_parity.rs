@@ -12,7 +12,7 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_protocol::BlockStateId;
 
-use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
@@ -212,7 +212,7 @@ impl std::fmt::Display for MismatchBand {
 fn column_matches(
     generated_col: &[BlockStateId; 128],
     fixture: &ColumnFixture,
-    router: &mcrs_minecraft_worldgen::router::NoiseRouter,
+    router: &mcrs_minecraft_worldgen_density::router::NoiseRouter,
     table: &[[BetaLandBiome; 64]; 64],
 ) -> ColumnMatchResult {
     let pre_cave = &fixture.pre_cave;

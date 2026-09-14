@@ -7,15 +7,15 @@ use bevy_math::IVec3;
 use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_worldgen::beard::{Beard, BeardPiece, JunctionPoint};
-use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
-use mcrs_minecraft_worldgen::feature::placer::BiomeMask;
-use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::router::{
+use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_minecraft_worldgen_density::router::{
     CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
-use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
-use mcrs_minecraft_worldgen::structure::StructurePlacement;
-use mcrs_minecraft_worldgen::structure::placement::{
+use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
+use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
+use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_worldgen_structure::StructurePlacement;
+use mcrs_minecraft_worldgen_structure::placement::{
     SpreadPlacement, excluded_in_range, fixed_biome_window, frequency_gate, ring_positions,
     scan_biome_window, select_with_removal,
 };
@@ -25,12 +25,12 @@ use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::stages::extent;
 use crate::world::generate::{base_height, heightmap_kind};
 use crate::world::heightmap::HeightmapPredicates;
-use mcrs_minecraft_worldgen::structure::frozen::{
+use mcrs_minecraft_worldgen_structure::frozen::{
     DimensionStructureTables, SetId, StructureId, StructureKind,
 };
-use mcrs_minecraft_worldgen::structure::jigsaw::{Piece, Start, layout};
-use mcrs_minecraft_worldgen::structure::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
-use mcrs_minecraft_worldgen::structure::site::{Site, SiteWorld, site};
+use mcrs_minecraft_worldgen_structure::jigsaw::{Piece, Start, layout};
+use mcrs_minecraft_worldgen_structure::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
+use mcrs_minecraft_worldgen_structure::site::{Site, SiteWorld, site};
 
 #[derive(Clone)]
 pub enum BiomeLookup {

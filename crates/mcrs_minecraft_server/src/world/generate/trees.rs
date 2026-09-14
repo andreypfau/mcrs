@@ -11,31 +11,31 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
 };
-use mcrs_minecraft_decoration::feature::tree::decorator::{CompiledTreeDecorator, TreePalette};
-use mcrs_minecraft_decoration::feature::tree::foliage::Foliage;
-use mcrs_minecraft_decoration::feature::tree::provider::{
+use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
+use mcrs_minecraft_worldgen_feature::compile::{
+    FeatureCompileError, StateQuery, compile_predicate,
+};
+use mcrs_minecraft_worldgen_feature::place::tree::decorator::{CompiledTreeDecorator, TreePalette};
+use mcrs_minecraft_worldgen_feature::place::tree::foliage::Foliage;
+use mcrs_minecraft_worldgen_feature::place::tree::provider::{
     SharedNoise, StateProvider, int_property_table, rotation_table,
 };
-use mcrs_minecraft_decoration::feature::tree::root::{AboveRootPlacement, MangroveRoots};
-use mcrs_minecraft_decoration::feature::tree::survive::{
+use mcrs_minecraft_worldgen_feature::place::tree::root::{AboveRootPlacement, MangroveRoots};
+use mcrs_minecraft_worldgen_feature::place::tree::survive::{
     CANNOT_SUPPORT_SEAGRASS, OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT, SUPPORTS_CACTUS,
     SUPPORTS_LILY_PAD, SUPPORTS_SMALL_DRIPLEAF, SUPPORTS_SUGAR_CANE,
     SUPPORTS_SUGAR_CANE_ADJACENTLY, SUPPORTS_VEGETATION, SurviveFamily, SurviveRule,
     UNSTABLE_BOTTOM_CENTER, family_of,
 };
-use mcrs_minecraft_decoration::feature::tree::trunk::{TreeStates, Trunk};
-use mcrs_minecraft_decoration::feature::tree::{CompiledTree, LeafDistances, TreeTables};
-use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
-use mcrs_minecraft_worldgen::feature::compile::{
-    FeatureCompileError, StateQuery, compile_predicate,
-};
-use mcrs_minecraft_worldgen::feature::placer::StateMask;
-use mcrs_minecraft_worldgen::feature::tree::{
+use mcrs_minecraft_worldgen_feature::place::tree::trunk::{TreeStates, Trunk};
+use mcrs_minecraft_worldgen_feature::place::tree::{CompiledTree, LeafDistances, TreeTables};
+use mcrs_minecraft_worldgen_feature::placer::StateMask;
+use mcrs_minecraft_worldgen_feature::tree::{
     BlockStateProvider, RootPlacer as ProtoRootPlacer, TreeConfig, TreeDecorator as ProtoDecorator,
     TrunkPlacer as ProtoTrunk,
 };
-use mcrs_minecraft_worldgen::noise::normal as normal_noise;
+use mcrs_minecraft_worldgen_noise::normal as normal_noise;
 
 use super::feature_program::{Resolver, missing, union_masks};
 
@@ -559,7 +559,7 @@ fn compile_root_placer(placer: &ProtoRootPlacer, r: &Resolver<'_>) -> Compiled<M
 }
 
 fn block_states_of(
-    states: &[mcrs_minecraft_worldgen::proto::BlockState],
+    states: &[mcrs_minecraft_worldgen_density::proto::BlockState],
     r: &Resolver<'_>,
 ) -> Compiled<Vec<VoxelId>> {
     states.iter().map(|state| r.resolve(state)).collect()
@@ -567,7 +567,7 @@ fn block_states_of(
 
 /// `NoiseBasedStateProvider`'s constructor: one legacy source per noise field,
 /// each reseeded from the provider's own `seed` rather than the world's.
-fn sampler(seed: i64, noise: &mcrs_minecraft_worldgen::proto::NoiseParam) -> SharedNoise {
+fn sampler(seed: i64, noise: &mcrs_minecraft_worldgen_noise::proto::NoiseParam) -> SharedNoise {
     let mut random = LegacyRandom::new(seed as u64);
     Arc::new(normal_noise::create(noise, &mut random))
 }

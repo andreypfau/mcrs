@@ -8,9 +8,9 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_worldgen::feature::compile::{CompiledPlacedFeature, FeatureSteps};
-use mcrs_minecraft_worldgen::feature::placement::PlacementModifier;
-use mcrs_minecraft_worldgen::feature::proto::{Feature, Holder, PlacedFeature};
+use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
+use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
+use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature};
 
 use crate::world::generate::ColumnBlocks;
 use crate::world::generate::feature_program::FeatureProgram;
@@ -331,7 +331,7 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
 #[test]
 fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
     use mcrs_minecraft_core::HolderSet;
-    use mcrs_minecraft_worldgen::feature::compile::{BlockResolver, StateQuery};
+    use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, StateQuery};
 
     let biomes = biome_registry(&[BIOME]);
     let resolver = crate::world::generate::feature_program::Resolver::new(

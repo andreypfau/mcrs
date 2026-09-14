@@ -3,9 +3,9 @@ use mcrs_minecraft_level::palette::AirCount;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::generate_column;
-use mcrs_minecraft_worldgen::compile::build_router;
-use mcrs_minecraft_worldgen::proto::DensityFunctionHolder;
-use mcrs_minecraft_worldgen::router::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen_density::compile::build_router;
+use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
+use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
@@ -62,7 +62,7 @@ fn beta_sections_outside_noise_range_are_air() {
         &functions,
         &noises,
         42,
-        mcrs_minecraft_worldgen::router::RouterBlocks {
+        mcrs_minecraft_worldgen_density::router::RouterBlocks {
             default_block: mcrs_minecraft_protocol::BlockStateId(1).into(),
             default_fluid: mcrs_minecraft_protocol::BlockStateId(86).into(),
             water: mcrs_minecraft_protocol::BlockStateId(86).into(),

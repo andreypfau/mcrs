@@ -1,0 +1,29 @@
+[package]
+name = "mcrs_minecraft_worldgen_surface"
+description = "Surface rules: the material rule compiler and evaluator"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_asset = { workspace = true, optional = true }
+bevy_reflect = { workspace = true, optional = true }
+bevy_math.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_random.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_noise.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+mcrs_minecraft_worldgen_testing.workspace = true
+
+[features]
+default = ["fast"]
+bevy = ["dep:bevy_asset", "dep:bevy_reflect"]
+fast = ["mcrs_minecraft_worldgen_density/fast"]

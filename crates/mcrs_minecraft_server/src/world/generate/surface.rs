@@ -8,11 +8,11 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, QuartPos};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_worldgen::material::compile::MaterialProgram;
-use mcrs_minecraft_worldgen::material::{
+use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
+use mcrs_minecraft_worldgen_surface::{
     MaterialEval, MaterialScratch, NO_WATER, SettledState, SurfaceNoise,
 };
-use mcrs_minecraft_worldgen::router::NoiseRouter;
 use std::cell::RefCell;
 
 /// The blocks and biomes the two hardcoded landforms name, which no rule does.

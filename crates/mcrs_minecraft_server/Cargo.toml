@@ -8,6 +8,12 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_worldgen_structure.workspace = true
+mcrs_minecraft_worldgen_carver.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_surface.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome.workspace = true
@@ -23,7 +29,6 @@ mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world.workspace = true
-mcrs_minecraft_decoration.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_nbt.workspace = true
@@ -50,7 +55,8 @@ bitflags = "2.10.0"
 tracing = { workspace = true }
 
 [dev-dependencies]
-mcrs_minecraft_worldgen = { workspace = true, features = ["corpus", "test-support"] }
+mcrs_minecraft_worldgen_testing.workspace = true
+mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 tracing-subscriber = "0.3"
 rand_xoshiro = { workspace = true }
 base64 = { workspace = true }

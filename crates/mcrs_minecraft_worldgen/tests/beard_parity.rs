@@ -4,10 +4,10 @@
 
 use bevy_math::IVec3;
 use bytes::{Buf, Bytes};
-use mcrs_minecraft_worldgen::SampleGrid;
+use mcrs_minecraft_worldgen_noise::SampleGrid;
 use mcrs_minecraft_worldgen::beard::{Beard, JunctionPoint, KERNEL, KERNEL_LEN, Rigid};
-use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
-use mcrs_minecraft_worldgen::structure::TerrainAdaptation;
+use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
+use mcrs_minecraft_worldgen_structure::TerrainAdaptation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use std::path::PathBuf;
 
