@@ -11,7 +11,7 @@ use mcrs_voxel_math::mth::{lerp, lerp_int, wrap_degrees};
 use serde_json::Value;
 
 use super::modifier::Operation;
-use super::registry::{AttributeSpec, AttributeType, AttributeValue};
+use super::spec::{AttributeSpec, AttributeType, AttributeValue};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Lerp {

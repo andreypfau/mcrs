@@ -447,7 +447,7 @@ impl Plugin for MinecraftWorldPlugin {
         }
         app.world_mut().resource_scope(
             |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {
-                enchantment::registry::register_all_enchantments(
+                enchantment::register_all_enchantments(
                     &mut enchantments,
                     world.resource::<AssetServer>(),
                 );

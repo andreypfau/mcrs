@@ -1,6 +1,6 @@
-pub mod registry;
+pub mod sessions;
 
-pub use registry::{
+pub use sessions::{
     DimPlayerIndex, MoveId, Owner, PlayerSession, PlayerSessionCounter, SessionEntry,
     SessionRegistry,
 };

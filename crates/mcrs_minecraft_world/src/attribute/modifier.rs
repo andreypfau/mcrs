@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::registry::{AttributeType, AttributeValue};
+use super::spec::{AttributeType, AttributeValue};
 use crate::ResourceLocation;
 use crate::biome::{MobSpawnSettings, SpawnCost};
 use std::collections::BTreeMap;
@@ -204,10 +204,10 @@ fn overlay_spawns(first: &MobSpawnSettings, second: &MobSpawnSettings) -> MobSpa
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attribute::registry::attribute;
+    use crate::attribute::spec::attribute;
     use serde_json::json;
 
-    fn spec(id: &str) -> &'static super::super::registry::AttributeSpec {
+    fn spec(id: &str) -> &'static super::super::spec::AttributeSpec {
         attribute(id).unwrap()
     }
 

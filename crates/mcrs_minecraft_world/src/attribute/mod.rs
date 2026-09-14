@@ -1,6 +1,6 @@
 pub mod lerp;
 pub mod modifier;
-pub mod registry;
+pub mod spec;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -14,7 +14,7 @@ use crate::ResourceLocation;
 
 pub use lerp::Lerp;
 pub use modifier::{ModifierError, Operation, apply};
-pub use registry::{
+pub use spec::{
     AttributeError, AttributeRange, AttributeSpec, AttributeType, AttributeValue,
     ENVIRONMENT_ATTRIBUTES, RawArgument, attribute, is_syncable,
 };
@@ -97,7 +97,7 @@ impl AttributeEntry {
         }
 
         let Value::Object(mut fields) = value else {
-            return Err(registry::malformed(
+            return Err(spec::malformed(
                 spec.id,
                 format!(
                     "{value} is neither a {:?} value nor a modifier entry",
@@ -108,22 +108,22 @@ impl AttributeEntry {
         let modifier = match fields.remove("modifier") {
             Some(Value::String(name)) => Operation::deserialize(name.as_str().into_deserializer())
                 .map_err(|_: serde::de::value::Error| {
-                    registry::malformed(spec.id, format!("`{name}` is not a modifier operation"))
+                    spec::malformed(spec.id, format!("`{name}` is not a modifier operation"))
                 })?,
             Some(other) => {
-                return Err(registry::malformed(
+                return Err(spec::malformed(
                     spec.id,
                     format!("`modifier` must be a string, got {other}"),
                 ));
             }
-            None => return Err(registry::malformed(spec.id, "entry is missing `modifier`")),
+            None => return Err(spec::malformed(spec.id, "entry is missing `modifier`")),
         };
         let argument = fields
             .remove("argument")
-            .ok_or_else(|| registry::malformed(spec.id, "entry is missing `argument`"))?;
+            .ok_or_else(|| spec::malformed(spec.id, "entry is missing `argument`"))?;
         if !fields.is_empty() {
             let unexpected: Vec<_> = fields.keys().cloned().collect();
-            return Err(registry::malformed(
+            return Err(spec::malformed(
                 spec.id,
                 format!("entry has unexpected fields {unexpected:?}"),
             ));
