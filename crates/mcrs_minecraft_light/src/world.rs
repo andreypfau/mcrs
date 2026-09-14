@@ -8,9 +8,10 @@ use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 
 use crate::SectionBlocks;
 use crate::block::{Layer, LightRegistry};
-use crate::level::{BlockColumn, LightBounds, LightLevel, LocalPos, SECTION_WIDTH};
-use crate::region::BlockBox;
+use crate::level::{BlockColumn, LightBounds, LightLevel, SECTION_WIDTH};
 use crate::storage::LightStorage;
+use mcrs_voxel_math::BoundingBox;
+use mcrs_voxel_math::LocalPos;
 
 /// One loaded section: its blocks, the entity that owns them, and the last
 /// published light for both layers.
@@ -342,7 +343,7 @@ impl LightWorld {
     /// were lit ticks ago, and those cells are further than one section from
     /// the section that moved it, so the loading influence alone does not reach
     /// them.
-    pub(crate) fn rescan_column(&mut self, section_column: ColumnPos) -> Option<BlockBox> {
+    pub(crate) fn rescan_column(&mut self, section_column: ColumnPos) -> Option<BoundingBox> {
         if !self.sky {
             return None;
         }
@@ -376,7 +377,7 @@ impl LightWorld {
                 section_column.x * SECTION_WIDTH,
                 section_column.z * SECTION_WIDTH,
             );
-            BlockBox {
+            BoundingBox {
                 min: BlockPos::new(x, low, z),
                 max: BlockPos::new(x + SECTION_WIDTH - 1, high, z + SECTION_WIDTH - 1),
             }

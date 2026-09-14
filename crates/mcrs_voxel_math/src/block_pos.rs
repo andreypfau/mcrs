@@ -39,6 +39,12 @@ impl Hash for BlockPos {
     }
 }
 
+impl From<IVec3> for BlockPos {
+    fn from(value: IVec3) -> Self {
+        Self(value)
+    }
+}
+
 impl From<DVec3> for BlockPos {
     fn from(value: DVec3) -> Self {
         BlockPos::new(

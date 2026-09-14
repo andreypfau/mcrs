@@ -9,9 +9,10 @@ use mcrs_voxel_math::{BlockPos, Direction, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelId};
 
 use crate::SectionBlocks;
-use crate::level::{LightLevel, LocalPos, SECTION_WIDTH};
-use crate::region::BlockBox;
+use crate::level::{LightLevel, SECTION_WIDTH};
 use crate::storage::LightStorage;
+use mcrs_voxel_math::BoundingBox;
+use mcrs_voxel_math::LocalPos;
 
 /// Index of a cell within a [`FieldLayout`].
 pub type CellIndex = u32;
@@ -40,7 +41,7 @@ pub struct FieldLayout {
 
 impl FieldLayout {
     /// Smallest section-aligned layout covering `area`.
-    pub fn covering(area: BlockBox) -> Self {
+    pub fn covering(area: BoundingBox) -> Self {
         let origin = SectionPos::from(area.min);
         let far = SectionPos::from(area.max);
         Self {
@@ -100,13 +101,13 @@ impl FieldLayout {
     }
 
     /// The block-coordinate box this layout spans.
-    pub fn block_bounds(&self) -> BlockBox {
+    pub fn block_bounds(&self) -> BoundingBox {
         let far = SectionPos::new(
             self.origin.x + self.dim_x - 1,
             self.origin.y + self.dim_y - 1,
             self.origin.z + self.dim_z - 1,
         );
-        BlockBox::of_section(self.origin).union(BlockBox::of_section(far))
+        BoundingBox::of_section(self.origin).union(BoundingBox::of_section(far))
     }
 
     /// Index of the first cell of a section, to be combined with a [`LocalPos`].
@@ -321,7 +322,7 @@ mod tests {
     use super::*;
 
     fn layout() -> FieldLayout {
-        FieldLayout::covering(BlockBox {
+        FieldLayout::covering(BoundingBox {
             min: BlockPos::new(0, 0, 0),
             max: BlockPos::new(47, 47, 47),
         })

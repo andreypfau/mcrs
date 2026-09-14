@@ -4,7 +4,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_voxel_math::Direction;
+use mcrs_voxel_math::{BoundingBox, Direction};
 use mcrs_voxel_storage::VoxelId;
 use serde::{Deserialize, Serialize};
 
@@ -433,66 +433,6 @@ impl Template {
     }
 }
 
-/// An inclusive box.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BoundingBox {
-    pub min: IVec3,
-    pub max: IVec3,
-}
-
-impl BoundingBox {
-    pub fn from_corners(a: IVec3, b: IVec3) -> Self {
-        BoundingBox {
-            min: a.min(b),
-            max: a.max(b),
-        }
-    }
-
-    pub fn moved(self, delta: IVec3) -> Self {
-        BoundingBox {
-            min: self.min + delta,
-            max: self.max + delta,
-        }
-    }
-
-    pub fn inflated(self, n: i32) -> Self {
-        BoundingBox {
-            min: self.min - IVec3::splat(n),
-            max: self.max + IVec3::splat(n),
-        }
-    }
-
-    pub fn intersects(&self, other: &Self) -> bool {
-        (self.max.cmpge(other.min) & self.min.cmple(other.max)).all()
-    }
-
-    pub fn contains(&self, other: &Self) -> bool {
-        (other.min.cmpge(self.min) & other.max.cmple(self.max)).all()
-    }
-
-    pub fn is_inside(&self, pos: IVec3) -> bool {
-        (pos.cmpge(self.min) & pos.cmple(self.max)).all()
-    }
-
-    pub fn encapsulating(self, pos: IVec3) -> Self {
-        BoundingBox {
-            min: self.min.min(pos),
-            max: self.max.max(pos),
-        }
-    }
-
-    pub fn union(self, other: Self) -> Self {
-        BoundingBox {
-            min: self.min.min(other.min),
-            max: self.max.max(other.max),
-        }
-    }
-
-    pub fn y_span(&self) -> i32 {
-        self.max.y - self.min.y + 1
-    }
-}
-
 pub fn transform(pos: IVec3, rotation: Rotation, pivot: IVec3) -> IVec3 {
     let IVec3 { x, y, z } = pos;
     let (px, pz) = (pivot.x, pivot.z);
@@ -512,11 +452,7 @@ pub fn bounding_box(size: [u16; 3], position: IVec3, rotation: Rotation) -> Boun
     );
     let a = transform(IVec3::ZERO, rotation, IVec3::ZERO);
     let b = transform(far, rotation, IVec3::ZERO);
-    let bounds = BoundingBox::from_corners(a, b);
-    BoundingBox {
-        min: bounds.min + position,
-        max: bounds.max + position,
-    }
+    BoundingBox::from_corners(a.into(), b.into()).moved(position)
 }
 
 #[cfg(test)]
@@ -525,6 +461,7 @@ mod tests {
     use crate::corpus::{assets_dir, nbt_files};
     use mcrs_minecraft_nbt::nbt_compress::{from_gzip_bytes, read_gzip_compound_tag};
     use mcrs_minecraft_nbt::to_nbt_compound;
+    use mcrs_voxel_math::BlockPos;
     use std::io::Cursor;
 
     fn canonical(compound: &NbtCompound) -> NbtCompound {
@@ -1029,46 +966,46 @@ mod tests {
         assert_eq!(
             boxed(Rotation::None),
             BoundingBox {
-                min: at,
-                max: at + IVec3::new(2, 3, 4)
+                min: (at).into(),
+                max: (at + IVec3::new(2, 3, 4)).into()
             }
         );
         assert_eq!(
             boxed(Rotation::Clockwise90),
             BoundingBox {
-                min: at + IVec3::new(-4, 0, 0),
-                max: at + IVec3::new(0, 3, 2)
+                min: (at + IVec3::new(-4, 0, 0)).into(),
+                max: (at + IVec3::new(0, 3, 2)).into()
             }
         );
         assert_eq!(
             boxed(Rotation::Counterclockwise90),
             BoundingBox {
-                min: at + IVec3::new(0, 0, -2),
-                max: at + IVec3::new(4, 3, 0)
+                min: (at + IVec3::new(0, 0, -2)).into(),
+                max: (at + IVec3::new(4, 3, 0)).into()
             }
         );
         assert_eq!(
             boxed(Rotation::Clockwise180),
             BoundingBox {
-                min: at + IVec3::new(-2, 0, -4),
-                max: at + IVec3::new(0, 3, 0)
+                min: (at + IVec3::new(-2, 0, -4)).into(),
+                max: (at + IVec3::new(0, 3, 0)).into()
             }
         );
     }
 
     #[test]
     fn box_arithmetic_is_inclusive() {
-        let a = BoundingBox::from_corners(IVec3::new(0, 0, 0), IVec3::new(4, 2, 4));
+        let a = BoundingBox::from_corners(BlockPos::new(0, 0, 0), BlockPos::new(4, 2, 4));
         assert_eq!(a.y_span(), 3);
-        assert_eq!(a.moved(IVec3::new(1, -1, 0)).min, IVec3::new(1, -1, 0));
-        assert_eq!(a.inflated(12).max, IVec3::new(16, 14, 16));
-        assert!(a.intersects(&BoundingBox::from_corners(
-            IVec3::new(4, 2, 4),
-            IVec3::splat(9)
+        assert_eq!(a.moved(IVec3::new(1, -1, 0)).min, BlockPos::new(1, -1, 0));
+        assert_eq!(a.inflated(12).max, BlockPos::new(16, 14, 16));
+        assert!(a.intersects(BoundingBox::from_corners(
+            BlockPos::new(4, 2, 4),
+            IVec3::splat(9).into()
         )));
-        assert!(!a.intersects(&BoundingBox::from_corners(
-            IVec3::new(5, 0, 0),
-            IVec3::splat(9)
+        assert!(!a.intersects(BoundingBox::from_corners(
+            BlockPos::new(5, 0, 0),
+            IVec3::splat(9).into()
         )));
     }
 

@@ -6,9 +6,9 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{shuffle, shuffled};
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::proto::Rotation;
-use mcrs_minecraft_worldgen::structure::template::BoundingBox;
 use mcrs_minecraft_worldgen::structure::template::Joint;
 use mcrs_minecraft_worldgen::structure::{JigsawConfig, Projection, TerrainAdaptation};
+use mcrs_voxel_math::{BlockPos, BoundingBox};
 
 use super::site::{PlacedJigsaw, Site, SiteWorld, element_bounds, shuffled_jigsaws};
 use super::{ElementId, FrozenStructures, PoolId, StructureId, StructureKind, TERRAIN_MARGIN};
@@ -87,7 +87,8 @@ struct FreeSpace {
 
 impl FreeSpace {
     fn fits(&self, candidate: &BoundingBox) -> bool {
-        self.bounds.contains(candidate) && !self.holes.iter().any(|hole| hole.intersects(candidate))
+        self.bounds.contains(*candidate)
+            && !self.holes.iter().any(|hole| hole.intersects(*candidate))
     }
 }
 
@@ -154,12 +155,12 @@ pub fn layout(
     let padding = &config.dimension_padding;
     let c = site.position;
     let bounds = BoundingBox {
-        min: IVec3::new(
+        min: BlockPos::new(
             c.x - reach.horizontal(),
             (c.y - reach.vertical()).max(accessor_min_y + padding.bottom()),
             c.z - reach.horizontal(),
         ),
-        max: IVec3::new(
+        max: BlockPos::new(
             c.x + reach.horizontal(),
             (c.y + reach.vertical()).min(accessor_min_y + accessor_height - 1 - padding.top()),
             c.z + reach.horizontal(),
@@ -225,7 +226,7 @@ impl Assembly<'_> {
         jigsaws
             .iter()
             .map(|jigsaw| {
-                if !hack_box.is_inside(jigsaw.pos + jigsaw.front.normal()) {
+                if !hack_box.is_inside((jigsaw.pos + jigsaw.front.normal()).into()) {
                     return 0;
                 }
                 let Some(pool) = self.pool(&jigsaw.block.pool) else {
@@ -278,7 +279,7 @@ impl Assembly<'_> {
             if !self.pool_is_usable(fallback) {
                 continue;
             }
-            let children_space = if source_bounds.is_inside(target_jigsaw_pos) {
+            let children_space = if source_bounds.is_inside(target_jigsaw_pos.into()) {
                 *interior.get_or_insert_with(|| {
                     self.spaces.push(FreeSpace {
                         bounds: source_bounds,
@@ -344,7 +345,7 @@ impl Assembly<'_> {
                         if expand_to > 0 {
                             let new_size =
                                 (expand_to + 1).max(target_bounds.max.y - target_bounds.min.y);
-                            target_bounds = target_bounds.encapsulating(IVec3::new(
+                            target_bounds = target_bounds.encapsulating(BlockPos::new(
                                 target_bounds.min.x,
                                 target_bounds.min.y + new_size,
                                 target_bounds.min.z,
@@ -422,8 +423,8 @@ mod tests {
 
     fn cube(min: [i32; 3], max: [i32; 3]) -> BoundingBox {
         BoundingBox {
-            min: IVec3::from(min),
-            max: IVec3::from(max),
+            min: min.into(),
+            max: max.into(),
         }
     }
 

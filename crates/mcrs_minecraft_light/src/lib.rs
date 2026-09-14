@@ -46,13 +46,13 @@ pub mod prelude {
     pub use crate::epoch::{
         EpochStats, EpochTimings, LightJob, LightUpdate, PublishedLight, SectionLight,
     };
-    pub use crate::level::{BlockColumn, LightBounds, LightLevel, LocalPos};
+    pub use crate::level::{BlockColumn, LightBounds, LightLevel};
     pub use crate::plugin::{
         IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightSet, LightStatus, LightWorkQueue,
         Lighting, PendingEdits, dispatch_epoch, light_has_settled, publish_light,
     };
     pub use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
-    pub use crate::region::{BlockBox, Influence};
+    pub use crate::region::Influence;
     pub use crate::storage::LightStorage;
     pub use crate::world::{ColumnSurface, Edit, LightWorld, Section};
     pub use crate::{BlockLight, SectionBlocks, SkyLight};

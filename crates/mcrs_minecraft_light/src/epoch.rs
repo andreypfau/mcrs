@@ -15,11 +15,13 @@ use rustc_hash::FxHashSet;
 
 use crate::block::LightRegistry;
 use crate::field::{BlockSnapshot, CellIndex, FieldLayout, LightField, SectionSource, block_in};
-use crate::level::{BlockColumn, LightLevel, LocalPos};
-use crate::region::{BlockBox, ErasePlan, Influence, Regions, SectionErase};
+use crate::level::{BlockColumn, LightLevel};
+use crate::region::{ErasePlan, Influence, Regions, SectionErase};
 use crate::relax::relax;
 use crate::storage::LightStorage;
 use crate::world::{Edit, LightWorld, Section, SkyFloor};
+use mcrs_voxel_math::BoundingBox;
+use mcrs_voxel_math::LocalPos;
 
 /// New light for one section, per layer. A layer the epoch recomputed to the
 /// light it already had is `None`: the world keeps the buffer it holds, and
@@ -181,7 +183,7 @@ pub struct LightJob {
 impl LightJob {
     /// The sections this job will publish. Two jobs whose areas are disjoint
     /// neither read nor write a cell the other changes.
-    pub fn area(&self) -> BlockBox {
+    pub fn area(&self) -> BoundingBox {
         self.layout.block_bounds()
     }
 
@@ -256,7 +258,7 @@ impl LightJob {
             let floors = sky_floors[column_index].as_deref();
             let sky_frontier = sky_frontiers[column_index].as_ref();
             let source = blocks.section(section_index);
-            let erase = erase_plan.meets(BlockBox::of_section(section_pos));
+            let erase = erase_plan.meets(BoundingBox::of_section(section_pos));
 
             // Clear of the terrain with no block layer to compute: every cell is
             // a sky source and none of them can raise a neighbour, so the section
@@ -445,11 +447,11 @@ impl LightWorld {
                     let section = Section::new(self.registry(), entity, blocks);
                     self.insert_section(pos, section);
                     columns_to_rescan.insert(column);
-                    Some(Influence::new(BlockBox::of_section(pos)))
+                    Some(Influence::new(BoundingBox::of_section(pos)))
                 }
                 Edit::UnloadSection { pos } => self.remove_section(pos).map(|_| {
                     columns_to_rescan.insert(column);
-                    Influence::new(BlockBox::of_section(pos))
+                    Influence::new(BoundingBox::of_section(pos))
                 }),
                 Edit::SetColumnSurface { column, surface } => {
                     self.set_column_surface(column, surface);
@@ -487,7 +489,9 @@ impl LightWorld {
         let influenced = regions.bounds()?;
         // One cell of margin so the calculation is surrounded by values it is
         // not allowed to change.
-        let area = influenced.expand(1).clamp_vertically(self.bounds());
+        let area = influenced
+            .inflated(1)
+            .clamp_y(self.bounds().min_light_y(), self.bounds().max_light_y());
         let layout = FieldLayout::covering(area);
 
         let mut sections: Vec<SectionSource> = Vec::with_capacity(layout.section_count());
@@ -607,7 +611,7 @@ impl LightWorld {
             high = high.max(segment_high);
         }
 
-        let core = BlockBox {
+        let core = BoundingBox {
             min: BlockPos::new(pos.x, low, pos.z),
             max: BlockPos::new(pos.x, high, pos.z),
         };

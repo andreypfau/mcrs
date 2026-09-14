@@ -9,10 +9,9 @@ use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen::feature::proto::Rotation;
 use mcrs_minecraft_worldgen::structure::PoolAlias;
-use mcrs_minecraft_worldgen::structure::template::{
-    BoundingBox, JigsawBlock, Joint, bounding_box, transform,
-};
+use mcrs_minecraft_worldgen::structure::template::{JigsawBlock, Joint, bounding_box, transform};
 use mcrs_minecraft_worldgen::value_provider::{HeightContext, pick_weighted_by};
+use mcrs_voxel_math::BoundingBox;
 use mcrs_voxel_math::Direction;
 
 use super::{ElementId, FrozenElement, FrozenStructures, PoolId, StructureId, StructureKind};
@@ -255,10 +254,7 @@ pub fn element_bounds(
             .iter()
             .filter_map(|inner| element_bounds(frozen, *inner, position, rotation))
             .reduce(BoundingBox::union),
-        FrozenElement::Feature { .. } => Some(BoundingBox {
-            min: position,
-            max: position,
-        }),
+        FrozenElement::Feature { .. } => Some(BoundingBox::point(position.into())),
         FrozenElement::Empty => None,
     }
 }

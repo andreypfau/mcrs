@@ -10,7 +10,7 @@ use std::sync::Arc;
 use bevy_ecs::prelude::Entity;
 use common::{AIR, Reference, STONE, registry};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
+use mcrs_voxel_math::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelPalette};
 
 const SECTIONS_Y: i32 = 6;
@@ -83,7 +83,7 @@ fn column_edits(column: ColumnPos) -> Vec<Edit> {
 struct Pump {
     world: LightWorld,
     queue: LightQueue,
-    in_flight: Vec<(BlockBox, LightUpdate)>,
+    in_flight: Vec<(BoundingBox, LightUpdate)>,
     budget_cells: u64,
     epochs: usize,
 }
@@ -107,7 +107,7 @@ impl Pump {
         for (column, influence) in self.world.apply_edits(edits) {
             self.queue.push(column, influence);
         }
-        let occupied: Vec<BlockBox> = self.in_flight.iter().map(|(area, _)| *area).collect();
+        let occupied: Vec<BoundingBox> = self.in_flight.iter().map(|(area, _)| *area).collect();
         let free = self.epochs - self.in_flight.len();
         for batch in self.queue.drain_batches(self.budget_cells, &occupied, free) {
             let Some(job) = self.world.prepare_batch(batch) else {

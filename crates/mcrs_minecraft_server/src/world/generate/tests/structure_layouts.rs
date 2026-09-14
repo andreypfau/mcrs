@@ -7,7 +7,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
 use mcrs_minecraft_worldgen::feature::proto::{Holder, Rotation};
 use mcrs_minecraft_worldgen::structure::Projection;
-use mcrs_minecraft_worldgen::structure::template::BoundingBox;
+use mcrs_voxel_math::BoundingBox;
 
 use super::structure_sites::{build_index, dimension};
 use super::structures::frozen_shared;
@@ -57,7 +57,10 @@ fn read_projection(r: &mut impl Buf) -> Projection {
 fn read_box(r: &mut impl Buf) -> BoundingBox {
     let min = IVec3::new(r.get_i32_le(), r.get_i32_le(), r.get_i32_le());
     let max = IVec3::new(r.get_i32_le(), r.get_i32_le(), r.get_i32_le());
-    BoundingBox { min, max }
+    BoundingBox {
+        min: min.into(),
+        max: max.into(),
+    }
 }
 
 fn read_piece(r: &mut impl Buf) -> DumpPiece {

@@ -12,9 +12,9 @@ use crate::block::LightRegistry;
 use crate::epoch::LightUpdate;
 use crate::level::{LightBounds, SECTION_WIDTH};
 use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority, PriorityColumns};
-use crate::region::BlockBox;
 use crate::world::{Edit, LightWorld};
 use crate::{BlockLight, SkyLight};
+use mcrs_voxel_math::BoundingBox;
 
 /// Owns the block and light data. The ECS holds only what has been published.
 #[derive(Resource)]
@@ -161,7 +161,7 @@ impl Default for IntakeBudget {
 pub struct LightEpoch(Vec<InFlight>);
 
 struct InFlight {
-    area: BlockBox,
+    area: BoundingBox,
     task: Task<LightUpdate>,
 }
 
@@ -171,7 +171,7 @@ impl LightEpoch {
     }
 
     /// Whether an epoch under way may still write into `area`.
-    pub fn touches(&self, area: BlockBox) -> bool {
+    pub fn touches(&self, area: BoundingBox) -> bool {
         self.0.iter().any(|epoch| epoch.area.intersects(area))
     }
 }
@@ -236,7 +236,7 @@ impl LightStatus<'_> {
             }
         }
         let bounds = lighting.0.bounds();
-        let area = BlockBox {
+        let area = BoundingBox {
             min: BlockPos::new(
                 (column.x - 1) * SECTION_WIDTH,
                 bounds.min_light_y(),
@@ -385,7 +385,7 @@ pub fn dispatch_epoch(
     if free == 0 {
         return;
     }
-    let occupied: Vec<BlockBox> = running.0.iter().map(|epoch| epoch.area).collect();
+    let occupied: Vec<BoundingBox> = running.0.iter().map(|epoch| epoch.area).collect();
     for batch in queue
         .0
         .drain_batches(budget.cells_per_epoch, &occupied, free)
