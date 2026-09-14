@@ -1,3 +1,5 @@
+use crate::cell::CellBounds;
+use crate::compile::build_router_with;
 use crate::compile::{CompileError, Compiler};
 use crate::material::proto::{
     BiomeSet, CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule,
@@ -5,8 +7,8 @@ use crate::material::proto::{
 };
 use crate::noise::stack::{NoiseStack, Octave};
 use crate::program::NodeId;
-use crate::proto::{BlockState, HashableF64, NoiseHolder};
-use crate::router::NoiseGeneratorSettings;
+use crate::proto::{BlockState, DensityFunctionHolder, HashableF64, NoiseHolder, NoiseParam};
+use crate::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
@@ -171,6 +173,8 @@ pub struct MaterialProgram {
     noise_random: RandomSource,
     clay_bands: Box<[VoxelId]>,
     surface_noises: [NoiseId; 9],
+    /// One per ore vein, over its density root.
+    vein_bounds: Box<[CellBounds]>,
     /// The interning tables the builder kept. Only the differential oracle
     /// reads them back, to name the id a rule resolved to.
     #[cfg(test)]
@@ -194,6 +198,12 @@ impl MaterialProgram {
 
     pub fn veins(&self) -> &[OreVein] {
         &self.veins
+    }
+
+    /// The cell bounds of one ore vein's density, indexed as [`Self::veins`].
+    #[inline]
+    pub fn vein_cell_bounds(&self, vein: usize) -> &CellBounds {
+        &self.vein_bounds[vein]
     }
 
     pub fn noise(&self, noise: NoiseId) -> &NoiseStack<Octave> {
@@ -256,7 +266,33 @@ pub struct MaterialInputs<'a> {
     pub biome: &'a dyn Fn(&ResourceLocation) -> Option<u32>,
 }
 
-pub(crate) fn compile_material<'a>(
+/// The router and the material program compiled into one graph, which is how
+/// the material rules read the density functions they name.
+pub fn build_router_and_material(
+    settings: &NoiseGeneratorSettings,
+    registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
+    noises: &BTreeMap<ResourceLocation, NoiseParam>,
+    seed: u64,
+    blocks: RouterBlocks,
+    inputs: &MaterialInputs<'_>,
+) -> Result<(NoiseRouter, MaterialProgram), CompileError> {
+    let (router, mut material) = build_router_with(
+        settings,
+        registry,
+        noises,
+        seed,
+        blocks,
+        |compiler, roots| compile_material(compiler, roots, settings, inputs),
+    )?;
+    material.vein_bounds = material
+        .veins
+        .iter()
+        .map(|vein| CellBounds::new(&router.program, router.program.root_node(vein.density)))
+        .collect();
+    Ok((router, material))
+}
+
+fn compile_material<'a>(
     compiler: &mut Compiler<'_>,
     roots: &mut Vec<NodeId>,
     settings: &NoiseGeneratorSettings,
@@ -307,6 +343,7 @@ pub(crate) fn compile_material<'a>(
         noise_random: builder.compiler.positional_random(),
         clay_bands,
         surface_noises,
+        vein_bounds: Box::default(),
         #[cfg(test)]
         noise_ids: builder.noise_ids,
         #[cfg(test)]
@@ -683,7 +720,6 @@ fn make_bands(random: &mut RandomSource, bands: &mut [VoxelId], base_width: i32,
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::compile::build_router;
     use crate::compile::tests::corpus;
     use crate::program::Workspace;
     use crate::sample_grid::SampleGrid;
@@ -718,7 +754,7 @@ pub(crate) mod tests {
         crate::corpus::read("noise_settings", &ResourceLocation::minecraft(name))
     }
 
-    pub(crate) fn build(name: &str) -> crate::router::NoiseRouter {
+    pub(crate) fn build(name: &str) -> (crate::router::NoiseRouter, MaterialProgram) {
         let (functions, noises) = corpus();
         let (rules, conditions) = material_corpus();
         let inputs = MaterialInputs {
@@ -727,13 +763,13 @@ pub(crate) mod tests {
             block: &resolve_block,
             biome: &resolve_biome,
         };
-        build_router(
+        build_router_and_material(
             &settings(name),
             &functions,
             &noises,
             42,
             crate::compile::tests::TEST_BLOCKS,
-            Some(&inputs),
+            &inputs,
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"))
     }
@@ -741,16 +777,14 @@ pub(crate) mod tests {
     #[test]
     fn every_shipped_dimension_compiles_its_material_rule() {
         for name in ["overworld", "nether", "end", "caves", "floating_islands"] {
-            let router = build(name);
-            let material = router.material().expect("a material program");
+            let (_, material) = build(name);
             assert!(!material.tape().is_empty(), "{name}: the tape is empty");
         }
     }
 
     #[test]
     fn every_guard_jumps_to_the_end_of_its_own_subtree() {
-        let router = build("overworld");
-        let material = router.material().unwrap();
+        let (_, material) = build("overworld");
         let tape = material.tape();
         // A well-formed tape is a set of properly nested intervals: walking a
         // guard's body must land exactly on its jump target, never past it.
@@ -780,8 +814,7 @@ pub(crate) mod tests {
     /// either kind in the rule corpus is a reference to one of them.
     #[test]
     fn the_shared_condition_files_intern_to_one_id_each() {
-        let router = build("overworld");
-        let material = router.material().unwrap();
+        let (_, material) = build("overworld");
 
         let kind_of = |id: CondId| &material.conditions()[id as usize].kind;
         let interned = |wanted: fn(&Condition) -> bool| {
@@ -840,8 +873,7 @@ pub(crate) mod tests {
 
     #[test]
     fn each_condition_kind_carries_the_scope_the_design_assigns_it() {
-        let router = build("overworld");
-        let material = router.material().unwrap();
+        let (_, material) = build("overworld");
         assert!(!material.conditions().is_empty());
         for condition in material.conditions() {
             let expected = match &condition.kind {
@@ -891,8 +923,7 @@ pub(crate) mod tests {
 
     #[test]
     fn every_vein_density_function_is_a_root_and_samples() {
-        let router = build("overworld");
-        let material = router.material().unwrap();
+        let (router, material) = build("overworld");
         assert_eq!(material.veins().len(), 2, "copper and iron");
 
         let mut workspace = Workspace::new();
@@ -952,8 +983,8 @@ pub(crate) mod tests {
 
     #[test]
     fn the_clay_bands_are_drawn_once_and_are_not_uniform() {
-        let router = build("overworld");
-        let bands = router.material().unwrap().clay_bands();
+        let (_, material) = build("overworld");
+        let bands = material.clay_bands();
         assert_eq!(bands.len(), CLAY_BAND_COUNT);
         let distinct: BTreeSet<_> = bands.iter().collect();
         assert!(
@@ -989,13 +1020,13 @@ pub(crate) mod tests {
             block,
             biome: &resolve_biome,
         };
-        build_router(
+        build_router_and_material(
             &settings("overworld"),
             &functions,
             &noises,
             42,
             crate::compile::tests::TEST_BLOCKS,
-            Some(&inputs),
+            &inputs,
         )
         .map(|_| ())
     }
@@ -1075,8 +1106,7 @@ pub(crate) mod tests {
 
     #[test]
     fn the_nine_surface_noises_are_interned_and_present() {
-        let router = build("overworld");
-        let material = router.material().unwrap();
+        let (_, material) = build("overworld");
         let ids = [
             SurfaceNoise::Surface,
             SurfaceNoise::SurfaceSecondary,
@@ -1121,13 +1151,13 @@ pub(crate) mod tests {
             block: &resolve_block,
             biome: &resolve_biome,
         };
-        let error = build_router(
+        let error = build_router_and_material(
             &settings("overworld"),
             &functions,
             &BTreeMap::new(),
             42,
             crate::compile::tests::TEST_BLOCKS,
-            Some(&inputs),
+            &inputs,
         )
         .map(|_| ())
         .expect_err("an empty noise registry cannot compile the surface noises");

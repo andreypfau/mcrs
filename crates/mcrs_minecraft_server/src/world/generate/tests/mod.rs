@@ -174,6 +174,7 @@ pub fn fill_context_with(
     crate::world::generate::stages::FillContext {
         y_sections: crate::world::generate::stages::dimension_y_sections(&router, -64, 24),
         router,
+        material: None,
         blocks: blocks().0.clone(),
         biome: None,
         predicates: None,

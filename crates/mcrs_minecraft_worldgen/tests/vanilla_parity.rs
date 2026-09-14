@@ -129,7 +129,6 @@ fn overworld_router(seed: u64) -> NoiseRouter {
             water: VoxelId(2),
             lava: VoxelId(3),
         },
-        None,
     )
     .expect("overworld router")
 }

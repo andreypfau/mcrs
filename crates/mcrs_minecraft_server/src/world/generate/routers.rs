@@ -15,6 +15,7 @@ use mcrs_minecraft_worldgen::bevy::{
     NoiseGeneratorSettingsAsset, WorldgenAssets, build_dimension_router,
     dimension_beardifier_placement,
 };
+use mcrs_minecraft_worldgen::material::compile::MaterialProgram;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use tracing::{error, info};
 
@@ -39,7 +40,14 @@ pub struct DimensionBiomeSources(
 /// the dimension's sub-app an `Arc` of it. Compiling inside the sub-app instead
 /// would make every dimension re-read the worldgen corpus off disk.
 #[derive(Resource, Default, Clone)]
-pub struct DimensionRouters(pub BTreeMap<ResourceLocation, Arc<NoiseRouter>>);
+pub struct DimensionRouters(pub BTreeMap<ResourceLocation, DimensionRouter>);
+
+/// A router and the material rules compiled into its graph.
+#[derive(Clone)]
+pub struct DimensionRouter {
+    pub router: Arc<NoiseRouter>,
+    pub material: Arc<MaterialProgram>,
+}
 
 /// Compiles one router per noise dimension of the loaded preset.
 ///
@@ -87,9 +95,15 @@ pub(crate) fn build_dimension_routers(
             refuse_misplaced_beardifier(dimension, &generator.settings, asset, &assets, tables);
         }
         match build_dimension_router(asset, &assets, seed.0, &block, &biome) {
-            Ok(router) => {
+            Ok((router, material)) => {
                 info!(%dimension, seed = seed.0, "compiled the dimension noise router");
-                routers.0.insert(dimension.clone(), Arc::new(router));
+                routers.0.insert(
+                    dimension.clone(),
+                    DimensionRouter {
+                        router: Arc::new(router),
+                        material: Arc::new(material),
+                    },
+                );
             }
             Err(error) => error!(
                 %dimension, %error,

@@ -75,7 +75,6 @@ pub fn build_settings_router(settings_name: &str, seed: u64) -> NoiseRouter {
         &noise_registry(),
         seed,
         router_blocks(corpus()),
-        None,
     )
     .unwrap_or_else(|e| panic!("{settings_name}: {e}"))
 }
@@ -91,6 +90,7 @@ pub fn build_beta_router() -> NoiseRouter {
 fn every_shipped_noise_settings_compiles_its_material_rules() {
     use std::collections::HashMap;
 
+    use mcrs_minecraft_worldgen::material::compile::build_router_and_material;
     use mcrs_minecraft_worldgen::material::{
         MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
     };
@@ -125,19 +125,15 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
             block: &|state| try_resolve_state(corpus(), state).map(Into::into),
             biome: &|id| biome_ids.get(id.as_str()).copied(),
         };
-        let router = build_router(
+        build_router_and_material(
             &settings,
             &functions,
             &noises,
             42,
             router_blocks(corpus()),
-            Some(&inputs),
+            &inputs,
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"));
-        assert!(
-            router.material().is_some(),
-            "{name} has no material program"
-        );
         seen += 1;
     }
     assert!(seen >= 8, "only {seen} noise settings were checked");

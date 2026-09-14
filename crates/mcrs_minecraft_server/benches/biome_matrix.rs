@@ -21,7 +21,7 @@ use mcrs_minecraft_server::world::generate::multi_noise_biomes::MultiNoiseBiomeT
 use mcrs_minecraft_server::world::generate::{
     ColumnBlocks, SurfaceIds, apply_material_surface, fill_column_dense_any,
 };
-use mcrs_minecraft_worldgen::compile::build_router;
+use mcrs_minecraft_worldgen::material::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen::material::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
 };
@@ -81,7 +81,7 @@ fn overworld_subset(names: &[String]) -> Vec<(usize, String)> {
         .collect()
 }
 
-fn material_router(seed: u64, names: &[String]) -> NoiseRouter {
+fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram) {
     let path = assets_root().join("noise_settings/overworld.json");
     let settings: NoiseGeneratorSettings =
         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
@@ -108,13 +108,13 @@ fn material_router(seed: u64, names: &[String]) -> NoiseRouter {
                 .or_else(|| panic!("the corpus has no biome {id}"))
         },
     };
-    build_router(
+    build_router_and_material(
         &settings,
         &density_function_registry(),
         &noise_registry(),
         seed,
         router_blocks(corpus()),
-        Some(&inputs),
+        &inputs,
     )
     .expect("the overworld compiles")
 }
@@ -182,7 +182,7 @@ fn main() {
         .unwrap_or_else(|| vec![-128]);
 
     let names = corpus_biome_ids();
-    let router = material_router(seed, &names);
+    let (router, material) = material_router(seed, &names);
     let ids = surface_ids(&names);
     let (registry, _assets) = biome_registry(&names);
     let y_sections: Vec<i32> = (-4..20).collect();
@@ -193,6 +193,7 @@ fn main() {
             for offset in &offsets {
                 natural(
                     &router,
+                    &material,
                     &names,
                     &ids,
                     &registry,
@@ -205,6 +206,7 @@ fn main() {
         }
         _ => matrix(
             &router,
+            &material,
             &names,
             &ids,
             &registry,
@@ -220,6 +222,7 @@ fn main() {
 #[allow(clippy::too_many_arguments)]
 fn run_pinned(
     router: &NoiseRouter,
+    material: &MaterialProgram,
     ids: &SurfaceIds,
     y_sections: &[i32],
     cancel: &CancellationToken,
@@ -259,6 +262,7 @@ fn run_pinned(
                 &mut filled.tops,
                 &grid,
                 router,
+                material,
                 ids,
                 scratch,
             );
@@ -271,6 +275,7 @@ fn run_pinned(
 #[allow(clippy::too_many_arguments)]
 fn matrix(
     router: &NoiseRouter,
+    material: &MaterialProgram,
     names: &[String],
     ids: &SurfaceIds,
     registry: &RegistrySnapshot<Biome>,
@@ -288,6 +293,7 @@ fn matrix(
     // Warm the lazy tables and the thread-locals before anything is timed.
     run_pinned(
         router,
+        material,
         ids,
         y_sections,
         cancel,
@@ -313,6 +319,7 @@ fn matrix(
         for offset in offsets {
             elapsed += run_pinned(
                 router,
+                material,
                 ids,
                 y_sections,
                 cancel,
@@ -353,6 +360,7 @@ fn matrix(
 #[allow(clippy::too_many_arguments)]
 fn natural(
     router: &NoiseRouter,
+    material: &MaterialProgram,
     names: &[String],
     ids: &SurfaceIds,
     registry: &RegistrySnapshot<Biome>,
@@ -412,7 +420,17 @@ fn natural(
 
             let mut tops = filled.tops;
             let t = Instant::now();
-            apply_material_surface(&column, cx, cz, &mut tops, &grid, router, ids, &mut scratch);
+            apply_material_surface(
+                &column,
+                cx,
+                cz,
+                &mut tops,
+                &grid,
+                router,
+                material,
+                ids,
+                &mut scratch,
+            );
             let real = t.elapsed().as_secs_f64() * 1e3;
 
             let source = fixed_source(&names[dominant as usize]);
@@ -438,6 +456,7 @@ fn natural(
                 &mut tops,
                 &pinned_grid,
                 router,
+                material,
                 ids,
                 &mut scratch,
             );

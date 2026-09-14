@@ -23,6 +23,7 @@ use mcrs_minecraft_worldgen::feature::placer::{
     PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,
 };
 use mcrs_minecraft_worldgen::material::MaterialScratch;
+use mcrs_minecraft_worldgen::material::compile::MaterialProgram;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use rustc_hash::FxHashMap;
@@ -56,6 +57,8 @@ use mcrs_minecraft_worldgen::structure::frozen::DimensionStructureTables;
 #[derive(Clone, Resource)]
 pub struct FillContext {
     pub router: Arc<NoiseRouter>,
+    /// `None` for a router compiled without material rules, whose columns get no surface.
+    pub material: Option<Arc<MaterialProgram>>,
     pub blocks: Arc<BlockDefinitions>,
     /// The section list every column of the dimension is generated over: a
     /// delta names a cell by its index in it, so it is one list, not one per
@@ -110,6 +113,7 @@ impl FillContext {
     #[allow(clippy::too_many_arguments)]
     pub fn build(
         router: Arc<NoiseRouter>,
+        material: Option<Arc<MaterialProgram>>,
         blocks: Arc<BlockDefinitions>,
         y_sections: Arc<[i32]>,
         biome: Option<(Arc<BiomeSource>, Arc<RegistrySnapshot<Biome>>)>,
@@ -192,6 +196,7 @@ impl FillContext {
         FillContext {
             saved,
             router,
+            material,
             blocks,
             y_sections,
             biome,
@@ -347,7 +352,9 @@ pub fn fill_column(
         ColumnGenerator::Modern {
             surface: Some(ids), ..
         } => {
-            if let Some(grid) = filled.biome_grid.as_ref() {
+            if let (Some(grid), Some(material)) =
+                (filled.biome_grid.as_ref(), ctx.material.as_deref())
+            {
                 thread_local! {
                     static MATERIAL: RefCell<MaterialScratch> = RefCell::new(MaterialScratch::default());
                 }
@@ -363,6 +370,7 @@ pub fn fill_column(
                         &mut filled.tops,
                         grid,
                         router,
+                        material,
                         ids,
                         scratch,
                     );
@@ -1081,6 +1089,7 @@ mod tests {
                 features: None,
             },
             router,
+            material: None,
             structures: None,
         };
         let mut uncarved = carved.clone();

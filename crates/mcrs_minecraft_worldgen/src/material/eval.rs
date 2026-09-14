@@ -158,14 +158,13 @@ where
     B: FnMut(i32, i32, i32) -> u32,
     R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
 {
-    /// `None` for a router built without material rules.
-    ///
     /// `top` is the highest non-air block of the column and `biomes` every biome
     /// the column can select, which must include the border ring of the grid the
     /// zoom reads: a set narrower than the zoom's reach folds a condition that
     /// should have matched to `never` and writes the wrong block.
     pub fn new(
         router: &'a NoiseRouter,
+        program: &'a MaterialProgram,
         scratch: &'a mut MaterialScratch,
         biome_at: B,
         reachable_at: R,
@@ -173,8 +172,7 @@ where
         block_z: i32,
         top: i32,
         biomes: &[u32],
-    ) -> Option<Self> {
-        let program = router.material()?;
+    ) -> Self {
         let min_y = router.noise.min_y;
         let memoise = !scratch.bypass_shortcuts;
 
@@ -239,7 +237,7 @@ where
         );
         plan_veins(router, program, scratch, &veins);
 
-        Some(Self {
+        Self {
             router,
             program,
             scratch,
@@ -273,7 +271,7 @@ where
             water_level: NO_WATER,
             biome: 0,
             biome_stamp: 0,
-        })
+        }
     }
 
     pub fn begin_strip(&mut self, block_x: i32, block_z: i32, gradient_x: i32, gradient_z: i32) {
@@ -777,7 +775,7 @@ where
         let cell_min = min + IVec3::new(cx, cy, cz) * layout.cell;
         let cell_max = cell_min + layout.cell - 1;
 
-        let bounds = self.router.vein_cell_bounds(vein);
+        let bounds = self.program.vein_cell_bounds(vein);
         let lattice = SampleGrid::new(layout.size + IVec3::ONE, min, layout.cell);
         self.pin_vein_lattice(vein, lattice);
 
@@ -836,11 +834,11 @@ where
     /// already is it. The veins of one dimension share their inputs, so the
     /// lattice sampled for the first serves the rest.
     fn pin_vein_lattice(&mut self, vein: usize, lattice: SampleGrid) {
-        let bounds = self.router.vein_cell_bounds(vein);
+        let bounds = self.program.vein_cell_bounds(vein);
         let inputs = bounds.inputs();
         if let Some((held, volume)) = &self.scratch.vein_lattice_for
             && *volume == lattice
-            && self.router.vein_cell_bounds(*held).inputs() == inputs
+            && self.program.vein_cell_bounds(*held).inputs() == inputs
         {
             return;
         }
@@ -1086,7 +1084,7 @@ fn plan_veins(
     scratch.vein_lattice_for = None;
 
     for (index, vein) in program.veins().iter().enumerate() {
-        let bounds = router.vein_cell_bounds(index);
+        let bounds = program.vein_cell_bounds(index);
         let cell = bounds
             .cell_size()
             .filter(|c| 16 % c.x == 0 && 16 % c.z == 0 && height % c.y == 0);

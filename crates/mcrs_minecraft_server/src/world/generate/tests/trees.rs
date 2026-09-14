@@ -1,6 +1,7 @@
 //! The corpus's own tree features over a real overworld column: that they
 //! decorate at all, and that how many they place stays where it was measured.
 
+use mcrs_minecraft_worldgen::material::compile::{MaterialProgram, build_router_and_material};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -79,7 +80,10 @@ pub(super) fn tree_tables(biome: &str, placed_id: &str) -> FeatureTables {
 
 /// The overworld router with its material rules compiled against the registry
 /// below, so that the surface a tree grows on is the biome's own.
-fn material_router(registry: &RegistrySnapshot<Biome>, seed: u64) -> NoiseRouter {
+fn material_router(
+    registry: &RegistrySnapshot<Biome>,
+    seed: u64,
+) -> (NoiseRouter, MaterialProgram) {
     let path = super::assets_root().join("noise_settings/overworld.json");
     let settings: NoiseGeneratorSettings =
         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
@@ -99,13 +103,13 @@ fn material_router(registry: &RegistrySnapshot<Biome>, seed: u64) -> NoiseRouter
         // is what an id outside it means to the compiled sets.
         biome: &|id| Some(registry.by_location(id.as_str()).unwrap_or(250)),
     };
-    mcrs_minecraft_worldgen::compile::build_router(
+    build_router_and_material(
         &settings,
         &super::density_function_registry(),
         &super::noise_registry(),
         seed,
         super::router_blocks(&blocks().0),
-        Some(&inputs),
+        &inputs,
     )
     .expect("the overworld material rule compiles")
 }
@@ -140,7 +144,8 @@ pub(super) fn dimension_with(
     seed: u64,
 ) -> (FillContext, Arc<[i32]>) {
     let registry0 = biome_registry();
-    let router = Arc::new(material_router(&registry0, seed));
+    let (router, material) = material_router(&registry0, seed);
+    let router = Arc::new(router);
     let y_sections = dimension_y_sections(&router, -64, 24);
     let registry = Arc::new(registry0);
     let program = program(&registry);
@@ -165,6 +170,7 @@ pub(super) fn dimension_with(
             features: Some(Arc::new(program)),
         },
         router,
+        material: Some(Arc::new(material)),
         y_sections: y_sections.clone(),
         structures: None,
     };

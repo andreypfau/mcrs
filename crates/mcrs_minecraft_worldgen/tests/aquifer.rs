@@ -28,7 +28,6 @@ fn overworld(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> NoiseRoute
         &corpus::registry("noise"),
         seed,
         BLOCKS,
-        None,
     )
     .unwrap()
 }

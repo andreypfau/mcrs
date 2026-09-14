@@ -92,10 +92,11 @@ fn a_surfaced_column_matches_the_vanilla_chunk() {
 
     for name in DUMPS {
         let dump = read_dump(name);
-        let router = overworld_material_router(dump.seed, &ids);
+        let (router, material) = overworld_material_router(dump.seed, &ids);
         let y_sections: Vec<i32> = ((dump.min_y / 16)..((dump.min_y + dump.height) / 16)).collect();
         let surfaced = surfaced_column(
             &router,
+            &material,
             &ids,
             dump.chunk_x,
             dump.chunk_z,

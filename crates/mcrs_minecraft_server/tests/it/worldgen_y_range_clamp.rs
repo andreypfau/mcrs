@@ -68,7 +68,6 @@ fn beta_sections_outside_noise_range_are_air() {
             water: mcrs_minecraft_protocol::BlockStateId(86).into(),
             lava: mcrs_minecraft_protocol::BlockStateId(87).into(),
         },
-        None,
     )
     .expect("the beta noise router compiles");
 

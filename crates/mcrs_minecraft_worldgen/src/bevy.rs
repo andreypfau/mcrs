@@ -1,7 +1,8 @@
 use crate::beard::{BeardifierPlacement, beardifier_placement};
-use crate::compile::{CompileError, build_router};
+use crate::compile::CompileError;
 use crate::feature::proto::{Feature, Holder, PlacedFeature, StructureProcessorList};
 use crate::material::compile::SURFACE_NOISE_NAMES;
+use crate::material::compile::{MaterialProgram, build_router_and_material};
 use crate::material::proto::{MaterialCondition, MaterialRule};
 use crate::material::{MaterialConditionHolder, MaterialInputs, MaterialRuleHolder};
 use crate::proto::{
@@ -64,7 +65,7 @@ impl Plugin for WorldgenAssetsPlugin {
     }
 }
 
-/// Compiles one dimension's router from its loaded noise settings.
+/// Compiles one dimension's router and material rules from its loaded noise settings.
 ///
 /// `block` resolves a datapack block state against the block registry this
 /// crate does not have, and `biome` an id against the numbering the column's
@@ -77,7 +78,7 @@ pub fn build_dimension_router(
     seed: u64,
     block: &dyn Fn(&BlockState) -> Option<VoxelId>,
     biome: &dyn Fn(&ResourceLocation) -> Option<u32>,
-) -> Result<NoiseRouter, CompileError> {
+) -> Result<(NoiseRouter, MaterialProgram), CompileError> {
     let mut loaded = Loaded::default();
     loaded.collect(&settings.deps, assets);
 
@@ -101,13 +102,13 @@ pub fn build_dimension_router(
         block,
         biome,
     };
-    build_router(
+    build_router_and_material(
         &settings.settings,
         &loaded.density_functions,
         &loaded.noises,
         seed,
         blocks,
-        Some(&material),
+        &material,
     )
 }
 
@@ -914,7 +915,7 @@ mod tests {
                 let next = VoxelId(states.len() as u16 + 1);
                 Some(*states.entry(state.name.as_str().to_owned()).or_insert(next))
             };
-            let router = build_dimension_router(
+            let (router, _) = build_dimension_router(
                 asset,
                 &state.get(world).unwrap(),
                 0,
@@ -923,7 +924,6 @@ mod tests {
             )
             .unwrap_or_else(|error| panic!("{name}: {error}"));
 
-            assert!(router.material().is_some(), "{name} has no material rules");
             assert_ne!(
                 router.default_block_state, router.default_fluid_state,
                 "{name} resolved the terrain block and the sea fluid to one id"

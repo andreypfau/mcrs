@@ -247,6 +247,7 @@ fn fill_context(consumer: Consumer) -> Dimension {
         saved: None,
         program,
         router,
+        material: None,
         y_sections: y_sections.clone(),
         structures: None,
     };

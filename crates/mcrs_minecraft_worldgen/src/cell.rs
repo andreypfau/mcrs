@@ -87,7 +87,7 @@ pub struct CellBounds {
 const NO_SLOT: u32 = u32::MAX;
 
 impl CellBounds {
-    pub(crate) fn new(program: &Program, root: NodeId) -> Self {
+    pub fn new(program: &Program, root: NodeId) -> Self {
         let is_wrapper = |id: NodeId| matches!(program.node(id), Node::Interpolated { .. });
 
         let mut reached = vec![false; program.len()];

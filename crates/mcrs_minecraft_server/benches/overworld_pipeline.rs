@@ -20,7 +20,7 @@ use mcrs_minecraft_server::world::generate::{
     multi_noise_palettes,
 };
 use mcrs_minecraft_worldgen::carver::CarverConfig;
-use mcrs_minecraft_worldgen::compile::build_router;
+use mcrs_minecraft_worldgen::material::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen::material::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
 };
@@ -45,7 +45,7 @@ fn biome_ids() -> HashMap<String, u32> {
     ids
 }
 
-fn material_router(seed: u64, ids: &HashMap<String, u32>) -> NoiseRouter {
+fn material_router(seed: u64, ids: &HashMap<String, u32>) -> (NoiseRouter, MaterialProgram) {
     let path = assets_root().join("noise_settings/overworld.json");
     let settings: NoiseGeneratorSettings =
         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
@@ -62,13 +62,13 @@ fn material_router(seed: u64, ids: &HashMap<String, u32>) -> NoiseRouter {
         },
         biome: &|id| Some(ids.get(id.as_str()).copied().unwrap_or(ABSENT_BIOME)),
     };
-    build_router(
+    build_router_and_material(
         &settings,
         &density_function_registry(),
         &noise_registry(),
         seed,
         router_blocks(corpus()),
-        Some(&inputs),
+        &inputs,
     )
     .expect("the overworld compiles")
 }
@@ -119,7 +119,7 @@ fn main() {
     for (name, &id) in &ids {
         names[id as usize] = name.strip_prefix("minecraft:").unwrap_or(name).to_owned();
     }
-    let router = material_router(seed, &ids);
+    let (router, material) = material_router(seed, &ids);
     let table = MultiNoiseBiomeTable::resolve(
         &MultiNoiseBiomeSource {
             preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
@@ -210,6 +210,7 @@ fn main() {
             &mut filled.tops,
             grid.as_ref().unwrap(),
             &router,
+            &material,
             &surface_ids,
             scratch,
         );

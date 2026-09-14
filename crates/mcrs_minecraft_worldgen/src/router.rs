@@ -2,7 +2,6 @@ use crate::aquifer::{AquiferConfig, GlobalFluid};
 use crate::beta::BetaTerrainNoises;
 use crate::cell::CellBounds;
 use crate::interval::Interval;
-use crate::material::compile::MaterialProgram;
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{BlockState, DensityFunctionHolder, ValueRange};
 use crate::sample_grid::SampleGrid;
@@ -136,31 +135,21 @@ pub struct NoiseRouter {
     pub global_fluid: GlobalFluid,
     /// `None` where the settings have no `aquifers`: the global rule alone.
     pub aquifer: Option<AquiferConfig>,
-    material: Option<MaterialProgram>,
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
-    /// One per material ore vein, over its density root.
-    vein_bounds: Box<[CellBounds]>,
 }
 
 impl NoiseRouter {
-    pub(crate) fn new(
+    pub fn new(
         program: Program,
-        material: Option<MaterialProgram>,
         settings: &NoiseGeneratorSettings,
         world_seed: u64,
         blocks: RouterBlocks,
         aquifer: Option<AquiferConfig>,
     ) -> Self {
         let cell_bounds = CellBounds::new(&program, program.root_node(FINAL_DENSITY));
-        let vein_bounds = material
-            .iter()
-            .flat_map(|material| material.veins())
-            .map(|vein| CellBounds::new(&program, program.root_node(vein.density)))
-            .collect();
         Self {
             program,
-            material,
             sea_level: settings.sea_level,
             noise: settings.noise,
             world_seed,
@@ -175,14 +164,7 @@ impl NoiseRouter {
                 .legacy_random_source
                 .then(|| Box::new(BetaTerrainNoises::new(world_seed))),
             cell_bounds,
-            vein_bounds,
         }
-    }
-
-    /// `None` where the caller supplied no material rule registry, which is
-    /// every path that only wants the density graph.
-    pub fn material(&self) -> Option<&MaterialProgram> {
-        self.material.as_ref()
     }
 
     /// The Beta noises the surface rules read directly, outside the density
@@ -286,13 +268,6 @@ impl NoiseRouter {
     ) -> Option<Interval> {
         self.cell_bounds
             .eval(&self.program, corners, min, max, terms)
-    }
-
-    /// The cell bounds of one material ore vein's density, indexed as the
-    /// material program numbers its veins.
-    #[inline]
-    pub fn vein_cell_bounds(&self, vein: usize) -> &CellBounds {
-        &self.vein_bounds[vein]
     }
 
     /// Temperature and vegetation over the 16x16 block footprint of a chunk,

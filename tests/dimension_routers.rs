@@ -50,7 +50,10 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     let block_of = |name: &str| {
         let id = ResourceLocation::parse(name).unwrap();
         let router = &routers.0[&id];
-        (router.default_block_state, router.default_fluid_state)
+        (
+            router.router.default_block_state,
+            router.router.default_fluid_state,
+        )
     };
     assert_ne!(
         block_of("minecraft:overworld"),
@@ -67,7 +70,10 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
         .iter()
         .map(|(id, router)| {
             (
-                (router.default_block_state, router.default_fluid_state),
+                (
+                    router.router.default_block_state,
+                    router.router.default_fluid_state,
+                ),
                 id.clone(),
             )
         })

@@ -350,7 +350,8 @@ pub fn spawn_dim_subapp(
     };
     if let Some(dimension) = &dimension {
         match registries.noise_routers.0.get(dimension) {
-            Some(router) => {
+            Some(dimension_router) => {
+                let router = &dimension_router.router;
                 let biome_registry = std::sync::Arc::new(registries.biome_registry.clone());
                 let features = registries
                     .features
@@ -364,6 +365,7 @@ pub fn spawn_dim_subapp(
                 }
                 sub_app.insert_resource(FillContext::build(
                     std::sync::Arc::clone(router),
+                    Some(std::sync::Arc::clone(&dimension_router.material)),
                     registries.blocks.0.clone(),
                     dimension_y_sections(
                         router,

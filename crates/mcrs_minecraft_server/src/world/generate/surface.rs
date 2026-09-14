@@ -76,6 +76,7 @@ pub fn apply_material_surface(
     tops: &mut [i32; 256],
     grid: &BiomeGrid,
     router: &NoiseRouter,
+    material: &MaterialProgram,
     ids: &SurfaceIds,
     scratch: &mut MaterialScratch,
 ) {
@@ -84,7 +85,7 @@ pub fn apply_material_surface(
     }
     FIDDLE.with_borrow_mut(|fiddle| {
         apply_material_surface_with(
-            column, section_x, section_z, tops, grid, router, ids, scratch, fiddle,
+            column, section_x, section_z, tops, grid, router, material, ids, scratch, fiddle,
         )
     });
 }
@@ -96,13 +97,11 @@ fn apply_material_surface_with(
     tops: &mut [i32; 256],
     grid: &BiomeGrid,
     router: &NoiseRouter,
+    program: &MaterialProgram,
     ids: &SurfaceIds,
     scratch: &mut MaterialScratch,
     fiddle: &mut FiddleCache,
 ) {
-    let Some(program) = router.material() else {
-        return;
-    };
     let block_x = section_x * 16;
     let block_z = section_z * 16;
     let min_y = router.noise.min_y;
@@ -129,8 +128,9 @@ fn apply_material_surface_with(
         [(block_x - 2) >> 2, (min_y - 2) >> 2, (block_z - 2) >> 2],
         [6, ((top + 1 - min_y) >> 2) + 3, 6],
     );
-    let Some(mut eval) = MaterialEval::new(
+    let mut eval = MaterialEval::new(
         router,
+        program,
         scratch,
         |x, y, z| grid_biome(grid, fiddle.quart_cell(BlockPos::new(x, y, z))),
         |bx, bz, lo, hi, out| reachable_biomes(grid, bx, bz, lo, hi, out),
@@ -138,9 +138,7 @@ fn apply_material_surface_with(
         block_z,
         top,
         &biomes,
-    ) else {
-        return;
-    };
+    );
 
     let mut settled = Vec::new();
     for x in 0..16 {

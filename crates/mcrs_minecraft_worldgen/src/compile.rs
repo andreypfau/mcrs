@@ -3,7 +3,6 @@ use crate::beta::{BetaClimateNoises, BetaTerrainNoises};
 use crate::bounds::{self, Bounds};
 use crate::interval::Interval;
 use crate::jmath;
-use crate::material::compile::{MaterialInputs, compile_material};
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::{GradientParams, Tiling};
@@ -68,8 +67,22 @@ pub fn build_router(
     noises: &BTreeMap<ResourceLocation, NoiseParam>,
     seed: u64,
     blocks: RouterBlocks,
-    material: Option<&MaterialInputs<'_>>,
 ) -> Result<NoiseRouter, CompileError> {
+    build_router_with(settings, registry, noises, seed, blocks, |_, _| Ok(()))
+        .map(|(router, ())| router)
+}
+
+/// [`build_router`] with `extra` compiling more roots into the same graph, so
+/// they share its nodes. They are numbered after the eight router roots and
+/// before the aquifer's.
+pub fn build_router_with<T>(
+    settings: &NoiseGeneratorSettings,
+    registry: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
+    noises: &BTreeMap<ResourceLocation, NoiseParam>,
+    seed: u64,
+    blocks: RouterBlocks,
+    extra: impl FnOnce(&mut Compiler<'_>, &mut Vec<NodeId>) -> Result<T, CompileError>,
+) -> Result<(NoiseRouter, T), CompileError> {
     let mut compiler = Compiler::new(registry, noises, seed, settings.legacy_random_source);
     let mut nodes = Vec::with_capacity(8);
 
@@ -77,15 +90,7 @@ pub fn build_router(
         nodes.push(compiler.compile(holder)?);
     }
 
-    let material = match material {
-        Some(inputs) => Some(compile_material(
-            &mut compiler,
-            &mut nodes,
-            settings,
-            inputs,
-        )?),
-        None => None,
-    };
+    let extra = extra(&mut compiler, &mut nodes)?;
 
     let aquifer = match &settings.aquifers {
         Some(aquifers) => Some(compile_aquifer(&mut compiler, &mut nodes, aquifers)?),
@@ -93,8 +98,9 @@ pub fn build_router(
     };
 
     let program = compiler.into_program(nodes);
-    Ok(NoiseRouter::new(
-        program, material, settings, seed, blocks, aquifer,
+    Ok((
+        NoiseRouter::new(program, settings, seed, blocks, aquifer),
+        extra,
     ))
 }
 
@@ -128,7 +134,7 @@ fn compile_aquifer(
     })
 }
 
-pub(crate) struct Compiler<'a> {
+pub struct Compiler<'a> {
     registry: &'a BTreeMap<ResourceLocation, DensityFunctionHolder>,
     noises: &'a BTreeMap<ResourceLocation, NoiseParam>,
     seed: u64,
@@ -1656,7 +1662,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
-        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
+        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
         let mut memo = HashMap::new();
         let naive: usize = settings
@@ -1681,7 +1687,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
-        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
+        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
         let volume = SampleGrid::new(
             IVec3::new(5, 3, 5),
@@ -1712,7 +1718,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("end"));
-        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
+        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
         let volume = SampleGrid::dense(IVec3::new(1, 32, 1), IVec3::new(-25, 0, -25));
         let mut out = vec![0.0; volume.len()];
@@ -1738,7 +1744,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings =
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("end"));
-        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
+        let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
         let volume = SampleGrid::dense(IVec3::new(8, 32, 8), IVec3::new(-32, 0, -32));
         let mut out = vec![0.0; volume.len()];
@@ -1768,7 +1774,7 @@ pub(crate) mod tests {
         ] {
             let settings: NoiseGeneratorSettings =
                 crate::corpus::read("noise_settings", &ResourceLocation::minecraft(name));
-            build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None)
+            build_router(&settings, &functions, &noises, 42, TEST_BLOCKS)
                 .unwrap_or_else(|e| panic!("{name}: {e}"));
         }
     }

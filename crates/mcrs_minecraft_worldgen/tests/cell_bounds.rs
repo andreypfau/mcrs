@@ -10,11 +10,11 @@ use mcrs_minecraft_worldgen::cell::CellBounds;
 use mcrs_minecraft_worldgen::compile::build_router;
 use mcrs_minecraft_worldgen::corpus;
 use mcrs_minecraft_worldgen::interval::Interval;
+use mcrs_minecraft_worldgen::material::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen::material::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
 };
 use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
 use mcrs_minecraft_worldgen::router::{
     FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, RouterBlocks,
 };
@@ -24,44 +24,47 @@ use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 /// without outward rounding, so a bound landing on zero is not trustworthy.
 const SLACK: f32 = 1e-5;
 
+const BLOCKS: RouterBlocks = RouterBlocks {
+    default_block: VoxelId(1),
+    default_fluid: VoxelId(2),
+    water: VoxelId(2),
+    lava: VoxelId(3),
+};
+
+fn settings() -> NoiseGeneratorSettings {
+    corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"))
+}
+
 fn router(seed: u64) -> NoiseRouter {
-    build(seed, None)
+    build_router(
+        &settings(),
+        &corpus::registry("density_function"),
+        &corpus::registry("noise"),
+        seed,
+        BLOCKS,
+    )
+    .unwrap()
 }
 
 /// The overworld with its material rules compiled in, every block and biome
 /// they name resolved to a placeholder: the bounds under test are over the
 /// vein densities, which read neither.
-fn material_router(seed: u64) -> NoiseRouter {
+fn material_router(seed: u64) -> (NoiseRouter, MaterialProgram) {
     let rules: BTreeMap<_, MaterialRuleHolder> = corpus::registry("material_rule");
     let conditions: BTreeMap<_, MaterialConditionHolder> = corpus::registry("material_condition");
-    build(
+    let inputs = MaterialInputs {
+        rules: &rules,
+        conditions: &conditions,
+        block: &|_| Some(VoxelId(3)),
+        biome: &|_| Some(0),
+    };
+    build_router_and_material(
+        &settings(),
+        &corpus::registry("density_function"),
+        &corpus::registry("noise"),
         seed,
-        Some(&MaterialInputs {
-            rules: &rules,
-            conditions: &conditions,
-            block: &|_| Some(VoxelId(3)),
-            biome: &|_| Some(0),
-        }),
-    )
-}
-
-fn build(seed: u64, material: Option<&MaterialInputs<'_>>) -> NoiseRouter {
-    let settings: NoiseGeneratorSettings =
-        corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
-    let registry: BTreeMap<_, DensityFunctionHolder> = corpus::registry("density_function");
-    let noises: BTreeMap<_, NoiseParam> = corpus::registry("noise");
-    build_router(
-        &settings,
-        &registry,
-        &noises,
-        seed,
-        RouterBlocks {
-            default_block: VoxelId(1),
-            default_fluid: VoxelId(2),
-            water: VoxelId(2),
-            lava: VoxelId(3),
-        },
-        material,
+        BLOCKS,
+        &inputs,
     )
     .unwrap()
 }
@@ -93,7 +96,7 @@ fn lattice_size(cell: IVec3, height: i32) -> IVec3 {
 fn a_settled_cell_bound_contains_every_block_density_in_it() {
     let router = router(845);
     let mut terms = Vec::new();
-    let checked = check_root(&router, FINAL_DENSITY, |corners, min, max| {
+    let checked = check_root(&router, None, FINAL_DENSITY, |corners, min, max| {
         router.final_density_cell_bounds(corners, min, max, &mut terms)
     });
     assert!(checked > 0, "no cell produced a bound");
@@ -105,15 +108,18 @@ fn a_settled_cell_bound_contains_every_block_density_in_it() {
 /// interpolation.
 #[test]
 fn a_settled_vein_cell_bound_contains_every_block_density_in_it() {
-    let router = material_router(845);
-    let veins = router.material().unwrap().veins();
+    let (router, material) = material_router(845);
+    let veins = material.veins();
     assert!(!veins.is_empty(), "the overworld ships ore veins");
     for (index, vein) in veins.iter().enumerate() {
-        let bounds: &CellBounds = router.vein_cell_bounds(index);
+        let bounds: &CellBounds = material.vein_cell_bounds(index);
         let mut terms = Vec::new();
-        let checked = check_root(&router, vein.density, |corners, min, max| {
-            bounds.eval(&router.program, corners, min, max, &mut terms)
-        });
+        let checked = check_root(
+            &router,
+            Some(&material),
+            vein.density,
+            |corners, min, max| bounds.eval(&router.program, corners, min, max, &mut terms),
+        );
         assert!(checked > 0, "vein {index} produced no bound");
     }
 }
@@ -122,14 +128,16 @@ fn a_settled_vein_cell_bound_contains_every_block_density_in_it() {
 /// against every block density inside it; returns how many were checked.
 fn check_root(
     router: &NoiseRouter,
+    material: Option<&MaterialProgram>,
     root: usize,
     mut eval: impl FnMut(&[Interval], IVec3, IVec3) -> Option<Interval>,
 ) -> usize {
     let bounds = if root == FINAL_DENSITY {
         None
     } else {
-        let veins = router.material().unwrap().veins();
-        Some(router.vein_cell_bounds(veins.iter().position(|v| v.density == root).unwrap()))
+        let material = material.expect("a vein root is bounded by the material program");
+        let veins = material.veins();
+        Some(material.vein_cell_bounds(veins.iter().position(|v| v.density == root).unwrap()))
     };
     let (cell, inputs) = match bounds {
         None => (router.cell_size().unwrap(), router.cell_inputs()),

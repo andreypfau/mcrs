@@ -1,4 +1,4 @@
-use crate::material::compile::{MaterialInputs, VeinId};
+use crate::material::compile::{MaterialInputs, MaterialProgram, VeinId};
 use crate::material::eval::{MaterialEval, NO_WATER};
 use crate::material::proto::{
     CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
@@ -303,8 +303,8 @@ mod tests {
 
     /// The biomes the overworld rule actually tests, read back off the interned
     /// masks so a corpus that gains one is covered without an edit here.
-    fn tested_biomes(router: &crate::router::NoiseRouter) -> Vec<u32> {
-        let sets = router.material().unwrap().biome_sets();
+    fn tested_biomes(material: &MaterialProgram) -> Vec<u32> {
+        let sets = material.biome_sets();
         let mut ids: Vec<u32> = (0..256u32)
             .filter(|id| sets.iter().any(|set| set.contains(*id)))
             .collect();
@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn the_tape_and_the_oracle_agree_over_the_whole_context_range() {
-        let router = build("overworld");
+        let (router, material) = build("overworld");
         let (rules, conditions) = material_corpus();
         let inputs = MaterialInputs {
             rules: &rules,
@@ -332,7 +332,7 @@ mod tests {
 
         let min_y = router.noise.min_y;
         let top = 96;
-        let biomes = tested_biomes(&router);
+        let biomes = tested_biomes(&material);
         // Small palettes so most interned sets fold to `never` or `always` for
         // the column and the folded answers are compared too; one wide palette
         // so the rest stay `maybe`.
@@ -353,6 +353,7 @@ mod tests {
             };
             let mut eval = MaterialEval::new(
                 &router,
+                &material,
                 &mut scratch,
                 choose,
                 |_, _, _, _, _| false,
@@ -360,8 +361,7 @@ mod tests {
                 block_z,
                 top,
                 palette,
-            )
-            .expect("the overworld router carries material rules");
+            );
 
             for (strip, (x, z)) in [(0, 0), (3, 11), (7, 5), (11, 15), (15, 8)]
                 .into_iter()
