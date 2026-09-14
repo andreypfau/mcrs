@@ -1,4 +1,4 @@
-use crate::feature::tree::{Bounded, NonNegativeInt, is_default};
+use crate::codec::{Bounded, NonNegativeInt, is_default};
 use mcrs_minecraft_random::Random;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -561,7 +561,7 @@ impl HeightProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::feature::tree::Bounded;
+    use crate::codec::Bounded;
     use mcrs_minecraft_random::legacy::LegacyRandom;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 

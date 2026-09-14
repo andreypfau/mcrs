@@ -17,15 +17,15 @@ use mcrs_minecraft_assets::{AppState, DynTagRegistry};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::HolderSet;
+use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_worldgen::bevy::{
     StructureAsset, StructureSetAsset, TemplateAsset, TemplatePoolAsset,
 };
-use mcrs_minecraft_worldgen::feature::HolderSet;
 use mcrs_minecraft_worldgen::feature::placer::BiomeMask;
-use mcrs_minecraft_worldgen::feature::proto::Rotation;
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen::structure::template::{
     FrozenTemplate, PaletteState, ResolvedState, Template, TemplateManifest, bounding_box,

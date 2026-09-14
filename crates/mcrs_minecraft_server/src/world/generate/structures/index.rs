@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_math::IVec3;
 use mcrs_minecraft_biome::climate::TargetPoint;
+use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_worldgen::beard::{Beard, BeardPiece, JunctionPoint};
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::BiomeMask;
@@ -18,7 +19,6 @@ use mcrs_minecraft_worldgen::structure::placement::{
     SpreadPlacement, excluded_in_range, fixed_biome_window, frequency_gate, ring_positions,
     scan_biome_window, select_with_removal,
 };
-use mcrs_minecraft_worldgen::value_provider::HeightContext;
 
 use crate::world::generate::modern_carvers::climate_target_at;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;

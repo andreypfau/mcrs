@@ -8,7 +8,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 
 use super::placement::HeightmapName;
-use crate::value_provider::HeightContext;
+use mcrs_minecraft_core::value_provider::HeightContext;
 
 #[cfg(any(test, feature = "test-support"))]
 mod box_region;
@@ -174,9 +174,10 @@ pub fn decorate<'a, W: WorldGenVolume>(
 mod tests {
     use super::*;
     use crate::feature::placement::VerticalDirection;
-    use crate::feature::tree::{Bounded, UnitFloat};
-    use crate::value_provider::{BoundedIntProvider, IntProvider};
+    use crate::feature::tree::UnitFloat;
     use bevy_math::IVec3;
+    use mcrs_minecraft_core::codec::Bounded;
+    use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 
     const AIR: VoxelId = VoxelId(0);
     const STONE: VoxelId = VoxelId(1);

@@ -9,9 +9,9 @@ use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_assets::tag::tag_ref::TagRef;
 use mcrs_minecraft_block::Block;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_worldgen::value_provider::IntProvider;
 
 // ── Proto (deserialization-only) ──
 

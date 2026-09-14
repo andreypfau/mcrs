@@ -24,7 +24,6 @@ pub mod router;
 pub mod sample_grid;
 pub mod strata;
 pub mod structure;
-pub mod value_provider;
 
 pub use interval::Interval;
 pub use sample_grid::{Axis, SampleGrid};

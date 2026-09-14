@@ -12,6 +12,7 @@ use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
+use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
@@ -24,7 +25,6 @@ use mcrs_minecraft_worldgen::feature::placer::{
 use mcrs_minecraft_worldgen::material::MaterialScratch;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
-use mcrs_minecraft_worldgen::value_provider::HeightContext;
 use rustc_hash::FxHashMap;
 use tracing::{error, info_span};
 

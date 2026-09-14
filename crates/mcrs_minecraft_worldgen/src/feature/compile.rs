@@ -8,7 +8,7 @@ use mcrs_minecraft_chunk::VoxelId;
 
 use bevy_math::IVec3;
 
-use super::block_predicate::{BlockPredicate, Direction, HolderSet, Offset};
+use super::block_predicate::{BlockPredicate, Direction, Offset};
 use super::placement::PlacementModifier;
 use super::placer::{BiomeMask, Modifier, Predicate, Rule, StateMask, single_state};
 use super::proto::{Feature, FeatureStepList, Holder, PlacedFeature, StructureProcessorList};
@@ -16,6 +16,7 @@ use super::rule_test::RuleTest;
 use super::sort::build_features_per_step;
 use crate::proto::BlockState;
 use crate::structure::template::Template;
+use mcrs_minecraft_core::HolderSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FeatureCompileError {

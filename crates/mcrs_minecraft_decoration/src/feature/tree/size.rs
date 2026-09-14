@@ -51,7 +51,7 @@ pub fn min_clipped_height(size: &FeatureSize) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen::feature::tree::Bounded;
+    use mcrs_minecraft_core::codec::Bounded;
 
     #[test]
     fn two_layers_switches_at_the_limit() {

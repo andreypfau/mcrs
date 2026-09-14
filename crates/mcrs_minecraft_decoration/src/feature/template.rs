@@ -1,13 +1,15 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::mth::clamped_map;
+use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
-use mcrs_minecraft_worldgen::feature::HolderSet;
 use mcrs_minecraft_worldgen::feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, compile_rule, state_of, states_of,
 };
@@ -16,11 +18,10 @@ use mcrs_minecraft_worldgen::feature::placer::{
     BlockLayout, Rule, StateMask, WorldGenVolume, WorldStates,
 };
 use mcrs_minecraft_worldgen::feature::proto::{
-    LinearPos, PosRuleTest, ProcessorRule, Rotation, RuleBlockEntityModifier, StructureProcessor,
+    LinearPos, PosRuleTest, ProcessorRule, RuleBlockEntityModifier, StructureProcessor,
 };
 use mcrs_minecraft_worldgen::structure::Projection;
 use mcrs_minecraft_worldgen::structure::template::{FrozenTemplate, JigsawBlock, transform};
-use mcrs_minecraft_worldgen::value_provider::IntProvider;
 
 use crate::block_entity::GeneratedBlockEntity;
 

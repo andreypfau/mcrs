@@ -6,19 +6,21 @@ use serde::de::Error as _;
 use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::block_predicate::{BlockPredicate, Direction, HolderSet};
+use super::block_predicate::{BlockPredicate, Direction};
 use super::placement::IntOr;
 use super::placement::{HeightmapName, PlacementModifier, VerticalDirection};
 use super::rule_test::RuleTest;
-use super::tree::{
-    BlockSet, BlockStateProvider, Bounded, NonNegativeInt, TreeConfig, UnitFloat, default_true,
-    is_default, non_empty,
-};
+use super::tree::{BlockSet, BlockStateProvider, TreeConfig, UnitFloat, non_empty};
 use crate::material::proto::CaveSurface;
 use crate::proto::{BlockState, Either};
-use crate::value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
 use mcrs_minecraft_core::Axis;
+use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::Rotation;
+use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default};
+use mcrs_minecraft_core::value_provider::{
+    BoundedIntProvider, FloatProvider, IntProvider, Weighted,
+};
 
 /// `RegistryCodecs.holder(registry, direct, allowInline = true)`: an id naming a
 /// registry entry, or the entry itself written out in place.
@@ -615,40 +617,6 @@ pub struct TemplateEntry {
     pub id: ResourceLocation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rotations: Option<Vec<Rotation>>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Rotation {
-    #[serde(rename = "none")]
-    None,
-    #[serde(rename = "clockwise_90")]
-    Clockwise90,
-    #[serde(rename = "180")]
-    Clockwise180,
-    #[serde(rename = "counterclockwise_90")]
-    Counterclockwise90,
-}
-
-impl Rotation {
-    /// `Rotation.values()`, the order `nextInt(4)` indexes.
-    pub const ALL: [Rotation; 4] = [
-        Rotation::None,
-        Rotation::Clockwise90,
-        Rotation::Clockwise180,
-        Rotation::Counterclockwise90,
-    ];
-
-    pub fn rotate(self, direction: Direction) -> Direction {
-        if direction.is_vertical() {
-            return direction;
-        }
-        match self {
-            Rotation::None => direction,
-            Rotation::Clockwise90 => direction.clockwise(),
-            Rotation::Clockwise180 => direction.opposite(),
-            Rotation::Counterclockwise90 => direction.opposite().clockwise(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

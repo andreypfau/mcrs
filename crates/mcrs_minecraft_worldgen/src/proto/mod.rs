@@ -42,40 +42,6 @@ macro_rules! eq_by_bits {
 }
 pub(crate) use eq_by_bits;
 
-/// A codec bound the field list alone does not express. The shape is derived as
-/// usual and `validated!` hangs the check on the way in, so the fields are
-/// spelled once rather than once more in a shadow struct that has to be kept in
-/// step by hand.
-pub(crate) trait Validate: Sized {
-    fn validate(&self) -> Result<(), String>;
-}
-
-/// Turns the inherent codec `#[serde(remote = "Self")]` generates back into the
-/// trait impls, checking [`Validate`] on the way in.
-macro_rules! validated {
-    ($($name:ident),* $(,)?) => {$(
-        impl<'de> serde::Deserialize<'de> for $name {
-            fn deserialize<D: serde::Deserializer<'de>>(
-                deserializer: D,
-            ) -> Result<Self, D::Error> {
-                let value = $name::deserialize(deserializer)?;
-                value.validate().map_err(serde::de::Error::custom)?;
-                Ok(value)
-            }
-        }
-
-        impl serde::Serialize for $name {
-            fn serialize<S: serde::Serializer>(
-                &self,
-                serializer: S,
-            ) -> Result<S::Ok, S::Error> {
-                $name::serialize(self, serializer)
-            }
-        }
-    )*};
-}
-pub(crate) use validated;
-
 /// A `Codec.DOUBLE` payload.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct HashableF64(pub f64);

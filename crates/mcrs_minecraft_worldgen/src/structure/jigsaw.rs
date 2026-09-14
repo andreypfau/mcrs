@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::feature::placement::HeightmapName;
-use crate::feature::proto::Rotation;
 use crate::structure::template::Joint;
 use crate::structure::{JigsawConfig, Projection, TerrainAdaptation};
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{shuffle, shuffled};

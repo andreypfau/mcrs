@@ -8,7 +8,7 @@ use crate::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
 use crate::sample_grid::SampleGrid;
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::mth::mth_floor;
+use mcrs_minecraft_core::mth::{map, mth_floor};
 use mcrs_minecraft_random::Random;
 
 /// The water level of a strip in which no fluid has been seen from above.
@@ -1149,10 +1149,4 @@ fn corner_bounds(values: &[f32], lattice: &SampleGrid, at: IVec3, out: &mut [Int
         }
         *bound = Interval::of(lo, hi);
     }
-}
-
-/// A lerp over an inverse lerp, unclamped: a value outside the source range
-/// maps outside the target range.
-pub fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
-    to_min + (value - from_min) / (from_max - from_min) * (to_max - to_min)
 }

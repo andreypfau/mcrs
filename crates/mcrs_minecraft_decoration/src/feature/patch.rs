@@ -3,11 +3,11 @@ use rustc_hash::FxHashMap as HashMap;
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::material::proto::CaveSurface;
-use mcrs_minecraft_worldgen::value_provider::IntProvider;
 
 use std::sync::Arc;
 

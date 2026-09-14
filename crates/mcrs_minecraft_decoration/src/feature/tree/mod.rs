@@ -284,11 +284,12 @@ mod tests {
     use super::*;
     use crate::feature::tree::decorator::EntitiesOnly;
     use mcrs_minecraft_chunk::{Blocks, BlocksMut};
+    use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_random::Random;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
     use mcrs_minecraft_worldgen::feature::placer::mask_of;
     use mcrs_minecraft_worldgen::feature::placer::{BoxRegion, WorldStates};
-    use mcrs_minecraft_worldgen::feature::tree::{Bounded, TreeDecorator};
+    use mcrs_minecraft_worldgen::feature::tree::TreeDecorator;
     use std::sync::Arc;
 
     const AIR: VoxelId = VoxelId(0);

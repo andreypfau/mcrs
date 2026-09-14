@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use super::block_predicate::BlockPredicate;
-use super::tree::{Bounded, PositiveInt, UnitFloat, default_true, is_default, non_empty};
-use crate::value_provider::{BoundedIntProvider, HeightProvider};
+use super::tree::{UnitFloat, non_empty};
+use mcrs_minecraft_core::codec::{Bounded, PositiveInt, default_true, is_default};
+use mcrs_minecraft_core::value_provider::{BoundedIntProvider, HeightProvider};
 
 /// `Codec.INT.optionalFieldOf(name, DEFAULT)`.
 pub type IntOr<const DEFAULT: i32> = Bounded<{ i32::MIN }, { i32::MAX }, DEFAULT>;

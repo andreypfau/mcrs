@@ -17,7 +17,6 @@ mcrs_minecraft_block.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_worldgen.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true

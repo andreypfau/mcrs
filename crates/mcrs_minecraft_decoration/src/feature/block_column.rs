@@ -1,8 +1,8 @@
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, WorldGenVolume};
-use mcrs_minecraft_worldgen::value_provider::IntProvider;
 
 use crate::feature::tree::provider::StateProvider;
 
@@ -86,9 +86,9 @@ mod tests {
     use mcrs_minecraft_random::Random;
 
     use mcrs_minecraft_chunk::VoxelId;
+    use mcrs_minecraft_core::value_provider::DispatchedIntProvider;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
     use mcrs_minecraft_worldgen::feature::placer::single_state;
-    use mcrs_minecraft_worldgen::value_provider::DispatchedIntProvider;
 
     use super::*;
     use crate::feature::tree::provider::fake::{AIR, FakeVolume};

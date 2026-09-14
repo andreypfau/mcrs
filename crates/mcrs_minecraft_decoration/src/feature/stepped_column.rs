@@ -1,8 +1,8 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, StateMask, WorldGenVolume};
-use mcrs_minecraft_worldgen::value_provider::IntProvider;
 
 use crate::feature::tree::provider::StateProvider;
 use mcrs_minecraft_core::{BlockPos, dist_manhattan};

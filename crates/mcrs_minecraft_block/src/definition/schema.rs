@@ -11,7 +11,7 @@ use crate::material::map::MapColor;
 use mcrs_minecraft_assets::tag::file::TagOrElementLocation;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::direction::Direction;
-use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_minecraft_core::value_provider::IntProvider;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -15,8 +15,11 @@ use mcrs_minecraft_block::definition::{
 use mcrs_minecraft_block::{Block as VanillaBlock, Fluid};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_core::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_decoration::feature::bamboo::{CompiledBamboo, place_bamboo};
@@ -103,7 +106,7 @@ use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_minecraft_worldgen::feature::block_predicate::{Direction, HolderSet};
+use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
     compile_predicate, compile_rule, state_named, state_of as resolve_state, states_of,
@@ -113,8 +116,8 @@ use mcrs_minecraft_worldgen::feature::placer::{
     WorldGenVolume, WorldStates, place,
 };
 use mcrs_minecraft_worldgen::feature::proto::{
-    BlockReplacement, Feature, Holder, PlacedFeature, PlacedFeatureSet, Rotation,
-    StructureProcessorList, WeightedPlacedFeature, processor_list,
+    BlockReplacement, Feature, Holder, PlacedFeature, PlacedFeatureSet, StructureProcessorList,
+    WeightedPlacedFeature, processor_list,
 };
 use mcrs_minecraft_worldgen::proto::BlockState;
 use mcrs_minecraft_worldgen::structure::frozen::{
@@ -122,7 +125,6 @@ use mcrs_minecraft_worldgen::structure::frozen::{
 };
 use mcrs_minecraft_worldgen::structure::template::{FrozenTemplate, TemplateManifest};
 use mcrs_minecraft_worldgen::structure::{DecorationStep, LiquidSettings};
-use mcrs_minecraft_worldgen::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use rustc_hash::FxHashMap;
 use std::ops::Range;
 use std::sync::Arc;

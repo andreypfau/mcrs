@@ -18,7 +18,6 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_worldgen.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

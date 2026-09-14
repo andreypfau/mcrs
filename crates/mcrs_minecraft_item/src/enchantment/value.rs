@@ -277,7 +277,7 @@ impl Serialize for NumberProvider {
     }
 }
 
-pub type HolderSet = mcrs_minecraft_worldgen::feature::HolderSet<String>;
+pub type HolderSet = mcrs_minecraft_core::HolderSet<String>;
 
 /// Java's `MinMaxBounds`: a bare number is both ends, an object states either.
 #[derive(Debug, Clone, Copy, PartialEq)]

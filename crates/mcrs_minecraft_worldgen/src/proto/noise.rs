@@ -1,6 +1,7 @@
 use crate::interval::Interval;
-use crate::proto::{HashableF64, Validate, validated};
+use crate::proto::HashableF64;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{codec::Validate, validated};
 use serde::{Deserialize, Serialize};
 
 validated!(NoiseParam);

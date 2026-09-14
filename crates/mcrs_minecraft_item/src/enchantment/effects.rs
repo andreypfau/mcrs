@@ -6,7 +6,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::predicate::{BlockPredicate, LootCondition, dispatched_map};
 use super::value::{HolderSet, LevelBasedValue};
-use mcrs_minecraft_worldgen::value_provider::FloatProvider;
+use mcrs_minecraft_core::value_provider::FloatProvider;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

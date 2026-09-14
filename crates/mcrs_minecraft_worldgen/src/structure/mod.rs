@@ -9,15 +9,15 @@ pub mod template;
 
 use serde::{Deserialize, Serialize};
 
-use crate::feature::block_predicate::{HolderSet, Offset};
+use crate::feature::block_predicate::Offset;
 use crate::feature::placement::HeightmapName;
 use crate::feature::proto::{Holder, PlacedFeature, StructureProcessorList};
-use crate::feature::tree::{
-    Bounded, NonNegativeInt, PositiveFloat, PositiveInt, UnitFloat, is_default, non_empty,
-};
+use crate::feature::tree::{PositiveFloat, UnitFloat, non_empty};
 use crate::proto::Either;
-use crate::value_provider::{HeightProvider, IntProvider, Weighted};
+use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, PositiveInt, is_default};
+use mcrs_minecraft_core::value_provider::{HeightProvider, IntProvider, Weighted};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

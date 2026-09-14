@@ -8,7 +8,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::{Deserialize, Serialize};
 
-use crate::feature::proto::Rotation;
+use mcrs_minecraft_core::Rotation;
 
 pub const TEMPLATE_DATA_VERSION: i32 = 5015;
 

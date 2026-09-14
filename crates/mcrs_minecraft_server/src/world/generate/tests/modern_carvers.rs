@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen::aquifer::point_barrier;
 use mcrs_minecraft_worldgen::carver::CarverConfig;
 use mcrs_minecraft_worldgen::program::Workspace;
-use mcrs_minecraft_worldgen::value_provider::HeightContext;
 
 use super::{assets_root, build_settings_router, corpus};
 use crate::world::generate::modern_carvers::{

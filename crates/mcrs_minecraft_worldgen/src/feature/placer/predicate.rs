@@ -5,7 +5,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 
-use crate::value_provider::VerticalAnchor;
+use mcrs_minecraft_core::value_provider::VerticalAnchor;
 
 use super::{BiomeMask, StateMask, WorldGenVolume};
 

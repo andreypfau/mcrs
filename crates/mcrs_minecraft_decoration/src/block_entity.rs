@@ -7,11 +7,11 @@ use std::collections::BTreeMap;
 use std::io::Cursor;
 
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::codec::is_default;
+use mcrs_minecraft_core::value_provider::Weighted;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
-use mcrs_minecraft_worldgen::feature::tree::is_default;
-use mcrs_minecraft_worldgen::value_provider::Weighted;
 use serde::{Deserialize, Serialize};
 
 /// A block entity a generator produced, in the compound the save, the chunk

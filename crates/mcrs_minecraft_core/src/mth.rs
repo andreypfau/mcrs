@@ -196,6 +196,12 @@ pub fn cos_modern(x: f64) -> f32 {
     SIN_TABLE[(((x * 10430.378350470453 + 16384.0) as i64 as u64) & 0xFFFF) as usize]
 }
 
+/// A lerp over an inverse lerp, unclamped: a value outside the source range
+/// maps outside the target range.
+pub fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
+    to_min + (value - from_min) / (from_max - from_min) * (to_max - to_min)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

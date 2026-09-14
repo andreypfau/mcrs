@@ -1,12 +1,13 @@
 use crate::material::compile::{MaterialInputs, VeinId};
-use crate::material::eval::{MaterialEval, NO_WATER, map};
+use crate::material::eval::{MaterialEval, NO_WATER};
 use crate::material::proto::{
     CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
 };
-use crate::value_provider::HeightContext;
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::mth::map;
+use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::Random;
 use std::collections::BTreeSet;
 

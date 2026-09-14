@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::value_provider::{FloatProvider, HeightProvider, IntProvider};
+use mcrs_minecraft_core::value_provider::{FloatProvider, HeightProvider, IntProvider};
 
 fn one() -> FloatProvider {
     FloatProvider::Constant(1.0)
@@ -78,7 +78,7 @@ impl CarverConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::value_provider::{
+    use mcrs_minecraft_core::value_provider::{
         DispatchedFloatProvider, DispatchedHeightProvider, DispatchedIntProvider, VerticalAnchor,
     };
     use std::path::PathBuf;

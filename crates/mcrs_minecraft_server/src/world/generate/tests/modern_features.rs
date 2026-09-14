@@ -330,7 +330,7 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
 /// block definition interns that fluid, so matching by name alone inverted it.
 #[test]
 fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
-    use mcrs_minecraft_worldgen::feature::block_predicate::HolderSet;
+    use mcrs_minecraft_core::HolderSet;
     use mcrs_minecraft_worldgen::feature::compile::{BlockResolver, StateQuery};
 
     let biomes = biome_registry(&[BIOME]);

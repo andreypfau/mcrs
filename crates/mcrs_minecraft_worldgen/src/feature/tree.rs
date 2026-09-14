@@ -1,53 +1,12 @@
 use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
-use super::block_predicate::{BlockPredicate, Direction, HolderSet};
-use crate::proto::{BlockState, NoiseParam, Validate, validated};
-use crate::value_provider::{IntProvider, Weighted};
-
-/// A `Codec.intRange(MIN, MAX)` payload, with the value `optionalFieldOf`
-/// falls back to. Stated once here rather than as a validator per field,
-/// because the tree registries carry a dozen distinct bounds across sixty-odd
-/// fields.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Bounded<const MIN: i32, const MAX: i32, const DEFAULT: i32 = 0>(pub i32);
-
-impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Default for Bounded<MIN, MAX, DEFAULT> {
-    fn default() -> Self {
-        Bounded(DEFAULT)
-    }
-}
-
-pub fn is_default<T: Default + PartialEq>(value: &T) -> bool {
-    *value == T::default()
-}
-
-pub(crate) fn default_true() -> bool {
-    true
-}
-
-impl<'de, const MIN: i32, const MAX: i32, const DEFAULT: i32> Deserialize<'de>
-    for Bounded<MIN, MAX, DEFAULT>
-{
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let value = i32::deserialize(deserializer)?;
-        if !(MIN..=MAX).contains(&value) {
-            return Err(D::Error::custom(format!(
-                "Value must be within range [{MIN};{MAX}]: {value}"
-            )));
-        }
-        Ok(Bounded(value))
-    }
-}
-
-impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Serialize for Bounded<MIN, MAX, DEFAULT> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(serializer)
-    }
-}
-
-pub type NonNegativeInt = Bounded<0, { i32::MAX }>;
-pub type PositiveInt = Bounded<1, { i32::MAX }>;
+use super::block_predicate::{BlockPredicate, Direction};
+use crate::proto::{BlockState, NoiseParam};
+use mcrs_minecraft_core::HolderSet;
+use mcrs_minecraft_core::codec::{Bounded, is_default};
+use mcrs_minecraft_core::value_provider::{IntProvider, Weighted};
+use mcrs_minecraft_core::{codec::Validate, validated};
 
 super::proto::bounded_float! {
     /// `Codec.floatRange(0.0F, 1.0F)`.

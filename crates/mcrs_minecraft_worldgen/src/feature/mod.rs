@@ -7,5 +7,4 @@ pub mod rule_test;
 pub mod sort;
 pub mod tree;
 
-pub use block_predicate::HolderSet;
 pub use proto::FeatureStepList;

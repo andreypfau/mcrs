@@ -4,14 +4,14 @@ use std::sync::LazyLock;
 
 use crate::feature::placement::HeightmapName;
 use crate::feature::placer::BiomeMask;
-use crate::feature::proto::Rotation;
 use crate::structure::PoolAlias;
 use crate::structure::template::{JigsawBlock, Joint, bounding_box, transform};
-use crate::value_provider::{HeightContext, pick_weighted_by};
 use bevy_math::IVec3;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::Rotation;
+use mcrs_minecraft_core::value_provider::{HeightContext, pick_weighted_by};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffle};
 

@@ -11,6 +11,7 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_decoration::carver::beta::carve_beta_caves;
 use mcrs_minecraft_decoration::carver::canyon::carve_canyon;
 use mcrs_minecraft_decoration::carver::mask::CarvingMask;
@@ -24,7 +25,6 @@ use mcrs_minecraft_worldgen::router::{
     CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
 use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
-use mcrs_minecraft_worldgen::value_provider::HeightContext;
 
 use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
 

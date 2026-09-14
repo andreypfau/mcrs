@@ -20,7 +20,6 @@ mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_light.workspace = true
 mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_worldgen.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -6,8 +6,9 @@ use bevy_math::IVec3;
 use bytes::Buf;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
-use mcrs_minecraft_worldgen::feature::proto::{Holder, Rotation};
+use mcrs_minecraft_worldgen::feature::proto::Holder;
 use mcrs_minecraft_worldgen::structure::Projection;
 
 use super::structure_sites::{build_index, dimension};

@@ -7,6 +7,7 @@ use bevy_math::IVec3;
 use bytes::Buf;
 use mcrs_minecraft_chunk::{Blocks, BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_decoration::feature::template::rotate_state;
@@ -21,9 +22,7 @@ use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
 use mcrs_minecraft_worldgen::feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{BoxRegion, WorldStates};
-use mcrs_minecraft_worldgen::feature::proto::{
-    Feature, Holder, PlacedFeature, Rotation, processor_list,
-};
+use mcrs_minecraft_worldgen::feature::proto::{Feature, Holder, PlacedFeature, processor_list};
 use mcrs_minecraft_worldgen::structure::LiquidSettings;
 
 use super::structures::frozen_shared;

@@ -1,6 +1,7 @@
 use crate::node::gradient::Tiling;
-use crate::proto::{ConstantValue, DensityFunctionHolder, NoiseValue, Validate, validated};
+use crate::proto::{ConstantValue, DensityFunctionHolder, NoiseValue};
 use crate::sample_grid::Axis;
+use mcrs_minecraft_core::{codec::Validate, validated};
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 

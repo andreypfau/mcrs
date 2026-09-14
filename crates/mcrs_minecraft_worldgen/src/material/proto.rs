@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::proto::{BlockState, DensityFunctionHolder, HashableF64};
-use crate::value_provider::VerticalAnchor;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::value_provider::VerticalAnchor;
 
 fn is_false(value: &bool) -> bool {
     !*value
@@ -111,7 +111,7 @@ pub enum CaveSurface {
 
 /// The biomes a `biome_is` names: one id or a list of them. A `#tag` parses
 /// but the material compile refuses it.
-pub type BiomeSet = crate::feature::block_predicate::HolderSet;
+pub type BiomeSet = mcrs_minecraft_core::HolderSet;
 
 #[cfg(test)]
 mod tests {
