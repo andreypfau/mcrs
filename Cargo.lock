@@ -289,18 +289,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-compression"
-version = "0.4.39"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68650b7df54f0293fd061972a0fb05aaf4fc0879d3b3d21a638a182c5c543b9f"
-dependencies = [
- "compression-codecs",
- "compression-core",
- "pin-project-lite",
- "tokio",
-]
-
-[[package]]
 name = "async-executor"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2032,22 +2020,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "compression-codecs"
-version = "0.4.36"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00828ba6fd27b45a448e57dbfe84f1029d4c9f26b368157e9a448a5f49a2ec2a"
-dependencies = [
- "compression-core",
- "flate2",
-]
-
-[[package]]
-name = "compression-core"
-version = "0.4.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75984efb6ed102a0d42db99afb6c1948f0380d1d91808d5529916e6c08b49d8d"
-
-[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3496,16 +3468,12 @@ dependencies = [
 name = "mcrs_minecraft_block"
 version = "0.1.0"
 dependencies = [
- "bevy_app",
  "bevy_ecs",
- "bevy_ecs_macros",
  "bitflags 2.10.0",
  "mcrs_minecraft_protocol",
  "mcrs_voxel_math",
  "mcrs_voxel_storage",
  "mcrs_voxel_world",
- "rustc-hash 2.1.1",
- "tracing",
 ]
 
 [[package]]
@@ -3618,7 +3586,6 @@ dependencies = [
  "bevy_tasks",
  "bytes",
  "js-sys",
- "log",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_voxel_storage",
@@ -3641,7 +3608,6 @@ dependencies = [
  "aes",
  "anyhow",
  "base64",
- "bevy_app",
  "bevy_ecs",
  "bevy_math",
  "bitfield-struct",
@@ -3658,7 +3624,6 @@ dependencies = [
  "mcrs_voxel_storage",
  "mcrs_voxel_world",
  "rand 0.10.0",
- "rustc-hash 2.1.1",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3690,14 +3655,10 @@ dependencies = [
 name = "mcrs_minecraft_server"
 version = "0.1.0"
 dependencies = [
- "aes",
- "arrayvec",
- "async-compression",
  "base64",
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_ecs_macros",
  "bevy_math",
  "bevy_reflect",
  "bevy_state",
@@ -3706,13 +3667,10 @@ dependencies = [
  "bevy_utils",
  "bitflags 2.10.0",
  "bytes",
- "cfb8",
- "cipher",
  "criterion",
  "derive_more",
  "fixedbitset",
  "flume",
- "indexmap",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
@@ -3728,8 +3686,6 @@ dependencies = [
  "mcrs_voxel_server",
  "mcrs_voxel_storage",
  "mcrs_voxel_world",
- "num-integer",
- "paste",
  "proptest",
  "rand 0.10.0",
  "rand 0.9.2",
@@ -3751,22 +3707,17 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_ecs_macros",
  "bevy_math",
  "bevy_platform",
  "bevy_reflect",
  "bevy_state",
  "bevy_tasks",
  "bitflags 2.10.0",
- "derive_more",
- "futures-lite",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_worldgen",
  "mcrs_voxel_math",
- "paste",
- "rand 0.10.0",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -3815,7 +3766,6 @@ dependencies = [
 name = "mcrs_voxel_math"
 version = "0.1.0"
 dependencies = [
- "bevy_derive",
  "bevy_ecs",
  "bevy_math",
  "serde",
@@ -3854,12 +3804,10 @@ dependencies = [
  "bevy_app",
  "bevy_derive",
  "bevy_ecs",
- "bevy_ecs_macros",
  "bevy_math",
  "bevy_platform",
  "flume",
  "indexmap",
- "log",
  "mcrs_voxel_math",
  "mcrs_voxel_storage",
  "rustc-hash 2.1.1",
@@ -4556,12 +4504,6 @@ checksum = "19ab9ace3fad1b9ed603ddac5b595e69931fc50263d7e04e4055015b77b02da5"
 dependencies = [
  "icu_properties",
 ]
-
-[[package]]
-name = "paste"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pem"

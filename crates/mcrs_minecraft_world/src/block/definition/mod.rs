@@ -12,7 +12,7 @@ use bevy_asset::io::AssetSourceId;
 use bevy_ecs::resource::Resource;
 use bevy_math::Vec3;
 use bevy_tasks::block_on;
-use futures_lite::StreamExt;
+use bevy_tasks::futures_lite::StreamExt;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::molang::{MolangError, StateCondition};

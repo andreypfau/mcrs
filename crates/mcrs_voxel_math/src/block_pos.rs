@@ -1,10 +1,9 @@
-use bevy_derive::DerefMut;
 use bevy_math::DVec3;
 use bevy_math::prelude::*;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, DerefMut)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct BlockPos(IVec3);
 
 impl Display for BlockPos {
@@ -17,6 +16,12 @@ impl ::core::ops::Deref for BlockPos {
     type Target = IVec3;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl ::core::ops::DerefMut for BlockPos {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

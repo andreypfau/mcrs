@@ -1,6 +1,5 @@
 use crate::SharedNetworkState;
 use crate::packet_io::{ByteStream, PacketIo};
-use log::debug;
 use mcrs_minecraft_protocol::PROTOCOL_VERSION;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
@@ -8,6 +7,7 @@ use mcrs_minecraft_protocol::packets::ping::clientbound::PongResponse;
 use mcrs_minecraft_protocol::packets::ping::serverbound::PingRequest;
 use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
 use serde_json::json;
+use tracing::debug;
 
 pub(crate) async fn handle_intent<S: ByteStream>(
     shared: SharedNetworkState,

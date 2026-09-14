@@ -2,7 +2,6 @@ use crate::SharedNetworkState;
 use crate::intent::handle_intent;
 use crate::metrics::BRIDGE_HANDSHAKE_INFLIGHT;
 use crate::packet_io::PacketIo;
-use log::{error, info, warn};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -10,6 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::time::timeout;
+use tracing::{error, info, warn};
 
 pub(crate) const HANDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
 

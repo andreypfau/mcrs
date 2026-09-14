@@ -46,7 +46,7 @@ use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetApp, AssetServer, Assets, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
-use futures_lite::StreamExt;
+use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_core::asset::JsonLoader;
 use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
 use mcrs_minecraft_core::tag::file::TagFile;

@@ -1,4 +1,4 @@
-use bevy_ecs_macros::Component;
+use bevy_ecs::component::Component;
 
 pub mod chunk_view;
 pub mod reposition;

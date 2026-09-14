@@ -1,14 +1,26 @@
 use crate::BitSize;
 use crate::BlockPos;
-use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::Component;
 use bevy_math::DVec3;
 use bevy_math::prelude::*;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Component, Deref, DerefMut)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Component)]
 pub struct ChunkPos(pub IVec3);
+
+impl std::ops::Deref for ChunkPos {
+    type Target = IVec3;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for ChunkPos {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 impl Display for ChunkPos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

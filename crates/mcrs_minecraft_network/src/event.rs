@@ -2,8 +2,8 @@ use crate::Instant;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bytes::Bytes;
-use log::warn;
 use mcrs_minecraft_protocol::{Decode, Packet};
+use tracing::warn;
 
 #[derive(Debug, Clone, EntityEvent)]
 pub struct ReceivedPacketEvent {
@@ -49,7 +49,7 @@ mod loop_plugin {
     use bevy_ecs::query::Without;
     use bevy_ecs::schedule::ScheduleLabel;
     use bevy_ecs::system::Query;
-    use log::warn;
+    use tracing::warn;
 
     pub(crate) struct EventLoopPlugin;
 

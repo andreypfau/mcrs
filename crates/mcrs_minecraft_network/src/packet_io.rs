@@ -1,6 +1,5 @@
 use crate::{EngineConnection, Instant, ReceivedPacket};
 use bytes::{Bytes, BytesMut};
-use log::{error, warn};
 use mcrs_minecraft_protocol::{
     CompressionThreshold, Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket,
 };
@@ -13,6 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
+use tracing::{error, warn};
 
 /// `Send` everywhere but the browser, where a WebTransport stream is a JS
 /// object bound to the single thread that made it.

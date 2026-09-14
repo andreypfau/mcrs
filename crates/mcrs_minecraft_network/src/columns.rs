@@ -6,7 +6,6 @@ use bevy_app::App;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{On, Query, ResMut, Resource, Single};
 use bevy_tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
-use log::error;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{
     ChunkData, LightChunk, LightData, Palette, PalettedContainer,
@@ -20,6 +19,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchRe
 use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind};
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 use mcrs_voxel_storage::unpack_into;
+use tracing::error;
 
 use crate::ConnectionState;
 use crate::Instant;

@@ -3,12 +3,12 @@ use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use crate::world::lifecycle::ticket::MAX_SPAWNS_PER_TICK;
 use crate::world::lifecycle::trace::{self, ColumnStage};
 use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{
     Added, Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs,
     MessageWriter, Or, ParallelCommands, Query,
 };
 use bevy_ecs::schedule::SystemSet;
-use bevy_ecs_macros::Message;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::{ChunkPos, ColumnPos};
 use rustc_hash::FxHashSet;

@@ -10,7 +10,6 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use log::{error, info, warn};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::serverbound::{ClientInformation, KeepAlive};
@@ -44,6 +43,7 @@ use std::net::SocketAddr;
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{Receiver, channel};
+use tracing::{error, info, warn};
 
 /// The browser has no TCP and the native client has no WebTransport, so what
 /// "the server" is differs by target; everything downstream of the byte stream

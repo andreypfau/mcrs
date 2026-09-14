@@ -12,7 +12,6 @@ mcrs_voxel_math.workspace = true
 mcrs_voxel_storage.workspace = true
 bevy_ecs.workspace = true
 bevy_platform.workspace = true
-bevy_ecs_macros.workspace = true
 bevy_derive.workspace = true
 bevy_app.workspace = true
 bevy_math.workspace = true
@@ -21,6 +20,5 @@ flume.workspace = true
 indexmap.workspace = true
 smallvec.workspace = true
 tracing = "0.1.43"
-log = "0.4.29"
 
 [features]

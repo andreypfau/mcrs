@@ -1,7 +1,7 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Bundle;
-use bevy_ecs_macros::QueryData;
+use bevy_ecs::query::QueryData;
 use derive_more::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Default, Component)]
