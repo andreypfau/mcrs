@@ -5,8 +5,8 @@ use std::sync::Arc;
 use bevy_math::IVec3;
 use bytes::Buf;
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_world::biome::source::BiomeSource;
 use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
 use mcrs_minecraft_worldgen::program::Workspace;
 

@@ -10,6 +10,8 @@ use std::time::Instant;
 
 use bevy_asset::Assets;
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
@@ -19,8 +21,6 @@ use mcrs_minecraft_server::world::generate::stages::extent;
 use mcrs_minecraft_server::world::generate::{
     BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, fill_column_dense_any,
 };
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_worldgen::carver::CarverConfig;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
@@ -36,7 +36,7 @@ fn make_beta_biome() -> Biome {
         downfall: 0.5,
         has_precipitation: true,
         temperature_modifier: None,
-        effects: mcrs_minecraft_world::biome::BiomeEffects {
+        effects: mcrs_minecraft_biome::BiomeEffects {
             water_color: None,
             foliage_color: None,
             grass_color: None,

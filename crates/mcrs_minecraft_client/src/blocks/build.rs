@@ -6,7 +6,7 @@ use crate::bake::{self, Dir, TinyWorld};
 use crate::model::Pack;
 
 use super::{BlockInfo, CORNER_UV, CubeFace, FACE_AXES, ModelQuad, Pass, TintKind, cube_corner};
-use mcrs_minecraft_world::block::definition::BlockStateData;
+use mcrs_minecraft_block::definition::BlockStateData;
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
     "minecraft:bubble_column",

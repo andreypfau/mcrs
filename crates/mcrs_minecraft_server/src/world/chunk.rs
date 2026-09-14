@@ -12,6 +12,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
+use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -24,7 +25,6 @@ use mcrs_minecraft_level::world::lifecycle::markers::ChunkUnloading;
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_world::worldgen::beta_biome::BetaBiomeSourcePlugin;
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
 use rustc_hash::FxHashMap;
@@ -839,8 +839,8 @@ mod tests {
     use super::*;
     use crate::world::generate::tests::blocks as corpus;
     use bevy_app::{App, Update};
+    use mcrs_minecraft_block::definition::schema::PropertyValue;
     use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
-    use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 
     fn noise_settings_state(field: &str) -> ProtoBlockState {
         let path = concat!(

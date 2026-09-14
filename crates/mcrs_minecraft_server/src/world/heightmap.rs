@@ -7,6 +7,11 @@ use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::tag::TagPhase;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
+use mcrs_minecraft_block::tags::{
+    BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
+};
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::block_update::BlockPlaced;
@@ -14,11 +19,6 @@ use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette, ChunkBlocks};
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::storage::column::{ChunkLookup, ColumnChunks, ColumnIndex};
 use mcrs_minecraft_protocol::{BlockStateId, VarInt};
-use mcrs_minecraft_world::block::Block;
-use mcrs_minecraft_world::block::definition::{BlockStateFlags, Blocks};
-use mcrs_minecraft_world::block::tags::{
-    BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
-};
 use mcrs_minecraft_world::transition_to_playing;
 use rustc_hash::FxHashMap;
 

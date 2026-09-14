@@ -1,0 +1,25 @@
+[package]
+name = "mcrs_minecraft_dimension"
+description = "Dimension types and the environment attribute layers of a dimension"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_asset.workspace = true
+bevy_ecs.workspace = true
+bevy_math.workspace = true
+bevy_reflect.workspace = true
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

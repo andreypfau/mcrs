@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use mcrs_minecraft_world::biome::climate::ClimateParameters;
-use mcrs_minecraft_world::biome::overworld_preset::overworld_parameter_list;
-use mcrs_minecraft_world::biome::source::MultiNoiseBiomeSource;
+use mcrs_minecraft_biome::climate::ClimateParameters;
+use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
+use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_worldgen::program::Workspace;
 
 use super::build_settings_router;
@@ -113,7 +113,7 @@ fn a_column_carries_its_cave_biome_under_its_surface_biome() {
 /// A source that lists its biomes rather than naming a preset.
 #[test]
 fn an_explicit_entry_list_resolves_by_location() {
-    use mcrs_minecraft_world::biome::climate::ParameterRange;
+    use mcrs_minecraft_biome::climate::ParameterRange;
 
     let flat = |value: f64| ClimateParameters {
         temperature: ParameterRange::Point(value),
@@ -139,13 +139,13 @@ fn an_explicit_entry_list_resolves_by_location() {
     .expect("an explicit list resolves");
     assert_eq!(table.len(), 2);
     assert_eq!(
-        table.biome_at(mcrs_minecraft_world::biome::climate::TargetPoint::new(
+        table.biome_at(mcrs_minecraft_biome::climate::TargetPoint::new(
             -1.0, 0.0, 0.0, 0.0, 0.0, 0.0
         )),
         7
     );
     assert_eq!(
-        table.biome_at(mcrs_minecraft_world::biome::climate::TargetPoint::new(
+        table.biome_at(mcrs_minecraft_biome::climate::TargetPoint::new(
             1.0, 0.0, 0.0, 0.0, 0.0, 0.0
         )),
         9
@@ -155,8 +155,8 @@ fn an_explicit_entry_list_resolves_by_location() {
 fn entry(
     parameters: ClimateParameters,
     biome: &str,
-) -> mcrs_minecraft_world::biome::source::MultiNoiseBiomeEntry {
-    mcrs_minecraft_world::biome::source::MultiNoiseBiomeEntry {
+) -> mcrs_minecraft_biome::source::MultiNoiseBiomeEntry {
+    mcrs_minecraft_biome::source::MultiNoiseBiomeEntry {
         parameters,
         biome: bevy_asset::Handle::default(),
         location: mcrs_minecraft_core::ResourceLocation::parse(biome).unwrap(),

@@ -20,6 +20,11 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
+use mcrs_minecraft_block::light::{BlockLightRegistry, block_light_registry};
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
@@ -29,11 +34,6 @@ use mcrs_minecraft_server::world::bus::{
 };
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::Block;
-use mcrs_minecraft_world::block::definition::{Blocks, load_block_definitions};
-use mcrs_minecraft_world::block::light::{BlockLightRegistry, block_light_registry};
-use mcrs_minecraft_world::enchantment::EnchantmentData;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///

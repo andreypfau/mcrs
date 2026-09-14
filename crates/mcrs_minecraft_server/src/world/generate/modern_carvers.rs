@@ -3,6 +3,11 @@ use std::sync::{Arc, Mutex};
 
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
+use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
+use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
+use mcrs_minecraft_block::Block as VanillaBlock;
+use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
@@ -12,13 +17,6 @@ use mcrs_minecraft_decoration::carver::mask::CarvingMask;
 use mcrs_minecraft_decoration::carver::modern::{SOURCE_RADIUS, carve_caves, is_start_chunk};
 use mcrs_minecraft_decoration::carver::water::WaterMask;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_world::biome::climate::{ParameterList, ParameterPoint, TargetPoint};
-use mcrs_minecraft_world::biome::overworld_preset::{
-    nether_parameter_list, overworld_parameter_list,
-};
-use mcrs_minecraft_world::biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
-use mcrs_minecraft_world::block::Block as VanillaBlock;
-use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::aquifer::{FluidField, point_barrier};
 use mcrs_minecraft_worldgen::carver::CarverConfig;
 use mcrs_minecraft_worldgen::program::Workspace;
@@ -569,7 +567,7 @@ impl bevy_app::Plugin for ModernCarverPlugin {
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
     sources: Option<bevy_ecs::prelude::Res<crate::world::generate::routers::DimensionBiomeSources>>,
-    biomes: bevy_ecs::prelude::Res<bevy_asset::Assets<mcrs_minecraft_world::biome::Biome>>,
+    biomes: bevy_ecs::prelude::Res<bevy_asset::Assets<mcrs_minecraft_biome::Biome>>,
     carvers: bevy_ecs::prelude::Res<
         bevy_asset::Assets<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>,
     >,
@@ -674,7 +672,7 @@ fn build_modern_carver_biomes(
 /// which carvers each biome runs, and what each carver is.
 /// A climate point spanning every parameter, for a source with one biome.
 fn whole_climate_space() -> ParameterPoint {
-    let full = mcrs_minecraft_world::biome::climate::Parameter::span(-2.0, 2.0);
+    let full = mcrs_minecraft_biome::climate::Parameter::span(-2.0, 2.0);
     ParameterPoint {
         temperature: full,
         humidity: full,

@@ -7,7 +7,7 @@ use mcrs_minecraft_worldgen::bevy::NoiseGeneratorSettingsAsset;
 
 use super::flat::{FlatChunkGenerator, ProtoFlatChunkGenerator};
 use crate::ResourceLocation;
-use crate::biome::source::{BiomeSource, ProtoBiomeSource};
+use mcrs_minecraft_biome::source::{BiomeSource, ProtoBiomeSource};
 
 // ===========================================================================
 // Runtime types

@@ -8,16 +8,14 @@ use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::{DynTagRegistry, RegistrySnapshot};
+use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
+use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_biome::{Biome, TemperatureModifier};
+use mcrs_minecraft_block::Block as VanillaBlock;
+use mcrs_minecraft_block::Fluid;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_decoration::feature::terrain_skin::BiomeClimate;
-use mcrs_minecraft_world::biome::overworld_preset::{
-    nether_parameter_list, overworld_parameter_list,
-};
-use mcrs_minecraft_world::biome::source::BiomeSource;
-use mcrs_minecraft_world::biome::{Biome, TemperatureModifier};
-use mcrs_minecraft_world::block::Block as VanillaBlock;
-use mcrs_minecraft_world::block::Fluid;
-use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_worldgen::bevy::{
     FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, TemplateAsset, TemplatePoolAsset,
 };
@@ -125,7 +123,7 @@ pub(crate) fn possible_biomes(
 }
 
 fn preset_biomes(
-    list: &mcrs_minecraft_world::biome::climate::ParameterList<&'static str>,
+    list: &mcrs_minecraft_biome::climate::ParameterList<&'static str>,
 ) -> Vec<ResourceLocation> {
     list.values()
         .iter()
@@ -313,7 +311,7 @@ mod tests {
     }
 
     fn preset(name: &str) -> BiomeSource {
-        BiomeSource::MultiNoise(mcrs_minecraft_world::biome::source::MultiNoiseBiomeSource {
+        BiomeSource::MultiNoise(mcrs_minecraft_biome::source::MultiNoiseBiomeSource {
             preset: Some(ResourceLocation::parse(name).unwrap()),
             biomes: None,
         })

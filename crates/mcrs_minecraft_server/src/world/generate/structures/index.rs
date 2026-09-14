@@ -4,7 +4,7 @@ use std::ops::Range;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_math::IVec3;
-use mcrs_minecraft_world::biome::climate::TargetPoint;
+use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_worldgen::beard::{Beard, BeardPiece, JunctionPoint};
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::BiomeMask;

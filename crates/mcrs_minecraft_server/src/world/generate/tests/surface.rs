@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
 
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
+use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::biome::overworld_preset::overworld_parameter_list;
-use mcrs_minecraft_world::biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_worldgen::compile::build_router;
 use mcrs_minecraft_worldgen::material::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch, NO_WATER,
@@ -414,11 +414,11 @@ fn overworld_biome_registry() -> (
 /// `dispatch_column_generation` resolves them for the pool.
 fn fill_context(
     router: NoiseRouter,
-    registry: mcrs_minecraft_assets::RegistrySnapshot<mcrs_minecraft_world::biome::Biome>,
-    source: mcrs_minecraft_world::biome::source::BiomeSource,
+    registry: mcrs_minecraft_assets::RegistrySnapshot<mcrs_minecraft_biome::Biome>,
+    source: mcrs_minecraft_biome::source::BiomeSource,
 ) -> crate::world::generate::stages::FillContext {
     use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-    use mcrs_minecraft_world::biome::source::BiomeSource;
+    use mcrs_minecraft_biome::source::BiomeSource;
 
     use super::blocks;
     let registry = std::sync::Arc::new(registry);
@@ -458,9 +458,9 @@ fn fill_context(
 fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     use bevy_app::App;
     use bevy_ecs::entity::Entity;
+    use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_minecraft_core::SectionPos;
     use mcrs_minecraft_protocol::ColumnPos;
-    use mcrs_minecraft_world::biome::source::BiomeSource;
 
     use crate::world::chunk::{CancellationToken, carried_sections};
     use crate::world::generate::stages::fill_column;
@@ -523,8 +523,8 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
 /// no multi-noise sample any test takes reaches it.
 #[test]
 fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
+    use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_minecraft_protocol::ColumnPos;
-    use mcrs_minecraft_world::biome::source::BiomeSource;
 
     use crate::world::chunk::CancellationToken;
     use crate::world::generate::stages::fill_column;

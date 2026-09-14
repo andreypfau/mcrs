@@ -373,7 +373,7 @@ fn asset_maps() -> (
 #[test]
 fn the_freeze_resolution_builds_the_dimension_tables() {
     use crate::world::generate::modern_carvers::resolve_carver_biomes;
-    use mcrs_minecraft_world::biome::climate::{Parameter, ParameterPoint};
+    use mcrs_minecraft_biome::climate::{Parameter, ParameterPoint};
 
     let (carvers_by_biome, config_by_location) = asset_maps();
 
@@ -394,9 +394,9 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
     )
     .expect("the nether preset resolves");
     assert_eq!(nether.entry_count(), 5);
-    let wastes = nether.carvers_at_for_test(
-        mcrs_minecraft_world::biome::climate::TargetPoint::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-    );
+    let wastes = nether.carvers_at_for_test(mcrs_minecraft_biome::climate::TargetPoint::new(
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    ));
     assert_eq!(wastes.len(), 1, "the nether wastes run one carver");
     assert!(matches!(wastes[0], CarverConfig::Cave { .. }));
 
@@ -456,7 +456,7 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
     .unwrap();
     assert!(
         empty
-            .carvers_at_for_test(mcrs_minecraft_world::biome::climate::TargetPoint::new(
+            .carvers_at_for_test(mcrs_minecraft_biome::climate::TargetPoint::new(
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
             ))
             .is_empty()
@@ -503,7 +503,7 @@ fn every_beta_biome_carves_with_the_beta_carver() {
 #[test]
 fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     use bevy_math::IVec3;
-    use mcrs_minecraft_world::biome::source::BiomeSource;
+    use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_minecraft_worldgen::router::{TEMPERATURE, VEGETATION};
     use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 

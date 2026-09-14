@@ -5,11 +5,11 @@ use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::DynTagRegistry;
+use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_registry::DynRegistryIndex;
-use mcrs_minecraft_world::biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_worldgen::corpus::assets_dir;
 use mcrs_minecraft_worldgen::structure::template::{
     PaletteState, ResolvedState, TEMPLATE_DATA_VERSION, Template, TemplateBlock,

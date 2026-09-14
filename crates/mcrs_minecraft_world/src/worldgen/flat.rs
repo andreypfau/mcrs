@@ -4,7 +4,7 @@ use bevy_asset::{Handle, LoadContext, UntypedAssetId};
 use serde::Deserialize;
 
 use crate::ResourceLocation;
-use crate::biome::Biome;
+use mcrs_minecraft_biome::Biome;
 
 // ===========================================================================
 // Runtime types

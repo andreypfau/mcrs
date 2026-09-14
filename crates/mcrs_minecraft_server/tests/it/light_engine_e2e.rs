@@ -1,6 +1,7 @@
 use bevy_app::{App, AppLabel, Last};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use mcrs_minecraft_level::block::BlockUpdateFlags;
@@ -23,7 +24,6 @@ use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 use mcrs_minecraft_server::world::light::emit_light_updates;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_world::block::definition::Blocks;
 
 use crate::host_app;
 

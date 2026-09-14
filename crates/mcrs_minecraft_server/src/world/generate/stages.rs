@@ -6,17 +6,17 @@ use bevy_ecs::prelude::Resource;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
+use mcrs_minecraft_block::Block as VanillaBlock;
+use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::biome::source::BiomeSource;
-use mcrs_minecraft_world::biome::zoom::{obfuscate_seed, quart_cell};
-use mcrs_minecraft_world::block::Block as VanillaBlock;
-use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{
     PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,

@@ -100,8 +100,8 @@ impl AssetLoader for WorldPresetLoader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::biome::source::ProtoBiomeSource;
     use crate::worldgen::chunk_generator::ProtoChunkGenerator;
+    use mcrs_minecraft_biome::source::ProtoBiomeSource;
     use std::path::PathBuf;
 
     fn assets_dir() -> PathBuf {

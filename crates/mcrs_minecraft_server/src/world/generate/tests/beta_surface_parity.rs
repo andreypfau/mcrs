@@ -4,13 +4,13 @@ use std::sync::Arc;
 
 use bevy_asset::Assets;
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome::source::{
+    BetaLandBiome, BiomeSource, beta_biome_from_climate, build_beta_lookup_table,
+};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::biome::source::{
-    BetaLandBiome, BiomeSource, beta_biome_from_climate, build_beta_lookup_table,
-};
 
 use mcrs_minecraft_worldgen::program::Workspace;
 
@@ -298,7 +298,7 @@ fn make_beta_biome() -> Biome {
         downfall: 0.5,
         has_precipitation: true,
         temperature_modifier: None,
-        effects: mcrs_minecraft_world::biome::BiomeEffects {
+        effects: mcrs_minecraft_biome::BiomeEffects {
             water_color: None,
             foliage_color: None,
             grass_color: None,

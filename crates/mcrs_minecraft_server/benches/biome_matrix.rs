@@ -13,14 +13,14 @@ use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_server::world::generate::{
     ColumnBlocks, SurfaceIds, apply_material_surface, fill_column_dense_any,
 };
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_worldgen::compile::build_router;
 use mcrs_minecraft_worldgen::material::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
@@ -143,7 +143,7 @@ fn biome_registry(names: &[String]) -> (RegistrySnapshot<Biome>, bevy_asset::Ass
                 downfall: 0.5,
                 has_precipitation: true,
                 temperature_modifier: None,
-                effects: mcrs_minecraft_world::biome::BiomeEffects {
+                effects: mcrs_minecraft_biome::BiomeEffects {
                     water_color: None,
                     foliage_color: None,
                     grass_color: None,

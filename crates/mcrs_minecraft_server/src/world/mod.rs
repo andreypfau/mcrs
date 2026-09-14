@@ -155,7 +155,7 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
         bevy_asset::Assets<mcrs_minecraft_world::dimension::level_stem::DimensionDefinition>,
     >,
     dimension_types: Res<
-        bevy_asset::Assets<mcrs_minecraft_world::dimension::dimension_type::DimensionType>,
+        bevy_asset::Assets<mcrs_minecraft_dimension::dimension_type::DimensionType>,
     >,
     mut spawn_queue: ResMut<DimSpawnQueue>,
     mut already_enqueued: Local<bool>,

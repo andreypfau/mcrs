@@ -34,11 +34,11 @@ use std::sync::{Arc, LazyLock};
 use mcrs_minecraft_decoration::feature::terrain_skin::BiomeClimate;
 
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_world::biome::Biome;
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_worldgen::feature::compile::CompiledPlacedFeature;
@@ -313,7 +313,7 @@ pub fn generate_region(
 /// Beta's carver table over `source`, every land biome carving with Beta's caves
 /// the way the shipped Beta biomes do.
 pub fn beta_carver_table(
-    source: &mcrs_minecraft_world::biome::source::BiomeSource,
+    source: &mcrs_minecraft_biome::source::BiomeSource,
 ) -> crate::world::generate::modern_carvers::CarverBiomeTable {
     crate::world::generate::modern_carvers::CarverBiomeTable::beta(source, |_| {
         Arc::from([mcrs_minecraft_worldgen::carver::CarverConfig::BetaCave])

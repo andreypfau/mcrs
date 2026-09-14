@@ -5,11 +5,11 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
-use mcrs_minecraft_world::biome::Biome;
 
 fn workspace_root() -> std::path::PathBuf {
     let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));

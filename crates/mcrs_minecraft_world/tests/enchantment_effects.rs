@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use mcrs_minecraft_world::enchantment::effects::{EnchantmentEffects, EnchantmentValueEffect};
-use mcrs_minecraft_world::enchantment::value::LevelBasedValue;
+use mcrs_minecraft_item::enchantment::effects::{EnchantmentEffects, EnchantmentValueEffect};
+use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
 
 fn enchantment_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
-use mcrs_minecraft_world::timeline::Timeline;
-use mcrs_minecraft_world::world_clock::WorldClocks;
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use super::DebugScreenDisplayer;
 

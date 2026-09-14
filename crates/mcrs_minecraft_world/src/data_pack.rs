@@ -1,10 +1,6 @@
-use crate::dimension::dimension_type::DimensionType;
-use crate::enchantment::data::EnchantmentData;
-use crate::timeline::Timeline;
 use crate::{
-    LoadedRegistryAssets, banner_pattern, biome, block, chat_type, damage_type, dialog, dimension,
-    entity, instrument, item, jukebox_song, painting_variant, sound, test_types, timeline, trim,
-    variant, world_clock,
+    LoadedRegistryAssets, banner_pattern, chat_type, damage_type, dialog, entity, instrument,
+    jukebox_song, painting_variant, sound, test_types, variant,
 };
 use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetServer, Assets};
@@ -15,11 +11,18 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::tag::file::TagFile;
 use mcrs_minecraft_assets::tag::{DynTagLoader, TagLoader, TagLoadersSettled};
+use mcrs_minecraft_biome as biome;
+use mcrs_minecraft_block as block;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
+use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::{timeline, world_clock};
+use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
+use {mcrs_minecraft_item as item, mcrs_minecraft_item::trim};
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
@@ -151,7 +154,7 @@ pub(crate) fn request_data_pack_assets(
         "nbt",
         FILES_TEMPLATE,
     );
-    request_registry::<dimension::dimension_type::DimensionType>(
+    request_registry::<mcrs_minecraft_dimension::dimension_type::DimensionType>(
         &asset_server,
         &mut loaded,
         FOLDER_DIMENSION_TYPE,
@@ -577,7 +580,7 @@ pub(crate) fn register_static_registries_with_access(
             "minecraft:enchantment",
             &enchantment_registry,
             |_, data| {
-                use crate::enchantment::data::NetworkEnchantmentData;
+                use mcrs_minecraft_item::enchantment::data::NetworkEnchantmentData;
                 let network = NetworkEnchantmentData::from(data);
                 mcrs_minecraft_nbt::to_nbt_compound(&network).ok()
             },

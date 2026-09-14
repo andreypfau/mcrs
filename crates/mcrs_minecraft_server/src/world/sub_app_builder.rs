@@ -68,16 +68,16 @@ use crate::world::loot::LootPlugin;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
 use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::Block;
-use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_minecraft_world::enchantment::EnchantmentData;
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {
@@ -100,7 +100,7 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
     DimRegistryBundle {
         registry_access: world.resource::<RegistryAccess>().clone(),
         light_registry: world
-            .get_resource::<mcrs_minecraft_world::block::light::BlockLightRegistry>()
+            .get_resource::<mcrs_minecraft_block::light::BlockLightRegistry>()
             .map(|registry| registry.0.clone()),
         blocks: world.resource::<Blocks>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
@@ -454,7 +454,7 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Fixed>::default());
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
-    sub_app.init_resource::<mcrs_minecraft_world::world_clock::WorldClocks>();
+    sub_app.init_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>();
 
     sub_app.set_extract(move |main_world, sub_world| {
         use crate::world::bus::OutboundPlayerAttached;
@@ -473,7 +473,7 @@ pub fn spawn_dim_subapp(
         if let Some(time) = main_world.get_resource::<Time<()>>() {
             sub_world.insert_resource(*time);
         }
-        mcrs_minecraft_world::world_clock::extract_world_clocks(main_world, sub_world);
+        mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
 
         // Also extract OutboundPlayerAttached written directly to the sub-app Messages
         // (i.e., before flush_from_dim_outbox drains it). This covers the case where

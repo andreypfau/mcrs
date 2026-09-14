@@ -3,14 +3,14 @@ use std::sync::OnceLock;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_math::Vec3;
-use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_minecraft_world::block::definition::schema::{NoteBlockInstrument, PropertyValue};
-use mcrs_minecraft_world::block::definition::{
+use mcrs_minecraft_block::definition::schema::{NoteBlockInstrument, PropertyValue};
+use mcrs_minecraft_block::definition::{
     BlockDefinitions, BlockStateData, BlockStateFlags, LoadReport, load_block_definitions,
 };
-use mcrs_minecraft_world::material::PushReaction;
-use mcrs_minecraft_world::material::map::MapColor;
+use mcrs_minecraft_block::material::PushReaction;
+use mcrs_minecraft_block::material::map::MapColor;
+use mcrs_minecraft_core::voxel_shape::Aabb;
+use mcrs_minecraft_protocol::BlockStateId;
 
 fn corpus() -> &'static (BlockDefinitions, LoadReport) {
     static CORPUS: OnceLock<(BlockDefinitions, LoadReport)> = OnceLock::new();

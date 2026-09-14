@@ -3,9 +3,9 @@ mod tint;
 
 use bevy::math::Vec3;
 
+use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_minecraft_world::block::definition::BlockDefinitions;
-use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 
 use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
 use crate::bake::{Dir, TinyWorld};
@@ -238,7 +238,7 @@ pub fn extend(
 pub fn corpus() -> &'static BlockDefinitions {
     use bevy::app::{App, TaskPoolPlugin};
     use bevy::asset::{AssetPlugin, AssetServer};
-    use mcrs_minecraft_world::block::definition::load_block_definitions;
+    use mcrs_minecraft_block::definition::load_block_definitions;
 
     static CORPUS: std::sync::OnceLock<BlockDefinitions> = std::sync::OnceLock::new();
     CORPUS.get_or_init(|| {

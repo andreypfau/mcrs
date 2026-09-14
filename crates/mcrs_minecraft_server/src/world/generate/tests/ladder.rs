@@ -17,13 +17,13 @@ use bevy_math::IVec3;
 use bevy_tasks::TaskPoolBuilder;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::lifecycle::markers::{ChunkLoaded, ChunkLoading};
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_world::biome::Biome;
 
 use crate::world::chunk::{
     CHUNK_TASK_POOL, CancellationToken, ColumnScheduler, SchedulerConfig, deliver_merged_columns,

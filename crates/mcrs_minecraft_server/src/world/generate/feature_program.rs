@@ -7,6 +7,12 @@ use crate::world::generate::trees::{
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::definition::schema::PropertyValue;
+use mcrs_minecraft_block::definition::{
+    BlockDefinitions, BlockEntry, BlockStateData, BlockStateFlags, FluidId,
+};
+use mcrs_minecraft_block::{Block as VanillaBlock, Fluid};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ResourceLocation;
@@ -97,12 +103,6 @@ use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::definition::schema::PropertyValue;
-use mcrs_minecraft_world::block::definition::{
-    BlockDefinitions, BlockEntry, BlockStateData, BlockStateFlags, FluidId,
-};
-use mcrs_minecraft_world::block::{Block as VanillaBlock, Fluid};
 use mcrs_minecraft_worldgen::feature::block_predicate::{Direction, HolderSet};
 use mcrs_minecraft_worldgen::feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
@@ -2492,7 +2492,7 @@ impl BlockResolver for Resolver<'_> {
             StateQuery::SturdyFace(direction) => {
                 let face = mcrs_minecraft_core::Direction::all()[direction as usize];
                 let mut covers: FxHashMap<u32, bool> = FxHashMap::default();
-                let mut full = |shape: mcrs_minecraft_world::block::definition::ShapeId| {
+                let mut full = |shape: mcrs_minecraft_block::definition::ShapeId| {
                     *covers.entry(shape.0).or_insert_with(|| {
                         *VoxelShape::from_boxes(self.blocks.shape(shape)).face_mask(face)
                             == FACE_MASK_FULL

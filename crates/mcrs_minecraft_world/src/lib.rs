@@ -4,49 +4,31 @@
     clippy::too_many_arguments
 )]
 
-pub mod attribute;
 pub mod banner_pattern;
-pub mod biome;
-pub mod block;
 pub mod chat_type;
 pub mod damage_type;
 pub mod data_pack;
 pub mod dialog;
 pub mod dimension;
-pub mod enchantment;
 pub mod entity;
-pub mod environment;
 pub mod instrument;
-pub mod item;
 pub mod jukebox_song;
-pub mod material;
 pub mod painting_variant;
 // The save on disk is native-only; the browser receives world state over the network.
 #[cfg(not(target_family = "wasm"))]
 pub mod save;
 pub mod sound;
 pub mod test_types;
-pub mod timeline;
-pub mod trim;
-pub mod value;
 pub mod variant;
-pub mod world_clock;
 pub mod worldgen;
 
-use crate::block::tags as block_tags;
 use crate::data_pack::{
     check_tags_ready, index_biomes, index_timelines, register_static_registries_with_access,
     request_data_pack_assets, request_every_biome_tag, request_every_block_tag,
     request_every_fluid_tag, resolve_infiniburn_tags, resolve_timeline_tags,
     start_loading_data_pack,
 };
-use crate::enchantment::data::EnchantmentData;
-use crate::enchantment::tags as enchantment_tags;
 use crate::entity::tags as entity_type_tags;
-use crate::environment::{DimensionEnvironments, freeze_timelines};
-use crate::item::tags as item_tags;
-use crate::timeline::Timeline;
-use crate::world_clock::seed_world_clocks;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetApp, AssetServer, UntypedHandle};
 use bevy_ecs::prelude::*;
@@ -54,7 +36,14 @@ use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::asset::JsonLoader;
 use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
+use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_dimension::environment::{DimensionEnvironments, freeze_timelines};
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::seed_world_clocks;
+use mcrs_minecraft_item::enchantment::data::EnchantmentData;
+use mcrs_minecraft_item::enchantment::tags as enchantment_tags;
+use mcrs_minecraft_item::tags as item_tags;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
 
@@ -93,13 +82,13 @@ pub struct MinecraftWorldPlugin;
 
 impl Plugin for MinecraftWorldPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<dimension::dimension_type::DimensionType>();
-        app.register_asset_loader(dimension::dimension_type::DimensionTypeLoader);
+        app.init_asset::<mcrs_minecraft_dimension::dimension_type::DimensionType>();
+        app.register_asset_loader(mcrs_minecraft_dimension::dimension_type::DimensionTypeLoader);
         app.init_asset::<worldgen::world_preset::WorldPreset>();
         app.init_asset::<dimension::level_stem::DimensionDefinition>();
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
-        app.init_asset::<biome::Biome>();
-        app.register_asset_loader(biome::BiomeLoader);
+        app.init_asset::<mcrs_minecraft_biome::Biome>();
+        app.register_asset_loader(mcrs_minecraft_biome::BiomeLoader);
         app.init_asset::<variant::WolfVariant>();
         app.register_asset_loader(JsonLoader::<variant::WolfVariant>::default());
         app.init_asset::<variant::WolfSoundVariant>();
@@ -124,10 +113,10 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<variant::ChickenVariant>::default());
         app.init_asset::<variant::ZombieNautilusVariant>();
         app.register_asset_loader(JsonLoader::<variant::ZombieNautilusVariant>::default());
-        app.init_asset::<trim::TrimPattern>();
-        app.register_asset_loader(JsonLoader::<trim::TrimPattern>::default());
-        app.init_asset::<trim::TrimMaterial>();
-        app.register_asset_loader(JsonLoader::<trim::TrimMaterial>::default());
+        app.init_asset::<mcrs_minecraft_item::trim::TrimPattern>();
+        app.register_asset_loader(JsonLoader::<mcrs_minecraft_item::trim::TrimPattern>::default());
+        app.init_asset::<mcrs_minecraft_item::trim::TrimMaterial>();
+        app.register_asset_loader(JsonLoader::<mcrs_minecraft_item::trim::TrimMaterial>::default());
         app.init_asset::<damage_type::DamageType>();
         app.register_asset_loader(damage_type::DamageTypeLoader);
         app.init_asset::<painting_variant::PaintingVariant>();
@@ -142,15 +131,15 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(chat_type::ChatTypeLoader);
         app.init_asset::<dialog::Dialog>();
         app.register_asset_loader(dialog::DialogLoader);
-        app.init_asset::<timeline::Timeline>();
-        app.register_asset_loader(timeline::TimelineLoader);
+        app.init_asset::<mcrs_minecraft_environment::timeline::Timeline>();
+        app.register_asset_loader(mcrs_minecraft_environment::timeline::TimelineLoader);
         app.init_asset::<test_types::TestEnvironment>();
         app.register_asset_loader(test_types::TestEnvironmentLoader);
         app.init_asset::<test_types::TestInstance>();
         app.register_asset_loader(test_types::TestInstanceLoader);
-        app.add_plugins(world_clock::WorldClockPlugin);
+        app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
-        app.init_resource::<StaticRegistry<item::Item>>()
+        app.init_resource::<StaticRegistry<mcrs_minecraft_item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()
             .init_resource::<StaticRegistry<entity::EntityType>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
@@ -165,11 +154,11 @@ impl Plugin for MinecraftWorldPlugin {
             )
                 .in_set(TagPhase::Request),
         );
-        app.add_tagged_registry::<block::Block, block::definition::Blocks>(
+        app.add_tagged_registry::<mcrs_minecraft_block::Block, mcrs_minecraft_block::definition::Blocks>(
             block_tags::ALL_BLOCK_TAGS,
         )
-        .add_tagged_registry::<block::Fluid, block::definition::Fluids>(&[])
-        .add_tagged_registry::<item::Item, StaticRegistry<item::Item>>(item_tags::ALL_ITEM_TAGS)
+        .add_tagged_registry::<mcrs_minecraft_block::Fluid, mcrs_minecraft_block::definition::Fluids>(&[])
+        .add_tagged_registry::<mcrs_minecraft_item::Item, StaticRegistry<mcrs_minecraft_item::Item>>(item_tags::ALL_ITEM_TAGS)
         .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>(
             enchantment_tags::ALL_ENCHANTMENT_TAGS,
         )
@@ -177,7 +166,7 @@ impl Plugin for MinecraftWorldPlugin {
             entity_type_tags::ALL_ENTITY_TYPE_TAGS,
         )
         .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>(&[])
-        .add_tagged_registry::<biome::Biome, DynRegistryIndex<biome::Biome>>(&[]);
+        .add_tagged_registry::<mcrs_minecraft_biome::Biome, DynRegistryIndex<mcrs_minecraft_biome::Biome>>(&[]);
 
         app.init_resource::<DimensionEnvironments>();
 
@@ -187,29 +176,33 @@ impl Plugin for MinecraftWorldPlugin {
             app,
             [
                 (
-                    biome::Biome,
+                    mcrs_minecraft_biome::Biome,
                     "minecraft:worldgen/biome",
-                    |b: &biome::Biome| mcrs_minecraft_nbt::to_nbt_compound(
-                        &biome::NetworkBiome::from(b)
+                    |b: &mcrs_minecraft_biome::Biome| mcrs_minecraft_nbt::to_nbt_compound(
+                        &mcrs_minecraft_biome::NetworkBiome::from(b)
                     ),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    dimension::dimension_type::DimensionType,
+                    mcrs_minecraft_dimension::dimension_type::DimensionType,
                     "minecraft:dimension_type",
-                    |d: &dimension::dimension_type::DimensionType| {
+                    |d: &mcrs_minecraft_dimension::dimension_type::DimensionType| {
                         mcrs_minecraft_nbt::to_nbt_compound(
-                            &dimension::dimension_type::NetworkDimensionType::from(d),
+                            &mcrs_minecraft_dimension::dimension_type::NetworkDimensionType::from(
+                                d,
+                            ),
                         )
                     },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    timeline::Timeline,
+                    mcrs_minecraft_environment::timeline::Timeline,
                     "minecraft:timeline",
-                    |t: &timeline::Timeline| mcrs_minecraft_nbt::to_nbt_compound(
-                        &timeline::NetworkTimeline::from(t)
-                    ),
+                    |t: &mcrs_minecraft_environment::timeline::Timeline| {
+                        mcrs_minecraft_nbt::to_nbt_compound(
+                            &mcrs_minecraft_environment::timeline::NetworkTimeline::from(t),
+                        )
+                    },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -219,15 +212,19 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    trim::TrimPattern,
+                    mcrs_minecraft_item::trim::TrimPattern,
                     "minecraft:trim_pattern",
-                    |v: &trim::TrimPattern| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &mcrs_minecraft_item::trim::TrimPattern| {
+                        mcrs_minecraft_nbt::to_nbt_compound(v)
+                    },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    trim::TrimMaterial,
+                    mcrs_minecraft_item::trim::TrimMaterial,
                     "minecraft:trim_material",
-                    |v: &trim::TrimMaterial| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &mcrs_minecraft_item::trim::TrimMaterial| {
+                        mcrs_minecraft_nbt::to_nbt_compound(v)
+                    },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -351,9 +348,11 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    world_clock::WorldClock,
+                    mcrs_minecraft_environment::world_clock::WorldClock,
                     "minecraft:world_clock",
-                    |v: &world_clock::WorldClock| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &mcrs_minecraft_environment::world_clock::WorldClock| {
+                        mcrs_minecraft_nbt::to_nbt_compound(v)
+                    },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
             ]
@@ -400,8 +399,9 @@ impl Plugin for MinecraftWorldPlugin {
     fn finish(&self, app: &mut App) {
         {
             let asset_server = app.world().resource::<AssetServer>().clone();
-            let (definitions, report) = block::definition::load_block_definitions(&asset_server)
-                .expect("the block definition corpus loads");
+            let (definitions, report) =
+                mcrs_minecraft_block::definition::load_block_definitions(&asset_server)
+                    .expect("the block definition corpus loads");
             tracing::info!(
                 blocks = definitions.blocks().len(),
                 states = report.states,
@@ -412,12 +412,16 @@ impl Plugin for MinecraftWorldPlugin {
                 "loaded block definitions"
             );
             let definitions = std::sync::Arc::new(definitions);
-            app.insert_resource(block::definition::Fluids(definitions.clone()));
-            app.insert_resource(block::definition::Blocks(definitions));
+            app.insert_resource(mcrs_minecraft_block::definition::Fluids(
+                definitions.clone(),
+            ));
+            app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
         }
         {
-            let mut items = app.world_mut().resource_mut::<StaticRegistry<item::Item>>();
-            item::minecraft::register_all_items(&mut items);
+            let mut items = app
+                .world_mut()
+                .resource_mut::<StaticRegistry<mcrs_minecraft_item::Item>>();
+            mcrs_minecraft_item::minecraft::register_all_items(&mut items);
             tracing::info!(count = items.len(), "registered StaticRegistry<Item>");
             items.freeze();
             tracing::info!("frozen StaticRegistry<Item>");
@@ -448,7 +452,7 @@ impl Plugin for MinecraftWorldPlugin {
         }
         app.world_mut().resource_scope(
             |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {
-                enchantment::register_all_enchantments(
+                mcrs_minecraft_item::enchantment::register_all_enchantments(
                     &mut enchantments,
                     world.resource::<AssetServer>(),
                 );

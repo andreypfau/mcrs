@@ -2,8 +2,8 @@ use mcrs_minecraft_core::ColumnPos;
 use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_world::biome::source::BiomeSource;
 use mcrs_minecraft_worldgen::structure::placement::SpreadPlacement;
 
 use super::structures::{frozen_shared, preset};

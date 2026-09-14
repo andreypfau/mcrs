@@ -2,6 +2,9 @@ use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::definition::schema::PlacementFilter;
+use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::voxel_shape::{
@@ -22,9 +25,6 @@ use mcrs_minecraft_decoration::feature::tree::survive::{
 use mcrs_minecraft_decoration::feature::tree::trunk::{TreeStates, Trunk};
 use mcrs_minecraft_decoration::feature::tree::{CompiledTree, LeafDistances, TreeTables};
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_world::block::definition::BlockDefinitions;
-use mcrs_minecraft_world::block::definition::schema::PlacementFilter;
-use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::block_predicate::HolderSet;
 use mcrs_minecraft_worldgen::feature::compile::{

@@ -2,12 +2,12 @@ use crate::world::generate::multi_noise_biomes::BiomeGrid;
 use crate::world::generate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed, quart_cell};
+use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, QuartPos};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::biome::zoom::{FiddleCache, obfuscate_seed, quart_cell};
-use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::material::compile::MaterialProgram;
 use mcrs_minecraft_worldgen::material::{
     MaterialEval, MaterialScratch, NO_WATER, SettledState, SurfaceNoise,

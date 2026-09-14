@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
-use crate::world_clock::ClockState;
+use mcrs_minecraft_environment::world_clock::ClockState;
 
 /// 26.3 Pre-Release 2; the oldest accepted is snapshot 10, the first with this layout.
 pub const WORLD_VERSION: i32 = 5021;

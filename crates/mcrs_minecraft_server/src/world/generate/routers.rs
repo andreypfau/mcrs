@@ -5,9 +5,9 @@ use bevy_asset::Assets;
 use bevy_asset::Handle;
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::dimension::level_stem::DimensionDefinition;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::beard::BeardifierPlacement;
@@ -30,7 +30,7 @@ use mcrs_minecraft_worldgen::structure::frozen::DimensionStructureTables;
 /// it is sampled beside.
 #[derive(Resource, Default, Clone)]
 pub struct DimensionBiomeSources(
-    pub BTreeMap<ResourceLocation, Arc<mcrs_minecraft_world::biome::source::BiomeSource>>,
+    pub BTreeMap<ResourceLocation, Arc<mcrs_minecraft_biome::source::BiomeSource>>,
 );
 
 /// Every dimension's compiled router, keyed by the id the world preset gave it.

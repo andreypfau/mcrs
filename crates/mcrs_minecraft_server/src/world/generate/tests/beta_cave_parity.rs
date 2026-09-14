@@ -4,6 +4,8 @@ use std::sync::Arc;
 
 use bevy_asset::Assets;
 use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_decoration::carver::beta::carve_beta_caves;
@@ -14,8 +16,6 @@ use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
@@ -304,7 +304,7 @@ fn make_beta_biome() -> Biome {
         downfall: 0.5,
         has_precipitation: true,
         temperature_modifier: None,
-        effects: mcrs_minecraft_world::biome::BiomeEffects {
+        effects: mcrs_minecraft_biome::BiomeEffects {
             water_color: None,
             foliage_color: None,
             grass_color: None,

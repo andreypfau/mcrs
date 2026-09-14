@@ -16,7 +16,7 @@ use bevy::render::texture::GpuImage;
 use bevy::render::view::{ExtractedView, ViewUniform, ViewUniforms};
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
-use mcrs_minecraft_world::world_clock::WorldClocks;
+use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::render::{DEPTH_COMPARE, FrameCounts, pipeline_descriptor, uniform_buffer};
 use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};

@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
-use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks, load_block_definitions};
+use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_definitions};
 
 /// The corpus, loaded once per test binary. Worldgen resolves every block it
 /// places against it, so a stub would fail at the first lookup.
@@ -149,11 +149,11 @@ use mcrs_minecraft_assets::tag::TagLoader;
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_assets::tag::registry::TagSource;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::definition::Fluids;
+use mcrs_minecraft_block::{Block, Fluid};
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_registry::DynRegistryIndex;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::definition::Fluids;
-use mcrs_minecraft_world::block::{Block, Fluid};
 
 fn tag_dir(registry: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

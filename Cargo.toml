@@ -81,6 +81,11 @@ mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = 
 mcrs_minecraft_registry = { path = "crates/mcrs_minecraft_registry", default-features = false }
 mcrs_minecraft_assets = { path = "crates/mcrs_minecraft_assets" }
 mcrs_minecraft_world = { path = "crates/mcrs_minecraft_world" }
+mcrs_minecraft_environment = { path = "crates/mcrs_minecraft_environment" }
+mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
+mcrs_minecraft_biome = { path = "crates/mcrs_minecraft_biome" }
+mcrs_minecraft_dimension = { path = "crates/mcrs_minecraft_dimension" }
+mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_decoration = { path = "crates/mcrs_minecraft_decoration" }

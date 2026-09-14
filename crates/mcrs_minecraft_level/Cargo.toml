@@ -8,6 +8,8 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_block.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_derive.workspace = true
@@ -24,7 +26,6 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_world.workspace = true
 rand.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true

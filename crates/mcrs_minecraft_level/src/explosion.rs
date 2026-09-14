@@ -298,7 +298,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::Commands;
 use bevy_math::DVec3;
 use bevy_utils::Parallel;
-use mcrs_minecraft_world::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use rand::{RngExt, rng};
 use std::sync::OnceLock;
 

@@ -1,15 +1,15 @@
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registry::StaticRegistry;
-use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_minecraft_world::enchantment::EnchantmentData;
 use tracing::{debug, warn};
 
-use mcrs_minecraft_world::item::component::Enchantments;
+use mcrs_minecraft_item::component::Enchantments;
 
 /// The dimension's own random stream, as Java's `ServerLevel.getRandom()`. One
 /// world, one writer: every sub-app carries its own.

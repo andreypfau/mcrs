@@ -1,7 +1,7 @@
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_world::block::Block as VanillaBlock;
 use std::sync::Arc;
 
 pub type BlockTagSet = &'static [&'static BlockTag];

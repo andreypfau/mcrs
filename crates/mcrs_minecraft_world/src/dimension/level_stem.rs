@@ -5,9 +5,9 @@ use bevy_reflect::TypePath;
 use mcrs_minecraft_core::{ResourceKey, rl};
 use serde::Deserialize;
 
-use super::dimension_type::DimensionType;
 use crate::ResourceLocation;
 use crate::worldgen::chunk_generator::{ChunkGenerator, ProtoChunkGenerator};
+use mcrs_minecraft_dimension::dimension_type::DimensionType;
 
 // ===========================================================================
 // Well-known dimension keys

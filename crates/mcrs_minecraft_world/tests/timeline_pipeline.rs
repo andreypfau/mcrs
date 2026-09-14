@@ -8,12 +8,12 @@ use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::tag::DynTagRegistry;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
+use mcrs_minecraft_dimension::environment::DimensionEnvironments;
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
-use mcrs_minecraft_world::dimension::dimension_type::{DimensionType, NetworkDimensionType};
-use mcrs_minecraft_world::environment::DimensionEnvironments;
-use mcrs_minecraft_world::timeline::Timeline;
-use mcrs_minecraft_world::world_clock::{ClockTimeMarkers, WorldClocks};
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
@@ -121,7 +121,7 @@ fn every_dimension_builds_its_environment_from_its_tag() {
         [OVERWORLD_CLOCK]
     );
 
-    let sky_light = mcrs_minecraft_world::environment::EnvironmentAttributes::index(
+    let sky_light = mcrs_minecraft_dimension::environment::EnvironmentAttributes::index(
         "minecraft:gameplay/sky_light_level",
     )
     .unwrap();

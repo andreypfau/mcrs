@@ -3,8 +3,8 @@ use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res};
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::tag::TagPhase;
-use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_minecraft_world::block::light::{BlockLightRegistry, block_light_registry};
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block::light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_world::transition_to_playing;
 
 pub struct BlockLightTablePlugin;

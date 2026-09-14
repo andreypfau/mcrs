@@ -14,6 +14,9 @@ use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
+use mcrs_minecraft_item::component::Enchantments;
+use mcrs_minecraft_item::component::Tool;
+use mcrs_minecraft_item::{Item, ItemStack};
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::reposition::Reposition;
@@ -23,15 +26,12 @@ use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_minecraft_world::item::component::Enchantments;
-use mcrs_minecraft_world::item::component::Tool;
-use mcrs_minecraft_world::item::{Item, ItemStack};
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_world::block::Block as VanillaBlock;
-use mcrs_minecraft_world::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
+use mcrs_minecraft_block::Block as VanillaBlock;
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use std::time::Duration;
 use tracing::{debug, trace};
 

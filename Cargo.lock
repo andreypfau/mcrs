@@ -3485,6 +3485,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_biome"
+version = "0.1.0"
+dependencies = [
+ "bevy_asset",
+ "bevy_reflect",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_worldgen",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_block"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_platform",
+ "bevy_tasks",
+ "bitflags 2.10.0",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_light",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_worldgen",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_chunk"
 version = "0.1.0"
 dependencies = [
@@ -3507,8 +3550,12 @@ dependencies = [
  "getrandom 0.3.4",
  "getrandom 0.4.1",
  "mcrs_minecraft_assets",
+ "mcrs_minecraft_biome",
+ "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_environment",
  "mcrs_minecraft_level",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
@@ -3563,6 +3610,68 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_dimension"
+version = "0.1.0"
+dependencies = [
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_reflect",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_worldgen",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_environment"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_reflect",
+ "bevy_state",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_worldgen",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_item"
+version = "0.1.0"
+dependencies = [
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_reflect",
+ "bevy_tasks",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_worldgen",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_level"
 version = "0.1.0"
 dependencies = [
@@ -3577,12 +3686,13 @@ dependencies = [
  "bitflags 2.10.0",
  "flume",
  "indexmap",
+ "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
- "mcrs_minecraft_world",
  "rand 0.10.0",
  "rustc-hash 2.1.1",
  "smallvec",
@@ -3717,9 +3827,14 @@ dependencies = [
  "flume",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
+ "mcrs_minecraft_biome",
+ "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_decoration",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_level",
  "mcrs_minecraft_light",
  "mcrs_minecraft_nbt",
@@ -3751,23 +3866,22 @@ dependencies = [
  "bevy_asset",
  "bevy_ecs",
  "bevy_math",
- "bevy_platform",
  "bevy_reflect",
  "bevy_state",
  "bevy_tasks",
- "bitflags 2.10.0",
  "mcrs_minecraft_assets",
- "mcrs_minecraft_chunk",
+ "mcrs_minecraft_biome",
+ "mcrs_minecraft_block",
  "mcrs_minecraft_core",
- "mcrs_minecraft_light",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen",
- "rustc-hash 2.1.1",
  "serde",
  "serde_json",
- "sha2",
  "thiserror 2.0.18",
  "tracing",
  "uuid",

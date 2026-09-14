@@ -1,0 +1,28 @@
+[package]
+name = "mcrs_minecraft_block"
+description = "Block and fluid definitions, block tags, map colours and light properties"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_ecs.workspace = true
+bevy_math.workspace = true
+bevy_platform.workspace = true
+bevy_tasks.workspace = true
+bitflags = "2"
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_light.workspace = true
+mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen.workspace = true
+rustc-hash.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

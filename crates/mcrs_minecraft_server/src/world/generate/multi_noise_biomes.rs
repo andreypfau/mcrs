@@ -1,8 +1,6 @@
-use mcrs_minecraft_world::biome::climate::{ParameterList, ParameterPoint, TargetPoint};
-use mcrs_minecraft_world::biome::overworld_preset::{
-    nether_parameter_list, overworld_parameter_list,
-};
-use mcrs_minecraft_world::biome::source::MultiNoiseBiomeSource;
+use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
+use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
+use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 
 /// Biome ids over the column's quart cells, widened by one cell in every

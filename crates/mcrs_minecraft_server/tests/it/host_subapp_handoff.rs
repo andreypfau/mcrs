@@ -13,6 +13,9 @@ use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionRegistry};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -29,9 +32,6 @@ use mcrs_minecraft_server::world::player_index::{
     HostAnchorRef, PendingInboundBuffer, PlayerIndex,
 };
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::Block;
-use mcrs_minecraft_world::enchantment::EnchantmentData;
 
 // System under test (Task 1) — must be pub in configuration.rs
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;

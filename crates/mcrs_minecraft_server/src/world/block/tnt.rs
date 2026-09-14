@@ -8,12 +8,12 @@ use bevy_ecs::prelude::On;
 use bevy_ecs::query::{Has, With};
 use bevy_ecs::system::{Commands, Query, Res};
 use bevy_math::DVec3;
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::explosion::{BlockExplodedEvent, Detonator};
 use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 use rand::{RngExt, rng};
 
 pub struct TntBlockPlugin;
