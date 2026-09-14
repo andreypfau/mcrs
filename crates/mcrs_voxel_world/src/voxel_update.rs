@@ -7,7 +7,6 @@ use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::SectionPos;
-use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_storage::{SharedVoxelPalette, VoxelId, VoxelPalette};
 use rustc_hash::FxHashSet;
 use std::marker::PhantomData;
@@ -23,10 +22,10 @@ impl VoxelUpdateFlags for bool {
     }
 }
 
-pub type SectionVoxels = VoxelPalette<VoxelId, { BLOCKS::SIZE }>;
+pub type SectionVoxels = VoxelPalette<VoxelId, { SectionPos::SIZE }>;
 
 /// The blocks a loaded chunk entity holds.
-pub type ChunkVoxels = SharedVoxelPalette<VoxelId, { BLOCKS::SIZE }>;
+pub type ChunkVoxels = SharedVoxelPalette<VoxelId, { SectionPos::SIZE }>;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VoxelUpdateSet {

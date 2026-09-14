@@ -1,8 +1,8 @@
 use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::SectionPos;
 use std::ops::RangeInclusive;
 
-pub const SECTION_WIDTH: i32 = BLOCKS::SIZE as i32;
+pub const SECTION_WIDTH: i32 = SectionPos::SIZE as i32;
 
 /// A vertical block column, identified by its horizontal position.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -14,8 +14,8 @@ pub struct BlockColumn {
 impl BlockColumn {
     pub const fn section_column(self) -> ColumnPos {
         ColumnPos {
-            x: self.x >> BLOCKS::BITS,
-            z: self.z >> BLOCKS::BITS,
+            x: self.x >> SectionPos::BITS,
+            z: self.z >> SectionPos::BITS,
         }
     }
 }
@@ -50,7 +50,7 @@ impl LocalPos {
     }
 
     pub fn all() -> impl Iterator<Item = LocalPos> {
-        (0..BLOCKS::VOLUME).map(LocalPos::from_index)
+        (0..SectionPos::VOLUME).map(LocalPos::from_index)
     }
 }
 
@@ -111,7 +111,7 @@ impl LightBounds {
     }
 
     pub const fn from_dimension(min_y: i32, section_count: u32) -> Self {
-        let min_section_y = min_y >> BLOCKS::BITS;
+        let min_section_y = min_y >> SectionPos::BITS;
         Self {
             min_section_y,
             max_section_y: min_section_y + section_count as i32 - 1,

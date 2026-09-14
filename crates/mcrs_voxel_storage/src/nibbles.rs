@@ -1,10 +1,10 @@
 //! One nibble per cell of a section, in `y << 8 | z << 4 | x` order — the
 //! layout both the save format and the light packet use.
 
-use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::SectionPos;
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct SectionNibbles(pub Box<[u8; BLOCKS::HALF_VOLUME]>);
+pub struct SectionNibbles(pub Box<[u8; SectionPos::VOLUME / 2]>);
 
 impl std::fmt::Debug for SectionNibbles {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -17,20 +17,20 @@ impl std::fmt::Debug for SectionNibbles {
 impl SectionNibbles {
     #[inline]
     pub fn zeros() -> Self {
-        Self(Box::new([0u8; BLOCKS::HALF_VOLUME]))
+        Self(Box::new([0u8; SectionPos::VOLUME / 2]))
     }
 
     #[inline]
     pub fn filled(val: u8) -> Self {
         debug_assert!(val < 16);
         let packed = val | (val << 4);
-        Self(Box::new([packed; BLOCKS::HALF_VOLUME]))
+        Self(Box::new([packed; SectionPos::VOLUME / 2]))
     }
 
     #[inline]
     pub const fn index(x: usize, y: usize, z: usize) -> usize {
-        debug_assert!(x < BLOCKS::SIZE && y < BLOCKS::SIZE && z < BLOCKS::SIZE);
-        (y << BLOCKS::DOUBLE_BITS) | (z << BLOCKS::BITS) | x
+        debug_assert!(x < SectionPos::SIZE && y < SectionPos::SIZE && z < SectionPos::SIZE);
+        (y << (SectionPos::BITS * 2)) | (z << SectionPos::BITS) | x
     }
 
     #[inline]
@@ -109,7 +109,7 @@ mod tests {
     #[test]
     fn nibble_filled_constructor() {
         let arr = SectionNibbles::filled(0x07);
-        for i in 0..BLOCKS::HALF_VOLUME {
+        for i in 0..SectionPos::VOLUME / 2 {
             assert_eq!(arr.0[i], 0x77, "byte {i} should be 0x77");
         }
         assert_eq!(arr.get(0, 0, 0), 0x07);

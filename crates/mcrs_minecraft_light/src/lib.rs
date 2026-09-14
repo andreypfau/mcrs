@@ -26,14 +26,14 @@ pub mod storage;
 pub mod world;
 
 use bevy_ecs::prelude::Component;
-use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_storage::{VoxelId, VoxelPalette};
 
 use crate::storage::LightStorage;
 
 pub use relax::relax;
 
-pub type SectionBlocks = VoxelPalette<VoxelId, { BLOCKS::SIZE }>;
+pub type SectionBlocks = VoxelPalette<VoxelId, { SectionPos::SIZE }>;
 
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct BlockLight(pub LightStorage);

@@ -1,4 +1,3 @@
-use crate::BitSize;
 use crate::BlockPos;
 use bevy_ecs::prelude::Component;
 use bevy_math::DVec3;
@@ -29,6 +28,12 @@ impl Display for SectionPos {
 }
 
 impl SectionPos {
+    pub const BITS: usize = 4;
+    pub const SIZE: usize = 1 << Self::BITS;
+    pub const MASK: usize = Self::SIZE - 1;
+    pub const AREA: usize = Self::SIZE * Self::SIZE;
+    pub const VOLUME: usize = Self::AREA * Self::SIZE;
+
     pub fn new(x: i32, y: i32, z: i32) -> Self {
         Self(IVec3::new(x, y, z))
     }
@@ -42,14 +47,12 @@ impl Hash for SectionPos {
     }
 }
 
-pub type BLOCKS = BitSize<4>;
-
 impl From<DVec3> for SectionPos {
     fn from(pos: DVec3) -> Self {
         Self::new(
-            (pos.x.floor() as i32) >> BLOCKS::BITS,
-            (pos.y.floor() as i32) >> BLOCKS::BITS,
-            (pos.z.floor() as i32) >> BLOCKS::BITS,
+            (pos.x.floor() as i32) >> SectionPos::BITS,
+            (pos.y.floor() as i32) >> SectionPos::BITS,
+            (pos.z.floor() as i32) >> SectionPos::BITS,
         )
     }
 }
@@ -57,9 +60,9 @@ impl From<DVec3> for SectionPos {
 impl From<BlockPos> for SectionPos {
     fn from(pos: BlockPos) -> Self {
         Self::new(
-            pos.x >> BLOCKS::BITS,
-            pos.y >> BLOCKS::BITS,
-            pos.z >> BLOCKS::BITS,
+            pos.x >> SectionPos::BITS,
+            pos.y >> SectionPos::BITS,
+            pos.z >> SectionPos::BITS,
         )
     }
 }

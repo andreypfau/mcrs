@@ -1,16 +1,15 @@
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind, PaletteForm};
-use mcrs_voxel_math::section_pos;
-use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_storage::PalettedContainer::{Heterogeneous, Homogeneous};
 use mcrs_voxel_storage::{SectionKind, SharedVoxelPalette, VoxelId, VoxelPalette};
 
-pub type BlockPalette = VoxelPalette<VoxelId, { BLOCKS::SIZE }>;
+pub type BlockPalette = VoxelPalette<VoxelId, { SectionPos::SIZE }>;
 pub type BiomePalette = VoxelPalette<u8, 4>;
 
 /// The blocks a loaded chunk entity holds: the engine's shared section
 /// palette, named in this crate's vocabulary.
-pub type ChunkBlocks = SharedVoxelPalette<VoxelId, { BLOCKS::SIZE }>;
+pub type ChunkBlocks = SharedVoxelPalette<VoxelId, { SectionPos::SIZE }>;
 
 // A container whose edge length disagrees with its section kind's axis bits packs
 // to a wrong length at runtime instead of failing to compile.
@@ -123,7 +122,7 @@ impl AirCount for BlockPalette {
         match &self.0 {
             Homogeneous(registry_id) => {
                 if registry_id.0 != 0 {
-                    section_pos::BLOCKS::VOLUME as u16
+                    SectionPos::VOLUME as u16
                 } else {
                     0
                 }

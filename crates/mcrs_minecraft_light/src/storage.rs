@@ -1,6 +1,5 @@
+use mcrs_voxel_math::SectionPos;
 use std::sync::Arc;
-
-use mcrs_voxel_math::section_pos::BLOCKS;
 
 use mcrs_voxel_storage::SectionNibbles;
 
@@ -18,7 +17,7 @@ pub enum LightStorage {
 impl LightStorage {
     /// One byte per cell, in [`SectionNibbles::index`] order — the layout the
     /// working field uses. Storage stays nibble-packed; the hot loop never does.
-    pub fn from_field(cells: &[u8; BLOCKS::VOLUME]) -> Self {
+    pub fn from_field(cells: &[u8; SectionPos::VOLUME]) -> Self {
         // Most sections of a working field come back dark or fully lit, and
         // packing 2048 bytes only to throw them away is the whole cost of
         // reading a section back.
@@ -41,7 +40,7 @@ impl LightStorage {
     /// Answering without packing is the point: most sections of an epoch's field
     /// come back with the light they went in with, and packing two kilobytes and
     /// allocating an `Arc` to discover that is what reading a section back costs.
-    pub fn matches_field(&self, cells: &[u8; BLOCKS::VOLUME]) -> bool {
+    pub fn matches_field(&self, cells: &[u8; SectionPos::VOLUME]) -> bool {
         match self {
             LightStorage::Empty => cells.iter().all(|&cell| cell & 0x0F == 0),
             LightStorage::Uniform(value) => cells.iter().all(|&cell| cell & 0x0F == *value),
@@ -53,7 +52,7 @@ impl LightStorage {
         }
     }
 
-    pub fn write_field(&self, cells: &mut [u8; BLOCKS::VOLUME]) {
+    pub fn write_field(&self, cells: &mut [u8; SectionPos::VOLUME]) {
         match self {
             LightStorage::Empty => cells.fill(0),
             LightStorage::Uniform(v) => cells.fill(*v),
@@ -104,8 +103,8 @@ impl LightStorage {
 mod tests {
     use super::*;
 
-    fn field_of(f: impl Fn(usize) -> u8) -> Box<[u8; BLOCKS::VOLUME]> {
-        let mut cells = Box::new([0u8; BLOCKS::VOLUME]);
+    fn field_of(f: impl Fn(usize) -> u8) -> Box<[u8; SectionPos::VOLUME]> {
+        let mut cells = Box::new([0u8; SectionPos::VOLUME]);
         for (i, cell) in cells.iter_mut().enumerate() {
             *cell = f(i);
         }
@@ -140,14 +139,14 @@ mod tests {
             cells[SectionNibbles::index(3, 7, 11)]
         );
 
-        let mut back = Box::new([0u8; BLOCKS::VOLUME]);
+        let mut back = Box::new([0u8; SectionPos::VOLUME]);
         storage.write_field(&mut back);
         assert_eq!(&back[..], &cells[..]);
     }
 
     #[test]
     fn empty_and_uniform_expand_to_constant_fields() {
-        let mut cells = Box::new([9u8; BLOCKS::VOLUME]);
+        let mut cells = Box::new([9u8; SectionPos::VOLUME]);
         LightStorage::Empty.write_field(&mut cells);
         assert!(cells.iter().all(|&c| c == 0));
 

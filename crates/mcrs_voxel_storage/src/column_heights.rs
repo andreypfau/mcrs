@@ -1,5 +1,5 @@
 use crate::{PackedBitStorage, bits_needed_for};
-use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::SectionPos;
 
 /// One packed Y scalar over the 16x16 column footprint, indexed by `(x, z)` in
 /// `0..16` each. The stored value is `1 + y` of the topmost block satisfying the
@@ -15,7 +15,11 @@ impl ColumnHeights {
     pub fn new(height: u32, min_y: i32) -> Self {
         let max_value = height; // stored value range is [0, height]
         Self {
-            store: PackedBitStorage::with_bits(BLOCKS::AREA, bits_needed_for(max_value), max_value),
+            store: PackedBitStorage::with_bits(
+                SectionPos::AREA,
+                bits_needed_for(max_value),
+                max_value,
+            ),
             height,
             min_y,
         }
@@ -37,10 +41,10 @@ impl ColumnHeights {
     #[inline]
     fn index(x: usize, z: usize) -> usize {
         debug_assert!(
-            x < BLOCKS::SIZE && z < BLOCKS::SIZE,
+            x < SectionPos::SIZE && z < SectionPos::SIZE,
             "ColumnHeights index ({x}, {z}) out of range"
         );
-        (z & BLOCKS::MASK) * BLOCKS::SIZE + (x & BLOCKS::MASK)
+        (z & SectionPos::MASK) * SectionPos::SIZE + (x & SectionPos::MASK)
     }
 
     pub fn get(&self, x: usize, z: usize) -> i32 {

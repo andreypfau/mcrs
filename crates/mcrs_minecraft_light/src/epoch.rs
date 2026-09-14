@@ -9,7 +9,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bevy_ecs::prelude::Entity;
-use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashSet;
@@ -67,10 +66,10 @@ const PARALLEL_SECTION_LIMIT: usize = 1 << 18;
 /// source. Above the terrain that is a thin skin instead of the whole shaft,
 /// which is most of the field.
 struct SkyFrontier {
-    floor: [i32; BLOCKS::AREA],
+    floor: [i32; SectionPos::AREA],
     /// The highest floor among a column's four horizontal neighbours. A source
     /// cell below it faces a non-source and has to be seeded.
-    neighbour_top: [i32; BLOCKS::AREA],
+    neighbour_top: [i32; SectionPos::AREA],
     /// The lowest section base from which a whole section is sky source with no
     /// cell of it on the frontier. Above the terrain that is most of a field, and
     /// there the layer is a constant with nothing to decide cell by cell.
@@ -89,19 +88,19 @@ impl SkyFrontier {
             (0, -1, neighbour(0, -1)),
             (0, 1, neighbour(0, 1)),
         ];
-        let base_x = section_pos.x << BLOCKS::BITS;
-        let base_z = section_pos.z << BLOCKS::BITS;
-        let mut floor = [0i32; BLOCKS::AREA];
-        let mut neighbour_top = [i32::MIN; BLOCKS::AREA];
-        for index in 0..BLOCKS::AREA {
-            let lx = (index & BLOCKS::MASK) as i32;
-            let lz = (index >> BLOCKS::BITS) as i32;
+        let base_x = section_pos.x << SectionPos::BITS;
+        let base_z = section_pos.z << SectionPos::BITS;
+        let mut floor = [0i32; SectionPos::AREA];
+        let mut neighbour_top = [i32::MIN; SectionPos::AREA];
+        for index in 0..SectionPos::AREA {
+            let lx = (index & SectionPos::MASK) as i32;
+            let lz = (index >> SectionPos::BITS) as i32;
             let (x, z) = (base_x + lx, base_z + lz);
             floor[index] = floors.get(BlockColumn { x, z });
             for (dx, dz, side) in &sides {
                 let (nx, nz) = (lx + dx, lz + dz);
-                let inside = (0..BLOCKS::SIZE as i32).contains(&nx)
-                    && (0..BLOCKS::SIZE as i32).contains(&nz);
+                let inside = (0..SectionPos::SIZE as i32).contains(&nx)
+                    && (0..SectionPos::SIZE as i32).contains(&nz);
                 let across = match (inside, side) {
                     (true, _) => Some(floors),
                     // Off the layout, or a column the world holds no sky scan
@@ -137,7 +136,7 @@ impl SkyFrontier {
     }
 
     fn holds(&self, local: LocalPos, y: i32) -> bool {
-        let index = (local.x() as usize) | ((local.z() as usize) << BLOCKS::BITS);
+        let index = (local.x() as usize) | ((local.z() as usize) << SectionPos::BITS);
         let floor = self.floor[index];
         // Below the floor it is not a source at all: its value came from
         // propagation, and relaxation still has to start from it.
@@ -265,7 +264,7 @@ impl LightJob {
             if dark
                 && erase == SectionErase::All
                 && sky_frontier
-                    .is_some_and(|frontier| frontier.clears(section_pos.y << BLOCKS::BITS))
+                    .is_some_and(|frontier| frontier.clears(section_pos.y << SectionPos::BITS))
             {
                 for local in LocalPos::all() {
                     sky_field.set(section_base | local.index() as u32, LightLevel::MAX);
@@ -279,7 +278,7 @@ impl LightJob {
 
             let capacity = match erase {
                 SectionErase::None => 0,
-                _ => BLOCKS::VOLUME / 8,
+                _ => SectionPos::VOLUME / 8,
             };
             block_seeds.reserve(capacity);
             sky_seeds.reserve(capacity);

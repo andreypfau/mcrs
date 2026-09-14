@@ -1,3 +1,4 @@
+use mcrs_voxel_math::SectionPos;
 use std::sync::Arc;
 
 use bevy_app::{App, Last, Plugin};
@@ -16,7 +17,6 @@ use mcrs_minecraft_world::block::tags::{
 };
 use mcrs_minecraft_world::transition_to_playing;
 use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_voxel_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_voxel_world::world::storage::column::{ChunkLookup, ColumnChunks, ColumnIndex};
@@ -275,7 +275,7 @@ pub fn build_column_heightmaps(
 /// ocean each cost one test rather than one per block.
 enum SectionCells<'a> {
     Dense(&'a [Cell<VoxelId>]),
-    Palette(&'a PalettedContainer<VoxelId, { BLOCKS::SIZE }>),
+    Palette(&'a PalettedContainer<VoxelId, { SectionPos::SIZE }>),
 }
 
 impl SectionCells<'_> {
@@ -289,9 +289,9 @@ impl SectionCells<'_> {
     #[inline]
     fn get(&self, local_y: usize, cell: usize) -> VoxelId {
         match self {
-            SectionCells::Dense(cells) => cells[local_y * BLOCKS::AREA + cell].get(),
+            SectionCells::Dense(cells) => cells[local_y * SectionPos::AREA + cell].get(),
             SectionCells::Palette(palette) => {
-                palette.get(cell & BLOCKS::MASK, local_y, cell >> BLOCKS::BITS)
+                palette.get(cell & SectionPos::MASK, local_y, cell >> SectionPos::BITS)
             }
         }
     }
@@ -305,12 +305,12 @@ fn descend<'a>(
 ) -> Option<ColumnHeightmapSet> {
     let first = *y_sections.first()?;
     let last = *y_sections.last()?;
-    let min_y = first * BLOCKS::SIZE as i32;
-    let height = ((last - first + 1) * BLOCKS::SIZE as i32) as u32;
+    let min_y = first * SectionPos::SIZE as i32;
+    let height = ((last - first + 1) * SectionPos::SIZE as i32) as u32;
 
     let mut set = ColumnHeightmapSet::new(height, min_y);
-    let mut open = [wanted; BLOCKS::AREA];
-    let mut remaining = BLOCKS::AREA;
+    let mut open = [wanted; SectionPos::AREA];
+    let mut remaining = SectionPos::AREA;
 
     for (index, &section_y) in y_sections.iter().enumerate().rev() {
         if remaining == 0 {
@@ -319,19 +319,19 @@ fn descend<'a>(
         let Some(cells) = section(index) else {
             continue;
         };
-        let section_min_y = section_y * BLOCKS::SIZE as i32;
+        let section_min_y = section_y * SectionPos::SIZE as i32;
         if let Some(id) = cells.homogeneous() {
             let kinds = predicates.get(id);
             if kinds.is_empty() {
                 continue;
             }
-            let top = section_min_y + BLOCKS::SIZE as i32;
+            let top = section_min_y + SectionPos::SIZE as i32;
             for (cell, open) in open.iter_mut().enumerate() {
                 remaining -= close(&mut set, open, cell, kinds, top) as usize;
             }
             continue;
         }
-        for local_y in (0..BLOCKS::SIZE).rev() {
+        for local_y in (0..SectionPos::SIZE).rev() {
             if remaining == 0 {
                 break;
             }
@@ -361,7 +361,12 @@ fn close(
     if newly.is_empty() {
         return false;
     }
-    set.set(newly, cell & BLOCKS::MASK, cell >> BLOCKS::BITS, top);
+    set.set(
+        newly,
+        cell & SectionPos::MASK,
+        cell >> SectionPos::BITS,
+        top,
+    );
     open.remove(newly);
     open.is_empty()
 }
@@ -461,8 +466,8 @@ pub fn prime_column_heightmaps(
 }
 
 fn merge_max(into: &mut ColumnHeights, from: &ColumnHeights) {
-    for z in 0..BLOCKS::SIZE {
-        for x in 0..BLOCKS::SIZE {
+    for z in 0..SectionPos::SIZE {
+        for x in 0..SectionPos::SIZE {
             let candidate = from.get(x, z);
             // A found block always lands strictly above the range's own floor,
             // so the floor itself only ever means "nothing here" — and a range
@@ -507,8 +512,8 @@ pub fn update_column_heightmaps(
         else {
             continue;
         };
-        let x = (edit.block_pos.x & BLOCKS::MASK as i32) as usize;
-        let z = (edit.block_pos.z & BLOCKS::MASK as i32) as usize;
+        let x = (edit.block_pos.x & SectionPos::MASK as i32) as usize;
+        let z = (edit.block_pos.z & SectionPos::MASK as i32) as usize;
         let y = edit.block_pos.y;
         let kinds = predicates.get(edit.new_state);
         let read = |at: i32| block_at(chunks, &palettes, x, at, z);
@@ -571,11 +576,11 @@ fn block_at(
     y: i32,
     z: usize,
 ) -> VoxelId {
-    let ChunkLookup::Loaded(section) = chunks.lookup(y.div_euclid(BLOCKS::SIZE as i32)) else {
+    let ChunkLookup::Loaded(section) = chunks.lookup(y.div_euclid(SectionPos::SIZE as i32)) else {
         return VoxelId::default();
     };
     match palettes.get(section) {
-        Ok(blocks) => blocks.get_cell(x, y.rem_euclid(BLOCKS::SIZE as i32) as usize, z),
+        Ok(blocks) => blocks.get_cell(x, y.rem_euclid(SectionPos::SIZE as i32) as usize, z),
         Err(_) => VoxelId::default(),
     }
 }

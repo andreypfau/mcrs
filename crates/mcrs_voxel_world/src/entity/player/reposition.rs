@@ -2,7 +2,7 @@ use bevy_ecs::prelude::{Component, Resource};
 use bevy_math::*;
 
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::section_pos;
+use mcrs_voxel_math::SectionPos;
 
 /// Client-coordinate repositioning (Spout-style).
 ///
@@ -108,49 +108,49 @@ impl Reposition {
 
     #[inline]
     pub fn convert_chunk_x(&self, x: i32) -> i32 {
-        let bits = section_pos::BLOCKS::BITS as i64;
+        let bits = SectionPos::BITS as i64;
         let v = ((x as i64) << bits) + (self.offset_blocks.x as i64);
         (v >> bits) as i32
     }
 
     #[inline]
     pub fn convert_chunk_y(&self, y: i32) -> i32 {
-        let bits = section_pos::BLOCKS::BITS as i64;
+        let bits = SectionPos::BITS as i64;
         let v = ((y as i64) << bits) + (self.offset_blocks.y as i64);
         (v >> bits) as i32
     }
 
     #[inline]
     pub fn convert_chunk_z(&self, z: i32) -> i32 {
-        let bits = section_pos::BLOCKS::BITS as i64;
+        let bits = SectionPos::BITS as i64;
         let v = ((z as i64) << bits) + (self.offset_blocks.z as i64);
         (v >> bits) as i32
     }
 
     #[inline]
     pub fn unconvert_chunk_x(&self, x: i32) -> i32 {
-        let bits = section_pos::BLOCKS::BITS as i64;
+        let bits = SectionPos::BITS as i64;
         let v = ((x as i64) << bits) - (self.offset_blocks.x as i64);
         (v >> bits) as i32
     }
 
     #[inline]
     pub fn unconvert_chunk_y(&self, y: i32) -> i32 {
-        let bits = section_pos::BLOCKS::BITS as i64;
+        let bits = SectionPos::BITS as i64;
         let v = ((y as i64) << bits) - (self.offset_blocks.y as i64);
         (v >> bits) as i32
     }
 
     #[inline]
     pub fn unconvert_chunk_z(&self, z: i32) -> i32 {
-        let bits = section_pos::BLOCKS::BITS as i64;
+        let bits = SectionPos::BITS as i64;
         let v = ((z as i64) << bits) - (self.offset_blocks.z as i64);
         (v >> bits) as i32
     }
 
     #[inline]
-    pub fn convert_section_pos(&self, pos: section_pos::SectionPos) -> section_pos::SectionPos {
-        section_pos::SectionPos::new(
+    pub fn convert_section_pos(&self, pos: SectionPos) -> SectionPos {
+        SectionPos::new(
             self.convert_chunk_x(pos.x),
             self.convert_chunk_y(pos.y),
             self.convert_chunk_z(pos.z),
@@ -158,8 +158,8 @@ impl Reposition {
     }
 
     #[inline]
-    pub fn unconvert_chunk_pos(&self, pos: section_pos::SectionPos) -> section_pos::SectionPos {
-        section_pos::SectionPos::new(
+    pub fn unconvert_chunk_pos(&self, pos: SectionPos) -> SectionPos {
+        SectionPos::new(
             self.unconvert_chunk_x(pos.x),
             self.unconvert_chunk_y(pos.y),
             self.unconvert_chunk_z(pos.z),

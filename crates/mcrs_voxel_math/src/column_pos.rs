@@ -1,4 +1,3 @@
-use crate::section_pos::BLOCKS;
 use crate::{BlockPos, SectionPos};
 use bevy_math::{DVec3, IVec2};
 use std::fmt::Debug;
@@ -42,8 +41,8 @@ impl From<SectionPos> for ColumnPos {
 impl From<BlockPos> for ColumnPos {
     fn from(pos: BlockPos) -> Self {
         Self {
-            x: pos.x >> BLOCKS::BITS,
-            z: pos.z >> BLOCKS::BITS,
+            x: pos.x >> SectionPos::BITS,
+            z: pos.z >> SectionPos::BITS,
         }
     }
 }
@@ -57,8 +56,8 @@ impl From<IVec2> for ColumnPos {
 impl From<DVec3> for ColumnPos {
     fn from(pos: DVec3) -> Self {
         Self {
-            x: (pos.x.floor() as i32) >> BLOCKS::BITS,
-            z: (pos.z.floor() as i32) >> BLOCKS::BITS,
+            x: (pos.x.floor() as i32) >> SectionPos::BITS,
+            z: (pos.z.floor() as i32) >> SectionPos::BITS,
         }
     }
 }

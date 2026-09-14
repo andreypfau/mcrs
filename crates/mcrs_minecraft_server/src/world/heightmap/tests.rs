@@ -544,15 +544,15 @@ fn heightmap_new_dimensions_sized_correctly() {
 #[test]
 fn heightmap_set_get_round_trip() {
     let mut h = ColumnHeightmap::new(384, -64);
-    for z in 0..BLOCKS::SIZE {
-        for x in 0..BLOCKS::SIZE {
-            let y = (z * BLOCKS::SIZE + x) as i32 - 64;
+    for z in 0..SectionPos::SIZE {
+        for x in 0..SectionPos::SIZE {
+            let y = (z * SectionPos::SIZE + x) as i32 - 64;
             h.set(x, z, y);
         }
     }
-    for z in 0..BLOCKS::SIZE {
-        for x in 0..BLOCKS::SIZE {
-            let y = (z * BLOCKS::SIZE + x) as i32 - 64;
+    for z in 0..SectionPos::SIZE {
+        for x in 0..SectionPos::SIZE {
+            let y = (z * SectionPos::SIZE + x) as i32 - 64;
             assert_eq!(h.get(x, z), y, "scalar mismatch at ({x}, {z})");
         }
     }
@@ -578,5 +578,5 @@ fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
 fn heightmap_zero_init_returns_min_y_for_unprimed_columns() {
     let h = ColumnHeightmap::new(384, -64);
     assert_eq!(h.get(0, 0), -64);
-    assert_eq!(h.get(BLOCKS::MASK, BLOCKS::MASK), -64);
+    assert_eq!(h.get(SectionPos::MASK, SectionPos::MASK), -64);
 }

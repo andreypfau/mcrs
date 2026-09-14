@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 
 use bevy_ecs::prelude::Entity;
-use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 
@@ -77,13 +76,13 @@ pub struct SkyFloor {
 impl SkyFloor {
     pub(crate) fn new(default_y: i32) -> Self {
         Self {
-            lowest_source_y: vec![default_y; BLOCKS::AREA].into_boxed_slice(),
+            lowest_source_y: vec![default_y; SectionPos::AREA].into_boxed_slice(),
         }
     }
 
     fn index(column: BlockColumn) -> usize {
-        ((column.x as usize) & BLOCKS::MASK)
-            | (((column.z as usize) & BLOCKS::MASK) << BLOCKS::BITS)
+        ((column.x as usize) & SectionPos::MASK)
+            | (((column.z as usize) & SectionPos::MASK) << SectionPos::BITS)
     }
 
     pub fn get(&self, column: BlockColumn) -> i32 {
@@ -446,14 +445,14 @@ impl LightWorld {
                 // seals no seam a uniform one would not: the entry seam and one
                 // air-over-air test settle all sixteen levels.
                 SkyColumnSection::Blocks(blocks) if section_y * SECTION_WIDTH >= surface => {
-                    let air = blocks.get_cell(local_x as usize, BLOCKS::MASK, local_z as usize);
+                    let air = blocks.get_cell(local_x as usize, SectionPos::MASK, local_z as usize);
                     match top(air) {
                         Ok(block) => above = block,
                         Err(floor) => return floor,
                     }
                 }
                 SkyColumnSection::Blocks(blocks) => {
-                    for local_y in (0..BLOCKS::SIZE as u8).rev() {
+                    for local_y in (0..SectionPos::SIZE as u8).rev() {
                         let below =
                             blocks.get_cell(local_x as usize, local_y as usize, local_z as usize);
                         if self.registry.breaks_sky_column(above, below) {
@@ -513,17 +512,17 @@ impl LightWorld {
 }
 
 fn local_x_of(column: BlockColumn) -> u8 {
-    (column.x & BLOCKS::MASK as i32) as u8
+    (column.x & SectionPos::MASK as i32) as u8
 }
 
 fn local_z_of(column: BlockColumn) -> u8 {
-    (column.z & BLOCKS::MASK as i32) as u8
+    (column.z & SectionPos::MASK as i32) as u8
 }
 
 pub(crate) fn local_of(pos: BlockPos) -> LocalPos {
     LocalPos::new(
-        (pos.x & BLOCKS::MASK as i32) as u8,
-        (pos.y & BLOCKS::MASK as i32) as u8,
-        (pos.z & BLOCKS::MASK as i32) as u8,
+        (pos.x & SectionPos::MASK as i32) as u8,
+        (pos.y & SectionPos::MASK as i32) as u8,
+        (pos.z & SectionPos::MASK as i32) as u8,
     )
 }

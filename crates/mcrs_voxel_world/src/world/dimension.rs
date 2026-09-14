@@ -11,7 +11,7 @@ use bevy_ecs::prelude::{
     Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs, Mut,
     Query, Ref, With,
 };
-use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::SectionPos;
 use std::collections::BTreeSet;
 
 pub struct DimensionPlugin;
@@ -109,7 +109,7 @@ impl DimensionTypeConfig {
         Self {
             min_y,
             height,
-            section_count: height >> BLOCKS::BITS,
+            section_count: height >> SectionPos::BITS,
         }
     }
 

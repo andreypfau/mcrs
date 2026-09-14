@@ -1,3 +1,4 @@
+use mcrs_voxel_math::SectionPos;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -24,7 +25,6 @@ use mcrs_minecraft_worldgen::material::MaterialScratch;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
-use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_storage::{Blocks, BlocksMut, Volume, VoxelId};
 use rustc_hash::FxHashMap;
 use tracing::{error, info_span};
@@ -157,8 +157,8 @@ impl FillContext {
             };
             let (min_y, height) = match y_sections.first() {
                 Some(&first) => (
-                    first << BLOCKS::BITS,
-                    (y_sections.len() as i32) << BLOCKS::BITS,
+                    first << SectionPos::BITS,
+                    (y_sections.len() as i32) << SectionPos::BITS,
                 ),
                 None => (router.noise.min_y, router.noise.height as i32),
             };
@@ -823,11 +823,11 @@ pub fn run_region(
 /// past each other, and the three stages of one column would not line up
 /// section for section.
 pub fn dimension_y_sections(router: &NoiseRouter, min_y: i32, section_count: u32) -> Arc<[i32]> {
-    let config_bottom = min_y >> BLOCKS::BITS;
-    let noise_bottom = router.noise.min_y >> BLOCKS::BITS;
+    let config_bottom = min_y >> SectionPos::BITS;
+    let noise_bottom = router.noise.min_y >> SectionPos::BITS;
     let bottom = config_bottom.min(noise_bottom);
     let top = (config_bottom + section_count as i32)
-        .max(noise_bottom + (router.noise.height as i32 >> BLOCKS::BITS));
+        .max(noise_bottom + (router.noise.height as i32 >> SectionPos::BITS));
     (bottom..top).collect()
 }
 

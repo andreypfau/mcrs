@@ -7,7 +7,6 @@ use bevy_ecs::prelude::{
     Without,
 };
 use mcrs_voxel_math::SectionPos;
-use mcrs_voxel_math::section_pos::BLOCKS;
 use rustc_hash::FxHashMap;
 
 pub use mcrs_voxel_math::ColumnPos;
@@ -135,7 +134,7 @@ impl From<ColumnPos> for ColumnPosComponent {
 
 impl ColumnBundle {
     pub fn new(col_pos: ColumnPos, dim: InDimension, dim_config: &DimensionTypeConfig) -> Self {
-        let min_section_y = dim_config.min_y >> BLOCKS::BITS;
+        let min_section_y = dim_config.min_y >> SectionPos::BITS;
         Self {
             col_pos: ColumnPosComponent(col_pos),
             dim,
@@ -198,7 +197,7 @@ pub fn reconcile_columns(
                 spawned.insert(
                     col_entity,
                     ColumnChunks::new(
-                        dim_config.min_y >> BLOCKS::BITS,
+                        dim_config.min_y >> SectionPos::BITS,
                         dim_config.section_count as usize,
                     ),
                 );

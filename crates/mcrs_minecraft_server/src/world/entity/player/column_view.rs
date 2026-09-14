@@ -579,7 +579,7 @@ fn add_player_column_view(
 
 #[inline]
 fn offset_sections(rep: &Reposition, min_y: i32) -> i32 {
-    let bits = mcrs_voxel_math::section_pos::BLOCKS::BITS as i32;
+    let bits = SectionPos::BITS as i32;
     (rep.offset_y_blocks() >> bits) - (min_y >> bits)
 }
 

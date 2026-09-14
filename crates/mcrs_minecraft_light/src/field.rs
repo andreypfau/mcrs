@@ -5,7 +5,6 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, Direction, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelId};
 
@@ -27,7 +26,7 @@ pub fn block_in(section: SectionPos, local: LocalPos) -> BlockPos {
     )
 }
 
-const LOCAL_BITS: u32 = 3 * BLOCKS::BITS as u32;
+const LOCAL_BITS: u32 = 3 * SectionPos::BITS as u32;
 const LOCAL_MASK: u32 = (1 << LOCAL_BITS) - 1;
 
 /// Shape of a working area, in sections.
@@ -77,7 +76,7 @@ impl FieldLayout {
     }
 
     pub fn cell_count(&self) -> usize {
-        self.section_count() * BLOCKS::VOLUME
+        self.section_count() * SectionPos::VOLUME
     }
 
     fn section_stride_z(&self) -> i32 {
@@ -279,10 +278,10 @@ impl LightField {
         if matches!(light, LightStorage::Empty) {
             return;
         }
-        let base = section_index * BLOCKS::VOLUME;
-        let mut cells = [0u8; BLOCKS::VOLUME];
+        let base = section_index * SectionPos::VOLUME;
+        let mut cells = [0u8; SectionPos::VOLUME];
         light.write_field(&mut cells);
-        for (cell, value) in self.cells[base..base + BLOCKS::VOLUME]
+        for (cell, value) in self.cells[base..base + SectionPos::VOLUME]
             .iter_mut()
             .zip(cells)
         {
@@ -304,12 +303,12 @@ impl LightField {
         }
     }
 
-    fn section_cells(&self, section_index: usize) -> [u8; BLOCKS::VOLUME] {
-        let base = section_index * BLOCKS::VOLUME;
-        let mut cells = [0u8; BLOCKS::VOLUME];
+    fn section_cells(&self, section_index: usize) -> [u8; SectionPos::VOLUME] {
+        let base = section_index * SectionPos::VOLUME;
+        let mut cells = [0u8; SectionPos::VOLUME];
         for (value, cell) in cells
             .iter_mut()
-            .zip(&self.cells[base..base + BLOCKS::VOLUME])
+            .zip(&self.cells[base..base + SectionPos::VOLUME])
         {
             *value = cell.load(Ordering::Relaxed);
         }

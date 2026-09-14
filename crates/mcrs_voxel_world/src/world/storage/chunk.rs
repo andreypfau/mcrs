@@ -1,5 +1,4 @@
 pub use mcrs_voxel_math::SectionPos;
-pub use mcrs_voxel_math::section_pos::BLOCKS;
 
 use crate::entity::ChunkEntities;
 use crate::world::dimension::InDimension;

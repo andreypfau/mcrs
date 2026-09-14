@@ -10,7 +10,6 @@ use std::sync::Arc;
 use bevy_ecs::prelude::Entity;
 use common::{AIR, Reference, STONE, registry};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelPalette};
 
@@ -32,10 +31,10 @@ fn section_blocks(pos: SectionPos) -> SectionBlocks {
     let base_y = pos.y * 16;
     let mut solid = 0;
     let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
-    for local_z in 0..BLOCKS::SIZE {
-        for local_x in 0..BLOCKS::SIZE {
+    for local_z in 0..SectionPos::SIZE {
+        for local_x in 0..SectionPos::SIZE {
             let top = surface_height(pos.x * 16 + local_x as i32, pos.z * 16 + local_z as i32);
-            for local_y in 0..BLOCKS::SIZE {
+            for local_y in 0..SectionPos::SIZE {
                 if base_y + local_y as i32 <= top {
                     blocks.set_cell(local_x, local_y, local_z, STONE);
                     solid += 1;
@@ -51,8 +50,8 @@ fn section_blocks(pos: SectionPos) -> SectionBlocks {
 
 fn surface_of(column: ColumnPos) -> Arc<ColumnSurface> {
     let mut surface = ColumnSurface::new((SECTIONS_Y * 16) as u32, 0);
-    for z in 0..BLOCKS::SIZE {
-        for x in 0..BLOCKS::SIZE {
+    for z in 0..SectionPos::SIZE {
+        for x in 0..SectionPos::SIZE {
             let top = surface_height(column.x * 16 + x as i32, column.z * 16 + z as i32);
             surface.set(x, z, top + 1);
         }
@@ -282,10 +281,10 @@ fn a_roof_lit_across_column_seams_matches_one_pass() {
         let base_y = pos.y * 16;
         let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
         let mut solid = 0;
-        for local_z in 0..BLOCKS::SIZE {
-            for local_x in 0..BLOCKS::SIZE {
+        for local_z in 0..SectionPos::SIZE {
+            for local_x in 0..SectionPos::SIZE {
                 let (x, z) = (pos.x * 16 + local_x as i32, pos.z * 16 + local_z as i32);
-                for local_y in 0..BLOCKS::SIZE {
+                for local_y in 0..SectionPos::SIZE {
                     let y = base_y + local_y as i32;
                     if y <= 20 || (y == 40 && roofed(x, z)) {
                         blocks.set_cell(local_x, local_y, local_z, STONE);
@@ -344,9 +343,9 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
     let blocks_of = |pos: SectionPos| {
         let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
         let mut solid = 0;
-        for local_z in 0..BLOCKS::SIZE {
-            for local_x in 0..BLOCKS::SIZE {
-                for local_y in 0..BLOCKS::SIZE {
+        for local_z in 0..SectionPos::SIZE {
+            for local_x in 0..SectionPos::SIZE {
+                for local_y in 0..SectionPos::SIZE {
                     let (x, y, z) = (
                         pos.x * 16 + local_x as i32,
                         pos.y * 16 + local_y as i32,

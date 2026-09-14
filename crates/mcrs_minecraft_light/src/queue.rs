@@ -2,10 +2,10 @@
 //! immediately and only the resulting [`Influence`] is deferred. Queuing the
 //! change itself would mean a batched-out edit had not happened yet.
 
+use mcrs_voxel_math::SectionPos;
 use std::collections::BTreeSet;
 
 use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_math::section_pos::BLOCKS;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::region::{BlockBox, Influence};
@@ -288,7 +288,7 @@ impl LightQueue {
 /// budget, in section columns.
 fn reach(seed_field: BlockBox, budget_cells: u64) -> i32 {
     let height = (seed_field.max.y - seed_field.min.y + 1).max(1) as u64;
-    let stack = height * (BLOCKS::AREA as u64);
+    let stack = height * (SectionPos::AREA as u64);
     ((budget_cells / stack.max(1)).isqrt() as i32 / 2).max(1)
 }
 

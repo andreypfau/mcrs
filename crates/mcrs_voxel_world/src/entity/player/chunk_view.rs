@@ -9,7 +9,6 @@ use bevy_ecs::prelude::{
     MessageWriter, Or, ParallelCommands, Query,
 };
 use bevy_ecs::schedule::SystemSet;
-use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_math::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
@@ -86,7 +85,7 @@ fn update_view(
                 .get(in_dim.entity())
                 .ok()
                 .map(|cfg| {
-                    let min_section_y = cfg.min_y >> BLOCKS::BITS;
+                    let min_section_y = cfg.min_y >> SectionPos::BITS;
                     let max_section_y = min_section_y + cfg.section_count as i32 - 1;
                     (min_section_y, max_section_y)
                 })
