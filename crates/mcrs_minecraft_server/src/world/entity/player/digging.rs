@@ -20,6 +20,7 @@ use mcrs_minecraft_world::item::component::Enchantments;
 use mcrs_minecraft_world::item::component::Tool;
 use mcrs_minecraft_world::item::{Item, ItemStack};
 use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::LocalPos;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::reposition::Reposition;
 use mcrs_voxel_world::session::PlayerSession;
@@ -84,7 +85,7 @@ fn tick_digging(
             let Some(chunk) = chunks.get(digging.chunk).ok() else {
                 return;
             };
-            let block_state = BlockStateId::from(chunk.get(digging.block_pos));
+            let block_state = BlockStateId::from(chunk.get(LocalPos::from(digging.block_pos)));
             if block_state == digging.block_state {
                 let progress = digging.progress(time.elapsed());
                 let stage = (progress * 10.0).floor() as i8;
@@ -161,7 +162,7 @@ fn player_start_destroy_block(
             return;
         };
 
-        let block_state = BlockStateId::from(block_states.get(block_pos));
+        let block_state = BlockStateId::from(block_states.get(LocalPos::from(block_pos)));
         if blocks
             .state(block_state)
             .flags

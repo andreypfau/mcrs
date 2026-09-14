@@ -1,3 +1,4 @@
+use mcrs_voxel_math::LocalPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -418,8 +419,9 @@ fn beta_surface_parity_gate() {
                     for local_y in 0..16i32 {
                         let world_y = base_y + local_y;
                         if world_y < 128 {
-                            generated[world_y as usize] =
-                                blocks.get(BlockPos::new(local_x, local_y, local_z)).into();
+                            generated[world_y as usize] = blocks
+                                .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
+                                .into();
                         }
                     }
                 }

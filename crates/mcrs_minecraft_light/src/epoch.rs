@@ -587,10 +587,10 @@ impl LightWorld {
     fn edit_block(&mut self, pos: BlockPos, block: VoxelId) -> Option<Influence> {
         let registry = Arc::clone(self.registry());
         let section = self.section_mut(SectionPos::from(pos))?;
-        if !registry.light_properties_differ(section.blocks.get(pos), block) {
+        if !registry.light_properties_differ(section.blocks.get(LocalPos::from(pos)), block) {
             return None;
         }
-        Arc::make_mut(&mut section.blocks).set(pos, block);
+        Arc::make_mut(&mut section.blocks).set(LocalPos::from(pos), block);
         section.emits |= !registry.emission(block).is_zero();
         // Past the early return above, so a write the scan cannot tell apart
         // from what it replaced keeps the bound: equal light properties give

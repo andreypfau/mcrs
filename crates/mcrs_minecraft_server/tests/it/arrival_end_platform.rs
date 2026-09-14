@@ -17,6 +17,7 @@ use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, 
 use mcrs_minecraft_server::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
 use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::LocalPos;
 use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
 use mcrs_voxel_world::voxel_update::ChunkVoxelChanges;
@@ -265,7 +266,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                 .entity(chunk_entity)
                 .get::<ChunkBlocks>()
                 .expect("BlockPalette")
-                .get(pos)
+                .get(LocalPos::from(pos))
                 .into();
             if state != OBSIDIAN_STATE {
                 obsidian_floor_ok = false;
@@ -292,7 +293,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                     .entity(chunk_entity)
                     .get::<ChunkBlocks>()
                     .expect("BlockPalette")
-                    .get(pos)
+                    .get(LocalPos::from(pos))
                     .into();
                 assert_eq!(
                     state,

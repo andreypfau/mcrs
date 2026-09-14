@@ -1,3 +1,4 @@
+use mcrs_voxel_math::LocalPos;
 use std::sync::Arc;
 
 use bevy_asset::Assets;
@@ -123,8 +124,10 @@ fn apply_beta_surface_places_surface_and_bedrock() {
 
     // Y=0 (section 0, local y=0): always bedrock for all 256 columns
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be Some").0;
-    let y0_all_bedrock = (0..16i32)
-        .all(|x| (0..16i32).all(|z| section0_blocks.get(BlockPos::new(x, 0, z)) == bedrock_id));
+    let y0_all_bedrock = (0..16i32).all(|x| {
+        (0..16i32)
+            .all(|z| section0_blocks.get(LocalPos::from(BlockPos::new(x, 0, z))) == bedrock_id)
+    });
     assert!(y0_all_bedrock, "world Y=0 must be all bedrock");
 
     // Surface zone: sections 3-5 (world Y 48-95) must contain surface blocks
@@ -137,7 +140,7 @@ fn apply_beta_surface_places_surface_and_bedrock() {
             for x in 0..16i32 {
                 for z in 0..16i32 {
                     for y in 0..16i32 {
-                        let b = blocks.get(BlockPos::new(x, y, z));
+                        let b = blocks.get(LocalPos::from(BlockPos::new(x, y, z)));
                         if b == grass_id || b == dirt_id || b == sand_id {
                             found_surface_block = true;
                         }
@@ -236,7 +239,8 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     let mut failures: Vec<String> = Vec::new();
     for &(z_local, expected) in oracle {
         for y in 0i32..5 {
-            let got_bedrock = blocks.get(BlockPos::new(x_local, y, z_local)) == bedrock_id;
+            let got_bedrock =
+                blocks.get(LocalPos::from(BlockPos::new(x_local, y, z_local))) == bedrock_id;
             let expect_bedrock = expected[y as usize] == 7;
             if got_bedrock != expect_bedrock {
                 failures.push(format!(
@@ -339,7 +343,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
             if let Some(Some((blocks, _))) = sections.get(si) {
                 let base_y = sy * 16;
                 for local_y in (0..16i32).rev() {
-                    if blocks.get(BlockPos::new(lx, local_y, lz)) == stone_id {
+                    if blocks.get(LocalPos::from(BlockPos::new(lx, local_y, lz))) == stone_id {
                         return Some(base_y + local_y);
                     }
                 }
@@ -483,12 +487,16 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be present").0;
 
     // Y=0: all bedrock
-    let y0_all_bedrock = (0..16i32)
-        .all(|x| (0..16i32).all(|z| section0_blocks.get(BlockPos::new(x, 0, z)) == bedrock_id));
+    let y0_all_bedrock = (0..16i32).all(|x| {
+        (0..16i32)
+            .all(|z| section0_blocks.get(LocalPos::from(BlockPos::new(x, 0, z))) == bedrock_id)
+    });
     assert!(y0_all_bedrock, "all columns at world Y=0 must be bedrock");
 
     // Y=5: never bedrock (nextInt(5) max is 4, so 5 > 0+4 = condition never satisfied)
-    let y5_no_bedrock = (0..16i32)
-        .all(|x| (0..16i32).all(|z| section0_blocks.get(BlockPos::new(x, 5, z)) != bedrock_id));
+    let y5_no_bedrock = (0..16i32).all(|x| {
+        (0..16i32)
+            .all(|z| section0_blocks.get(LocalPos::from(BlockPos::new(x, 5, z))) != bedrock_id)
+    });
     assert!(y5_no_bedrock, "world Y=5 must never be bedrock");
 }

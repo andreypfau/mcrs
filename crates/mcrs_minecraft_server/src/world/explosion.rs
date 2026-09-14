@@ -6,6 +6,7 @@ use bevy_ecs::system::{Local, Query, Res};
 use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::LocalPos;
 use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::world::dimension::InDimension;
@@ -112,7 +113,7 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                 let item = (|| {
                     let b = chunk_index.get(chunk_pos)?;
                     let (chunk, palette) = chunks.get(b.entity()).ok()?;
-                    let block_state = BlockStateId::from(palette.get(pos));
+                    let block_state = BlockStateId::from(palette.get(LocalPos::from(pos)));
                     let data = blocks.state(block_state);
                     let resistance = (data.explosion_resistance + 0.3) * 0.3;
                     Some(BlockCacheItem {

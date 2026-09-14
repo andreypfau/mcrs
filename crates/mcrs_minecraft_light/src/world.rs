@@ -254,7 +254,7 @@ impl LightWorld {
             return self.registry.outside();
         }
         match self.sections.get(&SectionPos::from(pos)) {
-            Some(section) => section.blocks.get(pos),
+            Some(section) => section.blocks.get(LocalPos::from(pos)),
             None => self.registry.unloaded(),
         }
     }

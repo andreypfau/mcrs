@@ -1,3 +1,4 @@
+use mcrs_voxel_math::LocalPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -394,7 +395,7 @@ fn beta_cave_parity_gate() {
                         if world_y < 128 {
                             let beta_id = fix_col.pre_cave[world_y as usize];
                             palette.set(
-                                BlockPos::new(local_x, local_y, local_z),
+                                LocalPos::from(BlockPos::new(local_x, local_y, local_z)),
                                 modern_id_for_beta(beta_id).into(),
                             );
                         }
@@ -419,7 +420,8 @@ fn beta_cave_parity_gate() {
                     for local_y in 0..16i32 {
                         let world_y = base_y + local_y;
                         if world_y < 128 {
-                            let state = palette.get(BlockPos::new(local_x, local_y, local_z));
+                            let state = palette
+                                .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)));
                             let got = beta_id_for_modern(state.into());
                             let want = fix_col.post_cave[world_y as usize];
                             if got != want {
@@ -559,7 +561,9 @@ fn generate_column_beta_has_caves() {
                 if let Some(Some((blocks, _))) = sections.get(si) {
                     let base_y = sy * 16;
                     for local_y in (0..16i32).rev() {
-                        if blocks.get(BlockPos::new(local_x, local_y, local_z)) != air {
+                        if blocks.get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
+                            != air
+                        {
                             surface_y = base_y + local_y;
                             break 'surface;
                         }
@@ -576,7 +580,8 @@ fn generate_column_beta_has_caves() {
                         if world_y >= surface_y {
                             continue;
                         }
-                        let state = blocks.get(BlockPos::new(local_x, local_y, local_z));
+                        let state =
+                            blocks.get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)));
                         if state == air {
                             found_cave_air = true;
                         }
@@ -658,7 +663,10 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                                 if base_y + local_y >= 32 {
                                     continue;
                                 }
-                                if blocks.get(BlockPos::new(local_x, local_y, local_z)) == air {
+                                if blocks
+                                    .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
+                                    == air
+                                {
                                     air_below_32 += 1;
                                 }
                             }

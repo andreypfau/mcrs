@@ -6,7 +6,7 @@ use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::SectionPos;
+use mcrs_voxel_math::{LocalPos, SectionPos};
 use mcrs_voxel_storage::{SharedVoxelPalette, VoxelId, VoxelPalette};
 use rustc_hash::FxHashSet;
 use std::marker::PhantomData;
@@ -128,7 +128,9 @@ pub fn apply_voxel_set_requests<F: VoxelUpdateFlags>(
             return;
         };
 
-        let old_state = storage.make_mut().set(request.pos, request.new_state);
+        let old_state = storage
+            .make_mut()
+            .set(LocalPos::from(request.pos), request.new_state);
         if old_state == request.new_state {
             return;
         }

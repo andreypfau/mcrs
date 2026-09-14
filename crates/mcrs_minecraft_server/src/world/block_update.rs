@@ -17,6 +17,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Entity, IntoScheduleConfigs, Query, With};
 use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_voxel_math::ColumnPos;
+use mcrs_voxel_math::LocalPos;
 use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::player::Player;
@@ -100,7 +101,7 @@ pub fn update_client_blocks_per_dim(
         }
 
         for position in positions {
-            let new_state = palette.get(position).into();
+            let new_state = palette.get(LocalPos::from(position)).into();
             packet_writer.write(OutboundPlayerPacket {
                 target: PacketTarget::PlayerSet(targets.clone()),
                 priority: PacketPriority::Normal,

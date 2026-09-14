@@ -1,7 +1,7 @@
 use crate::PalettedContainer;
 use crate::PalettedContainer::{Heterogeneous, Homogeneous};
 use bevy_ecs::component::Component;
-use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::{LocalPos, SectionPos};
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -14,7 +14,6 @@ pub struct VoxelPalette<V: Hash + Eq + Copy + Default + Send + Sync + 'static, c
 impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> VoxelPalette<V, DIM> {
     pub const SIZE: usize = DIM;
     pub const VOLUME: usize = DIM * DIM * DIM;
-    const MASK: usize = DIM - 1;
 
     /// A section that holds a single value everywhere.
     pub fn homogeneous(value: V) -> Self {
@@ -29,25 +28,6 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Vo
 
     pub fn fill(&mut self, value: V) {
         self.0 = Homogeneous(value);
-    }
-
-    pub fn get<I: Into<BlockPos>>(&self, pos: I) -> V {
-        let pos = pos.into();
-        self.0.get(
-            pos.x as usize & Self::MASK,
-            pos.y as usize & Self::MASK,
-            pos.z as usize & Self::MASK,
-        )
-    }
-
-    pub fn set<I: Into<BlockPos>>(&mut self, pos: I, value: V) -> V {
-        let pos = pos.into();
-        self.0.set(
-            pos.x as usize & Self::MASK,
-            pos.y as usize & Self::MASK,
-            pos.z as usize & Self::MASK,
-            value,
-        )
     }
 
     pub fn set_cell(&mut self, x: usize, y: usize, z: usize, value: V) -> V {
@@ -85,6 +65,18 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Vo
                 }
             }
         }
+    }
+}
+
+impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static> VoxelPalette<V, { SectionPos::SIZE }> {
+    pub fn get(&self, pos: LocalPos) -> V {
+        self.0
+            .get(pos.x() as usize, pos.y() as usize, pos.z() as usize)
+    }
+
+    pub fn set(&mut self, pos: LocalPos, value: V) -> V {
+        self.0
+            .set(pos.x() as usize, pos.y() as usize, pos.z() as usize, value)
     }
 }
 

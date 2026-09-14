@@ -2,6 +2,7 @@ use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::generate_column;
 use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::LocalPos;
 use std::collections::BTreeMap;
 use std::io::Write;
 
@@ -41,7 +42,7 @@ fn main() {
                 for y in 0..16 {
                     for z in 0..16 {
                         for x in 0..16 {
-                            let id = blocks.get(BlockPos::new(x, y, z));
+                            let id = blocks.get(LocalPos::from(BlockPos::new(x, y, z)));
                             ids.extend_from_slice(&(id.0 as u32).to_le_bytes());
                             legend.entry(id.0 as u32).or_insert_with(|| {
                                 corpus().owner(BlockStateId(id.0)).identifier.to_string()

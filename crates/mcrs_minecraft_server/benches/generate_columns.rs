@@ -2,6 +2,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::generate_column;
 use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::LocalPos;
 use std::hint::black_box;
 
 #[path = "../src/world/generate/tests/support.rs"]
@@ -27,7 +28,7 @@ fn checksum(label: &str, router: &mcrs_minecraft_worldgen::router::NoiseRouter) 
             for y in 0..16 {
                 for z in 0..16 {
                     for x in 0..16 {
-                        let id = blocks.get(BlockPos::new(x, y, z));
+                        let id = blocks.get(LocalPos::from(BlockPos::new(x, y, z)));
                         checksum = checksum
                             .wrapping_mul(1099511628211)
                             .wrapping_add(id.0 as u64);
