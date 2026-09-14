@@ -153,7 +153,7 @@ fn request_dynamic_registry_tags(
     tag_files.per_registry.clear();
     let mut total = 0usize;
     for &(registry_key, tag_dir) in DYNAMIC_TAG_REGISTRIES {
-        let handles: Vec<_> = mcrs_minecraft_world::list_tag_files(&asset_server, tag_dir)
+        let handles: Vec<_> = mcrs_minecraft_world::data_pack::list_tag_files(&asset_server, tag_dir)
             .into_iter()
             .map(|(location, asset_path)| {
                 let handle = asset_server
