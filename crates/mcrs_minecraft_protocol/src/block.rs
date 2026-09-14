@@ -21,6 +21,12 @@ impl From<VoxelId> for BlockStateId {
     }
 }
 
+impl From<VoxelId> for VarInt {
+    fn from(id: VoxelId) -> Self {
+        VarInt(id.0 as i32)
+    }
+}
+
 impl From<BlockStateId> for VarInt {
     fn from(id: BlockStateId) -> Self {
         VarInt(id.0 as i32)

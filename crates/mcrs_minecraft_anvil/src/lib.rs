@@ -7,11 +7,8 @@ mod region;
 #[cfg(test)]
 mod tests;
 
-pub use chunk::{
-    Biomes, BlockStates, Chunk, LIGHT_BYTES, Light, PalettedContainer, Section,
-    parse as parse_chunk,
-};
-pub use palette::{BlockStateList, BlockStateLookup, Properties};
+pub use chunk::{Chunk, LIGHT_BYTES, Light, Section, parse as parse_chunk};
+pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 
 use std::path::PathBuf;

@@ -1,4 +1,3 @@
-use mcrs_minecraft_block::palette::NetworkPalette;
 use std::sync::Arc;
 
 use bevy_asset::Assets;
@@ -106,12 +105,10 @@ fn generate_column_beta_biome_not_default() {
     let results_modern = generate_column(0, 0, &[0, 1, 2, 3, 4, 5], &router, None, None, &cancel);
     for (idx, r) in results_modern.iter().enumerate() {
         let (_, biomes) = r.as_ref().expect("modern section must not be cancelled");
-        let net = biomes.convert_network();
-        // Default BiomePalette is Homogeneous(0) which serializes as Single(0).
         assert!(
             matches!(
-                net.palette,
-                mcrs_minecraft_protocol::chunk::Palette::Single(0)
+                biomes.0,
+                mcrs_voxel_storage::PalettedContainer::Homogeneous(0)
             ),
             "modern path section y={} must produce default (all-zero) BiomePalette",
             idx

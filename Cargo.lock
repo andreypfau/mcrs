@@ -3458,7 +3458,6 @@ dependencies = [
  "flate2",
  "lz4-java-wrc",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol",
  "mcrs_voxel_math",
  "mcrs_voxel_storage",
  "serde",

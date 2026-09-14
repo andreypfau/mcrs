@@ -31,10 +31,6 @@ impl BlockStateList {
         self.entries.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     pub fn name(&self, index: usize) -> &str {
         slice(&self.text, self.entries[index].name)
     }
@@ -88,10 +84,10 @@ impl<'a> Properties<'a> {
 }
 
 /// Turns a palette entry into a registry id while the decoder still holds the
-/// name as borrowed text. Implemented by whoever owns the block registry; this
-/// crate never sees one.
-pub trait BlockStateLookup {
-    fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<u32>;
+/// name as borrowed text. Implemented by whoever owns the registry; this crate
+/// never sees one.
+pub trait PaletteLookup<V> {
+    fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<V>;
 }
 
 impl<'de> Deserialize<'de> for BlockStateList {

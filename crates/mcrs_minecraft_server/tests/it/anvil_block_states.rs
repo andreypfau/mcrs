@@ -7,8 +7,9 @@ use mcrs_minecraft_block::palette::AirCount;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_server::world::format::anvil::{CorpusBlockStates, column_sections};
-use mcrs_minecraft_world::biome::Biome;
+use mcrs_minecraft_server::world::format::anvil::{
+    CorpusBlockStates, SnapshotBiomes, column_sections,
+};
 use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 use mcrs_minecraft_world::block::definition::{
     BlockDefinitions, BlockEntry, load_block_definitions,
@@ -108,7 +109,7 @@ fn section_with_light(y: i8, palette: Vec<NbtTag>, sky: u8, block: u8) -> NbtTag
     NbtTag::Compound(section)
 }
 
-fn chunk(sections: Vec<NbtTag>) -> Chunk {
+fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
     let mut root = NbtCompound::new();
     root.put_int("DataVersion", mcrs_minecraft_anvil::DATA_VERSION);
     root.put_int("xPos", 0);
@@ -122,21 +123,35 @@ fn chunk(sections: Vec<NbtTag>) -> Chunk {
     let bytes = mcrs_minecraft_nbt::Nbt::new(String::new(), root)
         .write()
         .to_vec();
-    parse_chunk(&bytes).expect("the chunk decodes")
+    parse_chunk(
+        &bytes,
+        &CorpusBlockStates(corpus()),
+        &SnapshotBiomes(&RegistrySnapshot::default()),
+    )
 }
 
-fn resolve(sections: Vec<NbtTag>) -> Result<Vec<u32>, ErrorKind> {
-    let chunk = chunk(sections);
-    let lookup = CorpusBlockStates(corpus());
+/// Each section packs its palette in list order from the first cell, so the
+/// first cells read the palette back as the corpus resolved it.
+fn resolve(sections: Vec<(i8, Vec<NbtTag>)>) -> Result<Vec<u32>, ErrorKind> {
+    let lens: Vec<usize> = sections.iter().map(|(_, palette)| palette.len()).collect();
+    let chunk = chunk(
+        sections
+            .into_iter()
+            .map(|(y, palette)| section(y, palette))
+            .collect(),
+    )?;
     let mut ids = Vec::new();
-    for section in &chunk.sections {
-        ids.extend(
-            section
-                .block_states
-                .as_ref()
-                .expect("the section carries block states")
-                .resolve_palette(&lookup)?,
-        );
+    for (section, len) in chunk.sections.iter().zip(lens) {
+        let blocks = section
+            .block_states
+            .as_ref()
+            .expect("the section carries block states");
+        let first = ids.len();
+        blocks.for_each(|id| {
+            if ids.len() < first + len {
+                ids.push(id.0 as u32);
+            }
+        });
     }
     Ok(ids)
 }
@@ -145,7 +160,7 @@ fn resolve(sections: Vec<NbtTag>) -> Result<Vec<u32>, ErrorKind> {
 fn every_block_default_state_round_trips_through_the_palette() {
     let definitions = corpus();
     let palette: Vec<NbtTag> = definitions.blocks().iter().map(default_entry).collect();
-    let ids = resolve(vec![section(0, palette)]).expect("every default state resolves");
+    let ids = resolve(vec![(0, palette)]).expect("every default state resolves");
 
     let mismatched: Vec<String> = definitions
         .blocks()
@@ -188,7 +203,7 @@ fn every_state_of_a_stair_and_a_note_block_round_trips() {
                 entry(name, &properties)
             })
             .collect();
-        let ids = resolve(vec![section(0, palette)]).unwrap();
+        let ids = resolve(vec![(0, palette)]).unwrap();
         assert_eq!(
             ids,
             states.iter().map(|&s| s as u32).collect::<Vec<_>>(),
@@ -242,7 +257,7 @@ fn the_typed_cases_resolve_to_the_ids_the_corpus_states() {
         let expected = block.state_id(&typed).unwrap();
         let properties: Vec<(&str, String)> =
             saved.iter().map(|(k, v)| (*k, v.to_string())).collect();
-        let ids = resolve(vec![section(0, vec![entry(name, &properties)])]).unwrap();
+        let ids = resolve(vec![(0, vec![entry(name, &properties)])]).unwrap();
         println!("{name} {saved:?} -> {}", ids[0]);
         assert_eq!(ids, vec![expected.0 as u32], "{name}");
     }
@@ -252,15 +267,15 @@ fn the_typed_cases_resolve_to_the_ids_the_corpus_states() {
 fn a_decoded_chunk_resolves_every_section_palette() {
     let definitions = corpus();
     let sections = vec![
-        section(
+        (
             -4,
             vec![
                 entry("minecraft:bedrock", &[]),
                 entry("minecraft:deepslate", &[("axis", "y".into())]),
             ],
         ),
-        section(0, vec![entry("minecraft:stone", &[])]),
-        section(
+        (0, vec![entry("minecraft:stone", &[])]),
+        (
             4,
             vec![
                 entry("minecraft:air", &[]),
@@ -311,7 +326,7 @@ fn a_decoded_chunk_resolves_every_section_palette() {
 
 #[test]
 fn an_unknown_block_name_is_a_loud_error() {
-    let err = resolve(vec![section(0, vec![entry("minecraft:unobtainium", &[])])]).unwrap_err();
+    let err = resolve(vec![(0, vec![entry("minecraft:unobtainium", &[])])]).unwrap_err();
     assert!(
         matches!(&err, ErrorKind::UnknownPaletteEntry { name } if name == "minecraft:unobtainium"),
         "{err}"
@@ -326,11 +341,7 @@ fn a_value_the_block_does_not_declare_is_a_loud_error() {
         ("shape", "straight".to_string()),
         ("waterlogged", "false".to_string()),
     ];
-    let err = resolve(vec![section(
-        0,
-        vec![entry("minecraft:oak_stairs", &properties)],
-    )])
-    .unwrap_err();
+    let err = resolve(vec![(0, vec![entry("minecraft:oak_stairs", &properties)])]).unwrap_err();
     assert!(
         matches!(&err, ErrorKind::UnknownPaletteEntry { name } if name == "minecraft:oak_stairs"),
         "{err}"
@@ -350,7 +361,7 @@ fn a_property_the_entry_leaves_out_keeps_its_default_value() {
         .with_text(default, "facing", "north")
         .expect("stairs face north");
 
-    let ids = resolve(vec![section(
+    let ids = resolve(vec![(
         0,
         vec![
             entry("minecraft:oak_stairs", &[]),
@@ -371,15 +382,10 @@ fn a_saved_section_decodes_its_blocks_and_nothing_else() {
         vec![default_entry(stone)],
         0xff,
         0xa5,
-    )]);
+    )])
+    .expect("the chunk decodes");
 
-    let sections = column_sections(
-        &chunk,
-        &[0, 1],
-        corpus(),
-        &RegistrySnapshot::<Biome>::default(),
-    )
-    .expect("the column decodes");
+    let sections = column_sections(chunk.sections, &[0, 1]);
 
     let (blocks, _) = sections[0].as_ref().expect("the saved section");
     assert_eq!(blocks.0.get(0, 0, 0), stone.default_state_id.into());

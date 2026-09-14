@@ -8,7 +8,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Added, Component, ContainsEntity, MessageReader, On, Query, With};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
-use mcrs_minecraft_block::palette::{AirCount, BiomePalette, ChunkBlocks, NetworkPalette};
+use mcrs_minecraft_block::palette::{AirCount, BiomePalette, ChunkBlocks};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
@@ -511,13 +511,14 @@ pub(crate) fn send_column_queue(
                     0u16.encode(&mut data)
                         .expect("Failed to encode chunk fluid count");
                     blocks
-                        .convert_network()
+                        .0
+                        .0
                         .encode(&mut data)
                         .expect("Failed to encode chunk block data");
                     biomes
-                        .convert_network()
+                        .0
                         .encode(&mut data)
-                        .expect("Failed to encode chunk block data");
+                        .expect("Failed to encode chunk biome data");
                 }
                 let light_data = if crate::lighting_disabled() {
                     build_fullbright_light_data(wire_light_rows)

@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+use std::hash::Hash;
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
@@ -7,19 +8,16 @@ use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{On, Query, ResMut, Resource, Single};
 use bevy_tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_protocol::chunk::{
-    ChunkData, LightChunk, LightData, Palette, PalettedContainer,
-};
+use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
 use mcrs_minecraft_protocol::light_codec::{ColumnLight, RowLight, unpack_light_data};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundForgetLevelChunk,
     ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
-use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind};
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 use mcrs_voxel_math::{BlockPos, LocalPos, SectionPos};
-use mcrs_voxel_storage::unpack_into;
+use mcrs_voxel_storage::PalettedContainer;
 use tracing::error;
 
 use crate::ConnectionState;
@@ -50,7 +48,7 @@ pub struct Extent {
 pub struct Section {
     pub blocks: Box<[u16; SECTION_VOLUME]>,
     pub biomes: Box<[u8; BIOME_CELLS]>,
-    /// Every state the blocks hold, and possibly a few the palette named without using.
+    /// Every state the blocks hold.
     pub states: Vec<u16>,
 }
 
@@ -256,34 +254,25 @@ impl Column {
             .iter()
             .map(|section| {
                 if section.non_empty_block_count == 0 {
-                    return Ok(None);
+                    return None;
                 }
                 let mut blocks = Box::new([AIR; SECTION_VOLUME]);
-                expand::<Blocks, _>(&section.blocks, |id| id.0, blocks.as_mut_slice())
-                    .context("blocks")?;
-                let states = match &section.blocks.palette {
-                    Palette::Single(value) => vec![value.0],
-                    Palette::Indirect(entries) => entries.iter().map(|id| id.0).collect(),
-                    Palette::Direct => {
-                        let mut states = blocks.to_vec();
-                        states.sort_unstable();
-                        states.dedup();
-                        states
+                expand(&section.blocks, blocks.as_mut_slice(), |id| id.0);
+                let states = match &section.blocks {
+                    PalettedContainer::Homogeneous(id) => vec![id.0],
+                    PalettedContainer::Heterogeneous(data) => {
+                        data.palette.iter().map(|id| id.0).collect()
                     }
                 };
-                let mut cells = [0u16; BIOME_CELLS];
-                expand::<Biomes, _>(&section.biomes, u16::from, &mut cells).context("biomes")?;
                 let mut biomes = Box::new([0u8; BIOME_CELLS]);
-                for (out, cell) in biomes.iter_mut().zip(cells) {
-                    *out = cell as u8;
-                }
-                Ok(Some(Section {
+                expand(&section.biomes, biomes.as_mut_slice(), |id| id);
+                Some(Section {
                     blocks,
                     biomes,
                     states,
-                }))
+                })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect();
 
         let mut column = Column::unlit(extent.min_section_y, sections);
         column.relight(&unpack_light_data(light, extent.sections + 2)?);
@@ -345,35 +334,13 @@ impl Column {
     }
 }
 
-fn expand<K: NetworkSectionKind, V: Copy>(
-    container: &PalettedContainer<V>,
-    id: impl Fn(V) -> u16,
-    out: &mut [u16],
-) -> Result<()> {
-    let bits = K::wire_storage_bits(container.bits_per_entry);
-    let unpack = |out: &mut [u16]| {
-        unpack_into(bits, &container.packed_data, out).map_err(|length| {
-            anyhow!(
-                "{bits} bits per entry needs {} packed longs, got {}",
-                length.expected,
-                length.found
-            )
-        })
-    };
-    match &container.palette {
-        Palette::Single(value) => out.fill(id(*value)),
-        Palette::Indirect(entries) => {
-            unpack(out)?;
-            for cell in out.iter_mut() {
-                let entry = entries
-                    .get(*cell as usize)
-                    .with_context(|| format!("palette index {cell} of {}", entries.len()))?;
-                *cell = id(*entry);
-            }
-        }
-        Palette::Direct => unpack(out)?,
-    }
-    Ok(())
+fn expand<V: Hash + Eq + Copy + Default, const DIM: usize, T>(
+    container: &PalettedContainer<V, DIM>,
+    out: &mut [T],
+    id: impl Fn(V) -> T,
+) {
+    let mut cells = out.iter_mut();
+    container.for_each(|value| *cells.next().expect("one cell per entry") = id(value));
 }
 
 fn apply_layer(row: &RowLight, out: &mut [u8; SECTION_VOLUME], shift: u32) {
@@ -585,8 +552,8 @@ mod tests {
     use crate::client::RegistryEntry;
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_protocol::chunk::ChunkSection;
-    use mcrs_minecraft_protocol::{BlockStateId, Decode, Encode, VarInt};
-    use mcrs_voxel_storage::pack_from;
+    use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+    use mcrs_voxel_storage::VoxelId;
     use std::borrow::Cow;
 
     const EXTENT: Extent = Extent {
@@ -600,50 +567,22 @@ mod tests {
         bytes
     }
 
-    fn single_biome(id: u8) -> PalettedContainer<u8> {
-        PalettedContainer {
-            bits_per_entry: 0,
-            palette: Palette::Single(id),
-            packed_data: Box::new([]),
-        }
-    }
-
     fn air_section() -> ChunkSection {
         ChunkSection {
             non_empty_block_count: 0,
             fluid_count: 0,
-            blocks: PalettedContainer {
-                bits_per_entry: 0,
-                palette: Palette::Single(BlockStateId(AIR)),
-                packed_data: Box::new([]),
-            },
-            biomes: single_biome(3),
+            blocks: PalettedContainer::Homogeneous(VoxelId(AIR)),
+            biomes: PalettedContainer::Homogeneous(3),
         }
     }
 
     fn section_of_states(ids: &[u32]) -> ChunkSection {
-        let mut palette: Vec<u32> = Vec::new();
-        for &id in ids {
-            if !palette.contains(&id) {
-                palette.push(id);
-            }
-        }
+        let cells: Vec<VoxelId> = ids.iter().map(|&id| VoxelId(id as u16)).collect();
         ChunkSection {
             non_empty_block_count: ids.iter().filter(|&&id| id != 0).count() as u16,
             fluid_count: 0,
-            blocks: PalettedContainer {
-                bits_per_entry: 4,
-                palette: Palette::Indirect(
-                    palette.iter().map(|&id| BlockStateId(id as u16)).collect(),
-                ),
-                packed_data: pack_from(4, ids, |id| {
-                    palette
-                        .iter()
-                        .position(|entry| entry == id)
-                        .expect("interned") as u32
-                }),
-            },
-            biomes: single_biome(3),
+            blocks: PalettedContainer::from_cells(&cells),
+            biomes: PalettedContainer::Homogeneous(3),
         }
     }
 

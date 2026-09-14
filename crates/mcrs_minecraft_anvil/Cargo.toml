@@ -10,7 +10,6 @@ doctest = false
 [dependencies]
 mcrs_minecraft_nbt.workspace = true
 mcrs_voxel_storage.workspace = true
-mcrs_minecraft_protocol.workspace = true
 mcrs_voxel_math.workspace = true
 serde.workspace = true
 thiserror.workspace = true

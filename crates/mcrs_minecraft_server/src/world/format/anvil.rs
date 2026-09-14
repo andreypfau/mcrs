@@ -4,15 +4,13 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_ecs::prelude::Resource;
-use mcrs_minecraft_anvil::{
-    Biomes as SavedBiomes, BlockStateLookup, BlockStates, Chunk, ErrorKind, Properties, RegionFile,
-};
+use mcrs_minecraft_anvil::{Chunk, PaletteLookup, Properties, RegionFile, Section};
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
-use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
+use mcrs_voxel_storage::{VoxelId, VoxelPalette};
 use std::time::Instant;
 
 use tracing::{debug, error};
@@ -32,14 +30,14 @@ const FULL_STATUS: &str = "minecraft:full";
 /// name.
 pub struct CorpusBlockStates<'a>(pub &'a BlockDefinitions);
 
-impl BlockStateLookup for CorpusBlockStates<'_> {
-    fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<u32> {
+impl PaletteLookup<VoxelId> for CorpusBlockStates<'_> {
+    fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<VoxelId> {
         let block = self.0.block(name)?;
         let mut id = block.default_state_id;
         for (property, text) in properties.iter() {
             id = block.with_text(id, property, text)?;
         }
-        Some(id.0 as u32)
+        Some(id.into())
     }
 }
 
@@ -47,9 +45,11 @@ impl BlockStateLookup for CorpusBlockStates<'_> {
 /// with. Biomes carry no properties, so only the name selects the entry.
 pub struct SnapshotBiomes<'a>(pub &'a RegistrySnapshot<Biome>);
 
-impl BlockStateLookup for SnapshotBiomes<'_> {
-    fn resolve(&self, name: &str, _properties: Properties<'_>) -> Option<u32> {
-        self.0.by_location(name)
+impl PaletteLookup<u8> for SnapshotBiomes<'_> {
+    fn resolve(&self, name: &str, _properties: Properties<'_>) -> Option<u8> {
+        self.0
+            .by_location(name)
+            .and_then(|id| u8::try_from(id).ok())
     }
 }
 
@@ -96,14 +96,21 @@ impl SavedColumns {
     /// stopped at whatever status the player's view reached. Their sections
     /// hold no blocks, so anything short of `full` is absent too and the
     /// generator fills the column instead of the save handing back a hole.
-    pub fn read(&self, pos: ColumnPos) -> Option<Chunk> {
-        let chunk = match self.region(RegionPos::from(pos))?.read_chunk(pos) {
-            Ok(chunk) => chunk?,
-            Err(err) => {
-                error!(%err, ?pos, "reading a saved column");
-                return None;
-            }
-        };
+    pub fn read(
+        &self,
+        pos: ColumnPos,
+        blocks: &BlockDefinitions,
+        biomes: &RegistrySnapshot<Biome>,
+    ) -> Option<Chunk> {
+        let region = self.region(RegionPos::from(pos))?;
+        let chunk =
+            match region.read_chunk(pos, &CorpusBlockStates(blocks), &SnapshotBiomes(biomes)) {
+                Ok(chunk) => chunk?,
+                Err(err) => {
+                    error!(%err, ?pos, "reading a saved column");
+                    return None;
+                }
+            };
         (chunk.status == FULL_STATUS).then_some(chunk)
     }
 
@@ -142,28 +149,22 @@ impl SavedColumns {
 ///
 /// A Y the save holds no section for is air rather than absent: an absent
 /// section unloads the chunk instead of leaving it empty.
-pub fn column_sections(
-    chunk: &Chunk,
-    y_sections: &[i32],
-    blocks: &BlockDefinitions,
-    biomes: &RegistrySnapshot<Biome>,
-) -> Result<Vec<Option<SectionData>>, ErrorKind> {
+pub fn column_sections(mut saved: Vec<Section>, y_sections: &[i32]) -> Vec<Option<SectionData>> {
     y_sections
         .iter()
         .map(|&y| {
-            let Some(section) = chunk.sections.iter().find(|s| i32::from(s.y) == y) else {
-                return Ok(Some((BlockPalette::default(), BiomePalette::default())));
-            };
-            Ok(Some((
-                match &section.block_states {
-                    Some(states) => block_palette(states, blocks)?,
-                    None => BlockPalette::default(),
-                },
-                match &section.biomes {
-                    Some(saved) => biome_palette(saved, biomes)?,
-                    None => BiomePalette::default(),
-                },
-            )))
+            let (blocks, biomes) = saved
+                .iter()
+                .position(|s| i32::from(s.y) == y)
+                .map(|index| {
+                    let section = saved.swap_remove(index);
+                    (section.block_states, section.biomes)
+                })
+                .unwrap_or_default();
+            Some((
+                VoxelPalette(blocks.unwrap_or_default()),
+                VoxelPalette(biomes.unwrap_or_default()),
+            ))
         })
         .collect()
 }
@@ -172,34 +173,6 @@ pub fn column_sections(
 /// save carries is not read: nothing writes a region file back, so every
 /// session recomputes light from the blocks anyway.
 pub type SectionData = (BlockPalette, BiomePalette);
-
-fn block_palette(
-    states: &BlockStates,
-    blocks: &BlockDefinitions,
-) -> Result<BlockPalette, ErrorKind> {
-    let ids: Vec<VoxelId> = states
-        .resolve_palette(&CorpusBlockStates(blocks))?
-        .into_iter()
-        .map(|id| VoxelId(id as u16))
-        .collect();
-    let mut cells = vec![VoxelId::default(); BlockStates::ENTRY_COUNT];
-    states.remap_into(&ids, &mut cells);
-    Ok(VoxelPalette(PalettedContainer::from_cells(&cells)))
-}
-
-fn biome_palette(
-    saved: &SavedBiomes,
-    biomes: &RegistrySnapshot<Biome>,
-) -> Result<BiomePalette, ErrorKind> {
-    let ids: Vec<u8> = saved
-        .resolve_palette(&SnapshotBiomes(biomes))?
-        .into_iter()
-        .map(|id| id as u8)
-        .collect();
-    let mut cells = vec![0u8; SavedBiomes::ENTRY_COUNT];
-    saved.remap_into(&ids, &mut cells);
-    Ok(VoxelPalette(PalettedContainer::from_cells(&cells)))
-}
 
 /// The block entities a saved column carries, read back as the type that wrote
 /// them rather than as a compound.

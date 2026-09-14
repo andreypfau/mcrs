@@ -1,155 +1,17 @@
 use mcrs_voxel_math::ColumnPos;
 use std::collections::BTreeMap;
+use std::hash::Hash;
 use std::io::Cursor;
-use std::marker::PhantomData;
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_voxel_storage::SectionKind;
+use mcrs_voxel_storage::section::{Biomes, Blocks};
+use mcrs_voxel_storage::{PalettedContainer, SectionKind, VoxelId};
 use serde::Deserialize;
 
-use crate::palette::{BlockStateList, BlockStateLookup, Properties};
+use crate::palette::{BlockStateList, PaletteLookup};
 use crate::{DATA_VERSION, ErrorKind, accepts_data_version};
 
 pub const LIGHT_BYTES: usize = 2048;
-
-/// BlockStateList entries plus one index per cell, in `Strategy.getIndex` order. Cells
-/// stay packed: the consumer walks them once anyway, through `remap_into`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PalettedContainer<K> {
-    pub palette: BlockStateList,
-    cells: Cells,
-    kind: PhantomData<K>,
-}
-
-pub type BlockStates = PalettedContainer<mcrs_minecraft_protocol::section::Blocks>;
-pub type Biomes = PalettedContainer<mcrs_minecraft_protocol::section::Biomes>;
-
-impl<K: SectionKind> PalettedContainer<K> {
-    pub const ENTRY_COUNT: usize = K::ENTRY_COUNT;
-
-    pub fn index(x: usize, y: usize, z: usize) -> usize {
-        K::index(x, y, z)
-    }
-
-    /// Which palette entry the cell holds.
-    pub fn palette_index(&self, x: usize, y: usize, z: usize) -> usize {
-        match &self.cells {
-            Cells::Uniform => 0,
-            Cells::Packed { bits, data } => {
-                mcrs_voxel_storage::entry_at(*bits, data, Self::index(x, y, z)) as usize
-            }
-        }
-    }
-
-    pub fn name(&self, x: usize, y: usize, z: usize) -> &str {
-        self.palette.name(self.palette_index(x, y, z))
-    }
-
-    pub fn properties(&self, x: usize, y: usize, z: usize) -> Properties<'_> {
-        self.palette.properties(self.palette_index(x, y, z))
-    }
-
-    /// One id per palette entry, resolved while the names are still borrowed.
-    pub fn resolve_palette<R: BlockStateLookup>(
-        &self,
-        registry: &R,
-    ) -> Result<Vec<u32>, ErrorKind> {
-        (0..self.palette.len())
-            .map(|i| {
-                let name = self.palette.name(i);
-                registry
-                    .resolve(name, self.palette.properties(i))
-                    .ok_or_else(|| ErrorKind::UnknownPaletteEntry {
-                        name: name.to_string(),
-                    })
-            })
-            .collect()
-    }
-
-    pub fn unpack_into(&self, out: &mut [u16]) {
-        assert_eq!(out.len(), Self::ENTRY_COUNT);
-        match &self.cells {
-            Cells::Uniform => out.fill(0),
-            Cells::Packed { bits, data } => mcrs_voxel_storage::unpack_into(*bits, data, out)
-                .expect("the data length was checked at load"),
-        }
-    }
-
-    pub fn remap_into<T: Copy>(&self, entries: &[T], out: &mut [T]) {
-        assert_eq!(out.len(), Self::ENTRY_COUNT);
-        assert_eq!(entries.len(), self.palette.len());
-        match &self.cells {
-            Cells::Uniform => out.fill(entries[0]),
-            Cells::Packed { bits, data } => {
-                mcrs_voxel_storage::remap_into(*bits, data, entries, out)
-                    .expect("the data length was checked at load")
-            }
-        }
-    }
-
-    fn unpack(raw: RawPalettedContainer, y: i8, field: &'static str) -> Result<Self, ErrorKind> {
-        let len = raw.palette.len();
-        if len == 0 {
-            return Err(ErrorKind::EmptyPalette { y, field });
-        }
-        if len > u16::MAX as usize + 1 {
-            return Err(ErrorKind::PaletteTooLarge {
-                y,
-                field,
-                len,
-                max: u16::MAX as usize + 1,
-            });
-        }
-        let bits = K::storage_bits(len);
-        if bits == 0 {
-            if raw.data.is_some() {
-                return Err(ErrorKind::UnexpectedData { y, field });
-            }
-            return Ok(Self {
-                palette: raw.palette,
-                cells: Cells::Uniform,
-                kind: PhantomData,
-            });
-        }
-
-        let Some(data) = raw.data else {
-            return Err(ErrorKind::MissingData { y, field, bits });
-        };
-        let data = data.0;
-        mcrs_voxel_storage::check_len(bits, &data, Self::ENTRY_COUNT).map_err(|e| {
-            ErrorKind::DataLength {
-                y,
-                field,
-                found: e.found,
-                expected: e.expected,
-                bits,
-            }
-        })?;
-
-        if mcrs_voxel_storage::any_entry_past(bits, &data, Self::ENTRY_COUNT, len) {
-            let index = mcrs_voxel_storage::first_entry_past(bits, &data, Self::ENTRY_COUNT, len)
-                .expect("the maximum is already past the palette");
-            return Err(ErrorKind::PaletteIndex {
-                y,
-                field,
-                index,
-                len,
-            });
-        }
-
-        Ok(Self {
-            palette: raw.palette,
-            cells: Cells::Packed { bits, data },
-            kind: PhantomData,
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Cells {
-    Uniform,
-    Packed { bits: u32, data: Box<[i64]> },
-}
 
 /// One nibble per cell, indexed the same way block states are.
 pub type Light = mcrs_voxel_storage::SectionNibbles;
@@ -157,8 +19,8 @@ pub type Light = mcrs_voxel_storage::SectionNibbles;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Section {
     pub y: i8,
-    pub block_states: Option<BlockStates>,
-    pub biomes: Option<Biomes>,
+    pub block_states: Option<PalettedContainer<VoxelId, { Blocks::SIZE }>>,
+    pub biomes: Option<PalettedContainer<u8, { Biomes::SIZE }>>,
     pub block_light: Option<Light>,
     pub sky_light: Option<Light>,
 }
@@ -244,7 +106,11 @@ fn wrong_version(nbt: &[u8]) -> Option<ErrorKind> {
     }
 }
 
-pub fn parse(nbt: &[u8]) -> Result<Chunk, ErrorKind> {
+pub fn parse(
+    nbt: &[u8],
+    blocks: &impl PaletteLookup<VoxelId>,
+    biomes: &impl PaletteLookup<u8>,
+) -> Result<Chunk, ErrorKind> {
     let raw: RawChunk = match mcrs_minecraft_nbt::from_bytes(Cursor::new(nbt)) {
         Ok(raw) => raw,
         Err(err) => return Err(wrong_version(nbt).unwrap_or_else(|| err.into())),
@@ -267,22 +133,26 @@ pub fn parse(nbt: &[u8]) -> Result<Chunk, ErrorKind> {
         sections: raw
             .sections
             .into_iter()
-            .map(parse_section)
+            .map(|section| parse_section(section, blocks, biomes))
             .collect::<Result<_, _>>()?,
     })
 }
 
-fn parse_section(raw: RawSection) -> Result<Section, ErrorKind> {
+fn parse_section(
+    raw: RawSection,
+    blocks: &impl PaletteLookup<VoxelId>,
+    biomes: &impl PaletteLookup<u8>,
+) -> Result<Section, ErrorKind> {
     let y = raw.y;
     Ok(Section {
         y,
         block_states: raw
             .block_states
-            .map(|c| BlockStates::unpack(c, y, "block_states"))
+            .map(|c| unpack::<Blocks, _, _>(c, blocks, y, "block_states"))
             .transpose()?,
         biomes: raw
             .biomes
-            .map(|c| Biomes::unpack(c, y, "biomes"))
+            .map(|c| unpack::<Biomes, _, _>(c, biomes, y, "biomes"))
             .transpose()?,
         block_light: raw
             .block_light
@@ -293,6 +163,87 @@ fn parse_section(raw: RawSection) -> Result<Section, ErrorKind> {
             .map(|bytes| light(bytes.0, y, "SkyLight"))
             .transpose()?,
     })
+}
+
+/// Cells are indices into the palette list, in `Strategy.getIndex` order, at the
+/// width the list's length selects. The list may name entries no cell uses.
+fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
+    raw: RawPalettedContainer,
+    lookup: &impl PaletteLookup<V>,
+    y: i8,
+    field: &'static str,
+) -> Result<PalettedContainer<V, DIM>, ErrorKind> {
+    const { assert!(DIM == K::SIZE) };
+    let len = raw.palette.len();
+    if len == 0 {
+        return Err(ErrorKind::EmptyPalette { y, field });
+    }
+    if len > u16::MAX as usize + 1 {
+        return Err(ErrorKind::PaletteTooLarge {
+            y,
+            field,
+            len,
+            max: u16::MAX as usize + 1,
+        });
+    }
+    let bits = K::storage_bits(len);
+    if bits == 0 {
+        if raw.data.is_some() {
+            return Err(ErrorKind::UnexpectedData { y, field });
+        }
+        return Ok(PalettedContainer::Homogeneous(resolve(
+            &raw.palette,
+            lookup,
+            0,
+        )?));
+    }
+
+    let Some(data) = raw.data else {
+        return Err(ErrorKind::MissingData { y, field, bits });
+    };
+    let data = data.0;
+    mcrs_voxel_storage::check_len(bits, &data, K::ENTRY_COUNT).map_err(|e| {
+        ErrorKind::DataLength {
+            y,
+            field,
+            found: e.found,
+            expected: e.expected,
+            bits,
+        }
+    })?;
+
+    if mcrs_voxel_storage::any_entry_past(bits, &data, K::ENTRY_COUNT, len) {
+        let index = mcrs_voxel_storage::first_entry_past(bits, &data, K::ENTRY_COUNT, len)
+            .expect("the maximum is already past the palette");
+        return Err(ErrorKind::PaletteIndex {
+            y,
+            field,
+            index,
+            len,
+        });
+    }
+
+    let entries = (0..len)
+        .map(|index| resolve(&raw.palette, lookup, index))
+        .collect::<Result<Vec<V>, _>>()?;
+    let mut cells = vec![V::default(); K::ENTRY_COUNT];
+    mcrs_voxel_storage::remap_into(bits, &data, &entries, &mut cells)
+        .expect("the data length was checked above");
+    Ok(PalettedContainer::from_cells(&cells))
+}
+
+/// Resolved while the name is still borrowed out of the palette's text.
+fn resolve<V>(
+    palette: &BlockStateList,
+    lookup: &impl PaletteLookup<V>,
+    index: usize,
+) -> Result<V, ErrorKind> {
+    let name = palette.name(index);
+    lookup
+        .resolve(name, palette.properties(index))
+        .ok_or_else(|| ErrorKind::UnknownPaletteEntry {
+            name: name.to_string(),
+        })
 }
 
 /// Asks the deserializer for the long array whole; read as a sequence it costs

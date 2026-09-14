@@ -2,6 +2,7 @@ pub mod column_heights;
 pub mod container;
 pub mod nibbles;
 pub mod packed_bit_storage;
+pub mod section;
 pub mod volume;
 pub mod voxel_palette;
 
@@ -13,8 +14,8 @@ pub use volume::{Blocks, BlocksMut, BoxVolume, Volume};
 pub use voxel_palette::{SharedVoxelPalette, VoxelPalette};
 
 /// An opaque voxel identifier. The engine never interprets it: the game assigns
-/// ids when its asset corpus loads, and they are not stable across runs, which
-/// is why this type has no serialized form.
+/// ids when its asset corpus loads, and they are not stable across runs, so a
+/// save names the voxel instead of storing its id.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
 pub struct VoxelId(pub u16);
 
@@ -52,11 +53,12 @@ pub const fn ceillog2(count: usize) -> u32 {
 }
 
 /// The per-axis index formula and the stored width for one kind of section
-/// container. A game supplies the instances.
+/// container.
 pub trait SectionKind {
     const AXIS_BITS: u32;
     const MIN_INDIRECT_BITS: u32;
 
+    const SIZE: usize = 1 << Self::AXIS_BITS;
     const ENTRY_COUNT: usize = 1 << (3 * Self::AXIS_BITS);
 
     #[inline]

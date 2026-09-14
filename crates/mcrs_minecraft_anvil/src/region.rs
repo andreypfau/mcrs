@@ -5,8 +5,10 @@ use flate2::read::{GzDecoder, ZlibDecoder};
 use lz4_java_wrc::Lz4BlockInput;
 
 use crate::chunk::{self, Chunk};
+use crate::palette::PaletteLookup;
 use crate::{AnvilError, ErrorKind};
 use mcrs_voxel_math::{ColumnPos, RegionPos};
+use mcrs_voxel_storage::VoxelId;
 
 pub const SECTOR_BYTES: usize = 4096;
 pub const REGION_SIDE: i32 = 32;
@@ -79,9 +81,17 @@ impl RegionFile {
         })
     }
 
-    pub fn read_chunk(&self, pos: ColumnPos) -> Result<Option<Chunk>, AnvilError> {
+    pub fn read_chunk(
+        &self,
+        pos: ColumnPos,
+        blocks: &impl PaletteLookup<VoxelId>,
+        biomes: &impl PaletteLookup<u8>,
+    ) -> Result<Option<Chunk>, AnvilError> {
         self.read_nbt(pos)
-            .and_then(|nbt| nbt.map(|nbt| chunk::parse(&nbt)).transpose())
+            .and_then(|nbt| {
+                nbt.map(|nbt| chunk::parse(&nbt, blocks, biomes))
+                    .transpose()
+            })
             .map_err(|kind| AnvilError {
                 path: self.path.clone(),
                 kind,

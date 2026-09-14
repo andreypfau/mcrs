@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_anvil::{DATA_VERSION, parse_chunk};
+use mcrs_minecraft_anvil::{DATA_VERSION, PaletteLookup, Properties, parse_chunk};
 use mcrs_minecraft_decoration::block_entity::{BeeOccupant, EndGatewayData, GeneratedBlockEntity};
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -75,6 +75,15 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, i32)> {
 
 /// A region file the save would hold, carrying these block entity compounds
 /// and nothing else, read back through the reader a loading dimension uses.
+/// The column carries no sections, so no palette entry is ever asked for.
+struct NoPalette;
+
+impl<V> PaletteLookup<V> for NoPalette {
+    fn resolve(&self, _name: &str, _properties: Properties<'_>) -> Option<V> {
+        None
+    }
+}
+
 fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk {
     let mut root = NbtCompound::new();
     root.put_int("DataVersion", DATA_VERSION);
@@ -90,7 +99,7 @@ fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk
             .collect::<Vec<_>>(),
     );
     let bytes = Nbt::new(String::new(), root).write();
-    parse_chunk(&bytes).expect("the saved column parses")
+    parse_chunk(&bytes, &NoPalette, &NoPalette).expect("the saved column parses")
 }
 
 fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlockEntity> {

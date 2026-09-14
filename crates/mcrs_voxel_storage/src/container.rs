@@ -5,7 +5,7 @@ use std::hash::Hash;
 /// 3d array indexed by y,z,x
 pub type AbstractCube<T, const DIM: usize> = [[[T; DIM]; DIM]; DIM];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeterogeneousPaletteData<V: Hash + Eq + Copy, const DIM: usize> {
     pub cube: Box<AbstractCube<V, DIM>>,
     pub palette: Vec<V>,
@@ -71,7 +71,7 @@ impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
 
 /// A paletted container is a cube of registry ids. It uses a custom compression scheme based on how
 /// may distinct registry ids are in the cube.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PalettedContainer<V: Hash + Eq + Copy + Default, const DIM: usize> {
     Homogeneous(V),
     Heterogeneous(Box<HeterogeneousPaletteData<V, DIM>>),
@@ -190,57 +190,6 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                 (data.palette.clone().into_boxed_slice(), packed)
             }
         }
-    }
-
-    pub fn from_palette_and_packed_data(
-        palette_slice: &[V],
-        packed_data: &[i64],
-        minimum_bits_per_entry: u8,
-    ) -> Self {
-        if palette_slice.is_empty() {
-            return Self::Homogeneous(V::default());
-        }
-
-        if palette_slice.len() == 1 {
-            return Self::Homogeneous(palette_slice[0]);
-        }
-
-        let bits_per_key = (ceillog2(palette_slice.len()) as u8).max(minimum_bits_per_entry);
-        let mut indices = vec![0u16; Self::VOLUME];
-        if crate::unpack_into(bits_per_key as u32, packed_data, &mut indices).is_err() {
-            return Self::Homogeneous(V::default());
-        }
-
-        let palette_vec: Vec<V> = palette_slice.to_vec();
-        let index: FxHashMap<V, usize> = palette_vec
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (*v, i))
-            .collect();
-
-        let mut counts = vec![0u16; palette_slice.len()];
-        let mut cube = Box::new([[[V::default(); DIM]; DIM]; DIM]);
-        for (cell, &lookup) in cube
-            .as_flattened_mut()
-            .as_flattened_mut()
-            .iter_mut()
-            .zip(indices.iter())
-        {
-            match palette_vec.get(lookup as usize) {
-                Some(&value) => {
-                    counts[lookup as usize] += 1;
-                    *cell = value;
-                }
-                None => *cell = V::default(),
-            }
-        }
-
-        Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
-            cube,
-            palette: palette_vec,
-            counts,
-            index,
-        }))
     }
 
     pub fn get(&self, x: usize, y: usize, z: usize) -> V {

@@ -266,18 +266,11 @@ pub fn fill_column(
         .and_then(|(saved, (_, biomes))| {
             let chunk = {
                 let _read = info_span!("world::column_read_saved").entered();
-                saved.read(col)?
+                saved.read(col, &ctx.blocks, biomes)?
             };
             let _decode = info_span!("world::column_decode_saved").entered();
-            let decoded = column_sections(&chunk, y_sections, &ctx.blocks, biomes)
-                .map_err(|err| err.to_string())
-                .and_then(|sections| {
-                    saved_block_entities(&chunk)
-                        .map(|entities| (sections, entities))
-                        .map_err(|err| err.to_string())
-                });
-            match decoded {
-                Ok(loaded) => Some(loaded),
+            match saved_block_entities(&chunk) {
+                Ok(entities) => Some((column_sections(chunk.sections, y_sections), entities)),
                 Err(err) => {
                     error!(%err, x = col.x, z = col.z, "decoding a saved column");
                     None
