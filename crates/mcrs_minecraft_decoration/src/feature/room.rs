@@ -4,6 +4,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::block_entity::GeneratedBlockEntity;
@@ -45,7 +46,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     entities: &mut Vec<GeneratedBlockEntity>,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     let x_radius = rng.next_i32_bound(2) + 2;
     let (min_x, max_x) = (-x_radius - 1, x_radius + 1);
@@ -108,7 +109,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
 
     for _ in 0..2 {
         for _ in 0..3 {
-            let pos = IVec3::new(
+            let pos = BlockPos::new(
                 origin.x + rng.next_i32_bound(x_radius * 2 + 1) - x_radius,
                 origin.y,
                 origin.z + rng.next_i32_bound(z_radius * 2 + 1) - z_radius,
@@ -145,7 +146,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
 
 /// `StructurePiece.reorient` for a chest: back onto the one solid neighbour, or
 /// walk the default facing round until it points at open space.
-fn reorient<W: WorldGenVolume>(config: &CompiledMonsterRoom, volume: &W, pos: IVec3) -> VoxelId {
+fn reorient<W: WorldGenVolume>(config: &CompiledMonsterRoom, volume: &W, pos: BlockPos) -> VoxelId {
     let mut only_solid = None;
     for (index, side) in Direction::HORIZONTAL.iter().enumerate() {
         let state = volume.get(pos + side.normal());
@@ -194,7 +195,7 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     entities: &mut Vec<GeneratedBlockEntity>,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     let min_x = (origin.x >> 4) << 4;
     let min_z = (origin.z >> 4) << 4;
@@ -204,14 +205,14 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
     for x in xs {
         for &z in &zs {
             let y = volume.height(HeightmapName::MotionBlockingNoLeaves, x, z);
-            let pos = IVec3::new(x, y, z);
-            let state = volume.get(IVec3::new(x, y, z));
+            let pos = BlockPos::new(x, y, z);
+            let state = volume.get(pos);
             if !holds(&volume.world().air_states, state)
                 && !holds(&volume.world().empty_collision, state)
             {
                 continue;
             }
-            volume.set(IVec3::new(x, y, z), config.chest);
+            volume.set(pos, config.chest);
             entities.push(GeneratedBlockEntity::chest(
                 pos,
                 BONUS_CHEST_LOOT.to_owned(),
@@ -272,7 +273,7 @@ mod tests {
         volume
     }
 
-    const ORIGIN: IVec3 = IVec3::new(0, 20, 0);
+    const ORIGIN: BlockPos = BlockPos::new(0, 20, 0);
 
     /// Solid stone everywhere but a single air gap on the room's edge at
     /// `dy == 0`, which is the one hole the reference needs to accept.
@@ -358,8 +359,8 @@ mod tests {
         let mut entities = Vec::new();
         let mut rng = XoroshiroRandom::new(0x5eed_2024);
         place_monster_room(&room(), &mut volume, &mut rng, &mut entities, ORIGIN);
-        assert_eq!(volume.get(IVec3::new(0, ORIGIN.y + 1, 0)), CAVE_AIR);
-        let floor = volume.get(IVec3::new(0, ORIGIN.y - 1, 0));
+        assert_eq!(volume.get(BlockPos::new(0, ORIGIN.y + 1, 0)), CAVE_AIR);
+        let floor = volume.get(BlockPos::new(0, ORIGIN.y - 1, 0));
         assert!(floor == COBBLE || floor == MOSSY, "floor was {floor:?}");
     }
 
@@ -409,7 +410,7 @@ mod tests {
             &mut volume,
             &mut rng,
             &mut entities,
-            IVec3::new(8, 64, 8)
+            BlockPos::new(8, 64, 8)
         ));
         for _ in 0..2 {
             for i in (2..=16).rev() {
@@ -443,7 +444,7 @@ mod tests {
             &mut volume,
             &mut rng,
             &mut entities,
-            IVec3::new(8, 64, 8)
+            BlockPos::new(8, 64, 8)
         ));
         assert!(entities.is_empty());
     }

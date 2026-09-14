@@ -1,8 +1,8 @@
-use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 
 use crate::feature::tree::provider::StateProvider;
 
@@ -26,8 +26,8 @@ pub fn place_single_block_pillar<W>(
     config: &CompiledSingleBlockPillar,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
-    place_cap: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, IVec3) -> bool,
+    origin: BlockPos,
+    place_cap: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -39,9 +39,9 @@ where
     {
         let state = config.block.state(volume, rng, pos);
         volume.set(pos, state);
-        pos = config.direction.relative(pos, 1);
+        pos += config.direction.normal();
     }
-    place_cap(volume, rng, config.direction.opposite().relative(pos, 1));
+    place_cap(volume, rng, pos + config.direction.opposite().normal());
     true
 }
 
@@ -52,12 +52,14 @@ mod tests {
     use mcrs_minecraft_worldgen::feature::placer::single_state;
     use mcrs_voxel_storage::VoxelId;
 
+    use bevy_math::IVec3;
+
     use super::*;
     use crate::feature::tree::provider::fake::{AIR, FakeVolume};
 
     const BASALT: VoxelId = VoxelId(7);
     const STONE: VoxelId = VoxelId(8);
-    const AT: IVec3 = IVec3::new(2, 40, -5);
+    const AT: BlockPos = BlockPos::new(2, 40, -5);
 
     fn config(chance_to_continue: f32) -> CompiledSingleBlockPillar {
         CompiledSingleBlockPillar {
@@ -94,7 +96,7 @@ mod tests {
         let floor = volume.extent().min_y;
         let written: Vec<i32> = volume.writes.iter().map(|((_, y, _), _)| *y).collect();
         assert_eq!(written, (floor..=AT.y).rev().collect::<Vec<_>>());
-        assert_eq!(capped, vec![AT.with_y(floor)]);
+        assert_eq!(capped, vec![BlockPos::from(AT.with_y(floor))]);
 
         let mut replay = XoroshiroRandom::new(13);
         for _ in 0..=(AT.y - floor) {

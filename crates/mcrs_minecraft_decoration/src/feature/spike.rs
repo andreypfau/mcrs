@@ -3,6 +3,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 #[derive(Clone, Debug)]
@@ -22,7 +23,7 @@ pub fn place_spike<W: WorldGenVolume>(
     cfg: &CompiledSpike,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let floor = volume.extent().min_y + 2;
     let mut origin = at;
@@ -56,16 +57,12 @@ pub fn place_spike<W: WorldGenVolume>(
                 if !kept {
                     continue;
                 }
-                replace(
-                    cfg,
-                    volume,
-                    IVec3::new(origin.x + xo, origin.y + y_off, origin.z + zo),
-                );
+                replace(cfg, volume, origin + IVec3::new(xo, y_off, zo));
                 if y_off != 0 && edge > 1 {
                     replace(
                         cfg,
                         volume,
-                        IVec3::new(origin.x + xo, origin.y - y_off, origin.z + zo),
+                        BlockPos::new(origin.x + xo, origin.y - y_off, origin.z + zo),
                     );
                 }
             }
@@ -75,7 +72,7 @@ pub fn place_spike<W: WorldGenVolume>(
     let root_width = (width - 1).clamp(0, 1);
     for xo in -root_width..=root_width {
         for zo in -root_width..=root_width {
-            let mut cursor = IVec3::new(origin.x + xo, origin.y - 1, origin.z + zo);
+            let mut cursor = BlockPos::new(origin.x + xo, origin.y - 1, origin.z + zo);
             let mut run = if xo.abs() == 1 && zo.abs() == 1 {
                 rng.next_i32_bound(5)
             } else {
@@ -102,7 +99,7 @@ pub fn place_spike<W: WorldGenVolume>(
     true
 }
 
-fn replace<W: WorldGenVolume>(cfg: &CompiledSpike, volume: &mut W, pos: IVec3) {
+fn replace<W: WorldGenVolume>(cfg: &CompiledSpike, volume: &mut W, pos: BlockPos) {
     if volume.is_air(pos) || cfg.can_replace.test(volume, pos) {
         volume.set(pos, cfg.state);
     }
@@ -120,7 +117,7 @@ mod tests {
     const SNOW: VoxelId = VoxelId(1);
     const PACKED_ICE: VoxelId = VoxelId(2);
     const BEDROCK: VoxelId = VoxelId(3);
-    const ORIGIN: IVec3 = IVec3::new(8, 80, 8);
+    const ORIGIN: BlockPos = BlockPos::new(8, 80, 8);
 
     fn config() -> CompiledSpike {
         CompiledSpike {

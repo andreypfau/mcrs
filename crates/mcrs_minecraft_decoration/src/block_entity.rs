@@ -1,7 +1,7 @@
-use bevy_math::IVec3;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_worldgen::feature::tree::is_default;
 use mcrs_minecraft_worldgen::value_provider::Weighted;
+use mcrs_voxel_math::BlockPos;
 use serde::{Deserialize, Serialize};
 
 /// A block entity a generator produced, in the compound the save, the chunk
@@ -121,18 +121,18 @@ impl GeneratedBlockEntity {
     ];
 
     /// Which block the entity belongs to, which is what routes it to a column.
-    pub fn position(&self) -> IVec3 {
+    pub fn position(&self) -> BlockPos {
         match self {
             GeneratedBlockEntity::Beehive { x, y, z, .. }
             | GeneratedBlockEntity::Chest { x, y, z, .. }
-            | GeneratedBlockEntity::MobSpawner { x, y, z, .. } => IVec3::new(*x, *y, *z),
+            | GeneratedBlockEntity::MobSpawner { x, y, z, .. } => BlockPos::new(*x, *y, *z),
             GeneratedBlockEntity::EndGateway(gateway) => {
-                IVec3::new(gateway.x, gateway.y, gateway.z)
+                BlockPos::new(gateway.x, gateway.y, gateway.z)
             }
         }
     }
 
-    pub fn chest(pos: IVec3, loot_table: String, loot_table_seed: i64) -> Self {
+    pub fn chest(pos: BlockPos, loot_table: String, loot_table_seed: i64) -> Self {
         GeneratedBlockEntity::Chest {
             x: pos.x,
             y: pos.y,
@@ -145,7 +145,7 @@ impl GeneratedBlockEntity {
     /// A spawner as `MonsterRoomFeature` leaves it: every timing field still at
     /// `BaseSpawner`'s constructed default, one entity in `SpawnData`, and the
     /// weighted list empty because nothing ever wrote it.
-    pub fn mob_spawner(pos: IVec3, entity_id: &str) -> Self {
+    pub fn mob_spawner(pos: BlockPos, entity_id: &str) -> Self {
         let mut entity = NbtCompound::new();
         entity.put_string("id", entity_id.to_owned());
         GeneratedBlockEntity::MobSpawner {

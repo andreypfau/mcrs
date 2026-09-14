@@ -1,10 +1,10 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use bevy_math::IVec3;
 use mcrs_minecraft_decoration::feature::ore_beta::{OreConfig, TargetBlockState, place_beta_ore};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::{Blocks, BoxVolume, VoxelId};
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
@@ -101,7 +101,11 @@ impl Random for CountingRng {
 /// Stone over the 3×3 of columns around chunk (0, 0), in world coordinates: the
 /// region a `Run` sees, so a vein that leaves its own column still lands.
 fn stone_volume(stone: VoxelId) -> BoxVolume {
-    BoxVolume::filled(IVec3::new(-16, 0, -16), IVec3::new(31, 127, 31), stone)
+    BoxVolume::filled(
+        BlockPos::new(-16, 0, -16),
+        BlockPos::new(31, 127, 31),
+        stone,
+    )
 }
 
 /// Every placed block as (column offset from the centre, state), so a census
@@ -169,8 +173,8 @@ fn simulate<R: Random>(
         let ox = rng.next_i32_bound(16);
         let oy = rng.next_i32_bound(128);
         let oz = rng.next_i32_bound(16);
-        if volume.get(IVec3::new(ox, oy, oz)) == ids.water.into() {
-            place_beta_ore(&clay_cfg, IVec3::new(ox, oy, oz), &mut volume, rng);
+        if volume.get(BlockPos::new(ox, oy, oz)) == ids.water.into() {
+            place_beta_ore(&clay_cfg, BlockPos::new(ox, oy, oz), &mut volume, rng);
             clay_placed += 1;
             ys.entry("clay".into()).or_default().push(oy);
         }
@@ -199,7 +203,7 @@ fn simulate<R: Random>(
             let ox = rng.next_i32_bound(16);
             let oy = rng.next_i32_bound(ybound);
             let oz = rng.next_i32_bound(16);
-            place_beta_ore(&cfg, IVec3::new(ox, oy, oz), &mut volume, rng);
+            place_beta_ore(&cfg, BlockPos::new(ox, oy, oz), &mut volume, rng);
             ys.entry(name.into()).or_default().push(oy);
         }
         counts.insert(name.into(), count);
@@ -216,7 +220,7 @@ fn simulate<R: Random>(
     let lx = rng.next_i32_bound(16);
     let ly = rng.next_i32_bound(16) + rng.next_i32_bound(16);
     let lz = rng.next_i32_bound(16);
-    place_beta_ore(&lapis_cfg, IVec3::new(lx, ly, lz), &mut volume, rng);
+    place_beta_ore(&lapis_cfg, BlockPos::new(lx, ly, lz), &mut volume, rng);
     ys.entry("lapis".into()).or_default().push(ly);
     counts.insert("lapis".into(), 1);
 

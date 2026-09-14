@@ -3,6 +3,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashMap as HashMap;
 
@@ -79,7 +80,7 @@ impl MossyCarpetStates {
 }
 
 /// `Mth.getSeed`.
-fn position_seed(pos: IVec3) -> i64 {
+fn position_seed(pos: BlockPos) -> i64 {
     let seed = (pos.x as i64).wrapping_mul(3_129_871)
         ^ (pos.z as i64).wrapping_mul(116_129_781)
         ^ pos.y as i64;
@@ -95,7 +96,7 @@ fn position_seed(pos: IVec3) -> i64 {
 fn can_attach<W: WorldGenVolume>(
     states: &MossyCarpetStates,
     volume: &W,
-    pos: IVec3,
+    pos: BlockPos,
     face: usize,
 ) -> bool {
     let direction = Direction::HORIZONTAL[face];
@@ -107,7 +108,7 @@ fn updated<W: WorldGenVolume>(
     states: &MossyCarpetStates,
     volume: &W,
     mut shape: CarpetShape,
-    pos: IVec3,
+    pos: BlockPos,
     create_sides: bool,
 ) -> CarpetShape {
     let create_sides = create_sides || shape.base;
@@ -154,7 +155,7 @@ fn updated<W: WorldGenVolume>(
 fn topper<W: WorldGenVolume>(
     states: &MossyCarpetStates,
     volume: &W,
-    pos: IVec3,
+    pos: BlockPos,
     mut side_survives: impl FnMut() -> bool,
 ) -> Option<CarpetShape> {
     let above = pos + IVec3::Y;
@@ -184,7 +185,7 @@ fn topper<W: WorldGenVolume>(
 pub fn place_mossy_carpet<W: WorldGenVolume>(
     states: &MossyCarpetStates,
     volume: &mut W,
-    at: IVec3,
+    at: BlockPos,
 ) {
     let base = CarpetShape {
         base: true,
@@ -209,6 +210,7 @@ mod tests {
     use mcrs_voxel_storage::{Blocks, BlocksMut};
     use std::sync::Arc;
 
+    const ORIGIN: BlockPos = BlockPos::new(0, 0, 0);
     const AIR: VoxelId = VoxelId(0);
     const STONE: VoxelId = VoxelId(1);
     /// The carpet occupies `100..100 + SHAPE_COUNT`.
@@ -252,7 +254,7 @@ mod tests {
     }
 
     fn volume() -> BoxRegion {
-        let mut volume = BoxRegion::new(IVec3::new(-4, -4, -4), IVec3::new(4, 4, 4), AIR);
+        let mut volume = BoxRegion::new(BlockPos::new(-4, -4, -4), BlockPos::new(4, 4, 4), AIR);
         volume.world = WorldStates {
             air_states: mask_of([AIR]),
             replaceable: mask_of([AIR]),
@@ -265,13 +267,13 @@ mod tests {
     fn a_carpet_with_no_wall_beside_it_keeps_every_side_none() {
         let states = states(&[STONE]);
         let mut volume = volume();
-        place_mossy_carpet(&states, &mut volume, IVec3::ZERO);
+        place_mossy_carpet(&states, &mut volume, ORIGIN);
 
-        let shape = states.shape(volume.get(IVec3::ZERO)).expect("a carpet");
+        let shape = states.shape(volume.get(ORIGIN)).expect("a carpet");
         assert!(shape.base);
         assert_eq!(shape.sides, [WallSide::None; 4]);
         assert_eq!(
-            volume.get(IVec3::Y),
+            volume.get(ORIGIN + IVec3::Y),
             AIR,
             "no side to climb means no topper"
         );
@@ -281,10 +283,10 @@ mod tests {
     fn a_wall_to_the_north_grows_that_side_on_the_base() {
         let states = states(&[STONE]);
         let mut volume = volume();
-        volume.set(Direction::North.normal(), STONE);
+        volume.set(ORIGIN + Direction::North.normal(), STONE);
 
-        place_mossy_carpet(&states, &mut volume, IVec3::ZERO);
-        let shape = states.shape(volume.get(IVec3::ZERO)).expect("a carpet");
+        place_mossy_carpet(&states, &mut volume, ORIGIN);
+        let shape = states.shape(volume.get(ORIGIN)).expect("a carpet");
         assert!(shape.base);
         assert_ne!(
             shape.sides[0],
@@ -299,15 +301,19 @@ mod tests {
         let states = states(&[STONE]);
         // A wall one block tall: beside the carpet but not beside the topper.
         let mut short = volume();
-        short.set(Direction::North.normal(), STONE);
-        place_mossy_carpet(&states, &mut short, IVec3::ZERO);
-        assert_eq!(short.get(IVec3::Y), AIR, "nothing for a topper to hold");
+        short.set(ORIGIN + Direction::North.normal(), STONE);
+        place_mossy_carpet(&states, &mut short, ORIGIN);
+        assert_eq!(
+            short.get(ORIGIN + IVec3::Y),
+            AIR,
+            "nothing for a topper to hold"
+        );
 
         let mut tall = volume();
-        tall.set(Direction::North.normal(), STONE);
-        tall.set(Direction::North.normal() + IVec3::Y, STONE);
-        place_mossy_carpet(&states, &mut tall, IVec3::ZERO);
-        let topper = states.shape(tall.get(IVec3::Y));
+        tall.set(ORIGIN + Direction::North.normal(), STONE);
+        tall.set(ORIGIN + Direction::North.normal() + IVec3::Y, STONE);
+        place_mossy_carpet(&states, &mut tall, ORIGIN);
+        let topper = states.shape(tall.get(ORIGIN + IVec3::Y));
         assert!(
             topper.is_some_and(|shape| !shape.base),
             "the topper is a sideways layer, never a base"
@@ -317,7 +323,7 @@ mod tests {
     #[test]
     fn the_shape_is_the_same_every_time_the_same_position_is_generated() {
         let states = states(&[STONE]);
-        let shape_at = |pos: IVec3| {
+        let shape_at = |pos: BlockPos| {
             let mut walled = volume();
             for face in 0..4 {
                 let side = Direction::HORIZONTAL[face].normal();
@@ -327,7 +333,7 @@ mod tests {
             place_mossy_carpet(&states, &mut walled, pos);
             (walled.get(pos), walled.get(pos + IVec3::Y))
         };
-        assert_eq!(shape_at(IVec3::ZERO), shape_at(IVec3::ZERO));
+        assert_eq!(shape_at(ORIGIN), shape_at(ORIGIN));
     }
 
     #[test]

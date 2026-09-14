@@ -6,8 +6,8 @@
 
 use std::sync::Arc;
 
-use bevy_math::IVec3;
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::{Blocks, BlocksMut, VoxelId};
 
 use crate::world::generate::ColumnBlocks;
@@ -37,7 +37,7 @@ fn a_write_past_the_ring_is_a_debug_assertion() {
     let blocks = ColumnBlocks::new(&Y_SECTIONS);
     let ctx = bare_fill_context(build_beta_router());
     let mut region = ColumnRegion::new(&snapshots, &blocks, &ctx);
-    region.set(IVec3::new(32, 8, 0), VoxelId::default());
+    region.set(BlockPos::new(32, 8, 0), VoxelId::default());
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn a_read_past_the_ring_is_a_debug_assertion() {
     let blocks = ColumnBlocks::new(&Y_SECTIONS);
     let ctx = bare_fill_context(build_beta_router());
     let region = ColumnRegion::new(&snapshots, &blocks, &ctx);
-    let _ = region.get(IVec3::new(0, 8, -17));
+    let _ = region.get(BlockPos::new(0, 8, -17));
 }
 
 /// The far corner of the ring is inside the footprint, so the same assertion
@@ -60,7 +60,7 @@ fn the_corners_of_the_ring_are_inside_the_footprint() {
     let ctx = bare_fill_context(build_beta_router());
     let mut region = ColumnRegion::new(&snapshots, &blocks, &ctx);
     for (x, z) in [(-16, -16), (31, 31), (-1, 31), (31, -1)] {
-        region.set(IVec3::new(x, 8, z), VoxelId::default());
-        let _ = region.get(IVec3::new(x, 8, z));
+        region.set(BlockPos::new(x, 8, z), VoxelId::default());
+        let _ = region.get(BlockPos::new(x, 8, z));
     }
 }

@@ -1,8 +1,8 @@
-use bevy_math::IVec3;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, WorldGenVolume};
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 
 use crate::feature::tree::provider::StateProvider;
 
@@ -29,7 +29,7 @@ pub fn place_block_column<W: WorldGenVolume>(
     cfg: &CompiledBlockColumn,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let mut heights: Vec<i32> = cfg
         .layers
@@ -43,13 +43,13 @@ pub fn place_block_column<W: WorldGenVolume>(
 
     // The reference tests the cell one step past the origin first and never
     // tests the origin itself, so a column always writes its own first cell.
-    let mut probe = cfg.direction.relative(at, 1);
+    let mut probe = at + cfg.direction.normal();
     for reached in 0..total {
         if !cfg.allowed_placement.test(volume, probe) {
             truncate(&mut heights, total, reached, cfg.prioritize_tip);
             break;
         }
-        probe = cfg.direction.relative(probe, 1);
+        probe += cfg.direction.normal();
     }
 
     let mut place = at;
@@ -57,7 +57,7 @@ pub fn place_block_column<W: WorldGenVolume>(
         for _ in 0..*count {
             let state = layer.provider.state(volume, rng, place);
             volume.set(place, state);
-            place = cfg.direction.relative(place, 1);
+            place += cfg.direction.normal();
         }
     }
     true
@@ -82,6 +82,7 @@ fn truncate(heights: &mut [i32], total: i32, new_height: i32, prioritize_tip: bo
 
 #[cfg(test)]
 mod tests {
+    use bevy_math::IVec3;
     use mcrs_minecraft_random::Random;
 
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
@@ -95,7 +96,7 @@ mod tests {
     const STEM: VoxelId = VoxelId(3);
     const TIP: VoxelId = VoxelId(4);
     const STONE: VoxelId = VoxelId(5);
-    const AT: IVec3 = IVec3::new(0, 64, 0);
+    const AT: BlockPos = BlockPos::new(0, 64, 0);
 
     fn config(prioritize_tip: bool) -> CompiledBlockColumn {
         CompiledBlockColumn {

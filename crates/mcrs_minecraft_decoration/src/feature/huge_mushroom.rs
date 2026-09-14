@@ -6,6 +6,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::holds;
@@ -90,7 +91,7 @@ pub fn place_huge_mushroom<W: WorldGenVolume>(
     cfg: &CompiledHugeMushroom,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let mut height = rng.next_i32_bound(3) + 4;
     if rng.next_i32_bound(12) == 0 {
@@ -105,7 +106,7 @@ pub fn place_huge_mushroom<W: WorldGenVolume>(
     }
     for dy in 0..height {
         let state = cfg.stem_provider.state(&*volume, rng, at);
-        place_block(cfg, volume, IVec3::new(at.x, at.y + dy, at.z), state);
+        place_block(cfg, volume, at + IVec3::Y * dy, state);
     }
     true
 }
@@ -134,7 +135,7 @@ impl CompiledHugeMushroom {
 fn valid_position<W: WorldGenVolume>(
     cfg: &CompiledHugeMushroom,
     volume: &W,
-    at: IVec3,
+    at: BlockPos,
     height: i32,
 ) -> bool {
     let extent = volume.extent();
@@ -148,7 +149,7 @@ fn valid_position<W: WorldGenVolume>(
         let radius = cfg.scan_radius(dy, height);
         for dx in -radius..=radius {
             for dz in -radius..=radius {
-                let state = volume.get(IVec3::new(at.x + dx, at.y + dy, at.z + dz));
+                let state = volume.get(at + IVec3::new(dx, dy, dz));
                 if !holds(&volume.world().air_states, state) && !holds(&cfg.leaves, state) {
                     return false;
                 }
@@ -162,7 +163,7 @@ fn brown_cap<W: WorldGenVolume>(
     cfg: &CompiledHugeMushroom,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
     height: i32,
 ) {
     let radius = cfg.foliage_radius;
@@ -184,12 +185,7 @@ fn brown_cap<W: WorldGenVolume>(
                 .tables
                 .mushroom_faces
                 .with_faces(state, None, west, east, north, south);
-            place_block(
-                cfg,
-                volume,
-                IVec3::new(at.x + dx, at.y + height, at.z + dz),
-                state,
-            );
+            place_block(cfg, volume, at + IVec3::new(dx, height, dz), state);
         }
     }
 }
@@ -198,7 +194,7 @@ fn red_cap<W: WorldGenVolume>(
     cfg: &CompiledHugeMushroom,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
     height: i32,
 ) {
     let center = cfg.foliage_radius - 2;
@@ -224,12 +220,7 @@ fn red_cap<W: WorldGenVolume>(
                     dz < -center,
                     dz > center,
                 );
-                place_block(
-                    cfg,
-                    volume,
-                    IVec3::new(at.x + dx, at.y + dy, at.z + dz),
-                    state,
-                );
+                place_block(cfg, volume, at + IVec3::new(dx, dy, dz), state);
             }
         }
     }
@@ -238,7 +229,7 @@ fn red_cap<W: WorldGenVolume>(
 fn place_block<W: WorldGenVolume>(
     cfg: &CompiledHugeMushroom,
     volume: &mut W,
-    pos: IVec3,
+    pos: BlockPos,
     state: VoxelId,
 ) {
     let current = volume.get(pos);
@@ -261,7 +252,7 @@ mod tests {
     const STONE: VoxelId = VoxelId(2);
     const CAP: VoxelId = VoxelId(200);
     const STEM: VoxelId = VoxelId(300);
-    const ORIGIN: IVec3 = IVec3::new(8, 70, 8);
+    const ORIGIN: BlockPos = BlockPos::new(8, 70, 8);
 
     /// The cap's 32 face states sit at `CAP + 1 ..= CAP + 32`, so a test reads
     /// the faces a placer asked for straight off the written id.
@@ -336,13 +327,10 @@ mod tests {
             .count();
         assert_eq!(cap_cells, 7 * 7 - 4, "a seven-wide plate less its corners");
         for dy in 0..height {
-            assert_eq!(
-                volume.get(IVec3::new(ORIGIN.x, ORIGIN.y + dy, ORIGIN.z)),
-                STEM
-            );
+            assert_eq!(volume.get(ORIGIN + IVec3::Y * dy), STEM);
         }
         assert_eq!(
-            volume.get(IVec3::new(ORIGIN.x - 3, ORIGIN.y + height, ORIGIN.z)),
+            volume.get(ORIGIN + IVec3::new(-3, height, 0)),
             VoxelId(CAP.0 + 1 + face_index(false, true, false, false, false) as u16),
             "the west rim carries only its west face"
         );

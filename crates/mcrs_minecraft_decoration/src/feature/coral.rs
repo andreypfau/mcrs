@@ -3,6 +3,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
+use mcrs_voxel_math::BlockPos;
 
 use crate::feature::tree::trunk::random_horizontal;
 use mcrs_minecraft_random::shuffle;
@@ -19,8 +20,8 @@ fn counter_clockwise(direction: Direction) -> Direction {
 pub fn place_coral_tree<W>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
-    place_block: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, IVec3) -> bool,
+    origin: BlockPos,
+    place_block: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -62,8 +63,8 @@ where
 pub fn place_coral_claw<W>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
-    place_block: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, IVec3) -> bool,
+    origin: BlockPos,
+    place_block: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -116,13 +117,13 @@ mod tests {
     use super::*;
     use crate::feature::tree::provider::fake::FakeVolume;
 
-    const AT: IVec3 = IVec3::new(0, 60, 0);
+    const AT: BlockPos = BlockPos::new(0, 60, 0);
 
     /// The trunk height comes first, and the trunk is offered to the nested
     /// feature one cell at a time going up.
     #[test]
     fn a_coral_tree_offers_its_trunk_upward_from_the_origin() {
-        let mut seen: Vec<IVec3> = Vec::new();
+        let mut seen: Vec<BlockPos> = Vec::new();
         let mut volume = FakeVolume::default();
         let mut rng = XoroshiroRandom::new(3);
 
@@ -147,7 +148,7 @@ mod tests {
     /// branch count, the shuffle and every branch draw never happen.
     #[test]
     fn a_refused_trunk_stops_the_tree_after_one_placement() {
-        let mut seen: Vec<IVec3> = Vec::new();
+        let mut seen: Vec<BlockPos> = Vec::new();
         let mut volume = FakeVolume::default();
         let mut rng = XoroshiroRandom::new(3);
 
@@ -171,7 +172,7 @@ mod tests {
     /// no draw of its own.
     #[test]
     fn a_refused_origin_stops_the_claw_before_it_draws() {
-        let mut seen: Vec<IVec3> = Vec::new();
+        let mut seen: Vec<BlockPos> = Vec::new();
         let mut volume = FakeVolume::default();
         let mut rng = XoroshiroRandom::new(5);
         let before = rng.clone();
@@ -195,7 +196,7 @@ mod tests {
     /// length, its segment direction where it has a choice, and its reach.
     #[test]
     fn a_coral_claw_walks_every_branch_in_shuffled_order() {
-        let mut seen: Vec<IVec3> = Vec::new();
+        let mut seen: Vec<BlockPos> = Vec::new();
         let mut volume = FakeVolume::default();
         let mut rng = XoroshiroRandom::new(5);
 

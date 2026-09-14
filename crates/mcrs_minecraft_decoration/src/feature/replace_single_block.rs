@@ -1,6 +1,6 @@
-use bevy_math::IVec3;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{Rule, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 #[derive(Clone, Debug)]
@@ -21,7 +21,7 @@ pub fn place_replace_single_block<W: WorldGenVolume>(
     cfg: &CompiledReplaceSingleBlock,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let here = volume.get(at);
     for replacement in &cfg.targets {
@@ -46,7 +46,7 @@ mod tests {
     const IRON: VoxelId = VoxelId(4);
 
     fn volume(fill: VoxelId) -> BoxRegion {
-        let mut volume = BoxRegion::new(IVec3::ZERO, IVec3::new(3, 3, 3), fill);
+        let mut volume = BoxRegion::new(BlockPos::new(0, 0, 0), BlockPos::new(3, 3, 3), fill);
         volume.world = WorldStates::default();
         volume
     }
@@ -74,17 +74,17 @@ mod tests {
             &config(),
             &mut volume,
             &mut rng,
-            IVec3::new(1, 1, 1)
+            BlockPos::new(1, 1, 1)
         ));
-        assert_eq!(volume.get(IVec3::new(1, 1, 1)), GOLD);
+        assert_eq!(volume.get(BlockPos::new(1, 1, 1)), GOLD);
     }
 
     #[test]
     fn a_later_entry_still_matches_when_the_first_does_not() {
         let mut volume = volume(DEEPSLATE);
         let mut rng = XoroshiroRandom::new(1);
-        place_replace_single_block(&config(), &mut volume, &mut rng, IVec3::new(1, 1, 1));
-        assert_eq!(volume.get(IVec3::new(1, 1, 1)), IRON);
+        place_replace_single_block(&config(), &mut volume, &mut rng, BlockPos::new(1, 1, 1));
+        assert_eq!(volume.get(BlockPos::new(1, 1, 1)), IRON);
     }
 
     #[test]
@@ -95,7 +95,7 @@ mod tests {
             &config(),
             &mut volume,
             &mut rng,
-            IVec3::new(1, 1, 1)
+            BlockPos::new(1, 1, 1)
         ));
         assert!(volume.writes.is_empty());
     }

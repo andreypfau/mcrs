@@ -7,6 +7,7 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_voxel_math::BlockPos;
 #[cfg(any(test, feature = "test-support"))]
 use mcrs_voxel_storage::{Blocks, BoxVolume, Volume};
 use mcrs_voxel_storage::{BlocksMut, VoxelId};
@@ -143,17 +144,17 @@ impl WorldStates {
 pub trait WorldGenVolume: BlocksMut {
     fn world(&self) -> &WorldStates;
 
-    fn is_air(&self, p: IVec3) -> bool {
+    fn is_air(&self, p: BlockPos) -> bool {
         self.holds(&self.world().air_states, p)
     }
 
-    fn holds(&self, mask: &FixedBitSet, p: IVec3) -> bool {
+    fn holds(&self, mask: &FixedBitSet, p: BlockPos) -> bool {
         mask.contains(self.get(p).0 as usize)
     }
 
     /// `Feature.safeSetBlock`: the write happens unless the block there is in
     /// `unless`, and the answer is whether it did.
-    fn set_unless(&mut self, unless: &FixedBitSet, p: IVec3, state: VoxelId) -> bool {
+    fn set_unless(&mut self, unless: &FixedBitSet, p: BlockPos, state: VoxelId) -> bool {
         if self.holds(unless, p) {
             return false;
         }
@@ -163,13 +164,13 @@ pub trait WorldGenVolume: BlocksMut {
 
     fn height(&self, kind: HeightmapName, x: i32, z: i32) -> i32;
 
-    fn biome(&self, p: IVec3) -> u32;
+    fn biome(&self, p: BlockPos) -> u32;
 
     fn extent(&self) -> HeightContext;
 
     /// `BlockState.canSurvive`, which is block behaviour rather than a property
     /// of the state, so only the volume can answer it.
-    fn would_survive(&self, state: VoxelId, p: IVec3) -> bool;
+    fn would_survive(&self, state: VoxelId, p: BlockPos) -> bool;
 }
 
 /// A set of block states as a bit per state id.
@@ -209,7 +210,7 @@ pub enum Predicate {
 }
 
 impl Predicate {
-    pub fn test<W: WorldGenVolume>(&self, volume: &W, pos: IVec3) -> bool {
+    pub fn test<W: WorldGenVolume>(&self, volume: &W, pos: BlockPos) -> bool {
         match self {
             Predicate::True => true,
             Predicate::MatchingStates { offset, states } => {
@@ -231,7 +232,7 @@ impl Predicate {
                 for x in min[0]..=max[0] {
                     for z in min[2]..=max[2] {
                         for y in min[1]..=max[1] {
-                            if !matches.test(volume, IVec3::new(pos.x + x, pos.y + y, pos.z + z)) {
+                            if !matches.test(volume, pos + IVec3::new(x, y, z)) {
                                 return false;
                             }
                         }
@@ -312,9 +313,9 @@ impl PlacementModifier<Predicate> {
         &self,
         volume: &W,
         rng: &mut R,
-        origin: IVec3,
+        origin: BlockPos,
         carries: &dyn Fn(u32) -> bool,
-        out: &mut Vec<IVec3>,
+        out: &mut Vec<BlockPos>,
     ) {
         use PlacementModifier::*;
         match self {
@@ -397,7 +398,7 @@ impl PlacementModifier<Predicate> {
                         let z = rng.next_i32_bound(16) + origin.z;
                         let start = volume.height(HeightmapName::MotionBlocking, x, z);
                         if let Some(y) = on_ground_y(volume, x, start, z, layer) {
-                            out.push(IVec3::new(x, y, z));
+                            out.push(BlockPos::new(x, y, z));
                             found_any = true;
                         }
                         i += 1;
@@ -435,7 +436,7 @@ impl PlacementModifier<Predicate> {
                                 || z == 0
                                 || z == length;
                             if edge_xy && edge_zy && edge_xz && interior {
-                                out.push(IVec3::new(x + origin.x, y + origin.y, z + origin.z));
+                                out.push(BlockPos::new(x + origin.x, y + origin.y, z + origin.z));
                             }
                         }
                     }
@@ -481,23 +482,23 @@ impl PlacementModifier<Predicate> {
             Heightmap { heightmap } => {
                 let height = volume.height(*heightmap, origin.x, origin.z);
                 if height > volume.extent().min_y {
-                    out.push(IVec3::new(origin.x, height, origin.z));
+                    out.push(BlockPos::new(origin.x, height, origin.z));
                 }
             }
             HeightRange { height } => {
                 let y = height.sample(rng, volume.extent());
-                out.push(IVec3::new(origin.x, y, origin.z));
+                out.push(BlockPos::new(origin.x, y, origin.z));
             }
             InSquare {} => {
                 let x = rng.next_i32_bound(16) + origin.x;
                 let z = rng.next_i32_bound(16) + origin.z;
-                out.push(IVec3::new(x, origin.y, z));
+                out.push(BlockPos::new(x, origin.y, z));
             }
             Offset { x, y, z } => {
                 let dx = x.sample(rng);
                 let dy = y.sample(rng);
                 let dz = z.sample(rng);
-                out.push(IVec3::new(origin.x + dx, origin.y + dy, origin.z + dz));
+                out.push(BlockPos::new(origin.x + dx, origin.y + dy, origin.z + dz));
             }
             RandomlySelected { placements } => {
                 let chosen = rng.next_i32_bound(placements.len() as i32) as usize;
@@ -507,7 +508,7 @@ impl PlacementModifier<Predicate> {
                 let chunk_x = origin.x >> 4;
                 let chunk_z = origin.z >> 4;
                 for &position in positions {
-                    let position = IVec3::from_array(position);
+                    let position = BlockPos::from(position);
                     if position.x >> 4 == chunk_x && position.z >> 4 == chunk_z {
                         out.push(position);
                     }
@@ -531,10 +532,10 @@ fn on_ground_y<W: WorldGenVolume>(
     let bedrock = &world.bedrock;
     let min_y = volume.extent().min_y;
     let mut current_layer = 0;
-    let mut current = volume.get(IVec3::new(x, y_start, z));
+    let mut current = volume.get(BlockPos::new(x, y_start, z));
     let mut y = y_start;
     while y >= min_y + 1 {
-        let below = volume.get(IVec3::new(x, y - 1, z));
+        let below = volume.get(BlockPos::new(x, y - 1, z));
         if !is_empty(below) && is_empty(current) && !bedrock.contains(below.0 as usize) {
             if current_layer == layer_to_place_on {
                 return Some(y);
@@ -552,8 +553,8 @@ fn on_ground_y<W: WorldGenVolume>(
 /// reallocated once warm.
 #[derive(Debug, Default)]
 pub struct PlacerScratch {
-    pending: Vec<(IVec3, usize)>,
-    outputs: Vec<IVec3>,
+    pending: Vec<(BlockPos, usize)>,
+    outputs: Vec<BlockPos>,
 }
 
 /// One object: run its modifier chain over `origin` and hand every surviving
@@ -566,10 +567,10 @@ pub fn place<W: WorldGenVolume, R: Random>(
     modifiers: &[Modifier],
     volume: &mut W,
     scratch: &mut PlacerScratch,
-    origin: IVec3,
+    origin: BlockPos,
     rng: &mut R,
     carries: &dyn Fn(u32) -> bool,
-    generate: &mut dyn FnMut(&mut W, &mut R, IVec3) -> bool,
+    generate: &mut dyn FnMut(&mut W, &mut R, BlockPos) -> bool,
 ) -> bool {
     if modifiers.is_empty() {
         return generate(volume, rng, origin);
@@ -603,7 +604,7 @@ pub type Generate<'a, W> = &'a mut dyn FnMut(
     (usize, usize),
     &mut W,
     &mut XoroshiroRandom,
-    IVec3,
+    BlockPos,
     &dyn Fn(u32) -> bool,
 ) -> bool;
 
@@ -626,7 +627,7 @@ pub fn decorate<'a, W: WorldGenVolume>(
     carries: &dyn Fn(u32, usize, usize) -> bool,
     volume: &mut W,
     scratch: &mut PlacerScratch,
-    origin: IVec3,
+    origin: BlockPos,
     decoration_seed: i64,
     generate: Generate<'_, W>,
 ) {
@@ -663,14 +664,14 @@ pub struct BoxRegion {
     pub extent: HeightContext,
     pub biome: u32,
     pub height: Box<dyn Fn(&BoxVolume, HeightmapName, i32, i32) -> i32>,
-    pub writes: Vec<(IVec3, VoxelId)>,
+    pub writes: Vec<(BlockPos, VoxelId)>,
 }
 
 #[cfg(any(test, feature = "test-support"))]
 impl BoxRegion {
     /// Every cell of `min..=max` is `fill`; the extent is the box's own height
     /// and the height map answers one past its top.
-    pub fn new(min: IVec3, max: IVec3, fill: VoxelId) -> Self {
+    pub fn new(min: BlockPos, max: BlockPos, fill: VoxelId) -> Self {
         BoxRegion {
             blocks: BoxVolume::filled(min, max, fill),
             world: WorldStates::default(),
@@ -688,8 +689,8 @@ impl BoxRegion {
     /// `radius` columns of sixteen around the origin, from `min_y` to `max_y`.
     pub fn columns(radius: i32, min_y: i32, max_y: i32, fill: VoxelId) -> Self {
         Self::new(
-            IVec3::new(-radius * 16, min_y, -radius * 16),
-            IVec3::new(radius * 16 + 15, max_y, radius * 16 + 15),
+            BlockPos::new(-radius * 16, min_y, -radius * 16),
+            BlockPos::new(radius * 16 + 15, max_y, radius * 16 + 15),
             fill,
         )
     }
@@ -713,25 +714,25 @@ impl BoxRegion {
 
 #[cfg(any(test, feature = "test-support"))]
 impl Volume for BoxRegion {
-    fn min(&self) -> IVec3 {
+    fn min(&self) -> BlockPos {
         self.blocks.min()
     }
 
-    fn max(&self) -> IVec3 {
+    fn max(&self) -> BlockPos {
         self.blocks.max()
     }
 }
 
 #[cfg(any(test, feature = "test-support"))]
 impl Blocks for BoxRegion {
-    fn get(&self, p: IVec3) -> VoxelId {
+    fn get(&self, p: BlockPos) -> VoxelId {
         self.blocks.get(p)
     }
 }
 
 #[cfg(any(test, feature = "test-support"))]
 impl BlocksMut for BoxRegion {
-    fn set(&mut self, p: IVec3, id: VoxelId) {
+    fn set(&mut self, p: BlockPos, id: VoxelId) {
         if self.blocks.contains(p) {
             self.blocks.set(p, id);
             self.writes.push((p, id));
@@ -749,7 +750,7 @@ impl WorldGenVolume for BoxRegion {
         (self.height)(&self.blocks, kind, x, z)
     }
 
-    fn biome(&self, _: IVec3) -> u32 {
+    fn biome(&self, _: BlockPos) -> u32 {
         self.biome
     }
 
@@ -757,7 +758,7 @@ impl WorldGenVolume for BoxRegion {
         self.extent
     }
 
-    fn would_survive(&self, _: VoxelId, _: IVec3) -> bool {
+    fn would_survive(&self, _: VoxelId, _: BlockPos) -> bool {
         true
     }
 }
@@ -787,7 +788,11 @@ mod tests {
 
     /// Runs a chain from `origin` and reports where the generator fired and what
     /// the shared source looked like afterwards.
-    fn run(modifiers: &[Modifier], origin: IVec3, seed: u64) -> (Vec<IVec3>, XoroshiroRandom) {
+    fn run(
+        modifiers: &[Modifier],
+        origin: BlockPos,
+        seed: u64,
+    ) -> (Vec<BlockPos>, XoroshiroRandom) {
         let mut volume = stub();
         let mut scratch = PlacerScratch::default();
         let mut rng = XoroshiroRandom::new(seed);
@@ -807,7 +812,7 @@ mod tests {
         (hits, rng)
     }
 
-    const ORIGIN: IVec3 = IVec3::new(16, 0, 32);
+    const ORIGIN: BlockPos = BlockPos::new(16, 0, 32);
 
     #[test]
     fn an_empty_chain_runs_the_generator_at_the_origin() {
@@ -835,9 +840,9 @@ mod tests {
         let (hits, rng) = run(&modifiers, ORIGIN, 42);
 
         let mut replay = XoroshiroRandom::new(42);
-        let expected: Vec<IVec3> = (0..3)
+        let expected: Vec<BlockPos> = (0..3)
             .map(|_| {
-                IVec3::new(
+                BlockPos::new(
                     ORIGIN.x + IntProvider::uniform(0, 15).sample(&mut replay),
                     0,
                     ORIGIN.z,
@@ -872,7 +877,7 @@ mod tests {
         for _ in 0..2 {
             if replay.next_f32() < 0.5 {
                 let x = IntProvider::uniform(0, 7).sample(&mut replay);
-                expected.push(IVec3::new(ORIGIN.x + x, 0, ORIGIN.z));
+                expected.push(BlockPos::new(ORIGIN.x + x, 0, ORIGIN.z));
             }
         }
         assert_eq!(rng, replay);
@@ -886,7 +891,7 @@ mod tests {
         let x = replay.next_i32_bound(16) + ORIGIN.x;
         let z = replay.next_i32_bound(16) + ORIGIN.z;
         assert_eq!(rng, replay);
-        assert_eq!(hits, vec![IVec3::new(x, 0, z)]);
+        assert_eq!(hits, vec![BlockPos::new(x, 0, z)]);
     }
 
     #[test]
@@ -899,7 +904,7 @@ mod tests {
             3,
         );
         assert_eq!(rng, XoroshiroRandom::new(3));
-        assert_eq!(hits, vec![IVec3::new(16, 65, 32)]);
+        assert_eq!(hits, vec![BlockPos::new(16, 65, 32)]);
     }
 
     #[test]
@@ -917,7 +922,7 @@ mod tests {
         ];
         let (hits, rng) = run(&modifiers, ORIGIN, 5);
         assert_eq!(rng, XoroshiroRandom::new(5));
-        assert_eq!(hits, vec![IVec3::new(16, 65, 32)]);
+        assert_eq!(hits, vec![BlockPos::new(16, 65, 32)]);
     }
 
     #[test]
@@ -975,7 +980,7 @@ mod tests {
             0 => {
                 let x = replay.next_i32_bound(16) + ORIGIN.x;
                 let z = replay.next_i32_bound(16) + ORIGIN.z;
-                IVec3::new(x, 0, z)
+                BlockPos::new(x, 0, z)
             }
             _ => ORIGIN + IVec3::new(1, 2, 3),
         };
@@ -1009,9 +1014,9 @@ mod tests {
             allowed_search_condition: None,
             max_steps: Bounded(32),
         }];
-        let (hits, rng) = run(&modifiers, IVec3::new(0, 70, 0), 4);
+        let (hits, rng) = run(&modifiers, BlockPos::new(0, 70, 0), 4);
         assert_eq!(rng, XoroshiroRandom::new(4));
-        assert_eq!(hits, vec![IVec3::new(0, 64, 0)]);
+        assert_eq!(hits, vec![BlockPos::new(0, 64, 0)]);
     }
 
     #[test]
@@ -1028,7 +1033,7 @@ mod tests {
             }),
             max_steps: Bounded(32),
         }];
-        let (hits, _) = run(&modifiers, IVec3::new(0, 70, 0), 4);
+        let (hits, _) = run(&modifiers, BlockPos::new(0, 70, 0), 4);
         assert!(hits.is_empty());
     }
 
@@ -1043,7 +1048,7 @@ mod tests {
             &[Modifier::Biome {}],
             &mut volume,
             &mut scratch,
-            IVec3::ZERO,
+            BlockPos::new(0, 0, 0),
             &mut rng,
             &refuse,
             &mut |_, _, _| {
@@ -1062,7 +1067,7 @@ mod tests {
         }];
         let (hits, rng) = run(&modifiers, ORIGIN, 6);
         assert_eq!(rng, XoroshiroRandom::new(6));
-        assert_eq!(hits, vec![IVec3::new(20, 5, 35)]);
+        assert_eq!(hits, vec![BlockPos::new(20, 5, 35)]);
     }
 
     #[test]
@@ -1094,7 +1099,7 @@ mod tests {
             rng, replay,
             "one hit on layer 0, then a second pass that finds none"
         );
-        assert_eq!(hits, vec![IVec3::new(x, 65, z)]);
+        assert_eq!(hits, vec![BlockPos::new(x, 65, z)]);
     }
 
     #[test]
@@ -1128,7 +1133,7 @@ mod tests {
                 &modifiers,
                 &mut volume,
                 &mut scratch,
-                IVec3::ZERO,
+                BlockPos::new(0, 0, 0),
                 &mut rng,
                 &always,
                 &mut |_, _, _| true,
@@ -1189,7 +1194,7 @@ mod tests {
             let mut rng = XoroshiroRandom::new(seed as u64);
             let x = rng.next_i32_bound(16) + ORIGIN.x;
             let z = rng.next_i32_bound(16) + ORIGIN.z;
-            IVec3::new(x, 0, z)
+            BlockPos::new(x, 0, z)
         };
         let whole = walk(std::slice::from_ref(&(0..2)));
         assert_eq!(

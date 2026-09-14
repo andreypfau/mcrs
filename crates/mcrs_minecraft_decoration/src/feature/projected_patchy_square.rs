@@ -3,6 +3,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, WorldGenVolume};
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 
 use crate::feature::tree::provider::StateProvider;
 
@@ -25,7 +26,7 @@ pub fn place_projected_random_patchy_square<W>(
     config: &CompiledProjectedPatchySquare,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -66,7 +67,7 @@ mod tests {
 
     const BASALT: VoxelId = VoxelId(6);
     const STONE: VoxelId = VoxelId(7);
-    const AT: IVec3 = IVec3::new(0, 70, 0);
+    const AT: BlockPos = BlockPos::new(0, 70, 0);
 
     fn config(size: i32, max_projection_height: i32) -> CompiledProjectedPatchySquare {
         CompiledProjectedPatchySquare {

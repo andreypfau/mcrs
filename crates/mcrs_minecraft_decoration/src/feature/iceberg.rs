@@ -3,6 +3,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 #[derive(Clone, Debug)]
@@ -27,7 +28,7 @@ pub struct CompiledIceberg {
 /// entirely outside the shape still costs its draws.
 /// The shape one iceberg drew before any cell of it was tested.
 struct Iceberg {
-    origin: IVec3,
+    origin: BlockPos,
     snow_on_top: bool,
     shape_angle: f64,
     ellipse_a: i32,
@@ -41,9 +42,9 @@ pub fn place_iceberg<W: WorldGenVolume>(
     cfg: &CompiledIceberg,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
-    let origin = IVec3::new(at.x, volume.extent().sea_level, at.z);
+    let origin = BlockPos::new(at.x, volume.extent().sea_level, at.z);
     let snow_on_top = rng.next_f64() > 0.7;
     let shape_angle = rng.next_f64() * 2.0 * std::f64::consts::PI;
     let ellipse_a = 11 - rng.next_i32_bound(5);
@@ -190,7 +191,7 @@ fn carve<W: WorldGenVolume>(
             if signed_distance_ellipse(xo, zo, local, a, c, angle) >= 0.0 {
                 continue;
             }
-            let pos = IVec3::new(origin.x + xo, origin.y + y_off, origin.z + zo);
+            let pos = BlockPos::new(origin.x + xo, origin.y + y_off, origin.z + zo);
             let state = volume.get(pos);
             if !holds(&cfg.iceberg_mask, state) && !holds(&cfg.snow_block_mask, state) {
                 continue;
@@ -264,7 +265,7 @@ fn set_iceberg_block<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     berg: &Iceberg,
-    pos: IVec3,
+    pos: BlockPos,
     depth: i32,
     height: i32,
 ) {
@@ -303,7 +304,7 @@ fn smooth<W: WorldGenVolume>(cfg: &CompiledIceberg, volume: &mut W, berg: &Icebe
     for x in -a..=a {
         for z in -a..=a {
             for y_off in 0..=height {
-                let pos = IVec3::new(origin.x + x, origin.y + y_off, origin.z + z);
+                let pos = BlockPos::new(origin.x + x, origin.y + y_off, origin.z + z);
                 let state = volume.get(pos);
                 let iceberg = holds(&cfg.iceberg_mask, state);
                 if !iceberg && !holds(&cfg.snow_layer_mask, state) {
@@ -395,7 +396,7 @@ mod tests {
     const ICE: VoxelId = VoxelId(5);
     const WATER: VoxelId = VoxelId(6);
     const SEA_LEVEL: i32 = 63;
-    const ORIGIN: IVec3 = IVec3::new(8, 0, 8);
+    const ORIGIN: BlockPos = BlockPos::new(8, 0, 8);
 
     fn config() -> CompiledIceberg {
         CompiledIceberg {

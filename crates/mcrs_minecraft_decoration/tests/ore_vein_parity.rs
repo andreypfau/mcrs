@@ -1,7 +1,6 @@
 //! The modern ore vein against `OreOracle`, which lifts `OreFeature.doPlace`
 //! verbatim over a world that is stone everywhere.
 
-use bevy_math::IVec3;
 use bytes::Buf;
 use mcrs_minecraft_decoration::feature::ore_modern::{
     CompiledOre, OreReplacement, OreScratch, place_modern_ore,
@@ -10,6 +9,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::corpus::{dump_placements, dump_string, open_dump};
 use mcrs_minecraft_worldgen::feature::placer::{BoxRegion, Rule, WorldStates, single_state};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -107,8 +107,8 @@ fn air_world(air: VoxelId) -> WorldStates {
 fn stone_world(origin: [i32; 3], stone: VoxelId, air: VoxelId, ocean_floor: i32) -> BoxRegion {
     let (x, z) = (origin[0], origin[2]);
     let mut world = BoxRegion::new(
-        IVec3::new(x - 48, MIN_Y - 8, z - 48),
-        IVec3::new(x + 48, MAX_Y + 7, z + 48),
+        BlockPos::new(x - 48, MIN_Y - 8, z - 48),
+        BlockPos::new(x + 48, MAX_Y + 7, z + 48),
         stone,
     )
     .with_height(move |_, _, _, _| ocean_floor);
@@ -160,15 +160,15 @@ fn every_dumped_vein_matches_block_for_block() {
             &cfg,
             &mut world,
             &mut rng,
-            IVec3::from_array(case.origin),
+            BlockPos::from(case.origin),
             &mut scratch,
         );
 
         assert_eq!(result, case.result, "{}: return value", case.name);
-        let expected: Vec<(IVec3, VoxelId)> = case
+        let expected: Vec<(BlockPos, VoxelId)> = case
             .placements
             .iter()
-            .map(|(pos, name)| (IVec3::from_array(*pos), interner.id(name)))
+            .map(|(pos, name)| (BlockPos::from(*pos), interner.id(name)))
             .collect();
         assert_eq!(world.writes, expected, "{}: writes in order", case.name);
         assert_eq!(
@@ -201,7 +201,7 @@ fn the_probe_box_is_the_reference_box() {
             &cfg,
             &mut world,
             &mut XoroshiroRandom::new(42),
-            IVec3::new(0, 64, 0),
+            BlockPos::new(0, 64, 0),
             &mut OreScratch::default(),
         )
     };
@@ -230,7 +230,7 @@ fn a_failed_probe_still_costs_the_segment_draws() {
         &cfg,
         &mut world,
         &mut rng,
-        IVec3::new(0, 200, 0),
+        BlockPos::new(0, 200, 0),
         &mut OreScratch::default(),
     ));
     assert!(world.writes.is_empty());

@@ -1,5 +1,5 @@
-use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::{BlocksMut, VoxelId};
 
 #[derive(Clone, Debug)]
@@ -23,7 +23,7 @@ pub struct OreConfig {
 ///   - stone-only replacement via `targets` table
 pub fn place_beta_ore<R: Random>(
     config: &OreConfig,
-    origin: IVec3,
+    origin: BlockPos,
     volume: &mut impl BlocksMut,
     rng: &mut R,
 ) {
@@ -74,7 +74,7 @@ pub fn place_beta_ore<R: Random>(
                 for i3 in k1..=j2 {
                     let d14 = (i3 as f64 + 0.5 - d8) / (d10 / 2.0);
                     if d12 * d12 + d13 * d13 + d14 * d14 < 1.0 {
-                        let at = IVec3::new(k2, l2, i3);
+                        let at = BlockPos::new(k2, l2, i3);
                         let current = volume.get(at);
                         if let Some(tgt) = config.targets.iter().find(|t| current == t.target) {
                             volume.set(at, tgt.state);
@@ -108,8 +108,8 @@ mod tests {
 
     fn all_stone(width: i32, height: i32) -> BoxVolume {
         BoxVolume::filled(
-            IVec3::ZERO,
-            IVec3::new(width - 1, height - 1, width - 1),
+            BlockPos::new(0, 0, 0),
+            BlockPos::new(width - 1, height - 1, width - 1),
             STONE,
         )
     }
@@ -121,12 +121,12 @@ mod tests {
         let mut world = all_stone(32, 128);
 
         // Mark a non-stone cell inside the likely vein range
-        let non = IVec3::new(12, 50, 12);
+        let non = BlockPos::new(12, 50, 12);
         world.set(non, NON_STONE);
 
         place_beta_ore(
             &config,
-            IVec3::new(0, 50, 0),
+            BlockPos::new(0, 50, 0),
             &mut world,
             &mut LegacyRandom::new(12345),
         );
@@ -160,7 +160,7 @@ mod tests {
             let mut world = all_stone(64, 128);
             place_beta_ore(
                 &config,
-                IVec3::new(16, origin_y, 16),
+                BlockPos::new(16, origin_y, 16),
                 &mut world,
                 &mut LegacyRandom::new(seed),
             );
@@ -197,7 +197,7 @@ mod tests {
         let mut rng = LegacyRandom::new(12345);
         let state_before = rng.clone();
 
-        place_beta_ore(&config, IVec3::new(8, 40, 8), &mut world, &mut rng);
+        place_beta_ore(&config, BlockPos::new(8, 40, 8), &mut world, &mut rng);
 
         // Replay the known draw sequence on the same starting state, then assert
         // the resulting RNG state matches what place() left behind.

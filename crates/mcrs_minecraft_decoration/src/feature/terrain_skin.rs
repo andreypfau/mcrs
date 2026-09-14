@@ -12,6 +12,7 @@ use mcrs_minecraft_worldgen::feature::placer::{
 use mcrs_minecraft_worldgen::noise::simplex::SimplexNoise;
 use mcrs_minecraft_worldgen::noise::stack::NoiseStack;
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::holds;
@@ -36,7 +37,7 @@ pub fn place_disk<W: WorldGenVolume>(
     cfg: &CompiledDisk,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let top = at.y + cfg.half_height;
     let bottom = at.y - cfg.half_height - 1;
@@ -49,7 +50,7 @@ pub fn place_disk<W: WorldGenVolume>(
                 continue;
             }
             for y in (bottom + 1..=top).rev() {
-                let pos = IVec3::new(at.x + dx, y, at.z + dz);
+                let pos = BlockPos::new(at.x + dx, y, at.z + dz);
                 if !cfg.target.test(volume, pos) {
                     continue;
                 }
@@ -79,7 +80,7 @@ pub fn place_blue_ice<W: WorldGenVolume>(
     cfg: &CompiledBlueIce,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     if at.y > volume.extent().sea_level - 1 {
         return false;
@@ -148,7 +149,7 @@ pub fn place_underwater_magma<W: WorldGenVolume>(
     cfg: &CompiledUnderwaterMagma,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let Some(floor) = water_floor(cfg, volume, at) else {
         return false;
@@ -163,7 +164,7 @@ pub fn place_underwater_magma<W: WorldGenVolume>(
                 if rng.next_f32() >= cfg.placement_probability_per_valid_position {
                     continue;
                 }
-                let pos = IVec3::new(at.x + x, floor + y, at.z + z);
+                let pos = BlockPos::new(at.x + x, floor + y, at.z + z);
                 if is_valid_placement(volume, pos) {
                     volume.set(pos, cfg.magma);
                     placed = true;
@@ -177,7 +178,7 @@ pub fn place_underwater_magma<W: WorldGenVolume>(
 fn water_floor<W: WorldGenVolume>(
     cfg: &CompiledUnderwaterMagma,
     volume: &W,
-    at: IVec3,
+    at: BlockPos,
 ) -> Option<i32> {
     let water = &volume.world().water_states;
     scan_column(
@@ -190,7 +191,7 @@ fn water_floor<W: WorldGenVolume>(
     .and_then(|column| column.floor)
 }
 
-fn is_valid_placement<W: WorldGenVolume>(volume: &W, pos: IVec3) -> bool {
+fn is_valid_placement<W: WorldGenVolume>(volume: &W, pos: BlockPos) -> bool {
     if volume.holds(&volume.world().water_states, pos) || volume.is_air(pos) {
         return false;
     }
@@ -259,7 +260,7 @@ pub struct CompiledFreezeTopLayer {
 pub fn place_freeze_top_layer<W: WorldGenVolume>(
     cfg: &CompiledFreezeTopLayer,
     volume: &mut W,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let sea_level = volume.extent().sea_level;
     for dx in 0..16 {
@@ -267,9 +268,9 @@ pub fn place_freeze_top_layer<W: WorldGenVolume>(
             let x = at.x + dx;
             let z = at.z + dz;
             let y = volume.height(HeightmapName::MotionBlocking, x, z);
-            let top = IVec3::new(x, y, z);
+            let top = BlockPos::new(x, y, z);
             let below = top - IVec3::Y;
-            let Some(climate) = cfg.biomes.get(volume.biome(IVec3::new(x, y, z)) as usize) else {
+            let Some(climate) = cfg.biomes.get(volume.biome(top) as usize) else {
                 continue;
             };
 
@@ -293,7 +294,7 @@ pub fn place_freeze_top_layer<W: WorldGenVolume>(
 fn should_freeze<W: WorldGenVolume>(
     climate: &BiomeClimate,
     volume: &W,
-    pos: IVec3,
+    pos: BlockPos,
     sea_level: i32,
 ) -> bool {
     if warm_enough_to_rain(climate, pos, sea_level) || !volume.extent().contains(pos.y) {
@@ -306,7 +307,7 @@ fn should_snow<W: WorldGenVolume>(
     cfg: &CompiledFreezeTopLayer,
     climate: &BiomeClimate,
     volume: &W,
-    pos: IVec3,
+    pos: BlockPos,
     sea_level: i32,
 ) -> bool {
     if !climate.has_precipitation || warm_enough_to_rain(climate, pos, sea_level) {
@@ -325,7 +326,7 @@ fn should_snow<W: WorldGenVolume>(
 fn snow_survives<W: WorldGenVolume>(
     cfg: &CompiledFreezeTopLayer,
     volume: &W,
-    below: IVec3,
+    below: BlockPos,
 ) -> bool {
     if volume.holds(&cfg.cannot_support_snow, below) {
         return false;
@@ -338,11 +339,11 @@ fn snow_survives<W: WorldGenVolume>(
 
 /// Both tests are also gated on a block light below ten. Nothing has lit the
 /// column while it decorates, so the gate is open at every position.
-fn warm_enough_to_rain(climate: &BiomeClimate, pos: IVec3, sea_level: i32) -> bool {
+fn warm_enough_to_rain(climate: &BiomeClimate, pos: BlockPos, sea_level: i32) -> bool {
     temperature(climate, pos, sea_level) >= 0.15
 }
 
-fn temperature(climate: &BiomeClimate, pos: IVec3, sea_level: i32) -> f32 {
+fn temperature(climate: &BiomeClimate, pos: BlockPos, sea_level: i32) -> f32 {
     let adjusted = if climate.frozen {
         frozen_temperature(pos, climate.base_temperature)
     } else {
@@ -362,7 +363,7 @@ fn temperature(climate: &BiomeClimate, pos: IVec3, sea_level: i32) -> f32 {
     adjusted - (variation + pos.y as f32 - snow_level as f32) * 0.05 / 40.0
 }
 
-fn frozen_temperature(pos: IVec3, base_temperature: f32) -> f32 {
+fn frozen_temperature(pos: BlockPos, base_temperature: f32) -> f32 {
     let large =
         (FROZEN_TEMPERATURE_NOISE.get(pos.x as f64 * 0.05, 0.0, pos.z as f64 * 0.05) * 7.0) as f64;
     let edge = biome_info_noise(pos.x as f64 * 0.2, pos.z as f64 * 0.2);
@@ -444,7 +445,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 30, 0)
+            BlockPos::new(0, 30, 0)
         ));
 
         let mut replay = seeded();
@@ -490,7 +491,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 30, 0)
+            BlockPos::new(0, 30, 0)
         ));
         assert!(volume.writes.is_empty());
 
@@ -519,7 +520,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 30, 0)
+            BlockPos::new(0, 30, 0)
         ));
 
         let mut replay = seeded();
@@ -551,9 +552,9 @@ mod tests {
         volume.blocks.insert((0, 31, 0), PACKED_ICE);
 
         for origin in [
-            IVec3::new(0, 63, 0),
-            IVec3::new(0, 45, 0),
-            IVec3::new(4, 30, 4),
+            BlockPos::new(0, 63, 0),
+            BlockPos::new(0, 45, 0),
+            BlockPos::new(4, 30, 4),
         ] {
             let mut rng = seeded();
             let before = rng.clone();
@@ -590,7 +591,7 @@ mod tests {
             }
         }
         let mut rng = seeded();
-        place_underwater_magma(&cfg, &mut volume, &mut rng, IVec3::new(0, 34, 0));
+        place_underwater_magma(&cfg, &mut volume, &mut rng, BlockPos::new(0, 34, 0));
 
         let mut replay = seeded();
         for _ in 0..27 {
@@ -621,7 +622,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 34, 0)
+            BlockPos::new(0, 34, 0)
         ));
         assert!(volume.writes.is_empty());
         assert_eq!(rng, before);
@@ -672,7 +673,11 @@ mod tests {
     #[test]
     fn a_cold_column_freezes_its_water_and_snows_on_its_ground() {
         let (cfg, mut volume) = frozen_surface(COLD);
-        assert!(place_freeze_top_layer(&cfg, &mut volume, IVec3::ZERO));
+        assert!(place_freeze_top_layer(
+            &cfg,
+            &mut volume,
+            BlockPos::new(0, 0, 0)
+        ));
 
         assert_eq!(volume.blocks.get(&(3, 62, 4)), Some(&ICE));
         assert_eq!(
@@ -701,7 +706,11 @@ mod tests {
     #[test]
     fn a_warm_column_is_left_alone() {
         let (cfg, mut volume) = frozen_surface(WARM);
-        assert!(place_freeze_top_layer(&cfg, &mut volume, IVec3::ZERO));
+        assert!(place_freeze_top_layer(
+            &cfg,
+            &mut volume,
+            BlockPos::new(0, 0, 0)
+        ));
         assert!(volume.writes.is_empty());
     }
 
@@ -714,7 +723,7 @@ mod tests {
             frozen: false,
             has_precipitation: true,
         };
-        assert!(!warm_enough_to_rain(&climate, IVec3::new(0, 300, 0), 63));
-        assert!(warm_enough_to_rain(&climate, IVec3::new(0, 63, 0), 63));
+        assert!(!warm_enough_to_rain(&climate, BlockPos::new(0, 300, 0), 63));
+        assert!(warm_enough_to_rain(&climate, BlockPos::new(0, 63, 0), 63));
     }
 }

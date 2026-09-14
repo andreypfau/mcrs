@@ -6,6 +6,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::material::proto::CaveSurface;
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use std::sync::Arc;
@@ -48,8 +49,8 @@ pub fn place_vegetation_patch<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
-    place_vegetation: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, IVec3) -> bool,
+    origin: BlockPos,
+    place_vegetation: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -79,10 +80,10 @@ fn place_ground_patch<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
     x_radius: i32,
     z_radius: i32,
-) -> Vec<IVec3>
+) -> Vec<BlockPos>
 where
     W: WorldGenVolume,
 {
@@ -135,7 +136,7 @@ where
         return surface;
     }
     let waterlogging = &config.tables.waterlogging;
-    let dry: Vec<IVec3> = surface
+    let dry: Vec<BlockPos> = surface
         .into_iter()
         .filter(|pos| !exposed(volume, *pos))
         .collect();
@@ -150,7 +151,7 @@ fn place_ground<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    start: IVec3,
+    start: BlockPos,
     depth: i32,
 ) -> bool
 where
@@ -183,7 +184,7 @@ const EXPOSED_SIDES: [IVec3; 5] = [
     IVec3::new(0, -1, 0),
 ];
 
-fn exposed<W: WorldGenVolume>(volume: &W, pos: IVec3) -> bool {
+fn exposed<W: WorldGenVolume>(volume: &W, pos: BlockPos) -> bool {
     EXPOSED_SIDES
         .iter()
         .any(|side| !volume.holds(&volume.world().sturdy_up, pos + *side))
@@ -193,8 +194,8 @@ fn grow<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    position: IVec3,
-    place_vegetation: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, IVec3) -> bool,
+    position: BlockPos,
+    place_vegetation: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
 ) where
     W: WorldGenVolume,
 {
@@ -229,7 +230,7 @@ mod tests {
     const WET: VoxelId = VoxelId(5);
 
     const FLOOR_TOP: i32 = 40;
-    const ORIGIN: IVec3 = IVec3::new(0, 44, 0);
+    const ORIGIN: BlockPos = BlockPos::new(0, 44, 0);
     const SEED: u64 = 0x5eed_0f0f;
 
     fn config() -> CompiledVegetationPatch {
@@ -280,7 +281,7 @@ mod tests {
         let config = config();
         let mut volume = flat_world();
         let mut rng = XoroshiroRandom::new(SEED);
-        let mut seeded: Vec<IVec3> = Vec::new();
+        let mut seeded: Vec<BlockPos> = Vec::new();
 
         assert!(place_vegetation_patch(
             &config,
@@ -443,13 +444,13 @@ mod tests {
 
         let mut volume = flat_world();
         let mut rng = XoroshiroRandom::new(SEED);
-        let mut seeded: Vec<IVec3> = Vec::new();
+        let mut seeded: Vec<BlockPos> = Vec::new();
         assert!(place_vegetation_patch(
             &config,
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |volume: &mut FakeVolume, _: &mut XoroshiroRandom, at: IVec3| {
+            &mut |volume: &mut FakeVolume, _: &mut XoroshiroRandom, at: BlockPos| {
                 seeded.push(at);
                 volume.set(at, DRY);
                 true
@@ -460,7 +461,7 @@ mod tests {
             .writes
             .iter()
             .filter(|(_, state)| *state == WATER)
-            .map(|((x, y, z), _)| IVec3::new(*x, *y, *z))
+            .map(|((x, y, z), _)| BlockPos::new(*x, *y, *z))
             .collect();
         assert!(!water.is_empty());
         assert!(
@@ -504,7 +505,7 @@ mod tests {
             &config,
             &mut volume,
             &mut rng,
-            IVec3::new(0, ROOF - 4, 0),
+            BlockPos::new(0, ROOF - 4, 0),
             &mut |_, _, _| true
         ));
         assert!(

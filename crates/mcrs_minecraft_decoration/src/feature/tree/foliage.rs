@@ -5,6 +5,7 @@ use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen::feature::tree::{FoliagePlacer, UnitFloat};
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 
 use super::trunk::{Axis, FoliageAttachment, TreeContext, dist_manhattan};
 
@@ -230,7 +231,7 @@ impl Foliage {
                     self.place_leaves_row(
                         cx,
                         rng,
-                        IVec3::new(foliage_pos.x, yy, foliage_pos.z),
+                        BlockPos::new(foliage_pos.x, yy, foliage_pos.z),
                         jagged_radius,
                         0,
                         double_trunk,
@@ -368,7 +369,7 @@ impl Foliage {
         &self,
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        origin: IVec3,
+        origin: BlockPos,
         current_radius: i32,
         y: i32,
         double_trunk: bool,
@@ -388,7 +389,7 @@ impl Foliage {
         &self,
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        origin: IVec3,
+        origin: BlockPos,
         current_radius: i32,
         y: i32,
         double_trunk: bool,
@@ -406,10 +407,10 @@ impl Foliage {
             } else {
                 current_radius
             };
-            let mut at = along_edge.relative(
-                to_edge.relative(origin + IVec3::new(0, y - 1, 0), offset_to_edge),
-                -current_radius,
-            );
+            let mut at = origin
+                + IVec3::new(0, y - 1, 0)
+                + to_edge.normal() * offset_to_edge
+                + along_edge.normal() * -current_radius;
             let mut offset_along_edge = -current_radius;
 
             while offset_along_edge < current_radius + offset {
@@ -425,7 +426,7 @@ impl Foliage {
                     );
                 }
                 offset_along_edge += 1;
-                at = along_edge.relative(at, 1);
+                at += along_edge.normal();
             }
         }
     }
@@ -530,7 +531,7 @@ impl Foliage {
         &self,
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        at: IVec3,
+        at: BlockPos,
     ) -> bool {
         if cx.is_persistent(at) || !cx.is_valid_tree_pos(at) {
             return false;
@@ -546,10 +547,10 @@ impl Foliage {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         chance: f32,
-        log_pos: IVec3,
-        at: IVec3,
+        log_pos: BlockPos,
+        at: BlockPos,
     ) -> bool {
-        if dist_manhattan(at, log_pos) >= 7 {
+        if dist_manhattan(*at, *log_pos) >= 7 {
             return false;
         }
         if rng.next_f32() > chance {
@@ -566,7 +567,7 @@ impl Foliage {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         side_hole_chance: &UnitFloat,
-        origin: IVec3,
+        origin: BlockPos,
         current_radius: i32,
         y: i32,
         double_trunk: bool,
@@ -614,7 +615,7 @@ impl Foliage {
         &self,
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        origin: IVec3,
+        origin: BlockPos,
         current_radius: i32,
         y: i32,
         double_trunk: bool,
@@ -790,7 +791,7 @@ mod tests {
         run(42, |cx, rng| {
             let foliage_height = placer.foliage_height(rng, tree_height);
             let leaf_radius = placer.foliage_radius(rng, tree_height - foliage_height);
-            let attachment = FoliageAttachment::new(IVec3::new(8, 64, 8), 0, double_trunk);
+            let attachment = FoliageAttachment::new(BlockPos::new(8, 64, 8), 0, double_trunk);
             placer.create_foliage(cx, rng, attachment, foliage_height, leaf_radius);
         })
     }

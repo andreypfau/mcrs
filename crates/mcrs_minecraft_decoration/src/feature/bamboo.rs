@@ -3,6 +3,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 /// The four stalk states are the reference's constants over `bamboo`, resolved
@@ -27,7 +28,7 @@ pub fn place_bamboo<W: WorldGenVolume>(
     cfg: &CompiledBamboo,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     if !volume.is_air(at) {
         return false;
@@ -47,8 +48,8 @@ pub fn place_bamboo<W: WorldGenVolume>(
                     continue;
                 }
                 let y = volume.height(HeightmapName::WorldSurface, x, z) - 1;
-                if volume.holds(&cfg.beneath_podzol_replaceable, IVec3::new(x, y, z)) {
-                    volume.set(IVec3::new(x, y, z), cfg.podzol);
+                if volume.holds(&cfg.beneath_podzol_replaceable, BlockPos::new(x, y, z)) {
+                    volume.set(BlockPos::new(x, y, z), cfg.podzol);
                 }
             }
         }
@@ -56,18 +57,18 @@ pub fn place_bamboo<W: WorldGenVolume>(
 
     let mut y = at.y;
     for _ in 0..height {
-        if !volume.is_air(at.with_y(y)) {
+        if !volume.is_air(BlockPos::new(at.x, y, at.z)) {
             break;
         }
-        volume.set(at.with_y(y), cfg.trunk);
+        volume.set(BlockPos::new(at.x, y, at.z), cfg.trunk);
         y += 1;
     }
 
     // The cap overwrites whatever stopped the shaft, air or not.
     if y - at.y >= 3 {
-        volume.set(at.with_y(y), cfg.final_large);
-        volume.set(IVec3::new(at.x, y - 1, at.z), cfg.top_large);
-        volume.set(IVec3::new(at.x, y - 2, at.z), cfg.top_small);
+        volume.set(BlockPos::new(at.x, y, at.z), cfg.final_large);
+        volume.set(BlockPos::new(at.x, y - 1, at.z), cfg.top_large);
+        volume.set(BlockPos::new(at.x, y - 2, at.z), cfg.top_small);
     }
     true
 }
@@ -89,7 +90,7 @@ mod tests {
     const TOP_LARGE: VoxelId = VoxelId(5);
     const TOP_SMALL: VoxelId = VoxelId(6);
     const STONE: VoxelId = VoxelId(7);
-    const ORIGIN: IVec3 = IVec3::new(8, 64, 8);
+    const ORIGIN: BlockPos = BlockPos::new(8, 64, 8);
 
     fn config(probability: f32) -> CompiledBamboo {
         CompiledBamboo {
@@ -135,13 +136,16 @@ mod tests {
         );
 
         let top = ORIGIN.y + height;
-        assert_eq!(volume.get(ORIGIN.with_y(top)), FINAL_LARGE);
         assert_eq!(
-            volume.get(IVec3::new(ORIGIN.x, top - 1, ORIGIN.z)),
+            volume.get(BlockPos::new(ORIGIN.x, top, ORIGIN.z)),
+            FINAL_LARGE
+        );
+        assert_eq!(
+            volume.get(BlockPos::new(ORIGIN.x, top - 1, ORIGIN.z)),
             TOP_LARGE
         );
         assert_eq!(
-            volume.get(IVec3::new(ORIGIN.x, top - 2, ORIGIN.z)),
+            volume.get(BlockPos::new(ORIGIN.x, top - 2, ORIGIN.z)),
             TOP_SMALL
         );
         assert_eq!(volume.get(ORIGIN), TRUNK);

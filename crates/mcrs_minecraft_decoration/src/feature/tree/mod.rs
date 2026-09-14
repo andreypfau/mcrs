@@ -14,6 +14,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen::feature::tree::FeatureSize;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::{Blocks, BlocksMut, BoxVolume, Volume, VoxelId};
 
 use self::decorator::{CompiledTreeDecorator, DecoratorContext, TreePalette, TreeSink};
@@ -100,7 +101,7 @@ pub fn place_tree<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     sink: &mut dyn TreeSink<W>,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     let mut cx = TreeContext::new(
         volume,
@@ -134,11 +135,13 @@ pub fn place_tree<W: WorldGenVolume>(
     let Some(&first) = written.next() else {
         return false;
     };
-    let (min, max) = written.fold((first, first), |(lo, hi), &pos| (lo.min(pos), hi.max(pos)));
+    let (min, max) = written.fold((*first, *first), |(lo, hi), &pos| {
+        (lo.min(*pos), hi.max(*pos))
+    });
     update_leaves(
         tree,
         volume,
-        BoxVolume::empty(min, max),
+        BoxVolume::empty(min.into(), max.into()),
         &logs,
         &decorations,
         &roots,
@@ -151,8 +154,8 @@ fn do_place<W: WorldGenVolume>(
     tree: &CompiledTree,
     cx: &mut TreeContext<'_, W>,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
-) -> Option<Vec<IVec3>> {
+    origin: BlockPos,
+) -> Option<Vec<BlockPos>> {
     let tree_height = tree.trunk.tree_height(rng);
     let foliage_height = tree.foliage.foliage_height(rng, tree_height);
     let trunk_height = tree_height - foliage_height;
@@ -195,7 +198,7 @@ fn max_free_tree_height<W: WorldGenVolume>(
     tree: &CompiledTree,
     cx: &TreeContext<'_, W>,
     max_tree_height: i32,
-    tree_pos: IVec3,
+    tree_pos: BlockPos,
 ) -> i32 {
     for y in 0..=max_tree_height + 1 {
         let radius = size_at_height(&tree.minimum_size, max_tree_height, y);
@@ -222,16 +225,16 @@ fn update_leaves<W: WorldGenVolume>(
     tree: &CompiledTree,
     volume: &mut W,
     mut shape: BoxVolume,
-    logs: &[IVec3],
-    decorations: &[IVec3],
-    roots: &[IVec3],
+    logs: &[BlockPos],
+    decorations: &[BlockPos],
+    roots: &[BlockPos],
 ) {
     const IN_SHAPE: VoxelId = VoxelId(1);
     for &pos in decorations.iter().chain(roots) {
         shape.set(pos, IN_SHAPE);
     }
 
-    let mut to_check: [Vec<IVec3>; MAX_LEAF_DISTANCE] = Default::default();
+    let mut to_check: [Vec<BlockPos>; MAX_LEAF_DISTANCE] = Default::default();
     to_check[0].extend_from_slice(logs);
 
     let mut smallest = 0usize;
@@ -259,7 +262,7 @@ fn update_leaves<W: WorldGenVolume>(
         shape.set(pos, IN_SHAPE);
 
         for direction in Direction::all() {
-            let neighbour = direction.relative(pos, 1);
+            let neighbour = pos + direction.normal();
             if !shape.contains(neighbour) || shape.get(neighbour) == IN_SHAPE {
                 continue;
             }
@@ -312,7 +315,7 @@ mod tests {
         volume
     }
 
-    fn blocked_at(mut volume: BoxRegion, at: IVec3) -> BoxRegion {
+    fn blocked_at(mut volume: BoxRegion, at: BlockPos) -> BoxRegion {
         volume.blocks.set(at, DIRT);
         volume
     }
@@ -408,7 +411,7 @@ mod tests {
         }
     }
 
-    const ORIGIN: IVec3 = IVec3::new(8, 64, 8);
+    const ORIGIN: BlockPos = BlockPos::new(8, 64, 8);
 
     fn height_of(seed: u64) -> i32 {
         let mut replay = XoroshiroRandom::new(seed);

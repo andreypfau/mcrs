@@ -4,6 +4,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use super::provider::StateProvider;
@@ -32,7 +33,7 @@ pub struct MangroveRoots {
 impl MangroveRoots {
     /// `RootPlacer.getTrunkOrigin`, drawn where the reference draws it: after
     /// the crown's radius and before the height bounds are checked.
-    pub fn trunk_origin(&self, rng: &mut XoroshiroRandom, origin: IVec3) -> IVec3 {
+    pub fn trunk_origin(&self, rng: &mut XoroshiroRandom, origin: BlockPos) -> BlockPos {
         origin + IVec3::Y * self.trunk_offset_y.sample(rng)
     }
 
@@ -41,9 +42,9 @@ impl MangroveRoots {
         &self,
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        origin: IVec3,
-        trunk_origin: IVec3,
-    ) -> Option<Vec<IVec3>> {
+        origin: BlockPos,
+        trunk_origin: BlockPos,
+    ) -> Option<Vec<BlockPos>> {
         let mut column = origin;
         while column.y < trunk_origin.y {
             if !self.can_place_root(cx, column) {
@@ -54,7 +55,7 @@ impl MangroveRoots {
 
         let mut positions = vec![trunk_origin - IVec3::Y];
         for direction in Direction::HORIZONTAL {
-            let side = direction.relative(trunk_origin, 1);
+            let side = trunk_origin + direction.normal();
             let mut branch = Vec::new();
             if !self.simulate_roots(cx, rng, side, direction, trunk_origin, &mut branch, 0) {
                 return None;
@@ -70,7 +71,7 @@ impl MangroveRoots {
         Some(written)
     }
 
-    fn can_place_root<W: WorldGenVolume>(&self, cx: &TreeContext<'_, W>, pos: IVec3) -> bool {
+    fn can_place_root<W: WorldGenVolume>(&self, cx: &TreeContext<'_, W>, pos: BlockPos) -> bool {
         cx.is_valid_tree_pos(pos) || cx.holds(&self.can_grow_through, pos)
     }
 
@@ -78,10 +79,10 @@ impl MangroveRoots {
         &self,
         cx: &TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        pos: IVec3,
+        pos: BlockPos,
         direction: Direction,
-        root_origin: IVec3,
-        branch: &mut Vec<IVec3>,
+        root_origin: BlockPos,
+        branch: &mut Vec<BlockPos>,
         layer: i32,
     ) -> bool {
         if layer == self.max_root_length || branch.len() as i32 > self.max_root_length {
@@ -107,13 +108,13 @@ impl MangroveRoots {
     fn potential_root_positions(
         &self,
         rng: &mut XoroshiroRandom,
-        pos: IVec3,
+        pos: BlockPos,
         direction: Direction,
-        root_origin: IVec3,
-    ) -> [Option<IVec3>; 2] {
+        root_origin: BlockPos,
+    ) -> [Option<BlockPos>; 2] {
         let below = pos - IVec3::Y;
-        let next_to = direction.relative(pos, 1);
-        let width = dist_manhattan(pos, root_origin);
+        let next_to = pos + direction.normal();
+        let width = dist_manhattan(*pos, *root_origin);
         if width > self.max_root_width - 3 && width <= self.max_root_width {
             if rng.next_f32() < self.random_skew_chance {
                 [Some(below), Some(next_to - IVec3::Y)]
@@ -135,8 +136,8 @@ impl MangroveRoots {
         &self,
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        pos: IVec3,
-        written: &mut Vec<IVec3>,
+        pos: BlockPos,
+        written: &mut Vec<BlockPos>,
     ) {
         if cx.holds(&self.muddy_roots_in, pos) {
             let state = self.muddy_roots_provider.state(cx.volume, rng, pos);
@@ -163,8 +164,8 @@ impl MangroveRoots {
     fn set<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        written: &mut Vec<IVec3>,
-        pos: IVec3,
+        written: &mut Vec<BlockPos>,
+        pos: BlockPos,
         state: VoxelId,
     ) {
         let wet = cx.holds(&cx.volume.world().water_fluid, pos);
@@ -241,7 +242,7 @@ mod tests {
         volume
     }
 
-    const ORIGIN: IVec3 = IVec3::new(0, 65, 0);
+    const ORIGIN: BlockPos = BlockPos::new(0, 65, 0);
 
     /// The trunk sits one above the origin, the roots run down and outward from
     /// it, and every root that landed in mud came out as the muddy state.
@@ -255,7 +256,7 @@ mod tests {
 
         let mut rng = XoroshiroRandom::new(99);
         let trunk_origin = placer.trunk_origin(&mut rng, ORIGIN);
-        assert_eq!(trunk_origin, IVec3::new(0, 66, 0));
+        assert_eq!(trunk_origin, BlockPos::new(0, 66, 0));
 
         let roots = placer
             .place_roots(&mut cx, &mut rng, ORIGIN, trunk_origin)
@@ -302,7 +303,7 @@ mod tests {
         let before = rng.clone();
         assert!(
             placer
-                .place_roots(&mut cx, &mut rng, ORIGIN, IVec3::new(0, 67, 0))
+                .place_roots(&mut cx, &mut rng, ORIGIN, BlockPos::new(0, 67, 0))
                 .is_none()
         );
         assert_eq!(rng, before, "the column check draws nothing");

@@ -3,6 +3,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 
 use crate::feature::tree::provider::StateProvider;
 use crate::feature::tree::survive::SurviveRule;
@@ -45,8 +46,8 @@ pub fn place_root_system<W>(
     config: &CompiledRootSystem,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
-    place_tree: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, IVec3) -> bool,
+    origin: BlockPos,
+    place_tree: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -64,8 +65,8 @@ fn place_dirt_and_tree<W>(
     config: &CompiledRootSystem,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
-    place_tree: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, IVec3) -> bool,
+    origin: BlockPos,
+    place_tree: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -97,7 +98,11 @@ where
 
 /// `spaceForTree`: a clear run above, and — when the feature asks for it — four
 /// corners whose ground sits within the allowed deviation.
-fn space_for_tree<W: WorldGenVolume>(config: &CompiledRootSystem, volume: &W, pos: IVec3) -> bool {
+fn space_for_tree<W: WorldGenVolume>(
+    config: &CompiledRootSystem,
+    volume: &W,
+    pos: BlockPos,
+) -> bool {
     let mut up = pos;
     for above_origin in 1..=config.required_vertical_space_for_tree {
         up.y += 1;
@@ -125,7 +130,7 @@ fn place_dirt<W: WorldGenVolume>(
     config: &CompiledRootSystem,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
     target_height: i32,
 ) {
     for y in origin.y..target_height {
@@ -134,7 +139,7 @@ fn place_dirt<W: WorldGenVolume>(
                 - rng.next_i32_bound(config.root_radius);
             let z = origin.z + rng.next_i32_bound(config.root_radius)
                 - rng.next_i32_bound(config.root_radius);
-            let at = IVec3::new(x, y, z);
+            let at = BlockPos::new(x, y, z);
             if volume.holds(&config.root_replaceable, at) {
                 let state = config.root_state_provider.state(volume, rng, at);
                 volume.set(at, state);
@@ -147,7 +152,7 @@ fn place_hanging_roots<W: WorldGenVolume>(
     config: &CompiledRootSystem,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) {
     for _ in 0..config.hanging_root_placement_attempts {
         let x = rng.next_i32_bound(config.hanging_root_radius)
@@ -185,7 +190,7 @@ mod tests {
     const ROOTED: VoxelId = VoxelId(2);
     const HANGING: VoxelId = VoxelId(3);
 
-    const ORIGIN: IVec3 = IVec3::new(0, 30, 0);
+    const ORIGIN: BlockPos = BlockPos::new(0, 30, 0);
     const SURFACE: i32 = 63;
 
     /// A dirt column with one air cell at the origin, air above the surface,
@@ -247,7 +252,7 @@ mod tests {
         ));
         assert_eq!(
             planted,
-            Some(IVec3::new(0, SURFACE + 1, 0)),
+            Some(BlockPos::new(0, SURFACE + 1, 0)),
             "the first air cell over solid ground"
         );
 

@@ -3,7 +3,6 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use bevy_ecs::prelude::Resource;
-use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
@@ -472,7 +471,7 @@ impl<'a> ColumnRegion<'a> {
         self.center
     }
 
-    fn locate(&self, p: IVec3) -> Option<(usize, usize, usize)> {
+    fn locate(&self, p: BlockPos) -> Option<(usize, usize, usize)> {
         let slot = region_slot(
             self.center,
             ColumnPos::new(p.x.div_euclid(16), p.z.div_euclid(16)),
@@ -487,7 +486,7 @@ impl<'a> ColumnRegion<'a> {
     /// The live centre map, or the ring column's frozen one; the two pre-carve
     /// generations are frozen for every column of the region.
     pub fn map_height(&self, kind: HeightmapName, x: i32, z: i32) -> Option<i32> {
-        let (slot, lx, lz) = self.locate(IVec3::new(x, 0, z))?;
+        let (slot, lx, lz) = self.locate(BlockPos::new(x, 0, z))?;
         let snapshot = &self.snapshots[slot];
         let maps = || {
             if slot == 4 {
@@ -512,9 +511,9 @@ impl<'a> ColumnRegion<'a> {
     ///
     /// A quart cell the zoom picks outside the 3x3 falls back to the cell the
     /// position sits in, which is always inside it.
-    fn biome_at(&self, p: IVec3) -> u32 {
-        self.quart_biome(quart_cell(self.zoom_seed, p.into()))
-            .or_else(|| self.quart_biome(QuartPos::of(p.into())))
+    fn biome_at(&self, p: BlockPos) -> u32 {
+        self.quart_biome(quart_cell(self.zoom_seed, p))
+            .or_else(|| self.quart_biome(QuartPos::of(p)))
             .unwrap_or_default()
     }
 
@@ -564,18 +563,18 @@ impl<'a> ColumnRegion<'a> {
 }
 
 impl Volume for ColumnRegion<'_> {
-    fn min(&self) -> IVec3 {
+    fn min(&self) -> BlockPos {
         let first = self.snapshots[4].y_sections.first().copied().unwrap_or(0);
-        IVec3::new(
+        BlockPos::new(
             (self.center.x - 1) * 16,
             first * 16,
             (self.center.z - 1) * 16,
         )
     }
 
-    fn max(&self) -> IVec3 {
+    fn max(&self) -> BlockPos {
         let last = self.snapshots[4].y_sections.last().copied().unwrap_or(-1);
-        IVec3::new(
+        BlockPos::new(
             (self.center.x + 2) * 16 - 1,
             (last + 1) * 16 - 1,
             (self.center.z + 2) * 16 - 1,
@@ -584,7 +583,7 @@ impl Volume for ColumnRegion<'_> {
 }
 
 impl Blocks for ColumnRegion<'_> {
-    fn get(&self, p: IVec3) -> VoxelId {
+    fn get(&self, p: BlockPos) -> VoxelId {
         let Some((slot, lx, lz)) = self.locate(p) else {
             debug_assert!(false, "a read at {p} left the region of {:?}", self.center);
             return VoxelId::default();
@@ -599,7 +598,7 @@ impl Blocks for ColumnRegion<'_> {
         let Some(section) = snapshot.slot(p.y) else {
             return VoxelId::default();
         };
-        let local = LocalPos::from(BlockPos::from(p));
+        let local = LocalPos::from(p);
         match self.ring[slot].get(&cell_index(section, local)) {
             Some(written) => *written,
             None => snapshot.sections[section]
@@ -612,7 +611,7 @@ impl Blocks for ColumnRegion<'_> {
 }
 
 impl BlocksMut for ColumnRegion<'_> {
-    fn set(&mut self, p: IVec3, state: VoxelId) {
+    fn set(&mut self, p: BlockPos, state: VoxelId) {
         let Some((slot, lx, lz)) = self.locate(p) else {
             debug_assert!(false, "a write at {p} left the region of {:?}", self.center);
             return;
@@ -621,7 +620,7 @@ impl BlocksMut for ColumnRegion<'_> {
         let Some(section) = snapshot.slot(p.y) else {
             return;
         };
-        let cell = cell_index(section, LocalPos::from(BlockPos::from(p)));
+        let cell = cell_index(section, LocalPos::from(p));
         if slot != 4 {
             self.ring[slot].insert(cell, state);
             return;
@@ -657,7 +656,7 @@ impl WorldGenVolume for ColumnRegion<'_> {
             .unwrap_or(self.ctx.router.noise.min_y)
     }
 
-    fn biome(&self, p: IVec3) -> u32 {
+    fn biome(&self, p: BlockPos) -> u32 {
         self.biome_at(p)
     }
 
@@ -665,7 +664,7 @@ impl WorldGenVolume for ColumnRegion<'_> {
         extent(&self.ctx.router)
     }
 
-    fn would_survive(&self, state: VoxelId, p: IVec3) -> bool {
+    fn would_survive(&self, state: VoxelId, p: BlockPos) -> bool {
         let program = self
             .ctx
             .features()
@@ -705,7 +704,7 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
         return;
     }
 
-    let origin = IVec3::new(col.x * 16, ctx.router.noise.min_y, col.z * 16);
+    let origin = BlockPos::new(col.x * 16, ctx.router.noise.min_y, col.z * 16);
     let seed = decoration_seed(ctx.router.world_seed as i64, origin.x, origin.z);
     thread_local! {
         static SCRATCH: RefCell<(PlacerScratch, RunScratch)> = RefCell::default();
@@ -858,28 +857,28 @@ mod tests {
         let mut region = ColumnRegion::new(&snapshots, &column, &ctx);
 
         let (cx, cz) = (center.x * 16 + 3, center.z * 16 + 4);
-        region.set(IVec3::new(cx, 20, cz), VoxelId(7));
-        region.set(IVec3::new(cx - 16, 20, cz), VoxelId(8));
-        region.set(IVec3::new(cx, 20, cz + 16), VoxelId(9));
-        region.set(IVec3::new(cx, 300, cz), VoxelId(10));
+        region.set(BlockPos::new(cx, 20, cz), VoxelId(7));
+        region.set(BlockPos::new(cx - 16, 20, cz), VoxelId(8));
+        region.set(BlockPos::new(cx, 20, cz + 16), VoxelId(9));
+        region.set(BlockPos::new(cx, 300, cz), VoxelId(10));
 
         assert_eq!(
-            region.get(IVec3::new(cx, 20, cz)),
+            region.get(BlockPos::new(cx, 20, cz)),
             VoxelId(7),
             "own centre write"
         );
         assert_eq!(
-            region.get(IVec3::new(cx - 16, 20, cz)),
+            region.get(BlockPos::new(cx - 16, 20, cz)),
             VoxelId(8),
             "own ring write"
         );
         assert_eq!(
-            region.get(IVec3::new(cx, 21, cz)),
+            region.get(BlockPos::new(cx, 21, cz)),
             VoxelId(1),
             "the filled block"
         );
         assert_eq!(
-            region.get(IVec3::new(cx, 300, cz)),
+            region.get(BlockPos::new(cx, 300, cz)),
             VoxelId::default(),
             "above the column"
         );
@@ -903,7 +902,7 @@ mod tests {
         let left = ColumnPos::new(0, 0);
         let right = ColumnPos::new(1, 0);
         let ctx = bare_fill_context(build_beta_router());
-        let shared = IVec3::new(right.x * 16 + 2, 20, right.z * 16 + 2);
+        let shared = BlockPos::new(right.x * 16 + 2, 20, right.z * 16 + 2);
 
         // `left` decorates into `right`.
         let snapshots = region_of(left, &y_sections, VoxelId(1));

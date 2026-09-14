@@ -7,6 +7,7 @@ use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::proto::BlockState;
 use mcrs_minecraft_worldgen::value_provider::{FloatProvider, IntProvider};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::mth::clamped_map;
 use mcrs_voxel_storage::VoxelId;
 
@@ -34,7 +35,7 @@ impl Column {
 /// inside, and keep an edge only where the block that stopped the walk is one.
 pub fn scan_column<W: WorldGenVolume>(
     volume: &W,
-    pos: IVec3,
+    pos: BlockPos,
     search_range: i32,
     inside: impl Fn(VoxelId) -> bool,
     edge: impl Fn(VoxelId) -> bool,
@@ -45,11 +46,11 @@ pub fn scan_column<W: WorldGenVolume>(
     let scan = |direction: i32| {
         let mut y = pos.y;
         let mut step = 1;
-        while step < search_range && inside(volume.get(pos.with_y(y))) {
+        while step < search_range && inside(volume.get(BlockPos::new(pos.x, y, pos.z))) {
             y += direction;
             step += 1;
         }
-        edge(volume.get(pos.with_y(y))).then_some(y)
+        edge(volume.get(BlockPos::new(pos.x, y, pos.z))).then_some(y)
     };
     Some(Column {
         ceiling: scan(1),
@@ -142,7 +143,7 @@ pub fn place_speleothem_cluster<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     if !volume.world().is_empty_or_water(volume.get(origin)) {
         return false;
@@ -185,7 +186,7 @@ fn place_cluster_column<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    pos: IVec3,
+    pos: BlockPos,
     dx: i32,
     dz: i32,
     chance_of_water: f32,
@@ -209,8 +210,10 @@ fn place_cluster_column<W: WorldGenVolume>(
 
     let want_pool = rng.next_f32() < chance_of_water;
     let column = match base.floor {
-        Some(floor) if want_pool && can_place_pool(config, volume, pos.with_y(floor)) => {
-            volume.set(pos.with_y(floor), volume.world().water);
+        Some(floor)
+            if want_pool && can_place_pool(config, volume, BlockPos::new(pos.x, floor, pos.z)) =>
+        {
+            volume.set(BlockPos::new(pos.x, floor, pos.z), volume.world().water);
             Column {
                 floor: Some(floor - 1),
                 ceiling: base.ceiling,
@@ -224,10 +227,19 @@ fn place_cluster_column<W: WorldGenVolume>(
     let stalactite_height = match ceiling {
         Some(ceiling)
             if want_stalactite
-                && !volume.holds(&volume.world().lava_states, pos.with_y(ceiling)) =>
+                && !volume.holds(
+                    &volume.world().lava_states,
+                    BlockPos::new(pos.x, ceiling, pos.z),
+                ) =>
         {
             let thickness = config.speleothem_block_layer_thickness.sample(rng);
-            replace_with_base(config, volume, pos.with_y(ceiling), thickness, 1);
+            replace_with_base(
+                config,
+                volume,
+                BlockPos::new(pos.x, ceiling, pos.z),
+                thickness,
+                1,
+            );
             let max = match floor {
                 Some(floor) => cluster_height.min(ceiling - floor),
                 None => cluster_height,
@@ -240,10 +252,20 @@ fn place_cluster_column<W: WorldGenVolume>(
     let want_stalagmite = rng.next_f64() < chance_of_speleothem;
     let stalagmite_height = match floor {
         Some(floor)
-            if want_stalagmite && !volume.holds(&volume.world().lava_states, pos.with_y(floor)) =>
+            if want_stalagmite
+                && !volume.holds(
+                    &volume.world().lava_states,
+                    BlockPos::new(pos.x, floor, pos.z),
+                ) =>
         {
             let thickness = config.speleothem_block_layer_thickness.sample(rng);
-            replace_with_base(config, volume, pos.with_y(floor), thickness, -1);
+            replace_with_base(
+                config,
+                volume,
+                BlockPos::new(pos.x, floor, pos.z),
+                thickness,
+                -1,
+            );
             if ceiling.is_some() {
                 let diff = config.max_stalagmite_stalactite_height_diff;
                 (stalactite_height + rng.next_int_between_inclusive(-diff, diff)).max(0)
@@ -276,7 +298,7 @@ fn place_cluster_column<W: WorldGenVolume>(
             &config.pointed,
             &config.base_or_replaceable,
             volume,
-            pos.with_y(ceiling - 1),
+            BlockPos::new(pos.x, ceiling - 1, pos.z),
             false,
             actual_stalactite,
             merge_tips,
@@ -287,7 +309,7 @@ fn place_cluster_column<W: WorldGenVolume>(
             &config.pointed,
             &config.base_or_replaceable,
             volume,
-            pos.with_y(floor + 1),
+            BlockPos::new(pos.x, floor + 1, pos.z),
             true,
             actual_stalagmite,
             merge_tips,
@@ -321,7 +343,7 @@ fn cluster_speleothem_height(
 fn can_place_pool<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
     volume: &W,
-    pos: IVec3,
+    pos: BlockPos,
 ) -> bool {
     let state = volume.get(pos).0 as usize;
     if volume.world().water_states.contains(state)
@@ -333,7 +355,7 @@ fn can_place_pool<W: WorldGenVolume>(
     if volume.holds(&volume.world().water_fluid, pos + IVec3::Y) {
         return false;
     }
-    let adjacent = |volume: &W, at: IVec3| {
+    let adjacent = |volume: &W, at: BlockPos| {
         volume.holds(&config.base_stone_overworld, at)
             || volume.holds(&volume.world().water_fluid, at)
     };
@@ -348,7 +370,7 @@ fn can_place_pool<W: WorldGenVolume>(
 fn replace_with_base<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
     volume: &mut W,
-    first: IVec3,
+    first: BlockPos,
     max_count: i32,
     direction: i32,
 ) {
@@ -368,7 +390,7 @@ pub(crate) fn grow_speleothem<W: WorldGenVolume>(
     pointed: &PointedStates,
     base_or_replaceable: &StateMask,
     volume: &mut W,
-    start: IVec3,
+    start: BlockPos,
     tip_up: bool,
     height: i32,
     merged_tip: bool,
@@ -378,7 +400,7 @@ pub(crate) fn grow_speleothem<W: WorldGenVolume>(
         return;
     }
     let mut pos = start;
-    let place = |volume: &mut W, pos: &mut IVec3, thickness: usize| {
+    let place = |volume: &mut W, pos: &mut BlockPos, thickness: usize| {
         let waterlogged = volume.holds(&volume.world().water_fluid, *pos);
         let state = pointed.get(tip_up, thickness, waterlogged);
         volume.set(*pos, state);
@@ -425,7 +447,7 @@ struct Wind {
 }
 
 impl Wind {
-    fn offset(&self, pos: IVec3) -> IVec3 {
+    fn offset(&self, pos: BlockPos) -> BlockPos {
         let (x, z) = self.speed;
         let scale = (self.origin_y - pos.y) as f64;
         let clamp = |value: f64| {
@@ -433,13 +455,13 @@ impl Wind {
                 .floor()
                 .clamp(-self.max_offset as f64, self.max_offset as f64) as i32
         };
-        IVec3::new(pos.x + clamp(x), pos.y, pos.z + clamp(z))
+        BlockPos::new(pos.x + clamp(x), pos.y, pos.z + clamp(z))
     }
 }
 
 #[derive(Clone, Copy, Debug)]
 struct Dripstone {
-    root: IVec3,
+    root: BlockPos,
     pointing_up: bool,
     radius: i32,
     bluntness: f64,
@@ -464,7 +486,7 @@ pub fn place_large_dripstone<W: WorldGenVolume>(
     config: &CompiledLargeDripstone,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     if !volume.world().is_empty_or_water(volume.get(origin)) {
         return false;
@@ -491,14 +513,14 @@ pub fn place_large_dripstone<W: WorldGenVolume>(
     let radius = rng.next_int_between_inclusive(config.column_radius_min, max_radius);
 
     let mut stalactite = Dripstone {
-        root: origin.with_y(ceiling - 1),
+        root: BlockPos::new(origin.x, ceiling - 1, origin.z),
         pointing_up: false,
         radius,
         bluntness: config.stalactite_bluntness.sample(rng) as f64,
         scale: config.height_scale.sample(rng) as f64,
     };
     let mut stalagmite = Dripstone {
-        root: origin.with_y(floor + 1),
+        root: BlockPos::new(origin.x, floor + 1, origin.z),
         pointing_up: true,
         radius,
         bluntness: config.stalagmite_bluntness.sample(rng) as f64,
@@ -560,7 +582,7 @@ fn embed_base<W: WorldGenVolume>(
 
 /// `SpeleothemUtils.isCircleMostlyEmbeddedInStone`, whose angular step is what
 /// decides how many samples the circle takes.
-fn circle_mostly_embedded<W: WorldGenVolume>(volume: &W, center: IVec3, xz_radius: i32) -> bool {
+fn circle_mostly_embedded<W: WorldGenVolume>(volume: &W, center: BlockPos, xz_radius: i32) -> bool {
     let world = volume.world();
     if world.is_empty_or_water_or_lava(volume.get(center)) {
         return false;
@@ -702,7 +724,7 @@ pub(crate) mod tests {
         let volume = cave(10, 20);
         let column = scan_column(
             &volume,
-            IVec3::new(0, 15, 0),
+            BlockPos::new(0, 15, 0),
             12,
             |state| volume.world().is_empty_or_water(state),
             |state| !volume.world().is_empty_or_water(state),
@@ -724,7 +746,7 @@ pub(crate) mod tests {
         assert!(
             scan_column(
                 &volume,
-                IVec3::new(0, 5, 0),
+                BlockPos::new(0, 5, 0),
                 12,
                 |state| volume.world().is_empty_or_water(state),
                 |state| !volume.world().is_empty_or_water(state),
@@ -742,7 +764,7 @@ pub(crate) mod tests {
             &cluster(),
             &mut volume,
             &mut rng,
-            IVec3::new(0, 5, 0)
+            BlockPos::new(0, 5, 0)
         ));
         assert_eq!(rng, before);
     }
@@ -762,7 +784,7 @@ pub(crate) mod tests {
             &cluster(),
             &mut volume,
             &mut rng,
-            IVec3::new(0, 15, 0)
+            BlockPos::new(0, 15, 0)
         ));
         assert_eq!(rng.next_java_long(), CLUSTER_PIN);
     }
@@ -773,7 +795,7 @@ pub(crate) mod tests {
     fn a_cluster_grows_pointed_blocks_at_both_ends() {
         let mut volume = cave(10, 20);
         let mut rng = XoroshiroRandom::new(0x005e_ed77);
-        place_speleothem_cluster(&cluster(), &mut volume, &mut rng, IVec3::new(0, 15, 0));
+        place_speleothem_cluster(&cluster(), &mut volume, &mut rng, BlockPos::new(0, 15, 0));
         let grown = volume
             .writes
             .iter()
@@ -825,7 +847,7 @@ pub(crate) mod tests {
             &dripstone(),
             &mut volume,
             &mut rng,
-            IVec3::new(0, 11, 0)
+            BlockPos::new(0, 11, 0)
         ));
         assert_eq!(rng, before, "the height gate precedes the radius draw");
     }
@@ -841,7 +863,7 @@ pub(crate) mod tests {
             &dripstone(),
             &mut volume,
             &mut rng,
-            IVec3::new(0, 20, 0)
+            BlockPos::new(0, 20, 0)
         ));
         let mut header = before.clone();
         header.next_i32_bound(14);
@@ -859,7 +881,7 @@ pub(crate) mod tests {
     fn a_wide_cave_grows_dripstone_blocks() {
         let mut volume = cave(0, 40);
         let mut rng = XoroshiroRandom::new(0x1234_5678);
-        place_large_dripstone(&dripstone(), &mut volume, &mut rng, IVec3::new(0, 20, 0));
+        place_large_dripstone(&dripstone(), &mut volume, &mut rng, BlockPos::new(0, 20, 0));
         assert!(
             volume.writes.iter().any(|(_, state)| *state == DRIPSTONE),
             "a 39-high cave takes a full column"

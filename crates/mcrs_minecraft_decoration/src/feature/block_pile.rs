@@ -3,6 +3,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 
 use crate::feature::tree::provider::StateProvider;
 
@@ -25,7 +26,7 @@ pub fn place_block_pile<W: WorldGenVolume>(
     cfg: &CompiledBlockPile,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     if at.y < volume.extent().min_y + MIN_HEIGHT_ABOVE_BOTTOM {
         return false;
@@ -42,7 +43,7 @@ pub fn place_block_pile<W: WorldGenVolume>(
                 let inside =
                     (dx * dx + dz * dz) as f32 <= rng.next_f32() * 10.0 - rng.next_f32() * 6.0;
                 if inside || rng.next_f32() < 0.031 {
-                    try_place(cfg, volume, rng, IVec3::new(x, y, z));
+                    try_place(cfg, volume, rng, BlockPos::new(x, y, z));
                 }
             }
         }
@@ -54,7 +55,7 @@ fn try_place<W: WorldGenVolume>(
     cfg: &CompiledBlockPile,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    pos: IVec3,
+    pos: BlockPos,
 ) {
     if !volume.is_air(pos) {
         return;
@@ -87,7 +88,7 @@ mod tests {
     const SNOW: VoxelId = VoxelId(2);
     const DIRT: VoxelId = VoxelId(3);
     const PATH: VoxelId = VoxelId(4);
-    const AT: IVec3 = IVec3::new(0, 64, 0);
+    const AT: BlockPos = BlockPos::new(0, 64, 0);
 
     fn config() -> CompiledBlockPile {
         CompiledBlockPile {
@@ -175,7 +176,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, -60, 0)
+            BlockPos::new(0, -60, 0)
         ));
         assert_eq!(rng, before);
         assert!(volume.writes.is_empty());

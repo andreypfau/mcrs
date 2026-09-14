@@ -3,7 +3,6 @@ use crate::world::generate::features::FeatureTables;
 use crate::world::generate::trees::{
     build_tree_tables, compile_decorator, compile_provider, compile_tree, state_of, with_property,
 };
-use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::tag::key::TagKey;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
@@ -110,6 +109,7 @@ use mcrs_minecraft_worldgen::feature::proto::{
 };
 use mcrs_minecraft_worldgen::proto::BlockState;
 use mcrs_minecraft_worldgen::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::voxel_shape::{FACE_MASK_FULL, VoxelShape};
 use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashMap;
@@ -459,8 +459,8 @@ impl FeatureProgram {
     pub fn would_survive(
         &self,
         block_index: u32,
-        p: IVec3,
-        get: impl Fn(IVec3) -> VoxelId,
+        p: BlockPos,
+        get: impl Fn(BlockPos) -> VoxelId,
     ) -> bool {
         self.trees
             .survive
@@ -504,7 +504,7 @@ impl<W: WorldGenVolume> TreeSink<W> for TreeRun<'_, '_, '_> {
         self.run.entities.push(entity);
     }
 
-    fn moss_patch(&mut self, region: &mut W, rng: &mut XoroshiroRandom, at: IVec3) {
+    fn moss_patch(&mut self, region: &mut W, rng: &mut XoroshiroRandom, at: BlockPos) {
         // A tree that decorates with moss made the build resolve the patch, so
         // nothing to run here is a bug in the compile.
         if let Some(generator) = self.run.moss_patch {
@@ -531,7 +531,7 @@ impl Nested {
         run: &mut Run,
         region: &mut W,
         rng: &mut XoroshiroRandom,
-        at: IVec3,
+        at: BlockPos,
         carries: &dyn Fn(u32) -> bool,
     ) -> bool {
         let generator = self.generator.as_ref();
@@ -593,7 +593,7 @@ impl Generator {
         run: &mut Run,
         region: &mut W,
         rng: &mut XoroshiroRandom,
-        at: IVec3,
+        at: BlockPos,
         carries: &dyn Fn(u32) -> bool,
     ) -> bool {
         match self {

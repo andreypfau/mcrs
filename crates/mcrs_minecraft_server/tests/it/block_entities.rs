@@ -48,7 +48,7 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, i32)> {
         (generated_nest(), 33),
         (
             GeneratedBlockEntity::chest(
-                bevy_math::IVec3::new(33, 64, -3),
+                mcrs_voxel_math::BlockPos::new(33, 64, -3),
                 "minecraft:chests/simple_dungeon".to_owned(),
                 -8_123_456_789,
             ),
@@ -56,7 +56,7 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, i32)> {
         ),
         (
             GeneratedBlockEntity::mob_spawner(
-                bevy_math::IVec3::new(46, 79, -16),
+                mcrs_voxel_math::BlockPos::new(46, 79, -16),
                 "minecraft:skeleton",
             ),
             9,

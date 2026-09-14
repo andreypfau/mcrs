@@ -3,6 +3,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 
 use crate::feature::tree::provider::StateProvider;
 
@@ -28,7 +29,7 @@ pub fn place_random_neighbor_spread<W: WorldGenVolume>(
     cfg: &CompiledNeighborSpread,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let state = cfg.block.state(volume, rng, at);
     volume.set(at, state);
@@ -45,7 +46,7 @@ pub fn place_random_neighbor_spread<W: WorldGenVolume>(
 
         let mut neighbours = 0;
         for direction in Direction::all() {
-            let neighbour = direction.relative(pos, 1);
+            let neighbour = pos + direction.normal();
             if volume.holds(&cfg.accepted_neighbors, neighbour) {
                 neighbours += 1;
             }
@@ -75,7 +76,7 @@ mod tests {
     use crate::feature::tree::provider::fake::{AIR, FakeVolume};
 
     const GLOWSTONE: VoxelId = VoxelId(1);
-    const AT: IVec3 = IVec3::new(0, 80, 0);
+    const AT: BlockPos = BlockPos::new(0, 80, 0);
 
     fn config(attempts: i32) -> CompiledNeighborSpread {
         CompiledNeighborSpread {

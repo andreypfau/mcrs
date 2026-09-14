@@ -2,6 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 const HUGE_PROBABILITY: f32 = 0.06;
@@ -30,7 +31,7 @@ pub fn place_huge_fungus<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     if !volume.holds(&cfg.valid_base, at - IVec3::Y) {
         return false;
@@ -58,7 +59,7 @@ fn place_stem<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
     total_height: i32,
     huge: bool,
 ) {
@@ -67,7 +68,7 @@ fn place_stem<W: WorldGenVolume>(
         for dz in -radius..=radius {
             let corner = huge && dx.abs() == radius && dz.abs() == radius;
             for dy in 0..total_height {
-                let pos = IVec3::new(at.x + dx, at.y + dy, at.z + dz);
+                let pos = at + IVec3::new(dx, dy, dz);
                 if !replaceable(cfg, volume, pos, true) {
                     continue;
                 }
@@ -90,7 +91,7 @@ fn place_hat<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
     total_height: i32,
     huge: bool,
 ) {
@@ -119,7 +120,7 @@ fn place_hat<W: WorldGenVolume>(
                 let inside = !edge_x && !edge_z && dy != total_height;
                 let corner = edge_x && edge_z;
                 let skirt = dy < hat_start + 3;
-                let pos = IVec3::new(at.x + dx, at.y + dy, at.z + dz);
+                let pos = at + IVec3::new(dx, dy, dz);
                 if !replaceable(cfg, volume, pos, false) {
                     continue;
                 }
@@ -146,7 +147,7 @@ fn place_hat_block<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    pos: IVec3,
+    pos: BlockPos,
     decor_probability: f32,
     hat_probability: f32,
     vines_probability: f32,
@@ -167,7 +168,7 @@ fn place_skirt_block<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    pos: IVec3,
+    pos: BlockPos,
 ) {
     if volume.holds(&cfg.hat_block, pos - IVec3::Y) {
         volume.set(pos, cfg.hat_state);
@@ -183,7 +184,7 @@ fn hang_vines<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    hat: IVec3,
+    hat: BlockPos,
 ) {
     let mut pos = hat - IVec3::Y;
     if !volume.is_air(pos) {
@@ -208,7 +209,7 @@ fn hang_vines<W: WorldGenVolume>(
 
 /// The reference breaks whatever stands on solid ground before a planted fungus
 /// takes the cell; without item entities that is the clearing alone.
-fn clear_below<W: WorldGenVolume>(volume: &mut W, pos: IVec3) {
+fn clear_below<W: WorldGenVolume>(volume: &mut W, pos: BlockPos) {
     if !volume.is_air(pos - IVec3::Y) {
         volume.set(pos, volume.world().air);
     }
@@ -217,7 +218,7 @@ fn clear_below<W: WorldGenVolume>(volume: &mut W, pos: IVec3) {
 fn replaceable<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &W,
-    pos: IVec3,
+    pos: BlockPos,
     check_plants: bool,
 ) -> bool {
     if volume.holds(&volume.world().replaceable, pos) {
@@ -242,7 +243,7 @@ mod tests {
     const HAT: VoxelId = VoxelId(4);
     const DECOR: VoxelId = VoxelId(5);
     const VINES_PLANT: VoxelId = VoxelId(6);
-    const ORIGIN: IVec3 = IVec3::new(8, 70, 8);
+    const ORIGIN: BlockPos = BlockPos::new(8, 70, 8);
 
     fn config() -> CompiledHugeFungus {
         CompiledHugeFungus {
@@ -334,10 +335,7 @@ mod tests {
         assert_eq!(rng, replay, "one layer draw per layer, then the crown");
 
         for dy in 0..total_height {
-            assert_eq!(
-                volume.get(IVec3::new(ORIGIN.x, ORIGIN.y + dy, ORIGIN.z)),
-                STEM
-            );
+            assert_eq!(volume.get(ORIGIN + IVec3::Y * dy), STEM);
         }
         assert!(
             volume
@@ -370,7 +368,7 @@ mod tests {
     fn a_fungus_under_the_roof_stops_after_the_height_draws() {
         let cfg = config();
         let mut volume = open_air();
-        let high = IVec3::new(0, 380, 0);
+        let high = BlockPos::new(0, 380, 0);
         volume.blocks.insert((high.x, high.y - 1, high.z), NYLIUM);
         let mut rng = XoroshiroRandom::new(4);
         assert!(!place_huge_fungus(&cfg, &mut volume, &mut rng, high));

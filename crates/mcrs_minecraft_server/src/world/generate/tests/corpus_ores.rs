@@ -1,10 +1,10 @@
 //! The corpus's own ore features, compiled the way the freeze compiles them,
 //! and the band their veins land in.
 
+use mcrs_voxel_math::BlockPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use bevy_math::IVec3;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_decoration::feature::ore_modern::{OreScratch, place_modern_ore};
 use mcrs_minecraft_protocol::ColumnPos;
@@ -153,7 +153,7 @@ fn veins_of(
     let column = ColumnBlocks::from_sections(&snapshots[4].sections, y_sections);
     let mut region = ColumnRegion::new(&snapshots, &column, ctx);
 
-    let origin = IVec3::new(col.x * 16, ctx.router.noise.min_y, col.z * 16);
+    let origin = BlockPos::new(col.x * 16, ctx.router.noise.min_y, col.z * 16);
     let seed = decoration_seed(ctx.router.world_seed as i64, origin.x, origin.z);
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut scratch = PlacerScratch::default();

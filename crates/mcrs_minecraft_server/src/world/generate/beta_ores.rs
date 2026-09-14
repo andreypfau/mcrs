@@ -1,4 +1,4 @@
-use bevy_math::IVec3;
+use mcrs_voxel_math::BlockPos;
 
 use crate::world::generate::beta_chunk_seed;
 use mcrs_minecraft_decoration::feature::ore_beta::{OreConfig, TargetBlockState, place_beta_ore};
@@ -66,7 +66,7 @@ fn place_ore<R: Random>(
         let x = origin_x + rng.next_i32_bound(16);
         let y = rng.next_i32_bound(y_bound);
         let z = origin_z + rng.next_i32_bound(16);
-        place_beta_ore(config, IVec3::new(x, y, z), volume, rng);
+        place_beta_ore(config, BlockPos::new(x, y, z), volume, rng);
     }
 }
 
@@ -82,14 +82,14 @@ fn place_clay<R: Random>(
         let x = origin_x + rng.next_i32_bound(16);
         let y = rng.next_i32_bound(128);
         let z = origin_z + rng.next_i32_bound(16);
-        place_clay_vein(IVec3::new(x, y, z), ids, volume, rng);
+        place_clay_vein(BlockPos::new(x, y, z), ids, volume, rng);
     }
 }
 
 /// `WorldGenClay`: a vein of the ore shape that turns sand to clay, started
 /// only from a water block, and drawing nothing when it does not start.
 fn place_clay_vein<R: Random>(
-    origin: IVec3,
+    origin: BlockPos,
     ids: &BetaOreBlockIds,
     volume: &mut impl BlocksMut,
     rng: &mut R,
@@ -157,7 +157,7 @@ pub fn place_all_ores<R: Random>(
 
     place_beta_ore(
         &lapis_cfg,
-        IVec3::new(lapis_x, lapis_y, lapis_z),
+        BlockPos::new(lapis_x, lapis_y, lapis_z),
         volume,
         rng,
     );
@@ -172,8 +172,8 @@ mod tests {
 
     fn filled(state: BlockStateId) -> BoxVolume {
         BoxVolume::filled(
-            IVec3::new(-8, 40, -8),
-            IVec3::new(40, 100, 40),
+            BlockPos::new(-8, 40, -8),
+            BlockPos::new(40, 100, 40),
             state.into(),
         )
     }
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn clay_starts_only_in_water_and_turns_only_sand() {
         let ids = BetaOreBlockIds::resolve(corpus());
-        let origin = IVec3::new(8, 64, 8);
+        let origin = BlockPos::new(8, 64, 8);
         let (sand, clay, water): (VoxelId, VoxelId, VoxelId) =
             (ids.sand.into(), ids.clay.into(), ids.water.into());
 

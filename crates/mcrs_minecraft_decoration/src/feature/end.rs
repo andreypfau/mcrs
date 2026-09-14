@@ -5,6 +5,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
 pub use mcrs_minecraft_worldgen::feature::proto::EndSpike;
+use mcrs_voxel_math::BlockPos;
 
 use crate::block_entity::{EndGatewayData, GeneratedBlockEntity};
 use mcrs_voxel_storage::VoxelId;
@@ -17,19 +18,19 @@ pub struct CompiledEndPlatform {
 pub fn place_end_platform<W: WorldGenVolume>(
     config: &CompiledEndPlatform,
     volume: &mut W,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     for dz in -2..=2 {
         for dx in -2..=2 {
             for dy in -1..3 {
-                let (x, y, z) = (at.x + dx, at.y + dy, at.z + dz);
+                let pos = at + IVec3::new(dx, dy, dz);
                 let target = if dy == -1 {
                     config.obsidian
                 } else {
                     volume.world().air
                 };
-                if volume.get(IVec3::new(x, y, z)) != target {
-                    volume.set(IVec3::new(x, y, z), target);
+                if volume.get(pos) != target {
+                    volume.set(pos, target);
                 }
             }
         }
@@ -53,7 +54,7 @@ fn checkerboard_distance(xa: i32, za: i32, xb: i32, zb: i32) -> i32 {
 pub fn place_void_start_platform<W: WorldGenVolume>(
     config: &CompiledVoidStartPlatform,
     volume: &mut W,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let (chunk_x, chunk_z) = (at.x >> 4, at.z >> 4);
     if checkerboard_distance(chunk_x, chunk_z, 0, 0) > 1 {
@@ -70,7 +71,7 @@ pub fn place_void_start_platform<W: WorldGenVolume>(
                 } else {
                     config.stone
                 };
-                volume.set(IVec3::new(x, y, z), state);
+                volume.set(BlockPos::new(x, y, z), state);
             }
         }
     }
@@ -93,12 +94,12 @@ const PODIUM_RADIUS_SQR: f64 = 3.5 * 3.5;
 pub fn place_end_podium<W: WorldGenVolume>(
     config: &CompiledEndPodium,
     volume: &mut W,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     for z in at.z - 4..=at.z + 4 {
         for y in at.y - 1..=at.y + 32 {
             for x in at.x - 4..=at.x + 4 {
-                let pos = IVec3::new(x, y, z);
+                let pos = BlockPos::new(x, y, z);
                 let distance = (pos - at).length_squared() as f64;
                 let inside_rim = distance < PODIUM_RIM_RADIUS_SQR;
                 if !inside_rim && distance >= PODIUM_RADIUS_SQR {
@@ -124,7 +125,7 @@ pub fn place_end_podium<W: WorldGenVolume>(
     }
 
     for dy in 0..4 {
-        volume.set(IVec3::new(at.x, at.y + dy, at.z), config.bedrock);
+        volume.set(at + IVec3::new(0, dy, 0), config.bedrock);
     }
 
     let center_of_pillar = at + IVec3::new(0, 2, 0);
@@ -136,7 +137,12 @@ pub fn place_end_podium<W: WorldGenVolume>(
 
 /// `dropPreviousAndSetBlock` when `replacing`, which skips a cell that already
 /// holds the block; the drop itself is a level effect worldgen never sees.
-fn set_replacing<W: WorldGenVolume>(replacing: bool, volume: &mut W, pos: IVec3, state: VoxelId) {
+fn set_replacing<W: WorldGenVolume>(
+    replacing: bool,
+    volume: &mut W,
+    pos: BlockPos,
+    state: VoxelId,
+) {
     if replacing && volume.get(pos) == state {
         return;
     }
@@ -155,7 +161,7 @@ pub fn place_end_gateway<W: WorldGenVolume>(
     config: &CompiledEndGateway,
     volume: &mut W,
     block_entities: &mut Vec<GeneratedBlockEntity>,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     for z in at.z - 1..=at.z + 1 {
         for y in at.y - 2..=at.y + 2 {
@@ -165,7 +171,7 @@ pub fn place_end_gateway<W: WorldGenVolume>(
                 let same_z = z == at.z;
                 let end = (y - at.y).abs() == 2;
                 if same_x && same_y && same_z {
-                    volume.set(IVec3::new(x, y, z), config.gateway);
+                    volume.set(BlockPos::new(x, y, z), config.gateway);
                     if let Some(exit) = config.exit {
                         block_entities.push(GeneratedBlockEntity::EndGateway(EndGatewayData {
                             x,
@@ -177,11 +183,11 @@ pub fn place_end_gateway<W: WorldGenVolume>(
                         }));
                     }
                 } else if same_y {
-                    volume.set(IVec3::new(x, y, z), volume.world().air);
+                    volume.set(BlockPos::new(x, y, z), volume.world().air);
                 } else if (end && same_x && same_z) || ((same_x || same_z) && !end) {
-                    volume.set(IVec3::new(x, y, z), config.bedrock);
+                    volume.set(BlockPos::new(x, y, z), config.bedrock);
                 } else {
-                    volume.set(IVec3::new(x, y, z), volume.world().air);
+                    volume.set(BlockPos::new(x, y, z), volume.world().air);
                 }
             }
         }
@@ -198,7 +204,7 @@ pub fn place_end_island<W: WorldGenVolume>(
     config: &CompiledEndIsland,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let mut size = rng.next_i32_bound(3) as f32 + 4.0;
     let mut y = 0;
@@ -208,7 +214,7 @@ pub fn place_end_island<W: WorldGenVolume>(
         for x in low..=high {
             for z in low..=high {
                 if (x * x + z * z) as f32 <= (size + 1.0) * (size + 1.0) {
-                    volume.set(IVec3::new(at.x + x, at.y + y, at.z + z), config.end_stone);
+                    volume.set(at + IVec3::new(x, y, z), config.end_stone);
                 }
             }
         }
@@ -263,7 +269,7 @@ pub fn place_end_spike<W: WorldGenVolume>(
     config: &CompiledEndSpikes,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     for spike in &config.spikes {
         if spike.center_x >> 4 == at.x >> 4 && spike.center_z >> 4 == at.z >> 4 {
@@ -288,9 +294,9 @@ fn place_spike<W: WorldGenVolume>(
                 let dx = (x - spike.center_x) as f64;
                 let dz = (z - spike.center_z) as f64;
                 if dx * dx + dz * dz <= (radius * radius + 1) as f64 && y < spike.height {
-                    volume.set(IVec3::new(x, y, z), config.obsidian);
+                    volume.set(BlockPos::new(x, y, z), config.obsidian);
                 } else if y > 65 {
-                    volume.set(IVec3::new(x, y, z), volume.world().air);
+                    volume.set(BlockPos::new(x, y, z), volume.world().air);
                 }
             }
         }
@@ -313,7 +319,7 @@ fn place_spike<W: WorldGenVolume>(
                         z_edge && dx != 2,
                     );
                     volume.set(
-                        IVec3::new(spike.center_x + dx, spike.height + dy, spike.center_z + dz),
+                        BlockPos::new(spike.center_x + dx, spike.height + dy, spike.center_z + dz),
                         config.iron_bars[bars],
                     );
                 }
@@ -325,13 +331,13 @@ fn place_spike<W: WorldGenVolume>(
     // still has to be spent so nothing after it moves.
     let _yaw = rng.next_f32() * 360.0;
     volume.set(
-        IVec3::new(spike.center_x, spike.height, spike.center_z),
+        BlockPos::new(spike.center_x, spike.height, spike.center_z),
         config.bedrock,
     );
     // The cell below the fire is the bedrock written on the line above, which is
     // sturdy upwards, so `BaseFireBlock.getState` never reaches its neighbour scan.
     volume.set(
-        IVec3::new(spike.center_x, spike.height + 1, spike.center_z),
+        BlockPos::new(spike.center_x, spike.height + 1, spike.center_z),
         config.fire,
     );
 }
@@ -370,11 +376,15 @@ mod tests {
         let mut volume = FakeVolume::default();
         volume.blocks.insert((1, -1, 1), OBSIDIAN);
         volume.blocks.insert((0, 1, 0), STONE);
-        assert!(place_end_platform(&config, &mut volume, IVec3::ZERO));
+        assert!(place_end_platform(
+            &config,
+            &mut volume,
+            BlockPos::new(0, 0, 0)
+        ));
 
-        assert_eq!(volume.get(IVec3::new(2, -1, -2)), OBSIDIAN);
+        assert_eq!(volume.get(BlockPos::new(2, -1, -2)), OBSIDIAN);
         assert_eq!(
-            volume.get(IVec3::new(0, 1, 0)),
+            volume.get(BlockPos::new(0, 1, 0)),
             AIR,
             "the stone over the floor is cleared"
         );
@@ -407,7 +417,7 @@ mod tests {
     #[test]
     fn the_fixed_stamps_stay_inside_one_column_of_their_origin() {
         let mut volume = FakeVolume::default();
-        let at = IVec3::new(100, 49, 0);
+        let at = BlockPos::new(100, 49, 0);
         place_end_platform(&CompiledEndPlatform { obsidian: OBSIDIAN }, &mut volume, at);
         place_end_podium(&podium(false), &mut volume, at);
         for ((x, _, z), _) in &volume.writes {
@@ -431,35 +441,39 @@ mod tests {
     #[test]
     fn an_end_podium_builds_its_pillar_rim_and_torches() {
         let mut volume = FakeVolume::default();
-        assert!(place_end_podium(&podium(false), &mut volume, IVec3::ZERO));
+        assert!(place_end_podium(
+            &podium(false),
+            &mut volume,
+            BlockPos::new(0, 0, 0)
+        ));
 
         for y in 0..4 {
-            assert_eq!(volume.get(IVec3::new(0, y, 0)), BEDROCK, "pillar at {y}");
+            assert_eq!(volume.get(BlockPos::new(0, y, 0)), BEDROCK, "pillar at {y}");
         }
         for (face, side) in Direction::HORIZONTAL.iter().enumerate() {
-            let pos = IVec3::new(0, 2, 0) + side.normal();
+            let pos = BlockPos::new(0, 2, 0) + side.normal();
             assert_eq!(volume.get(pos), TORCH[face]);
         }
-        assert_eq!(volume.get(IVec3::new(3, 0, 0)), BEDROCK, "the rim ring");
+        assert_eq!(volume.get(BlockPos::new(3, 0, 0)), BEDROCK, "the rim ring");
         assert_eq!(
-            volume.get(IVec3::new(1, 0, 0)),
+            volume.get(BlockPos::new(1, 0, 0)),
             AIR,
             "inactive: air inside the rim"
         );
         assert_eq!(
-            volume.get(IVec3::new(1, -1, 0)),
+            volume.get(BlockPos::new(1, -1, 0)),
             BEDROCK,
             "the bedrock floor under it"
         );
         assert_eq!(
-            volume.get(IVec3::new(3, -1, 0)),
+            volume.get(BlockPos::new(3, -1, 0)),
             END_STONE,
             "end stone under the rim"
         );
 
         let mut active = FakeVolume::default();
-        place_end_podium(&podium(true), &mut active, IVec3::ZERO);
-        assert_eq!(active.get(IVec3::new(1, 0, 0)), END_PORTAL);
+        place_end_podium(&podium(true), &mut active, BlockPos::new(0, 0, 0));
+        assert_eq!(active.get(BlockPos::new(1, 0, 0)), END_PORTAL);
     }
 
     /// An active podium re-reads before writing, so a cell that already holds
@@ -468,12 +482,12 @@ mod tests {
     fn an_active_podium_skips_cells_that_already_match() {
         let mut volume = FakeVolume::default();
         volume.blocks.insert((1, 3, 0), AIR);
-        place_end_podium(&podium(true), &mut volume, IVec3::ZERO);
+        place_end_podium(&podium(true), &mut volume, BlockPos::new(0, 0, 0));
         let rewrote = volume.writes.iter().any(|(pos, _)| *pos == (1, 3, 0));
         assert!(!rewrote, "an air cell above an active podium stays put");
 
         let mut inactive = FakeVolume::default();
-        place_end_podium(&podium(false), &mut inactive, IVec3::ZERO);
+        place_end_podium(&podium(false), &mut inactive, BlockPos::new(0, 0, 0));
         assert!(inactive.writes.iter().any(|(pos, _)| *pos == (1, 3, 0)));
     }
 
@@ -496,23 +510,27 @@ mod tests {
             &gateway(Some([100, 50, 0]), true),
             &mut volume,
             &mut gateways,
-            IVec3::ZERO
+            BlockPos::new(0, 0, 0)
         ));
 
-        assert_eq!(volume.get(IVec3::new(0, 0, 0)), GATEWAY);
+        assert_eq!(volume.get(BlockPos::new(0, 0, 0)), GATEWAY);
         assert_eq!(
-            volume.get(IVec3::new(1, 0, 0)),
+            volume.get(BlockPos::new(1, 0, 0)),
             AIR,
             "the origin's own layer is air"
         );
-        assert_eq!(volume.get(IVec3::new(0, 2, 0)), BEDROCK, "the cap");
-        assert_eq!(volume.get(IVec3::new(0, -2, 0)), BEDROCK, "the base");
+        assert_eq!(volume.get(BlockPos::new(0, 2, 0)), BEDROCK, "the cap");
+        assert_eq!(volume.get(BlockPos::new(0, -2, 0)), BEDROCK, "the base");
         assert_eq!(
-            volume.get(IVec3::new(1, 1, 0)),
+            volume.get(BlockPos::new(1, 1, 0)),
             BEDROCK,
             "an arm one off the axis"
         );
-        assert_eq!(volume.get(IVec3::new(1, 2, 1)), AIR, "a corner of the cap");
+        assert_eq!(
+            volume.get(BlockPos::new(1, 2, 1)),
+            AIR,
+            "a corner of the cap"
+        );
         assert_eq!(volume.writes.len(), 3 * 5 * 3);
         assert_eq!(
             gateways,
@@ -537,7 +555,7 @@ mod tests {
             &gateway(None, false),
             &mut volume,
             &mut gateways,
-            IVec3::ZERO,
+            BlockPos::new(0, 0, 0),
         );
         assert_eq!(volume.writes.len(), 3 * 5 * 3);
         assert!(gateways.is_empty());
@@ -584,7 +602,7 @@ mod tests {
             &config,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 60, 0)
+            BlockPos::new(0, 60, 0)
         ));
 
         let mut replay = XoroshiroRandom::new(4242);
@@ -604,7 +622,7 @@ mod tests {
             (60 - layers + 1..=60).collect(),
             "one layer per iteration, descending"
         );
-        assert_eq!(volume.get(IVec3::new(0, 60, 0)), END_STONE);
+        assert_eq!(volume.get(BlockPos::new(0, 60, 0)), END_STONE);
         assert!(
             volume
                 .writes
@@ -676,7 +694,7 @@ mod tests {
             &config,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 0, 0)
+            BlockPos::new(0, 0, 0)
         ));
 
         let mut replay = XoroshiroRandom::new(4242);
@@ -684,28 +702,28 @@ mod tests {
         assert_eq!(rng, replay, "one float, for the crystal's yaw");
 
         assert_eq!(
-            volume.get(IVec3::new(4, 0, 4)),
+            volume.get(BlockPos::new(4, 0, 4)),
             OBSIDIAN,
             "down to the dimension floor"
         );
-        assert_eq!(volume.get(IVec3::new(4, 79, 4)), OBSIDIAN);
+        assert_eq!(volume.get(BlockPos::new(4, 79, 4)), OBSIDIAN);
         assert_eq!(
-            volume.get(IVec3::new(4, 80, 4)),
+            volume.get(BlockPos::new(4, 80, 4)),
             BEDROCK,
             "under the crystal"
         );
-        assert_eq!(volume.get(IVec3::new(4, 81, 4)), FIRE);
+        assert_eq!(volume.get(BlockPos::new(4, 81, 4)), FIRE);
         assert!(
             volume.writes.contains(&((6, 70, 6), AIR)),
             "inside the box but outside the radius, above 65"
         );
         assert_eq!(
-            volume.get(IVec3::new(6, 80, 6)),
+            volume.get(BlockPos::new(6, 80, 6)),
             config.iron_bars[iron_bars_index(true, false, true, false)],
             "a cage corner"
         );
         assert_eq!(
-            volume.get(IVec3::new(4, 83, 4)),
+            volume.get(BlockPos::new(4, 83, 4)),
             config.iron_bars[15],
             "the cage top"
         );
@@ -725,13 +743,18 @@ mod tests {
         let mut volume = FakeVolume::default();
         let mut rng = XoroshiroRandom::new(4242);
         let before = rng.clone();
-        assert!(place_end_spike(&config, &mut volume, &mut rng, IVec3::ZERO));
+        assert!(place_end_spike(
+            &config,
+            &mut volume,
+            &mut rng,
+            BlockPos::new(0, 0, 0)
+        ));
         assert!(volume.writes.is_empty());
         assert_eq!(rng, before);
 
         let mut volume = FakeVolume::default();
         let mut rng = XoroshiroRandom::new(4242);
-        place_end_spike(&config, &mut volume, &mut rng, IVec3::new(32, 0, 0));
+        place_end_spike(&config, &mut volume, &mut rng, BlockPos::new(32, 0, 0));
         assert_ne!(rng, before, "the spike in this chunk draws its yaw");
         assert!(
             !volume
@@ -754,14 +777,14 @@ mod tests {
         assert!(place_void_start_platform(
             &config,
             &mut volume,
-            IVec3::new(0, 60, 0)
+            BlockPos::new(0, 60, 0)
         ));
         assert_eq!(volume.writes.len(), 16 * 16);
-        assert_eq!(volume.get(IVec3::new(8, 63, 8)), COBBLESTONE);
-        assert_eq!(volume.get(IVec3::new(0, 63, 0)), STONE);
+        assert_eq!(volume.get(BlockPos::new(8, 63, 8)), COBBLESTONE);
+        assert_eq!(volume.get(BlockPos::new(0, 63, 0)), STONE);
 
         let mut edge = FakeVolume::default();
-        place_void_start_platform(&config, &mut edge, IVec3::new(16, 60, 16));
+        place_void_start_platform(&config, &mut edge, BlockPos::new(16, 60, 16));
         assert_eq!(
             edge.writes.len(),
             9 * 9,
@@ -769,7 +792,7 @@ mod tests {
         );
 
         let mut far = FakeVolume::default();
-        place_void_start_platform(&config, &mut far, IVec3::new(32, 60, 0));
+        place_void_start_platform(&config, &mut far, BlockPos::new(32, 60, 0));
         assert!(far.writes.is_empty());
     }
 }

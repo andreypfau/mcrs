@@ -6,6 +6,7 @@ use mcrs_minecraft_worldgen::feature::compile::BlockResolver;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::proto::BlockState;
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::tree::provider::{SharedNoise, StateProvider};
@@ -92,7 +93,7 @@ pub fn place_geode<W: WorldGenVolume>(
     config: &CompiledGeode,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     let point_count = config.distribution_points.sample(rng);
     let crack_adjustment = point_count as f64 / config.outer_wall_distance_max as f64;
@@ -278,7 +279,7 @@ mod tests {
         }
     }
 
-    const ORIGIN: IVec3 = IVec3::new(0, 30, 0);
+    const ORIGIN: BlockPos = BlockPos::new(0, 30, 0);
 
     fn solid_rock() -> FakeVolume {
         let mut volume = FakeVolume::default();

@@ -3,6 +3,7 @@ use crate::feature::holds;
 use bevy_math::IVec3;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use std::sync::Arc;
@@ -49,7 +50,7 @@ pub fn place_simple_block<W: WorldGenVolume>(
     cfg: &CompiledSimpleBlock,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let Some(state) = cfg.to_place.optional_state(volume, rng, at) else {
         return false;
@@ -109,7 +110,7 @@ mod tests {
     const STONE: VoxelId = VoxelId(11);
     const TALL: VoxelId = TALL_LOWER;
 
-    const AT: IVec3 = IVec3::new(3, 70, -4);
+    const AT: BlockPos = BlockPos::new(3, 70, -4);
 
     /// Air and water give way; water and the wet halves hold water.
     fn pond(mut volume: FakeVolume) -> FakeVolume {

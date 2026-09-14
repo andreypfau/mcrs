@@ -2,6 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{BiomeMask, Predicate, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::holds;
@@ -55,7 +56,7 @@ pub fn place_lake<W: WorldGenVolume>(
     config: &CompiledLake,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     if origin.y <= volume.extent().min_y + 4 {
         return false;
@@ -202,7 +203,7 @@ mod tests {
         }
     }
 
-    const ORIGIN: IVec3 = IVec3::new(0, 40, 0);
+    const ORIGIN: BlockPos = BlockPos::new(0, 40, 0);
 
     fn solid_rock() -> FakeVolume {
         let mut volume = FakeVolume::default();
@@ -229,7 +230,7 @@ mod tests {
             &config(LAVA),
             &mut volume,
             &mut rng,
-            IVec3::new(0, -60, 0)
+            BlockPos::new(0, -60, 0)
         ));
         assert_eq!(rng, before);
     }
@@ -311,7 +312,7 @@ mod tests {
     #[test]
     fn only_water_the_blob_never_reached_freezes() {
         let mut volume = solid_rock();
-        let corner = IVec3::new(ORIGIN.x - 8, ORIGIN.y, ORIGIN.z - 8);
+        let corner = BlockPos::new(ORIGIN.x - 8, ORIGIN.y, ORIGIN.z - 8);
         volume.blocks.insert((corner.x, corner.y, corner.z), WATER);
         let mut rng = XoroshiroRandom::new(0x1a4e);
         assert!(place_lake(&config(WATER), &mut volume, &mut rng, ORIGIN));
@@ -321,7 +322,7 @@ mod tests {
     #[test]
     fn a_lava_lake_never_freezes() {
         let mut volume = solid_rock();
-        let corner = IVec3::new(ORIGIN.x - 8, ORIGIN.y, ORIGIN.z - 8);
+        let corner = BlockPos::new(ORIGIN.x - 8, ORIGIN.y, ORIGIN.z - 8);
         volume.blocks.insert((corner.x, corner.y, corner.z), WATER);
         let mut rng = XoroshiroRandom::new(0x1a4e);
         assert!(place_lake(&config(LAVA), &mut volume, &mut rng, ORIGIN));

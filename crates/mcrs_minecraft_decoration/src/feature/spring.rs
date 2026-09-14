@@ -2,6 +2,7 @@ use crate::feature::holds;
 use bevy_math::IVec3;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 /// `west`, `east`, `north`, `south`, `below` — the order both counts walk.
@@ -28,7 +29,7 @@ pub fn place_spring<W: WorldGenVolume>(
     config: &CompiledSpring,
     volume: &mut W,
     _rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     if !volume.holds(&config.valid_blocks, at + IVec3::Y) {
         return false;
@@ -69,7 +70,7 @@ mod tests {
     const STONE: VoxelId = VoxelId(1);
     const LAVA: VoxelId = VoxelId(2);
     const DIRT: VoxelId = VoxelId(3);
-    const ORIGIN: IVec3 = IVec3::new(0, 40, 0);
+    const ORIGIN: BlockPos = BlockPos::new(0, 40, 0);
 
     fn config(rock_count: i32, hole_count: i32) -> CompiledSpring {
         CompiledSpring {

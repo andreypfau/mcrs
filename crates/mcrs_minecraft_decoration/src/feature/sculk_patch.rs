@@ -8,7 +8,7 @@ use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::multiface_growth::{MultifaceStates, spread_positions};
 use crate::feature::tree::trunk::all_shuffled;
-use mcrs_voxel_math::dist_manhattan;
+use mcrs_voxel_math::{BlockPos, dist_manhattan};
 
 /// `SculkSpreader.createWorldGenSpreader`, which is the only spreader a feature
 /// ever builds.
@@ -66,7 +66,7 @@ const DEFAULT_SPREAD_ORDER: usize = 3;
 const SAME_SPACE_ORDER: usize = 1;
 
 struct Cursor {
-    pos: IVec3,
+    pos: BlockPos,
     charge: i32,
     update_delay: i32,
     decay_delay: i32,
@@ -97,7 +97,7 @@ pub fn place_sculk_patch<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     if !can_spread_from(config, volume, origin) {
         return false;
@@ -119,7 +119,7 @@ pub fn place_sculk_patch<W: WorldGenVolume>(
 fn can_spread_from<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     let state = volume.get(origin);
     if config.behaviour(state) != Behaviour::Default {
@@ -131,12 +131,12 @@ fn can_spread_from<W: WorldGenVolume>(
     Direction::all().into_iter().any(|direction| {
         holds(
             &volume.world().sturdy_up,
-            volume.get(direction.relative(origin, 1)),
+            volume.get(origin + direction.normal()),
         )
     })
 }
 
-fn add_cursors(cursors: &mut Vec<Cursor>, pos: IVec3, mut charge: i32) {
+fn add_cursors(cursors: &mut Vec<Cursor>, pos: BlockPos, mut charge: i32) {
     while charge > 0 {
         let current = charge.min(MAX_CHARGE);
         if cursors.len() < MAX_CURSORS {
@@ -159,7 +159,7 @@ fn update_cursors<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     cursors: &mut Vec<Cursor>,
-    origin: IVec3,
+    origin: BlockPos,
     spread_veins: bool,
 ) {
     cursors.retain_mut(|cursor| {
@@ -176,7 +176,7 @@ fn update_cursor<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     cursor: &mut Cursor,
-    origin: IVec3,
+    origin: BlockPos,
     spread_veins: bool,
 ) {
     if cursor.charge <= 0 {
@@ -237,7 +237,7 @@ fn update_cursor<W: WorldGenVolume>(
 fn attempt_spread_vein<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
-    pos: IVec3,
+    pos: BlockPos,
     state: VoxelId,
     behaviour: Behaviour,
     facings: Option<u8>,
@@ -263,7 +263,7 @@ fn attempt_spread_vein<W: WorldGenVolume>(
 fn regrow<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
-    pos: IVec3,
+    pos: BlockPos,
     existing: VoxelId,
     faces: u8,
 ) -> bool {
@@ -272,7 +272,7 @@ fn regrow<W: WorldGenVolume>(
         if faces & face_bit(direction) != 0
             && holds(
                 &volume.world().sturdy_up,
-                volume.get(direction.relative(pos, 1)),
+                volume.get(pos + direction.normal()),
             )
         {
             grown |= face_bit(direction);
@@ -292,7 +292,7 @@ fn spread_all<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
     source: VoxelId,
-    pos: IVec3,
+    pos: BlockPos,
     spreads: usize,
 ) -> bool {
     let source_faces = config.vein.faces_of(source).map(|(faces, _)| faces);
@@ -320,7 +320,7 @@ fn spread_toward<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
     source_faces: Option<u8>,
-    pos: IVec3,
+    pos: BlockPos,
     from_face: Direction,
     spread: Direction,
     spreads: usize,
@@ -353,17 +353,17 @@ fn spread_toward<W: WorldGenVolume>(
 fn can_spread_into<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
-    source: IVec3,
-    target: IVec3,
+    source: BlockPos,
+    target: BlockPos,
     face: Direction,
 ) -> bool {
-    if volume.holds(&config.blocks_vein, face.relative(target, 1)) {
+    if volume.holds(&config.blocks_vein, target + face.normal()) {
         return false;
     }
-    if dist_manhattan(source, target) == 2
+    if dist_manhattan(source.as_ivec3(), target.as_ivec3()) == 2
         && holds(
             &volume.world().sturdy_up,
-            volume.get(face.opposite().relative(source, 1)),
+            volume.get(source + face.opposite().normal()),
         )
     {
         return false;
@@ -392,7 +392,7 @@ fn attempt_use_charge<W: WorldGenVolume>(
     rng: &mut XoroshiroRandom,
     cursor: &Cursor,
     behaviour: Behaviour,
-    origin: IVec3,
+    origin: BlockPos,
     spread_veins: bool,
 ) -> i32 {
     match behaviour {
@@ -423,7 +423,7 @@ fn attempt_place_sculk<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    pos: IVec3,
+    pos: BlockPos,
 ) -> bool {
     let state = volume.get(pos);
     let Some((faces, _)) = config.vein.faces_of(state) else {
@@ -433,7 +433,7 @@ fn attempt_place_sculk<W: WorldGenVolume>(
         if faces & face_bit(support) == 0 {
             continue;
         }
-        let support_pos = support.relative(pos, 1);
+        let support_pos = pos + support.normal();
         if !volume.holds(&config.replaceable_world_gen, support_pos) {
             continue;
         }
@@ -450,7 +450,7 @@ fn attempt_place_sculk<W: WorldGenVolume>(
             if direction == skip {
                 continue;
             }
-            let vein_pos = direction.relative(support_pos, 1);
+            let vein_pos = support_pos + direction.normal();
             let vein_state = volume.get(vein_pos);
             if config.vein.faces_of(vein_state).is_some() {
                 on_discharged(config, volume, vein_state, vein_pos);
@@ -466,7 +466,7 @@ fn sculk_use_charge<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     cursor: &Cursor,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> i32 {
     let charge = cursor.charge;
     if charge == 0 || rng.next_i32_bound(CHARGE_DECAY_RATE) != 0 {
@@ -504,7 +504,7 @@ fn random_growth_state<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
     rng: &mut XoroshiroRandom,
-    pos: IVec3,
+    pos: BlockPos,
 ) -> VoxelId {
     let family = if rng.next_i32_bound(SHRIEKER_PLACEMENT_RATE) == 0 {
         &config.shrieker
@@ -519,7 +519,7 @@ fn random_growth_state<W: WorldGenVolume>(
 fn can_place_growth<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
-    pos: IVec3,
+    pos: BlockPos,
 ) -> bool {
     let above = volume.get(pos + IVec3::Y);
     if !holds(&volume.world().air_states, above) && !holds(&volume.world().water_states, above) {
@@ -529,7 +529,7 @@ fn can_place_growth<W: WorldGenVolume>(
     for z in pos.z - GROWTH_INHIBITOR_RANGE..=pos.z + GROWTH_INHIBITOR_RANGE {
         for y in pos.y..=pos.y + 2 {
             for x in pos.x - GROWTH_INHIBITOR_RANGE..=pos.x + GROWTH_INHIBITOR_RANGE {
-                if volume.holds(&config.growth_inhibitors, IVec3::new(x, y, z)) {
+                if volume.holds(&config.growth_inhibitors, BlockPos::new(x, y, z)) {
                     found += 1;
                     if found > 2 {
                         return false;
@@ -545,14 +545,14 @@ fn on_discharged<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
     state: VoxelId,
-    pos: IVec3,
+    pos: BlockPos,
 ) {
     let Some((mut faces, waterlogged)) = config.vein.faces_of(state) else {
         return;
     };
     for direction in Direction::all() {
         if faces & face_bit(direction) != 0
-            && volume.holds(&config.sculk_states, direction.relative(pos, 1))
+            && volume.holds(&config.sculk_states, pos + direction.normal())
         {
             faces &= !face_bit(direction);
         }
@@ -605,9 +605,9 @@ fn valid_movement_pos<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
     rng: &mut XoroshiroRandom,
-    pos: IVec3,
-    origin: IVec3,
-) -> Option<IVec3> {
+    pos: BlockPos,
+    origin: BlockPos,
+) -> Option<BlockPos> {
     let mut found = pos;
     for offset in shuffled_neighbours(rng) {
         let neighbour = pos + offset;
@@ -634,21 +634,21 @@ fn has_substrate_access<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
     state: VoxelId,
-    pos: IVec3,
+    pos: BlockPos,
 ) -> bool {
     let Some((faces, _)) = config.vein.faces_of(state) else {
         return false;
     };
     Direction::all().into_iter().any(|direction| {
         faces & face_bit(direction) != 0
-            && volume.holds(&config.substrate, direction.relative(pos, 1))
+            && volume.holds(&config.substrate, pos + direction.normal())
     })
 }
 
 /// `to` is one of the eighteen non-corner neighbours, so a nonzero component
 /// of the delta is a unit step along its axis.
-fn movement_unobstructed<W: WorldGenVolume>(volume: &W, from: IVec3, to: IVec3) -> bool {
-    if dist_manhattan(from, to) == 1 {
+fn movement_unobstructed<W: WorldGenVolume>(volume: &W, from: BlockPos, to: BlockPos) -> bool {
+    if dist_manhattan(from.as_ivec3(), to.as_ivec3()) == 1 {
         return true;
     }
     let delta = to - from;
@@ -672,7 +672,7 @@ mod tests {
     const STONE: VoxelId = VoxelId(1);
     const SCULK: VoxelId = VoxelId(2);
     const VEIN_BASE: u16 = 100;
-    const AT: IVec3 = IVec3::new(0, 60, 0);
+    const AT: BlockPos = BlockPos::new(0, 60, 0);
 
     /// A vein whose state id is its face bits, dry and waterlogged one table
     /// apart, so the placer's own indexing is what the test reads back.

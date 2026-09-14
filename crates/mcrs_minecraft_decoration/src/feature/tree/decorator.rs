@@ -8,6 +8,7 @@ use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::feature::tree::TreeDecorator;
 pub use mcrs_minecraft_worldgen::value_provider::Weighted;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use super::TreeTables;
@@ -48,10 +49,10 @@ pub struct DecoratorContext<'a, W> {
     pub volume: &'a mut W,
     pub tables: &'a TreeTables,
     pub sink: &'a mut dyn TreeSink<W>,
-    logs: Vec<IVec3>,
-    leaves: Vec<IVec3>,
-    roots: Vec<IVec3>,
-    decorations: Vec<IVec3>,
+    logs: Vec<BlockPos>,
+    leaves: Vec<BlockPos>,
+    roots: Vec<BlockPos>,
+    decorations: Vec<BlockPos>,
 }
 
 /// `java.util.HashSet` iteration order over `BlockPos`, which is the order the
@@ -65,8 +66,8 @@ pub struct DecoratorContext<'a, W> {
 /// Known ceiling: a bin of eight or more once the table holds sixty-four
 /// entries becomes a red-black tree in the JVM and iterates in a different
 /// order. `BlockPos` hashes spread well enough that a tree never reaches it.
-pub(crate) fn java_set_order(positions: &[IVec3]) -> Vec<IVec3> {
-    let mut table: Vec<Vec<(u32, IVec3)>> = vec![Vec::new(); 16];
+pub(crate) fn java_set_order(positions: &[BlockPos]) -> Vec<BlockPos> {
+    let mut table: Vec<Vec<(u32, BlockPos)>> = vec![Vec::new(); 16];
     let mut size = 0usize;
     for &pos in positions {
         let hash = pos
@@ -84,7 +85,7 @@ pub(crate) fn java_set_order(positions: &[IVec3]) -> Vec<IVec3> {
         size += 1;
         if size > table.len() * 3 / 4 {
             let capacity = table.len() * 2;
-            let mut grown: Vec<Vec<(u32, IVec3)>> = vec![Vec::new(); capacity];
+            let mut grown: Vec<Vec<(u32, BlockPos)>> = vec![Vec::new(); capacity];
             for entry in table.into_iter().flatten() {
                 grown[(entry.0 as usize) & (capacity - 1)].push(entry);
             }
@@ -99,9 +100,9 @@ impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
         volume: &'a mut W,
         tables: &'a TreeTables,
         sink: &'a mut dyn TreeSink<W>,
-        logs: &[IVec3],
-        leaves: &[IVec3],
-        roots: &[IVec3],
+        logs: &[BlockPos],
+        leaves: &[BlockPos],
+        roots: &[BlockPos],
     ) -> Self {
         let mut logs = java_set_order(logs);
         let mut leaves = java_set_order(leaves);
@@ -122,19 +123,19 @@ impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
 
     /// The positions the decorators wrote, which join the tree's bounding box
     /// and pre-fill the leaf relaxation's shape.
-    pub fn into_decorations(self) -> Vec<IVec3> {
+    pub fn into_decorations(self) -> Vec<BlockPos> {
         self.decorations
     }
 
-    fn holds(&self, mask: &StateMask, pos: IVec3) -> bool {
+    fn holds(&self, mask: &StateMask, pos: BlockPos) -> bool {
         self.volume.holds(mask, pos)
     }
 
-    fn is_air(&self, pos: IVec3) -> bool {
+    fn is_air(&self, pos: BlockPos) -> bool {
         self.volume.is_air(pos)
     }
 
-    fn is_water_or_water_nearby(&self, pos: IVec3) -> bool {
+    fn is_water_or_water_nearby(&self, pos: BlockPos) -> bool {
         let water = &self.volume.world().water_fluid;
         self.holds(water, pos)
             || Direction::HORIZONTAL
@@ -142,15 +143,15 @@ impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
                 .any(|side| self.holds(water, pos + side.normal()))
     }
 
-    fn set(&mut self, pos: IVec3, state: VoxelId) {
+    fn set(&mut self, pos: BlockPos, state: VoxelId) {
         self.decorations.push(pos);
         self.volume.set(pos, state);
     }
 
-    fn place_vine(&mut self, pos: IVec3, side: Direction) {
+    fn place_vine(&mut self, pos: BlockPos, side: Direction) {
         self.set(pos, self.tables.palette.vine_side[horizontal_index(side)]);
     }
-    fn lowest_trunk_or_root(&self) -> Vec<IVec3> {
+    fn lowest_trunk_or_root(&self) -> Vec<BlockPos> {
         if self.roots.is_empty() {
             self.logs.clone()
         } else if !self.logs.is_empty() && self.roots[0].y == self.logs[0].y {
@@ -176,7 +177,7 @@ pub trait TreeSink<W> {
 
     /// `pale_moss` runs a whole feature on the tree's source, and that feature
     /// lives outside this crate.
-    fn moss_patch(&mut self, volume: &mut W, rng: &mut XoroshiroRandom, at: IVec3);
+    fn moss_patch(&mut self, volume: &mut W, rng: &mut XoroshiroRandom, at: BlockPos);
 }
 
 /// A sink with no patch to run: it keeps the block entities and drops the moss.
@@ -191,7 +192,7 @@ impl<W> TreeSink<W> for EntitiesOnly {
         self.0.push(entity);
     }
 
-    fn moss_patch(&mut self, _window: &mut W, _rng: &mut XoroshiroRandom, _at: IVec3) {}
+    fn moss_patch(&mut self, _window: &mut W, _rng: &mut XoroshiroRandom, _at: BlockPos) {}
 }
 
 impl CompiledTreeDecorator {
@@ -339,7 +340,7 @@ impl CompiledTreeDecorator {
             } => {
                 let (exclusion_radius_xz, exclusion_radius_y) =
                     (exclusion_radius_xz.0, exclusion_radius_y.0);
-                let mut excluded: HashSet<IVec3> = HashSet::default();
+                let mut excluded: HashSet<BlockPos> = HashSet::default();
                 for leaf in shuffled(&ctx.leaves, rng) {
                     let side = directions[rng.next_i32_bound(directions.len() as i32) as usize];
                     let at = leaf + side.normal();
@@ -381,11 +382,11 @@ impl CompiledTreeDecorator {
                     max_z = max_z.max(pos.z);
                 }
                 let (min, max) = (
-                    IVec3::new(min_x - radius, first.y - height, min_z - radius),
-                    IVec3::new(max_x + radius, first.y + height, max_z + radius),
+                    BlockPos::new(min_x - radius, first.y - height, min_z - radius),
+                    BlockPos::new(max_x + radius, first.y + height, max_z + radius),
                 );
                 for _ in 0..tries.0 {
-                    let pos = IVec3::new(
+                    let pos = BlockPos::new(
                         rng.next_int_between_inclusive(min.x, max.x),
                         rng.next_int_between_inclusive(min.y, max.y),
                         rng.next_int_between_inclusive(min.z, max.z),
@@ -436,7 +437,7 @@ fn horizontal_index(direction: Direction) -> usize {
         .expect("a horizontal direction")
 }
 
-fn hang_vine<W: WorldGenVolume>(ctx: &mut DecoratorContext<W>, pos: IVec3, side: Direction) {
+fn hang_vine<W: WorldGenVolume>(ctx: &mut DecoratorContext<W>, pos: BlockPos, side: Direction) {
     ctx.place_vine(pos, side);
     let mut cursor = pos + IVec3::NEG_Y;
     let mut left = 4;
@@ -449,7 +450,7 @@ fn hang_vine<W: WorldGenVolume>(ctx: &mut DecoratorContext<W>, pos: IVec3, side:
 
 fn hang_moss<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
-    pos: IVec3,
+    pos: BlockPos,
     rng: &mut XoroshiroRandom,
 ) {
     let mut cursor = pos;
@@ -464,7 +465,7 @@ fn place_circle<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
     provider: &StateProvider,
     rng: &mut XoroshiroRandom,
-    centre: IVec3,
+    centre: BlockPos,
 ) {
     for x in -2..=2i32 {
         for z in -2..=2i32 {
@@ -499,7 +500,7 @@ fn place_beehive<W: WorldGenVolume>(
     } else {
         (ctx.logs[0].y + 1 + rng.next_i32_bound(3)).min(ctx.logs[ctx.logs.len() - 1].y)
     };
-    let mut sides: Vec<IVec3> = ctx
+    let mut sides: Vec<BlockPos> = ctx
         .logs
         .iter()
         .filter(|pos| pos.y == hive_y)
@@ -585,12 +586,12 @@ fn place_mushrooms_on_fallen_log<W: WorldGenVolume>(
 
 fn replaceable_with_shelf_mushroom<W: WorldGenVolume>(
     ctx: &DecoratorContext<W>,
-    pos: IVec3,
+    pos: BlockPos,
 ) -> bool {
     ctx.holds(&ctx.volume.world().replaceable, pos) && !ctx.is_water_or_water_nearby(pos)
 }
 
-fn shelf_mushroom_beside<W: WorldGenVolume>(ctx: &DecoratorContext<W>, pos: IVec3) -> bool {
+fn shelf_mushroom_beside<W: WorldGenVolume>(ctx: &DecoratorContext<W>, pos: BlockPos) -> bool {
     Direction::HORIZONTAL
         .iter()
         .any(|side| ctx.holds(&ctx.tables.palette.shelf_mushrooms, pos + side.normal()))
@@ -598,7 +599,7 @@ fn shelf_mushroom_beside<W: WorldGenVolume>(ctx: &DecoratorContext<W>, pos: IVec
 
 fn place_shelf_mushroom<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
-    pos: IVec3,
+    pos: BlockPos,
     facing: Direction,
     rng: &mut XoroshiroRandom,
 ) {
@@ -618,7 +619,7 @@ mod tests {
     /// (0,1), (1,0), (1,1), (0,0) — neither is the order they were written in.
     #[test]
     fn the_decorator_lists_start_from_java_s_set_order() {
-        let line: Vec<IVec3> = (0..5).map(|i| IVec3::new(100 + i, 64, -37)).collect();
+        let line: Vec<BlockPos> = (0..5).map(|i| BlockPos::new(100 + i, 64, -37)).collect();
         assert_eq!(
             super::java_set_order(&line)
                 .iter()
@@ -631,8 +632,8 @@ mod tests {
         for y in 64..70 {
             for dx in 0..2 {
                 for dz in 0..2 {
-                    trunk.push(IVec3::new(dx, y, dz));
-                    trunk.push(IVec3::new(dx, y, dz));
+                    trunk.push(BlockPos::new(dx, y, dz));
+                    trunk.push(BlockPos::new(dx, y, dz));
                 }
             }
         }
@@ -692,8 +693,8 @@ mod tests {
         XoroshiroRandom::new(0x7bee_5eed)
     }
 
-    fn trunk(from: i32, to: i32) -> Vec<IVec3> {
-        (from..=to).map(|y| IVec3::new(0, y, 0)).collect()
+    fn trunk(from: i32, to: i32) -> Vec<BlockPos> {
+        (from..=to).map(|y| BlockPos::new(0, y, 0)).collect()
     }
 
     struct Placed {
@@ -716,8 +717,8 @@ mod tests {
 
     fn place(
         decorator: &CompiledTreeDecorator,
-        logs: Vec<IVec3>,
-        leaves: Vec<IVec3>,
+        logs: Vec<BlockPos>,
+        leaves: Vec<BlockPos>,
         world: impl IntoIterator<Item = ((i32, i32, i32), VoxelId)>,
         mut expected: impl FnMut(&mut XoroshiroRandom),
     ) -> Placed {
@@ -783,7 +784,7 @@ mod tests {
         let placed = place(
             &decorator(r#"{"type":"minecraft:leave_vine","probability":1.0}"#, None),
             Vec::new(),
-            vec![IVec3::new(0, 70, 0)],
+            vec![BlockPos::new(0, 70, 0)],
             [],
             |replay| {
                 for _ in 0..4 {
@@ -810,7 +811,7 @@ mod tests {
         let placed = place(
             &decorator(r#"{"type":"minecraft:beehive","probability":1.0}"#, None),
             trunk(64, 68),
-            vec![IVec3::new(1, 68, 0)],
+            vec![BlockPos::new(1, 68, 0)],
             [],
             |replay| {
                 replay.next_f32();
@@ -861,7 +862,7 @@ mod tests {
         let placed = place(
             &decorator(r#"{"type":"minecraft:beehive","probability":1.0}"#, None),
             Vec::new(),
-            vec![IVec3::new(0, 70, 0)],
+            vec![BlockPos::new(0, 70, 0)],
             [],
             |_| {},
         );
@@ -954,7 +955,7 @@ mod tests {
 
     #[test]
     fn attached_to_leaves_skips_the_chance_draw_inside_the_exclusion_box() {
-        let leaves: Vec<IVec3> = (0..3).map(|z| IVec3::new(0, 70, z)).collect();
+        let leaves: Vec<BlockPos> = (0..3).map(|z| BlockPos::new(0, 70, z)).collect();
         let placed = place(
             &decorator(
                 r#"{"type":"minecraft:attached_to_leaves","probability":1.0,"exclusion_radius_xz":2,"exclusion_radius_y":2,"block_provider":{"type":"minecraft:simple_state_provider","state":"minecraft:x"},"required_empty_blocks":1,"directions":["down"]}"#,
@@ -1075,7 +1076,7 @@ mod tests {
                 None,
             ),
             trunk(64, 66),
-            vec![IVec3::new(0, 67, 0)],
+            vec![BlockPos::new(0, 67, 0)],
             [((0, 65, 0), LOG)],
             |replay| {
                 replay.next_i32_bound(3);

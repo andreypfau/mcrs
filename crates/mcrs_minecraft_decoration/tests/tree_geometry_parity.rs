@@ -32,6 +32,7 @@ use mcrs_minecraft_worldgen::feature::placer::{
 };
 use mcrs_minecraft_worldgen::feature::proto::Feature;
 use mcrs_minecraft_worldgen::feature::tree::BlockStateProvider;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::Blocks as _;
 use mcrs_voxel_storage::VoxelId;
 use std::collections::{HashMap, HashSet};
@@ -46,7 +47,7 @@ const FLOOR_TOP: i32 = 63;
 struct DumpCase {
     feature: String,
     seed: i64,
-    origin: [i32; 3],
+    origin: BlockPos,
     result: bool,
     state_after: [i64; 2],
     blocks: Vec<([i32; 3], String)>,
@@ -61,7 +62,7 @@ fn read_dump() -> Vec<DumpCase> {
         .map(|_| {
             let feature = dump_string(&mut r);
             let seed = r.get_i64_le();
-            let origin = [r.get_i32_le(), r.get_i32_le(), r.get_i32_le()];
+            let origin = BlockPos::new(r.get_i32_le(), r.get_i32_le(), r.get_i32_le());
             let result = r.get_i32_le() != 0;
             let state_after = [r.get_i64_le(), r.get_i64_le()];
             let blocks = dump_placements(&mut r);
@@ -232,10 +233,10 @@ impl Blocks {
 
 /// Dirt to `FLOOR_TOP` and air above, around `origin`. The height is the
 /// topmost block that stops motion, leaves excepted for the no-leaves map.
-fn flat_world(blocks: &Blocks, origin: IVec3) -> BoxRegion {
+fn flat_world(blocks: &Blocks, origin: BlockPos) -> BoxRegion {
     let mut world = BoxRegion::new(
-        IVec3::new(origin.x - 40, MIN_Y, origin.z - 40),
-        IVec3::new(origin.x + 40, MIN_Y + DEPTH - 1, origin.z + 40),
+        BlockPos::new(origin.x - 40, MIN_Y, origin.z - 40),
+        BlockPos::new(origin.x + 40, MIN_Y + DEPTH - 1, origin.z + 40),
         blocks.air,
     )
     .floor(FLOOR_TOP, blocks.dirt);
@@ -246,7 +247,7 @@ fn flat_world(blocks: &Blocks, origin: IVec3) -> BoxRegion {
         (MIN_Y..MIN_Y + DEPTH)
             .rev()
             .find(|&y| {
-                let state = volume.get(IVec3::new(x, y, z));
+                let state = volume.get(BlockPos::new(x, y, z));
                 state != air
                     && !(leaves.contains(&state)
                         && matches!(kind, HeightmapName::MotionBlockingNoLeaves))
@@ -369,7 +370,7 @@ fn every_covered_tree_matches_the_reference_block_for_block() {
         covered.insert(case.feature.clone());
         compared += 1;
 
-        let origin = IVec3::from_array(case.origin);
+        let origin = case.origin;
         let mut world = flat_world(&blocks, origin);
         let mut entities = EntitiesOnly::default();
         let mut rng = XoroshiroRandom::new(case.seed as u64);

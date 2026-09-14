@@ -2,11 +2,11 @@ use crate::feature::{face_bit, holds};
 use mcrs_minecraft_random::{shuffle, shuffled};
 use rustc_hash::FxHashMap as HashMap;
 
-use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::tree::trunk::all_shuffled;
@@ -39,7 +39,7 @@ impl MultifaceStates {
         &self,
         volume: &W,
         old_state: VoxelId,
-        pos: IVec3,
+        pos: BlockPos,
         direction: Direction,
     ) -> Option<VoxelId> {
         if self.has_face(old_state, direction) {
@@ -47,7 +47,7 @@ impl MultifaceStates {
         }
         // `MultifaceBlock.canAttachTo` as the full-collision-cube flag; the upgrade
         // path is a per-face table over the support and collision boxes at freeze.
-        if !volume.holds(&volume.world().sturdy_up, direction.relative(pos, 1)) {
+        if !volume.holds(&volume.world().sturdy_up, pos + direction.normal()) {
             return None;
         }
         let (faces, waterlogged) = self
@@ -93,7 +93,7 @@ pub fn place_multiface_growth<W: WorldGenVolume>(
     cfg: &CompiledMultifaceGrowth,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let origin_state = volume.get(at);
     if !is_air_or_water(volume, origin_state) {
@@ -114,7 +114,7 @@ pub fn place_multiface_growth<W: WorldGenVolume>(
             .collect();
         shuffle(&mut placement, rng);
 
-        let pos = search.relative(at, 1);
+        let pos = at + search.normal();
         let state = volume.get(pos);
         if !is_air_or_water(volume, state) && cfg.states.faces_of(state).is_none() {
             continue;
@@ -135,12 +135,12 @@ fn place_growth_if_possible<W: WorldGenVolume>(
     cfg: &CompiledMultifaceGrowth,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    pos: IVec3,
+    pos: BlockPos,
     old_state: VoxelId,
     placement_directions: &[Direction],
 ) -> bool {
     for direction in placement_directions {
-        let neighbour = direction.relative(pos, 1);
+        let neighbour = pos + direction.normal();
         if !volume.holds(&cfg.can_be_placed_on, neighbour) {
             continue;
         }
@@ -167,7 +167,7 @@ fn spread_from_face<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     state: VoxelId,
-    pos: IVec3,
+    pos: BlockPos,
     from_face: Direction,
 ) {
     for spread in all_shuffled(rng) {
@@ -180,11 +180,11 @@ fn spread_from_face<W: WorldGenVolume>(
 /// The three spread types in `DEFAULT_SPREAD_ORDER`, as the cell and the face
 /// each would grow on.
 pub(crate) fn spread_positions(
-    pos: IVec3,
+    pos: BlockPos,
     spread: Direction,
     from_face: Direction,
-) -> [(IVec3, Direction); 3] {
-    let along = spread.relative(pos, 1);
+) -> [(BlockPos, Direction); 3] {
+    let along = pos + spread.normal();
     [
         (pos, spread),
         (along, from_face),
@@ -196,7 +196,7 @@ fn spread_toward<W: WorldGenVolume>(
     cfg: &CompiledMultifaceGrowth,
     volume: &mut W,
     state: VoxelId,
-    pos: IVec3,
+    pos: BlockPos,
     from_face: Direction,
     spread: Direction,
 ) -> bool {
@@ -241,7 +241,7 @@ mod tests {
     /// The growth's states start here: `[waterlogged][faces]`, so a state id is
     /// `GROWTH + 64 * waterlogged + faces`.
     const GROWTH: u16 = 100;
-    const AT: IVec3 = IVec3::new(0, 40, 0);
+    const AT: BlockPos = BlockPos::new(0, 40, 0);
 
     fn growth(faces: u8, waterlogged: bool) -> VoxelId {
         VoxelId(GROWTH + 64 * u16::from(waterlogged) + u16::from(faces))

@@ -1,11 +1,10 @@
-use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{Rule, WorldGenVolume};
-use mcrs_voxel_math::Direction;
 use mcrs_voxel_math::mth::{lerp, sin_modern};
+use mcrs_voxel_math::{BlockPos, Direction};
 use mcrs_voxel_storage::VoxelId;
 
 #[derive(Clone, Debug)]
@@ -40,7 +39,7 @@ pub fn place_modern_ore<W: WorldGenVolume>(
     cfg: &CompiledOre,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
     scratch: &mut OreScratch,
 ) -> bool {
     let (origin_x, origin_y, origin_z) = (origin.x, origin.y, origin.z);
@@ -170,10 +169,11 @@ fn do_place<W: WorldGenVolume>(
                     if tested.put(index) {
                         continue;
                     }
-                    let current = volume.get(IVec3::new(x, y, z));
+                    let pos = BlockPos::new(x, y, z);
+                    let current = volume.get(pos);
                     for target in &cfg.targets {
-                        if can_place_ore(cfg, volume, rng, target, current, [x, y, z]) {
-                            volume.set(IVec3::new(x, y, z), target.state);
+                        if can_place_ore(cfg, volume, rng, target, current, pos) {
+                            volume.set(pos, target.state);
                             placed += 1;
                             break;
                         }
@@ -199,15 +199,15 @@ pub(crate) fn can_place_ore<W: WorldGenVolume>(
     rng: &mut XoroshiroRandom,
     target: &OreReplacement,
     state: VoxelId,
-    [x, y, z]: [i32; 3],
+    pos: BlockPos,
 ) -> bool {
-    if !target.target.test(state, y, rng) {
+    if !target.target.test(state, pos.y, rng) {
         return false;
     }
     if should_skip_air_check(rng, cfg.discard_chance_on_air_exposure) {
         return true;
     }
-    !is_adjacent_to_air(volume, x, y, z)
+    !is_adjacent_to_air(volume, pos)
 }
 
 fn should_skip_air_check(rng: &mut XoroshiroRandom, discard_chance_on_air_exposure: f32) -> bool {
@@ -220,8 +220,7 @@ fn should_skip_air_check(rng: &mut XoroshiroRandom, discard_chance_on_air_exposu
     }
 }
 
-fn is_adjacent_to_air<W: WorldGenVolume>(volume: &W, x: i32, y: i32, z: i32) -> bool {
-    let pos = IVec3::new(x, y, z);
+fn is_adjacent_to_air<W: WorldGenVolume>(volume: &W, pos: BlockPos) -> bool {
     Direction::all()
         .into_iter()
         .any(|direction| volume.is_air(pos + direction.normal()))

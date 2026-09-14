@@ -4,6 +4,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::speleothem::{PointedStates, grow_speleothem};
@@ -29,7 +30,7 @@ pub fn place_speleothem<W: WorldGenVolume>(
     config: &CompiledSpeleothem,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     let above = volume.holds(&config.base_or_replaceable, origin + IVec3::Y);
     let below = volume.holds(&config.base_or_replaceable, origin - IVec3::Y);
@@ -62,7 +63,7 @@ fn place_patch_of_base_blocks<W: WorldGenVolume>(
     config: &CompiledSpeleothem,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    root: IVec3,
+    root: BlockPos,
 ) {
     place_base_block_if_possible(config, volume, root);
     for direction in Direction::HORIZONTAL {
@@ -87,7 +88,7 @@ fn place_patch_of_base_blocks<W: WorldGenVolume>(
 fn place_base_block_if_possible<W: WorldGenVolume>(
     config: &CompiledSpeleothem,
     volume: &mut W,
-    pos: IVec3,
+    pos: BlockPos,
 ) {
     if volume.holds(&config.replaceable_blocks, pos) {
         volume.set(pos, config.base_block);
@@ -111,7 +112,7 @@ mod tests {
     /// so a written state reads back as its three indices.
     const POINTED: VoxelId = VoxelId(10);
 
-    const AT: IVec3 = IVec3::new(0, 64, 0);
+    const AT: BlockPos = BlockPos::new(0, 64, 0);
 
     fn config() -> CompiledSpeleothem {
         CompiledSpeleothem {

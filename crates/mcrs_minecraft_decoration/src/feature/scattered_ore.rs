@@ -1,6 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_voxel_math::BlockPos;
 
 use crate::feature::ore_modern::{CompiledOre, can_place_ore};
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
@@ -17,7 +18,7 @@ pub fn place_scattered_ore<W: WorldGenVolume>(
     config: &CompiledOre,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     let tries = rng.next_i32_bound(config.size + 1);
     for try_index in 0..tries {
@@ -30,7 +31,7 @@ pub fn place_scattered_ore<W: WorldGenVolume>(
         let at = origin + offset;
         let state = volume.get(at);
         for target in &config.targets {
-            if can_place_ore(config, volume, rng, target, state, [at.x, at.y, at.z]) {
+            if can_place_ore(config, volume, rng, target, state, at) {
                 volume.set(at, target.state);
                 break;
             }
@@ -57,7 +58,7 @@ mod tests {
 
     const STONE: VoxelId = VoxelId(1);
     const DEBRIS: VoxelId = VoxelId(2);
-    const ORIGIN: IVec3 = IVec3::new(0, 40, 0);
+    const ORIGIN: BlockPos = BlockPos::new(0, 40, 0);
     const SEED: u64 = 0x5ca7_7e6d;
 
     fn rock() -> BoxRegion {

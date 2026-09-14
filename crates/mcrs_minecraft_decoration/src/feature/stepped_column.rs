@@ -5,7 +5,7 @@ use mcrs_minecraft_worldgen::feature::placer::{Predicate, StateMask, WorldGenVol
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
 
 use crate::feature::tree::provider::StateProvider;
-use mcrs_voxel_math::dist_manhattan;
+use mcrs_voxel_math::{BlockPos, dist_manhattan};
 
 /// One `stepped_column_cluster` feature with every name it carries already
 /// resolved.
@@ -31,7 +31,7 @@ pub fn place_stepped_column_cluster<W>(
     config: &CompiledSteppedColumnCluster,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -49,8 +49,8 @@ where
         let x = origin.x - cluster_reach + rng.next_i32_bound(span);
         let y = origin.y + rng.next_i32_bound(1);
         let z = origin.z - cluster_reach + rng.next_i32_bound(span);
-        let center = IVec3::new(x, y, z);
-        let height = column_height - dist_manhattan(center, origin);
+        let center = BlockPos::new(x, y, z);
+        let height = column_height - dist_manhattan(center.as_ivec3(), origin.as_ivec3());
         if height >= 0 {
             let reach = config.column_reach.sample(rng);
             placed |= place_column(config, volume, rng, center, height, reach);
@@ -63,7 +63,7 @@ fn place_column<W>(
     config: &CompiledSteppedColumnCluster,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    center: IVec3,
+    center: BlockPos,
     column_height: i32,
     reach: i32,
 ) -> bool
@@ -74,7 +74,7 @@ where
     for dz in -reach..=reach {
         for dx in -reach..=reach {
             let at = center + IVec3::new(dx, 0, dz);
-            let step_limit = dist_manhattan(at, center);
+            let step_limit = dist_manhattan(at.as_ivec3(), center.as_ivec3());
             let start = if config.can_replace.test(volume, at) {
                 find_surface(config, volume, at, step_limit)
             } else {
@@ -105,9 +105,9 @@ where
 fn find_surface<W: WorldGenVolume>(
     config: &CompiledSteppedColumnCluster,
     volume: &W,
-    from: IVec3,
+    from: BlockPos,
     mut limit: i32,
-) -> Option<IVec3> {
+) -> Option<BlockPos> {
     let floor = volume.extent().min_y + 1;
     let mut cursor = from;
     while cursor.y > floor && limit > 0 {
@@ -123,9 +123,9 @@ fn find_surface<W: WorldGenVolume>(
 fn find_air<W: WorldGenVolume>(
     config: &CompiledSteppedColumnCluster,
     volume: &W,
-    from: IVec3,
+    from: BlockPos,
     mut limit: i32,
-) -> Option<IVec3> {
+) -> Option<BlockPos> {
     let extent = volume.extent();
     let ceiling = extent.min_y + extent.depth - 1;
     let mut cursor = from;
@@ -145,7 +145,7 @@ fn find_air<W: WorldGenVolume>(
 fn can_place_at<W: WorldGenVolume>(
     config: &CompiledSteppedColumnCluster,
     volume: &W,
-    pos: IVec3,
+    pos: BlockPos,
 ) -> bool {
     if !config.can_replace.test(volume, pos) {
         return false;
@@ -167,7 +167,7 @@ mod tests {
     const BASALT: VoxelId = VoxelId(4);
     const STONE: VoxelId = VoxelId(5);
     const BLACKSTONE: VoxelId = VoxelId(6);
-    const AT: IVec3 = IVec3::new(0, 50, 0);
+    const AT: BlockPos = BlockPos::new(0, 50, 0);
 
     fn config(
         cluster_reach: IntProvider,
@@ -268,7 +268,7 @@ mod tests {
             let x = AT.x - 2 + replay.next_i32_bound(5);
             let y = AT.y + replay.next_i32_bound(1);
             let z = AT.z - 2 + replay.next_i32_bound(5);
-            if 5 - dist_manhattan(IVec3::new(x, y, z), AT) >= 0 {
+            if 5 - dist_manhattan(IVec3::new(x, y, z), AT.as_ivec3()) >= 0 {
                 replay.next_i32_bound(2);
             }
         }

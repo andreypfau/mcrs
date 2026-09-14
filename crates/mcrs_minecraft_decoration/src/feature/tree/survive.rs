@@ -2,6 +2,7 @@ use crate::feature::holds;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 /// The block tags a rule is built from. The fluid tags of the same name are
@@ -109,12 +110,12 @@ pub enum SurviveRule {
     },
 }
 
-fn any_horizontal(p: IVec3, test: impl Fn(IVec3) -> bool) -> bool {
+fn any_horizontal(p: BlockPos, test: impl Fn(BlockPos) -> bool) -> bool {
     Direction::HORIZONTAL.iter().any(|d| test(p + d.normal()))
 }
 
 impl SurviveRule {
-    pub fn test(&self, p: IVec3, get: impl Fn(IVec3) -> VoxelId) -> bool {
+    pub fn test(&self, p: BlockPos, get: impl Fn(BlockPos) -> VoxelId) -> bool {
         match self {
             SurviveRule::SupportedBy { offset_y, supports } => {
                 holds(supports, get(p + IVec3::Y * *offset_y))
@@ -179,7 +180,7 @@ mod tests {
         above: VoxelId,
         ring: VoxelId,
         under_ring: VoxelId,
-    ) -> impl Fn(IVec3) -> VoxelId {
+    ) -> impl Fn(BlockPos) -> VoxelId {
         move |p| match (p.x == 0 && p.z == 0, p.y) {
             (true, -1) => below,
             (true, 1) => above,
@@ -196,8 +197,8 @@ mod tests {
             offset_y: -1,
             supports: mask_of([DIRT]).as_ref().clone(),
         };
-        assert!(rule.test(IVec3::ZERO, world(DIRT, AIR, AIR, AIR)));
-        assert!(!rule.test(IVec3::ZERO, world(STONE, AIR, AIR, AIR)));
+        assert!(rule.test(BlockPos::new(0, 0, 0), world(DIRT, AIR, AIR, AIR)));
+        assert!(!rule.test(BlockPos::new(0, 0, 0), world(STONE, AIR, AIR, AIR)));
     }
 
     #[test]
@@ -206,8 +207,8 @@ mod tests {
             offset_y: 1,
             supports: mask_of([LEAVES]).as_ref().clone(),
         };
-        assert!(rule.test(IVec3::ZERO, world(DIRT, LEAVES, AIR, AIR)));
-        assert!(!rule.test(IVec3::ZERO, world(LEAVES, AIR, AIR, AIR)));
+        assert!(rule.test(BlockPos::new(0, 0, 0), world(DIRT, LEAVES, AIR, AIR)));
+        assert!(!rule.test(BlockPos::new(0, 0, 0), world(LEAVES, AIR, AIR, AIR)));
     }
 
     #[test]
@@ -217,10 +218,10 @@ mod tests {
             supports: mask_of([WATER]).as_ref().clone(),
             blocked: mask_of([WATER]).as_ref().clone(),
         };
-        assert!(rule.test(IVec3::ZERO, world(WATER, AIR, AIR, AIR)));
-        assert!(!rule.test(IVec3::ZERO, world(DIRT, AIR, AIR, AIR)));
-        let submerged = |p: IVec3| if p.y <= 0 { WATER } else { AIR };
-        assert!(!rule.test(IVec3::ZERO, submerged));
+        assert!(rule.test(BlockPos::new(0, 0, 0), world(WATER, AIR, AIR, AIR)));
+        assert!(!rule.test(BlockPos::new(0, 0, 0), world(DIRT, AIR, AIR, AIR)));
+        let submerged = |p: BlockPos| if p.y <= 0 { WATER } else { AIR };
+        assert!(!rule.test(BlockPos::new(0, 0, 0), submerged));
     }
 
     #[test]
@@ -230,13 +231,13 @@ mod tests {
             supports: mask_of([SAND]).as_ref().clone(),
             adjacent: mask_of([WATER]).as_ref().clone(),
         };
-        assert!(rule.test(IVec3::ZERO, world(SUGAR_CANE, AIR, AIR, AIR)));
+        assert!(rule.test(BlockPos::new(0, 0, 0), world(SUGAR_CANE, AIR, AIR, AIR)));
         assert!(
-            !rule.test(IVec3::ZERO, world(SAND, AIR, WATER, AIR)),
+            !rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, WATER, AIR)),
             "the adjacency is read beside the block below, not beside the cane"
         );
-        assert!(rule.test(IVec3::ZERO, world(SAND, AIR, AIR, WATER)));
-        assert!(!rule.test(IVec3::ZERO, world(STONE, AIR, AIR, WATER)));
+        assert!(rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, AIR, WATER)));
+        assert!(!rule.test(BlockPos::new(0, 0, 0), world(STONE, AIR, AIR, WATER)));
     }
 
     #[test]
@@ -246,11 +247,11 @@ mod tests {
             blocked: mask_of([STONE, SAND]).as_ref().clone(),
             liquid: mask_of([WATER]).as_ref().clone(),
         };
-        assert!(rule.test(IVec3::ZERO, world(SAND, AIR, AIR, AIR)));
-        assert!(rule.test(IVec3::ZERO, world(CACTUS, AIR, AIR, AIR)));
-        assert!(!rule.test(IVec3::ZERO, world(SAND, AIR, STONE, AIR)));
-        assert!(!rule.test(IVec3::ZERO, world(SAND, WATER, AIR, AIR)));
-        assert!(!rule.test(IVec3::ZERO, world(DIRT, AIR, AIR, AIR)));
+        assert!(rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, AIR, AIR)));
+        assert!(rule.test(BlockPos::new(0, 0, 0), world(CACTUS, AIR, AIR, AIR)));
+        assert!(!rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, STONE, AIR)));
+        assert!(!rule.test(BlockPos::new(0, 0, 0), world(SAND, WATER, AIR, AIR)));
+        assert!(!rule.test(BlockPos::new(0, 0, 0), world(DIRT, AIR, AIR, AIR)));
     }
 
     #[test]
@@ -260,10 +261,16 @@ mod tests {
             wet_supports: mask_of([DIRT]).as_ref().clone(),
             water: mask_of([WATER]).as_ref().clone(),
         };
-        assert!(rule.test(IVec3::ZERO, world(SAND, AIR, AIR, AIR)));
-        assert!(!rule.test(IVec3::ZERO, world(DIRT, AIR, AIR, AIR)));
-        let flooded = |p: IVec3| if p == IVec3::ZERO { WATER } else { DIRT };
-        assert!(rule.test(IVec3::ZERO, flooded));
+        assert!(rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, AIR, AIR)));
+        assert!(!rule.test(BlockPos::new(0, 0, 0), world(DIRT, AIR, AIR, AIR)));
+        let flooded = |p: BlockPos| {
+            if p == BlockPos::new(0, 0, 0) {
+                WATER
+            } else {
+                DIRT
+            }
+        };
+        assert!(rule.test(BlockPos::new(0, 0, 0), flooded));
     }
 
     #[test]

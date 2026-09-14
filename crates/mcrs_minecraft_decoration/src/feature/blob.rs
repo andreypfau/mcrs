@@ -5,6 +5,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{Predicate, StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 /// `BlockPos.withinBoxByManhattanDistance` cut at `max_depth`: shells of
@@ -44,7 +45,7 @@ pub fn place_block_blob<W: WorldGenVolume>(
     cfg: &CompiledBlockBlob,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let floor = volume.extent().min_y + 3;
     let mut origin = at;
@@ -65,7 +66,7 @@ pub fn place_block_blob<W: WorldGenVolume>(
                 for x in -reach_x..=reach_x {
                     if (x * x + y * y + z * z) as f64 <= (threshold * threshold) as f64 {
                         volume.set(
-                            IVec3::new(origin.x + x, origin.y + y, origin.z + z),
+                            BlockPos::new(origin.x + x, origin.y + y, origin.z + z),
                             cfg.state,
                         );
                     }
@@ -98,7 +99,7 @@ pub fn place_replace_blobs<W: WorldGenVolume>(
     cfg: &CompiledReplaceBlobs,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let extent = volume.extent();
     let bottom = extent.min_y + 1;
@@ -107,8 +108,9 @@ pub fn place_replace_blobs<W: WorldGenVolume>(
         if y <= bottom {
             return false;
         }
-        if volume.holds(&cfg.target, at.with_y(y)) {
-            break IVec3::new(at.x, y, at.z);
+        let candidate = BlockPos::new(at.x, y, at.z);
+        if volume.holds(&cfg.target, candidate) {
+            break candidate;
         }
         y -= 1;
     };
@@ -147,7 +149,7 @@ pub fn place_delta<W: WorldGenVolume>(
     cfg: &CompiledDelta,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     let spawn_rim = rng.next_f64() < 0.9;
     let rim_x = if spawn_rim {
@@ -189,7 +191,7 @@ pub fn place_delta<W: WorldGenVolume>(
 
 /// Open sky above, solid on the five other faces, and nothing the delta refuses
 /// to overwrite.
-fn is_clear<W: WorldGenVolume>(cfg: &CompiledDelta, volume: &W, pos: IVec3) -> bool {
+fn is_clear<W: WorldGenVolume>(cfg: &CompiledDelta, volume: &W, pos: BlockPos) -> bool {
     let state = volume.get(pos);
     if holds(&cfg.contents_block, state) || holds(&cfg.cannot_replace, state) {
         return false;
@@ -250,7 +252,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 50, 0)
+            BlockPos::new(0, 50, 0)
         ));
 
         let mut replay = seeded();
@@ -297,7 +299,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 50, 0)
+            BlockPos::new(0, 50, 0)
         ));
         assert!(volume.writes.is_empty());
         assert_eq!(rng, before);
@@ -318,7 +320,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 50, 0)
+            BlockPos::new(0, 50, 0)
         ));
 
         let mut replay = seeded();
@@ -360,7 +362,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 50, 0)
+            BlockPos::new(0, 50, 0)
         ));
         assert!(volume.writes.is_empty());
         assert_eq!(rng, before);
@@ -385,7 +387,7 @@ mod tests {
         let cfg = delta_config();
         let mut volume = solid_below(40, NETHERRACK);
         let mut rng = seeded();
-        place_delta(&cfg, &mut volume, &mut rng, IVec3::new(0, 40, 0));
+        place_delta(&cfg, &mut volume, &mut rng, BlockPos::new(0, 40, 0));
 
         let mut replay = seeded();
         let spawn_rim = replay.next_f64() < 0.9;
@@ -409,7 +411,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 40, 0)
+            BlockPos::new(0, 40, 0)
         ));
         assert!(volume.writes.is_empty());
     }
@@ -425,7 +427,7 @@ mod tests {
             &cfg,
             &mut volume,
             &mut rng,
-            IVec3::new(0, 40, 0)
+            BlockPos::new(0, 40, 0)
         ));
 
         let mut replay = seeded();

@@ -2,13 +2,13 @@ use crate::feature::random_direction;
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
-use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{BlockLayout, Predicate, WorldGenVolume};
 use mcrs_minecraft_worldgen::noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_worldgen::value_provider::{IntProvider, pick_weighted_by};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::mth::clamped_map;
 use mcrs_voxel_storage::VoxelId;
 
@@ -204,7 +204,7 @@ impl StateProvider {
         &self,
         volume: &W,
         rng: &mut XoroshiroRandom,
-        pos: IVec3,
+        pos: BlockPos,
     ) -> VoxelId {
         self.optional_state(volume, rng, pos)
             .unwrap_or_else(|| volume.get(pos))
@@ -214,7 +214,7 @@ impl StateProvider {
         &self,
         volume: &W,
         rng: &mut XoroshiroRandom,
-        pos: IVec3,
+        pos: BlockPos,
     ) -> Option<VoxelId> {
         match self {
             StateProvider::Simple(state) => Some(*state),
@@ -320,7 +320,7 @@ impl StateProvider {
                     variety.max(0) as usize,
                     noise_value(noise, pos, *scale as f64),
                 ) as i32;
-                let offset = IVec3::new(pos.x + i * 54545, pos.y, pos.z + i * 34234);
+                let offset = BlockPos::new(pos.x + i * 54545, pos.y, pos.z + i * 34234);
                 Some(state_at_noise(
                     states,
                     slow_noise_value(slow_noise, offset, *slow_scale),
@@ -331,7 +331,7 @@ impl StateProvider {
 }
 
 /// The scale reaches the sampler as a `double`, so the products are `f64`.
-fn noise_value(noise: &NoiseStack<Octave>, pos: IVec3, scale: f64) -> f32 {
+fn noise_value(noise: &NoiseStack<Octave>, pos: BlockPos, scale: f64) -> f32 {
     noise.get(
         pos.x as f64 * scale,
         pos.y as f64 * scale,
@@ -341,7 +341,7 @@ fn noise_value(noise: &NoiseStack<Octave>, pos: IVec3, scale: f64) -> f32 {
 
 /// Unlike [`noise_value`], the slow scale is a `float` field multiplied against
 /// an `int`, so the product rounds to `f32` before it widens.
-fn slow_noise_value(noise: &NoiseStack<Octave>, pos: IVec3, scale: f32) -> f32 {
+fn slow_noise_value(noise: &NoiseStack<Octave>, pos: BlockPos, scale: f32) -> f32 {
     noise.get(
         (pos.x as f32 * scale) as f64,
         (pos.y as f32 * scale) as f64,
@@ -360,6 +360,7 @@ fn index_at_noise(len: usize, noise: f32) -> usize {
 
 #[cfg(test)]
 pub(crate) mod fake {
+    use bevy_math::IVec3;
     use rustc_hash::FxHashMap as HashMap;
 
     use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
@@ -408,23 +409,23 @@ pub(crate) mod fake {
     }
 
     impl Volume for FakeVolume {
-        fn min(&self) -> IVec3 {
-            IVec3::splat(i32::MIN / 2)
+        fn min(&self) -> BlockPos {
+            IVec3::splat(i32::MIN / 2).into()
         }
 
-        fn max(&self) -> IVec3 {
-            IVec3::splat(i32::MAX / 2)
+        fn max(&self) -> BlockPos {
+            IVec3::splat(i32::MAX / 2).into()
         }
     }
 
     impl Blocks for FakeVolume {
-        fn get(&self, p: IVec3) -> VoxelId {
+        fn get(&self, p: BlockPos) -> VoxelId {
             self.blocks.get(&(p.x, p.y, p.z)).copied().unwrap_or(AIR)
         }
     }
 
     impl BlocksMut for FakeVolume {
-        fn set(&mut self, p: IVec3, state: VoxelId) {
+        fn set(&mut self, p: BlockPos, state: VoxelId) {
             self.blocks.insert((p.x, p.y, p.z), state);
             self.writes.push(((p.x, p.y, p.z), state));
         }
@@ -439,7 +440,7 @@ pub(crate) mod fake {
             self.heights.get(&(x, z)).copied().unwrap_or(i32::MIN)
         }
 
-        fn biome(&self, _: IVec3) -> u32 {
+        fn biome(&self, _: BlockPos) -> u32 {
             0
         }
 
@@ -451,7 +452,7 @@ pub(crate) mod fake {
             }
         }
 
-        fn would_survive(&self, _: VoxelId, _: IVec3) -> bool {
+        fn would_survive(&self, _: VoxelId, _: BlockPos) -> bool {
             true
         }
     }
@@ -459,6 +460,7 @@ pub(crate) mod fake {
 
 #[cfg(test)]
 mod tests {
+    use bevy_math::IVec3;
     use mcrs_minecraft_worldgen::feature::placer::mask_of;
     use std::sync::Arc;
 
@@ -475,7 +477,7 @@ mod tests {
     const A: VoxelId = VoxelId(11);
     const B: VoxelId = VoxelId(22);
     const C: VoxelId = VoxelId(33);
-    const ORIGIN: IVec3 = IVec3::new(4, 70, -9);
+    const ORIGIN: BlockPos = BlockPos::new(4, 70, -9);
 
     fn rng() -> XoroshiroRandom {
         XoroshiroRandom::new(0x5eed_1234)

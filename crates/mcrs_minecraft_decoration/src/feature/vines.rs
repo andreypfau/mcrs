@@ -1,6 +1,6 @@
-use bevy_math::IVec3;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 /// `VinesFeature.place`: the first face of `Direction.values()` order, minus
@@ -8,7 +8,7 @@ use mcrs_voxel_storage::VoxelId;
 ///
 /// `vine` is one state per face over `Direction::all()`; the down slot is never
 /// read, since a vine has no bottom face.
-pub fn place_vines<W: WorldGenVolume>(vine: &[VoxelId; 6], volume: &mut W, at: IVec3) -> bool {
+pub fn place_vines<W: WorldGenVolume>(vine: &[VoxelId; 6], volume: &mut W, at: BlockPos) -> bool {
     if !volume.is_air(at) {
         return false;
     }
@@ -18,7 +18,7 @@ pub fn place_vines<W: WorldGenVolume>(vine: &[VoxelId; 6], volume: &mut W, at: I
         }
         // `MultifaceBlock.canAttachTo` as the full-collision-cube flag, so a
         // vine refuses a stair or a slab the reference would hang from.
-        let neighbour = direction.relative(at, 1);
+        let neighbour = at + direction.normal();
         if volume.holds(&volume.world().sturdy_up, neighbour) {
             volume.set(at, vine[index]);
             return true;
@@ -36,7 +36,7 @@ mod tests {
     use crate::feature::tree::provider::fake::FakeVolume;
 
     const STONE: VoxelId = VoxelId(1);
-    const AT: IVec3 = IVec3::new(0, 70, 0);
+    const AT: BlockPos = BlockPos::new(0, 70, 0);
 
     /// Stone is what a vine can hang from.
     fn cave(mut volume: FakeVolume) -> FakeVolume {

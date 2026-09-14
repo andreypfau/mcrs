@@ -4,6 +4,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen::value_provider::IntProvider;
+use mcrs_voxel_math::BlockPos;
 
 use std::sync::Arc;
 
@@ -34,14 +35,14 @@ pub fn place_fallen_tree<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     sink: &mut dyn TreeSink<W>,
-    origin: IVec3,
+    origin: BlockPos,
 ) -> bool {
     let stump = place_log(tree, volume, rng, origin, None);
     decorate(tree, &tree.stump_decorators, volume, rng, sink, &[stump]);
 
     let direction = random_horizontal(rng);
     let log_length = tree.log_length.sample(rng) - 2;
-    let mut start = direction.relative(origin, 2 + rng.next_i32_bound(2));
+    let mut start = origin + direction.normal() * (2 + rng.next_i32_bound(2));
 
     start.y += 1;
     for _ in 0..MAX_FALL_HEIGHT {
@@ -59,7 +60,7 @@ pub fn place_fallen_tree<W: WorldGenVolume>(
     let mut pos = start;
     for _ in 0..log_length {
         logs.push(place_log(tree, volume, rng, pos, Some(direction)));
-        pos = direction.relative(pos, 1);
+        pos += direction.normal();
     }
     decorate(tree, &tree.log_decorators, volume, rng, sink, &logs);
     true
@@ -69,9 +70,9 @@ fn place_log<W: WorldGenVolume>(
     tree: &CompiledFallenTree,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    pos: IVec3,
+    pos: BlockPos,
     sideways: Option<Direction>,
-) -> IVec3 {
+) -> BlockPos {
     let state = tree.trunk_provider.state(volume, rng, pos);
     let state = match sideways {
         Some(direction) => tree.tables.states.with_axis(state, direction.axis()),
@@ -81,14 +82,14 @@ fn place_log<W: WorldGenVolume>(
     pos
 }
 
-fn is_valid<W: WorldGenVolume>(tree: &CompiledFallenTree, volume: &W, pos: IVec3) -> bool {
+fn is_valid<W: WorldGenVolume>(tree: &CompiledFallenTree, volume: &W, pos: BlockPos) -> bool {
     volume.holds(&tree.tables.states.valid_tree_pos, pos)
 }
 
 /// `isFaceSturdy(UP)` as the full-collision-cube flag: a top slab or a farmland
 /// block reads as no ground where the reference accepts it, and every surface
 /// the corpus's fallen trees land on is a full cube.
-fn is_over_solid_ground<W: WorldGenVolume>(volume: &W, pos: IVec3) -> bool {
+fn is_over_solid_ground<W: WorldGenVolume>(volume: &W, pos: BlockPos) -> bool {
     volume.holds(&volume.world().sturdy_up, pos - IVec3::Y)
 }
 
@@ -98,7 +99,7 @@ fn can_place_entire_log<W: WorldGenVolume>(
     tree: &CompiledFallenTree,
     volume: &W,
     log_length: i32,
-    start: IVec3,
+    start: BlockPos,
     direction: Direction,
 ) -> bool {
     let mut gap = 0;
@@ -115,7 +116,7 @@ fn can_place_entire_log<W: WorldGenVolume>(
                 return false;
             }
         }
-        pos = direction.relative(pos, 1);
+        pos += direction.normal();
     }
     true
 }
@@ -128,7 +129,7 @@ fn decorate<W: WorldGenVolume>(
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     sink: &mut dyn TreeSink<W>,
-    logs: &[IVec3],
+    logs: &[BlockPos],
 ) {
     if decorators.is_empty() {
         return;
@@ -213,7 +214,7 @@ mod tests {
         }
     }
 
-    const ORIGIN: IVec3 = IVec3::new(0, 64, 0);
+    const ORIGIN: BlockPos = BlockPos::new(0, 64, 0);
 
     /// The draw order of `FallenTreeFeature.placeFallenTree`: the stump's own
     /// provider, then the fall direction, then the log's length, then the gap
@@ -245,9 +246,9 @@ mod tests {
         );
 
         assert_eq!(volume.get(ORIGIN), LOG, "the stump");
-        let start = direction.relative(ORIGIN, gap);
+        let start = ORIGIN + direction.normal() * gap;
         for step in 0..log_length {
-            let at = direction.relative(start, step);
+            let at = start + direction.normal() * step;
             assert_eq!(volume.get(at), LOG, "the log at {step} of {log_length}");
             assert_eq!(at.y, 64, "the log rests on the ground it searched down to");
         }

@@ -11,6 +11,7 @@ use mcrs_voxel_storage::VoxelId;
 
 use super::provider::StateProvider;
 
+use mcrs_voxel_math::BlockPos;
 pub use mcrs_voxel_math::{Axis, dist_manhattan};
 
 pub fn random_horizontal(rng: &mut XoroshiroRandom) -> Direction {
@@ -69,9 +70,9 @@ pub struct TreeContext<'a, W> {
     pub trunk_provider: &'a StateProvider,
     pub foliage_provider: &'a StateProvider,
     pub below_trunk_provider: &'a StateProvider,
-    pub logs: Vec<IVec3>,
-    pub leaves: Vec<IVec3>,
-    leaf_set: HashSet<IVec3>,
+    pub logs: Vec<BlockPos>,
+    pub leaves: Vec<BlockPos>,
+    leaf_set: HashSet<BlockPos>,
 }
 
 impl<'a, W: WorldGenVolume> TreeContext<'a, W> {
@@ -94,46 +95,46 @@ impl<'a, W: WorldGenVolume> TreeContext<'a, W> {
         }
     }
 
-    pub fn get(&self, pos: IVec3) -> VoxelId {
+    pub fn get(&self, pos: BlockPos) -> VoxelId {
         self.volume.get(pos)
     }
 
-    pub fn holds(&self, mask: &StateMask, pos: IVec3) -> bool {
+    pub fn holds(&self, mask: &StateMask, pos: BlockPos) -> bool {
         self.volume.holds(mask, pos)
     }
 
-    pub fn is_valid_tree_pos(&self, pos: IVec3) -> bool {
+    pub fn is_valid_tree_pos(&self, pos: BlockPos) -> bool {
         self.holds(&self.states.valid_tree_pos, pos)
     }
 
-    pub fn is_air_or_leaves(&self, pos: IVec3) -> bool {
+    pub fn is_air_or_leaves(&self, pos: BlockPos) -> bool {
         self.holds(&self.states.air_or_leaves, pos)
     }
 
     /// `TrunkPlacer.isFree` before a placer's own widening.
-    pub fn is_free(&self, pos: IVec3) -> bool {
+    pub fn is_free(&self, pos: BlockPos) -> bool {
         self.is_valid_tree_pos(pos) || self.holds(&self.states.logs, pos)
     }
 
-    pub fn is_persistent(&self, pos: IVec3) -> bool {
+    pub fn is_persistent(&self, pos: BlockPos) -> bool {
         self.holds(&self.states.persistent, pos)
     }
 
     /// `level.isFluidAtPosition(pos, fluid -> fluid.isSourceOfType(WATER))`.
-    pub fn is_water_source(&self, pos: IVec3) -> bool {
+    pub fn is_water_source(&self, pos: BlockPos) -> bool {
         self.holds(&self.volume.world().water_source, pos)
     }
 
-    fn set(&mut self, pos: IVec3, state: VoxelId) {
+    fn set(&mut self, pos: BlockPos, state: VoxelId) {
         self.volume.set(pos, state);
     }
 
-    pub fn set_log(&mut self, pos: IVec3, state: VoxelId) {
+    pub fn set_log(&mut self, pos: BlockPos, state: VoxelId) {
         self.logs.push(pos);
         self.set(pos, state);
     }
 
-    pub fn set_leaf(&mut self, pos: IVec3, state: VoxelId) {
+    pub fn set_leaf(&mut self, pos: BlockPos, state: VoxelId) {
         if self.leaf_set.insert(pos) {
             self.leaves.push(pos);
         }
@@ -141,13 +142,13 @@ impl<'a, W: WorldGenVolume> TreeContext<'a, W> {
     }
 
     /// `FoliageSetter.isSet`: this tree's own leaves, not the world's.
-    pub fn is_leaf_set(&self, pos: IVec3) -> bool {
+    pub fn is_leaf_set(&self, pos: BlockPos) -> bool {
         self.leaf_set.contains(&pos)
     }
 
     /// `TrunkPlacer.placeBelowTrunkBlock`, the only user of a provider's
     /// optional form: nothing matching writes nothing at all.
-    pub fn place_below_trunk_block(&mut self, rng: &mut XoroshiroRandom, pos: IVec3) {
+    pub fn place_below_trunk_block(&mut self, rng: &mut XoroshiroRandom, pos: BlockPos) {
         if let Some(state) = self
             .below_trunk_provider
             .optional_state(self.volume, rng, pos)
@@ -160,13 +161,13 @@ impl<'a, W: WorldGenVolume> TreeContext<'a, W> {
 /// Where a crown hangs off a trunk, as the trunk placer left it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FoliageAttachment {
-    pub pos: IVec3,
+    pub pos: BlockPos,
     pub radius_offset_xz: i32,
     pub double_trunk: bool,
 }
 
 impl FoliageAttachment {
-    pub const fn new(pos: IVec3, radius_offset_xz: i32, double_trunk: bool) -> Self {
+    pub const fn new(pos: BlockPos, radius_offset_xz: i32, double_trunk: bool) -> Self {
         FoliageAttachment {
             pos,
             radius_offset_xz,
@@ -258,7 +259,11 @@ impl Trunk {
     }
 
     /// `validTreePos`, which only `upwards_branching` widens.
-    pub fn valid_tree_pos<W: WorldGenVolume>(&self, cx: &TreeContext<'_, W>, pos: IVec3) -> bool {
+    pub fn valid_tree_pos<W: WorldGenVolume>(
+        &self,
+        cx: &TreeContext<'_, W>,
+        pos: BlockPos,
+    ) -> bool {
         cx.is_valid_tree_pos(pos)
             || self
                 .grow_through
@@ -267,7 +272,7 @@ impl Trunk {
     }
 
     /// `isFree`, which the tree's own free-space scan runs over its footprint.
-    pub fn is_free<W: WorldGenVolume>(&self, cx: &TreeContext<'_, W>, pos: IVec3) -> bool {
+    pub fn is_free<W: WorldGenVolume>(&self, cx: &TreeContext<'_, W>, pos: BlockPos) -> bool {
         self.valid_tree_pos(cx, pos) || cx.is_free(pos)
     }
 
@@ -275,7 +280,7 @@ impl Trunk {
         &self,
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        pos: IVec3,
+        pos: BlockPos,
         axis: Option<Axis>,
     ) -> bool {
         if !self.valid_tree_pos(cx, pos) {
@@ -293,7 +298,7 @@ impl Trunk {
         &self,
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        pos: IVec3,
+        pos: BlockPos,
     ) {
         if self.is_free(cx, pos) {
             self.place_log(cx, rng, pos, None);
@@ -305,7 +310,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
         match &self.placer {
             TrunkPlacer::Straight { .. } => {
@@ -388,7 +393,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
         cx.place_below_trunk_block(rng, origin - IVec3::Y);
         let mut attachments = Vec::new();
@@ -406,13 +411,13 @@ impl Trunk {
                 tz += delta.z;
                 lean_steps -= 1;
             }
-            if self.place_log(cx, rng, IVec3::new(tx, yy, tz), None) {
+            if self.place_log(cx, rng, BlockPos::new(tx, yy, tz), None) {
                 end_y = Some(yy + 1);
             }
         }
 
         if let Some(y) = end_y {
-            attachments.push(FoliageAttachment::new(IVec3::new(tx, y, tz), 1, false));
+            attachments.push(FoliageAttachment::new(BlockPos::new(tx, y, tz), 1, false));
         }
 
         tx = origin.x;
@@ -429,7 +434,7 @@ impl Trunk {
                     let delta = branch_direction.normal();
                     tx += delta.x;
                     tz += delta.z;
-                    if self.place_log(cx, rng, IVec3::new(tx, yyx, tz), None) {
+                    if self.place_log(cx, rng, BlockPos::new(tx, yyx, tz), None) {
                         end_y = Some(yyx + 1);
                     }
                 }
@@ -438,7 +443,7 @@ impl Trunk {
             }
 
             if let Some(y) = end_y {
-                attachments.push(FoliageAttachment::new(IVec3::new(tx, y, tz), 0, false));
+                attachments.push(FoliageAttachment::new(BlockPos::new(tx, y, tz), 0, false));
             }
         }
 
@@ -450,7 +455,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
         let below = origin - IVec3::Y;
         cx.place_below_trunk_block(rng, below);
@@ -479,7 +484,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
         let mut attachments = self.place_giant(cx, rng, tree_height, origin);
         let mut branch_height = tree_height - 2 - rng.next_i32_bound(4);
@@ -512,7 +517,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
         let mut attachments = Vec::new();
         let below = origin - IVec3::Y;
@@ -534,7 +539,7 @@ impl Trunk {
                 tz += delta.z;
                 lean_steps -= 1;
             }
-            let at = IVec3::new(tx, origin.y + dy, tz);
+            let at = BlockPos::new(tx, origin.y + dy, tz);
             if cx.is_air_or_leaves(at) {
                 self.place_log(cx, rng, at, None);
                 self.place_log(cx, rng, at + IVec3::X, None);
@@ -543,7 +548,11 @@ impl Trunk {
             }
         }
 
-        attachments.push(FoliageAttachment::new(IVec3::new(tx, end_y, tz), 0, true));
+        attachments.push(FoliageAttachment::new(
+            BlockPos::new(tx, end_y, tz),
+            0,
+            true,
+        ));
 
         for ox in -1..=2 {
             for oz in -1..=2 {
@@ -554,12 +563,12 @@ impl Trunk {
                         self.place_log(
                             cx,
                             rng,
-                            IVec3::new(origin.x + ox, end_y - branch_y - 1, origin.z + oz),
+                            BlockPos::new(origin.x + ox, end_y - branch_y - 1, origin.z + oz),
                             None,
                         );
                     }
                     attachments.push(FoliageAttachment::new(
-                        IVec3::new(origin.x + ox, end_y, origin.z + oz),
+                        BlockPos::new(origin.x + ox, end_y, origin.z + oz),
                         0,
                         false,
                     ));
@@ -575,7 +584,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
         let height = tree_height + 2;
         let trunk_height = (height as f64 * 0.618).floor() as i32;
@@ -613,7 +622,7 @@ impl Trunk {
                 } else {
                     branch_height as i32
                 };
-                let check_branch_base = IVec3::new(origin.x, branch_top, origin.z);
+                let check_branch_base = BlockPos::new(origin.x, branch_top, origin.z);
                 if self.make_limb(cx, rng, check_branch_base, check_start, false) {
                     foliage_coords
                         .push((FoliageAttachment::new(check_start, 0, false), branch_top));
@@ -624,7 +633,7 @@ impl Trunk {
         self.make_limb(cx, rng, origin, origin + IVec3::Y * trunk_height, true);
 
         for &(attachment, branch_base) in &foliage_coords {
-            let base = IVec3::new(origin.x, branch_base, origin.z);
+            let base = BlockPos::new(origin.x, branch_base, origin.z);
             if base != attachment.pos && trim_branches(height, branch_base - origin.y) {
                 self.make_limb(cx, rng, base, attachment.pos, true);
             }
@@ -641,8 +650,8 @@ impl Trunk {
         &self,
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
-        start: IVec3,
-        end: IVec3,
+        start: BlockPos,
+        end: BlockPos,
         do_place: bool,
     ) -> bool {
         if !do_place && start == end {
@@ -676,7 +685,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
         min_height_for_leaves: &Bounded<1, { i32::MAX }, 1>,
         bend_length: &IntProvider,
     ) -> Vec<FoliageAttachment> {
@@ -688,7 +697,7 @@ impl Trunk {
 
         for i in 0..=log_height {
             if i + 1 >= log_height + rng.next_i32_bound(2) {
-                at = direction.relative(at, 1);
+                at += direction.normal();
             }
             if cx.is_valid_tree_pos(at) {
                 self.place_log(cx, rng, at, None);
@@ -705,7 +714,7 @@ impl Trunk {
                 self.place_log(cx, rng, at, None);
             }
             points.push(FoliageAttachment::new(at, 0, false));
-            at = direction.relative(at, 1);
+            at += direction.normal();
         }
 
         points
@@ -717,7 +726,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
         extra_branch_steps: &IntProvider,
         place_branch_per_log_probability: &UnitFloat,
         extra_branch_length: &IntProvider,
@@ -726,7 +735,7 @@ impl Trunk {
 
         for height_pos in 0..tree_height {
             let current_height = origin.y + height_pos;
-            let log_pos = IVec3::new(origin.x, current_height, origin.z);
+            let log_pos = BlockPos::new(origin.x, current_height, origin.z);
             if self.place_log(cx, rng, log_pos, None)
                 && height_pos < tree_height - 1
                 && rng.next_f32() < place_branch_per_log_probability.0 as f32
@@ -750,7 +759,7 @@ impl Trunk {
 
             if height_pos == tree_height - 1 {
                 attachments.push(FoliageAttachment::new(
-                    IVec3::new(origin.x, current_height + 1, origin.z),
+                    BlockPos::new(origin.x, current_height + 1, origin.z),
                     0,
                     false,
                 ));
@@ -767,7 +776,7 @@ impl Trunk {
         rng: &mut XoroshiroRandom,
         tree_height: i32,
         attachments: &mut Vec<FoliageAttachment>,
-        log_pos: IVec3,
+        log_pos: BlockPos,
         current_height: i32,
         branch_dir: Direction,
         branch_pos: i32,
@@ -785,7 +794,7 @@ impl Trunk {
                 log_x += delta.x;
                 log_z += delta.z;
                 height_along_branch = placement_height;
-                let at = IVec3::new(log_x, placement_height, log_z);
+                let at = BlockPos::new(log_x, placement_height, log_z);
                 if self.place_log(cx, rng, at, None) {
                     height_along_branch = placement_height + 1;
                 }
@@ -796,7 +805,7 @@ impl Trunk {
         }
 
         if height_along_branch - current_height > 1 {
-            let foliage_pos = IVec3::new(log_x, height_along_branch, log_z);
+            let foliage_pos = BlockPos::new(log_x, height_along_branch, log_z);
             attachments.push(FoliageAttachment::new(foliage_pos, 0, false));
             attachments.push(FoliageAttachment::new(foliage_pos - IVec3::Y * 2, 0, false));
         }
@@ -808,7 +817,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
         branch_count: &IntProvider,
         branch_start_offset_from_top: &UniformIntRange,
         branch: CherryBranch<'_>,
@@ -887,7 +896,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
         branch: CherryBranch<'_>,
         sideways_axis: Axis,
         branch_direction: Direction,
@@ -904,11 +913,11 @@ impl Trunk {
         let extend = middle_continues_upwards || branch_end_offset < offset_from_origin;
         let distance_to_trunk = branch_horizontal_length.sample(rng) + i32::from(extend);
         let branch_end_pos =
-            branch_direction.relative(origin, distance_to_trunk) + IVec3::Y * branch_end_offset;
+            origin + branch_direction.normal() * distance_to_trunk + IVec3::Y * branch_end_offset;
         let steps_horizontally = if extend { 2 } else { 1 };
 
         for _ in 0..steps_horizontally {
-            log_pos = branch_direction.relative(log_pos, 1);
+            log_pos += branch_direction.normal();
             self.place_log(cx, rng, log_pos, Some(sideways_axis));
         }
 
@@ -919,18 +928,18 @@ impl Trunk {
         };
 
         loop {
-            let distance = dist_manhattan(log_pos, branch_end_pos);
+            let distance = dist_manhattan(*log_pos, *branch_end_pos);
             if distance == 0 {
                 return FoliageAttachment::new(branch_end_pos + IVec3::Y, 0, false);
             }
             let chance = (branch_end_pos.y - log_pos.y).abs() as f32 / distance as f32;
             let grow_vertically = rng.next_f32() < chance;
-            log_pos = if grow_vertically {
+            log_pos += if grow_vertically {
                 vertical_direction
             } else {
                 branch_direction
             }
-            .relative(log_pos, 1);
+            .normal();
             let axis = if grow_vertically {
                 None
             } else {
@@ -945,7 +954,7 @@ impl Trunk {
         cx: &mut TreeContext<'_, W>,
         rng: &mut XoroshiroRandom,
         tree_height: i32,
-        origin: IVec3,
+        origin: BlockPos,
         trunk_height_above_branches: &IntProvider,
         branch_amount: &IntProvider,
     ) -> Vec<FoliageAttachment> {
@@ -962,7 +971,7 @@ impl Trunk {
                     self.place_log(
                         cx,
                         rng,
-                        branch_direction.relative(origin + IVec3::Y * y, 1),
+                        origin + IVec3::Y * y + branch_direction.normal(),
                         Some(branch_direction.axis()),
                     );
                 }
@@ -1005,7 +1014,7 @@ fn tree_shape(height: i32, y: i32) -> f32 {
     distance * 0.5
 }
 
-fn log_axis(start: IVec3, at: IVec3) -> Axis {
+fn log_axis(start: BlockPos, at: BlockPos) -> Axis {
     let x_diff = (at.x - start.x).abs();
     let z_diff = (at.z - start.z).abs();
     let max_diff = x_diff.max(z_diff);
@@ -1207,7 +1216,7 @@ mod tests {
     fn pin_of(placer: &Trunk) -> Pin {
         run(42, |cx, rng| {
             let tree_height = placer.tree_height(rng);
-            placer.place_trunk(cx, rng, tree_height, IVec3::new(8, 64, 8));
+            placer.place_trunk(cx, rng, tree_height, BlockPos::new(8, 64, 8));
         })
     }
 
@@ -1304,7 +1313,7 @@ mod tests {
         );
         let widened = placer_through("upwards_branching", &branching, mask(&[DIRT]));
         let plain = placer("upwards_branching", &branching);
-        let at = IVec3::ZERO;
+        let at = BlockPos::new(0, 0, 0);
 
         assert!(widened.valid_tree_pos(&cx, at));
         assert!(!plain.valid_tree_pos(&cx, at));

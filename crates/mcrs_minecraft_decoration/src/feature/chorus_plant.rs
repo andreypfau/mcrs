@@ -4,6 +4,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 const MAX_HORIZONTAL_SPREAD: i32 = 8;
@@ -43,7 +44,7 @@ pub fn place_chorus_plant<W: WorldGenVolume>(
     cfg: &CompiledChorusPlant,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    at: IVec3,
+    at: BlockPos,
 ) -> bool {
     if !volume.is_air(at) || !volume.holds(&cfg.supports, at - IVec3::Y) {
         return false;
@@ -57,8 +58,8 @@ fn grow<W: WorldGenVolume>(
     cfg: &CompiledChorusPlant,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
-    current: IVec3,
-    start: IVec3,
+    current: BlockPos,
+    start: BlockPos,
     depth: i32,
 ) {
     let mut height = rng.next_i32_bound(4) + 1;
@@ -67,7 +68,7 @@ fn grow<W: WorldGenVolume>(
     }
 
     for step in 1..=height {
-        let target = IVec3::new(current.x, current.y + step, current.z);
+        let target = BlockPos::new(current.x, current.y + step, current.z);
         // A blocked column abandons the whole node, flower included.
         if !neighbours_empty(volume, target, None) {
             return;
@@ -94,28 +95,28 @@ fn grow<W: WorldGenVolume>(
             {
                 placed_stem = true;
                 connect(cfg, volume, target);
-                connect(cfg, volume, IVec3::new(current.x, target.y, current.z));
+                connect(cfg, volume, BlockPos::new(current.x, target.y, current.z));
                 grow(cfg, volume, rng, target, start, depth + 1);
             }
         }
     }
 
     if !placed_stem {
-        let tip = IVec3::new(current.x, current.y + height, current.z);
+        let tip = BlockPos::new(current.x, current.y + height, current.z);
         volume.set(tip, cfg.flower_age5);
     }
 }
 
-fn neighbours_empty<W: WorldGenVolume>(volume: &W, pos: IVec3, ignore: Option<usize>) -> bool {
+fn neighbours_empty<W: WorldGenVolume>(volume: &W, pos: BlockPos, ignore: Option<usize>) -> bool {
     Direction::HORIZONTAL
         .iter()
         .enumerate()
         .all(|(index, side)| ignore == Some(index) || volume.is_air(pos + side.normal()))
 }
 
-fn connect<W: WorldGenVolume>(cfg: &CompiledChorusPlant, volume: &mut W, pos: IVec3) {
+fn connect<W: WorldGenVolume>(cfg: &CompiledChorusPlant, volume: &mut W, pos: BlockPos) {
     let joins = |volume: &W, x: i32, y: i32, z: i32| {
-        volume.holds(&cfg.plant_or_flower, IVec3::new(x, y, z))
+        volume.holds(&cfg.plant_or_flower, BlockPos::new(x, y, z))
     };
     let below = volume.get(pos - IVec3::Y);
     let down = holds(&cfg.plant_or_flower, below) || holds(&cfg.supports, below);
@@ -144,7 +145,7 @@ mod tests {
     /// 128, so a test reads a written connection mask straight off the id.
     const PLANT_BASE: u16 = 64;
     const FLOWER: VoxelId = VoxelId(128);
-    const ORIGIN: IVec3 = IVec3::new(8, 70, 8);
+    const ORIGIN: BlockPos = BlockPos::new(8, 70, 8);
 
     fn config() -> CompiledChorusPlant {
         let mut plant_by_connections = [VoxelId(0); 64];
