@@ -16,8 +16,9 @@ use crate::world::generate::base_height;
 use crate::world::generate::features::possible_biomes;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
-use crate::world::generate::structures::{DimensionStructureTables, StructureKind, live_sets};
+use crate::world::generate::structures::live_sets;
 use crate::world::heightmap::{HeightmapKinds, heightmap_predicates};
+use mcrs_minecraft_worldgen::structure::frozen::{DimensionStructureTables, StructureKind};
 
 const MAGIC: &[u8; 8] = b"MCSITES0";
 

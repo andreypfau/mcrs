@@ -35,9 +35,10 @@ use crate::world::generate::stages::{
 };
 use crate::world::generate::staging::{FilledSnapshot, RegionSnapshots, Stage, region_column};
 use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
-use crate::world::generate::structures::{DimensionStructureTables, live_sets};
+use crate::world::generate::structures::live_sets;
 use crate::world::generate::{BetaCaveBlockIds, ColumnBlocks, SurfaceIds};
 use crate::world::heightmap::{PendingColumnHeightmaps, heightmap_predicates};
+use mcrs_minecraft_worldgen::structure::frozen::DimensionStructureTables;
 
 use super::corpus_ores::{one_biome_registry, ore_program, ore_tables};
 use super::structures::frozen_shared;

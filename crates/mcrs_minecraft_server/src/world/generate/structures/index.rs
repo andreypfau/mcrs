@@ -13,22 +13,24 @@ use mcrs_minecraft_worldgen::router::{
     CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
 use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
+use mcrs_minecraft_worldgen::structure::StructurePlacement;
 use mcrs_minecraft_worldgen::structure::placement::{
     SpreadPlacement, excluded_in_range, fixed_biome_window, frequency_gate, ring_positions,
     scan_biome_window, select_with_removal,
 };
-use mcrs_minecraft_worldgen::structure::StructurePlacement;
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
 
-use super::jigsaw::{Piece, Start, layout};
-use super::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
-use super::site::{Site, SiteWorld, site};
-use super::{DimensionStructureTables, SetId, StructureId, StructureKind};
 use crate::world::generate::modern_carvers::climate_target_at;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::stages::extent;
 use crate::world::generate::{base_height, heightmap_kind};
 use crate::world::heightmap::HeightmapPredicates;
+use mcrs_minecraft_worldgen::structure::frozen::{
+    DimensionStructureTables, SetId, StructureId, StructureKind,
+};
+use mcrs_minecraft_worldgen::structure::jigsaw::{Piece, Start, layout};
+use mcrs_minecraft_worldgen::structure::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
+use mcrs_minecraft_worldgen::structure::site::{Site, SiteWorld, site};
 
 #[derive(Clone)]
 pub enum BiomeLookup {

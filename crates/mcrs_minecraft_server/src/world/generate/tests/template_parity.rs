@@ -32,7 +32,7 @@ use super::{biome_registry, build_program_with, corpus, corpus_features, one_ste
 use crate::world::block_entity::BLOCK_ENTITY_TYPES;
 use crate::world::generate::feature_program::{FeatureProgram, RunScratch};
 use crate::world::generate::structures::place::place_element;
-use crate::world::generate::structures::{ElementId, FrozenElement};
+use mcrs_minecraft_worldgen::structure::frozen::{ElementId, FrozenElement};
 
 const MAGIC: &[u8; 8] = b"MCTMPLP0";
 const BIOME: &str = "minecraft:plains";
@@ -546,7 +546,7 @@ fn compare(label: &str, expected: &DumpPlacement, got: &Outcome) -> Vec<String> 
 }
 
 fn element_key(
-    frozen: &crate::world::generate::structures::FrozenStructures,
+    frozen: &mcrs_minecraft_worldgen::structure::frozen::FrozenStructures,
 ) -> Vec<(CaseKey, ElementId)> {
     let template_named: BTreeMap<u32, &ResourceLocation> = frozen
         .template_ids

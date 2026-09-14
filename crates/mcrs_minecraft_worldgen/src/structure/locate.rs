@@ -1,9 +1,9 @@
+use crate::structure::StructurePlacement;
+use crate::structure::placement::SpreadPlacement;
 use bevy_math::IVec3;
-use mcrs_minecraft_worldgen::structure::StructurePlacement;
-use mcrs_minecraft_worldgen::structure::placement::SpreadPlacement;
 use mcrs_voxel_math::{BlockPos, ColumnPos};
 
-use super::{SetId, StructureId};
+use super::frozen::{SetId, StructureId};
 
 pub const MAX_SEARCH_RADIUS: i32 = 100;
 

@@ -11,8 +11,9 @@ use super::{biome_index, block_tags, blocks, build_settings_router};
 use crate::world::generate::features::possible_biomes;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
-use crate::world::generate::structures::{DimensionStructureTables, SetId, live_sets};
+use crate::world::generate::structures::live_sets;
 use crate::world::heightmap::heightmap_predicates;
+use mcrs_minecraft_worldgen::structure::frozen::{DimensionStructureTables, SetId};
 
 const SEED: u64 = 12345;
 
@@ -147,7 +148,8 @@ fn every_column_a_village_crosses_finds_its_start() {
         -64,
         384,
     );
-    let village = frozen.structure_ids[&ResourceLocation::parse("minecraft:village_plains").unwrap()];
+    let village =
+        frozen.structure_ids[&ResourceLocation::parse("minecraft:village_plains").unwrap()];
     let chunk = ColumnPos::new(-31, 72);
     let start = index
         .starts_at(chunk)
@@ -166,7 +168,10 @@ fn every_column_a_village_crosses_finds_its_start() {
     .map(i32::abs)
     .max()
     .unwrap();
-    assert_eq!(farthest, 7, "the village no longer reaches seven chunks out");
+    assert_eq!(
+        farthest, 7,
+        "the village no longer reaches seven chunks out"
+    );
     for x in bounds.min.x >> 4..=bounds.max.x >> 4 {
         for z in bounds.min.z >> 4..=bounds.max.z >> 4 {
             let column = ColumnPos::new(x, z);

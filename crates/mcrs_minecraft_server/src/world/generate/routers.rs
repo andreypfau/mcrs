@@ -19,7 +19,8 @@ use tracing::{error, info};
 
 use crate::configuration::{LoadedWorldPreset, WorldSeed};
 use crate::world::chunk::try_resolve_state;
-use crate::world::generate::structures::{DimensionStructureTables, DimensionStructures};
+use crate::world::generate::structures::DimensionStructures;
+use mcrs_minecraft_worldgen::structure::frozen::DimensionStructureTables;
 
 /// Every dimension's biome source, keyed by the id the world preset gave it.
 ///

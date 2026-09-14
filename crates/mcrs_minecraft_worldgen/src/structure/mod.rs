@@ -1,6 +1,10 @@
 use std::collections::BTreeMap;
 
+pub mod frozen;
+pub mod jigsaw;
+pub mod locate;
 pub mod placement;
+pub mod site;
 pub mod template;
 
 use serde::{Deserialize, Serialize};

@@ -38,7 +38,6 @@ use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::staging::{
     ColumnDelta, FilledSnapshot, RegionSnapshots, cell_index, rank, region_column, region_slot,
 };
-use crate::world::generate::structures::DimensionStructureTables;
 use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
 use crate::world::generate::structures::place::{column_clip, place_structures};
 use crate::world::generate::{
@@ -49,6 +48,7 @@ use crate::world::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, TerrainHeightmaps, build_column_heightmaps,
     build_terrain_heightmaps,
 };
+use mcrs_minecraft_worldgen::structure::frozen::DimensionStructureTables;
 
 /// Everything a column stage reads that is the same for every column of one
 /// dimension, built once when the dimension spawns. Every field is a handle,

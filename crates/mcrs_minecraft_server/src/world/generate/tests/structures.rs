@@ -17,9 +17,9 @@ use mcrs_minecraft_worldgen::structure::{Projection, Structure, StructureSet, Te
 use super::{biome_index, biome_tags, corpus, load_json_dir};
 use crate::world::generate::features::possible_biomes;
 use crate::world::generate::structures::{
-    FrozenElement, FrozenStructures, StructureInputs, StructureKind, freeze, live_sets,
-    resolve_palette_state,
+    StructureInputs, freeze, live_sets, resolve_palette_state,
 };
+use mcrs_minecraft_worldgen::structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
 
 /// Every shipped structure whose type has no generator yet; each is frozen as
 /// a structure that places nothing.
@@ -95,7 +95,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
     &FROZEN
 }
 
-fn structure(id: &str) -> &'static crate::world::generate::structures::FrozenStructure {
+fn structure(id: &str) -> &'static mcrs_minecraft_worldgen::structure::frozen::FrozenStructure {
     let frozen = frozen();
     let id = ResourceLocation::parse(id).unwrap();
     &frozen.structures[frozen.structure_ids[&id].0 as usize]

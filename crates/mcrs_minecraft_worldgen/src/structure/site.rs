@@ -2,20 +2,22 @@ use mcrs_voxel_math::ColumnPos;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
+use crate::feature::placement::HeightmapName;
+use crate::feature::placer::BiomeMask;
+use crate::feature::proto::Rotation;
+use crate::structure::PoolAlias;
+use crate::structure::template::{JigsawBlock, Joint, bounding_box, transform};
+use crate::value_provider::{HeightContext, pick_weighted_by};
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffle};
-use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
-use mcrs_minecraft_worldgen::feature::placer::BiomeMask;
-use mcrs_minecraft_worldgen::feature::proto::Rotation;
-use mcrs_minecraft_worldgen::structure::PoolAlias;
-use mcrs_minecraft_worldgen::structure::template::{JigsawBlock, Joint, bounding_box, transform};
-use mcrs_minecraft_worldgen::value_provider::{HeightContext, pick_weighted_by};
 use mcrs_voxel_math::BoundingBox;
 use mcrs_voxel_math::Direction;
 
-use super::{ElementId, FrozenElement, FrozenStructures, PoolId, StructureId, StructureKind};
+use super::frozen::{
+    ElementId, FrozenElement, FrozenStructures, PoolId, StructureId, StructureKind,
+};
 
 pub trait SiteWorld {
     fn biome_at(&mut self, block: IVec3) -> Option<u32>;

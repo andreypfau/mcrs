@@ -1,9 +1,6 @@
 use crate::world::generate::beta_ores::{BetaOreBlockIds, apply_beta_ores_in};
 use crate::world::generate::features::FeatureTables;
-use crate::world::generate::structures::{
-    ElementId, FrozenElement, FrozenStructure, FrozenStructures, check_block_entity_ids,
-    resolve_palette_state,
-};
+use crate::world::generate::structures::{check_block_entity_ids, resolve_palette_state};
 use crate::world::generate::trees::{
     build_tree_tables, compile_decorator, compile_provider, compile_tree, state_of, with_property,
 };
@@ -116,6 +113,9 @@ use mcrs_minecraft_worldgen::feature::proto::{
     StructureProcessorList, WeightedPlacedFeature, processor_list,
 };
 use mcrs_minecraft_worldgen::proto::BlockState;
+use mcrs_minecraft_worldgen::structure::frozen::{
+    ElementId, FrozenElement, FrozenStructure, FrozenStructures,
+};
 use mcrs_minecraft_worldgen::structure::template::{FrozenTemplate, TemplateManifest};
 use mcrs_minecraft_worldgen::structure::{DecorationStep, LiquidSettings};
 use mcrs_minecraft_worldgen::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};

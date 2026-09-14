@@ -8,10 +8,10 @@ use mcrs_minecraft_worldgen::feature::proto::Rotation;
 use mcrs_minecraft_worldgen::structure::LiquidSettings;
 use mcrs_voxel_math::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 
-use super::jigsaw::{Piece, Start};
-use super::{ElementId, StructureKind};
 use crate::world::generate::feature_program::{CompiledElement, FeatureProgram, Run};
 use crate::world::generate::structures::index::StructureIndex;
+use mcrs_minecraft_worldgen::structure::frozen::{ElementId, StructureKind};
+use mcrs_minecraft_worldgen::structure::jigsaw::{Piece, Start};
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
 /// dimension floor to its ceiling.

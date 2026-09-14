@@ -1,8 +1,5 @@
 pub mod index;
-pub mod jigsaw;
-pub mod locate;
 pub mod place;
-pub mod site;
 
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -25,22 +22,25 @@ use mcrs_minecraft_worldgen::bevy::{
 };
 use mcrs_minecraft_worldgen::feature::HolderSet;
 use mcrs_minecraft_worldgen::feature::placer::BiomeMask;
-use mcrs_minecraft_worldgen::feature::proto::{
-    Holder, PlacedFeature, Rotation, StructureProcessorList,
-};
+use mcrs_minecraft_worldgen::feature::proto::Rotation;
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen::structure::template::{
     FrozenTemplate, PaletteState, ResolvedState, Template, TemplateManifest, bounding_box,
 };
 use mcrs_minecraft_worldgen::structure::{
-    DecorationStep, JigsawConfig, LiquidSettings, PoolAlias, PoolElement, Projection, Structure,
-    StructurePlacement, StructureSet, TemplatePool, TerrainAdaptation,
+    DecorationStep, PoolAlias, PoolElement, Projection, Structure, StructurePlacement,
+    StructureSet, TemplatePool, TerrainAdaptation,
 };
 use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::try_resolve_state;
 use crate::world::generate::features::{possible_biomes, registry_of};
 use crate::world::generate::routers::DimensionBiomeSources;
+use mcrs_minecraft_worldgen::structure::frozen::{
+    DimensionStructureTables, ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure,
+    FrozenStructures, PoolId, SetId, StructureId, StructureKind, TemplateId,
+};
+use mcrs_minecraft_worldgen::structure::jigsaw::TERRAIN_MARGIN;
 
 // Vanilla marks these `dynamicShape()` and never files them as full blocks when
 // ordering a template; the block schema carries no such flag, so the set lives here.
@@ -90,110 +90,6 @@ pub(crate) fn resolve_palette_state(
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SetId(pub u32);
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StructureId(pub u32);
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PoolId(pub u32);
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ElementId(pub u32);
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TemplateId(pub u32);
-
-pub struct FrozenSet {
-    pub id: ResourceLocation,
-    pub placement: StructurePlacement,
-    pub exclusion: Option<(SetId, i32)>,
-    pub preferred_biomes: Option<BiomeMask>,
-    pub entries: Vec<(StructureId, i32)>,
-}
-
-pub struct FrozenStructure {
-    pub id: ResourceLocation,
-    pub step: DecorationStep,
-    pub step_index: u32,
-    pub adaptation: TerrainAdaptation,
-    pub biomes: BiomeMask,
-    pub kind: StructureKind,
-}
-
-pub enum StructureKind {
-    Jigsaw {
-        start_pool: PoolId,
-        config: JigsawConfig,
-    },
-    Hardcoded,
-}
-
-pub struct FrozenPool {
-    pub id: ResourceLocation,
-    pub fallback: PoolId,
-    /// Every element repeated `weight` times, in file order: what the shuffle draws from.
-    pub expanded: Vec<ElementId>,
-    pub max_size: i32,
-}
-
-pub enum FrozenElement {
-    Single {
-        template: TemplateId,
-        legacy: bool,
-        processors: Holder<StructureProcessorList>,
-        projection: Projection,
-        liquid_settings: Option<LiquidSettings>,
-    },
-    List {
-        elements: Vec<ElementId>,
-        projection: Projection,
-    },
-    Feature {
-        feature: Holder<PlacedFeature>,
-        projection: Projection,
-    },
-    Empty,
-}
-
-impl FrozenElement {
-    pub fn projection(&self) -> Option<Projection> {
-        match self {
-            FrozenElement::Single { projection, .. }
-            | FrozenElement::List { projection, .. }
-            | FrozenElement::Feature { projection, .. } => Some(*projection),
-            FrozenElement::Empty => None,
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct FrozenStructures {
-    pub sets: Vec<FrozenSet>,
-    /// Sorted by (path, namespace): the order `step_index` counts in.
-    pub structures: Vec<FrozenStructure>,
-    pub pools: Vec<FrozenPool>,
-    pub elements: Vec<FrozenElement>,
-    pub templates: Vec<Arc<FrozenTemplate>>,
-    pub manifests: Vec<Arc<TemplateManifest>>,
-    pub set_ids: BTreeMap<ResourceLocation, SetId>,
-    pub structure_ids: BTreeMap<ResourceLocation, StructureId>,
-    pub pool_ids: BTreeMap<ResourceLocation, PoolId>,
-    pub template_ids: BTreeMap<ResourceLocation, TemplateId>,
-}
-
-pub struct DimensionStructureTables {
-    pub frozen: Arc<FrozenStructures>,
-    pub live: Vec<(SetId, Vec<StructureId>)>,
-}
-
-impl DimensionStructureTables {
-    pub fn adapted(&self) -> impl Iterator<Item = &FrozenStructure> {
-        self.live
-            .iter()
-            .flat_map(|(_, structures)| structures.iter())
-            .map(|id| &self.frozen.structures[id.0 as usize])
-            .filter(|structure| structure.adaptation != TerrainAdaptation::None)
-    }
-}
-
 #[derive(Resource, Default, Clone)]
 pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStructureTables>>);
 
@@ -207,7 +103,6 @@ pub struct StructureInputs<'a> {
     pub biome_tags: &'a DynTagRegistry<Biome>,
 }
 
-pub(super) const TERRAIN_MARGIN: i32 = 12;
 const MAX_JIGSAW_RANGE: i32 = 128;
 
 pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> {

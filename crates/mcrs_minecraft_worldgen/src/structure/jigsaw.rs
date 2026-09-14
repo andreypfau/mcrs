@@ -1,18 +1,19 @@
 use std::collections::{BTreeMap, VecDeque};
 
+use crate::feature::placement::HeightmapName;
+use crate::feature::proto::Rotation;
+use crate::structure::template::Joint;
+use crate::structure::{JigsawConfig, Projection, TerrainAdaptation};
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{shuffle, shuffled};
-use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
-use mcrs_minecraft_worldgen::feature::proto::Rotation;
-use mcrs_minecraft_worldgen::structure::template::Joint;
-use mcrs_minecraft_worldgen::structure::{JigsawConfig, Projection, TerrainAdaptation};
 use mcrs_voxel_math::{BlockPos, BoundingBox};
 
+use super::frozen::{ElementId, FrozenStructures, PoolId, StructureId, StructureKind};
 use super::site::{PlacedJigsaw, Site, SiteWorld, element_bounds, shuffled_jigsaws};
-use super::{ElementId, FrozenStructures, PoolId, StructureId, StructureKind, TERRAIN_MARGIN};
 
+pub const TERRAIN_MARGIN: i32 = 12;
 const EMPTY_POOL: &str = "minecraft:empty";
 const EXPANSION_HACK_MAX_HEIGHT: i32 = 16;
 

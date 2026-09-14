@@ -12,8 +12,10 @@ use mcrs_voxel_math::BoundingBox;
 
 use super::structure_sites::{build_index, dimension};
 use super::structures::frozen_shared;
-use crate::world::generate::structures::jigsaw::{Junction, Piece};
-use crate::world::generate::structures::{ElementId, FrozenElement, FrozenStructures, TemplateId};
+use mcrs_minecraft_worldgen::structure::frozen::{
+    ElementId, FrozenElement, FrozenStructures, TemplateId,
+};
+use mcrs_minecraft_worldgen::structure::jigsaw::{Junction, Piece};
 
 const MAGIC: &[u8; 8] = b"MCJIGSW0";
 

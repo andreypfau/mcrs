@@ -50,10 +50,10 @@ use crate::world::generate::stages::{FillContext, fill_column, merge_column, run
 use crate::world::generate::staging::{
     FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column,
 };
-use crate::world::generate::structures::FrozenStructures;
 use crate::world::heightmap::TerrainHeightmaps;
 use mcrs_minecraft_worldgen::feature::compile::{FeatureSteps, LoadedFeatures};
 use mcrs_minecraft_worldgen::feature::proto::{Feature, PlacedFeature};
+use mcrs_minecraft_worldgen::structure::frozen::FrozenStructures;
 
 /// Both feature registries of the shipped corpus, with every template and
 /// processor list the features name, parsed once per test binary.
