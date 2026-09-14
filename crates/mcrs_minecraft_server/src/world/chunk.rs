@@ -1,5 +1,5 @@
 use crate::world::format::anvil::SectionData;
-use mcrs_minecraft_block::palette::ChunkBlocks;
+use mcrs_minecraft_level::palette::ChunkBlocks;
 
 use crate::world::block_entity::spawn_block_entities;
 use crate::world::generate::stages::{FillContext, fill_pooled, merge_column, run_region};
@@ -13,20 +13,20 @@ use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::entity::player::chunk_view::PlayerChunkObserver;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::lifecycle::markers::ChunkGenerating;
+use mcrs_minecraft_level::world::lifecycle::markers::ChunkLoaded;
+use mcrs_minecraft_level::world::lifecycle::markers::ChunkLoading;
+use mcrs_minecraft_level::world::lifecycle::markers::ChunkUnloading;
+use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
+use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_world::worldgen::beta_biome::BetaBiomeSourcePlugin;
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkGenerating;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkLoading;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkUnloading;
-use mcrs_voxel_world::world::lifecycle::trace as column_trace;
-use mcrs_voxel_world::world::lifecycle::trace::ColumnStage;
 use rustc_hash::FxHashMap;
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
@@ -72,7 +72,7 @@ impl Plugin for ChunkPlugin {
                 dispatch_column_generation.run_if(resource_exists::<FillContext>),
             )
                 .chain()
-                .after(mcrs_voxel_world::world::lifecycle::ticket::ChunkSpawnSet),
+                .after(mcrs_minecraft_level::world::lifecycle::ticket::ChunkSpawnSet),
         );
     }
 }
@@ -839,8 +839,8 @@ mod tests {
     use super::*;
     use crate::world::generate::tests::blocks as corpus;
     use bevy_app::{App, Update};
+    use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
     use mcrs_minecraft_world::block::definition::schema::PropertyValue;
-    use mcrs_voxel_world::entity::player::chunk_view::ChunkTrackingView;
 
     fn noise_settings_state(field: &str) -> ProtoBlockState {
         let path = concat!(

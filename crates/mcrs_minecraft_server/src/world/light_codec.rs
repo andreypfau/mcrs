@@ -23,12 +23,12 @@
 use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_chunk::SectionNibbles as LightNibbles;
+use mcrs_minecraft_level::world::dimension::{HasSkyLight, InDimension};
+use mcrs_minecraft_level::world::storage::column::{ChunkLookup, ColumnChunks};
 use mcrs_minecraft_light::block::Layer;
 use mcrs_minecraft_light::storage::LightStorage;
 use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_minecraft_protocol::chunk::{LightChunk, LightData};
-use mcrs_voxel_world::world::dimension::{HasSkyLight, InDimension};
-use mcrs_voxel_world::world::storage::column::{ChunkLookup, ColumnChunks};
 use std::borrow::Cow;
 
 /// One row of the light packet's section sequence. The packet carries a

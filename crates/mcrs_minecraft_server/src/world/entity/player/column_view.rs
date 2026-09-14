@@ -8,27 +8,27 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Added, Component, ContainsEntity, MessageReader, On, Query, With};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
-use mcrs_minecraft_block::palette::{AirCount, BiomePalette, ChunkBlocks};
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::entity::player::chunk_view::{
+    ChunkTrackingViewUpdateEvent, ChunkViewPlugin, ChunkViewSet, PlayerChunkLoadRequest,
+    PlayerChunkObserver, PlayerChunkUnloadRequest,
+};
+use mcrs_minecraft_level::entity::player::reposition::Reposition;
+use mcrs_minecraft_level::palette::{AirCount, BiomePalette, ChunkBlocks};
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_minecraft_level::world::lifecycle::markers::ChunkLoaded;
+use mcrs_minecraft_level::world::lifecycle::ticket::ChunkSpawnSet;
+use mcrs_minecraft_level::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
+use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
+use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
+use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
+use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
+use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
-use mcrs_voxel_world::entity::player::chunk_view::{
-    ChunkTrackingViewUpdateEvent, ChunkViewPlugin, ChunkViewSet, PlayerChunkLoadRequest,
-    PlayerChunkObserver, PlayerChunkUnloadRequest,
-};
-use mcrs_voxel_world::entity::player::reposition::Reposition;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
-use mcrs_voxel_world::world::lifecycle::ticket::ChunkSpawnSet;
-use mcrs_voxel_world::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
-use mcrs_voxel_world::world::lifecycle::trace as column_trace;
-use mcrs_voxel_world::world::lifecycle::trace::ColumnStage;
-use mcrs_voxel_world::world::storage::block_entity::SectionBlockEntities;
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
-use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 
 use crate::world::block_entity::{BlockEntity, packet_entry};
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
@@ -701,12 +701,12 @@ mod tests {
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
+    use mcrs_minecraft_level::world::dimension::HasSkyLight;
+    use mcrs_minecraft_level::world::storage::column::{ColumnChunks, ColumnSlot};
     use mcrs_minecraft_light::prelude::{
         BlockLight, LightBounds, LightProperties, LightRegistry, LightWorld, SkyLight,
         SpecialBlocks,
     };
-    use mcrs_voxel_world::world::dimension::HasSkyLight;
-    use mcrs_voxel_world::world::storage::column::{ColumnChunks, ColumnSlot};
     use rustc_hash::FxHashMap;
 
     const SECTIONS: u32 = 2;

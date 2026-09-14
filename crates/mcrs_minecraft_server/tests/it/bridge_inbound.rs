@@ -10,6 +10,7 @@ use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
+use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_network::{InGameConnectionState, ReceivedPacket, ServerSideConnection};
@@ -22,7 +23,6 @@ use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
 use mcrs_minecraft_server::world::player_index::{
     HostAnchorRef, PendingInboundBuffer, PlayerIndex,
 };
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 
 use std::sync::atomic::Ordering;
 use std::time::Instant;
@@ -376,7 +376,7 @@ fn disconnect_clears_pending() {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
-                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },

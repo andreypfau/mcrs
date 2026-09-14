@@ -3,11 +3,11 @@
 // from this external integration test crate.
 
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::block::BlockUpdateFlags;
+use mcrs_minecraft_level::block_update::BlockPlaced;
 
 #[test]
 fn block_placed_all_fields_pub() {

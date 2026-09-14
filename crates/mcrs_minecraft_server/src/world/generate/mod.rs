@@ -3,8 +3,8 @@ use crate::world::generate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable
 use crate::world::heightmap::{HeightmapKinds, HeightmapPredicates};
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::biome::Biome;

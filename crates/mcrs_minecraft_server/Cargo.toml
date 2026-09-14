@@ -12,14 +12,12 @@ mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 fixedbitset.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
-mcrs_voxel_server.workspace = true
-mcrs_voxel_world.workspace = true
+mcrs_minecraft_level.workspace = true
 mcrs_minecraft_light = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world.workspace = true
-mcrs_minecraft_block.workspace = true
 mcrs_minecraft_decoration.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
 mcrs_minecraft_random.workspace = true
@@ -56,7 +54,7 @@ rand09 = { package = "rand", version = "0.9" }
 criterion = { version = "0.7", features = ["html_reports"] }
 
 [features]
-telemetry-tracy = ["mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_block/telemetry-tracy"]
+telemetry-tracy = ["mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy"]
 
 [[bench]]
 name = "beta_chunks"

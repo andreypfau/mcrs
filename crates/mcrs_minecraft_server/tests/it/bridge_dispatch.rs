@@ -16,6 +16,7 @@ use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::{
     BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
@@ -30,7 +31,6 @@ use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft_server::world::player_index::PlayerIndex;
-use mcrs_voxel_world::session::PlayerSession;
 use smallvec::SmallVec;
 use tokio::sync::mpsc;
 

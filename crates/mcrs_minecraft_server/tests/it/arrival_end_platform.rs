@@ -3,11 +3,24 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
-use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
-use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::session::{
+    DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry,
+};
+use mcrs_minecraft_level::voxel_update::ChunkVoxelChanges;
+use mcrs_minecraft_level::world::channels::{
+    DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    ToDimReceiver,
+};
+use mcrs_minecraft_level::world::dimension::Dimension;
+use mcrs_minecraft_level::world::in_flight::InFlightMoves;
+use mcrs_minecraft_level::world::storage::chunk::Chunk;
+use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
+use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::world::arrival::ArrivalPlugin;
@@ -19,17 +32,6 @@ use mcrs_minecraft_server::world::bus::{
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_server::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
-use mcrs_voxel_world::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
-use mcrs_voxel_world::voxel_update::ChunkVoxelChanges;
-use mcrs_voxel_world::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    ToDimReceiver,
-};
-use mcrs_voxel_world::world::dimension::Dimension;
-use mcrs_voxel_world::world::in_flight::InFlightMoves;
-use mcrs_voxel_world::world::storage::chunk::Chunk;
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
-use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
@@ -188,7 +190,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         // FromDimSender so ArrivalPlugin can send Spawned ack.
         let (from_tx2, _from_rx2) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         sub.insert_resource(FromDimSender::<FromDim>(
-            mcrs_voxel_world::world::channels::DimSender::new(from_tx2),
+            mcrs_minecraft_level::world::channels::DimSender::new(from_tx2),
         ));
         sub.init_resource::<DimPlayerIndex>();
 

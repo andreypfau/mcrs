@@ -8,18 +8,18 @@ use bevy_app::App;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::IntoSystem;
-use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::voxel_update::ChunkVoxelChanges;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_server::world::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::voxel_update::ChunkVoxelChanges;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnSlot};
 
 #[test]
 fn block_update_resolves_observers_per_dim_emit_site() {

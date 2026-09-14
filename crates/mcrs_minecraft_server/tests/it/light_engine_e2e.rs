@@ -1,11 +1,17 @@
 use bevy_app::{App, AppLabel, Last};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, ResMut, Resource};
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_minecraft_block::palette::{BlockPalette, ChunkBlocks};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
+use mcrs_minecraft_level::block::BlockUpdateFlags;
+use mcrs_minecraft_level::block_update::BlockPlaced;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::palette::{BlockPalette, ChunkBlocks};
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::lifecycle::markers::ChunkLoaded;
+use mcrs_minecraft_level::world::storage::column::ColumnIndex;
+use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use mcrs_minecraft_light::prelude::{
     BlockLight, LightBudget, LightEpoch, LightWorkQueue, PendingEdits, SkyLight,
 };
@@ -18,12 +24,6 @@ use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 use mcrs_minecraft_server::world::light::emit_light_updates;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
-use mcrs_voxel_world::world::storage::column::ColumnIndex;
-use mcrs_voxel_world::world::sub_app::DimAppLabel;
 
 use crate::host_app;
 

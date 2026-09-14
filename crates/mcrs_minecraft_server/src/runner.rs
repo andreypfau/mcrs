@@ -9,9 +9,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::query::With;
 use bevy_ecs::world::World;
-use mcrs_voxel_server::dim::{DimProtocol, DimRequest};
-use mcrs_voxel_world::session::{MoveId, PlayerSession, SessionRegistry};
-use mcrs_voxel_world::world::sub_app::DimAppLabel;
+use mcrs_minecraft_level::dim::{DimProtocol, DimRequest};
+use mcrs_minecraft_level::session::{MoveId, PlayerSession, SessionRegistry};
+use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
 
 pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
@@ -20,7 +20,7 @@ pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
 };
 
 pub fn run_server_loop(app: App) {
-    mcrs_voxel_server::run_server_loop(
+    mcrs_minecraft_level::server_loop::run_server_loop(
         app,
         DEFAULT_TPS,
         |app| {
@@ -51,11 +51,11 @@ fn drain_columns(app: &mut App) {
 }
 
 pub fn pump_channels(app: &mut App) {
-    mcrs_voxel_server::dim::pump_dim_channels::<MinecraftDims>(app);
+    mcrs_minecraft_level::dim::pump_dim_channels::<MinecraftDims>(app);
 }
 
 pub fn expire_moves(app: &mut App) {
-    mcrs_voxel_server::dim::expire_moves::<MinecraftDims>(app);
+    mcrs_minecraft_level::dim::expire_moves::<MinecraftDims>(app);
 }
 
 pub struct MinecraftDims;

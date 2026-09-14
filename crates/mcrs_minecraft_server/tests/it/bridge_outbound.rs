@@ -11,7 +11,7 @@ use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft_server::world::bus::{PacketPriority, PacketTarget};
 use smallvec::SmallVec;
 
-use mcrs_voxel_world::session::PlayerSession;
+use mcrs_minecraft_level::session::PlayerSession;
 use mock_connection::{
     build_bridge_world, build_bridge_world_with_sessions, drain_queue, register_player,
     register_session, run_system, spawn_connection, write_packet, write_packet_broadcast,

@@ -5,17 +5,17 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
+use mcrs_minecraft_level::session::{
+    PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
+};
+use mcrs_minecraft_level::world::channels::{
+    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_server::world::bridge::bridge_inbound_to_channel;
 use mcrs_minecraft_server::world::bus::InboundPlayerPacket;
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_server::world::player_index::PendingInboundBuffer;
-use mcrs_voxel_world::session::{
-    PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
-};
-use mcrs_voxel_world::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-};
 
 fn build_world() -> World {
     let mut world = World::new();
@@ -314,8 +314,8 @@ fn transfer_snapshot() -> mcrs_minecraft_server::world::bus::PlayerTransferSnaps
 
 #[test]
 fn control_full_enqueues_dim_teardown() {
-    use mcrs_voxel_server::dim::send_control_or_teardown;
-    use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
+    use mcrs_minecraft_level::dim::send_control_or_teardown;
+    use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 
     let mut world = World::new();
     let dim = world.spawn_empty().id();

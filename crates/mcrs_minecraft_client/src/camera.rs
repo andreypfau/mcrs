@@ -2,7 +2,7 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 
-use mcrs_voxel_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
+use mcrs_minecraft_level::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
 use crate::local_player::{LocalPlayerTick, Sprint};
 use crate::options::FOV;

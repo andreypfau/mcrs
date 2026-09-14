@@ -1,5 +1,5 @@
 use bevy_ecs::entity::Entity;
-use mcrs_voxel_world::session::{
+use mcrs_minecraft_level::session::{
     DimPlayerIndex, PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
 };
 

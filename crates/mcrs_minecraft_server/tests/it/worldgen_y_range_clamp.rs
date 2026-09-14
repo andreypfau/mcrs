@@ -1,4 +1,4 @@
-use mcrs_minecraft_block::palette::AirCount;
+use mcrs_minecraft_level::palette::AirCount;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::world::chunk::CancellationToken;

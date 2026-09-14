@@ -5,9 +5,9 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_level::world::lifecycle::trace::{self, ColumnStage};
 use mcrs_minecraft_network::client::ReceivedRegistries;
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
-use mcrs_voxel_world::world::lifecycle::trace::{self, ColumnStage};
 
 use crate::arena::{Arena, Block};
 use crate::blocks::{self, BlockInfo, Catalog};

@@ -6,12 +6,12 @@
 
 use bevy_ecs::prelude::{Added, Changed, Commands, Entity, Or, Query, ResMut, With, Without};
 use mcrs_minecraft_core::ColumnPos;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex};
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 

@@ -4,13 +4,13 @@ use std::sync::Arc;
 
 use bevy_asset::Assets;
 use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_decoration::carver::beta::carve_beta_caves;
 use mcrs_minecraft_decoration::carver::mask::CarvingMask;
 use mcrs_minecraft_decoration::carver::modern::SOURCE_RADIUS;
 use mcrs_minecraft_decoration::carver::water::WaterMask;
+use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;

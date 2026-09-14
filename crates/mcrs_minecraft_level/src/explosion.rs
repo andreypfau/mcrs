@@ -1,4 +1,7 @@
+use crate::entity::physics::Transform;
 use crate::palette::ChunkBlocks;
+use crate::world::dimension::InDimension;
+use crate::world::storage::chunk::ChunkIndex;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
@@ -8,9 +11,6 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::hash_map::Entry;
 use std::hash::Hash;

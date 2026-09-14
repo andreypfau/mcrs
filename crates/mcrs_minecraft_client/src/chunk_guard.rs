@@ -9,7 +9,7 @@
 use crate::columns::ColumnStore;
 use bevy::prelude::*;
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
-use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
+use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 
 use crate::config::Guard;
 use crate::player::Player;

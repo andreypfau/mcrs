@@ -23,6 +23,11 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft_level::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_protocol::GameMode;
@@ -43,11 +48,6 @@ use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_s
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_voxel_world::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
 use tokio::sync::mpsc;
 
 use crate::support;
@@ -117,7 +117,7 @@ fn build_host_app() -> App {
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>();
-    app.init_resource::<mcrs_voxel_world::world::in_flight::InFlightMoves>();
+    app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();
@@ -137,8 +137,10 @@ fn spawn_subapp(app: &mut App) -> Entity {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: mcrs_voxel_world::world::dimension::DimensionId::new("test:overworld"),
-            type_config: mcrs_voxel_world::world::dimension::DimensionTypeConfig::new(-64, 384),
+            dimension_id: mcrs_minecraft_level::world::dimension::DimensionId::new(
+                "test:overworld",
+            ),
+            type_config: mcrs_minecraft_level::world::dimension::DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(app);

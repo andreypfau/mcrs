@@ -2,20 +2,20 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
+use mcrs_minecraft_level::session::{PlayerSession, SessionRegistry};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::disconnect::process_disconnect;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::world::bus::InboundPlayerDespawn;
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
 use mcrs_minecraft_server::world::player_index::{HostAnchorRef, PlayerIndex};
-use mcrs_voxel_world::session::{PlayerSession, SessionRegistry};
 
 fn make_app() -> App {
     let mut app = App::new();
     app.add_plugins(LoginPlugin);
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
-    app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
+    app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
     app.add_message::<InboundPlayerDespawn>();
     app
@@ -104,10 +104,10 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
     // Pin a concrete dim so the assertion can target a specific channel.
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
     let ctl_rx = {
-        use mcrs_minecraft_server::world::channel_types::FromDim;
-        use mcrs_voxel_world::world::channels::{
+        use mcrs_minecraft_level::world::channels::{
             DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
         };
+        use mcrs_minecraft_server::world::channel_types::FromDim;
         let (srv_tx, _srv_rx) =
             flume::bounded::<mcrs_minecraft_server::world::channel_types::ToDim>(TO_DIM_CAPACITY);
         let (ctl_tx, ctl_rx) = flume::bounded::<mcrs_minecraft_server::world::channel_types::ToDim>(
@@ -147,7 +147,7 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
-                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
 
@@ -157,7 +157,7 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
-                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },
@@ -233,7 +233,7 @@ fn a_late_cleanup_leaves_the_name_to_the_player_who_logged_in_again() {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
-                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },

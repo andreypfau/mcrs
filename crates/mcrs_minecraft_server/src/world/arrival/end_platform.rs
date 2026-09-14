@@ -1,9 +1,9 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_math::DVec3;
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_level::block::BlockUpdateFlags;
+use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_protocol::BlockStateId;
 
 const OBSIDIAN: BlockStateId = BlockStateId(1126);

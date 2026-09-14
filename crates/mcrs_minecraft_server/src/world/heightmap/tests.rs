@@ -309,7 +309,7 @@ fn spawn_column(
     sections: &[Option<(BlockPalette, BiomePalette)>],
     y_sections: &[i32],
 ) -> (App, Entity, Vec<Entity>) {
-    use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnSlot};
+    use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 
     let mut app = App::new();
     app.add_message::<BlockPlaced>();
@@ -365,8 +365,8 @@ fn read_maps(app: &App, column: Entity) -> ColumnHeightmapSet {
 
 #[test]
 fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
-    use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_minecraft_core::{BlockPos, SectionPos};
+    use mcrs_minecraft_level::block::BlockUpdateFlags;
 
     let table = predicates();
     let (mut sections, y_sections) = sample_column();
@@ -432,7 +432,7 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
 
 #[test]
 fn priming_merges_partial_ranges_with_max() {
-    use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnSlot};
+    use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 
     let mut app = App::new();
     app.init_resource::<PendingColumnHeightmaps>();

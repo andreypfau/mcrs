@@ -10,6 +10,10 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
@@ -21,10 +25,6 @@ use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_s
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
 
 use crate::support;
 
@@ -53,8 +53,8 @@ fn build_app() -> App {
     app.insert_resource(support::corpus(&app));
 
     app.init_resource::<PlayerIndex>();
-    app.init_resource::<mcrs_voxel_world::session::SessionRegistry>();
-    app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
+    app.init_resource::<mcrs_minecraft_level::session::SessionRegistry>();
+    app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
@@ -87,7 +87,7 @@ fn messages_buffered_before_dim_boots() {
 
     // Enqueue and spawn the dim. spawn_dim_subapp creates the channel pair
     // before the sub-app's schedule first runs.
-    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0

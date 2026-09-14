@@ -330,8 +330,8 @@ fn beta_terrain_height_matches_back2beta_oracle() {
     // Rust stone top: scan generate_column sections top-down for highest Y with stone.
     let rust_stone_top_y = |sections: &Vec<
         Option<(
-            mcrs_minecraft_block::palette::BlockPalette,
-            mcrs_minecraft_block::palette::BiomePalette,
+            mcrs_minecraft_level::palette::BlockPalette,
+            mcrs_minecraft_level::palette::BiomePalette,
         )>,
     >,
                             lx: i32,
@@ -380,8 +380,8 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         (i32, i32),
         Vec<
             Option<(
-                mcrs_minecraft_block::palette::BlockPalette,
-                mcrs_minecraft_block::palette::BiomePalette,
+                mcrs_minecraft_level::palette::BlockPalette,
+                mcrs_minecraft_level::palette::BiomePalette,
             )>,
         >,
     > = std::collections::HashMap::new();

@@ -9,6 +9,13 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_anvil::{DATA_VERSION, PaletteLookup, Properties, parse_chunk};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_decoration::block_entity::{BeeOccupant, EndGatewayData, GeneratedBlockEntity};
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::lifecycle::markers::ChunkUnloaded;
+use mcrs_minecraft_level::world::lifecycle::ticket::{ChunkTicketsCommands, TicketPlugin};
+use mcrs_minecraft_level::world::storage::block_entity::{
+    InSection, SectionBlockEntities, reconcile_block_entities,
+};
+use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -16,13 +23,6 @@ use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_server::world::block_entity::{BlockEntity, packet_entry, spawn_block_entities};
 use mcrs_minecraft_server::world::format::anvil::saved_block_entities;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkUnloaded;
-use mcrs_voxel_world::world::lifecycle::ticket::{ChunkTicketsCommands, TicketPlugin};
-use mcrs_voxel_world::world::storage::block_entity::{
-    InSection, SectionBlockEntities, reconcile_block_entities,
-};
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 
 fn section_pos() -> SectionPos {
     SectionPos::new(2, 4, -1)

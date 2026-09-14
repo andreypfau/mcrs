@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
-use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
+use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 
 use super::{DebugEntryGroup, DebugScreenDisplayer};
 use crate::player::Player;
@@ -60,7 +60,7 @@ mod tests {
     use super::*;
     use bevy::ecs::system::RunSystemOnce;
     use bevy::math::DVec3;
-    use mcrs_voxel_world::entity::physics::Rotation;
+    use mcrs_minecraft_level::entity::physics::Rotation;
 
     #[test]
     fn the_group_reads_the_way_vanilla_prints_it() {

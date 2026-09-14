@@ -10,14 +10,14 @@ use bevy_ecs::prelude::{Commands, MessageWriter, On, Query};
 use bevy_ecs::query::QueryData;
 use bevy_ecs::query::{With, Without};
 use derive_more::{Deref, DerefMut};
-use mcrs_minecraft_block::explosion::{Explosion, ExplosionRadius};
+use mcrs_minecraft_level::entity::EntityNetworkAddEvent;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::entity::player::reposition::Reposition;
+use mcrs_minecraft_level::explosion::{Explosion, ExplosionRadius};
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_voxel_world::entity::EntityNetworkAddEvent;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::entity::player::reposition::Reposition;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::world::dimension::InDimension;
 
 pub struct PrimedTntPlugin;
 

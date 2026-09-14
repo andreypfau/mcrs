@@ -9,6 +9,10 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_level::entity::InTransit;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::session::{Owner, PlayerSession};
+use mcrs_minecraft_level::world::in_flight::alloc_move_id;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
@@ -16,10 +20,6 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::text::{Color, IntoText};
-use mcrs_voxel_world::entity::InTransit;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::session::{Owner, PlayerSession};
-use mcrs_voxel_world::world::in_flight::alloc_move_id;
 use tracing::info;
 
 pub struct ChatPlugin;
@@ -42,7 +42,7 @@ fn handle_command(
     mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile, &Owner)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     move_sender: Res<
-        mcrs_voxel_world::world::channels::FromDimSender<crate::world::channel_types::FromDim>,
+        mcrs_minecraft_level::world::channels::FromDimSender<crate::world::channel_types::FromDim>,
     >,
     mut commands: Commands,
     fill: Option<Res<FillContext>>,

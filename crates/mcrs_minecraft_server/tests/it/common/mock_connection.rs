@@ -9,15 +9,15 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
+use mcrs_minecraft_level::session::{
+    PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
+};
 use mcrs_minecraft_network::RawConnection;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft_server::world::player_index::PlayerIndex;
-use mcrs_voxel_world::session::{
-    PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
-};
 use tokio::sync::mpsc;
 
 /// Build a bare world with the resources needed for `bridge_outbound` tests.

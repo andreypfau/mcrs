@@ -409,7 +409,7 @@ fn pack(
     ctx: &FillContext,
     col: ColumnPos,
     column: &ColumnBlocks,
-    biomes: &[mcrs_minecraft_block::palette::BiomePalette],
+    biomes: &[mcrs_minecraft_level::palette::BiomePalette],
     terrain: Option<TerrainHeightmaps>,
 ) -> FilledSnapshot {
     let sections = column.into_sections(biomes);

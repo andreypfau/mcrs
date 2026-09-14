@@ -3,10 +3,10 @@ use crate::support;
 use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_block::experience::{
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_level::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::enchantment::{EnchantmentData, register_all_enchantments};

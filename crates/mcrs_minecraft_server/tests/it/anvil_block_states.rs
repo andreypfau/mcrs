@@ -4,7 +4,7 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
 use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_block::palette::AirCount;
+use mcrs_minecraft_level::palette::AirCount;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_server::world::format::anvil::{

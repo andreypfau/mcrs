@@ -75,7 +75,7 @@ mcrs_minecraft_protocol_macros = { path = "crates/mcrs_minecraft_protocol_macros
 mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol", default-features = false, features = ["compression"] }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
-mcrs_voxel_world = { path = "crates/mcrs_voxel_world" }
+mcrs_minecraft_level = { path = "crates/mcrs_minecraft_level" }
 mcrs_minecraft_core_macros = { path = "crates/mcrs_minecraft_core_macros" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_registry = { path = "crates/mcrs_minecraft_registry", default-features = false }
@@ -85,13 +85,11 @@ mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_decoration = { path = "crates/mcrs_minecraft_decoration" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen", default-features = false }
-mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
 mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light", default-features = false }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
 mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features = false }
-mcrs_voxel_server = { path = "crates/mcrs_voxel_server" }
 wtransport = "0.7.2"
 
 [dependencies]
@@ -160,9 +158,6 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_random"]
 opt-level = 3
 
-[profile.dev.package."mcrs_minecraft_block"]
-opt-level = 3
-
 # The light engine runs a frontier relaxation over millions of cells every time
 # a column arrives, so it belongs with the other per-column hot paths.
 [profile.dev.package."mcrs_minecraft_light"]
@@ -171,8 +166,8 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_server"]
 opt-level = 2
 
-[profile.dev.package."mcrs_voxel_world"]
-opt-level = 1
+[profile.dev.package."mcrs_minecraft_level"]
+opt-level = 2
 
 # The browser bundle is inlined into a single HTML file, so binary size is the
 # dominant cost there in a way it never is for a native build.

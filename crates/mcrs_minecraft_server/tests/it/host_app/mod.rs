@@ -20,6 +20,8 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
@@ -32,8 +34,6 @@ use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_world::block::light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
-use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///

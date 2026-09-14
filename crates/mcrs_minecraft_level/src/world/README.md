@@ -36,7 +36,7 @@ world/
 
 ## Position types
 
-All position types live one level up, in `mcrs_voxel_world::geometry`:
+All position types live one level up, in `mcrs_minecraft_core`:
 
 - `BlockPos` — 3D world-block position
 - `ChunkPos` — 3D chunk position (cubic, `IVec3`)
@@ -44,5 +44,5 @@ All position types live one level up, in `mcrs_voxel_world::geometry`:
 - `RegionPos` — 3D region position (16³ chunks per region)
 
 They are pure coordinate-arithmetic types with `From` conversions
-between adjacent levels; they carry no ECS state. Both `mcrs_voxel_world`
+between adjacent levels; they carry no ECS state. Both `mcrs_minecraft_level`
 and `mcrs_minecraft_protocol` import `ColumnPos` from the same source.

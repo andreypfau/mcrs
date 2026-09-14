@@ -6,10 +6,10 @@ use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed};
-use mcrs_voxel_world::entity::physics::{
+use mcrs_minecraft_level::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
+use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed};
 
 use crate::camera::FovFilter;
 use crate::local_player::{LastSentMovement, Sprint};

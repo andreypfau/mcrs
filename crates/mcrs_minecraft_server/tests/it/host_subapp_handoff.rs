@@ -13,6 +13,9 @@ use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionRegistry};
+use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
@@ -29,9 +32,6 @@ use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_s
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionRegistry};
-use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 
 // System under test (Task 1) — must be pub in configuration.rs
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
@@ -127,10 +127,10 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 /// `SessionEntry.dim` to that label (no longer Entity::PLACEHOLDER).
 #[test]
 fn game_transition_emits_initial_spawn() {
-    use mcrs_minecraft_server::world::channel_types::FromDim;
-    use mcrs_voxel_world::world::channels::{
+    use mcrs_minecraft_level::world::channels::{
         DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
+    use mcrs_minecraft_server::world::channel_types::FromDim;
 
     let mut app = build_host_app();
 
@@ -222,10 +222,10 @@ fn no_live_dim_no_spawn() {
 /// already emitted) must not send a second ToDim::Spawn.
 #[test]
 fn idempotent_single_emit() {
-    use mcrs_minecraft_server::world::channel_types::FromDim;
-    use mcrs_voxel_world::world::channels::{
+    use mcrs_minecraft_level::world::channels::{
         DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
+    use mcrs_minecraft_server::world::channel_types::FromDim;
 
     let mut app = build_host_app();
 
@@ -282,9 +282,9 @@ fn idempotent_single_emit() {
 /// into the sub-world's Messages<OutboundPlayerAttached>.
 #[test]
 fn spawn_consumer_materializes_in_dim_entity() {
-    use mcrs_voxel_world::entity::player::Player;
-    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
-    use mcrs_voxel_world::world::sub_app::DimAppLabel;
+    use mcrs_minecraft_level::entity::player::Player;
+    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 
     let mut app = build_host_app();
 
@@ -357,7 +357,7 @@ fn spawn_consumer_materializes_in_dim_entity() {
 /// in_dim_entity. After the pump, PlayerIndex.in_dim_entity must be Some.
 #[test]
 fn attach_roundtrip_sets_in_dim_entity() {
-    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
 
     let mut app = build_host_app();
 
@@ -410,9 +410,9 @@ fn attach_roundtrip_sets_in_dim_entity() {
 /// must NOT spawn a second in-dim entity.
 #[test]
 fn no_duplicate_spawn_on_reread() {
-    use mcrs_voxel_world::entity::player::Player;
-    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
-    use mcrs_voxel_world::world::sub_app::DimAppLabel;
+    use mcrs_minecraft_level::entity::player::Player;
+    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 
     let mut app = build_host_app();
 

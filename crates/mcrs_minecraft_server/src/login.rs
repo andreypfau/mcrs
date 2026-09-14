@@ -15,7 +15,7 @@ use mcrs_minecraft_protocol::{Bounded, WritePacket, uuid};
 use std::borrow::Cow;
 
 use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 
 /// Vanilla mints one chat session id per listener and reuses it for every login.
 fn session_id() -> uuid::Uuid {

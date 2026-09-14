@@ -7,13 +7,13 @@ use bevy_app::App;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_server::world::aoi::ChunkSubscriptionSet;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::world::dimension::{
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
 };
-use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_server::world::aoi::ChunkSubscriptionSet;
 use rustc_hash::FxHashMap;
 
 use crate::harness;

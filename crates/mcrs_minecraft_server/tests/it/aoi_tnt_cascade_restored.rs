@@ -16,22 +16,22 @@
 
 use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_block::explosion::ExplosionConfig;
-use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::block::BlockUpdateFlags;
+use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::explosion::ExplosionConfig;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
+use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_server::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
-use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnSlot};
 
 #[test]
 fn tnt_cascade_propagates_through_block_update_per_dim() {

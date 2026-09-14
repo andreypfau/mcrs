@@ -3485,27 +3485,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_minecraft_block"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_ecs",
- "bevy_math",
- "bevy_utils",
- "bitflags 2.10.0",
- "mcrs_minecraft_chunk",
- "mcrs_minecraft_core",
- "mcrs_minecraft_protocol",
- "mcrs_minecraft_random",
- "mcrs_minecraft_registry",
- "mcrs_minecraft_world",
- "mcrs_voxel_world",
- "rand 0.10.0",
- "rustc-hash 2.1.1",
- "tracing",
-]
-
-[[package]]
 name = "mcrs_minecraft_chunk"
 version = "0.1.0"
 dependencies = [
@@ -3530,12 +3509,12 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_level",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
- "mcrs_voxel_world",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
  "serde",
@@ -3581,6 +3560,34 @@ dependencies = [
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_level"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_platform",
+ "bevy_time",
+ "bevy_utils",
+ "bitflags 2.10.0",
+ "flume",
+ "indexmap",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_world",
+ "rand 0.10.0",
+ "rustc-hash 2.1.1",
+ "smallvec",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]
@@ -3710,10 +3717,10 @@ dependencies = [
  "flume",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
- "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_decoration",
+ "mcrs_minecraft_level",
  "mcrs_minecraft_light",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
@@ -3722,8 +3729,6 @@ dependencies = [
  "mcrs_minecraft_registry",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
- "mcrs_voxel_server",
- "mcrs_voxel_world",
  "proptest",
  "rand 0.10.0",
  "rand 0.9.2",
@@ -3801,39 +3806,6 @@ dependencies = [
  "bevy_log",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "mcrs_voxel_server"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_asset",
- "bevy_ecs",
- "bevy_time",
- "flume",
- "mcrs_voxel_world",
- "rustc-hash 2.1.1",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "mcrs_voxel_world"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_derive",
- "bevy_ecs",
- "bevy_math",
- "bevy_platform",
- "flume",
- "indexmap",
- "mcrs_minecraft_chunk",
- "mcrs_minecraft_core",
- "rustc-hash 2.1.1",
- "smallvec",
- "tracing",
 ]
 
 [[package]]

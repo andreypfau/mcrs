@@ -3,11 +3,11 @@ use bevy_ecs::message::Message;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
+use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{BlockStateId, VarInt};
 use mcrs_minecraft_protocol::{GameEventKind, GameMode, Look, Text};
-use mcrs_voxel_world::session::PlayerSession;
 use smallvec::SmallVec;
 use std::time::Instant;
 
@@ -292,25 +292,25 @@ pub enum ArrivalCause {
 /// landing position.
 #[derive(Message, Clone, Debug)]
 pub struct InboundEntitySpawn {
-    pub move_id: mcrs_voxel_world::session::MoveId,
+    pub move_id: mcrs_minecraft_level::session::MoveId,
     pub epoch: u32,
     pub cause: ArrivalCause,
     pub payload: MovePayload,
-    pub player: Option<mcrs_voxel_world::session::PlayerSession>,
+    pub player: Option<mcrs_minecraft_level::session::PlayerSession>,
 }
 
 /// Forwarded from `ToDim::ConfirmMove` into the source sub-app message bus.
 /// The source-dim confirm system despawns the hidden in-transit entity.
 #[derive(Message, Clone, Debug)]
 pub struct InboundConfirmMove {
-    pub move_id: mcrs_voxel_world::session::MoveId,
+    pub move_id: mcrs_minecraft_level::session::MoveId,
 }
 
 /// Forwarded from `ToDim::RollbackMove` into the source sub-app message bus.
 /// The source-dim rollback system removes `InTransit` so the entity reappears.
 #[derive(Message, Clone, Debug)]
 pub struct InboundRollbackMove {
-    pub move_id: mcrs_voxel_world::session::MoveId,
+    pub move_id: mcrs_minecraft_level::session::MoveId,
 }
 
 #[cfg(test)]

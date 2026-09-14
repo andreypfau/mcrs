@@ -15,19 +15,19 @@
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Entity, IntoScheduleConfigs, Query, With};
-use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::voxel_update::{ChunkVoxelChanges, VoxelUpdateSet};
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::storage::column::ColumnIndex;
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::voxel_update::{ChunkVoxelChanges, VoxelUpdateSet};
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::storage::column::ColumnIndex;
 use smallvec::SmallVec;
 
-pub use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
+pub use mcrs_minecraft_level::block_update::BlockUpdatePlugin;
 
 use std::sync::atomic::Ordering;
 

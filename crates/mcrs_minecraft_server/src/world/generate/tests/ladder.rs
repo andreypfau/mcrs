@@ -17,13 +17,13 @@ use bevy_math::IVec3;
 use bevy_tasks::TaskPoolBuilder;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::world::lifecycle::markers::{ChunkLoaded, ChunkLoading};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;
-use mcrs_voxel_world::world::lifecycle::markers::{ChunkLoaded, ChunkLoading};
 
 use crate::world::chunk::{
     CHUNK_TASK_POOL, CancellationToken, ColumnScheduler, SchedulerConfig, deliver_merged_columns,
@@ -788,7 +788,7 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
     use crate::world::block_entity::BlockEntity;
     use crate::world::chunk::{ColumnKey, PendingColumn};
     use mcrs_minecraft_decoration::block_entity::{BeeOccupant, GeneratedBlockEntity};
-    use mcrs_voxel_world::world::dimension::InDimension;
+    use mcrs_minecraft_level::world::dimension::InDimension;
 
     let mut app = App::new();
     app.init_resource::<PendingColumnHeightmaps>();

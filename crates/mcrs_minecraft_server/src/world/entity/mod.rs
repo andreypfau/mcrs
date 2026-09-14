@@ -13,13 +13,13 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::Query;
 use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
+use mcrs_minecraft_level::entity::physics::{OldTransform, Transform};
+use mcrs_minecraft_level::entity::{EntityNetworkSyncEvent, EntityPlugin};
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Look, VarInt};
-use mcrs_voxel_world::entity::physics::{OldTransform, Transform};
-use mcrs_voxel_world::entity::{EntityNetworkSyncEvent, EntityPlugin};
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::world::dimension::InDimension;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::Ordering::Relaxed;
 

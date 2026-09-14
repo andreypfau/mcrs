@@ -51,7 +51,7 @@ use crate::world::bridge_queue::{
 use crate::world::bus::{PacketPayload, PacketTarget};
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::player_index::{HostAnchorRef, PendingInboundBuffer};
-use mcrs_voxel_world::session::SessionRegistry;
+use mcrs_minecraft_level::session::SessionRegistry;
 
 /// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
 /// carries `ServerSideConnection` but not yet an `OutboundQueue`.
@@ -815,8 +815,8 @@ mod tests {
     use crate::world::player_index::PendingInboundBuffer;
 
     use bytes::Bytes;
-    use mcrs_voxel_world::session::{PlayerSession, SessionEntry, SessionRegistry};
-    use mcrs_voxel_world::world::channels::{
+    use mcrs_minecraft_level::session::{PlayerSession, SessionEntry, SessionRegistry};
+    use mcrs_minecraft_level::world::channels::{
         DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
 

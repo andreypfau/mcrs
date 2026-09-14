@@ -1,6 +1,3 @@
-pub mod dim;
-pub mod packet;
-
 use bevy_app::prelude::*;
 use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;

@@ -9,15 +9,15 @@ use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_level::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
+use mcrs_minecraft_level::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
 use mcrs_minecraft_server::world::sub_app_builder::{
     DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue, gather_dim_registries,
     spawn_dim_subapp,
 };
 use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_voxel_world::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
-use mcrs_voxel_world::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
 
 use crate::host_app;
 

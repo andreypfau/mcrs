@@ -1,10 +1,8 @@
 use crate::block::BlockUpdateFlags;
+use crate::voxel_update::{VoxelPlaced, VoxelSetRequest, VoxelUpdateFlags, VoxelUpdatePlugin};
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_voxel_world::voxel_update::{
-    VoxelPlaced, VoxelSetRequest, VoxelUpdateFlags, VoxelUpdatePlugin,
-};
 
 impl VoxelUpdateFlags for BlockUpdateFlags {
     fn notifies_clients(&self) -> bool {
@@ -29,9 +27,9 @@ pub fn remove_block<P: Into<BlockPos>>(dimension: Entity, pos: P) -> BlockSetReq
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::voxel_update::{VoxelUpdateSet, apply_voxel_set_requests};
     use bevy_ecs::schedule::IntoScheduleConfigs;
     use mcrs_minecraft_core::SectionPos;
-    use mcrs_voxel_world::voxel_update::{VoxelUpdateSet, apply_voxel_set_requests};
 
     #[test]
     fn set_configured_compile_test() {

@@ -28,14 +28,14 @@ use crate::login::LoginPlugin;
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::Resource;
+use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_network::NetworkPlugin;
-use mcrs_voxel_server::VoxelServerPlugin;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
+pub use mcrs_minecraft_level::server_loop::spawn_server_thread;
 pub use mcrs_minecraft_network::BoundAddress;
-pub use mcrs_voxel_server::spawn_server_thread;
 
 pub struct MinecraftServerPlugin {
     /// Port 0 asks the OS for a free port; read the result back from

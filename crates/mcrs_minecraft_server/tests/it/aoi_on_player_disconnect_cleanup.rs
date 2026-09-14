@@ -16,6 +16,16 @@ use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft_level::world::channels::{
+    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+};
+use mcrs_minecraft_level::world::dimension::{
+    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
+};
+use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_server::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick,
     filter_inflight_for_disconnect, process_disconnect,
@@ -28,16 +38,6 @@ use mcrs_minecraft_server::world::bus::{
 use mcrs_minecraft_server::world::channel_types::FromDim;
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_server::world::player_index::PlayerIndex;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_voxel_world::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-};
-use mcrs_voxel_world::world::dimension::{
-    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
-};
-use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 
 use crate::harness;
 use harness::{
@@ -117,7 +117,7 @@ fn synthetic_disconnect(app: &mut App, host_anchor: Entity) {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
-                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },
