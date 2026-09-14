@@ -24,7 +24,6 @@ import org.jspecify.annotations.Nullable;
 public final class BeardOracle {
     private static final byte[] MAGIC = "MCBEARD0".getBytes(StandardCharsets.US_ASCII);
     private static final int FORMAT_VERSION = 1;
-    private static final int KERNEL_LEN = 24 * 24 * 24;
 
     private record BeardCase(
         String name,
@@ -63,11 +62,7 @@ public final class BeardOracle {
     private static float[] kernel() throws ReflectiveOperationException {
         Field field = Beardifier.class.getDeclaredField("BEARD_KERNEL");
         field.setAccessible(true);
-        float[] kernel = (float[])field.get(null);
-        if (kernel.length != KERNEL_LEN) {
-            throw new IllegalStateException("BEARD_KERNEL has " + kernel.length + " entries, expected " + KERNEL_LEN);
-        }
-        return kernel;
+        return (float[])field.get(null);
     }
 
     private static DensityVolume chunk(final int chunkX, final int chunkZ) {
@@ -89,12 +84,6 @@ public final class BeardOracle {
         final int groundLevelDelta
     ) {
         return new Beardifier.Rigid(new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ), adjustment, groundLevelDelta);
-    }
-
-    private static JigsawJunction junction(
-        final int x, final int groundY, final int z, final int deltaY, final StructureTemplatePool.Projection projection
-    ) {
-        return new JigsawJunction(x, groundY, z, deltaY, projection);
     }
 
     private static BeardCase synthetic(
@@ -127,8 +116,8 @@ public final class BeardOracle {
             rigid(-55, 66, -36, -44, 71, -28, TerrainAdjustment.BURY, 1)
         );
         List<JigsawJunction> negativeJunctions = List.of(
-            junction(-35, 72, -18, 1, terrainMatching),
-            junction(-47, 67, -30, 0, rigidProjection)
+            new JigsawJunction(-35, 72, -18, 1, terrainMatching),
+            new JigsawJunction(-47, 67, -30, 0, rigidProjection)
         );
         return List.of(
             synthetic(
@@ -165,10 +154,10 @@ public final class BeardOracle {
                 "junctions_only",
                 List.of(),
                 List.of(
-                    junction(3, 65, 14, 1, rigidProjection),
-                    junction(15, 70, -2, -1, terrainMatching),
-                    junction(-4, 62, 8, 0, terrainMatching),
-                    junction(20, 68, 20, 2, rigidProjection)
+                    new JigsawJunction(3, 65, 14, 1, rigidProjection),
+                    new JigsawJunction(15, 70, -2, -1, terrainMatching),
+                    new JigsawJunction(-4, 62, 8, 0, terrainMatching),
+                    new JigsawJunction(20, 68, 20, 2, rigidProjection)
                 ),
                 chunk(0, 0)
             ),
@@ -184,27 +173,27 @@ public final class BeardOracle {
                     rigid(48, 67, 15, 55, 73, 22, TerrainAdjustment.NONE, 1)
                 ),
                 List.of(
-                    junction(35, 64, 24, 0, terrainMatching),
-                    junction(40, 71, 29, 1, rigidProjection),
-                    junction(33, 63, 18, -1, terrainMatching),
-                    junction(46, 67, 26, 2, rigidProjection),
-                    junction(29, 69, 31, 0, terrainMatching),
-                    junction(50, 72, 19, -2, terrainMatching),
-                    junction(42, 60, 13, 3, rigidProjection)
+                    new JigsawJunction(35, 64, 24, 0, terrainMatching),
+                    new JigsawJunction(40, 71, 29, 1, rigidProjection),
+                    new JigsawJunction(33, 63, 18, -1, terrainMatching),
+                    new JigsawJunction(46, 67, 26, 2, rigidProjection),
+                    new JigsawJunction(29, 69, 31, 0, terrainMatching),
+                    new JigsawJunction(50, 72, 19, -2, terrainMatching),
+                    new JigsawJunction(42, 60, 13, 3, rigidProjection)
                 ),
                 chunk(2, 1)
             ),
             synthetic(
                 "affected_box_misses",
                 List.of(rigid(200, 64, 200, 210, 72, 210, TerrainAdjustment.BEARD_THIN, 1)),
-                List.of(junction(190, 66, 195, 0, terrainMatching)),
+                List.of(new JigsawJunction(190, 66, 195, 0, terrainMatching)),
                 chunk(0, 0)
             ),
             new BeardCase("empty", List.of(), List.of(), null, chunk(0, 0)),
             synthetic(
                 "stepped_lattice",
                 List.of(rigid(30, 17, 10, 40, 29, 14, TerrainAdjustment.BEARD_THIN, 2)),
-                List.of(junction(34, 25, 12, 0, rigidProjection)),
+                List.of(new JigsawJunction(34, 25, 12, 0, rigidProjection)),
                 lattice(1, 0)
             ),
             synthetic("negative_chunk", negativeRigids, negativeJunctions, chunk(-3, -2)),

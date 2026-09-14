@@ -755,8 +755,8 @@ empty.
 
 **I3. The query.** *Starts reaching column `U`*: for each live set, for each
 chunk `C` within eight chunks of `U` (L5), the starts of `C` whose box
-intersects `U`'s footprint; for adaptation, only structures with a term, and
-the box already inflated by 12 (L1). For a `random_spread` set the chunks to
+intersects `U`'s footprint, the box already inflated by 12 where the
+structure adapts (L1). For a `random_spread` set the chunks to
 visit are the cells whose potential chunk lies in the square, which for
 `spacing ≥ 20` is a handful; for the three spacing-1 or spacing-2 sets it is
 the square itself. The reference visits the 289 chunks of radius 8 for every
@@ -1166,13 +1166,11 @@ Counts, to be replaced by `PERF.md` numbers.
   comparisons; plus one density-strip evaluation per terrain-matching
   attachment, which is the unknown that decides whether the strip evaluator
   needs a path of its own (a tape built for tiles, asked for a 1×H×1 volume).
-- **The beard**: per column of a dimension with a live adapted jigsaw
-  structure, one walk of the starts reaching it besides the one the run
-  makes — every chunk within the widest reach, `(2r + 1)²` start lookups,
-  until the memo of I2 answers them — then A2 over the affected box clipped to
-  each block-filled cell, a handful of sections for a village. Every cell
-  meeting the box gives up the interval verdict. A dimension with no live
-  adapted jigsaw structure does none of it.
+- **The beard**: per column of a dimension with a live jigsaw structure, one
+  walk of the starts reaching it besides the one the run makes — the 289
+  chunks within eight, gated, until the memo of I2 answers them — then A2 over
+  the affected box clipped to each block-filled cell, a handful of sections
+  for a village. Every cell meeting the box gives up the interval verdict.
 - **Materialisation**: the largest and least predictable stage
   (`worldgen.md` §11), which is why `worldgen.md` §17 asks for it measured
   apart from objects; a village is thousands of block writes and a processor

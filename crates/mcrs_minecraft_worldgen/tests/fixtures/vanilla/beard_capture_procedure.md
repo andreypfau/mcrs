@@ -25,8 +25,7 @@ table and every sampled density value bit for bit.
 
 `SharedConstants.tryDetectVersion()`, `Bootstrap.bootStrap()`.
 
-`BEARD_KERNEL` is private; the harness reads it through reflection and fails
-unless it holds 13 824 entries.
+`BEARD_KERNEL` is private; the harness reads it through reflection.
 
 Each case builds a `Beardifier` through the `@VisibleForTesting` constructor
 `new Beardifier(List<Beardifier.Rigid>, List<JigsawJunction>, BoundingBox affectedBox)`,

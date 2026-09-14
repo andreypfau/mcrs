@@ -13,8 +13,8 @@ pub const KERNEL_LEN: usize = (KERNEL_SIZE * KERNEL_SIZE * KERNEL_SIZE) as usize
 const PIECE_REACH: i32 = 12;
 const AFFECTED_MARGIN: i32 = 24;
 
-static KERNEL: LazyLock<Box<[f32; KERNEL_LEN]>> = LazyLock::new(|| {
-    let mut kernel = vec![0.0f32; KERNEL_LEN].into_boxed_slice();
+pub static KERNEL: LazyLock<[f32; KERNEL_LEN]> = LazyLock::new(|| {
+    let mut kernel = [0.0f32; KERNEL_LEN];
     for zi in 0..KERNEL_SIZE {
         for xi in 0..KERNEL_SIZE {
             for yi in 0..KERNEL_SIZE {
@@ -27,12 +27,8 @@ static KERNEL: LazyLock<Box<[f32; KERNEL_LEN]>> = LazyLock::new(|| {
             }
         }
     }
-    kernel.try_into().expect("a 24x24x24 kernel")
+    kernel
 });
-
-pub fn kernel() -> &'static [f32; KERNEL_LEN] {
-    &KERNEL
-}
 
 #[inline]
 fn kernel_index(xi: i32, yi: i32, zi: i32) -> usize {
@@ -54,46 +50,21 @@ pub struct JunctionPoint {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BeardPiece<J> {
-    Jigsaw {
-        bounds: BoundingBox,
-        projection: Projection,
-        ground_level_delta: i32,
-        junctions: J,
-    },
-    Other {
-        bounds: BoundingBox,
-    },
-}
-
-impl<J> BeardPiece<J> {
-    fn bounds(&self) -> BoundingBox {
-        match self {
-            BeardPiece::Jigsaw { bounds, .. } | BeardPiece::Other { bounds } => *bounds,
-        }
-    }
+pub struct BeardPiece<J> {
+    pub bounds: BoundingBox,
+    pub projection: Projection,
+    pub ground_level_delta: i32,
+    pub junctions: J,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Beard {
-    rigids: Vec<Rigid>,
-    junctions: Vec<JunctionPoint>,
-    affected: Option<BoundingBox>,
+    pub rigids: Vec<Rigid>,
+    pub junctions: Vec<JunctionPoint>,
+    pub affected: Option<BoundingBox>,
 }
 
 impl Beard {
-    pub fn new(
-        rigids: Vec<Rigid>,
-        junctions: Vec<JunctionPoint>,
-        affected: Option<BoundingBox>,
-    ) -> Self {
-        Self {
-            rigids,
-            junctions,
-            affected,
-        }
-    }
-
     /// `pieces` in start order, then piece order within each start, each paired
     /// with its structure's adaptation.
     pub fn collect<J>(
@@ -119,7 +90,12 @@ impl Beard {
             if adaptation == TerrainAdaptation::None {
                 continue;
             }
-            let bounds = piece.bounds();
+            let BeardPiece {
+                bounds,
+                projection,
+                ground_level_delta,
+                junctions: piece_junctions,
+            } = piece;
             let close = bounds.max.x >= reach_min_x
                 && bounds.min.x <= reach_max_x
                 && bounds.max.z >= reach_min_z
@@ -127,43 +103,26 @@ impl Beard {
             if !close {
                 continue;
             }
-            match piece {
-                BeardPiece::Jigsaw {
+            if projection == Projection::Rigid {
+                rigids.push(Rigid {
                     bounds,
-                    projection,
+                    adaptation,
                     ground_level_delta,
-                    junctions: piece_junctions,
-                } => {
-                    if projection == Projection::Rigid {
-                        rigids.push(Rigid {
-                            bounds,
-                            adaptation,
-                            ground_level_delta,
-                        });
-                        include(bounds);
-                    }
-                    for junction in piece_junctions {
-                        if junction.x > reach_min_x
-                            && junction.z > reach_min_z
-                            && junction.x < reach_max_x
-                            && junction.z < reach_max_z
-                        {
-                            junctions.push(junction);
-                            include(BoundingBox::point(BlockPos::new(
-                                junction.x,
-                                junction.ground_y,
-                                junction.z,
-                            )));
-                        }
-                    }
-                }
-                BeardPiece::Other { bounds } => {
-                    rigids.push(Rigid {
-                        bounds,
-                        adaptation,
-                        ground_level_delta: 0,
-                    });
-                    include(bounds);
+                });
+                include(bounds);
+            }
+            for junction in piece_junctions {
+                if junction.x > reach_min_x
+                    && junction.z > reach_min_z
+                    && junction.x < reach_max_x
+                    && junction.z < reach_max_z
+                {
+                    junctions.push(junction);
+                    include(BoundingBox::point(BlockPos::new(
+                        junction.x,
+                        junction.ground_y,
+                        junction.z,
+                    )));
                 }
             }
         }
@@ -173,18 +132,6 @@ impl Beard {
             junctions,
             affected: touched.map(|bounds| bounds.inflated(AFFECTED_MARGIN)),
         }
-    }
-
-    pub fn rigids(&self) -> &[Rigid] {
-        &self.rigids
-    }
-
-    pub fn junctions(&self) -> &[JunctionPoint] {
-        &self.junctions
-    }
-
-    pub fn affected(&self) -> Option<BoundingBox> {
-        self.affected
     }
 
     pub fn intersects(&self, grid: &SampleGrid) -> bool {
@@ -199,7 +146,7 @@ impl Beard {
     pub fn sample(&self, x: i32, y: i32, z: i32) -> f32 {
         match self.affected {
             Some(affected) if affected.contains(BoundingBox::point(BlockPos::new(x, y, z))) => {
-                self.sample_unchecked(kernel(), x, y, z)
+                self.sample_unchecked(&KERNEL, x, y, z)
             }
             _ => 0.0,
         }
@@ -220,7 +167,7 @@ impl Beard {
         let hi_y = (size.y - 1).min(floor_div(affected.max.y - min.y, step.y));
         let hi_z = (size.z - 1).min(floor_div(affected.max.z - min.z, step.z));
 
-        let kernel = kernel();
+        let kernel = &*KERNEL;
         for z in lo_z..=hi_z {
             let block_z = grid.block_z(z);
             for x in lo_x..=hi_x {
@@ -410,11 +357,20 @@ mod tests {
         projection: Projection,
         junctions: Vec<JunctionPoint>,
     ) -> BeardPiece<Vec<JunctionPoint>> {
-        BeardPiece::Jigsaw {
+        BeardPiece {
             bounds,
             projection,
             ground_level_delta: 1,
             junctions,
+        }
+    }
+
+    fn rigid(bounds: BoundingBox) -> BeardPiece<Vec<JunctionPoint>> {
+        BeardPiece {
+            bounds,
+            projection: Projection::Rigid,
+            ground_level_delta: 0,
+            junctions: Vec::new(),
         }
     }
 
@@ -425,7 +381,7 @@ mod tests {
     #[test]
     fn a_piece_counts_up_to_twelve_blocks_from_the_footprint() {
         let thin = TerrainAdaptation::BeardThin;
-        let other = |bounds| (thin, BeardPiece::Other { bounds });
+        let other = |bounds| (thin, rigid(bounds));
         let beard = collect(vec![
             other(cube([-20, 0, 0], [-12, 5, 3])),
             other(cube([-20, 0, 0], [-13, 5, 3])),
@@ -436,7 +392,7 @@ mod tests {
             other(cube([0, 0, 27], [3, 5, 30])),
             other(cube([0, 0, 28], [3, 5, 30])),
         ]);
-        let kept: Vec<_> = beard.rigids().iter().map(|rigid| rigid.bounds).collect();
+        let kept: Vec<_> = beard.rigids.iter().map(|rigid| rigid.bounds).collect();
         assert_eq!(
             kept,
             vec![
@@ -445,12 +401,6 @@ mod tests {
                 cube([0, 0, -20], [3, 5, -12]),
                 cube([0, 0, 27], [3, 5, 30]),
             ]
-        );
-        assert!(
-            beard
-                .rigids()
-                .iter()
-                .all(|rigid| rigid.ground_level_delta == 0)
         );
     }
 
@@ -474,8 +424,8 @@ mod tests {
             ),
         )]);
         assert_eq!(
-            beard.junctions(),
-            &[
+            beard.junctions,
+            [
                 point(-11, 64, 5),
                 point(26, 64, 5),
                 point(5, 64, -11),
@@ -494,9 +444,9 @@ mod tests {
                 vec![point(3, 64, 4)],
             ),
         )]);
-        assert!(beard.rigids().is_empty());
-        assert_eq!(beard.junctions(), &[point(3, 64, 4)]);
-        assert_eq!(beard.affected(), Some(cube([-21, 40, -20], [27, 88, 28])));
+        assert!(beard.rigids.is_empty());
+        assert_eq!(beard.junctions, [point(3, 64, 4)]);
+        assert_eq!(beard.affected, Some(cube([-21, 40, -20], [27, 88, 28])));
     }
 
     #[test]
@@ -512,14 +462,12 @@ mod tests {
             ),
             (
                 TerrainAdaptation::Encapsulate,
-                BeardPiece::Other {
-                    bounds: cube([-4, 80, 2], [1, 90, 3]),
-                },
+                rigid(cube([-4, 80, 2], [1, 90, 3])),
             ),
         ]);
         assert_eq!(
-            beard.rigids(),
-            &[
+            beard.rigids,
+            [
                 Rigid {
                     bounds: cube([0, 60, 0], [8, 70, 8]),
                     adaptation: TerrainAdaptation::Bury,
@@ -532,7 +480,7 @@ mod tests {
                 },
             ]
         );
-        assert_eq!(beard.affected(), Some(cube([-28, 26, -29], [44, 114, 32])));
+        assert_eq!(beard.affected, Some(cube([-28, 26, -29], [44, 114, 32])));
     }
 
     #[test]
@@ -552,12 +500,10 @@ mod tests {
     fn nothing_close_collects_to_no_affected_box() {
         let far = collect(vec![(
             TerrainAdaptation::BeardBox,
-            BeardPiece::Other {
-                bounds: cube([100, 0, 100], [110, 10, 110]),
-            },
+            rigid(cube([100, 0, 100], [110, 10, 110])),
         )]);
         assert_eq!(far, Beard::default());
-        assert_eq!(collect(Vec::new()).affected(), None);
+        assert_eq!(collect(Vec::new()).affected, None);
 
         let grid = SampleGrid::dense(IVec3::new(16, 384, 16), IVec3::new(0, -64, 0));
         assert!(!far.intersects(&grid));
@@ -574,29 +520,25 @@ mod tests {
             vec![
                 (
                     TerrainAdaptation::BeardThin,
-                    BeardPiece::<Vec<JunctionPoint>>::Other {
-                        bounds: cube([-40, 0, -45], [-29, 5, -44]),
-                    },
+                    rigid(cube([-40, 0, -45], [-29, 5, -44])),
                 ),
                 (
                     TerrainAdaptation::BeardThin,
-                    BeardPiece::Other {
-                        bounds: cube([-40, 0, -45], [-28, 5, -44]),
-                    },
+                    rigid(cube([-40, 0, -45], [-28, 5, -44])),
                 ),
             ],
         );
-        assert_eq!(beard.rigids().len(), 1);
-        assert_eq!(beard.rigids()[0].bounds, cube([-40, 0, -45], [-28, 5, -44]));
+        assert_eq!(beard.rigids.len(), 1);
+        assert_eq!(beard.rigids[0].bounds, cube([-40, 0, -45], [-28, 5, -44]));
     }
 
     #[test]
     fn fill_writes_the_affected_lattice_points_clipped_by_floor_division() {
-        let beard = Beard::new(
-            Vec::new(),
-            Vec::new(),
-            Some(cube([5, -60, -3], [9, -50, 100])),
-        );
+        let beard = Beard {
+            rigids: Vec::new(),
+            junctions: Vec::new(),
+            affected: Some(cube([5, -60, -3], [9, -50, 100])),
+        };
         let grid = SampleGrid::new(
             IVec3::new(5, 49, 5),
             IVec3::new(0, -64, 0),
@@ -630,9 +572,7 @@ mod tests {
                 ),
                 (
                     TerrainAdaptation::Encapsulate,
-                    BeardPiece::Other {
-                        bounds: cube([-6, 30, -6], [4, 40, 4]),
-                    },
+                    rigid(cube([-6, 30, -6], [4, 40, 4])),
                 ),
             ],
         );

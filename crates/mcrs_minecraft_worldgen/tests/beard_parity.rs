@@ -5,7 +5,7 @@
 use bevy_math::IVec3;
 use bytes::{Buf, Bytes};
 use mcrs_minecraft_worldgen::SampleGrid;
-use mcrs_minecraft_worldgen::beard::{Beard, JunctionPoint, KERNEL_LEN, Rigid, kernel};
+use mcrs_minecraft_worldgen::beard::{Beard, JunctionPoint, KERNEL, KERNEL_LEN, Rigid};
 use mcrs_minecraft_worldgen::corpus::{dump_string, open_dump};
 use mcrs_minecraft_worldgen::structure::TerrainAdaptation;
 use mcrs_voxel_math::{BlockPos, BoundingBox};
@@ -91,7 +91,11 @@ fn read_dump() -> (Vec<f32>, Vec<Case>) {
             }
             Case {
                 name,
-                beard: Beard::new(rigids, junctions, affected),
+                beard: Beard {
+                    rigids,
+                    junctions,
+                    affected,
+                },
                 grid,
                 expected,
             }
@@ -105,7 +109,7 @@ fn read_dump() -> (Vec<f32>, Vec<Case>) {
 fn kernel_matches_the_reference_bit_for_bit() {
     let (dumped, _) = read_dump();
     assert_eq!(dumped.len(), KERNEL_LEN);
-    let ours = kernel();
+    let ours = &*KERNEL;
     let mismatches: Vec<_> = (0..KERNEL_LEN)
         .filter(|&i| ours[i].to_bits() != dumped[i].to_bits())
         .collect();
