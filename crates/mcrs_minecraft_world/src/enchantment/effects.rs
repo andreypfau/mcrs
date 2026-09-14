@@ -5,7 +5,8 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::predicate::{BlockPredicate, LootCondition, dispatched_map};
-use super::value::{FloatProvider, HolderSet, LevelBasedValue};
+use super::value::{HolderSet, LevelBasedValue};
+use crate::value::FloatValueProvider;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -126,7 +127,7 @@ pub struct VelocitySource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub movement_scale: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub base: Option<FloatProvider>,
+    pub base: Option<FloatValueProvider>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -219,8 +220,8 @@ pub enum EnchantmentEntityEffect {
     #[serde(rename = "minecraft:play_sound")]
     PlaySound {
         sound: HolderSet,
-        volume: FloatProvider,
-        pitch: FloatProvider,
+        volume: FloatValueProvider,
+        pitch: FloatValueProvider,
     },
     #[serde(rename = "minecraft:replace_disk")]
     ReplaceDisk {
@@ -241,7 +242,7 @@ pub enum EnchantmentEntityEffect {
         vertical_position: PositionSource,
         horizontal_velocity: VelocitySource,
         vertical_velocity: VelocitySource,
-        speed: FloatProvider,
+        speed: FloatValueProvider,
     },
     #[serde(rename = "minecraft:summon_entity")]
     SummonEntity {

@@ -17,11 +17,12 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::molang::{MolangError, StateCondition};
 use self::schema::{
-    BlockDefinitionFile, BlockProperties, Components, IntProvider, LavaFlammable, ModelBox,
-    NoteBlockInstrument, PlacementFilter, PropertyValue, Sticky,
+    BlockDefinitionFile, BlockProperties, Components, LavaFlammable, ModelBox, NoteBlockInstrument,
+    PlacementFilter, PropertyValue, Sticky,
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
+use crate::value::IntValueProvider;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::asset::read_whole;
 use mcrs_minecraft_protocol::BlockStateId;
@@ -186,7 +187,7 @@ pub struct BlockDefinitions {
     shapes: Vec<Box<[Aabb]>>,
     fluids: Vec<ResourceLocation<Arc<str>>>,
     loot: Vec<ResourceLocation<Arc<str>>>,
-    experience: Vec<IntProvider>,
+    experience: Vec<IntValueProvider>,
     blocks: Vec<BlockEntry>,
     owners: Vec<u32>,
     by_identifier: FxHashMap<Arc<str>, usize>,
@@ -229,8 +230,8 @@ impl BlockDefinitions {
     }
 
     #[inline]
-    pub fn experience_drop(&self, id: ExperienceId) -> IntProvider {
-        self.experience[id.0 as usize]
+    pub fn experience_drop(&self, id: ExperienceId) -> &IntValueProvider {
+        &self.experience[id.0 as usize]
     }
 
     pub fn state_count(&self) -> usize {
@@ -489,7 +490,7 @@ struct Builder {
     shape_ids: FxHashMap<Vec<u32>, ShapeId>,
     fluids: Vec<ResourceLocation<Arc<str>>>,
     loot: Vec<ResourceLocation<Arc<str>>>,
-    experience: Vec<IntProvider>,
+    experience: Vec<IntValueProvider>,
     blocks: Vec<BlockEntry>,
     permutations: usize,
 }
@@ -534,7 +535,7 @@ impl Builder {
         LootId(intern(&mut self.loot, table))
     }
 
-    fn intern_experience(&mut self, drop: IntProvider) -> ExperienceId {
+    fn intern_experience(&mut self, drop: IntValueProvider) -> ExperienceId {
         match self.experience.iter().position(|v| *v == drop) {
             Some(index) => ExperienceId(index as u16),
             None => {
@@ -732,6 +733,7 @@ impl Builder {
             .map(|table| self.intern_loot(table));
         let experience = components
             .experience_drop
+            .clone()
             .map(|drop| self.intern_experience(drop));
         let fluid = components.fluid_state.as_ref().map(|fluid| FluidState {
             fluid: self.intern_fluid(&fluid.fluid),

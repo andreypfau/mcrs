@@ -5,7 +5,6 @@ use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_minecraft_world::block::definition::schema::IntProvider;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_voxel_math::BlockPos;
 use tracing::{debug, warn};
@@ -55,16 +54,6 @@ impl Plugin for ExperiencePlugin {
             Update,
             (award_block_experience, spawn_experience_orbs).chain(),
         );
-    }
-}
-
-fn sample(drop: IntProvider, random: &mut XoroshiroRandom) -> i32 {
-    match drop {
-        IntProvider::Constant(value) => value,
-        IntProvider::Uniform {
-            min_inclusive,
-            max_inclusive,
-        } => min_inclusive + random.next_i32_bound(max_inclusive - min_inclusive + 1),
     }
 }
 
@@ -136,7 +125,7 @@ fn award_block_experience(
         let Some(id) = blocks.state(event.state).experience else {
             continue;
         };
-        let sampled = sample(blocks.experience_drop(id), &mut random.0);
+        let sampled = blocks.experience_drop(id).sample(&mut random.0);
         let enchantments = event.tool.and_then(|tool| tools.get(tool).ok());
         let amount = process_block_experience(sampled, enchantments, &registry, &mut random.0);
         if amount > 0 {
