@@ -1,4 +1,4 @@
-use crate::entity::despawn::Despawned;
+use crate::entity::Despawned;
 use crate::entity::player::Player;
 use crate::world::lifecycle::ticket::ChunkTicketsCommands;
 use crate::world::storage::chunk::ChunkIndex;
@@ -8,8 +8,8 @@ use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{
-    Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, Has, IntoScheduleConfigs,
-    Mut, Query, Ref, With,
+    Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs, Mut,
+    Query, Ref, With,
 };
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use std::collections::BTreeSet;
@@ -127,13 +127,24 @@ fn update_time(mut dimension_time: Query<Mut<DimensionTime>>) {
 
 #[allow(clippy::type_complexity)]
 fn update_index(
-    entities: Query<(Entity, Has<Despawned>, &OldInDimension, Ref<InDimension>), With<Player>>,
+    entities: Query<
+        (
+            Entity,
+            Option<Ref<Despawned>>,
+            &OldInDimension,
+            Ref<InDimension>,
+        ),
+        With<Player>,
+    >,
     mut dimensions: Query<&mut DimensionPlayers>,
 ) {
     entities
         .iter()
-        .for_each(|(player, is_despawned, old_in_dimension, in_dimension)| {
-            if is_despawned {
+        .for_each(|(player, despawned, old_in_dimension, in_dimension)| {
+            if let Some(despawned) = despawned {
+                if !despawned.is_added() {
+                    return;
+                }
                 if let Ok(mut viewers) = dimensions.get_mut(**old_in_dimension) {
                     let removed = viewers.0.remove(&player);
                     debug_assert!(removed);
