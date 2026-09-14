@@ -27,6 +27,22 @@ impl ColumnPos {
         diff_x * diff_x + diff_z * diff_z
     }
 
+    pub const fn min_block_x(self) -> i32 {
+        self.x << SectionPos::BITS
+    }
+
+    pub const fn min_block_z(self) -> i32 {
+        self.z << SectionPos::BITS
+    }
+
+    pub const fn middle_block_x(self) -> i32 {
+        self.min_block_x() + 8
+    }
+
+    pub const fn middle_block_z(self) -> i32 {
+        self.min_block_z() + 8
+    }
+
     pub const fn region_local_x(self) -> i32 {
         self.x & RegionPos::MASK as i32
     }

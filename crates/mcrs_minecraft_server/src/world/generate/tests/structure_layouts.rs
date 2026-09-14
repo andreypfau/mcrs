@@ -1,3 +1,4 @@
+use mcrs_voxel_math::ColumnPos;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -32,7 +33,7 @@ struct DumpStart {
 }
 
 struct DumpCase {
-    chunk: (i32, i32),
+    chunk: ColumnPos,
     start: Option<DumpStart>,
 }
 
@@ -99,7 +100,7 @@ fn read_dump() -> Vec<DumpSeed> {
                             let _set = dump_string(&mut r);
                             let cases = (0..r.get_u32_le())
                                 .map(|_| {
-                                    let chunk = (r.get_i32_le(), r.get_i32_le());
+                                    let chunk = ColumnPos::new(r.get_i32_le(), r.get_i32_le());
                                     let start = (r.get_u8() == 1).then(|| {
                                         let bounds = read_box(&mut r);
                                         let pieces = (0..r.get_u32_le())
@@ -175,7 +176,7 @@ fn structure_layouts_match_the_oracle() {
                 let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
                 assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
                 for case in &structure.cases {
-                    let (x, z) = case.chunk;
+                    let ColumnPos { x, z } = case.chunk;
                     let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
                     cases += 1;
                     let starts = index.starts_at(case.chunk);

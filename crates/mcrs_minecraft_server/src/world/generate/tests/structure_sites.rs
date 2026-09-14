@@ -1,3 +1,4 @@
+use mcrs_voxel_math::ColumnPos;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -21,7 +22,7 @@ use crate::world::heightmap::{HeightmapKinds, heightmap_predicates};
 const MAGIC: &[u8; 8] = b"MCSITES0";
 
 struct DumpCase {
-    chunk: (i32, i32),
+    chunk: ColumnPos,
     site: Option<(IVec3, bool)>,
 }
 
@@ -79,7 +80,10 @@ fn read_dump() -> Vec<DumpSeed> {
                                         );
                                         (position, r.get_u8() == 1)
                                     });
-                                    DumpCase { chunk, site }
+                                    DumpCase {
+                                        chunk: chunk.into(),
+                                        site,
+                                    }
                                 })
                                 .collect(),
                         })
@@ -184,7 +188,7 @@ fn stronghold_rings_match_the_oracle() {
             let set = frozen.set_ids[&ResourceLocation::parse(set_id).unwrap()];
             let ours = index.rings(set).unwrap();
             assert_eq!(ours.len(), positions.len(), "seed {}: {set_id}", entry.seed);
-            for (i, (&(x, z), &(ox, oz))) in ours.iter().zip(positions).enumerate() {
+            for (i, (&ColumnPos { x, z }, &(ox, oz))) in ours.iter().zip(positions).enumerate() {
                 if (x, z) == (ox, oz) {
                     continue;
                 }
@@ -222,9 +226,9 @@ fn structure_sites_match_the_oracle() {
                 let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
                 assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
                 for case in &structure.cases {
-                    let (x, z) = case.chunk;
+                    let ColumnPos { x, z } = case.chunk;
                     let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
-                    assert!(index.gate(set, x, z), "{label}: gate");
+                    assert!(index.gate(set, case.chunk), "{label}: gate");
                     let site = index.site(case.chunk, id);
                     assert_eq!(site.is_some(), case.site.is_some(), "{label}: present");
                     cases += 1;

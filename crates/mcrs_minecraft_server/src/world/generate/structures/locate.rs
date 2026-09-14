@@ -1,6 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_worldgen::structure::StructurePlacement;
 use mcrs_minecraft_worldgen::structure::placement::SpreadPlacement;
+use mcrs_voxel_math::{BlockPos, ColumnPos};
 
 use super::{SetId, StructureId};
 
@@ -17,8 +18,8 @@ pub fn locate<'r>(
     origin: IVec3,
     radius: i32,
     placements: &[LocatePlacement<'_>],
-    rings: impl Fn(SetId) -> Option<&'r [(i32, i32)]>,
-    mut present: impl FnMut(SetId, (i32, i32), StructureId) -> bool,
+    rings: impl Fn(SetId) -> Option<&'r [ColumnPos]>,
+    mut present: impl FnMut(SetId, ColumnPos, StructureId) -> bool,
 ) -> Option<(IVec3, StructureId)> {
     let mut nearest = None;
     let mut distance_sqr = f64::MAX;
@@ -31,7 +32,7 @@ pub fn locate<'r>(
                 let mut closest = None;
                 let mut closest_sqr = f64::MAX;
                 for &chunk in positions {
-                    let centre = IVec3::new((chunk.0 << 4) + 8, 32, (chunk.1 << 4) + 8);
+                    let centre = IVec3::new(chunk.middle_block_x(), 32, chunk.middle_block_z());
                     let d = dist_sqr(centre, origin);
                     if (closest.is_none() || d < closest_sqr)
                         && let Some(hit) = generating_at(entry, chunk, &mut present)
@@ -55,7 +56,7 @@ pub fn locate<'r>(
     if spread.is_empty() {
         return nearest;
     }
-    let chunk_origin = (origin.x >> 4, origin.z >> 4);
+    let chunk_origin = ColumnPos::from(BlockPos::from(origin));
     for r in 0..=radius {
         let mut found = false;
         for entry in &spread {
@@ -80,11 +81,11 @@ pub fn locate<'r>(
 
 fn perimeter_hit(
     seed: i64,
-    chunk_origin: (i32, i32),
+    chunk_origin: ColumnPos,
     radius: i32,
     entry: &LocatePlacement<'_>,
     config: &SpreadPlacement,
-    present: &mut impl FnMut(SetId, (i32, i32), StructureId) -> bool,
+    present: &mut impl FnMut(SetId, ColumnPos, StructureId) -> bool,
 ) -> Option<(IVec3, StructureId)> {
     for x in -radius..=radius {
         let x_edge = x == -radius || x == radius;
@@ -93,9 +94,9 @@ fn perimeter_hit(
             if !(x_edge || z_edge) {
                 continue;
             }
-            let sector_x = chunk_origin.0.wrapping_add(config.spacing.wrapping_mul(x));
-            let sector_z = chunk_origin.1.wrapping_add(config.spacing.wrapping_mul(z));
-            let target = config.potential_chunk(seed, sector_x, sector_z);
+            let sector_x = chunk_origin.x.wrapping_add(config.spacing.wrapping_mul(x));
+            let sector_z = chunk_origin.z.wrapping_add(config.spacing.wrapping_mul(z));
+            let target = config.potential_chunk(seed, ColumnPos::new(sector_x, sector_z));
             if let Some(hit) = generating_at(entry, target, present) {
                 return Some(hit);
             }
@@ -106,8 +107,8 @@ fn perimeter_hit(
 
 fn generating_at(
     entry: &LocatePlacement<'_>,
-    chunk: (i32, i32),
-    present: &mut impl FnMut(SetId, (i32, i32), StructureId) -> bool,
+    chunk: ColumnPos,
+    present: &mut impl FnMut(SetId, ColumnPos, StructureId) -> bool,
 ) -> Option<(IVec3, StructureId)> {
     entry
         .structures
@@ -117,16 +118,16 @@ fn generating_at(
         .map(|structure| (locate_pos(entry.placement, chunk), structure))
 }
 
-pub fn locate_pos(placement: &StructurePlacement, chunk: (i32, i32)) -> IVec3 {
+pub fn locate_pos(placement: &StructurePlacement, chunk: ColumnPos) -> IVec3 {
     let offset = match placement {
         StructurePlacement::RandomSpread { spreading, .. }
         | StructurePlacement::ConcentricRings { spreading, .. } => spreading.locate_offset.0,
         StructurePlacement::DimensionOrigin {} => [0; 3],
     };
     IVec3::new(
-        (chunk.0 << 4).wrapping_add(offset[0]),
+        chunk.min_block_x().wrapping_add(offset[0]),
         offset[1],
-        (chunk.1 << 4).wrapping_add(offset[2]),
+        chunk.min_block_z().wrapping_add(offset[2]),
     )
 }
 
@@ -176,17 +177,17 @@ mod tests {
         }
     }
 
-    fn cell(placement: &StructurePlacement, sector: (i32, i32)) -> (i32, i32) {
+    fn cell(placement: &StructurePlacement, sector: ColumnPos) -> ColumnPos {
         SpreadPlacement::of(placement)
             .unwrap()
-            .potential_chunk(SEED, sector.0, sector.1)
+            .potential_chunk(SEED, sector)
     }
 
     fn run(
         placements: &[LocatePlacement<'_>],
-        ring_positions: &[(i32, i32)],
-        starts: &[(SetId, (i32, i32))],
-    ) -> (Option<(IVec3, StructureId)>, Vec<(SetId, (i32, i32))>) {
+        ring_positions: &[ColumnPos],
+        starts: &[(SetId, ColumnPos)],
+    ) -> (Option<(IVec3, StructureId)>, Vec<(SetId, ColumnPos)>) {
         let asked = RefCell::new(Vec::new());
         let found = locate(
             SEED,
@@ -206,8 +207,8 @@ mod tests {
     #[test]
     fn the_first_non_empty_radius_answers_even_when_a_closer_start_lies_beyond_it() {
         let (wide, narrow) = (wide(), narrow());
-        let far = cell(&wide, (4, 4));
-        let near = cell(&narrow, (4, 0));
+        let far = cell(&wide, ColumnPos::new(4, 4));
+        let near = cell(&narrow, ColumnPos::new(4, 0));
         assert!(
             dist_sqr(ORIGIN, locate_pos(&narrow, near)) < dist_sqr(ORIGIN, locate_pos(&wide, far))
         );
@@ -216,8 +217,8 @@ mod tests {
         let (found, asked) = run(&placements, &[], &[(A, far), (B, near)]);
         assert_eq!(found, Some((locate_pos(&wide, far), S)));
         assert_eq!(asked.len(), 2 + 8 + 8);
-        assert_eq!(asked[0], (A, cell(&wide, (0, 0))));
-        assert_eq!(asked[1], (B, cell(&narrow, (0, 0))));
+        assert_eq!(asked[0], (A, cell(&wide, ColumnPos::new(0, 0))));
+        assert_eq!(asked[1], (B, cell(&narrow, ColumnPos::new(0, 0))));
         assert_eq!(asked[9], (A, far));
         assert!(!asked.contains(&(B, near)));
     }
@@ -225,8 +226,8 @@ mod tests {
     #[test]
     fn hits_on_the_same_radius_are_ranked_by_distance() {
         let (wide, narrow) = (wide(), narrow());
-        let far = cell(&wide, (4, 4));
-        let near = cell(&narrow, (2, 0));
+        let far = cell(&wide, ColumnPos::new(4, 4));
+        let near = cell(&narrow, ColumnPos::new(2, 0));
         assert!(
             dist_sqr(ORIGIN, locate_pos(&narrow, near)) < dist_sqr(ORIGIN, locate_pos(&wide, far))
         );
@@ -252,7 +253,7 @@ mod tests {
                         .map(move |z| (x, z))
                 })
             })
-            .map(|(x, z)| (A, cell(&wide, (4 * x, 4 * z))))
+            .map(|(x, z)| (A, cell(&wide, ColumnPos::new(4 * x, 4 * z))))
             .collect();
         assert_eq!(asked, expected);
     }
@@ -260,7 +261,7 @@ mod tests {
     #[test]
     fn a_ring_answer_only_loses_to_a_strictly_closer_spread_hit() {
         let (wide, rings) = (wide(), rings());
-        let here = cell(&wide, (0, 0));
+        let here = cell(&wide, ColumnPos::new(0, 0));
         let ring_entry = LocatePlacement {
             set: RINGS,
             placement: &rings,
@@ -270,22 +271,33 @@ mod tests {
 
         let (found, asked) = run(
             &placements,
-            &[(10, 10), (20, 20)],
-            &[(RINGS, (10, 10)), (A, here)],
+            &[ColumnPos::new(10, 10), ColumnPos::new(20, 20)],
+            &[(RINGS, ColumnPos::new(10, 10)), (A, here)],
         );
         assert_eq!(found, Some((locate_pos(&wide, here), S)));
-        assert_eq!(asked, vec![(RINGS, (10, 10)), (A, here)]);
+        assert_eq!(asked, vec![(RINGS, ColumnPos::new(10, 10)), (A, here)]);
 
         let (found, asked) = run(
             &placements,
-            &[(20, 20), (0, 0)],
-            &[(RINGS, (0, 0)), (A, here)],
+            &[ColumnPos::new(20, 20), ColumnPos::new(0, 0)],
+            &[(RINGS, ColumnPos::new(0, 0)), (A, here)],
         );
-        assert_eq!(found, Some((locate_pos(&rings, (0, 0)), S)));
-        assert_eq!(asked, vec![(RINGS, (20, 20)), (RINGS, (0, 0)), (A, here)]);
+        assert_eq!(found, Some((locate_pos(&rings, ColumnPos::new(0, 0)), S)));
+        assert_eq!(
+            asked,
+            vec![
+                (RINGS, ColumnPos::new(20, 20)),
+                (RINGS, ColumnPos::new(0, 0)),
+                (A, here)
+            ]
+        );
 
-        let (found, asked) = run(&placements, &[(10, 10)], &[(RINGS, (10, 10))]);
-        assert_eq!(found, Some((locate_pos(&rings, (10, 10)), S)));
+        let (found, asked) = run(
+            &placements,
+            &[ColumnPos::new(10, 10)],
+            &[(RINGS, ColumnPos::new(10, 10))],
+        );
+        assert_eq!(found, Some((locate_pos(&rings, ColumnPos::new(10, 10)), S)));
         assert_eq!(
             asked.len(),
             1 + (0..=MAX_SEARCH_RADIUS)

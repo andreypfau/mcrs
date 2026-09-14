@@ -1,3 +1,4 @@
+use mcrs_voxel_math::ColumnPos;
 use std::sync::Arc;
 
 use bevy_math::IVec3;
@@ -35,7 +36,7 @@ pub enum BiomeLookup {
 
 const CLIMATE_ROOTS: [usize; 6] = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
 
-type RingSets = Vec<(SetId, Vec<(i32, i32)>)>;
+type RingSets = Vec<(SetId, Vec<ColumnPos>)>;
 
 pub struct StructureIndex {
     tables: Arc<DimensionStructureTables>,
@@ -87,38 +88,36 @@ impl StructureIndex {
         &self.tables
     }
 
-    pub fn rings(&self, set: SetId) -> Option<&[(i32, i32)]> {
+    pub fn rings(&self, set: SetId) -> Option<&[ColumnPos]> {
         self.rings
             .iter()
             .find(|(ring_set, _)| *ring_set == set)
             .map(|(_, positions)| positions.as_slice())
     }
 
-    pub fn gate(&self, set: SetId, x: i32, z: i32) -> bool {
+    pub fn gate(&self, set: SetId, pos: ColumnPos) -> bool {
         let frozen_set = &self.tables.frozen.sets[set.0 as usize];
         let excluding = frozen_set.exclusion.map(|(other, _)| other);
-        let excluded =
-            |test_x, test_z| excluding.is_some_and(|other| self.gate(other, test_x, test_z));
+        let excluded = |test| excluding.is_some_and(|other| self.gate(other, test));
         match &frozen_set.placement {
             StructurePlacement::RandomSpread { .. } => SpreadPlacement::of(&frozen_set.placement)
                 .expect("a random_spread placement")
-                .is_structure_chunk(self.seed, x, z, excluded),
+                .is_structure_chunk(self.seed, pos, excluded),
             StructurePlacement::ConcentricRings { spreading, .. } => {
                 self.rings(set)
-                    .is_some_and(|positions| positions.contains(&(x, z)))
+                    .is_some_and(|positions| positions.contains(&pos))
                     && frequency_gate(
                         self.seed,
                         spreading.salt.0,
                         spreading.frequency.0 as f32,
                         spreading.frequency_reduction_method,
-                        x,
-                        z,
+                        pos,
                     )
                     && !frozen_set
                         .exclusion
-                        .is_some_and(|(_, range)| excluded_in_range(range, x, z, excluded))
+                        .is_some_and(|(_, range)| excluded_in_range(range, pos, excluded))
             }
-            StructurePlacement::DimensionOrigin {} => (x, z) == (0, 0),
+            StructurePlacement::DimensionOrigin {} => pos == ColumnPos::new(0, 0),
         }
     }
 
@@ -129,14 +128,14 @@ impl StructureIndex {
         }
     }
 
-    pub fn site(&self, chunk: (i32, i32), structure: StructureId) -> Option<Site> {
+    pub fn site(&self, chunk: ColumnPos, structure: StructureId) -> Option<Site> {
         self.site_in(&mut self.view(), chunk, structure)
     }
 
     fn site_in(
         &self,
         view: &mut View<'_>,
-        chunk: (i32, i32),
+        chunk: ColumnPos,
         structure: StructureId,
     ) -> Option<Site> {
         site(
@@ -151,13 +150,13 @@ impl StructureIndex {
         )
     }
 
-    pub fn starts_at(&self, chunk: (i32, i32)) -> Vec<Start> {
+    pub fn starts_at(&self, chunk: ColumnPos) -> Vec<Start> {
         let frozen = &self.tables.frozen;
         let mut view = self.view();
         self.tables
             .live
             .iter()
-            .filter(|(set, _)| self.gate(*set, chunk.0, chunk.1))
+            .filter(|(set, _)| self.gate(*set, chunk))
             .filter_map(|(set, _)| {
                 let (structure, site) = self.selected_site(&mut view, *set, chunk)?;
                 let pieces = layout(
@@ -192,7 +191,7 @@ impl StructureIndex {
     // ponytail: a hardcoded structure has no site and so never selects; a set
     // mixing one with jigsaw entries picks the jigsaw entry where vanilla would
     // have placed the hardcoded one, until those generators exist.
-    pub fn selected(&self, set: SetId, chunk: (i32, i32)) -> Option<StructureId> {
+    pub fn selected(&self, set: SetId, chunk: ColumnPos) -> Option<StructureId> {
         self.selected_site(&mut self.view(), set, chunk)
             .map(|(structure, _)| structure)
     }
@@ -201,13 +200,12 @@ impl StructureIndex {
         &self,
         view: &mut View<'_>,
         set: SetId,
-        chunk: (i32, i32),
+        chunk: ColumnPos,
     ) -> Option<(StructureId, Site)> {
         let mut accepted = None;
         let structure = select_with_removal(
             self.seed,
-            chunk.0,
-            chunk.1,
+            chunk,
             &self.tables.frozen.sets[set.0 as usize].entries,
             |structure| {
                 accepted = self
@@ -219,8 +217,8 @@ impl StructureIndex {
         Some((structure, accepted?))
     }
 
-    pub fn starts_present(&self, set: SetId, chunk: (i32, i32), structure: StructureId) -> bool {
-        self.gate(set, chunk.0, chunk.1) && self.selected(set, chunk) == Some(structure)
+    pub fn starts_present(&self, set: SetId, chunk: ColumnPos, structure: StructureId) -> bool {
+        self.gate(set, chunk) && self.selected(set, chunk) == Some(structure)
     }
 
     pub fn locate(&self, origin: IVec3, wanted: &[StructureId]) -> Option<(IVec3, StructureId)> {
@@ -252,7 +250,7 @@ impl StructureIndex {
             &placements,
             |set| self.rings(set),
             |set, chunk, structure| {
-                self.gate(set, chunk.0, chunk.1)
+                self.gate(set, chunk)
                     && self
                         .selected_site(&mut view, set, chunk)
                         .is_some_and(|(selected, _)| selected == structure)
@@ -293,9 +291,9 @@ fn ring_sets(
                     distance.0,
                     spread.0,
                     count.0,
-                    |x, z, fork| match biomes {
+                    |initial, fork| match biomes {
                         BiomeLookup::MultiNoise(table) => {
-                            scan_biome_window(x, z, fork, |quart_x, quart_z, side| {
+                            scan_biome_window(initial, fork, |quart_x, quart_z, side| {
                                 plane_admits(
                                     router, &mut ws, table, quart_x, quart_z, side, preferred,
                                 )
@@ -303,7 +301,7 @@ fn ring_sets(
                         }
                         BiomeLookup::Fixed(biome) => preferred
                             .contains(*biome as usize)
-                            .then(|| fixed_biome_window(x, z, fork)),
+                            .then(|| fixed_biome_window(initial, fork)),
                         BiomeLookup::None => None,
                     },
                 );

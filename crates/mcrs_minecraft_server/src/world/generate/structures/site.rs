@@ -1,3 +1,4 @@
+use mcrs_voxel_math::ColumnPos;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
@@ -75,7 +76,7 @@ static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
 pub fn site(
     frozen: &FrozenStructures,
     structure: StructureId,
-    chunk: (i32, i32),
+    chunk: ColumnPos,
     seed: i64,
     height: HeightContext,
     accessor_min_y: i32,
@@ -86,9 +87,9 @@ pub fn site(
     let StructureKind::Jigsaw { start_pool, config } = &structure.kind else {
         return None;
     };
-    let mut rng = LegacyRandom::large_feature(seed, chunk.0, chunk.1);
+    let mut rng = LegacyRandom::large_feature(seed, chunk.x, chunk.z);
     let start_y = config.start_height.sample(&mut rng, height);
-    let start_pos = IVec3::new(chunk.0 * 16, start_y, chunk.1 * 16);
+    let start_pos = IVec3::new(chunk.min_block_x(), start_y, chunk.min_block_z());
 
     let mut aliases = BTreeMap::new();
     if !config.pool_aliases.is_empty() {

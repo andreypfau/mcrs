@@ -6,6 +6,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::corpus::{self, dump_string, open_dump};
 use mcrs_minecraft_worldgen::structure::StructureSet;
 use mcrs_minecraft_worldgen::structure::placement::{SpreadPlacement, frequency_gate};
+use mcrs_voxel_math::ColumnPos;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -115,8 +116,8 @@ impl Placements {
 
     fn is_structure_chunk(&self, id: &str, seed: i64, x: i32, z: i32) -> bool {
         let (placement, excluded) = self.spread(id);
-        placement.is_structure_chunk(seed, x, z, |tx, tz| {
-            excluded.is_some_and(|other| other.is_structure_chunk(seed, tx, tz, |_, _| false))
+        placement.is_structure_chunk(seed, ColumnPos::new(x, z), |test| {
+            excluded.is_some_and(|other| other.is_structure_chunk(seed, test, |_| false))
         })
     }
 }
@@ -170,8 +171,8 @@ fn potential_chunks_match_the_reference() {
                         grid.z0 + i as i32 / grid.side,
                     );
                     assert_eq!(
-                        placement.potential_chunk(seed.seed, x, z),
-                        *potential,
+                        placement.potential_chunk(seed.seed, ColumnPos::new(x, z)),
+                        ColumnPos::from(*potential),
                         "{} seed {} chunk ({x}, {z})",
                         set.id,
                         seed.seed
@@ -231,27 +232,28 @@ fn placement_ignores_the_top_sixteen_seed_bits() {
                 .flat_map(|x| (-30..30).step_by(5).map(move |z| (x, z)))
             {
                 assert_eq!(
-                    placement.potential_chunk(seed, x, z),
-                    placement.potential_chunk(flipped, x, z),
+                    placement.potential_chunk(seed, ColumnPos::new(x, z)),
+                    placement.potential_chunk(flipped, ColumnPos::new(x, z)),
                     "{id} seed {seed} ({x}, {z})"
                 );
-                for (x, z) in [(x, z), placement.potential_chunk(seed, x, z)] {
+                for ColumnPos { x, z } in [
+                    ColumnPos::new(x, z),
+                    placement.potential_chunk(seed, ColumnPos::new(x, z)),
+                ] {
                     assert_eq!(
                         frequency_gate(
                             seed,
                             placement.salt,
                             placement.frequency,
                             placement.reduction,
-                            x,
-                            z
+                            ColumnPos::new(x, z),
                         ),
                         frequency_gate(
                             flipped,
                             placement.salt,
                             placement.frequency,
                             placement.reduction,
-                            x,
-                            z
+                            ColumnPos::new(x, z),
                         ),
                         "{id} seed {seed} ({x}, {z})"
                     );

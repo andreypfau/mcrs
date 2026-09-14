@@ -1,3 +1,4 @@
+use mcrs_voxel_math::ColumnPos;
 use std::f64::consts::PI;
 
 use mcrs_minecraft_random::Random;
@@ -44,9 +45,9 @@ impl SpreadPlacement {
         })
     }
 
-    pub fn potential_chunk(&self, seed: i64, x: i32, z: i32) -> (i32, i32) {
-        let grid_x = floor_div(x, self.spacing);
-        let grid_z = floor_div(z, self.spacing);
+    pub fn potential_chunk(&self, seed: i64, pos: ColumnPos) -> ColumnPos {
+        let grid_x = floor_div(pos.x, self.spacing);
+        let grid_z = floor_div(pos.z, self.spacing);
         let mut rng = LegacyRandom::large_feature_with_salt(seed, grid_x, grid_z, self.salt);
         let limit = self.spacing - self.separation;
         let spread = |rng: &mut LegacyRandom| match self.spread_type {
@@ -55,7 +56,7 @@ impl SpreadPlacement {
         };
         let offset_x = spread(&mut rng);
         let offset_z = spread(&mut rng);
-        (
+        ColumnPos::new(
             grid_x * self.spacing + offset_x,
             grid_z * self.spacing + offset_z,
         )
@@ -64,15 +65,14 @@ impl SpreadPlacement {
     pub fn is_structure_chunk(
         &self,
         seed: i64,
-        x: i32,
-        z: i32,
-        excluded: impl FnMut(i32, i32) -> bool,
+        pos: ColumnPos,
+        excluded: impl FnMut(ColumnPos) -> bool,
     ) -> bool {
-        self.potential_chunk(seed, x, z) == (x, z)
-            && frequency_gate(seed, self.salt, self.frequency, self.reduction, x, z)
+        self.potential_chunk(seed, pos) == pos
+            && frequency_gate(seed, self.salt, self.frequency, self.reduction, pos)
             && !self
                 .exclusion_chunks
-                .is_some_and(|range| excluded_in_range(range, x, z, excluded))
+                .is_some_and(|range| excluded_in_range(range, pos, excluded))
     }
 }
 
@@ -81,9 +81,9 @@ pub fn frequency_gate(
     salt: i32,
     frequency: f32,
     method: FrequencyReduction,
-    x: i32,
-    z: i32,
+    pos: ColumnPos,
 ) -> bool {
+    let ColumnPos { x, z } = pos;
     if frequency >= 1.0 {
         return true;
     }
@@ -109,18 +109,16 @@ pub fn frequency_gate(
 
 pub fn excluded_in_range(
     range: i32,
-    x: i32,
-    z: i32,
-    mut excluded: impl FnMut(i32, i32) -> bool,
+    pos: ColumnPos,
+    mut excluded: impl FnMut(ColumnPos) -> bool,
 ) -> bool {
-    (x - range..=x + range)
-        .any(|test_x| (z - range..=z + range).any(|test_z| excluded(test_x, test_z)))
+    (pos.x - range..=pos.x + range)
+        .any(|x| (pos.z - range..=pos.z + range).any(|z| excluded(ColumnPos::new(x, z))))
 }
 
 pub fn select_with_removal<T: Copy>(
     seed: i64,
-    x: i32,
-    z: i32,
+    pos: ColumnPos,
     entries: &[(T, i32)],
     mut try_start: impl FnMut(T) -> bool,
 ) -> Option<T> {
@@ -128,7 +126,7 @@ pub fn select_with_removal<T: Copy>(
         return try_start(*only).then_some(*only);
     }
     let mut options = entries.to_vec();
-    let mut rng = LegacyRandom::large_feature(seed, x, z);
+    let mut rng = LegacyRandom::large_feature(seed, pos.x, pos.z);
     let mut total: i32 = options.iter().map(|(_, weight)| weight).sum();
     while !options.is_empty() {
         let mut choice = rng.next_i32_bound(total);
@@ -165,8 +163,8 @@ pub fn ring_positions(
     distance: i32,
     spread: i32,
     count: i32,
-    mut find: impl FnMut(i32, i32, &mut LegacyRandom) -> Option<(i32, i32)>,
-) -> Vec<(i32, i32)> {
+    mut find: impl FnMut(ColumnPos, &mut LegacyRandom) -> Option<ColumnPos>,
+) -> Vec<ColumnPos> {
     let mut rng = LegacyRandom::new(seed as u64);
     let mut angle = rng.next_f64() * PI * 2.0;
     let mut position_in_circle = 0;
@@ -179,7 +177,8 @@ pub fn ring_positions(
         let initial_x = java_round(angle.cos() * dist);
         let initial_z = java_round(angle.sin() * dist);
         let mut fork = rng.fork();
-        positions.push(find(initial_x, initial_z, &mut fork).unwrap_or((initial_x, initial_z)));
+        let initial = ColumnPos::new(initial_x, initial_z);
+        positions.push(find(initial, &mut fork).unwrap_or(initial));
         angle += PI * 2.0 / spread as f64;
         position_in_circle += 1;
         if position_in_circle == spread {
@@ -194,14 +193,13 @@ pub fn ring_positions(
 }
 
 pub fn scan_biome_window(
-    initial_x: i32,
-    initial_z: i32,
+    initial: ColumnPos,
     fork: &mut LegacyRandom,
     admits: impl FnOnce(i32, i32, i32) -> Vec<bool>,
-) -> Option<(i32, i32)> {
+) -> Option<ColumnPos> {
     let side = 2 * BIOME_SEARCH_QUARTS + 1;
-    let first_x = (((initial_x << 4) + 8) >> 2) - BIOME_SEARCH_QUARTS;
-    let first_z = (((initial_z << 4) + 8) >> 2) - BIOME_SEARCH_QUARTS;
+    let first_x = ((initial.middle_block_x()) >> 2) - BIOME_SEARCH_QUARTS;
+    let first_z = ((initial.middle_block_z()) >> 2) - BIOME_SEARCH_QUARTS;
     let cells = admits(first_x, first_z, side);
     debug_assert_eq!(cells.len(), (side * side) as usize);
     let mut result = None;
@@ -217,14 +215,14 @@ pub fn scan_biome_window(
             found += 1;
         }
     }
-    result.map(|(quart_x, quart_z)| ((quart_x << 2) >> 4, (quart_z << 2) >> 4))
+    result.map(|(quart_x, quart_z)| ColumnPos::new((quart_x << 2) >> 4, (quart_z << 2) >> 4))
 }
 
-pub fn fixed_biome_window(initial_x: i32, initial_z: i32, fork: &mut LegacyRandom) -> (i32, i32) {
+pub fn fixed_biome_window(initial: ColumnPos, fork: &mut LegacyRandom) -> ColumnPos {
     let radius = BIOME_SEARCH_QUARTS << 2;
-    let x = (initial_x << 4) + 8 - radius + fork.next_i32_bound(radius * 2 + 1);
-    let z = (initial_z << 4) + 8 - radius + fork.next_i32_bound(radius * 2 + 1);
-    (x >> 4, z >> 4)
+    let x = initial.middle_block_x() - radius + fork.next_i32_bound(radius * 2 + 1);
+    let z = initial.middle_block_z() - radius + fork.next_i32_bound(radius * 2 + 1);
+    ColumnPos::new(x >> 4, z >> 4)
 }
 
 #[cfg(test)]
@@ -248,13 +246,19 @@ mod tests {
     #[test]
     fn a_negative_coordinate_rounds_its_cell_toward_negative_infinity() {
         let placement = linear(34, 8, SpreadType::Linear);
-        let (x, z) = placement.potential_chunk(SEED, -1, -35);
+        let ColumnPos { x, z } = placement.potential_chunk(SEED, ColumnPos::new(-1, -35));
         assert!((-34..-8).contains(&x), "{x}");
         assert!((-68..-42).contains(&z), "{z}");
-        for (other_x, other_z) in [(-34, -68), (-9, -35), (-20, -50)] {
-            assert_eq!(placement.potential_chunk(SEED, other_x, other_z), (x, z));
+        for other in [(-34, -68), (-9, -35), (-20, -50)] {
+            assert_eq!(
+                placement.potential_chunk(SEED, other.into()),
+                ColumnPos::new(x, z)
+            );
         }
-        assert_ne!(placement.potential_chunk(SEED, 0, 0), (x, z));
+        assert_ne!(
+            placement.potential_chunk(SEED, ColumnPos::new(0, 0)),
+            ColumnPos::new(x, z)
+        );
     }
 
     #[test]
@@ -268,23 +272,26 @@ mod tests {
             replay.next_i32_bound(9),
         );
         assert_eq!(
-            placement.potential_chunk(SEED, 65, -40),
-            (60 + (a + b) / 2, -40 + (c + d) / 2)
+            placement.potential_chunk(SEED, ColumnPos::new(65, -40)),
+            ColumnPos::new(60 + (a + b) / 2, -40 + (c + d) / 2)
         );
     }
 
     #[test]
     fn a_start_chunk_is_the_one_its_cell_names() {
         let placement = linear(34, 8, SpreadType::Linear);
-        let (x, z) = placement.potential_chunk(SEED, 100, 100);
-        assert!(placement.is_structure_chunk(SEED, x, z, |_, _| false));
-        assert!(!placement.is_structure_chunk(SEED, x + 1, z, |_, _| false));
+        let start = placement.potential_chunk(SEED, ColumnPos::new(100, 100));
+        let ColumnPos { x, z } = start;
+        assert!(placement.is_structure_chunk(SEED, start, |_| false));
+        assert!(!placement.is_structure_chunk(SEED, ColumnPos::new(x + 1, z), |_| false));
         let neighbour = SpreadPlacement {
             exclusion_chunks: Some(2),
             ..placement
         };
-        assert!(!neighbour.is_structure_chunk(SEED, x, z, |tx, tz| (tx, tz) == (x - 2, z + 2)));
-        assert!(neighbour.is_structure_chunk(SEED, x, z, |tx, tz| (tx, tz) == (x - 3, z)));
+        assert!(
+            !neighbour.is_structure_chunk(SEED, start, |test| test == ColumnPos::new(x - 2, z + 2))
+        );
+        assert!(neighbour.is_structure_chunk(SEED, start, |test| test == ColumnPos::new(x - 3, z)));
     }
 
     #[test]
@@ -295,7 +302,7 @@ mod tests {
             FrequencyReduction::LegacyType2,
             FrequencyReduction::LegacyType3,
         ] {
-            assert!(frequency_gate(SEED, 1, 1.0, method, 7, -3));
+            assert!(frequency_gate(SEED, 1, 1.0, method, ColumnPos::new(7, -3)));
         }
     }
 
@@ -306,7 +313,13 @@ mod tests {
         rng.next_i32();
         let expected = rng.next_i32_bound(5) == 0;
         assert_eq!(
-            frequency_gate(SEED, 1, 0.2, FrequencyReduction::LegacyType1, 7, -3),
+            frequency_gate(
+                SEED,
+                1,
+                0.2,
+                FrequencyReduction::LegacyType1,
+                ColumnPos::new(7, -3)
+            ),
             expected
         );
     }
@@ -315,7 +328,7 @@ mod tests {
     fn removal_shifts_the_draw_to_the_remaining_entries() {
         let entries = [('a', 3), ('b', 5), ('c', 2)];
         let mut tried = Vec::new();
-        let picked = select_with_removal(SEED, 4, 9, &entries, |entry| {
+        let picked = select_with_removal(SEED, ColumnPos::new(4, 9), &entries, |entry| {
             tried.push(entry);
             false
         });
@@ -325,7 +338,7 @@ mod tests {
         assert_eq!(tried, ['a', 'b', 'c']);
 
         let mut tried = Vec::new();
-        let picked = select_with_removal(SEED, 4, 9, &entries, |entry| {
+        let picked = select_with_removal(SEED, ColumnPos::new(4, 9), &entries, |entry| {
             tried.push(entry);
             entry == last
         });
@@ -334,7 +347,7 @@ mod tests {
 
         let mut tried = Vec::new();
         assert_eq!(
-            select_with_removal(SEED, 4, 9, &entries[..1], |entry| {
+            select_with_removal(SEED, ColumnPos::new(4, 9), &entries[..1], |entry| {
                 tried.push(entry);
                 true
             }),
@@ -345,10 +358,10 @@ mod tests {
 
     #[test]
     fn rings_grow_by_two_thirds_and_the_last_takes_what_remains() {
-        let positions = ring_positions(SEED, 32, 3, 128, |_, _, _| None);
+        let positions = ring_positions(SEED, 32, 3, 128, |_, _| None);
         assert_eq!(positions.len(), 128);
         let mut per_ring = [0usize; 8];
-        for (x, z) in positions {
+        for ColumnPos { x, z } in positions {
             let radius = ((x * x + z * z) as f64).sqrt();
             let ring = ((radius - 4.0 * 32.0) / (6.0 * 32.0)).round();
             assert!((0.0..8.0).contains(&ring), "({x}, {z}) radius {radius}");
@@ -365,14 +378,17 @@ mod tests {
     #[test]
     fn a_snapped_ring_position_is_the_reservoir_pick_in_chunks() {
         let mut window = (0, 0);
-        let positions = ring_positions(SEED, 32, 3, 1, |x, z, fork| {
-            scan_biome_window(x, z, fork, |first_x, first_z, side| {
+        let positions = ring_positions(SEED, 32, 3, 1, |initial, fork| {
+            scan_biome_window(initial, fork, |first_x, first_z, side| {
                 window = (first_x, first_z);
                 (0..side * side).map(|cell| cell == 3 * side + 10).collect()
             })
         });
         let (quart_x, quart_z) = (window.0 + 10, window.1 + 3);
-        assert_eq!(positions, vec![((quart_x << 2) >> 4, (quart_z << 2) >> 4)]);
+        assert_eq!(
+            positions,
+            vec![ColumnPos::new((quart_x << 2) >> 4, (quart_z << 2) >> 4)]
+        );
     }
 
     #[test]
@@ -386,12 +402,12 @@ mod tests {
         );
         let mut fork = replay.fork();
         let (dx, dz) = (fork.next_i32_bound(225), fork.next_i32_bound(225));
-        let positions = ring_positions(SEED, 32, 3, 1, |x, z, fork| {
-            Some(fixed_biome_window(x, z, fork))
+        let positions = ring_positions(SEED, 32, 3, 1, |initial, fork| {
+            Some(fixed_biome_window(initial, fork))
         });
         assert_eq!(
             positions,
-            vec![(
+            vec![ColumnPos::new(
                 ((ix << 4) + 8 - 112 + dx) >> 4,
                 ((iz << 4) + 8 - 112 + dz) >> 4
             )]
