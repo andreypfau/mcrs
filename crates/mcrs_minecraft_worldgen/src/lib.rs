@@ -7,6 +7,7 @@ pub mod bounds;
 mod branch;
 pub mod carver;
 pub mod cell;
+pub mod column;
 pub mod compile;
 #[cfg(any(test, feature = "corpus"))]
 pub mod corpus;

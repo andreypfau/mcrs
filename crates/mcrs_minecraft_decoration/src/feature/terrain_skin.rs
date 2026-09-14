@@ -16,9 +16,9 @@ use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::holds;
-use crate::feature::speleothem::scan_column;
 use crate::feature::tree::provider::StateProvider;
 use crate::tables::BlockTables;
+use mcrs_minecraft_worldgen::column::scan_column;
 
 #[derive(Clone, Debug)]
 pub struct CompiledDisk {
