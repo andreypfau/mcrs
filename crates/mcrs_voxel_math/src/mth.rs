@@ -122,6 +122,29 @@ pub fn clamped_map<F: Float>(value: F, from_min: F, from_max: F, to_min: F, to_m
     }
 }
 
+/// `Mth.lerp`.
+pub fn lerp<F: Float>(alpha: F, from: F, to: F) -> F {
+    from + alpha * (to - from)
+}
+
+/// `Mth.lerpInt`: the step is floored, so the result leaves `from` only once a
+/// whole unit has accumulated.
+pub fn lerp_int(alpha: f32, from: i32, to: i32) -> i32 {
+    from.wrapping_add((alpha * to.wrapping_sub(from) as f32).floor() as i32)
+}
+
+/// `Mth.wrapDegrees(float)`, which leaves an already-in-range angle bit-identical.
+pub fn wrap_degrees(angle: f32) -> f32 {
+    let wrapped = angle % 360.0;
+    if wrapped >= 180.0 {
+        wrapped - 360.0
+    } else if wrapped < -180.0 {
+        wrapped + 360.0
+    } else {
+        wrapped
+    }
+}
+
 /// The 65536-entry sine table both Beta's `MathHelper` and 26.3's `Mth` read:
 /// `(float)Math.sin(i * 2π / 65536)`.
 ///

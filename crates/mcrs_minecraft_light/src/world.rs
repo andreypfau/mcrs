@@ -274,7 +274,7 @@ impl LightWorld {
     pub fn light_at(&self, pos: BlockPos, layer: Layer) -> LightLevel {
         match self.sections.get(&SectionPos::from(pos)) {
             Some(section) => {
-                let local = local_of(pos);
+                let local = LocalPos::from(pos);
                 LightLevel::new(section.light(layer).get(
                     local.x() as usize,
                     local.y() as usize,
@@ -518,12 +518,4 @@ fn local_x_of(column: BlockColumn) -> u8 {
 
 fn local_z_of(column: BlockColumn) -> u8 {
     (column.z & SectionPos::MASK as i32) as u8
-}
-
-pub(crate) fn local_of(pos: BlockPos) -> LocalPos {
-    LocalPos::new(
-        (pos.x & SectionPos::MASK as i32) as u8,
-        (pos.y & SectionPos::MASK as i32) as u8,
-        (pos.z & SectionPos::MASK as i32) as u8,
-    )
 }

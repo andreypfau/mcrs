@@ -1,3 +1,4 @@
+use mcrs_voxel_math::{LocalPos, SectionPos};
 use std::sync::Arc;
 
 use mcrs_minecraft_decoration::block_entity::GeneratedBlockEntity;
@@ -70,8 +71,8 @@ pub const fn rank(col: ColumnPos) -> u8 {
 /// section slot, then y, then z, then x. Every column of a dimension shares one
 /// section list, so the index means the same block in the source column and in
 /// the target.
-pub const fn cell_index(slot: usize, x: usize, local_y: usize, z: usize) -> u32 {
-    (slot * 4096 + local_y * 256 + z * 16 + x) as u32
+pub const fn cell_index(slot: usize, local: LocalPos) -> u32 {
+    (slot * SectionPos::VOLUME + local.index()) as u32
 }
 
 /// What one unit wrote into one column that is not its own.
@@ -444,7 +445,7 @@ mod tests {
                 target,
                 ColumnDelta {
                     source_rank: rank(source),
-                    writes: vec![(cell_index(0, 1, 2, 3), VoxelId(7))],
+                    writes: vec![(cell_index(0, LocalPos::new(1, 2, 3)), VoxelId(7))],
                     block_entities: Vec::new(),
                 },
             );
@@ -461,7 +462,7 @@ mod tests {
             target,
             ColumnDelta {
                 source_rank: rank(target),
-                writes: vec![(cell_index(0, 1, 2, 3), VoxelId(9))],
+                writes: vec![(cell_index(0, LocalPos::new(1, 2, 3)), VoxelId(9))],
                 block_entities: Vec::new(),
             },
         );

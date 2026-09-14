@@ -990,7 +990,8 @@ mod tests {
                 .get::<ChunkBlocks>(*entity)
                 .expect("a delivered section carries its blocks");
             for cell in 0..crate::world::generate::ColumnBlocks::SECTION_VOLUME {
-                let (x, ly, z) = (cell & 15, cell >> 8, (cell >> 4) & 15);
+                let local = mcrs_voxel_math::LocalPos::from_index(cell);
+                let (x, ly, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
                 assert_eq!(
                     got.get_cell(x, ly, z),
                     want.0.get_cell(x, ly, z),

@@ -29,6 +29,10 @@ impl BlockPos {
     pub fn new(x: i32, y: i32, z: i32) -> Self {
         Self(IVec3::new(x, y, z))
     }
+
+    pub const fn as_ivec3(self) -> IVec3 {
+        self.0
+    }
 }
 
 impl Hash for BlockPos {

@@ -1,6 +1,7 @@
 //! The biome layer: which biomes surround a position and how their attribute
 //! maps are weighted into one.
 
+use mcrs_voxel_math::mth::lerp;
 use std::sync::Arc;
 
 use bevy_math::DVec3;
@@ -45,10 +46,6 @@ pub fn gaussian_sample<V>(
             }
         }
     }
-}
-
-fn lerp(alpha: f64, from: f64, to: f64) -> f64 {
-    from + alpha * (to - from)
 }
 
 /// One biome's attribute map, keyed by the attribute's registry position

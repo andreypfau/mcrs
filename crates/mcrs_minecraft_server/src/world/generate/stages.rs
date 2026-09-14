@@ -1,4 +1,4 @@
-use mcrs_voxel_math::SectionPos;
+use mcrs_voxel_math::{BlockPos, LocalPos, QuartPos, SectionPos};
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -513,22 +513,18 @@ impl<'a> ColumnRegion<'a> {
     /// A quart cell the zoom picks outside the 3x3 falls back to the cell the
     /// position sits in, which is always inside it.
     fn biome_at(&self, p: IVec3) -> u32 {
-        let (qx, qy, qz) = quart_cell(self.zoom_seed, p.x, p.y, p.z);
-        self.quart_biome(qx, qy, qz)
-            .or_else(|| self.quart_biome(p.x >> 2, p.y >> 2, p.z >> 2))
+        self.quart_biome(quart_cell(self.zoom_seed, p.into()))
+            .or_else(|| self.quart_biome(QuartPos::of(p.into())))
             .unwrap_or_default()
     }
 
-    fn quart_biome(&self, qx: i32, qy: i32, qz: i32) -> Option<u32> {
-        let slot = region_slot(self.center, ColumnPos::new(qx >> 2, qz >> 2))?;
+    fn quart_biome(&self, quart: QuartPos) -> Option<u32> {
+        let slot = region_slot(self.center, quart.column())?;
         let snapshot = &self.snapshots[slot];
-        let section = snapshot.slot(qy << 2)?;
+        let section = snapshot.slot(quart.min_block_y())?;
         let (_, biomes) = snapshot.sections[section].as_ref()?;
-        Some(
-            biomes
-                .0
-                .get((qx & 3) as usize, (qy & 3) as usize, (qz & 3) as usize) as u32,
-        )
+        let [x, y, z] = quart.section_local();
+        Some(biomes.0.get(x, y, z) as u32)
     }
 
     /// One delta per column this unit wrote into, its own included: the merge of
@@ -603,13 +599,13 @@ impl Blocks for ColumnRegion<'_> {
         let Some(section) = snapshot.slot(p.y) else {
             return VoxelId::default();
         };
-        let local_y = (p.y & 0xF) as usize;
-        match self.ring[slot].get(&cell_index(section, lx, local_y, lz)) {
+        let local = LocalPos::from(BlockPos::from(p));
+        match self.ring[slot].get(&cell_index(section, local)) {
             Some(written) => *written,
             None => snapshot.sections[section]
                 .as_ref()
                 .map_or(VoxelId::default(), |(blocks, _)| {
-                    blocks.0.get(lx, local_y, lz)
+                    blocks.0.get(lx, local.y() as usize, lz)
                 }),
         }
     }
@@ -625,7 +621,7 @@ impl BlocksMut for ColumnRegion<'_> {
         let Some(section) = snapshot.slot(p.y) else {
             return;
         };
-        let cell = cell_index(section, lx, (p.y & 0xF) as usize, lz);
+        let cell = cell_index(section, LocalPos::from(BlockPos::from(p)));
         if slot != 4 {
             self.ring[slot].insert(cell, state);
             return;
@@ -780,9 +776,14 @@ pub fn merge_column(
             cell as usize % ColumnBlocks::SECTION_VOLUME,
         );
         if let Some(Some((blocks, _))) = merged.sections.get_mut(slot) {
-            blocks
-                .0
-                .set(index & 15, index >> 8, (index >> 4) & 15, state);
+            let local = LocalPos::from_index(index);
+
+            blocks.0.set(
+                local.x() as usize,
+                local.y() as usize,
+                local.z() as usize,
+                state,
+            );
         }
     }
     merged.maps =
@@ -933,7 +934,7 @@ mod tests {
         let y_sections: Arc<[i32]> = Arc::from(vec![0i32]);
         let col = ColumnPos::new(0, 0);
         let snapshot = flat_snapshot(col, &y_sections, VoxelId(1));
-        let cell = cell_index(0, 5, 6, 7);
+        let cell = cell_index(0, LocalPos::new(5, 6, 7));
         let mut store = StagingStore::default();
         // Ranks 7, 2 and 5 of the 3×3 around the origin, pushed in an order
         // that is neither their rank nor their position.
@@ -1026,7 +1027,8 @@ mod tests {
             let (got, _) = got.as_ref().expect("a merged section");
             let (want, _) = want.as_ref().expect("a filled section");
             for cell in 0..ColumnBlocks::SECTION_VOLUME {
-                let (x, y, z) = (cell & 15, cell >> 8, (cell >> 4) & 15);
+                let local = LocalPos::from_index(cell);
+                let (x, y, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
                 assert_eq!(
                     got.0.get(x, y, z),
                     want.0.get(x, y, z),

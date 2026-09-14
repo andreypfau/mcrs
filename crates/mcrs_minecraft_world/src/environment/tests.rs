@@ -1,3 +1,4 @@
+use mcrs_voxel_math::mth::wrap_degrees;
 use std::path::PathBuf;
 
 use serde_json::json;
@@ -347,17 +348,6 @@ fn overworld_sky_color_at_noon_is_the_dimension_colour_through_the_day_track() {
 }
 
 // ── Sub-tick smoothing ───────────────────────────────────────────────────────
-
-fn wrap_degrees(angle: f32) -> f32 {
-    let mut wrapped = angle % 360.0;
-    if wrapped >= 180.0 {
-        wrapped -= 360.0;
-    }
-    if wrapped < -180.0 {
-        wrapped += 360.0;
-    }
-    wrapped
-}
 
 #[test]
 fn the_sun_crosses_the_wrap_without_reversing() {

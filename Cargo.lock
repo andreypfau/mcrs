@@ -3589,6 +3589,7 @@ dependencies = [
  "js-sys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
+ "mcrs_voxel_math",
  "mcrs_voxel_storage",
  "md-5",
  "serde_json",

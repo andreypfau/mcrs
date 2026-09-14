@@ -1,6 +1,7 @@
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::Component;
 use bevy_math::*;
+use mcrs_voxel_math::mth::wrap_degrees;
 
 /// Yaw and pitch in degrees. Pitch is clamped to `[-90, 90]` and yaw is
 /// wrapped to `[-180, 180)`, so no consumer has to normalise either.
@@ -39,18 +40,6 @@ impl Rotation {
     #[must_use]
     pub fn turn(self, yaw: f32, pitch: f32) -> Self {
         Self::new(self.yaw + yaw, self.pitch + pitch)
-    }
-}
-
-/// `Mth.wrapDegrees`, which leaves an already-in-range angle bit-identical.
-fn wrap_degrees(degrees: f32) -> f32 {
-    let wrapped = degrees % 360.0;
-    if wrapped >= 180.0 {
-        wrapped - 360.0
-    } else if wrapped < -180.0 {
-        wrapped + 360.0
-    } else {
-        wrapped
     }
 }
 

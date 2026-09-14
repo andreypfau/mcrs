@@ -11,6 +11,7 @@ use mcrs_minecraft_worldgen::material::{
     MaterialEval, MaterialScratch, NO_WATER, SettledState, SurfaceNoise,
 };
 use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_voxel_math::{BlockPos, QuartPos};
 use mcrs_voxel_storage::VoxelId;
 use std::cell::RefCell;
 
@@ -131,7 +132,7 @@ fn apply_material_surface_with(
     let Some(mut eval) = MaterialEval::new(
         router,
         scratch,
-        |x, y, z| grid_biome(grid, fiddle.quart_cell(x, y, z)),
+        |x, y, z| grid_biome(grid, fiddle.quart_cell(BlockPos::new(x, y, z))),
         |bx, bz, lo, hi, out| reachable_biomes(grid, bx, bz, lo, hi, out),
         block_x,
         block_z,
@@ -323,7 +324,7 @@ fn height_of(tops: &[i32; 256], x: i32, z: i32, min_y: i32) -> i32 {
 /// The biome the fiddled zoom selects, read out of the widened grid rather than
 /// out of a neighbouring column's stored palette.
 fn zoom_biome(grid: &BiomeGrid, zoom_seed: i64, x: i32, y: i32, z: i32) -> u32 {
-    grid_biome(grid, quart_cell(zoom_seed, x, y, z))
+    grid_biome(grid, quart_cell(zoom_seed, BlockPos::new(x, y, z)))
 }
 
 /// Every biome the zoom can select for the strip at `(bx, bz)` anywhere in
@@ -370,12 +371,13 @@ fn reachable_biomes(
     true
 }
 
-fn grid_biome(grid: &BiomeGrid, (qx, qy, qz): (i32, i32, i32)) -> u32 {
+fn grid_biome(grid: &BiomeGrid, quart: QuartPos) -> u32 {
     let min = grid.volume.min_block();
     let size = grid.volume.size();
     // A strip with no blocks at all starts its descent below the sections this
     // dispatch carries, which is the one lookup the grid does not span.
-    let at = IVec3::new(qx - (min.x >> 2), qy - (min.y >> 2), qz - (min.z >> 2))
+    let origin = QuartPos::of(min.into());
+    let at = IVec3::new(quart.x - origin.x, quart.y - origin.y, quart.z - origin.z)
         .clamp(IVec3::ZERO, size - IVec3::ONE);
     u32::from(grid.get(at.x, at.y, at.z))
 }

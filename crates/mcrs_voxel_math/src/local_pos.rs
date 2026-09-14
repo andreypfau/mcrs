@@ -1,4 +1,4 @@
-use crate::SectionPos;
+use crate::{BlockPos, SectionPos};
 
 /// Index of a block inside its own section: `x | z << 4 | y << 8`, twelve bits.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -34,6 +34,12 @@ impl LocalPos {
     }
 }
 
+impl From<BlockPos> for LocalPos {
+    fn from(pos: BlockPos) -> Self {
+        Self::new(pos.x as u8, pos.y as u8, pos.z as u8)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -43,5 +49,6 @@ mod tests {
         let pos = LocalPos::new(3, 7, 11);
         assert_eq!(pos.index(), 3 | (11 << 4) | (7 << 8));
         assert_eq!((pos.x(), pos.y(), pos.z()), (3, 7, 11));
+        assert_eq!(LocalPos::from(BlockPos::new(-13, 23, -5)), pos);
     }
 }

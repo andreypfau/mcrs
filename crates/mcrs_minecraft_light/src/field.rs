@@ -395,9 +395,7 @@ mod tests {
         let index = (0..layout.section_count())
             .find(|&i| layout.section_pos(i) == section)
             .expect("section is in the area");
-        layout.section_base(index)
-            | LocalPos::new((pos.x & 15) as u8, (pos.y & 15) as u8, (pos.z & 15) as u8).index()
-                as CellIndex
+        layout.section_base(index) | LocalPos::from(pos).index() as CellIndex
     }
 
     fn block_of(layout: &FieldLayout, index: CellIndex) -> BlockPos {

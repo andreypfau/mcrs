@@ -1,3 +1,4 @@
+use mcrs_voxel_math::{BlockPos, QuartPos};
 use sha2::{Digest, Sha256};
 
 /// The seed enters the digest as eight little-endian bytes and the first eight
@@ -7,8 +8,10 @@ pub fn obfuscate_seed(seed: i64) -> i64 {
     i64::from_le_bytes(digest[..8].try_into().unwrap())
 }
 
-pub fn quart_cell(zoom_seed: i64, x: i32, y: i32, z: i32) -> (i32, i32, i32) {
-    pick_corner(x, y, z, |cx, cy, cz| corner_fiddles(zoom_seed, cx, cy, cz))
+pub fn quart_cell(zoom_seed: i64, pos: BlockPos) -> QuartPos {
+    pick_corner(pos.x, pos.y, pos.z, |cx, cy, cz| {
+        corner_fiddles(zoom_seed, cx, cy, cz)
+    })
 }
 
 /// The eight corners around a block, in the order the reference tries them.
@@ -19,7 +22,7 @@ fn pick_corner(
     y: i32,
     z: i32,
     mut fiddles: impl FnMut(i32, i32, i32) -> [f64; 3],
-) -> (i32, i32, i32) {
+) -> QuartPos {
     let (abs_x, abs_y, abs_z) = (x - 2, y - 2, z - 2);
     let (parent_x, parent_y, parent_z) = (abs_x >> 2, abs_y >> 2, abs_z >> 2);
     let fract_x = f64::from(abs_x & 3) / 4.0;
@@ -57,7 +60,7 @@ fn pick_corner(
         }
     }
 
-    (
+    QuartPos::new(
         if best & 4 == 0 {
             parent_x
         } else {
@@ -128,8 +131,8 @@ impl FiddleCache {
         self.values[slot]
     }
 
-    pub fn quart_cell(&mut self, x: i32, y: i32, z: i32) -> (i32, i32, i32) {
-        pick_corner(x, y, z, |cx, cy, cz| self.fiddles(cx, cy, cz))
+    pub fn quart_cell(&mut self, pos: BlockPos) -> QuartPos {
+        pick_corner(pos.x, pos.y, pos.z, |cx, cy, cz| self.fiddles(cx, cy, cz))
     }
 }
 
@@ -207,7 +210,11 @@ mod tests {
         for x in -9..9 {
             for y in -9..9 {
                 for z in -9..9 {
-                    let (cx, cy, cz) = quart_cell(seed, x, y, z);
+                    let QuartPos {
+                        x: cx,
+                        y: cy,
+                        z: cz,
+                    } = quart_cell(seed, BlockPos::new(x, y, z));
                     let (px, py, pz) = ((x - 2) >> 2, (y - 2) >> 2, (z - 2) >> 2);
                     assert!(cx == px || cx == px + 1, "x {x} -> {cx}, parent {px}");
                     assert!(cy == py || cy == py + 1, "y {y} -> {cy}, parent {py}");
@@ -223,12 +230,19 @@ mod tests {
     fn is_a_pure_function_of_seed_and_position() {
         let a = obfuscate_seed(42);
         let b = obfuscate_seed(43);
-        assert_eq!(quart_cell(a, 100, 64, -37), quart_cell(a, 100, 64, -37));
-        assert_eq!(quart_cell(a, 100, 64, -37), (24, 15, -10));
+        assert_eq!(
+            quart_cell(a, BlockPos::new(100, 64, -37)),
+            quart_cell(a, BlockPos::new(100, 64, -37))
+        );
+        assert_eq!(
+            quart_cell(a, BlockPos::new(100, 64, -37)),
+            QuartPos::new(24, 15, -10)
+        );
 
         let mut differs = 0;
         for x in 0..64 {
-            if quart_cell(a, x, 64, -37) != quart_cell(b, x, 64, -37) {
+            if quart_cell(a, BlockPos::new(x, 64, -37)) != quart_cell(b, BlockPos::new(x, 64, -37))
+            {
                 differs += 1;
             }
         }
@@ -252,8 +266,8 @@ mod tests {
                 for y in -12..12 {
                     for z in -20..20 {
                         assert_eq!(
-                            cache.quart_cell(x, y, z),
-                            quart_cell(seed, x, y, z),
+                            cache.quart_cell(BlockPos::new(x, y, z)),
+                            quart_cell(seed, BlockPos::new(x, y, z)),
                             "{origin:?} {size:?} at {x},{y},{z}"
                         );
                     }
@@ -272,7 +286,10 @@ mod tests {
     #[test]
     fn quart_cell_centre_picks_the_low_corner() {
         let seed = obfuscate_seed(42);
-        assert_eq!(quart_cell(seed, 2, 2, 2), (0, 0, 0));
+        assert_eq!(
+            quart_cell(seed, BlockPos::new(2, 2, 2)),
+            QuartPos::new(0, 0, 0)
+        );
 
         let expected = [
             0.18402854919433595,

@@ -18,6 +18,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind};
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
+use mcrs_voxel_math::{BlockPos, LocalPos, SectionPos};
 use mcrs_voxel_storage::unpack_into;
 use tracing::error;
 
@@ -202,16 +203,20 @@ pub trait BlockSource {
 
     #[inline]
     fn block(&self, x: i32, y: i32, z: i32) -> u16 {
-        match self.section(section_of(x), section_of(y), section_of(z)) {
-            Some(section) => section.blocks[cell_index(x, y, z)],
+        let pos = BlockPos::new(x, y, z);
+        let at = SectionPos::from(pos);
+        match self.section(at.x, at.y, at.z) {
+            Some(section) => section.blocks[LocalPos::from(pos).index()],
             None => AIR,
         }
     }
 
     #[inline]
     fn light(&self, x: i32, y: i32, z: i32) -> u8 {
-        match self.column(section_of(x), section_of(z)) {
-            Some(column) => column.light(section_of(y), cell_index(x, y, z)),
+        let pos = BlockPos::new(x, y, z);
+        let at = SectionPos::from(pos);
+        match self.column(at.x, at.z) {
+            Some(column) => column.light(at.y, LocalPos::from(pos).index()),
             None => OPEN_SKY,
         }
     }
@@ -335,17 +340,6 @@ impl Column {
     }
 }
 
-#[inline]
-fn section_of(coordinate: i32) -> i32 {
-    coordinate.div_euclid(SECTION_SIZE as i32)
-}
-
-#[inline]
-fn cell_index(x: i32, y: i32, z: i32) -> usize {
-    let local = |coordinate: i32| coordinate.rem_euclid(SECTION_SIZE as i32) as usize;
-    (local(y) * SECTION_SIZE + local(z)) * SECTION_SIZE + local(x)
-}
-
 fn expand<K: NetworkSectionKind, V: Copy>(
     container: &PalettedContainer<V>,
     id: impl Fn(V) -> u16,
@@ -407,7 +401,7 @@ fn extent_of(registries: &[ReceivedRegistry], dimension_type_id: i32) -> Option<
         .data
         .as_ref()?;
     Some(Extent {
-        min_section_y: section_of(data.get_int("min_y")?),
+        min_section_y: data.get_int("min_y")? >> SectionPos::BITS,
         sections: usize::try_from(data.get_int("height")?).ok()? / SECTION_SIZE,
     })
 }
@@ -656,7 +650,7 @@ mod tests {
 
     #[test]
     fn a_decoded_packet_reads_back_where_it_put_its_blocks_and_its_light() {
-        let cell = cell_index(3, 5, 7);
+        let cell = LocalPos::new(3, 5, 7).index();
         let mut states = vec![u32::from(AIR); SECTION_VOLUME];
         states[cell] = 42;
         let blob = [air_section(), section_of_states(&states)]
@@ -751,7 +745,7 @@ mod tests {
     }
 
     fn lit_cell() -> usize {
-        cell_index(3, 5, 7)
+        LocalPos::new(3, 5, 7).index()
     }
 
     /// The world coordinates of `lit_cell` in section `sy` of the lit column.

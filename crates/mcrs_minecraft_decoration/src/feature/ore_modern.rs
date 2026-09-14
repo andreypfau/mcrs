@@ -5,7 +5,7 @@ use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{Rule, WorldGenVolume};
 use mcrs_voxel_math::Direction;
-use mcrs_voxel_math::mth::sin_modern;
+use mcrs_voxel_math::mth::{lerp, sin_modern};
 use mcrs_voxel_storage::VoxelId;
 
 #[derive(Clone, Debug)]
@@ -191,10 +191,6 @@ fn do_place<W: WorldGenVolume>(
 fn bit_set_capacity(size_xz: i32, size_y: i32) -> usize {
     let (xz, y) = (size_xz.max(0) as usize, size_y.max(0) as usize);
     xz + y * xz + xz * xz * y + 1
-}
-
-fn lerp(alpha: f64, start: f64, end: f64) -> f64 {
-    start + alpha * (end - start)
 }
 
 pub(crate) fn can_place_ore<W: WorldGenVolume>(

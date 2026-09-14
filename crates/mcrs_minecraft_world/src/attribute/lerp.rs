@@ -7,6 +7,7 @@
 //! which is why they are derived here from one `interpolated_lerp` rather than
 //! stored four times.
 
+use mcrs_voxel_math::mth::{lerp, lerp_int, wrap_degrees};
 use serde_json::Value;
 
 use super::modifier::Operation;
@@ -168,34 +169,12 @@ impl AttributeSpec {
     }
 }
 
-fn lerp(alpha: f32, from: f32, to: f32) -> f32 {
-    from + alpha * (to - from)
-}
-
-/// `Mth.lerpInt`: the step is floored, so the result leaves `from` only once a
-/// whole unit has accumulated.
-fn lerp_int(alpha: f32, from: i32, to: i32) -> i32 {
-    from.wrapping_add((alpha * to.wrapping_sub(from) as f32).floor() as i32)
-}
-
 fn srgb_lerp(alpha: f32, from: u32, to: u32) -> u32 {
     let channel = |shift: u32| {
         let at = |color: u32| (color >> shift & 0xFF) as i32;
         (lerp_int(alpha, at(from), at(to)) as u32 & 0xFF) << shift
     };
     channel(24) | channel(16) | channel(8) | channel(0)
-}
-
-/// `Mth.wrapDegrees`.
-fn wrap_degrees(angle: f32) -> f32 {
-    let mut wrapped = angle % 360.0;
-    if wrapped >= 180.0 {
-        wrapped -= 360.0;
-    }
-    if wrapped < -180.0 {
-        wrapped += 360.0;
-    }
-    wrapped
 }
 
 fn cross_fade(alpha: f32, from: &[Value], to: &[Value]) -> Vec<Value> {
