@@ -15,9 +15,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::ResourceLocation;
 use crate::attribute::EnvironmentAttributeMap;
-use crate::value::IntValueProvider;
 use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_worldgen::feature::FeatureStepList;
+
+pub use mcrs_minecraft_worldgen::structure::{MobCategory, SpawnerData};
 
 pub const NATURAL_MOB_SPAWNS: &str = "minecraft:gameplay/natural_mob_spawns";
 
@@ -128,27 +129,6 @@ impl MobSpawnSettings {
     pub fn is_empty(&self) -> bool {
         self.spawn_costs.is_empty() && self.spawns_by_category.is_empty()
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MobCategory {
-    Ambient,
-    Axolotls,
-    Creature,
-    Misc,
-    Monster,
-    UndergroundWaterCreature,
-    WaterAmbient,
-    WaterCreature,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SpawnerData {
-    #[serde(rename = "type")]
-    pub entity_type: ResourceLocation<Arc<str>>,
-    pub count: IntValueProvider,
-    pub weight: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
