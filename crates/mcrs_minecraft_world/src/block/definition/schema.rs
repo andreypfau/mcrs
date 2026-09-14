@@ -514,7 +514,7 @@ pub struct RedstoneProducer {
 /// instrument is the instrument's own property, so exactly one of the two is
 /// stated and the pair collapses to the instrument itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstrumentSound(pub Instrument);
+pub struct InstrumentSound(pub NoteBlockInstrument);
 
 impl<'de> Deserialize<'de> for InstrumentSound {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -538,7 +538,7 @@ impl<'de> Deserialize<'de> for InstrumentSound {
                     if sound.is_some() {
                         return Err(de::Error::custom("`up` and `down` are both stated"));
                     }
-                    let instrument: Instrument = map.next_value()?;
+                    let instrument: NoteBlockInstrument = map.next_value()?;
                     if instrument.works_above_note_block() != above {
                         return Err(de::Error::custom(format!(
                             "`{key}` states `{}`, which works the other way round",
@@ -573,7 +573,7 @@ impl Serialize for InstrumentSound {
 /// property, which is an ordinary block state property.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Instrument {
+pub enum NoteBlockInstrument {
     Harp,
     Basedrum,
     Snare,
@@ -603,19 +603,19 @@ pub enum Instrument {
     CustomHead,
 }
 
-impl Instrument {
+impl NoteBlockInstrument {
     /// A mob head sounds from above the note block; every tunable instrument
     /// sounds from the block the note block stands on.
     pub const fn works_above_note_block(self) -> bool {
         matches!(
             self,
-            Instrument::Zombie
-                | Instrument::Skeleton
-                | Instrument::Creeper
-                | Instrument::Dragon
-                | Instrument::WitherSkeleton
-                | Instrument::Piglin
-                | Instrument::CustomHead
+            NoteBlockInstrument::Zombie
+                | NoteBlockInstrument::Skeleton
+                | NoteBlockInstrument::Creeper
+                | NoteBlockInstrument::Dragon
+                | NoteBlockInstrument::WitherSkeleton
+                | NoteBlockInstrument::Piglin
+                | NoteBlockInstrument::CustomHead
         )
     }
 

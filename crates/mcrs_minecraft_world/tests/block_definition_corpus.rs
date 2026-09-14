@@ -4,7 +4,7 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_math::Vec3;
 use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_minecraft_world::block::definition::schema::{Instrument, PropertyValue};
+use mcrs_minecraft_world::block::definition::schema::{NoteBlockInstrument, PropertyValue};
 use mcrs_minecraft_world::block::definition::{
     BlockDefinitions, BlockStateData, BlockStateFlags, LoadReport, load_block_definitions,
 };
@@ -135,7 +135,7 @@ fn stone_has_one_state_and_a_full_cube() {
         }
     );
     assert_eq!(state.push_reaction, PushReaction::Normal);
-    assert_eq!(state.instrument, Instrument::Basedrum);
+    assert_eq!(state.instrument, NoteBlockInstrument::Basedrum);
     assert_eq!(
         definitions.loot_table(state.loot.unwrap()).as_str(),
         "minecraft:blocks/stone"

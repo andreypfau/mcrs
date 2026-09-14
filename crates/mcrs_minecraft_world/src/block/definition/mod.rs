@@ -17,8 +17,8 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::molang::{MolangError, StateCondition};
 use self::schema::{
-    BlockDefinitionFile, BlockProperties, Components, Instrument, IntProvider, LavaFlammable,
-    ModelBox, PlacementFilter, PropertyValue, Sticky,
+    BlockDefinitionFile, BlockProperties, Components, IntProvider, LavaFlammable, ModelBox,
+    NoteBlockInstrument, PlacementFilter, PropertyValue, Sticky,
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
@@ -83,7 +83,7 @@ pub struct BlockStateData {
     pub selection_shape: ShapeId,
     pub occlusion_shape: ShapeId,
     pub push_reaction: PushReaction,
-    pub instrument: Instrument,
+    pub instrument: NoteBlockInstrument,
     pub redstone_power: u8,
     pub loot: Option<LootId>,
     pub experience: Option<ExperienceId>,
@@ -474,7 +474,7 @@ const UNCLAIMED: BlockStateData = BlockStateData {
     selection_shape: ShapeId(u32::MAX),
     occlusion_shape: ShapeId(u32::MAX),
     push_reaction: PushReaction::Normal,
-    instrument: Instrument::Harp,
+    instrument: NoteBlockInstrument::Harp,
     redstone_power: 0,
     loot: None,
     experience: None,
