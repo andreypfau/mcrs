@@ -1,8 +1,9 @@
-use crate::jmath::{clampf, jmax, mul_add};
+use crate::jmath::mul_add;
 use crate::noise::simplex::SimplexNoise;
 use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_voxel_math::mth::{clampf, jmax};
 
 const ISLAND_THRESHOLD: f32 = -0.9;
 

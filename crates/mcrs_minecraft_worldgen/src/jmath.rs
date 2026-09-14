@@ -5,6 +5,10 @@
 //! Density values are guaranteed NaN-free, so nothing here propagates NaN. If
 //! that guarantee is ever broken these functions return the wrong operand
 //! silently; `Program::fill` carries the debug assertion that catches it.
+//!
+//! What lives here rather than in `mcrs_voxel_math::mth` is what the `fast`
+//! profile changes: moving it down would switch the profile on for every crate
+//! the build unifies with.
 
 /// `min` and `max` on density values, as the *volume* path computes them: a bare
 /// comparison with the left operand as the accumulator. Vanilla's scalar path
@@ -18,66 +22,6 @@ pub fn vmin(left: f32, right: f32) -> f32 {
 #[inline]
 pub fn vmax(left: f32, right: f32) -> f32 {
     if right > left { right } else { left }
-}
-
-/// `Math.min` / `Math.max` for **interval endpoints**, where NaN is
-/// `Interval::NAI` — a meaningful "nothing is known" sentinel that must
-/// propagate. The no-NaN guarantee covers density values, not bounds.
-#[inline]
-pub fn jmin(a: f32, b: f32) -> f32 {
-    if a.is_nan() {
-        return a;
-    }
-    if a == 0.0 && b == 0.0 && b.is_sign_negative() {
-        return b;
-    }
-    if a <= b { a } else { b }
-}
-
-#[inline]
-pub fn jmax(a: f32, b: f32) -> f32 {
-    if a.is_nan() {
-        return a;
-    }
-    if a == 0.0 && b == 0.0 && a.is_sign_negative() {
-        return b;
-    }
-    if a >= b { a } else { b }
-}
-
-/// `Math.signum(float)`. Zero keeps its sign, which Rust's `f32::signum` does
-/// not do — it returns `±1.0` for both zeros.
-#[inline]
-pub fn signum(v: f32) -> f32 {
-    if v == 0.0 { v } else { 1.0_f32.copysign(v) }
-}
-
-/// `(float)Math.log(x)`. Java has no float overload, so the value widens to
-/// `double`, the log is taken at double precision, and the result narrows.
-/// Computing `f32::ln` directly rounds once instead of twice and drifts.
-#[inline]
-pub fn log(v: f32) -> f32 {
-    (v as f64).ln() as f32
-}
-
-/// `(float)Math.pow(a, b)`, likewise computed at double precision.
-#[inline]
-pub fn pow(a: f32, b: f32) -> f32 {
-    (a as f64).powf(b as f64) as f32
-}
-
-/// `Mth.clamp(float, float, float)`. Returns `min` when the value is NaN,
-/// because `NaN < min` is false and `NaN > max` is false, leaving the value —
-/// vanilla's `Mth.clamp` is written as nested ternaries with the same outcome.
-#[inline]
-pub fn clampf(v: f32, min: f32, max: f32) -> f32 {
-    if v < min {
-        min
-    } else if v > max {
-        max
-    } else {
-        v
-    }
 }
 
 /// `a * b + c`. The fast profile fuses the multiply and the add into one
@@ -125,29 +69,6 @@ pub fn sampler_lerp(alpha: f32, first: f32, second: f32) -> f32 {
     }
 }
 
-/// `Mth.floor(float)`, which is `(int)Math.floor(v)`: the narrowing cast
-/// saturates at the integer bounds and sends NaN to zero rather than wrapping.
-#[inline]
-pub fn mth_floor(v: f32) -> i32 {
-    (v as f64).floor() as i32
-}
-
-/// `Math.floorDiv`. Rust's `/` truncates toward zero, and `div_euclid` rounds
-/// toward negative infinity only for a positive divisor: `floorDiv(-1, -4)` is
-/// 0 where `(-1).div_euclid(-4)` is 1.
-#[inline]
-pub fn floor_div(a: i32, b: i32) -> i32 {
-    let q = a / b;
-    if (a ^ b) < 0 && q * b != a { q - 1 } else { q }
-}
-
-/// `Math.floorMod`. Takes the sign of the divisor, where Rust's `%` takes the
-/// sign of the dividend and `rem_euclid` is always non-negative.
-#[inline]
-pub fn floor_mod(a: i32, b: i32) -> i32 {
-    a - floor_div(a, b) * b
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,32 +83,6 @@ mod tests {
     }
 
     #[test]
-    fn signum_keeps_zero_sign() {
-        assert!(signum(0.0).is_sign_positive() && signum(0.0) == 0.0);
-        assert!(signum(-0.0).is_sign_negative() && signum(-0.0) == 0.0);
-        assert_eq!(signum(-3.0), -1.0);
-        assert_eq!(signum(3.0), 1.0);
-        assert_eq!((-0.0f32).signum(), -1.0, "stdlib differs, as documented");
-    }
-
-    #[test]
-    fn log_rounds_once_through_f64() {
-        // 0.1f32 is the classic case where ln at f32 precision and ln at f64
-        // precision narrowed to f32 disagree in the last bit.
-        let v = 0.1_f32;
-        assert_eq!(log(v), (v as f64).ln() as f32);
-    }
-
-    #[test]
-    fn mth_floor_saturates_instead_of_wrapping() {
-        assert_eq!(mth_floor(-7.5), -8);
-        assert_eq!(mth_floor(7.5), 7);
-        assert_eq!(mth_floor(1e30), i32::MAX);
-        assert_eq!(mth_floor(-1e30), i32::MIN);
-        assert_eq!(mth_floor(f32::NAN), 0);
-    }
-
-    #[test]
     fn a_unit_alpha_lerps_to_the_endpoint_exactly() {
         let (first, second) = (-0.524_070_74_f32, 0.088_458_45_f32);
         assert_eq!(sampler_lerp(1.0, first, second), second);
@@ -197,23 +92,5 @@ mod tests {
             second,
             "the bare Mth.lerp misses the endpoint, which is why the samplers branch"
         );
-    }
-
-    #[test]
-    fn floor_div_matches_java() {
-        assert_eq!(floor_div(-7, 4), -2);
-        assert_eq!(floor_mod(-7, 4), 1);
-        assert_eq!(-7 / 4, -1, "stdlib truncates, as documented");
-    }
-
-    #[test]
-    fn floor_div_matches_java_for_a_negative_divisor() {
-        assert_eq!(floor_div(-1, -4), 0);
-        assert_eq!(floor_mod(-1, -4), -1);
-        assert_eq!(floor_div(-7, -4), 1);
-        assert_eq!(floor_mod(-7, -4), -3);
-        assert_eq!(floor_div(7, -4), -2);
-        assert_eq!(floor_mod(7, -4), -1);
-        assert_eq!((-1i32).div_euclid(-4), 1, "euclid differs, as documented");
     }
 }

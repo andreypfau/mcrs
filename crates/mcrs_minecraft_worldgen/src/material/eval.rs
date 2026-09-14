@@ -1,6 +1,5 @@
 use crate::cell::CELL_BOUNDS_SLACK;
 use crate::interval::Interval;
-use crate::jmath::mth_floor;
 use crate::material::compile::{
     CondId, Condition, MaterialProgram, NoiseId, Op, Scope, SurfaceNoise, Tri, VeinId,
 };
@@ -9,6 +8,7 @@ use crate::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
 use crate::volume::Volume;
 use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
+use mcrs_voxel_math::mth::mth_floor;
 use mcrs_voxel_storage::VoxelId;
 
 /// The water level of a strip in which no fluid has been seen from above.
@@ -1155,17 +1155,4 @@ fn corner_bounds(values: &[f32], lattice: &Volume, at: IVec3, out: &mut [Interva
 /// maps outside the target range.
 pub fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
     to_min + (value - from_min) / (from_max - from_min) * (to_max - to_min)
-}
-
-/// [`map`] with the source range as a hard clamp: outside it the value maps to
-/// the near end of the target range.
-pub fn clamped_map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
-    let delta = (value - from_min) / (from_max - from_min);
-    if delta < 0.0 {
-        to_min
-    } else if delta > 1.0 {
-        to_max
-    } else {
-        to_min + delta * (to_max - to_min)
-    }
 }

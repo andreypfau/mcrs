@@ -33,11 +33,11 @@ pub fn place_beta_ore<R: Random>(
     let f = rng.next_f32() * std::f32::consts::PI;
 
     // Segment endpoints X
-    let d0 = origin_x as f64 + 8.0 + (crate::math::sin(f) * size as f32 / 8.0) as f64;
-    let d1 = origin_x as f64 + 8.0 - (crate::math::sin(f) * size as f32 / 8.0) as f64;
+    let d0 = origin_x as f64 + 8.0 + (mcrs_voxel_math::mth::sin(f) * size as f32 / 8.0) as f64;
+    let d1 = origin_x as f64 + 8.0 - (mcrs_voxel_math::mth::sin(f) * size as f32 / 8.0) as f64;
     // Segment endpoints Z
-    let d2 = origin_z as f64 + 8.0 + (crate::math::cos(f) * size as f32 / 8.0) as f64;
-    let d3 = origin_z as f64 + 8.0 - (crate::math::cos(f) * size as f32 / 8.0) as f64;
+    let d2 = origin_z as f64 + 8.0 + (mcrs_voxel_math::mth::cos(f) * size as f32 / 8.0) as f64;
+    let d3 = origin_z as f64 + 8.0 - (mcrs_voxel_math::mth::cos(f) * size as f32 / 8.0) as f64;
     // Segment endpoints Y — Beta WorldGenMinable uses `+2`, not modern OreFeature's `-2`
     let d4 = origin_y as f64 + rng.next_i32_bound(3) as f64 + 2.0;
     let d5 = origin_y as f64 + rng.next_i32_bound(3) as f64 + 2.0;
@@ -50,7 +50,7 @@ pub fn place_beta_ore<R: Random>(
         // next_f64 matches Java nextDouble() draw count (two LCG advances).
         let d9 = rng.next_f64() * size as f64 / 16.0;
         let sin_step =
-            (crate::math::sin(l as f32 * std::f32::consts::PI / size as f32) + 1.0) as f64;
+            (mcrs_voxel_math::mth::sin(l as f32 * std::f32::consts::PI / size as f32) + 1.0) as f64;
         let d10 = sin_step * d9 + 1.0;
         let d11 = sin_step * d9 + 1.0;
 

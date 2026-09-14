@@ -1,5 +1,6 @@
-use crate::jmath::{jmax, mul_add};
+use crate::jmath::mul_add;
 use crate::volume::Volume;
+use mcrs_voxel_math::mth::jmax;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]

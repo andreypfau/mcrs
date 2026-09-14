@@ -1,5 +1,6 @@
-use crate::jmath::{floor_div, floor_mod, mul_add};
+use crate::jmath::mul_add;
 use crate::volume::{Axis, Volume};
+use mcrs_voxel_math::mth::{floor_div, floor_mod};
 
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,

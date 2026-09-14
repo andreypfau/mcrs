@@ -5,7 +5,7 @@ use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::placer::WorldGenVolume;
 
 use crate::feature::tree::trunk::random_horizontal;
-use crate::math::shuffle;
+use mcrs_minecraft_random::shuffle;
 
 fn counter_clockwise(direction: Direction) -> Direction {
     direction.clockwise().opposite()

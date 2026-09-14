@@ -1,9 +1,10 @@
 use crate::interval::Interval;
-use crate::jmath::{jmax, mul_add};
+use crate::jmath::mul_add;
 use crate::node::gradient::{GradientParams, Tiling};
 use crate::program::{BinaryOp, Node, NodeId, RoundKind, UnaryOp};
 use crate::volume::Axis;
 use bevy_math::IVec3;
+use mcrs_voxel_math::mth::jmax;
 
 /// Which of the two bounds a walk over the graph is after. The arithmetic over
 /// the operators is the same either way; only the leaves and the selections

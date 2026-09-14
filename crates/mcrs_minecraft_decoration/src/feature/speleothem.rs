@@ -5,13 +5,13 @@ use mcrs_minecraft_worldgen::feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen::feature::compile::BlockResolver;
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::{StateMask, WorldGenVolume};
-use mcrs_minecraft_worldgen::material::eval::clamped_map;
 use mcrs_minecraft_worldgen::proto::BlockState;
 use mcrs_minecraft_worldgen::value_provider::{FloatProvider, IntProvider};
+use mcrs_voxel_math::mth::clamped_map;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::feature::holds;
-use crate::math::{cos_modern, sin_modern};
+use mcrs_voxel_math::mth::{cos_modern, sin_modern};
 
 /// `Column`, which is only ever asked for its two edges: `Range` is both
 /// present, `Ray` one, `Line` neither.
@@ -69,17 +69,6 @@ fn speleothem_profile(
             - r.powf(0.666_666_666_666_666_6)
             - 0.333_333_333_333_333_3 * r.ln());
     relative.max(0.0) / 0.384 * radius
-}
-
-fn clamped_map_f32(x: f32, in_min: f32, in_max: f32, out_min: f32, out_max: f32) -> f32 {
-    let t = (x - in_min) / (in_max - in_min);
-    if t < 0.0 {
-        out_min
-    } else if t > 1.0 {
-        out_max
-    } else {
-        out_min + t * (out_max - out_min)
-    }
 }
 
 /// The five `SpeleothemThickness` values in the order a column is built.
@@ -167,7 +156,7 @@ pub fn place_speleothem_cluster<W: WorldGenVolume>(
     for dx in -x_radius..=x_radius {
         for dz in -z_radius..=z_radius {
             let from_edge = (x_radius - dx.abs()).min(z_radius - dz.abs());
-            let chance = clamped_map_f32(
+            let chance = clamped_map(
                 from_edge as f32,
                 0.0,
                 config.max_distance_from_edge_affecting_chance_of_speleothem as f32,

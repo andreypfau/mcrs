@@ -24,6 +24,7 @@ use crate::volume::Axis;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
+use mcrs_voxel_math::mth;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
@@ -430,7 +431,7 @@ impl<'a> Compiler<'a> {
                 let input = self.compile(&x.input)?;
                 let (min, max) = (x.min.0 as f32, x.max.0 as f32);
                 if let Some(value) = self.as_constant(input) {
-                    return Ok(self.constant(jmath::clampf(value, min, max)));
+                    return Ok(self.constant(mth::clampf(value, min, max)));
                 }
                 Ok(self.intern(
                     Key::Clamp(input, min.to_bits(), max.to_bits()),
@@ -887,7 +888,7 @@ impl<'a> Compiler<'a> {
 
     fn pow(&mut self, base: NodeId, exponent: NodeId) -> NodeId {
         match (self.as_constant(base), self.as_constant(exponent)) {
-            (Some(a), Some(b)) => self.constant(jmath::pow(a, b)),
+            (Some(a), Some(b)) => self.constant(mth::pow(a, b)),
             (Some(value), None) => self.const_binary(BinaryOp::Pow, exponent, value, true),
             (None, Some(value)) => self.const_exponent_pow(base, value),
             (None, None) => self.binary(BinaryOp::Pow, base, exponent),

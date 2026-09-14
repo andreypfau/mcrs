@@ -2,11 +2,11 @@ use crate::carver::mask::CarvingMask;
 use crate::carver::tunnel::can_reach;
 use crate::carver::water::WaterMask;
 use crate::carver::{CarveShape, carve_ellipsoid};
-use crate::math::{cos_modern, sin_modern};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen::carver::{CanyonShape, CarverConfig};
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
+use mcrs_voxel_math::mth::{cos_modern, sin_modern};
 
 use crate::carver::modern::RANGE;
 

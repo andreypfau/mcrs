@@ -1,5 +1,5 @@
 use crate::feature::{face_bit, holds};
-use crate::math::{shuffle, shuffled};
+use mcrs_minecraft_random::{shuffle, shuffled};
 use rustc_hash::FxHashMap as HashMap;
 
 use bevy_math::IVec3;

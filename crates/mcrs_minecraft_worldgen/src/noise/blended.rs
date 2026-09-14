@@ -5,6 +5,7 @@ use crate::noise::perlin::SmearedPerlinNoise;
 use crate::noise::stack::{ColumnScratch, NoiseStack};
 use crate::volume::Volume;
 use mcrs_minecraft_random::RandomSource;
+use mcrs_voxel_math::mth;
 use std::cell::RefCell;
 use std::fmt;
 use std::sync::Arc;
@@ -177,7 +178,7 @@ impl BlendedNoise {
                     scratch,
                 );
                 for alpha in run.iter_mut() {
-                    *alpha = jmath::clampf(*alpha + 0.5, 0.0, 1.0);
+                    *alpha = mth::clampf(*alpha + 0.5, 0.0, 1.0);
                 }
                 // An alpha pinned to an endpoint returns one limit untouched, so the
                 // other stack is never read and its sixteen octaves need not be

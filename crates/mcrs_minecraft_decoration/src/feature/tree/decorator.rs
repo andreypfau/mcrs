@@ -16,7 +16,7 @@ use super::provider::StateProvider;
 use crate::block_entity::BEE_MIN_TICKS_IN_HIVE;
 use crate::block_entity::{BeeOccupant, GeneratedBlockEntity};
 use crate::feature::tree::trunk::random_horizontal;
-use crate::math::{shuffle, shuffled};
+use mcrs_minecraft_random::{shuffle, shuffled};
 
 /// The four sides a bee nest may sit on: the horizontals minus the one it would
 /// face away from, since it always faces south.

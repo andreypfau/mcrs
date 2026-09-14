@@ -183,7 +183,7 @@ fn reorient<W: WorldGenVolume>(config: &CompiledMonsterRoom, volume: &W, pos: IV
 /// `Util.toShuffledList(IntStream.rangeClosed(min, max), random)`.
 fn shuffled_range(rng: &mut XoroshiroRandom, min: i32, max: i32) -> Vec<i32> {
     let mut values: Vec<i32> = (min..=max).collect();
-    crate::math::shuffle(&mut values, rng);
+    mcrs_minecraft_random::shuffle(&mut values, rng);
     values
 }
 

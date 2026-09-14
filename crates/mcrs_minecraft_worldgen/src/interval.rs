@@ -1,4 +1,4 @@
-use crate::jmath;
+use mcrs_voxel_math::mth;
 
 /// The bounds a value can take. Only ever widened: a bound narrower than the
 /// truth would let the optimiser delete a reachable branch.
@@ -200,7 +200,7 @@ impl Interval {
         if self.is_nai() {
             Self::NAI
         } else if self.min == self.max {
-            Self::exact(jmath::signum(self.min))
+            Self::exact(mth::signum(self.min))
         } else if !self.contains(0.0) {
             Self::exact(if self.min > 0.0 { 1.0 } else { -1.0 })
         } else if self.min == 0.0 {
@@ -216,8 +216,7 @@ impl Interval {
         if self.max < 0.0 {
             return Self::NAI;
         }
-        self.pointwise_max(Self::exact(0.0))
-            .map_monotonic(jmath::log)
+        self.pointwise_max(Self::exact(0.0)).map_monotonic(mth::log)
     }
 
     pub fn map_monotonic(self, op: impl Fn(f32) -> f32) -> Self {

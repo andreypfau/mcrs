@@ -22,7 +22,7 @@ pub fn random_horizontal(rng: &mut XoroshiroRandom) -> Direction {
 /// as with any other.
 pub fn all_shuffled(rng: &mut XoroshiroRandom) -> [Direction; 6] {
     let mut faces = Direction::all();
-    crate::math::shuffle(&mut faces, rng);
+    mcrs_minecraft_random::shuffle(&mut faces, rng);
     faces
 }
 
@@ -490,8 +490,8 @@ impl Trunk {
             let mut bz = 0;
 
             for b in 0..5 {
-                bx = (1.5 + crate::math::cos_modern(angle as f64) * b as f32) as i32;
-                bz = (1.5 + crate::math::sin_modern(angle as f64) * b as f32) as i32;
+                bx = (1.5 + mcrs_voxel_math::mth::cos_modern(angle as f64) * b as f32) as i32;
+                bz = (1.5 + mcrs_voxel_math::mth::sin_modern(angle as f64) * b as f32) as i32;
                 let at = origin + IVec3::new(bx, branch_height - 3 + b / 2, bz);
                 self.place_log(cx, rng, at, None);
             }

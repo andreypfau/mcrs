@@ -594,7 +594,7 @@ const NON_CORNER_NEIGHBOURS: [IVec3; 18] = [
 
 fn shuffled_neighbours(rng: &mut XoroshiroRandom) -> [IVec3; 18] {
     let mut offsets = NON_CORNER_NEIGHBOURS;
-    crate::math::shuffle(&mut offsets, rng);
+    mcrs_minecraft_random::shuffle(&mut offsets, rng);
     offsets
 }
 

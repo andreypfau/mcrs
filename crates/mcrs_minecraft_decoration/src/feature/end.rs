@@ -240,7 +240,7 @@ pub fn seed_spikes(world_seed: i64) -> Vec<EndSpike> {
     let key = LegacyRandom::new(world_seed as u64).next_java_long() & 65535;
     let mut rng = LegacyRandom::new(key as u64);
     let mut sizes: Vec<i32> = (0..NUMBER_OF_SPIKES).collect();
-    crate::math::shuffle(&mut sizes, &mut rng);
+    mcrs_minecraft_random::shuffle(&mut sizes, &mut rng);
 
     (0..NUMBER_OF_SPIKES)
         .map(|index| {

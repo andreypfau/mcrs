@@ -1,6 +1,6 @@
-use crate::jmath::{floor_div, floor_mod};
 use bevy_math::IVec3;
 pub use mcrs_voxel_math::Axis;
+use mcrs_voxel_math::mth::{floor_div, floor_mod};
 
 /// A strided box of block positions: `size` samples per axis, starting at
 /// `min_block`, spaced `step_block` apart.
