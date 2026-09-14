@@ -16,7 +16,7 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 use crate::config::Guard;
 

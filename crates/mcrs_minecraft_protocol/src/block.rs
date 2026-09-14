@@ -2,24 +2,8 @@ use crate::{Decode, Encode, VarInt};
 use anyhow::Context;
 use derive_more::{From, Into};
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_registry::BlockStateId;
 use std::io::Write;
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug, From, Into)]
-pub struct BlockStateId(pub u16);
-
-impl From<BlockStateId> for VoxelId {
-    #[inline]
-    fn from(id: BlockStateId) -> Self {
-        VoxelId(id.0)
-    }
-}
-
-impl From<VoxelId> for BlockStateId {
-    #[inline]
-    fn from(id: VoxelId) -> Self {
-        BlockStateId(id.0)
-    }
-}
 
 impl From<VoxelId> for VarInt {
     fn from(id: VoxelId) -> Self {

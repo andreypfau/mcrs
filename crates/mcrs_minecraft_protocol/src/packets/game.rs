@@ -12,8 +12,9 @@ pub mod clientbound {
     use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_core::SectionPos;
-    use mcrs_minecraft_protocol::{BlockStateId, ByteAngle};
+    use mcrs_minecraft_protocol::ByteAngle;
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_registry::BlockStateId;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;

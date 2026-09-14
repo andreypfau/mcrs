@@ -26,7 +26,7 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
 

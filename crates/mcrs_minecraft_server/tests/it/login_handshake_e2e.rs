@@ -142,7 +142,7 @@ fn e2e_login_handshake_completes() {
 fn e2e_packet_round_trip() {
     use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_level::session::{SessionEntry, SessionRegistry};
-    use mcrs_minecraft_protocol::BlockStateId;
+    use mcrs_minecraft_registry::BlockStateId;
 
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();

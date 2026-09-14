@@ -4,7 +4,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_level::block::BlockUpdateFlags;
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 const OBSIDIAN: BlockStateId = BlockStateId(1126);
 

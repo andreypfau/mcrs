@@ -10,7 +10,7 @@ use bevy_ecs::system::{Local, Query, Res};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::hash_map::Entry;
 use std::hash::Hash;

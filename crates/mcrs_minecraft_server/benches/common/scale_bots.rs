@@ -34,7 +34,7 @@ use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionR
 use mcrs_minecraft_network::metrics::{
     BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL, BridgeTelemetrySnapshot, snapshot,
 };
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::bridge::bridge_outbound;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft_server::world::bus::{

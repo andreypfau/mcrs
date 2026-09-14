@@ -53,7 +53,7 @@ pub(super) fn with_property<'a>(
 ) -> impl Iterator<Item = (VoxelId, &'a PropertyValue)> + 'a {
     blocks.blocks().iter().flat_map(move |entry| {
         (0..entry.state_count).filter_map(move |offset| {
-            let id = mcrs_minecraft_protocol::BlockStateId(entry.base_state_id.0 + offset);
+            let id = mcrs_minecraft_registry::BlockStateId(entry.base_state_id.0 + offset);
             let value = entry.value_of(id, property)?;
             Some((VoxelId::from(id.0), value))
         })
@@ -157,7 +157,7 @@ fn property_table<const N: usize>(
 ) -> HashMap<u16, [VoxelId; N]> {
     with_property(blocks, property)
         .map(|(state, _)| {
-            let id = mcrs_minecraft_protocol::BlockStateId(state.0);
+            let id = mcrs_minecraft_registry::BlockStateId(state.0);
             let entry = blocks.owner(id);
             (
                 state.0,
@@ -223,7 +223,7 @@ fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
     };
     for id in 0..blocks.state_count() {
         let shape = blocks
-            .state(mcrs_minecraft_protocol::BlockStateId(id as u16))
+            .state(mcrs_minecraft_registry::BlockStateId(id as u16))
             .collision_shape;
         let answer = *answers.entry(shape.0).or_insert_with(|| {
             let voxels = VoxelShape::from_boxes(blocks.shape(shape));

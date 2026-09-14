@@ -28,7 +28,7 @@ use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;

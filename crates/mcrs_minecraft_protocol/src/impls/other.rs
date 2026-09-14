@@ -9,7 +9,8 @@ use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use uuid::Uuid;
 
-use crate::{Decode, Encode, ItemId, VarInt};
+use crate::{Decode, Encode, VarInt};
+use mcrs_minecraft_registry::ItemId;
 
 impl<T: Encode> Encode for Option<T> {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {

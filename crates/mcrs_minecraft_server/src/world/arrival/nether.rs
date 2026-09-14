@@ -6,7 +6,7 @@ use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 const AIR: BlockStateId = BlockStateId(0);
 

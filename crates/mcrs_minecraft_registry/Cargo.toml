@@ -9,6 +9,7 @@ doctest = false
 
 [dependencies]
 bevy_ecs = { workspace = true, optional = true }
+mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true
 tracing.workspace = true
 

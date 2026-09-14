@@ -25,7 +25,7 @@ use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;

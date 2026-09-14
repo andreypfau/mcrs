@@ -4,10 +4,11 @@ use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{BlockStateId, VarInt};
 use mcrs_minecraft_protocol::{GameEventKind, GameMode, Look, Text};
+use mcrs_minecraft_registry::BlockStateId;
 use smallvec::SmallVec;
 use std::time::Instant;
 

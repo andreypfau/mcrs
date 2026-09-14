@@ -4,8 +4,9 @@ use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{MessageWriter, On};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_protocol::Direction;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundPlayerAction;
-use mcrs_minecraft_protocol::{BlockStateId, Direction};
+use mcrs_minecraft_registry::BlockStateId;
 
 pub struct PlayerActionPlugin;
 

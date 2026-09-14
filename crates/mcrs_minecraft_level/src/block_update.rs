@@ -2,7 +2,7 @@ use crate::block::BlockUpdateFlags;
 use crate::voxel_update::{VoxelPlaced, VoxelSetRequest, VoxelUpdateFlags, VoxelUpdatePlugin};
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 impl VoxelUpdateFlags for BlockUpdateFlags {
     fn notifies_clients(&self) -> bool {

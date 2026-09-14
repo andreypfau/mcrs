@@ -18,7 +18,8 @@ use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette, ChunkBlocks};
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::storage::column::{ChunkLookup, ColumnChunks, ColumnIndex};
-use mcrs_minecraft_protocol::{BlockStateId, VarInt};
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_world::transition_to_playing;
 use rustc_hash::FxHashMap;
 

@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 use super::corpus;
 use super::surface::{biome_ids, overworld_material_router, surfaced_column};

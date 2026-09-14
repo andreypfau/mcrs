@@ -21,10 +21,10 @@ use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
-use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
@@ -1023,7 +1023,7 @@ fn compile_generator(
                 StateProvider::Simple(state) => {
                     let index = resolver
                         .blocks
-                        .block_index(mcrs_minecraft_protocol::BlockStateId(state.0));
+                        .block_index(mcrs_minecraft_registry::BlockStateId(state.0));
                     trees.survive.get(&index).cloned()
                 }
                 _ => None,

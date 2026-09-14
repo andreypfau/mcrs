@@ -10,7 +10,7 @@ use mcrs_minecraft_block::definition::{
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 fn corpus() -> &'static (BlockDefinitions, LoadReport) {
     static CORPUS: OnceLock<(BlockDefinitions, LoadReport)> = OnceLock::new();

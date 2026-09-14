@@ -63,10 +63,10 @@ fn beta_sections_outside_noise_range_are_air() {
         &noises,
         42,
         mcrs_minecraft_worldgen_density::router::RouterBlocks {
-            default_block: mcrs_minecraft_protocol::BlockStateId(1).into(),
-            default_fluid: mcrs_minecraft_protocol::BlockStateId(86).into(),
-            water: mcrs_minecraft_protocol::BlockStateId(86).into(),
-            lava: mcrs_minecraft_protocol::BlockStateId(87).into(),
+            default_block: mcrs_minecraft_registry::BlockStateId(1).into(),
+            default_fluid: mcrs_minecraft_registry::BlockStateId(86).into(),
+            water: mcrs_minecraft_registry::BlockStateId(86).into(),
+            lava: mcrs_minecraft_registry::BlockStateId(87).into(),
         },
     )
     .expect("the beta noise router compiles");

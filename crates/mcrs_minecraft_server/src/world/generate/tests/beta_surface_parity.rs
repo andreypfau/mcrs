@@ -10,7 +10,7 @@ use mcrs_minecraft_biome::source::{
 };
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 use mcrs_minecraft_worldgen_density::program::Workspace;
 

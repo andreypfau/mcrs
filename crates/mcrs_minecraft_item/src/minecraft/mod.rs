@@ -2,7 +2,7 @@ use crate::Item;
 use crate::component::ItemComponents;
 use crate::component::tool::ToolMaterial;
 use mcrs_minecraft_block::tags as block_tags;
-use mcrs_minecraft_protocol::ItemId;
+use mcrs_minecraft_registry::ItemId;
 use mcrs_minecraft_registry::StaticRegistry;
 
 pub fn register_all_items(registry: &mut StaticRegistry<Item>) {

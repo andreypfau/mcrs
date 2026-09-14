@@ -1,11 +1,8 @@
 use crate::text::Text;
 use crate::{Decode, Encode, VarInt};
-use derive_more::{From, Into};
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_registry::ItemId;
 use std::io::Write;
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug, From, Into)]
-pub struct ItemId(pub u16);
 
 /// A stack of items in an inventory.
 #[derive(Clone, PartialEq, Debug, Default)]

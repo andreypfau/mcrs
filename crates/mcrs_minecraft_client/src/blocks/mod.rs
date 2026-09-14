@@ -5,7 +5,7 @@ use bevy::math::Vec3;
 
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 
 use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
 use crate::bake::{Dir, TinyWorld};

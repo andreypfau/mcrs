@@ -10,8 +10,9 @@ use mcrs_minecraft_level::block_update::BlockSetRequest;
 use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_protocol::Direction;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundUseItemOn;
-use mcrs_minecraft_protocol::{BlockStateId, Direction};
+use mcrs_minecraft_registry::BlockStateId;
 
 const TORCH_ITEM_ID: u16 = 323;
 const TORCH_STATE: u16 = 3370;

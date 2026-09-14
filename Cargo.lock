@@ -2801,13 +2801,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "139ef39800118c7683f2fd3c98c1b23c09ae076556b435f8e9064ae108aaeeec"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "r-efi",
  "rand_core 0.10.0",
  "wasip2",
  "wasip3",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -3495,7 +3493,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_structure",
  "serde",
@@ -3519,7 +3517,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_light",
- "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registry",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -3547,8 +3545,6 @@ dependencies = [
  "bytemuck",
  "console_error_panic_hook",
  "flate2",
- "getrandom 0.3.4",
- "getrandom 0.4.1",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
@@ -3560,6 +3556,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registry",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
  "objc2-foundation 0.3.2",
@@ -3673,7 +3670,6 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_item",
- "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
  "rand 0.10.0",
@@ -3752,6 +3748,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol_macros",
+ "mcrs_minecraft_registry",
  "rand 0.10.0",
  "serde",
  "serde_json",
@@ -3785,6 +3782,7 @@ name = "mcrs_minecraft_registry"
 version = "0.1.0"
 dependencies = [
  "bevy_ecs",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "tracing",
 ]

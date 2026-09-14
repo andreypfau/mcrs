@@ -3,7 +3,8 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Component;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
-use mcrs_minecraft_protocol::{ItemId, Slot};
+use mcrs_minecraft_protocol::Slot;
+use mcrs_minecraft_registry::ItemId;
 
 pub mod component;
 pub mod enchantment;

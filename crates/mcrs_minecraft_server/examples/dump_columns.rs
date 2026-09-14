@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::generate_column;
 use std::collections::BTreeMap;

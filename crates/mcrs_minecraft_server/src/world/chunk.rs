@@ -38,7 +38,7 @@ use tracing::{info, trace};
 pub(crate) fn try_resolve_state(
     blocks: &BlockDefinitions,
     state: &ProtoBlockState,
-) -> Option<mcrs_minecraft_protocol::BlockStateId> {
+) -> Option<mcrs_minecraft_registry::BlockStateId> {
     let block = blocks.block(state.name.as_str())?;
     let mut id = block.default_state_id;
     for (property, value) in state.properties.iter().flatten() {

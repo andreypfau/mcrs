@@ -244,7 +244,7 @@ fn deep_critical_queue_is_not_kicked() {
 #[test]
 fn coalesce_single_write_per_tick() {
     use mcrs_minecraft_core::BlockPos;
-    use mcrs_minecraft_protocol::BlockStateId;
+    use mcrs_minecraft_registry::BlockStateId;
 
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);

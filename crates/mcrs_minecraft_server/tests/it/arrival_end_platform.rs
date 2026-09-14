@@ -21,8 +21,8 @@ use mcrs_minecraft_level::world::in_flight::InFlightMoves;
 use mcrs_minecraft_level::world::storage::chunk::Chunk;
 use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
-use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::arrival::ArrivalPlugin;
 use mcrs_minecraft_server::world::bus::{
     ArrivalCause, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
