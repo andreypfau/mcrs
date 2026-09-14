@@ -2,7 +2,7 @@ use crate::interval::Interval;
 use crate::jmath::mul_add64;
 use crate::noise::Noise;
 use crate::noise::gradient::{GradientNoise, NoiseFloat};
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
 
 /// Simplex noise shared by Beta worldgen (`NoiseGenerator2`) and modern vanilla
@@ -187,7 +187,7 @@ impl Noise for SimplexNoise {
     fn add_to_volume(
         &self,
         out: &mut [f32],
-        volume: &Volume,
+        volume: &SampleGrid,
         xz_scale: f64,
         _y_scale: f64,
         amplitude: f32,

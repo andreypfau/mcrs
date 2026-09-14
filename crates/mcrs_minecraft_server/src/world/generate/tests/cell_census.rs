@@ -80,7 +80,7 @@ fn cell_elimination_census() {
 fn a_cell_bound_contains_every_density_inside_it() {
     use bevy_math::IVec3;
     use mcrs_minecraft_worldgen::router::FINAL_DENSITY;
-    use mcrs_minecraft_worldgen::volume::Volume;
+    use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 
     /// Chunks per side, per region. Widening this is the whole knob.
     const SIDE: i32 = 64;
@@ -121,7 +121,7 @@ fn a_cell_bound_contains_every_density_inside_it() {
 
                         // The lattice is pinned, so this is the interpolation
                         // the production fill would have done for these blocks.
-                        let volume = Volume::dense(cell, min);
+                        let volume = SampleGrid::dense(cell, min);
                         router
                             .program
                             .fill(&mut fill.ws, &volume, FINAL_DENSITY, &mut dense);
@@ -169,7 +169,7 @@ fn a_cell_bound_contains_every_density_inside_it() {
 fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
     use bevy_math::IVec3;
     use mcrs_minecraft_worldgen::program::Workspace;
-    use mcrs_minecraft_worldgen::volume::Volume;
+    use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 
     let router = build_settings_router("overworld", 777);
     let cell = router.cell_size().expect("the router has a cell lattice");
@@ -179,7 +179,7 @@ fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
     let rows = router.noise.height as i32 / cell.y + 1;
 
     let whole = CellLattice::fill(&router, 0, 0, &mut ws).expect("the lattice fills");
-    let part = Volume::new(
+    let part = SampleGrid::new(
         IVec3::new(4, rows, 4),
         IVec3::new(cell.x, min_y, cell.z),
         cell,

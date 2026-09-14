@@ -6,7 +6,7 @@ use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::{
     FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, RouterBlocks,
 };
-use mcrs_minecraft_worldgen::volume::Volume;
+use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 use mcrs_voxel_storage::VoxelId;
 
 const BLOCKS: RouterBlocks = RouterBlocks {
@@ -37,8 +37,8 @@ fn overworld(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> NoiseRoute
 /// cells with dry ones, hold perched lakes, and reach lava depths.
 const COLUMNS: [(i32, i32); 3] = [(0, 0), (52, 36), (-118, -119)];
 
-fn column_volume(router: &NoiseRouter, chunk_x: i32, chunk_z: i32) -> Volume {
-    Volume::dense(
+fn column_volume(router: &NoiseRouter, chunk_x: i32, chunk_z: i32) -> SampleGrid {
+    SampleGrid::dense(
         IVec3::new(16, router.noise.height as i32, 16),
         IVec3::new(chunk_x * 16, router.noise.min_y, chunk_z * 16),
     )

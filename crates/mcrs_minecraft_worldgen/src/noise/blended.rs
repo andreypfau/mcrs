@@ -3,7 +3,7 @@ use crate::jmath;
 use crate::kernel::each_column;
 use crate::noise::perlin::SmearedPerlinNoise;
 use crate::noise::stack::{ColumnScratch, NoiseStack};
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use mcrs_minecraft_random::RandomSource;
 use mcrs_voxel_math::mth;
 use std::cell::RefCell;
@@ -156,7 +156,7 @@ impl BlendedNoise {
         self.inner.range
     }
 
-    pub fn eval(&self, out: &mut [f32], ext: &Volume) {
+    pub fn eval(&self, out: &mut [f32], ext: &SampleGrid) {
         let n = ext.size().y as usize;
         let inner = &*self.inner;
 
@@ -240,8 +240,8 @@ mod tests {
     use super::*;
     use bevy_math::IVec3;
 
-    fn column() -> Volume {
-        Volume::new(
+    fn column() -> SampleGrid {
+        SampleGrid::new(
             IVec3::new(1, 6, 1),
             IVec3::new(7, -32, -13),
             IVec3::new(1, 4, 1),
@@ -262,7 +262,7 @@ mod tests {
 
         for i in 0..run.len() as i32 {
             let mut one = [0.0f32; 1];
-            let point = Volume::point(IVec3::new(7, ext.block_y(i), -13));
+            let point = SampleGrid::point(IVec3::new(7, ext.block_y(i), -13));
             params.eval(&mut one, &point);
             assert_eq!(one[0], run[i as usize], "at block y {}", ext.block_y(i));
         }
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn a_box_agrees_with_the_columns_it_covers() {
         let params = overworld();
-        let ext = Volume::new(
+        let ext = SampleGrid::new(
             IVec3::new(2, 6, 2),
             IVec3::new(7, -32, -13),
             IVec3::new(3, 4, 5),
@@ -283,7 +283,7 @@ mod tests {
 
         for iz in 0..2 {
             for ix in 0..2 {
-                let single = Volume::new(
+                let single = SampleGrid::new(
                     IVec3::new(1, 6, 1),
                     IVec3::new(ext.block_x(ix), -32, ext.block_z(iz)),
                     IVec3::new(1, 4, 1),
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn the_output_stays_inside_the_declared_limit_range() {
         let params = overworld();
-        let ext = Volume::new(
+        let ext = SampleGrid::new(
             IVec3::new(4, 8, 4),
             IVec3::new(-74, -64, -82),
             IVec3::new(37, 8, 41),

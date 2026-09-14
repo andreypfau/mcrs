@@ -17,8 +17,8 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::molang::{MolangError, StateCondition};
 use self::schema::{
-    BlockBox, BlockDefinitionFile, BlockProperties, Components, Instrument, IntProvider,
-    LavaFlammable, PlacementFilter, PropertyValue, Sticky,
+    BlockDefinitionFile, BlockProperties, Components, Instrument, IntProvider, LavaFlammable,
+    ModelBox, PlacementFilter, PropertyValue, Sticky,
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
@@ -511,7 +511,7 @@ impl Builder {
         }
     }
 
-    fn intern_shape(&mut self, boxes: &[BlockBox]) -> ShapeId {
+    fn intern_shape(&mut self, boxes: &[ModelBox]) -> ShapeId {
         let key: Vec<u32> = boxes
             .iter()
             .flat_map(|b| b.origin.into_iter().chain(b.size))
@@ -798,7 +798,7 @@ fn intern(table: &mut Vec<ResourceLocation<Arc<str>>>, value: &ResourceLocation<
 /// Java's `Block.isShapeFullBlock`: the shape covers the whole block. The boxes
 /// of a `VoxelShape` never overlap, so covering the cube is the same as filling
 /// its volume without leaving it.
-fn fills_the_cube(boxes: &[BlockBox]) -> bool {
+fn fills_the_cube(boxes: &[ModelBox]) -> bool {
     const EPSILON: f32 = 1.0 / 4096.0;
     let mut volume = 0.0;
     for b in boxes {
@@ -828,7 +828,7 @@ fn fills_the_cube(boxes: &[BlockBox]) -> bool {
 /// the shape derivation alone and answers differently from the reference for
 /// the blocks it overrides by hand — signs, pressure plates, cobweb, snow,
 /// azalea, ladders, amethyst clusters, pointed dripstone and corals.
-fn legacy_solid(boxes: &[BlockBox]) -> bool {
+fn legacy_solid(boxes: &[ModelBox]) -> bool {
     let Some(first) = boxes.first() else {
         return false;
     };
@@ -845,7 +845,7 @@ fn legacy_solid(boxes: &[BlockBox]) -> bool {
 /// Bedrock states a box in sixteenths, from the block centre on X and Z and
 /// the block bottom on Y. The engine's own convention is Java's: a 0..1 box
 /// from the block's lower corner.
-fn to_engine_aabb(value: &BlockBox) -> Aabb {
+fn to_engine_aabb(value: &ModelBox) -> Aabb {
     let min = Vec3::new(
         (value.origin[0] + 8.0) / 16.0,
         value.origin[1] / 16.0,
@@ -1011,7 +1011,7 @@ mod tests {
 
     #[test]
     fn a_bedrock_box_becomes_a_block_local_box() {
-        let torch = BlockBox {
+        let torch = ModelBox {
             origin: [-2.0, 0.0, -2.0],
             size: [4.0, 10.0, 4.0],
         };
@@ -1023,7 +1023,7 @@ mod tests {
             }
         );
         assert_eq!(
-            to_engine_aabb(&BlockBox::FULL_CUBE),
+            to_engine_aabb(&ModelBox::FULL_CUBE),
             Aabb {
                 min: Vec3::ZERO,
                 max: Vec3::ONE

@@ -11,7 +11,7 @@ pub use chunk::{
     Biomes, BlockStates, Chunk, LIGHT_BYTES, Light, PalettedContainer, Section,
     parse as parse_chunk,
 };
-pub use palette::{BlockStateLookup, Palette, Properties};
+pub use palette::{BlockStateList, BlockStateLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 
 use std::path::PathBuf;

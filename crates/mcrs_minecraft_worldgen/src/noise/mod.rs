@@ -6,7 +6,7 @@ pub mod simplex;
 pub mod stack;
 
 use crate::interval::Interval;
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 
 /// What every noise answers about itself. Vanilla's `Noise` interface.
 ///
@@ -22,7 +22,7 @@ pub trait Noise {
     fn add_to_volume(
         &self,
         out: &mut [f32],
-        volume: &Volume,
+        volume: &SampleGrid,
         xz_scale: f64,
         y_scale: f64,
         amplitude: f32,

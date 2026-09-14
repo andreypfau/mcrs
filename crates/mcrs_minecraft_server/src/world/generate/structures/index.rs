@@ -9,13 +9,13 @@ use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::{
     CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
+use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen::structure::StructurePlacement;
 use mcrs_minecraft_worldgen::structure::placement::{
     SpreadPlacement, excluded_in_range, fixed_biome_window, frequency_gate, ring_positions,
     scan_biome_window, select_with_removal,
 };
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
-use mcrs_minecraft_worldgen::volume::Volume;
 
 use super::jigsaw::{Piece, Start, layout};
 use super::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
@@ -320,7 +320,7 @@ fn plane_admits(
     preferred: &BiomeMask,
 ) -> Vec<bool> {
     let cells = (side * side) as usize;
-    let volume = Volume::new(
+    let volume = SampleGrid::new(
         IVec3::new(side, 1, side),
         IVec3::new(quart_x * 4, 0, quart_z * 4),
         IVec3::splat(4),
@@ -375,7 +375,7 @@ impl SiteWorld for View<'_> {
         let min_quart_y = self.index.accessor_min_y >> 2;
         let max_quart_y = (self.index.accessor_min_y + self.index.accessor_height - 1) >> 2;
         let cells = (max_quart_y - min_quart_y + 1) as usize;
-        let volume = Volume::new(
+        let volume = SampleGrid::new(
             IVec3::new(1, cells as i32, 1),
             IVec3::new((x >> 2) * 4, min_quart_y * 4, (z >> 2) * 4),
             IVec3::splat(4),

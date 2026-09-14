@@ -19,7 +19,7 @@ use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::{
     CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
-use mcrs_minecraft_worldgen::volume::Volume;
+use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 use mcrs_voxel_storage::VoxelId;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -27,7 +27,7 @@ use std::collections::HashMap;
 /// The `interpolated` wrapper inputs at every cell corner of a whole chunk
 /// column, laid out one `volume`-shaped row per wrapper.
 struct CellLattice {
-    volume: Volume,
+    volume: SampleGrid,
     cell: IVec3,
     values: Vec<f32>,
     width: usize,
@@ -122,7 +122,7 @@ impl CellLattice {
         if noise_router.noise.min_y % 16 != 0 || height % 16 != 0 {
             return None;
         }
-        let volume = Volume::new(
+        let volume = SampleGrid::new(
             IVec3::new(16 / cell.x + 1, height / cell.y + 1, 16 / cell.z + 1),
             IVec3::new(block_x, noise_router.noise.min_y, block_z),
             cell,
@@ -155,7 +155,7 @@ impl CellLattice {
         });
 
         if shared {
-            let inner = Volume::new(
+            let inner = SampleGrid::new(
                 IVec3::new(nx - 1, volume.size().y, nz - 1),
                 volume.min_block() + IVec3::new(cell.x, 0, cell.z),
                 cell,
@@ -395,7 +395,7 @@ fn fill_column(
                     CellFill::Mixed => fill_blocks(
                         column,
                         index,
-                        &Volume::dense(cell, world),
+                        &SampleGrid::dense(cell, world),
                         base,
                         noise_router,
                         tops,
@@ -431,7 +431,7 @@ fn fill_column_dense(
         if section_min_y >= noise_max_y || section_min_y + 16 <= noise_min_y {
             continue;
         }
-        let volume = Volume::dense(
+        let volume = SampleGrid::dense(
             IVec3::splat(16),
             IVec3::new(block_x, section_min_y, block_z),
         );
@@ -478,7 +478,7 @@ fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, 
 fn fill_blocks(
     column: &ColumnBlocks,
     index: usize,
-    volume: &Volume,
+    volume: &SampleGrid,
     origin: IVec3,
     noise_router: &NoiseRouter,
     tops: &mut [i32; 256],
@@ -529,7 +529,7 @@ fn fill_blocks(
 fn volume_barrier<'a>(
     noise_router: &'a NoiseRouter,
     ws: &'a mut Workspace,
-    volume: &'a Volume,
+    volume: &'a SampleGrid,
     barrier: &'a mut Vec<f32>,
 ) -> impl FnMut(i32, i32, i32) -> f64 + 'a {
     barrier.clear();
@@ -596,7 +596,7 @@ pub fn base_height(
     if height <= 0 {
         return accessor_min_y;
     }
-    let volume = Volume::dense(IVec3::new(1, height, 1), IVec3::new(x, min_y, z));
+    let volume = SampleGrid::dense(IVec3::new(1, height, 1), IVec3::new(x, min_y, z));
     let mut density = vec![0.0f32; volume.len()];
     router
         .program
@@ -629,7 +629,7 @@ pub fn base_height(
 /// The (temperature, humidity) pair at each of the sixteen biome-cell columns
 /// of a chunk.
 fn beta_climate_cells(noise_router: &NoiseRouter, block_x: i32, block_z: i32) -> [(f32, f32); 16] {
-    let volume = Volume::new(
+    let volume = SampleGrid::new(
         IVec3::new(4, 1, 4),
         IVec3::new(block_x, 0, block_z),
         IVec3::new(4, 1, 4),
@@ -696,7 +696,7 @@ pub fn multi_noise_palettes(
     let (Some(&first), Some(&last)) = (y_sections.first(), y_sections.last()) else {
         return (Vec::new(), None);
     };
-    let volume = Volume::new(
+    let volume = SampleGrid::new(
         IVec3::new(6, (last - first + 1) * 4 + 2, 6),
         IVec3::new(block_x - 4, first * 16 - 4, block_z - 4),
         IVec3::splat(4),
@@ -779,7 +779,7 @@ fn fixed_biome_palettes(
         }
     };
 
-    let volume = Volume::new(
+    let volume = SampleGrid::new(
         IVec3::new(6, (last - first + 1) * 4 + 2, 6),
         IVec3::new(block_x - 4, first * 16 - 4, block_z - 4),
         IVec3::splat(4),

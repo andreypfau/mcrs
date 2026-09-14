@@ -609,7 +609,7 @@ fn surfaced_column_fixed(
 ) -> ColumnBlocks {
     use crate::world::generate::multi_noise_biomes::BiomeGrid;
     use bevy_math::IVec3;
-    use mcrs_minecraft_worldgen::volume::Volume;
+    use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 
     let mut column = ColumnBlocks::new(y_sections);
     let mut filled = fill_column_dense_any(
@@ -625,7 +625,7 @@ fn surfaced_column_fixed(
     .expect("the column fills");
 
     let (first, last) = (y_sections[0], y_sections[y_sections.len() - 1]);
-    let volume = Volume::new(
+    let volume = SampleGrid::new(
         IVec3::new(6, (last - first + 1) * 4 + 2, 6),
         IVec3::new(section_x * 16 - 4, first * 16 - 4, section_z * 16 - 4),
         IVec3::splat(4),

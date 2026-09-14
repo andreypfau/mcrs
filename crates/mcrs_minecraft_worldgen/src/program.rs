@@ -8,8 +8,8 @@ use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
 use crate::noise::blended::BlendedNoise;
+use crate::sample_grid::{Axis, SampleGrid};
 use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, stratum};
-use crate::volume::{Axis, Volume};
 use bevy_math::IVec3;
 use mcrs_voxel_math::mth;
 use std::sync::Arc;
@@ -512,7 +512,7 @@ pub struct EvalCount {
 /// volume being filled.
 #[derive(Default)]
 struct Lattice {
-    volume: Option<Volume>,
+    volume: Option<SampleGrid>,
     /// The fill's own volume already was the cell lattice, so `values` holds the
     /// input at exactly the positions asked for and is read straight back.
     direct: bool,
@@ -524,7 +524,7 @@ struct Lattice {
 
 impl Lattice {
     /// Whether a pinned lattice already holds every corner `wanted` would sample.
-    fn covers(&self, wanted: &Volume) -> bool {
+    fn covers(&self, wanted: &SampleGrid) -> bool {
         let Some(held) = self.volume.filter(|_| self.pinned) else {
             return false;
         };
@@ -612,14 +612,20 @@ impl Program {
     }
 
     /// Writes `volume.len()` values for `root` into `out`, laid out Y-fastest to
-    /// match [`Volume::index_unchecked`].
-    pub fn fill(&self, ws: &mut Workspace, volume: &Volume, root: usize, out: &mut [f32]) {
+    /// match [`SampleGrid::index_unchecked`].
+    pub fn fill(&self, ws: &mut Workspace, volume: &SampleGrid, root: usize, out: &mut [f32]) {
         self.fill_node(ws, volume, self.roots[root], out);
     }
 
     /// [`Program::fill`] targeting any node that has a plan: a root, or the input
     /// a re-entrant kind samples away from the position being filled.
-    pub fn fill_node(&self, ws: &mut Workspace, volume: &Volume, target: NodeId, out: &mut [f32]) {
+    pub fn fill_node(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        target: NodeId,
+        out: &mut [f32],
+    ) {
         debug_assert_eq!(out.len(), volume.len());
         let plan = self.plan_of(target);
         ws.prepare(self, plan, volume);
@@ -698,7 +704,7 @@ impl Program {
 
     /// Samples each reached `Interpolated` node's input over the cell lattice
     /// enclosing `volume`, once for the whole fill rather than once per column.
-    fn fill_lattices(&self, ws: &mut Workspace, volume: &Volume, plan: &Plan) {
+    fn fill_lattices(&self, ws: &mut Workspace, volume: &SampleGrid, plan: &Plan) {
         if plan.lattice.is_empty() {
             return;
         }
@@ -742,7 +748,7 @@ impl Program {
     fn fill_slice(
         &self,
         ws: &mut Workspace,
-        volume: &Volume,
+        volume: &SampleGrid,
         id: NodeId,
         input: NodeId,
         axis: Axis,
@@ -770,7 +776,7 @@ impl Program {
     fn fill_top_surface(
         &self,
         ws: &mut Workspace,
-        volume: &Volume,
+        volume: &SampleGrid,
         id: NodeId,
         density: NodeId,
         upper_bound: NodeId,
@@ -809,8 +815,8 @@ impl Program {
     fn find_top_surface(
         &self,
         ws: &mut Workspace,
-        volume: &Volume,
-        ext: &Volume,
+        volume: &SampleGrid,
+        ext: &SampleGrid,
         ix: usize,
         iz: usize,
         density: NodeId,
@@ -828,7 +834,7 @@ impl Program {
         } else {
             let mut nested = ws.nested.take().unwrap_or_default();
             let mut pinned = [0.0f32];
-            let at_zero = Volume::point(IVec3::new(bx, 0, bz));
+            let at_zero = SampleGrid::point(IVec3::new(bx, 0, bz));
             self.fill_node(&mut nested, &at_zero, upper_bound, &mut pinned);
             #[cfg(any(test, feature = "corpus"))]
             ws.absorb(&mut nested);
@@ -851,7 +857,7 @@ impl Program {
             let min_y = probe_y - (count as i32 - 1) * cell_height;
             probe.clear();
             probe.resize(count, 0.0);
-            let span = Volume::new(
+            let span = SampleGrid::new(
                 IVec3::new(1, count as i32, 1),
                 IVec3::new(bx, min_y, bz),
                 IVec3::new(1, cell_height, 1),
@@ -871,7 +877,7 @@ impl Program {
     }
 
     /// Whether any position in the volume reads the guarded run.
-    fn guard_holds(&self, test: GuardTest, ws: &Workspace, volume: &Volume) -> bool {
+    fn guard_holds(&self, test: GuardTest, ws: &Workspace, volume: &SampleGrid) -> bool {
         let all = |id| ws.read(self, id, volume);
         match test {
             GuardTest::InRange {
@@ -905,7 +911,7 @@ impl Program {
         }
     }
 
-    fn apply_fallback(&self, fallback: Fallback, ws: &mut Workspace, volume: &Volume) {
+    fn apply_fallback(&self, fallback: Fallback, ws: &mut Workspace, volume: &SampleGrid) {
         let axes = self.axes_of(fallback.site);
         let ext = stratum(axes, volume);
         let source_axes = self.axes_of(fallback.source);
@@ -939,7 +945,7 @@ impl Program {
         });
     }
 
-    fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &Volume) {
+    fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &SampleGrid) {
         if let &Node::Slice {
             input,
             axis,
@@ -1218,7 +1224,7 @@ fn other_slot<'a>(
 /// hands the input straight through. The chunk generator leans on it: it fills
 /// the lattice itself and would otherwise interpolate values back onto the
 /// corners they came from.
-fn is_lattice_volume(volume: &Volume, cell_xz: i32, cell_y: i32) -> bool {
+fn is_lattice_volume(volume: &SampleGrid, cell_xz: i32, cell_y: i32) -> bool {
     let (size, min, step) = (volume.size(), volume.min_block(), volume.step_block());
     (step.x == cell_xz || size.x == 1)
         && (step.y == cell_y || size.y == 1)
@@ -1234,7 +1240,7 @@ fn is_lattice_volume(volume: &Volume, cell_xz: i32, cell_y: i32) -> bool {
 /// Every other axis the input drops is pinned exactly as [`stratum`] pins it,
 /// and the input's axes are a superset of the slice's, so the result indexes
 /// element for element like the slice's own stratum.
-fn slice_volume(volume: &Volume, input_axes: Axes, axis: Axis, coordinate: i32) -> Volume {
+fn slice_volume(volume: &SampleGrid, input_axes: Axes, axis: Axis, coordinate: i32) -> SampleGrid {
     let ext = stratum(input_axes, volume);
     let (mut size, mut min) = (ext.size(), ext.min_block());
     match axis {
@@ -1242,13 +1248,13 @@ fn slice_volume(volume: &Volume, input_axes: Axes, axis: Axis, coordinate: i32) 
         Axis::Y => (size.y, min.y) = (1, coordinate),
         Axis::Z => (size.z, min.z) = (1, coordinate),
     }
-    Volume::new(size, min, ext.step_block())
+    SampleGrid::new(size, min, ext.step_block())
 }
 
 /// The cell corners enclosing every position `volume` asks for, with one extra
 /// sample per axis so the far corner of the last cell exists. A node that does
 /// not vary along Y is only ever asked for its first row.
-fn lattice_volume(volume: &Volume, axes: Axes, cell_xz: i32, cell_y: i32) -> Volume {
+fn lattice_volume(volume: &SampleGrid, axes: Axes, cell_xz: i32, cell_y: i32) -> SampleGrid {
     let (size, min, step) = (volume.size(), volume.min_block(), volume.step_block());
     let last_y = if axes & AXIS_Y != 0 {
         min.y + (size.y - 1) * step.y
@@ -1266,7 +1272,7 @@ fn lattice_volume(volume: &Volume, axes: Axes, cell_xz: i32, cell_y: i32) -> Vol
         mth::floor_div(last_y, cell_y),
         mth::floor_div(min.z + (size.z - 1) * step.z, cell_xz),
     );
-    Volume::new(last - first + IVec3::splat(2), first * cell, cell)
+    SampleGrid::new(last - first + IVec3::splat(2), first * cell, cell)
 }
 
 /// The value ramp along Y inside one interpolated cell, walked a row at a time
@@ -1322,8 +1328,8 @@ fn interpolate(
     out: &mut [f32],
     bx: i32,
     bz: i32,
-    ext: &Volume,
-    lattice: &Volume,
+    ext: &SampleGrid,
+    lattice: &SampleGrid,
     values: &[f32],
     cell_xz: i32,
     cell_y: i32,
@@ -1374,8 +1380,8 @@ fn interpolate(
 /// carry whichever of the two profiles' roundings is built.
 fn interpolate_cells(
     out: &mut [f32],
-    ext: &Volume,
-    lattice: &Volume,
+    ext: &SampleGrid,
+    lattice: &SampleGrid,
     values: &[f32],
     cell_xz: i32,
     cell_y: i32,
@@ -1514,7 +1520,7 @@ impl Workspace {
     /// Sizes the plan's slots for this volume and points every node in the plan
     /// at the one it writes. Nodes outside the plan keep whatever offset a
     /// previous fill left them; nothing reads them.
-    fn prepare(&mut self, program: &Program, plan: &Plan, volume: &Volume) {
+    fn prepare(&mut self, program: &Program, plan: &Plan, volume: &SampleGrid) {
         if self.offset.len() < program.len() {
             self.offset.resize(program.len(), 0);
         }
@@ -1544,7 +1550,7 @@ impl Workspace {
     /// Hands one `Interpolated` node's lattice in ready-made, so every fill whose
     /// cells it covers interpolates from it instead of sampling the input again.
     /// A fill reaching past it samples as usual.
-    pub(crate) fn pin_lattice(&mut self, cell: usize, volume: &Volume, values: &[f32]) {
+    pub(crate) fn pin_lattice(&mut self, cell: usize, volume: &SampleGrid, values: &[f32]) {
         if self.lattices.len() <= cell {
             self.lattices.resize_with(cell + 1, Lattice::default);
         }
@@ -1556,7 +1562,7 @@ impl Workspace {
         slot.values.extend_from_slice(values);
     }
 
-    fn read<'a>(&'a self, program: &Program, id: NodeId, volume: &Volume) -> &'a [f32] {
+    fn read<'a>(&'a self, program: &Program, id: NodeId, volume: &SampleGrid) -> &'a [f32] {
         let off = self.offset[id as usize] as usize;
         &self.values[off..off + extent(program.axes_of(id), volume)]
     }
@@ -1585,7 +1591,7 @@ mod tests {
         Program::new(nodes, axes, ranges, roots)
     }
 
-    fn run(program: &Program, volume: &Volume, root: usize) -> Vec<f32> {
+    fn run(program: &Program, volume: &SampleGrid, root: usize) -> Vec<f32> {
         let mut ws = Workspace::new();
         let mut out = vec![0.0; volume.len()];
         program.fill(&mut ws, volume, root, &mut out);
@@ -1595,7 +1601,7 @@ mod tests {
     #[test]
     fn a_constant_fills_the_whole_volume() {
         let p = program(vec![Node::Constant(3.5)], vec![NO_AXES], vec![0]);
-        let v = Volume::dense(IVec3::new(2, 3, 2), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 3, 2), IVec3::ZERO);
         assert_eq!(run(&p, &v, 0), vec![3.5; 12]);
     }
 
@@ -1606,7 +1612,7 @@ mod tests {
             vec![AXIS_Y],
             vec![0],
         );
-        let v = Volume::dense(IVec3::new(2, 4, 2), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 4, 2), IVec3::ZERO);
         let out = run(&p, &v, 0);
         for c in 0..4 {
             assert_eq!(&out[c * 4..c * 4 + 4], &[0.0, 1.0, 2.0, 3.0]);
@@ -1630,7 +1636,7 @@ mod tests {
             },
         ];
         let p = program(nodes, vec![AXIS_Y, AXIS_X, AXIS_X | AXIS_Y], vec![2]);
-        let v = Volume::dense(IVec3::new(2, 4, 1), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 4, 1), IVec3::ZERO);
         let out = run(&p, &v, 0);
         assert_eq!(&out[0..4], &[0.0, 1.0, 2.0, 3.0], "x = 0 adds nothing");
         assert_eq!(&out[4..8], &[10.0, 11.0, 12.0, 13.0], "x = 1 adds 10");
@@ -1648,7 +1654,7 @@ mod tests {
         ];
         let p = program(nodes, vec![NO_AXES; 2], vec![1]);
         assert!(
-            run(&p, &Volume::point(IVec3::ZERO), 0)[0].is_sign_negative(),
+            run(&p, &SampleGrid::point(IVec3::ZERO), 0)[0].is_sign_negative(),
             "-1.0 * 0.0 is -0.0; folding in a +0.0 offset would lose the sign"
         );
     }
@@ -1667,7 +1673,7 @@ mod tests {
             },
         ];
         let p = program(nodes, vec![NO_AXES; 2], vec![1]);
-        let evaluated = run(&p, &Volume::point(IVec3::ZERO), 0)[0];
+        let evaluated = run(&p, &SampleGrid::point(IVec3::ZERO), 0)[0];
         (evaluated, x, scale, offset)
     }
 
@@ -1729,7 +1735,7 @@ mod tests {
             },
         ];
         let p = program(nodes, vec![AXIS_Y, AXIS_Z, AXIS_Y | AXIS_Z], vec![2]);
-        let v = Volume::dense(IVec3::new(1, 2, 2), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(1, 2, 2), IVec3::ZERO);
         let out = run(&p, &v, 0);
         assert_eq!(&out[0..2], &[0.0, 1.0], "z = 0");
         assert_eq!(&out[2..4], &[50.0, 51.0], "z = 1 adds 50");
@@ -1757,14 +1763,14 @@ mod tests {
     #[test]
     fn a_volume_that_is_the_cell_lattice_passes_the_input_through() {
         let p = squared_gradient_interpolated(4);
-        let v = Volume::new(IVec3::new(3, 1, 1), IVec3::ZERO, IVec3::new(4, 4, 4));
+        let v = SampleGrid::new(IVec3::new(3, 1, 1), IVec3::ZERO, IVec3::new(4, 4, 4));
         assert_eq!(run(&p, &v, 0), vec![0.0, 16.0, 64.0]);
     }
 
     #[test]
     fn a_volume_off_the_cell_lattice_interpolates_between_corners() {
         let p = squared_gradient_interpolated(4);
-        let v = Volume::dense(IVec3::new(5, 1, 1), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(5, 1, 1), IVec3::ZERO);
         assert_eq!(
             run(&p, &v, 0),
             vec![0.0, 4.0, 8.0, 12.0, 16.0],
@@ -1798,7 +1804,7 @@ mod tests {
             vec![AXIS_X, AXIS_Z, AXIS_X | AXIS_Z, AXIS_Z],
             vec![3],
         );
-        let v = Volume::dense(IVec3::new(2, 1, 4), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 1, 4), IVec3::ZERO);
         let out = run(&p, &v, 0);
         // x is pinned to 3, so every column reads 30 plus its own z.
         assert_eq!(out, vec![30.0, 30.0, 31.0, 31.0, 32.0, 32.0, 33.0, 33.0]);
@@ -1815,7 +1821,7 @@ mod tests {
             },
         ];
         let p = program(nodes, vec![AXIS_Z, AXIS_Z], vec![1]);
-        let v = Volume::dense(IVec3::new(2, 1, 3), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 1, 3), IVec3::ZERO);
         assert_eq!(run(&p, &v, 0), vec![0.0, 0.0, 1.0, 1.0, 2.0, 2.0]);
     }
 
@@ -1836,7 +1842,7 @@ mod tests {
     #[test]
     fn find_top_surface_descends_to_the_first_positive_density() {
         let p = top_surface(40.0, -64);
-        let v = Volume::dense(IVec3::new(1, 3, 1), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(1, 3, 1), IVec3::ZERO);
         assert_eq!(
             run(&p, &v, 0),
             vec![0.0; 3],
@@ -1847,7 +1853,7 @@ mod tests {
     #[test]
     fn find_top_surface_stops_at_its_lower_bound() {
         let p = top_surface(-100.0, -64);
-        let v = Volume::point(IVec3::ZERO);
+        let v = SampleGrid::point(IVec3::ZERO);
         assert_eq!(
             run(&p, &v, 0),
             vec![-64.0],
@@ -1864,7 +1870,7 @@ mod tests {
         Program::new(nodes, axes, ranges, roots)
     }
 
-    fn run_counting(program: &Program, volume: &Volume, root: usize) -> (Vec<f32>, EvalCount) {
+    fn run_counting(program: &Program, volume: &SampleGrid, root: usize) -> (Vec<f32>, EvalCount) {
         let mut ws = Workspace::new();
         let mut out = vec![0.0; volume.len()];
         program.fill(&mut ws, volume, root, &mut out);
@@ -1893,7 +1899,7 @@ mod tests {
         ];
         let axes = vec![AXIS_X, AXIS_Z, AXIS_Z, AXIS_Z, AXIS_X | AXIS_Z];
         let p = program(nodes, axes, vec![4]);
-        let v = Volume::dense(IVec3::new(2, 1, 2), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 1, 2), IVec3::ZERO);
         let (out, count) = run_counting(&p, &v, 0);
         assert_eq!(
             out,
@@ -1927,7 +1933,7 @@ mod tests {
         ];
         let axes = vec![AXIS_X, AXIS_Z, AXIS_Z, AXIS_Z, AXIS_X | AXIS_Z];
         let p = program(nodes, axes, vec![4]);
-        let v = Volume::dense(IVec3::new(2, 1, 2), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 1, 2), IVec3::ZERO);
         let (out, count) = run_counting(&p, &v, 0);
         assert_eq!(out, vec![-0.0, -0.0, -50.0, -50.0]);
         assert_eq!((count.evaluated, count.skipped), (4, 1));
@@ -1968,7 +1974,7 @@ mod tests {
             AXIS_X | AXIS_Z,
         ];
         let p = program(nodes, axes, vec![6]);
-        let v = Volume::dense(IVec3::new(2, 1, 2), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 1, 2), IVec3::ZERO);
         let (out, count) = run_counting(&p, &v, 0);
         assert_eq!(out, vec![9.0; 4], "the selector never reaches 100");
         assert_eq!(
@@ -2007,7 +2013,7 @@ mod tests {
     /// sits at or below every value the right can take.
     #[test]
     fn a_min_whose_left_run_never_reaches_the_right_skips_it() {
-        let v = Volume::dense(IVec3::new(2, 1, 1), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 1, 1), IVec3::ZERO);
         let (proved, count) = run_counting(
             &min_over_a_disjoint_right(Interval::of(100.0, 200.0)),
             &v,
@@ -2040,7 +2046,7 @@ mod tests {
             Interval::exact(0.0),
         ];
         let p = program_with_ranges(nodes, axes, ranges, vec![2]);
-        let v = Volume::dense(IVec3::new(1, 1, 1), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(1, 1, 1), IVec3::ZERO);
         let (out, count) = run_counting(&p, &v, 0);
         assert!(out[0] == 0.0 && out[0].is_sign_negative());
         assert_eq!((count.evaluated, count.skipped), (1, 2));

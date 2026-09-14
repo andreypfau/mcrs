@@ -1,7 +1,7 @@
 use crate::interval::Interval;
 use crate::jmath::{lerp, mul_add};
 use crate::kernel::{Runs, at, each_column};
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use mcrs_voxel_math::mth::{jmax, jmin};
 
 #[derive(Clone, Debug)]
@@ -28,7 +28,7 @@ pub struct CompiledSpline {
 }
 
 impl CompiledSpline {
-    pub fn eval<'a>(&self, out: &mut [f32], coords: &dyn Fn(usize) -> Runs<'a>, ext: &Volume) {
+    pub fn eval<'a>(&self, out: &mut [f32], coords: &dyn Fn(usize) -> Runs<'a>, ext: &SampleGrid) {
         each_column(out, ext, |run, ix, iz| {
             let read = |k: usize| coords(k).col(ix, iz);
             for (i, slot) in run.iter_mut().enumerate() {
@@ -216,7 +216,7 @@ mod tests {
 
     fn eval(root: SplineValue, coords: &[&[f32]], len: usize) -> Vec<f32> {
         let spline = CompiledSpline { root };
-        let ext = Volume::new(IVec3::new(1, len as i32, 1), IVec3::ZERO, IVec3::ONE);
+        let ext = SampleGrid::new(IVec3::new(1, len as i32, 1), IVec3::ZERO, IVec3::ONE);
         let mut out = vec![0.0; len];
         spline.eval(
             &mut out,
@@ -304,7 +304,7 @@ mod tests {
         );
         let spline = CompiledSpline { root };
         let coords: [&[f32]; 2] = [&[-5.0], &[0.5]];
-        let ext = Volume::point(IVec3::ZERO);
+        let ext = SampleGrid::point(IVec3::ZERO);
         let mut out = [0.0; 1];
         spline.eval(
             &mut out,
@@ -348,7 +348,7 @@ mod tests {
         let spline = CompiledSpline {
             root: SplineValue::Constant(2.5),
         };
-        let ext = Volume::new(IVec3::new(1, 3, 1), IVec3::ZERO, IVec3::ONE);
+        let ext = SampleGrid::new(IVec3::new(1, 3, 1), IVec3::ZERO, IVec3::ONE);
         let mut out = [0.0; 3];
         spline.eval(&mut out, &|_| unreachable!(), &ext);
         assert_eq!(out, [2.5; 3]);

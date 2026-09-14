@@ -3,8 +3,8 @@
 //! helpers resolve which, once, outside the inner loop, so the loop the compiler
 //! sees has no branch and no indirection.
 
+use crate::sample_grid::SampleGrid;
 use crate::strata::{AXIS_X, AXIS_Z, Axes, run_len};
-use crate::volume::Volume;
 
 /// One node's whole stratum buffer, addressed by the column being evaluated. An
 /// axis the stratum drops gets stride zero, so the same lookup broadcasts it
@@ -18,7 +18,7 @@ pub struct Runs<'a> {
 }
 
 impl<'a> Runs<'a> {
-    pub fn new(data: &'a [f32], axes: Axes, volume: &Volume) -> Self {
+    pub fn new(data: &'a [f32], axes: Axes, volume: &SampleGrid) -> Self {
         let size = volume.size();
         let run = run_len(axes, size.y as usize);
         let stride_x = if axes & AXIS_X != 0 { run } else { 0 };
@@ -46,7 +46,7 @@ impl<'a> Runs<'a> {
 /// them out: Y fastest, then X, then Z, with a dropped axis contributing one
 /// iteration. `ext` is the node's own stratum, so its size *is* the loop bound.
 #[inline]
-pub fn each_column(out: &mut [f32], ext: &Volume, mut f: impl FnMut(&mut [f32], usize, usize)) {
+pub fn each_column(out: &mut [f32], ext: &SampleGrid, mut f: impl FnMut(&mut [f32], usize, usize)) {
     let size = ext.size();
     let run = size.y as usize;
     let mut rest = out;
@@ -117,14 +117,14 @@ fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f32, f
 }
 
 #[inline]
-pub fn map_columns(out: &mut [f32], ext: &Volume, a: Runs<'_>, f: impl Fn(f32) -> f32) {
+pub fn map_columns(out: &mut [f32], ext: &SampleGrid, a: Runs<'_>, f: impl Fn(f32) -> f32) {
     each_column(out, ext, |run, ix, iz| map1(run, a.col(ix, iz), &f));
 }
 
 #[inline]
 pub fn zip2_columns(
     out: &mut [f32],
-    ext: &Volume,
+    ext: &SampleGrid,
     a: Runs<'_>,
     b: Runs<'_>,
     f: impl Fn(f32, f32) -> f32,
@@ -137,7 +137,7 @@ pub fn zip2_columns(
 #[inline]
 pub fn zip3_columns(
     out: &mut [f32],
-    ext: &Volume,
+    ext: &SampleGrid,
     a: Runs<'_>,
     b: Runs<'_>,
     c: Runs<'_>,
@@ -198,7 +198,7 @@ mod tests {
         use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z};
         use bevy_math::IVec3;
 
-        let volume = Volume::dense(IVec3::new(2, 3, 2), IVec3::ZERO);
+        let volume = SampleGrid::dense(IVec3::new(2, 3, 2), IVec3::ZERO);
         let data: Vec<f32> = (0..4).map(|i| i as f32).collect();
         let xz = Runs::new(&data, AXIS_X | AXIS_Z, &volume);
         assert_eq!(xz.col(0, 0), &[0.0]);
@@ -217,7 +217,7 @@ mod tests {
         use crate::strata::{AXIS_X, AXIS_Z, stratum};
         use bevy_math::IVec3;
 
-        let volume = Volume::dense(IVec3::new(2, 3, 2), IVec3::ZERO);
+        let volume = SampleGrid::dense(IVec3::new(2, 3, 2), IVec3::ZERO);
         let ext = stratum(AXIS_X | AXIS_Z, &volume);
         let mut out = vec![0.0; 4];
         let mut seen = Vec::new();

@@ -1,4 +1,4 @@
-use crate::volume::{Axis, Volume};
+use crate::sample_grid::{Axis, SampleGrid};
 use bevy_math::IVec3;
 
 pub type Axes = u8;
@@ -28,7 +28,7 @@ pub const fn run_len(axes: Axes, size_y: usize) -> usize {
 
 /// The extent of a stratum over a whole volume, which is what one node's buffer
 /// costs.
-pub fn extent(axes: Axes, volume: &Volume) -> usize {
+pub fn extent(axes: Axes, volume: &SampleGrid) -> usize {
     let s = volume.size();
     let x = if axes & AXIS_X != 0 { s.x as usize } else { 1 };
     let y = if axes & AXIS_Y != 0 { s.y as usize } else { 1 };
@@ -37,17 +37,17 @@ pub fn extent(axes: Axes, volume: &Volume) -> usize {
 }
 
 /// `volume` with every axis the stratum drops collapsed to one sample. The
-/// result indexes a stratum buffer exactly as [`Volume::index_unchecked`] does,
+/// result indexes a stratum buffer exactly as [`SampleGrid::index_unchecked`] does,
 /// so an `ALL_AXES` buffer is already the fill's output.
 ///
 /// A dropped axis still needs some coordinate. A dropped Y reads the volume's
 /// own first row; a dropped X or Z reads block zero, and that is pinned rather
 /// than arbitrary: a noise sheds X and Z by having `xz_scale` be zero, and
 /// `block * 0.0` still carries the sign of the block.
-pub fn stratum(axes: Axes, volume: &Volume) -> Volume {
+pub fn stratum(axes: Axes, volume: &SampleGrid) -> SampleGrid {
     let (size, min) = (volume.size(), volume.min_block());
     let keep = |bit: Axes, n: i32| if axes & bit != 0 { n } else { 1 };
-    Volume::new(
+    SampleGrid::new(
         IVec3::new(
             keep(AXIS_X, size.x),
             keep(AXIS_Y, size.y),
@@ -66,8 +66,8 @@ pub fn stratum(axes: Axes, volume: &Volume) -> Volume {
 mod tests {
     use super::*;
 
-    fn cell() -> Volume {
-        Volume::dense(IVec3::new(4, 8, 4), IVec3::ZERO)
+    fn cell() -> SampleGrid {
+        SampleGrid::dense(IVec3::new(4, 8, 4), IVec3::ZERO)
     }
 
     #[test]
@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn a_full_stratum_indexes_exactly_like_the_volume() {
-        let v = Volume::new(
+        let v = SampleGrid::new(
             IVec3::new(4, 8, 4),
             IVec3::new(3, -64, -7),
             IVec3::new(2, 4, 2),
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn a_dropped_axis_collapses_to_one_sample_at_a_fixed_coordinate() {
-        let v = Volume::new(
+        let v = SampleGrid::new(
             IVec3::new(4, 8, 4),
             IVec3::new(3, -64, -7),
             IVec3::new(2, 4, 2),

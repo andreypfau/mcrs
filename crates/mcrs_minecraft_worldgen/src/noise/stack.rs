@@ -4,7 +4,7 @@ use crate::noise::Noise;
 use crate::noise::gradient::GradientNoise;
 use crate::noise::perlin::{LegacyPerlin2dNoise, PerlinNoise};
 use crate::noise::simplex::SimplexNoise;
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 
 /// One octave's contribution: a lattice, the frequency its coordinates are
 /// scaled by, and the weight its sample carries.
@@ -65,7 +65,7 @@ impl Noise for Octave {
     fn add_to_volume(
         &self,
         out: &mut [f32],
-        volume: &Volume,
+        volume: &SampleGrid,
         xz_scale: f64,
         y_scale: f64,
         amplitude: f32,
@@ -188,7 +188,7 @@ impl<N: Noise> NoiseStack<N> {
         out: &mut [f32],
         block_x: i32,
         block_z: i32,
-        volume: &Volume,
+        volume: &SampleGrid,
         xz_scale: f64,
         y_scale: f64,
         scratch: &mut ColumnScratch,
@@ -218,7 +218,7 @@ impl<N: Noise> NoiseStack<N> {
     pub fn add_to_volume(
         &self,
         out: &mut [f32],
-        volume: &Volume,
+        volume: &SampleGrid,
         xz_scale: f64,
         y_scale: f64,
         amplitude: f32,

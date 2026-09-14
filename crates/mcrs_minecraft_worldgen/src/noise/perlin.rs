@@ -2,7 +2,7 @@ use crate::interval::Interval;
 use crate::jmath::{lerp, mul_add, mul_add64};
 use crate::noise::Noise;
 use crate::noise::gradient::{GradientNoise, NoiseFloat, wrap};
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
 
 /// One Perlin octave in the modern value width.
@@ -63,7 +63,7 @@ impl Noise for PerlinNoise {
     fn add_to_volume(
         &self,
         out: &mut [f32],
-        volume: &Volume,
+        volume: &SampleGrid,
         xz_scale: f64,
         y_scale: f64,
         amplitude: f32,
@@ -127,7 +127,7 @@ impl Noise for LegacyPerlin2dNoise {
     fn add_to_volume(
         &self,
         out: &mut [f32],
-        volume: &Volume,
+        volume: &SampleGrid,
         xz_scale: f64,
         _y_scale: f64,
         amplitude: f32,
@@ -190,7 +190,7 @@ impl Noise for SmearedPerlinNoise {
     fn add_to_volume(
         &self,
         out: &mut [f32],
-        volume: &Volume,
+        volume: &SampleGrid,
         xz_scale: f64,
         y_scale: f64,
         amplitude: f32,
@@ -339,7 +339,7 @@ impl GradientNoise {
     fn volume<const SMEARED: bool>(
         &self,
         out: &mut [f32],
-        volume: &Volume,
+        volume: &SampleGrid,
         xz_scale: f64,
         y_scale: f64,
         fudge_y_scale: f64,

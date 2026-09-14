@@ -221,8 +221,8 @@ mod tests {
     use super::*;
     use crate::node::gradient::{GradientParams, Tiling};
     use crate::program::{Node, Program, UnaryOp, Workspace};
+    use crate::sample_grid::{Axis, SampleGrid};
     use crate::strata::{ALL_AXES, AXIS_X, AXIS_Y, Axes};
-    use crate::volume::{Axis, Volume};
 
     /// A field that is not linear in any axis, so the interpolant it feeds has
     /// non-zero cross terms and the ramp is not the whole story.
@@ -280,7 +280,7 @@ mod tests {
                     let origin = IVec3::new(base_x, base_y, base_z);
 
                     // The eight corners, as the lattice fill hands them over.
-                    let lattice = Volume::new(IVec3::splat(2), origin, CELL);
+                    let lattice = SampleGrid::new(IVec3::splat(2), origin, CELL);
                     let mut corners = vec![0.0f32; lattice.len()];
                     program.fill(&mut ws, &lattice, 0, &mut corners);
                     let bound = sampled_range(CELL, |dx, dy, dz| {
@@ -288,7 +288,7 @@ mod tests {
                     });
 
                     // Every block the fill writes inside that cell.
-                    let blocks = Volume::dense(CELL, origin);
+                    let blocks = SampleGrid::dense(CELL, origin);
                     let mut values = vec![0.0f32; blocks.len()];
                     program.fill(&mut ws, &blocks, 0, &mut values);
 

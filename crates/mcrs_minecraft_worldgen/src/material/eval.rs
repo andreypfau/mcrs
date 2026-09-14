@@ -5,7 +5,7 @@ use crate::material::compile::{
 };
 use crate::program::Workspace;
 use crate::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use bevy_math::IVec3;
 use mcrs_minecraft_random::Random;
 use mcrs_voxel_math::mth::mth_floor;
@@ -35,7 +35,7 @@ pub struct MaterialScratch {
     /// The vein whose lattice is pinned in `workspace`, and over what volume.
     /// The veins of one dimension interpolate the same noises, so the lattice
     /// sampled for the first serves the rest.
-    vein_lattice_for: Option<(usize, Volume)>,
+    vein_lattice_for: Option<(usize, SampleGrid)>,
     vein_layout: Vec<VeinCells>,
     /// Per vein, where the current strip's cells start in `vein_cells`.
     vein_strip: Vec<usize>,
@@ -127,8 +127,8 @@ pub struct MaterialEval<'a, B, R> {
     reachable_stamp: u32,
     reachable_ok: bool,
     memoise: bool,
-    preliminary: Volume,
-    veins: Volume,
+    preliminary: SampleGrid,
+    veins: SampleGrid,
     /// Where the current strip starts in a `vein_values` row.
     vein_row: usize,
     run_top: i32,
@@ -223,7 +223,7 @@ where
             scratch.folded.push(folded);
         }
 
-        let preliminary = Volume::dense(IVec3::new(16, 1, 16), IVec3::new(block_x, 0, block_z));
+        let preliminary = SampleGrid::dense(IVec3::new(16, 1, 16), IVec3::new(block_x, 0, block_z));
         scratch.preliminary.clear();
         scratch.preliminary.resize(preliminary.len(), 0.0);
         router.program.fill(
@@ -233,7 +233,7 @@ where
             &mut scratch.preliminary,
         );
 
-        let veins = Volume::dense(
+        let veins = SampleGrid::dense(
             IVec3::new(16, (top - min_y + 1).max(1), 16),
             IVec3::new(block_x, min_y, block_z),
         );
@@ -728,7 +728,7 @@ where
         let mut out = [0.0f32];
         self.router.program.fill(
             &mut self.scratch.workspace,
-            &Volume::point(pos),
+            &SampleGrid::point(pos),
             root,
             &mut out,
         );
@@ -778,7 +778,7 @@ where
         let cell_max = cell_min + layout.cell - 1;
 
         let bounds = self.router.vein_cell_bounds(vein);
-        let lattice = Volume::new(layout.size + IVec3::ONE, min, layout.cell);
+        let lattice = SampleGrid::new(layout.size + IVec3::ONE, min, layout.cell);
         self.pin_vein_lattice(vein, lattice);
 
         corner_bounds(
@@ -835,7 +835,7 @@ where
     /// Samples the vein lattice `bounds` interpolates on, unless the pinned one
     /// already is it. The veins of one dimension share their inputs, so the
     /// lattice sampled for the first serves the rest.
-    fn pin_vein_lattice(&mut self, vein: usize, lattice: Volume) {
+    fn pin_vein_lattice(&mut self, vein: usize, lattice: SampleGrid) {
         let bounds = self.router.vein_cell_bounds(vein);
         let inputs = bounds.inputs();
         if let Some((held, volume)) = &self.scratch.vein_lattice_for
@@ -870,7 +870,7 @@ where
     fn fill_vein_cell(&mut self, vein: usize, cell_min: IVec3, rows: i32, cx: i32, cz: i32) {
         let layout = self.scratch.vein_layout[vein];
         let density = self.program.veins()[vein].density;
-        let dense = Volume::dense(IVec3::new(layout.cell.x, rows, layout.cell.z), cell_min);
+        let dense = SampleGrid::dense(IVec3::new(layout.cell.x, rows, layout.cell.z), cell_min);
         self.scratch.cell_density.clear();
         self.scratch.cell_density.resize(dense.len(), 0.0);
         self.router.program.fill(
@@ -1072,7 +1072,7 @@ fn plan_veins(
     router: &NoiseRouter,
     program: &MaterialProgram,
     scratch: &mut MaterialScratch,
-    veins: &Volume,
+    veins: &SampleGrid,
 ) {
     let points = veins.len();
     let height = router.noise.height as i32;
@@ -1118,7 +1118,7 @@ fn plan_veins(
 /// [`corner_bounds`] over the range the blocks of the cell actually reach.
 fn sampled_corner_bounds(
     values: &[f32],
-    lattice: &Volume,
+    lattice: &SampleGrid,
     at: IVec3,
     cell: IVec3,
     out: &mut [Interval],
@@ -1133,7 +1133,7 @@ fn sampled_corner_bounds(
 }
 
 /// The hull of one cell's eight corner values, per lattice row.
-fn corner_bounds(values: &[f32], lattice: &Volume, at: IVec3, out: &mut [Interval]) {
+fn corner_bounds(values: &[f32], lattice: &SampleGrid, at: IVec3, out: &mut [Interval]) {
     let stride = lattice.len();
     for (k, bound) in out.iter_mut().enumerate() {
         let row = &values[k * stride..(k + 1) * stride];

@@ -505,7 +505,7 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     use bevy_math::IVec3;
     use mcrs_minecraft_world::biome::source::BiomeSource;
     use mcrs_minecraft_worldgen::router::{TEMPERATURE, VEGETATION};
-    use mcrs_minecraft_worldgen::volume::Volume;
+    use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 
     let router = super::build_beta_router();
     let (source, _) = super::beta_surface::build_beta_biome_source();
@@ -531,7 +531,7 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     let mut seen = std::collections::BTreeSet::new();
     for source_x in (-64..64).step_by(7) {
         for source_z in (-64..64).step_by(5) {
-            let volume = Volume::new(
+            let volume = SampleGrid::new(
                 IVec3::ONE,
                 IVec3::new(source_x * 16, 0, source_z * 16),
                 IVec3::ONE,

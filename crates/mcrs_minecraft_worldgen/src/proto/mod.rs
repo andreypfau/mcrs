@@ -13,7 +13,7 @@ pub use settings::{BlockState, Either, ValueRange};
 pub use spline::{ProtoMultipoint, ProtoSpline};
 
 use crate::node::distance::DistanceMetric;
-use crate::volume::Axis;
+use crate::sample_grid::Axis;
 use mcrs_minecraft_core::ResourceLocation;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};

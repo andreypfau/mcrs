@@ -2,7 +2,7 @@ use crate::interval::Interval;
 use crate::jmath::mul_add;
 use crate::node::gradient::{GradientParams, Tiling};
 use crate::program::{BinaryOp, Node, NodeId, RoundKind, UnaryOp};
-use crate::volume::Axis;
+use crate::sample_grid::Axis;
 use bevy_math::IVec3;
 use mcrs_voxel_math::mth::jmax;
 

@@ -5,14 +5,14 @@ use mcrs_voxel_math::mth::{floor_div, floor_mod};
 /// A strided box of block positions: `size` samples per axis, starting at
 /// `min_block`, spaced `step_block` apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Volume {
+pub struct SampleGrid {
     size: IVec3,
     min_block: IVec3,
     step_block: IVec3,
 }
 
 #[allow(clippy::len_without_is_empty)]
-impl Volume {
+impl SampleGrid {
     pub fn new(size: IVec3, min_block: IVec3, step_block: IVec3) -> Self {
         assert!(
             size.x > 0 && size.y > 0 && size.z > 0,
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn index_is_y_fastest() {
-        let v = Volume::dense(IVec3::new(2, 3, 4), IVec3::ZERO);
+        let v = SampleGrid::dense(IVec3::new(2, 3, 4), IVec3::ZERO);
         assert_eq!(v.index_unchecked(0, 0, 0), 0);
         assert_eq!(v.index_unchecked(0, 1, 0), 1, "Y is contiguous");
         assert_eq!(v.index_unchecked(1, 0, 0), 3);
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn index_of_block_dense() {
-        let v = Volume::dense(IVec3::new(2, 3, 4), IVec3::new(10, -64, 5));
+        let v = SampleGrid::dense(IVec3::new(2, 3, 4), IVec3::new(10, -64, 5));
         assert_eq!(v.index_of_block(10, -64, 5), Some(0));
         assert_eq!(
             v.index_of_block(11, -62, 8),
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn index_of_block_rejects_off_lattice() {
-        let v = Volume::new(IVec3::new(2, 2, 2), IVec3::ZERO, IVec3::new(4, 8, 4));
+        let v = SampleGrid::new(IVec3::new(2, 2, 2), IVec3::ZERO, IVec3::new(4, 8, 4));
         assert_eq!(v.index_of_block(0, 0, 0), Some(0));
         assert_eq!(v.index_of_block(4, 8, 4), Some(v.index_unchecked(1, 1, 1)));
         assert_eq!(v.index_of_block(1, 0, 0), None, "off the step lattice");
@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn index_of_block_handles_negative_relative_coords() {
         // floor_mod, not `%`: a truncating remainder would accept -4 here.
-        let v = Volume::new(
+        let v = SampleGrid::new(
             IVec3::new(2, 1, 1),
             IVec3::new(0, 0, 0),
             IVec3::new(4, 1, 1),

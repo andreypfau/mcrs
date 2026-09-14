@@ -686,7 +686,7 @@ pub(crate) mod tests {
     use crate::compile::build_router;
     use crate::compile::tests::corpus;
     use crate::program::Workspace;
-    use crate::volume::Volume;
+    use crate::sample_grid::SampleGrid;
     use std::collections::BTreeSet;
 
     pub(crate) fn material_corpus() -> (
@@ -896,7 +896,7 @@ pub(crate) mod tests {
         assert_eq!(material.veins().len(), 2, "copper and iron");
 
         let mut workspace = Workspace::new();
-        let volume = Volume::point(IVec3::new(9, 40, -13));
+        let volume = SampleGrid::point(IVec3::new(9, 40, -13));
         let mut out = [0.0f32];
         for vein in material.veins() {
             for root in [vein.density, vein.richness, vein.filler_gap] {

@@ -185,13 +185,13 @@ impl Serialize for PropertyValue {
 /// the block centre on X and Z and to the block bottom on Y.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct BlockBox {
+pub struct ModelBox {
     pub origin: [f32; 3],
     pub size: [f32; 3],
 }
 
-impl BlockBox {
-    pub const FULL_CUBE: BlockBox = BlockBox {
+impl ModelBox {
+    pub const FULL_CUBE: ModelBox = ModelBox {
         origin: [-8.0, 0.0, -8.0],
         size: [16.0, 16.0, 16.0],
     };
@@ -200,7 +200,7 @@ impl BlockBox {
 /// `minecraft:collision_box` and friends: a boolean, one box, or an array of
 /// boxes. `false` is no box at all and `true` is the full cube.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct BoxList(pub Vec<BlockBox>);
+pub struct BoxList(pub Vec<ModelBox>);
 
 impl<'de> Deserialize<'de> for BoxList {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -215,14 +215,14 @@ impl<'de> Deserialize<'de> for BoxList {
 
             fn visit_bool<E: de::Error>(self, v: bool) -> Result<BoxList, E> {
                 Ok(BoxList(if v {
-                    vec![BlockBox::FULL_CUBE]
+                    vec![ModelBox::FULL_CUBE]
                 } else {
                     Vec::new()
                 }))
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<BoxList, A::Error> {
-                let single = BlockBox::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                let single = ModelBox::deserialize(de::value::MapAccessDeserializer::new(map))?;
                 Ok(BoxList(vec![single]))
             }
 
@@ -804,21 +804,21 @@ mod tests {
     #[test]
     fn box_list_reads_all_three_shapes() {
         let boxes: BoxList = serde_json::from_str("true").unwrap();
-        assert_eq!(boxes.0, vec![BlockBox::FULL_CUBE]);
+        assert_eq!(boxes.0, vec![ModelBox::FULL_CUBE]);
         let boxes: BoxList = serde_json::from_str("false").unwrap();
         assert!(boxes.0.is_empty());
         let boxes: BoxList =
             serde_json::from_str(r#"{"origin":[-2,0,-2],"size":[4,10,4]}"#).unwrap();
         assert_eq!(
             boxes.0,
-            vec![BlockBox {
+            vec![ModelBox {
                 origin: [-2.0, 0.0, -2.0],
                 size: [4.0, 10.0, 4.0]
             }]
         );
         let boxes: BoxList =
             serde_json::from_str(r#"[{"origin":[-8,0,-8],"size":[16,16,16]}]"#).unwrap();
-        assert_eq!(boxes.0, vec![BlockBox::FULL_CUBE]);
+        assert_eq!(boxes.0, vec![ModelBox::FULL_CUBE]);
     }
 
     #[test]

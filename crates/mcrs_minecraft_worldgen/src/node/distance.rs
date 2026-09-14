@@ -1,5 +1,5 @@
 use crate::jmath::mul_add;
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use mcrs_voxel_math::mth::jmax;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -43,7 +43,7 @@ impl DistanceParams {
         Self { x, y, z, metric }
     }
 
-    pub fn eval(&self, out: &mut [f32], ext: &Volume) {
+    pub fn eval(&self, out: &mut [f32], ext: &SampleGrid) {
         let size = ext.size();
         let metric = self.metric;
         let mut i = 0usize;
@@ -66,14 +66,14 @@ mod tests {
     use super::*;
     use bevy_math::IVec3;
 
-    fn run(params: &DistanceParams, ext: Volume) -> Vec<f32> {
+    fn run(params: &DistanceParams, ext: SampleGrid) -> Vec<f32> {
         let mut out = vec![0.0; ext.len()];
         params.eval(&mut out, &ext);
         out
     }
 
     fn at(params: &DistanceParams, x: i32, y: i32, z: i32) -> f32 {
-        run(params, Volume::point(IVec3::new(x, y, z)))[0]
+        run(params, SampleGrid::point(IVec3::new(x, y, z)))[0]
     }
 
     /// The fast profile fuses the products into the sum. That is one correctly
@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn the_extent_is_walked_y_fastest_then_x_then_z() {
         let p = DistanceParams::new(0, 0, 0, DistanceMetric::Manhattan);
-        let ext = Volume::new(IVec3::new(2, 2, 2), IVec3::new(1, -1, 3), IVec3::ONE);
+        let ext = SampleGrid::new(IVec3::new(2, 2, 2), IVec3::new(1, -1, 3), IVec3::ONE);
         let got = run(&p, ext);
         let mut want = Vec::new();
         for z in 3..5 {
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn a_run_walks_the_column_with_the_step() {
         let p = DistanceParams::new(0, 0, 0, DistanceMetric::Manhattan);
-        let ext = Volume::new(
+        let ext = SampleGrid::new(
             IVec3::new(1, 4, 1),
             IVec3::new(2, -8, -3),
             IVec3::new(1, 4, 1),

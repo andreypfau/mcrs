@@ -3,14 +3,14 @@ use mcrs_minecraft_world::biome::overworld_preset::{
     nether_parameter_list, overworld_parameter_list,
 };
 use mcrs_minecraft_world::biome::source::MultiNoiseBiomeSource;
-use mcrs_minecraft_worldgen::volume::Volume;
+use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 
 /// Biome ids over the column's quart cells, widened by one cell in every
 /// direction: the zoom picks between eight quart corners and reaches outside
 /// the column on all three axes, so the answer must never come from a
 /// neighbouring column's stored palette.
 pub struct BiomeGrid {
-    pub volume: Volume,
+    pub volume: SampleGrid,
     pub ids: Vec<u8>,
 }
 

@@ -1,6 +1,6 @@
 use crate::node::gradient::Tiling;
 use crate::proto::{ConstantValue, DensityFunctionHolder, NoiseValue, Validate, validated};
-use crate::volume::Axis;
+use crate::sample_grid::Axis;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 

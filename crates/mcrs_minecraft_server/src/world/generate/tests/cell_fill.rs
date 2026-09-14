@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_worldgen::aquifer::point_barrier;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::FINAL_DENSITY;
-use mcrs_minecraft_worldgen::volume::Volume;
+use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::CancellationToken;
@@ -41,7 +41,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
     let mut checked = 0usize;
 
     for &section_y in &y_sections {
-        let volume = Volume::dense(
+        let volume = SampleGrid::dense(
             IVec3::splat(16),
             IVec3::new(section_x * 16, section_y * 16, section_z * 16),
         );

@@ -1,6 +1,6 @@
 use crate::jmath::mul_add;
 use crate::noise::simplex::SimplexNoise;
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_voxel_math::mth::{clampf, jmax};
@@ -31,7 +31,7 @@ impl EndIslandParams {
         }
     }
 
-    pub fn eval(&self, out: &mut [f32], ext: &Volume) {
+    pub fn eval(&self, out: &mut [f32], ext: &SampleGrid) {
         crate::kernel::each_column(out, ext, |run, ix, iz| {
             let bx = ext.block_x(ix as i32);
             let bz = ext.block_z(iz as i32);
@@ -78,7 +78,7 @@ mod tests {
 
     fn value_at(params: &EndIslandParams, bx: i32, bz: i32) -> f32 {
         let mut out = [0.0f32];
-        params.eval(&mut out, &Volume::point(IVec3::new(bx, 0, bz)));
+        params.eval(&mut out, &SampleGrid::point(IVec3::new(bx, 0, bz)));
         out[0]
     }
 
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn the_extent_holds_one_value_per_column_in_layout_order() {
         let params = EndIslandParams::new(42);
-        let ext = Volume::new(
+        let ext = SampleGrid::new(
             IVec3::new(2, 1, 2),
             IVec3::new(-4000, 0, -13),
             IVec3::new(64, 1, 64),
@@ -147,8 +147,8 @@ mod tests {
         let params = EndIslandParams::new(42);
         let mut low = [0.0f32];
         let mut high = [0.0f32];
-        params.eval(&mut low, &Volume::point(IVec3::new(-4000, -64, -13)));
-        params.eval(&mut high, &Volume::point(IVec3::new(-4000, 320, -13)));
+        params.eval(&mut low, &SampleGrid::point(IVec3::new(-4000, -64, -13)));
+        params.eval(&mut high, &SampleGrid::point(IVec3::new(-4000, 320, -13)));
         assert_eq!(low, high);
         assert_ne!(
             value_at(&params, -4000, -13),

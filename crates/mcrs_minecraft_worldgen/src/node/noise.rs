@@ -1,7 +1,7 @@
 use crate::kernel::{Runs, at, each_column};
 use crate::noise::stack::ColumnScratch;
 use crate::noise::stack::{NoiseStack, Octave};
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use bevy_math::IVec3;
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -55,7 +55,7 @@ impl NoiseFunctionParams {
 
     /// The whole extent in one batch, which is the point: every octave hoists its
     /// per-layer setup across all of it rather than across one column.
-    pub fn eval_plain(&self, out: &mut [f32], ext: &Volume) {
+    pub fn eval_plain(&self, out: &mut [f32], ext: &SampleGrid) {
         out.fill(0.0);
         self.noise
             .add_to_volume(out, ext, self.xz_scale, self.y_scale, 1.0);
@@ -64,10 +64,10 @@ impl NoiseFunctionParams {
     /// World Z becomes the noise X axis and world X its Y axis, so the extent is
     /// transposed rather than walked column by column. Y-fastest in the transposed
     /// volume is X-fastest in the stratum, which is the layout an `X|Z` buffer has.
-    pub fn eval_shift_b(&self, out: &mut [f32], ext: &Volume) {
+    pub fn eval_shift_b(&self, out: &mut [f32], ext: &SampleGrid) {
         let (size, min, step) = (ext.size(), ext.min_block(), ext.step_block());
         debug_assert_eq!(size.y, 1, "shift_b does not vary along Y");
-        let transposed = Volume::new(
+        let transposed = SampleGrid::new(
             IVec3::new(size.z, size.x, 1),
             IVec3::new(min.z, min.x, 0),
             IVec3::new(step.z, step.x, 1),
@@ -94,7 +94,7 @@ impl NoiseFunctionParams {
         xs: Runs<'_>,
         ys: Runs<'_>,
         zs: Runs<'_>,
-        ext: &Volume,
+        ext: &SampleGrid,
     ) {
         COLUMN.with_borrow_mut(|(scaled_ys, scratch)| {
             each_column(out, ext, |run, ix, iz| {
@@ -140,8 +140,8 @@ mod tests {
         sampler(seed, -6, &[1.0, 1.0, 1.0])
     }
 
-    fn column(bx: i32, bz: i32, min_y: i32, step_y: i32, sy: usize) -> Volume {
-        Volume::new(
+    fn column(bx: i32, bz: i32, min_y: i32, step_y: i32, sy: usize) -> SampleGrid {
+        SampleGrid::new(
             IVec3::new(1, sy as i32, 1),
             IVec3::new(bx, min_y, bz),
             IVec3::new(1, step_y, 1),
@@ -150,7 +150,7 @@ mod tests {
 
     fn shifted(
         p: &NoiseFunctionParams,
-        ext: &Volume,
+        ext: &SampleGrid,
         xs: &[f32],
         ys: &[f32],
         zs: &[f32],
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn a_whole_extent_batch_agrees_with_the_columns_it_covers() {
         let p = NoiseFunctionParams::new(noise(23), 0.37, 0.11);
-        let ext = Volume::new(
+        let ext = SampleGrid::new(
             IVec3::new(3, 5, 2),
             IVec3::new(-9, -8, 13),
             IVec3::new(2, 4, 3),
@@ -294,7 +294,7 @@ mod tests {
 
     fn shift_b_at(p: &NoiseFunctionParams, bx: i32, bz: i32, by: i32) -> f32 {
         let mut out = [0.0f32; 1];
-        p.eval_shift_b(&mut out, &Volume::point(IVec3::new(bx, by, bz)));
+        p.eval_shift_b(&mut out, &SampleGrid::point(IVec3::new(bx, by, bz)));
         out[0]
     }
 
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn a_shift_b_extent_lays_its_columns_out_x_fastest() {
         let p = NoiseFunctionParams::shift_b(noise(3));
-        let ext = Volume::new(
+        let ext = SampleGrid::new(
             IVec3::new(3, 1, 2),
             IVec3::new(11, -64, -4),
             IVec3::new(4, 1, 4),
@@ -335,7 +335,7 @@ mod tests {
     /// column that shares the value.
     #[test]
     fn an_x_z_shift_run_is_shared_by_every_position_in_the_column() {
-        let ext = Volume::new(IVec3::new(2, 3, 2), IVec3::ZERO, IVec3::ONE);
+        let ext = SampleGrid::new(IVec3::new(2, 3, 2), IVec3::ZERO, IVec3::ONE);
         let data = [1.0f32, 2.0, 3.0, 4.0];
         let runs = Runs::new(&data, AXIS_X | AXIS_Z, &ext);
         assert_eq!(runs.col(1, 1), &[4.0]);

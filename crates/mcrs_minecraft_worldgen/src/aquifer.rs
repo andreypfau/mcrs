@@ -1,7 +1,7 @@
 use crate::material::eval::map;
 use crate::program::{Program, Workspace};
 use crate::router::NoiseRouter;
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use bevy_math::IVec3;
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_voxel_math::mth::clamped_map;
@@ -245,7 +245,7 @@ impl<'a> FluidField<'a> {
             1,
             quart_max.1 - quart_min.1 + 1,
         );
-        let volume = Volume::new(
+        let volume = SampleGrid::new(
             quarts,
             IVec3::new(quart_min.0 << 2, 0, quart_min.1 << 2),
             IVec3::new(4, 1, 4),
@@ -289,7 +289,7 @@ impl<'a> FluidField<'a> {
     fn sample(&mut self, root: usize, at: IVec3) -> f32 {
         let mut out = [0.0f32];
         self.program
-            .fill(&mut self.ws, &Volume::point(at), root, &mut out);
+            .fill(&mut self.ws, &SampleGrid::point(at), root, &mut out);
         out[0]
     }
 
@@ -645,7 +645,7 @@ pub fn point_barrier<'a>(
         let mut out = [0.0f32];
         router
             .program
-            .fill(ws, &Volume::point(IVec3::new(x, y, z)), root, &mut out);
+            .fill(ws, &SampleGrid::point(IVec3::new(x, y, z)), root, &mut out);
         f64::from(out[0])
     }
 }

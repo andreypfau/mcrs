@@ -19,8 +19,8 @@ use crate::proto::{
     DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, ProtoSpline,
 };
 use crate::router::{Aquifers, NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
+use crate::sample_grid::Axis;
 use crate::strata::{Axes, NO_AXES, axis_bit};
-use crate::volume::Axis;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
@@ -1264,8 +1264,8 @@ pub(crate) mod tests {
     use crate::router::{
         CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, RIDGES, TEMPERATURE, VEGETATION,
     };
+    use crate::sample_grid::SampleGrid;
     use crate::strata::{AXIS_X, AXIS_Y, AXIS_Z};
-    use crate::volume::Volume;
     use bevy_math::IVec3;
 
     fn no_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
@@ -1325,7 +1325,7 @@ pub(crate) mod tests {
         let mut compiler = Compiler::new(&functions, &noises, 0, false);
         let root = compiler.compile(&holder).expect("compiles");
         let program = compiler.into_program(vec![root]);
-        let volume = Volume::point(at);
+        let volume = SampleGrid::point(at);
         let mut out = vec![0.0; volume.len()];
         program.fill(&mut Workspace::new(), &volume, 0, &mut out);
         out[0]
@@ -1683,7 +1683,7 @@ pub(crate) mod tests {
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
         let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
 
-        let volume = Volume::new(
+        let volume = SampleGrid::new(
             IVec3::new(5, 3, 5),
             IVec3::new(0, -64, 0),
             IVec3::new(4, 8, 4),
@@ -1714,7 +1714,7 @@ pub(crate) mod tests {
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("end"));
         let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
 
-        let volume = Volume::dense(IVec3::new(1, 32, 1), IVec3::new(-25, 0, -25));
+        let volume = SampleGrid::dense(IVec3::new(1, 32, 1), IVec3::new(-25, 0, -25));
         let mut out = vec![0.0; volume.len()];
         let mut ws = Workspace::new();
         router.program.fill(&mut ws, &volume, EROSION, &mut out);
@@ -1740,7 +1740,7 @@ pub(crate) mod tests {
             crate::corpus::read("noise_settings", &ResourceLocation::minecraft("end"));
         let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS, None).unwrap();
 
-        let volume = Volume::dense(IVec3::new(8, 32, 8), IVec3::new(-32, 0, -32));
+        let volume = SampleGrid::dense(IVec3::new(8, 32, 8), IVec3::new(-32, 0, -32));
         let mut out = vec![0.0; volume.len()];
         router
             .program

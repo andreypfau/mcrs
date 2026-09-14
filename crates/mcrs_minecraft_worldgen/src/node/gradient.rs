@@ -1,5 +1,5 @@
 use crate::jmath::mul_add;
-use crate::volume::{Axis, Volume};
+use crate::sample_grid::{Axis, SampleGrid};
 use mcrs_voxel_math::mth::{floor_div, floor_mod};
 
 #[derive(
@@ -24,11 +24,11 @@ pub struct GradientParams {
 }
 
 impl GradientParams {
-    pub fn eval(&self, out: &mut [f32], ext: &Volume) {
-        let coordinate: fn(&Volume, i32) -> i32 = match self.axis {
-            Axis::X => Volume::block_x,
-            Axis::Y => Volume::block_y,
-            Axis::Z => Volume::block_z,
+    pub fn eval(&self, out: &mut [f32], ext: &SampleGrid) {
+        let coordinate: fn(&SampleGrid, i32) -> i32 = match self.axis {
+            Axis::X => SampleGrid::block_x,
+            Axis::Y => SampleGrid::block_y,
+            Axis::Z => SampleGrid::block_z,
         };
         self.fill(out, |i| coordinate(ext, i as i32));
     }
@@ -108,20 +108,20 @@ mod tests {
         }
     }
 
-    fn run(g: &GradientParams, ext: Volume) -> Vec<f32> {
+    fn run(g: &GradientParams, ext: SampleGrid) -> Vec<f32> {
         let mut out = vec![0.0; ext.len()];
         g.eval(&mut out, &ext);
         out
     }
 
     fn one(g: &GradientParams, x: i32, y: i32, z: i32) -> f32 {
-        run(g, Volume::point(IVec3::new(x, y, z)))[0]
+        run(g, SampleGrid::point(IVec3::new(x, y, z)))[0]
     }
 
     #[test]
     fn the_run_walks_the_extent_step() {
         let g = gradient(Axis::Y, Tiling::ClampToEdge, 0.0, 8.0, 0.0, 8.0);
-        let ext = Volume::new(
+        let ext = SampleGrid::new(
             IVec3::new(1, 6, 1),
             IVec3::new(0, -2, 0),
             IVec3::new(1, 2, 1),
@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn a_horizontal_gradient_walks_its_own_axis() {
         let g = gradient(Axis::X, Tiling::ClampToEdge, -8.0, 8.0, -1.0, 1.0);
-        let ext = Volume::new(IVec3::new(4, 1, 1), IVec3::new(-3, 40, 0), IVec3::ONE);
+        let ext = SampleGrid::new(IVec3::new(4, 1, 1), IVec3::new(-3, 40, 0), IVec3::ONE);
         assert_eq!(run(&g, ext), vec![-0.375, -0.25, -0.125, 0.0]);
     }
 
@@ -176,8 +176,8 @@ mod tests {
         let g = gradient(Axis::Y, Tiling::MirroredRepeat, -9.0, 6.0, 0.5, 2.0);
         let step = IVec3::new(1, 4, 1);
         let min = IVec3::new(3, -21, -7);
-        let full = run(&g, Volume::new(IVec3::new(1, 6, 1), min, step));
-        let head = run(&g, Volume::new(IVec3::ONE, min, step));
+        let full = run(&g, SampleGrid::new(IVec3::new(1, 6, 1), min, step));
+        let head = run(&g, SampleGrid::new(IVec3::ONE, min, step));
         assert_eq!(head[0], full[0]);
     }
 

@@ -7,16 +7,16 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_voxel_storage::SectionKind;
 use serde::Deserialize;
 
-use crate::palette::{BlockStateLookup, Palette, Properties};
+use crate::palette::{BlockStateList, BlockStateLookup, Properties};
 use crate::{DATA_VERSION, ErrorKind, accepts_data_version};
 
 pub const LIGHT_BYTES: usize = 2048;
 
-/// Palette entries plus one index per cell, in `Strategy.getIndex` order. Cells
+/// BlockStateList entries plus one index per cell, in `Strategy.getIndex` order. Cells
 /// stay packed: the consumer walks them once anyway, through `remap_into`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PalettedContainer<K> {
-    pub palette: Palette,
+    pub palette: BlockStateList,
     cells: Cells,
     kind: PhantomData<K>,
 }
@@ -180,7 +180,7 @@ pub struct Chunk {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawPalettedContainer {
-    palette: Palette,
+    palette: BlockStateList,
     data: Option<PackedData>,
 }
 

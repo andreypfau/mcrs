@@ -5,7 +5,7 @@ use crate::interval::Interval;
 use crate::material::compile::MaterialProgram;
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{BlockState, DensityFunctionHolder, ValueRange};
-use crate::volume::Volume;
+use crate::sample_grid::SampleGrid;
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_voxel_storage::VoxelId;
@@ -197,7 +197,7 @@ impl NoiseRouter {
     pub fn fill_roots(
         &self,
         ws: &mut Workspace,
-        volume: &Volume,
+        volume: &SampleGrid,
         roots: &[usize],
         out: &mut [f32],
     ) {
@@ -214,7 +214,7 @@ impl NoiseRouter {
     pub fn fill_nodes(
         &self,
         ws: &mut Workspace,
-        volume: &Volume,
+        volume: &SampleGrid,
         nodes: &[NodeId],
         out: &mut [f32],
     ) {
@@ -229,7 +229,7 @@ impl NoiseRouter {
     /// Hand `ws` the cell lattice already sampled over `volume`, laid out one row
     /// per [`NoiseRouter::cell_inputs`] entry, so the block fills that follow
     /// interpolate from it instead of resampling every input once per cell.
-    pub fn pin_cell_lattice(&self, ws: &mut Workspace, volume: &Volume, values: &[f32]) {
+    pub fn pin_cell_lattice(&self, ws: &mut Workspace, volume: &SampleGrid, values: &[f32]) {
         self.pin_lattice_of(&self.cell_bounds, ws, volume, values);
     }
 
@@ -239,7 +239,7 @@ impl NoiseRouter {
         &self,
         bounds: &CellBounds,
         ws: &mut Workspace,
-        volume: &Volume,
+        volume: &SampleGrid,
         values: &[f32],
     ) {
         let stride = volume.len();
@@ -303,7 +303,7 @@ impl NoiseRouter {
         block_x: i32,
         block_z: i32,
     ) -> ([f32; 256], [f32; 256]) {
-        let volume = Volume::new(
+        let volume = SampleGrid::new(
             IVec3::new(16, 1, 16),
             IVec3::new(block_x, 0, block_z),
             IVec3::ONE,
@@ -329,7 +329,7 @@ impl NoiseRouter {
         block_x: i32,
         block_z: i32,
     ) -> (f32, f32) {
-        let volume = Volume::point(IVec3::new(block_x, 0, block_z));
+        let volume = SampleGrid::point(IVec3::new(block_x, 0, block_z));
         let mut values = [0.0f32; 2];
         self.fill_roots(ws, &volume, &[TEMPERATURE, VEGETATION], &mut values);
         (values[0], values[1])

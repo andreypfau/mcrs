@@ -24,8 +24,8 @@ use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::{
     CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
+use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
-use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::world::generate::{ColumnBlocks, beta_chunk_seed};
@@ -39,7 +39,7 @@ pub fn climate_target_at(
     quart_y: i32,
     quart_z: i32,
 ) -> TargetPoint {
-    let volume = Volume::new(
+    let volume = SampleGrid::new(
         IVec3::ONE,
         IVec3::new(quart_x * 4, quart_y * 4, quart_z * 4),
         IVec3::ONE,
@@ -285,7 +285,7 @@ impl CarverBiomeTable {
         if let Some(tile) = self.tiles.lock().expect("carver tiles").get(key) {
             return tile;
         }
-        let volume = Volume::new(
+        let volume = SampleGrid::new(
             IVec3::new(TILE, 1, TILE),
             IVec3::new(tile_x * TILE * 16, 0, tile_z * TILE * 16),
             IVec3::new(16, 1, 16),

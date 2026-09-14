@@ -7,7 +7,7 @@ use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
 use mcrs_minecraft_worldgen::router::{
     FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, ROOT_NAMES, RouterBlocks,
 };
-use mcrs_minecraft_worldgen::volume::Volume;
+use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 use mcrs_voxel_storage::VoxelId;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -135,7 +135,7 @@ fn overworld_router(seed: u64) -> NoiseRouter {
 }
 
 fn fill(router: &NoiseRouter, root: usize, v: &DumpVolume) -> Vec<f32> {
-    let volume = Volume::new(
+    let volume = SampleGrid::new(
         IVec3::from_array(v.size),
         IVec3::from_array(v.min),
         IVec3::from_array(v.step),
@@ -282,7 +282,7 @@ fn final_density_matches_the_dense_oracle() {
 #[test]
 fn the_branch_schedule_skips_a_real_share_of_an_overworld_chunk() {
     let router = overworld_router(42);
-    let volume = Volume::dense(IVec3::new(16, 384, 16), IVec3::new(0, -64, 0));
+    let volume = SampleGrid::dense(IVec3::new(16, 384, 16), IVec3::new(0, -64, 0));
     let mut out = vec![f32::NAN; volume.len()];
     let mut ws = Workspace::new();
     ws.take_count();

@@ -18,7 +18,7 @@ use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
 use mcrs_minecraft_worldgen::router::{
     FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, RouterBlocks,
 };
-use mcrs_minecraft_worldgen::volume::Volume;
+use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
 
 /// The margin the chunk generator keeps away from zero: f32 interval arithmetic
 /// without outward rounding, so a bound landing on zero is not trustworthy.
@@ -137,7 +137,7 @@ fn check_root(
     };
     let height = router.noise.height as i32;
     let size = lattice_size(cell, height);
-    let volume = Volume::new(size, IVec3::new(0, router.noise.min_y, 0), cell);
+    let volume = SampleGrid::new(size, IVec3::new(0, router.noise.min_y, 0), cell);
     let mut values = vec![0.0f32; inputs.len() * volume.len()];
     let mut ws = Workspace::new();
     router.fill_nodes(&mut ws, &volume, inputs, &mut values);
@@ -157,7 +157,7 @@ fn check_root(
                 let Some(bounds) = eval(&corners, origin, origin + cell - 1) else {
                     continue;
                 };
-                let dense = Volume::dense(cell, origin);
+                let dense = SampleGrid::dense(cell, origin);
                 let mut density = vec![0.0f32; dense.len()];
                 router.program.fill(&mut ws, &dense, root, &mut density);
                 for (i, &value) in density.iter().enumerate() {

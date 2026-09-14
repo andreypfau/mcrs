@@ -19,13 +19,13 @@ pub mod noise;
 pub mod program;
 pub mod proto;
 pub mod router;
+pub mod sample_grid;
 pub mod strata;
 pub mod structure;
 pub mod value_provider;
-pub mod volume;
 
 pub use interval::Interval;
-pub use volume::{Axis, Volume};
+pub use sample_grid::{Axis, SampleGrid};
 
 /// Whether the density and climate samplers were built with the fast precision
 /// profile, which downstream parity tests hold to a measured budget instead of
