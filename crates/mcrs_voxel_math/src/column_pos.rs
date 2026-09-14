@@ -1,5 +1,5 @@
-use crate::chunk_pos::BLOCKS;
-use crate::{BlockPos, ChunkPos};
+use crate::section_pos::BLOCKS;
+use crate::{BlockPos, SectionPos};
 use bevy_math::{DVec3, IVec2};
 use std::fmt::Debug;
 
@@ -33,8 +33,8 @@ impl ColumnPos {
     }
 }
 
-impl From<ChunkPos> for ColumnPos {
-    fn from(pos: ChunkPos) -> Self {
+impl From<SectionPos> for ColumnPos {
+    fn from(pos: SectionPos) -> Self {
         Self { x: pos.x, z: pos.z }
     }
 }

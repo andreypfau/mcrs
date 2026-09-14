@@ -30,7 +30,7 @@ pub fn remove_block<P: Into<BlockPos>>(dimension: Entity, pos: P) -> BlockSetReq
 mod tests {
     use super::*;
     use bevy_ecs::schedule::IntoScheduleConfigs;
-    use mcrs_voxel_math::ChunkPos;
+    use mcrs_voxel_math::SectionPos;
     use mcrs_voxel_world::voxel_update::{VoxelUpdateSet, apply_voxel_set_requests};
 
     #[test]
@@ -42,7 +42,7 @@ mod tests {
     fn block_placed_fields_pub_compile_test() {
         let _ = BlockPlaced {
             chunk: Entity::PLACEHOLDER,
-            chunk_pos: ChunkPos::new(0, 0, 0),
+            chunk_pos: SectionPos::new(0, 0, 0),
             block_pos: BlockPos::new(0, 0, 0),
             old_state: BlockStateId(0).into(),
             new_state: BlockStateId(0).into(),

@@ -25,8 +25,8 @@ use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::explosion::ExplosionConfig;
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::ColumnPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::world::dimension::InDimension;
@@ -70,8 +70,8 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     observers.0.push(player);
     let column_entity = app.world_mut().spawn(observers).id();
 
-    let chunk_positions: Vec<ChunkPos> = (0..3)
-        .flat_map(|x| (0..3).map(move |z| ChunkPos::new(x, 0, z)))
+    let chunk_positions: Vec<SectionPos> = (0..3)
+        .flat_map(|x| (0..3).map(move |z| SectionPos::new(x, 0, z)))
         .collect();
 
     // Each 3x3 chunk lives in its own ColumnPos; one shared dim carries the

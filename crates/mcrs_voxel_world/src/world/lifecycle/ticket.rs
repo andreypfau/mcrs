@@ -16,7 +16,7 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::With;
 use indexmap::IndexMap;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 /// Symmetric with the spawn cap: a pipeline that admits sections faster than it retires them
@@ -114,8 +114,8 @@ pub struct ChunkTicketsCommands {
     /// Queued ticket adds. The order they were raised in says nothing about what the player
     /// needs now, so `spawn_chunks` picks the nearest rather than the oldest; the map is
     /// insertion-ordered only so a tick's spawns are reproducible.
-    add_tickets: IndexMap<ChunkPos, Vec<Ticket>, FxBuildHasher>,
-    remove_tickets: FxHashMap<ChunkPos, Vec<TicketKind>>,
+    add_tickets: IndexMap<SectionPos, Vec<Ticket>, FxBuildHasher>,
+    remove_tickets: FxHashMap<SectionPos, Vec<TicketKind>>,
 }
 
 #[derive(Component, Deref, DerefMut)]
@@ -140,12 +140,12 @@ impl ChunkTicketHolder {
 }
 
 impl ChunkTicketsCommands {
-    pub fn add_ticket(&mut self, chunk_pos: ChunkPos, ticket: Ticket) {
+    pub fn add_ticket(&mut self, chunk_pos: SectionPos, ticket: Ticket) {
         self.add_tickets.entry(chunk_pos).or_default().push(ticket);
     }
 
     /// Tickets raised for a section that has not been spawned yet.
-    pub fn queued_tickets(&self, chunk_pos: ChunkPos) -> &[Ticket] {
+    pub fn queued_tickets(&self, chunk_pos: SectionPos) -> &[Ticket] {
         self.add_tickets
             .get(&chunk_pos)
             .map(Vec::as_slice)
@@ -155,7 +155,7 @@ impl ChunkTicketsCommands {
     /// A ticket still queued is cancelled where it waits; one already handed to a
     /// spawned chunk has to be taken off that chunk's holder instead, or the chunk
     /// keeps a ticket nobody holds and never unloads.
-    pub fn remove_ticket(&mut self, chunk_pos: ChunkPos, ticket_kind: TicketKind) {
+    pub fn remove_ticket(&mut self, chunk_pos: SectionPos, ticket_kind: TicketKind) {
         if let Some(tickets) = self.add_tickets.get_mut(&chunk_pos)
             && let Some(i) = tickets.iter().position(|t| t.kind == ticket_kind)
         {
@@ -179,7 +179,7 @@ impl ChunkTicketsCommands {
 fn despawn_chunks(
     mut commands: Commands,
     mut dims: Query<(&mut ChunkIndex, &ChunkTicketsCommands)>,
-    chunk_statuses: Query<(Entity, &ChunkPos, &InDimension), With<ChunkUnloaded>>,
+    chunk_statuses: Query<(Entity, &SectionPos, &InDimension), With<ChunkUnloaded>>,
 ) {
     let mut taken = 0usize;
     for (chunk, chunk_pos, dim) in chunk_statuses.iter() {
@@ -203,7 +203,7 @@ fn despawn_chunks(
 
 fn unload_chunks(
     mut commands: Commands,
-    chunk_statuses: Query<(Entity, &ChunkPos, &InDimension), With<ChunkUnloading>>,
+    chunk_statuses: Query<(Entity, &SectionPos, &InDimension), With<ChunkUnloading>>,
 ) {
     chunk_statuses.iter().for_each(|(chunk, _chunk_pos, _dim)| {
         commands
@@ -215,7 +215,7 @@ fn unload_chunks(
 
 /// Squared distance to the nearest player, or zero when the dimension holds none: with nobody
 /// to be near, every section is equally worth spawning.
-fn nearest_player_distance_sq(pos: ChunkPos, centers: &[ChunkPos]) -> i32 {
+fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
     centers
         .iter()
         .map(|center| pos.distance_squared(**center))
@@ -242,13 +242,13 @@ pub fn spawn_chunks(
         // The backlog outlives the walk that raised it, so what is spawned first is chosen
         // against where the players stand now. Ticketing a section the player has since flown
         // past ahead of the one under their feet is what leaves a hole underneath them.
-        let centers: Vec<ChunkPos> = players
+        let centers: Vec<SectionPos> = players
             .iter()
             .filter(|(_, in_dim)| in_dim.entity() == dim)
-            .map(|(transform, _)| ChunkPos::from(transform.translation))
+            .map(|(transform, _)| SectionPos::from(transform.translation))
             .collect();
 
-        let mut keys_to_process: Vec<ChunkPos> =
+        let mut keys_to_process: Vec<SectionPos> =
             chunk_tickets.add_tickets.keys().copied().collect();
         if MAX_SPAWNS_PER_TICK < keys_to_process.len() {
             keys_to_process.select_nth_unstable_by_key(MAX_SPAWNS_PER_TICK, |pos| {
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn a_cancelled_request_leaves_the_queue_rather_than_emptying_in_place() {
         let mut tickets = ChunkTicketsCommands::default();
-        let pos = ChunkPos::new(0, 0, 0);
+        let pos = SectionPos::new(0, 0, 0);
         tickets.add_ticket(pos, Ticket::new(TicketKind::Forced));
         assert_eq!(tickets.queued_tickets(pos).len(), 1);
 
@@ -355,7 +355,7 @@ mod tests {
         app.world_mut()
             .spawn((Player, Transform::default(), InDimension(dim)));
 
-        let under_the_player = ChunkPos::new(0, 0, 0);
+        let under_the_player = SectionPos::new(0, 0, 0);
         let mut dim_entity = app.world_mut().entity_mut(dim);
         let mut tickets = dim_entity
             .get_mut::<ChunkTicketsCommands>()
@@ -363,7 +363,7 @@ mod tests {
         // Raised first and far away, so insertion order alone would fill the whole tick.
         for x in 0..=MAX_SPAWNS_PER_TICK as i32 {
             tickets.add_ticket(
-                ChunkPos::new(1000 + x, 0, 0),
+                SectionPos::new(1000 + x, 0, 0),
                 Ticket::new(TicketKind::Forced),
             );
         }
@@ -378,7 +378,7 @@ mod tests {
         );
         assert!(
             index
-                .get(ChunkPos::new(1000 + MAX_SPAWNS_PER_TICK as i32, 0, 0))
+                .get(SectionPos::new(1000 + MAX_SPAWNS_PER_TICK as i32, 0, 0))
                 .is_none(),
             "the furthest section is the one left for the next tick"
         );
@@ -401,7 +401,7 @@ mod tests {
             .world_mut()
             .spawn((ChunkTicketsCommands::default(), ChunkIndex::new()))
             .id();
-        let pos = ChunkPos::new(0, 0, 0);
+        let pos = SectionPos::new(0, 0, 0);
         let dying = app
             .world_mut()
             .spawn((
@@ -464,7 +464,7 @@ mod tests {
             .world_mut()
             .spawn((ChunkTicketsCommands::default(), ChunkIndex::new()))
             .id();
-        let pos = ChunkPos::new(0, 0, 0);
+        let pos = SectionPos::new(0, 0, 0);
         let dying = app
             .world_mut()
             .spawn((

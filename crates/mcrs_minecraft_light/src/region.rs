@@ -1,4 +1,4 @@
-use mcrs_voxel_math::{BlockPos, ChunkPos};
+use mcrs_voxel_math::{BlockPos, SectionPos};
 
 use crate::level::{LightBounds, SECTION_WIDTH};
 
@@ -19,7 +19,7 @@ impl BlockBox {
         Self { min: pos, max: pos }
     }
 
-    pub fn of_section(pos: ChunkPos) -> Self {
+    pub fn of_section(pos: SectionPos) -> Self {
         let min = BlockPos::new(
             pos.x * SECTION_WIDTH,
             pos.y * SECTION_WIDTH,

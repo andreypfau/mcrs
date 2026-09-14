@@ -16,7 +16,7 @@ use mcrs_minecraft_world::block::tags::{
 };
 use mcrs_minecraft_world::transition_to_playing;
 use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_voxel_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_voxel_world::world::storage::column::{ChunkLookup, ColumnChunks, ColumnIndex};

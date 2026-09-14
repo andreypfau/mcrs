@@ -14,7 +14,7 @@ fn combined(world: &LightWorld, pos: BlockPos, sky_darken: u8) -> u8 {
     .get()
 }
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{BlockPos, ChunkPos};
+use mcrs_voxel_math::{BlockPos, SectionPos};
 use mcrs_voxel_storage::VoxelId;
 
 #[test]
@@ -232,7 +232,7 @@ fn loading_a_section_lets_light_in_from_its_neighbour() {
 
     world.update_now([Edit::LoadSection {
         entity: Entity::PLACEHOLDER,
-        pos: ChunkPos::new(0, 0, 0),
+        pos: SectionPos::new(0, 0, 0),
         blocks: Arc::new(filled(AIR)),
     }]);
     world.update_now([Edit::SetBlock {
@@ -246,7 +246,7 @@ fn loading_a_section_lets_light_in_from_its_neighbour() {
 
     world.update_now([Edit::LoadSection {
         entity: Entity::PLACEHOLDER,
-        pos: ChunkPos::new(1, 0, 0),
+        pos: SectionPos::new(1, 0, 0),
         blocks: Arc::new(filled(AIR)),
     }]);
     assert_eq!(
@@ -267,7 +267,7 @@ fn unloading_a_section_takes_its_light_with_it() {
     for x in 0..2 {
         world.update_now([Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(x, 0, 0),
+            pos: SectionPos::new(x, 0, 0),
             blocks: Arc::new(filled(AIR)),
         }]);
     }
@@ -281,7 +281,7 @@ fn unloading_a_section_takes_its_light_with_it() {
     );
 
     world.update_now([Edit::UnloadSection {
-        pos: ChunkPos::new(0, 0, 0),
+        pos: SectionPos::new(0, 0, 0),
     }]);
     assert_eq!(
         world.light_at(BlockPos::new(18, 8, 8), Layer::Block).get(),
@@ -460,7 +460,7 @@ fn uniform_sections_agree_with_the_reference_solver() {
     let loads: Vec<Edit> = (0..3)
         .map(|y| Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(0, y, 0),
+            pos: SectionPos::new(0, y, 0),
             blocks: Arc::new(filled(match y {
                 2 => GLASS,
                 1 => WATER,
@@ -493,7 +493,7 @@ fn uniform_sections_agree_with_the_reference_solver() {
 fn a_section_the_epoch_recomputed_but_did_not_change_keeps_its_buffer() {
     let mut world = TestWorld::new(3, 1, 1);
     world.set(BlockPos::new(8, 8, 8), TORCH);
-    let lit = ChunkPos::new(0, 0, 0);
+    let lit = SectionPos::new(0, 0, 0);
     let before = world.world.section(lit).unwrap().block_light.clone();
 
     let stats = world.set(BlockPos::new(24, 8, 8), STONE);

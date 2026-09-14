@@ -26,7 +26,7 @@ pub mod storage;
 pub mod world;
 
 use bevy_ecs::prelude::Component;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_storage::{VoxelId, VoxelPalette};
 
 use crate::storage::LightStorage;

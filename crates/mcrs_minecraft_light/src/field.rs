@@ -5,8 +5,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_math::{BlockPos, ChunkPos, Direction};
+use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::{BlockPos, Direction, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelId};
 
 use crate::SectionBlocks;
@@ -19,7 +19,7 @@ pub type CellIndex = u32;
 
 /// Hoist this out of any loop over a whole section: resolving the section
 /// position from an index costs three divisions.
-pub fn block_in(section: ChunkPos, local: LocalPos) -> BlockPos {
+pub fn block_in(section: SectionPos, local: LocalPos) -> BlockPos {
     BlockPos::new(
         section.x * SECTION_WIDTH + local.x() as i32,
         section.y * SECTION_WIDTH + local.y() as i32,
@@ -33,7 +33,7 @@ const LOCAL_MASK: u32 = (1 << LOCAL_BITS) - 1;
 /// Shape of a working area, in sections.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FieldLayout {
-    origin: ChunkPos,
+    origin: SectionPos,
     dim_x: i32,
     dim_y: i32,
     dim_z: i32,
@@ -42,8 +42,8 @@ pub struct FieldLayout {
 impl FieldLayout {
     /// Smallest section-aligned layout covering `area`.
     pub fn covering(area: BlockBox) -> Self {
-        let origin = ChunkPos::from(area.min);
-        let far = ChunkPos::from(area.max);
+        let origin = SectionPos::from(area.min);
+        let far = SectionPos::from(area.max);
         Self {
             origin,
             dim_x: far.x - origin.x + 1,
@@ -88,21 +88,21 @@ impl FieldLayout {
         self.dim_x * self.dim_z
     }
 
-    pub fn sections(&self) -> impl Iterator<Item = (usize, ChunkPos)> + '_ {
+    pub fn sections(&self) -> impl Iterator<Item = (usize, SectionPos)> + '_ {
         (0..self.section_count()).map(move |i| (i, self.section_pos(i)))
     }
 
-    pub fn section_pos(&self, section_index: usize) -> ChunkPos {
+    pub fn section_pos(&self, section_index: usize) -> SectionPos {
         let i = section_index as i32;
         let sx = i % self.dim_x;
         let sz = (i / self.dim_x) % self.dim_z;
         let sy = i / (self.dim_x * self.dim_z);
-        ChunkPos::new(self.origin.x + sx, self.origin.y + sy, self.origin.z + sz)
+        SectionPos::new(self.origin.x + sx, self.origin.y + sy, self.origin.z + sz)
     }
 
     /// The block-coordinate box this layout spans.
     pub fn block_bounds(&self) -> BlockBox {
-        let far = ChunkPos::new(
+        let far = SectionPos::new(
             self.origin.x + self.dim_x - 1,
             self.origin.y + self.dim_y - 1,
             self.origin.z + self.dim_z - 1,
@@ -391,7 +391,7 @@ mod tests {
     }
 
     fn index_of(layout: &FieldLayout, pos: BlockPos) -> CellIndex {
-        let section = ChunkPos::from(pos);
+        let section = SectionPos::from(pos);
         let index = (0..layout.section_count())
             .find(|&i| layout.section_pos(i) == section)
             .expect("section is in the area");

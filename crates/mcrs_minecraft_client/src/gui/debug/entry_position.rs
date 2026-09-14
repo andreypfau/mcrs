@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_voxel_math::{BlockPos, ChunkPos, Direction};
+use mcrs_voxel_math::{BlockPos, Direction, SectionPos};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 use super::{DebugEntryGroup, DebugScreenDisplayer};
@@ -16,7 +16,7 @@ pub fn display(
 ) {
     let position = camera.translation;
     let feet = BlockPos::from(position);
-    let chunk = ChunkPos::from(feet);
+    let chunk = SectionPos::from(feet);
     let direction = Direction::from_y_rot(camera.rotation.yaw());
     let facing = match direction {
         Direction::North => "Towards negative Z",

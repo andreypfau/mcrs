@@ -1,5 +1,5 @@
-pub use mcrs_voxel_math::ChunkPos;
-pub use mcrs_voxel_math::chunk_pos::BLOCKS;
+pub use mcrs_voxel_math::SectionPos;
+pub use mcrs_voxel_math::section_pos::BLOCKS;
 
 use crate::entity::ChunkEntities;
 use crate::world::dimension::InDimension;
@@ -21,7 +21,7 @@ impl Plugin for ChunkPlugin {
 #[derive(Bundle)]
 pub struct ChunkBundle {
     pub dimension: InDimension,
-    pub pos: ChunkPos,
+    pub pos: SectionPos,
     pub entities: ChunkEntities,
     marker: Chunk,
     chunk_loading: ChunkLoading,
@@ -32,7 +32,7 @@ pub struct ChunkBundle {
 pub struct Chunk;
 
 impl ChunkBundle {
-    pub fn new(dimension: InDimension, chunk_pos: ChunkPos) -> Self {
+    pub fn new(dimension: InDimension, chunk_pos: SectionPos) -> Self {
         Self {
             dimension,
             pos: chunk_pos,
@@ -44,26 +44,26 @@ impl ChunkBundle {
 }
 
 #[derive(Component, Debug, Default, Deref)]
-pub struct ChunkIndex(FxHashMap<ChunkPos, Entity>);
+pub struct ChunkIndex(FxHashMap<SectionPos, Entity>);
 
 impl ChunkIndex {
     pub fn new() -> Self {
         Self(FxHashMap::default())
     }
 
-    pub fn get(&self, pos: impl Into<ChunkPos>) -> Option<Entity> {
+    pub fn get(&self, pos: impl Into<SectionPos>) -> Option<Entity> {
         self.0.get(&pos.into()).copied()
     }
 
-    pub fn insert(&mut self, pos: ChunkPos, entity: Entity) {
+    pub fn insert(&mut self, pos: SectionPos, entity: Entity) {
         self.0.insert(pos, entity);
     }
 
-    pub fn remove(&mut self, pos: impl Into<ChunkPos>) -> Option<Entity> {
+    pub fn remove(&mut self, pos: impl Into<SectionPos>) -> Option<Entity> {
         self.0.remove(&pos.into())
     }
 
-    pub fn contains(&self, pos: impl Into<ChunkPos>) -> bool {
+    pub fn contains(&self, pos: impl Into<SectionPos>) -> bool {
         self.0.contains_key(&pos.into())
     }
 }

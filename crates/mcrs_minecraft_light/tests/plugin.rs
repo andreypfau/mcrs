@@ -6,7 +6,7 @@ use std::sync::Arc;
 use bevy_app::{App, TaskPoolPlugin};
 use common::{AIR, TORCH, filled, registry};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 
 // The epoch runs on a worker thread, so the loop has to give it a chance to
 // finish rather than spinning the schedule.
@@ -35,7 +35,7 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
             sky: true,
         });
 
-    let sections: Vec<ChunkPos> = (0..2).map(|y| ChunkPos::new(0, y, 0)).collect();
+    let sections: Vec<SectionPos> = (0..2).map(|y| SectionPos::new(0, y, 0)).collect();
     for pos in &sections {
         let entity = app.world_mut().spawn(*pos).id();
         app.world_mut()
@@ -58,10 +58,10 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
 
     let mut lit = app
         .world_mut()
-        .query::<(&ChunkPos, &BlockLight, &SkyLight)>();
+        .query::<(&SectionPos, &BlockLight, &SkyLight)>();
     let (_, block, sky) = lit
         .iter(app.world())
-        .find(|(pos, _, _)| **pos == ChunkPos::new(0, 0, 0))
+        .find(|(pos, _, _)| **pos == SectionPos::new(0, 0, 0))
         .expect("the bottom section was published");
 
     assert_eq!(block.0.get(8, 8, 8), 14);
@@ -80,7 +80,7 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
 
     fn load_added_sections(
         mut pending: ResMut<PendingEdits>,
-        added: Query<(Entity, &ChunkPos), Added<ChunkPos>>,
+        added: Query<(Entity, &SectionPos), Added<SectionPos>>,
     ) {
         for (entity, pos) in &added {
             pending.push(Edit::LoadSection {
@@ -100,7 +100,7 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
         })
         .add_systems(Last, load_added_sections.before(LightSet::Intake));
 
-    let pos = ChunkPos::new(0, 0, 0);
+    let pos = SectionPos::new(0, 0, 0);
     let old = app.world_mut().spawn(pos).id();
     settle(&mut app);
     assert!(app.world().get::<SkyLight>(old).is_some());
@@ -131,7 +131,7 @@ fn load_columns(app: &mut App, columns: i32) {
         for y in 0..2 {
             pending.push(Edit::LoadSection {
                 entity: Entity::PLACEHOLDER,
-                pos: ChunkPos::new(x, y, 0),
+                pos: SectionPos::new(x, y, 0),
                 blocks: Arc::new(filled(AIR)),
             });
         }
@@ -190,7 +190,7 @@ fn the_most_urgent_column_is_admitted_before_the_backlog() {
     let limit = app.world().resource::<IntakeBudget>().columns_per_tick;
     load_columns(&mut app, limit as i32 * 2);
 
-    let urgent = ChunkPos::new(-1, 0, 0);
+    let urgent = SectionPos::new(-1, 0, 0);
     app.world_mut()
         .resource_mut::<PendingEdits>()
         .push_with_priority(

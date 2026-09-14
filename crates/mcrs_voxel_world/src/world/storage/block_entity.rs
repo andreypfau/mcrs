@@ -1,6 +1,6 @@
 use bevy_derive::Deref;
 use bevy_ecs::prelude::{Commands, Component, Entity, Query, Without};
-use mcrs_voxel_math::{BlockPos, ChunkPos};
+use mcrs_voxel_math::{BlockPos, SectionPos};
 
 use crate::world::dimension::InDimension;
 use crate::world::storage::chunk::ChunkIndex;
@@ -31,7 +31,7 @@ pub fn reconcile_block_entities(
         let section = dimensions
             .get(in_dim.0)
             .ok()
-            .and_then(|index| index.get(ChunkPos::from(pos.0)));
+            .and_then(|index| index.get(SectionPos::from(pos.0)));
         let Some(section) = section else {
             tracing::debug!(pos = %pos.0, "a block entity outside any loaded section");
             commands.entity(entity).despawn();
@@ -58,7 +58,7 @@ mod tests {
         let section = app
             .world_mut()
             .spawn((
-                ChunkPos::new(0, 1, 0),
+                SectionPos::new(0, 1, 0),
                 InDimension(dim),
                 SectionBlockEntities::default(),
             ))
@@ -66,7 +66,7 @@ mod tests {
         app.world_mut()
             .get_mut::<ChunkIndex>(dim)
             .unwrap()
-            .insert(ChunkPos::new(0, 1, 0), section);
+            .insert(SectionPos::new(0, 1, 0), section);
         (app, dim, section)
     }
 

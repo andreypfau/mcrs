@@ -17,7 +17,7 @@ use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, 
 use mcrs_minecraft_server::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
 use mcrs_voxel_world::voxel_update::ChunkVoxelChanges;
 use mcrs_voxel_world::world::channels::{
@@ -163,7 +163,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
 
     // Pre-load the chunk at the floor position (floor_y = arrival_y - 1 = 63).
     // Block writes go to this chunk; arrival_y=64 maps to a different 16-block section.
-    let floor_chunk_pos = ChunkPos::from(BlockPos::new(
+    let floor_chunk_pos = SectionPos::from(BlockPos::new(
         arrival_pos.x as i32,
         floor_y,
         arrival_pos.z as i32,

@@ -4,7 +4,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 
 const AIR: BlockStateId = BlockStateId(0);
@@ -68,7 +68,7 @@ fn read_block(
     chunk_index: &ChunkIndex,
     palette_query: &Query<&ChunkBlocks>,
 ) -> Option<BlockStateId> {
-    let chunk_entity = chunk_index.get(ChunkPos::from(pos))?;
+    let chunk_entity = chunk_index.get(SectionPos::from(pos))?;
     let palette = palette_query.get(chunk_entity).ok()?;
     Some(palette.get(pos).into())
 }

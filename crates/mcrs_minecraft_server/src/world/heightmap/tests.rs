@@ -366,7 +366,7 @@ fn read_maps(app: &App, column: Entity) -> ColumnHeightmapSet {
 #[test]
 fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
     use mcrs_minecraft_block::block::BlockUpdateFlags;
-    use mcrs_voxel_math::{BlockPos, ChunkPos};
+    use mcrs_voxel_math::{BlockPos, SectionPos};
 
     let table = predicates();
     let (mut sections, y_sections) = sample_column();
@@ -413,7 +413,7 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
             .set_cell(x, (y % 16) as usize, z, id);
         app.world_mut().write_message(BlockPlaced {
             chunk: section_entities[index],
-            chunk_pos: ChunkPos::new(0, y / 16, 0),
+            chunk_pos: SectionPos::new(0, y / 16, 0),
             block_pos: BlockPos::new(x as i32, y, z as i32),
             old_state: old,
             new_state: id,

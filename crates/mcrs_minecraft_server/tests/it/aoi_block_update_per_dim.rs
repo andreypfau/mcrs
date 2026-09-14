@@ -13,8 +13,8 @@ use mcrs_minecraft_server::world::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::ColumnPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::voxel_update::ChunkVoxelChanges;
@@ -41,7 +41,7 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     let column_entity = app.world_mut().spawn(observers).id();
 
     // Dim entity carries the ColumnIndex mapping (ColumnPos -> column entity).
-    let chunk_pos = ChunkPos::new(0, 0, 0);
+    let chunk_pos = SectionPos::new(0, 0, 0);
     let column_pos = ColumnPos::from(chunk_pos);
     let mut column_index = ColumnIndex::default();
     column_index.0.insert(

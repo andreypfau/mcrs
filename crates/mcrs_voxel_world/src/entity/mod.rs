@@ -13,7 +13,7 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::relationship::RelationshipSourceCollection;
 use bevy_platform::time::Instant;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 
 pub mod physics;
 pub mod player;
@@ -108,7 +108,7 @@ fn add_entity_to_chunk(
             let Ok(chunk_index) = dim_chunks.get(in_dimension.entity()) else {
                 return;
             };
-            let chunk_pos = ChunkPos::from(transform.translation);
+            let chunk_pos = SectionPos::from(transform.translation);
             let Some(chunk) = chunk_index.get(chunk_pos) else {
                 return;
             };
@@ -167,8 +167,8 @@ fn update_chunk_entities(
             continue;
         }
 
-        let old_pos = ChunkPos::from(old_transform.translation);
-        let new_pos = ChunkPos::from(transform.translation);
+        let old_pos = SectionPos::from(old_transform.translation);
+        let new_pos = SectionPos::from(transform.translation);
         let pos_changed = old_pos != new_pos;
 
         if (dimension_changed || pos_changed)
@@ -202,7 +202,7 @@ fn remove_entity_despawned(
             let Ok(chunk_index) = dims_chunks.get(dimension) else {
                 return;
             };
-            let chunk_pos = ChunkPos::from(transform.translation);
+            let chunk_pos = SectionPos::from(transform.translation);
             let Some(chunk) = chunk_index.get(chunk_pos) else {
                 return;
             };

@@ -9,8 +9,8 @@ use bevy_ecs::prelude::{
     MessageWriter, Or, ParallelCommands, Query,
 };
 use bevy_ecs::schedule::SystemSet;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_math::{ChunkPos, ColumnPos};
+use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
 
@@ -79,7 +79,7 @@ fn update_view(
                 observer.load_queue.clear();
                 observer.last_in_dim = Some(current_in_dim);
             }
-            let chunk_pos = ChunkPos::from(transform.translation);
+            let chunk_pos = SectionPos::from(transform.translation);
             let distance = client_view_distance.distance;
             let vert_distance = client_view_distance.vert_distance;
             let y_bounds = dimensions
@@ -237,7 +237,7 @@ pub struct PlayerChunkObserver {
 }
 
 impl PlayerChunkObserver {
-    pub fn can_view_chunk(&self, pos: &ChunkPos) -> bool {
+    pub fn can_view_chunk(&self, pos: &SectionPos) -> bool {
         let Some(last_view) = self.last_last_chunk_tracking_view else {
             return false;
         };
@@ -255,7 +255,7 @@ pub struct ChunkTrackingViewUpdateEvent {
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct ChunkTrackingView {
-    pub center: ChunkPos,
+    pub center: SectionPos,
     pub distance: u8,
     pub vert_distance: u8,
     /// Inclusive lower bound on section_y; iteration and `contains` will
@@ -268,7 +268,7 @@ pub struct ChunkTrackingView {
 impl Default for ChunkTrackingView {
     fn default() -> Self {
         Self {
-            center: ChunkPos::new(0, 0, 0),
+            center: SectionPos::new(0, 0, 0),
             distance: 12,
             vert_distance: 8,
             min_section_y: i32::MIN,
@@ -278,17 +278,17 @@ impl Default for ChunkTrackingView {
 }
 
 pub enum ChunkViewAction {
-    LoadChunk(ChunkPos),
-    UnloadChunk(ChunkPos),
+    LoadChunk(SectionPos),
+    UnloadChunk(SectionPos),
 }
 
 impl ChunkTrackingView {
-    pub fn new(center: ChunkPos, distance: u8, vert_distance: u8) -> Self {
+    pub fn new(center: SectionPos, distance: u8, vert_distance: u8) -> Self {
         Self::with_y_bounds(center, distance, vert_distance, i32::MIN, i32::MAX)
     }
 
     pub fn with_y_bounds(
-        center: ChunkPos,
+        center: SectionPos,
         distance: u8,
         vert_distance: u8,
         min_section_y: i32,
@@ -340,7 +340,7 @@ impl ChunkTrackingView {
             && z.saturating_sub(self.center.z).unsigned_abs() <= self.distance as u32
     }
 
-    pub fn contains(&self, pos: &ChunkPos) -> bool {
+    pub fn contains(&self, pos: &SectionPos) -> bool {
         // Saturating ops keep the helper consistent with min_y / max_y,
         // which already use saturating arithmetic. Without this, an
         // extreme self.center.y would panic in debug builds here while
@@ -357,7 +357,7 @@ impl ChunkTrackingView {
 
     fn for_each<F>(&self, mut f: F)
     where
-        F: FnMut(ChunkPos),
+        F: FnMut(SectionPos),
     {
         let d = self.distance as i32;
         let vd = self.vert_distance as i32;
@@ -375,7 +375,7 @@ impl ChunkTrackingView {
         for y in y_lo..=y_hi {
             for x in x_lo..=x_hi {
                 for z in z_lo..=z_hi {
-                    f(ChunkPos::new(x, y, z));
+                    f(SectionPos::new(x, y, z));
                 }
             }
         }
@@ -451,7 +451,7 @@ impl ChunkTrackingView {
         for y in min_y..=max_y {
             for x in min_x..=max_x {
                 for z in min_z..=max_z {
-                    let pos = ChunkPos::new(x, y, z);
+                    let pos = SectionPos::new(x, y, z);
                     let old_contains = old.contains(&pos);
                     let new_contains = new.contains(&pos);
                     if old_contains != new_contains {
@@ -473,11 +473,11 @@ mod contains_column_tests {
 
     #[test]
     fn a_vertical_step_keeps_every_column_the_view_already_held() {
-        let view = ChunkTrackingView::new(ChunkPos::new(0, 4, 0), 12, 8);
-        let stepped = ChunkTrackingView::new(ChunkPos::new(0, 5, 0), 12, 8);
+        let view = ChunkTrackingView::new(SectionPos::new(0, 4, 0), 12, 8);
+        let stepped = ChunkTrackingView::new(SectionPos::new(0, 5, 0), 12, 8);
 
         // The section that drops out of the bottom of the vertical window.
-        let evicted = ChunkPos::new(3, -4, 7);
+        let evicted = SectionPos::new(3, -4, 7);
         assert!(view.contains(&evicted));
         assert!(!stepped.contains(&evicted));
 
@@ -487,7 +487,7 @@ mod contains_column_tests {
 
     #[test]
     fn a_column_outside_the_horizontal_reach_is_gone() {
-        let view = ChunkTrackingView::new(ChunkPos::new(0, 4, 0), 12, 8);
+        let view = ChunkTrackingView::new(SectionPos::new(0, 4, 0), 12, 8);
         assert!(view.contains_column(12, -12));
         assert!(!view.contains_column(13, 0));
         assert!(!view.contains_column(0, -13));
@@ -558,7 +558,7 @@ mod load_queue_tests {
             .single_mut(&mut world)
             .expect("one player");
         observer.last_last_chunk_tracking_view =
-            Some(ChunkTrackingView::new(ChunkPos::new(0, 0, 0), u8::MAX, 8));
+            Some(ChunkTrackingView::new(SectionPos::new(0, 0, 0), u8::MAX, 8));
 
         world
             .run_system_once(update_load_queue)

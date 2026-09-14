@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_ecs::prelude::Entity;
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{ChunkPos, ColumnPos};
+use mcrs_voxel_math::{ColumnPos, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
 
 fn filled(block: VoxelId) -> SectionBlocks {
@@ -58,7 +58,7 @@ fn main() {
                 };
                 edits.push(Edit::LoadSection {
                     entity: Entity::PLACEHOLDER,
-                    pos: ChunkPos::new(x, y, z),
+                    pos: SectionPos::new(x, y, z),
                     blocks,
                 });
             }

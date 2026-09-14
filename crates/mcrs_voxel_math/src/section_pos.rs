@@ -7,34 +7,34 @@ use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Component)]
-pub struct ChunkPos(pub IVec3);
+pub struct SectionPos(pub IVec3);
 
-impl std::ops::Deref for ChunkPos {
+impl std::ops::Deref for SectionPos {
     type Target = IVec3;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl std::ops::DerefMut for ChunkPos {
+impl std::ops::DerefMut for SectionPos {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl Display for ChunkPos {
+impl Display for SectionPos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}:{}:{})", self.x, self.y, self.z)
     }
 }
 
-impl ChunkPos {
+impl SectionPos {
     pub fn new(x: i32, y: i32, z: i32) -> Self {
         Self(IVec3::new(x, y, z))
     }
 }
 
-impl Hash for ChunkPos {
+impl Hash for SectionPos {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.x.hash(state);
         self.y.hash(state);
@@ -44,7 +44,7 @@ impl Hash for ChunkPos {
 
 pub type BLOCKS = BitSize<4>;
 
-impl From<DVec3> for ChunkPos {
+impl From<DVec3> for SectionPos {
     fn from(pos: DVec3) -> Self {
         Self::new(
             (pos.x.floor() as i32) >> BLOCKS::BITS,
@@ -54,7 +54,7 @@ impl From<DVec3> for ChunkPos {
     }
 }
 
-impl From<BlockPos> for ChunkPos {
+impl From<BlockPos> for SectionPos {
     fn from(pos: BlockPos) -> Self {
         Self::new(
             pos.x >> BLOCKS::BITS,

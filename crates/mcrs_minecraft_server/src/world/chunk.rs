@@ -16,7 +16,7 @@ use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_world::worldgen::beta_biome::BetaBiomeSourcePlugin;
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
@@ -277,10 +277,10 @@ static SLOW_COLUMN_SAMPLE: Mutex<(Option<Instant>, u64)> = Mutex::new((None, 0))
 /// The sections a delivery owes, copied out of the whole column it generated.
 /// `bottom` is the section the column buffer starts at.
 pub(crate) fn carried_sections(
-    sections_data: &[(Entity, ChunkPos)],
+    sections_data: &[(Entity, SectionPos)],
     column: &[Option<SectionData>],
     bottom: i32,
-) -> Vec<(Entity, ChunkPos, Option<SectionData>)> {
+) -> Vec<(Entity, SectionPos, Option<SectionData>)> {
     sections_data
         .iter()
         .map(|&(entity, pos)| {
@@ -448,10 +448,10 @@ pub(crate) fn deliver_merged_columns(
         let col = key.chunk_column_pos;
         // No merged column means the store was evicted under the request; the
         // column keeps its place in the queue and climbs the ladder again.
-        let mut sections_data: Vec<(Entity, ChunkPos)> = scheduler.pending[&key]
+        let mut sections_data: Vec<(Entity, SectionPos)> = scheduler.pending[&key]
             .sections
             .iter()
-            .map(|(entity, y)| (*entity, ChunkPos::new(col.x, *y, col.z)))
+            .map(|(entity, y)| (*entity, SectionPos::new(col.x, *y, col.z)))
             .collect();
         sections_data.sort_by_key(|(_, pos)| pos.y);
         let Some((carried, maps, source)) = scheduler.store.merged(col).map(|merged| {
@@ -522,7 +522,7 @@ pub(crate) fn deliver_merged_columns(
 pub(crate) fn enqueue_pending_columns(
     mut commands: Commands,
     mut scheduler: ResMut<ColumnScheduler>,
-    loading_query: Query<(Entity, &ChunkPos), With<ChunkLoading>>,
+    loading_query: Query<(Entity, &SectionPos), With<ChunkLoading>>,
     players: Query<&Transform, With<Player>>,
 ) {
     // Collect player positions for distance calculations
@@ -877,7 +877,7 @@ mod tests {
         );
     }
 
-    fn spawn_observer_with_view(app: &mut App, center: ChunkPos, distance: u8) -> Entity {
+    fn spawn_observer_with_view(app: &mut App, center: SectionPos, distance: u8) -> Entity {
         let observer = PlayerChunkObserver {
             last_last_chunk_tracking_view: Some(ChunkTrackingView {
                 center,
@@ -936,7 +936,7 @@ mod tests {
             .iter()
             .map(|&y| {
                 app.world_mut()
-                    .spawn((ChunkPos::new(col.x, y, col.z), ChunkLoading))
+                    .spawn((SectionPos::new(col.x, y, col.z), ChunkLoading))
                     .id()
             })
             .collect();
@@ -965,7 +965,7 @@ mod tests {
         // from the same merged blocks, not from the snapshot the neighbours read.
         let late = app
             .world_mut()
-            .spawn((ChunkPos::new(col.x, 5, col.z), ChunkLoading))
+            .spawn((SectionPos::new(col.x, 5, col.z), ChunkLoading))
             .id();
         let deadline = Instant::now() + Duration::from_secs(30);
         while Instant::now() < deadline && app.world().get::<ChunkLoaded>(late).is_none() {
@@ -1006,9 +1006,9 @@ mod tests {
         app.insert_resource(ColumnScheduler::default());
         app.add_systems(Update, cancel_stale_columns);
 
-        spawn_observer_with_view(&mut app, ChunkPos::new(0, 0, 0), 2);
+        spawn_observer_with_view(&mut app, SectionPos::new(0, 0, 0), 2);
 
-        let stale_pos = ChunkPos::new(100, 0, 100);
+        let stale_pos = SectionPos::new(100, 0, 100);
         let stale_section = app.world_mut().spawn((stale_pos, ChunkGenerating)).id();
 
         let stale_col = ColumnPos::new(stale_pos.x, stale_pos.z);

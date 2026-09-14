@@ -16,7 +16,7 @@ use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 use mcrs_minecraft_server::world::light::emit_light_updates;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
+use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::VoxelId;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
@@ -65,7 +65,7 @@ fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
     for y in SECTIONS {
         let solid = stone_floor && y == STONE_SECTION_Y;
         world.spawn((
-            ChunkPos::new(0, y, 0),
+            SectionPos::new(0, y, 0),
             InDimension(dimension),
             ChunkBlocks::new(filled(if solid { stone } else { air })),
             ChunkLoaded,
@@ -94,14 +94,14 @@ fn settle(app: &mut App, label: DimAppLabel) {
     panic!("light never settled");
 }
 
-fn published(app: &mut App, label: DimAppLabel, pos: ChunkPos) -> (BlockLight, SkyLight) {
+fn published(app: &mut App, label: DimAppLabel, pos: SectionPos) -> (BlockLight, SkyLight) {
     let world = app
         .sub_apps_mut()
         .sub_apps
         .get_mut(&label.intern())
         .expect("the dimension sub-app exists")
         .world_mut();
-    let mut sections = world.query::<(&ChunkPos, &BlockLight, &SkyLight)>();
+    let mut sections = world.query::<(&SectionPos, &BlockLight, &SkyLight)>();
     let (_, block, sky) = sections
         .iter(world)
         .find(|(at, _, _)| **at == pos)
@@ -129,17 +129,17 @@ fn sky_light_falls_where_the_blocks_say_it_should() {
     let (mut app, label) = spawn_dimension("test:overworld", true);
     light_one_column(&mut app, label, true);
 
-    let (_, sky) = published(&mut app, label, ChunkPos::new(0, 19, 0));
+    let (_, sky) = published(&mut app, label, SectionPos::new(0, 19, 0));
     assert_eq!(sky.0.get(8, 15, 8), 15, "the top of the world sees the sky");
 
-    let (_, sky) = published(&mut app, label, ChunkPos::new(0, STONE_SECTION_Y + 1, 0));
+    let (_, sky) = published(&mut app, label, SectionPos::new(0, STONE_SECTION_Y + 1, 0));
     assert_eq!(
         sky.0.get(8, 0, 8),
         15,
         "the cell above the floor is a source"
     );
 
-    let (_, sky) = published(&mut app, label, ChunkPos::new(0, STONE_SECTION_Y - 1, 0));
+    let (_, sky) = published(&mut app, label, SectionPos::new(0, STONE_SECTION_Y - 1, 0));
     assert_eq!(sky.0.get(8, 15, 8), 0, "the floor casts a shadow under it");
 }
 
@@ -155,8 +155,8 @@ fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
         .sub_apps
         .get_mut(&label.intern())
         .expect("the dimension sub-app exists");
-    let chunk_pos = ChunkPos::from(at);
-    let mut sections = sub_app.world_mut().query::<(Entity, &ChunkPos)>();
+    let chunk_pos = SectionPos::from(at);
+    let mut sections = sub_app.world_mut().query::<(Entity, &SectionPos)>();
     let chunk = sections
         .iter(sub_app.world())
         .find(|(_, pos)| **pos == chunk_pos)
@@ -195,7 +195,7 @@ fn a_placed_torch_lights_its_neighbourhood() {
     let emission = place_torch(&mut app, label, at);
     assert!(emission > 1, "a torch emits light");
 
-    let chunk_pos = ChunkPos::from(at);
+    let chunk_pos = SectionPos::from(at);
     let (block, _) = published(&mut app, label, chunk_pos);
     assert_eq!(block.0.get(8, 8, 8), emission);
     assert_eq!(block.0.get(9, 8, 8), emission - 1);
@@ -208,7 +208,7 @@ fn a_dimension_without_a_sky_publishes_none() {
     light_one_column(&mut app, label, false);
 
     for y in [19, 0, -4] {
-        let (_, sky) = published(&mut app, label, ChunkPos::new(0, y, 0));
+        let (_, sky) = published(&mut app, label, SectionPos::new(0, y, 0));
         for local_y in [0, 8, 15] {
             assert_eq!(
                 sky.0.get(8, local_y, 8),
@@ -325,7 +325,7 @@ fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
     assert_eq!(*column, ColumnPos::new(0, 0));
 
     let rows = unpack_light_data(light_data, WIRE_ROWS).expect("the delta decodes");
-    let torch_row = wire_row(ChunkPos::from(torch_at()).y);
+    let torch_row = wire_row(SectionPos::from(torch_at()).y);
     match &rows.block[torch_row] {
         RowLight::Filled(chunk) => {
             assert_eq!(nibble(chunk, 8, 8, 8), 14, "the torch cell");
@@ -411,7 +411,7 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
         for y in SECTIONS {
             let solid = y == STONE_SECTION_Y;
             world.spawn((
-                ChunkPos::new(x, y, z),
+                SectionPos::new(x, y, z),
                 InDimension(dimension),
                 ChunkBlocks::new(filled(if solid { stone } else { air })),
                 ChunkLoaded,
@@ -430,7 +430,7 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
             .expect("the dimension sub-app exists")
             .world_mut();
         let newly: Vec<ColumnPos> = world
-            .query_filtered::<&ChunkPos, bevy_ecs::prelude::With<BlockLight>>()
+            .query_filtered::<&SectionPos, bevy_ecs::prelude::With<BlockLight>>()
             .iter(world)
             .map(|pos| ColumnPos::from(*pos))
             .filter(|column| !lit.iter().any(|(seen, _)| seen == column))

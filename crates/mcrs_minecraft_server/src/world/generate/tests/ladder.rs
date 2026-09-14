@@ -18,7 +18,7 @@ use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::biome::Biome;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_storage::VoxelId;
 use mcrs_voxel_world::world::lifecycle::markers::{ChunkLoaded, ChunkLoading};
 
@@ -354,7 +354,7 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
                 .iter()
                 .map(|&y| {
                     app.world_mut()
-                        .spawn((ChunkPos::new(col.x, y, col.z), ChunkLoading))
+                        .spawn((SectionPos::new(col.x, y, col.z), ChunkLoading))
                         .id()
                 })
                 .collect();

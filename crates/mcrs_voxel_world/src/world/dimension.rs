@@ -11,7 +11,7 @@ use bevy_ecs::prelude::{
     Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs, Mut,
     Query, Ref, With,
 };
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::section_pos::BLOCKS;
 use std::collections::BTreeSet;
 
 pub struct DimensionPlugin;

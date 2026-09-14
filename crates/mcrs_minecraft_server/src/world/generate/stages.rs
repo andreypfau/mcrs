@@ -24,7 +24,7 @@ use mcrs_minecraft_worldgen::material::MaterialScratch;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::NoiseRouter;
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_storage::{Blocks, BlocksMut, Volume, VoxelId};
 use rustc_hash::FxHashMap;
 use tracing::{error, info_span};

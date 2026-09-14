@@ -10,7 +10,7 @@ use mcrs_minecraft_light::prelude::{
     BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SkyLight,
 };
 use mcrs_minecraft_protocol::light_codec::{LightCodecParams, build_delta_light_data};
-use mcrs_voxel_math::{ChunkPos, ColumnPos};
+use mcrs_voxel_math::{ColumnPos, SectionPos};
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::session::PlayerSession;
@@ -99,8 +99,8 @@ fn reprioritize_light_work(
 
 fn feed_light_edits(
     mut pending: ResMut<PendingEdits>,
-    loaded: Query<(Entity, &ChunkPos, &ChunkBlocks), (Added<ChunkLoaded>, With<ChunkFresh>)>,
-    positions: Query<&ChunkPos>,
+    loaded: Query<(Entity, &SectionPos, &ChunkBlocks), (Added<ChunkLoaded>, With<ChunkFresh>)>,
+    positions: Query<&SectionPos>,
     players: Query<&Transform, With<Player>>,
     mut unloaded: RemovedComponents<ChunkLoaded>,
     mut placed: MessageReader<BlockPlaced>,
@@ -173,7 +173,7 @@ pub fn emit_light_updates(
     changed: Query<
         (
             Entity,
-            &ChunkPos,
+            &SectionPos,
             &InDimension,
             Ref<BlockLight>,
             Ref<SkyLight>,

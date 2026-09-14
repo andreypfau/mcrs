@@ -13,7 +13,7 @@ pub mod clientbound {
     use mcrs_minecraft_protocol::{BlockStateId, ByteAngle};
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use mcrs_voxel_math::BlockPos;
-    use mcrs_voxel_math::ChunkPos;
+    use mcrs_voxel_math::SectionPos;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
@@ -336,7 +336,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x55, state=Game)]
     pub struct ClientboundSectionBlocksUpdate<'a> {
-        pub chunk_pos: ChunkPos,
+        pub chunk_pos: SectionPos,
         pub blocks: Cow<'a, [ChunkBlockUpdateEntry]>,
     }
 

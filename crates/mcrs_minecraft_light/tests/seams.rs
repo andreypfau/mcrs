@@ -9,7 +9,7 @@ use std::sync::Arc;
 use bevy_ecs::prelude::Entity;
 use common::{AIR, Reference, STONE, WATER, filled, registry};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{BlockPos, ChunkPos};
+use mcrs_voxel_math::{BlockPos, SectionPos};
 use mcrs_voxel_storage::VoxelId;
 
 const SECTIONS_Y: i32 = 4;
@@ -23,7 +23,7 @@ fn load_column(world: &mut LightWorld, x: i32, z: i32, floor_y: i32, floor: Voxe
     let loads: Vec<Edit> = (0..SECTIONS_Y)
         .map(|y| Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(x, y, z),
+            pos: SectionPos::new(x, y, z),
             blocks: Arc::new(filled(if y == floor_y { floor } else { AIR })),
         })
         .collect();
@@ -100,7 +100,7 @@ fn a_column_arriving_bottom_half_first_matches_one_pass() {
     let lower: Vec<Edit> = (0..half)
         .map(|y| Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(0, y, 0),
+            pos: SectionPos::new(0, y, 0),
             blocks: Arc::new(filled(AIR)),
         })
         .collect();
@@ -108,7 +108,7 @@ fn a_column_arriving_bottom_half_first_matches_one_pass() {
     let upper: Vec<Edit> = (half..SECTIONS_Y)
         .map(|y| Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(0, y, 0),
+            pos: SectionPos::new(0, y, 0),
             blocks: Arc::new(filled(AIR)),
         })
         .collect();
@@ -122,7 +122,7 @@ fn a_column_arriving_one_section_at_a_time_bottom_up_matches_one_pass() {
     for y in 0..SECTIONS_Y {
         world.update_now([Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(0, y, 0),
+            pos: SectionPos::new(0, y, 0),
             blocks: Arc::new(filled(AIR)),
         }]);
     }
@@ -136,7 +136,7 @@ fn load_ocean_column(world: &mut LightWorld, x: i32, z: i32, water_sections: i32
     let loads: Vec<Edit> = (0..SECTIONS_Y)
         .map(|y| Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(x, y, z),
+            pos: SectionPos::new(x, y, z),
             blocks: Arc::new(filled(if y < water_sections { WATER } else { AIR })),
         })
         .collect();

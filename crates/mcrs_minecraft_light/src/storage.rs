@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::section_pos::BLOCKS;
 
 use mcrs_voxel_storage::SectionNibbles;
 

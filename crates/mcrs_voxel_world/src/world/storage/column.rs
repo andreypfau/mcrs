@@ -6,8 +6,8 @@ use bevy_ecs::prelude::{
     Added, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query, SystemSet, With,
     Without,
 };
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::SectionPos;
+use mcrs_voxel_math::section_pos::BLOCKS;
 use rustc_hash::FxHashMap;
 
 pub use mcrs_voxel_math::ColumnPos;
@@ -160,7 +160,7 @@ pub struct ColumnLifecycleSet;
 /// gone by — the column would then hold a section that never leaves it.
 pub fn reconcile_columns(
     newly_loaded: Query<
-        (Entity, &ChunkPos, &InDimension),
+        (Entity, &SectionPos, &InDimension),
         (
             Added<ChunkLoaded>,
             With<ChunkFresh>,
@@ -170,7 +170,7 @@ pub fn reconcile_columns(
         ),
     >,
     newly_unloading: Query<
-        (Entity, &ChunkPos, &InDimension),
+        (Entity, &SectionPos, &InDimension),
         (Added<ChunkUnloading>, With<InColumn>),
     >,
     mut dimensions: Query<&mut ColumnIndex>,
@@ -289,12 +289,12 @@ mod tests {
             .world_mut()
             .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))
             .id();
-        let pos = ChunkPos::new(0, 0, 0);
+        let pos = SectionPos::new(0, 0, 0);
         app.world_mut().spawn((pos, InDimension(dim), ChunkLoaded));
         app.world_mut().run_schedule(FixedUpdate);
 
         app.world_mut()
-            .spawn((ChunkPos::new(0, 1, 0), InDimension(dim), ChunkUnloading));
+            .spawn((SectionPos::new(0, 1, 0), InDimension(dim), ChunkUnloading));
         app.world_mut().run_schedule(FixedUpdate);
 
         let index = app.world().get::<ColumnIndex>(dim).expect("column index");
@@ -314,11 +314,11 @@ mod tests {
             .id();
         let kept = app
             .world_mut()
-            .spawn((ChunkPos::new(0, 0, 0), InDimension(dim), ChunkLoaded))
+            .spawn((SectionPos::new(0, 0, 0), InDimension(dim), ChunkLoaded))
             .id();
         let leaving = app
             .world_mut()
-            .spawn((ChunkPos::new(0, 1, 0), InDimension(dim), ChunkLoaded))
+            .spawn((SectionPos::new(0, 1, 0), InDimension(dim), ChunkLoaded))
             .id();
         app.world_mut().run_schedule(FixedUpdate);
 
@@ -367,7 +367,7 @@ mod tests {
 
         let chunk = app
             .world_mut()
-            .spawn((ChunkPos::new(0, 0, 0), InDimension(dim), ChunkUnloading))
+            .spawn((SectionPos::new(0, 0, 0), InDimension(dim), ChunkUnloading))
             .id();
         app.world_mut().run_schedule(FixedUpdate);
         app.world_mut().entity_mut(chunk).insert(ChunkLoaded);
@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn chunk_column_pos_from_chunk_pos_drops_y() {
-        let cp = ChunkPos::new(3, 7, -5);
+        let cp = SectionPos::new(3, 7, -5);
         let ccp: ColumnPos = cp.into();
         assert_eq!(ccp, ColumnPos::new(3, -5));
     }

@@ -17,7 +17,7 @@ use mcrs_minecraft_server::world::block_entity::{
     BlockEntity, from_compound, packet_entry, spawn_block_entities,
 };
 use mcrs_minecraft_server::world::format::anvil::saved_block_entities;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::world::dimension::InDimension;
 use mcrs_voxel_world::world::lifecycle::markers::ChunkUnloaded;
 use mcrs_voxel_world::world::lifecycle::ticket::{ChunkTicketsCommands, TicketPlugin};
@@ -26,8 +26,8 @@ use mcrs_voxel_world::world::storage::block_entity::{
 };
 use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 
-fn section_pos() -> ChunkPos {
-    ChunkPos::new(2, 4, -1)
+fn section_pos() -> SectionPos {
+    SectionPos::new(2, 4, -1)
 }
 
 /// What `BeehiveDecorator` writes: two or three occupants, each with the hive's
@@ -135,7 +135,7 @@ fn wire_form(world: &World, entity: Entity) -> GeneratedBlockEntity {
     world.get::<BlockEntity>(entity).expect("a kind").0.clone()
 }
 
-fn app_with_section(section_pos: ChunkPos) -> (App, Entity, Entity) {
+fn app_with_section(section_pos: SectionPos) -> (App, Entity, Entity) {
     let mut app = App::new();
     app.add_plugins(TicketPlugin);
     app.add_systems(FixedUpdate, reconcile_block_entities);

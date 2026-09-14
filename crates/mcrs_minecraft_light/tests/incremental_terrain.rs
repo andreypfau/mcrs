@@ -10,8 +10,8 @@ use std::sync::Arc;
 use bevy_ecs::prelude::Entity;
 use common::{AIR, Reference, STONE, registry};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
+use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelPalette};
 
 const SECTIONS_Y: i32 = 6;
@@ -28,7 +28,7 @@ fn surface_height(x: i32, z: i32) -> i32 {
     20 + step * 13 + (x.rem_euclid(16) / 8) + (z.rem_euclid(16) / 8)
 }
 
-fn section_blocks(pos: ChunkPos) -> SectionBlocks {
+fn section_blocks(pos: SectionPos) -> SectionBlocks {
     let base_y = pos.y * 16;
     let mut solid = 0;
     let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
@@ -63,7 +63,7 @@ fn surface_of(column: ColumnPos) -> Arc<ColumnSurface> {
 fn column_edits(column: ColumnPos) -> Vec<Edit> {
     let mut edits: Vec<Edit> = (0..SECTIONS_Y)
         .map(|y| {
-            let pos = ChunkPos::new(column.x, y, column.z);
+            let pos = SectionPos::new(column.x, y, column.z);
             Edit::LoadSection {
                 entity: Entity::PLACEHOLDER,
                 pos,
@@ -222,7 +222,7 @@ fn sections_of_a_column_arriving_across_ticks_are_lit_like_one_pass() {
     let mut pump = Pump::new(8 << 20, 2);
     for column in columns_in_load_order() {
         for y in (0..SECTIONS_Y).rev() {
-            let pos = ChunkPos::new(column.x, y, column.z);
+            let pos = SectionPos::new(column.x, y, column.z);
             pump.tick(vec![Edit::LoadSection {
                 entity: Entity::PLACEHOLDER,
                 pos,
@@ -257,7 +257,7 @@ fn columns_unloaded_and_revived_are_lit_like_one_pass() {
     for column in &evicted {
         let unloads: Vec<Edit> = (0..SECTIONS_Y)
             .map(|y| Edit::UnloadSection {
-                pos: ChunkPos::new(column.x, y, column.z),
+                pos: SectionPos::new(column.x, y, column.z),
             })
             .collect();
         pump.tick(unloads);
@@ -278,7 +278,7 @@ fn columns_unloaded_and_revived_are_lit_like_one_pass() {
 #[test]
 fn a_roof_lit_across_column_seams_matches_one_pass() {
     let roofed = |x: i32, z: i32| (24..56).contains(&x) && (24..56).contains(&z);
-    let blocks_of = |pos: ChunkPos| {
+    let blocks_of = |pos: SectionPos| {
         let base_y = pos.y * 16;
         let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
         let mut solid = 0;
@@ -304,7 +304,7 @@ fn a_roof_lit_across_column_seams_matches_one_pass() {
     for column in columns_in_load_order() {
         let edits: Vec<Edit> = (0..SECTIONS_Y)
             .map(|y| {
-                let pos = ChunkPos::new(column.x, y, column.z);
+                let pos = SectionPos::new(column.x, y, column.z);
                 Edit::LoadSection {
                     entity: Entity::PLACEHOLDER,
                     pos,
@@ -341,7 +341,7 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
         in_shaft || in_tunnel
     };
 
-    let blocks_of = |pos: ChunkPos| {
+    let blocks_of = |pos: SectionPos| {
         let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
         let mut solid = 0;
         for local_z in 0..BLOCKS::SIZE {
@@ -370,7 +370,7 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
         for column in columns_in_load_order() {
             let edits: Vec<Edit> = (0..SECTIONS_Y)
                 .map(|y| {
-                    let pos = ChunkPos::new(column.x, y, column.z);
+                    let pos = SectionPos::new(column.x, y, column.z);
                     Edit::LoadSection {
                         entity: Entity::PLACEHOLDER,
                         pos,

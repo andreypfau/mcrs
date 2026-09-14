@@ -459,7 +459,7 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     use bevy_ecs::entity::Entity;
     use mcrs_minecraft_protocol::ColumnPos;
     use mcrs_minecraft_world::biome::source::BiomeSource;
-    use mcrs_voxel_math::ChunkPos;
+    use mcrs_voxel_math::SectionPos;
 
     use crate::world::chunk::{CancellationToken, carried_sections};
     use crate::world::generate::stages::fill_column;
@@ -478,12 +478,12 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     let col = ColumnPos::new(3, -7);
     let carried = [-4, 3, 4];
     let mut app = App::new();
-    let sections: Vec<(Entity, ChunkPos)> = carried
+    let sections: Vec<(Entity, SectionPos)> = carried
         .iter()
         .map(|&y| {
             (
                 app.world_mut().spawn_empty().id(),
-                ChunkPos::new(col.x, y, col.z),
+                SectionPos::new(col.x, y, col.z),
             )
         })
         .collect();

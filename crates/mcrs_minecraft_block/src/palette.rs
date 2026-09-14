@@ -1,7 +1,7 @@
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind, PaletteForm};
-use mcrs_voxel_math::chunk_pos;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::section_pos;
+use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_storage::PalettedContainer::{Heterogeneous, Homogeneous};
 use mcrs_voxel_storage::{SectionKind, SharedVoxelPalette, VoxelId, VoxelPalette};
 
@@ -123,7 +123,7 @@ impl AirCount for BlockPalette {
         match &self.0 {
             Homogeneous(registry_id) => {
                 if registry_id.0 != 0 {
-                    chunk_pos::BLOCKS::VOLUME as u16
+                    section_pos::BLOCKS::VOLUME as u16
                 } else {
                     0
                 }

@@ -13,7 +13,7 @@ fn drain_one(queue: &mut LightQueue, budget_cells: u64, avoid: &[BlockBox]) -> V
 }
 use mcrs_minecraft_light::field::FieldLayout;
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
+use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::VoxelId;
 
 fn column(x: i32, z: i32) -> ColumnPos {
@@ -349,7 +349,7 @@ fn loading_a_stack_of_sections_produces_work_for_each() {
     let loads: Vec<Edit> = (0..4)
         .map(|y| Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(0, y, 0),
+            pos: SectionPos::new(0, y, 0),
             blocks: Arc::new(filled(AIR)),
         })
         .collect();
@@ -380,7 +380,7 @@ fn loading_and_editing_a_column_in_one_batch_stays_inside_the_world() {
     let stats = world.update_now([
         Edit::LoadSection {
             entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(0, 0, 0),
+            pos: SectionPos::new(0, 0, 0),
             blocks: Arc::new(filled(AIR)),
         },
         Edit::SetBlock { pos, block: TORCH },

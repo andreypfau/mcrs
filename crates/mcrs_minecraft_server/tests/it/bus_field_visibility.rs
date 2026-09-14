@@ -6,14 +6,14 @@ use bevy_ecs::entity::Entity;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_storage::VoxelId;
 
 #[test]
 fn block_placed_all_fields_pub() {
     let placed = BlockPlaced {
         chunk: Entity::PLACEHOLDER,
-        chunk_pos: ChunkPos::new(0, 0, 0),
+        chunk_pos: SectionPos::new(0, 0, 0),
         block_pos: BlockPos::new(0, 0, 0),
         old_state: VoxelId(0),
         new_state: VoxelId(1),

@@ -6,8 +6,8 @@ use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::SectionPos;
+use mcrs_voxel_math::section_pos::BLOCKS;
 use mcrs_voxel_storage::{SharedVoxelPalette, VoxelId, VoxelPalette};
 use rustc_hash::FxHashSet;
 use std::marker::PhantomData;
@@ -98,7 +98,7 @@ pub fn apply_voxel_set_requests<F: VoxelUpdateFlags>(
     mut writer: MessageWriter<VoxelPlaced<F>>,
 ) {
     reader.read().for_each(|request| {
-        let chunk_pos = ChunkPos::from(request.pos);
+        let chunk_pos = SectionPos::from(request.pos);
 
         let Ok(chunk_index) = dimensions.get(request.dimension) else {
             // Stale dimension Entity. Treated as suspicious because the
@@ -151,7 +151,7 @@ pub fn apply_voxel_set_requests<F: VoxelUpdateFlags>(
 #[derive(Message, Clone, Copy)]
 pub struct VoxelPlaced<F: VoxelUpdateFlags> {
     pub chunk: Entity,
-    pub chunk_pos: ChunkPos,
+    pub chunk_pos: SectionPos,
     pub block_pos: BlockPos,
     pub old_state: VoxelId,
     pub new_state: VoxelId,

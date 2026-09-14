@@ -6,7 +6,7 @@ use bevy_ecs::system::{Local, Query, Res};
 use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::world::dimension::InDimension;
 use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
@@ -108,7 +108,7 @@ impl<'a, 'b> BlockCache<'a, 'b> {
         match map.entry(pos) {
             Entry::Occupied(o) => o.into_mut(),
             Entry::Vacant(v) => {
-                let chunk_pos = ChunkPos::from(pos);
+                let chunk_pos = SectionPos::from(pos);
                 let item = (|| {
                     let b = chunk_index.get(chunk_pos)?;
                     let (chunk, palette) = chunks.get(b.entity()).ok()?;

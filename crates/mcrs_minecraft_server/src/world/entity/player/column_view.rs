@@ -12,7 +12,7 @@ use mcrs_minecraft_protocol::light_codec::{
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
-use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::SectionPos;
 use mcrs_voxel_world::entity::player::chunk_view::{
     ChunkTrackingViewUpdateEvent, ChunkViewPlugin, ChunkViewSet, PlayerChunkLoadRequest,
     PlayerChunkObserver, PlayerChunkUnloadRequest,
@@ -281,7 +281,7 @@ fn resolve_column(
         .get(&EngineColumnPos::new(col.x, col.z))
         .map(|slot| slot.entity)?;
     let sections = (0..section_count)
-        .map(|client_y| chunk_index.get(ChunkPos::new(col.x, client_y - off, col.z)))
+        .map(|client_y| chunk_index.get(SectionPos::new(col.x, client_y - off, col.z)))
         .collect::<Option<Vec<_>>>()?;
     Some((column, sections))
 }
@@ -362,7 +362,7 @@ const MAX_BATCH_BYTES: usize = 4 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_
 const MAX_UNACKNOWLEDGED_BATCHES: u32 = 10;
 
 /// Squared XZ distance from a column to the centre of the player's view.
-fn column_distance_sq(pos: ColumnPos, center: ChunkPos) -> i64 {
+fn column_distance_sq(pos: ColumnPos, center: SectionPos) -> i64 {
     let dx = (pos.x - center.x) as i64;
     let dz = (pos.z - center.z) as i64;
     dx * dx + dz * dz
@@ -428,7 +428,7 @@ pub(crate) fn send_column_queue(
             let center = observer
                 .last_last_chunk_tracking_view
                 .map(|view| view.center)
-                .unwrap_or(ChunkPos::new(0, 0, 0));
+                .unwrap_or(SectionPos::new(0, 0, 0));
             let mut nearest: Vec<ColumnPos> = chunk_view.pending_send.iter().copied().collect();
             if allowed < nearest.len() {
                 nearest.select_nth_unstable_by_key(allowed, |pos| column_distance_sq(*pos, center));
@@ -579,7 +579,7 @@ fn add_player_column_view(
 
 #[inline]
 fn offset_sections(rep: &Reposition, min_y: i32) -> i32 {
-    let bits = mcrs_voxel_math::chunk_pos::BLOCKS::BITS as i32;
+    let bits = mcrs_voxel_math::section_pos::BLOCKS::BITS as i32;
     (rep.offset_y_blocks() >> bits) - (min_y >> bits)
 }
 
@@ -608,7 +608,7 @@ fn apply_forced_tickets(
 ) {
     for client_y in 0..section_count as i32 {
         let server_y = client_y - off_sections;
-        let chunk_pos = ChunkPos::new(col.x, server_y, col.z);
+        let chunk_pos = SectionPos::new(col.x, server_y, col.z);
         if add {
             tickets.add_ticket(chunk_pos, Ticket::new(TicketKind::Forced));
         } else {
@@ -709,7 +709,7 @@ mod tests {
                     let section = world
                         .spawn((ChunkBlocks::default(), BiomePalette::default(), ChunkLoaded))
                         .id();
-                    chunk_index.insert(ChunkPos::new(col.x, y, col.z), section);
+                    chunk_index.insert(SectionPos::new(col.x, y, col.z), section);
                     section
                 })
                 .collect();
@@ -889,7 +889,7 @@ mod tests {
         world
             .get_mut::<ChunkIndex>(fx.dim)
             .unwrap()
-            .remove(ChunkPos::new(col.x, 1, col.z));
+            .remove(SectionPos::new(col.x, 1, col.z));
 
         world
             .run_system_once(send_column_queue)

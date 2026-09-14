@@ -1,5 +1,5 @@
 use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_math::section_pos::BLOCKS;
 use std::ops::RangeInclusive;
 
 pub const SECTION_WIDTH: i32 = BLOCKS::SIZE as i32;

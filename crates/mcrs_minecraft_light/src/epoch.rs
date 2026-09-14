@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bevy_ecs::prelude::Entity;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
+use mcrs_voxel_math::section_pos::BLOCKS;
+use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashSet;
 
@@ -27,7 +27,7 @@ use crate::world::{Edit, LightWorld, Section, SkyFloor};
 /// nothing downstream is woken for an answer that did not move.
 #[derive(Clone, Debug)]
 pub struct SectionLight {
-    pub pos: ChunkPos,
+    pub pos: SectionPos,
     pub block_light: Option<LightStorage>,
     pub sky_light: Option<LightStorage>,
 }
@@ -80,7 +80,7 @@ struct SkyFrontier {
 impl SkyFrontier {
     fn of<'a>(
         floors: &SkyFloor,
-        section_pos: ChunkPos,
+        section_pos: SectionPos,
         neighbour: impl Fn(i32, i32) -> Option<&'a SkyFloor>,
     ) -> Self {
         let sides = [
@@ -583,7 +583,7 @@ impl LightWorld {
 
     fn edit_block(&mut self, pos: BlockPos, block: VoxelId) -> Option<Influence> {
         let registry = Arc::clone(self.registry());
-        let section = self.section_mut(ChunkPos::from(pos))?;
+        let section = self.section_mut(SectionPos::from(pos))?;
         if !registry.light_properties_differ(section.blocks.get(pos), block) {
             return None;
         }

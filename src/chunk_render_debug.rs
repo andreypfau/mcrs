@@ -5,7 +5,7 @@
 // use bevy_inspector_egui::bevy_egui::EguiPlugin;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 // use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
-// use mcrs_voxel_world::world::chunk::{ChunkPos, ChunkStatus};
+// use mcrs_voxel_world::world::chunk::{SectionPos, ChunkStatus};
 // use mcrs_minecraft_protocol::Position;
 //
 // pub struct ChunkRenderDebug;
@@ -30,7 +30,7 @@
 // }
 //
 // fn on_add_chunk(
-//     chunks: Query<(Entity, &ChunkPos), Added<ChunkStatus>>,
+//     chunks: Query<(Entity, &SectionPos), Added<ChunkStatus>>,
 //     mut meshes: ResMut<Assets<Mesh>>,
 //     mut materials: ResMut<Assets<ColorMaterial>>,
 //     mut commands: Commands,
@@ -87,7 +87,7 @@
 // // ) {
 // //     query.iter_mut().for_each(|(observer, mut sent_chunks)| {
 // //         sent_chunks.map.retain(|pos, entity| {
-// //             let chunk_pos = ChunkPos::new(pos.x, 0, pos.z);
+// //             let chunk_pos = SectionPos::new(pos.x, 0, pos.z);
 // //             if chunk_index.get(&chunk_pos).is_none() || observer.sent_chunks.contains(pos) == false {
 // //                 commands.entity(*entity).despawn();
 // //                 return false;
@@ -98,7 +98,7 @@
 // //             if sent_chunks.map.contains_key(pos) {
 // //                 return;
 // //             }
-// //             let chunk_pos = ChunkPos::new(pos.x, 0, pos.z);
+// //             let chunk_pos = SectionPos::new(pos.x, 0, pos.z);
 // //             if let Some(chunk_entity) = chunk_index.get(&chunk_pos) {
 // //                 let sent_entity = commands.spawn((
 // //                     Mesh2d(meshes.add(Rectangle::default())),

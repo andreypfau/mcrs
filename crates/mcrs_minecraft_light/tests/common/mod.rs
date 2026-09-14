@@ -7,7 +7,7 @@ use std::sync::{Arc, OnceLock};
 use bevy_math::Vec3;
 use mcrs_minecraft_light::prelude::*;
 use mcrs_voxel_math::voxel_shape::{Aabb, VoxelShape};
-use mcrs_voxel_math::{BlockPos, ChunkPos, Direction};
+use mcrs_voxel_math::{BlockPos, Direction, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
 
 pub const AIR: VoxelId = VoxelId(0);
@@ -92,7 +92,7 @@ impl TestWorld {
                 (0..sections_z).flat_map(move |z| {
                     (0..sections_x).map(move |x| Edit::LoadSection {
                         entity: Entity::PLACEHOLDER,
-                        pos: ChunkPos::new(x, y, z),
+                        pos: SectionPos::new(x, y, z),
                         blocks: Arc::new(filled(AIR)),
                     })
                 })
