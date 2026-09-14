@@ -9,6 +9,10 @@ doctest = false
 
 [dependencies]
 rustc-hash.workspace = true
-bevy_ecs.workspace = true
+bevy_ecs = { workspace = true, optional = true }
 mcrs_voxel_math.workspace = true
 bevy_math.workspace = true
+
+[features]
+default = ["bevy"]
+bevy = ["dep:bevy_ecs"]

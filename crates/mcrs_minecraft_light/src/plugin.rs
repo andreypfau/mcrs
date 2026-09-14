@@ -322,7 +322,8 @@ pub fn publish_light(
         .into_iter()
         .flat_map(|update| lighting.0.apply(update))
     {
-        match lit.get_mut(published.entity) {
+        let section = Entity::from_bits(published.entity);
+        match lit.get_mut(section) {
             // Only a real change should wake whatever rebuilds meshes, and the
             // epoch already decided that: a layer it hands back is one whose
             // answer moved, so assigning it wakes nothing that should have slept.
@@ -337,7 +338,7 @@ pub fn publish_light(
             // A section reaches its entity for the first time with both layers
             // in hand, because nothing was published for it to match against.
             Err(_) => {
-                if let Ok(mut entity) = commands.get_entity(published.entity) {
+                if let Ok(mut entity) = commands.get_entity(section) {
                     entity.insert((
                         BlockLight(published.block_light.unwrap_or_default()),
                         SkyLight(published.sky_light.unwrap_or_default()),

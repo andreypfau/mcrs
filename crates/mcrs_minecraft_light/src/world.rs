@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 
-use bevy_ecs::prelude::Entity;
 use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
 
@@ -17,7 +16,7 @@ use mcrs_voxel_math::LocalPos;
 /// published light for both layers.
 #[derive(Clone, Debug)]
 pub struct Section {
-    pub entity: Entity,
+    pub entity: u64,
     pub blocks: Arc<SectionBlocks>,
     pub block_light: LightStorage,
     pub sky_light: LightStorage,
@@ -34,7 +33,7 @@ pub struct Section {
 }
 
 impl Section {
-    pub fn new(registry: &LightRegistry, entity: Entity, blocks: Arc<SectionBlocks>) -> Self {
+    pub fn new(registry: &LightRegistry, entity: u64, blocks: Arc<SectionBlocks>) -> Self {
         let emits = match &blocks.0 {
             PalettedContainer::Homogeneous(block) => !registry.emission(*block).is_zero(),
             // The palette keeps entries a `set` has emptied, so this errs towards
@@ -114,7 +113,7 @@ pub enum Edit {
         pos: SectionPos,
         /// Who owns the blocks. Published light is written back to it, so the
         /// engine never has to infer a lifecycle it does not define.
-        entity: Entity,
+        entity: u64,
         blocks: Arc<SectionBlocks>,
     },
     UnloadSection {

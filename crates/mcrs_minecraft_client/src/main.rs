@@ -37,7 +37,7 @@ use mcrs_minecraft_client::{
 };
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 
 #[cfg(feature = "telemetry-tracy")]
@@ -189,8 +189,12 @@ fn main() {
 
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
+    #[cfg(feature = "singleplayer")]
     let server =
         server_address().unwrap_or_else(|| host_integrated_server(world.as_deref(), &assets));
+    #[cfg(not(feature = "singleplayer"))]
+    let server = server_address()
+        .expect("a client built without singleplayer hosts no server; set MCRS_SERVER");
     app.add_plugins(ClientNetworkPlugin {
         server,
         username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
@@ -319,7 +323,7 @@ const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
 
 /// Singleplayer, the way the vanilla client plays it: a server of our own on a
 /// loopback port, which the client then joins like any other.
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 fn host_integrated_server(world: Option<&Path>, assets: &str) -> SocketAddr {
     let mut server = App::new();
     server.add_plugins(

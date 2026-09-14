@@ -1,11 +1,11 @@
 use crate::BlockPos;
-use bevy_ecs::prelude::Component;
 use bevy_math::DVec3;
 use bevy_math::prelude::*;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Component)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct SectionPos(pub IVec3);
 
 impl std::ops::Deref for SectionPos {

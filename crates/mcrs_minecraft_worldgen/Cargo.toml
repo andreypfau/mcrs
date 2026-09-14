@@ -30,7 +30,13 @@ mcrs_minecraft_worldgen = { path = ".", default-features = false, features = ["c
 
 [features]
 default = ["bevy", "fast"]
-bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect"]
+bevy = [
+    "dep:bevy_app",
+    "dep:bevy_ecs",
+    "dep:bevy_asset",
+    "dep:bevy_reflect",
+    "mcrs_minecraft_core/bevy",
+]
 # Reading the shipped asset corpus off disk. Only the tests want it; the self
 # dev-dependency below is what turns it on for them.
 corpus = ["dep:bytes"]

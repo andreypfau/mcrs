@@ -8,7 +8,11 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-bevy_ecs.workspace = true
+bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
 serde.workspace = true
 tracing.workspace = true
+
+[features]
+default = ["bevy"]
+bevy = ["dep:bevy_ecs"]

@@ -1,12 +1,12 @@
 use crate::PalettedContainer;
 use crate::PalettedContainer::{Heterogeneous, Homogeneous};
-use bevy_ecs::component::Component;
 use mcrs_voxel_math::{LocalPos, SectionPos};
 use std::hash::Hash;
 use std::sync::Arc;
 
 /// One section's cube of voxel ids, addressed by section-local position.
-#[derive(Component, Debug, Clone, Default)]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct VoxelPalette<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize>(
     pub PalettedContainer<V, DIM>,
 );
@@ -87,7 +87,8 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static> VoxelPalette<V, { Se
 /// and taking one has to cost a refcount instead of the kilobytes a
 /// heterogeneous section weighs. A write diverges that one section through
 /// [`SharedVoxelPalette::make_mut`].
-#[derive(Component, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct SharedVoxelPalette<
     V: Hash + Eq + Copy + Default + Send + Sync + 'static,
     const DIM: usize,

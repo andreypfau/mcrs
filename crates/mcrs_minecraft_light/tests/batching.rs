@@ -1,4 +1,3 @@
-use bevy_ecs::prelude::Entity;
 mod common;
 
 use std::sync::Arc;
@@ -348,7 +347,7 @@ fn loading_a_stack_of_sections_produces_work_for_each() {
     let mut world = LightWorld::new(registry, LightBounds::new(0, 3));
     let loads: Vec<Edit> = (0..4)
         .map(|y| Edit::LoadSection {
-            entity: Entity::PLACEHOLDER,
+            entity: 0,
             pos: SectionPos::new(0, y, 0),
             blocks: Arc::new(filled(AIR)),
         })
@@ -379,7 +378,7 @@ fn loading_and_editing_a_column_in_one_batch_stays_inside_the_world() {
 
     let stats = world.update_now([
         Edit::LoadSection {
-            entity: Entity::PLACEHOLDER,
+            entity: 0,
             pos: SectionPos::new(0, 0, 0),
             blocks: Arc::new(filled(AIR)),
         },

@@ -8,7 +8,6 @@ use rayon::prelude::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use bevy_ecs::prelude::Entity;
 use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
 use mcrs_voxel_storage::VoxelId;
 use rustc_hash::FxHashSet;
@@ -36,7 +35,7 @@ pub struct SectionLight {
 /// A section whose light moved, and the entity that owns it.
 #[derive(Clone, Debug)]
 pub struct PublishedLight {
-    pub entity: Entity,
+    pub entity: u64,
     pub block_light: Option<LightStorage>,
     pub sky_light: Option<LightStorage>,
 }

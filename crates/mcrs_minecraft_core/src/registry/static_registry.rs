@@ -1,5 +1,4 @@
 use crate::resource_location::ResourceLocation;
-use bevy_ecs::resource::Resource;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -53,7 +52,7 @@ impl<T> StaticId<T> {
 ///
 /// Internal storage uses `ResourceLocation<Arc<str>>` keys. Lookups accept
 /// `&str` via `Borrow<str>` for zero-allocation access.
-#[derive(Resource)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct StaticRegistry<T: 'static> {
     entries: Vec<(ResourceLocation<Arc<str>>, &'static T)>,
     index: HashMap<ResourceLocation<Arc<str>>, u32>,

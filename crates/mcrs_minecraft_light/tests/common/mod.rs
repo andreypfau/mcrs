@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use bevy_ecs::prelude::Entity;
-
 use std::sync::{Arc, OnceLock};
 
 use bevy_math::Vec3;
@@ -91,7 +89,7 @@ impl TestWorld {
             .flat_map(|y| {
                 (0..sections_z).flat_map(move |z| {
                     (0..sections_x).map(move |x| Edit::LoadSection {
-                        entity: Entity::PLACEHOLDER,
+                        entity: 0,
                         pos: SectionPos::new(x, y, z),
                         blocks: Arc::new(filled(AIR)),
                     })

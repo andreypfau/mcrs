@@ -1,6 +1,5 @@
 mod common;
 
-use bevy_ecs::prelude::Entity;
 use std::sync::Arc;
 
 use bevy_app::{App, TaskPoolPlugin};
@@ -41,7 +40,7 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
         app.world_mut()
             .resource_mut::<PendingEdits>()
             .push(Edit::LoadSection {
-                entity,
+                entity: entity.to_bits(),
                 pos: *pos,
                 blocks: Arc::new(filled(AIR)),
             });
@@ -84,7 +83,7 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
     ) {
         for (entity, pos) in &added {
             pending.push(Edit::LoadSection {
-                entity,
+                entity: entity.to_bits(),
                 pos: *pos,
                 blocks: Arc::new(filled(AIR)),
             });
@@ -130,7 +129,7 @@ fn load_columns(app: &mut App, columns: i32) {
     for x in 0..columns {
         for y in 0..2 {
             pending.push(Edit::LoadSection {
-                entity: Entity::PLACEHOLDER,
+                entity: 0,
                 pos: SectionPos::new(x, y, 0),
                 blocks: Arc::new(filled(AIR)),
             });
@@ -195,7 +194,7 @@ fn the_most_urgent_column_is_admitted_before_the_backlog() {
         .resource_mut::<PendingEdits>()
         .push_with_priority(
             Edit::LoadSection {
-                entity: Entity::PLACEHOLDER,
+                entity: 0,
                 pos: urgent,
                 blocks: Arc::new(filled(AIR)),
             },

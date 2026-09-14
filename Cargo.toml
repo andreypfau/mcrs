@@ -72,23 +72,23 @@ flume = { version = "0.12.0", default-features = false }
 rayon = "1"
 
 mcrs_minecraft_protocol_macros = { path = "crates/mcrs_minecraft_protocol_macros" }
-mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol", features = ["compression"] }
+mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol", default-features = false, features = ["compression"] }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
-mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network" }
+mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
 mcrs_voxel_world = { path = "crates/mcrs_voxel_world" }
 mcrs_minecraft_core_macros = { path = "crates/mcrs_minecraft_core_macros" }
-mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core" }
+mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_world = { path = "crates/mcrs_minecraft_world" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_decoration = { path = "crates/mcrs_minecraft_decoration" }
-mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
+mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen", default-features = false }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
-mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light" }
+mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light", default-features = false }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
-mcrs_voxel_storage = { path = "crates/mcrs_voxel_storage" }
-mcrs_voxel_math = { path = "crates/mcrs_voxel_math" }
+mcrs_voxel_storage = { path = "crates/mcrs_voxel_storage", default-features = false }
+mcrs_voxel_math = { path = "crates/mcrs_voxel_math", default-features = false }
 mcrs_voxel_server = { path = "crates/mcrs_voxel_server" }
 wtransport = "0.7.2"
 
@@ -98,14 +98,14 @@ bevy_ecs.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
 mcrs_minecraft_server.workspace = true
-mcrs_minecraft_network.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_telemetry.workspace = true
 
 [dev-dependencies]
 bevy_state.workspace = true
-mcrs_minecraft_core.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world.workspace = true
-mcrs_minecraft_worldgen.workspace = true
+mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
 
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]

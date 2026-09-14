@@ -7,7 +7,6 @@ mod common;
 
 use std::sync::Arc;
 
-use bevy_ecs::prelude::Entity;
 use common::{AIR, Reference, STONE, registry};
 use mcrs_minecraft_light::prelude::*;
 use mcrs_voxel_math::{BlockPos, BoundingBox, ColumnPos, SectionPos};
@@ -64,7 +63,7 @@ fn column_edits(column: ColumnPos) -> Vec<Edit> {
         .map(|y| {
             let pos = SectionPos::new(column.x, y, column.z);
             Edit::LoadSection {
-                entity: Entity::PLACEHOLDER,
+                entity: 0,
                 pos,
                 blocks: Arc::new(section_blocks(pos)),
             }
@@ -223,7 +222,7 @@ fn sections_of_a_column_arriving_across_ticks_are_lit_like_one_pass() {
         for y in (0..SECTIONS_Y).rev() {
             let pos = SectionPos::new(column.x, y, column.z);
             pump.tick(vec![Edit::LoadSection {
-                entity: Entity::PLACEHOLDER,
+                entity: 0,
                 pos,
                 blocks: Arc::new(section_blocks(pos)),
             }]);
@@ -305,7 +304,7 @@ fn a_roof_lit_across_column_seams_matches_one_pass() {
             .map(|y| {
                 let pos = SectionPos::new(column.x, y, column.z);
                 Edit::LoadSection {
-                    entity: Entity::PLACEHOLDER,
+                    entity: 0,
                     pos,
                     blocks: Arc::new(blocks_of(pos)),
                 }
@@ -371,7 +370,7 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
                 .map(|y| {
                     let pos = SectionPos::new(column.x, y, column.z);
                     Edit::LoadSection {
-                        entity: Entity::PLACEHOLDER,
+                        entity: 0,
                         pos,
                         blocks: Arc::new(blocks_of(pos)),
                     }

@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, TaskPoolPlugin};
-use bevy_ecs::prelude::Entity;
 use mcrs_minecraft_light::prelude::*;
 use mcrs_voxel_math::{ColumnPos, SectionPos};
 use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
@@ -57,7 +56,7 @@ fn main() {
                     Arc::clone(&air)
                 };
                 edits.push(Edit::LoadSection {
-                    entity: Entity::PLACEHOLDER,
+                    entity: 0,
                     pos: SectionPos::new(x, y, z),
                     blocks,
                 });

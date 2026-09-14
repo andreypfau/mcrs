@@ -1,6 +1,5 @@
 use crate::text::Text;
 use crate::{Decode, Encode, VarInt};
-use bevy_ecs::prelude::Component;
 use derive_more::{From, Into};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use std::io::Write;
@@ -319,10 +318,12 @@ impl From<ItemComponent> for ItemComponentKind {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default, Encode, Decode, Component)]
+#[derive(Clone, Debug, PartialEq, Default, Encode, Decode)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct CustomData(pub NbtCompound);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Encode, Decode, Component)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Encode, Decode)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct MaxStackSize(pub u8);
 
 impl Default for MaxStackSize {
@@ -331,7 +332,8 @@ impl Default for MaxStackSize {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Encode, Decode, Component)]
+#[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Lore {
     lines: Vec<Text>,
 }

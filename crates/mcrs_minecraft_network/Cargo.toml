@@ -10,9 +10,9 @@ doctest = false
 
 [dependencies]
 anyhow.workspace = true
-bevy_app.workspace = true
-bevy_ecs.workspace = true
-bevy_tasks.workspace = true
+bevy_app = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
+bevy_tasks = { workspace = true, optional = true }
 bevy_math.workspace = true
 bytes.workspace = true
 thiserror.workspace = true
@@ -49,4 +49,14 @@ web-sys = { version = "0.3", features = [
 ] }
 
 [features]
+default = ["bevy"]
+bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_tasks"]
 telemetry-tracy = []
+
+[[test]]
+name = "accept_rate_unit"
+required-features = ["bevy"]
+
+[[test]]
+name = "webtransport_session"
+required-features = ["bevy"]

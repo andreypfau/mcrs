@@ -8,9 +8,9 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_voxel_math.workspace = true
-mcrs_voxel_storage.workspace = true
+mcrs_voxel_math = { workspace = true, features = ["bevy"] }
+mcrs_voxel_storage = { workspace = true, features = ["bevy"] }
 mcrs_voxel_world.workspace = true
-mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
 bevy_ecs.workspace = true
 bitflags = "2.10.0"

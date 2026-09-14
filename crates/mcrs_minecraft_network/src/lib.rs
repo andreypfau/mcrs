@@ -1,17 +1,20 @@
 #[cfg(target_family = "wasm")]
 pub mod browser;
+#[cfg(feature = "bevy")]
 pub mod client;
+#[cfg(feature = "bevy")]
 pub mod columns;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod connect;
+#[cfg(feature = "bevy")]
 pub mod event;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod intent;
 pub mod metrics;
 pub mod packet_io;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod status;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod webtransport;
 
 /// Reading a `std::time::Instant` panics in the browser, so packet timestamps
@@ -22,13 +25,12 @@ pub use std::time::Instant;
 pub use web_time::Instant;
 
 pub use crate::packet_io::{MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
-use bevy_ecs::prelude::Component;
 
 /// System sets for the network layer, usable for ordering constraints in
 /// downstream crates. `SpawnConnections` contains `spawn_new_raw_connections`.
 /// Other crates should schedule their connection-setup systems
 /// `.after(NetworkSet::SpawnConnections)` in `FixedPreUpdate`.
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, bevy_ecs::schedule::SystemSet)]
 pub enum NetworkSet {
     SpawnConnections,
@@ -36,11 +38,11 @@ pub enum NetworkSet {
 use bytes::Bytes;
 use tokio::sync::mpsc::error::TryRecvError;
 
-#[cfg(not(target_family = "wasm"))]
-mod server;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub(crate) use server::SharedNetworkState;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
+mod server;
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub use server::{
     BoundAddress, InGameConnectionState, NetworkPlugin, ServerSideConnection, WebTransportEndpoint,
 };
@@ -52,7 +54,8 @@ pub struct ReceivedPacket {
     pub payload: Bytes,
 }
 
-#[derive(Debug, Component, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub enum ConnectionState {
     Login,
     Configuration,
@@ -83,7 +86,7 @@ pub trait EngineConnection: Send + Sync + 'static {
     fn queued_bytes(&self) -> usize;
 }
 
-#[cfg(all(test, not(target_family = "wasm")))]
+#[cfg(all(test, feature = "bevy", not(target_family = "wasm")))]
 mod tests {
     use super::*;
 

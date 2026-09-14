@@ -1,4 +1,3 @@
-use bevy_ecs::prelude::Entity;
 mod common;
 
 use std::sync::Arc;
@@ -231,7 +230,7 @@ fn loading_a_section_lets_light_in_from_its_neighbour() {
     let mut world = LightWorld::new(registry, LightBounds::new(0, 0));
 
     world.update_now([Edit::LoadSection {
-        entity: Entity::PLACEHOLDER,
+        entity: 0,
         pos: SectionPos::new(0, 0, 0),
         blocks: Arc::new(filled(AIR)),
     }]);
@@ -245,7 +244,7 @@ fn loading_a_section_lets_light_in_from_its_neighbour() {
     );
 
     world.update_now([Edit::LoadSection {
-        entity: Entity::PLACEHOLDER,
+        entity: 0,
         pos: SectionPos::new(1, 0, 0),
         blocks: Arc::new(filled(AIR)),
     }]);
@@ -266,7 +265,7 @@ fn unloading_a_section_takes_its_light_with_it() {
     let mut world = LightWorld::new(registry, LightBounds::new(0, 0));
     for x in 0..2 {
         world.update_now([Edit::LoadSection {
-            entity: Entity::PLACEHOLDER,
+            entity: 0,
             pos: SectionPos::new(x, 0, 0),
             blocks: Arc::new(filled(AIR)),
         }]);
@@ -459,7 +458,7 @@ fn uniform_sections_agree_with_the_reference_solver() {
     let mut world = LightWorld::new(registry(), LightBounds::new(0, 2));
     let loads: Vec<Edit> = (0..3)
         .map(|y| Edit::LoadSection {
-            entity: Entity::PLACEHOLDER,
+            entity: 0,
             pos: SectionPos::new(0, y, 0),
             blocks: Arc::new(filled(match y {
                 2 => GLASS,

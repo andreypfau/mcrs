@@ -8,10 +8,10 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_voxel_math.workspace = true
-mcrs_minecraft_core.workspace = true
+mcrs_voxel_math = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_platform.workspace = true
@@ -25,7 +25,7 @@ serde_json.workspace = true
 bevy_reflect.workspace = true
 rustc-hash.workspace = true
 thiserror.workspace = true
-mcrs_minecraft_worldgen.workspace = true
+mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
 bevy_math.workspace = true
 uuid.workspace = true
 sha2.workspace = true

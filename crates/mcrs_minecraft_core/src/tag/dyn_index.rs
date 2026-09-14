@@ -1,6 +1,5 @@
 use crate::resource_location::ResourceLocation;
 use crate::tag::key::TaggedRegistry;
-use bevy_ecs::resource::Resource;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -10,7 +9,7 @@ use std::sync::Arc;
 /// Sorts entries alphabetically by full `namespace:path` string and assigns
 /// dense 0..N indices. This deterministic ordering is reusable by
 /// `RegistrySnapshot` for stable network IDs.
-#[derive(Resource)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct DynRegistryIndex<T: TaggedRegistry> {
     map: HashMap<ResourceLocation<Arc<str>>, u32>,
     sorted: Vec<ResourceLocation<Arc<str>>>,

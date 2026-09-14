@@ -30,13 +30,13 @@ bitflags = "2"
 flate2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-mcrs_minecraft_core.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_network.workspace = true
-mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world.workspace = true
-mcrs_voxel_math.workspace = true
-mcrs_voxel_storage.workspace = true
+mcrs_voxel_math = { workspace = true, features = ["bevy"] }
+mcrs_voxel_storage = { workspace = true, features = ["bevy"] }
 mcrs_voxel_world.workspace = true
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
 wgpu = { version = "29", default-features = false }
@@ -44,7 +44,7 @@ wgpu = { version = "29", default-features = false }
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image"] }
 # Singleplayer is a server of our own on a loopback port, as it is in vanilla.
-mcrs_minecraft_server.workspace = true
+mcrs_minecraft_server = { workspace = true, optional = true }
 tracing-tracy = { version = "0.12", optional = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
@@ -58,13 +58,15 @@ getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] 
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
 
 [features]
+default = ["singleplayer"]
+singleplayer = ["dep:mcrs_minecraft_server"]
 # Bevy links as a shared library instead of being statically relinked into every
 # client rebuild. Dev loop only; it is not a shape we ship.
 dynamic_linking = ["bevy/dynamic_linking"]
 # `bevy/trace_tracy` pins the Tracy client `bevy_log` was built against, which
 # trails the profiler GUI by a protocol version or two. Installing the layer
 # ourselves through `LogPlugin::custom_layer` lets this pick its own.
-telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server/telemetry-tracy"]
+telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/telemetry-tracy"]
 
 [build-dependencies]
 flate2.workspace = true

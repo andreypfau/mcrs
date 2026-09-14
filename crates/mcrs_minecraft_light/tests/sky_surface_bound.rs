@@ -6,7 +6,6 @@ mod common;
 
 use std::sync::Arc;
 
-use bevy_ecs::prelude::Entity;
 use common::{AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry};
 use mcrs_minecraft_light::prelude::*;
 use mcrs_voxel_math::{BlockPos, ColumnPos, SectionPos};
@@ -42,7 +41,7 @@ fn load(world: &mut LightWorld, sections: &[SectionBlocks]) {
         .iter()
         .enumerate()
         .map(|(y, blocks)| Edit::LoadSection {
-            entity: Entity::PLACEHOLDER,
+            entity: 0,
             pos: SectionPos::new(0, y as i32, 0),
             blocks: Arc::new(blocks.clone()),
         })
@@ -105,7 +104,7 @@ fn a_surface_bound_never_changes_a_sky_floor() {
     }]);
     // The bound only takes effect on the next scan of the column.
     bounded.update_now(vec![Edit::LoadSection {
-        entity: Entity::PLACEHOLDER,
+        entity: 0,
         pos: SectionPos::new(0, 4, 0),
         blocks: Arc::new(sections[4].clone()),
     }]);
@@ -171,7 +170,7 @@ fn a_section_arriving_drops_the_bound() {
         ceiling.set_cell(i as usize, 9 as usize, i as usize, STONE);
     }
     let replacement = Edit::LoadSection {
-        entity: Entity::PLACEHOLDER,
+        entity: 0,
         pos: SectionPos::new(0, 3, 0),
         blocks: Arc::new(ceiling.clone()),
     };

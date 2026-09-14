@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::world::light_codec::{LightCodecParams, build_delta_light_data};
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::block_update::BlockPlaced;
@@ -9,7 +10,6 @@ use mcrs_minecraft_light::prelude::LightWorkQueue;
 use mcrs_minecraft_light::prelude::{
     BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SkyLight,
 };
-use mcrs_minecraft_protocol::light_codec::{LightCodecParams, build_delta_light_data};
 use mcrs_voxel_math::{ColumnPos, SectionPos};
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
@@ -125,7 +125,7 @@ fn feed_light_edits(
     for (entity, pos, blocks) in &loaded {
         queue(Edit::LoadSection {
             pos: *pos,
-            entity,
+            entity: entity.to_bits(),
             blocks: Arc::clone(&blocks.0),
         });
     }

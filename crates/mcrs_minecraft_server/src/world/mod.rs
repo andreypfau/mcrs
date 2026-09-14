@@ -27,6 +27,7 @@ pub mod generate;
 pub mod heightmap;
 mod inventory;
 pub mod light;
+pub mod light_codec;
 pub mod loot;
 pub mod player_index;
 pub mod sub_app_builder;
