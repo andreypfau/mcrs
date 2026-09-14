@@ -1,9 +1,9 @@
+use crate::palette::ChunkBlocks;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
 use bevy_ecs::query::With;
 use bevy_ecs::system::{Local, Query, Res};
-use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::LocalPos;
@@ -54,6 +54,16 @@ impl Default for ExplosionConfig {
 pub struct Explosion;
 
 /// The radius of the [Explosion] to be created by detonating an [Explosive].
+/// The detonator entity
+#[derive(Component, Debug)]
+pub struct Detonator(pub Entity);
+
+impl ContainsEntity for Detonator {
+    fn entity(&self) -> Entity {
+        self.0
+    }
+}
+
 #[derive(Component, Default, Debug)]
 pub struct ExplosionRadius(pub u16);
 
@@ -72,10 +82,6 @@ impl Hash for BlockExplodedEvent {
         self.block_pos.hash(state);
     }
 }
-
-const CHUNK_CACHE_SHIFT: usize = 2;
-const CHUNK_CACHE_MASK: usize = (1 << CHUNK_CACHE_SHIFT) - 1;
-const CHUNK_CACHE_WIDTH: usize = 1 << CHUNK_CACHE_SHIFT;
 
 #[derive(Debug, Copy, Clone)]
 struct BlockCacheItem {
@@ -286,13 +292,12 @@ fn deduplicate_blocks(
     event_set
 }
 
-use crate::world::entity::explosive::primed_tnt::Detonator;
+use crate::block_update::{BlockSetRequest, remove_block};
 use bevy_ecs::event::Event;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::Commands;
 use bevy_math::DVec3;
 use bevy_utils::Parallel;
-use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use rand::{RngExt, rng};
 use std::sync::OnceLock;
@@ -339,10 +344,10 @@ pub fn cached_rays() -> &'static [DVec3; LEN] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::block_update::BlockSetRequest;
     use bevy_app::App;
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::System;
-    use mcrs_minecraft_block::block_update::BlockSetRequest;
 
     /// `ExplosionConfig::default()` keeps cascading enabled now that the
     /// `tick_explode` writer and the matching `apply_voxel_set_requests`

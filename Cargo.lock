@@ -3469,12 +3469,21 @@ dependencies = [
 name = "mcrs_minecraft_block"
 version = "0.1.0"
 dependencies = [
+ "bevy_app",
  "bevy_ecs",
+ "bevy_math",
+ "bevy_utils",
  "bitflags 2.10.0",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_world",
  "mcrs_voxel_math",
  "mcrs_voxel_storage",
  "mcrs_voxel_world",
+ "rand 0.10.0",
+ "rustc-hash 2.1.1",
+ "tracing",
 ]
 
 [[package]]
@@ -3662,7 +3671,6 @@ dependencies = [
  "bevy_state",
  "bevy_tasks",
  "bevy_time",
- "bevy_utils",
  "bitflags 2.10.0",
  "bytes",
  "criterion",

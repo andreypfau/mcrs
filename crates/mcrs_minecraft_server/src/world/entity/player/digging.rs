@@ -4,7 +4,6 @@ use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency}
 use crate::world::entity::player::player_action::{
     PlayerAction, PlayerActionKind, PlayerWillDestroyBlock,
 };
-use crate::world::experience::BlockDestroyed;
 use crate::world::inventory::PlayerHotbarSlots;
 use crate::world::loot::BlockLootTables;
 use crate::world::loot::context::BlockBreakContext;
@@ -14,6 +13,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
+use mcrs_minecraft_block::experience::BlockDestroyed;
 use mcrs_minecraft_block::palette::ChunkBlocks;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_world::item::component::Enchantments;

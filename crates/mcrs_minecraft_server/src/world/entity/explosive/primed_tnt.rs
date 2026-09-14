@@ -2,15 +2,15 @@ use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, Pac
 use crate::world::entity::explosive::ExplosiveBundle;
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::{EntityUuid, MinecraftEntity, MinecraftEntityType};
-use crate::world::explosion::{Explosion, ExplosionRadius};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, ContainsEntity, MessageWriter, On, Query};
+use bevy_ecs::prelude::{Commands, MessageWriter, On, Query};
 use bevy_ecs::query::QueryData;
 use bevy_ecs::query::{With, Without};
 use derive_more::{Deref, DerefMut};
+use mcrs_minecraft_block::explosion::{Explosion, ExplosionRadius};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_voxel_world::entity::EntityNetworkAddEvent;
 use mcrs_voxel_world::entity::physics::Transform;
@@ -67,16 +67,6 @@ impl PrimedTntBundle {
 #[derive(Component, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct PrimedTnt;
-
-/// The detonator entity
-#[derive(Component, Debug, Deref, DerefMut)]
-pub struct Detonator(pub Entity);
-
-impl ContainsEntity for Detonator {
-    fn entity(&self) -> Entity {
-        self.0
-    }
-}
 
 #[derive(Component, Debug, Deref, DerefMut)]
 pub struct Fuse(pub u16);

@@ -12,5 +12,17 @@ mcrs_voxel_math = { workspace = true, features = ["bevy"] }
 mcrs_voxel_storage = { workspace = true, features = ["bevy"] }
 mcrs_voxel_world.workspace = true
 mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
+bevy_app.workspace = true
 bevy_ecs.workspace = true
+bevy_math.workspace = true
+bevy_utils.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_random.workspace = true
+mcrs_minecraft_world.workspace = true
+rand.workspace = true
+rustc-hash.workspace = true
+tracing.workspace = true
 bitflags = "2.10.0"
+
+[features]
+telemetry-tracy = []

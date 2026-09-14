@@ -59,13 +59,13 @@ use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block::MinecraftBlockPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
-use crate::world::explosion::ExplosionPlugin;
 use crate::world::format::anvil::SavedColumns;
 use crate::world::generate::DimensionRouters;
 use crate::world::generate::stages::{FillContext, dimension_y_sections};
 use crate::world::heightmap::{DimHeightmapPlugin, HeightmapPredicates};
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
+use mcrs_minecraft_block::explosion::ExplosionPlugin;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::registry::access::RegistryAccess;
 use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
@@ -419,7 +419,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(BlockUpdateWirePlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(LootPlugin);
-    sub_app.add_plugins(crate::world::experience::ExperiencePlugin);
+    sub_app.add_plugins(mcrs_minecraft_block::experience::ExperiencePlugin);
     sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
     sub_app.add_plugins(DimHeightmapPlugin);
     if let Some(registry) = &registries.light_registry {

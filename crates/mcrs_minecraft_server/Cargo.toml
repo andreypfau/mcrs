@@ -30,7 +30,6 @@ bevy_ecs.workspace = true
 bevy_state.workspace = true
 bevy_time.workspace = true
 bevy_tasks.workspace = true
-bevy_utils.workspace = true
 bevy_asset.workspace = true
 bevy_reflect.workspace = true
 tokio.workspace = true
@@ -56,7 +55,7 @@ rand09 = { package = "rand", version = "0.9" }
 criterion = { version = "0.7", features = ["html_reports"] }
 
 [features]
-telemetry-tracy = ["mcrs_minecraft_network/telemetry-tracy"]
+telemetry-tracy = ["mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_block/telemetry-tracy"]
 
 [[bench]]
 name = "beta_chunks"

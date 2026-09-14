@@ -1,16 +1,14 @@
 use crate::world::entity::EntityOwner;
-use crate::world::entity::explosive::primed_tnt::{
-    DEFAULT_FUSE_DURATION, Detonator, PrimedTntBundle,
-};
+use crate::world::entity::explosive::primed_tnt::{DEFAULT_FUSE_DURATION, PrimedTntBundle};
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
-use crate::world::explosion::BlockExplodedEvent;
 use bevy_app::Plugin;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::On;
 use bevy_ecs::query::{Has, With};
 use bevy_ecs::system::{Commands, Query, Res};
 use bevy_math::DVec3;
+use mcrs_minecraft_block::explosion::{BlockExplodedEvent, Detonator};
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 use mcrs_voxel_world::entity::physics::Transform;
