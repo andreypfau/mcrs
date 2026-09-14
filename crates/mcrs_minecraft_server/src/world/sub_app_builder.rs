@@ -100,7 +100,7 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
     DimRegistryBundle {
         registry_access: world.resource::<RegistryAccess>().clone(),
         light_registry: world
-            .get_resource::<crate::block_light_table::BlockLightRegistry>()
+            .get_resource::<mcrs_minecraft_world::block::light::BlockLightRegistry>()
             .map(|registry| registry.0.clone()),
         blocks: world.resource::<Blocks>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),

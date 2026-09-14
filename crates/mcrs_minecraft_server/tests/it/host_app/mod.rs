@@ -21,7 +21,6 @@ use mcrs_minecraft_core::registry::access::RegistryAccess;
 use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
 use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_minecraft_server::block_light_table::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerPacket,
@@ -31,6 +30,7 @@ use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::block::definition::{Blocks, load_block_definitions};
+use mcrs_minecraft_world::block::light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};

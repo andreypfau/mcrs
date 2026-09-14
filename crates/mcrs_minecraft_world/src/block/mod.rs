@@ -1,6 +1,7 @@
 use mcrs_minecraft_core::tag::key::TaggedRegistry;
 
 pub mod definition;
+pub mod light;
 pub mod tags;
 
 /// The block registry, as the tag system names it. The blocks themselves live
