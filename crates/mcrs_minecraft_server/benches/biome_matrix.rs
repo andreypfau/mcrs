@@ -242,6 +242,7 @@ fn run_pinned(
                 router,
                 Some((source, registry)),
                 None,
+                None,
                 cancel,
             ) else {
                 continue;
@@ -387,6 +388,7 @@ fn natural(
                 router,
                 Some((&natural_source, registry)),
                 Some(&table),
+                None,
                 cancel,
             ) else {
                 continue;
@@ -421,6 +423,7 @@ fn natural(
                 y_sections,
                 router,
                 Some((&source, registry)),
+                None,
                 None,
                 cancel,
             )

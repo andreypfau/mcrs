@@ -12,6 +12,7 @@ use mcrs_minecraft_world::biome::climate::TargetPoint;
 use mcrs_minecraft_world::biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::aquifer::{FluidField, FluidStatus};
+use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen::cell::{CELL_BOUNDS_SLACK, sampled_range};
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::interval::Interval;
@@ -330,6 +331,7 @@ struct FillBuffers {
 /// corners, and only the rest are filled block by block.
 ///
 /// Returns `false` if the column was cancelled part-way.
+#[allow(clippy::too_many_arguments)]
 fn fill_column(
     column: &ColumnBlocks,
     block_x: i32,
@@ -337,6 +339,7 @@ fn fill_column(
     noise_router: &NoiseRouter,
     tops: &mut [i32; 256],
     fluid: &mut FluidField<'_>,
+    beard: Option<&Beard>,
     cancel: &CancellationToken,
 ) -> bool {
     let default_block = noise_router.default_block_state;
@@ -350,6 +353,7 @@ fn fill_column(
             noise_router,
             tops,
             fluid,
+            beard,
             &mut fill,
             cancel,
         );
@@ -374,7 +378,15 @@ fn fill_column(
                     continue;
                 };
                 let base = IVec3::new(cell_x * cell.x, world.y.rem_euclid(16), cell_z * cell.z);
-                match lattice.classify(noise_router, at, fluid, &mut fill) {
+                let grid = SampleGrid::dense(cell, world);
+                // The interval bound knows nothing of the beard, which is exactly
+                // zero only outside its affected box.
+                let verdict = if beard.is_some_and(|beard| beard.intersects(&grid)) {
+                    CellFill::Mixed
+                } else {
+                    lattice.classify(noise_router, at, fluid, &mut fill)
+                };
+                match verdict {
                     CellFill::Solid => {
                         fill_cell_box(column, index, base, cell, default_block);
                         record_tops(tops, base, cell, world.y + cell.y - 1);
@@ -395,11 +407,12 @@ fn fill_column(
                     CellFill::Mixed => fill_blocks(
                         column,
                         index,
-                        &SampleGrid::dense(cell, world),
+                        &grid,
                         base,
                         noise_router,
                         tops,
                         fluid,
+                        beard,
                         &mut fill,
                     ),
                 }
@@ -418,6 +431,7 @@ fn fill_column_dense(
     noise_router: &NoiseRouter,
     tops: &mut [i32; 256],
     fluid: &mut FluidField<'_>,
+    beard: Option<&Beard>,
     fill: &mut FillBuffers,
     cancel: &CancellationToken,
 ) -> bool {
@@ -443,6 +457,7 @@ fn fill_column_dense(
             noise_router,
             tops,
             fluid,
+            beard,
             fill,
         );
     }
@@ -483,6 +498,7 @@ fn fill_blocks(
     noise_router: &NoiseRouter,
     tops: &mut [i32; 256],
     fluid: &mut FluidField<'_>,
+    beard: Option<&Beard>,
     fill: &mut FillBuffers,
 ) {
     let default_block = noise_router.default_block_state;
@@ -497,6 +513,9 @@ fn fill_blocks(
     noise_router
         .program
         .fill(ws, volume, FINAL_DENSITY, density);
+    if let Some(beard) = beard {
+        beard.fill(volume, density);
+    }
     let mut barrier_at = volume_barrier(noise_router, ws, volume, barrier);
     for z in 0..volume.size().z {
         for x in 0..volume.size().x {
@@ -881,6 +900,7 @@ pub fn generate_column(
         noise_router,
         biome_context,
         multi_noise,
+        None,
         cancel,
     ) else {
         return vec![None; y_sections.len()];
@@ -894,6 +914,7 @@ pub fn generate_column(
 /// Beta is data here like any other preset: `beta.json` describes its terrain as
 /// density functions, so it runs the same graph, the same cell fill and the same
 /// packing as the overworld. `None` means the column was cancelled.
+#[allow(clippy::too_many_arguments)]
 pub fn fill_column_dense_any<'a>(
     column: &mut ColumnBlocks,
     section_x: i32,
@@ -902,6 +923,7 @@ pub fn fill_column_dense_any<'a>(
     noise_router: &'a NoiseRouter,
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
     multi_noise: Option<&MultiNoiseBiomeTable>,
+    beard: Option<&Beard>,
     cancel: &CancellationToken,
 ) -> Option<FilledColumn<'a>> {
     let block_x = section_x * 16;
@@ -925,6 +947,7 @@ pub fn fill_column_dense_any<'a>(
         noise_router,
         &mut tops,
         &mut fluid,
+        beard,
         cancel,
     ) {
         return None;

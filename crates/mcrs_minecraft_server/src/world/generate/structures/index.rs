@@ -1,9 +1,11 @@
 use mcrs_voxel_math::{BlockPos, BoundingBox, ColumnPos};
+use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_math::IVec3;
 use mcrs_minecraft_world::biome::climate::TargetPoint;
+use mcrs_minecraft_worldgen::beard::{Beard, BeardPiece, JunctionPoint};
 use mcrs_minecraft_worldgen::feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen::feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen::program::Workspace;
@@ -11,17 +13,17 @@ use mcrs_minecraft_worldgen::router::{
     CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
 use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
-use mcrs_minecraft_worldgen::structure::StructurePlacement;
 use mcrs_minecraft_worldgen::structure::placement::{
     SpreadPlacement, excluded_in_range, fixed_biome_window, frequency_gate, ring_positions,
     scan_biome_window, select_with_removal,
 };
+use mcrs_minecraft_worldgen::structure::{StructurePlacement, TerrainAdaptation};
 use mcrs_minecraft_worldgen::value_provider::HeightContext;
 
 use super::jigsaw::{Piece, Start, layout};
 use super::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
 use super::site::{Site, SiteWorld, site};
-use super::{DimensionStructureTables, SetId, StructureId, StructureKind};
+use super::{DimensionStructureTables, FrozenStructure, SetId, StructureId, StructureKind};
 use crate::world::generate::modern_carvers::climate_target_at;
 use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::world::generate::stages::extent;
@@ -38,6 +40,7 @@ pub enum BiomeLookup {
 const CLIMATE_ROOTS: [usize; 6] = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
 
 type RingSets = Vec<(SetId, Vec<ColumnPos>)>;
+type StartCell = Arc<OnceLock<Option<Start>>>;
 
 pub struct StructureIndex {
     tables: Arc<DimensionStructureTables>,
@@ -48,6 +51,10 @@ pub struct StructureIndex {
     accessor_min_y: i32,
     accessor_height: i32,
     rings: RingSets,
+    adapts_terrain: bool,
+    // ponytail: unbounded; only gate-passing chunks enter, but the memo grows
+    // with the explored area until the staging store's wanted set evicts it.
+    starts: Mutex<HashMap<(SetId, ColumnPos), StartCell>>,
 }
 
 impl StructureIndex {
@@ -73,6 +80,9 @@ impl StructureIndex {
             );
         }
         let rings = ring_sets(&tables, seed, &router, &biomes);
+        let adapts_terrain = tables
+            .adapted()
+            .any(|structure| matches!(structure.kind, StructureKind::Jigsaw { .. }));
         StructureIndex {
             tables,
             seed,
@@ -82,6 +92,8 @@ impl StructureIndex {
             accessor_min_y,
             accessor_height,
             rings,
+            adapts_terrain,
+            starts: Mutex::default(),
         }
     }
 
@@ -152,31 +164,52 @@ impl StructureIndex {
     }
 
     pub fn starts_at(&self, chunk: ColumnPos) -> Vec<Start> {
-        let frozen = &self.tables.frozen;
-        let mut view = self.view();
-        self.tables
-            .live
-            .iter()
-            .filter(|(set, _)| self.gate(*set, chunk))
-            .filter_map(|(set, _)| {
-                let (structure, site) = self.selected_site(&mut view, *set, chunk)?;
-                let pieces = layout(
-                    frozen,
-                    structure,
-                    site,
-                    self.accessor_min_y,
-                    self.accessor_height,
-                    &mut view,
+        let sets = self.tables.live.iter().map(|(set, _)| *set);
+        self.starts_of(&mut self.view(), chunk, sets, |_| true)
+    }
+
+    fn starts_of(
+        &self,
+        view: &mut View<'_>,
+        chunk: ColumnPos,
+        sets: impl Iterator<Item = SetId>,
+        keep: impl Fn(StructureId) -> bool,
+    ) -> Vec<Start> {
+        sets.filter(|set| self.gate(*set, chunk))
+            .filter_map(|set| {
+                let cell = Arc::clone(
+                    self.starts
+                        .lock()
+                        .expect("the start memo is never poisoned")
+                        .entry((set, chunk))
+                        .or_default(),
                 );
-                (!pieces.is_empty()).then(|| {
-                    Start::new(
-                        frozen,
-                        structure,
-                        pieces.into_iter().map(Piece::Jigsaw).collect(),
-                    )
-                })
+                cell.get_or_init(|| self.start_in(view, set, chunk))
+                    .as_ref()
+                    .filter(|start| keep(start.structure))
+                    .cloned()
             })
             .collect()
+    }
+
+    fn start_in(&self, view: &mut View<'_>, set: SetId, chunk: ColumnPos) -> Option<Start> {
+        let frozen = &self.tables.frozen;
+        let (structure, site) = self.selected_site(view, set, chunk)?;
+        let pieces = layout(
+            frozen,
+            structure,
+            site,
+            self.accessor_min_y,
+            self.accessor_height,
+            view,
+        );
+        (!pieces.is_empty()).then(|| {
+            Start::new(
+                frozen,
+                structure,
+                pieces.into_iter().map(Piece::Jigsaw).collect(),
+            )
+        })
     }
 
     /// Whether any live structure places in one of `steps`.
@@ -192,43 +225,98 @@ impl StructureIndex {
     /// Every start whose bounds cross `column`, from every chunk within the
     /// live jigsaw structures' reach, in `(step, step_index, chunk.x, chunk.z)`
     /// order.
-    // ponytail: recomputed for every column a start reaches, so a village is
-    // laid out again by each of the columns it covers; the upgrade is a
-    // per-chunk once-cell bounded by the staging store's wanted set. Starts of
-    // one structure are ordered by chunk, where the reference walks a
-    // `LongOpenHashSet`; only a column two starts of one structure both cross
-    // can tell the difference.
+    // ponytail: starts of one structure are ordered by chunk, where the
+    // reference walks a `LongOpenHashSet`; only a column two starts of one
+    // structure both cross can tell the difference.
     pub fn starts_reaching(&self, column: ColumnPos) -> Vec<(ColumnPos, Start)> {
+        self.starts_reaching_where(column, |_| true)
+    }
+
+    fn starts_reaching_where(
+        &self,
+        column: ColumnPos,
+        keep: impl Fn(&FrozenStructure) -> bool,
+    ) -> Vec<(ColumnPos, Start)> {
         let frozen = &self.tables.frozen;
-        let reach = self
+        let kept = |id: StructureId| {
+            let structure = &frozen.structures[id.0 as usize];
+            matches!(structure.kind, StructureKind::Jigsaw { .. }) && keep(structure)
+        };
+        let set_reach: Vec<(SetId, i32)> = self
             .tables
             .live
             .iter()
-            .flat_map(|(_, structures)| structures.iter())
-            .map(|id| &frozen.structures[id.0 as usize])
-            .filter(|structure| matches!(structure.kind, StructureKind::Jigsaw { .. }))
-            .map(|structure| structure.reach_chunks as i32)
-            .max()
-            .unwrap_or(0);
+            .filter_map(|(set, structures)| {
+                structures
+                    .iter()
+                    .filter(|id| kept(**id))
+                    .map(|id| frozen.structures[id.0 as usize].reach_chunks as i32)
+                    .max()
+                    .map(|reach| (*set, reach))
+            })
+            .collect();
+        let reach = set_reach.iter().map(|(_, reach)| *reach).max().unwrap_or(0);
         let footprint = BoundingBox {
             min: BlockPos::new(column.x * 16, i32::MIN, column.z * 16),
             max: BlockPos::new(column.x * 16 + 15, i32::MAX, column.z * 16 + 15),
         };
-        let mut starts: Vec<(ColumnPos, Start)> = (-reach..=reach)
-            .flat_map(|dx| (-reach..=reach).map(move |dz| (dx, dz)))
-            .map(|(dx, dz)| ColumnPos::new(column.x + dx, column.z + dz))
-            .flat_map(|chunk| {
-                self.starts_at(chunk)
-                    .into_iter()
-                    .filter(|start| start.bounds.intersects(footprint))
-                    .map(move |start| (chunk, start))
-            })
-            .collect();
+        let mut view = self.view();
+        let mut starts: Vec<(ColumnPos, Start)> = Vec::new();
+        for dx in -reach..=reach {
+            for dz in -reach..=reach {
+                let chunk = ColumnPos::new(column.x + dx, column.z + dz);
+                let distance = dx.abs().max(dz.abs());
+                let sets = set_reach
+                    .iter()
+                    .filter(|(_, reach)| *reach >= distance)
+                    .map(|(set, _)| *set);
+                starts.extend(
+                    self.starts_of(&mut view, chunk, sets, kept)
+                        .into_iter()
+                        .filter(|start| start.bounds.intersects(footprint))
+                        .map(|start| (chunk, start)),
+                );
+            }
+        }
         starts.sort_by_key(|(chunk, start)| {
             let structure = &frozen.structures[start.structure.0 as usize];
             (structure.step, structure.step_index, chunk.x, chunk.z)
         });
         starts
+    }
+
+    /// The terrain adaptation term of `column`, or `None` where it is zero
+    /// throughout.
+    pub fn beard(&self, column: ColumnPos) -> Option<Beard> {
+        if !self.adapts_terrain {
+            return None;
+        }
+        let frozen = &self.tables.frozen;
+        let starts = self.starts_reaching_where(column, |structure| {
+            structure.adaptation != TerrainAdaptation::None
+        });
+        let pieces = starts.iter().flat_map(|(_, start)| {
+            let adaptation = frozen.structures[start.structure.0 as usize].adaptation;
+            start.pieces.iter().map(move |piece| {
+                let Piece::Jigsaw(piece) = piece;
+                let junctions = piece.junctions.iter().map(|junction| JunctionPoint {
+                    x: junction.source_x,
+                    ground_y: junction.source_ground_y,
+                    z: junction.source_z,
+                });
+                (
+                    adaptation,
+                    BeardPiece::Jigsaw {
+                        bounds: piece.bounds,
+                        projection: piece.projection,
+                        ground_level_delta: piece.ground_level_delta,
+                        junctions,
+                    },
+                )
+            })
+        });
+        let beard = Beard::collect(column, pieces);
+        beard.affected().is_some().then_some(beard)
     }
 
     fn height_context(&self) -> HeightContext {

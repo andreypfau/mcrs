@@ -121,6 +121,7 @@ fn generate_chunk(
         router,
         Some((biome_source, snapshot)),
         None,
+        None,
         cancel,
     )
     .expect("the column is not cancelled")
@@ -219,6 +220,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
         y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        None,
         None,
         &cancel,
     )

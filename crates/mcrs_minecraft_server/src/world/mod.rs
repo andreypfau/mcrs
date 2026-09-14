@@ -136,7 +136,8 @@ impl Plugin for WorldPlugin {
         app.add_systems(
             OnEnter(AppState::Playing),
             (
-                crate::world::generate::routers::build_dimension_routers,
+                crate::world::generate::routers::build_dimension_routers
+                    .after(crate::world::generate::structures::build_dimension_structures),
                 enqueue_dim_spawns_from_preset,
             )
                 .chain(),

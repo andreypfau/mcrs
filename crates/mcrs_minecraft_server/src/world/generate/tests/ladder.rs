@@ -71,8 +71,8 @@ enum Consumer {
     /// any single family produces.
     Corpus,
     /// A plains village over the region's centre: jigsaw pieces that straddle
-    /// columns, each column laying the whole start out again and writing the
-    /// pieces that cross it, block entities included.
+    /// columns, each column reading the whole start and writing the pieces
+    /// that cross it, block entities included.
     Village,
     /// A pillager outpost, the other jigsaw structure a plains column starts.
     Outpost,
@@ -97,11 +97,11 @@ const VILLAGE_SEED: u64 = 0x51A6E;
 /// functions with, and the resources the dispatcher rebuilds that very context
 /// from. The two must agree, or the comparison below is between two different
 /// worlds rather than two orderings of one.
-struct Dimension {
-    ctx: FillContext,
+pub(super) struct Dimension {
+    pub(super) ctx: FillContext,
     registry: Arc<RegistrySnapshot<Biome>>,
     /// The column the compared region is centred on.
-    centre: ColumnPos,
+    pub(super) centre: ColumnPos,
 }
 
 impl Dimension {
@@ -121,7 +121,7 @@ impl Dimension {
 
 /// The overworld with one fixed biome and the shipped structure sets, centred
 /// on the nearest start of `structure` the index finds from the origin.
-fn structure_dimension(structure: &str) -> Dimension {
+pub(super) fn structure_dimension(structure: &str) -> Dimension {
     let frozen = frozen_shared();
     let seed = VILLAGE_SEED;
     let (mut ctx, _) = super::trees::dimension_with(

@@ -307,6 +307,10 @@ pub fn fill_column(
         });
     }
 
+    let beard = ctx.structures.as_deref().and_then(|index| {
+        let _beard = info_span!("world::column_beard").entered();
+        index.beard(col)
+    });
     let mut filled = {
         let _gen = info_span!("world::column_gen").entered();
         let multi_noise = match &ctx.program.generator {
@@ -321,6 +325,7 @@ pub fn fill_column(
             router,
             ctx.biome_context(),
             multi_noise,
+            beard.as_ref(),
             cancel,
         )?
     };

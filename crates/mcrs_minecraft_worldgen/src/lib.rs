@@ -1,4 +1,5 @@
 pub mod aquifer;
+pub mod beard;
 pub mod beta;
 #[cfg(feature = "bevy")]
 pub mod bevy;

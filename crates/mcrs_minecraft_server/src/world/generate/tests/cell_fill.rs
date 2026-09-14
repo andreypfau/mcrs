@@ -1,14 +1,17 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_worldgen::aquifer::point_barrier;
+use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen::program::Workspace;
 use mcrs_minecraft_worldgen::router::FINAL_DENSITY;
 use mcrs_minecraft_worldgen::sample_grid::SampleGrid;
+use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::{ColumnBlocks, NO_TOP, column_fluid_field, fill_column_dense_any};
 
 use super::build_settings_router as build_router;
+use super::ladder::structure_dimension;
 
 /// Whole-cell elimination and the fluid field's lemmas settle most of a chunk
 /// from the corner lattice and the region tables alone, without ever evaluating
@@ -27,6 +30,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         section_z,
         &y_sections,
         &router,
+        None,
         None,
         None,
         &CancellationToken::new(),
@@ -87,6 +91,7 @@ fn the_fill_records_the_top_of_every_strip() {
         &router,
         None,
         None,
+        None,
         &CancellationToken::new(),
     )
     .expect("the column is not cancelled");
@@ -112,4 +117,90 @@ fn the_fill_records_the_top_of_every_strip() {
         settled, 256,
         "every strip of an overworld column holds blocks"
     );
+}
+
+/// Around a village the fill sums `final_density` and the terrain adaptation
+/// term before the aquifer settles a block, so every block is the one the
+/// block-by-block fill of that sum picks, cells the interval bound would have
+/// eliminated included.
+#[test]
+fn a_bearded_column_matches_the_block_by_block_fill_of_the_summed_density() {
+    let dim = structure_dimension("minecraft:village_plains");
+    let index = dim
+        .ctx
+        .structures
+        .as_deref()
+        .expect("a structure dimension carries its index");
+    let router = dim.ctx.router.as_ref();
+    let y_sections = &dim.ctx.y_sections[..];
+    let stone = router.default_block_state;
+    let (mut checked, mut raised, mut carved) = (0usize, 0usize, 0usize);
+
+    for (dx, dz) in (-1..=1).flat_map(|dx| (-1..=1).map(move |dz| (dx, dz))) {
+        let col = ColumnPos::new(dim.centre.x + dx, dim.centre.z + dz);
+        let beard = index
+            .beard(col)
+            .unwrap_or_else(|| panic!("{col:?} beside the village carries no beard"));
+        let fill = |beard: Option<&Beard>| {
+            let mut column = ColumnBlocks::new(y_sections);
+            fill_column_dense_any(
+                &mut column,
+                col.x,
+                col.z,
+                y_sections,
+                router,
+                None,
+                None,
+                beard,
+                &CancellationToken::new(),
+            )
+            .expect("the column is not cancelled");
+            column
+        };
+        let bearded = fill(Some(&beard));
+        let bare = fill(None);
+
+        let mut ws = Workspace::new();
+        let mut oracle = column_fluid_field(router, col.x * 16, col.z * 16);
+        let mut barrier_ws = Workspace::new();
+        let mut barrier = point_barrier(router, &mut barrier_ws);
+        for &section_y in y_sections {
+            let volume = SampleGrid::dense(
+                IVec3::splat(16),
+                IVec3::new(col.x * 16, section_y * 16, col.z * 16),
+            );
+            let mut density = vec![0.0f32; volume.len()];
+            router
+                .program
+                .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
+            for z in 0..16 {
+                for x in 0..16 {
+                    for y in 0..16 {
+                        let at =
+                            IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
+                        let summed = density[volume.index_unchecked(x, y, z)]
+                            + beard.sample(at.x, at.y, at.z);
+                        let expected = oracle
+                            .substance(at.x, at.y, at.z, f64::from(summed), &mut barrier)
+                            .unwrap_or(stone);
+                        let got = bearded.get(x, at.y, z).expect("the section exists");
+                        assert_eq!(
+                            got, expected,
+                            "block at {at} differs from the block-by-block fill of the summed density"
+                        );
+                        let without = bare.get(x, at.y, z).expect("the section exists");
+                        raised += usize::from(without == VoxelId(0) && got == stone);
+                        carved += usize::from(without == stone && got != stone);
+                        checked += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(checked, 9 * y_sections.len() * 16 * 16 * 16);
+    assert!(
+        raised > 0,
+        "the beard raised no air to stone around the village"
+    );
+    assert!(carved > 0, "the beard carved no stone around the village");
 }

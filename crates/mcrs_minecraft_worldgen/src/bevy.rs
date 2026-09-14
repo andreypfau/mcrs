@@ -1,3 +1,4 @@
+use crate::beard::{BeardifierPlacement, beardifier_placement};
 use crate::compile::{CompileError, build_router};
 use crate::feature::proto::{Feature, Holder, PlacedFeature, StructureProcessorList};
 use crate::material::compile::SURFACE_NOISE_NAMES;
@@ -107,6 +108,20 @@ pub fn build_dimension_router(
         seed,
         blocks,
         Some(&material),
+    )
+}
+
+/// Where one dimension's loaded `final_density` places the beardifier, with
+/// its references resolved through the density functions the settings load.
+pub fn dimension_beardifier_placement(
+    settings: &NoiseGeneratorSettingsAsset,
+    assets: &WorldgenAssets<'_>,
+) -> BeardifierPlacement {
+    let mut loaded = Loaded::default();
+    loaded.collect(&settings.deps, assets);
+    beardifier_placement(
+        &settings.settings.noise_router.final_density,
+        &loaded.density_functions,
     )
 }
 

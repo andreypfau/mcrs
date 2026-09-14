@@ -185,6 +185,20 @@ pub struct DimensionStructureTables {
     pub live: Vec<(SetId, Vec<StructureId>)>,
 }
 
+impl DimensionStructureTables {
+    pub fn live_structures(&self) -> impl Iterator<Item = &FrozenStructure> {
+        self.live
+            .iter()
+            .flat_map(|(_, structures)| structures.iter())
+            .map(|id| &self.frozen.structures[id.0 as usize])
+    }
+
+    pub fn adapted(&self) -> impl Iterator<Item = &FrozenStructure> {
+        self.live_structures()
+            .filter(|structure| structure.adaptation != TerrainAdaptation::None)
+    }
+}
+
 #[derive(Resource, Default, Clone)]
 pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStructureTables>>);
 

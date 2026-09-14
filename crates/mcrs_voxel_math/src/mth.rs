@@ -109,6 +109,17 @@ pub fn floor_mod(a: i32, b: i32) -> i32 {
     a - floor_div(a, b) * b
 }
 
+/// `Mth.fastInvSqrt`: one Newton step from a bit-trick guess, so it is not
+/// `1 / sqrt(x)` and the beard term needs this exact approximation.
+#[inline]
+pub fn fast_inv_sqrt(x: f64) -> f64 {
+    let half = 0.5 * x;
+    let guess = f64::from_bits(
+        6910469410427058090_i64.wrapping_sub((x.to_bits() as i64) >> 1) as u64,
+    );
+    guess * (1.5 - half * guess * guess)
+}
+
 /// `Mth.clampedMap`: a lerp over an inverse lerp with the source range as a hard
 /// clamp, so a value outside it maps to the near end of the target range.
 pub fn clamped_map<F: Float>(value: F, from_min: F, from_max: F, to_min: F, to_max: F) -> F {
@@ -231,6 +242,14 @@ mod tests {
         assert_eq!(floor_div(7, -4), -2);
         assert_eq!(floor_mod(7, -4), -1);
         assert_eq!((-1i32).div_euclid(-4), 1, "euclid differs, as documented");
+    }
+
+    #[test]
+    fn fast_inv_sqrt_approximates_the_inverse_square_root() {
+        for x in [0.25, 1.0, 2.0, 50.5, 1e6] {
+            let exact = 1.0 / f64::sqrt(x);
+            assert!((fast_inv_sqrt(x) - exact).abs() / exact < 0.01, "{x}");
+        }
     }
 
     /// The table has to answer exactly what computing the entry on the fly did.

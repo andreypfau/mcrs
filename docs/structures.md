@@ -597,16 +597,24 @@ interpolation, which is B3. SteelMC learned it the hard way: adding at cell
 corners puts the term inside the squeeze and trilerps it
 (`steel-worldgen/src/noise/noise_chunk.rs:474-482`).
 
-**A4. The leaf survives compilation as its own node kind.** Today the compiler
-folds `minecraft:beardifier` to a declared constant zero
-(`crates/mcrs_minecraft_worldgen/src/compile.rs:224-232, 315`), which is what
-B4 allowed until the first structure. The node it owes is a `Beard` leaf with
-the infinite declared interval it has now, that the folder keeps and the tape
-binds per fill to either *nothing* — the add is then the identity and the
-tape skips it, which is the state of every column outside an affected box —
-or a dense per-block buffer over the column's volume clipped to the affected
-box, filled by A2 before the fill starts. The buffer is a per-fill temporary,
-not a stored projection; its owner is the fill task.
+**A4. The term is added after the graph, not bound inside it.** The compiler
+folds `minecraft:beardifier` to a declared constant zero with the infinite
+interval (`crates/mcrs_minecraft_worldgen/src/compile.rs:316`), and the fold
+stays. Because the beardifier is the outermost `add` of `final_density` in
+every shipped router (A3), a fill evaluates the graph over its volume and then
+adds A2 into the density of every block of the volume the affected box
+reaches, before the substance loop reads it — the aquifer decides on bearded
+density, as in `levelgen/NoiseBasedChunkGenerator.java:478-498`. That is the
+graph's value bit for bit, up to the sign of a zero density, which no block
+choice reads. A cell whose block box meets the affected box is filled block by
+block without asking its interval bound; outside the box the term is exactly
+zero and the bound holds unchanged. The term is a per-fill temporary written
+into the fill's own density, not a stored projection; its owner is the fill
+task. The shape is the precondition, so it is checked where the router is
+built: a dimension with a live structure refuses a `final_density` that names
+the beardifier anywhere but as an operand of its root `add`, and one with a
+live adapted structure refuses a root that is not `add(_, beardifier)` in
+either order. Beta names no beardifier and adapts nothing, and passes.
 
 **A5. Layout heights ignore the term (L3), so starts stay independent.** The
 reference passes no beardifier to the height query. Were the query bearded, a
@@ -722,7 +730,7 @@ same way, and not a component until then.
 | Ring positions per dimension | projection of the seed | the index, at construction | P4; a few hundred kilobytes of biome sampling, once |
 | `site(C, S)` for a chunk `C` and structure `S` | projection of the seed | the index, memoised per chunk | L2; cheap; what search asks (R6) |
 | `starts_at(C)` for a chunk `C` | projection of the seed | the index, memoised per chunk | P2–P6 then §3–§4; expensive (a village layout), reused by fill, run and gameplay |
-| The beard buffer of a fill | derived, temporary | the fill task | A4; never stored |
+| The beard term of a fill | derived, temporary | the fill task | A4; added into the fill's density, never stored |
 | `starts.<id>` and `References` in the chunk NBT | projection, written for the format | the save writer | I5 |
 | A start's `references` counter | **truth** | gameplay, the map that claims it | L6 |
 | A structure's blocks in a column | projection of the seed, until edited | the column's run | §7; `worldgen.md` §16 |
@@ -1159,8 +1167,13 @@ Counts, to be replaced by `PERF.md` numbers.
   comparisons; plus one density-strip evaluation per terrain-matching
   attachment, which is the unknown that decides whether the strip evaluator
   needs a path of its own (a tape built for tiles, asked for a 1×H×1 volume).
-- **The beard buffer**: A2 over the affected box clipped to the column, a
-  handful of sections for a village, zero work for every other column.
+- **The beard**: per column of a dimension with a live adapted jigsaw
+  structure, one walk of the starts reaching it besides the one the run
+  makes — every chunk within the widest reach, `(2r + 1)²` start lookups,
+  until the memo of I2 answers them — then A2 over the affected box clipped to
+  each block-filled cell, a handful of sections for a village. Every cell
+  meeting the box gives up the interval verdict. A dimension with no live
+  adapted jigsaw structure does none of it.
 - **Materialisation**: the largest and least predictable stage
   (`worldgen.md` §11), which is why `worldgen.md` §17 asks for it measured
   apart from objects; a village is thousands of block writes and a processor
@@ -1260,7 +1273,9 @@ the *starts* of a reference world are, which is the half worth having.
   here.
 - **Optimise the occupancy test before measuring it.** J6.
 - **Read the live world for a piece parameter.** M2, M3.
-- **Bake the beard into the tape or fold it away once starts exist.** A4.
+- **Add the beard inside the graph, or accept a router whose root is not
+  `add(_, beardifier)`.** A3, A4: at cell corners it is trilerped, and under
+  any other root the add after the fill is no longer the graph's value.
 - **Test the biome before the cell.** R3: the climate sample is the first
   64-bit cost and the cell test rejects almost every candidate for free; a
   locate or a search that samples biomes first pays for every cell.
@@ -1348,8 +1363,10 @@ stream.** M4.
 freeze; the manifest is a table of its own.** T1, T6; the size after packing
 is measured and a per-pool lazy load behind the same manifest is the fallback.
 
-**SD7. The beard leaf is a node kind bound per fill.** A4; the fold at
-`compile.rs:315` goes when the first adapted structure lands.
+**SD7. The beard is added after the fill of `final_density`, behind a root
+check, not bound as a node kind.** A4; the fold at `compile.rs:316` stays, and
+a router whose root is not `add(_, beardifier)` is refused where a live
+structure adapts.
 
 **SD8. The save carries `starts` and `References` for the format; on load a
 stored start primes the memo; the configuration hash gains the structure
@@ -1394,7 +1411,7 @@ source for its generator exists.** §10.2.
 3. Jigsaw layout (§4) and its fixture; the strip height query (L3) measured.
 4. Template materialisation into the step slot (T3–T5, M5–M7) and the
    ladder test; villages and outposts appear.
-5. The beard leaf (§6, A4) and its fixture; villages sit on ground.
+5. The beard term (§6, A4) and its fixture; villages sit on ground.
 6. The hardcoded types in the order of their share of the corpus and their
    cost: the template-backed ones (igloo, shipwreck, ocean ruin, ruined
    portal, fossil, end city, mansion), then the scattered three, then the grid

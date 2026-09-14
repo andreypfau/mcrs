@@ -205,6 +205,7 @@ pub(super) fn surfaced_column(
         router,
         None,
         None,
+        None,
         &CancellationToken::new(),
     )
     .expect("the column fills");
@@ -618,6 +619,7 @@ fn surfaced_column_fixed(
         section_z,
         y_sections,
         router,
+        None,
         None,
         None,
         &CancellationToken::new(),
