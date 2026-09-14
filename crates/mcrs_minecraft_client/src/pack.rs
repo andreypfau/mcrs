@@ -50,7 +50,7 @@ pub const QUAD_FACE_BASE: Field = Field::new(1, 0, 16);
 pub const QUAD_WORDS: usize = 2;
 
 const _: () = assert!(
-    (12 * mcrs_minecraft_network::columns::SECTION_VOLUME) as u64 <= QUAD_FACE_BASE.max(),
+    (12 * crate::columns::SECTION_VOLUME) as u64 <= QUAD_FACE_BASE.max(),
     "a section can hold more faces than a quad can name a place among"
 );
 
@@ -136,7 +136,7 @@ const GROUPS: &[(&str, &[(&str, Field)])] = &[
 const FLOATS: &[(&str, f32)] = &[
     (
         "SECTION_SIZE",
-        mcrs_minecraft_network::columns::SECTION_SIZE as f32,
+        crate::columns::SECTION_SIZE as f32,
     ),
     ("MODEL_OVERHANG", MODEL_OVERHANG),
     ("MODEL_STEPS", MODEL_STEPS),
@@ -178,7 +178,7 @@ rewrites it.\n#define_import_path mcrs_minecraft_client::fields\n",
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_network::columns::SECTION_SIZE;
+    use crate::columns::SECTION_SIZE;
 
     #[test]
     fn the_generated_field_header_matches_the_field_table() {

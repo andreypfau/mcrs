@@ -6,10 +6,10 @@ mod scratch;
 mod sweep;
 
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
-use crate::pack::QUAD_WORDS;
 #[cfg(test)]
-use mcrs_minecraft_network::columns::ColumnStore;
-use mcrs_minecraft_network::columns::{BlockSource, SECTION_SIZE};
+use crate::columns::ColumnStore;
+use crate::columns::{BlockSource, SECTION_SIZE};
+use crate::pack::QUAD_WORDS;
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
 pub use scratch::Scratch;
@@ -191,7 +191,7 @@ pub fn mesh_section(
 /// One unlit section at the world origin, with every block chosen by `pick`.
 #[cfg(test)]
 pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> ColumnStore {
-    use mcrs_minecraft_network::columns::{Column, Extent, SECTION_VOLUME, Section};
+    use crate::columns::{Column, Extent, SECTION_VOLUME, Section};
     use mcrs_voxel_math::ColumnPos;
 
     let mut blocks = Box::new([0u16; SECTION_VOLUME]);

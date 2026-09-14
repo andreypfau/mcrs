@@ -6,8 +6,8 @@
 //! moment after a dimension change, so the check starts only once the column
 //! under the player has actually arrived.
 
+use crate::columns::ColumnStore;
 use bevy::prelude::*;
-use mcrs_minecraft_network::columns::ColumnStore;
 use mcrs_voxel_math::{BlockPos, ColumnPos};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 

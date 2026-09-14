@@ -1,12 +1,10 @@
 use std::sync::{Arc, LazyLock};
 
+use crate::columns::{BlockSource, ColumnChange, ColumnStore, Extent, SECTION_SIZE};
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_network::client::ReceivedRegistries;
-use mcrs_minecraft_network::columns::{
-    BlockSource, ColumnChange, ColumnStore, Extent, SECTION_SIZE,
-};
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
 use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::world::lifecycle::trace::{self, ColumnStage};
@@ -1375,7 +1373,7 @@ mod tests {
 
     #[test]
     fn a_column_is_meshed_only_once_every_column_it_borders_has_arrived() {
-        use mcrs_minecraft_network::columns::{Column, Extent};
+        use crate::columns::{Column, Extent};
 
         let loader = loader();
         let mut store = ColumnStore::default();
@@ -1422,7 +1420,7 @@ mod tests {
 
     #[test]
     fn a_section_is_queued_when_the_last_of_its_neighbours_arrives_not_when_it_does() {
-        use mcrs_minecraft_network::columns::{Column, Extent, Section};
+        use crate::columns::{Column, Extent, Section};
 
         let extent = Extent {
             min_section_y: 0,
@@ -1432,8 +1430,8 @@ mod tests {
             Column::unlit(
                 0,
                 vec![Some(Section {
-                    blocks: Box::new([1; mcrs_minecraft_network::columns::SECTION_VOLUME]),
-                    biomes: Box::new([0; mcrs_minecraft_network::columns::BIOME_CELLS]),
+                    blocks: Box::new([1; crate::columns::SECTION_VOLUME]),
+                    biomes: Box::new([0; crate::columns::BIOME_CELLS]),
                     states: vec![1],
                 })],
             )
@@ -1480,14 +1478,14 @@ mod tests {
 
     #[test]
     fn a_mesh_read_out_of_a_column_the_server_took_back_is_thrown_away() {
-        use mcrs_minecraft_network::columns::{Column, Extent, Section};
+        use crate::columns::{Column, Extent, Section};
 
         let stone = || {
             Column::unlit(
                 0,
                 vec![Some(Section {
-                    blocks: Box::new([1; mcrs_minecraft_network::columns::SECTION_VOLUME]),
-                    biomes: Box::new([0; mcrs_minecraft_network::columns::BIOME_CELLS]),
+                    blocks: Box::new([1; crate::columns::SECTION_VOLUME]),
+                    biomes: Box::new([0; crate::columns::BIOME_CELLS]),
                     states: vec![1],
                 })],
             )
@@ -1549,7 +1547,7 @@ mod tests {
 
     #[test]
     fn a_column_taken_back_before_it_is_adopted_leaves_the_section_count_where_it_was() {
-        use mcrs_minecraft_network::columns::{Column, Extent, Section};
+        use crate::columns::{Column, Extent, Section};
 
         let mut loader = loader();
         let mut cave = CaveCull::new(1 << 8);
@@ -1565,8 +1563,8 @@ mod tests {
             Column::unlit(
                 0,
                 vec![Some(Section {
-                    blocks: Box::new([1; mcrs_minecraft_network::columns::SECTION_VOLUME]),
-                    biomes: Box::new([0; mcrs_minecraft_network::columns::BIOME_CELLS]),
+                    blocks: Box::new([1; crate::columns::SECTION_VOLUME]),
+                    biomes: Box::new([0; crate::columns::BIOME_CELLS]),
                     states: vec![1],
                 })],
             ),

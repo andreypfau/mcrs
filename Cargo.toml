@@ -80,6 +80,7 @@ mcrs_minecraft_core_macros = { path = "crates/mcrs_minecraft_core_macros" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_world = { path = "crates/mcrs_minecraft_world" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
+mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_decoration = { path = "crates/mcrs_minecraft_decoration" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen", default-features = false }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
@@ -103,6 +104,7 @@ mcrs_telemetry.workspace = true
 
 [dev-dependencies]
 bevy_state.workspace = true
+mcrs_minecraft_client.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }

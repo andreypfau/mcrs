@@ -28,6 +28,7 @@ bevy = { version = "0.19.1", default-features = false, features = [
 bytemuck = { version = "1", features = ["derive"] }
 bitflags = "2"
 flate2.workspace = true
+anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }

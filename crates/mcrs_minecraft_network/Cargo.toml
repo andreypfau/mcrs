@@ -12,14 +12,11 @@ doctest = false
 anyhow.workspace = true
 bevy_app = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }
-bevy_tasks = { workspace = true, optional = true }
 bevy_math.workspace = true
 bytes.workspace = true
 thiserror.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_voxel_storage.workspace = true
-mcrs_voxel_math.workspace = true
 md-5.workspace = true
 tokio = { version = "1.48.0", default-features = false, features = ["sync", "io-util"] }
 serde_json.workspace = true
@@ -50,7 +47,7 @@ web-sys = { version = "0.3", features = [
 
 [features]
 default = ["bevy"]
-bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_tasks"]
+bevy = ["dep:bevy_app", "dep:bevy_ecs"]
 telemetry-tracy = []
 
 [[test]]

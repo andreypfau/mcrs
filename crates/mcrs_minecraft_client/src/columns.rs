@@ -3,10 +3,11 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
-use bevy_app::App;
-use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::prelude::{On, Query, ResMut, Resource, Single};
-use bevy_tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
+use bevy::app::{App, Plugin, Update};
+use bevy::ecs::change_detection::DetectChangesMut;
+use bevy::ecs::prelude::{IntoScheduleConfigs, On, Query, ResMut, Resource, Single};
+use bevy::log::error;
+use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
 use mcrs_minecraft_protocol::light_codec::{ColumnLight, RowLight, unpack_light_data};
@@ -18,12 +19,13 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchRe
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 use mcrs_voxel_math::{BlockPos, LocalPos, SectionPos};
 use mcrs_voxel_storage::PalettedContainer;
-use tracing::error;
 
-use crate::ConnectionState;
-use crate::Instant;
-use crate::client::{ClientConnection, ReceivedRegistries, ReceivedRegistry};
-use crate::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::ConnectionState;
+use mcrs_minecraft_network::Instant;
+use mcrs_minecraft_network::client::{
+    ClientConnection, ClientNetworkSystems, ReceivedRegistries, ReceivedRegistry,
+};
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
 
 pub const SECTION_SIZE: usize = 16;
 pub const SECTION_VOLUME: usize = SECTION_SIZE * SECTION_SIZE * SECTION_SIZE;
@@ -378,10 +380,20 @@ fn extent_of(registries: &[ReceivedRegistry], dimension_type_id: i32) -> Option<
     })
 }
 
-pub(crate) fn build(app: &mut App) {
-    app.init_resource::<ColumnStore>();
-    app.init_resource::<Arrivals>();
-    app.add_observer(receive_column_packets);
+pub struct ColumnCachePlugin;
+
+impl Plugin for ColumnCachePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ColumnStore>();
+        app.init_resource::<Arrivals>();
+        app.add_observer(receive_column_packets);
+        app.add_systems(
+            Update,
+            settle_columns
+                .after(ClientNetworkSystems::Receive)
+                .before(ClientNetworkSystems::Flush),
+        );
+    }
 }
 
 /// Column packets in the order they came, each one decoding on the compute pool. A column's
@@ -513,7 +525,7 @@ fn receive_column_packets(
 
 /// Lands what has finished decoding, in packet order. The store is only borrowed mutably when
 /// something actually lands, so its change tick means a column moved.
-pub(crate) fn settle_columns(
+fn settle_columns(
     mut arrivals: ResMut<Arrivals>,
     mut store: ResMut<ColumnStore>,
     connection: Option<Single<&mut ClientConnection>>,
@@ -549,8 +561,8 @@ pub(crate) fn settle_columns(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::RegistryEntry;
     use mcrs_minecraft_nbt::compound::NbtCompound;
+    use mcrs_minecraft_network::client::RegistryEntry;
     use mcrs_minecraft_protocol::chunk::ChunkSection;
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
     use mcrs_voxel_storage::VoxelId;

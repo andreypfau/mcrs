@@ -1,4 +1,4 @@
-use mcrs_minecraft_network::columns::{BlockSource, SECTION_SIZE};
+use crate::columns::{BlockSource, SECTION_SIZE};
 use mcrs_voxel_math::ColumnPos;
 
 use crate::model::{self, Pack};

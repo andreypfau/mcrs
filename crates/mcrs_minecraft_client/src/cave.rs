@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
 use crate::mesh::{Connectivity, OPEN, SEALED, along};
-use mcrs_minecraft_network::columns::SECTION_SIZE;
+use crate::columns::SECTION_SIZE;
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
     crate::mesh::face_normal(0),

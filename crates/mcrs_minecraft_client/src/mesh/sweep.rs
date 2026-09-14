@@ -1,9 +1,9 @@
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
+use crate::columns::SECTION_SIZE;
 use crate::pack::{
     QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y,
     QUAD_Z,
 };
-use mcrs_minecraft_network::columns::SECTION_SIZE;
 
 use super::Sink;
 use super::scratch::{Columns, Scratch, column_index, face_axis};

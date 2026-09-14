@@ -3441,6 +3441,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_log",
  "bevy_state",
+ "mcrs_minecraft_client",
  "mcrs_minecraft_core",
  "mcrs_minecraft_network",
  "mcrs_minecraft_server",
@@ -3480,6 +3481,7 @@ dependencies = [
 name = "mcrs_minecraft_client"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bevy",
  "bitflags 2.10.0",
  "bytemuck",
@@ -3583,13 +3585,10 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_math",
- "bevy_tasks",
  "bytes",
  "js-sys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
  "md-5",
  "serde_json",
  "thiserror 2.0.18",

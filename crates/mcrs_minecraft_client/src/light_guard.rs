@@ -10,12 +10,10 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Weak};
 
+use crate::columns::{BlockSource, Column, ColumnStore, Neighbourhood, SECTION_SIZE};
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
-use mcrs_minecraft_network::columns::{
-    BlockSource, Column, ColumnStore, Neighbourhood, SECTION_SIZE,
-};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_world::block::definition::{BlockStateFlags, Blocks};
 use mcrs_voxel_math::ColumnPos;

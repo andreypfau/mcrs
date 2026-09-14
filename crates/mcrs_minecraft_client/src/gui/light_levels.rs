@@ -1,9 +1,9 @@
+use crate::columns::{BlockSource, ColumnStore};
 use bevy::color::Mix;
 use bevy::prelude::*;
 use bevy::text::FontSize;
 use bevy::transform::TransformSystems;
 use bevy::ui::{ComputedNode, UiSystems};
-use mcrs_minecraft_network::columns::{BlockSource, ColumnStore};
 
 use crate::player::PlayerCamera;
 

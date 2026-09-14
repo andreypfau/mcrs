@@ -2,8 +2,6 @@
 pub mod browser;
 #[cfg(feature = "bevy")]
 pub mod client;
-#[cfg(feature = "bevy")]
-pub mod columns;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod connect;
 #[cfg(feature = "bevy")]

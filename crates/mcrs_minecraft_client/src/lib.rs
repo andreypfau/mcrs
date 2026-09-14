@@ -16,6 +16,7 @@ pub mod camera;
 pub mod capture;
 pub mod cave;
 pub mod chunk_guard;
+pub mod columns;
 pub mod config;
 pub mod gui;
 pub mod input;

@@ -1,10 +1,10 @@
 use crate::atlas::SpriteRef;
 use crate::blocks::{BlockInfo, Pass};
+use crate::columns::SECTION_SIZE;
 use crate::pack::{
     FACE_NONE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SHADE,
     MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
 };
-use mcrs_minecraft_network::columns::SECTION_SIZE;
 
 use super::Sink;
 use super::face_normal;
@@ -150,10 +150,10 @@ mod tests {
     use super::{BUCKET_SHADES, fixed, shade_bucket};
     use crate::atlas::SpriteRef;
     use crate::blocks::{BlockInfo, ModelQuad, Pass};
+    use crate::columns::{SECTION_SIZE, SECTION_VOLUME};
     use crate::mesh::{Scratch, mesh_world, one_section_world};
     use crate::pack::{MODEL_OVERHANG, MODEL_STEPS};
     use bevy::math::Vec3;
-    use mcrs_minecraft_network::columns::{SECTION_SIZE, SECTION_VOLUME};
 
     #[test]
     fn the_model_mesher_names_blocks_in_the_worlds_numbering() {

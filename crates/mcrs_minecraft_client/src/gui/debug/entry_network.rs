@@ -3,7 +3,7 @@ use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
     ChunkCacheRadius, ClientConnection, JoinedGame, ServerProfile,
 };
-use mcrs_minecraft_network::columns::ColumnStore;
+use crate::columns::ColumnStore;
 use mcrs_voxel_world::world::lifecycle::trace::{self, ColumnSample, ColumnStage};
 
 use super::DebugScreenDisplayer;

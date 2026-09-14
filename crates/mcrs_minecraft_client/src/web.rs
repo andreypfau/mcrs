@@ -160,6 +160,7 @@ pub fn run() {
                 username: query("username").unwrap_or_else(|| "Player".to_owned()),
                 view_distance: config::view_distance(),
             });
+            app.add_plugins(crate::columns::ColumnCachePlugin);
         }
         None => warn!(
             "no ?server=<https url>&cert=<sha-256 hex>: the browser draws sky only. \

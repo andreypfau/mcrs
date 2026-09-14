@@ -7,7 +7,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, On, Query};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -53,6 +53,12 @@ use tracing::{error, info, warn};
 pub type ServerAddress = SocketAddr;
 #[cfg(target_family = "wasm")]
 pub type ServerAddress = crate::browser::WebTransportTarget;
+
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ClientNetworkSystems {
+    Receive,
+    Flush,
+}
 
 pub struct ClientNetworkPlugin {
     pub server: ServerAddress,
@@ -174,19 +180,22 @@ impl Plugin for ClientNetworkPlugin {
         #[cfg(target_family = "wasm")]
         wasm_bindgen_futures::spawn_local(joining);
 
+        app.configure_sets(
+            Update,
+            (ClientNetworkSystems::Receive, ClientNetworkSystems::Flush).chain(),
+        );
         app.add_systems(
             Update,
             (
                 spawn_logged_in_connection(recv, view_distance),
                 receive_packets,
-                crate::columns::settle_columns,
-                flush,
             )
-                .chain(),
+                .chain()
+                .in_set(ClientNetworkSystems::Receive),
         );
+        app.add_systems(Update, flush.in_set(ClientNetworkSystems::Flush));
         app.add_observer(handle_configuration_packet);
         app.add_observer(handle_game_packet);
-        crate::columns::build(app);
     }
 }
 

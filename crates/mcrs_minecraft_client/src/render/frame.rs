@@ -10,7 +10,7 @@ use super::stats::args_reset;
 use super::terrain::Terrain;
 use crate::camera::CameraOrigin;
 use crate::mesh::STREAMS;
-use mcrs_minecraft_network::columns::SECTION_SIZE;
+use crate::columns::SECTION_SIZE;
 
 use super::Budget;
 

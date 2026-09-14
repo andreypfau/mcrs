@@ -1,4 +1,4 @@
-use mcrs_minecraft_network::columns::SECTION_SIZE;
+use crate::columns::SECTION_SIZE;
 
 use super::scratch::{BORDER_VOLUME, border_index};
 
