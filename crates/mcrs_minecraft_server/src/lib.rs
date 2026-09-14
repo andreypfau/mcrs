@@ -19,6 +19,7 @@ pub mod login;
 mod tag;
 mod version;
 pub mod world;
+pub mod world_options;
 
 use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
@@ -111,7 +112,7 @@ impl Plugin for MinecraftServerPlugin {
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
         });
-        let mut world_seed = crate::configuration::world_seed_from_env();
+        let mut world_seed = crate::world_options::world_seed_from_env();
         if let Some(world) = &self.world {
             app.insert_resource(WorldSave(world.clone()));
             let settings = mcrs_minecraft_world::save::read_world_gen_settings(world)

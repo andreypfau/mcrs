@@ -8,7 +8,6 @@ use crate::world::player_index::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, Plugin, Update};
 use bevy_asset::{AssetEvent, AssetId, AssetServer, Assets, Handle};
-use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::component::Component;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With, Without};
@@ -41,26 +40,21 @@ use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::block::Block as VanillaBlock;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
-use mcrs_minecraft_world::dimension::level_stem::DimensionDefinition;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_minecraft_world::entity::EntityType as VanillaEntityType;
 use mcrs_minecraft_world::item::Item as VanillaItem;
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_world::worldgen::world_preset::{ActiveWorldPreset, WorldPreset};
 use mcrs_voxel_server::dim::send_control_or_teardown;
 use mcrs_voxel_world::session::SessionRegistry;
 use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
-use std::env;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
-use crate::world::generate::routers::DimensionBiomeSources;
-
-/// Default world preset name used when MCRS_WORLD_PRESET is not set
-const DEFAULT_WORLD_PRESET: &str = "normal";
+use crate::world_options::{
+    LoadedWorldPreset, process_loaded_world_preset, start_loading_world_preset,
+};
 
 /// Canonical list of registries that the server synchronizes via
 /// `ClientboundRegistryData` during the Configuration phase.
@@ -153,19 +147,20 @@ fn request_dynamic_registry_tags(
     tag_files.per_registry.clear();
     let mut total = 0usize;
     for &(registry_key, tag_dir) in DYNAMIC_TAG_REGISTRIES {
-        let handles: Vec<_> = mcrs_minecraft_world::data_pack::list_tag_files(&asset_server, tag_dir)
-            .into_iter()
-            .map(|(location, asset_path)| {
-                let handle = asset_server
-                    .load_builder()
-                    .with_settings(move |s: &mut TagFileSettings| {
-                        s.registry_segment = tag_dir.to_string();
-                    })
-                    .load::<TagFile>(asset_path);
-                registry_assets.push(handle.clone().untyped());
-                (location, handle)
-            })
-            .collect();
+        let handles: Vec<_> =
+            mcrs_minecraft_world::data_pack::list_tag_files(&asset_server, tag_dir)
+                .into_iter()
+                .map(|(location, asset_path)| {
+                    let handle = asset_server
+                        .load_builder()
+                        .with_settings(move |s: &mut TagFileSettings| {
+                            s.registry_segment = tag_dir.to_string();
+                        })
+                        .load::<TagFile>(asset_path);
+                    registry_assets.push(handle.clone().untyped());
+                    (location, handle)
+                })
+                .collect();
         total += handles.len();
         tag_files.per_registry.push((registry_key, handles));
     }
@@ -284,87 +279,6 @@ impl Plugin for ConfigurationStatePlugin {
         // into the control channel before the same tick's dim drain.
         app.add_systems(Update, emit_initial_player_spawn);
     }
-}
-
-fn start_loading_world_preset(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut registry_assets: ResMut<LoadedRegistryAssets>,
-    mut loaded_preset: ResMut<LoadedWorldPreset>,
-) {
-    let preset_name = get_world_preset_name();
-    let (namespace, path) = match preset_name.split_once(':') {
-        Some((ns, p)) => (ns, p),
-        None => ("minecraft", preset_name.as_str()),
-    };
-    let asset_path = format!("{namespace}/worldgen/world_preset/{path}.json");
-
-    info!(
-        preset = %preset_name,
-        asset_path = %asset_path,
-        "Starting to load world preset via Bevy asset system"
-    );
-
-    let handle: Handle<WorldPreset> = asset_server.load(asset_path);
-    registry_assets.push(handle.clone().untyped());
-    loaded_preset.preset_name = preset_name;
-    commands.insert_resource(ActiveWorldPreset { handle });
-}
-
-fn process_loaded_world_preset(
-    active: Option<Res<ActiveWorldPreset>>,
-    presets: Res<Assets<WorldPreset>>,
-    dim_defs: Res<Assets<DimensionDefinition>>,
-    mut loaded_preset: ResMut<LoadedWorldPreset>,
-    mut commands: Commands,
-) {
-    if !presets.is_changed() {
-        return;
-    }
-    let Some(active) = active else {
-        return;
-    };
-    let Some(preset) = presets.get(&active.handle) else {
-        return;
-    };
-
-    let mut dimensions: Vec<(ResourceLocation, Handle<DimensionDefinition>)> = preset
-        .dimensions
-        .iter()
-        .map(|(key, handle)| (key.location().clone(), handle.clone()))
-        .collect();
-    dimensions.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
-
-    loaded_preset.dimensions = dimensions;
-    loaded_preset.is_loaded = true;
-
-    commands.insert_resource(dimension_biome_sources(&loaded_preset, &dim_defs));
-
-    debug!(
-        preset = %loaded_preset.preset_name,
-        dimensions = loaded_preset.dimensions.len(),
-        "World preset loaded"
-    );
-}
-
-fn dimension_biome_sources(
-    preset: &LoadedWorldPreset,
-    dim_defs: &Assets<DimensionDefinition>,
-) -> DimensionBiomeSources {
-    let mut sources = DimensionBiomeSources::default();
-    for (dimension, handle) in &preset.dimensions {
-        let Some(definition) = dim_defs.get(handle) else {
-            warn!(%dimension, "the dimension definition missing while the world preset loaded");
-            continue;
-        };
-        let ChunkGenerator::Noise(generator) = &definition.generator else {
-            continue;
-        };
-        sources
-            .0
-            .insert(dimension.clone(), Arc::new(generator.biome_source.clone()));
-    }
-    sources
 }
 
 /// Kicks connected players back into Configuration when a dimension type asset
@@ -795,84 +709,6 @@ pub fn emit_initial_player_spawn(
             },
             &mut despawn_queue,
         );
-    }
-}
-
-/// Resource containing the loaded world preset with ordered dimensions.
-/// The dimensions are sorted alphabetically by dimension key for deterministic ordering.
-#[derive(Resource)]
-pub struct LoadedWorldPreset {
-    pub preset_name: String,
-    pub dimensions: Vec<(ResourceLocation, Handle<DimensionDefinition>)>,
-    pub is_loaded: bool,
-}
-
-impl Default for LoadedWorldPreset {
-    fn default() -> Self {
-        Self {
-            preset_name: DEFAULT_WORLD_PRESET.to_string(),
-            dimensions: Vec::new(),
-            is_loaded: false,
-        }
-    }
-}
-
-/// The seed every dimension's noise router is compiled against. One writer in
-/// the host; the routers carry it into the sub-apps.
-#[derive(Resource, Clone, Copy, Debug, Default)]
-pub struct WorldSeed(pub u64);
-
-/// The seed `MCRS_WORLD_SEED` names. A save overrides it with the one stored in
-/// its level data.
-pub fn world_seed_from_env() -> WorldSeed {
-    let Ok(raw) = env::var("MCRS_WORLD_SEED") else {
-        return WorldSeed(0);
-    };
-    let raw = raw.trim();
-    // A seed is a Java long, so it is written signed; the router hashes the
-    // same bits either way.
-    if let Ok(seed) = raw.parse::<i64>() {
-        return WorldSeed(seed as u64);
-    }
-    match raw.parse::<u64>() {
-        Ok(seed) => WorldSeed(seed),
-        Err(error) => {
-            error!(%error, raw, "MCRS_WORLD_SEED is not a number; generating with seed 0");
-            WorldSeed(0)
-        }
-    }
-}
-
-/// Get the world preset name from the MCRS_WORLD_PRESET environment variable.
-/// Returns the default 'normal' preset if not set or invalid.
-/// Supports both short names ("normal") and namespaced identifiers ("minecraft:normal").
-pub fn get_world_preset_name() -> String {
-    match env::var("MCRS_WORLD_PRESET") {
-        Ok(preset_name) => {
-            let preset_name = preset_name.trim().to_lowercase();
-
-            if preset_name.is_empty() {
-                info!(
-                    default_preset = DEFAULT_WORLD_PRESET,
-                    "MCRS_WORLD_PRESET is empty, using default preset"
-                );
-                return DEFAULT_WORLD_PRESET.to_string();
-            }
-
-            info!(
-                preset = %preset_name,
-                "Loading world preset from MCRS_WORLD_PRESET"
-            );
-
-            preset_name
-        }
-        Err(_) => {
-            info!(
-                default_preset = DEFAULT_WORLD_PRESET,
-                "MCRS_WORLD_PRESET not set, using default preset"
-            );
-            DEFAULT_WORLD_PRESET.to_string()
-        }
     }
 }
 

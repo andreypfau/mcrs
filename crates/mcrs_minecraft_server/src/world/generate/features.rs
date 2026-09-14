@@ -25,10 +25,10 @@ use mcrs_minecraft_worldgen::feature::compile::{
     FeatureSteps, LoadedFeatures, build_feature_steps,
 };
 
-use crate::configuration::WorldSeed;
 use crate::world::generate::feature_program::FeatureProgram;
 use crate::world::generate::routers::DimensionBiomeSources;
 use crate::world::generate::structures::{DimensionStructures, build_dimension_structures};
+use crate::world_options::WorldSeed;
 
 /// `TheEndBiomeSource` lists its five biomes in this order, and that order is
 /// the input of the sort.

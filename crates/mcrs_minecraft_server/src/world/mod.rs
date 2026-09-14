@@ -1,5 +1,5 @@
-use crate::configuration::LoadedWorldPreset;
 use crate::world::sub_app_builder::DimSubAppHandle;
+use crate::world_options::LoadedWorldPreset;
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -38,7 +38,7 @@ impl Plugin for WorldPlugin {
         app.init_resource::<DimDespawnQueue>();
         // Seeded by `MinecraftServerPlugin` before this plugin loads; the
         // default is for harnesses that compose `WorldPlugin` on its own.
-        app.init_resource::<crate::configuration::WorldSeed>();
+        app.init_resource::<crate::world_options::WorldSeed>();
 
         // Bus + PlayerIndex substrate. Both resources live in the host world.
         // `add_message::<T>()` must run BEFORE any sub-app extract reads
