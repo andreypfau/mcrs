@@ -173,10 +173,7 @@ pub enum PacketPayload {
     },
     /// Sets the client's chunk-load origin. A vanilla 26.1.2 client will not
     /// render any chunks until this packet is received.
-    SetChunkCacheCenter {
-        x: i32,
-        z: i32,
-    },
+    SetChunkCacheCenter(ColumnPos),
     /// Sets the client's view distance radius.
     SetChunkCacheRadius {
         radius: i32,

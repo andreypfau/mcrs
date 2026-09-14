@@ -1,4 +1,4 @@
-use crate::{BlockPos, SectionPos};
+use crate::{BlockPos, RegionPos, SectionPos};
 use bevy_math::{DVec3, IVec2};
 use std::fmt::Debug;
 
@@ -25,6 +25,14 @@ impl ColumnPos {
         let diff_z = other.z - self.z;
 
         diff_x * diff_x + diff_z * diff_z
+    }
+
+    pub const fn region_local_x(self) -> i32 {
+        self.x & RegionPos::MASK as i32
+    }
+
+    pub const fn region_local_z(self) -> i32 {
+        self.z & RegionPos::MASK as i32
     }
 
     pub const fn manhattan_distance(&self, other: Self) -> i32 {

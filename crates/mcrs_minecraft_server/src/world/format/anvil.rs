@@ -1,3 +1,4 @@
+use mcrs_voxel_math::{ColumnPos, RegionPos};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -65,7 +66,7 @@ type Region = Arc<OnceLock<Option<Arc<RegionFile>>>>;
 
 pub struct Regions {
     dir: PathBuf,
-    open: Mutex<HashMap<(i32, i32), Region>>,
+    open: Mutex<HashMap<RegionPos, Region>>,
 }
 
 impl SavedColumns {
@@ -95,11 +96,11 @@ impl SavedColumns {
     /// stopped at whatever status the player's view reached. Their sections
     /// hold no blocks, so anything short of `full` is absent too and the
     /// generator fills the column instead of the save handing back a hole.
-    pub fn read(&self, x: i32, z: i32) -> Option<Chunk> {
-        let chunk = match self.region(x >> 5, z >> 5)?.read_chunk(x, z) {
+    pub fn read(&self, pos: ColumnPos) -> Option<Chunk> {
+        let chunk = match self.region(RegionPos::from(pos))?.read_chunk(pos) {
             Ok(chunk) => chunk?,
             Err(err) => {
-                error!(%err, x, z, "reading a saved column");
+                error!(%err, ?pos, "reading a saved column");
                 return None;
             }
         };
@@ -109,17 +110,10 @@ impl SavedColumns {
     /// Reading a region file is megabytes of blocking I/O, so the map lock is
     /// held only long enough to claim the slot — the read itself blocks nobody
     /// but the other readers of that same region.
-    fn region(&self, region_x: i32, region_z: i32) -> Option<Arc<RegionFile>> {
-        let slot = self
-            .0
-            .open
-            .lock()
-            .unwrap()
-            .entry((region_x, region_z))
-            .or_default()
-            .clone();
+    fn region(&self, at: RegionPos) -> Option<Arc<RegionFile>> {
+        let slot = self.0.open.lock().unwrap().entry(at).or_default().clone();
         slot.get_or_init(|| {
-            let path = self.0.dir.join(format!("r.{region_x}.{region_z}.mca"));
+            let path = self.0.dir.join(format!("r.{}.{}.mca", at.x, at.z));
             if !path.is_file() {
                 return None;
             }
@@ -127,8 +121,8 @@ impl SavedColumns {
             match RegionFile::open(&path) {
                 Ok(region) => {
                     debug!(
-                        region_x,
-                        region_z,
+                        region_x = at.x,
+                        region_z = at.z,
                         ms = started.elapsed().as_secs_f32() * 1000.0,
                         "read a region file"
                     );

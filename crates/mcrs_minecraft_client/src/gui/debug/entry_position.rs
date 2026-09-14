@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_voxel_math::{BlockPos, Direction, SectionPos};
+use mcrs_voxel_math::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 use super::{DebugEntryGroup, DebugScreenDisplayer};
@@ -39,10 +39,10 @@ pub fn display(
                 chunk.x,
                 chunk.y,
                 chunk.z,
-                chunk.x & 31,
-                chunk.z & 31,
-                chunk.x >> 5,
-                chunk.z >> 5,
+                ColumnPos::from(chunk).region_local_x(),
+                ColumnPos::from(chunk).region_local_z(),
+                RegionPos::from(ColumnPos::from(chunk)).x,
+                RegionPos::from(ColumnPos::from(chunk)).z,
             ),
             format!(
                 "Facing: {direction} ({facing}) ({:.1} / {:.1})",

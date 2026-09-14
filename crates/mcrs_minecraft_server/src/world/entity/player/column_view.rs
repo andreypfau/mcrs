@@ -645,10 +645,10 @@ fn on_view_update(
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
-            data: PacketPayload::SetChunkCacheCenter {
-                x: rep.convert_chunk_x(event.new_view.center.x),
-                z: rep.convert_chunk_z(event.new_view.center.z),
-            },
+            data: PacketPayload::SetChunkCacheCenter(ColumnPos::new(
+                rep.convert_chunk_x(event.new_view.center.x),
+                rep.convert_chunk_z(event.new_view.center.z),
+            )),
             session: PlayerSession(0),
             epoch: 0,
         });

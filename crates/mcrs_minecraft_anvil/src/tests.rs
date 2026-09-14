@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
+use mcrs_voxel_math::ColumnPos;
+
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;
 use crate::{
@@ -173,7 +175,9 @@ fn read_one(
     root: &NbtCompound,
 ) -> Result<crate::Chunk, AnvilError> {
     let path = fixture.region(0, 0, &single_slot(version, root));
-    Ok(RegionFile::open(&path)?.read_chunk(0, 0)?.unwrap())
+    Ok(RegionFile::open(&path)?
+        .read_chunk(ColumnPos::new(0, 0))?
+        .unwrap())
 }
 
 #[test]
@@ -209,7 +213,7 @@ fn custom_compression_is_a_loud_error() {
     let path = fixture.region(0, 0, &[(0, 0, 127, b"whatever".to_vec())]);
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(ColumnPos::new(0, 0))
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::CustomCompression { .. }),
@@ -224,7 +228,7 @@ fn unknown_compression_names_the_id() {
     let path = fixture.region(0, 0, &[(0, 0, 9, b"whatever".to_vec())]);
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(ColumnPos::new(0, 0))
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::UnknownCompression { id: 9, .. }),
@@ -247,9 +251,12 @@ fn external_chunks_come_from_the_mcc_file() {
     let path = fixture.region(1, 0, &[(33, 2, ZLIB | EXTERNAL, Vec::new())]);
 
     let region = RegionFile::open(&path).unwrap();
-    assert_eq!(region.present().collect::<Vec<_>>(), vec![(33, 2)]);
-    let chunk = region.read_chunk(33, 2).unwrap().unwrap();
-    assert_eq!(chunk.x, 33);
+    assert_eq!(
+        region.present().collect::<Vec<_>>(),
+        vec![ColumnPos::new(33, 2)]
+    );
+    let chunk = region.read_chunk(ColumnPos::new(33, 2)).unwrap().unwrap();
+    assert_eq!(chunk.pos.x, 33);
     assert_eq!(
         chunk.sections[0]
             .block_states
@@ -267,7 +274,7 @@ fn a_missing_mcc_file_is_a_loud_error() {
     let path = fixture.region(0, 0, &[(0, 0, ZLIB | EXTERNAL, Vec::new())]);
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(ColumnPos::new(0, 0))
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::MissingExternal { .. }),
@@ -282,7 +289,7 @@ fn an_empty_slot_reads_as_absent() {
     let path = fixture.region(0, 0, &single_slot(ZLIB, &chunk_nbt(0, 0, Vec::new())));
     let region = RegionFile::open(&path).unwrap();
     assert_eq!(region.present().count(), 1);
-    assert!(region.read_chunk(1, 0).unwrap().is_none());
+    assert!(region.read_chunk(ColumnPos::new(1, 0)).unwrap().is_none());
 }
 
 #[test]
@@ -291,7 +298,7 @@ fn a_chunk_outside_the_region_is_a_loud_error() {
     let path = fixture.region(0, 0, &single_slot(ZLIB, &chunk_nbt(0, 0, Vec::new())));
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(32, 0)
+        .read_chunk(ColumnPos::new(32, 0))
         .unwrap_err();
     assert!(matches!(err.kind, ErrorKind::WrongRegion { .. }), "{err}");
 }
@@ -963,7 +970,7 @@ fn a_sector_pointing_into_the_header_is_an_error() {
     std::fs::write(&path, bytes).unwrap();
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(ColumnPos::new(0, 0))
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::SectorInHeader { sector: 1, .. }),
@@ -980,7 +987,7 @@ fn a_sector_past_the_end_of_the_file_is_an_error() {
     std::fs::write(&path, bytes).unwrap();
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(ColumnPos::new(0, 0))
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::SectorOutOfBounds { sector: 900, .. }),
@@ -997,7 +1004,7 @@ fn a_payload_longer_than_its_sectors_is_an_error() {
     std::fs::write(&path, bytes).unwrap();
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(ColumnPos::new(0, 0))
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::PayloadLength { length: 99_999, .. }),
@@ -1038,7 +1045,9 @@ fn timestamps_come_from_the_second_header_sector() {
     let fixture = Fixture::new("timestamp");
     let path = fixture.region(0, 0, &single_slot(ZLIB, &chunk_nbt(0, 0, Vec::new())));
     assert_eq!(
-        RegionFile::open(&path).unwrap().timestamp(0, 0),
+        RegionFile::open(&path)
+            .unwrap()
+            .timestamp(ColumnPos::new(0, 0)),
         1_700_000_000
     );
 }

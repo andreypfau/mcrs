@@ -11,6 +11,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::serverbound::{ClientInformation, KeepAlive};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
@@ -125,10 +126,7 @@ pub struct ServerTeleport {
 pub struct PendingTeleports(pub Vec<ServerTeleport>);
 
 #[derive(Component, Clone, Copy, Debug)]
-pub struct ChunkCacheCenter {
-    pub x: i32,
-    pub z: i32,
-}
+pub struct ChunkCacheCenter(pub ColumnPos);
 
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ChunkCacheRadius(pub i32);
@@ -483,10 +481,9 @@ fn handle_game_packet(
             look: position.look,
         });
     } else if let Some(center) = event.decode::<ClientboundSetChunkCacheCenter>() {
-        commands.entity(event.entity).insert(ChunkCacheCenter {
-            x: center.x.0,
-            z: center.z.0,
-        });
+        commands
+            .entity(event.entity)
+            .insert(ChunkCacheCenter(ColumnPos::new(center.x.0, center.z.0)));
     } else if let Some(radius) = event.decode::<ClientboundChunkCacheRadius>() {
         commands
             .entity(event.entity)

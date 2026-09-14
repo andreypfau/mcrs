@@ -6,6 +6,7 @@ use lz4_java_wrc::Lz4BlockInput;
 
 use crate::chunk::{self, Chunk};
 use crate::{AnvilError, ErrorKind};
+use mcrs_voxel_math::{ColumnPos, RegionPos};
 
 pub const SECTOR_BYTES: usize = 4096;
 pub const REGION_SIDE: i32 = 32;
@@ -19,8 +20,7 @@ impl std::fmt::Debug for RegionFile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RegionFile")
             .field("path", &self.path)
-            .field("region_x", &self.region_x)
-            .field("region_z", &self.region_z)
+            .field("pos", &self.pos)
             .field("bytes", &self.bytes.len())
             .finish()
     }
@@ -28,8 +28,7 @@ impl std::fmt::Debug for RegionFile {
 
 pub struct RegionFile {
     path: PathBuf,
-    region_x: i32,
-    region_z: i32,
+    pos: RegionPos,
     bytes: Vec<u8>,
 }
 
@@ -40,16 +39,14 @@ impl RegionFile {
             path: path.to_path_buf(),
             kind,
         };
-        let (region_x, region_z) =
-            parse_region_name(path).ok_or_else(|| at(ErrorKind::FileName))?;
+        let pos = parse_region_name(path).ok_or_else(|| at(ErrorKind::FileName))?;
         let bytes = std::fs::read(path).map_err(|source| at(ErrorKind::Io(source)))?;
         if bytes.len() < HEADER_BYTES {
             return Err(at(ErrorKind::ShortHeader { len: bytes.len() }));
         }
         Ok(Self {
             path: path.to_path_buf(),
-            region_x,
-            region_z,
+            pos,
             bytes,
         })
     }
@@ -58,41 +55,32 @@ impl RegionFile {
         &self.path
     }
 
-    pub fn region_x(&self) -> i32 {
-        self.region_x
-    }
-
-    pub fn region_z(&self) -> i32 {
-        self.region_z
+    pub fn pos(&self) -> RegionPos {
+        self.pos
     }
 
     /// Absolute column coordinates of every slot whose header entry is non-zero.
-    pub fn present(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
+    pub fn present(&self) -> impl Iterator<Item = ColumnPos> + '_ {
         (0..REGION_SIDE * REGION_SIDE)
             .filter(move |&slot| self.header_entry(slot as usize) != 0)
-            .map(move |slot| {
-                (
-                    self.region_x * REGION_SIDE + slot % REGION_SIDE,
-                    self.region_z * REGION_SIDE + slot / REGION_SIDE,
-                )
-            })
+            .map(move |slot| self.pos.column_at(slot % REGION_SIDE, slot / REGION_SIDE))
     }
 
-    pub fn timestamp(&self, x: i32, z: i32) -> i32 {
-        let head = HEADER_BYTES / 2 + slot_index(x, z) * 4;
+    pub fn timestamp(&self, pos: ColumnPos) -> i32 {
+        let head = HEADER_BYTES / 2 + slot_index(pos) * 4;
         i32::from_be_bytes(self.bytes[head..head + 4].try_into().unwrap())
     }
 
     /// The chunk's decompressed NBT, or `None` when the slot is empty.
-    pub fn chunk_nbt(&self, x: i32, z: i32) -> Result<Option<Vec<u8>>, AnvilError> {
-        self.read_nbt(x, z).map_err(|kind| AnvilError {
+    pub fn chunk_nbt(&self, pos: ColumnPos) -> Result<Option<Vec<u8>>, AnvilError> {
+        self.read_nbt(pos).map_err(|kind| AnvilError {
             path: self.path.clone(),
             kind,
         })
     }
 
-    pub fn read_chunk(&self, x: i32, z: i32) -> Result<Option<Chunk>, AnvilError> {
-        self.read_nbt(x, z)
+    pub fn read_chunk(&self, pos: ColumnPos) -> Result<Option<Chunk>, AnvilError> {
+        self.read_nbt(pos)
             .and_then(|nbt| nbt.map(|nbt| chunk::parse(&nbt)).transpose())
             .map_err(|kind| AnvilError {
                 path: self.path.clone(),
@@ -105,20 +93,21 @@ impl RegionFile {
         i32::from_be_bytes(self.bytes[head..head + 4].try_into().unwrap())
     }
 
-    fn read_nbt(&self, x: i32, z: i32) -> Result<Option<Vec<u8>>, ErrorKind> {
-        let (chunk_region_x, chunk_region_z) = (x >> 5, z >> 5);
-        if (chunk_region_x, chunk_region_z) != (self.region_x, self.region_z) {
+    fn read_nbt(&self, pos: ColumnPos) -> Result<Option<Vec<u8>>, ErrorKind> {
+        let ColumnPos { x, z } = pos;
+        let chunk_region = RegionPos::from(pos);
+        if chunk_region != self.pos {
             return Err(ErrorKind::WrongRegion {
                 x,
                 z,
-                chunk_region_x,
-                chunk_region_z,
-                region_x: self.region_x,
-                region_z: self.region_z,
+                chunk_region_x: chunk_region.x,
+                chunk_region_z: chunk_region.z,
+                region_x: self.pos.x,
+                region_z: self.pos.z,
             });
         }
 
-        let entry = self.header_entry(slot_index(x, z));
+        let entry = self.header_entry(slot_index(pos));
         if entry == 0 {
             return Ok(None);
         }
@@ -165,16 +154,16 @@ impl RegionFile {
     }
 }
 
-fn slot_index(x: i32, z: i32) -> usize {
-    ((z & 31) * REGION_SIDE + (x & 31)) as usize
+fn slot_index(pos: ColumnPos) -> usize {
+    (pos.region_local_z() * REGION_SIDE + pos.region_local_x()) as usize
 }
 
-fn parse_region_name(path: &Path) -> Option<(i32, i32)> {
+fn parse_region_name(path: &Path) -> Option<RegionPos> {
     let name = path.file_name()?.to_str()?;
     let ["r", x, z, "mca"] = name.split('.').collect::<Vec<_>>()[..] else {
         return None;
     };
-    Some((x.parse().ok()?, z.parse().ok()?))
+    Some(RegionPos::new(x.parse().ok()?, z.parse().ok()?))
 }
 
 fn decompress(version: u8, payload: &[u8], x: i32, z: i32) -> Result<Vec<u8>, ErrorKind> {

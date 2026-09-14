@@ -4,6 +4,7 @@
 //! to the host-resident connection without querying ServerSideConnection.
 
 use crate::mock_connection;
+use mcrs_voxel_math::ColumnPos;
 
 use std::sync::atomic::Ordering;
 
@@ -274,7 +275,7 @@ fn cache_center_encodes() {
     push_critical(
         &mut world,
         entity,
-        PacketPayload::SetChunkCacheCenter { x: 0, z: 0 },
+        PacketPayload::SetChunkCacheCenter(ColumnPos::new(0, 0)),
     );
     run_dispatch(&mut world);
 
@@ -742,7 +743,7 @@ fn on_view_update_routes_cache_center() {
     push_critical(
         &mut world,
         entity,
-        PacketPayload::SetChunkCacheCenter { x: 5, z: 3 },
+        PacketPayload::SetChunkCacheCenter(ColumnPos::new(5, 3)),
     );
     push_critical(
         &mut world,

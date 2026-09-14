@@ -4,6 +4,7 @@ pub mod column_pos;
 pub mod direction;
 pub mod local_pos;
 pub mod mth;
+pub mod region_pos;
 pub mod section_pos;
 pub mod voxel_shape;
 
@@ -12,4 +13,5 @@ pub use bounding_box::BoundingBox;
 pub use column_pos::ColumnPos;
 pub use direction::{Axis, Direction, DirectionSet, dist_manhattan};
 pub use local_pos::LocalPos;
+pub use region_pos::RegionPos;
 pub use section_pos::SectionPos;

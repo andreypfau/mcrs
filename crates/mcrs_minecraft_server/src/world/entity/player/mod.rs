@@ -23,6 +23,7 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, ResMut, With};
 use mcrs_minecraft_protocol::GameMode;
+use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
@@ -226,10 +227,7 @@ fn consume_inbound_player_spawn(
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
-            data: PacketPayload::SetChunkCacheCenter {
-                x: center_x,
-                z: center_z,
-            },
+            data: PacketPayload::SetChunkCacheCenter(ColumnPos::new(center_x, center_z)),
             session: PlayerSession(0),
             epoch: 0,
         });

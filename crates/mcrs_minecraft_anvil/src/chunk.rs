@@ -1,3 +1,4 @@
+use mcrs_voxel_math::ColumnPos;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::marker::PhantomData;
@@ -164,8 +165,7 @@ pub struct Section {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chunk {
-    pub x: i32,
-    pub z: i32,
+    pub pos: ColumnPos,
     /// `yPos`: the section Y the saved section array starts at.
     pub min_section_y: i32,
     pub status: String,
@@ -256,8 +256,7 @@ pub fn parse(nbt: &[u8]) -> Result<Chunk, ErrorKind> {
         });
     }
     Ok(Chunk {
-        x: raw.x_pos,
-        z: raw.z_pos,
+        pos: ColumnPos::new(raw.x_pos, raw.z_pos),
         min_section_y: raw.y_pos,
         status: raw.status,
         is_light_on: raw.is_light_on,

@@ -521,18 +521,17 @@ pub fn dispatch_encode(
                             })
                             .ok();
                     }
-                    PacketPayload::SetChunkCacheCenter { x, z } => {
+                    PacketPayload::SetChunkCacheCenter(center) => {
                         debug!(
                             target: "mcrs_minecraft_server::bridge",
                             conn = ?entity,
-                            x,
-                            z,
+                            ?center,
                             "dispatch_encode: SetChunkCacheCenter"
                         );
                         conn.raw
                             .append(&ClientboundSetChunkCacheCenter {
-                                x: VarInt(x),
-                                z: VarInt(z),
+                                x: VarInt(center.x),
+                                z: VarInt(center.z),
                             })
                             .ok();
                     }

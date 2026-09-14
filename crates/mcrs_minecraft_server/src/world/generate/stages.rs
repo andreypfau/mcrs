@@ -266,7 +266,7 @@ pub fn fill_column(
         .and_then(|(saved, (_, biomes))| {
             let chunk = {
                 let _read = info_span!("world::column_read_saved").entered();
-                saved.read(col.x, col.z)?
+                saved.read(col)?
             };
             let _decode = info_span!("world::column_decode_saved").entered();
             let decoded = column_sections(&chunk, y_sections, &ctx.blocks, biomes)
