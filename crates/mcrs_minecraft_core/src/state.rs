@@ -6,8 +6,6 @@ use bevy_state::prelude::States;
 ///
 /// ```text
 /// Bootstrap → LoadingDataPack → WorldgenFreeze → Playing
-///                                                    ↕
-///                                             Reconfiguring
 /// ```
 ///
 /// - **Bootstrap**: Static registries (blocks, items) are populated.
@@ -17,8 +15,6 @@ use bevy_state::prelude::States;
 ///   `RegistrySnapshot` is assigned stable network IDs, `NoiseRouter` is
 ///   compiled.  No further data-pack changes until next reconfiguration.
 /// - **Playing**: Normal server operation.
-/// - **Reconfiguring**: Mid-session reconfiguration (client reconnect flow).
-///   After resolution returns to `Playing`.
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum AppState {
     #[default]
@@ -26,5 +22,4 @@ pub enum AppState {
     LoadingDataPack,
     WorldgenFreeze,
     Playing,
-    Reconfiguring,
 }

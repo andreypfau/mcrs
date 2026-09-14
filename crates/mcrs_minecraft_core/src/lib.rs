@@ -3,7 +3,6 @@
 pub const VERSION_NAME: &str = "26.3-snapshot-9";
 
 pub mod asset;
-pub mod block_state;
 pub mod registry;
 pub mod resource_location;
 pub mod state;

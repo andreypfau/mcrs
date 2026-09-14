@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use crate::{BiomePos, Decode, Encode, Position};
+use crate::{Decode, Encode, Position};
 
 pub use mcrs_voxel_math::ColumnPos;
 
@@ -17,15 +17,6 @@ impl Decode<'_> for ColumnPos {
         let x = i32::decode(r)?;
         let z = i32::decode(r)?;
         Ok(ColumnPos { x, z })
-    }
-}
-
-impl From<BiomePos> for ColumnPos {
-    fn from(pos: BiomePos) -> Self {
-        Self {
-            x: pos.x.div_euclid(4),
-            z: pos.z.div_euclid(4),
-        }
     }
 }
 

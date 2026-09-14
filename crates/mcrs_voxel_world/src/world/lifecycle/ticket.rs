@@ -109,23 +109,6 @@ impl TicketKind {
     }
 }
 
-#[derive(Component)]
-pub struct TicketCommands {
-    pub queue: Vec<Ticket>,
-}
-
-#[derive(Debug)]
-pub enum TicketCommand {
-    Add {
-        chunk_pos: ChunkPos,
-        ticket: Ticket,
-    },
-    Remove {
-        chunk_pos: ChunkPos,
-        ticket_kind: TicketKind,
-    },
-}
-
 #[derive(Component, Debug, Default)]
 pub struct ChunkTicketsCommands {
     /// Queued ticket adds. The order they were raised in says nothing about what the player
@@ -192,18 +175,6 @@ impl ChunkTicketsCommands {
             .push(ticket_kind);
     }
 }
-
-// fn unload_chunks(
-//     mut commands: Commands,
-//     mut chunk_statuses: Query<(Entity, &ChunkStatus), Changed<ChunkStatus>>,
-// ) {
-//     chunk_statuses.iter_mut().for_each(|(e, status)| {
-//         if *status != ChunkStatus::Unloading {
-//             return;
-//         }
-//         commands.entity(e).insert(ChunkUnloaded);
-//     })
-// }
 
 fn despawn_chunks(
     mut commands: Commands,

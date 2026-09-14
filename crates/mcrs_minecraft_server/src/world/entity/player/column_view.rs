@@ -1,11 +1,7 @@
-use std::collections::VecDeque;
-
 use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{
-    Added, Component, ContainsEntity, Message, MessageReader, On, Query, With,
-};
+use bevy_ecs::prelude::{Added, Component, ContainsEntity, MessageReader, On, Query, With};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, ChunkBlocks, NetworkPalette};
@@ -75,9 +71,6 @@ impl Plugin for ColumnViewPlugin {
         // React to ChunkTrackingView changes (xz-distance changes, movement).
         app.add_observer(on_view_update);
         app.add_observer(handle_batch_acknowledgement);
-
-        // When vertical reposition offset changes, re-map forced tickets and re-send active columns.
-        // app.add_systems(Update, handle_reposition_changed);
 
         // Progressively ticket columns closest to the player, then send loaded ones.
         // app.add_systems(
@@ -575,44 +568,6 @@ pub(crate) fn send_column_queue(
         })
 }
 
-#[derive(Debug, Message)]
-pub struct PlayerColumnLoadRequest {
-    pub player: Entity,
-    pub column_pos: ColumnPos,
-    /// Server chunk entities in **client section order** (index 0..15 == client Y sections).
-    pub sections: Vec<Entity>,
-}
-
-#[derive(Debug, Message)]
-pub struct PlayerColumnUnloadRequest {
-    pub player: Entity,
-    pub column_pos: ColumnPos,
-}
-
-#[derive(Component, Default)]
-pub struct PlayerColumnView {
-    /// Columns the player should currently have (xz only).
-    desired_columns: FxHashSet<ColumnPos>,
-
-    /// Columns that have already been sent at least once (xz only).
-    sent_columns: FxHashSet<ColumnPos>,
-
-    /// Prevent duplicate enqueues.
-    queued_columns: FxHashSet<ColumnPos>,
-
-    /// Columns for which forced tickets have been added (chunk spawning requested).
-    ticketed_columns: FxHashSet<ColumnPos>,
-
-    /// Columns pending (re)send.
-    load_queue: VecDeque<ColumnPos>,
-
-    /// Columns pending unload.
-    unload_queue: VecDeque<ColumnPos>,
-
-    /// Last applied vertical offset, in chunk-sections (blocks >> 4).
-    last_offset_sections: i32,
-}
-
 fn add_player_column_view(
     players: Query<Entity, Added<PlayerChunkObserver>>,
     mut commands: Commands,
@@ -716,81 +671,7 @@ fn on_view_update(
         mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
     }
-
-    // // Compute new desired columns set.
-    // let mut new_cols = FxHashSet::default();
-    // columns_for_view(&event.new_view, &mut new_cols);
-    //
-    // // Removed columns — un-ticket only those that were actually ticketed.
-    // for col in &col_view.desired_columns {
-    //     if !new_cols.contains(col) {
-    //         apply_forced_tickets(&mut tickets, *col, new_off, false);
-    //         if col_view.sent_columns.contains(&col) {
-    //             col_view.unload_queue.push_back(*col);
-    //         }
-    //         col_view.sent_columns.remove(&col);
-    //         col_view.queued_columns.remove(&col);
-    //     }
-    // }
-    //
-    // // Added columns — only enqueue; tickets are added progressively by
-    // // `ticket_pending_columns` so close chunks are generated first.
-    // let center = ColumnPos::from(event.new_view.center);
-    // let mut load_queue = Vec::with_capacity(new_cols.len());
-    // for col in new_cols.iter() {
-    //     if !col_view.desired_columns.contains(col) {
-    //         if col_view.queued_columns.insert(*col) {
-    //             load_queue.push(*col);
-    //         }
-    //     }
-    // }
-    // load_queue.sort_unstable_by_key(|col| col.distance_squared(center));
-    // col_view.load_queue.extend(load_queue);
-    //
-    // col_view.desired_columns = new_cols;
 }
-
-// /// When `Reposition` changes (vertical window shifts), update forced tickets for all active columns and re-send them.
-// fn handle_reposition_changed(
-//     mut players: Query<
-//         (
-//             &Reposition,
-//             &InDimension,
-//             &mut PlayerColumnView,
-//             &mut PlayerChunkObserver,
-//         ),
-//         Changed<Reposition>,
-//     >,
-//     mut dimensions: Query<&mut ChunkTicketsCommands>,
-// ) {
-//     for (rep, dim, mut view, mut observer) in &mut players {
-//         let Ok(mut tickets) = dimensions.get_mut(dim.entity()) else {
-//             continue;
-//         };
-//         let view = &mut *view;
-//         let new_off = offset_sections(rep);
-//         let old_off = view.last_offset_sections;
-//
-//         if new_off == old_off {
-//             continue;
-//         }
-//
-//         // Remap forced tickets for every currently desired column.
-//         for col in (&view.desired_columns).iter() {
-//             // Remove old mapping.
-//             apply_forced_tickets(&mut tickets, *col, old_off, false);
-//             // Add new mapping.
-//             apply_forced_tickets(&mut tickets, *col, new_off, true);
-//
-//             // Re-send column to client (overwrites sections in-place).
-//             if view.queued_columns.insert(*col) {
-//                 view.load_queue.push_back(*col);
-//             }
-//         }
-//
-//         view.last_offset_sections = new_off;
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

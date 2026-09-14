@@ -18,7 +18,6 @@ mod keep_alive;
 pub mod login;
 mod tag;
 mod version;
-mod weight;
 pub mod world;
 
 use crate::client_info::ClientInfoPlugin;

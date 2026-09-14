@@ -29,13 +29,11 @@ pub mod __private {
 }
 
 mod array;
-mod biome_pos;
 mod bit_set;
 mod block;
 pub mod block_pos;
 mod bounded;
 mod byte_angle;
-mod cell_pos;
 pub mod chunk;
 pub mod chunk_pos;
 pub mod decode;
@@ -73,12 +71,10 @@ use std::io::Write;
 
 use anyhow::Context;
 pub use array::FixedArray;
-pub use biome_pos::BiomePos;
 pub use bit_set::FixedBitSet;
 pub use block::BlockStateId;
 pub use bounded::Bounded;
 pub use byte_angle::ByteAngle;
-pub use cell_pos::CellPos;
 pub use chunk::ChunkData;
 pub use chunk::LightData;
 pub use chunk_pos::ColumnPos;
