@@ -7,24 +7,27 @@
 //!
 //! Lives in the minecraft crate (not in `mcrs_minecraft_block`) to avoid
 //! `mcrs_minecraft_block -> mcrs_minecraft_server` cycle. The block crate keeps
-//! `BlockUpdatePlugin` (message types, set-block reader, change-tracker
-//! seeder, SystemSet definitions); this module supplies the additional
+//! `BlockUpdatePlugin` (message types, set-block reader, SystemSet
+//! definitions); this module supplies the additional
 //! `BlockUpdateWirePlugin` that registers the new per-dim wire-emit
 //! system in `FixedPostUpdate`.
 
 use bevy_app::{App, FixedPostUpdate, Plugin};
-use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Changed, Entity, IntoScheduleConfigs, Query, With};
+use bevy_ecs::message::{MessageReader, MessageWriter};
+use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, Local, Query, With};
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::voxel_update::{SectionVoxelChanges, VoxelUpdateSet};
+use mcrs_minecraft_level::voxel_update::{VoxelUpdateFlags, VoxelUpdateSet};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
+use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 
 pub use mcrs_minecraft_level::block_update::BlockUpdatePlugin;
@@ -34,45 +37,47 @@ use std::sync::atomic::Ordering;
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
 
-/// Per-dim wire emitter. Iterates chunks whose
-/// `SectionVoxelChanges` changed this tick, resolves the
-/// observer set through the chunk's column (`ColumnPos::from(chunk_pos)`
-/// -> `ColumnIndex.0.get` -> column entity -> `PlayerObservers`), and
-/// emits one `OutboundPlayerPacket { target: PlayerSet, priority: Normal,
-/// data: PacketPayload::BlockUpdate { position, new_state } }` per
-/// changed block, then clears the changes set.
+/// Per-dim wire emitter. Reads the blocks placed this tick that notify
+/// clients, resolves the observer set through the section's column
+/// (`ColumnPos::from(section_pos)` -> `ColumnIndex.0.get` -> column entity ->
+/// `PlayerObservers`), and emits one `OutboundPlayerPacket { target: PlayerSet,
+/// priority: Normal, data: PacketPayload::BlockUpdate { position, new_state } }`
+/// per changed block.
 ///
 /// Recipients are resolved at emit time by reading `PlayerObservers` on
-/// the chunk's column entity rather than at consume time on the host.
-/// The change set is drained every tick — same lifecycle as the previous
-/// host-side body, so repeated changes on the same block within a tick
-/// coalesce into a single packet emit.
+/// the section's column entity rather than at consume time on the host.
+/// A block placed more than once in a tick goes out once, with the state it
+/// holds when the packet is built.
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "block_update::update_client_blocks_per_dim", skip_all)
 )]
 pub fn update_client_blocks_per_dim(
-    mut chunks: Query<
-        (
-            &SectionPos,
-            &InDimension,
-            &ChunkBlocks,
-            &mut SectionVoxelChanges,
-        ),
-        Changed<SectionVoxelChanges>,
-    >,
+    mut placed: MessageReader<BlockPlaced>,
+    sections: Query<(&InDimension, &ChunkBlocks)>,
     column_indices: Query<&ColumnIndex>,
     observers: Query<&PlayerObservers>,
     live_players: Query<Entity, With<Player>>,
     anchors: Query<&HostAnchor>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut changed: Local<FxHashMap<Entity, (SectionPos, FxHashSet<BlockPos>)>>,
 ) {
-    for (chunk_pos, in_dim, palette, mut changes) in chunks.iter_mut() {
-        if changes.changes.is_empty() {
-            continue;
+    for placed in placed.read() {
+        if placed.flags.notifies_clients() {
+            changed
+                .entry(placed.chunk)
+                .or_insert_with(|| (placed.chunk_pos, FxHashSet::default()))
+                .1
+                .insert(placed.block_pos);
         }
+    }
 
-        let column_pos = ColumnPos::from(*chunk_pos);
+    for (section, (section_pos, positions)) in changed.drain() {
+        let Ok((in_dim, palette)) = sections.get(section) else {
+            continue;
+        };
+
+        let column_pos = ColumnPos::from(section_pos);
         let mut observer_entities: SmallVec<[Entity; 8]> = column_indices
             .get(in_dim.0)
             .ok()
@@ -90,11 +95,6 @@ pub fn update_client_blocks_per_dim(
             .iter()
             .filter_map(|observer| anchors.get(*observer).ok().map(|anchor| anchor.0))
             .collect();
-
-        // Drain regardless of whether there are recipients — leaving stale
-        // entries in the change set would re-fire `Changed<...>` next tick
-        // and keep emitting empty packets, or accumulate unbounded.
-        let positions: Vec<_> = changes.changes.drain().collect();
 
         if targets.is_empty() {
             continue;
@@ -119,8 +119,8 @@ pub fn update_client_blocks_per_dim(
 }
 
 /// Per-dim wire-emit plugin. Pairs with `BlockUpdatePlugin` (which
-/// remains in the block crate and supplies the message types + reader +
-/// change-tracker seeder); both are registered into each `DimSubApp`.
+/// remains in the block crate and supplies the message types and the
+/// set-block reader); both are registered into each `DimSubApp`.
 pub struct BlockUpdateWirePlugin;
 
 impl Plugin for BlockUpdateWirePlugin {

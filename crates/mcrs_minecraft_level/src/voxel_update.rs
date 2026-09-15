@@ -2,13 +2,11 @@ use crate::world::storage::section::SectionIndex;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter, Messages};
-use bevy_ecs::prelude::{Commands, Component, Query};
-use bevy_ecs::query::{With, Without};
+use bevy_ecs::prelude::Query;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_minecraft_chunk::{SharedVoxelPalette, VoxelId, VoxelPalette};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::{LocalPos, SectionPos};
-use rustc_hash::FxHashSet;
 use std::marker::PhantomData;
 
 /// The only question the engine asks of a game's update flags.
@@ -59,7 +57,6 @@ impl<F: VoxelUpdateFlags> Plugin for VoxelUpdatePlugin<F> {
         );
         app.configure_sets(FixedUpdate, VoxelUpdateSet::ApplyChanges);
         app.configure_sets(FixedPostUpdate, VoxelUpdateSet::NetworkSync);
-        app.add_systems(FixedUpdate, add_changes_set);
         app.add_systems(
             FixedUpdate,
             apply_voxel_set_requests::<F>.in_set(VoxelUpdateSet::ApplyChanges),
@@ -76,26 +73,10 @@ pub struct VoxelSetRequest<F: VoxelUpdateFlags> {
     pub recursion_left: i16,
 }
 
-#[derive(Default, Component)]
-pub struct SectionVoxelChanges {
-    pub changes: FxHashSet<BlockPos>,
-}
-
-fn add_changes_set(
-    query: Query<Entity, (With<ChunkVoxels>, Without<SectionVoxelChanges>)>,
-    mut commands: Commands,
-) {
-    for entity in query.iter() {
-        commands
-            .entity(entity)
-            .insert(SectionVoxelChanges::default());
-    }
-}
-
 pub fn apply_voxel_set_requests<F: VoxelUpdateFlags>(
     mut reader: MessageReader<VoxelSetRequest<F>>,
     dimensions: Query<&SectionIndex>,
-    mut chunks: Query<(Entity, &mut ChunkVoxels, &mut SectionVoxelChanges)>,
+    mut chunks: Query<(Entity, &mut ChunkVoxels)>,
     mut writer: MessageWriter<VoxelPlaced<F>>,
 ) {
     reader.read().for_each(|request| {
@@ -114,7 +95,7 @@ pub fn apply_voxel_set_requests<F: VoxelUpdateFlags>(
             );
             return;
         };
-        let Some((chunk, mut storage, mut changes)) = chunk_index
+        let Some((chunk, mut storage)) = chunk_index
             .get(chunk_pos)
             .and_then(|e| chunks.get_mut(e).ok())
         else {
@@ -135,9 +116,6 @@ pub fn apply_voxel_set_requests<F: VoxelUpdateFlags>(
             .set(LocalPos::from(request.pos), request.new_state);
         if old_state == request.new_state {
             return;
-        }
-        if request.flags.notifies_clients() {
-            changes.changes.insert(request.pos);
         }
 
         writer.write(VoxelPlaced {

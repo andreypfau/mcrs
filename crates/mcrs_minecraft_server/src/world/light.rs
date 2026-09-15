@@ -15,7 +15,7 @@ use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPosCompone
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::prelude::LightWorkQueue;
 use mcrs_minecraft_light::prelude::{
-    BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SkyLight,
+    Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SectionRelit,
 };
 
 use mcrs_minecraft_worldgen_generator::heightmap::SurfaceHeightmap;
@@ -163,41 +163,31 @@ fn feed_column_surfaces(
 
 /// Turns a published light change into a `ClientboundLightUpdate` carrying only
 /// the rows that changed, for the players that already hold the column.
-///
-/// The scan is over every section entity, not only the changed ones: at view
-/// distance 10 that is on the order of ten thousand tick comparisons per
-/// dimension.
 pub fn emit_light_updates(
-    changed: Query<
-        (
-            Entity,
-            &SectionPos,
-            &InDimension,
-            Ref<BlockLight>,
-            Ref<SkyLight>,
-        ),
-        Or<(Changed<BlockLight>, Changed<SkyLight>)>,
-    >,
+    mut relit: MessageReader<SectionRelit>,
+    sections: Query<(&SectionPos, &InDimension)>,
     column_indices: Query<&ColumnIndex>,
     views: Query<(&ColumnView, &HostAnchor)>,
     codec_params: LightCodecParams,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut by_column: Local<FxHashMap<(Entity, ColumnPos), (Vec<Entity>, Vec<Entity>)>>,
 ) {
-    let mut by_column: FxHashMap<(Entity, ColumnPos), (Vec<Entity>, Vec<Entity>)> =
-        FxHashMap::default();
-    for (section, pos, in_dim, block, sky) in &changed {
+    for change in relit.read() {
+        let Ok((pos, in_dim)) = sections.get(change.section) else {
+            continue;
+        };
         let rows = by_column
             .entry((in_dim.0, ColumnPos::from(*pos)))
             .or_default();
-        if block.is_changed() {
-            rows.0.push(section);
+        if change.block && !rows.0.contains(&change.section) {
+            rows.0.push(change.section);
         }
-        if sky.is_changed() {
-            rows.1.push(section);
+        if change.sky && !rows.1.contains(&change.section) {
+            rows.1.push(change.section);
         }
     }
 
-    for ((dim, column_pos), (block_rows, sky_rows)) in by_column {
+    for ((dim, column_pos), (block_rows, sky_rows)) in by_column.drain() {
         let Some(column_entity) = column_indices
             .get(dim)
             .ok()

@@ -289,6 +289,7 @@ impl Plugin for LightPlugin {
             .init_resource::<LightBudget>()
             .init_resource::<IntakeBudget>()
             .init_resource::<LightEpoch>()
+            .add_message::<SectionRelit>()
             .add_systems(
                 Last,
                 (
@@ -301,11 +302,20 @@ impl Plugin for LightPlugin {
     }
 }
 
+/// A section whose light `publish_light` wrote, and which of its two layers it wrote.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SectionRelit {
+    pub section: Entity,
+    pub block: bool,
+    pub sky: bool,
+}
+
 pub fn publish_light(
     mut lighting: ResMut<Lighting>,
     mut running: ResMut<LightEpoch>,
     mut commands: Commands,
     mut lit: Query<(&mut BlockLight, &mut SkyLight)>,
+    mut relit: MessageWriter<SectionRelit>,
 ) {
     let mut finished = Vec::new();
     running
@@ -328,6 +338,11 @@ pub fn publish_light(
             // epoch already decided that: a layer it hands back is one whose
             // answer moved, so assigning it wakes nothing that should have slept.
             Ok((mut block, mut sky)) => {
+                relit.write(SectionRelit {
+                    section,
+                    block: published.block_light.is_some(),
+                    sky: published.sky_light.is_some(),
+                });
                 if let Some(light) = published.block_light {
                     block.0 = light;
                 }
@@ -343,6 +358,11 @@ pub fn publish_light(
                         BlockLight(published.block_light.unwrap_or_default()),
                         SkyLight(published.sky_light.unwrap_or_default()),
                     ));
+                    relit.write(SectionRelit {
+                        section,
+                        block: true,
+                        sky: true,
+                    });
                 }
             }
         }

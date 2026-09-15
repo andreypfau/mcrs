@@ -11,7 +11,6 @@ use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::{
     DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry,
 };
-use mcrs_minecraft_level::voxel_update::SectionVoxelChanges;
 use mcrs_minecraft_level::world::channels::{
     DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
@@ -195,15 +194,9 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         sub.init_resource::<DimPlayerIndex>();
 
         // Pre-insert a loaded chunk at the floor chunk position (y=63).
-        // Include SectionVoxelChanges so apply_voxel_set_requests can write blocks
-        // without waiting for add_changes_set deferred command to flush.
         let chunk_entity = sub
             .world_mut()
-            .spawn((
-                Section,
-                ChunkBlocks::default(),
-                SectionVoxelChanges::default(),
-            ))
+            .spawn((Section, ChunkBlocks::default()))
             .id();
         let dim_entity = sub.world_mut().spawn(Dimension).id();
         let mut chunk_index = SectionIndex::default();

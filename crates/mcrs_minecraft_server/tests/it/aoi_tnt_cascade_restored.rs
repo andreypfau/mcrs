@@ -2,9 +2,9 @@
 //! migration, `tick_explode` (the `MessageWriter<BlockSetRequest>`) and
 //! `apply_voxel_set_requests` (the matching reader) live in the same
 //! per-dim `World`, so emitted `BlockSetRequest` messages reach the reader
-//! in the same tick. The reader in turn writes to a chunk's
-//! `SectionVoxelChanges`, and the per-dim wire emitter fans the
-//! resulting `OutboundPlayerPacket` to the chunk's observers.
+//! in the same tick. The reader in turn reports every block it placed, and
+//! the per-dim wire emitter fans the resulting `OutboundPlayerPacket` to the
+//! chunk's observers.
 //!
 //! The test wires the writer half (a hand-written `BlockSetRequest`) and
 //! exercises the full `apply_voxel_set_requests` -> `update_client_blocks_per_dim`
@@ -47,8 +47,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     // (b) Build a per-dim-shaped App: the writer (a BlockSetRequest emitted by
     // the test as a stand-in for tick_explode) and the reader
     // (apply_voxel_set_requests from BlockUpdatePlugin) live in the same World,
-    // so the message hop is single-frame and the chunk's
-    // SectionVoxelChanges sees the change.
+    // so the message hop is single-frame.
     let mut app = App::new();
     app.add_message::<OutboundPlayerPacket>();
     // BlockUpdatePlugin no longer registers BlockSetRequest / BlockPlaced
@@ -100,10 +99,6 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
         .entity_mut(dim_entity)
         .insert((chunk_index, column_index));
 
-    // Tick once to let add_changes_set seed the per-chunk
-    // SectionVoxelChanges Component before any BlockSetRequest fires.
-    app.world_mut().run_schedule(FixedUpdate);
-
     // Emit one BlockSetRequest per chunk — the "cascade simulation": after the
     // initial detonation, 9 secondary TNT positions would each emit a
     // BlockSetRequest to remove themselves. We model that here as the writer
@@ -132,7 +127,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     }
 
     // Drive the schedule: FixedUpdate runs apply_voxel_set_requests (which
-    // writes into each chunk's SectionVoxelChanges);
+    // reports each block it placed);
     // FixedPostUpdate runs update_client_blocks_per_dim which fans
     // OutboundPlayerPackets out to observers.
     app.world_mut().run_schedule(FixedUpdate);

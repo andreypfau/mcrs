@@ -52,7 +52,7 @@ pub mod prelude {
     #[cfg(feature = "bevy")]
     pub use crate::plugin::{
         IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightSet, LightStatus, LightWorkQueue,
-        Lighting, PendingEdits, dispatch_epoch, light_has_settled, publish_light,
+        Lighting, PendingEdits, SectionRelit, dispatch_epoch, light_has_settled, publish_light,
     };
     pub use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
     pub use crate::region::Influence;
