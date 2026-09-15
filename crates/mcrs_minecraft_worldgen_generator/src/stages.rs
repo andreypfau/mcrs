@@ -729,7 +729,8 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
         let mut run = program.run(std::mem::take(pool));
         for step in steps {
             if let Some(index) = &ctx.structures {
-                place_structures(index, program, &mut run, region, &starts, step, clip, seed);
+                let frozen = &index.tables().frozen;
+                place_structures(frozen, program, &mut run, region, &starts, step, clip, seed);
             }
             decorate(
                 &present,

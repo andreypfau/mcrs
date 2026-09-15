@@ -668,3 +668,29 @@ cd tools/vanilla-oracle
 One file, `registry_census.bin` (magic `MCREGCE0`), deterministic. The layout
 and what each consumer pins against it are beside the fixture in
 `crates/mcrs_minecraft_world/src/entity/fixtures/registry_census_capture_procedure.md`.
+
+---
+
+# Structure pieces and geometry
+
+Two dumps for the hardcoded structure types and the piece codec.
+`StructurePieceOracle.main` generates every non-jigsaw start the site dump's
+seeds and case chunks yield, over the real noise worlds, and writes each
+piece as `StructurePiece.createTag` writes it into the save; every jigsaw
+structure contributes one start as the parity check of the codec that exists
+first. `StructureGeometryOracle.main` generates starts over a flat world with
+one biome and places them chunk by chunk into a stub level, recording what
+each chunk writes, which block entities it loads and which entities it spawns.
+Neither runs a server.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpStructurePieces dumpStructureGeometry --console=plain --no-daemon \
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+```
+
+Two files, `structure_pieces.bin` (magic `MCSTRPC0`) and
+`structure_geometry.bin` (magic `MCSTRGE0`), both deterministic. Their layouts,
+the flat bases, the masks and what each consumer pins are beside the fixtures
+in `structure_pieces_capture_procedure.md` and
+`structure_geometry_capture_procedure.md`.

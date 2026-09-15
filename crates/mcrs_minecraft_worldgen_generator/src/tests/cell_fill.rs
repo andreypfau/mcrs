@@ -125,7 +125,7 @@ fn the_fill_records_the_top_of_every_strip() {
 /// eliminated included.
 #[test]
 fn a_bearded_column_matches_the_block_by_block_fill_of_the_summed_density() {
-    let dim = structure_dimension("minecraft:village_plains");
+    let dim = structure_dimension("minecraft:village_plains", "minecraft:plains");
     let index = dim
         .ctx
         .structures

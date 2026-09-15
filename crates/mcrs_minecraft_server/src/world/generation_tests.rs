@@ -444,6 +444,19 @@ fn run_writes(dim: &Dimension, wanted: &[ColumnPos]) -> (usize, usize) {
     (carried, crossed)
 }
 
+/// A plains village: jigsaw pieces that straddle columns.
+const VILLAGE: Consumer = Consumer::Structure {
+    id: "minecraft:village_plains",
+    biome: "minecraft:plains",
+};
+
+/// A pillager outpost, the other jigsaw structure a plains column starts; its
+/// pieces stay inside the clip of the column that runs.
+const OUTPOST: Consumer = Consumer::Structure {
+    id: "minecraft:pillager_outpost",
+    biome: "minecraft:plains",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -464,7 +477,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         "{consumer:?} wrote nothing anywhere: the comparison below would hold \
          between two pipelines that both do nothing"
     );
-    if consumer != Consumer::Outpost {
+    if consumer != OUTPOST {
         assert!(
             crossed > 0,
             "{consumer:?} wrote only into the columns that ran: nothing reaches the \
@@ -513,8 +526,8 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         Consumer::ModernOre,
         Consumer::Tree,
         Consumer::Corpus,
-        Consumer::Village,
-        Consumer::Outpost,
+        VILLAGE,
+        OUTPOST,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }
@@ -530,7 +543,7 @@ fn the_parallel_ladder_delivers_the_large_oracle_region() {
         Consumer::ModernOre,
         Consumer::Tree,
         Consumer::Corpus,
-        Consumer::Village,
+        VILLAGE,
     ] {
         assert_region_agrees(consumer, 3, &small_drives());
     }

@@ -20,9 +20,11 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.attribute.EnvironmentAttributeReader;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeManager;
@@ -39,11 +41,17 @@ import net.minecraft.world.level.dimension.LevelStem;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.WorldOptions;
+import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.level.storage.LevelStorageSource;
 import net.minecraft.world.level.storage.ServerLevelData;
+import net.minecraft.world.level.storage.TagValueOutput;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.ticks.LevelTickAccess;
@@ -62,14 +70,28 @@ public final class StubLevel implements WorldGenLevel {
     private final Function<BlockPos, BlockState> base;
     private final BlockState air = Blocks.AIR.defaultBlockState();
     private final int seaLevel;
-    private final RandomSource levelRandom;
+    private RandomSource levelRandom;
+    private final long seed;
+    private final Holder<Biome> biome;
+    private final boolean heightsFromBase;
 
     private long subTick;
-    private final ServerLevel seedOnlyLevel = SeedOnlyServerLevel.allocate();
-    private final Map<BlockPos, BlockEntity> blockEntities = new HashMap<>();
+    private int nextEntityId;
+    private final ServerLevel serverLevel;
+    private final StructureManager structureManager;
+    private StructureStart placing = StructureStart.INVALID_START;
+    private EnvironmentAttributeReader environmentAttributes;
+    private final Map<BlockPos, BlockEntity> blockEntities = new java.util.LinkedHashMap<>();
+    private final Map<net.minecraft.world.level.ChunkPos, ChunkAccess> chunks = new HashMap<>();
+    private final List<RecordedEntity> entities = new ArrayList<>();
 
     private final Map<BlockPos, BlockState> overrides = new HashMap<>();
     private final List<BlockPos> writeOrder = new ArrayList<>();
+    private final List<Write> writes = new ArrayList<>();
+
+    public record RecordedEntity(String type, Entity entity, CompoundTag nbt) {}
+
+    public record Write(BlockPos pos, BlockState state) {}
 
     public StubLevel(
         final RegistryAccess registries,
@@ -78,11 +100,37 @@ public final class StubLevel implements WorldGenLevel {
         final int seaLevel,
         final RandomSource levelRandom
     ) {
+        this(registries, dimensionType, base, seaLevel, levelRandom, WORLD_SEED, null, false, null);
+    }
+
+    /**
+     * The level a whole structure start is placed into: the biome is fixed,
+     * the heightmaps answer the base alone (the reference primes its `_WG`
+     * maps at the terrain step and never updates them), `getRandom()` is the
+     * placement stream, difficulty is Normal at clock time zero, and with a
+     * `server` entities are built for real and recorded instead of failing.
+     */
+    public StubLevel(
+        final RegistryAccess registries,
+        final DimensionType dimensionType,
+        final Function<BlockPos, BlockState> base,
+        final int seaLevel,
+        final RandomSource levelRandom,
+        final long seed,
+        final Holder<Biome> biome,
+        final boolean heightsFromBase,
+        final MinecraftServer server
+    ) {
         this.registries = registries;
         this.dimensionType = dimensionType;
         this.base = base;
         this.seaLevel = seaLevel;
         this.levelRandom = levelRandom;
+        this.seed = seed;
+        this.biome = biome;
+        this.heightsFromBase = heightsFromBase;
+        this.serverLevel = server != null ? StubServerLevel.allocate(this, server) : SeedOnlyServerLevel.allocate();
+        this.structureManager = new PlacingStartManager(this, new WorldOptions(seed, true, false));
     }
 
     public StubLevel(
@@ -98,6 +146,33 @@ public final class StubLevel implements WorldGenLevel {
 
     public Map<BlockPos, BlockEntity> blockEntities() {
         return this.blockEntities;
+    }
+
+    /** Every entity `addFreshEntity` received, in arrival order, saved as it arrived. */
+    public List<RecordedEntity> entities() {
+        return this.entities;
+    }
+
+    /** Every `setBlock` in call order, rewrites included. */
+    public List<Write> writes() {
+        return this.writes;
+    }
+
+    public StructureManager structureManager() {
+        return this.structureManager;
+    }
+
+    /** The start whose pieces are being placed: what the structure manager answers with. */
+    public void placing(final StructureStart start) {
+        this.placing = start;
+    }
+
+    /** The placement stream of the chunk about to be placed, reseeded per chunk as the reference does. */
+    public void random(final RandomSource random) {
+        this.levelRandom = random;
+        if (this.serverLevel instanceof StubServerLevel stub) {
+            stub.random(random);
+        }
     }
 
     /**
@@ -135,6 +210,7 @@ public final class StubLevel implements WorldGenLevel {
         if (this.overrides.put(at, state) == null) {
             this.writeOrder.add(at);
         }
+        this.writes.add(new Write(at, state));
         return true;
     }
 
@@ -173,7 +249,9 @@ public final class StubLevel implements WorldGenLevel {
         Predicate<BlockState> isOpaque = type.isOpaque();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int y = this.getMaxY(); y >= this.getMinY(); y--) {
-            if (isOpaque.test(this.getBlockState(pos.set(x, y, z)))) {
+            pos.set(x, y, z);
+            BlockState state = this.heightsFromBase ? this.base.apply(pos) : this.getBlockState(pos);
+            if (isOpaque.test(state)) {
                 return y + 1;
             }
         }
@@ -182,7 +260,16 @@ public final class StubLevel implements WorldGenLevel {
 
     @Override
     public long getSeed() {
-        return WORLD_SEED;
+        return this.seed;
+    }
+
+    @Override
+    public boolean addFreshEntity(final Entity entity) {
+        TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, this.registries);
+        entity.saveWithoutId(output);
+        String type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+        this.entities.add(new RecordedEntity(type, entity, output.buildResult()));
+        return true;
     }
 
     @Override
@@ -218,14 +305,24 @@ public final class StubLevel implements WorldGenLevel {
         return false;
     }
 
+    /**
+     * What `ServerLevel.getCurrentDifficultyAt` answers while the chunk is not
+     * yet full: the server difficulty at overworld clock time zero, no
+     * inhabited time and no moon.
+     */
     @Override
     public DifficultyInstance getCurrentDifficultyAt(final BlockPos pos) {
-        throw new UnsupportedOperationException("getCurrentDifficultyAt");
+        return new DifficultyInstance(Difficulty.NORMAL, 0L, 0L, 0.0F);
+    }
+
+    @Override
+    public Difficulty getDifficulty() {
+        return Difficulty.NORMAL;
     }
 
     @Override
     public ServerLevel getLevel() {
-        return this.seedOnlyLevel;
+        return this.serverLevel;
     }
 
     @Override
@@ -287,12 +384,37 @@ public final class StubLevel implements WorldGenLevel {
 
     @Override
     public BiomeManager getBiomeManager() {
-        throw new UnsupportedOperationException("getBiomeManager");
+        if (this.biome == null) {
+            throw new UnsupportedOperationException("getBiomeManager");
+        }
+        return new BiomeManager(this, BiomeManager.obfuscateSeed(this.seed));
     }
 
     @Override
+    public Holder<Biome> getNoiseBiome(final int quartX, final int quartY, final int quartZ) {
+        return this.getUncachedNoiseBiome(quartX, quartY, quartZ);
+    }
+
+    /**
+     * A piece asks for the chunk only to mark a fence, bar or wall for the
+     * post-processing pass, which the reference resolves once the chunk is
+     * full and no dump reproduces; an empty proto chunk takes the mark.
+     */
+    @Override
     public ChunkAccess getChunk(final int x, final int z, final ChunkStatus status, final boolean nonnull) {
-        throw new UnsupportedOperationException("getChunk");
+        if (this.biome == null) {
+            throw new UnsupportedOperationException("getChunk");
+        }
+        return this.chunks.computeIfAbsent(
+            new net.minecraft.world.level.ChunkPos(x, z),
+            pos -> new net.minecraft.world.level.chunk.ProtoChunk(
+                pos,
+                net.minecraft.world.level.chunk.UpgradeData.EMPTY,
+                this,
+                net.minecraft.world.level.chunk.PalettedContainerFactory.create(this.registries),
+                null
+            )
+        );
     }
 
     @Override
@@ -307,12 +429,24 @@ public final class StubLevel implements WorldGenLevel {
 
     @Override
     public Holder<Biome> getUncachedNoiseBiome(final int x, final int y, final int z) {
-        throw new UnsupportedOperationException("getUncachedNoiseBiome");
+        if (this.biome == null) {
+            throw new UnsupportedOperationException("getUncachedNoiseBiome");
+        }
+        return this.biome;
     }
 
+    /** What `WorldGenRegion` builds: the dimension's and the biome's static layers, no timeline. */
     @Override
     public EnvironmentAttributeReader environmentAttributes() {
-        throw new UnsupportedOperationException("environmentAttributes");
+        if (this.biome == null) {
+            throw new UnsupportedOperationException("environmentAttributes");
+        }
+        if (this.environmentAttributes == null) {
+            this.environmentAttributes = net.minecraft.world.attribute.EnvironmentAttributeSystem.builder()
+                .addStaticLayers(this)
+                .build();
+        }
+        return this.environmentAttributes;
     }
 
     @Override
@@ -379,6 +513,45 @@ public final class StubLevel implements WorldGenLevel {
         }
     }
 
+    static <T> T allocate(final Class<T> type) {
+        try {
+            java.lang.reflect.Field theUnsafe = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            theUnsafe.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) theUnsafe.get(null);
+            return type.cast(unsafe.allocateInstance(type));
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("cannot allocate " + type.getName(), e);
+        }
+    }
+
+    private static void seat(final Object target, final Class<?> declaring, final String field, final Object value) {
+        try {
+            java.lang.reflect.Field f = declaring.getDeclaredField(field);
+            f.setAccessible(true);
+            f.set(target, value);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("cannot seat " + declaring.getName() + "." + field, e);
+        }
+    }
+
+    /**
+     * A `MinecraftServer` for the entities a structure spawns: a dedicated
+     * server allocated without a constructor, holding only what a mob reaches
+     * through `level().getServer()` while it is built (the debug subscriber
+     * table its path finder consults) and the registries and templates a
+     * later query would ask for.
+     */
+    public static MinecraftServer server(
+        final net.minecraft.core.LayeredRegistryAccess<net.minecraft.server.RegistryLayer> registries,
+        final net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templates
+    ) {
+        MinecraftServer server = allocate(net.minecraft.server.dedicated.DedicatedServer.class);
+        seat(server, MinecraftServer.class, "debugSubscribers", new net.minecraft.util.debug.ServerDebugSubscribers(server));
+        seat(server, MinecraftServer.class, "registries", registries);
+        seat(server, MinecraftServer.class, "structureTemplateManager", templates);
+        return server;
+    }
+
     /**
      * The only thing template placement asks of `getLevel()` is the world seed
      * (`CappedProcessor.finalizeProcessing`); template entities reach it through
@@ -400,14 +573,7 @@ public final class StubLevel implements WorldGenLevel {
         }
 
         static ServerLevel allocate() {
-            try {
-                java.lang.reflect.Field theUnsafe = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-                theUnsafe.setAccessible(true);
-                sun.misc.Unsafe unsafe = (sun.misc.Unsafe) theUnsafe.get(null);
-                return (ServerLevel) unsafe.allocateInstance(SeedOnlyServerLevel.class);
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException("cannot allocate the seed-only level", e);
-            }
+            return StubLevel.allocate(SeedOnlyServerLevel.class);
         }
 
         @Override
@@ -423,6 +589,210 @@ public final class StubLevel implements WorldGenLevel {
         @Override
         public FeatureFlagSet enabledFeatures() {
             throw new UnsupportedOperationException("enabledFeatures");
+        }
+    }
+
+    /**
+     * A `ServerLevel` for the entities a structure spawns: allocated without a
+     * constructor like the seed-only one, then every method an entity reaches
+     * through `level()` while it is built, finalized and saved is answered from
+     * the stub that owns it. `Level.random` is a final field the constructor
+     * would have set, so it is written by reflection to the placement stream.
+     */
+    public static final class StubServerLevel extends ServerLevel {
+        private StubLevel owner;
+        private MinecraftServer server;
+
+        private StubServerLevel(
+            final MinecraftServer server,
+            final java.util.concurrent.Executor executor,
+            final LevelStorageSource.LevelStorageAccess storage,
+            final ServerLevelData levelData,
+            final ResourceKey<Level> dimension,
+            final LevelStem stem,
+            final List<CustomSpawner> spawners
+        ) {
+            super(server, executor, storage, levelData, dimension, stem, false, 0L, spawners, false);
+        }
+
+        static ServerLevel allocate(final StubLevel owner, final MinecraftServer server) {
+            StubServerLevel level = StubLevel.allocate(StubServerLevel.class);
+            level.owner = owner;
+            level.server = server;
+            level.random(owner.levelRandom);
+            seat(level, Level.class, "soundSeedGenerator", RandomSource.createThreadSafe());
+            return level;
+        }
+
+        @Override
+        public MinecraftServer getServer() {
+            return this.server;
+        }
+
+        void random(final RandomSource random) {
+            seat(this, Level.class, "random", random);
+        }
+
+        @Override
+        public long getSeed() {
+            return this.owner.seed;
+        }
+
+        @Override
+        public int getNextEntityId() {
+            return ++this.owner.nextEntityId;
+        }
+
+        @Override
+        public FeatureFlagSet enabledFeatures() {
+            return FeatureFlags.DEFAULT_FLAGS;
+        }
+
+        @Override
+        public RegistryAccess registryAccess() {
+            return this.owner.registries;
+        }
+
+        @Override
+        public DimensionType dimensionType() {
+            return this.owner.dimensionType;
+        }
+
+        @Override
+        public RandomSource getRandom() {
+            return this.owner.levelRandom;
+        }
+
+        @Override
+        public long getGameTime() {
+            return 0L;
+        }
+
+        @Override
+        public DifficultyInstance getCurrentDifficultyAt(final BlockPos pos) {
+            return this.owner.getCurrentDifficultyAt(pos);
+        }
+
+        @Override
+        public Difficulty getDifficulty() {
+            return this.owner.getDifficulty();
+        }
+
+        @Override
+        public BlockState getBlockState(final BlockPos pos) {
+            return this.owner.getBlockState(pos);
+        }
+
+        @Override
+        public FluidState getFluidState(final BlockPos pos) {
+            return this.owner.getFluidState(pos);
+        }
+
+        @Override
+        public BlockEntity getBlockEntity(final BlockPos pos) {
+            return this.owner.getBlockEntity(pos);
+        }
+
+        @Override
+        public int getHeight(final Heightmap.Types type, final int x, final int z) {
+            return this.owner.getHeight(type, x, z);
+        }
+
+        @Override
+        public int getSeaLevel() {
+            return this.owner.seaLevel;
+        }
+
+        @Override
+        public BiomeManager getBiomeManager() {
+            return this.owner.getBiomeManager();
+        }
+
+        @Override
+        public Holder<Biome> getNoiseBiome(final int quartX, final int quartY, final int quartZ) {
+            return this.owner.getUncachedNoiseBiome(quartX, quartY, quartZ);
+        }
+
+        @Override
+        public Holder<Biome> getUncachedNoiseBiome(final int quartX, final int quartY, final int quartZ) {
+            return this.owner.getUncachedNoiseBiome(quartX, quartY, quartZ);
+        }
+
+        @Override
+        public StructureManager structureManager() {
+            return this.owner.structureManager;
+        }
+
+        @Override
+        public net.minecraft.world.attribute.EnvironmentAttributeSystem environmentAttributes() {
+            return (net.minecraft.world.attribute.EnvironmentAttributeSystem) this.owner.environmentAttributes();
+        }
+
+        @Override
+        public boolean addFreshEntity(final Entity entity) {
+            return this.owner.addFreshEntity(entity);
+        }
+
+        /** Sounds and events go to players; there are none, and the sound seed is a random of its own. */
+        @Override
+        public void playSeededSound(
+            final Entity except,
+            final double x,
+            final double y,
+            final double z,
+            final Holder<SoundEvent> sound,
+            final SoundSource source,
+            final float volume,
+            final float pitch,
+            final long seed
+        ) {
+        }
+
+        @Override
+        public void playSeededSound(
+            final Entity except,
+            final Entity sourceEntity,
+            final Holder<SoundEvent> sound,
+            final SoundSource source,
+            final float volume,
+            final float pitch,
+            final long seed
+        ) {
+        }
+
+        @Override
+        public void levelEvent(final Entity source, final int type, final BlockPos pos, final int data) {
+        }
+
+        @Override
+        public void gameEvent(final Holder<GameEvent> gameEvent, final Vec3 position, final GameEvent.Context context) {
+        }
+    }
+
+    /**
+     * The structure manager placement sees: every start query is answered with
+     * the start being placed, so a spawn condition asking which structure
+     * stands here (the cat's) reads the placing start and nothing else.
+     */
+    private static final class PlacingStartManager extends StructureManager {
+        private final StubLevel owner;
+
+        PlacingStartManager(final StubLevel owner, final WorldOptions options) {
+            super(owner, options, null);
+            this.owner = owner;
+        }
+
+        @Override
+        public List<StructureStart> startsForStructure(
+            final int sectionX, final int sectionZ, final Predicate<Structure> matcher
+        ) {
+            StructureStart start = this.owner.placing;
+            return start.isValid() && matcher.test(start.getStructure()) ? List.of(start) : List.of();
+        }
+
+        @Override
+        public List<StructureStart> startsForStructure(final int sectionX, final int sectionZ, final Structure structure) {
+            return this.startsForStructure(sectionX, sectionZ, structure::equals);
         }
     }
 }

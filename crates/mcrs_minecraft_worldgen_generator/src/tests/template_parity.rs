@@ -207,7 +207,7 @@ fn dump() -> &'static Dump {
 
 /// The parity program: the corpus over one biome with every pool element
 /// compiled, at the world seed the oracle's stub level answers.
-fn program() -> &'static FeatureProgram {
+pub(super) fn program() -> &'static FeatureProgram {
     static PROGRAM: LazyLock<FeatureProgram> = LazyLock::new(|| {
         build_program_with(
             &one_step(vec![], BIOME),
@@ -220,7 +220,7 @@ fn program() -> &'static FeatureProgram {
     &PROGRAM
 }
 
-fn state_named(id: VoxelId) -> String {
+pub(super) fn state_named(id: VoxelId) -> String {
     format!("{}#{}", block_name(id), id.0)
 }
 
@@ -348,7 +348,7 @@ fn id_of(entity: &GeneratedBlockEntity) -> String {
         .to_owned()
 }
 
-fn canonical(compound: &NbtCompound) -> NbtCompound {
+pub(super) fn canonical(compound: &NbtCompound) -> NbtCompound {
     let mut child_tags: Vec<(String, NbtTag)> = compound
         .child_tags
         .iter()
@@ -371,7 +371,7 @@ fn canonical_tag(tag: &NbtTag) -> NbtTag {
     }
 }
 
-fn fnv(entries: &[([i32; 3], u32)]) -> u64 {
+pub(super) fn fnv(entries: &[([i32; 3], u32)]) -> u64 {
     let mut hash = FNV_OFFSET;
     for (pos, index) in entries {
         for word in [pos[0], pos[1], pos[2], *index as i32] {
@@ -385,7 +385,7 @@ fn fnv(entries: &[([i32; 3], u32)]) -> u64 {
 }
 
 /// First write fixes the order, last write fixes the state.
-fn written(writes: &[(BlockPos, VoxelId)]) -> Vec<(BlockPos, VoxelId)> {
+pub(super) fn written(writes: &[(BlockPos, VoxelId)]) -> Vec<(BlockPos, VoxelId)> {
     let mut slot: HashMap<BlockPos, usize> = HashMap::new();
     let mut out: Vec<(BlockPos, VoxelId)> = Vec::new();
     for &(pos, state) in writes {

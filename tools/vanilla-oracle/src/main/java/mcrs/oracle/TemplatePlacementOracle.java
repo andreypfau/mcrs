@@ -118,11 +118,15 @@ public final class TemplatePlacementOracle {
         }
     }
 
-    private static final class Palette {
+    static final class Palette {
         private final Map<String, Integer> indices = new LinkedHashMap<>();
 
         int of(final BlockState state) {
             return this.indices.computeIfAbsent(BlockStateParser.serialize(state), k -> this.indices.size());
+        }
+
+        int size() {
+            return this.indices.size();
         }
 
         void write(final OutputStream out) throws IOException {

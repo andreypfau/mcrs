@@ -32,9 +32,13 @@ mod perf;
 #[cfg(test)]
 mod rungs;
 #[cfg(test)]
+mod structure_geometry;
+#[cfg(test)]
 mod structure_index;
 #[cfg(test)]
 mod structure_layouts;
+#[cfg(test)]
+mod structure_pieces;
 #[cfg(test)]
 mod structure_sites;
 pub mod structures;

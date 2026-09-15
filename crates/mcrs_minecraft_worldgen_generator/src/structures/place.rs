@@ -9,8 +9,7 @@ use mcrs_minecraft_worldgen_feature_place::template::{Placement, SettingsRandom,
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
 
 use crate::feature_program::{CompiledElement, FeatureProgram, Run};
-use crate::structures::index::StructureIndex;
-use mcrs_minecraft_worldgen_structure::frozen::{ElementId, StructureKind};
+use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenStructures, StructureKind};
 use mcrs_minecraft_worldgen_structure::piece::{Piece, Start};
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
@@ -34,7 +33,7 @@ pub fn column_clip(col: ColumnPos, y_sections: &[i32]) -> BoundingBox {
 // two structures that do (desert pyramid, mansion) have no generator yet.
 #[allow(clippy::too_many_arguments)]
 pub fn place_structures<W: WorldGenVolume>(
-    index: &StructureIndex,
+    frozen: &FrozenStructures,
     program: &FeatureProgram,
     run: &mut Run,
     region: &mut W,
@@ -43,7 +42,6 @@ pub fn place_structures<W: WorldGenVolume>(
     clip: BoundingBox,
     decoration_seed: i64,
 ) {
-    let frozen = &index.tables().frozen;
     for group in starts.chunk_by(|(_, a), (_, b)| a.structure == b.structure) {
         let structure = &frozen.structures[group[0].1.structure.0 as usize];
         if structure.step as usize != step {
@@ -58,28 +56,43 @@ pub fn place_structures<W: WorldGenVolume>(
             .wrapping_add(10_000 * step as i64);
         let mut rng = XoroshiroRandom::new(seed as u64);
         for (_, start) in group {
-            let first = start.pieces[0].bounds();
-            let centre = *first.min + (*first.max - *first.min + IVec3::ONE) / 2;
-            let reference = IVec3::new(centre.x, first.min.y, centre.z);
-            for piece in &start.pieces {
-                if !piece.bounds().intersects(clip) {
-                    continue;
-                }
-                let Piece::Jigsaw(jigsaw) = piece;
-                place_element(
-                    program,
-                    run,
-                    region,
-                    jigsaw.element,
-                    jigsaw.position,
-                    reference,
-                    jigsaw.rotation,
-                    Some(clip),
-                    &mut rng,
-                    liquid,
-                );
-            }
+            place_start(program, run, region, start, clip, &mut rng, liquid);
         }
+    }
+}
+
+/// `StructureStart.placeInChunk` for one start: every piece whose box meets
+/// the clip, in piece order, with the first piece's box centre at its floor as
+/// the reference position.
+pub fn place_start<W: WorldGenVolume>(
+    program: &FeatureProgram,
+    run: &mut Run,
+    region: &mut W,
+    start: &Start,
+    clip: BoundingBox,
+    rng: &mut XoroshiroRandom,
+    liquid: LiquidSettings,
+) {
+    let first = start.pieces[0].bounds();
+    let centre = *first.min + (*first.max - *first.min + IVec3::ONE) / 2;
+    let reference = IVec3::new(centre.x, first.min.y, centre.z);
+    for piece in &start.pieces {
+        if !piece.bounds().intersects(clip) {
+            continue;
+        }
+        let Piece::Jigsaw(jigsaw) = piece;
+        place_element(
+            program,
+            run,
+            region,
+            jigsaw.element,
+            jigsaw.position,
+            reference,
+            jigsaw.rotation,
+            Some(clip),
+            rng,
+            liquid,
+        );
     }
 }
 

@@ -56,12 +56,13 @@ pub enum Consumer {
     /// nine columns, which is a far wider and more varied set of deltas than
     /// any single family produces.
     Corpus,
-    /// A plains village over the region's centre: jigsaw pieces that straddle
-    /// columns, each column reading the whole start and writing the pieces
-    /// that cross it, block entities included.
-    Village,
-    /// A pillager outpost, the other jigsaw structure a plains column starts.
-    Outpost,
+    /// One structure over the region's centre in a dimension of one biome:
+    /// pieces that straddle columns, each column reading the whole start and
+    /// writing the pieces that cross it, block entities included.
+    Structure {
+        id: &'static str,
+        biome: &'static str,
+    },
 }
 
 /// The dimension the tree consumer runs in: the overworld router, forest
@@ -77,11 +78,9 @@ const CORPUS_BIOME: &str = "minecraft:plains";
 
 const CORPUS_SEED: u64 = 0xC0FFEE;
 
-/// The dimension the two structure consumers run in: no features, so every
-/// write is a structure's.
-const VILLAGE_BIOME: &str = "minecraft:plains";
-
-const VILLAGE_SEED: u64 = 0x51A6E;
+/// The seed the structure consumers run at, in a dimension with no features,
+/// so every write is a structure's.
+const STRUCTURE_SEED: u64 = 0x51A6E;
 
 /// One dimension, described once: the context the oracle drives the three stage
 /// functions with, and the resources the dispatcher rebuilds that very context
@@ -111,14 +110,14 @@ impl Dimension {
 
 /// The overworld with one fixed biome and the shipped structure sets, centred
 /// on the nearest start of `structure` the index finds from the origin.
-pub(super) fn structure_dimension(structure: &str) -> Dimension {
+pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension {
     let frozen = frozen_shared();
-    let seed = VILLAGE_SEED;
+    let seed = STRUCTURE_SEED;
     let (mut ctx, _) = super::trees::dimension_with(
-        VILLAGE_BIOME,
+        biome_id,
         |registry| {
             build_program_with(
-                &one_step(vec![], VILLAGE_BIOME),
+                &one_step(vec![], biome_id),
                 corpus_features(),
                 registry,
                 seed as i64,
@@ -128,7 +127,7 @@ pub(super) fn structure_dimension(structure: &str) -> Dimension {
         seed,
     );
     let biome = biome_index()
-        .get(VILLAGE_BIOME)
+        .get(biome_id)
         .expect("the biome index holds the corpus");
     let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
     mask.insert(biome as usize);
@@ -165,10 +164,8 @@ pub(super) fn structure_dimension(structure: &str) -> Dimension {
 }
 
 pub fn fill_context(consumer: Consumer) -> Dimension {
-    match consumer {
-        Consumer::Village => return structure_dimension("minecraft:village_plains"),
-        Consumer::Outpost => return structure_dimension("minecraft:pillager_outpost"),
-        _ => {}
+    if let Consumer::Structure { id, biome } = consumer {
+        return structure_dimension(id, biome);
     }
     if let Consumer::Tree | Consumer::Corpus = consumer {
         let (ctx, _) = if consumer == Consumer::Tree {
@@ -195,7 +192,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
             let (tables, _) = ore_tables();
             (None, Arc::new(one_biome_registry()), Some(Arc::new(tables)))
         }
-        Consumer::Tree | Consumer::Corpus | Consumer::Village | Consumer::Outpost => {
+        Consumer::Tree | Consumer::Corpus | Consumer::Structure { .. } => {
             unreachable!("the feature and structure dimensions returned above")
         }
     };
