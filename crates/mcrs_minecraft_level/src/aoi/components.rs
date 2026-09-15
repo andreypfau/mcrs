@@ -5,8 +5,8 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use smallvec::SmallVec;
 
-/// Per-chunk observer set: the players whose chunk subscription set
-/// includes this chunk's column. Universal AoI primitive — future
+/// Per-column observer set: the players that hold this column on their
+/// client, written only by the server's `mirror_held_columns`. Universal AoI primitive — future
 /// `MobTracker` / `ItemTracker` / `ProjectileTracker` route observer
 /// lookups through the same Component. A mob-farm with 50 mobs in one
 /// chunk pays one observer set, not 50.

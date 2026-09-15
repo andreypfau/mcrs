@@ -4,6 +4,7 @@ use crate::world::light_codec::{LightCodecParams, build_delta_light_data};
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
+use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -24,7 +25,6 @@ use smallvec::SmallVec;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
-use crate::world::entity::player::column_view::ColumnView;
 
 pub struct DimLightPlugin {
     pub registry: Arc<LightRegistry>,
@@ -167,7 +167,8 @@ pub fn emit_light_updates(
     mut relit: MessageReader<SectionRelit>,
     sections: Query<(&SectionPos, &InDimension)>,
     column_indices: Query<&ColumnIndex>,
-    views: Query<(&ColumnView, &HostAnchor)>,
+    observers: Query<&PlayerObservers>,
+    anchors: Query<&HostAnchor>,
     codec_params: LightCodecParams,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut by_column: Local<FxHashMap<(Entity, ColumnPos), (Vec<Entity>, Vec<Entity>)>>,
@@ -195,19 +196,18 @@ pub fn emit_light_updates(
         else {
             continue;
         };
-        // Who holds the column is what the sender recorded, not what the area
-        // of interest mirrors: that mirror is rebuilt from a player's movement,
-        // so for a player standing still every column that finished loading
-        // afterwards has an empty observer list and would never see a
-        // correction to the light it was sent.
         // The anchor, not the dimension world's player entity: the session
         // registry is keyed by anchor, and a target it cannot resolve is
         // dropped without a trace.
-        let targets: SmallVec<[Entity; 8]> = views
-            .iter()
-            .filter(|(view, _)| view.sent_columns.contains(&column_pos))
-            .map(|(_, anchor)| anchor.0)
-            .collect();
+        let targets: SmallVec<[Entity; 8]> = observers
+            .get(column_entity)
+            .map(|held| {
+                held.0
+                    .iter()
+                    .filter_map(|player| anchors.get(*player).ok().map(|anchor| anchor.0))
+                    .collect()
+            })
+            .unwrap_or_default();
         if targets.is_empty() {
             continue;
         }

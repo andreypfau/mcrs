@@ -1,4 +1,5 @@
 use crate::world::block_entity::spawn_block_entities;
+use crate::world::entity::player::column_view::ColumnView;
 use crate::world::heightmap::PendingColumnHeightmaps;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -10,7 +11,6 @@ use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::FULL_LEVEL;
@@ -548,7 +548,7 @@ fn cancel_stale_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
-    players: Query<&PlayerChunkObserver>,
+    views: Query<&ColumnView>,
 ) {
     // Every rung costs two rings: `Delivered(U)` needs the last rung run over
     // the 3×3 of `U`, which needs the one below it merged over the 5×5, and so
@@ -558,10 +558,7 @@ fn cancel_stale_columns(
     // full, and a column that far out is loaded like any other.
     let rings = (FULL_LEVEL - Ticket::PLAYER_LOADING.level) as i32;
 
-    let player_views: Vec<_> = players
-        .iter()
-        .filter_map(|observer| observer.last_last_chunk_tracking_view)
-        .collect();
+    let player_views: Vec<_> = views.iter().filter_map(ColumnView::view).collect();
 
     if player_views.is_empty() {
         return;
@@ -857,17 +854,14 @@ mod tests {
     }
 
     fn spawn_observer_with_view(app: &mut App, center: SectionPos, distance: u8) -> Entity {
-        let observer = PlayerChunkObserver {
-            last_last_chunk_tracking_view: Some(ChunkTrackingView {
-                center,
-                distance,
-                vert_distance: 8,
-                min_section_y: i32::MIN,
-                max_section_y: i32::MAX,
-            }),
-            ..PlayerChunkObserver::default()
-        };
-        app.world_mut().spawn(observer).id()
+        let view = ColumnView::looking_at(ChunkTrackingView {
+            center,
+            distance,
+            vert_distance: 8,
+            min_section_y: i32::MIN,
+            max_section_y: i32::MAX,
+        });
+        app.world_mut().spawn(view).id()
     }
 
     /// The ladder must produce the column the fill alone produces: with no

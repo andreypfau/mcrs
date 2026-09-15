@@ -6,7 +6,7 @@ use crate::world::bus::{
 };
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
-use crate::world::entity::player::column_view::ColumnViewPlugin;
+use crate::world::entity::player::column_view::{ColumnView, ColumnViewPlugin};
 use crate::world::entity::player::digging::DiggingPlugin;
 use crate::world::entity::player::game_mode::GameModePlugin;
 use crate::world::entity::player::inventory::PlayerInventoryPlugin;
@@ -25,7 +25,7 @@ use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
+use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession};
@@ -111,7 +111,6 @@ pub struct PlayerBundle {
     pub container_seqno: ContainerSeqno,
     pub game_mode: PlayerGameMode,
     pub op_level: PlayerOpLevel,
-    pub chunk_subscription_set: crate::world::aoi::ChunkSubscriptionSet,
     pub tracked_by: crate::world::aoi::TrackedBy,
     pub marker: Player,
 }
@@ -154,7 +153,7 @@ fn consume_inbound_player_spawn(
                     view_distance,
                     ..Default::default()
                 },
-                PlayerChunkObserver::default(),
+                ColumnView::default(),
                 HostAnchor(spawn.host_anchor),
                 Owner(spawn.session),
                 GameProfile {

@@ -14,18 +14,17 @@
 use std::sync::atomic::Ordering;
 
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Entity, Query, With, Without};
-use mcrs_minecraft_level::aoi::PlayerObservers;
+use bevy_ecs::prelude::{Commands, Entity, Query, With};
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::world::storage::column::Column;
 use smallvec::SmallVec;
 
-use crate::world::aoi::components::{ChunkSubscriptionSet, TrackedBy};
+use crate::world::aoi::components::TrackedBy;
 use crate::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 use crate::world::entity::player::HostAnchor;
+use crate::world::entity::player::column_view::ColumnView;
 
 /// Per-dim drain: reads `InboundPlayerDespawn` messages and runs the full
 /// eviction sequence for the resolved in-dim `Player`:
@@ -35,14 +34,9 @@ use crate::world::entity::player::HostAnchor;
 ///    before any cache is wiped so the recipient list is complete.
 /// 2. Single pass over every in-dim player's `TrackedBy`: non-target rows
 ///    get `retain(|e| *e != target)` (proactive cache eviction); the target
-///    row gets both caches cleared (self-teardown).
-/// 3. Retain the removed entity out of every column's `PlayerObservers`
-///    (existing behaviour, preserved).
-///
-/// The query filter `(With<Column>, Without<Player>)` mirrors
-/// `update_own_pov` and `update_tracked_by` — it makes the disjoint-borrow
-/// claim explicit and prevents accidental matches on any future entity that
-/// carries both `Column` and `PlayerObservers`.
+///    row is cleared (self-teardown).
+/// 3. Take the removed player's `ColumnView`, which hands back its tickets
+///    and withdraws it from every column it held.
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "aoi::drain_inbound_player_despawn", skip_all)
@@ -50,9 +44,9 @@ use crate::world::entity::player::HostAnchor;
 pub fn drain_inbound_player_despawn(
     mut despawn_msgs: MessageReader<InboundPlayerDespawn>,
     player_lookup: Query<(Entity, &HostAnchor), With<Player>>,
-    mut columns: Query<&mut PlayerObservers, (With<Column>, Without<Player>)>,
-    mut player_caches: Query<(&mut TrackedBy, &mut ChunkSubscriptionSet), With<Player>>,
+    mut player_caches: Query<&mut TrackedBy, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut commands: Commands,
 ) {
     for msg in despawn_msgs.read() {
         let host_anchor = msg.host_anchor;
@@ -83,7 +77,7 @@ pub fn drain_inbound_player_despawn(
             if observer_entity == target {
                 continue;
             }
-            if let Ok((tracked_by, _)) = player_caches.get(observer_entity)
+            if let Ok(tracked_by) = player_caches.get(observer_entity)
                 && tracked_by.0.contains(&target)
             {
                 packet_writer.write(OutboundPlayerPacket {
@@ -101,23 +95,19 @@ pub fn drain_inbound_player_despawn(
         }
 
         // Single mutable pass over all in-dim player caches.
-        // Target's own row: clear both caches (self-teardown).
+        // Target's own row: clear it (self-teardown).
         // Every other row: retain-remove target from TrackedBy (proactive eviction).
         for (entity, _) in player_lookup.iter() {
-            if let Ok((mut tracked_by, mut subs)) = player_caches.get_mut(entity) {
+            if let Ok(mut tracked_by) = player_caches.get_mut(entity) {
                 if entity == target {
                     tracked_by.0.clear();
-                    subs.0.clear();
                 } else {
                     tracked_by.0.retain(|e| *e != target);
                 }
             }
         }
 
-        // Retain target out of every column's PlayerObservers.
-        for mut obs in columns.iter_mut() {
-            obs.0.retain(|e| *e != target);
-        }
+        commands.entity(target).try_remove::<ColumnView>();
     }
 }
 

@@ -30,8 +30,8 @@ fn player_tracker_populates_tracked_by_for_in_radius_players() {
     let a = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
     let b = spawn_player_in_dim(&mut app, dim, DVec3::new(40.0, 64.0, 0.0));
 
-    // Seed columns around both players so update_own_pov can mirror
-    // observers into them. With view-distance 12 and 80-block tracking
+    // Seed columns around both players so the mirror can list both
+    // players on them. With view-distance 12 and 80-block tracking
     // radius, a generous +/- 14 chunk grid covers everything either
     // player needs.
     seed_columns_in_radius(&mut app, dim, ColumnPos::new(0, 0), 14);

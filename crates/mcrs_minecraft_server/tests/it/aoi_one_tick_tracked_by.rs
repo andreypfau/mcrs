@@ -37,7 +37,7 @@ fn tracked_by_observes_position_change_with_one_tick_latency() {
     let b = spawn_player_in_dim(&mut app, dim, DVec3::new(40.0, 64.0, 0.0));
     seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);
 
-    // Settle: tick 1 wires both initial subscription sets; tick 2 with
+    // Settle: tick 1 lists both players on their columns; tick 2 with
     // a nudge on both players forces both update_tracked_by bodies to
     // see the populated observer sets and record each other.
     drive_aoi_tick(&mut app);
@@ -80,8 +80,7 @@ fn tracked_by_observes_position_change_with_one_tick_latency() {
     );
 
     // Move B. NOW B's body runs and re-derives from the current
-    // observer sets, which already reflect A's new column subscription
-    // from the previous tick. After this tick, B still tracks A
+    // observer sets. After this tick, B still tracks A
     // (range is still satisfied) — and the test successfully shows
     // that the rederivation is gated on B's own Changed<Transform>.
     nudge(&mut app, b);

@@ -20,11 +20,12 @@ use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
 };
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_minecraft_server::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
+use mcrs_minecraft_server::world::aoi::{PlayerTrackerPlugin, TrackedBy};
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
+use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 
 /// Ad-hoc sub-app label for this test.
 #[derive(AppLabel, Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -59,7 +60,7 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
     sub_app.update_schedule = Some(TestDimTick.intern());
 
     // The driver system mirrors DimTick in sub_app_builder.rs: run
-    // FixedPreUpdate (seeder + drain) then FixedPostUpdate (update_own_pov).
+    // FixedPreUpdate (drain) then FixedPostUpdate (observer mirror and TrackedBy).
     sub_app.add_systems(TestDimTick, |world: &mut World| {
         world.run_schedule(FixedPreUpdate);
         world.run_schedule(FixedPostUpdate);
@@ -84,7 +85,7 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
             Player,
             Transform::from_translation(pos),
             PlayerViewDistance::default(),
-            ChunkSubscriptionSet::default(),
+            ColumnView::holding(crate::harness::columns_in_view(pos)),
             TrackedBy::default(),
             InDimension(dim),
             HostAnchor(host_anchor),
@@ -143,8 +144,8 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
     main_app.insert_sub_app(TestDimLabel, sub_app);
 
     // --- Tick 1: populate PlayerObservers ---
-    // Extract runs (no despawns). Sub: FixedPreUpdate seeds observers and runs
-    // the drain (no messages). FixedPostUpdate runs update_own_pov, which
+    // Extract runs (no despawns). Sub: FixedPreUpdate runs the drain (no
+    // messages). FixedPostUpdate runs the observer mirror, which
     // populates PlayerObservers for columns within the player's view distance.
     main_app.update();
 
@@ -183,7 +184,7 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
 /// Regression for the disconnect removal path proving the three eviction truths:
 ///   1. Stationary observer O's `TrackedBy` no longer contains T after removal.
 ///   2. A `PlayerLeftView` packet targeting O carrying T's wire id was emitted.
-///   3. T's `ChunkSubscriptionSet` and `TrackedBy` are empty after removal.
+///   3. T's view is taken and its `TrackedBy` is empty after removal.
 ///
 /// Reuses the same two-world harness (main App + SubApp, `set_extract` test
 /// closure) as the existing topology test above. Observer O does NOT move
@@ -233,7 +234,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             Player,
             Transform::from_translation(pos),
             PlayerViewDistance::default(),
-            ChunkSubscriptionSet::default(),
+            ColumnView::holding(crate::harness::columns_in_view(pos)),
             TrackedBy::default(),
             InDimension(dim),
             HostAnchor(host_anchor_o),
@@ -247,7 +248,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             Player,
             Transform::from_translation(pos),
             PlayerViewDistance::default(),
-            ChunkSubscriptionSet::default(),
+            ColumnView::holding(crate::harness::columns_in_view(pos)),
             TrackedBy::default(),
             InDimension(dim),
             HostAnchor(host_anchor_t),
@@ -304,10 +305,10 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     main_app.insert_sub_app(TestDimLabel, sub_app);
 
     // --- Tick 1: warm-up — populate PlayerObservers and TrackedBy ---
-    // FixedPreUpdate: insert_player_observers_on_new_columns (no-op; already seeded),
+    // FixedPreUpdate:
     //   drain_inbound_player_despawn (no messages).
-    // FixedPostUpdate: update_own_pov → subscribes both players to their columns,
-    //   populating ChunkSubscriptionSet and PlayerObservers;
+    // FixedPostUpdate:
+    //   the mirror lists both players on the columns they hold;
     //   update_tracked_by → each player discovers the other in neighboring
     //   column PlayerObservers → both TrackedBy caches populated.
     main_app.update();
@@ -327,17 +328,10 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
          the two-player warm-up did not converge; check tracking radius and column seeding)"
     );
 
-    // Non-vacuous precondition: T's ChunkSubscriptionSet must be non-empty.
-    let t_sub_non_empty_before = {
-        let sub = main_app.get_sub_app(TestDimLabel).expect("sub-app");
-        sub.world()
-            .get::<ChunkSubscriptionSet>(player_t)
-            .map(|css| !css.0.is_empty())
-            .unwrap_or(false)
-    };
+    // Non-vacuous precondition: T must be listed on the columns it holds.
     assert!(
-        t_sub_non_empty_before,
-        "precondition: T's ChunkSubscriptionSet must be non-empty before removal"
+        count_columns_observing_in_sub(&main_app, &columns, player_t) > 0,
+        "precondition: T must be listed on the columns it holds before removal"
     );
 
     // Clear any packets emitted during warm-up so post-removal assertions
@@ -361,10 +355,10 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
 
     // --- Tick 2: drain and evict (O does NOT move) ---
     // FixedPreUpdate: drain_inbound_player_despawn fires:
-    //   emits PlayerLeftView to O, clears T's TrackedBy+ChunkSubscriptionSet,
+    //   emits PlayerLeftView to O, clears T's TrackedBy and takes its view,
     //   retains T from every column's PlayerObservers.
     // FixedPostUpdate: on_changed_transform gate fires false (no movement) →
-    //   update_own_pov and update_tracked_by are skipped.
+    //   update_tracked_by is skipped.
     main_app.update();
 
     // Drain packets from the sub-world (needs &mut World).
@@ -388,7 +382,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         pkts.len()
     );
 
-    // Read TrackedBy and ChunkSubscriptionSet from the sub-world (immutable).
+    // Read TrackedBy and the view from the sub-world (immutable).
     let sub = main_app.get_sub_app(TestDimLabel).expect("sub-app");
     let sub_world = sub.world();
 
@@ -402,14 +396,10 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         "O.TrackedBy still contains T after eviction"
     );
 
-    // Assertion 3: T's ChunkSubscriptionSet and TrackedBy are empty.
-    let t_css_empty = sub_world
-        .get::<ChunkSubscriptionSet>(player_t)
-        .map(|css| css.0.is_empty())
-        .unwrap_or(true);
+    // Assertion 3: T's view is gone and its TrackedBy is empty.
     assert!(
-        t_css_empty,
-        "T's ChunkSubscriptionSet is non-empty after eviction"
+        sub_world.get::<ColumnView>(player_t).is_none(),
+        "T still has a view after eviction"
     );
     let t_tracked_by_empty = sub_world
         .get::<TrackedBy>(player_t)

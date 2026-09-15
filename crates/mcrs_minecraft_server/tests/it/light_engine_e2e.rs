@@ -289,11 +289,17 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
         .get_mut(&label.intern())
         .expect("the dimension sub-app exists");
     let world = sub_app.world_mut();
-    let mut view = ColumnView::default();
-    if already_sent {
-        view.sent_columns.insert(column);
-    }
-    world.spawn((Player, view, HostAnchor(anchor)));
+    let dimension = world
+        .query_filtered::<Entity, bevy_ecs::prelude::With<ColumnIndex>>()
+        .iter(world)
+        .next()
+        .expect("the dimension entity");
+    let view = if already_sent {
+        ColumnView::holding([column])
+    } else {
+        ColumnView::default()
+    };
+    world.spawn((Player, view, HostAnchor(anchor), InDimension(dimension)));
     world.resource_mut::<CapturedLightUpdates>().0.clear();
 
     place_torch(&mut app, label, torch_at());
@@ -310,9 +316,8 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
     (captured, anchor)
 }
 
-/// The player holds the column but its area-of-interest mirror is empty, which
-/// is what a player standing still while the world loads around them looks
-/// like: every correction after the send has to reach them anyway.
+/// A player that holds the column is sent every correction to its light, standing
+/// still or not.
 #[test]
 fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
     let (captured, anchor) = torch_delta(true);

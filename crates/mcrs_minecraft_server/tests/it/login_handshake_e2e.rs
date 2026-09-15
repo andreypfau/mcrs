@@ -246,7 +246,7 @@ fn e2e_aoi_surrounding_update() {
     seed_columns(&mut app, dim, ColumnPos::new(0, 0), 16);
     seed_columns(&mut app, dim, ColumnPos::new(2, 0), 16);
 
-    // Tick 1: AoI substrate wires observer subscriptions.
+    // Tick 1: the mirror lists both players on the columns they hold.
     drive_aoi_tick(&mut app);
 
     // Tick 2: nudge both transforms so both players' update_tracked_by

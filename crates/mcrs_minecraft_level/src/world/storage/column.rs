@@ -1,3 +1,4 @@
+use crate::aoi::PlayerObservers;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use bevy_app::{App, FixedUpdate, Plugin};
@@ -111,6 +112,7 @@ pub struct ColumnBundle {
     pub col_pos: ColumnPosComponent,
     pub dim: InDimension,
     pub sections: ColumnSections,
+    pub observers: PlayerObservers,
     marker: Column,
 }
 
@@ -131,6 +133,7 @@ impl ColumnBundle {
             col_pos: ColumnPosComponent(col_pos),
             dim,
             sections: ColumnSections::new(min_section_y, dim_config.section_count as usize),
+            observers: PlayerObservers::default(),
             marker: Column,
         }
     }

@@ -13,18 +13,20 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_server::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
+use mcrs_minecraft_server::world::aoi::{PlayerTrackerPlugin, TrackedBy};
 use mcrs_minecraft_server::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
+use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 
 /// Build a host App with the AoI plugin, the outbound bus, and the
 /// `FixedPreUpdate` / `FixedPostUpdate` schedules registered.
 ///
-/// `InboundPlayerDespawn` is registered because `PlayerTrackerPlugin` now
+/// `InboundPlayerDespawn` is registered because `PlayerTrackerPlugin`
 /// installs `drain_inbound_player_despawn` which reads `MessageReader<InboundPlayerDespawn>`.
 pub fn make_aoi_app() -> App {
     let mut app = App::new();
@@ -36,24 +38,34 @@ pub fn make_aoi_app() -> App {
     app
 }
 
-/// Run the AoI tick pair (`FixedPreUpdate` for the PlayerObservers
-/// seeder, then `FixedPostUpdate` for the AoI systems).
+/// Run the AoI tick pair: `FixedPreUpdate` for the despawn drain, then
+/// `FixedPostUpdate` for the observer mirror and the AoI system.
 pub fn drive_aoi_tick(app: &mut App) {
     app.world_mut().run_schedule(FixedPreUpdate);
     app.world_mut().run_schedule(FixedPostUpdate);
 }
 
-/// Spawn a player entity carrying the AoI bundle pieces required by
-/// `update_own_pov` and `update_tracked_by`. The Transform and
-/// PlayerViewDistance defaults are kept small (vd=12) to keep the
-/// outward iteration cost low.
+/// The columns a client standing at `pos` holds once its view, at the default
+/// view distance, has been sent.
+pub fn columns_in_view(pos: DVec3) -> Vec<ColumnPos> {
+    let centre = ColumnPos::from(pos);
+    let radius = PlayerViewDistance::default().distance as i32;
+    (-radius..=radius)
+        .flat_map(|dx| {
+            (-radius..=radius).map(move |dz| ColumnPos::new(centre.x + dx, centre.z + dz))
+        })
+        .collect()
+}
+
+/// Spawn a player entity holding every column of its view, as a player whose
+/// view has finished loading does.
 pub fn spawn_player_in_dim(app: &mut App, dim: Entity, pos: DVec3) -> Entity {
     app.world_mut()
         .spawn((
             Player,
             Transform::from_translation(pos),
             PlayerViewDistance::default(),
-            ChunkSubscriptionSet::default(),
+            ColumnView::holding(columns_in_view(pos)),
             TrackedBy::default(),
             InDimension(dim),
         ))
@@ -75,7 +87,7 @@ pub fn spawn_player_in_dim_with_host_anchor(
             Player,
             Transform::from_translation(pos),
             PlayerViewDistance::default(),
-            ChunkSubscriptionSet::default(),
+            ColumnView::holding(columns_in_view(pos)),
             TrackedBy::default(),
             InDimension(dim),
             HostAnchor(host_anchor),

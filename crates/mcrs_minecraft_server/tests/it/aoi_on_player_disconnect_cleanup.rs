@@ -30,13 +30,14 @@ use mcrs_minecraft_server::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick,
     filter_inflight_for_disconnect, process_disconnect,
 };
-use mcrs_minecraft_server::world::aoi::{ChunkSubscriptionSet, TrackedBy};
+use mcrs_minecraft_server::world::aoi::TrackedBy;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft_server::world::channel_types::FromDim;
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 use mcrs_minecraft_server::world::player_index::PlayerIndex;
 
 use crate::harness;
@@ -235,7 +236,7 @@ fn disconnect_at_tick_n_e1_5_steady_in_dim() {
 /// Asserts:
 ///   1. O's `TrackedBy` no longer contains T.
 ///   2. A `PlayerLeftView` packet targeting O carrying T's wire id was emitted.
-///   3. T's `ChunkSubscriptionSet` and `TrackedBy` are cleared.
+///   3. T's view is taken and its `TrackedBy` cleared.
 #[test]
 fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
     let mut aoi_app = make_aoi_app();
@@ -296,14 +297,13 @@ fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
         "precondition: O.TrackedBy must contain T before transfer-out eviction"
     );
 
-    let t_sub_before = aoi_app
+    let t_holds_before = aoi_app
         .world()
-        .get::<ChunkSubscriptionSet>(player_t)
-        .map(|css| !css.0.is_empty())
-        .unwrap_or(false);
+        .get::<ColumnView>(player_t)
+        .is_some_and(|view| view.held().next().is_some());
     assert!(
-        t_sub_before,
-        "precondition: T's ChunkSubscriptionSet must be non-empty before transfer-out eviction"
+        t_holds_before,
+        "precondition: T must hold columns before transfer-out eviction"
     );
 
     let _ = drain_outbound(&mut aoi_app);
@@ -343,14 +343,9 @@ fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
         pkts.len()
     );
 
-    let t_css_empty = aoi_app
-        .world()
-        .get::<ChunkSubscriptionSet>(player_t)
-        .map(|css| css.0.is_empty())
-        .unwrap_or(true);
     assert!(
-        t_css_empty,
-        "T's ChunkSubscriptionSet is non-empty after transfer-out eviction"
+        aoi_app.world().get::<ColumnView>(player_t).is_none(),
+        "T still has a view after transfer-out eviction"
     );
     let t_tracked_by_empty = aoi_app
         .world()
