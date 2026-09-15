@@ -300,7 +300,8 @@ impl StructureIndex {
                     Piece::DesertPyramid(_)
                     | Piece::BuriedTreasure(_)
                     | Piece::Fortress(_)
-                    | Piece::Shipwreck(_) => BeardPiece {
+                    | Piece::Shipwreck(_)
+                    | Piece::OceanRuin(_) => BeardPiece {
                         bounds: piece.bounds(),
                         projection: Projection::Rigid,
                         ground_level_delta: 0,

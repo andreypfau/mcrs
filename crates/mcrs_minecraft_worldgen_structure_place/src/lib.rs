@@ -3,6 +3,7 @@ pub mod buried_treasure;
 pub mod canvas;
 pub mod fortress;
 pub mod scattered;
+pub mod template;
 pub mod template_piece;
 
 use mcrs_minecraft_chunk::VoxelId;
@@ -58,7 +59,10 @@ pub fn state(
     )
 }
 
-pub fn block_mask(blocks: &dyn BlockResolver, names: &[&str]) -> Result<StateMask, FeatureCompileError> {
+pub fn block_mask(
+    blocks: &dyn BlockResolver,
+    names: &[&str],
+) -> Result<StateMask, FeatureCompileError> {
     let ids = names
         .iter()
         .map(|name| ResourceLocation::parse(name).expect("a literal id"))

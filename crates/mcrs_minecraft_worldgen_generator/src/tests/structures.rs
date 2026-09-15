@@ -10,6 +10,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
     PaletteState, ResolvedState, TEMPLATE_DATA_VERSION, Template, TemplateBlock,
@@ -17,11 +18,11 @@ use mcrs_minecraft_worldgen_feature::template::{
 use mcrs_minecraft_worldgen_structure::{
     MineshaftType, OceanTemperature, Structure, StructureSet, TemplatePool,
 };
-use mcrs_minecraft_worldgen_testing::assets_dir;
+use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 use super::{biome_index, biome_tags, corpus, load_json_dir};
 use crate::features::possible_biomes;
-use crate::structures::{StructureInputs, freeze, live_sets, resolve_palette_state};
+use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state};
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
 use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 
@@ -52,6 +53,44 @@ fn corpus_registries() -> Corpus {
     }
 }
 
+/// One variant registry's assets by id in registry order, which is the
+/// alphabetical order the snapshot assigns; only the spawn conditions are read.
+fn variant_selectors(registry: &str) -> BTreeMap<ResourceLocation, Vec<SpawnSelector>> {
+    #[derive(serde::Deserialize)]
+    struct Variant {
+        #[serde(default)]
+        spawn_conditions: Vec<SpawnSelector>,
+    }
+    let base = assets_dir().join("minecraft").join(registry);
+    json_files(&base)
+        .into_iter()
+        .map(|path| {
+            let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let variant: Variant = serde_json::from_slice(&bytes)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let name = path.file_stem().expect("a file").to_string_lossy();
+            (ResourceLocation::minecraft(&name), variant.spawn_conditions)
+        })
+        .collect()
+}
+
+pub(super) fn variant_inputs() -> VariantInputs<'static> {
+    static CHICKENS: LazyLock<BTreeMap<ResourceLocation, Vec<SpawnSelector>>> =
+        LazyLock::new(|| variant_selectors("chicken_variant"));
+    static CHICKEN_SOUNDS: LazyLock<Vec<ResourceLocation>> = LazyLock::new(|| {
+        variant_selectors("chicken_sound_variant")
+            .into_keys()
+            .collect()
+    });
+    static ZOMBIE_NAUTILUSES: LazyLock<BTreeMap<ResourceLocation, Vec<SpawnSelector>>> =
+        LazyLock::new(|| variant_selectors("zombie_nautilus_variant"));
+    VariantInputs {
+        chickens: Some(&CHICKENS),
+        chicken_sounds: &CHICKEN_SOUNDS,
+        zombie_nautiluses: Some(&ZOMBIE_NAUTILUSES),
+    }
+}
+
 pub(super) fn frozen() -> &'static FrozenStructures {
     frozen_shared()
 }
@@ -67,6 +106,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
             resolve: &|state| resolve_palette_state(corpus(), state),
             biomes: biome_index(),
             biome_tags: biome_tags(),
+            variants: &variant_inputs(),
         })
         .unwrap_or_else(|e| panic!("{e}"))
         .into()
@@ -297,6 +337,7 @@ fn try_freeze_with(
         resolve,
         biomes: &biomes,
         biome_tags: &tags,
+        variants: &VariantInputs::default(),
     })
 }
 

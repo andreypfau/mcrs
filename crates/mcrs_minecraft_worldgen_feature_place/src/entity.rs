@@ -1,18 +1,14 @@
 use std::io::Cursor;
-use std::sync::Arc;
 
 use bevy_math::{DVec3, IVec3};
-use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::mth::wrap_degrees;
-use mcrs_minecraft_core::{
-    BlockPos, ColumnPos, Direction, HolderSet, Mirror, ResourceLocation, Rotation,
-};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, Mirror, ResourceLocation, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_minecraft_worldgen_feature::spawn_condition::{
-    DoubleBounds, SpawnCondition, SpawnSelector,
+pub use mcrs_minecraft_worldgen_feature::spawn_condition::{
+    Condition, IdSet, SpawnContext, VariantTable, VariantTables,
 };
 use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity, VillagerData};
 use serde::{Deserialize, Serialize};
@@ -179,10 +175,11 @@ pub enum Item {
     Elytra,
 }
 
+/// `ItemStack.CODEC`, whose `count` is optional to read and always written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemStack {
     pub id: Item,
-    #[serde(default = "one", skip_serializing_if = "is_one")]
+    #[serde(default = "one")]
     pub count: i32,
 }
 
@@ -194,10 +191,6 @@ impl ItemStack {
 
 fn one() -> i32 {
     1
-}
-
-fn is_one(count: &i32) -> bool {
-    *count == 1
 }
 
 /// The slots a spawned mob can hold something in.
@@ -461,126 +454,9 @@ pub fn chest_minecart(
     )
 }
 
-/// The ids a resolved holder set names, over a registry's index.
-pub type IdSet = Arc<FixedBitSet>;
-
-/// What a variant condition is tested against: the structure whose piece
-/// holds the spawn, the biome there, and the moon the region sees.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SpawnContext {
-    pub structure: Option<u32>,
-    pub biome: u32,
-    pub moon_brightness: f64,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Condition {
-    Structure(IdSet),
-    Biome(IdSet),
-    MoonBrightness(DoubleBounds),
-}
-
-impl Condition {
-    fn test(&self, ctx: &SpawnContext) -> bool {
-        match self {
-            Condition::Structure(set) => ctx.structure.is_some_and(|id| set.contains(id as usize)),
-            Condition::Biome(set) => set.contains(ctx.biome as usize),
-            Condition::MoonBrightness(range) => range.matches(ctx.moon_brightness),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct Selector {
-    variant: usize,
-    priority: i32,
-    condition: Option<Condition>,
-}
-
-/// A variant registry's spawn selectors, resolved and sorted the way
-/// `PriorityProvider.select` walks them: highest priority first, ties in
-/// registry then file order.
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct VariantTable {
-    pub ids: Vec<ResourceLocation>,
-    selectors: Vec<Selector>,
-}
-
-impl VariantTable {
-    /// `entries` in registry order; `structures` and `biomes` resolve a holder
-    /// set into the id set a condition tests.
-    pub fn freeze<'a>(
-        entries: impl IntoIterator<Item = (ResourceLocation, &'a [SpawnSelector])>,
-        structures: &dyn Fn(&HolderSet) -> Result<IdSet, String>,
-        biomes: &dyn Fn(&HolderSet) -> Result<IdSet, String>,
-    ) -> Result<Self, String> {
-        let mut table = VariantTable::default();
-        for (id, selectors) in entries {
-            let variant = table.ids.len();
-            for selector in selectors {
-                let condition = match &selector.condition {
-                    None => None,
-                    Some(SpawnCondition::Structure { structures: set }) => Some(
-                        Condition::Structure(structures(set).map_err(|e| format!("{id}: {e}"))?),
-                    ),
-                    Some(SpawnCondition::Biome { biomes: set }) => Some(Condition::Biome(
-                        biomes(set).map_err(|e| format!("{id}: {e}"))?,
-                    )),
-                    Some(SpawnCondition::MoonBrightness { range }) => {
-                        Some(Condition::MoonBrightness(*range))
-                    }
-                };
-                table.selectors.push(Selector {
-                    variant,
-                    priority: selector.priority,
-                    condition,
-                });
-            }
-            table.ids.push(id);
-        }
-        table
-            .selectors
-            .sort_by_key(|s| std::cmp::Reverse(s.priority));
-        Ok(table)
-    }
-
-    /// `VariantUtils.selectVariantToSpawn`: the candidates of the highest
-    /// priority that passes, one drawn even when it is the only one. `None`
-    /// leaves the kind's default variant, as an empty registry would.
-    pub fn pick(&self, ctx: &SpawnContext, rng: &mut XoroshiroRandom) -> Option<&ResourceLocation> {
-        let mut highest = i32::MIN;
-        let mut candidates = Vec::new();
-        for selector in &self.selectors {
-            if selector.priority < highest {
-                break;
-            }
-            if selector.condition.as_ref().is_none_or(|c| c.test(ctx)) {
-                highest = selector.priority;
-                candidates.push(selector.variant);
-            }
-        }
-        if candidates.is_empty() {
-            return None;
-        }
-        let index = rng.next_i32_bound(candidates.len() as i32) as usize;
-        Some(&self.ids[candidates[index]])
-    }
-}
-
 /// `Registry.getRandom` over a registry in its order.
 fn pick_sound(sounds: &[ResourceLocation], rng: &mut XoroshiroRandom) -> ResourceLocation {
     sounds[rng.next_i32_bound(sounds.len() as i32) as usize].clone()
-}
-
-/// The variant registries the spawned kinds draw from, each in registry
-/// order.
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct VariantTables {
-    pub cats: VariantTable,
-    pub cat_sounds: Vec<ResourceLocation>,
-    pub chickens: VariantTable,
-    pub chicken_sounds: Vec<ResourceLocation>,
-    pub zombie_nautiluses: VariantTable,
 }
 
 pub fn cat(
@@ -728,7 +604,10 @@ pub fn drowned(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fixedbitset::FixedBitSet;
+    use mcrs_minecraft_core::HolderSet;
     use mcrs_minecraft_nbt::to_nbt_compound;
+    use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnCondition, SpawnSelector};
     use std::sync::Arc;
 
     const AT: BlockPos = BlockPos::new(10, 64, -20);

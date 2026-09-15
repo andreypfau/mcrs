@@ -11,7 +11,7 @@ use crate::frozen::{
     ElementId, FrozenElement, FrozenStructures, StructureId, StructureKind, TemplateId,
 };
 use crate::orient::Orientation;
-use crate::{LiquidSettings, PoolElement, SingleElement, TerrainAdaptation};
+use crate::{LiquidSettings, OceanTemperature, PoolElement, SingleElement, TerrainAdaptation};
 
 pub const TERRAIN_MARGIN: i32 = 12;
 
@@ -119,13 +119,35 @@ impl ShipwreckPiece {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One ruin of an ocean ruin start: a template at its laid-out position on
+/// the reference's fixed layout floor, and the floor it is placed on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OceanRuinPiece {
+    pub template: TemplateId,
+    pub position: IVec3,
+    pub rotation: Rotation,
+    pub bounds: BoundingBox,
+    pub integrity: f32,
+    pub biome_temp: OceanTemperature,
+    pub large: bool,
+    /// The height the reference reads from the live world at placement, fixed
+    /// here at layout from the density heights; the save carries it as the
+    /// template's `TPY`, which the reference rewrites once placed.
+    pub floor_y: i32,
+}
+
+impl OceanRuinPiece {
+    pub const LAYOUT_FLOOR: i32 = 90;
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
     DesertPyramid(DesertPyramidPiece),
     BuriedTreasure(BuriedTreasurePiece),
     Fortress(FortressPiece),
     Shipwreck(ShipwreckPiece),
+    OceanRuin(OceanRuinPiece),
 }
 
 impl Piece {
@@ -136,10 +158,11 @@ impl Piece {
             Piece::BuriedTreasure(piece) => piece.bounds,
             Piece::Fortress(piece) => piece.bounds,
             Piece::Shipwreck(piece) => piece.bounds,
+            Piece::OceanRuin(piece) => piece.bounds,
         }
     }
 
-    /// `StructurePiece.move`, which for a jigsaw piece carries its position too.
+    /// `StructurePiece.move`, which for a template piece carries its position too.
     pub fn move_by(&mut self, delta: IVec3) {
         match self {
             Piece::Jigsaw(piece) => {
@@ -154,6 +177,11 @@ impl Piece {
                 piece.position += delta;
                 piece.height += delta.y;
             }
+            Piece::OceanRuin(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                piece.position += delta;
+                piece.floor_y += delta.y;
+            }
         }
     }
 
@@ -165,7 +193,7 @@ impl Piece {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Start {
     pub structure: StructureId,
     pub pieces: Vec<Piece>,
@@ -209,7 +237,7 @@ impl PieceContext<'_> {
         }
     }
 
-    fn template_name(&self, template: TemplateId) -> ResourceLocation {
+    pub fn template_name(&self, template: TemplateId) -> ResourceLocation {
         self.frozen
             .template_ids
             .iter()
@@ -466,6 +494,56 @@ enum PieceTag {
     FortressRoomCrossing(GridTag),
     #[serde(rename = "minecraft:nesr")]
     FortressStairsRoom(GridTag),
+    #[serde(rename = "minecraft:orp")]
+    OceanRuin {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "TPX")]
+        template_x: i32,
+        #[serde(rename = "TPY")]
+        template_y: i32,
+        #[serde(rename = "TPZ")]
+        template_z: i32,
+        #[serde(rename = "Template")]
+        template: ResourceLocation,
+        #[serde(rename = "Rot", with = "rotation::legacy")]
+        rotation: Rotation,
+        #[serde(rename = "Integrity")]
+        integrity: f32,
+        #[serde(rename = "BiomeType", with = "biome_type")]
+        biome_temp: OceanTemperature,
+        #[serde(rename = "IsLarge", deserialize_with = "nbt_flag")]
+        large: bool,
+    },
+}
+
+/// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
+mod biome_type {
+    use super::*;
+
+    pub fn serialize<S: Serializer>(
+        temp: &OceanTemperature,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match temp {
+            OceanTemperature::Warm => "WARM",
+            OceanTemperature::Cold => "COLD",
+        })
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<OceanTemperature, D::Error> {
+        match String::deserialize(deserializer)?.as_str() {
+            "WARM" => Ok(OceanTemperature::Warm),
+            "COLD" => Ok(OceanTemperature::Cold),
+            name => Err(D::Error::custom(format!("No value with id: {name}"))),
+        }
+    }
 }
 
 /// `StructurePiece.createTag` without the id: what every grid piece writes.
@@ -627,6 +705,19 @@ impl Serialize for PieceNbt<'_> {
                 rotation: piece.rotation,
                 height_adjusted: true,
             },
+            Piece::OceanRuin(piece) => PieceTag::OceanRuin {
+                bounds: box_array(piece.bounds),
+                orientation: Orientation::North.data_2d(),
+                gen_depth: 0,
+                template_x: piece.position.x,
+                template_y: piece.floor_y,
+                template_z: piece.position.z,
+                template: self.context.template_name(piece.template),
+                rotation: piece.rotation,
+                integrity: piece.integrity,
+                biome_temp: piece.biome_temp,
+                large: piece.large,
+            },
         };
         tag.serialize(serializer)
     }
@@ -766,6 +857,33 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     is_beached,
                     bounds,
                     height: template_y,
+                }))
+            }
+            PieceTag::OceanRuin {
+                bounds,
+                template_x,
+                template_y,
+                template_z,
+                template,
+                rotation,
+                integrity,
+                biome_temp,
+                large,
+                ..
+            } => {
+                let template = *self.0.frozen.template_ids.get(&template).ok_or_else(|| {
+                    D::Error::custom(format!("the template {template} is not loaded"))
+                })?;
+                let bounds = box_of(bounds);
+                Ok(Piece::OceanRuin(OceanRuinPiece {
+                    template,
+                    position: IVec3::new(template_x, bounds.min.y, template_z),
+                    rotation,
+                    bounds,
+                    integrity,
+                    biome_temp,
+                    large,
+                    floor_y: template_y,
                 }))
             }
         }

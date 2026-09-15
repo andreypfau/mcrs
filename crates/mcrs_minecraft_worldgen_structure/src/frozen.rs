@@ -10,6 +10,7 @@ use super::{
 use mcrs_minecraft_core::value_provider::HeightProvider;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::proto::{Holder, PlacedFeature, StructureProcessorList};
+use mcrs_minecraft_worldgen_feature::spawn_condition::VariantTables;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, TemplateManifest};
 
@@ -106,11 +107,14 @@ impl StructureKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OceanRuinConfig {
     pub biome_temp: OceanTemperature,
     pub large_probability: f32,
     pub cluster_probability: f32,
+    /// `#minecraft:more_frequent_drowned_spawns`, which keeps a drowned off
+    /// its nautilus.
+    pub frequent_drowned: BiomeMask,
 }
 
 pub struct FrozenPool {
@@ -165,6 +169,8 @@ pub struct FrozenStructures {
     pub structure_ids: BTreeMap<ResourceLocation, StructureId>,
     pub pool_ids: BTreeMap<ResourceLocation, PoolId>,
     pub template_ids: BTreeMap<ResourceLocation, TemplateId>,
+    /// The variant registries the structures' mobs draw from.
+    pub variants: VariantTables,
 }
 
 pub struct DimensionStructureTables {

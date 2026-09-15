@@ -489,6 +489,15 @@ const SHIPWRECK: Consumer = Consumer::Structure {
     biome: "minecraft:deep_frozen_ocean",
 };
 
+/// A cold ocean ruin: three rotted templates over one another on the ocean
+/// floor, a cluster of smaller ones around them when the start is large, with
+/// chests and drowned at their markers, every write clipped to the column
+/// that runs.
+const OCEAN_RUIN: Consumer = Consumer::Structure {
+    id: "minecraft:ocean_ruin_cold",
+    biome: "minecraft:frozen_ocean",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -514,6 +523,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != BURIED_TREASURE
         && consumer != FORTRESS
         && consumer != SHIPWRECK
+        && consumer != OCEAN_RUIN
     {
         assert!(
             crossed > 0,
@@ -569,6 +579,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         BURIED_TREASURE,
         FORTRESS,
         SHIPWRECK,
+        OCEAN_RUIN,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

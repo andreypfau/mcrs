@@ -11,13 +11,14 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_world::variant::{ChickenSoundVariant, ChickenVariant, ZombieNautilusVariant};
 use mcrs_minecraft_worldgen::bevy::{
     StructureAsset, StructureSetAsset, TemplateAsset, TemplatePoolAsset,
 };
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 use mcrs_minecraft_worldgen_generator::features::possible_biomes;
 use mcrs_minecraft_worldgen_generator::structures::{
-    StructureInputs, freeze, live_sets, resolve_palette_state,
+    StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state,
 };
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, FrozenStructures};
 use mcrs_minecraft_worldgen_structure::{Structure, TemplatePool};
@@ -83,6 +84,9 @@ pub(crate) fn build_dimension_structures(
     blocks: Res<Blocks>,
     biomes: Res<DynRegistryIndex<Biome>>,
     biome_tags: Res<DynTagRegistry<Biome>>,
+    chickens: Res<Assets<ChickenVariant>>,
+    chicken_sounds: Res<Assets<ChickenSoundVariant>>,
+    zombie_nautiluses: Res<Assets<ZombieNautilusVariant>>,
 ) {
     let Some(sources) = sources else { return };
 
@@ -116,6 +120,23 @@ pub(crate) fn build_dimension_structures(
         Some(Cow::Borrowed(&templates.get(handle)?.template))
     };
     let resolve = |state: &PaletteState| resolve_palette_state(&blocks.0, state);
+    let chickens = registry_of(&chickens, &asset_server, "chicken_variant", |asset| {
+        &asset.spawn_conditions
+    });
+    let chicken_sounds: Vec<ResourceLocation> = registry_of(
+        &chicken_sounds,
+        &asset_server,
+        "chicken_sound_variant",
+        |_| &(),
+    )
+    .into_keys()
+    .collect();
+    let zombie_nautiluses = registry_of(
+        &zombie_nautiluses,
+        &asset_server,
+        "zombie_nautilus_variant",
+        |asset| &asset.spawn_conditions,
+    );
     let frozen = freeze(&StructureInputs {
         sets: &sets,
         structures: &structures,
@@ -124,6 +145,11 @@ pub(crate) fn build_dimension_structures(
         resolve: &resolve,
         biomes: &biomes,
         biome_tags: &biome_tags,
+        variants: &VariantInputs {
+            chickens: Some(&chickens),
+            chicken_sounds: &chicken_sounds,
+            zombie_nautiluses: Some(&zombie_nautiluses),
+        },
     })
     .unwrap_or_else(|error| panic!("the structure registries do not resolve: {error}"));
     tracing::info!(

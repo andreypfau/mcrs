@@ -138,6 +138,7 @@ use mcrs_minecraft_worldgen_structure_place::buried_treasure::BuriedTreasureBloc
 use mcrs_minecraft_worldgen_structure_place::fortress::FortressBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
 use mcrs_minecraft_worldgen_structure_place::template_piece::ignore_structure_and_air;
+use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
 use rustc_hash::FxHashMap;
 use std::ops::Range;
 use std::sync::Arc;
@@ -287,6 +288,7 @@ pub enum CompiledStructure {
     BuriedTreasure(Box<BuriedTreasureBlocks>),
     Fortress(Box<FortressBlocks>),
     Shipwreck(CompiledChain),
+    OceanRuin(Box<OceanRuinBlocks>),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -1086,6 +1088,10 @@ fn compile_structures(
                     ignore_structure_and_air(resolver)
                         .map_err(|error| error.within(&structure.id))?,
                 )),
+                StructureKind::OceanRuin(config) => Some(CompiledStructure::OceanRuin(Box::new(
+                    OceanRuinBlocks::compile(resolver, config.biome_temp, resolver.world_seed)
+                        .map_err(|error| error.within(&structure.id))?,
+                ))),
                 _ => None,
             })
         })

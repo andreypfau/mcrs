@@ -22,12 +22,11 @@ const MAGIC: &[u8; 8] = b"MCSTRPC0";
 /// them and this build produces none. The jungle temple and end city have no
 /// present case at the dump's shared chunks and join the list with their own
 /// cases.
-const UNPORTED_PIECE_TYPES: [&str; 9] = [
+const UNPORTED_PIECE_TYPES: [&str; 8] = [
     "minecraft:igloo",
     "minecraft:mineshaft",
     "minecraft:nether_fossil",
     "minecraft:ocean_monument",
-    "minecraft:ocean_ruin",
     "minecraft:ruined_portal",
     "minecraft:stronghold",
     "minecraft:swamp_hut",
@@ -37,11 +36,12 @@ const UNPORTED_PIECE_TYPES: [&str; 9] = [
 /// Fields the reference fills in at placement from the live world, which the
 /// layout fixes here from the density heights instead: they are dropped from
 /// both sides before a piece is compared, keyed by the piece's `id`.
-const PLACEMENT_FIXED_FIELDS: [(&str, &[&str]); 4] = [
+const PLACEMENT_FIXED_FIELDS: [(&str, &[&str]); 5] = [
     ("minecraft:tedp", &["HPos"]),
     ("minecraft:tejp", &["HPos"]),
     ("minecraft:tesh", &["HPos"]),
     ("minecraft:shipwreck", &["TPY", "height_adjusted"]),
+    ("minecraft:orp", &["TPY"]),
 ];
 
 pub(super) struct DumpCase {
@@ -165,5 +165,5 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
         compared += 1;
     }
     assert_eq!(unported, UNPORTED_PIECE_TYPES.into_iter().collect());
-    assert_eq!((compared, pieces), (164, 10364));
+    assert_eq!((compared, pieces), (211, 10689));
 }

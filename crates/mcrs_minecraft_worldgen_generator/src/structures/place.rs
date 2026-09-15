@@ -19,6 +19,7 @@ use mcrs_minecraft_worldgen_structure_place::buried_treasure::paint_buried_treas
 use mcrs_minecraft_worldgen_structure_place::canvas::PieceCanvas;
 use mcrs_minecraft_worldgen_structure_place::fortress::paint_fortress;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
+use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::paint_shipwreck;
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
@@ -187,6 +188,26 @@ pub fn place_start<W: WorldGenVolume>(
                     rng,
                     &mut run.entities,
                     &mut run.spawns,
+                );
+            }
+            Piece::OceanRuin(piece) => {
+                let (Some(CompiledStructure::OceanRuin(blocks)), StructureKind::OceanRuin(config)) =
+                    (program.structure(start.structure), &structure.kind)
+                else {
+                    continue;
+                };
+                place_ocean_ruin(
+                    blocks,
+                    frozen,
+                    config,
+                    start.structure,
+                    piece,
+                    reference,
+                    clip,
+                    region,
+                    &mut run.entities,
+                    &mut run.spawns,
+                    rng,
                 );
             }
         }

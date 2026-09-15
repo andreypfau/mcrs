@@ -11,6 +11,9 @@ use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
+use mcrs_minecraft_worldgen_feature::spawn_condition::{
+    SpawnSelector, VariantTable, VariantTables,
+};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, PaletteState, ResolvedState, Template, TemplateManifest, bounding_box,
@@ -92,6 +95,17 @@ pub struct StructureInputs<'a> {
     pub resolve: &'a dyn Fn(&PaletteState) -> Option<ResolvedState>,
     pub biomes: &'a DynRegistryIndex<Biome>,
     pub biome_tags: &'a DynTagRegistry<Biome>,
+    pub variants: &'a VariantInputs<'a>,
+}
+
+/// The variant registries the structures' mobs draw from, each map in its
+/// registry order with the asset's `spawn_conditions`, and each sound registry
+/// as its ids in order.
+#[derive(Default)]
+pub struct VariantInputs<'a> {
+    pub chickens: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector>>>,
+    pub chicken_sounds: &'a [ResourceLocation],
+    pub zombie_nautiluses: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector>>>,
 }
 
 const MAX_JIGSAW_RANGE: i32 = 128;
@@ -101,7 +115,58 @@ pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> 
     freeze_pools(inputs, &mut frozen)?;
     freeze_structures(inputs, &mut frozen)?;
     freeze_sets(inputs, &mut frozen)?;
+    freeze_variants(inputs, &mut frozen)?;
     Ok(frozen)
+}
+
+fn freeze_variants(
+    inputs: &StructureInputs<'_>,
+    frozen: &mut FrozenStructures,
+) -> Result<(), String> {
+    let table = |registry: &str,
+                 entries: Option<&BTreeMap<ResourceLocation, Vec<SpawnSelector>>>|
+     -> Result<VariantTable, String> {
+        let Some(entries) = entries else {
+            return Ok(VariantTable::default());
+        };
+        let owner = ResourceLocation::parse(registry).expect("a literal id");
+        VariantTable::freeze(
+            entries
+                .iter()
+                .map(|(id, selectors)| (id.clone(), selectors.as_slice())),
+            &|set| {
+                let mut ids = FixedBitSet::with_capacity(frozen.structures.len());
+                match set {
+                    HolderSet::Tag(tag) => {
+                        return Err(format!(
+                            "names the structure tag #{tag}, which is not loaded"
+                        ));
+                    }
+                    HolderSet::One(_) | HolderSet::List(_) => {
+                        for id in set.entries() {
+                            let index = frozen.structure_ids.get(id).ok_or_else(|| {
+                                format!("names the structure {id}, which is not loaded")
+                            })?;
+                            ids.insert(index.0 as usize);
+                        }
+                    }
+                }
+                Ok(Arc::new(ids))
+            },
+            &|set| biome_mask(inputs, &owner, set),
+        )
+        .map_err(|error| format!("{registry}: {error}"))
+    };
+    frozen.variants = VariantTables {
+        chickens: table("minecraft:chicken_variant", inputs.variants.chickens)?,
+        chicken_sounds: inputs.variants.chicken_sounds.to_vec(),
+        zombie_nautiluses: table(
+            "minecraft:zombie_nautilus_variant",
+            inputs.variants.zombie_nautiluses,
+        )?,
+        ..VariantTables::default()
+    };
+    Ok(())
 }
 
 fn biome_mask(
@@ -418,6 +483,11 @@ fn freeze_structures(
                 biome_temp: *biome_temp,
                 large_probability: large_probability.0 as f32,
                 cluster_probability: cluster_probability.0 as f32,
+                frequent_drowned: biome_tag_mask(
+                    inputs,
+                    id,
+                    "minecraft:more_frequent_drowned_spawns",
+                )?,
             }),
             Structure::RuinedPortal { setups, .. } => {
                 let portals = templates(ruined_portal::PORTALS);

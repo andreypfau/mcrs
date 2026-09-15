@@ -13,6 +13,8 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, BoxRegion, WorldStates};
+use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenStructures, StructureKind};
 use mcrs_minecraft_worldgen_structure::piece::Start;
@@ -32,24 +34,24 @@ use crate::structures::place::{column_clip, place_start};
 const MAGIC: &[u8; 8] = b"MCSTRGE0";
 
 /// Every structure type the oracle places and this build cannot yet.
-const UNPORTED_GEOMETRY_TYPES: [&str; 11] = [
+const UNPORTED_GEOMETRY_TYPES: [&str; 10] = [
     "minecraft:end_city",
     "minecraft:igloo",
     "minecraft:jungle_temple",
     "minecraft:mineshaft",
     "minecraft:nether_fossil",
     "minecraft:ocean_monument",
-    "minecraft:ocean_ruin",
     "minecraft:ruined_portal",
     "minecraft:stronghold",
     "minecraft:swamp_hut",
     "minecraft:woodland_mansion",
 ];
 
+/// The oracle's packed entity data follows the tag and is skipped: the server
+/// derives that packet from the components delivery builds out of these fields.
 struct DumpEntity {
     type_id: String,
     nbt: NbtCompound,
-    data: Vec<u8>,
 }
 
 struct DumpChunk {
@@ -133,8 +135,8 @@ fn read_dump() -> Dump {
                                 let type_id = dump_string(&mut r);
                                 let nbt = read_nbt(&mut r, &format!("{structure} {type_id}"));
                                 let len = r.get_u32_le() as usize;
-                                let data = r.copy_to_bytes(len).to_vec();
-                                DumpEntity { type_id, nbt, data }
+                                r.advance(len);
+                                DumpEntity { type_id, nbt }
                             })
                             .collect();
                         let rng = [r.get_i64_le(), r.get_i64_le()];
@@ -356,11 +358,56 @@ fn palette_index() -> &'static HashMap<VoxelId, u32> {
     &INDEX
 }
 
+/// The stub level creates a position's block entity once and reloads it from
+/// every later template block there, so one entry per position stands with
+/// the last data; a later write of a block that holds none leaves it in place,
+/// which the column merge, unlike the stub, drops.
+fn by_position(entities: &[GeneratedBlockEntity]) -> Vec<GeneratedBlockEntity> {
+    let mut settled: Vec<GeneratedBlockEntity> = Vec::new();
+    for entity in entities {
+        match settled
+            .iter_mut()
+            .find(|held| held.position() == entity.position())
+        {
+            Some(held) => *held = entity.clone(),
+            None => settled.push(entity.clone()),
+        }
+    }
+    settled
+}
+
+/// The oracle records each spawn as it reached `addFreshEntity`: a vehicle,
+/// then each of its passengers.
+fn arrivals(entity: &GeneratedEntity, out: &mut Vec<NbtCompound>) {
+    let mut compound = to_nbt_compound(entity).expect("an entity serialises");
+    compound
+        .child_tags
+        .retain(|(key, _)| !matches!(key.as_str(), "UUID" | "Passengers"));
+    out.push(compound);
+    for passenger in &entity.passengers {
+        arrivals(passenger, out);
+    }
+}
+
+/// The oracle's tag is the entity's whole save and ours holds what generation
+/// decided, so the comparison is over the keys ours carries; an entity's own
+/// random values are masked on both sides.
+fn projected(expected: &NbtCompound, ours: &NbtCompound) -> NbtCompound {
+    let mut out = NbtCompound::new();
+    for (key, _) in &ours.child_tags {
+        if let Some(value) = expected.get(key) {
+            out.child_tags.push((key.clone(), value.clone()));
+        }
+    }
+    canonical(&out)
+}
+
 fn compare_chunk(
     label: &str,
     expected: &DumpChunk,
     writes: &[(BlockPos, VoxelId)],
-    block_entities: &[mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity],
+    block_entities: &[GeneratedBlockEntity],
+    spawns: &[GeneratedEntity],
     rng: [i64; 2],
 ) -> Vec<String> {
     let mut faults = Vec::new();
@@ -451,27 +498,51 @@ fn compare_chunk(
             }
         }
     }
-    // ponytail: nothing here spawns an entity yet, so the oracle's list must be
-    // empty for a placed type; the entity layer compares kind, position, masked
-    // NBT and packed entity data when it lands.
-    if !expected.entities.is_empty() {
+    let mut ours = Vec::new();
+    for spawn in spawns {
+        arrivals(spawn, &mut ours);
+    }
+    if ours.len() != expected.entities.len() {
         fault(
             &mut faults,
             format!(
-                "entities: want {}, got none",
+                "entities: want {} ({}), got {} ({})",
+                expected.entities.len(),
                 expected
                     .entities
                     .iter()
+                    .map(|entity| format!("{} at {:?}", entity.type_id, entity.nbt.get_list("Pos")))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ours.len(),
+                ours.iter()
                     .map(|entity| format!(
-                        "{} at {:?} with {} bytes of entity data",
-                        entity.type_id,
-                        entity.nbt.get_list("Pos"),
-                        entity.data.len()
+                        "{:?} at {:?}",
+                        entity.get_string("id"),
+                        entity.get_list("Pos")
                     ))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
         );
+    } else {
+        for (want, got) in expected.entities.iter().zip(&ours) {
+            let id = got.get_string("id").map(str::to_owned);
+            let mut got = got.clone();
+            got.child_tags.retain(|(key, _)| key != "id");
+            let got = canonical(&got);
+            let want_nbt = projected(&want.nbt, &got);
+            if id.as_deref() != Some(want.type_id.as_str()) || want_nbt != got {
+                fault(
+                    &mut faults,
+                    format!(
+                        "entity {}:\n  want {want_nbt:?}\n  got  {got:?}",
+                        want.type_id
+                    ),
+                );
+                break;
+            }
+        }
     }
     if rng != expected.rng {
         fault(
@@ -543,12 +614,13 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
                 &mut rng,
                 liquid,
             );
-            let (block_entities, _, _) = run.finish();
+            let (block_entities, spawns, _) = run.finish();
             faults.extend(compare_chunk(
                 &format!("{label} chunk {:?}", chunk.chunk),
                 chunk,
                 &region.writes,
-                &block_entities,
+                &by_position(&block_entities),
+                &spawns,
                 [rng.next_i64(), rng.next_i64()],
             ));
             chunks += 1;
@@ -562,5 +634,5 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
         faults[..faults.len().min(20)].join("\n")
     );
     assert_eq!(unported, UNPORTED_GEOMETRY_TYPES.into_iter().collect());
-    assert_eq!((placed, chunks), (18, 638));
+    assert_eq!((placed, chunks), (24, 652));
 }
