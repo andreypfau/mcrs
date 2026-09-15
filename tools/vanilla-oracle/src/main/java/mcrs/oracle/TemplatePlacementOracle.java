@@ -24,6 +24,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.LayeredRegistryAccess;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.Vec3i;
@@ -35,6 +36,7 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.RegistryLayer;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.ServerPacksSource;
@@ -55,6 +57,7 @@ import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.feature.Feature;
+import net.minecraft.world.level.levelgen.feature.FossilFeature;
 import net.minecraft.world.level.levelgen.feature.TemplateFeature;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.pools.LegacySinglePoolElement;
@@ -76,7 +79,9 @@ public final class TemplatePlacementOracle {
     private static final BlockPos PIECE_POSITION = new BlockPos(8, 62, 8);
     private static final BlockPos FEATURE_ORIGIN = new BlockPos(8, 64, 8);
     private static final int SEA_LEVEL = 64;
-    private static final List<String> FEATURES = List.of("minecraft:desert_well", "minecraft:sulfur_spring");
+    private static final List<String> FEATURES = List.of(
+        "minecraft:desert_well", "minecraft:sulfur_spring", "minecraft:fossil_coal", "minecraft:fossil_diamonds"
+    );
     private static final List<String> PORTALS = List.of(
         "minecraft:ruined_portal/portal_1",
         "minecraft:ruined_portal/portal_2",
@@ -139,7 +144,7 @@ public final class TemplatePlacementOracle {
 
     private record PoolCase(SinglePoolElement element, String template, String processors) {}
 
-    private record FeatureCase(TemplateFeature feature, String templates, String processors) {}
+    private record FeatureCase(Feature feature, String templates, String processors) {}
 
     private record PortalCase(
         String template,
@@ -160,15 +165,20 @@ public final class TemplatePlacementOracle {
     private final RegistryAccess access;
     private final DimensionType overworld;
     private final StructureTemplateManager templates;
+    private final MinecraftServer server;
     private final Palette palette = new Palette();
     private int runningPlacement;
 
     private TemplatePlacementOracle(
-        final RegistryAccess access, final DimensionType overworld, final StructureTemplateManager templates
+        final RegistryAccess access,
+        final DimensionType overworld,
+        final StructureTemplateManager templates,
+        final MinecraftServer server
     ) {
         this.access = access;
         this.overworld = overworld;
         this.templates = templates;
+        this.server = server;
     }
 
     public static void main(final String[] args) throws Exception {
@@ -185,9 +195,9 @@ public final class TemplatePlacementOracle {
             LevelStorageSource.LevelStorageAccess storage = LevelStorageSource.createDefault(saveDir).createAccess("oracle")
         ) {
             RegistryAccess.Frozen loaded = PlacementOracle.loadWorldRegistries(resources);
-            RegistryAccess access = RegistryLayer.createRegistryAccess()
-                .replaceFrom(RegistryLayer.WORLD, loaded)
-                .compositeAccess();
+            LayeredRegistryAccess<RegistryLayer> layered = RegistryLayer.createRegistryAccess()
+                .replaceFrom(RegistryLayer.WORLD, loaded);
+            RegistryAccess access = layered.compositeAccess();
             BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(access).forEach(DataComponentInitializers.PendingComponents::apply);
             StructureTemplateManager templates = new StructureTemplateManager(
                 resources, storage, DataFixers.getDataFixer(), BuiltInRegistries.BLOCK
@@ -195,7 +205,9 @@ public final class TemplatePlacementOracle {
             DimensionType overworld = loaded.lookupOrThrow(Registries.DIMENSION_TYPE)
                 .getOrThrow(BuiltinDimensionTypes.OVERWORLD)
                 .value();
-            TemplatePlacementOracle oracle = new TemplatePlacementOracle(access, overworld, templates);
+            TemplatePlacementOracle oracle = new TemplatePlacementOracle(
+                access, overworld, templates, StubLevel.server(layered, templates)
+            );
 
             Path file = outDir.resolve("template_placement.bin");
             try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(file))) {
@@ -350,17 +362,29 @@ public final class TemplatePlacementOracle {
             Holder.Reference<Feature> holder = features.getOrThrow(ResourceKey.create(Registries.FEATURE, Identifier.parse(id)));
             Stream.concat(Stream.of(holder), holder.value().getSubFeatures())
                 .map(Holder::value)
-                .filter(TemplateFeature.class::isInstance)
-                .map(TemplateFeature.class::cast)
                 .forEach(feature -> {
-                    String templates = String.join(
-                        ",", feature.templates().unwrap().stream().map(w -> w.value().template().toString()).toList()
-                    );
-                    String processors = processorsKey(feature.processors(), true);
+                    String templates;
+                    String processors;
+                    if (feature instanceof TemplateFeature template) {
+                        templates = String.join(
+                            ",", template.templates().unwrap().stream().map(w -> w.value().template().toString()).toList()
+                        );
+                        processors = processorsKey(template.processors(), true);
+                    } else if (feature instanceof FossilFeature fossil) {
+                        templates = ids(fossil.fossilStructures()) + ";" + ids(fossil.overlayStructures());
+                        processors = processorsKey(Optional.of(fossil.fossilProcessors()), false)
+                            + ";" + processorsKey(Optional.of(fossil.overlayProcessors()), false);
+                    } else {
+                        return;
+                    }
                     cases.putIfAbsent(templates + "|" + processors, new FeatureCase(feature, templates, processors));
                 });
         }
         return new ArrayList<>(cases.values());
+    }
+
+    private static String ids(final List<Identifier> ids) {
+        return String.join(",", ids.stream().map(Identifier::toString).toList());
     }
 
     private static List<PortalCase> portalCases() {
@@ -418,6 +442,13 @@ public final class TemplatePlacementOracle {
         return new StubLevel(this.access, this.overworld, floor(floor), SEA_LEVEL, new XoroshiroRandomSource(0L));
     }
 
+    private StubLevel serverLevel(final int floor) {
+        return new StubLevel(
+            this.access, this.overworld, floor(floor), SEA_LEVEL, new XoroshiroRandomSource(0L),
+            StubLevel.WORLD_SEED, null, false, this.server
+        );
+    }
+
     private void writePoolCase(final OutputStream out, final PoolCase c, final int index) throws Exception {
         Rotation rotation = Rotation.values()[index % 4];
         LiquidSettings liquid = index % 8 == 7 ? LiquidSettings.IGNORE_WATERLOGGING : LiquidSettings.APPLY_WATERLOGGING;
@@ -470,12 +501,25 @@ public final class TemplatePlacementOracle {
         pos(out, FEATURE_ORIGIN);
         pos(out, FEATURE_ORIGIN);
         out.write(0);
-        Bin.i32(out, 6);
-        for (int seed = 0; seed < 3; seed++) {
+        int seeds = c.feature() instanceof FossilFeature ? 8 : 3;
+        Bin.i32(out, 2 * seeds);
+        for (int seed = 0; seed < seeds; seed++) {
             for (int floor = 0; floor < 2; floor++) {
                 RandomSource random = new XoroshiroRandomSource(seed);
+                if (c.feature() instanceof FossilFeature fossil) {
+                    StubLevel level = this.serverLevel(floor);
+                    boolean placed = fossil.place(level, null, random, FEATURE_ORIGIN);
+                    RandomSource replay = new XoroshiroRandomSource(seed);
+                    Rotation rotation = Rotation.getRandom(replay);
+                    Identifier drawn = fossil.fossilStructures().get(replay.nextInt(fossil.fossilStructures().size()));
+                    this.writePlacement(
+                        out, level, floor, seed, drawn.toString(), rotation, FEATURE_ORIGIN, placed, random, seed == 0
+                    );
+                    continue;
+                }
                 StubLevel level = this.level(floor);
-                TemplateFeature.TemplateEntry entry = c.feature().templates().getRandomOrThrow(random);
+                TemplateFeature feature = (TemplateFeature) c.feature();
+                TemplateFeature.TemplateEntry entry = feature.templates().getRandomOrThrow(random);
                 Rotation rotation = Util.getRandom(entry.rotations(), random);
                 StructureTemplate template = this.templates.getOrCreate(entry.template());
                 Vec3i size = template.getSize();
@@ -486,8 +530,8 @@ public final class TemplatePlacementOracle {
                     .setRotation(rotation)
                     .setRandom(random)
                     .setKnownShape(true);
-                if (c.feature().processors().isPresent()) {
-                    for (StructureProcessor processor : c.feature().processors().get().value().list()) {
+                if (feature.processors().isPresent()) {
+                    for (StructureProcessor processor : feature.processors().get().value().list()) {
                         settings.addProcessor(processor);
                     }
                 }

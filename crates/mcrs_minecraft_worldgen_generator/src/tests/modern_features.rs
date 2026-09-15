@@ -208,19 +208,16 @@ fn a_missing_name_fails_the_build_and_an_unsupported_shape_only_skips() {
         "minecraft:ore_coal_test: unknown placed feature: test:absent"
     );
 
-    let fossil = tables_of(
-        r#"{ "type": "minecraft:fossil",
-             "fossil_structures": ["minecraft:fossil/spine_1"],
-             "overlay_structures": ["minecraft:fossil/spine_1_coal"],
-             "fossil_processors": "minecraft:fossil_rot",
-             "overlay_processors": "minecraft:fossil_coal",
-             "max_empty_corners_allowed": 4 }"#,
-        PLACEMENT,
+    let surviving_stone = tables_of(
+        ORE,
+        r#"[{ "type": "minecraft:block_predicate_filter",
+              "predicate": { "type": "minecraft:would_survive",
+                             "state": "minecraft:stone" } }]"#,
     );
-    let program = program_of(&fossil, &registry);
+    let program = program_of(&surviving_stone, &registry);
     assert!(
         program.generator_at(0, 0).is_none(),
-        "a fossil has no generator yet"
+        "stone has no canSurvive rule to answer the filter with"
     );
     assert!(
         program.present(&[0])[0].contains(0),

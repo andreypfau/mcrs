@@ -547,15 +547,18 @@ impl References {
     }
 
     pub(crate) fn visit_feature(&mut self, feature: &Feature) {
-        if let Feature::Template {
-            templates,
-            processors,
-        } = feature
-        {
-            for entry in templates {
-                self.templates.insert(entry.data.id.clone());
-            }
-            if let Some(Holder::Reference(id)) = processors {
+        self.templates.extend(feature.templates().cloned());
+        let processors = match feature {
+            Feature::Template { processors, .. } => processors.iter().collect(),
+            Feature::Fossil {
+                fossil_processors,
+                overlay_processors,
+                ..
+            } => vec![fossil_processors, overlay_processors],
+            _ => Vec::new(),
+        };
+        for processors in processors {
+            if let Holder::Reference(id) = processors {
                 self.processor_lists.insert(id.clone());
             }
         }

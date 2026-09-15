@@ -21,13 +21,12 @@ use super::{
 
 const BIOME: &str = "minecraft:badlands";
 
-/// The corpus features this build still cannot place: both are `fossil`, which
-/// blends two templates through a processor pair nothing here runs yet.
-// ponytail: `desert_well` and `sulfur_spring` place their templates without the
-// neighbour-shape pass a `minecraft:template` feature runs afterwards, so a
-// sulfur spike at a template's edge keeps its file state where a real server
+/// The corpus features this build still cannot place.
+// ponytail: `desert_well`, `sulfur_spring` and the fossils place their
+// templates without the neighbour-shape pass the reference runs afterwards, so
+// a sulfur spike at a template's edge keeps its file state where a real server
 // may recompute its thickness; the upgrade is that post pass over the region.
-const EXPECTED_MISSING: [&str; 2] = ["minecraft:fossil_coal", "minecraft:fossil_diamonds"];
+const EXPECTED_MISSING: [&str; 0] = [];
 
 /// Every feature of the corpus as one step, each placed under its own id.
 fn corpus_tables() -> (FeatureTables, &'static LoadedFeatures) {
@@ -295,9 +294,8 @@ fn corpus_feature_types() -> BTreeMap<String, Vec<Feature>> {
         .collect()
 }
 
-/// The one type no generator places, which the file-level census already
-/// names through its two features.
-const EXPECTED_MISSING_TYPES: [&str; 1] = ["minecraft:fossil"];
+/// The feature types no generator places.
+const EXPECTED_MISSING_TYPES: [&str; 0] = [];
 
 /// Every feature type the corpus uses, derived from the assets rather than
 /// listed here, against the generators this build has. A datapack that adds a

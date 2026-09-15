@@ -15,12 +15,12 @@ use mcrs_minecraft_block::definition::{
 };
 use mcrs_minecraft_block::{Block as VanillaBlock, Fluid};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
+use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -32,15 +32,18 @@ use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
     compile_predicate, compile_rule, state_named, state_of as resolve_state, states_of,
 };
+use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{
     BiomeMask, BlockLayout, Modifier, PlacerScratch, Predicate, PropertyLayout, StateMask,
     WorldGenVolume, WorldStates, place,
 };
 use mcrs_minecraft_worldgen_feature::proto::{
-    BlockReplacement, Feature, Holder, PlacedFeature, PlacedFeatureSet, StructureProcessorList,
-    WeightedPlacedFeature, processor_list,
+    BlockReplacement, Feature, Holder, PlacedFeature, PlacedFeatureSet, StructureProcessor,
+    StructureProcessorList, WeightedPlacedFeature, processor_list,
 };
-use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, TemplateManifest};
+use mcrs_minecraft_worldgen_feature::template::{
+    FrozenTemplate, TemplateManifest, bounding_box, zero_position_with_transform,
+};
 use mcrs_minecraft_worldgen_feature_place::bamboo::{CompiledBamboo, place_bamboo};
 use mcrs_minecraft_worldgen_feature_place::blob::{
     CompiledBlockBlob, CompiledDelta, CompiledReplaceBlobs, place_block_blob, place_delta,
@@ -232,6 +235,7 @@ pub enum Generator {
     ReplaceSingleBlock(CompiledReplaceSingleBlock),
     BetaPopulate(Box<BetaPopulate>),
     Template(Box<CompiledTemplateFeature>),
+    Fossil(Box<CompiledFossil>),
 }
 
 /// `minecraft:template`: one weighted draw picks the template, one bounded
@@ -242,6 +246,17 @@ pub enum Generator {
 pub struct CompiledTemplateFeature {
     entries: Vec<(i32, FrozenTemplate, Vec<Rotation>)>,
     chain: CompiledChain,
+}
+
+/// `minecraft:fossil`: one draw picks the rotation, one the fossil and its
+/// overlay, one the depth below the lowest ocean floor under the footprint;
+/// then both templates place at that corner with their rot processors
+/// drawing from the same stream.
+pub struct CompiledFossil {
+    pairs: Vec<(FrozenTemplate, FrozenTemplate)>,
+    fossil_chain: CompiledChain,
+    overlay_chain: CompiledChain,
+    max_empty_corners: usize,
 }
 
 /// One template pool element with every name in it resolved: what a jigsaw
@@ -856,8 +871,92 @@ impl Generator {
                     &mut run.spawns,
                 )
             }
+            Generator::Fossil(config) => place_fossil(config, region, rng, at, &mut run.entities),
         }
     }
+}
+
+fn place_fossil<W: WorldGenVolume>(
+    config: &CompiledFossil,
+    region: &mut W,
+    rng: &mut XoroshiroRandom,
+    at: BlockPos,
+    entities: &mut Vec<GeneratedBlockEntity>,
+) -> bool {
+    let rotation = Rotation::ALL[rng.next_i32_bound(4) as usize];
+    let (fossil, overlay) = &config.pairs[rng.next_i32_bound(config.pairs.len() as i32) as usize];
+    let extent = region.extent();
+    let chunk_min = IVec3::new(
+        at.x.div_euclid(16) * 16,
+        extent.min_y,
+        at.z.div_euclid(16) * 16,
+    );
+    let clip = BoundingBox {
+        min: (chunk_min - IVec3::new(16, 0, 16)).into(),
+        max: (chunk_min + IVec3::new(31, extent.depth - 1, 31)).into(),
+    };
+    let [size_x, _, size_z] = fossil.size.map(i32::from);
+    let (span_x, span_z) = match rotation {
+        Rotation::Clockwise90 | Rotation::Counterclockwise90 => (size_z, size_x),
+        _ => (size_x, size_z),
+    };
+    let low = *at - IVec3::new(span_x / 2, 0, span_z / 2);
+    let mut lowest_surface = at.y;
+    for x in 0..span_x {
+        for z in 0..span_z {
+            lowest_surface = lowest_surface.min(region.height(
+                HeightmapName::OceanFloorWg,
+                low.x + x,
+                low.z + z,
+            ));
+        }
+    }
+    let target_y = (lowest_surface - 15 - rng.next_i32_bound(10)).max(extent.min_y + 10);
+    let target =
+        zero_position_with_transform(low.with_y(target_y), Mirror::None, rotation, size_x, size_z);
+    let world = region.world();
+    let empty_corners = bounding_box(fossil.size, target, rotation, Mirror::None, IVec3::ZERO)
+        .corners()
+        .into_iter()
+        .filter(|&corner| {
+            let state = region.get(corner).0 as usize;
+            world.air_states.contains(state)
+                || world.lava_states.contains(state)
+                || world.water_states.contains(state)
+        })
+        .count();
+    if empty_corners > config.max_empty_corners {
+        return false;
+    }
+    for (template, chain) in [
+        (fossil, &config.fossil_chain),
+        (overlay, &config.overlay_chain),
+    ] {
+        if template.palettes.is_empty() {
+            continue;
+        }
+        let palette = rng.next_i32_bound(template.palettes.len() as i32) as usize;
+        place_template(
+            &Placement {
+                template,
+                jigsaws: &[],
+                palette,
+                position: target,
+                reference: target,
+                rotation,
+                mirror: Mirror::None,
+                pivot: IVec3::ZERO,
+                random: SettingsRandom::Stream,
+                clip: Some(clip),
+                chain,
+                waterlog: true,
+            },
+            region,
+            rng,
+            entities,
+        );
+    }
+    true
 }
 
 fn compile_elements(
@@ -1745,9 +1844,43 @@ fn compile_generator(
                     .collect::<Compiled<_>>()?,
             })
         }
-        // Reads two structure templates out of `assets/minecraft/structure`
-        // and blends them, which nothing in this build does yet.
-        Feature::Fossil { .. } => return Err(unsupported("minecraft:fossil")),
+        Feature::Fossil {
+            fossil_structures,
+            overlay_structures,
+            fossil_processors,
+            overlay_processors,
+            max_empty_corners_allowed,
+        } => {
+            if fossil_structures.len() != overlay_structures.len() {
+                return Err(FeatureCompileError::Template(
+                    "fossil structure lists must be equal lengths".to_owned(),
+                ));
+            }
+            let pairs = fossil_structures
+                .iter()
+                .zip(overlay_structures)
+                .map(|(fossil, overlay)| {
+                    Ok((
+                        freeze_feature_template(corpus, resolver, fossil)?,
+                        freeze_feature_template(corpus, resolver, overlay)?,
+                    ))
+                })
+                .collect::<Compiled<Vec<_>>>()?;
+            let chain = |processors| {
+                compile_chain(
+                    feature_processors(corpus, Some(processors))?,
+                    ChainKind::Feature,
+                    resolver,
+                    resolver.world_seed,
+                )
+            };
+            Generator::Fossil(Box::new(CompiledFossil {
+                pairs,
+                fossil_chain: chain(fossil_processors)?,
+                overlay_chain: chain(overlay_processors)?,
+                max_empty_corners: max_empty_corners_allowed.0 as usize,
+            }))
+        }
         Feature::Template {
             templates,
             processors,
@@ -1755,15 +1888,7 @@ fn compile_generator(
             let entries = templates
                 .iter()
                 .map(|entry| {
-                    let id = &entry.data.id;
-                    let template = corpus
-                        .templates
-                        .get(id)
-                        .ok_or_else(|| FeatureCompileError::UnknownTemplate(id.clone()))?;
-                    let (frozen, _) = template
-                        .freeze(id, &|state| resolve_palette_state(resolver.blocks, state))
-                        .map_err(|error| FeatureCompileError::Template(error.to_string()))?;
-                    check_block_entity_ids(id, &frozen).map_err(FeatureCompileError::Template)?;
+                    let frozen = freeze_feature_template(corpus, resolver, &entry.data.id)?;
                     let rotations = entry
                         .data
                         .rotations
@@ -1772,19 +1897,45 @@ fn compile_generator(
                     Ok((entry.weight.0, frozen, rotations))
                 })
                 .collect::<Compiled<Vec<_>>>()?;
-            let list =
-                match processors {
-                    Some(Holder::Reference(id)) => corpus
-                        .processor_lists
-                        .get(id)
-                        .map(processor_list)
-                        .ok_or_else(|| FeatureCompileError::UnknownProcessorList(id.clone()))?,
-                    Some(Holder::Inline(list)) => processor_list(list),
-                    None => &[],
-                };
-            let chain = compile_chain(list, ChainKind::Feature, resolver, resolver.world_seed)?;
+            let chain = compile_chain(
+                feature_processors(corpus, processors.as_ref())?,
+                ChainKind::Feature,
+                resolver,
+                resolver.world_seed,
+            )?;
             Generator::Template(Box::new(CompiledTemplateFeature { entries, chain }))
         }
+    })
+}
+
+fn freeze_feature_template(
+    corpus: &LoadedFeatures,
+    resolver: &Resolver<'_>,
+    id: &ResourceLocation,
+) -> Compiled<FrozenTemplate> {
+    let template = corpus
+        .templates
+        .get(id)
+        .ok_or_else(|| FeatureCompileError::UnknownTemplate(id.clone()))?;
+    let (frozen, _) = template
+        .freeze(id, &|state| resolve_palette_state(resolver.blocks, state))
+        .map_err(|error| FeatureCompileError::Template(error.to_string()))?;
+    check_block_entity_ids(id, &frozen).map_err(FeatureCompileError::Template)?;
+    Ok(frozen)
+}
+
+fn feature_processors<'a>(
+    corpus: &'a LoadedFeatures,
+    processors: Option<&'a Holder<StructureProcessorList>>,
+) -> Compiled<&'a [StructureProcessor]> {
+    Ok(match processors {
+        Some(Holder::Reference(id)) => corpus
+            .processor_lists
+            .get(id)
+            .map(processor_list)
+            .ok_or_else(|| FeatureCompileError::UnknownProcessorList(id.clone()))?,
+        Some(Holder::Inline(list)) => processor_list(list),
+        None => &[],
     })
 }
 

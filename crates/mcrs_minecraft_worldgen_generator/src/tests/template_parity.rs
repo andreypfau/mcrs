@@ -415,6 +415,7 @@ fn palette_index() -> &'static HashMap<VoxelId, u32> {
 fn region(min: BlockPos, max: BlockPos, floor: u8) -> BoxRegion {
     let world = WorldStates::clone(&program().world);
     let air = world.air_states.clone();
+    let fluid = world.any_fluid.clone();
     let state = |block: &str| VoxelId::from(corpus().default_state(block));
     let region = BoxRegion::new(min, max, world.air);
     let mut region = match floor {
@@ -427,11 +428,18 @@ fn region(min: BlockPos, max: BlockPos, floor: u8) -> BoxRegion {
             .floor(60, state("minecraft:stone")),
     };
     region.world = world;
-    region.with_height(move |blocks: &BoxVolume, _: HeightmapName, x, z| {
+    region.with_height(move |blocks: &BoxVolume, kind: HeightmapName, x, z| {
+        let sees_through_fluid = matches!(
+            kind,
+            HeightmapName::OceanFloorWg | HeightmapName::OceanFloor
+        );
         let (min, max) = (blocks.min(), blocks.max());
         (min.y..=max.y)
             .rev()
-            .find(|&y| !air.contains(blocks.get(BlockPos::new(x, y, z)).0 as usize))
+            .find(|&y| {
+                let state = blocks.get(BlockPos::new(x, y, z)).0 as usize;
+                !air.contains(state) && !(sees_through_fluid && fluid.contains(state))
+            })
             .map_or(min.y, |y| y + 1)
     })
 }
@@ -702,24 +710,93 @@ fn every_pool_element_places_as_the_reference_does() {
 }
 
 fn feature_key(feature: &Feature) -> Option<CaseKey> {
-    let Feature::Template {
-        templates,
-        processors,
-    } = feature
-    else {
-        return None;
+    let ids = |ids: &[ResourceLocation]| {
+        ids.iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(",")
     };
-    let ids = templates
-        .iter()
-        .map(|entry| entry.data.id.to_string())
-        .collect::<Vec<_>>()
-        .join(",");
-    let processors = match processors {
+    let processors_key = |processors: Option<&Holder<_>>| match processors {
         Some(Holder::Reference(id)) => format!("ref:{id}"),
         Some(Holder::Inline(_)) => "inline".to_owned(),
         None => "none".to_owned(),
     };
-    Some((ids, processors, 0, 0))
+    let (templates, processors) = match feature {
+        Feature::Template {
+            templates,
+            processors,
+        } => (
+            templates
+                .iter()
+                .map(|entry| entry.data.id.to_string())
+                .collect::<Vec<_>>()
+                .join(","),
+            processors_key(processors.as_ref()),
+        ),
+        Feature::Fossil {
+            fossil_structures,
+            overlay_structures,
+            fossil_processors,
+            overlay_processors,
+            ..
+        } => (
+            format!("{};{}", ids(fossil_structures), ids(overlay_structures)),
+            format!(
+                "{};{}",
+                processors_key(Some(fossil_processors)),
+                processors_key(Some(overlay_processors))
+            ),
+        ),
+        _ => return None,
+    };
+    Some((templates, processors, 0, 0))
+}
+
+fn feature_program(node: &Feature) -> FeatureProgram {
+    let tables = one_step(
+        vec![Arc::new(CompiledPlacedFeature {
+            id: None,
+            placed: PlacedFeature {
+                feature: Holder::Inline(Box::new(node.clone())),
+                placement: Vec::new(),
+            },
+        })],
+        BIOME,
+    );
+    build_program_with(
+        &tables,
+        corpus_features(),
+        &biome_registry(&[BIOME]),
+        WORLD_SEED,
+        None,
+    )
+}
+
+/// A region whose bottom sits just under the floor clamps the fossil to ten
+/// blocks above that bottom, into the air, where every corner is empty; the
+/// three draws before the corner check still happen.
+#[test]
+fn a_fossil_with_too_many_empty_corners_places_nothing() {
+    let node = &corpus_features().features[&ResourceLocation::minecraft("fossil_coal")];
+    let program = feature_program(node);
+    let generator = program.generator_at(0, 0).expect("a fossil compiles");
+    let mut region = region(BlockPos::new(-16, 60, -16), BlockPos::new(31, 99, 31), 0);
+    let mut run = program.run(RunScratch::default());
+    let mut rng = XoroshiroRandom::new(7);
+    let placed = generator.place(
+        &mut run,
+        &mut region,
+        &mut rng,
+        BlockPos::new(8, 64, 8),
+        &|_| true,
+    );
+    assert!(!placed);
+    assert!(region.writes.is_empty());
+    let mut expected = XoroshiroRandom::new(7);
+    for bound in [4, 8, 10] {
+        expected.next_i32_bound(bound);
+    }
+    assert_eq!(rng.next_i64(), expected.next_i64());
 }
 
 #[test]
@@ -744,24 +821,7 @@ fn every_template_feature_places_as_the_reference_does() {
     let mut faults = Vec::new();
     let mut placements = 0;
     for case in dump.cases.iter().filter(|case| case.kind == 1) {
-        let node = &nodes[&case.key];
-        let tables = one_step(
-            vec![Arc::new(CompiledPlacedFeature {
-                id: None,
-                placed: PlacedFeature {
-                    feature: Holder::Inline(Box::new(node.clone())),
-                    placement: Vec::new(),
-                },
-            })],
-            BIOME,
-        );
-        let program = build_program_with(
-            &tables,
-            corpus_features(),
-            &biome_registry(&[BIOME]),
-            WORLD_SEED,
-            None,
-        );
+        let program = feature_program(&nodes[&case.key]);
         let generator = program
             .generator_at(0, 0)
             .unwrap_or_else(|| panic!("{:?} compiled to no generator", case.key));
@@ -778,8 +838,8 @@ fn every_template_feature_places_as_the_reference_does() {
                 placement.pos
             );
             let mut region = region(
-                BlockPos::new(-16, 40, -16),
-                BlockPos::new(31, 99, 31),
+                BlockPos::new(-16, -64, -16),
+                BlockPos::new(31, 319, 31),
                 placement.floor,
             );
             let mut run = program.run(RunScratch::default());

@@ -18,7 +18,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
-(5 459 589 bytes). The run log must contain no `Serialization errors` line —
+(5 376 220 bytes). The run log must contain no `Serialization errors` line —
 `placeInWorld` reports block-entity load problems through its logger instead
 of throwing, so a hit means a compound in the fixture was not loaded the way
 the fixture claims. The capture that produced this file had none.
@@ -58,6 +58,17 @@ with one deliberate deviation: `setKnownShape(true)`. The feature leaves
 over every placed block afterwards; that pass is not reproduced by the port
 and would need a full block-shape model in the stub, so it is skipped here and
 listed below as something the fixture cannot pin.
+
+Fossil cases are a lift: `FossilFeature.place(level, null, random, origin)`
+with the origin the feature cases use, against a `StubLevel` whose
+`getLevel()` is a `StubServerLevel` over `StubLevel.server(registries,
+templates)`, so `getServer().getStructureTemplateManager()` answers with the
+real manager. The chunk generator is never read. The reference leaves
+`knownShape` false here, and the neighbour-shape pass runs in the stub: bone
+blocks and ores have no shape to update, so it writes nothing, and the pass
+is still listed below as something the fixture cannot pin. A fossil case
+places eight seeds rather than three, so that more than one of the eight
+template pairs and every rotation is drawn.
 
 Portal cases place the thirteen `ruined_portal/*` templates the way a
 `RuinedPortalPiece` does, minus the piece's own post-processing. The settings
@@ -131,9 +142,9 @@ draws from.
 | `reference` (kind 2) | `template.getBoundingBox(settings, position)` with the case's mirror, rotation and pivot: `(center.x, minY, center.z)` |
 | `reference` | `template.getBoundingBox(new StructurePlaceSettings().setRotation(rotation), position)`: `(center.x, minY, center.z)` — what `PoolElementStructurePiece.place` passes |
 | `clip` | `(0, minY + 1, 0, 15, minY + height - 1, 15)` of the overworld `DimensionType`, the chunk box `ChunkGenerator.applyBiomeDecoration` hands a piece |
-| feature case key | `TemplateFeature.templates().unwrap()` entry ids joined by `,`; `processors()` holder key, `inline`, or `none` |
-| feature case order | `desert_well` then `sulfur_spring`; `Stream.concat(Stream.of(holder), holder.value().getSubFeatures())` filtered to `TemplateFeature`; first occurrence of a key |
-| `template_drawn`, `rotation_drawn`, `x, y, z` (kind 1) | the draws and offset `TemplateFeature.place` makes, recorded as diagnostics |
+| feature case key | `TemplateFeature.templates().unwrap()` entry ids joined by `,`; `processors()` holder key, `inline`, or `none`. A `FossilFeature`: `fossilStructures()` joined by `,`, `;`, `overlayStructures()` joined by `,`; `fossilProcessors()` key, `;`, `overlayProcessors()` key |
+| feature case order | `desert_well`, `sulfur_spring`, `fossil_coal` then `fossil_diamonds`; `Stream.concat(Stream.of(holder), holder.value().getSubFeatures())` filtered to `TemplateFeature` and `FossilFeature`; first occurrence of a key |
+| `template_drawn`, `rotation_drawn`, `x, y, z` (kind 1) | the draws and offset `TemplateFeature.place` makes, recorded as diagnostics; a fossil: `Rotation.getRandom` and the `nextInt` index replayed on a fresh random of the same seed, and the origin |
 | `placed` | the boolean `place` / `placeInWorld` returned |
 | `count`, `hash`, `entries` | `StubLevel.written()`: every position `setBlock` touched, first-write order, final state (a block-entity position is written twice — barrier, then the state — and keeps its first-write slot) |
 | block entities | `StubLevel.blockEntities()`: the instances `getBlockEntity` created for `placeInWorld`, after `loadWithComponents`; `saveWithFullMetadata(access)` through `NbtIo.write` |
@@ -141,8 +152,8 @@ draws from.
 
 ## Cases
 
-1467 cases, 3036 placements, 724 833 written positions in total, 1690
-distinct written states, 3304 block entities; 82 placements carry the full
+1469 cases, 3068 placements, 726 757 written positions in total, 1693
+distinct written states, 3304 block entities; 85 placements carry the full
 list. Censuses: 49 block-entity types; 190 entity blocks, of which 33 create a
 `RandomizableContainer` (`chest` and the eight copper chests → `chest`,
 `trapped_chest`, `barrel`, `dispenser`, `dropper`, `hopper`, `crafter`,
@@ -166,10 +177,18 @@ The one template the pack references but does not ship,
 manager substitutes an empty template, both placements return `placed = 0`
 with nothing written and the random untouched.
 
-Feature cases (6): `desert_well/well` (no processors),
+Feature cases (8): `desert_well/well` (no processors),
 `desert_well/suspicious_sand` (the inline `append_loot` rule; the two nodes
-share the key), and the four `sulfur_spring` size classes, each a weighted
-list of one to four templates over all four rotations, no processors.
+share the key), the four `sulfur_spring` size classes, each a weighted
+list of one to four templates over all four rotations, no processors, and
+the two fossils, `fossil_coal` and `fossil_diamonds`, which share the eight
+fossil templates and the `fossil_rot` chain and differ in the overlay
+templates' chain (`fossil_coal` rots the coal ore to a tenth;
+`fossil_diamonds` also rules it into deepslate diamond ore). The eight seeds
+draw `spine_2`, `spine_3`, `skull_3` and `skull_4` under every rotation; all
+32 placements place, their corner 15 to 24 blocks below the lowest
+`OCEAN_FLOOR_WG` under the footprint, which is 64 on the dirt floor and 61 on
+the stone one (water does not block motion).
 
 Portal cases (78): thirteen templates times six setups, three floors each,
 234 placements, all placed; 136 851 written positions, 41 full lists (one
@@ -211,8 +230,8 @@ are pinned only by their own unit tests.
   what a later piece sees of an earlier one, is not exercised.
 - **Template entities.** None is spawned (see above), so nothing pins the
   entity list or what `finalizeSpawn` would do.
-- **The neighbour-shape post pass** of `minecraft:template` features and of
-  the ruined portal piece (`knownShape = false`). With the deliberate
+- **The neighbour-shape post pass** of `minecraft:template` and
+  `minecraft:fossil` features and of the ruined portal piece (`knownShape = false`). With the deliberate
   `setKnownShape(true)`, a sulfur spike at a template's edge keeps its file
   state and a portal's walls, fences and iron bars keep their template
   connections; a real server recomputes them against the terrain.

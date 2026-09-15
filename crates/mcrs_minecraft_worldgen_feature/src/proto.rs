@@ -72,6 +72,24 @@ pub type PlacedFeatureSet = HolderSet<Holder<PlacedFeature>>;
 pub type FeatureStepList = HolderSet<Holder<PlacedFeature>, true>;
 
 impl Feature {
+    /// The structure templates this feature places.
+    pub fn templates(&self) -> impl Iterator<Item = &ResourceLocation> {
+        let (entries, fossils, overlays): (&[Weighted<TemplateEntry>], &[_], &[_]) = match self {
+            Self::Template { templates, .. } => (templates, &[], &[]),
+            Self::Fossil {
+                fossil_structures,
+                overlay_structures,
+                ..
+            } => (&[], fossil_structures, overlay_structures),
+            _ => (&[], &[], &[]),
+        };
+        entries
+            .iter()
+            .map(|entry| &entry.data.id)
+            .chain(fossils)
+            .chain(overlays)
+    }
+
     /// The placed features this one names, whether by id or written inline.
     /// Exhaustive on purpose: a feature added without a branch here would load
     /// with its selector targets missing and no error anywhere.

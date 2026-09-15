@@ -90,18 +90,10 @@ pub fn corpus_features() -> &'static LoadedFeatures {
         let mut templates = BTreeMap::new();
         for feature in features.values() {
             feature.for_each_feature(&mut |node| {
-                let Feature::Template {
-                    templates: entries, ..
-                } = node
-                else {
-                    return;
-                };
-                for entry in entries {
-                    templates.entry(entry.data.id.clone()).or_insert_with(|| {
-                        structures::template_file(&entry.data.id)
-                            .unwrap_or_else(|| {
-                                panic!("{}: the template is not shipped", entry.data.id)
-                            })
+                for id in node.templates() {
+                    templates.entry(id.clone()).or_insert_with(|| {
+                        structures::template_file(id)
+                            .unwrap_or_else(|| panic!("{id}: the template is not shipped"))
                             .into_owned()
                     });
                 }

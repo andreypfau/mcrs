@@ -513,7 +513,8 @@ and
 
 `TemplatePlacementOracle.main` places every distinct template pool element the
 data pack ships — the two `minecraft:template` feature nodes (`desert_well`,
-`sulfur_spring`), and the thirteen ruined portal templates through the
+`sulfur_spring`), the two `minecraft:fossil` features (`fossil_coal`,
+`fossil_diamonds`), and the thirteen ruined portal templates through the
 `RuinedPortalPiece` settings chain with mirror and pivot — into a `StubLevel`
 over a flat floor and
 records what `StructureTemplate.placeInWorld` wrote: the written positions
@@ -575,15 +576,18 @@ palette          str * palette_count      interned in first-use order, file orde
 
 case_count       u32
 repeated case_count times:
-  kind           u8    0 template pool element, 1 template feature node,
+  kind           u8    0 template pool element, 1 template or fossil feature
+                       node,
                        2 ruined portal template through RuinedPortalPiece's
                        settings
   template_key   str   kind 0: getTemplateLocation(); kind 1: entry template
-                       ids joined by ","; kind 2: the template id
+                       ids joined by "," (a fossil: fossil_structures then
+                       ";" then overlay_structures); kind 2: the template id
   processors_key str   "ref:<processor list id>" | "inline" | "none" (feature
                        without processors); a kind-0 inline list is always
                        empty (the dump aborts otherwise), a kind-1 one is the
-                       feature's own list (desert_well's append_loot rule);
+                       feature's own list (desert_well's append_loot rule), a
+                       fossil's is fossil_processors ";" overlay_processors;
                        kind 2: "portal:<placement>,cold=<b>,air_pocket=<b>,
                        mossiness=<f>,blackstone=<b>", the Properties handed
                        to makeSettings
@@ -604,17 +608,19 @@ repeated case_count times:
   has_clip       u8    kind 0: 1; kind 1 and 2: 0
   clip           i32 * 6   when has_clip: min x, y, z, max x, y, z, inclusive;
                            always (0, -63, 0, 15, 319, 15)
-  placement_count  u32   kind 0: 2; kind 1: 6; kind 2: 3
+  placement_count  u32   kind 0: 2; kind 1: 6 (a fossil: 16); kind 2: 3
   repeated placement_count times:
     floor          u8    0: dirt for y <= 63; 1: stone for y <= 60, water
                          source 61..=63; 2: stone for y <= 60, lava source
                          61..=63; air above any
     seed           i64   XoroshiroRandomSource(seed) is the placement random;
-                         kind 0 and 2: the case index; kind 1: 0, 1, 2
+                         kind 0 and 2: the case index; kind 1: 0, 1, 2 (a
+                         fossil: 0 to 7)
     template_drawn str   kind 0 and 2: template_key; kind 1: the entry the
-                         weighted draw picked
+                         weighted draw picked (a fossil: the fossil template)
     rotation_drawn u8    kind 0 and 2: rotation; kind 1: the drawn rotation
-    x, y, z        i32 * 3   the position handed to placeInWorld
+    x, y, z        i32 * 3   the position handed to placeInWorld; a fossil:
+                             the origin
     placed         u8    what the placement returned
     count          u32   distinct written positions
     hash           u64   FNV-1a 64 over (i32 x, i32 y, i32 z, u32 palette
@@ -639,7 +645,7 @@ Kind-0 cases come first: pools sorted by `Identifier.toString()`,
 `getTemplates()` raw pairs in order, `ListPoolElement` children in
 `getElements()` order, the first occurrence of each
 `(template, processors, projection, legacy)` key. Kind-1 cases follow:
-`desert_well` then `sulfur_spring`, nodes in
+`desert_well`, `sulfur_spring`, `fossil_coal` then `fossil_diamonds`, nodes in
 `Stream.concat(Stream.of(self), getSubFeatures())` order, first occurrence of
 each `(template ids, processors)` key. Kind-2 cases close the file: the ten
 `ruined_portal/portal_N` then the three `giant_portal_N`, six setups each,
