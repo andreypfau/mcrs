@@ -68,11 +68,39 @@ impl BuriedTreasurePiece {
     pub const CHUNK_OFFSET: i32 = 9;
 }
 
+/// The fortress piece types, each with the state its constructor draws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FortressKind {
+    BridgeCrossing,
+    BridgeEndFiller { seed: i32 },
+    BridgeStraight,
+    CorridorStairs,
+    CorridorBalcony,
+    CastleEntrance,
+    SmallCorridorCrossing,
+    SmallCorridorLeftTurn { chest: bool },
+    SmallCorridor,
+    SmallCorridorRightTurn { chest: bool },
+    StalkRoom,
+    MonsterThrone,
+    RoomCrossing,
+    StairsRoom,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FortressPiece {
+    pub kind: FortressKind,
+    pub bounds: BoundingBox,
+    pub orientation: Orientation,
+    pub gen_depth: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
     DesertPyramid(DesertPyramidPiece),
     BuriedTreasure(BuriedTreasurePiece),
+    Fortress(FortressPiece),
 }
 
 impl Piece {
@@ -81,6 +109,7 @@ impl Piece {
             Piece::Jigsaw(piece) => piece.bounds,
             Piece::DesertPyramid(piece) => piece.bounds,
             Piece::BuriedTreasure(piece) => piece.bounds,
+            Piece::Fortress(piece) => piece.bounds,
         }
     }
 
@@ -93,6 +122,7 @@ impl Piece {
             }
             Piece::DesertPyramid(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::BuriedTreasure(piece) => piece.bounds = piece.bounds.moved(delta),
+            Piece::Fortress(piece) => piece.bounds = piece.bounds.moved(delta),
         }
     }
 
@@ -318,6 +348,102 @@ enum PieceTag {
         #[serde(rename = "GD")]
         gen_depth: i32,
     },
+    #[serde(rename = "minecraft:nebcr")]
+    FortressBridgeCrossing(GridTag),
+    #[serde(rename = "minecraft:nebef")]
+    FortressBridgeEndFiller {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "Seed")]
+        seed: i32,
+    },
+    #[serde(rename = "minecraft:nebs")]
+    FortressBridgeStraight(GridTag),
+    #[serde(rename = "minecraft:neccs")]
+    FortressCorridorStairs(GridTag),
+    #[serde(rename = "minecraft:nectb")]
+    FortressCorridorBalcony(GridTag),
+    #[serde(rename = "minecraft:nece")]
+    FortressCastleEntrance(GridTag),
+    #[serde(rename = "minecraft:nescsc")]
+    FortressSmallCorridorCrossing(GridTag),
+    #[serde(rename = "minecraft:nesclt")]
+    FortressSmallCorridorLeftTurn {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "Chest", deserialize_with = "nbt_flag")]
+        chest: bool,
+    },
+    #[serde(rename = "minecraft:nesc")]
+    FortressSmallCorridor(GridTag),
+    #[serde(rename = "minecraft:nescrt")]
+    FortressSmallCorridorRightTurn {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "Chest", deserialize_with = "nbt_flag")]
+        chest: bool,
+    },
+    #[serde(rename = "minecraft:necsr")]
+    FortressStalkRoom(GridTag),
+    #[serde(rename = "minecraft:nemt")]
+    FortressMonsterThrone {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "Mob", deserialize_with = "nbt_flag")]
+        mob: bool,
+    },
+    #[serde(rename = "minecraft:nerc")]
+    FortressRoomCrossing(GridTag),
+    #[serde(rename = "minecraft:nesr")]
+    FortressStairsRoom(GridTag),
+}
+
+/// `StructurePiece.createTag` without the id: what every grid piece writes.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GridTag {
+    #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+    bounds: [i32; 6],
+    #[serde(rename = "O")]
+    orientation: i32,
+    #[serde(rename = "GD")]
+    gen_depth: i32,
+}
+
+impl GridTag {
+    fn of(piece: &FortressPiece) -> Self {
+        GridTag {
+            bounds: box_array(piece.bounds),
+            orientation: piece.orientation.data_2d(),
+            gen_depth: piece.gen_depth,
+        }
+    }
+
+    fn piece<E: serde::de::Error>(self, kind: FortressKind) -> Result<Piece, E> {
+        Ok(Piece::Fortress(FortressPiece {
+            kind,
+            bounds: box_of(self.bounds),
+            orientation: Orientation::from_data_2d(self.orientation)
+                .ok_or_else(|| E::custom("a fortress piece without an orientation"))?,
+            gen_depth: self.gen_depth,
+        }))
+    }
 }
 
 const NO_ORIENTATION: i32 = -1;
@@ -382,6 +508,56 @@ impl Serialize for PieceNbt<'_> {
                 orientation: NO_ORIENTATION,
                 gen_depth: 0,
             },
+            Piece::Fortress(piece) => {
+                let grid = GridTag::of(piece);
+                let GridTag {
+                    bounds,
+                    orientation,
+                    gen_depth,
+                } = grid;
+                match piece.kind {
+                    FortressKind::BridgeCrossing => PieceTag::FortressBridgeCrossing(grid),
+                    FortressKind::BridgeEndFiller { seed } => PieceTag::FortressBridgeEndFiller {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        seed,
+                    },
+                    FortressKind::BridgeStraight => PieceTag::FortressBridgeStraight(grid),
+                    FortressKind::CorridorStairs => PieceTag::FortressCorridorStairs(grid),
+                    FortressKind::CorridorBalcony => PieceTag::FortressCorridorBalcony(grid),
+                    FortressKind::CastleEntrance => PieceTag::FortressCastleEntrance(grid),
+                    FortressKind::SmallCorridorCrossing => {
+                        PieceTag::FortressSmallCorridorCrossing(grid)
+                    }
+                    FortressKind::SmallCorridorLeftTurn { chest } => {
+                        PieceTag::FortressSmallCorridorLeftTurn {
+                            bounds,
+                            orientation,
+                            gen_depth,
+                            chest,
+                        }
+                    }
+                    FortressKind::SmallCorridor => PieceTag::FortressSmallCorridor(grid),
+                    FortressKind::SmallCorridorRightTurn { chest } => {
+                        PieceTag::FortressSmallCorridorRightTurn {
+                            bounds,
+                            orientation,
+                            gen_depth,
+                            chest,
+                        }
+                    }
+                    FortressKind::StalkRoom => PieceTag::FortressStalkRoom(grid),
+                    FortressKind::MonsterThrone => PieceTag::FortressMonsterThrone {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        mob: false,
+                    },
+                    FortressKind::RoomCrossing => PieceTag::FortressRoomCrossing(grid),
+                    FortressKind::StairsRoom => PieceTag::FortressStairsRoom(grid),
+                }
+            }
         };
         tag.serialize(serializer)
     }
@@ -444,6 +620,62 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     bounds: box_of(bounds),
                 }))
             }
+            PieceTag::FortressBridgeCrossing(grid) => grid.piece(FortressKind::BridgeCrossing),
+            PieceTag::FortressBridgeEndFiller {
+                bounds,
+                orientation,
+                gen_depth,
+                seed,
+            } => GridTag {
+                bounds,
+                orientation,
+                gen_depth,
+            }
+            .piece(FortressKind::BridgeEndFiller { seed }),
+            PieceTag::FortressBridgeStraight(grid) => grid.piece(FortressKind::BridgeStraight),
+            PieceTag::FortressCorridorStairs(grid) => grid.piece(FortressKind::CorridorStairs),
+            PieceTag::FortressCorridorBalcony(grid) => grid.piece(FortressKind::CorridorBalcony),
+            PieceTag::FortressCastleEntrance(grid) => grid.piece(FortressKind::CastleEntrance),
+            PieceTag::FortressSmallCorridorCrossing(grid) => {
+                grid.piece(FortressKind::SmallCorridorCrossing)
+            }
+            PieceTag::FortressSmallCorridorLeftTurn {
+                bounds,
+                orientation,
+                gen_depth,
+                chest,
+            } => GridTag {
+                bounds,
+                orientation,
+                gen_depth,
+            }
+            .piece(FortressKind::SmallCorridorLeftTurn { chest }),
+            PieceTag::FortressSmallCorridor(grid) => grid.piece(FortressKind::SmallCorridor),
+            PieceTag::FortressSmallCorridorRightTurn {
+                bounds,
+                orientation,
+                gen_depth,
+                chest,
+            } => GridTag {
+                bounds,
+                orientation,
+                gen_depth,
+            }
+            .piece(FortressKind::SmallCorridorRightTurn { chest }),
+            PieceTag::FortressStalkRoom(grid) => grid.piece(FortressKind::StalkRoom),
+            PieceTag::FortressMonsterThrone {
+                bounds,
+                orientation,
+                gen_depth,
+                ..
+            } => GridTag {
+                bounds,
+                orientation,
+                gen_depth,
+            }
+            .piece(FortressKind::MonsterThrone),
+            PieceTag::FortressRoomCrossing(grid) => grid.piece(FortressKind::RoomCrossing),
+            PieceTag::FortressStairsRoom(grid) => grid.piece(FortressKind::StairsRoom),
         }
     }
 }
@@ -631,6 +863,67 @@ mod tests {
         assert_eq!(tag.get_int("O"), Some(-1));
         assert_eq!(tag.get_int("GD"), Some(0));
         assert_eq!(tag.child_tags.len(), 4);
+    }
+
+    #[test]
+    fn fortress_pieces_round_trip_with_their_constructor_state() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let bounds = BoundingBox {
+            min: BlockPos::new(-94, 53, 146),
+            max: BlockPos::new(-90, 62, 153),
+        };
+        let piece = |kind| {
+            Piece::Fortress(FortressPiece {
+                kind,
+                bounds,
+                orientation: Orientation::West,
+                gen_depth: 7,
+            })
+        };
+        for (kind, id) in [
+            (FortressKind::BridgeCrossing, "minecraft:nebcr"),
+            (
+                FortressKind::BridgeEndFiller { seed: -1_234_567 },
+                "minecraft:nebef",
+            ),
+            (
+                FortressKind::SmallCorridorLeftTurn { chest: true },
+                "minecraft:nesclt",
+            ),
+            (
+                FortressKind::SmallCorridorRightTurn { chest: false },
+                "minecraft:nescrt",
+            ),
+            (FortressKind::MonsterThrone, "minecraft:nemt"),
+            (FortressKind::StairsRoom, "minecraft:nesr"),
+        ] {
+            let piece = piece(kind);
+            assert_eq!(round_trip(&context, &piece), piece);
+            let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+            assert_eq!(tag.get_string("id"), Some(id));
+            assert_eq!(tag.get_int("O"), Some(1));
+            assert_eq!(tag.get_int("GD"), Some(7));
+            assert_eq!(
+                tag.get_int_array("BB").map(<[i32]>::to_vec),
+                Some(vec![-94, 53, 146, -90, 62, 153])
+            );
+        }
+        let filler = to_nbt_compound(
+            &piece(FortressKind::BridgeEndFiller { seed: -1_234_567 }).nbt(&context),
+        )
+        .unwrap();
+        assert_eq!(filler.get_int("Seed"), Some(-1_234_567));
+        let turn = to_nbt_compound(
+            &piece(FortressKind::SmallCorridorLeftTurn { chest: true }).nbt(&context),
+        )
+        .unwrap();
+        assert_eq!(turn.get_byte("Chest"), Some(1));
+        let throne = to_nbt_compound(&piece(FortressKind::MonsterThrone).nbt(&context)).unwrap();
+        assert_eq!(throne.get_byte("Mob"), Some(0));
     }
 
     #[test]

@@ -473,6 +473,14 @@ const BURIED_TREASURE: Consumer = Consumer::Structure {
     biome: "minecraft:beach",
 };
 
+/// A nether fortress: a tree of grid pieces with bridges reaching over many
+/// columns, blaze spawners and chests, every write clipped to the column that
+/// runs.
+const FORTRESS: Consumer = Consumer::Structure {
+    id: "minecraft:fortress",
+    biome: "minecraft:nether_wastes",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -493,7 +501,11 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         "{consumer:?} wrote nothing anywhere: the comparison below would hold \
          between two pipelines that both do nothing"
     );
-    if consumer != OUTPOST && consumer != DESERT_PYRAMID && consumer != BURIED_TREASURE {
+    if consumer != OUTPOST
+        && consumer != DESERT_PYRAMID
+        && consumer != BURIED_TREASURE
+        && consumer != FORTRESS
+    {
         assert!(
             crossed > 0,
             "{consumer:?} wrote only into the columns that ran: nothing reaches the \
@@ -546,6 +558,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         OUTPOST,
         DESERT_PYRAMID,
         BURIED_TREASURE,
+        FORTRESS,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

@@ -17,6 +17,7 @@ use mcrs_minecraft_worldgen_structure::piece::{DesertPyramidPiece, Piece, Start}
 use mcrs_minecraft_worldgen_structure_place::after_place;
 use mcrs_minecraft_worldgen_structure_place::buried_treasure::paint_buried_treasure;
 use mcrs_minecraft_worldgen_structure_place::canvas::PieceCanvas;
+use mcrs_minecraft_worldgen_structure_place::fortress::paint_fortress;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
@@ -154,6 +155,20 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                 };
                 paint_buried_treasure(blocks, &mut canvas, rng);
+            }
+            Piece::Fortress(piece) => {
+                let Some(CompiledStructure::Fortress(blocks)) = program.structure(start.structure)
+                else {
+                    continue;
+                };
+                let mut canvas = PieceCanvas {
+                    volume: region,
+                    entities: &mut run.entities,
+                    bounds: piece.bounds,
+                    orientation: Some(piece.orientation),
+                    clip,
+                };
+                paint_fortress(blocks, piece.kind, &mut canvas, rng);
             }
         }
     }

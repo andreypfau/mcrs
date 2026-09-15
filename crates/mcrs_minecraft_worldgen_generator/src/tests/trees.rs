@@ -56,6 +56,7 @@ pub(super) fn biome_registry() -> RegistrySnapshot<Biome> {
     names.push("minecraft:pale_garden");
     names.push("minecraft:desert");
     names.push("minecraft:beach");
+    names.push("minecraft:nether_wastes");
     super::biome_registry(&names)
 }
 

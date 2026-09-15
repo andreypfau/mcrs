@@ -1,6 +1,7 @@
 pub mod after_place;
 pub mod buried_treasure;
 pub mod canvas;
+pub mod fortress;
 pub mod scattered;
 
 use mcrs_minecraft_chunk::VoxelId;

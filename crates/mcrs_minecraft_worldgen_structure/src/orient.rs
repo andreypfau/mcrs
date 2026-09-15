@@ -84,6 +84,35 @@ pub fn orient_box(
     }
 }
 
+/// `BoundingBox.orientBox`: the box of a `width × height × depth` piece whose
+/// foot stands at `foot` and extends away along `orientation`, shifted by the
+/// piece-local `offset` before it is turned.
+pub fn orient_box_at(
+    orientation: Orientation,
+    foot: IVec3,
+    offset: IVec3,
+    width: i32,
+    height: i32,
+    depth: i32,
+) -> BoundingBox {
+    let IVec3 { x, y, z } = foot;
+    let IVec3 {
+        x: dx,
+        y: dy,
+        z: dz,
+    } = offset;
+    let (min_x, min_z, max_x, max_z) = match orientation {
+        Orientation::South => (x + dx, z + dz, x + width - 1 + dx, z + depth - 1 + dz),
+        Orientation::North => (x + dx, z - depth + 1 + dz, x + width - 1 + dx, z + dz),
+        Orientation::West => (x - depth + 1 + dz, z + dx, x + dz, z + width - 1 + dx),
+        Orientation::East => (x + dz, z + dx, x + depth - 1 + dz, z + width - 1 + dx),
+    };
+    BoundingBox {
+        min: BlockPos::new(min_x, y + dy, min_z),
+        max: BlockPos::new(max_x, y + height - 1 + dy, max_z),
+    }
+}
+
 /// `StructurePiece.getWorldPos`: a piece-local position in the world, or the
 /// position itself for a piece with no orientation.
 pub fn world_pos(orientation: Option<Orientation>, bounds: BoundingBox, local: IVec3) -> BlockPos {
@@ -194,6 +223,17 @@ mod tests {
             orient_box(Orientation::East, origin, 21, 15, 9),
             bounds([16, 64, -32], [24, 78, -12])
         );
+    }
+
+    #[test]
+    fn the_foot_box_extends_away_from_its_foot() {
+        let foot = IVec3::new(10, 64, 20);
+        let offset = IVec3::new(-1, -3, 0);
+        let at = |o| orient_box_at(o, foot, offset, 5, 10, 19);
+        assert_eq!(at(Orientation::South), bounds([9, 61, 20], [13, 70, 38]));
+        assert_eq!(at(Orientation::North), bounds([9, 61, 2], [13, 70, 20]));
+        assert_eq!(at(Orientation::West), bounds([-8, 61, 19], [10, 70, 23]));
+        assert_eq!(at(Orientation::East), bounds([10, 61, 19], [28, 70, 23]));
     }
 
     #[test]
