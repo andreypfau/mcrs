@@ -9,13 +9,14 @@ use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::world::lifecycle::trace::{self, ColumnStage};
 use mcrs_minecraft_network::client::ReceivedRegistries;
 
-use crate::arena::{Arena, Block};
-use crate::blocks::{self, BlockInfo, Catalog};
+use crate::blocks::{self, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
-use crate::mesh::{self, Connectivity, Draw, Group, STREAMS, Scratch, SectionMesh};
 use crate::model::Pack;
-use crate::pack::QUAD_WORDS;
 use crate::render::{Animation, AtlasUpdate, Budget, Placement, SectionDesc, Upload, Uploads};
+use mcrs_minecraft_mesh::arena::{Arena, Block};
+use mcrs_minecraft_mesh::block::BlockInfo;
+use mcrs_minecraft_mesh::pack::QUAD_WORDS;
+use mcrs_minecraft_mesh::{self as mesh, Connectivity, Draw, Group, STREAMS, Scratch, SectionMesh};
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 
@@ -1099,7 +1100,7 @@ fn start_tinting(loader: &mut Loader, pool: &'static AsyncComputeTaskPool, store
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mesh::StreamSpan;
+    use mcrs_minecraft_mesh::StreamSpan;
 
     fn loader() -> Loader {
         Loader::new(
@@ -1134,7 +1135,7 @@ mod tests {
                 quad_prefix: 0,
             }],
             spans,
-            connectivity: crate::mesh::OPEN,
+            connectivity: mcrs_minecraft_mesh::OPEN,
         }
     }
 
@@ -1275,7 +1276,7 @@ mod tests {
                 })
                 .collect(),
             spans,
-            connectivity: crate::mesh::OPEN,
+            connectivity: mcrs_minecraft_mesh::OPEN,
         }
     }
 

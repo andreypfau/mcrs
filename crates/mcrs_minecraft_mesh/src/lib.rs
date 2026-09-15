@@ -1,18 +1,28 @@
+pub mod arena;
+pub mod block;
 mod connectivity;
 mod cube;
 mod fluid;
 mod model;
+pub mod pack;
 mod scratch;
 mod sweep;
 
-use crate::blocks::{BlockInfo, FACE_AXES, Pass};
-#[cfg(test)]
-use crate::columns::ColumnStore;
-use crate::columns::{BlockSource, SECTION_SIZE};
+use crate::block::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::QUAD_WORDS;
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
 pub use scratch::Scratch;
+
+pub const SECTION_SIZE: usize = mcrs_minecraft_core::SectionPos::SIZE;
+pub const SECTION_VOLUME: usize = mcrs_minecraft_core::SectionPos::VOLUME;
+
+/// The two things a section's mesh reads of the world around it, by block.
+pub trait BlockView {
+    fn block(&self, x: i32, y: i32, z: i32) -> u16;
+
+    fn light(&self, x: i32, y: i32, z: i32) -> u8;
+}
 
 pub const STREAMS: usize = Pass::COUNT * 2;
 
@@ -131,7 +141,7 @@ impl Sink<'_> {
 }
 
 pub fn mesh_section(
-    world: &impl BlockSource,
+    world: &impl BlockView,
     catalog: &[BlockInfo],
     section: [i32; 3],
     slot: u32,
@@ -190,10 +200,7 @@ pub fn mesh_section(
 
 /// One unlit section at the world origin, with every block chosen by `pick`.
 #[cfg(test)]
-pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> ColumnStore {
-    use crate::columns::{Column, Extent, SECTION_VOLUME, Section};
-    use mcrs_minecraft_core::ColumnPos;
-
+pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> OneSection {
     let mut blocks = Box::new([0u16; SECTION_VOLUME]);
     for y in 0..SECTION_SIZE {
         for z in 0..SECTION_SIZE {
@@ -202,26 +209,34 @@ pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> ColumnSto
             }
         }
     }
-    let mut states = blocks.to_vec();
-    states.sort_unstable();
-    states.dedup();
-    let mut store = ColumnStore::default();
-    store.enter(Extent {
-        min_section_y: 0,
-        sections: 1,
-    });
-    store.insert(
-        ColumnPos::new(0, 0),
-        Column::unlit(
-            0,
-            vec![Some(Section {
-                blocks,
-                biomes: Box::new([0; 64]),
-                states,
-            })],
-        ),
-    );
-    store
+    OneSection(blocks)
+}
+
+/// The section at the origin, alone in its column: the rows beside it in the
+/// column are dark, and everything past the column is open sky.
+#[cfg(test)]
+pub struct OneSection(Box<[u16; SECTION_VOLUME]>);
+
+#[cfg(test)]
+impl BlockView for OneSection {
+    fn block(&self, x: i32, y: i32, z: i32) -> u16 {
+        let pos = mcrs_minecraft_core::BlockPos::new(x, y, z);
+        let at = mcrs_minecraft_core::SectionPos::from(pos);
+        if at.x == 0 && at.y == 0 && at.z == 0 {
+            self.0[mcrs_minecraft_core::LocalPos::from(pos).index()]
+        } else {
+            0
+        }
+    }
+
+    fn light(&self, x: i32, y: i32, z: i32) -> u8 {
+        let at = mcrs_minecraft_core::SectionPos::from(mcrs_minecraft_core::BlockPos::new(x, y, z));
+        if at.x != 0 || at.z != 0 || at.y > 1 {
+            0x0f
+        } else {
+            0
+        }
+    }
 }
 
 #[cfg(test)]
@@ -243,7 +258,7 @@ impl Batch {
 /// The named sections, meshed into one batch, with a table slot handed out in walk order.
 #[cfg(test)]
 pub fn mesh_world(
-    world: &impl BlockSource,
+    world: &impl BlockView,
     catalog: &[BlockInfo],
     sections: &[[i32; 3]],
     scratch: &mut Scratch,
@@ -270,9 +285,9 @@ pub fn mesh_world(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::atlas::SpriteRef;
-    use crate::blocks::{CubeFace, ModelQuad};
-    use bevy::math::Vec3;
+    use crate::block::SpriteRef;
+    use crate::block::{CubeFace, ModelQuad};
+    use bevy_math::Vec3;
 
     #[test]
     fn a_reused_scratch_meshes_a_section_exactly_as_a_fresh_one_does() {

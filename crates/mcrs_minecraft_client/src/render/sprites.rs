@@ -8,7 +8,7 @@ use super::texture::{
     create_tints,
 };
 use super::{Animation, AtlasUpdate, Budget};
-use crate::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
+use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 
 const TICKS_PER_SECOND: f64 = 20.0;
 

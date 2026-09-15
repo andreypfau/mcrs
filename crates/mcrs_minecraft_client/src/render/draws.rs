@@ -1,8 +1,8 @@
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderQueue;
 
-use crate::mesh::{Draw, STREAMS, stream_is_model};
-use crate::pack::MODEL_OVERHANG;
+use mcrs_minecraft_mesh::pack::MODEL_OVERHANG;
+use mcrs_minecraft_mesh::{Draw, STREAMS, stream_is_model};
 
 use super::Streams;
 use super::layer::LayerGroup;

@@ -23,6 +23,7 @@ crates=(
     mcrs_minecraft_worldgen
     mcrs_minecraft_light
     mcrs_minecraft_network
+    mcrs_minecraft_mesh
 )
 
 status=0

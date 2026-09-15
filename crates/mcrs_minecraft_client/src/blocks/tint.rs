@@ -3,7 +3,8 @@ use mcrs_minecraft_core::ColumnPos;
 
 use crate::model::{self, Pack};
 
-use super::{Catalog, TINT_KINDS};
+use super::Catalog;
+use mcrs_minecraft_mesh::block::TINT_KINDS;
 
 #[derive(serde::Deserialize)]
 struct BiomeFile {

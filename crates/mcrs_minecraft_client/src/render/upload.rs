@@ -7,8 +7,8 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use wgpu::util::StagingBelt;
 
-use crate::mesh::{Draw, Group};
-use crate::pack::QUAD_WORDS;
+use mcrs_minecraft_mesh::pack::QUAD_WORDS;
+use mcrs_minecraft_mesh::{Draw, Group};
 
 use super::arenas::Arenas;
 use super::stats::FrameCounts;

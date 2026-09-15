@@ -1,25 +1,18 @@
-use std::collections::HashMap;
-use std::sync::LazyLock;
-
+use crate::anim;
+use crate::model::{self, Pack};
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
-
-use crate::anim;
-use crate::model::{self, Pack};
-use crate::pack::MAX_SPRITES;
+use mcrs_minecraft_mesh::block::{Pass, SpriteRef};
+use mcrs_minecraft_mesh::pack::MAX_SPRITES;
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Opacity {
     Solid,
     Cutout,
     Translucent,
-}
-
-#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
-pub struct SpriteRef {
-    pub array: u8,
-    pub layer: u16,
 }
 
 pub struct Animation {
@@ -694,5 +687,15 @@ mod tests {
         downsample_2x2(&src, 2, 0, 0, &mut dst);
         assert_eq!(&dst[..3], &[255, 255, 255]);
         assert_eq!(dst[3], 63);
+    }
+}
+
+impl From<Opacity> for Pass {
+    fn from(opacity: Opacity) -> Pass {
+        match opacity {
+            Opacity::Solid => Pass::Solid,
+            Opacity::Cutout => Pass::Cutout,
+            Opacity::Translucent => Pass::Translucent,
+        }
     }
 }

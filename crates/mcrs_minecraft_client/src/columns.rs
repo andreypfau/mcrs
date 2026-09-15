@@ -200,6 +200,30 @@ impl BlockSource for Neighbourhood {
     }
 }
 
+impl mcrs_minecraft_mesh::BlockView for ColumnStore {
+    #[inline]
+    fn block(&self, x: i32, y: i32, z: i32) -> u16 {
+        BlockSource::block(self, x, y, z)
+    }
+
+    #[inline]
+    fn light(&self, x: i32, y: i32, z: i32) -> u8 {
+        BlockSource::light(self, x, y, z)
+    }
+}
+
+impl mcrs_minecraft_mesh::BlockView for Neighbourhood {
+    #[inline]
+    fn block(&self, x: i32, y: i32, z: i32) -> u16 {
+        BlockSource::block(self, x, y, z)
+    }
+
+    #[inline]
+    fn light(&self, x: i32, y: i32, z: i32) -> u8 {
+        BlockSource::light(self, x, y, z)
+    }
+}
+
 /// Blocks, light and biomes read by section and cell, from whatever columns are held.
 pub trait BlockSource {
     fn extent(&self) -> Option<Extent>;

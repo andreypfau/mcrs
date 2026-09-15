@@ -1,6 +1,6 @@
-use crate::atlas::SpriteRef;
-use crate::blocks::{BlockInfo, Fluid, Pass, TintKind};
-use crate::columns::SECTION_SIZE;
+use crate::SECTION_SIZE;
+use crate::block::SpriteRef;
+use crate::block::{BlockInfo, Fluid, Pass, TintKind};
 use crate::pack::{
     FACE_AO, FACE_ARRAY, FACE_BLOCK_LIGHT, FACE_FLUID, FACE_LAYER, FACE_NONE, FACE_SKY_LIGHT,
     FACE_TINT, FLUID_INSET, MODEL_STEPS,
@@ -460,14 +460,14 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
 #[cfg(test)]
 mod tests {
     use super::{FLUID_FULL, SIDE_CORNERS, drop_steps, side_corner_xz};
-    use crate::atlas::SpriteRef;
-    use crate::bake::Dir;
-    use crate::blocks::{BlockInfo, CubeFace, Fluid, Pass};
-    use crate::columns::SECTION_SIZE;
-    use crate::mesh::model::fixed;
-    use crate::mesh::{Scratch, mesh_world, one_section_world};
+    use crate::SECTION_SIZE;
+    use crate::block::SpriteRef;
+    use crate::block::{BlockInfo, CubeFace, Fluid, Pass};
+    use crate::model::fixed;
     use crate::pack::FLUID_INSET;
     use crate::pack::{FACE_LAYER, MODEL_STEPS, QUAD_DROP, QUAD_FACE, QUAD_H, QUAD_W};
+    use crate::{Scratch, mesh_world, one_section_world};
+    use mcrs_minecraft_core::Direction as Dir;
 
     fn water(amount: u8) -> Fluid {
         Fluid {

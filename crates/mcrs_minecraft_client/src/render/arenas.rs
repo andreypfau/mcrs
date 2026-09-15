@@ -1,8 +1,8 @@
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 
-use crate::mesh::Group;
-use crate::pack::QUAD_WORDS;
+use mcrs_minecraft_mesh::Group;
+use mcrs_minecraft_mesh::pack::QUAD_WORDS;
 
 use super::upload::Pending;
 use super::{Budget, SECTION_BYTES, VISIBLE_BYTES};

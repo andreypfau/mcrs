@@ -8,9 +8,9 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUniformOffset};
 
-use crate::mesh::{STREAM_NAMES, STREAMS};
 use crate::probe::{self, GpuTimings, Queries};
 use crate::sky_render::SkyDraws;
+use mcrs_minecraft_mesh::{STREAM_NAMES, STREAMS};
 
 use super::draws::PARAMS_STRIDE;
 use super::heat::Heat;

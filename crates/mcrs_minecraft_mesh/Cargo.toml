@@ -1,0 +1,13 @@
+[package]
+name = "mcrs_minecraft_mesh"
+description = "Section meshing: greedy cube faces, fluids, block models, the packed quad layout and the buffer arena"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_math.workspace = true
+bytemuck = { version = "1", features = ["derive"] }
+mcrs_minecraft_core.workspace = true

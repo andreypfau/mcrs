@@ -1,5 +1,5 @@
-use crate::blocks::{BlockInfo, CORNER_UV, FACE_AXES};
-use crate::columns::SECTION_SIZE;
+use crate::SECTION_SIZE;
+use crate::block::{BlockInfo, CORNER_UV, FACE_AXES};
 use crate::pack::{FACE_AO, FACE_ARRAY, FACE_BLOCK_LIGHT, FACE_LAYER, FACE_SKY_LIGHT, FACE_TINT};
 
 use super::scratch::{Columns, Scratch, border_index};

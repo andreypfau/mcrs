@@ -1,5 +1,5 @@
-use crate::blocks::{BlockInfo, FACE_AXES, Pass};
-use crate::columns::SECTION_SIZE;
+use crate::SECTION_SIZE;
+use crate::block::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{
     QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y,
     QUAD_Z,
@@ -182,12 +182,12 @@ fn pack_quad(
 #[cfg(test)]
 mod tests {
     use super::{pack_quad, quad_anchor};
-    use crate::atlas::SpriteRef;
-    use crate::blocks::{BlockInfo, CubeFace, Pass};
-    use crate::mesh::{Scratch, mesh_world, one_section_world};
+    use crate::block::SpriteRef;
+    use crate::block::{BlockInfo, CubeFace, Pass};
     use crate::pack::{
         FACE_ARRAY, FACE_LAYER, QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
     };
+    use crate::{Scratch, mesh_world, one_section_world};
 
     #[test]
     fn the_face_runs_of_a_batch_tile_it_exactly() {

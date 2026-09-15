@@ -9,7 +9,7 @@ use super::draws::PARAMS_STRIDE;
 use super::stats::args_reset;
 use super::terrain::Terrain;
 use crate::camera::CameraOrigin;
-use crate::mesh::STREAMS;
+use mcrs_minecraft_mesh::STREAMS;
 use crate::columns::SECTION_SIZE;
 
 use super::Budget;

@@ -23,8 +23,8 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_resource::{CompareFunction, TextureFormat};
 use bevy::render::{ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
-use crate::mesh::STREAMS;
 use crate::probe::{self, CpuTimings, GpuTimings};
+use mcrs_minecraft_mesh::STREAMS;
 
 pub use stats::{DrawnTriangles, FrameCounts};
 pub use upload::{Placement, Upload, Uploads};
@@ -37,7 +37,7 @@ pub(crate) use pipeline::common as pipeline_descriptor;
 pub const DEPTH_COMPARE: CompareFunction = CompareFunction::GreaterEqual;
 const _: () = assert!(matches!(CORE_3D_DEPTH_FORMAT, TextureFormat::Depth32Float));
 
-pub const QUAD_BYTES: usize = crate::pack::QUAD_WORDS * 4;
+pub const QUAD_BYTES: usize = mcrs_minecraft_mesh::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
 pub const FACE_BYTES: usize = 4;
 pub const SECTION_BYTES: usize = size_of::<SectionDesc>();

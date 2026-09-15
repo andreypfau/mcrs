@@ -50,7 +50,7 @@ pub const QUAD_FACE_BASE: Field = Field::new(1, 0, 16);
 pub const QUAD_WORDS: usize = 2;
 
 const _: () = assert!(
-    (12 * crate::columns::SECTION_VOLUME) as u64 <= QUAD_FACE_BASE.max(),
+    (12 * crate::SECTION_VOLUME) as u64 <= QUAD_FACE_BASE.max(),
     "a section can hold more faces than a quad can name a place among"
 );
 
@@ -134,10 +134,7 @@ const GROUPS: &[(&str, &[(&str, Field)])] = &[
 
 #[cfg(test)]
 const FLOATS: &[(&str, f32)] = &[
-    (
-        "SECTION_SIZE",
-        crate::columns::SECTION_SIZE as f32,
-    ),
+    ("SECTION_SIZE", crate::SECTION_SIZE as f32),
     ("MODEL_OVERHANG", MODEL_OVERHANG),
     ("MODEL_STEPS", MODEL_STEPS),
     ("FLUID_INSET", FLUID_INSET),
@@ -178,12 +175,12 @@ rewrites it.\n#define_import_path mcrs_minecraft_client::fields\n",
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columns::SECTION_SIZE;
+    use crate::SECTION_SIZE;
 
     #[test]
     fn the_generated_field_header_matches_the_field_table() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("src/render/shaders/include/fields.wgsl");
+            .join("../mcrs_minecraft_client/src/render/shaders/include/fields.wgsl");
         let generated = wgsl_fields();
         if std::env::var("MCRS_BLESS").is_ok() {
             std::fs::write(&path, &generated).expect("cannot rewrite the generated header");

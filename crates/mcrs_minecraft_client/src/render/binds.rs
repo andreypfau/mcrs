@@ -7,7 +7,7 @@ use bevy::render::render_resource::binding_types::{
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 
-use crate::pack::MAX_SPRITE_ARRAYS;
+use mcrs_minecraft_mesh::pack::MAX_SPRITE_ARRAYS;
 
 use super::arenas::Arenas;
 use super::draws::PARAMS_SIZE;

@@ -1,12 +1,13 @@
-use bevy::math::{IVec3, Vec3};
-
 use super::BlockStateKey;
-use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
+use super::cube_corner;
+use crate::atlas::{Opacity, SpriteRegistry};
 use crate::bake::{self, Dir, TinyWorld};
 use crate::model::Pack;
-
-use super::{BlockInfo, CORNER_UV, CubeFace, FACE_AXES, ModelQuad, Pass, TintKind, cube_corner};
+use bevy::math::{IVec3, Vec3};
 use mcrs_minecraft_block::definition::BlockStateData;
+use mcrs_minecraft_mesh::block::{
+    BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Fluid, ModelQuad, Pass, SpriteRef, TintKind,
+};
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
     "minecraft:bubble_column",
@@ -15,15 +16,6 @@ const IMPLICITLY_WATERLOGGED: [&str; 5] = [
     "minecraft:seagrass",
     "minecraft:tall_seagrass",
 ];
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct Fluid {
-    pub lava: bool,
-    pub amount: u8,
-    pub still: SpriteRef,
-    pub flow: SpriteRef,
-    pub overlay: Option<SpriteRef>,
-}
 
 fn fluid_of(
     pack: &Pack,
@@ -110,7 +102,7 @@ pub(super) fn build_one(
         for dir in Dir::all() {
             let quad = &baked.quads[faces[dir as usize]];
             let interned = layers[quad.sprite];
-            let pass = Pass::of(sprites.opacity(interned));
+            let pass = Pass::from(sprites.opacity(interned));
             worst = worst.max(pass);
             built[dir as usize] = CubeFace {
                 sprite: interned,
@@ -133,7 +125,7 @@ pub(super) fn build_one(
             cull: quad.cull,
             face: face_group(&quad.positions),
             sprite: interned,
-            pass: Pass::of(sprites.opacity(interned)),
+            pass: Pass::from(sprites.opacity(interned)),
             shade: quad.color,
             tinted: quad.tint.is_some(),
         });

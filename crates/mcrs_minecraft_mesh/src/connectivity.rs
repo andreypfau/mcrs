@@ -1,4 +1,4 @@
-use crate::columns::SECTION_SIZE;
+use crate::SECTION_SIZE;
 
 use super::scratch::{BORDER_VOLUME, border_index};
 
@@ -126,7 +126,7 @@ fn resolve(occludes: &[bool; BORDER_VOLUME], steps: u32) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mesh::face_normal;
+    use crate::face_normal;
 
     const NEIGHBOUR: [[i32; 3]; 6] = [
         face_normal(0),

@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
-use crate::blocks::TINT_KINDS;
 use crate::sky::SkyUniform;
+use mcrs_minecraft_mesh::block::TINT_KINDS;
 
 use super::{AtlasUpdate, Budget};
 

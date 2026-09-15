@@ -1,22 +1,19 @@
-mod build;
-mod tint;
-
-use bevy::math::Vec3;
-
-use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_block::definition::schema::PropertyValue;
-use mcrs_minecraft_registry::BlockStateId;
-
-use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
+use crate::atlas::SpriteRegistry;
 use crate::bake::{Dir, TinyWorld};
 use crate::model::Pack;
-use crate::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
-
-pub use build::Fluid;
+use bevy::math::Vec3;
+use build::build_one;
+use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::definition::schema::PropertyValue;
+use mcrs_minecraft_mesh::block::BlockInfo;
+use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
+use mcrs_minecraft_registry::BlockStateId;
+use tint::extend_tints;
 pub use tint::tint_column;
 
-use build::build_one;
-use tint::extend_tints;
+mod build;
+
+mod tint;
 
 /// A block state as the resource pack names it: the block's identifier and
 /// every property it declares, rendered the way a blockstates file spells them.
@@ -74,88 +71,6 @@ fn render(value: &PropertyValue) -> String {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub enum Pass {
-    Solid = 0,
-    Cutout = 1,
-    Translucent = 2,
-}
-
-impl Pass {
-    pub const COUNT: usize = 3;
-
-    pub const fn from_index(index: usize) -> Pass {
-        match index {
-            0 => Pass::Solid,
-            1 => Pass::Cutout,
-            _ => Pass::Translucent,
-        }
-    }
-
-    fn of(opacity: Opacity) -> Pass {
-        match opacity {
-            Opacity::Solid => Pass::Solid,
-            Opacity::Cutout => Pass::Cutout,
-            Opacity::Translucent => Pass::Translucent,
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum TintKind {
-    Grass = 0,
-    Foliage = 1,
-    Water = 2,
-}
-
-pub const TINT_KINDS: usize = 3;
-
-#[derive(Copy, Clone, Default)]
-pub struct CubeFace {
-    pub sprite: SpriteRef,
-    pub pass: u8,
-    pub tinted: bool,
-}
-
-#[derive(Clone)]
-pub struct ModelQuad {
-    pub positions: [Vec3; 4],
-    pub uvs: [[f32; 2]; 4],
-    pub cull: Option<Dir>,
-    pub face: Option<u8>,
-    pub sprite: SpriteRef,
-    pub pass: Pass,
-    pub shade: [u8; 4],
-    pub tinted: bool,
-}
-
-#[derive(Clone)]
-pub struct BlockInfo {
-    pub cube: Option<[CubeFace; 6]>,
-    pub quads: Vec<ModelQuad>,
-    pub occludes: bool,
-    pub self_culls: bool,
-    pub sturdy: u8,
-    pub tint_kind: TintKind,
-    pub emission: u8,
-    pub fluid: Option<Fluid>,
-}
-
-impl Default for BlockInfo {
-    fn default() -> Self {
-        Self {
-            cube: None,
-            quads: Vec::new(),
-            occludes: false,
-            self_culls: false,
-            sturdy: 0,
-            tint_kind: TintKind::Grass,
-            emission: 0,
-            fluid: None,
-        }
-    }
-}
-
 pub struct Catalog {
     pub blocks: Vec<BlockInfo>,
     pub sprites: SpriteRegistry,
@@ -163,20 +78,10 @@ pub struct Catalog {
     pub failures: Vec<String>,
 }
 
-pub const FACE_AXES: [[u8; 6]; 6] = [
-    [1, 0, 0, 1, 2, 0],
-    [1, 1, 0, 1, 2, 1],
-    [2, 0, 0, 0, 1, 0],
-    [2, 1, 0, 1, 1, 0],
-    [0, 0, 2, 1, 1, 0],
-    [0, 1, 2, 0, 1, 0],
-];
-
-pub const CORNER_UV: [[f32; 2]; 4] = [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]];
-
 pub fn cube_corner(dir: Dir, corner: usize) -> Vec3 {
     crate::bake::corner(dir, corner, Vec3::ZERO, Vec3::ONE)
 }
+
 pub fn empty() -> Catalog {
     Catalog {
         blocks: Vec::new(),

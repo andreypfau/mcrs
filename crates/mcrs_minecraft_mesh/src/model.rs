@@ -1,6 +1,6 @@
-use crate::atlas::SpriteRef;
-use crate::blocks::{BlockInfo, Pass};
-use crate::columns::SECTION_SIZE;
+use crate::SECTION_SIZE;
+use crate::block::SpriteRef;
+use crate::block::{BlockInfo, Pass};
 use crate::pack::{
     FACE_NONE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SHADE,
     MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
@@ -148,12 +148,12 @@ pub(super) fn fixed(value: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::{BUCKET_SHADES, fixed, shade_bucket};
-    use crate::atlas::SpriteRef;
-    use crate::blocks::{BlockInfo, ModelQuad, Pass};
-    use crate::columns::{SECTION_SIZE, SECTION_VOLUME};
-    use crate::mesh::{Scratch, mesh_world, one_section_world};
+    use crate::block::SpriteRef;
+    use crate::block::{BlockInfo, ModelQuad, Pass};
     use crate::pack::{MODEL_OVERHANG, MODEL_STEPS};
-    use bevy::math::Vec3;
+    use crate::{SECTION_SIZE, SECTION_VOLUME};
+    use crate::{Scratch, mesh_world, one_section_world};
+    use bevy_math::Vec3;
 
     #[test]
     fn the_model_mesher_names_blocks_in_the_worlds_numbering() {
@@ -204,7 +204,7 @@ mod tests {
             );
         }
 
-        let source = include_str!("../render/shaders/core/model.wgsl");
+        let source = include_str!("../../mcrs_minecraft_client/src/render/shaders/core/model.wgsl");
         let table = source
             .split_once("fn shade_bucket(")
             .and_then(|(_, rest)| rest.split_once("\n}"))

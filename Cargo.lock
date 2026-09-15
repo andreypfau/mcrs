@@ -3554,6 +3554,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_level",
+ "mcrs_minecraft_mesh",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
@@ -3692,6 +3693,15 @@ dependencies = [
  "mcrs_minecraft_core",
  "rayon",
  "rustc-hash 2.1.1",
+]
+
+[[package]]
+name = "mcrs_minecraft_mesh"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "bytemuck",
+ "mcrs_minecraft_core",
 ]
 
 [[package]]

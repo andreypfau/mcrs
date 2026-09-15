@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 
-use crate::mesh::STREAMS;
 use crate::readback::{self, Gate, Reader};
+use mcrs_minecraft_mesh::STREAMS;
 
 use super::terrain::Terrain;
 

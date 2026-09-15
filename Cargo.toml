@@ -88,6 +88,7 @@ mcrs_minecraft_dimension = { path = "crates/mcrs_minecraft_dimension" }
 mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
+mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen", default-features = false }
 mcrs_minecraft_worldgen_testing = { path = "crates/mcrs_minecraft_worldgen_testing" }
 mcrs_minecraft_worldgen_noise = { path = "crates/mcrs_minecraft_worldgen_noise", default-features = false }
