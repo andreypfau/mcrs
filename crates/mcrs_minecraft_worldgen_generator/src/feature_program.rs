@@ -871,7 +871,9 @@ impl Generator {
                     &mut run.spawns,
                 )
             }
-            Generator::Fossil(config) => place_fossil(config, region, rng, at, &mut run.entities),
+            Generator::Fossil(config) => {
+                place_fossil(config, region, rng, at, &mut run.entities, &mut run.spawns)
+            }
         }
     }
 }
@@ -882,6 +884,7 @@ fn place_fossil<W: WorldGenVolume>(
     rng: &mut XoroshiroRandom,
     at: BlockPos,
     entities: &mut Vec<GeneratedBlockEntity>,
+    spawns: &mut Vec<GeneratedEntity>,
 ) -> bool {
     let rotation = Rotation::ALL[rng.next_i32_bound(4) as usize];
     let (fossil, overlay) = &config.pairs[rng.next_i32_bound(config.pairs.len() as i32) as usize];
@@ -950,10 +953,12 @@ fn place_fossil<W: WorldGenVolume>(
                 clip: Some(clip),
                 chain,
                 waterlog: true,
+                place_entities: false,
             },
             region,
             rng,
             entities,
+            spawns,
         );
     }
     true
