@@ -9,6 +9,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or, Query};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
+use bevy_ecs::system::Res;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -51,6 +52,7 @@ pub struct ColumnViewSet;
 
 impl Plugin for ColumnViewPlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<crate::Lighting>();
         app.configure_sets(FixedUpdate, (ColumnViewSet, ChunkSpawnSet).chain());
         app.add_systems(
             FixedUpdate,
@@ -448,10 +450,11 @@ pub(crate) fn project_ready_columns(
     chunks: Query<&SectionStage>,
     codec_params: LightCodecParams,
     light_status: mcrs_minecraft_light::prelude::LightStatus,
+    lighting: Res<crate::Lighting>,
     mut ready: Local<Vec<ColumnPos>>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
-    let await_light = light_status.is_installed() && !crate::lighting_disabled();
+    let await_light = light_status.is_installed() && *lighting == crate::Lighting::Propagated;
     for (mut chunk_view, dim, rep) in &mut players {
         let Ok((chunk_index, column_index, type_config)) = dims.get(dim.entity()) else {
             continue;
@@ -546,6 +549,7 @@ pub(crate) fn send_column_queue(
     dim_type_configs: Query<&DimensionTypeConfig>,
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
+    lighting: Res<crate::Lighting>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
@@ -665,7 +669,7 @@ pub(crate) fn send_column_queue(
                         .encode(&mut data)
                         .expect("Failed to encode chunk biome data");
                 }
-                let light_data = if crate::lighting_disabled() {
+                let light_data = if *lighting == crate::Lighting::FullSky {
                     build_fullbright_light_data(wire_light_rows)
                 } else {
                     build_full_light_data(column_entity, &codec_params)
@@ -861,6 +865,7 @@ mod tests {
         )));
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
+        world.init_resource::<crate::Lighting>();
 
         Fixture {
             dim,

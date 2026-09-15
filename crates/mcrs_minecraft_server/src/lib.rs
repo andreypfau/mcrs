@@ -33,7 +33,6 @@ use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_network::NetworkPlugin;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
-use std::sync::LazyLock;
 
 pub use mcrs_minecraft_level::server_loop::spawn_server_thread;
 pub use mcrs_minecraft_network::BoundAddress;
@@ -54,20 +53,28 @@ pub struct MinecraftServerPlugin {
     /// Shared with a client in the same process, whose debug views read each
     /// dimension's column lifecycle from it.
     pub column_traces: Option<ColumnTraceSink>,
+    pub lighting: Lighting,
 }
 
-/// `MCRS_NO_LIGHTING=1` leaves the block light table unbuilt, so no dimension
-/// registers a lighting engine and every column goes to the client at full sky
-/// light. Sunlight, torches and shadows all stop existing; what is left is a
-/// world that loads without the propagation cost.
-pub fn lighting_disabled() -> bool {
-    static DISABLED: LazyLock<bool> = LazyLock::new(|| {
-        matches!(
-            std::env::var("MCRS_NO_LIGHTING").as_deref(),
-            Ok("1" | "true" | "on" | "yes")
-        )
-    });
-    *DISABLED
+/// Whether dimensions propagate light. Without it the block light table is never built, so
+/// no dimension registers a lighting engine and every column goes to the client at full sky
+/// light: sunlight, torches and shadows stop existing, and the world loads without the
+/// propagation cost.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Lighting {
+    #[default]
+    Propagated,
+    FullSky,
+}
+
+impl Lighting {
+    /// `MCRS_NO_LIGHTING=1` turns propagation off.
+    pub fn from_env() -> Self {
+        match std::env::var("MCRS_NO_LIGHTING").as_deref() {
+            Ok("1" | "true" | "on" | "yes") => Self::FullSky,
+            _ => Self::Propagated,
+        }
+    }
 }
 
 /// The world folder the server reads its saved chunks from.
@@ -82,6 +89,7 @@ impl Default for MinecraftServerPlugin {
             asset_path: None,
             world: None,
             column_traces: None,
+            lighting: Lighting::from_env(),
         }
     }
 }
@@ -96,6 +104,7 @@ impl MinecraftServerPlugin {
             asset_path: None,
             world: None,
             column_traces: None,
+            lighting: Lighting::from_env(),
         }
     }
 
@@ -133,6 +142,7 @@ impl Plugin for MinecraftServerPlugin {
             world_seed.0 = settings.seed as u64;
         }
         app.insert_resource(world_seed);
+        app.insert_resource(self.lighting);
         if let Some(traces) = &self.column_traces {
             app.insert_resource(traces.clone());
         }

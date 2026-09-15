@@ -480,6 +480,12 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(mcrs_minecraft_level::experience::ExperiencePlugin);
     sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
     sub_app.add_plugins(DimHeightmapPlugin);
+    let lighting = app
+        .world()
+        .get_resource::<crate::Lighting>()
+        .copied()
+        .unwrap_or_default();
+    sub_app.insert_resource(lighting);
     if let Some(registry) = &registries.light_registry {
         sub_app.add_plugins(DimLightPlugin {
             registry: std::sync::Arc::clone(registry),
@@ -489,7 +495,7 @@ pub fn spawn_dim_subapp(
             ),
             sky: request.has_sky,
         });
-    } else if !crate::lighting_disabled() {
+    } else if lighting == crate::Lighting::Propagated {
         warn!(
             dim = request.dimension_id.as_str(),
             "no block light table; this dimension will publish no light"

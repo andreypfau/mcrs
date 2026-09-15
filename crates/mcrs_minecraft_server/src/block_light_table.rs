@@ -11,12 +11,15 @@ pub struct BlockLightTablePlugin;
 
 impl Plugin for BlockLightTablePlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<crate::Lighting>();
         app.add_systems(
             OnEnter(AppState::WorldgenFreeze),
             insert_block_light_registry
                 .after(TagPhase::Freeze)
                 .before(transition_to_playing)
-                .run_if(|| !crate::lighting_disabled()),
+                .run_if(bevy_ecs::schedule::common_conditions::resource_equals(
+                    crate::Lighting::Propagated,
+                )),
         );
     }
 }
