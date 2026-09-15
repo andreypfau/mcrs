@@ -2,6 +2,7 @@ pub mod clientbound {
     use crate::chunk::ChunkBlockUpdateEntry;
     use crate::entity::minecart::MinecartStep;
     use crate::entity::player::*;
+    use crate::entity::{EquipmentSlot, Metadata};
     use crate::game_event::GameEventKind;
     use crate::packets::common::clientbound::KeepAlive;
     use crate::profile::{PlayerListActions, PlayerListEntry};
@@ -19,7 +20,7 @@ pub mod clientbound {
     use std::io::Write;
     use uuid::Uuid;
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
     #[packet(id=0x01, state=Game)]
     pub struct ClientboundAddEntity {
         pub id: VarInt,
@@ -27,8 +28,8 @@ pub mod clientbound {
         pub kind: VarInt,
         pub pos: DVec3,
         pub movement: LpVec3,
-        pub yaw: ByteAngle,
         pub pitch: ByteAngle,
+        pub yaw: ByteAngle,
         pub head_yaw: ByteAngle,
         pub data: VarInt,
     }
@@ -339,6 +340,85 @@ pub mod clientbound {
     pub struct ClientboundSectionBlocksUpdate<'a> {
         pub chunk_pos: SectionPos,
         pub blocks: Cow<'a, [ChunkBlockUpdateEntry]>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x64, state=Game)]
+    pub struct ClientboundSetEntityData<'a> {
+        pub entity_id: VarInt,
+        pub metadata: Metadata<'a>,
+    }
+
+    /// One equipped stack per slot; the wire chains the entries by a
+    /// continuation bit on the slot byte, so the list must not be empty.
+    #[derive(Clone, Debug, PartialEq, Packet)]
+    #[packet(id=0x67, state=Game)]
+    pub struct ClientboundSetEquipment {
+        pub entity_id: VarInt,
+        pub slots: Vec<(EquipmentSlot, Slot)>,
+    }
+
+    impl crate::Encode for ClientboundSetEquipment {
+        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+            anyhow::ensure!(!self.slots.is_empty(), "SetEquipment with no slots");
+            self.entity_id.encode(&mut w)?;
+            let last = self.slots.len() - 1;
+            for (i, (slot, stack)) in self.slots.iter().enumerate() {
+                let continues = if i != last { 0x80 } else { 0 };
+                (*slot as u8 | continues).encode(&mut w)?;
+                stack.encode(&mut w)?;
+            }
+            Ok(())
+        }
+    }
+
+    impl crate::Decode<'_> for ClientboundSetEquipment {
+        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+            let entity_id = VarInt::decode(r)?;
+            let mut slots = Vec::new();
+            loop {
+                let byte = u8::decode(r)?;
+                slots.push((EquipmentSlot::from_id(byte & 0x7F)?, Slot::decode(r)?));
+                if byte & 0x80 == 0 {
+                    return Ok(Self { entity_id, slots });
+                }
+            }
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x6C, state=Game)]
+    pub struct ClientboundSetPassengers {
+        pub vehicle: VarInt,
+        pub passengers: Vec<VarInt>,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+    pub enum AttributeOperation {
+        AddValue,
+        AddMultipliedBase,
+        AddMultipliedTotal,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct AttributeModifier<'a> {
+        pub id: ResourceLocation<Cow<'a, str>>,
+        pub amount: f64,
+        pub operation: AttributeOperation,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct AttributeSnapshot<'a> {
+        pub attribute: VarInt,
+        pub base: f64,
+        pub modifiers: Vec<AttributeModifier<'a>>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x85, state=Game)]
+    pub struct ClientboundUpdateAttributes<'a> {
+        pub entity_id: VarInt,
+        pub attributes: Vec<AttributeSnapshot<'a>>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]

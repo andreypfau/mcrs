@@ -117,3 +117,11 @@ tasks.register('dumpBeard', JavaExec) {
 	jvmArgs '-Xmx2G'
 	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
 }
+
+tasks.register('dumpRegistryCensus', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.RegistryCensusOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}

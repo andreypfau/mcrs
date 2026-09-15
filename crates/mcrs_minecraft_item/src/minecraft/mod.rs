@@ -5,28 +5,34 @@ use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_registry::ItemId;
 use mcrs_minecraft_registry::StaticRegistry;
 
+pub const ALL: &[&Item] = &[
+    &TORCH,
+    &WOODEN_PICKAXE,
+    &STONE_PICKAXE,
+    &GOLDEN_PICKAXE,
+    &IRON_PICKAXE,
+    &DIAMOND_PICKAXE,
+    &IRON_AXE,
+    &ELYTRA,
+    &TRIDENT,
+    &FISHING_ROD,
+    &NAUTILUS_SHELL,
+];
+
 pub fn register_all_items(registry: &mut StaticRegistry<Item>) {
-    let items: &[&'static Item] = &[
-        &TORCH,
-        &WOODEN_PICKAXE,
-        &STONE_PICKAXE,
-        &GOLDEN_PICKAXE,
-        &IRON_PICKAXE,
-        &DIAMOND_PICKAXE,
-    ];
-    for item in items {
+    for item in ALL {
         registry.register(item.identifier, *item);
     }
 }
 
 pub const TORCH: Item = Item {
-    id: ItemId(323),
+    id: ItemId(395),
     identifier: mcrs_minecraft_core::rl!("minecraft:torch"),
     components: &ItemComponents::new(),
 };
 
 pub const WOODEN_PICKAXE: Item = Item {
-    id: ItemId(914),
+    id: ItemId(1027),
     identifier: mcrs_minecraft_core::rl!("minecraft:wooden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::WOOD,
@@ -35,7 +41,7 @@ pub const WOODEN_PICKAXE: Item = Item {
 };
 
 pub const STONE_PICKAXE: Item = Item {
-    id: ItemId(924),
+    id: ItemId(1037),
     identifier: mcrs_minecraft_core::rl!("minecraft:stone_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::STONE,
@@ -44,7 +50,7 @@ pub const STONE_PICKAXE: Item = Item {
 };
 
 pub const GOLDEN_PICKAXE: Item = Item {
-    id: ItemId(929),
+    id: ItemId(1042),
     identifier: mcrs_minecraft_core::rl!("minecraft:golden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::GOLD,
@@ -53,7 +59,7 @@ pub const GOLDEN_PICKAXE: Item = Item {
 };
 
 pub const IRON_PICKAXE: Item = Item {
-    id: ItemId(934),
+    id: ItemId(1047),
     identifier: mcrs_minecraft_core::rl!("minecraft:iron_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::IRON,
@@ -62,7 +68,7 @@ pub const IRON_PICKAXE: Item = Item {
 };
 
 pub const DIAMOND_PICKAXE: Item = Item {
-    id: ItemId(939),
+    id: ItemId(1052),
     identifier: mcrs_minecraft_core::rl!("minecraft:diamond_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::DIAMOND,
@@ -70,17 +76,45 @@ pub const DIAMOND_PICKAXE: Item = Item {
     ),
 };
 
+pub const IRON_AXE: Item = Item {
+    id: ItemId(1048),
+    identifier: mcrs_minecraft_core::rl!("minecraft:iron_axe"),
+    components: &ItemComponents::new(),
+};
+
+pub const ELYTRA: Item = Item {
+    id: ItemId(974),
+    identifier: mcrs_minecraft_core::rl!("minecraft:elytra"),
+    components: &ItemComponents::new(),
+};
+
+pub const TRIDENT: Item = Item {
+    id: ItemId(1483),
+    identifier: mcrs_minecraft_core::rl!("minecraft:trident"),
+    components: &ItemComponents::new(),
+};
+
+pub const FISHING_ROD: Item = Item {
+    id: ItemId(1186),
+    identifier: mcrs_minecraft_core::rl!("minecraft:fishing_rod"),
+    components: &ItemComponents::new(),
+};
+
+pub const NAUTILUS_SHELL: Item = Item {
+    id: ItemId(1484),
+    identifier: mcrs_minecraft_core::rl!("minecraft:nautilus_shell"),
+    components: &ItemComponents::new(),
+};
+
 const STATE_TABLE_LEN: usize = 1 << 16;
 
-// todo: macros
 static ID_TO_ITEM: [Option<&'static Item>; STATE_TABLE_LEN] = {
     let mut t: [Option<&'static Item>; STATE_TABLE_LEN] = [None; STATE_TABLE_LEN];
-    t[TORCH.id.0 as usize] = Some(&TORCH);
-    t[WOODEN_PICKAXE.id.0 as usize] = Some(&WOODEN_PICKAXE);
-    t[STONE_PICKAXE.id.0 as usize] = Some(&STONE_PICKAXE);
-    t[GOLDEN_PICKAXE.id.0 as usize] = Some(&GOLDEN_PICKAXE);
-    t[IRON_PICKAXE.id.0 as usize] = Some(&IRON_PICKAXE);
-    t[DIAMOND_PICKAXE.id.0 as usize] = Some(&DIAMOND_PICKAXE);
+    let mut i = 0;
+    while i < ALL.len() {
+        t[ALL[i].id.0 as usize] = Some(ALL[i]);
+        i += 1;
+    }
     t
 };
 

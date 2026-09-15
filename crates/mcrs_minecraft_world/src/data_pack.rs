@@ -31,7 +31,7 @@ pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
 // File listings baked from `assets/` at build time. Used as the fallback
 // manifest when the active `AssetSource` cannot enumerate directories
 // (HTTP/WASM, embedded packs without an index, etc.).
-mod registry_files {
+pub(crate) mod registry_files {
     include!(concat!(env!("OUT_DIR"), "/registry_files.rs"));
 }
 

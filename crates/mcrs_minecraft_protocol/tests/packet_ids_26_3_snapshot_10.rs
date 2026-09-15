@@ -104,8 +104,12 @@ fn play_clientbound_ids() {
         0x55 => ClientboundSectionBlocksUpdate<'_>, Clientbound, Game;
         0x5F => ClientboundSetChunkCacheCenter, Clientbound, Game;
         0x60 => ClientboundChunkCacheRadius, Clientbound, Game;
+        0x64 => ClientboundSetEntityData<'_>, Clientbound, Game;
+        0x67 => ClientboundSetEquipment, Clientbound, Game;
+        0x6C => ClientboundSetPassengers, Clientbound, Game;
         0x77 => ClientboundStartConfiguration, Clientbound, Game;
         0x7B => ClientboundSystemChatPacket, Clientbound, Game;
+        0x85 => ClientboundUpdateAttributes<'_>, Clientbound, Game;
     }
 }
 

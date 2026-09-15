@@ -74,7 +74,7 @@ impl Decode<'_> for Slot {
         if count == 0 {
             return Ok(Slot::EMPTY);
         }
-        let item = ItemId(u16::decode(r)?);
+        let item = ItemId(u16::try_from(VarInt::decode(r)?.0)?);
         let components = ComponentPatch::decode(r)?;
         Ok(Slot {
             id: item,

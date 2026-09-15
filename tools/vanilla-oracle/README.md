@@ -627,3 +627,24 @@ Kind-0 cases come first: pools sorted by `Identifier.toString()`,
 each `(template ids, processors)` key. The case index and the running
 placement index both run over the whole file. The file ends at the last
 `rng_hi`; there is no trailer.
+
+---
+
+# Registry census
+
+`RegistryCensusOracle.main` walks the registries whose numeric ids cross the
+wire — `ENTITY_TYPE`, `ITEM`, `VILLAGER_TYPE`, `VILLAGER_PROFESSION` and
+`ATTRIBUTE` from `BuiltInRegistries`, plus `cat_variant` and
+`cat_sound_variant` loaded from the vanilla data pack the way a server loads
+them — and writes every key in id order, with the attributes' default, range
+and syncable flag after them. It runs no server.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpRegistryCensus --console=plain --no-daemon \
+    -PoracleOut=../../crates/mcrs_minecraft_world/src/entity/fixtures
+```
+
+One file, `registry_census.bin` (magic `MCREGCE0`), deterministic. The layout
+and what each consumer pins against it are beside the fixture in
+`crates/mcrs_minecraft_world/src/entity/fixtures/registry_census_capture_procedure.md`.
