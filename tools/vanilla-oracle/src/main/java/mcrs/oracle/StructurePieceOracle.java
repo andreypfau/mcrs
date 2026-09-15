@@ -42,14 +42,16 @@ import net.minecraft.world.level.storage.LevelStorageSource;
  */
 public final class StructurePieceOracle {
     private static final byte[] MAGIC = "MCSTRPC0".getBytes(StandardCharsets.US_ASCII);
-    /// Structures whose sixteen shared case chunks hold no start at any seed:
-    /// each gets this many present starts more per seed and dimension, found
-    /// by walking the placement's cells on past the shared sixteen.
+    /// Structures whose sixteen shared case chunks hold too few starts to pin
+    /// their layout: each gets this many present starts more per seed and
+    /// dimension, found by walking the placement's cells on past the shared
+    /// sixteen.
     private static final Map<String, Integer> MORE_PRESENT = Map.of(
         "minecraft:desert_pyramid", 2,
         "minecraft:buried_treasure", 2,
         "minecraft:jungle_pyramid", 2,
-        "minecraft:end_city", 2
+        "minecraft:end_city", 2,
+        "minecraft:mansion", 2
     );
 
     public static void main(final String[] args) throws Exception {

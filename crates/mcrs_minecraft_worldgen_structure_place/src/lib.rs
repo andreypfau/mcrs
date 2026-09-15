@@ -12,6 +12,7 @@ pub mod scattered;
 pub mod stronghold;
 pub mod template;
 pub mod template_piece;
+pub mod woodland_mansion;
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{HolderSet, ResourceLocation};

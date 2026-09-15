@@ -19,12 +19,10 @@ use crate::structures::index::StructureIndex;
 const MAGIC: &[u8; 8] = b"MCSTRPC0";
 
 /// Every structure type whose layout is not ported: the oracle has starts for
-/// them and this build produces none. The buried treasure, jungle temple and
-/// end city have no present case at the dump's shared chunks and join the list
-/// with their own cases.
-const UNPORTED_PIECE_TYPES: [&str; 1] = [
-    "minecraft:woodland_mansion",
-];
+/// them and this build produces none. The buried treasure, jungle temple, end
+/// city and mansion have no present case at the dump's shared chunks and join
+/// the list with their own cases.
+const UNPORTED_PIECE_TYPES: [&str; 0] = [];
 
 /// Fields the reference fills in at placement from the live world, which the
 /// layout fixes here from the density heights instead: they are dropped from
@@ -154,5 +152,5 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
         compared += 1;
     }
     assert_eq!(unported, UNPORTED_PIECE_TYPES.into_iter().collect());
-    assert_eq!((compared, pieces), (580, 34383));
+    assert_eq!((compared, pieces), (592, 40911));
 }

@@ -28,6 +28,7 @@ use mcrs_minecraft_worldgen_structure_place::stronghold::paint_stronghold;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{paint_igloo, paint_shipwreck};
 use mcrs_minecraft_worldgen_structure_place::end_city::place_end_city_piece;
+use mcrs_minecraft_worldgen_structure_place::woodland_mansion::place_woodland_mansion_piece;
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
 /// dimension floor to its ceiling.
@@ -385,23 +386,49 @@ pub fn place_start<W: WorldGenVolume>(
                     &mut run.spawns,
                 );
             }
+            Piece::WoodlandMansion(piece) => {
+                let Some(CompiledStructure::WoodlandMansion(blocks)) =
+                    program.structure(start.structure)
+                else {
+                    continue;
+                };
+                place_woodland_mansion_piece(
+                    blocks,
+                    &frozen.templates[piece.template.0 as usize],
+                    &frozen.manifests[piece.template.0 as usize],
+                    piece,
+                    reference,
+                    clip,
+                    region,
+                    rng,
+                    &mut run.entities,
+                    &mut run.spawns,
+                );
+            }
         }
     }
-    if let Some(CompiledStructure::DesertPyramid(blocks)) = program.structure(start.structure) {
-        for piece in &start.pieces {
-            let Piece::DesertPyramid(piece) = piece else {
-                continue;
-            };
-            let sink = desert_pyramid_sink(blocks.world_seed, chunk, structure);
-            after_place::desert_pyramid(
-                blocks,
-                region,
-                &mut run.entities,
-                clip,
-                sunk_bounds(piece, sink),
-                piece.orientation,
-            );
+    match program.structure(start.structure) {
+        Some(CompiledStructure::DesertPyramid(blocks)) => {
+            for piece in &start.pieces {
+                let Piece::DesertPyramid(piece) = piece else {
+                    continue;
+                };
+                let sink = desert_pyramid_sink(blocks.world_seed, chunk, structure);
+                after_place::desert_pyramid(
+                    blocks,
+                    region,
+                    &mut run.entities,
+                    clip,
+                    sunk_bounds(piece, sink),
+                    piece.orientation,
+                );
+            }
         }
+        Some(CompiledStructure::WoodlandMansion(blocks)) => {
+            let piece_bounds: Vec<BoundingBox> = start.pieces.iter().map(Piece::bounds).collect();
+            after_place::woodland_mansion(blocks, region, clip, &piece_bounds);
+        }
+        _ => {}
     }
 }
 

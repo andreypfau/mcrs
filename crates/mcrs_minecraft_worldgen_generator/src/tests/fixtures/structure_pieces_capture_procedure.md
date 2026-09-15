@@ -17,7 +17,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
-(4 532 205 bytes).
+(5 417 299 bytes).
 
 **Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/structure_pieces.rs`,
 which builds the same start through the index over the same noise world and
@@ -80,19 +80,19 @@ every structure of `Registries.STRUCTURE` (registry order) whose
   shared sixteen cells (`PlacementOracle.cellsBeyond`), and each cell whose
   `generate` yields a valid start is written until the count is met or the
   walk reaches its radius cap. The desert pyramid, the buried treasure, the
-  jungle pyramid and the end city ask for 2 each; seed 1 has only one pyramid
-  within the cap. The end city's walk passes the 64-chunk central island
-  before a case can be present, so its extra cells lie 65 chunks and more
-  from the origin.
+  jungle pyramid, the end city and the mansion ask for 2 each; seed 1 has only
+  one pyramid within the cap. The end city's walk passes the 64-chunk central
+  island before a case can be present, so its extra cells lie 65 chunks and
+  more from the origin.
 
-1 977 cases, 582 present, 35 480 pieces. Per structure over all seeds:
+1 987 cases, 592 present, 40 911 pieces. Per structure over all seeds:
 
 | Structure | cases | present | pieces |
 |---|---|---|---|
 | `stronghold` | 80 | 80 | 12 284 |
 | `mineshaft` | 80 | 76 | 10 268 |
 | `fortress` (nether) | 80 | 80 | 9 182 |
-| `mansion` | 80 | 2 | 1 097 |
+| `mansion` | 90 | 12 | 6 528 |
 | `mineshaft_mesa` | 80 | 2 | 339 |
 | `ocean_ruin_cold` | 80 | 41 | 315 |
 | `ruined_portal_nether` (nether) | 80 | 80 | 80 |
@@ -154,6 +154,8 @@ The file ends after the last case; there is no trailer.
 | `BB` | the piece box as an int array `[minX, minY, minZ, maxX, maxY, maxZ]` |
 | `O` | `orientation.get2DDataValue()`, or −1 for a piece with no orientation (`:95`) |
 | `GD` | `genDepth` (`:96`): a collision tag for end cities, a room flag for monuments, 0 for a jigsaw piece |
+| `TPX`, `TPY`, `TPZ`, `Template` | `TemplateStructurePiece.addAdditionalSaveData`: the template position and the name the piece was built from, which for the mansion (`minecraft:wmp`) is the short name without its `woodland_mansion/` directory; `O` is 2, `NORTH`, the orientation every template piece is given |
+| `Rot`, `Mi` | the mansion piece's rotation and mirror under their legacy names (`CLOCKWISE_90`, `LEFT_RIGHT`) |
 | the rest | each type's `addAdditionalSaveData` |
 
 ## What the consumer drops before comparing

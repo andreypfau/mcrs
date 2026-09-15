@@ -402,6 +402,22 @@ pub struct StrongholdPiece {
     pub gen_depth: i32,
 }
 
+/// One template of a woodland mansion at its position under a rotation and a
+/// mirror, with no pivot; `StructureBlock` markers stay where the template
+/// has them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WoodlandMansionPiece {
+    pub template: TemplateId,
+    pub position: IVec3,
+    pub rotation: Rotation,
+    pub mirror: Mirror,
+    pub bounds: BoundingBox,
+}
+
+impl WoodlandMansionPiece {
+    pub const TEMPLATE_PREFIX: &'static str = "woodland_mansion/";
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
@@ -419,6 +435,7 @@ pub enum Piece {
     NetherFossil(NetherFossilPiece),
     EndCity(EndCityPiece),
     Stronghold(StrongholdPiece),
+    WoodlandMansion(WoodlandMansionPiece),
 }
 
 impl Piece {
@@ -439,6 +456,7 @@ impl Piece {
             Piece::NetherFossil(piece) => piece.bounds,
             Piece::Stronghold(piece) => piece.bounds,
             Piece::EndCity(piece) => piece.bounds,
+            Piece::WoodlandMansion(piece) => piece.bounds,
         }
     }
 
@@ -493,6 +511,10 @@ impl Piece {
             }
             Piece::Stronghold(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::EndCity(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                piece.position += delta;
+            }
+            Piece::WoodlandMansion(piece) => {
                 piece.bounds = piece.bounds.moved(delta);
                 piece.position += delta;
             }
@@ -1157,6 +1179,27 @@ enum PieceTag {
         #[serde(rename = "Steps")]
         steps: i32,
     },
+    #[serde(rename = "minecraft:wmp")]
+    WoodlandMansion {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "TPX")]
+        template_x: i32,
+        #[serde(rename = "TPY")]
+        template_y: i32,
+        #[serde(rename = "TPZ")]
+        template_z: i32,
+        #[serde(rename = "Template")]
+        template: String,
+        #[serde(rename = "Rot", with = "rotation::legacy")]
+        rotation: Rotation,
+        #[serde(rename = "Mi", with = "mirror::legacy")]
+        mirror: Mirror,
+    },
 }
 
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
@@ -1559,6 +1602,23 @@ impl Serialize for PieceNbt<'_> {
                     .to_owned(),
                 rotation: piece.rotation,
                 overwrite: piece.overwrite,
+            },
+            Piece::WoodlandMansion(piece) => PieceTag::WoodlandMansion {
+                bounds: box_array(piece.bounds),
+                orientation: NORTH_ORIENTATION,
+                gen_depth: 0,
+                template_x: piece.position.x,
+                template_y: piece.position.y,
+                template_z: piece.position.z,
+                template: self
+                    .context
+                    .template_name(piece.template)
+                    .path()
+                    .strip_prefix(WoodlandMansionPiece::TEMPLATE_PREFIX)
+                    .expect("a mansion piece names a mansion template")
+                    .to_owned(),
+                rotation: piece.rotation,
+                mirror: piece.mirror,
             },
             Piece::Stronghold(piece) => {
                 let door = DoorTag::of(piece);
@@ -1999,6 +2059,31 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     overwrite,
                     bounds: box_of(bounds),
                     gen_depth,
+                }))
+            }
+            PieceTag::WoodlandMansion {
+                bounds,
+                template_x,
+                template_y,
+                template_z,
+                template,
+                rotation,
+                mirror,
+                ..
+            } => {
+                let name = ResourceLocation::minecraft(&format!(
+                    "{}{template}",
+                    WoodlandMansionPiece::TEMPLATE_PREFIX
+                ));
+                let template = *self.0.frozen.template_ids.get(&name).ok_or_else(|| {
+                    D::Error::custom(format!("the mansion template {name} is not loaded"))
+                })?;
+                Ok(Piece::WoodlandMansion(WoodlandMansionPiece {
+                    template,
+                    position: IVec3::new(template_x, template_y, template_z),
+                    rotation,
+                    mirror,
+                    bounds: box_of(bounds),
                 }))
             }
             PieceTag::StrongholdStart(tag) | PieceTag::StrongholdStairsDown(tag) => {
@@ -2833,6 +2918,40 @@ mod tests {
         let json = r#"{"id":"minecraft:ecp","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"nowhere","Rot":"NONE","OW":1}"#;
         let mut deserializer = serde_json::Deserializer::from_str(json);
         assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
+    }
+
+    #[test]
+    fn a_mansion_piece_round_trips_with_its_short_template_name() {
+        let mut frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        frozen.template_ids.insert(
+            ResourceLocation::parse("minecraft:woodland_mansion/1x2_c_stairs").unwrap(),
+            TemplateId(7),
+        );
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::WoodlandMansion(WoodlandMansionPiece {
+            template: TemplateId(7),
+            position: IVec3::new(-100, 72, 250),
+            rotation: Rotation::Counterclockwise90,
+            mirror: Mirror::LeftRight,
+            bounds: BoundingBox {
+                min: BlockPos::new(-107, 72, 250),
+                max: BlockPos::new(-100, 80, 264),
+            },
+        });
+        assert_eq!(round_trip(&context, &piece), piece);
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:wmp"));
+        assert_eq!(tag.get_int("O"), Some(2));
+        assert_eq!(tag.get_int("GD"), Some(0));
+        assert_eq!(tag.get_int("TPX"), Some(-100));
+        assert_eq!(tag.get_int("TPY"), Some(72));
+        assert_eq!(tag.get_int("TPZ"), Some(250));
+        assert_eq!(tag.get_string("Template"), Some("1x2_c_stairs"));
+        assert_eq!(tag.get_string("Rot"), Some("COUNTERCLOCKWISE_90"));
+        assert_eq!(tag.get_string("Mi"), Some("LEFT_RIGHT"));
     }
 
     #[test]

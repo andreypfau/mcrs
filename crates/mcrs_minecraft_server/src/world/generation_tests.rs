@@ -570,6 +570,14 @@ const END_CITY: Consumer = Consumer::Structure {
     biome: "minecraft:end_highlands",
 };
 
+/// A woodland mansion: hundreds of template pieces over some fifty columns,
+/// their chests and the mobs its markers spawn, the cobblestone footing under
+/// each column, every write clipped to the column that runs.
+const MANSION: Consumer = Consumer::Structure {
+    id: "minecraft:mansion",
+    biome: "minecraft:dark_forest",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -603,6 +611,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != STRONGHOLD
         && consumer != SWAMP_HUT
         && consumer != END_CITY
+        && consumer != MANSION
     {
         assert!(
             crossed > 0,
@@ -668,6 +677,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         STRONGHOLD,
         SWAMP_HUT,
         END_CITY,
+        MANSION,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

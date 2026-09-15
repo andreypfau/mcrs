@@ -148,6 +148,7 @@ use mcrs_minecraft_worldgen_structure_place::template_piece::{
     IglooBlocks, ignore_structure_and_air,
 };
 use mcrs_minecraft_worldgen_structure_place::end_city::EndCityChains;
+use mcrs_minecraft_worldgen_structure_place::woodland_mansion::WoodlandMansionBlocks;
 use rustc_hash::FxHashMap;
 use std::ops::Range;
 use std::sync::Arc;
@@ -307,6 +308,7 @@ pub enum CompiledStructure {
     NetherFossil(Box<NetherFossilBlocks>),
     Stronghold(Box<StrongholdBlocks>),
     EndCity(EndCityChains),
+    WoodlandMansion(Box<WoodlandMansionBlocks>),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -1162,6 +1164,12 @@ fn compile_structures(
                     EndCityChains::compile(resolver)
                         .map_err(|error| error.within(&structure.id))?,
                 )),
+                StructureKind::WoodlandMansion => {
+                    Some(CompiledStructure::WoodlandMansion(Box::new(
+                        WoodlandMansionBlocks::compile(resolver)
+                            .map_err(|error| error.within(&structure.id))?,
+                    )))
+                }
                 _ => None,
             })
         })

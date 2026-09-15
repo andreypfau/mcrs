@@ -1,4 +1,5 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
@@ -10,6 +11,7 @@ use crate::scattered::{
     DESERT_PYRAMID_ARCHAEOLOGY_LOOT, DesertPyramidBlocks, collapsed_roof_pos,
     potential_suspicious_sand,
 };
+use crate::woodland_mansion::WoodlandMansionBlocks;
 
 /// `DesertPyramidStructure.afterPlace` for one column: the marked roof cell,
 /// then the cellar's sand, five to eight cells of it suspicious, in a shuffle
@@ -58,6 +60,52 @@ pub fn desert_pyramid<W: WorldGenVolume>(
             suspicious(volume, entities, pos);
         } else if clip.is_inside(pos) {
             volume.set(pos, sand);
+        }
+    }
+}
+
+/// `WoodlandMansionStructure.afterPlace` for one column: under every cell of
+/// the column that is inside a piece and not empty at the start's floor,
+/// cobblestone fills down through air and liquid to the first solid block.
+pub fn woodland_mansion<W: WorldGenVolume>(
+    b: &WoodlandMansionBlocks,
+    volume: &mut W,
+    clip: BoundingBox,
+    piece_bounds: &[BoundingBox],
+) {
+    let bounds = piece_bounds
+        .iter()
+        .copied()
+        .reduce(BoundingBox::union)
+        .expect("a start has at least one piece");
+    let min_y = volume.extent().min_y;
+    let floor = bounds.min.y;
+    let world = volume.world();
+    let (air, water, lava) = (
+        world.air_states.clone(),
+        world.water_states.clone(),
+        world.lava_states.clone(),
+    );
+    let empty = |state: VoxelId| air.contains(state.0 as usize);
+    let liquid =
+        |state: VoxelId| water.contains(state.0 as usize) || lava.contains(state.0 as usize);
+    for x in clip.min.x..=clip.max.x {
+        for z in clip.min.z..=clip.max.z {
+            let pos = BlockPos::new(x, floor, z);
+            if empty(volume.get(pos))
+                || !bounds.is_inside(pos)
+                || !piece_bounds.iter().any(|piece| piece.is_inside(pos))
+            {
+                continue;
+            }
+            for y in (min_y + 1..floor).rev() {
+                let pos = BlockPos::new(x, y, z);
+                let state = volume.get(pos);
+                if !empty(state) && !liquid(state) {
+                    break;
+                }
+                volume.set(pos, b.cobblestone);
+            }
         }
     }
 }

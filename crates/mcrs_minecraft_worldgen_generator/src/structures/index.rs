@@ -367,7 +367,8 @@ impl StructureIndex {
                     | Piece::Igloo(_)
                     | Piece::NetherFossil(_)
                     | Piece::Stronghold(_)
-                    | Piece::EndCity(_) => BeardPiece {
+                    | Piece::EndCity(_)
+                    | Piece::WoodlandMansion(_) => BeardPiece {
                         bounds: piece.bounds(),
                         projection: Projection::Rigid,
                         ground_level_delta: 0,
