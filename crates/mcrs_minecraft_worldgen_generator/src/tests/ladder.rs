@@ -142,6 +142,7 @@ pub(super) fn structure_dimension(structure: &str) -> Dimension {
         Arc::clone(&ctx.router),
         BiomeLookup::Fixed(biome),
         ctx.predicates.clone(),
+        Default::default(),
         -64,
         384,
     );

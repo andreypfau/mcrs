@@ -14,6 +14,7 @@ use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::live_sets;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, SetId};
+use mcrs_minecraft_worldgen_structure::site::Stub;
 
 const SEED: u64 = 12345;
 
@@ -42,6 +43,7 @@ fn overworld() -> &'static StructureIndex {
             Arc::new(build_settings_router("overworld", SEED)),
             BiomeLookup::MultiNoise(Arc::new(biomes)),
             Some(heightmap_predicates(blocks(), block_tags())),
+            Default::default(),
             -64,
             384,
         )
@@ -87,10 +89,11 @@ fn the_nearest_village_cell_yields_a_start() {
     assert_eq!(index.site(chunk, structure).unwrap(), site);
     assert!((site.position.x - chunk.min_block_x()).abs() <= 16);
     assert!((site.position.z - chunk.min_block_z()).abs() <= 16);
-    assert!(
-        site.centre.bounds.min.y < site.position.y && site.position.y < site.centre.bounds.max.y
-    );
-    assert_eq!(site.centre.ground_level_delta, 1);
+    let Stub::Jigsaw { centre, .. } = &site.stub else {
+        panic!("a village site is a jigsaw site");
+    };
+    assert!(centre.bounds.min.y < site.position.y && site.position.y < centre.bounds.max.y);
+    assert_eq!(centre.ground_level_delta, 1);
 }
 
 #[test]
@@ -145,6 +148,7 @@ fn every_column_a_village_crosses_finds_its_start() {
         Arc::new(build_settings_router("overworld", SEED)),
         BiomeLookup::Fixed(plains),
         Some(heightmap_predicates(blocks(), block_tags())),
+        Default::default(),
         -64,
         384,
     );

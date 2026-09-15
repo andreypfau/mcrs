@@ -17,10 +17,11 @@ use mcrs_minecraft_worldgen_feature::template::{
 };
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_structure::frozen::{
-    ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure, FrozenStructures, PoolId,
-    SetId, StructureId, StructureKind, TemplateId,
+    ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure, FrozenStructures,
+    OceanRuinConfig, PoolId, SetId, StructureId, StructureKind, TemplateId,
 };
-use mcrs_minecraft_worldgen_structure::jigsaw::TERRAIN_MARGIN;
+use mcrs_minecraft_worldgen_structure::piece::TERRAIN_MARGIN;
+use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 use mcrs_minecraft_worldgen_structure::{
     DecorationStep, PoolAlias, PoolElement, Structure, StructurePlacement, StructureSet,
     TemplatePool, TerrainAdaptation,
@@ -129,6 +130,15 @@ fn biome_mask(
         }
     }
     Ok(Arc::new(mask))
+}
+
+fn biome_tag_mask(
+    inputs: &StructureInputs<'_>,
+    owner: &ResourceLocation,
+    tag: &str,
+) -> Result<BiomeMask, String> {
+    let tag = ResourceLocation::parse(tag).expect("a literal id");
+    biome_mask(inputs, owner, &HolderSet::Tag(tag))
 }
 
 fn freeze_pools(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> Result<(), String> {
@@ -332,11 +342,49 @@ fn freeze_structures(
                     config: jigsaw.clone(),
                 }
             }
-            _ => {
-                tracing::warn!(structure = %id, "no generator for this structure type; it places nothing");
-                StructureKind::Hardcoded
+            Structure::BuriedTreasure { .. } => StructureKind::BuriedTreasure,
+            Structure::DesertPyramid { .. } => StructureKind::DesertPyramid,
+            Structure::EndCity { .. } => StructureKind::EndCity,
+            Structure::Fortress { .. } => StructureKind::Fortress,
+            Structure::Igloo { .. } => StructureKind::Igloo,
+            Structure::JungleTemple { .. } => StructureKind::JungleTemple,
+            Structure::Mineshaft { mineshaft_type, .. } => StructureKind::Mineshaft {
+                mineshaft_type: *mineshaft_type,
+                blocking: biome_tag_mask(inputs, id, "minecraft:mineshaft_blocking")?,
+            },
+            Structure::NetherFossil { height, .. } => {
+                StructureKind::NetherFossil { height: *height }
             }
+            Structure::OceanMonument { .. } => StructureKind::OceanMonument {
+                surrounding: biome_tag_mask(
+                    inputs,
+                    id,
+                    "minecraft:required_ocean_monument_surrounding",
+                )?,
+            },
+            Structure::OceanRuin {
+                biome_temp,
+                large_probability,
+                cluster_probability,
+                ..
+            } => StructureKind::OceanRuin(OceanRuinConfig {
+                biome_temp: *biome_temp,
+                large_probability: large_probability.0 as f32,
+                cluster_probability: cluster_probability.0 as f32,
+            }),
+            Structure::RuinedPortal { setups, .. } => StructureKind::RuinedPortal {
+                setups: setups.clone(),
+            },
+            Structure::Shipwreck { is_beached, .. } => StructureKind::Shipwreck {
+                is_beached: *is_beached,
+            },
+            Structure::Stronghold { .. } => StructureKind::Stronghold,
+            Structure::SwampHut { .. } => StructureKind::SwampHut,
+            Structure::WoodlandMansion { .. } => StructureKind::WoodlandMansion,
         };
+        if site_implies_piece(&kind).is_none() {
+            tracing::warn!(structure = %id, "no generator for this structure type; it places nothing");
+        }
         frozen
             .structure_ids
             .insert(id.clone(), StructureId(frozen.structures.len() as u32));

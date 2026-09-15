@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::{JigsawConfig, TerrainAdaptation};
+use crate::JigsawConfig;
 use bevy_math::IVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
@@ -11,73 +11,14 @@ use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::template::Joint;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 
-use super::frozen::{ElementId, FrozenStructures, PoolId, StructureId, StructureKind};
-use super::site::{PlacedJigsaw, Site, SiteWorld, element_bounds, shuffled_jigsaws};
+use super::frozen::{ElementId, FrozenStructures, PoolId};
+use super::piece::{JigsawPiece, Junction};
+use super::site::{Context, PlacedJigsaw, Site, SiteWorld, Stub, element_bounds, shuffled_jigsaws};
 
-pub const TERRAIN_MARGIN: i32 = 12;
+pub use super::piece::TERRAIN_MARGIN;
+
 const EMPTY_POOL: &str = "minecraft:empty";
 const EXPANSION_HACK_MAX_HEIGHT: i32 = 16;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Junction {
-    pub source_x: i32,
-    pub source_ground_y: i32,
-    pub source_z: i32,
-    pub delta_y: i32,
-    pub dest_projection: Projection,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JigsawPiece {
-    pub element: ElementId,
-    pub position: IVec3,
-    pub rotation: Rotation,
-    pub bounds: BoundingBox,
-    pub projection: Projection,
-    pub ground_level_delta: i32,
-    pub junctions: Vec<Junction>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Piece {
-    Jigsaw(JigsawPiece),
-}
-
-impl Piece {
-    pub fn bounds(&self) -> BoundingBox {
-        match self {
-            Piece::Jigsaw(piece) => piece.bounds,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Start {
-    pub structure: StructureId,
-    pub pieces: Vec<Piece>,
-    pub bounds: BoundingBox,
-}
-
-impl Start {
-    pub fn new(frozen: &FrozenStructures, structure: StructureId, pieces: Vec<Piece>) -> Self {
-        let union = pieces
-            .iter()
-            .map(Piece::bounds)
-            .reduce(BoundingBox::union)
-            .expect("a start has at least one piece");
-        let bounds =
-            if frozen.structures[structure.0 as usize].adaptation == TerrainAdaptation::None {
-                union
-            } else {
-                union.inflated(TERRAIN_MARGIN)
-            };
-        Start {
-            structure,
-            pieces,
-            bounds,
-        }
-    }
-}
 
 /// Inclusive integer arithmetic is exact for the reference's quarter-deflated
 /// voxel test.
@@ -129,18 +70,12 @@ struct Assembly<'a> {
     queue: PriorityQueue,
 }
 
-pub fn layout(
-    frozen: &FrozenStructures,
-    structure: StructureId,
-    site: Site,
-    accessor_min_y: i32,
-    accessor_height: i32,
-    world: &mut dyn SiteWorld,
-) -> Vec<JigsawPiece> {
-    let StructureKind::Jigsaw { config, .. } = &frozen.structures[structure.0 as usize].kind else {
+pub fn layout(ctx: &mut Context<'_>, config: &JigsawConfig, site: Site) -> Vec<JigsawPiece> {
+    let frozen = ctx.frozen;
+    let (accessor_min_y, accessor_height) = (ctx.accessor_min_y, ctx.accessor_height);
+    let Stub::Jigsaw { centre, aliases } = site.stub else {
         return Vec::new();
     };
-    let centre = site.centre;
     let centre_piece = JigsawPiece {
         element: centre.element,
         position: centre.position,
@@ -171,8 +106,8 @@ pub fn layout(
     let mut assembly = Assembly {
         frozen,
         config,
-        aliases: &site.aliases,
-        world,
+        aliases: &aliases,
+        world: &mut *ctx.world,
         rng: site.rng,
         pieces: vec![centre_piece],
         spaces: vec![FreeSpace {

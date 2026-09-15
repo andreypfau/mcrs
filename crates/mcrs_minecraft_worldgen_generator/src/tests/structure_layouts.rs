@@ -16,7 +16,7 @@ use super::structures::frozen_shared;
 use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenStructures, TemplateId,
 };
-use mcrs_minecraft_worldgen_structure::jigsaw::{Junction, Piece};
+use mcrs_minecraft_worldgen_structure::piece::{Junction, Piece};
 
 const MAGIC: &[u8; 8] = b"MCJIGSW0";
 

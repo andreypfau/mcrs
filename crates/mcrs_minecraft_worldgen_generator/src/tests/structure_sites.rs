@@ -160,6 +160,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
         Arc::new(build_settings_router(dimension.settings, seed as u64)),
         BiomeLookup::MultiNoise(Arc::new(biomes)),
         Some(heightmap_predicates(blocks(), block_tags())),
+        Default::default(),
         dimension.accessor_min_y,
         dimension.accessor_height,
     )

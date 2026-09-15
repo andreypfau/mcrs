@@ -126,7 +126,7 @@ use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
 use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, TreeTables, place_tree};
 use mcrs_minecraft_worldgen_feature_place::vines::place_vines;
 use mcrs_minecraft_worldgen_structure::frozen::{
-    ElementId, FrozenElement, FrozenStructure, FrozenStructures,
+    ElementId, FrozenElement, FrozenStructure, FrozenStructures, StructureId,
 };
 use mcrs_minecraft_worldgen_structure::{DecorationStep, LiquidSettings};
 use rustc_hash::FxHashMap;
@@ -258,6 +258,11 @@ pub enum CompiledElement {
     Empty,
 }
 
+/// One hardcoded structure type's tables with every name resolved: what its
+/// pieces place. Each type adds its variant with its generator.
+#[derive(Clone)]
+pub enum CompiledStructure {}
+
 /// Beta's populate step for the column the origin is in. It draws from one
 /// legacy stream seeded by the chunk, never from the source its step hands it.
 pub struct BetaPopulate {
@@ -302,6 +307,9 @@ pub struct FeatureProgram {
     moss_patch: Option<Box<Generator>>,
     /// Indexed by `ElementId`; empty for a dimension without structures.
     elements: Vec<CompiledElement>,
+    /// Indexed by `StructureId`; `None` for a jigsaw structure, whose pieces
+    /// are elements, and for a type this build has no generator for.
+    structures: Vec<Option<CompiledStructure>>,
     rungs: Arc<[Range<usize>]>,
     pub world: Arc<WorldStates>,
 }
@@ -442,6 +450,7 @@ impl FeatureProgram {
             Some(frozen) => compile_elements(frozen, &trees, &resolver, corpus)?,
             None => Vec::new(),
         };
+        let compiled_structures = vec![None; structures.map_or(0, |f| f.structures.len())];
 
         Ok(FeatureProgram {
             rungs: rungs_of(
@@ -455,6 +464,7 @@ impl FeatureProgram {
             biome_slot,
             moss_patch,
             elements,
+            structures: compiled_structures,
             trees,
             world: Arc::new(resolver.world),
         })
@@ -462,6 +472,10 @@ impl FeatureProgram {
 
     pub fn element(&self, id: ElementId) -> &CompiledElement {
         &self.elements[id.0 as usize]
+    }
+
+    pub fn structure(&self, id: StructureId) -> Option<&CompiledStructure> {
+        self.structures[id.0 as usize].as_ref()
     }
 
     pub fn chain(&self, step: usize, index: usize) -> &[Modifier] {

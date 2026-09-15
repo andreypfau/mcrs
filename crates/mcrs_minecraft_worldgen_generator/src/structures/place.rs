@@ -11,7 +11,7 @@ use mcrs_minecraft_worldgen_structure::LiquidSettings;
 use crate::feature_program::{CompiledElement, FeatureProgram, Run};
 use crate::structures::index::StructureIndex;
 use mcrs_minecraft_worldgen_structure::frozen::{ElementId, StructureKind};
-use mcrs_minecraft_worldgen_structure::jigsaw::{Piece, Start};
+use mcrs_minecraft_worldgen_structure::piece::{Piece, Start};
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
 /// dimension floor to its ceiling.
@@ -51,7 +51,7 @@ pub fn place_structures<W: WorldGenVolume>(
         }
         let liquid = match &structure.kind {
             StructureKind::Jigsaw { config, .. } => config.liquid_settings,
-            StructureKind::Hardcoded => LiquidSettings::default(),
+            _ => LiquidSettings::default(),
         };
         let seed = decoration_seed
             .wrapping_add(structure.step_index as i64)

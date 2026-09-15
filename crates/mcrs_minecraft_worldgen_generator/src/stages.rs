@@ -170,6 +170,9 @@ impl FillContext {
                 Arc::clone(&router),
                 biome_lookup,
                 predicates.clone(),
+                features
+                    .as_ref()
+                    .map_or_else(Default::default, |program| Arc::clone(&program.world)),
                 min_y,
                 height,
             ))

@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::sync::{Arc, LazyLock};
 
@@ -14,41 +14,35 @@ use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
     PaletteState, ResolvedState, TEMPLATE_DATA_VERSION, Template, TemplateBlock,
 };
-use mcrs_minecraft_worldgen_structure::{Structure, StructureSet, TemplatePool};
+use mcrs_minecraft_worldgen_structure::{
+    MineshaftType, OceanTemperature, Structure, StructureSet, TemplatePool,
+};
 use mcrs_minecraft_worldgen_testing::assets_dir;
 
 use super::{biome_index, biome_tags, corpus, load_json_dir};
 use crate::features::possible_biomes;
 use crate::structures::{StructureInputs, freeze, live_sets, resolve_palette_state};
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
+use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 
-/// Every shipped structure whose type has no generator yet; each is frozen as
-/// a structure that places nothing.
-const HARDCODED: [&str; 24] = [
+/// Every structure type the corpus uses that has no generator yet: its
+/// structures freeze with their config, never select and place nothing.
+const UNPORTED_TYPES: [&str; 15] = [
     "minecraft:buried_treasure",
     "minecraft:desert_pyramid",
     "minecraft:end_city",
     "minecraft:fortress",
     "minecraft:igloo",
-    "minecraft:jungle_pyramid",
-    "minecraft:mansion",
+    "minecraft:jungle_temple",
     "minecraft:mineshaft",
-    "minecraft:mineshaft_mesa",
-    "minecraft:monument",
     "minecraft:nether_fossil",
-    "minecraft:ocean_ruin_cold",
-    "minecraft:ocean_ruin_warm",
+    "minecraft:ocean_monument",
+    "minecraft:ocean_ruin",
     "minecraft:ruined_portal",
-    "minecraft:ruined_portal_desert",
-    "minecraft:ruined_portal_jungle",
-    "minecraft:ruined_portal_mountain",
-    "minecraft:ruined_portal_nether",
-    "minecraft:ruined_portal_ocean",
-    "minecraft:ruined_portal_swamp",
     "minecraft:shipwreck",
-    "minecraft:shipwreck_beached",
     "minecraft:stronghold",
     "minecraft:swamp_hut",
+    "minecraft:woodland_mansion",
 ];
 
 pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
@@ -103,15 +97,60 @@ fn structure(id: &str) -> &'static mcrs_minecraft_worldgen_structure::frozen::Fr
 }
 
 #[test]
-fn the_hardcoded_census_is_pinned() {
-    let mut hardcoded: Vec<&str> = frozen()
+fn the_unported_type_census_is_pinned() {
+    let unported: BTreeSet<&str> = frozen()
         .structures
         .iter()
-        .filter(|structure| matches!(structure.kind, StructureKind::Hardcoded))
-        .map(|structure| structure.id.as_str())
+        .filter(|structure| site_implies_piece(&structure.kind).is_none())
+        .map(|structure| structure.kind.type_name())
         .collect();
-    hardcoded.sort();
-    assert_eq!(hardcoded, HARDCODED);
+    assert_eq!(unported, UNPORTED_TYPES.into_iter().collect());
+}
+
+#[test]
+fn every_hardcoded_type_freezes_its_own_config() {
+    let biome = |name: &str| biome_index().get(name).unwrap() as usize;
+    let StructureKind::Mineshaft {
+        mineshaft_type,
+        blocking,
+    } = &structure("minecraft:mineshaft_mesa").kind
+    else {
+        panic!("not a mineshaft");
+    };
+    assert_eq!(*mineshaft_type, MineshaftType::Mesa);
+    assert!(blocking.contains(biome("minecraft:deep_dark")));
+    assert!(!blocking.contains(biome("minecraft:plains")));
+
+    let StructureKind::OceanMonument { surrounding } = &structure("minecraft:monument").kind else {
+        panic!("not a monument");
+    };
+    assert!(surrounding.contains(biome("minecraft:deep_ocean")));
+    assert!(surrounding.contains(biome("minecraft:river")));
+    assert!(!surrounding.contains(biome("minecraft:plains")));
+
+    let StructureKind::OceanRuin(config) = &structure("minecraft:ocean_ruin_warm").kind else {
+        panic!("not an ocean ruin");
+    };
+    assert_eq!(config.biome_temp, OceanTemperature::Warm);
+    assert_eq!(
+        (config.large_probability, config.cluster_probability),
+        (0.3, 0.9)
+    );
+
+    let StructureKind::RuinedPortal { setups } = &structure("minecraft:ruined_portal").kind else {
+        panic!("not a ruined portal");
+    };
+    assert_eq!(setups.len(), 2);
+    assert!(setups[0].can_be_cold && !setups[0].replace_with_blackstone);
+
+    assert!(matches!(
+        structure("minecraft:shipwreck_beached").kind,
+        StructureKind::Shipwreck { is_beached: true }
+    ));
+    assert!(matches!(
+        structure("minecraft:nether_fossil").kind,
+        StructureKind::NetherFossil { .. }
+    ));
 }
 
 #[test]

@@ -608,12 +608,29 @@ pub fn base_height(
     accessor_min_y: i32,
     accessor_height: i32,
 ) -> i32 {
+    let (min_y, column) = base_column(router, ws, x, z, accessor_min_y, accessor_height);
+    column
+        .iter()
+        .rposition(|state| predicates.get(*state).contains(kind))
+        .map_or(accessor_min_y, |index| min_y + index as i32 + 1)
+}
+
+/// `getBaseColumn`: the unfilled terrain column at `(x, z)` over the noise
+/// range clipped to the accessor range, bottom up from the returned floor.
+pub fn base_column(
+    router: &NoiseRouter,
+    ws: &mut Workspace,
+    x: i32,
+    z: i32,
+    accessor_min_y: i32,
+    accessor_height: i32,
+) -> (i32, Vec<VoxelId>) {
     let min_y = router.noise.min_y.max(accessor_min_y);
     let height = (router.noise.min_y + router.noise.height as i32)
         .min(accessor_min_y + accessor_height)
         - min_y;
     if height <= 0 {
-        return accessor_min_y;
+        return (min_y, Vec::new());
     }
     let volume = SampleGrid::dense(IVec3::new(1, height, 1), IVec3::new(x, min_y, z));
     let mut density = vec![0.0f32; volume.len()];
@@ -627,22 +644,19 @@ pub fn base_height(
     );
     let mut barrier_buffer = Vec::new();
     let mut barrier_at = volume_barrier(router, ws, &volume, &mut barrier_buffer);
+    let mut column = vec![VoxelId(0); height as usize];
     for y in (0..height).rev() {
-        let block_y = volume.block_y(y);
-        let state = column_block(
+        column[y as usize] = column_block(
             router.default_block_state,
             density[volume.index_unchecked(0, y, 0)],
             &mut fluid,
             x,
-            block_y,
+            volume.block_y(y),
             z,
             &mut barrier_at,
         );
-        if predicates.get(state).contains(kind) {
-            return block_y + 1;
-        }
     }
-    accessor_min_y
+    (min_y, column)
 }
 
 /// The (temperature, humidity) pair at each of the sixteen biome-cell columns

@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_math::IVec3;
 use mcrs_minecraft_biome::climate::TargetPoint;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_worldgen::beard::{Beard, BeardPiece, JunctionPoint};
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -12,7 +13,7 @@ use mcrs_minecraft_worldgen_density::router::{
     CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
-use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
+use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, WorldStates};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_structure::StructurePlacement;
 use mcrs_minecraft_worldgen_structure::placement::{
@@ -24,13 +25,13 @@ use crate::heightmap::HeightmapPredicates;
 use crate::modern_carvers::climate_target_at;
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::stages::extent;
-use crate::{base_height, heightmap_kind};
-use mcrs_minecraft_worldgen_structure::frozen::{
-    DimensionStructureTables, SetId, StructureId, StructureKind,
-};
-use mcrs_minecraft_worldgen_structure::jigsaw::{Piece, Start, layout};
+use crate::{base_column, base_height, heightmap_kind};
+use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, SetId, StructureId};
 use mcrs_minecraft_worldgen_structure::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
-use mcrs_minecraft_worldgen_structure::site::{Site, SiteWorld, site};
+use mcrs_minecraft_worldgen_structure::piece::{Piece, Start};
+use mcrs_minecraft_worldgen_structure::site::{
+    BaseColumn, Context, Site, SiteWorld, layout, site, site_implies_piece,
+};
 
 #[derive(Clone)]
 pub enum BiomeLookup {
@@ -52,6 +53,7 @@ pub struct StructureIndex {
     router: Arc<NoiseRouter>,
     biomes: BiomeLookup,
     predicates: Option<HeightmapPredicates>,
+    world: Arc<WorldStates>,
     accessor_min_y: i32,
     accessor_height: i32,
     rings: RingSets,
@@ -61,12 +63,14 @@ pub struct StructureIndex {
 }
 
 impl StructureIndex {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         tables: Arc<DimensionStructureTables>,
         seed: i64,
         router: Arc<NoiseRouter>,
         biomes: BiomeLookup,
         predicates: Option<HeightmapPredicates>,
+        world: Arc<WorldStates>,
         accessor_min_y: i32,
         accessor_height: i32,
     ) -> Self {
@@ -89,6 +93,7 @@ impl StructureIndex {
             router,
             biomes,
             predicates,
+            world,
             accessor_min_y,
             accessor_height,
             rings,
@@ -137,6 +142,25 @@ impl StructureIndex {
         View {
             index: self,
             ws: Workspace::new(),
+            columns: HashMap::new(),
+        }
+    }
+
+    fn context<'a>(
+        &'a self,
+        view: &'a mut View<'_>,
+        chunk: ColumnPos,
+        structure: StructureId,
+    ) -> Context<'a> {
+        Context {
+            frozen: &self.tables.frozen,
+            structure: &self.tables.frozen.structures[structure.0 as usize],
+            chunk,
+            seed: self.seed,
+            height: self.height_context(),
+            accessor_min_y: self.accessor_min_y,
+            accessor_height: self.accessor_height,
+            world: view,
         }
     }
 
@@ -150,16 +174,7 @@ impl StructureIndex {
         chunk: ColumnPos,
         structure: StructureId,
     ) -> Option<Site> {
-        site(
-            &self.tables.frozen,
-            structure,
-            chunk,
-            self.seed,
-            self.height_context(),
-            self.accessor_min_y,
-            self.accessor_height,
-            view,
-        )
+        site(&mut self.context(view, chunk, structure))
     }
 
     pub fn starts_at(&self, chunk: ColumnPos) -> Vec<Start> {
@@ -189,22 +204,12 @@ impl StructureIndex {
 
     fn start_in(&self, view: &mut View<'_>, set: SetId, chunk: ColumnPos) -> Option<Start> {
         let frozen = &self.tables.frozen;
-        let (structure, site) = self.selected_site(view, set, chunk)?;
-        let pieces = layout(
-            frozen,
-            structure,
-            site,
-            self.accessor_min_y,
-            self.accessor_height,
-            view,
-        );
-        (!pieces.is_empty()).then(|| {
-            Start::new(
-                frozen,
-                structure,
-                pieces.into_iter().map(Piece::Jigsaw).collect(),
-            )
-        })
+        let (structure, selected) = self.selected_site(view, set, chunk)?;
+        let pieces = match selected {
+            Selected::Pieces(pieces) => pieces,
+            Selected::Site(site) => layout(&mut self.context(view, chunk, structure), site),
+        };
+        (!pieces.is_empty()).then(|| Start::new(frozen, structure, pieces))
     }
 
     /// Whether any live structure places in one of `steps`.
@@ -225,20 +230,7 @@ impl StructureIndex {
     // structure both cross can tell the difference.
     pub fn starts_reaching(&self, column: ColumnPos) -> Vec<(ColumnPos, Start)> {
         let frozen = &self.tables.frozen;
-        let kept = |id: StructureId| {
-            matches!(
-                frozen.structures[id.0 as usize].kind,
-                StructureKind::Jigsaw { .. }
-            )
-        };
-        let sets: Vec<SetId> = self
-            .tables
-            .live
-            .iter()
-            .filter(|(_, structures)| structures.iter().any(|id| kept(*id)))
-            .map(|(set, _)| *set)
-            .collect();
-        if sets.is_empty() {
+        if self.tables.live.is_empty() {
             return Vec::new();
         }
         let footprint = BoundingBox {
@@ -252,10 +244,14 @@ impl StructureIndex {
             for dz in -radius..=radius {
                 let chunk = ColumnPos::new(column.x + dx, column.z + dz);
                 starts.extend(
-                    self.starts_of(&mut view, chunk, sets.iter().copied())
-                        .into_iter()
-                        .filter(|start| start.bounds.intersects(footprint))
-                        .map(|start| (chunk, start)),
+                    self.starts_of(
+                        &mut view,
+                        chunk,
+                        self.tables.live.iter().map(|(set, _)| *set),
+                    )
+                    .into_iter()
+                    .filter(|start| start.bounds.intersects(footprint))
+                    .map(|start| (chunk, start)),
                 );
             }
         }
@@ -313,21 +309,35 @@ impl StructureIndex {
             .map(|(structure, _)| structure)
     }
 
+    /// `tryGenerateStructure` over the set's draw with removal: a site that
+    /// passes its biome test, and a layout with a piece where the site alone
+    /// cannot promise one.
     fn selected_site(
         &self,
         view: &mut View<'_>,
         set: SetId,
         chunk: ColumnPos,
-    ) -> Option<(StructureId, Site)> {
+    ) -> Option<(StructureId, Selected)> {
+        let frozen = &self.tables.frozen;
         let mut accepted = None;
         let structure = select_with_removal(
             self.seed,
             chunk,
-            &self.tables.frozen.sets[set.0 as usize].entries,
+            &frozen.sets[set.0 as usize].entries,
             |structure| {
-                accepted = self
+                let Some(site) = self
                     .site_in(view, chunk, structure)
-                    .filter(|site| site.biome_ok);
+                    .filter(|site| site.biome_ok)
+                else {
+                    return false;
+                };
+                let kind = &frozen.structures[structure.0 as usize].kind;
+                accepted = if site_implies_piece(kind) == Some(true) {
+                    Some(Selected::Site(site))
+                } else {
+                    let pieces = layout(&mut self.context(view, chunk, structure), site);
+                    (!pieces.is_empty()).then_some(Selected::Pieces(pieces))
+                };
                 accepted.is_some()
             },
         )?;
@@ -460,9 +470,15 @@ fn plane_admits(
         .collect()
 }
 
+enum Selected {
+    Site(Site),
+    Pieces(Vec<Piece>),
+}
+
 struct View<'a> {
     index: &'a StructureIndex,
     ws: Workspace,
+    columns: HashMap<(i32, i32), Vec<VoxelId>>,
 }
 
 impl SiteWorld for View<'_> {
@@ -514,6 +530,34 @@ impl SiteWorld for View<'_> {
         })
     }
 
+    fn all_biomes_within(&mut self, centre: IVec3, radius: i32, biomes: &BiomeMask) -> bool {
+        let table = match &self.index.biomes {
+            BiomeLookup::MultiNoise(table) => table,
+            BiomeLookup::Fixed(biome) => return biomes.contains(*biome as usize),
+            BiomeLookup::None => return false,
+        };
+        let lo: IVec3 = (centre - IVec3::splat(radius)) >> 2;
+        let hi: IVec3 = (centre + IVec3::splat(radius)) >> 2;
+        let size = hi - lo + IVec3::ONE;
+        let cells = (size.x * size.y * size.z) as usize;
+        let volume = SampleGrid::new(size, lo * 4, IVec3::splat(4));
+        let mut values = vec![0.0f32; CLIMATE_ROOTS.len() * cells];
+        self.index
+            .router
+            .fill_roots(&mut self.ws, &volume, &CLIMATE_ROOTS, &mut values);
+        (0..cells).all(|at| {
+            let target = TargetPoint::new(
+                values[at],
+                values[cells + at],
+                values[2 * cells + at],
+                values[3 * cells + at],
+                values[4 * cells + at],
+                values[5 * cells + at],
+            );
+            biomes.contains(table.biome_at(target) as usize)
+        })
+    }
+
     fn free_height(&mut self, x: i32, z: i32, heightmap: HeightmapName) -> i32 {
         let predicates = self
             .index
@@ -530,5 +574,39 @@ impl SiteWorld for View<'_> {
             self.index.accessor_min_y,
             self.index.accessor_height,
         )
+    }
+
+    fn base_column(&mut self, x: i32, z: i32) -> BaseColumn<'_> {
+        let index = self.index;
+        let min_y = index.router.noise.min_y.max(index.accessor_min_y);
+        let states = self.columns.entry((x, z)).or_insert_with(|| {
+            base_column(
+                &index.router,
+                &mut self.ws,
+                x,
+                z,
+                index.accessor_min_y,
+                index.accessor_height,
+            )
+            .1
+        });
+        BaseColumn {
+            min_y,
+            states,
+            air: index.world.air,
+        }
+    }
+
+    fn opaque(&self, state: VoxelId, heightmap: HeightmapName) -> bool {
+        self.index
+            .predicates
+            .as_ref()
+            .expect("a structure testing the ground needs the heightmap predicates")
+            .get(state)
+            .contains(heightmap_kind(heightmap))
+    }
+
+    fn states(&self) -> &WorldStates {
+        &self.index.world
     }
 }

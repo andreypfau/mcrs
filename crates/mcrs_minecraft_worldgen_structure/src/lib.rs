@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 
 pub mod frozen;
+pub mod hardcoded;
 pub mod jigsaw;
 pub mod locate;
+pub mod piece;
 pub mod placement;
 pub mod site;
 

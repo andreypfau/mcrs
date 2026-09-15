@@ -3,7 +3,11 @@ use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
 
-use super::{DecorationStep, JigsawConfig, LiquidSettings, StructurePlacement, TerrainAdaptation};
+use super::{
+    DecorationStep, JigsawConfig, LiquidSettings, MineshaftType, OceanTemperature,
+    RuinedPortalSetup, StructurePlacement, TerrainAdaptation,
+};
+use mcrs_minecraft_core::value_provider::HeightProvider;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::proto::{Holder, PlacedFeature, StructureProcessorList};
 use mcrs_minecraft_worldgen_feature::template::Projection;
@@ -37,12 +41,72 @@ pub struct FrozenStructure {
     pub kind: StructureKind,
 }
 
+/// One variant per `StructureType`, each with its own `type`-specific fields
+/// resolved against the registries.
+#[derive(Debug, Clone, PartialEq)]
 pub enum StructureKind {
     Jigsaw {
         start_pool: PoolId,
         config: JigsawConfig,
     },
-    Hardcoded,
+    BuriedTreasure,
+    DesertPyramid,
+    EndCity,
+    Fortress,
+    Igloo,
+    JungleTemple,
+    Mineshaft {
+        mineshaft_type: MineshaftType,
+        /// `#minecraft:mineshaft_blocking`.
+        blocking: BiomeMask,
+    },
+    NetherFossil {
+        height: HeightProvider,
+    },
+    OceanMonument {
+        /// `#minecraft:required_ocean_monument_surrounding`.
+        surrounding: BiomeMask,
+    },
+    OceanRuin(OceanRuinConfig),
+    RuinedPortal {
+        setups: Vec<RuinedPortalSetup>,
+    },
+    Shipwreck {
+        is_beached: bool,
+    },
+    Stronghold,
+    SwampHut,
+    WoodlandMansion,
+}
+
+impl StructureKind {
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            StructureKind::Jigsaw { .. } => "minecraft:jigsaw",
+            StructureKind::BuriedTreasure => "minecraft:buried_treasure",
+            StructureKind::DesertPyramid => "minecraft:desert_pyramid",
+            StructureKind::EndCity => "minecraft:end_city",
+            StructureKind::Fortress => "minecraft:fortress",
+            StructureKind::Igloo => "minecraft:igloo",
+            StructureKind::JungleTemple => "minecraft:jungle_temple",
+            StructureKind::Mineshaft { .. } => "minecraft:mineshaft",
+            StructureKind::NetherFossil { .. } => "minecraft:nether_fossil",
+            StructureKind::OceanMonument { .. } => "minecraft:ocean_monument",
+            StructureKind::OceanRuin(_) => "minecraft:ocean_ruin",
+            StructureKind::RuinedPortal { .. } => "minecraft:ruined_portal",
+            StructureKind::Shipwreck { .. } => "minecraft:shipwreck",
+            StructureKind::Stronghold => "minecraft:stronghold",
+            StructureKind::SwampHut => "minecraft:swamp_hut",
+            StructureKind::WoodlandMansion => "minecraft:woodland_mansion",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OceanRuinConfig {
+    pub biome_temp: OceanTemperature,
+    pub large_probability: f32,
+    pub cluster_probability: f32,
 }
 
 pub struct FrozenPool {
@@ -53,6 +117,7 @@ pub struct FrozenPool {
     pub max_size: i32,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum FrozenElement {
     Single {
         template: TemplateId,
