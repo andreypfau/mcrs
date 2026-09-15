@@ -1,5 +1,4 @@
 use bevy_ecs::schedule::ScheduleLabel;
-use std::sync::atomic::Ordering;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
@@ -28,6 +27,7 @@ pub enum BridgeSet {
 }
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_network::{ConnectionState, EngineConnection, ServerSideConnection};
 use mcrs_minecraft_protocol::chunk::ChunkData;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
@@ -64,7 +64,7 @@ use mcrs_minecraft_level::session::SessionRegistry;
 ///
 /// Even with this ordering, `bridge_outbound` still treats a resolved target
 /// that lacks `OutboundQueue` as a counted event
-/// (`mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL`) rather than a
+/// (`BridgeTelemetry::outbound_no_queue_total`) rather than a
 /// silent miss. The counter makes any residual race observable so no join
 /// packet is dropped silently.
 pub fn attach_outbound_queue(
@@ -88,17 +88,16 @@ pub fn attach_outbound_queue(
 /// the reader.
 ///
 /// A target that resolves to an entity with no `OutboundQueue` increments
-/// `BRIDGE_OUTBOUND_NO_QUEUE_TOTAL` and is never silently dropped. This counter
-/// makes any residual spawn→attach race observable without adding per-queue
-/// atomics (no atomics for queue depth per CONVENTIONS §Concurrency).
+/// `BridgeTelemetry::outbound_no_queue_total` and is never silently dropped, so
+/// any residual spawn→attach race stays observable.
 pub fn bridge_outbound(
     mut reader: MessageReader<crate::world::bus::OutboundPlayerPacket>,
     session_registry: Res<SessionRegistry>,
     mut queues: Query<&mut OutboundQueue>,
+    mut telemetry: ResMut<BridgeTelemetry>,
 ) {
     for msg in reader.read() {
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_CONSUMED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
+        telemetry.outbound_messages_consumed_total += 1;
 
         match &msg.target {
             PacketTarget::SinglePlayer(_) => {
@@ -115,8 +114,7 @@ pub fn bridge_outbound(
                 match queues.get_mut(target_socket) {
                     Ok(mut q) => q.push(msg.clone()),
                     Err(_) => {
-                        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-                            .fetch_add(1, Ordering::Relaxed);
+                        telemetry.outbound_no_queue_total += 1;
                     }
                 }
             }
@@ -137,8 +135,7 @@ pub fn bridge_outbound(
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
-                            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-                                .fetch_add(1, Ordering::Relaxed);
+                            telemetry.outbound_no_queue_total += 1;
                         }
                     }
                 }
@@ -155,8 +152,7 @@ pub fn bridge_outbound(
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
-                            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-                                .fetch_add(1, Ordering::Relaxed);
+                            telemetry.outbound_no_queue_total += 1;
                         }
                     }
                 }
@@ -177,8 +173,7 @@ pub fn bridge_outbound(
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
-                            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-                                .fetch_add(1, Ordering::Relaxed);
+                            telemetry.outbound_no_queue_total += 1;
                         }
                     }
                 }
@@ -209,14 +204,11 @@ const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTE
 pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
     mut commands: Commands,
+    mut telemetry: ResMut<BridgeTelemetry>,
 ) {
     use mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
-    use mcrs_minecraft_network::metrics::{
-        BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
-        BRIDGE_KICK_OVERFLOW_TOTAL, BRIDGE_QUEUE_DEPTH_CRITICAL, BRIDGE_QUEUE_DEPTH_HIGH,
-        BRIDGE_QUEUE_DEPTH_LOW, BRIDGE_QUEUE_DEPTH_NORMAL,
-    };
 
+    let mut depth = [0u64; 4];
     for (entity, mut queue, mut conn) in players.iter_mut() {
         // --- (1) Disconnected writer check (AP-06 path) ---
         if conn.raw.disconnected() {
@@ -229,7 +221,7 @@ pub fn dispatch_encode(
             conn.raw.try_send_blob(blob);
             warn!(conn = ?entity, "kick: the writer reported the socket dead");
             commands.entity(entity).remove::<ServerSideConnection>();
-            BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+            telemetry.kick_overflow_total += 1;
             continue;
         }
 
@@ -242,7 +234,7 @@ pub fn dispatch_encode(
                 "kick: the writer has stalled"
             );
             commands.entity(entity).remove::<ServerSideConnection>();
-            BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+            telemetry.kick_overflow_total += 1;
             continue;
         }
 
@@ -253,9 +245,9 @@ pub fn dispatch_encode(
         if queue.total_len() > DEPTH_LIMIT {
             while queue.total_len() > DEPTH_DRAIN_TARGET {
                 if queue.normal.pop_front().is_some() {
-                    BRIDGE_DROP_NORMAL_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    telemetry.drop_normal_total += 1;
                 } else if queue.low.pop_front().is_some() {
-                    BRIDGE_DROP_LOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    telemetry.drop_low_total += 1;
                 } else {
                     // Only Critical/High remain; never drop them.
                     break;
@@ -608,8 +600,8 @@ pub fn dispatch_encode(
                     }
                     PacketPayload::Test(_) => {
                         // Test-only payload; no wire packet. Counted-drop so
-                        // test assertions on BRIDGE_ENCODE_UNHANDLED_TOTAL work.
-                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                        // test assertions on encode_unhandled_total work.
+                        telemetry.encode_unhandled_total += 1;
                     }
                 }
             }
@@ -625,12 +617,15 @@ pub fn dispatch_encode(
             conn.raw.try_send_blob(piece);
         }
 
-        // --- (5) Update depth gauges (monotone totals, consistent with metrics.rs) ---
-        BRIDGE_QUEUE_DEPTH_CRITICAL.fetch_add(queue.critical.len() as u64, Ordering::Relaxed);
-        BRIDGE_QUEUE_DEPTH_HIGH.fetch_add(queue.high.len() as u64, Ordering::Relaxed);
-        BRIDGE_QUEUE_DEPTH_NORMAL.fetch_add(queue.normal.len() as u64, Ordering::Relaxed);
-        BRIDGE_QUEUE_DEPTH_LOW.fetch_add(queue.low.len() as u64, Ordering::Relaxed);
+        depth[0] += queue.critical.len() as u64;
+        depth[1] += queue.high.len() as u64;
+        depth[2] += queue.normal.len() as u64;
+        depth[3] += queue.low.len() as u64;
     }
+    telemetry.queue_depth_critical = depth[0];
+    telemetry.queue_depth_high = depth[1];
+    telemetry.queue_depth_normal = depth[2];
+    telemetry.queue_depth_low = depth[3];
 }
 
 /// Routes serverbound packets from the network into the dim channel seam.
@@ -725,9 +720,9 @@ pub fn bridge_inbound(
     session_registry: Res<SessionRegistry>,
     dim_channels: Res<DimChannelsResource>,
     mut inbound_buffer: ResMut<PendingInboundBuffer>,
+    mut telemetry: ResMut<BridgeTelemetry>,
 ) {
     use flume::TrySendError;
-    use mcrs_minecraft_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
     use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 
     for (entity, mut conn, mut bucket, anchor_ref, state) in conns.iter_mut() {
@@ -750,7 +745,7 @@ pub fn bridge_inbound(
                         let blob = conn.raw.take_encoded();
                         conn.raw.try_send_blob(blob);
                         commands.entity(entity).remove::<ServerSideConnection>();
-                        BRIDGE_KICK_FLOOD_TOTAL.fetch_add(1, Ordering::Relaxed);
+                        telemetry.kick_flood_total += 1;
                         break;
                     }
 

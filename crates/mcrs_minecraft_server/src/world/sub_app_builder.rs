@@ -234,6 +234,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockPlaced>();
 
     sub_app.init_resource::<mcrs_minecraft_level::session::DimPlayerIndex>();
+    sub_app.init_resource::<OutboxTelemetry>();
     sub_app.insert_resource(mcrs_minecraft_level::world::in_flight::MoveIds::new(
         label_entity,
     ));
@@ -636,12 +637,20 @@ fn drain_to_dim_inbox(
 /// recorded as sent the moment it is queued and never offered again, so a lost
 /// packet is a hole in the client's world, and a lost batch-finished packet
 /// costs the acknowledgement the whole column stream is paced by.
+/// Clientbound packets this dimension has handed towards the host since it started.
+#[derive(bevy_ecs::resource::Resource, Debug, Default, Clone, Copy)]
+pub struct OutboxTelemetry {
+    pub emitted: u64,
+}
+
 pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
     sender: Res<FromDimSender<FromDim>>,
+    mut telemetry: ResMut<OutboxTelemetry>,
     mut backlog: Local<VecDeque<FromDim>>,
 ) {
     use mcrs_minecraft_level::session::PlayerSession;
+    let held = backlog.len();
     backlog.extend(msgs.drain().map(|msg| FromDim::Clientbound {
         target: msg.target,
         priority: msg.priority,
@@ -649,6 +658,7 @@ pub(crate) fn flush_from_dim_outbox(
         session: PlayerSession(0),
         epoch: 0,
     }));
+    telemetry.emitted += (backlog.len() - held) as u64;
     while let Some(outbound) = backlog.pop_front() {
         if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
             backlog.push_front(outbound);
@@ -749,6 +759,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(Messages::<OutboundPlayerPacket>::default());
         world.insert_resource(FromDimSender(DimSender::new(tx)));
+        world.init_resource::<OutboxTelemetry>();
         let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
         for seq in 0..written as u32 {
             msgs.write(OutboundPlayerPacket {
@@ -787,6 +798,11 @@ mod tests {
             arrived,
             (0..written as u32).collect::<Vec<_>>(),
             "every packet arrives, in the order it was written"
+        );
+        assert_eq!(
+            world.resource::<OutboxTelemetry>().emitted,
+            written as u64,
+            "a packet held back is counted once, when it was written"
         );
     }
 }

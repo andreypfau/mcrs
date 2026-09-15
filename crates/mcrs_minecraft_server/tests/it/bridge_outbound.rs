@@ -231,13 +231,9 @@ fn packet_target_player_set() {
 // ---------------------------------------------------------------------------
 
 /// A target that resolves to an entity with no `OutboundQueue` increments
-/// `BRIDGE_OUTBOUND_NO_QUEUE_TOTAL` and is NOT silently dropped.
+/// `outbound_no_queue_total` and is NOT silently dropped.
 #[test]
 fn packet_target_missing_queue_counted() {
-    let _lock = mcrs_minecraft_network::metrics::TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_bridge_world();
 
     let dim = Entity::from_raw_u32(400).expect("nonzero");
@@ -247,8 +243,9 @@ fn packet_target_missing_queue_counted() {
     let socket_no_queue = world.spawn_empty().id();
     let session = register_player(&mut world, player, socket_no_queue, dim);
 
-    let before = mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-        .load(std::sync::atomic::Ordering::Relaxed);
+    let before = world
+        .resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>()
+        .outbound_no_queue_total;
 
     write_packet(
         &mut world,
@@ -261,18 +258,15 @@ fn packet_target_missing_queue_counted() {
 
     run_system(&mut world, bridge_outbound);
 
-    let after = mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-        .load(std::sync::atomic::Ordering::Relaxed);
+    let after = world
+        .resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>()
+        .outbound_no_queue_total;
 
     assert_eq!(
         after - before,
         1,
-        "missing OutboundQueue should increment BRIDGE_OUTBOUND_NO_QUEUE_TOTAL"
+        "missing OutboundQueue should increment outbound_no_queue_total"
     );
-
-    // Reset counter so parallel tests don't see stale increments.
-    mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-        .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 // ---------------------------------------------------------------------------

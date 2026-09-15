@@ -12,7 +12,7 @@ use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
 use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_server::world::bridge::bridge_inbound;
 use mcrs_minecraft_server::world::bridge_queue::{
@@ -24,7 +24,6 @@ use mcrs_minecraft_server::world::player_index::{
     HostAnchorRef, PendingInboundBuffer, PlayerIndex,
 };
 
-use std::sync::atomic::Ordering;
 use std::time::Instant;
 use tokio::sync::mpsc;
 
@@ -41,6 +40,7 @@ fn build_inbound_world() -> World {
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<PendingInboundBuffer>();
     world.init_resource::<DimChannelsResource>();
+    world.init_resource::<BridgeTelemetry>();
     world
 }
 
@@ -216,14 +216,10 @@ fn bridge_inbound_emits_event_regardless_of_transit_state() {
 
 /// Sustained packet flood exceeding INBOUND_BUCKET_CAP for
 /// INBOUND_KICK_OVERFLOW_TICKS kicks the connection (ServerSideConnection
-/// removed) and increments BRIDGE_KICK_FLOOD_TOTAL.
+/// removed) and increments kick_flood_total.
 /// Packets received within the budget are NOT dropped.
 #[test]
 fn inbound_rate_kick() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_inbound_world();
 
     let dim = Entity::from_raw_u32(10).expect("nonzero");
@@ -234,7 +230,7 @@ fn inbound_rate_kick() {
     register_player(&mut world, player, socket, dim, Some(in_dim));
     attach_anchor(&mut world, socket, player);
 
-    let before = BRIDGE_KICK_FLOOD_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().kick_flood_total;
 
     // Run enough ticks flooding packets to trigger the kick.
     // Each tick sends INBOUND_BUCKET_CAP + 1 packets to ensure bucket empties.
@@ -248,10 +244,10 @@ fn inbound_rate_kick() {
         run_inbound(&mut world);
     }
 
-    let after = BRIDGE_KICK_FLOOD_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().kick_flood_total;
     assert!(
         after > before,
-        "BRIDGE_KICK_FLOOD_TOTAL must increment on flood kick"
+        "kick_flood_total must increment on flood kick"
     );
     assert!(
         world.get::<ServerSideConnection>(socket).is_none(),

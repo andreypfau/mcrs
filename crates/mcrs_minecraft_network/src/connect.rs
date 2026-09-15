@@ -1,6 +1,5 @@
 use crate::SharedNetworkState;
 use crate::intent::handle_intent;
-use crate::metrics::BRIDGE_HANDSHAKE_INFLIGHT;
 use crate::packet_io::PacketIo;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -62,14 +61,12 @@ pub enum AcceptOutcome {
     CapExceeded,
 }
 
-/// RAII guard that decrements the in-flight counter on drop and mirrors the
-/// updated value to the telemetry global.
+/// RAII guard that decrements the in-flight counter on drop.
 pub(crate) struct InflightGuard(Arc<AtomicUsize>);
 
 impl Drop for InflightGuard {
     fn drop(&mut self) {
-        let prev = self.0.fetch_sub(1, Ordering::Relaxed);
-        BRIDGE_HANDSHAKE_INFLIGHT.store((prev - 1) as u64, Ordering::Relaxed);
+        self.0.fetch_sub(1, Ordering::Relaxed);
     }
 }
 
@@ -121,8 +118,7 @@ impl AcceptGate {
             AcceptOutcome::Accept => {}
         }
 
-        let new_inflight = self.inflight.fetch_add(1, Ordering::Relaxed) + 1;
-        BRIDGE_HANDSHAKE_INFLIGHT.store(new_inflight as u64, Ordering::Relaxed);
+        self.inflight.fetch_add(1, Ordering::Relaxed);
         Some(InflightGuard(self.inflight.clone()))
     }
 }

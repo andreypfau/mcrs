@@ -26,6 +26,7 @@ pub fn build_bridge_world() -> World {
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<SessionRegistry>();
     world.init_resource::<PlayerIndex>();
+    world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     world
 }
 

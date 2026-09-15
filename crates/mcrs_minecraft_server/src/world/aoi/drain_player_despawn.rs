@@ -11,8 +11,6 @@
 //! per-dim wire emitters that want a belt-and-braces liveness filter
 //! before fan-out.
 
-use std::sync::atomic::Ordering;
-
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Entity, Query, With};
 use mcrs_minecraft_level::entity::player::Player;
@@ -89,8 +87,6 @@ pub fn drain_inbound_player_despawn(
                     session: PlayerSession(0),
                     epoch: 0,
                 });
-                mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                    .fetch_add(1, Ordering::Relaxed);
             }
         }
 

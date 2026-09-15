@@ -34,6 +34,7 @@ fn epoch_round_trip() {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<SessionRegistry>();
+    world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
 
     // --- Connect a player: register session at epoch 0 (first Overworld visit) ---
     let session = PlayerSession(1);

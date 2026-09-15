@@ -4,8 +4,6 @@
 //! Emits `PlayerEnteredView` / `PlayerLeftView` delta packets via the
 //! outbound bus.
 
-use std::sync::atomic::Ordering;
-
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Entity, Query, ResMut, With, Without};
 use mcrs_minecraft_core::ColumnPos;
@@ -120,8 +118,6 @@ pub fn update_tracked_by(
                     session: PlayerSession(0),
                     epoch: 0,
                 });
-                mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                    .fetch_add(1, Ordering::Relaxed);
             }
         }
         for &old_entity in tracked_by.0.iter() {
@@ -135,8 +131,6 @@ pub fn update_tracked_by(
                     session: PlayerSession(0),
                     epoch: 0,
                 });
-                mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                    .fetch_add(1, Ordering::Relaxed);
             }
         }
         tracked_by.0 = new_observers;

@@ -52,6 +52,7 @@ impl Plugin for WorldPlugin {
         app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
         app.init_resource::<crate::world::channel_types::DimChannelsResource>();
         app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
+        app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
         app.add_message::<crate::world::bus::OutboundPlayerAttached>();

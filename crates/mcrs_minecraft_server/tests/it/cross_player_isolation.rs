@@ -40,6 +40,7 @@ fn cross_player_isolation() {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<SessionRegistry>();
+    world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
 
     // --- Connect player A ---
     let session_a = PlayerSession(1);

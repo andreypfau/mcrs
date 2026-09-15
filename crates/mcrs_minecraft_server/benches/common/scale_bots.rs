@@ -22,7 +22,6 @@
 
 #![allow(dead_code)]
 
-use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use bevy_ecs::entity::Entity;
@@ -31,9 +30,7 @@ use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_minecraft_network::metrics::{
-    BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL, BridgeTelemetrySnapshot, snapshot,
-};
+use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::bridge::bridge_outbound;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
@@ -52,8 +49,8 @@ pub struct ScaleReport {
     pub dims: usize,
     pub bots_total: usize,
     pub duration_secs: u64,
-    pub snapshot_start: BridgeTelemetrySnapshot,
-    pub snapshot_end: BridgeTelemetrySnapshot,
+    pub snapshot_start: BridgeTelemetry,
+    pub snapshot_end: BridgeTelemetry,
     /// entity count at T=0
     pub entity_count_start: u64,
     /// entity count at T=end
@@ -91,10 +88,9 @@ impl ScaleReport {
         self.entity_count_end as i64 - self.entity_count_start as i64
     }
 
-    /// Bus-saturation gap: emitted minus consumed over the run. Derived from
-    /// process-global metric atomics, so it is contaminated by any other test
-    /// running concurrently — a SOFT observational dimension only, never a
-    /// pass/fail gate. Use `total_queued` for race-free routing assertions.
+    /// Bus-saturation gap: packets the harness wrote minus packets `bridge_outbound`
+    /// consumed over the run — a SOFT observational dimension only, never a
+    /// pass/fail gate. Use `total_queued` for routing assertions.
     pub fn saturation_gap(&self) -> i64 {
         let emitted_delta = (self.emitted_end - self.emitted_start) as i64;
         let consumed_delta = (self.consumed_end - self.consumed_start) as i64;
@@ -167,6 +163,7 @@ fn run_profile_bounded(
     world.init_resource::<PlayerIndex>();
     world.init_resource::<SessionRegistry>();
     world.init_resource::<PlayerSessionCounter>();
+    world.init_resource::<BridgeTelemetry>();
 
     // Synthetic dimension entities — plain entity handles used as dim keys
     // in SessionRegistry. No dim sub-app is spawned; the harness exercises
@@ -203,8 +200,8 @@ fn run_profile_bounded(
     sys_outbound.initialize(&mut world);
 
     // T=0 snapshot.
-    let snapshot_start = snapshot();
-    let emitted_start = BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.load(Ordering::Relaxed);
+    let snapshot_start = *world.resource::<BridgeTelemetry>();
+    let emitted_start = 0;
     let consumed_start = snapshot_start.outbound_messages_consumed_total;
     let entity_count_start = world.entities().len() as u64;
 
@@ -244,9 +241,7 @@ fn run_profile_bounded(
         // Every 2 ticks, inject one BlockUpdate outbound packet per bot,
         // stamped with that bot's real session so bridge_outbound resolves it
         // and routes it to the bot's OutboundQueue. BlockUpdate is a MAPPED
-        // variant so it exercises the real fill path. The emitted counter is
-        // bumped here so harness-generated load shows up in the soft
-        // saturation telemetry.
+        // variant so it exercises the real fill path.
         if tick_count.is_multiple_of(2) {
             for (player, _socket, session) in &bot_entities {
                 world
@@ -261,7 +256,6 @@ fn run_profile_bounded(
                         session: *session,
                         epoch: 0,
                     });
-                BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Ordering::Relaxed);
                 packets_injected += 1;
             }
         }
@@ -327,8 +321,7 @@ fn run_profile_bounded(
     };
 
     // T=end snapshot.
-    let snapshot_end = snapshot();
-    let emitted_end = BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.load(Ordering::Relaxed);
+    let snapshot_end = *world.resource::<BridgeTelemetry>();
     let consumed_end = snapshot_end.outbound_messages_consumed_total;
     let entity_count_end = world.entities().len() as u64;
 
@@ -345,7 +338,7 @@ fn run_profile_bounded(
         entity_count_start,
         entity_count_end,
         emitted_start,
-        emitted_end,
+        emitted_end: packets_injected,
         consumed_start,
         consumed_end,
         tick_min_us,

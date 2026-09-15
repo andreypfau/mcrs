@@ -8,6 +8,7 @@ pub mod connect;
 pub mod event;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod intent;
+#[cfg(feature = "bevy")]
 pub mod metrics;
 pub mod packet_io;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]

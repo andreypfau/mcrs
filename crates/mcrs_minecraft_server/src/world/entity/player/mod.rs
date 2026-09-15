@@ -137,7 +137,6 @@ fn consume_inbound_player_spawn(
     simulation_distance: Res<SimulationDistance>,
     default_game_mode: Res<DefaultGameMode>,
 ) {
-    use std::sync::atomic::Ordering;
     for spawn in reader.read() {
         let Some((dim, dim_id, dim_type_index)) = dims.iter().next() else {
             continue;
@@ -207,8 +206,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         // The client derives the local player's game mode (and therefore
         // spectator noclip) from its own player-list entry, not the login
@@ -228,8 +225,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
@@ -238,8 +233,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
@@ -250,8 +243,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
@@ -260,8 +251,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
@@ -273,8 +262,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
@@ -286,8 +273,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
@@ -329,7 +314,6 @@ fn network_add(
     viewer: Query<(&Reposition, &crate::world::player_index::HostAnchorRef), With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    use std::sync::atomic::Ordering;
     let Ok((entity, profile, transform)) = added_player.get(event.entity) else {
         return;
     };
@@ -352,8 +336,6 @@ fn network_add(
         session: PlayerSession(0),
         epoch: 0,
     });
-    mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-        .fetch_add(1, Ordering::Relaxed);
 }
 
 fn player_joined(
@@ -369,7 +351,6 @@ fn player_joined(
     positions: Query<&Transform, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    use std::sync::atomic::Ordering;
     let Ok((joined_player, _, _)) = players.get(event.player) else {
         return;
     };
@@ -405,8 +386,6 @@ fn player_joined(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
     }
 }
 

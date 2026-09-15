@@ -32,8 +32,6 @@ use smallvec::SmallVec;
 
 pub use mcrs_minecraft_level::block_update::BlockUpdatePlugin;
 
-use std::sync::atomic::Ordering;
-
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
 
@@ -112,8 +110,6 @@ pub fn update_client_blocks_per_dim(
                 session: PlayerSession(0),
                 epoch: 0,
             });
-            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                .fetch_add(1, Ordering::Relaxed);
         }
     }
 }

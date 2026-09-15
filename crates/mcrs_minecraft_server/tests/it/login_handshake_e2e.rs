@@ -77,6 +77,7 @@ fn e2e_login_handshake_completes() {
     app.add_plugins(LoginPlugin);
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
+    app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerDespawn>();
 
@@ -147,6 +148,7 @@ fn e2e_packet_round_trip() {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<SessionRegistry>();
+    world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
 
     let dim = Entity::from_raw_u32(2).expect("nonzero");
 
@@ -309,6 +311,7 @@ fn build_join_host_app() -> App {
 
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
+    app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
     app.init_resource::<mcrs_minecraft_server::world::player_index::PendingInboundBuffer>();
     app.init_resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>();

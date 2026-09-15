@@ -239,7 +239,6 @@ pub(crate) fn update_view(
     mut held: MessageWriter<ColumnHeld>,
     mut left: Local<Vec<ColumnPos>>,
 ) {
-    use std::sync::atomic::Ordering;
     for (player, mut chunk_view, transform, distance, in_dim, rep, host_anchor) in &mut players {
         let Ok((mut tickets, type_config)) = dims.get_mut(in_dim.entity()) else {
             continue;
@@ -302,8 +301,6 @@ pub(crate) fn update_view(
                     session: PlayerSession(0),
                     epoch: 0,
                 });
-                mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                    .fetch_add(1, Ordering::Relaxed);
             }
         }
         view.view = Some(new_view);
@@ -318,7 +315,6 @@ fn send_cache_view(
     host: Entity,
     packet_writer: &mut MessageWriter<OutboundPlayerPacket>,
 ) {
-    use std::sync::atomic::Ordering;
     if old_view.is_none_or(|old_view| old_view.center != new_view.center) {
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
@@ -330,8 +326,6 @@ fn send_cache_view(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
     }
     if old_view.is_none_or(|old_view| old_view.distance != new_view.distance) {
         packet_writer.write(OutboundPlayerPacket {
@@ -343,8 +337,6 @@ fn send_cache_view(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -553,7 +545,6 @@ pub(crate) fn send_column_queue(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
 ) {
-    use std::sync::atomic::Ordering;
     players
         .iter_mut()
         .for_each(|(player, mut chunk_view, rep, in_dim, host_anchor)| {
@@ -730,8 +721,6 @@ pub(crate) fn send_column_queue(
                     session: PlayerSession(0),
                     epoch: 0,
                 });
-                mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                    .fetch_add(1, Ordering::Relaxed);
             };
             emit(PacketPayload::ChunkBatchStart);
             for column in batch {
