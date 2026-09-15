@@ -6,7 +6,6 @@ use crate::render::{
     Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Raster, Streams, Uploads, Wireframe,
 };
 use crate::sky_state::SkyEffects;
-use crate::stream;
 use mcrs_minecraft_mesh::STREAMS;
 
 #[cfg(not(target_family = "wasm"))]
@@ -419,7 +418,7 @@ pub struct TerrainLimits {
     pub tint_span: u32,
 }
 
-pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull, stream::Loader) {
+pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull) {
     let (quad_mb, model_mb, face_mb) = arena_budget();
     let budget = Arc::new(Budget {
         quads: quad_mb * limits.arena_scale * 1_000_000 / QUAD_BYTES,
@@ -437,12 +436,6 @@ pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull, stream
         "meshing the columns the server sends"
     );
 
-    let uploads = Uploads::default();
-    let loader = stream::Loader::new(&budget, uploads.clone());
-    (
-        budget.clone(),
-        uploads,
-        CaveCull::new(budget.sections),
-        loader,
-    )
+    let cave = CaveCull::new(budget.sections);
+    (budget, Uploads::default(), cave)
 }

@@ -90,7 +90,7 @@ fn main() {
     let world = world_folder();
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = config::frozen_time();
-    let (budget, uploads, cave, loader) = config::terrain(TERRAIN_LIMITS);
+    let (budget, uploads, cave) = config::terrain(TERRAIN_LIMITS);
     let assets = asset_corpus().to_string_lossy().into_owned();
 
     let mut app = App::new();
@@ -224,15 +224,14 @@ fn main() {
         .insert_resource(save_data.weather)
         .insert_resource(sky::PlayerDimension(save_data.dimension));
 
-    app.add_plugins(TerrainPlugin(budget, uploads))
+    app.add_plugins(TerrainPlugin(budget.clone(), uploads.clone()))
+        .add_plugins(stream::StreamPlugin::new(budget, uploads))
         .insert_resource(config::drawn_streams())
         .insert_resource(config::raster_fraction())
         .insert_resource(cave)
-        .insert_resource(loader)
         .add_systems(
             Update,
             (
-                stream::advance.in_set(mcrs_minecraft_client::columns::ClientTerrainSet::Build),
                 cave::toggle,
                 render::toggle_wireframe,
                 #[cfg(target_os = "macos")]

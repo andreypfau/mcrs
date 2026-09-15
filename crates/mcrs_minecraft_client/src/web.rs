@@ -138,20 +138,13 @@ pub fn run() {
         app.insert_resource(sky_render::SkyDrawsOnly(only));
     }
 
-    let (budget, uploads, cave, loader) = config::terrain(TERRAIN_LIMITS);
-    app.add_plugins(TerrainPlugin(budget, uploads))
+    let (budget, uploads, cave) = config::terrain(TERRAIN_LIMITS);
+    app.add_plugins(TerrainPlugin(budget.clone(), uploads.clone()))
+        .add_plugins(stream::StreamPlugin::new(budget, uploads))
         .insert_resource(config::drawn_streams())
         .insert_resource(config::raster_fraction())
         .insert_resource(cave)
-        .insert_resource(loader)
-        .add_systems(
-            Update,
-            (
-                stream::advance.in_set(crate::columns::ClientTerrainSet::Build),
-                cave::toggle,
-                render::toggle_wireframe,
-            ),
-        )
+        .add_systems(Update, (cave::toggle, render::toggle_wireframe))
         .add_systems(
             PostUpdate,
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
