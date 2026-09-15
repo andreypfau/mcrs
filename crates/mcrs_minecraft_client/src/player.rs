@@ -37,13 +37,12 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, sync_look_transforms).add_systems(
+        app.add_systems(
             Update,
             (
                 release_cursor_on_escape,
                 apply_mouse_look,
                 grab_cursor_on_click,
-                sync_look_transforms,
             )
                 .chain(),
         );
@@ -118,7 +117,7 @@ fn release_cursor_on_escape(
     }
 }
 
-fn apply_mouse_look(
+pub(crate) fn apply_mouse_look(
     motion: Res<AccumulatedMouseMotion>,
     window: Single<&CursorOptions, With<PrimaryWindow>>,
     mut transform: Single<&mut PhysicsTransform, With<Player>>,
@@ -134,28 +133,11 @@ fn apply_mouse_look(
 
 /// The half-turn is not decoration: Minecraft measures the look direction off
 /// +Z while Bevy's camera looks down -Z, and the pitch sign flips with it.
-#[allow(clippy::type_complexity)]
-fn sync_look_transforms(
-    player: Single<
-        (&PhysicsTransform, &mut Transform),
-        (
-            With<Player>,
-            Without<PlayerCamera>,
-            Changed<PhysicsTransform>,
-        ),
-    >,
-    mut camera: Single<&mut Transform, (With<PlayerCamera>, Without<Player>)>,
-) {
-    let (physics, mut player_transform) = player.into_inner();
-    player_transform.rotation = yaw_rotation(physics.rotation.yaw());
-    camera.rotation = pitch_rotation(physics.rotation.pitch());
-}
-
-fn yaw_rotation(yaw: f32) -> Quat {
+pub(crate) fn yaw_rotation(yaw: f32) -> Quat {
     Quat::from_rotation_y(std::f32::consts::PI - yaw.to_radians())
 }
 
-fn pitch_rotation(pitch: f32) -> Quat {
+pub(crate) fn pitch_rotation(pitch: f32) -> Quat {
     Quat::from_rotation_x(-pitch.to_radians())
 }
 
