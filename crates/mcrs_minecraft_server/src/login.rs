@@ -3,7 +3,8 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Add;
 use bevy_ecs::prelude::{On, Query};
 use bevy_ecs::query::Without;
-use bevy_ecs::system::{Commands, ResMut};
+use bevy_ecs::resource::Resource;
+use bevy_ecs::system::{Commands, Res, ResMut};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginFinished;
@@ -18,15 +19,14 @@ use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
 use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 
 /// Vanilla mints one chat session id per listener and reuses it for every login.
-fn session_id() -> uuid::Uuid {
-    static SESSION_ID: std::sync::OnceLock<uuid::Uuid> = std::sync::OnceLock::new();
-    *SESSION_ID.get_or_init(uuid::Uuid::new_v4)
-}
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct ChatSessionId(pub uuid::Uuid);
 
 pub struct LoginPlugin;
 
 impl bevy_app::Plugin for LoginPlugin {
     fn build(&self, app: &mut bevy_app::App) {
+        app.insert_resource(ChatSessionId(uuid::Uuid::new_v4()));
         app.add_observer(handle_hello_packet);
         app.add_observer(handle_login_acknowledged);
         app.add_observer(on_login_accepted);
@@ -76,6 +76,7 @@ impl<'a> From<&'a GameProfile> for mcrs_minecraft_protocol::profile::GameProfile
 pub fn handle_hello_packet(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(&mut ServerSideConnection, &ConnectionState), Without<LoginState>>,
+    session_id: Res<ChatSessionId>,
     mut commands: Commands,
 ) {
     let Ok((mut con, state)) = query.get_mut(event.entity) else {
@@ -96,7 +97,7 @@ pub fn handle_hello_packet(
     println!("new profile: {profile:?}");
     let response = ClientboundLoginFinished {
         profile: (&profile).into(),
-        session_id: session_id(),
+        session_id: session_id.0,
     };
     con.write_packet(&response);
     commands

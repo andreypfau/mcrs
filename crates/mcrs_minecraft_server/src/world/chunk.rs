@@ -33,7 +33,7 @@ use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
 use rustc_hash::FxHashMap;
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
-use std::sync::{Arc, LazyLock, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tracing::{info, trace};
 
@@ -205,19 +205,27 @@ impl ColumnScheduler {
     }
 }
 
-/// A column slower than this from queue to hand-off gets a line naming the
+/// A column slower than `threshold` from queue to hand-off gets a line naming the
 /// stage that cost the time. `MCRS_SLOW_CHUNK_MS` moves the bar.
-static SLOW_COLUMN: LazyLock<Duration> = LazyLock::new(|| {
-    let ms = std::env::var("MCRS_SLOW_CHUNK_MS")
-        .ok()
-        .and_then(|ms| ms.parse().ok())
-        .unwrap_or(250);
-    Duration::from_millis(ms)
-});
+pub(crate) struct SlowColumns {
+    threshold: Duration,
+    reported: Option<Instant>,
+    unreported: u64,
+}
 
-/// When the last slow column was reported, and how many have gone unreported
-/// since.
-static SLOW_COLUMN_SAMPLE: Mutex<(Option<Instant>, u64)> = Mutex::new((None, 0));
+impl Default for SlowColumns {
+    fn default() -> Self {
+        let ms = std::env::var("MCRS_SLOW_CHUNK_MS")
+            .ok()
+            .and_then(|ms| ms.parse().ok())
+            .unwrap_or(250);
+        Self {
+            threshold: Duration::from_millis(ms),
+            reported: None,
+            unreported: 0,
+        }
+    }
+}
 
 /// The sections a delivery owes, copied out of the whole column it generated.
 /// `bottom` is the section the column buffer starts at.
@@ -251,37 +259,35 @@ pub(crate) fn min_column_distance(pos: &ColumnPos, players: &[ColumnPos]) -> i32
         .unwrap_or(0)
 }
 
-/// The whole ladder's latency, reported once a second with the count of the
-/// columns the sample stands for.
-fn report_column_timing(col: ColumnPos, queued: Instant, sections: usize, source: ColumnSource) {
-    let total = queued.elapsed();
-    if total < *SLOW_COLUMN {
-        return;
+impl SlowColumns {
+    /// The whole ladder's latency, reported once a second with the count of the
+    /// columns the sample stands for.
+    fn report(&mut self, col: ColumnPos, queued: Instant, sections: usize, source: ColumnSource) {
+        let total = queued.elapsed();
+        if total < self.threshold {
+            return;
+        }
+        // A stall is a property of the whole load, not of one column, and a line per
+        // column drowns out every other log on the server.
+        self.unreported += 1;
+        if self
+            .reported
+            .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
+        {
+            return;
+        }
+        let others = std::mem::replace(&mut self.unreported, 0) - 1;
+        self.reported = Some(Instant::now());
+        info!(
+            x = col.x,
+            z = col.z,
+            source = source.label(),
+            total_ms = total.as_secs_f32() * 1000.0,
+            sections = sections,
+            others = others,
+            "slow chunk column"
+        );
     }
-    // A stall is a property of the whole load, not of one column, and a line per
-    // column drowns out every other log on the server.
-    let mut since = SLOW_COLUMN_SAMPLE
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    since.1 += 1;
-    if since
-        .0
-        .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
-    {
-        return;
-    }
-    let others = std::mem::replace(&mut since.1, 0) - 1;
-    since.0 = Some(Instant::now());
-    drop(since);
-    info!(
-        x = col.x,
-        z = col.z,
-        source = source.label(),
-        total_ms = total.as_secs_f32() * 1000.0,
-        sections = sections,
-        others = others,
-        "slow chunk column"
-    );
 }
 
 /// Poll the stages on the pool and put what they produced into the store.
@@ -376,6 +382,7 @@ pub(crate) fn deliver_merged_columns(
     mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
     mut commands: Commands,
+    mut slow: Local<SlowColumns>,
 ) {
     let done = top_of_ladder(ctx.map_or(1, |ctx| ctx.rungs()));
     let ready: Vec<ColumnKey> = scheduler
@@ -434,7 +441,7 @@ pub(crate) fn deliver_merged_columns(
             ),
         }
 
-        report_column_timing(col, entry.queued, entry.sections.len(), source);
+        slow.report(col, entry.queued, entry.sections.len(), source);
         column_trace::mark(col, ColumnStage::Loaded);
         column_trace::set_source(col, source.label());
         if let Some(maps) = maps {

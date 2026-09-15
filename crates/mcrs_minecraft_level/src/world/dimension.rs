@@ -9,7 +9,7 @@ use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{
-    Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs, Mut,
+    Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs,
     Query, Ref, With,
 };
 use mcrs_minecraft_core::SectionPos;
@@ -27,7 +27,6 @@ impl Plugin for DimensionPlugin {
             FixedPostUpdate,
             (add_old_in_dimension, update_index, update_old_in_dimensions).chain(),
         );
-        app.add_systems(FixedPostUpdate, update_time);
     }
 }
 
@@ -86,9 +85,6 @@ impl ContainsEntity for OldInDimension {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Component, Deref, DerefMut)]
-pub struct DimensionTime(pub u64);
-
 /// Unique identifier for a dimension, in the game's own namespace.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Component, Deref, DerefMut)]
 pub struct DimensionId(pub String);
@@ -120,12 +116,6 @@ impl DimensionTypeConfig {
     pub fn max_y(&self) -> i32 {
         self.min_y + self.height as i32 - 1
     }
-}
-
-fn update_time(mut dimension_time: Query<Mut<DimensionTime>>) {
-    dimension_time.iter_mut().for_each(|mut dimension_time| {
-        **dimension_time = dimension_time.wrapping_add(1);
-    });
 }
 
 #[allow(clippy::type_complexity)]

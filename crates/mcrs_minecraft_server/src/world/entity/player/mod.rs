@@ -22,6 +22,7 @@ use bevy_ecs::event::EntityEvent;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
+use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -45,10 +46,13 @@ mod inventory;
 pub mod movement;
 pub mod player_action;
 
-/// Default game mode applied to joining players, read from `MCRS_DEFAULT_GAMEMODE`
+/// Game mode given to joining players, read once from `MCRS_DEFAULT_GAMEMODE`
 /// (`survival`, `creative`, `adventure`, or `spectator`). Falls back to creative
 /// when unset or unrecognized.
-fn default_game_mode() -> GameMode {
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct DefaultGameMode(pub GameMode);
+
+fn game_mode_from_env() -> GameMode {
     match std::env::var("MCRS_DEFAULT_GAMEMODE") {
         Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
             "survival" => GameMode::Survival,
@@ -81,6 +85,7 @@ pub struct DimPlayerPlugin;
 
 impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut bevy_app::App) {
+        app.insert_resource(DefaultGameMode(game_mode_from_env()));
         app.add_plugins(DiggingPlugin);
         app.add_plugins(PlayerActionPlugin);
         app.add_plugins(MovementPlugin);
@@ -130,6 +135,7 @@ fn consume_inbound_player_spawn(
     mut commands: Commands,
     mut dim_index: ResMut<DimPlayerIndex>,
     simulation_distance: Res<SimulationDistance>,
+    default_game_mode: Res<DefaultGameMode>,
 ) {
     use std::sync::atomic::Ordering;
     for spawn in reader.read() {
@@ -148,7 +154,7 @@ fn consume_inbound_player_spawn(
                     .with_uuid(spawn.snapshot.uuid)
                     .with_transform(Transform::default().with_translation(spawn.snapshot.position)),
                 PlayerBundle {
-                    game_mode: PlayerGameMode(default_game_mode()),
+                    game_mode: PlayerGameMode(default_game_mode.0),
                     teleport_state: TeleportState::after_login(),
                     view_distance,
                     ..Default::default()
@@ -186,7 +192,7 @@ fn consume_inbound_player_spawn(
             data: PacketPayload::PlayerLogin {
                 player_id: wire_id,
                 hardcore: false,
-                game_mode: default_game_mode(),
+                game_mode: default_game_mode.0,
                 dimension: dim_name,
                 dimension_type_id: dim_type_id,
                 dimensions,
@@ -215,7 +221,7 @@ fn consume_inbound_player_spawn(
                 entries: vec![PlayerInfoEntry {
                     player_uuid: spawn.snapshot.uuid,
                     username: spawn.snapshot.username.clone(),
-                    game_mode: default_game_mode(),
+                    game_mode: default_game_mode.0,
                     listed: true,
                 }],
             },
