@@ -333,6 +333,21 @@ pub struct NetherFossilPiece {
     pub bounds: BoundingBox,
 }
 
+/// One template of an end city at its position and rotation; `overwrite`
+/// says whether the template's air is written over what stands there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EndCityPiece {
+    pub template: TemplateId,
+    pub position: IVec3,
+    pub rotation: Rotation,
+    pub overwrite: bool,
+    pub bounds: BoundingBox,
+    /// The collision tag the layout stamps on each recursion's children.
+    pub gen_depth: i32,
+}
+
+pub const END_CITY_TEMPLATE_PREFIX: &str = "end_city/";
+
 /// The doorway a stronghold piece is entered through, spelled as the
 /// reference's legacy enum codec writes it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -402,6 +417,7 @@ pub enum Piece {
     Mineshaft(MineshaftPiece),
     Igloo(IglooPiece),
     NetherFossil(NetherFossilPiece),
+    EndCity(EndCityPiece),
     Stronghold(StrongholdPiece),
 }
 
@@ -422,6 +438,7 @@ impl Piece {
             Piece::Igloo(piece) => piece.bounds,
             Piece::NetherFossil(piece) => piece.bounds,
             Piece::Stronghold(piece) => piece.bounds,
+            Piece::EndCity(piece) => piece.bounds,
         }
     }
 
@@ -475,6 +492,10 @@ impl Piece {
                 piece.position += delta;
             }
             Piece::Stronghold(piece) => piece.bounds = piece.bounds.moved(delta),
+            Piece::EndCity(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                piece.position += delta;
+            }
         }
     }
 
@@ -1004,6 +1025,27 @@ enum PieceTag {
         #[serde(rename = "Rot", with = "rotation::legacy")]
         rotation: Rotation,
     },
+    #[serde(rename = "minecraft:ecp")]
+    EndCity {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "TPX")]
+        template_x: i32,
+        #[serde(rename = "TPY")]
+        template_y: i32,
+        #[serde(rename = "TPZ")]
+        template_z: i32,
+        #[serde(rename = "Template")]
+        template: String,
+        #[serde(rename = "Rot", with = "rotation::legacy")]
+        rotation: Rotation,
+        #[serde(rename = "OW", deserialize_with = "nbt_flag")]
+        overwrite: bool,
+    },
     #[serde(rename = "minecraft:shstart")]
     StrongholdStart(StairsDownTag),
     #[serde(rename = "minecraft:shsd")]
@@ -1501,6 +1543,23 @@ impl Serialize for PieceNbt<'_> {
                 template: self.context.template_name(piece.template),
                 rotation: piece.rotation,
             },
+            Piece::EndCity(piece) => PieceTag::EndCity {
+                bounds: box_array(piece.bounds),
+                orientation: NORTH_ORIENTATION,
+                gen_depth: piece.gen_depth,
+                template_x: piece.position.x,
+                template_y: piece.position.y,
+                template_z: piece.position.z,
+                template: self
+                    .context
+                    .template_name(piece.template)
+                    .path()
+                    .strip_prefix(END_CITY_TEMPLATE_PREFIX)
+                    .expect("an end city piece names an end city template")
+                    .to_owned(),
+                rotation: piece.rotation,
+                overwrite: piece.overwrite,
+            },
             Piece::Stronghold(piece) => {
                 let door = DoorTag::of(piece);
                 let DoorTag {
@@ -1917,6 +1976,31 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 rotation,
                 bounds: box_of(bounds),
             })),
+            PieceTag::EndCity {
+                bounds,
+                gen_depth,
+                template_x,
+                template_y,
+                template_z,
+                template,
+                rotation,
+                overwrite,
+                ..
+            } => {
+                let location =
+                    ResourceLocation::minecraft(&format!("{END_CITY_TEMPLATE_PREFIX}{template}"));
+                let template = *self.0.frozen.template_ids.get(&location).ok_or_else(|| {
+                    D::Error::custom(format!("the end city template {location} is not loaded"))
+                })?;
+                Ok(Piece::EndCity(EndCityPiece {
+                    template,
+                    position: IVec3::new(template_x, template_y, template_z),
+                    rotation,
+                    overwrite,
+                    bounds: box_of(bounds),
+                    gen_depth,
+                }))
+            }
             PieceTag::StrongholdStart(tag) | PieceTag::StrongholdStairsDown(tag) => {
                 DoorTag::with(tag.bounds, tag.orientation, tag.gen_depth, tag.entry_door).piece(
                     if tag.source {
@@ -2024,6 +2108,10 @@ mod tests {
         let house = ResourceLocation::parse("minecraft:village/plains/houses/house_1").unwrap();
         let empty = ResourceLocation::parse("minecraft:empty").unwrap();
         frozen.template_ids.insert(house, TemplateId(0));
+        frozen.template_ids.insert(
+            ResourceLocation::minecraft("end_city/second_floor_1"),
+            TemplateId(1),
+        );
         let single = |legacy: bool| FrozenElement::Single {
             template: TemplateId(0),
             legacy,
@@ -2710,6 +2798,41 @@ mod tests {
         )
         .unwrap();
         assert_eq!(corridor.get_byte("Chest"), Some(0));
+    }
+
+    #[test]
+    fn an_end_city_piece_round_trips_with_its_template_name_and_tag() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::EndCity(EndCityPiece {
+            template: TemplateId(1),
+            position: IVec3::new(103, 71, -1040),
+            rotation: Rotation::Counterclockwise90,
+            overwrite: false,
+            bounds: BoundingBox {
+                min: BlockPos::new(92, 71, -1040),
+                max: BlockPos::new(103, 78, -1029),
+            },
+            gen_depth: -1_871_265_432,
+        });
+        assert_eq!(round_trip(&context, &piece), piece);
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:ecp"));
+        assert_eq!(tag.get_int("O"), Some(2));
+        assert_eq!(tag.get_int("GD"), Some(-1_871_265_432));
+        assert_eq!(tag.get_int("TPX"), Some(103));
+        assert_eq!(tag.get_int("TPY"), Some(71));
+        assert_eq!(tag.get_int("TPZ"), Some(-1040));
+        assert_eq!(tag.get_string("Template"), Some("second_floor_1"));
+        assert_eq!(tag.get_string("Rot"), Some("COUNTERCLOCKWISE_90"));
+        assert_eq!(tag.get_byte("OW"), Some(0));
+
+        let json = r#"{"id":"minecraft:ecp","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"nowhere","Rot":"NONE","OW":1}"#;
+        let mut deserializer = serde_json::Deserializer::from_str(json);
+        assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
     }
 
     #[test]

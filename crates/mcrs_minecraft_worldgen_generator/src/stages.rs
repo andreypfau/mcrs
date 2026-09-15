@@ -41,7 +41,7 @@ use crate::saved::{SavedColumns, column_sections, saved_block_entities};
 use crate::staging::{
     ColumnDelta, FilledSnapshot, RegionSnapshots, cell_index, rank, region_column, region_slot,
 };
-use crate::structures::index::{BiomeLookup, StructureIndex};
+use crate::structures::index::{BiomeLookup, EndBiomes, StructureIndex};
 use crate::structures::place::{column_clip, place_structures};
 use crate::task::{CancellationToken, ColumnSource};
 use crate::{
@@ -154,6 +154,8 @@ impl FillContext {
                     BiomeSource::Fixed { biome_id, .. } => registry
                         .by_location(biome_id.as_str())
                         .map_or(BiomeLookup::None, BiomeLookup::Fixed),
+                    BiomeSource::TheEnd => EndBiomes::resolve(|id| registry.by_location(id))
+                        .map_or(BiomeLookup::None, BiomeLookup::TheEnd),
                     _ => BiomeLookup::None,
                 },
                 (None, None) => BiomeLookup::None,

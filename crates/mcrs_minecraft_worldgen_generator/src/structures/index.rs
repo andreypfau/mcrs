@@ -41,7 +41,58 @@ use mcrs_minecraft_worldgen_structure::site::{
 pub enum BiomeLookup {
     MultiNoise(Arc<MultiNoiseBiomeTable>),
     Fixed(u32),
+    TheEnd(EndBiomes),
     None,
+}
+
+/// `TheEndBiomeSource`: the five biomes it draws from, by registry id.
+#[derive(Clone, Copy, Debug)]
+pub struct EndBiomes {
+    pub end: u32,
+    pub highlands: u32,
+    pub midlands: u32,
+    pub islands: u32,
+    pub barrens: u32,
+}
+
+impl EndBiomes {
+    pub fn resolve(mut id_of: impl FnMut(&str) -> Option<u32>) -> Option<Self> {
+        Some(EndBiomes {
+            end: id_of("minecraft:the_end")?,
+            highlands: id_of("minecraft:end_highlands")?,
+            midlands: id_of("minecraft:end_midlands")?,
+            islands: id_of("minecraft:small_end_islands")?,
+            barrens: id_of("minecraft:end_barrens")?,
+        })
+    }
+
+    /// `getNoiseBiome`: the central island within 64 chunks of the origin,
+    /// elsewhere the erosion at the chunk's centre column.
+    fn at(&self, router: &NoiseRouter, ws: &mut Workspace, quart: IVec3) -> u32 {
+        let block: IVec3 = quart << 2;
+        let chunk_x = block.x >> 4;
+        let chunk_z = block.z >> 4;
+        if i64::from(chunk_x).pow(2) + i64::from(chunk_z).pow(2) <= 4096 {
+            return self.end;
+        }
+        let volume = SampleGrid::new(
+            IVec3::ONE,
+            IVec3::new((chunk_x * 2 + 1) * 8, block.y, (chunk_z * 2 + 1) * 8),
+            IVec3::ONE,
+        );
+        let mut erosion = [0.0f32];
+        router.fill_roots(ws, &volume, &[EROSION], &mut erosion);
+        let erosion = f64::from(erosion[0]);
+        if erosion > 0.25 {
+            self.highlands
+        } else if erosion >= -0.0625 {
+            self.midlands
+        } else if erosion < -0.21875 {
+            self.islands
+        } else {
+            self.barrens
+        }
+    }
 }
 
 const CLIMATE_ROOTS: [usize; 6] = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
@@ -315,7 +366,8 @@ impl StructureIndex {
                     | Piece::Mineshaft(_)
                     | Piece::Igloo(_)
                     | Piece::NetherFossil(_)
-                    | Piece::Stronghold(_) => BeardPiece {
+                    | Piece::Stronghold(_)
+                    | Piece::EndCity(_) => BeardPiece {
                         bounds: piece.bounds(),
                         projection: Projection::Rigid,
                         ground_level_delta: 0,
@@ -464,6 +516,17 @@ fn ring_sets(
                         BiomeLookup::Fixed(biome) => preferred
                             .contains(*biome as usize)
                             .then(|| fixed_biome_window(initial, fork)),
+                        BiomeLookup::TheEnd(end) => {
+                            scan_biome_window(initial, fork, |quart_x, quart_z, side| {
+                                (0..side * side)
+                                    .map(|at| {
+                                        let quart =
+                                            IVec3::new(quart_x + at % side, 0, quart_z + at / side);
+                                        preferred.contains(end.at(router, &mut ws, quart) as usize)
+                                    })
+                                    .collect()
+                            })
+                        }
                         BiomeLookup::None => None,
                     },
                 );
@@ -530,6 +593,7 @@ impl SiteWorld for View<'_> {
                 Some(u32::from(table.biome_at(target)))
             }
             BiomeLookup::Fixed(biome) => Some(*biome),
+            BiomeLookup::TheEnd(end) => Some(end.at(&self.index.router, &mut self.ws, block >> 2)),
             BiomeLookup::None => None,
         }
     }
@@ -542,13 +606,19 @@ impl SiteWorld for View<'_> {
         max_block_y: i32,
         biomes: &BiomeMask,
     ) -> bool {
+        let min_quart_y = min_block_y >> 2;
+        let max_quart_y = max_block_y >> 2;
         let table = match &self.index.biomes {
             BiomeLookup::MultiNoise(table) => table,
             BiomeLookup::Fixed(biome) => return biomes.contains(*biome as usize),
+            BiomeLookup::TheEnd(end) => {
+                return (min_quart_y..=max_quart_y).any(|quart_y| {
+                    let quart = IVec3::new(x >> 2, quart_y, z >> 2);
+                    biomes.contains(end.at(&self.index.router, &mut self.ws, quart) as usize)
+                });
+            }
             BiomeLookup::None => return false,
         };
-        let min_quart_y = min_block_y >> 2;
-        let max_quart_y = max_block_y >> 2;
         let cells = (max_quart_y - min_quart_y + 1) as usize;
         let volume = SampleGrid::new(
             IVec3::new(1, cells as i32, 1),
@@ -573,13 +643,24 @@ impl SiteWorld for View<'_> {
     }
 
     fn all_biomes_within(&mut self, centre: IVec3, radius: i32, biomes: &BiomeMask) -> bool {
+        let lo: IVec3 = (centre - IVec3::splat(radius)) >> 2;
+        let hi: IVec3 = (centre + IVec3::splat(radius)) >> 2;
         let table = match &self.index.biomes {
             BiomeLookup::MultiNoise(table) => table,
             BiomeLookup::Fixed(biome) => return biomes.contains(*biome as usize),
+            BiomeLookup::TheEnd(end) => {
+                return (lo.x..=hi.x).all(|x| {
+                    (lo.y..=hi.y).all(|y| {
+                        (lo.z..=hi.z).all(|z| {
+                            let quart = IVec3::new(x, y, z);
+                            biomes
+                                .contains(end.at(&self.index.router, &mut self.ws, quart) as usize)
+                        })
+                    })
+                });
+            }
             BiomeLookup::None => return false,
         };
-        let lo: IVec3 = (centre - IVec3::splat(radius)) >> 2;
-        let hi: IVec3 = (centre + IVec3::splat(radius)) >> 2;
         let size = hi - lo + IVec3::ONE;
         let cells = (size.x * size.y * size.z) as usize;
         let volume = SampleGrid::new(size, lo * 4, IVec3::splat(4));

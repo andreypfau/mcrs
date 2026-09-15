@@ -32,6 +32,11 @@ impl Rotation {
         }
     }
 
+    /// `Rotation.getRotated`: this rotation followed by `by`.
+    pub fn rotated(self, by: Rotation) -> Rotation {
+        Self::ALL[(self as usize + by as usize) % 4]
+    }
+
     pub fn rotate(self, direction: Direction) -> Direction {
         if direction.is_vertical() {
             return direction;
@@ -85,6 +90,26 @@ pub(crate) fn legacy_deserialize<'de, D: serde::Deserializer<'de>, T: Copy>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rotations_compose_by_quarter_turns() {
+        assert_eq!(
+            Rotation::None.rotated(Rotation::Clockwise90),
+            Rotation::Clockwise90
+        );
+        assert_eq!(
+            Rotation::Clockwise180.rotated(Rotation::Clockwise90),
+            Rotation::Counterclockwise90
+        );
+        assert_eq!(
+            Rotation::Counterclockwise90.rotated(Rotation::Clockwise90),
+            Rotation::None
+        );
+        assert_eq!(
+            Rotation::Clockwise90.rotated(Rotation::Counterclockwise90),
+            Rotation::None
+        );
+    }
 
     #[test]
     fn json_and_legacy_names_round_trip() {

@@ -147,6 +147,7 @@ use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{
     IglooBlocks, ignore_structure_and_air,
 };
+use mcrs_minecraft_worldgen_structure_place::end_city::EndCityChains;
 use rustc_hash::FxHashMap;
 use std::ops::Range;
 use std::sync::Arc;
@@ -305,6 +306,7 @@ pub enum CompiledStructure {
     Igloo(Box<IglooBlocks>),
     NetherFossil(Box<NetherFossilBlocks>),
     Stronghold(Box<StrongholdBlocks>),
+    EndCity(EndCityChains),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -1156,6 +1158,10 @@ fn compile_structures(
                     StrongholdBlocks::compile(resolver, &resolver.world)
                         .map_err(|error| error.within(&structure.id))?,
                 ))),
+                StructureKind::EndCity => Some(CompiledStructure::EndCity(
+                    EndCityChains::compile(resolver)
+                        .map_err(|error| error.within(&structure.id))?,
+                )),
                 _ => None,
             })
         })

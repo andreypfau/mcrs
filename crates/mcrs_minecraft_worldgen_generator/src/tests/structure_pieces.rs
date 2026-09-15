@@ -19,8 +19,9 @@ use crate::structures::index::StructureIndex;
 const MAGIC: &[u8; 8] = b"MCSTRPC0";
 
 /// Every structure type whose layout is not ported: the oracle has starts for
-/// them and this build produces none. The end city has no present case at the
-/// dump's shared chunks and joins the list with its own cases.
+/// them and this build produces none. The buried treasure, jungle temple and
+/// end city have no present case at the dump's shared chunks and join the list
+/// with their own cases.
 const UNPORTED_PIECE_TYPES: [&str; 1] = [
     "minecraft:woodland_mansion",
 ];
@@ -120,11 +121,6 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
             "seed {} {} {} at {:?}",
             case.seed, case.dimension, case.structure, case.chunk
         );
-        // The end has no multi-noise source to index; only the end city places there.
-        if case.dimension == "minecraft:the_end" {
-            assert!(case.start.is_none() || unported.insert(structure.kind.type_name()));
-            continue;
-        }
         let index = indices
             .entry((case.seed, case.dimension.clone()))
             .or_insert_with(|| build_index(&dimension(&case.dimension), case.seed));
@@ -158,5 +154,5 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
         compared += 1;
     }
     assert_eq!(unported, UNPORTED_PIECE_TYPES.into_iter().collect());
-    assert_eq!((compared, pieces), (570, 33803));
+    assert_eq!((compared, pieces), (580, 34383));
 }

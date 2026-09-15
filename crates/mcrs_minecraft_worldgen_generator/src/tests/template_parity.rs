@@ -363,7 +363,7 @@ pub(super) fn canonical(compound: &NbtCompound) -> NbtCompound {
     NbtCompound { child_tags }
 }
 
-fn canonical_tag(tag: &NbtTag) -> NbtTag {
+pub(super) fn canonical_tag(tag: &NbtTag) -> NbtTag {
     match tag {
         NbtTag::Compound(inner) => NbtTag::Compound(canonical(inner)),
         NbtTag::List(items) => NbtTag::List(items.iter().map(canonical_tag).collect()),

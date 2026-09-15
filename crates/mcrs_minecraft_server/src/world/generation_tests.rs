@@ -562,6 +562,14 @@ const SWAMP_HUT: Consumer = Consumer::Structure {
     biome: "minecraft:swamp",
 };
 
+/// An end city: dozens of template pieces over many columns, each write and
+/// each marker's chest seed, shulker or elytra frame clipped to the column
+/// that runs.
+const END_CITY: Consumer = Consumer::Structure {
+    id: "minecraft:end_city",
+    biome: "minecraft:end_highlands",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -594,6 +602,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != IGLOO
         && consumer != STRONGHOLD
         && consumer != SWAMP_HUT
+        && consumer != END_CITY
     {
         assert!(
             crossed > 0,
@@ -658,6 +667,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         NETHER_FOSSIL,
         STRONGHOLD,
         SWAMP_HUT,
+        END_CITY,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

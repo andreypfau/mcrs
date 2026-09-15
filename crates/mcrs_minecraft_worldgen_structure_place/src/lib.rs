@@ -7,6 +7,7 @@ pub mod portal;
 pub mod ocean_monument;
 pub mod mineshaft;
 pub mod nether_fossil;
+pub mod end_city;
 pub mod scattered;
 pub mod stronghold;
 pub mod template;

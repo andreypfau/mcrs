@@ -27,6 +27,7 @@ use mcrs_minecraft_worldgen_structure_place::scattered::{paint_desert_pyramid, p
 use mcrs_minecraft_worldgen_structure_place::stronghold::paint_stronghold;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{paint_igloo, paint_shipwreck};
+use mcrs_minecraft_worldgen_structure_place::end_city::place_end_city_piece;
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
 /// dimension floor to its ceiling.
@@ -366,6 +367,23 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                 };
                 paint_stronghold(blocks, piece.kind, piece.entry_door, &mut canvas, rng);
+            }
+            Piece::EndCity(piece) => {
+                let Some(CompiledStructure::EndCity(chains)) = program.structure(start.structure)
+                else {
+                    continue;
+                };
+                place_end_city_piece(
+                    chains,
+                    frozen,
+                    piece,
+                    reference,
+                    clip,
+                    region,
+                    rng,
+                    &mut run.entities,
+                    &mut run.spawns,
+                );
             }
         }
     }

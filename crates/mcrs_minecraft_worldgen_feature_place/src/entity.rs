@@ -84,6 +84,11 @@ pub enum GeneratedKind {
     ItemFrame {
         #[serde(rename = "Item")]
         item: ItemStack,
+        #[serde(
+            rename = "Facing",
+            serialize_with = "facing_id",
+            deserialize_with = "facing_from_id"
+        )]
         facing: Direction,
     },
     #[serde(rename = "minecraft:evoker")]
@@ -191,6 +196,21 @@ impl ItemStack {
 
 fn one() -> i32 {
     1
+}
+
+/// `Direction.LEGACY_ID_CODEC`: the face's 3D id as a byte.
+fn facing_id<S: serde::Serializer>(facing: &Direction, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_i8(facing.id() as i8)
+}
+
+fn facing_from_id<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Direction, D::Error> {
+    let id = i8::deserialize(deserializer)?;
+    Direction::all()
+        .into_iter()
+        .find(|direction| direction.id() == id as usize)
+        .ok_or_else(|| serde::de::Error::custom(format!("no direction has the id {id}")))
 }
 
 /// The slots a spawned mob can hold something in.
@@ -405,13 +425,15 @@ pub fn shulker(at: BlockPos, rng: &XoroshiroRandom) -> GeneratedEntity {
     }
 }
 
-/// `new ItemFrame(level, pos, facing)` holding an elytra.
+/// `new ItemFrame(level, pos, facing)` holding an elytra: the frame hangs at
+/// the block's centre pulled back to the wall behind it.
 pub fn elytra_frame(at: BlockPos, facing: Direction, rng: &XoroshiroRandom) -> GeneratedEntity {
+    const SHIFT_TO_BLOCK_WALL: f64 = 0.46875;
     let pos = DVec3::new(
         f64::from(at.x) + 0.5,
         f64::from(at.y) + 0.5,
         f64::from(at.z) + 0.5,
-    );
+    ) - facing.normal().as_dvec3() * SHIFT_TO_BLOCK_WALL;
     let (yaw, pitch) = match facing {
         Direction::Down => (0.0, 90.0),
         Direction::Up => (0.0, -90.0),
@@ -930,7 +952,7 @@ mod tests {
         );
 
         let frame = elytra_frame(AT, Direction::West, &before);
-        assert_eq!(frame.pos, [10.5, 64.5, -19.5]);
+        assert_eq!(frame.pos, [10.96875, 64.5, -19.5]);
         assert_eq!(frame.rotation, [90.0, 0.0]);
 
         let mut r = before.clone();

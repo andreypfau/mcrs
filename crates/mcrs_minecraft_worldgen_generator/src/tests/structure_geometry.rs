@@ -35,8 +35,7 @@ use mcrs_minecraft_worldgen_feature_place::terrain_skin::{RAIN_TEMPERATURE, temp
 const MAGIC: &[u8; 8] = b"MCSTRGE0";
 
 /// Every structure type the oracle places and this build cannot yet.
-const UNPORTED_GEOMETRY_TYPES: [&str; 2] = [
-    "minecraft:end_city",
+const UNPORTED_GEOMETRY_TYPES: [&str; 1] = [
     "minecraft:woodland_mansion",
 ];
 
@@ -127,6 +126,8 @@ fn read_dump() -> Dump {
                             .map(|_| {
                                 let type_id = dump_string(&mut r);
                                 let nbt = read_nbt(&mut r, &format!("{structure} {type_id}"));
+                                // The packed entity data is the pairing packet's payload,
+                                // which the server's tracker derives from components.
                                 let len = r.get_u32_le() as usize;
                                 r.advance(len);
                                 DumpEntity { type_id, nbt }
@@ -375,12 +376,14 @@ fn by_position(entities: &[GeneratedBlockEntity]) -> Vec<GeneratedBlockEntity> {
 }
 
 /// The oracle records each spawn as it reached `addFreshEntity`: a vehicle,
-/// then each of its passengers.
+/// then each of its passengers. The shulker's yaw is the one heading a mob
+/// keeps from its own random, so the oracle masks it and so does this.
 fn arrivals(entity: &GeneratedEntity, out: &mut Vec<NbtCompound>) {
     let mut compound = to_nbt_compound(entity).expect("an entity serialises");
-    compound
-        .child_tags
-        .retain(|(key, _)| !matches!(key.as_str(), "UUID" | "Passengers"));
+    let shulker = compound.get_string("id") == Some("minecraft:shulker");
+    compound.child_tags.retain(|(key, _)| {
+        !matches!(key.as_str(), "UUID" | "Passengers") && !(shulker && key == "Rotation")
+    });
     out.push(compound);
     for passenger in &entity.passengers {
         arrivals(passenger, out);
@@ -632,5 +635,5 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
         faults[..faults.len().min(20)].join("\n")
     );
     assert_eq!(unported, UNPORTED_GEOMETRY_TYPES.into_iter().collect());
-    assert_eq!((placed, chunks), (69, 1618));
+    assert_eq!((placed, chunks), (72, 1661));
 }

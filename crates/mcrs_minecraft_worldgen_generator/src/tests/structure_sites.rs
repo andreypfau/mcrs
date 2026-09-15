@@ -20,7 +20,7 @@ use crate::feature_program::Resolver;
 use crate::features::possible_biomes;
 use crate::heightmap::{HeightmapKinds, heightmap_predicates};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
-use crate::structures::index::{BiomeLookup, StructureIndex};
+use crate::structures::index::{BiomeLookup, EndBiomes, StructureIndex};
 use crate::structures::live_sets;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, StructureKind};
 use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
@@ -147,7 +147,7 @@ fn read_dump() -> Vec<DumpSeed> {
 
 pub(super) struct Dimension {
     pub(super) settings: &'static str,
-    pub(super) biome_preset: &'static str,
+    pub(super) source: BiomeSource,
     pub(super) accessor_min_y: i32,
     pub(super) accessor_height: i32,
 }
@@ -156,13 +156,19 @@ pub(super) fn dimension(id: &str) -> Dimension {
     match id {
         "minecraft:overworld" => Dimension {
             settings: "overworld",
-            biome_preset: "minecraft:overworld",
+            source: preset("minecraft:overworld"),
             accessor_min_y: -64,
             accessor_height: 384,
         },
         "minecraft:the_nether" => Dimension {
             settings: "nether",
-            biome_preset: "minecraft:nether",
+            source: preset("minecraft:nether"),
+            accessor_min_y: 0,
+            accessor_height: 256,
+        },
+        "minecraft:the_end" => Dimension {
+            settings: "end",
+            source: BiomeSource::TheEnd,
             accessor_min_y: 0,
             accessor_height: 256,
         },
@@ -172,26 +178,30 @@ pub(super) fn dimension(id: &str) -> Dimension {
 
 pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     let frozen = frozen_shared();
-    let source = preset(dimension.biome_preset);
+    let source = &dimension.source;
     let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
-    for id in possible_biomes(&source, |_| None) {
+    for id in possible_biomes(source, |_| None) {
         mask.insert(biome_index().get(id.as_str()).unwrap() as usize);
     }
     let tables = DimensionStructureTables {
         frozen: Arc::clone(frozen),
         live: live_sets(frozen, &mask),
     };
-    let BiomeSource::MultiNoise(multi) = source else {
-        unreachable!()
+    let biomes = match source {
+        BiomeSource::MultiNoise(multi) => BiomeLookup::MultiNoise(Arc::new(
+            MultiNoiseBiomeTable::resolve(multi, |name| biome_index().get(name).map(|id| id as u8))
+                .unwrap(),
+        )),
+        BiomeSource::TheEnd => {
+            BiomeLookup::TheEnd(EndBiomes::resolve(|id| biome_index().get(id)).unwrap())
+        }
+        _ => unreachable!(),
     };
-    let biomes =
-        MultiNoiseBiomeTable::resolve(&multi, |name| biome_index().get(name).map(|id| id as u8))
-            .unwrap();
     StructureIndex::new(
         Arc::new(tables),
         seed,
         Arc::new(build_settings_router(dimension.settings, seed as u64)),
-        BiomeLookup::MultiNoise(Arc::new(biomes)),
+        biomes,
         Some(heightmap_predicates(blocks(), block_tags())),
         Arc::clone(world_states()),
         Arc::clone(corpus_climate()),
