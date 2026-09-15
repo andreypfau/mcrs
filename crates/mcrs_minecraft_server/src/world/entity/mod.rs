@@ -32,8 +32,8 @@ pub struct MinecraftEntityPlugin;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MinecraftEntityType {
-    PrimedTnt = 132,
-    Player = 155,
+    PrimedTnt = 136,
+    Player = 159,
 }
 
 impl Plugin for MinecraftEntityPlugin {
