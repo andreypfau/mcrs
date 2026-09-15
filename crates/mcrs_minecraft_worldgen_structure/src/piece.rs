@@ -1,7 +1,7 @@
 use std::fmt;
 
 use bevy_math::IVec3;
-use mcrs_minecraft_core::{BoundingBox, ResourceLocation, Rotation};
+use mcrs_minecraft_core::{BoundingBox, ResourceLocation, Rotation, rotation};
 use mcrs_minecraft_nbt::nbt_int_array;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use serde::de::{DeserializeSeed, Error as _};
@@ -209,41 +209,6 @@ impl PieceContext<'_> {
     }
 }
 
-/// The reference's `Rotation.LEGACY_CODEC`: the Java enum names.
-#[derive(Clone, Copy, Serialize, Deserialize)]
-enum LegacyRotation {
-    #[serde(rename = "NONE")]
-    None,
-    #[serde(rename = "CLOCKWISE_90")]
-    Clockwise90,
-    #[serde(rename = "CLOCKWISE_180")]
-    Clockwise180,
-    #[serde(rename = "COUNTERCLOCKWISE_90")]
-    Counterclockwise90,
-}
-
-impl From<Rotation> for LegacyRotation {
-    fn from(rotation: Rotation) -> Self {
-        match rotation {
-            Rotation::None => LegacyRotation::None,
-            Rotation::Clockwise90 => LegacyRotation::Clockwise90,
-            Rotation::Clockwise180 => LegacyRotation::Clockwise180,
-            Rotation::Counterclockwise90 => LegacyRotation::Counterclockwise90,
-        }
-    }
-}
-
-impl From<LegacyRotation> for Rotation {
-    fn from(rotation: LegacyRotation) -> Self {
-        match rotation {
-            LegacyRotation::None => Rotation::None,
-            LegacyRotation::Clockwise90 => Rotation::Clockwise90,
-            LegacyRotation::Clockwise180 => Rotation::Clockwise180,
-            LegacyRotation::Counterclockwise90 => Rotation::Counterclockwise90,
-        }
-    }
-}
-
 /// `StructurePiece.createTag` plus each type's `addAdditionalSaveData`; `id`
 /// picks the type, so the save reads back whatever order its keys came in.
 #[derive(Serialize, Deserialize)]
@@ -265,7 +230,8 @@ enum PieceTag {
         pos_z: i32,
         ground_level_delta: i32,
         pool_element: PoolElement,
-        rotation: LegacyRotation,
+        #[serde(with = "rotation::legacy")]
+        rotation: Rotation,
         junctions: Vec<Junction>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         liquid_settings: Option<LiquidSettings>,
@@ -300,7 +266,7 @@ impl Serialize for PieceNbt<'_> {
                     pos_z: piece.position.z,
                     ground_level_delta: piece.ground_level_delta,
                     pool_element: self.context.pool_element(piece.element),
-                    rotation: piece.rotation.into(),
+                    rotation: piece.rotation,
                     junctions: piece.junctions.clone(),
                     liquid_settings: (liquid != LiquidSettings::default()).then_some(liquid),
                 }
@@ -344,7 +310,7 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 Ok(Piece::Jigsaw(JigsawPiece {
                     element,
                     position: IVec3::new(pos_x, pos_y, pos_z),
-                    rotation: rotation.into(),
+                    rotation,
                     bounds: BoundingBox {
                         min: IVec3::new(bounds[0], bounds[1], bounds[2]).into(),
                         max: IVec3::new(bounds[3], bounds[4], bounds[5]).into(),
