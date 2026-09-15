@@ -291,6 +291,7 @@ pub fn spawn_dim_subapp(
             mcrs_minecraft_level::world::storage::block_entity::reconcile_block_entities,
             crate::world::heightmap::prime_column_heightmaps,
             crate::world::entity::player::column_view::request_columns,
+            mcrs_minecraft_level::world::lifecycle::ticket::propagate_section_levels,
             mcrs_minecraft_level::world::lifecycle::ticket::spawn_chunks,
             crate::world::chunk::enqueue_pending_columns,
             crate::world::chunk::dispatch_column_generation

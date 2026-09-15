@@ -13,9 +13,11 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::lifecycle::level::FULL_LEVEL;
 use mcrs_minecraft_level::world::lifecycle::stage::{
     SectionStage, SectionStageChanged, SectionStages,
 };
+use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
 use mcrs_minecraft_protocol::ColumnPos;
@@ -552,6 +554,9 @@ fn cancel_stale_columns(
     // the 3×3 of `U`, which needs the one below it merged over the 5×5, and so
     // on down to the fill.
     let halo = 2 * ctx.map_or(1, |ctx| ctx.rungs()) as i32;
+    // A view's loading tickets load as many rings past it as their level takes to fall to
+    // full, and a column that far out is loaded like any other.
+    let rings = (FULL_LEVEL - Ticket::PLAYER_LOADING.level) as i32;
 
     let player_views: Vec<_> = players
         .iter()
@@ -574,7 +579,7 @@ fn cancel_stale_columns(
         .priority_index
         .iter()
         .filter_map(|(col, key)| {
-            if wanted(*col, 0) {
+            if wanted(*col, rings) {
                 return None;
             }
             let pending = scheduler.pending.get(key)?;
@@ -595,7 +600,7 @@ fn cancel_stale_columns(
     }
 
     for stage in &scheduler.in_flight {
-        if !wanted(stage.col, halo) {
+        if !wanted(stage.col, rings + halo) {
             stage.cancel.cancel();
         }
     }
@@ -604,7 +609,7 @@ fn cancel_stale_columns(
     // column must survive the eviction that runs beside its cancellation.
     scheduler
         .store
-        .retain(|col, stage| stage.in_flight() || wanted(col, halo));
+        .retain(|col, stage| stage.in_flight() || wanted(col, rings + halo));
 }
 
 /// Update column priorities when players move.

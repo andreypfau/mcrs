@@ -1,6 +1,7 @@
 use crate::entity::Despawned;
 use crate::entity::player::Player;
-use crate::world::lifecycle::ticket::ChunkTicketsCommands;
+use crate::world::lifecycle::level::SectionLevels;
+use crate::world::lifecycle::ticket::SectionTickets;
 use crate::world::storage::column::ColumnIndex;
 use crate::world::storage::section::SectionIndex;
 use crate::world::storage::section::SectionPlugin;
@@ -36,7 +37,8 @@ pub struct DimensionBundle {
     pub dimension_id: DimensionId,
     pub type_config: DimensionTypeConfig,
     pub chunk_index: SectionIndex,
-    pub chunk_tickets: ChunkTicketsCommands,
+    pub tickets: SectionTickets,
+    pub levels: SectionLevels,
     pub players: DimensionPlayers,
     pub column_index: ColumnIndex,
 }
@@ -48,7 +50,8 @@ impl DimensionBundle {
             dimension_id,
             type_config,
             chunk_index: SectionIndex::default(),
-            chunk_tickets: ChunkTicketsCommands::default(),
+            tickets: SectionTickets::default(),
+            levels: SectionLevels::default(),
             players: DimensionPlayers::default(),
             column_index: ColumnIndex::default(),
         }

@@ -21,7 +21,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Commands, Query, ResMut, With};
+use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -30,6 +30,7 @@ use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionId, InDimension};
+use mcrs_minecraft_level::world::lifecycle::ticket::SimulationDistance;
 use mcrs_minecraft_protocol::GameMode;
 use movement::TeleportState;
 use tracing::{debug, info};
@@ -129,6 +130,7 @@ fn consume_inbound_player_spawn(
     dims: Query<(Entity, &DimensionId, &DimTypeIndex), With<Dimension>>,
     mut commands: Commands,
     mut dim_index: ResMut<DimPlayerIndex>,
+    simulation_distance: Res<SimulationDistance>,
 ) {
     use std::sync::atomic::Ordering;
     for spawn in reader.read() {
@@ -191,7 +193,7 @@ fn consume_inbound_player_spawn(
                 dimensions,
                 max_players: 100,
                 chunk_radius: view_distance.distance as i32,
-                simulation_distance: view_distance.distance as i32,
+                simulation_distance: simulation_distance.0 as i32,
                 reduced_debug_info: false,
                 show_death_screen: false,
                 do_limited_crafting: false,

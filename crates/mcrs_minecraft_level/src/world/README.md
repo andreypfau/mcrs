@@ -24,8 +24,9 @@ world/
 ├── in_flight.rs      moves between dimensions awaiting their destination's acknowledgement
 ├── sub_app.rs        per-dimension sub-app labels and spawn/despawn queues
 ├── lifecycle/
+│   ├── level.rs      FullStatus, the incremental 3D level field, SectionLevels
 │   ├── stage.rs      SectionStage, the SectionStageChanged message every transition writes, SectionStages
-│   ├── ticket.rs     section tickets, SectionTicketHolder, spawn and despawn of section entities
+│   ├── ticket.rs     SectionTickets, simulation tickets, level propagation, spawn and despawn of section entities
 │   └── trace.rs      per-column stage trace for diagnostics
 └── storage/
     ├── block_entity.rs  InSection, SectionBlockEntities, BlockEntityPos

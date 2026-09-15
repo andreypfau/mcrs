@@ -10,6 +10,7 @@ use bevy_ecs::prelude::{Commands, MessageWriter, On, Query};
 use bevy_ecs::query::QueryData;
 use bevy_ecs::query::{With, Without};
 use derive_more::{Deref, DerefMut};
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::EntityNetworkAddEvent;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -17,6 +18,7 @@ use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::explosion::{Explosion, ExplosionRadius};
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 pub struct PrimedTntPlugin;
@@ -86,10 +88,20 @@ struct PrimedTntQuery {
 }
 
 fn update_fuse_durations(
-    mut query: Query<(Entity, &mut Fuse), (With<PrimedTnt>, Without<Explosion>)>,
+    mut query: Query<
+        (Entity, &mut Fuse, &Transform, &InDimension),
+        (With<PrimedTnt>, Without<Explosion>),
+    >,
+    levels: Query<&SectionLevels>,
     mut commands: Commands,
 ) {
-    query.iter_mut().for_each(|(e, mut fuse)| {
+    query.iter_mut().for_each(|(e, mut fuse, transform, dim)| {
+        if !levels
+            .get(dim.0)
+            .is_ok_and(|levels| levels.is_entity_ticking(SectionPos::from(transform.translation)))
+        {
+            return;
+        }
         let f = **fuse;
         if f > 0 {
             **fuse -= 1;
@@ -128,4 +140,44 @@ fn network_add(
         session: PlayerSession(0),
         epoch: 0,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_app::App;
+    use bevy_ecs::schedule::IntoScheduleConfigs;
+    use mcrs_minecraft_level::world::lifecycle::ticket::{
+        SectionTickets, Ticket, propagate_section_levels,
+    };
+
+    #[test]
+    fn a_fuse_burns_only_where_entities_tick() {
+        let mut app = App::new();
+        app.add_systems(
+            FixedUpdate,
+            (propagate_section_levels, update_fuse_durations).chain(),
+        );
+        let mut tickets = SectionTickets::default();
+        tickets.add(SectionPos::new(0, 0, 0), Ticket::player_simulation(1));
+        let dim = app
+            .world_mut()
+            .spawn((tickets, SectionLevels::default()))
+            .id();
+        let near = app
+            .world_mut()
+            .spawn(PrimedTntBundle::new(InDimension(dim), Transform::default()).with_fuse(5))
+            .id();
+        let mut far_away = Transform::default();
+        far_away.translation.x = 16.0 * 5.0;
+        let far = app
+            .world_mut()
+            .spawn(PrimedTntBundle::new(InDimension(dim), far_away).with_fuse(5))
+            .id();
+
+        app.world_mut().run_schedule(FixedUpdate);
+
+        assert_eq!(**app.world().get::<Fuse>(near).expect("fuse"), 4);
+        assert_eq!(**app.world().get::<Fuse>(far).expect("fuse"), 5);
+    }
 }

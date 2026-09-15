@@ -1,6 +1,7 @@
 use crate::entity::physics::Transform;
 use crate::palette::ChunkBlocks;
 use crate::world::dimension::InDimension;
+use crate::world::lifecycle::level::SectionLevels;
 use crate::world::storage::section::SectionIndex;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
@@ -161,6 +162,7 @@ fn tick_explode(
         ),
         With<Explosion>,
     >,
+    levels: Query<&SectionLevels>,
     dim_chunks: Query<&SectionIndex>,
     chunks: Query<(ChunkEntity, &ChunkBlocks)>,
     mut queue: Local<Parallel<Vec<(ExplosionEntity, Vec<BlockExplodedEvent>)>>>,
@@ -173,6 +175,12 @@ fn tick_explode(
         |q, (e, transform, dim, radius, detonator)| {
             let center = transform.translation;
             let dim = dim.entity();
+            if !levels
+                .get(dim)
+                .is_ok_and(|levels| levels.is_entity_ticking(SectionPos::from(center)))
+            {
+                return;
+            }
             let Some(dim_chunks) = dim_chunks.get(dim).ok() else {
                 return;
             };

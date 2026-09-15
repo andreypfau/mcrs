@@ -3,12 +3,13 @@ use crate::world::light_codec::{
 };
 use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::lifecycle::Remove;
+use bevy_ecs::lifecycle::{Add, Remove};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Added, Component, ContainsEntity, MessageReader, On, Query};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::player::chunk_view::{
     ChunkTrackingViewUpdateEvent, ChunkViewPlugin, ChunkViewSet, PlayerChunkLoadRequest,
     PlayerChunkObserver, PlayerChunkUnloadRequest,
@@ -19,7 +20,7 @@ use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_level::world::lifecycle::ticket::ChunkSpawnSet;
-use mcrs_minecraft_level::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
+use mcrs_minecraft_level::world::lifecycle::ticket::{SectionTickets, Ticket};
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
 use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
@@ -37,7 +38,7 @@ use crate::world::heightmap::client_heightmaps;
 use mcrs_minecraft_worldgen_generator::heightmap::{
     MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 use tracing::{trace, warn};
 
 pub struct ColumnViewPlugin;
@@ -73,7 +74,8 @@ impl Plugin for ColumnViewPlugin {
         // React to ChunkTrackingView changes (xz-distance changes, movement).
         app.add_observer(on_view_update);
         app.add_observer(handle_batch_acknowledgement);
-        app.add_observer(release_forced_tickets);
+        app.add_observer(release_loading_tickets);
+        app.add_observer(drop_view_of_departed_player);
 
         // Progressively ticket columns closest to the player, then send loaded ones.
         // app.add_systems(
@@ -96,11 +98,8 @@ pub struct ColumnView {
     awaiting_columns: FxHashSet<ColumnPos>,
     /// Ready to go out on the wire, not yet sent.
     pending_send: FxHashSet<ColumnPos>,
-    /// Columns this view has asked for and holds a margin around.
+    /// Columns this view has asked for and holds a loading ticket on.
     loaded_columns: FxHashSet<ColumnPos>,
-    /// Forced tickets, counted: the margins of adjacent columns overlap, so a
-    /// column leaving the view may not release a ticket another still needs.
-    forced_columns: FxHashMap<ColumnPos, u32>,
     pub sent_columns: FxHashSet<ColumnPos>,
     batch_quota: f32,
     desired_columns_per_tick: f32,
@@ -114,7 +113,6 @@ impl Default for ColumnView {
             awaiting_columns: FxHashSet::default(),
             pending_send: FxHashSet::default(),
             loaded_columns: FxHashSet::default(),
-            forced_columns: FxHashMap::default(),
             sent_columns: FxHashSet::default(),
             batch_quota: 0.0,
             desired_columns_per_tick: START_COLUMNS_PER_TICK,
@@ -130,29 +128,6 @@ impl ColumnView {
         self.awaiting_columns.contains(&col)
             || self.pending_send.contains(&col)
             || self.sent_columns.contains(&col)
-    }
-
-    /// Takes a reference on `col`'s forced ticket, reporting whether this is
-    /// the first and the ticket has to be added.
-    fn hold_forced(&mut self, col: ColumnPos) -> bool {
-        let holders = self.forced_columns.entry(col).or_default();
-        *holders += 1;
-        *holders == 1
-    }
-
-    /// Drops a reference, reporting whether it was the last and the ticket has
-    /// to go.
-    fn release_forced(&mut self, col: ColumnPos) -> bool {
-        let std::collections::hash_map::Entry::Occupied(mut slot) = self.forced_columns.entry(col)
-        else {
-            return false;
-        };
-        *slot.get_mut() -= 1;
-        if *slot.get() == 0 {
-            slot.remove();
-            return true;
-        }
-        false
     }
 
     fn forget(&mut self, col: ColumnPos) {
@@ -185,12 +160,12 @@ fn handle_batch_acknowledgement(on: On<ReceivedPacketEvent>, mut players: Query<
     chunk_view.acknowledge_batch(ack.desired_chunks_per_tick);
 }
 
-/// Takes a column into the view's want list and forces its sections to stay loaded while it is
-/// there. The only writer that puts a column into `awaiting_columns`.
+/// Takes a column into the view's want list and holds a loading ticket on its sections while it
+/// is there. The only writer that puts a column into `awaiting_columns`.
 pub(crate) fn request_columns(
     mut message: MessageReader<PlayerChunkLoadRequest>,
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
-    mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
+    mut dims: Query<(&mut SectionTickets, &DimensionTypeConfig)>,
 ) {
     message.read().for_each(|req| {
         let Ok((mut chunk_view, dim, rep)) = players.get_mut(req.player) else {
@@ -200,20 +175,19 @@ pub(crate) fn request_columns(
         if chunk_view.wants(column_pos) {
             return;
         }
-        let Ok((mut cmds, type_config)) = dims.get_mut(dim.entity()) else {
+        let Ok((mut tickets, type_config)) = dims.get_mut(dim.entity()) else {
             return;
         };
         chunk_view.awaiting_columns.insert(column_pos);
-        // The margin, not just the column: a column's own light is only final
-        // once the eight around it hold blocks, so the ring past the view has to
-        // be loaded even though it is never sent.
         if chunk_view.loaded_columns.insert(column_pos) {
             let off = offset_sections(rep, type_config.min_y);
-            for col in margin_of(column_pos) {
-                if chunk_view.hold_forced(col) {
-                    apply_forced_tickets(&mut cmds, col, off, type_config.section_count, true);
-                }
-            }
+            apply_loading_tickets(
+                &mut tickets,
+                column_pos,
+                off,
+                type_config.section_count,
+                true,
+            );
         }
         trace!(
             "Player {:?} requested load of chunk column {:?}",
@@ -228,7 +202,7 @@ pub(crate) fn request_columns(
 fn unload_chunk_request(
     mut message: MessageReader<PlayerChunkUnloadRequest>,
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition, &HostAnchor)>,
-    mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
+    mut dims: Query<(&mut SectionTickets, &DimensionTypeConfig)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     message.read().for_each(|req| {
@@ -253,34 +227,44 @@ fn unload_chunk_request(
             });
         }
         if chunk_view.loaded_columns.remove(&column_pos)
-            && let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity())
+            && let Ok((mut tickets, type_config)) = dims.get_mut(in_dim.entity())
         {
             let off = offset_sections(rep, type_config.min_y);
-            for col in margin_of(column_pos) {
-                if chunk_view.release_forced(col) {
-                    apply_forced_tickets(&mut cmds, col, off, type_config.section_count, false);
-                }
-            }
+            apply_loading_tickets(
+                &mut tickets,
+                column_pos,
+                off,
+                type_config.section_count,
+                false,
+            );
         }
     });
 }
 
-/// Only the view knows which sections it forced, so a player leaving the
+/// Only the view knows which sections it ticketed, so a player leaving the
 /// dimension that does not hand them back here pins them loaded for good.
-fn release_forced_tickets(
+fn release_loading_tickets(
     remove: On<Remove, ColumnView>,
     players: Query<(&ColumnView, &InDimension, &Reposition)>,
-    mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
+    mut dims: Query<(&mut SectionTickets, &DimensionTypeConfig)>,
 ) {
     let Ok((view, in_dim, rep)) = players.get(remove.event().entity) else {
         return;
     };
-    let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity()) else {
+    let Ok((mut tickets, type_config)) = dims.get_mut(in_dim.entity()) else {
         return;
     };
     let off = offset_sections(rep, type_config.min_y);
-    for &col in view.forced_columns.keys() {
-        apply_forced_tickets(&mut cmds, col, off, type_config.section_count, false);
+    for &col in &view.loaded_columns {
+        apply_loading_tickets(&mut tickets, col, off, type_config.section_count, false);
+    }
+}
+
+/// A player whose move to another dimension was confirmed stays behind as a `Despawned`
+/// entity, so its view goes here or it keeps its tickets for as long as the dimension runs.
+fn drop_view_of_departed_player(add: On<Add, Despawned>, mut commands: Commands) {
+    if let Ok(mut player) = commands.get_entity(add.event().entity) {
+        player.try_remove::<ColumnView>();
     }
 }
 
@@ -473,7 +457,7 @@ pub(crate) fn send_column_queue(
                     break;
                 }
 
-                // The forced tickets this view holds keep every section of a pending column
+                // The loading tickets this view holds keep every section of a pending column
                 // loaded, so losing one here means the ticket and the send disagree about
                 // what the view owns. Send nothing rather than a column the client can never
                 // be sent again to fix.
@@ -615,24 +599,14 @@ fn offset_sections(rep: &Reposition, min_y: i32) -> i32 {
     (rep.offset_y_blocks() >> bits) - (min_y >> bits)
 }
 
-/// A column and the eight around it, or the column alone while the margin is
-/// off.
+/// A column and the eight around it. A column's own light is only final once the eight around
+/// it hold blocks, and the level of a view's loading tickets keeps that ring loaded.
 fn margin_of(col: ColumnPos) -> impl Iterator<Item = ColumnPos> {
-    let width = if margin_enabled() { 1 } else { 0 };
-    (-width..=width)
-        .flat_map(move |dz| (-width..=width).map(move |dx| ColumnPos::new(col.x + dx, col.z + dz)))
+    (-1..=1).flat_map(move |dz| (-1..=1).map(move |dx| ColumnPos::new(col.x + dx, col.z + dz)))
 }
 
-/// Holding the ring past the view stalls the loader as it stands, so it is off
-/// until that is understood: `MCRS_MARGIN=1` turns it on.
-fn margin_enabled() -> bool {
-    static ON: std::sync::LazyLock<bool> =
-        std::sync::LazyLock::new(|| std::env::var("MCRS_MARGIN").as_deref() == Ok("1"));
-    *ON
-}
-
-fn apply_forced_tickets(
-    tickets: &mut ChunkTicketsCommands,
+fn apply_loading_tickets(
+    tickets: &mut SectionTickets,
     col: ColumnPos,
     off_sections: i32,
     section_count: u32,
@@ -642,9 +616,9 @@ fn apply_forced_tickets(
         let server_y = client_y - off_sections;
         let chunk_pos = SectionPos::new(col.x, server_y, col.z);
         if add {
-            tickets.add_ticket(chunk_pos, Ticket::new(TicketKind::Forced));
+            tickets.add(chunk_pos, Ticket::PLAYER_LOADING);
         } else {
-            tickets.remove_ticket(chunk_pos, TicketKind::Forced);
+            tickets.remove(chunk_pos, Ticket::PLAYER_LOADING);
         }
     }
 }
@@ -652,7 +626,6 @@ fn apply_forced_tickets(
 /// Handles view updates:
 /// - sends cache center / radius via the `OutboundPlayerPacket` bus
 /// - diffs column set (xz only)
-/// - adds/removes Forced tickets for the whole client column window (16 sections, mapped by Reposition)
 /// - enqueues load/unload
 fn on_view_update(
     event: On<ChunkTrackingViewUpdateEvent>,
@@ -771,7 +744,7 @@ mod tests {
         world.entity_mut(dim).insert((
             DimensionTypeConfig::new(0, SECTIONS << 4),
             HasSkyLight,
-            ChunkTicketsCommands::default(),
+            SectionTickets::default(),
             chunk_index,
             column_index,
         ));
@@ -907,41 +880,60 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_despawned_view_hands_back_its_forced_tickets() {
-        let mut world = World::new();
-        let col = ColumnPos::new(0, 0);
-        let fx = fixture(&mut world, &[col]);
-        world.add_observer(release_forced_tickets);
+    fn request(world: &mut World, player: Entity, col: ColumnPos) {
         world.init_resource::<Messages<PlayerChunkLoadRequest>>();
         world
             .resource_mut::<Messages<PlayerChunkLoadRequest>>()
             .write(PlayerChunkLoadRequest {
-                player: fx.player,
+                player,
                 column_pos: col,
             });
         world
             .run_system_once(request_columns)
             .expect("the request runs");
+    }
 
-        let queued = |world: &World| -> usize {
-            let tickets = world.get::<ChunkTicketsCommands>(fx.dim).unwrap();
-            (0..SECTIONS as i32)
-                .map(|y| {
-                    tickets
-                        .queued_tickets(SectionPos::new(col.x, y, col.z))
-                        .len()
-                })
-                .sum()
-        };
-        assert_eq!(queued(&world), SECTIONS as usize);
+    fn ticketed_sections(world: &World, dim: Entity, col: ColumnPos) -> usize {
+        let tickets = world.get::<SectionTickets>(dim).unwrap();
+        (0..SECTIONS as i32)
+            .filter(|&y| {
+                tickets
+                    .loading_level(SectionPos::new(col.x, y, col.z))
+                    .is_some()
+            })
+            .count()
+    }
+
+    #[test]
+    fn a_despawned_view_hands_back_its_loading_tickets() {
+        let mut world = World::new();
+        let col = ColumnPos::new(0, 0);
+        let fx = fixture(&mut world, &[col]);
+        world.add_observer(release_loading_tickets);
+        request(&mut world, fx.player, col);
+        assert_eq!(ticketed_sections(&world, fx.dim, col), SECTIONS as usize);
 
         world.despawn(fx.player);
 
-        assert_eq!(queued(&world), 0);
+        assert_eq!(ticketed_sections(&world, fx.dim, col), 0);
     }
 
-    /// The forced tickets make this unreachable, so the guard is what stops a broken
+    #[test]
+    fn a_player_that_left_for_another_dimension_hands_back_its_loading_tickets() {
+        let mut world = World::new();
+        let col = ColumnPos::new(0, 0);
+        let fx = fixture(&mut world, &[col]);
+        world.add_observer(release_loading_tickets);
+        world.add_observer(drop_view_of_departed_player);
+        request(&mut world, fx.player, col);
+
+        world.entity_mut(fx.player).insert(Despawned);
+        world.flush();
+
+        assert_eq!(ticketed_sections(&world, fx.dim, col), 0);
+    }
+
+    /// The loading tickets make this unreachable, so the guard is what stops a broken
     /// invariant from putting half a column on the wire.
     #[test]
     fn a_column_missing_a_section_goes_back_to_waiting_instead_of_out() {

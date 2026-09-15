@@ -9,8 +9,9 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_anvil::{DATA_VERSION, PaletteLookup, Properties, parse_chunk};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
 use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
-use mcrs_minecraft_level::world::lifecycle::ticket::{ChunkTicketsCommands, TicketPlugin};
+use mcrs_minecraft_level::world::lifecycle::ticket::{SectionTickets, TicketPlugin};
 use mcrs_minecraft_level::world::storage::block_entity::{
     InSection, SectionBlockEntities, reconcile_block_entities,
 };
@@ -150,7 +151,11 @@ fn app_with_section(section_pos: SectionPos) -> (App, Entity, Entity) {
     app.add_systems(FixedUpdate, reconcile_block_entities);
     let dim = app
         .world_mut()
-        .spawn((SectionIndex::default(), ChunkTicketsCommands::default()))
+        .spawn((
+            SectionIndex::default(),
+            SectionTickets::default(),
+            SectionLevels::default(),
+        ))
         .id();
     let section = app
         .world_mut()
