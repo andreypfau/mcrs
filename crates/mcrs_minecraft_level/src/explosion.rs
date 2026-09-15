@@ -1,7 +1,7 @@
 use crate::entity::physics::Transform;
 use crate::palette::ChunkBlocks;
 use crate::world::dimension::InDimension;
-use crate::world::storage::chunk::ChunkIndex;
+use crate::world::storage::section::SectionIndex;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
@@ -95,7 +95,7 @@ struct BlockCacheItem {
 
 struct BlockCache<'a, 'b> {
     map: &'a mut FxHashMap<BlockPos, BlockCacheItem>,
-    chunk_index: &'a ChunkIndex,
+    chunk_index: &'a SectionIndex,
     chunks: &'a Query<'a, 'a, (Entity, &'b ChunkBlocks)>,
     blocks: &'a BlockDefinitions,
 }
@@ -161,7 +161,7 @@ fn tick_explode(
         ),
         With<Explosion>,
     >,
-    dim_chunks: Query<&ChunkIndex>,
+    dim_chunks: Query<&SectionIndex>,
     chunks: Query<(ChunkEntity, &ChunkBlocks)>,
     mut queue: Local<Parallel<Vec<(ExplosionEntity, Vec<BlockExplodedEvent>)>>>,
     blocks: Res<Blocks>,

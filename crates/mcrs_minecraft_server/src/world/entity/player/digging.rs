@@ -24,7 +24,7 @@ use mcrs_minecraft_level::experience::BlockDestroyed;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{DimensionPlayers, InDimension};
-use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
+use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_registry::BlockStateId;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
@@ -118,7 +118,7 @@ fn tick_digging(
 
 fn player_start_destroy_block(
     mut reader: MessageReader<PlayerAction>,
-    dimensions: Query<&ChunkIndex>,
+    dimensions: Query<&SectionIndex>,
     chunks: Query<&ChunkBlocks>,
     mut players: Query<(
         &InDimension,

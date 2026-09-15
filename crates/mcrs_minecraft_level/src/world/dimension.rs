@@ -1,9 +1,9 @@
 use crate::entity::Despawned;
 use crate::entity::player::Player;
 use crate::world::lifecycle::ticket::ChunkTicketsCommands;
-use crate::world::storage::chunk::ChunkIndex;
-use crate::world::storage::chunk::ChunkPlugin;
 use crate::world::storage::column::ColumnIndex;
+use crate::world::storage::section::SectionIndex;
+use crate::world::storage::section::SectionPlugin;
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::change_detection::DetectChanges;
@@ -18,7 +18,7 @@ pub struct DimensionPlugin;
 
 impl Plugin for DimensionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(ChunkPlugin);
+        app.add_plugins(SectionPlugin);
         app.add_plugins(crate::world::storage::column::ColumnPlugin);
         // Dimension entities are spawned by the game layer; this plugin only
         // maintains them once they exist.
@@ -35,7 +35,7 @@ pub struct DimensionBundle {
     pub dimension: Dimension,
     pub dimension_id: DimensionId,
     pub type_config: DimensionTypeConfig,
-    pub chunk_index: ChunkIndex,
+    pub chunk_index: SectionIndex,
     pub chunk_tickets: ChunkTicketsCommands,
     pub players: DimensionPlayers,
     pub column_index: ColumnIndex,
@@ -47,7 +47,7 @@ impl DimensionBundle {
             dimension: Dimension,
             dimension_id,
             type_config,
-            chunk_index: ChunkIndex::default(),
+            chunk_index: SectionIndex::default(),
             chunk_tickets: ChunkTicketsCommands::default(),
             players: DimensionPlayers::default(),
             column_index: ColumnIndex::default(),

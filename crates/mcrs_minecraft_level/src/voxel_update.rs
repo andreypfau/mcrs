@@ -1,4 +1,4 @@
-use crate::world::storage::chunk::ChunkIndex;
+use crate::world::storage::section::SectionIndex;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter, Messages};
@@ -77,23 +77,25 @@ pub struct VoxelSetRequest<F: VoxelUpdateFlags> {
 }
 
 #[derive(Default, Component)]
-pub struct ChunkVoxelChanges {
+pub struct SectionVoxelChanges {
     pub changes: FxHashSet<BlockPos>,
 }
 
 fn add_changes_set(
-    query: Query<Entity, (With<ChunkVoxels>, Without<ChunkVoxelChanges>)>,
+    query: Query<Entity, (With<ChunkVoxels>, Without<SectionVoxelChanges>)>,
     mut commands: Commands,
 ) {
     for entity in query.iter() {
-        commands.entity(entity).insert(ChunkVoxelChanges::default());
+        commands
+            .entity(entity)
+            .insert(SectionVoxelChanges::default());
     }
 }
 
 pub fn apply_voxel_set_requests<F: VoxelUpdateFlags>(
     mut reader: MessageReader<VoxelSetRequest<F>>,
-    dimensions: Query<&ChunkIndex>,
-    mut chunks: Query<(Entity, &mut ChunkVoxels, &mut ChunkVoxelChanges)>,
+    dimensions: Query<&SectionIndex>,
+    mut chunks: Query<(Entity, &mut ChunkVoxels, &mut SectionVoxelChanges)>,
     mut writer: MessageWriter<VoxelPlaced<F>>,
 ) {
     reader.read().for_each(|request| {
@@ -123,7 +125,7 @@ pub fn apply_voxel_set_requests<F: VoxelUpdateFlags>(
                 target: "voxel_update",
                 ?chunk_pos,
                 pos = ?request.pos,
-                "apply_voxel_set_requests: chunk not present in ChunkIndex; dropping",
+                "apply_voxel_set_requests: chunk not present in SectionIndex; dropping",
             );
             return;
         };

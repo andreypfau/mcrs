@@ -331,7 +331,7 @@ fn spawn_column(
     let first = *y_sections.first().unwrap();
     let height = ((*y_sections.last().unwrap() - first + 1) * 16) as u32;
     let min_y = first * 16;
-    let mut chunks = ColumnChunks::new(first, y_sections.len());
+    let mut chunks = ColumnSections::new(first, y_sections.len());
     for (&section_y, &entity) in y_sections.iter().zip(&section_entities) {
         chunks.set_loaded(section_y, entity);
     }

@@ -14,7 +14,7 @@ use mcrs_minecraft_level::world::lifecycle::ticket::{ChunkTicketsCommands, Ticke
 use mcrs_minecraft_level::world::storage::block_entity::{
     InSection, SectionBlockEntities, reconcile_block_entities,
 };
-use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
+use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -150,7 +150,7 @@ fn app_with_section(section_pos: SectionPos) -> (App, Entity, Entity) {
     app.add_systems(FixedUpdate, reconcile_block_entities);
     let dim = app
         .world_mut()
-        .spawn((ChunkIndex::default(), ChunkTicketsCommands::default()))
+        .spawn((SectionIndex::default(), ChunkTicketsCommands::default()))
         .id();
     let section = app
         .world_mut()
@@ -161,7 +161,7 @@ fn app_with_section(section_pos: SectionPos) -> (App, Entity, Entity) {
         ))
         .id();
     app.world_mut()
-        .get_mut::<ChunkIndex>(dim)
+        .get_mut::<SectionIndex>(dim)
         .unwrap()
         .insert(section_pos, section);
     (app, dim, section)

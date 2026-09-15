@@ -24,7 +24,7 @@ use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_chunk::SectionNibbles as LightNibbles;
 use mcrs_minecraft_level::world::dimension::{HasSkyLight, InDimension};
-use mcrs_minecraft_level::world::storage::column::{ChunkLookup, ColumnChunks};
+use mcrs_minecraft_level::world::storage::column::{ColumnSections, SectionLookup};
 use mcrs_minecraft_light::block::Layer;
 use mcrs_minecraft_light::storage::LightStorage;
 use mcrs_minecraft_light::{BlockLight, SkyLight};
@@ -43,10 +43,10 @@ pub enum WireRow {
 }
 
 /// The padded row sequence for a column, in wire order.
-pub fn wire_rows(chunks: &ColumnChunks) -> impl Iterator<Item = WireRow> + '_ {
+pub fn wire_rows(chunks: &ColumnSections) -> impl Iterator<Item = WireRow> + '_ {
     std::iter::once(WireRow::BottomPadding)
         .chain(chunks.iter().map(|lookup| match lookup {
-            ChunkLookup::Loaded(e) => WireRow::Loaded(e),
+            SectionLookup::Loaded(e) => WireRow::Loaded(e),
             _ => WireRow::Unloaded,
         }))
         .chain(std::iter::once(WireRow::TopPadding))
@@ -131,7 +131,7 @@ fn set_bit(mask: &mut Vec<u64>, bit_idx: usize) {
 
 #[derive(SystemParam)]
 pub struct LightCodecParams<'w, 's> {
-    pub chunk_indexes: Query<'w, 's, &'static ColumnChunks>,
+    pub chunk_indexes: Query<'w, 's, &'static ColumnSections>,
     pub block_lights: Query<'w, 's, &'static BlockLight>,
     pub sky_lights: Query<'w, 's, &'static SkyLight>,
     pub in_dimensions: Query<'w, 's, &'static InDimension>,
@@ -292,20 +292,20 @@ mod tests {
 
     #[test]
     fn wire_rows_length_equals_real_plus_two() {
-        let si = ColumnChunks::new(-4, 24);
+        let si = ColumnSections::new(-4, 24);
         assert_eq!(wire_rows(&si).count(), 26);
     }
 
     #[test]
     fn wire_rows_first_is_bottom_padding_last_is_top_padding() {
-        let si = ColumnChunks::new(-4, 24);
+        let si = ColumnSections::new(-4, 24);
         assert_eq!(wire_rows(&si).next().unwrap(), WireRow::BottomPadding);
         assert_eq!(wire_rows(&si).last().unwrap(), WireRow::TopPadding);
     }
 
     #[test]
     fn wire_rows_pads_loaded_and_unloaded() {
-        let mut si = ColumnChunks::new(0, 3);
+        let mut si = ColumnSections::new(0, 3);
         let e = fake_entity(11);
         si.set_loaded(1, e);
         let collected: Vec<_> = wire_rows(&si).collect();
@@ -741,7 +741,7 @@ mod tests {
         } else {
             world.spawn_empty().id()
         };
-        let mut chunks = ColumnChunks::new(0, SECTIONS);
+        let mut chunks = ColumnSections::new(0, SECTIONS);
         let sections: Vec<Entity> = (0..SECTIONS)
             .map(|y| {
                 let section = world

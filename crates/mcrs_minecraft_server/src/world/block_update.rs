@@ -22,7 +22,7 @@ use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::voxel_update::{ChunkVoxelChanges, VoxelUpdateSet};
+use mcrs_minecraft_level::voxel_update::{SectionVoxelChanges, VoxelUpdateSet};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
 use smallvec::SmallVec;
@@ -35,7 +35,7 @@ use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, Pac
 use crate::world::entity::player::HostAnchor;
 
 /// Per-dim wire emitter. Iterates chunks whose
-/// `ChunkVoxelChanges` changed this tick, resolves the
+/// `SectionVoxelChanges` changed this tick, resolves the
 /// observer set through the chunk's column (`ColumnPos::from(chunk_pos)`
 /// -> `ColumnIndex.0.get` -> column entity -> `PlayerObservers`), and
 /// emits one `OutboundPlayerPacket { target: PlayerSet, priority: Normal,
@@ -57,9 +57,9 @@ pub fn update_client_blocks_per_dim(
             &SectionPos,
             &InDimension,
             &ChunkBlocks,
-            &mut ChunkVoxelChanges,
+            &mut SectionVoxelChanges,
         ),
-        Changed<ChunkVoxelChanges>,
+        Changed<SectionVoxelChanges>,
     >,
     column_indices: Query<&ColumnIndex>,
     observers: Query<&PlayerObservers>,

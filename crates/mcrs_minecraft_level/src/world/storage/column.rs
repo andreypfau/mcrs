@@ -37,7 +37,7 @@ pub struct ColumnIndex(pub FxHashMap<ColumnPos, ColumnSlot>);
 
 /// Result of looking up a chunk by `chunk_y` inside a column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ChunkLookup {
+pub enum SectionLookup {
     Loaded(Entity),
     Unloaded,
     OutOfRange,
@@ -45,12 +45,12 @@ pub enum ChunkLookup {
 
 /// Per-column index of real chunk entities.
 #[derive(Component, Debug, Clone)]
-pub struct ColumnChunks {
+pub struct ColumnSections {
     pub min_section_y: i32,
     pub sections: Box<[Option<Entity>]>,
 }
 
-impl ColumnChunks {
+impl ColumnSections {
     pub fn new(min_section_y: i32, real_count: usize) -> Self {
         Self {
             min_section_y,
@@ -58,22 +58,22 @@ impl ColumnChunks {
         }
     }
 
-    pub fn lookup(&self, chunk_y: i32) -> ChunkLookup {
+    pub fn lookup(&self, chunk_y: i32) -> SectionLookup {
         let rel = chunk_y - self.min_section_y;
         if rel < 0 || rel as usize >= self.sections.len() {
-            return ChunkLookup::OutOfRange;
+            return SectionLookup::OutOfRange;
         }
         match self.sections[rel as usize] {
-            Some(e) => ChunkLookup::Loaded(e),
-            None => ChunkLookup::Unloaded,
+            Some(e) => SectionLookup::Loaded(e),
+            None => SectionLookup::Unloaded,
         }
     }
 
     /// Every real section in ascending Y, starting at `min_section_y`.
-    pub fn iter(&self) -> impl Iterator<Item = ChunkLookup> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = SectionLookup> + '_ {
         self.sections.iter().map(|slot| match slot {
-            Some(e) => ChunkLookup::Loaded(*e),
-            None => ChunkLookup::Unloaded,
+            Some(e) => SectionLookup::Loaded(*e),
+            None => SectionLookup::Unloaded,
         })
     }
 
@@ -106,7 +106,7 @@ impl ColumnChunks {
     }
 }
 
-impl Default for ColumnChunks {
+impl Default for ColumnSections {
     fn default() -> Self {
         Self::new(0, 0)
     }
@@ -118,7 +118,7 @@ impl Default for ColumnChunks {
 pub struct ColumnBundle {
     pub col_pos: ColumnPosComponent,
     pub dim: InDimension,
-    pub sections: ColumnChunks,
+    pub sections: ColumnSections,
     marker: Column,
 }
 
@@ -138,7 +138,7 @@ impl ColumnBundle {
         Self {
             col_pos: ColumnPosComponent(col_pos),
             dim,
-            sections: ColumnChunks::new(min_section_y, dim_config.section_count as usize),
+            sections: ColumnSections::new(min_section_y, dim_config.section_count as usize),
             marker: Column,
         }
     }
@@ -174,12 +174,12 @@ pub fn reconcile_columns(
     >,
     mut dimensions: Query<&mut ColumnIndex>,
     dim_configs: Query<&DimensionTypeConfig>,
-    mut columns: Query<&mut ColumnChunks>,
+    mut columns: Query<&mut ColumnSections>,
     mut commands: Commands,
 ) {
     // A column spawned this run is not in `columns` yet, so its sections are
-    // gathered here and land with the entity's own `ColumnChunks`.
-    let mut spawned: FxHashMap<Entity, ColumnChunks> = FxHashMap::default();
+    // gathered here and land with the entity's own `ColumnSections`.
+    let mut spawned: FxHashMap<Entity, ColumnSections> = FxHashMap::default();
 
     for (chunk_entity, chunk_pos, in_dim) in newly_loaded.iter() {
         let col_pos = ColumnPos::from(*chunk_pos);
@@ -196,7 +196,7 @@ pub fn reconcile_columns(
                     .id();
                 spawned.insert(
                     col_entity,
-                    ColumnChunks::new(
+                    ColumnSections::new(
                         dim_config.min_y >> SectionPos::BITS,
                         dim_config.section_count as usize,
                     ),
@@ -217,7 +217,7 @@ pub fn reconcile_columns(
             None => columns
                 .get_mut(slot.entity)
                 .unwrap_or_else(|_| {
-                    panic!("column {col_pos:?} is in the index without its ColumnChunks")
+                    panic!("column {col_pos:?} is in the index without its ColumnSections")
                 })
                 .set_loaded(chunk_pos.y, chunk_entity),
         }
@@ -383,61 +383,61 @@ mod tests {
 
     #[test]
     fn section_lookup_loaded() {
-        let mut si = ColumnChunks::new(-4, 24);
+        let mut si = ColumnSections::new(-4, 24);
         let e = fake_entity(7);
         si.set_loaded(2, e);
-        assert_eq!(si.lookup(2), ChunkLookup::Loaded(e));
+        assert_eq!(si.lookup(2), SectionLookup::Loaded(e));
     }
 
     #[test]
     fn section_lookup_unloaded() {
-        let si = ColumnChunks::new(-4, 24);
-        assert_eq!(si.lookup(0), ChunkLookup::Unloaded);
+        let si = ColumnSections::new(-4, 24);
+        assert_eq!(si.lookup(0), SectionLookup::Unloaded);
     }
 
     #[test]
     fn section_lookup_just_below_range() {
-        let si = ColumnChunks::new(-4, 24);
-        assert_eq!(si.lookup(-5), ChunkLookup::OutOfRange);
+        let si = ColumnSections::new(-4, 24);
+        assert_eq!(si.lookup(-5), SectionLookup::OutOfRange);
     }
 
     #[test]
     fn section_lookup_just_above_range() {
-        let si = ColumnChunks::new(-4, 24);
+        let si = ColumnSections::new(-4, 24);
         // min_section_y=-4, len=24 -> real range is -4..=19.
-        assert_eq!(si.lookup(20), ChunkLookup::OutOfRange);
+        assert_eq!(si.lookup(20), SectionLookup::OutOfRange);
     }
 
     #[test]
     fn section_lookup_out_of_range_low() {
-        let si = ColumnChunks::new(-4, 24);
-        assert_eq!(si.lookup(-6), ChunkLookup::OutOfRange);
+        let si = ColumnSections::new(-4, 24);
+        assert_eq!(si.lookup(-6), SectionLookup::OutOfRange);
     }
 
     #[test]
     fn section_lookup_out_of_range_high() {
-        let si = ColumnChunks::new(-4, 24);
-        assert_eq!(si.lookup(21), ChunkLookup::OutOfRange);
+        let si = ColumnSections::new(-4, 24);
+        assert_eq!(si.lookup(21), SectionLookup::OutOfRange);
     }
 
     #[test]
     fn iter_length_equals_real_count() {
-        let si = ColumnChunks::new(-4, 24);
+        let si = ColumnSections::new(-4, 24);
         assert_eq!(si.iter().count(), 24);
     }
 
     #[test]
     fn iter_passes_loaded_and_unloaded() {
-        let mut si = ColumnChunks::new(0, 3);
+        let mut si = ColumnSections::new(0, 3);
         let e = fake_entity(11);
         si.set_loaded(1, e);
         let collected: Vec<_> = si.iter().collect();
         assert_eq!(
             collected,
             vec![
-                ChunkLookup::Unloaded,
-                ChunkLookup::Loaded(e),
-                ChunkLookup::Unloaded,
+                SectionLookup::Unloaded,
+                SectionLookup::Loaded(e),
+                SectionLookup::Unloaded,
             ]
         );
     }

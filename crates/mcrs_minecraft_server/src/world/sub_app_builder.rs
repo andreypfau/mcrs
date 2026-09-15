@@ -336,7 +336,7 @@ pub fn spawn_dim_subapp(
     // The worldgen `ChunkPlugin` (ColumnScheduler, the CHUNK_TASK_POOL, and the
     // five FixedPreUpdate worldgen systems) is the per-dim entry-point that
     // turns DimSpawnRequest into populated columns. It is distinct from the
-    // engine-level `storage::chunk::ChunkPlugin` that DimensionPlugin adds
+    // engine-level `storage::section::SectionPlugin` that DimensionPlugin adds
     // (which only contributes TicketPlugin).
     //
     // The router is compiled host-side and arrives here as a read-only

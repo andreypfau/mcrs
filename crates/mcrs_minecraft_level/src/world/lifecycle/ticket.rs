@@ -1,4 +1,4 @@
-//! Chunk tickets.
+//! Section tickets.
 
 use crate::entity::physics::Transform;
 use crate::entity::player::Player;
@@ -8,9 +8,9 @@ use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::markers::ChunkUnloaded;
 use crate::world::lifecycle::markers::ChunkUnloading;
 use crate::world::lifecycle::trace::{self, ColumnStage};
-use crate::world::storage::chunk::Chunk;
-use crate::world::storage::chunk::ChunkBundle;
-use crate::world::storage::chunk::ChunkIndex;
+use crate::world::storage::section::Section;
+use crate::world::storage::section::SectionBundle;
+use crate::world::storage::section::SectionIndex;
 use bevy_app::{App, First, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
@@ -119,9 +119,9 @@ pub struct ChunkTicketsCommands {
 }
 
 #[derive(Component, Deref, DerefMut)]
-pub struct ChunkTicketHolder(pub Vec<Ticket>);
+pub struct SectionTicketHolder(pub Vec<Ticket>);
 
-impl ChunkTicketHolder {
+impl SectionTicketHolder {
     pub fn add(&mut self, ticket: Ticket) {
         self.0.push(ticket);
         self.0.sort_unstable_by(|a, b| b.cmp(a));
@@ -178,7 +178,7 @@ impl ChunkTicketsCommands {
 
 fn despawn_chunks(
     mut commands: Commands,
-    mut dims: Query<(&mut ChunkIndex, &ChunkTicketsCommands)>,
+    mut dims: Query<(&mut SectionIndex, &ChunkTicketsCommands)>,
     chunk_statuses: Query<(Entity, &SectionPos, &InDimension), With<ChunkUnloaded>>,
 ) {
     let mut taken = 0usize;
@@ -228,9 +228,9 @@ fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
 /// believes it has placed, so the section never loads again. The ticket stays
 /// queued instead and spawns a fresh entity once the old one is gone.
 pub fn spawn_chunks(
-    mut dims: Query<(Entity, &mut ChunkTicketsCommands, &mut ChunkIndex)>,
+    mut dims: Query<(Entity, &mut ChunkTicketsCommands, &mut SectionIndex)>,
     mut commands: Commands,
-    mut chunks: Query<(Entity, &mut ChunkTicketHolder), With<Chunk>>,
+    mut chunks: Query<(Entity, &mut SectionTicketHolder), With<Section>>,
     condemned: Query<(), Or<(With<ChunkUnloading>, With<ChunkUnloaded>)>>,
     players: Query<(&Transform, &InDimension), With<Player>>,
 ) {
@@ -267,8 +267,8 @@ pub fn spawn_chunks(
                 trace::mark(pos.into(), ColumnStage::Spawned);
                 let chunk_entity = commands
                     .spawn((
-                        ChunkBundle::new(InDimension(dim), pos),
-                        ChunkTicketHolder(tickets),
+                        SectionBundle::new(InDimension(dim), pos),
+                        SectionTicketHolder(tickets),
                     ))
                     .id();
                 chunk_index.insert(pos, chunk_entity);
@@ -295,8 +295,8 @@ pub fn spawn_chunks(
 }
 
 fn remove_tickets_from_chunks(
-    mut dims: Query<(&mut ChunkTicketsCommands, &ChunkIndex)>,
-    mut chunks: Query<(Entity, &mut ChunkTicketHolder), With<Chunk>>,
+    mut dims: Query<(&mut ChunkTicketsCommands, &SectionIndex)>,
+    mut chunks: Query<(Entity, &mut SectionTicketHolder), With<Section>>,
     mut commands: Commands,
 ) {
     dims.iter_mut()
@@ -350,7 +350,7 @@ mod tests {
         app.add_systems(FixedUpdate, spawn_chunks);
         let dim = app
             .world_mut()
-            .spawn((ChunkTicketsCommands::default(), ChunkIndex::new()))
+            .spawn((ChunkTicketsCommands::default(), SectionIndex::new()))
             .id();
         app.world_mut()
             .spawn((Player, Transform::default(), InDimension(dim)));
@@ -371,7 +371,7 @@ mod tests {
 
         app.world_mut().run_schedule(FixedUpdate);
 
-        let index = app.world().get::<ChunkIndex>(dim).expect("chunk index");
+        let index = app.world().get::<SectionIndex>(dim).expect("chunk index");
         assert!(
             index.get(under_the_player).is_some(),
             "the section under the player spawns even though it was asked for last"
@@ -399,20 +399,20 @@ mod tests {
         );
         let dim = app
             .world_mut()
-            .spawn((ChunkTicketsCommands::default(), ChunkIndex::new()))
+            .spawn((ChunkTicketsCommands::default(), SectionIndex::new()))
             .id();
         let pos = SectionPos::new(0, 0, 0);
         let dying = app
             .world_mut()
             .spawn((
-                ChunkBundle::new(InDimension(dim), pos),
-                ChunkTicketHolder(Vec::new()),
+                SectionBundle::new(InDimension(dim), pos),
+                SectionTicketHolder(Vec::new()),
                 ChunkUnloaded,
             ))
             .id();
         let mut dim_entity = app.world_mut().entity_mut(dim);
         dim_entity
-            .get_mut::<ChunkIndex>()
+            .get_mut::<SectionIndex>()
             .expect("chunk index")
             .insert(pos, dying);
         dim_entity
@@ -428,7 +428,7 @@ mod tests {
         );
         assert_eq!(
             app.world()
-                .get::<ChunkIndex>(dim)
+                .get::<SectionIndex>(dim)
                 .expect("chunk index")
                 .get(pos),
             Some(dying),
@@ -439,7 +439,7 @@ mod tests {
         assert!(app.world().get::<ChunkUnloaded>(dying).is_none());
         assert_eq!(
             app.world()
-                .get::<ChunkTicketHolder>(dying)
+                .get::<SectionTicketHolder>(dying)
                 .expect("ticket holder")
                 .0
                 .len(),
@@ -462,20 +462,20 @@ mod tests {
         );
         let dim = app
             .world_mut()
-            .spawn((ChunkTicketsCommands::default(), ChunkIndex::new()))
+            .spawn((ChunkTicketsCommands::default(), SectionIndex::new()))
             .id();
         let pos = SectionPos::new(0, 0, 0);
         let dying = app
             .world_mut()
             .spawn((
-                ChunkBundle::new(InDimension(dim), pos),
-                ChunkTicketHolder(Vec::new()),
+                SectionBundle::new(InDimension(dim), pos),
+                SectionTicketHolder(Vec::new()),
                 ChunkUnloaded,
             ))
             .id();
         let mut dim_entity = app.world_mut().entity_mut(dim);
         dim_entity
-            .get_mut::<ChunkIndex>()
+            .get_mut::<SectionIndex>()
             .expect("chunk index")
             .insert(pos, dying);
 
@@ -491,7 +491,7 @@ mod tests {
         app.world_mut().run_schedule(FixedUpdate);
         let respawned = app
             .world()
-            .get::<ChunkIndex>(dim)
+            .get::<SectionIndex>(dim)
             .expect("chunk index")
             .get(pos)
             .expect("the ticket spawns a fresh section once the old one is gone");

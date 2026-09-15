@@ -1,6 +1,6 @@
 pub use mcrs_minecraft_core::SectionPos;
 
-use crate::entity::ChunkEntities;
+use crate::entity::SectionEntities;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::markers::ChunkLoading;
 use crate::world::lifecycle::ticket::TicketPlugin;
@@ -9,43 +9,43 @@ use bevy_derive::Deref;
 use bevy_ecs::prelude::{Bundle, Component, Entity};
 use rustc_hash::FxHashMap;
 
-pub(crate) struct ChunkPlugin;
+pub(crate) struct SectionPlugin;
 
-impl Plugin for ChunkPlugin {
+impl Plugin for SectionPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(TicketPlugin);
     }
 }
 
 #[derive(Bundle)]
-pub struct ChunkBundle {
+pub struct SectionBundle {
     pub dimension: InDimension,
     pub pos: SectionPos,
-    pub entities: ChunkEntities,
-    marker: Chunk,
+    pub entities: SectionEntities,
+    marker: Section,
     chunk_loading: ChunkLoading,
 }
 
 #[derive(Component, Debug, Default)]
 #[component(storage = "SparseSet")]
-pub struct Chunk;
+pub struct Section;
 
-impl ChunkBundle {
+impl SectionBundle {
     pub fn new(dimension: InDimension, chunk_pos: SectionPos) -> Self {
         Self {
             dimension,
             pos: chunk_pos,
-            entities: ChunkEntities::default(),
-            marker: Chunk,
+            entities: SectionEntities::default(),
+            marker: Section,
             chunk_loading: ChunkLoading,
         }
     }
 }
 
 #[derive(Component, Debug, Default, Deref)]
-pub struct ChunkIndex(FxHashMap<SectionPos, Entity>);
+pub struct SectionIndex(FxHashMap<SectionPos, Entity>);
 
-impl ChunkIndex {
+impl SectionIndex {
     pub fn new() -> Self {
         Self(FxHashMap::default())
     }

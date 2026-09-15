@@ -14,7 +14,7 @@ use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::ChunkBlocks;
-use mcrs_minecraft_level::voxel_update::ChunkVoxelChanges;
+use mcrs_minecraft_level::voxel_update::SectionVoxelChanges;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_server::world::block_update::update_client_blocks_per_dim;
@@ -56,7 +56,7 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     // Chunk entity with a populated change set — simulates a block-change
     // delta the way `apply_voxel_set_requests` would have left it.
     let block_pos = BlockPos::new(2, 3, 4);
-    let mut change_set = ChunkVoxelChanges::default();
+    let mut change_set = SectionVoxelChanges::default();
     change_set.changes.insert(block_pos);
     let _chunk_entity = app
         .world_mut()

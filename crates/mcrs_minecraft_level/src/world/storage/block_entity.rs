@@ -3,7 +3,7 @@ use bevy_ecs::prelude::{Commands, Component, Entity, Query, Without};
 use mcrs_minecraft_core::{BlockPos, SectionPos};
 
 use crate::world::dimension::InDimension;
-use crate::world::storage::chunk::ChunkIndex;
+use crate::world::storage::section::SectionIndex;
 
 /// Back-link from a block entity to the section holding it; the section's
 /// despawn takes its block entities with it.
@@ -24,7 +24,7 @@ pub struct BlockEntityPos(pub BlockPos);
 /// its own from the save or the generator.
 pub fn reconcile_block_entities(
     unlinked: Query<(Entity, &BlockEntityPos, &InDimension), Without<InSection>>,
-    dimensions: Query<&ChunkIndex>,
+    dimensions: Query<&SectionIndex>,
     mut commands: Commands,
 ) {
     for (entity, pos, in_dim) in unlinked.iter() {
@@ -45,7 +45,7 @@ pub fn reconcile_block_entities(
 mod tests {
     use super::*;
     use crate::world::dimension::DimensionTypeConfig;
-    use crate::world::storage::chunk::ChunkIndex;
+    use crate::world::storage::section::SectionIndex;
     use bevy_app::{App, FixedUpdate};
 
     fn app_with_section() -> (App, Entity, Entity) {
@@ -53,7 +53,7 @@ mod tests {
         app.add_systems(FixedUpdate, reconcile_block_entities);
         let dim = app
             .world_mut()
-            .spawn((ChunkIndex::default(), DimensionTypeConfig::new(0, 256)))
+            .spawn((SectionIndex::default(), DimensionTypeConfig::new(0, 256)))
             .id();
         let section = app
             .world_mut()
@@ -64,7 +64,7 @@ mod tests {
             ))
             .id();
         app.world_mut()
-            .get_mut::<ChunkIndex>(dim)
+            .get_mut::<SectionIndex>(dim)
             .unwrap()
             .insert(SectionPos::new(0, 1, 0), section);
         (app, dim, section)

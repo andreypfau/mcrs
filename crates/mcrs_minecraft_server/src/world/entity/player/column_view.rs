@@ -23,8 +23,8 @@ use mcrs_minecraft_level::world::lifecycle::ticket::{ChunkTicketsCommands, Ticke
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
 use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
-use mcrs_minecraft_level::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
+use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
@@ -292,7 +292,7 @@ fn release_forced_tickets(
 /// are read off it, and a column sent before `reconcile_columns` has indexed it would carry
 /// neither. It goes out once and never again, so it would stay black.
 fn resolve_column(
-    chunk_index: &ChunkIndex,
+    chunk_index: &SectionIndex,
     column_index: &ColumnIndex,
     col: ColumnPos,
     section_count: i32,
@@ -316,7 +316,7 @@ fn resolve_column(
 /// client.
 pub(crate) fn project_ready_columns(
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
-    dims: Query<(&ChunkIndex, &ColumnIndex, &DimensionTypeConfig)>,
+    dims: Query<(&SectionIndex, &ColumnIndex, &DimensionTypeConfig)>,
     chunks: Query<Entity, With<ChunkLoaded>>,
     codec_params: LightCodecParams,
     light_status: mcrs_minecraft_light::prelude::LightStatus,
@@ -405,7 +405,7 @@ pub(crate) fn send_column_queue(
     )>,
     chunks: Query<(&ChunkBlocks, &BiomePalette, Option<&SectionBlockEntities>), With<ChunkLoaded>>,
     block_entities_held: Query<&'static BlockEntity>,
-    dim_chunk_indexes: Query<&ChunkIndex>,
+    dim_chunk_indexes: Query<&SectionIndex>,
     dim_column_indexes: Query<&ColumnIndex>,
     dim_type_configs: Query<&DimensionTypeConfig>,
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
@@ -703,7 +703,7 @@ mod tests {
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
     use mcrs_minecraft_level::world::dimension::HasSkyLight;
-    use mcrs_minecraft_level::world::storage::column::{ColumnChunks, ColumnSlot};
+    use mcrs_minecraft_level::world::storage::column::{ColumnSections, ColumnSlot};
     use mcrs_minecraft_light::prelude::{
         BlockLight, LightBounds, LightProperties, LightRegistry, LightWorld, SkyLight,
         SpecialBlocks,
@@ -722,7 +722,7 @@ mod tests {
     /// the origin. Sections carry no light yet.
     fn fixture(world: &mut World, columns: &[ColumnPos]) -> Fixture {
         let dim = world.spawn_empty().id();
-        let mut chunk_index = ChunkIndex::new();
+        let mut chunk_index = SectionIndex::new();
         let mut column_index = ColumnIndex::default();
         let mut sections = FxHashMap::default();
 
@@ -738,7 +738,7 @@ mod tests {
                 .collect();
             let column = world
                 .spawn((
-                    ColumnChunks {
+                    ColumnSections {
                         min_section_y: 0,
                         sections: entities.iter().copied().map(Some).collect(),
                     },
@@ -944,7 +944,7 @@ mod tests {
             .pending_send
             .insert(col);
         world
-            .get_mut::<ChunkIndex>(fx.dim)
+            .get_mut::<SectionIndex>(fx.dim)
             .unwrap()
             .remove(SectionPos::new(col.x, 1, col.z));
 

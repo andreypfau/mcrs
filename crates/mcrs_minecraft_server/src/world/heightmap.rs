@@ -12,7 +12,7 @@ use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_minecraft_level::world::storage::column::{ChunkLookup, ColumnChunks, ColumnIndex};
+use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSections, SectionLookup};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_world::transition_to_playing;
 use mcrs_minecraft_worldgen_generator::heightmap::{
@@ -164,7 +164,7 @@ pub fn update_column_heightmaps(
     predicates: Res<HeightmapPredicates>,
     indices: Query<&ColumnIndex>,
     mut columns: Query<(
-        &ColumnChunks,
+        &ColumnSections,
         &mut SurfaceHeightmap,
         &mut SolidHeightmap,
         &mut MotionHeightmap,
@@ -207,13 +207,14 @@ pub fn update_column_heightmaps(
 }
 
 fn block_at(
-    chunks: &ColumnChunks,
+    chunks: &ColumnSections,
     palettes: &Query<&ChunkBlocks>,
     x: usize,
     y: i32,
     z: usize,
 ) -> VoxelId {
-    let ChunkLookup::Loaded(section) = chunks.lookup(y.div_euclid(SectionPos::SIZE as i32)) else {
+    let SectionLookup::Loaded(section) = chunks.lookup(y.div_euclid(SectionPos::SIZE as i32))
+    else {
         return VoxelId::default();
     };
     match palettes.get(section) {

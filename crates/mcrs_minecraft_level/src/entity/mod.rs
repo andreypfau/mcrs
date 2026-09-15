@@ -2,8 +2,8 @@ use crate::entity::physics::{OldTransform, Transform};
 use crate::entity::player::Player;
 use crate::session::MoveId;
 use crate::world::dimension::{Dimension, DimensionPlayers, InDimension, OldInDimension};
-use crate::world::storage::chunk::Chunk;
-use crate::world::storage::chunk::ChunkIndex;
+use crate::world::storage::section::Section;
+use crate::world::storage::section::SectionIndex;
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Plugin};
 use bevy_derive::Deref;
 use bevy_ecs::entity::EntityHashSet;
@@ -50,9 +50,9 @@ pub struct EntityNetworkSync;
 struct PlayerSynchronizedEntities(EntityHashSet);
 
 #[derive(Component, Debug, Default, Deref)]
-pub struct ChunkEntities(Vec<Entity>);
+pub struct SectionEntities(Vec<Entity>);
 
-impl ChunkEntities {
+impl SectionEntities {
     pub fn remove_entity(&mut self, entity: Entity) -> bool {
         if let Some(pos) = self.0.iter().position(|e| e == entity) {
             self.0.remove(pos);
@@ -89,13 +89,13 @@ pub struct InTransit {
 
 #[allow(clippy::type_complexity)]
 fn add_entity_to_chunk(
-    dim_chunks: Query<&ChunkIndex>,
-    mut chunks: Query<&mut ChunkEntities>,
+    dim_chunks: Query<&SectionIndex>,
+    mut chunks: Query<&mut SectionEntities>,
     entities: Query<
         (Entity, &InDimension, &Transform),
         (
             Without<Dimension>,
-            Without<Chunk>,
+            Without<Section>,
             Without<OldTransform>,
             Without<Despawned>,
             Without<InTransit>,
@@ -125,7 +125,7 @@ fn add_old_transform(
         (Entity, &Transform),
         (
             Without<Dimension>,
-            Without<Chunk>,
+            Without<Section>,
             Without<OldTransform>,
             Without<Despawned>,
             Without<InTransit>,
@@ -140,8 +140,8 @@ fn add_old_transform(
 
 #[allow(clippy::type_complexity)]
 fn update_chunk_entities(
-    dim_chunks: Query<&ChunkIndex>,
-    mut chunks: Query<&mut ChunkEntities>,
+    dim_chunks: Query<&SectionIndex>,
+    mut chunks: Query<&mut SectionEntities>,
     entities: Query<
         (
             Entity,
@@ -152,7 +152,7 @@ fn update_chunk_entities(
         ),
         (
             Without<Dimension>,
-            Without<Chunk>,
+            Without<Section>,
             Without<Despawned>,
             Without<InTransit>,
         ),
@@ -191,8 +191,8 @@ fn update_chunk_entities(
 }
 
 fn remove_entity_despawned(
-    dims_chunks: Query<&ChunkIndex>,
-    mut chunks: Query<&mut ChunkEntities>,
+    dims_chunks: Query<&SectionIndex>,
+    mut chunks: Query<&mut SectionEntities>,
     despawned: Query<(Entity, &InDimension, &Transform), With<Despawned>>,
 ) {
     despawned
