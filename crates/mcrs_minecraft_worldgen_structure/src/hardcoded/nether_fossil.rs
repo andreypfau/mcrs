@@ -1,9 +1,13 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_core::Mirror;
 use mcrs_minecraft_core::value_provider::HeightProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_worldgen_feature::template::bounding_box;
 
-use crate::piece::Piece;
+use super::random_rotation;
+use crate::frozen::TemplateId;
+use crate::piece::{NetherFossilPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
 pub const TEMPLATES: &[&str] = &[
@@ -54,6 +58,14 @@ pub fn site(
     (y > sea_level).then_some((IVec3::new(x, y, z), Stub::Fossil))
 }
 
-pub fn layout(_ctx: &mut Context<'_>, _site: Site) -> Vec<Piece> {
-    Vec::new()
+pub fn layout(templates: &[TemplateId], ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+    let rotation = random_rotation(&mut site.rng);
+    let template = templates[site.rng.next_i32_bound(templates.len() as i32) as usize];
+    let size = ctx.frozen.manifests[template.0 as usize].size;
+    vec![Piece::NetherFossil(NetherFossilPiece {
+        template,
+        position: site.position,
+        rotation,
+        bounds: bounding_box(size, site.position, rotation, Mirror::None, IVec3::ZERO),
+    })]
 }

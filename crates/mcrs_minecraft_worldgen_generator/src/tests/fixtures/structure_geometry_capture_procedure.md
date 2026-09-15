@@ -291,6 +291,17 @@ trailer.
   and swallowed, as above.
 - **The masked entity fields.** Nothing here says what the shulker's yaw or a
   drowned's attribute rolls are.
+- **The nether fossil's dried ghast.** `NetherFossilPiece.placeDriedGhast`
+  draws a coin, a cell on the fossil's floor row and a rotation from a
+  positional fork of the world seed at the fossil's box centre, and writes
+  the ghast only where that cell is air. The site puts the floor row inside
+  the top layer of the base (air above sturdy ground), so on the flat floor
+  the cell is never air and the branch never writes; a base whose top varies
+  per column would pin it. The port draws the same values and writes the
+  ghast from every column the fossil touches against that column's own view,
+  where the reference writes it once from the first chunk to decorate and
+  the rest see it; the two agree on the world and differ only in which
+  chunk's write list carries it, which this file would show on such a base.
 - **Which chunk a piece's shared draws land in.** The reference draws an
   entity's `finalizeSpawn` in whichever chunk holds its marker; the file
   records that chunk. A port that moves a draw to another column will differ

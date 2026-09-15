@@ -164,7 +164,7 @@ pub fn site(ctx: &mut Context<'_>) -> Option<Site> {
         StructureKind::Mineshaft { mineshaft_type, .. } => {
             hardcoded::mineshaft::site(*mineshaft_type, ctx, &mut rng)?
         }
-        StructureKind::NetherFossil { height } => {
+        StructureKind::NetherFossil { height, .. } => {
             hardcoded::nether_fossil::site(height, ctx, &mut rng)?
         }
         StructureKind::OceanMonument { surrounding } => {
@@ -212,7 +212,9 @@ pub fn layout(ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
         StructureKind::Mineshaft { mineshaft_type, .. } => {
             hardcoded::mineshaft::layout(*mineshaft_type, ctx, site)
         }
-        StructureKind::NetherFossil { .. } => hardcoded::nether_fossil::layout(ctx, site),
+        StructureKind::NetherFossil { templates, .. } => {
+            hardcoded::nether_fossil::layout(templates, ctx, site)
+        }
         StructureKind::OceanMonument { .. } => hardcoded::ocean_monument::layout(ctx, site),
         StructureKind::OceanRuin(config) => hardcoded::ocean_ruin::layout(config, ctx, site),
         StructureKind::RuinedPortal { setups, .. } => {

@@ -22,6 +22,7 @@ use mcrs_minecraft_worldgen_structure_place::jungle_temple::paint_jungle_temple;
 use mcrs_minecraft_worldgen_structure_place::mineshaft::paint_mineshaft;
 use mcrs_minecraft_worldgen_structure_place::portal::place_ruined_portal;
 use mcrs_minecraft_worldgen_structure_place::ocean_monument::paint_ocean_monument;
+use mcrs_minecraft_worldgen_structure_place::nether_fossil::paint_nether_fossil;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{paint_igloo, paint_shipwreck};
@@ -292,6 +293,24 @@ pub fn place_start<W: WorldGenVolume>(
                     blocks,
                     &frozen.templates[template],
                     &frozen.manifests[template],
+                    piece,
+                    reference,
+                    clip,
+                    region,
+                    rng,
+                    &mut run.entities,
+                    &mut run.spawns,
+                );
+            }
+            Piece::NetherFossil(piece) => {
+                let Some(CompiledStructure::NetherFossil(blocks)) =
+                    program.structure(start.structure)
+                else {
+                    continue;
+                };
+                paint_nether_fossil(
+                    blocks,
+                    &frozen.templates[piece.template.0 as usize],
                     piece,
                     reference,
                     clip,

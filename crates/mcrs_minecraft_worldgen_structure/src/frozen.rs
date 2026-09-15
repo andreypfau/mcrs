@@ -63,6 +63,7 @@ pub enum StructureKind {
     },
     NetherFossil {
         height: HeightProvider,
+        templates: Vec<TemplateId>,
     },
     OceanMonument {
         /// `#minecraft:required_ocean_monument_surrounding`.

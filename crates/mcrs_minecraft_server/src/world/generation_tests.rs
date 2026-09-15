@@ -540,6 +540,13 @@ const IGLOO: Consumer = Consumer::Structure {
     biome: "minecraft:snowy_plains",
 };
 
+/// A nether fossil: one template piece written whole by every column it
+/// touches, so the columns around it carry its blocks into the ring.
+const NETHER_FOSSIL: Consumer = Consumer::Structure {
+    id: "minecraft:nether_fossil",
+    biome: "minecraft:soul_sand_valley",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -631,6 +638,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         MONUMENT,
         MINESHAFT,
         IGLOO,
+        NETHER_FOSSIL,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

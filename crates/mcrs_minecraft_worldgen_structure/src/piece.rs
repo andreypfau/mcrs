@@ -306,6 +306,15 @@ impl IglooPiece {
     }
 }
 
+/// One fossil template at its position, unmirrored and unpivoted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetherFossilPiece {
+    pub template: TemplateId,
+    pub position: IVec3,
+    pub rotation: Rotation,
+    pub bounds: BoundingBox,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
@@ -319,6 +328,7 @@ pub enum Piece {
     OceanMonument(OceanMonumentPiece),
     Mineshaft(MineshaftPiece),
     Igloo(IglooPiece),
+    NetherFossil(NetherFossilPiece),
 }
 
 impl Piece {
@@ -335,6 +345,7 @@ impl Piece {
             Piece::OceanMonument(piece) => piece.bounds,
             Piece::Mineshaft(piece) => piece.bounds,
             Piece::Igloo(piece) => piece.bounds,
+            Piece::NetherFossil(piece) => piece.bounds,
         }
     }
 
@@ -381,6 +392,10 @@ impl Piece {
                 piece.bounds = piece.bounds.moved(delta);
                 piece.position += delta;
                 piece.height += delta.y;
+            }
+            Piece::NetherFossil(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                piece.position += delta;
             }
         }
     }
@@ -871,6 +886,25 @@ enum PieceTag {
         #[serde(rename = "Rot", with = "rotation::legacy")]
         rotation: Rotation,
     },
+    #[serde(rename = "minecraft:nefos")]
+    NetherFossil {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "TPX")]
+        template_x: i32,
+        #[serde(rename = "TPY")]
+        template_y: i32,
+        #[serde(rename = "TPZ")]
+        template_z: i32,
+        #[serde(rename = "Template")]
+        template: ResourceLocation,
+        #[serde(rename = "Rot", with = "rotation::legacy")]
+        rotation: Rotation,
+    },
 }
 
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
@@ -1176,6 +1210,16 @@ impl Serialize for PieceNbt<'_> {
                 template: piece.template.location(),
                 rotation: piece.rotation,
             },
+            Piece::NetherFossil(piece) => PieceTag::NetherFossil {
+                bounds: box_array(piece.bounds),
+                orientation: NORTH_ORIENTATION,
+                gen_depth: 0,
+                template_x: piece.position.x,
+                template_y: piece.position.y,
+                template_z: piece.position.z,
+                template: self.context.template_name(piece.template),
+                rotation: piece.rotation,
+            },
         };
         tag.serialize(serializer)
     }
@@ -1479,6 +1523,22 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     height: template_y,
                 }))
             }
+            PieceTag::NetherFossil {
+                bounds,
+                template_x,
+                template_y,
+                template_z,
+                template,
+                rotation,
+                ..
+            } => Ok(Piece::NetherFossil(NetherFossilPiece {
+                template: *self.0.frozen.template_ids.get(&template).ok_or_else(|| {
+                    D::Error::custom(format!("the template {template} is not loaded"))
+                })?,
+                position: IVec3::new(template_x, template_y, template_z),
+                rotation,
+                bounds: box_of(bounds),
+            })),
         }
     }
 }
@@ -2008,6 +2068,41 @@ mod tests {
         assert_eq!(tag.child_tags.len(), 9);
 
         let json = r#"{"id":"minecraft:iglu","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"minecraft:igloo/roof","Rot":"NONE"}"#;
+        let mut deserializer = serde_json::Deserializer::from_str(json);
+        assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
+    }
+
+    #[test]
+    fn a_nether_fossil_piece_round_trips_with_its_template_and_rotation() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::NetherFossil(NetherFossilPiece {
+            template: TemplateId(0),
+            position: IVec3::new(-179, 63, 396),
+            rotation: Rotation::Counterclockwise90,
+            bounds: BoundingBox {
+                min: BlockPos::new(-183, 63, 396),
+                max: BlockPos::new(-179, 66, 400),
+            },
+        });
+        assert_eq!(round_trip(&context, &piece), piece);
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:nefos"));
+        assert_eq!(tag.get_int("O"), Some(2));
+        assert_eq!(tag.get_int("GD"), Some(0));
+        assert_eq!(tag.get_int("TPX"), Some(-179));
+        assert_eq!(tag.get_int("TPY"), Some(63));
+        assert_eq!(tag.get_int("TPZ"), Some(396));
+        assert_eq!(
+            tag.get_string("Template"),
+            Some("minecraft:village/plains/houses/house_1")
+        );
+        assert_eq!(tag.get_string("Rot"), Some("COUNTERCLOCKWISE_90"));
+
+        let json = r#"{"id":"minecraft:nefos","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"minecraft:nether_fossils/fossil_99","Rot":"NONE"}"#;
         let mut deserializer = serde_json::Deserializer::from_str(json);
         assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
     }

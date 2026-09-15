@@ -23,7 +23,7 @@ use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure, FrozenStructures,
     OceanRuinConfig, PoolId, SetId, StructureId, StructureKind, TemplateId,
 };
-use mcrs_minecraft_worldgen_structure::hardcoded::{ruined_portal, shipwreck};
+use mcrs_minecraft_worldgen_structure::hardcoded::{nether_fossil, ruined_portal, shipwreck};
 use mcrs_minecraft_worldgen_structure::piece::TERRAIN_MARGIN;
 use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 use mcrs_minecraft_worldgen_structure::{
@@ -464,9 +464,10 @@ fn freeze_structures(
                 mineshaft_type: *mineshaft_type,
                 blocking: biome_tag_mask(inputs, id, "minecraft:mineshaft_blocking")?,
             },
-            Structure::NetherFossil { height, .. } => {
-                StructureKind::NetherFossil { height: *height }
-            }
+            Structure::NetherFossil { height, .. } => StructureKind::NetherFossil {
+                height: *height,
+                templates: templates(nether_fossil::TEMPLATES),
+            },
             Structure::OceanMonument { .. } => StructureKind::OceanMonument {
                 surrounding: biome_tag_mask(
                     inputs,

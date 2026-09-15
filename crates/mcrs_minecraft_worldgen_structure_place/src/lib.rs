@@ -6,6 +6,7 @@ pub mod jungle_temple;
 pub mod portal;
 pub mod ocean_monument;
 pub mod mineshaft;
+pub mod nether_fossil;
 pub mod scattered;
 pub mod template;
 pub mod template_piece;

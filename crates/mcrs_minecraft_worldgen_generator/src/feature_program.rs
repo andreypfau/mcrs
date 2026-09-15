@@ -140,6 +140,7 @@ use mcrs_minecraft_worldgen_structure_place::jungle_temple::JungleTempleBlocks;
 use mcrs_minecraft_worldgen_structure_place::portal::RuinedPortalBlocks;
 use mcrs_minecraft_worldgen_structure_place::ocean_monument::OceanMonumentBlocks;
 use mcrs_minecraft_worldgen_structure_place::mineshaft::MineshaftBlocks;
+use mcrs_minecraft_worldgen_structure_place::nether_fossil::NetherFossilBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
 use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{
@@ -300,6 +301,7 @@ pub enum CompiledStructure {
     OceanMonument(Box<OceanMonumentBlocks>),
     Mineshaft(Box<MineshaftBlocks>),
     Igloo(Box<IglooBlocks>),
+    NetherFossil(Box<NetherFossilBlocks>),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -1137,6 +1139,12 @@ fn compile_structures(
                 StructureKind::Igloo => Some(CompiledStructure::Igloo(Box::new(
                     IglooBlocks::compile(resolver).map_err(|error| error.within(&structure.id))?,
                 ))),
+                StructureKind::NetherFossil { .. } => {
+                    Some(CompiledStructure::NetherFossil(Box::new(
+                        NetherFossilBlocks::compile(resolver, resolver.world_seed)
+                            .map_err(|error| error.within(&structure.id))?,
+                    )))
+                }
                 _ => None,
             })
         })

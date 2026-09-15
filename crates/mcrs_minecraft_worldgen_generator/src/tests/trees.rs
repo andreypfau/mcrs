@@ -59,6 +59,7 @@ pub(super) fn biome_registry() -> RegistrySnapshot<Biome> {
     names.push("minecraft:nether_wastes");
     names.push("minecraft:jungle");
     names.push("minecraft:snowy_plains");
+    names.push("minecraft:soul_sand_valley");
     super::biome_registry(&names)
 }
 
