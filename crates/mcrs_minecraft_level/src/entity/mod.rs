@@ -15,6 +15,7 @@ use bevy_ecs::relationship::RelationshipSourceCollection;
 use bevy_platform::time::Instant;
 use mcrs_minecraft_core::SectionPos;
 
+pub mod mob;
 pub mod physics;
 pub mod player;
 

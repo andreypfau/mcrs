@@ -38,7 +38,8 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelChunkWithLight,
     ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerInfoUpdate,
     ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
-    ClientboundSystemChatPacket, PositionPath,
+    ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
+    ClientboundSystemChatPacket, ClientboundUpdateAttributes, PositionPath,
 };
 use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, LpVec3, PositionFlag, Text, VarInt};
@@ -336,6 +337,7 @@ pub fn dispatch_encode(
                         position,
                         yaw,
                         pitch,
+                        data,
                     } => {
                         debug!(
                             target: "mcrs_minecraft_server::bridge",
@@ -353,7 +355,48 @@ pub fn dispatch_encode(
                                 yaw: ByteAngle::from_degrees(yaw),
                                 pitch: ByteAngle::from_degrees(pitch),
                                 head_yaw: ByteAngle::from_degrees(yaw),
-                                data: VarInt(0),
+                                data: VarInt(data),
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetEntityData {
+                        entity_id,
+                        metadata,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundSetEntityData {
+                                entity_id: VarInt(entity_id),
+                                metadata,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetEquipment { entity_id, slots } => {
+                        conn.raw
+                            .append(&ClientboundSetEquipment {
+                                entity_id: VarInt(entity_id),
+                                slots,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::UpdateAttributes {
+                        entity_id,
+                        attributes,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundUpdateAttributes {
+                                entity_id: VarInt(entity_id),
+                                attributes,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetPassengers {
+                        vehicle,
+                        passengers,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundSetPassengers {
+                                vehicle: VarInt(vehicle),
+                                passengers: passengers.into_iter().map(VarInt).collect(),
                             })
                             .ok();
                     }

@@ -330,6 +330,7 @@ fn network_add(
             position: reposition.convert_dvec3(transform.translation),
             yaw: transform.rotation.yaw(),
             pitch: transform.rotation.pitch(),
+            data: 0,
         },
         session: PlayerSession(0),
         epoch: 0,

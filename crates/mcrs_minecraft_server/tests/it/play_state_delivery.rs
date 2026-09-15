@@ -658,6 +658,7 @@ fn view_enter_leave_route_via_bus() {
             position: DVec3::ZERO,
             yaw: 0.0,
             pitch: 0.0,
+            data: 0,
         },
     );
     push_critical(

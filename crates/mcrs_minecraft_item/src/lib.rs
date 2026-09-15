@@ -28,13 +28,20 @@ impl From<&'static Item> for ItemId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Component)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Component)]
 pub struct ItemStack {
     item_id: ItemId,
     count: u8,
 }
 
 impl ItemStack {
+    pub fn new(item_id: impl Into<ItemId>, count: u8) -> Self {
+        Self {
+            item_id: item_id.into(),
+            count,
+        }
+    }
+
     pub fn item_id(&self) -> ItemId {
         self.item_id
     }

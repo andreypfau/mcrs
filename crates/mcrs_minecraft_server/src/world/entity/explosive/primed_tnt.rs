@@ -1,32 +1,27 @@
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::aoi::TrackedBy;
 use crate::world::entity::explosive::ExplosiveBundle;
-use crate::world::entity::player::HostAnchor;
-use crate::world::entity::{EntityUuid, MinecraftEntity, MinecraftEntityType};
+use crate::world::entity::{EntityUuid, MinecraftEntity};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, MessageWriter, On, Query};
-use bevy_ecs::query::QueryData;
+use bevy_ecs::prelude::{Commands, Query};
 use bevy_ecs::query::{With, Without};
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_core::SectionPos;
-use mcrs_minecraft_level::entity::EntityNetworkAddEvent;
+use mcrs_minecraft_level::entity::mob::EntityKind;
 use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::explosion::{Explosion, ExplosionRadius};
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_world::entity::minecraft::PRIMED_TNT;
 
 pub struct PrimedTntPlugin;
 
 impl Plugin for PrimedTntPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, update_fuse_durations);
-        app.add_observer(network_add);
     }
 }
 
@@ -40,6 +35,8 @@ pub struct PrimedTntBundle {
     pub uuid: EntityUuid,
     pub explosive: ExplosiveBundle,
     pub fuse: Fuse,
+    kind: EntityKind,
+    tracked_by: TrackedBy,
     marker: PrimedTnt,
     mc_entity_marker: MinecraftEntity,
 }
@@ -52,6 +49,8 @@ impl PrimedTntBundle {
                 ..Default::default()
             },
             fuse: Fuse::default(),
+            kind: EntityKind(&PRIMED_TNT),
+            tracked_by: TrackedBy::default(),
             mc_entity_marker: MinecraftEntity,
             marker: PrimedTnt,
             uuid: EntityUuid(Uuid::new_v4()),
@@ -79,14 +78,6 @@ impl Default for Fuse {
     }
 }
 
-#[derive(QueryData)]
-struct PrimedTntQuery {
-    entity: Entity,
-    transform: &'static Transform,
-    dimension: &'static InDimension,
-    uuid: &'static EntityUuid,
-}
-
 fn update_fuse_durations(
     mut query: Query<
         (Entity, &mut Fuse, &Transform, &InDimension),
@@ -111,35 +102,6 @@ fn update_fuse_durations(
             cmds.insert(Explosion);
         }
     })
-}
-
-fn network_add(
-    event: On<EntityNetworkAddEvent>,
-    tnt: Query<(Entity, &EntityUuid, &Transform), With<PrimedTnt>>,
-    player: Query<(&HostAnchor, &Reposition), With<Player>>,
-    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-) {
-    let Ok((entity, uuid, transform)) = tnt.get(event.entity) else {
-        return;
-    };
-    let Ok((anchor, reposition)) = player.get(event.player) else {
-        return;
-    };
-
-    packet_writer.write(OutboundPlayerPacket {
-        target: PacketTarget::SinglePlayer(anchor.0),
-        priority: PacketPriority::Normal,
-        data: PacketPayload::PlayerEnteredView {
-            entity_id: entity.index_u32() as i32,
-            uuid: uuid.0,
-            kind: MinecraftEntityType::PrimedTnt as i32,
-            position: reposition.convert_dvec3(transform.translation),
-            yaw: transform.rotation.yaw(),
-            pitch: transform.rotation.pitch(),
-        },
-        session: PlayerSession(0),
-        epoch: 0,
-    });
 }
 
 #[cfg(test)]

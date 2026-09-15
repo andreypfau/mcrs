@@ -1,4 +1,5 @@
 use crate::world::block_entity::spawn_block_entities;
+use crate::world::entity::mob::spawn_generated_entities;
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::heightmap::PendingColumnHeightmaps;
 use bevy_app::{App, FixedUpdate, Plugin};
@@ -8,6 +9,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
+use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -383,6 +385,7 @@ pub(crate) fn deliver_merged_columns(
     section_dimensions: Query<&InDimension>,
     mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
+    registry: Option<Res<RegistryAccess>>,
     mut commands: Commands,
     mut slow: Local<SlowColumns>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
@@ -425,6 +428,7 @@ pub(crate) fn deliver_merged_columns(
         scheduler.priority_index.remove(&col);
         scheduler.store.set_stage(col, Stage::Delivered);
         let block_entities = scheduler.store.take_block_entities(col);
+        let entities = scheduler.store.take_entities(col);
         // Any live section of the column answers for the whole column. The
         // first-enqueued one may already have been despawned while the rest of
         // the column still stands, and taking it alone would drop the lot.
@@ -433,10 +437,19 @@ pub(crate) fn deliver_merged_columns(
             .iter()
             .find_map(|(section, _)| section_dimensions.get(*section).ok())
         {
-            Some(dim) => spawn_block_entities(&mut commands, *dim, block_entities),
+            Some(dim) => {
+                spawn_block_entities(&mut commands, *dim, block_entities);
+                spawn_generated_entities(
+                    &mut commands,
+                    *dim,
+                    &sections_data,
+                    registry.as_deref(),
+                    entities,
+                );
+            }
             None => tracing::debug!(
-                dropped = block_entities.len(),
-                "a column with no live section delivered its block entities nowhere"
+                dropped = block_entities.len() + entities.len(),
+                "a column with no live section delivered its entities nowhere"
             ),
         }
 

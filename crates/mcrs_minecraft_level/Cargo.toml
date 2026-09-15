@@ -9,6 +9,7 @@ doctest = false
 
 [dependencies]
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_world.workspace = true
 mcrs_minecraft_block.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
@@ -30,6 +31,7 @@ rustc-hash.workspace = true
 smallvec.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+uuid = { workspace = true, features = ["v4"] }
 
 [features]
 telemetry-tracy = []

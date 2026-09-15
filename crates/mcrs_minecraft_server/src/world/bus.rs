@@ -4,10 +4,12 @@ use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
+use mcrs_minecraft_protocol::entity::{EquipmentSlot, Metadata};
+use mcrs_minecraft_protocol::packets::game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{GameEventKind, GameMode, Look, Text};
+use mcrs_minecraft_protocol::{Slot, VarInt};
 use mcrs_minecraft_registry::BlockStateId;
 use smallvec::SmallVec;
 use std::time::Instant;
@@ -120,6 +122,23 @@ pub enum PacketPayload {
         position: DVec3,
         yaw: f32,
         pitch: f32,
+        data: i32,
+    },
+    SetEntityData {
+        entity_id: i32,
+        metadata: Metadata<'static>,
+    },
+    SetEquipment {
+        entity_id: i32,
+        slots: Vec<(EquipmentSlot, Slot)>,
+    },
+    UpdateAttributes {
+        entity_id: i32,
+        attributes: Vec<AttributeSnapshot<'static>>,
+    },
+    SetPassengers {
+        vehicle: i32,
+        passengers: Vec<i32>,
     },
     /// Carries the wire numeric entity id list so dispatch_encode can build
     /// ClientboundRemoveEntities without World access.
