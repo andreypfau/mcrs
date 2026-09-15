@@ -4,8 +4,8 @@
 //! with N synthetic "bot" entities instead of real TCP connections. Bots
 //! inject outbound activity so the per-connection outbound queues run under
 //! producer load. A configurable fraction of bots perform cross-dim
-//! transfers (reassign their `SessionRegistry` entry) halfway through the
-//! run to exercise the registry mutation + teardown path.
+//! transfers (reassign their session's placement) halfway through the
+//! run to exercise the session mutation + teardown path.
 //!
 //! The smoke runner is tick-bounded (`run_profile_ticks`) so it is
 //! deterministic and finishes in milliseconds: a fixed number of ticks
@@ -15,10 +15,10 @@
 //! `#[ignore]` observational variants invoked manually.
 //!
 //! Every injected packet carries the originating bot's real `PlayerSession`,
-//! so `bridge_outbound` resolves it against the registry and routes it to
+//! so `bridge_outbound` resolves it against the sessions and routes it to
 //! that bot's `OutboundQueue`. The harness can then assert, with no
 //! dependency on process-global metric atomics, that routing landed every
-//! packet and that teardown leaves the registry empty.
+//! packet and that teardown leaves no session behind.
 
 #![allow(dead_code)]
 
@@ -28,8 +28,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
-use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft_level::session::{
+    Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
+};
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::bridge::bridge_outbound;
@@ -37,7 +38,7 @@ use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_minecraft_server::world::player_index::PlayerIndex;
+use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle};
 
 /// Per-run report. Carries the functional invariants the smoke tests assert
 /// on (all local to this run's `World`, race-free under parallel test
@@ -76,9 +77,9 @@ pub struct ScaleReport {
     /// total packets resident across all per-bot `OutboundQueue`s at T=end,
     /// i.e. how many injected packets `bridge_outbound` actually routed
     pub total_queued: u64,
-    /// number of `SessionRegistry` cross-dim reassignments performed
+    /// number of session cross-dim reassignments performed
     pub cross_dim_transfers: u64,
-    /// bot sessions still present in the registry after teardown (expect 0)
+    /// bot sessions still present after teardown (expect 0)
     pub sessions_remaining_after_teardown: u64,
 }
 
@@ -160,37 +161,29 @@ fn run_profile_bounded(
 ) -> ScaleReport {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<PlayerIndex>();
-    world.init_resource::<SessionRegistry>();
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<BridgeTelemetry>();
 
     // Synthetic dimension entities — plain entity handles used as dim keys
-    // in SessionRegistry. No dim sub-app is spawned; the harness exercises
+    // in session placements. No dim sub-app is spawned; the harness exercises
     // the bridge_outbound queue-routing path only (no sub-app extract closure).
     let dim_entities: Vec<Entity> = (0..dims.max(1)).map(|_| world.spawn_empty().id()).collect();
 
     // One OutboundQueue entity per bot (no real socket or ServerSideConnection;
     // dispatch_encode requires ServerSideConnection to send bytes, so the
     // harness targets bridge_outbound queue-fill under bot load). Entity-count
-    // delta across the run asserts the SessionRegistry teardown is clean.
+    // delta across the run asserts the session teardown is clean.
     let bot_entities: Vec<(Entity, Entity, PlayerSession)> = (0..bots_total)
         .map(|i| {
             let dim = dim_entities[i % dim_entities.len()];
             let socket = world.spawn(OutboundQueue::default()).id();
             let player = world.spawn_empty().id();
             let session = world.resource_mut::<PlayerSessionCounter>().next();
-            world.resource_mut::<SessionRegistry>().insert(
+            world.entity_mut(player).insert(SessionBundle::placed(
                 session,
-                SessionEntry {
-                    connection_entity: socket,
-                    host_anchor: player,
-                    dim,
-                    previous_dim: None,
-                    in_dim_entity: Some(socket),
-                    epoch: 0,
-                },
-            );
+                SessionPlacement::new(Place::InDim(dim), 0),
+            ));
+            world.entity_mut(socket).insert(HostAnchorRef(player));
             (player, socket, session)
         })
         .collect();
@@ -261,17 +254,24 @@ fn run_profile_bounded(
         }
 
         // Halfway through: reassign a fraction of bots to a different dim to
-        // exercise the SessionRegistry cross-dim mutation path.
+        // exercise the session cross-dim mutation path.
         if elapsed_frac >= 0.5 && !cross_dim_triggered && dim_entities.len() > 1 {
             cross_dim_triggered = true;
             let transfer_count = (bots_total as f32 * cross_dim_rate.clamp(0.0, 1.0)) as usize;
-            for (_player, _socket, session) in bot_entities.iter().take(transfer_count) {
-                if let Some(entry) = world.resource_mut::<SessionRegistry>().get_mut(session) {
-                    let old_dim = entry.dim;
+            for (player, _socket, _session) in bot_entities.iter().take(transfer_count) {
+                if let Some(mut placement) = world.get_mut::<SessionPlacement>(*player)
+                    && let Some(old_dim) = placement.place().dim()
+                {
                     let idx = dim_entities.iter().position(|&d| d == old_dim).unwrap_or(0);
                     let new_dim = dim_entities[(idx + 1) % dim_entities.len()];
-                    entry.dim = new_dim;
-                    entry.previous_dim = Some(old_dim);
+                    // Keeps the epoch: every injected packet is stamped with epoch 0.
+                    *placement = SessionPlacement::new(
+                        Place::Transferring {
+                            from: old_dim,
+                            to: new_dim,
+                        },
+                        placement.epoch(),
+                    );
                     cross_dim_transfers += 1;
                 }
             }
@@ -308,17 +308,14 @@ fn run_profile_bounded(
         })
         .sum();
 
-    // Tear down all bot session registry entries to validate the cleanup path.
-    for (_player, _socket, session) in &bot_entities {
-        world.resource_mut::<SessionRegistry>().remove(session);
+    // Tear down all bot sessions to validate the cleanup path.
+    for (player, _socket, _session) in &bot_entities {
+        world.entity_mut(*player).remove::<SessionBundle>();
     }
-    let sessions_remaining_after_teardown: u64 = {
-        let registry = world.resource::<SessionRegistry>();
-        bot_entities
-            .iter()
-            .filter(|(_p, _s, session)| registry.contains(session))
-            .count() as u64
-    };
+    let sessions_remaining_after_teardown: u64 = bot_entities
+        .iter()
+        .filter(|(player, _s, _session)| world.get::<Session>(*player).is_some())
+        .count() as u64;
 
     // T=end snapshot.
     let snapshot_end = *world.resource::<BridgeTelemetry>();

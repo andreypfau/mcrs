@@ -23,7 +23,6 @@ use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket,
 };
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_server::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 
 use crate::support;
@@ -52,10 +51,7 @@ fn build_app() -> App {
     app.insert_resource(RegistrySnapshot::<Biome>::default());
     app.insert_resource(support::corpus(&app));
 
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<mcrs_minecraft_level::session::SessionRegistry>();
     app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
-    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();

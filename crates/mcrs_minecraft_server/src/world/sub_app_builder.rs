@@ -230,7 +230,7 @@ pub fn spawn_dim_subapp(
     // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_to_dim_inbox`.
     sub_app.add_message::<crate::world::bus::InboundPlayerPacket>();
     // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and
-    // extracted by the host to set `in_dim_entity` on the session entry.
+    // extracted by the host to attach the session.
     sub_app.add_message::<crate::world::bus::OutboundPlayerAttached>();
     // Confirmed-move inbound messages drained from the control channel and read
     // by the arrival systems (SpawnEntity) and source-dim systems (ConfirmMove,

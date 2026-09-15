@@ -10,7 +10,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::query::With;
 use bevy_ecs::world::World;
 use mcrs_minecraft_level::dim::{DimProtocol, DimRequest};
-use mcrs_minecraft_level::session::{MoveId, PlayerSession, SessionRegistry};
+use mcrs_minecraft_level::session::{MoveId, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
 
@@ -136,13 +136,16 @@ impl DimProtocol for MinecraftDims {
         };
 
         let (session, epoch) = match &target {
-            PacketTarget::SinglePlayer(anchor) => {
-                let registry = world.resource::<SessionRegistry>();
-                registry
-                    .get_by_anchor(anchor)
-                    .map(|(session, entry)| (*session, entry.epoch))
-                    .unwrap_or((PlayerSession(0), 0))
-            }
+            PacketTarget::SinglePlayer(anchor) => world
+                .get_entity(*anchor)
+                .ok()
+                .and_then(|anchor| {
+                    Some((
+                        anchor.get::<Session>()?.0,
+                        anchor.get::<SessionPlacement>()?.epoch(),
+                    ))
+                })
+                .unwrap_or((PlayerSession(0), 0)),
             _ => (PlayerSession(0), 0),
         };
 

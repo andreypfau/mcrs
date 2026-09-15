@@ -8,9 +8,7 @@ use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_level::palette::ChunkBlocks;
-use mcrs_minecraft_level::session::{
-    DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry,
-};
+use mcrs_minecraft_level::session::{DimPlayerIndex, MoveId, PlayerSessionCounter};
 use mcrs_minecraft_level::world::channels::{
     DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
@@ -133,7 +131,6 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
 
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
     app.init_resource::<DimDespawnQueue>();

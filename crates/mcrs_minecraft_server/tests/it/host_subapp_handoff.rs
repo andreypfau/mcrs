@@ -17,7 +17,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::Block;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionRegistry};
+use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
@@ -28,9 +28,7 @@ use mcrs_minecraft_server::world::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, PlayerTransferSnapshot,
 };
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_server::world::player_index::{
-    HostAnchorRef, PendingInboundBuffer, PlayerIndex,
-};
+use mcrs_minecraft_server::world::session::HostAnchorRef;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 
 // System under test (Task 1) — must be pub in configuration.rs
@@ -62,10 +60,7 @@ fn build_host_app() -> App {
     app.insert_resource(RegistrySnapshot::<Biome>::default());
     app.insert_resource(support::corpus(&app));
 
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
@@ -83,7 +78,7 @@ fn build_host_app() -> App {
 }
 
 /// Spawn a connection entity in `LoginState::Accepted` so `on_login_accepted`
-/// fires and creates the host-anchor + PlayerIndex entry.
+/// fires and creates the host-anchor and its session.
 /// Returns (connection_entity, host_anchor).
 fn spawn_accepted_connection(app: &mut App) -> (Entity, Entity) {
     let profile = GameProfile {
@@ -123,8 +118,8 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 
 /// When a connection transitions to Game AND a live DimSubAppHandle label
 /// entity exists (with a registered channel), the host must send exactly one
-/// `ToDim::Spawn` into the dim's control channel and set
-/// `SessionEntry.dim` to that label (no longer Entity::PLACEHOLDER).
+/// `ToDim::Spawn` into the dim's control channel and mark the session as
+/// joining that label.
 #[test]
 fn game_transition_emits_initial_spawn() {
     use mcrs_minecraft_level::world::channels::{
@@ -177,18 +172,18 @@ fn game_transition_emits_initial_spawn() {
     }
 
     let world = app.world();
-    let (_, entry) = world
-        .resource::<SessionRegistry>()
-        .get_by_anchor(&host_anchor)
-        .expect("SessionEntry present");
     assert_eq!(
-        entry.dim, dim_label,
-        "SessionEntry.dim must be set to the selected dim label (not PLACEHOLDER)"
+        world
+            .get::<SessionPlacement>(host_anchor)
+            .expect("session present")
+            .place(),
+        Place::Joining(dim_label),
+        "the session must be joining the selected dim label"
     );
 }
 
 /// When no live DimSubAppHandle label entity exists yet (dims still loading),
-/// the emitter must NOT push any spawn and must leave current_dim as PLACEHOLDER.
+/// the emitter must NOT push any spawn and must leave the session unplaced.
 #[test]
 fn no_live_dim_no_spawn() {
     let mut app = build_host_app();
@@ -207,19 +202,18 @@ fn no_live_dim_no_spawn() {
         "no channel should be registered when no DimSubAppHandle is live"
     );
 
-    let (_, entry) = world
-        .resource::<SessionRegistry>()
-        .get_by_anchor(&host_anchor)
-        .expect("SessionEntry present");
     assert_eq!(
-        entry.dim,
-        Entity::PLACEHOLDER,
-        "dim must remain PLACEHOLDER when no dim is live"
+        world
+            .get::<SessionPlacement>(host_anchor)
+            .expect("session present")
+            .place(),
+        Place::Unplaced,
+        "the session must stay unplaced when no dim is live"
     );
 }
 
-/// A host-anchor that already has current_dim != PLACEHOLDER (initial join
-/// already emitted) must not send a second ToDim::Spawn.
+/// A session that is already placed (initial join already emitted) must not
+/// send a second ToDim::Spawn.
 #[test]
 fn idempotent_single_emit() {
     use mcrs_minecraft_level::world::channels::{
@@ -353,10 +347,10 @@ fn spawn_consumer_materializes_in_dim_entity() {
 
 /// Full production-topology test: host emits InboundPlayerSpawn on Game
 /// transition → extract shuttles it → sub-app consumer spawns entity →
-/// OutboundPlayerAttached extracted → host bridge_player_attach sets
-/// in_dim_entity. After the pump, PlayerIndex.in_dim_entity must be Some.
+/// OutboundPlayerAttached extracted → host bridge_player_attach attaches the
+/// session. After the pump, the session must be in its dim.
 #[test]
-fn attach_roundtrip_sets_in_dim_entity() {
+fn attach_roundtrip_places_the_session_in_its_dim() {
     use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
 
     let mut app = build_host_app();
@@ -392,17 +386,17 @@ fn attach_roundtrip_sets_in_dim_entity() {
     app.update();
 
     // Tick 3: bridge_player_attach reads host Messages<OutboundPlayerAttached>
-    //         → sets in_dim_entity.
+    //         → attaches the session.
     app.update();
 
-    let (_, entry) = app
+    let place = app
         .world()
-        .resource::<SessionRegistry>()
-        .get_by_anchor(&host_anchor)
-        .expect("SessionEntry present");
+        .get::<SessionPlacement>(host_anchor)
+        .expect("session present")
+        .place();
     assert!(
-        entry.in_dim_entity.is_some(),
-        "SessionEntry.in_dim_entity must be Some after the full handoff round-trip"
+        matches!(place, Place::InDim(_)),
+        "the session must be in its dim after the full handoff round-trip, got {place:?}"
     );
 }
 

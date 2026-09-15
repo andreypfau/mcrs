@@ -33,8 +33,6 @@ impl MoveIds {
 pub struct InFlightEntry {
     /// Label entity of the source sub-app.
     pub source_dim: Entity,
-    /// In-source-dim entity that has the `InTransit` marker.
-    pub hidden_entity: Entity,
     /// Present for player moves; absent for non-player moves.
     pub session: Option<PlayerSession>,
     pub ticks_elapsed: u32,

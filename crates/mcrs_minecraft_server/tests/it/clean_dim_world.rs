@@ -1,7 +1,6 @@
 use bevy_ecs::prelude::With;
-use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionRegistry};
+use mcrs_minecraft_level::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_network::ServerSideConnection;
-use mcrs_minecraft_server::world::player_index::PlayerIndex;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_server::world_options::LoadedWorldPreset;
 
@@ -27,13 +26,13 @@ fn dim_world_contains_no_host_only_resources() {
             .expect("sub-app present");
         let world = sub_app.world_mut();
 
-        assert!(
-            !world.contains_resource::<PlayerIndex>(),
-            "PlayerIndex is MainWorld-only and must not appear in DimWorld {label:?}"
-        );
-        assert!(
-            !world.contains_resource::<SessionRegistry>(),
-            "SessionRegistry is MainWorld-only and must not appear in DimWorld {label:?}"
+        let session_count = world
+            .query_filtered::<bevy_ecs::entity::Entity, With<Session>>()
+            .iter(world)
+            .count();
+        assert_eq!(
+            session_count, 0,
+            "sessions are MainWorld-only and must not appear in DimWorld {label:?}"
         );
         assert!(
             !world.contains_resource::<PlayerSessionCounter>(),

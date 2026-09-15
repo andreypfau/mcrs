@@ -4,7 +4,6 @@ use bevy_ecs::resource::Resource;
 use rustc_hash::FxHashMap;
 
 /// Never-reused process-global routing key. Copy + Hash + Eq.
-/// Not a Component — it is embedded in Owner and SessionEntry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerSession(pub u64);
 
@@ -20,82 +19,91 @@ pub struct MoveId {
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Owner(pub PlayerSession);
 
-pub struct SessionEntry {
-    /// The MainWorld connection (socket) entity for this session.
-    pub connection_entity: Entity,
-    /// The MainWorld host-anchor entity spawned at login.
-    pub host_anchor: Entity,
-    /// The current dim sub-app entity. `Entity::PLACEHOLDER` until assigned.
-    pub dim: Entity,
-    /// The previous dim (set during transfer, cleared after attach).
-    pub previous_dim: Option<Entity>,
-    /// The in-dim player entity once the spawn completes.
-    pub in_dim_entity: Option<Entity>,
-    pub epoch: u32,
+/// A logged-in player on the host, carried by its host anchor entity for as long as the
+/// player is connected.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+#[require(SessionPlacement)]
+pub struct Session(pub PlayerSession);
+
+/// Where the host routes a session's packets.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Place {
+    #[default]
+    Unplaced,
+    /// Spawned into a dimension that has not yet attached the player.
+    Joining(Entity),
+    InDim(Entity),
+    /// Moving between dimensions; the source keeps the player hidden until the move is
+    /// confirmed or rolled back.
+    Transferring {
+        from: Entity,
+        to: Entity,
+    },
 }
 
-#[derive(Resource, Default)]
-pub struct SessionRegistry {
-    entries: FxHashMap<PlayerSession, SessionEntry>,
-    /// Reverse lookup: host_anchor entity → PlayerSession.
-    by_anchor: FxHashMap<Entity, PlayerSession>,
-}
-
-impl SessionRegistry {
-    pub fn insert(&mut self, session: PlayerSession, entry: SessionEntry) {
-        self.by_anchor.insert(entry.host_anchor, session);
-        self.entries.insert(session, entry);
-    }
-
-    pub fn get(&self, session: &PlayerSession) -> Option<&SessionEntry> {
-        self.entries.get(session)
-    }
-
-    pub fn get_mut(&mut self, session: &PlayerSession) -> Option<&mut SessionEntry> {
-        self.entries.get_mut(session)
-    }
-
-    pub fn get_by_anchor(&self, host_anchor: &Entity) -> Option<(&PlayerSession, &SessionEntry)> {
-        let session = self.by_anchor.get(host_anchor)?;
-        let entry = self.entries.get(session)?;
-        Some((session, entry))
-    }
-
-    pub fn get_by_anchor_mut(
-        &mut self,
-        host_anchor: &Entity,
-    ) -> Option<(PlayerSession, &mut SessionEntry)> {
-        let session = *self.by_anchor.get(host_anchor)?;
-        let entry = self.entries.get_mut(&session)?;
-        Some((session, entry))
-    }
-
-    pub fn remove(&mut self, session: &PlayerSession) -> Option<SessionEntry> {
-        if let Some(entry) = self.entries.get(session) {
-            self.by_anchor.remove(&entry.host_anchor);
+impl Place {
+    /// The dimension the session's clientbound packets belong to.
+    pub fn dim(self) -> Option<Entity> {
+        match self {
+            Place::Unplaced => None,
+            Place::Joining(dim) | Place::InDim(dim) | Place::Transferring { to: dim, .. } => {
+                Some(dim)
+            }
         }
-        self.entries.remove(session)
     }
 
-    pub fn contains(&self, session: &PlayerSession) -> bool {
-        self.entries.contains_key(session)
+    /// The dimension that accepts the session's serverbound packets.
+    pub fn attached(self) -> Option<Entity> {
+        match self {
+            Place::InDim(dim) => Some(dim),
+            _ => None,
+        }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&PlayerSession, &SessionEntry)> {
-        self.entries.iter()
-    }
-
-    pub fn iter_in_dim(
-        &self,
-        dim: Entity,
-    ) -> impl Iterator<Item = (&PlayerSession, &SessionEntry)> {
-        self.entries.iter().filter(move |(_, e)| e.dim == dim)
+    /// Every dimension that may hold an entity of the session.
+    pub fn holding_dims(self) -> impl Iterator<Item = Entity> {
+        let (dim, leaving) = match self {
+            Place::Unplaced => (None, None),
+            Place::Joining(dim) | Place::InDim(dim) => (Some(dim), None),
+            Place::Transferring { from, to } => (Some(to), (from != to).then_some(from)),
+        };
+        dim.into_iter().chain(leaving)
     }
 }
 
-/// Counter that never emits PlayerSession(0). Starts at 1 on first call so
-/// an unstamped packet with the default PlayerSession(0) never matches any
-/// live session in SessionRegistry.
+/// `epoch` counts the dimensions a session has left, so a packet stamped in one it has
+/// since left is dropped at the bridge.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SessionPlacement {
+    place: Place,
+    epoch: u32,
+}
+
+impl SessionPlacement {
+    pub fn new(place: Place, epoch: u32) -> Self {
+        Self { place, epoch }
+    }
+
+    pub fn place(&self) -> Place {
+        self.place
+    }
+
+    pub fn epoch(&self) -> u32 {
+        self.epoch
+    }
+
+    pub fn set(&mut self, next: Place) {
+        if let Some(current) = self.place.dim()
+            && next.dim() != Some(current)
+        {
+            self.epoch = self.epoch.wrapping_add(1);
+        }
+        self.place = next;
+    }
+}
+
+/// Counter that never emits PlayerSession(0), so an unstamped packet carrying the default
+/// PlayerSession(0) never matches a live session.
 #[derive(Resource, Default)]
 pub struct PlayerSessionCounter(u64);
 

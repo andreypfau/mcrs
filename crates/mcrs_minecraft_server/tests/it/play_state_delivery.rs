@@ -24,8 +24,7 @@ use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::Block;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
@@ -44,7 +43,7 @@ use mcrs_minecraft_server::world::bus::{
     PlayerTransferSnapshot,
 };
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
-use mcrs_minecraft_server::world::player_index::{PendingInboundBuffer, PlayerIndex};
+use mcrs_minecraft_server::world::session::SessionBundle;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use tokio::sync::mpsc;
 
@@ -57,7 +56,6 @@ use crate::support;
 fn build_dispatch_world() -> (World, Entity, mpsc::Receiver<Bytes>) {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<PlayerIndex>();
     world.init_resource::<BridgeTelemetry>();
 
     let (raw, rx) = mock_connection::make_mock_raw_connection();
@@ -111,10 +109,7 @@ fn build_host_app() -> App {
     app.insert_resource(RegistrySnapshot::<Biome>::default());
     app.insert_resource(support::corpus(&app));
 
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>();
     app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
@@ -364,17 +359,12 @@ fn play_login_emitted_on_spawn() {
             .world_mut()
             .resource_mut::<PlayerSessionCounter>()
             .next();
-        app.world_mut().resource_mut::<SessionRegistry>().insert(
-            session,
-            SessionEntry {
-                connection_entity: Entity::PLACEHOLDER,
-                host_anchor,
-                dim: dim_label,
-                previous_dim: None,
-                in_dim_entity: None,
-                epoch: 0,
-            },
-        );
+        app.world_mut()
+            .entity_mut(host_anchor)
+            .insert(SessionBundle::placed(
+                session,
+                SessionPlacement::new(Place::Joining(dim_label), 0),
+            ));
     }
 
     // Send ToDim::Spawn on the dim's control channel so drain_to_dim_inbox
@@ -450,17 +440,12 @@ fn play_login_targets_host_anchor() {
             .world_mut()
             .resource_mut::<PlayerSessionCounter>()
             .next();
-        app.world_mut().resource_mut::<SessionRegistry>().insert(
-            session,
-            SessionEntry {
-                connection_entity: Entity::PLACEHOLDER,
-                host_anchor,
-                dim: dim_label,
-                previous_dim: None,
-                in_dim_entity: None,
-                epoch: 0,
-            },
-        );
+        app.world_mut()
+            .entity_mut(host_anchor)
+            .insert(SessionBundle::placed(
+                session,
+                SessionPlacement::new(Place::Joining(dim_label), 0),
+            ));
     }
 
     {

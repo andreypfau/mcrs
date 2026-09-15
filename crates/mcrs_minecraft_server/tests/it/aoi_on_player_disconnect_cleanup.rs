@@ -7,7 +7,7 @@
 //! socket that integration tests cannot reach, so the tests exercise the
 //! protocol pipeline (resources + helpers + filter system) rather than
 //! the `On<Remove, ServerSideConnection>` trigger itself. The trigger
-//! path is the thin shim documented in `player_index_lifecycle.rs`.
+//! path is the thin shim documented in `session_lifecycle.rs`.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -18,7 +18,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
@@ -27,7 +27,7 @@ use mcrs_minecraft_level::world::dimension::{
 };
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_server::disconnect::{
-    DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick,
+    DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, LeavingSessions,
     filter_inflight_for_disconnect, process_disconnect,
 };
 use mcrs_minecraft_server::world::aoi::TrackedBy;
@@ -38,7 +38,7 @@ use mcrs_minecraft_server::world::bus::{
 use mcrs_minecraft_server::world::channel_types::FromDim;
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
-use mcrs_minecraft_server::world::player_index::PlayerIndex;
+use mcrs_minecraft_server::world::session::SessionBundle;
 
 use crate::harness;
 use harness::{
@@ -52,8 +52,6 @@ fn build_disconnect_app() -> App {
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
     app.add_plugins(DisconnectProtocolPlugin);
@@ -89,25 +87,27 @@ fn insert_location(
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
         .next();
-    app.world_mut().resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: Entity::PLACEHOLDER,
-            host_anchor,
-            dim: current_dim,
-            previous_dim,
-            in_dim_entity,
-            epoch: 0,
+    let place = match (previous_dim, in_dim_entity) {
+        (Some(from), _) => Place::Transferring {
+            from,
+            to: current_dim,
         },
-    );
+        (None, Some(_)) => Place::InDim(current_dim),
+        (None, None) => Place::Joining(current_dim),
+    };
+    app.world_mut()
+        .entity_mut(host_anchor)
+        .insert(SessionBundle::placed(
+            session,
+            SessionPlacement::new(place, 0),
+        ));
 }
 
 fn synthetic_disconnect(app: &mut App, host_anchor: Entity) {
     app.world_mut()
         .run_system_once(
             move |mut commands: Commands,
-                  mut player_index: ResMut<PlayerIndex>,
-                  mut session_registry: ResMut<SessionRegistry>,
+                  mut sessions: LeavingSessions,
                   dim_channels: ResMut<DimChannelsResource>,
                   mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
                   mut budget: ResMut<DisconnectBudget>| {
@@ -115,8 +115,7 @@ fn synthetic_disconnect(app: &mut App, host_anchor: Entity) {
                 let _ = budget.consume();
                 process_disconnect(
                     host_anchor,
-                    &mut player_index,
-                    &mut session_registry,
+                    &mut sessions,
                     &dim_channels,
                     &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
@@ -158,11 +157,8 @@ fn disconnect_at_tick_n_e1_3_after_dest_spawn_pre_attach_emit() {
     );
 
     assert!(
-        app.world()
-            .resource::<SessionRegistry>()
-            .get_by_anchor(&host_anchor)
-            .is_none(),
-        "SessionRegistry entry removed"
+        app.world().get_entity(host_anchor).is_err(),
+        "the session is despawned"
     );
 }
 
@@ -173,17 +169,13 @@ fn disconnect_at_tick_n_e1_4_attached_pending_filter() {
     let host_anchor = app.world_mut().spawn_empty().id();
     let source_dim = Entity::from_raw_u32(401).unwrap();
     let dest_dim = Entity::from_raw_u32(402).unwrap();
-    let new_in_dim = Entity::from_raw_u32(403).unwrap();
     let src_ctl_rx = register_dim_channel(&mut app, source_dim);
     let dst_ctl_rx = register_dim_channel(&mut app, dest_dim);
     insert_location(&mut app, host_anchor, dest_dim, Some(source_dim), None);
 
     app.world_mut()
         .resource_mut::<Messages<OutboundPlayerAttached>>()
-        .write(OutboundPlayerAttached {
-            host_anchor,
-            new_in_dim_entity: new_in_dim,
-        });
+        .write(OutboundPlayerAttached { host_anchor });
 
     synthetic_disconnect(&mut app, host_anchor);
     run_filter(&mut app);
@@ -221,12 +213,7 @@ fn disconnect_at_tick_n_e1_5_steady_in_dim() {
         "single despawn (current_dim only) since previous_dim is None"
     );
 
-    assert!(
-        app.world()
-            .resource::<SessionRegistry>()
-            .get_by_anchor(&host_anchor)
-            .is_none()
-    );
+    assert!(app.world().get_entity(host_anchor).is_err());
 }
 
 /// Regression: a transfer-out eviction (via `InboundPlayerDespawn`) has the

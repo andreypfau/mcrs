@@ -19,7 +19,7 @@ pub struct OutboundPlayerPacket {
     pub data: PacketPayload,
     // Stamped by the bridge extract closure, not by dim systems.
     // Default PlayerSession(0) / epoch 0 is safe: PlayerSession(0) never
-    // exists in SessionRegistry (counter starts at 1), so unstamped
+    // is a session's id (counter starts at 1), so unstamped
     // packets are always dropped by bridge_outbound.
     pub session: PlayerSession,
     pub epoch: u32,
@@ -48,7 +48,6 @@ pub struct InboundPlayerSpawn {
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerAttached {
     pub host_anchor: Entity,
-    pub new_in_dim_entity: Entity,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -358,10 +357,7 @@ mod tests {
         };
         assert_eq!(format!("{:?}", spawn.clone()), format!("{:?}", spawn));
 
-        let attached = OutboundPlayerAttached {
-            host_anchor: e,
-            new_in_dim_entity: e,
-        };
+        let attached = OutboundPlayerAttached { host_anchor: e };
         assert_eq!(format!("{:?}", attached.clone()), format!("{:?}", attached));
 
         let disconnect = OutboundPlayerDisconnect { host_anchor: e };

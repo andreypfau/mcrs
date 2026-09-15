@@ -1,5 +1,4 @@
 use bevy_ecs::component::Component;
-use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Add;
 use bevy_ecs::prelude::{On, Query};
 use bevy_ecs::query::Without;
@@ -15,8 +14,8 @@ use mcrs_minecraft_protocol::profile::Property;
 use mcrs_minecraft_protocol::{Bounded, WritePacket, uuid};
 use std::borrow::Cow;
 
-use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
-use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use crate::world::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_level::session::PlayerSessionCounter;
 
 /// Vanilla mints one chat session id per listener and reuses it for every login.
 #[derive(Resource, Clone, Copy, Debug)]
@@ -120,8 +119,6 @@ pub fn handle_login_acknowledged(
 pub fn on_login_accepted(
     trigger: On<Add, LoginState>,
     login_state: Query<(&LoginState, &GameProfile)>,
-    mut player_index: ResMut<PlayerIndex>,
-    mut session_registry: ResMut<SessionRegistry>,
     mut session_counter: ResMut<PlayerSessionCounter>,
     mut commands: Commands,
 ) {
@@ -133,28 +130,12 @@ pub fn on_login_accepted(
         return;
     }
 
-    let session = session_counter.next();
-
-    // current_dim = PLACEHOLDER until dim selection from spawn-point logic lands.
-    let host_anchor = commands.spawn(profile.clone()).id();
-
+    let host_anchor = commands
+        .spawn((profile.clone(), SessionBundle::new(session_counter.next())))
+        .id();
     commands
         .entity(connection_entity)
-        .insert((HostAnchorRef(host_anchor), PlayerSessionRef(session)));
-
-    session_registry.insert(
-        session,
-        SessionEntry {
-            connection_entity,
-            host_anchor,
-            dim: Entity::PLACEHOLDER,
-            previous_dim: None,
-            in_dim_entity: None,
-            epoch: 0,
-        },
-    );
-
-    player_index.insert_username(profile.username.clone(), session);
+        .insert(HostAnchorRef(host_anchor));
 }
 
 use bevy_ecs::query::With;

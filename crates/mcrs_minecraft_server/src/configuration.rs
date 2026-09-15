@@ -4,7 +4,7 @@ use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
-use crate::world::player_index::HostAnchorRef;
+use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, Plugin, Update};
 use bevy_asset::{AssetEvent, AssetId, AssetServer, Assets, Handle};
@@ -27,7 +27,7 @@ use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_item::Item as VanillaItem;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::dim::send_control_or_teardown;
-use mcrs_minecraft_level::session::SessionRegistry;
+use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
@@ -291,7 +291,7 @@ fn sync_dimension_type_changes(
         &ConnectionState,
         Option<&HostAnchorRef>,
     )>,
-    mut session_registry: ResMut<SessionRegistry>,
+    mut sessions: Query<(&Session, &mut SessionPlacement)>,
     dim_channels: Res<DimChannelsResource>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
@@ -311,23 +311,19 @@ fn sync_dimension_type_changes(
         let Some(host_anchor) = host_anchor.map(|anchor| anchor.0) else {
             continue;
         };
-        let Some((session, entry)) = session_registry.get_by_anchor_mut(&host_anchor) else {
+        let Ok((session, mut placement)) = sessions.get_mut(host_anchor) else {
             continue;
         };
         // The client drops its level on reconfiguration, so the player leaves its
         // dimension now and `emit_initial_player_spawn` joins it again once play resumes.
         despawn_from_dims(
             host_anchor,
-            session,
-            entry.dim,
-            entry.previous_dim,
+            session.0,
+            placement.place(),
             &dim_channels,
             &mut despawn_queue,
         );
-        entry.dim = Entity::PLACEHOLDER;
-        entry.previous_dim = None;
-        entry.in_dim_entity = None;
-        entry.epoch = entry.epoch.wrapping_add(1);
+        placement.set(Place::Unplaced);
     }
 }
 
@@ -630,26 +626,21 @@ fn on_game_configuration_ack(
     *state = ConnectionState::Configuration;
 }
 
-/// Runs each Update tick. For every connection in the game state whose
-/// host-anchor still has `current_dim == Entity::PLACEHOLDER` (initial join not yet
-/// emitted), picks the first live `DimSubAppHandle` label entity and sends one
-/// `ToDim::Spawn` into the dimension's control channel, then sets `current_dim`
-/// to that label entity.
-///
-/// `current_dim` is set to the DimSubAppHandle LABEL entity (the key used by
-/// `DimChannelsResource`), NOT a sub-app-internal `Dimension` entity.
-///
-/// If no live label entity exists yet (dims still loading), the emit is deferred:
-/// no spawn is sent and `current_dim` stays `PLACEHOLDER`. The idempotent guard
-/// (`current_dim != PLACEHOLDER`) ensures at most one initial-join spawn per player.
 /// What vanilla's player asks for until its client information arrives.
 const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
+/// Runs each Update tick. For every connection in the game state whose session
+/// is still unplaced, picks the first live `DimSubAppHandle` label entity, sends
+/// one `ToDim::Spawn` into the dimension's control channel and marks the session
+/// as joining that label entity — the key used by `DimChannelsResource`, NOT a
+/// sub-app-internal `Dimension` entity.
+///
+/// If no live label entity exists yet (dims still loading), the session stays
+/// unplaced and the emit is retried next tick.
 pub fn emit_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
-    mut session_registry: ResMut<SessionRegistry>,
+    mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
     live_dims: Query<Entity, With<DimSubAppHandle>>,
-    profiles: Query<&GameProfile>,
     dim_channels: Res<DimChannelsResource>,
     world_preset: Option<Res<LoadedWorldPreset>>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
@@ -672,37 +663,32 @@ pub fn emit_initial_player_spawn(
         _ => vec!["minecraft:overworld".to_string()],
     };
 
-    // Collect anchors first so we can mutably borrow session_registry below.
-    let anchors: Vec<(Entity, Option<u8>)> = connections
-        .iter()
-        .filter(|(_, state, _)| **state == ConnectionState::Game)
-        .map(|(anchor, _, info)| (anchor.0, info.map(|info| info.view_distance)))
-        .collect();
-
-    for (host_anchor, view_distance) in anchors {
-        let Some((session, entry)) = session_registry.get_by_anchor_mut(&host_anchor) else {
-            continue;
-        };
-        if entry.dim != Entity::PLACEHOLDER {
+    for (&HostAnchorRef(host_anchor), state, info) in &connections {
+        if *state != ConnectionState::Game {
             continue;
         }
-        let Ok(profile) = profiles.get(host_anchor) else {
+        let Ok((session, mut placement, profile)) = sessions.get_mut(host_anchor) else {
             continue;
         };
+        if placement.place() != Place::Unplaced {
+            continue;
+        }
         let snapshot = PlayerTransferSnapshot {
             uuid: profile.id,
             username: profile.username.clone(),
             position: DVec3::new(0.0, 128.0, 0.0),
             rotation: Vec2::ZERO,
-            view_distance: view_distance.unwrap_or(VIEW_DISTANCE_FALLBACK),
+            view_distance: info
+                .map(|info| info.view_distance)
+                .unwrap_or(VIEW_DISTANCE_FALLBACK),
         };
-        entry.dim = dim_label;
+        placement.set(Place::Joining(dim_label));
         send_control_or_teardown(
             &chan.control_sender,
             dim_label,
             ToDim::Spawn {
                 host_anchor,
-                session,
+                session: session.0,
                 snapshot,
                 dimensions: dimensions.clone(),
             },

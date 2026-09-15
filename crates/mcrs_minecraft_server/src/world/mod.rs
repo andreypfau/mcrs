@@ -28,7 +28,7 @@ mod inventory;
 pub mod light;
 pub mod light_codec;
 pub mod loot;
-pub mod player_index;
+pub mod session;
 pub mod sub_app_builder;
 
 pub struct WorldPlugin;
@@ -41,14 +41,11 @@ impl Plugin for WorldPlugin {
         // default is for harnesses that compose `WorldPlugin` on its own.
         app.init_resource::<crate::world_options::WorldSeed>();
 
-        // Bus + PlayerIndex substrate. Both resources live in the host world.
+        // Bus substrate, in the host world.
         // `add_message::<T>()` must run BEFORE any sub-app extract reads
         // `Messages<T>` (the closure panics on `resource_mut` if the
         // double-buffer was never initialised). Pairing with the per-sub-app
         // registrations in `spawn_dim_subapp` is what keeps the contract.
-        app.init_resource::<crate::world::player_index::PlayerIndex>();
-        app.init_resource::<crate::world::player_index::PendingInboundBuffer>();
-        app.init_resource::<mcrs_minecraft_level::session::SessionRegistry>();
         app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
         app.init_resource::<crate::world::channel_types::DimChannelsResource>();
         app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
@@ -109,6 +106,7 @@ impl Plugin for WorldPlugin {
             (
                 crate::world::bridge::bridge_inbound_to_channel,
                 crate::world::bridge::bridge_player_attach,
+                crate::world::bridge::forward_pending_inbound,
             )
                 .chain(),
         );

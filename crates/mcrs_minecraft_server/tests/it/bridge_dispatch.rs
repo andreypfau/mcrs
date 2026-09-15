@@ -25,7 +25,6 @@ use mcrs_minecraft_server::world::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT
 use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
-use mcrs_minecraft_server::world::player_index::PlayerIndex;
 use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
@@ -37,7 +36,6 @@ use tokio::sync::mpsc;
 fn build_dispatch_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<PlayerIndex>();
     world.init_resource::<BridgeTelemetry>();
     world
 }

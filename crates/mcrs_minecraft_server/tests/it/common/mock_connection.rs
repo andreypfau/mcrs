@@ -1,7 +1,7 @@
 //! Minimal ECS world helpers for bridge routing tests.
 //!
 //! These tests exercise `bridge_outbound` (packet routing only, no sockets).
-//! The world carries `OutboundQueue` + `SessionRegistry` but no real network
+//! The world carries `OutboundQueue` + sessions but no real network
 //! transport — socket I/O belongs to separate dispatch tests.
 
 use bevy_ecs::entity::Entity;
@@ -10,22 +10,20 @@ use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_minecraft_level::session::{
-    PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
+    Place, PlayerSession, PlayerSessionCounter, Session, SessionPlacement,
 };
 use mcrs_minecraft_network::RawConnection;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
-use mcrs_minecraft_server::world::player_index::PlayerIndex;
+use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle};
 use tokio::sync::mpsc;
 
 /// Build a bare world with the resources needed for `bridge_outbound` tests.
 pub fn build_bridge_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<SessionRegistry>();
-    world.init_resource::<PlayerIndex>();
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     world
 }
@@ -35,31 +33,21 @@ pub fn spawn_connection(world: &mut World) -> Entity {
     world.spawn(OutboundQueue::default()).id()
 }
 
-/// Register a player in `SessionRegistry`. `player` is treated as the
-/// host_anchor; `socket` is the connection entity that packets route to.
-/// Returns the allocated `PlayerSession`.
-pub fn register_player(
-    world: &mut World,
-    player: Entity,
-    socket: Entity,
-    dim: Entity,
-) -> PlayerSession {
+/// Log a player in on `socket`, placed in `dim`. Returns the host anchor that
+/// carries the session, and the session.
+pub fn register_player(world: &mut World, socket: Entity, dim: Entity) -> (Entity, PlayerSession) {
     if !world.contains_resource::<PlayerSessionCounter>() {
         world.init_resource::<PlayerSessionCounter>();
     }
     let session = world.resource_mut::<PlayerSessionCounter>().next();
-    world.resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: socket,
-            host_anchor: player,
-            dim,
-            previous_dim: None,
-            in_dim_entity: Some(socket),
-            epoch: 0,
-        },
-    );
-    session
+    let anchor = world
+        .spawn(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::InDim(dim), 0),
+        ))
+        .id();
+    world.entity_mut(socket).insert(HostAnchorRef(anchor));
+    (anchor, session)
 }
 
 /// Write a test packet addressed to `target` into the world's
@@ -97,7 +85,8 @@ pub fn write_packet_broadcast(
     write_packet(world, target, PlayerSession(0), 0, priority, seq);
 }
 
-/// Write a stamped test packet for the epoch-filter tests.
+/// Write a test packet stamped for `session`, addressed to the host anchor
+/// carrying it, or to an entity no session lives on when none does.
 pub fn write_packet_stamped(
     world: &mut World,
     session: PlayerSession,
@@ -105,12 +94,15 @@ pub fn write_packet_stamped(
     priority: PacketPriority,
     seq: u32,
 ) {
-    // Construct a dummy dim entity for the target (irrelevant — bridge_outbound
-    // uses msg.session for SinglePlayer, not the entity inside PacketTarget).
-    let dummy = Entity::from_raw_u32(9999).expect("nonzero");
+    let anchor = world
+        .query::<(Entity, &Session)>()
+        .iter(world)
+        .find(|(_, carried)| carried.0 == session)
+        .map(|(anchor, _)| anchor)
+        .unwrap_or(Entity::from_raw_u32(9999).expect("nonzero"));
     write_packet(
         world,
-        PacketTarget::SinglePlayer(dummy),
+        PacketTarget::SinglePlayer(anchor),
         session,
         epoch,
         priority,
@@ -118,26 +110,19 @@ pub fn write_packet_stamped(
     );
 }
 
-/// Register a session directly (bypassing the PlayerSessionCounter).
-/// Used by epoch-filter tests that need precise control over session ids.
+/// Register a session directly (bypassing the PlayerSessionCounter), placed in
+/// dim `Entity::from_raw_u32(9998)` at `epoch`.
 pub fn register_session(world: &mut World, session: PlayerSession, socket: Entity, epoch: u32) {
-    let anchor = Entity::from_raw_u32(9997).expect("nonzero");
     let dim = Entity::from_raw_u32(9998).expect("nonzero");
-    world.resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: socket,
-            host_anchor: anchor,
-            dim,
-            previous_dim: None,
-            in_dim_entity: None,
-            epoch,
-        },
-    );
+    let anchor = world
+        .spawn(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::InDim(dim), epoch),
+        ))
+        .id();
+    world.entity_mut(socket).insert(HostAnchorRef(anchor));
 }
 
-/// Build a world identical to `build_bridge_world` but with no `PlayerIndex`
-/// dependency — suitable for epoch-filter tests that only need `SessionRegistry`.
 pub fn build_bridge_world_with_sessions() -> World {
     build_bridge_world()
 }

@@ -10,7 +10,6 @@ use mcrs_minecraft_level::world::in_flight::{InFlightEntry, InFlightMoves, MoveI
 fn entry() -> InFlightEntry {
     InFlightEntry {
         source_dim: Entity::PLACEHOLDER,
-        hidden_entity: Entity::PLACEHOLDER,
         session: Some(PlayerSession(1)),
         ticks_elapsed: 0,
     }

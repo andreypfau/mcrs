@@ -1,4 +1,4 @@
-use crate::session::{MoveId, PlayerSession, SessionRegistry};
+use crate::session::{MoveId, Place, PlayerSession, Session, SessionPlacement};
 use crate::world::channels::{DimChannels, DimSender};
 use crate::world::in_flight::{InFlightEntry, InFlightMoves};
 use crate::world::sub_app::DimDespawnQueue;
@@ -109,7 +109,7 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
             .collect()
     };
 
-    let mut pending_rollbacks: Vec<(MoveId, Entity)> = Vec::new();
+    let mut pending_rollbacks: Vec<(MoveId, Entity, Option<PlayerSession>)> = Vec::new();
     let mut pending_confirms: Vec<(MoveId, Entity)> = Vec::new();
 
     for (source_dim, messages) in dim_entries {
@@ -121,6 +121,13 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
                 DimRequest::Other(message) => P::deliver(world, source_dim, message),
                 DimRequest::Arrived { move_id } => {
                     if let Some(entry) = world.resource_mut::<InFlightMoves>().remove(move_id) {
+                        if let Some(session) = entry.session {
+                            place_session(world, session, |placement| {
+                                if let Place::Transferring { to, .. } = placement.place() {
+                                    placement.set(Place::InDim(to));
+                                }
+                            });
+                        }
                         pending_confirms.push((move_id, entry.source_dim));
                     }
                 }
@@ -132,17 +139,17 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
                 } => {
                     let epoch = match session {
                         Some(session) => {
-                            let mut registry = world.resource_mut::<SessionRegistry>();
-                            let Some(entry) = registry.get_mut(&session) else {
+                            let placed = place_session(world, session, |placement| {
+                                placement.set(Place::Transferring {
+                                    from: source_dim,
+                                    to: destination,
+                                });
+                            });
+                            let Some(epoch) = placed else {
                                 warn!(?session, "move names an unknown session; dropping");
                                 continue;
                             };
-                            if entry.dim != destination {
-                                entry.epoch = entry.epoch.wrapping_add(1);
-                            }
-                            entry.dim = destination;
-                            entry.in_dim_entity = None;
-                            entry.epoch
+                            epoch
                         }
                         None => 0,
                     };
@@ -154,7 +161,6 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
                         move_id,
                         InFlightEntry {
                             source_dim,
-                            hidden_entity: Entity::PLACEHOLDER,
                             session,
                             ticks_elapsed: 0,
                         },
@@ -171,7 +177,7 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
                         Some(Ok(())) => {}
                         Some(Err(flume::TrySendError::Full(_))) => {
                             world.resource_mut::<InFlightMoves>().remove(move_id);
-                            pending_rollbacks.push((move_id, source_dim));
+                            pending_rollbacks.push((move_id, source_dim, session));
                             enqueue_teardown(
                                 &mut world.resource_mut::<DimDespawnQueue>(),
                                 destination,
@@ -179,7 +185,7 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
                         }
                         Some(Err(flume::TrySendError::Disconnected(_))) | None => {
                             world.resource_mut::<InFlightMoves>().remove(move_id);
-                            pending_rollbacks.push((move_id, source_dim));
+                            pending_rollbacks.push((move_id, source_dim, session));
                         }
                     }
                 }
@@ -187,7 +193,8 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
         }
     }
 
-    for (move_id, source_dim) in pending_rollbacks {
+    for (move_id, source_dim, session) in pending_rollbacks {
+        roll_back_placement(world, session);
         send_control::<P>(world, source_dim, P::roll_back(move_id));
     }
 
@@ -208,6 +215,31 @@ pub fn expire_moves<P: DimProtocol>(app: &mut App) {
         let Some(entry) = world.resource_mut::<InFlightMoves>().remove(move_id) else {
             continue;
         };
+        roll_back_placement(world, entry.session);
         send_control::<P>(world, entry.source_dim, P::roll_back(move_id));
     }
+}
+
+/// Moves are rare, so a session is found by scanning rather than through an index that
+/// every login and disconnect would have to keep.
+fn place_session(
+    world: &mut World,
+    session: PlayerSession,
+    place: impl FnOnce(&mut SessionPlacement),
+) -> Option<u32> {
+    let mut sessions = world.query::<(&Session, &mut SessionPlacement)>();
+    let (_, mut placement) = sessions.iter_mut(world).find(|(id, _)| id.0 == session)?;
+    place(&mut placement);
+    Some(placement.epoch())
+}
+
+fn roll_back_placement(world: &mut World, session: Option<PlayerSession>) {
+    let Some(session) = session else {
+        return;
+    };
+    place_session(world, session, |placement| {
+        if let Place::Transferring { from, .. } = placement.place() {
+            placement.set(Place::InDim(from));
+        }
+    });
 }

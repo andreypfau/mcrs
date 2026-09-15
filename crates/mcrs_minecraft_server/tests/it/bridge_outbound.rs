@@ -1,5 +1,5 @@
 //! Integration tests for `bridge_outbound`: packet drain, `PacketTarget`
-//! resolution against `PlayerIndex`, and priority sub-deque ordering.
+//! resolution against the sessions, and priority sub-deque ordering.
 //!
 //! All tests are pure ECS routing — no sockets, no network I/O.
 
@@ -30,10 +30,9 @@ use mock_connection::{
 fn bridge_outbound_drains() {
     let mut world = build_bridge_world();
 
-    let player = Entity::from_raw_u32(1).expect("nonzero");
     let dim = Entity::from_raw_u32(2).expect("nonzero");
     let socket = spawn_connection(&mut world);
-    let session = register_player(&mut world, player, socket, dim);
+    let (player, session) = register_player(&mut world, socket, dim);
 
     write_packet(
         &mut world,
@@ -71,19 +70,17 @@ fn bridge_outbound_drains() {
 // packet_target_single_player
 // ---------------------------------------------------------------------------
 
-/// `SinglePlayer(e)` resolves `e` → `player_index.get(&e).socket` →
+/// `SinglePlayer(e)` resolves the session on `e` → its connection →
 /// pushes to exactly that socket's `OutboundQueue`, no other.
 #[test]
 fn packet_target_single_player() {
     let mut world = build_bridge_world();
 
-    let player_a = Entity::from_raw_u32(10).expect("nonzero");
-    let player_b = Entity::from_raw_u32(11).expect("nonzero");
     let dim = Entity::from_raw_u32(2).expect("nonzero");
     let socket_a = spawn_connection(&mut world);
     let socket_b = spawn_connection(&mut world);
-    let session_a = register_player(&mut world, player_a, socket_a, dim);
-    register_player(&mut world, player_b, socket_b, dim);
+    let (player_a, session_a) = register_player(&mut world, socket_a, dim);
+    register_player(&mut world, socket_b, dim);
 
     write_packet(
         &mut world,
@@ -106,7 +103,7 @@ fn packet_target_single_player() {
 // packet_target_all_in_dim
 // ---------------------------------------------------------------------------
 
-/// `AllInDim(dim)` pushes to every player whose `current_dim == dim` and to
+/// `AllInDim(dim)` pushes to every player placed in `dim` and to
 /// no players in other dimensions.
 #[test]
 fn packet_target_all_in_dim() {
@@ -115,17 +112,13 @@ fn packet_target_all_in_dim() {
     let dim_a = Entity::from_raw_u32(100).expect("nonzero");
     let dim_b = Entity::from_raw_u32(101).expect("nonzero");
 
-    let player_a1 = Entity::from_raw_u32(20).expect("nonzero");
-    let player_a2 = Entity::from_raw_u32(21).expect("nonzero");
-    let player_b = Entity::from_raw_u32(22).expect("nonzero");
-
     let socket_a1 = spawn_connection(&mut world);
     let socket_a2 = spawn_connection(&mut world);
     let socket_b = spawn_connection(&mut world);
 
-    register_player(&mut world, player_a1, socket_a1, dim_a);
-    register_player(&mut world, player_a2, socket_a2, dim_a);
-    register_player(&mut world, player_b, socket_b, dim_b);
+    register_player(&mut world, socket_a1, dim_a);
+    register_player(&mut world, socket_a2, dim_a);
+    register_player(&mut world, socket_b, dim_b);
 
     write_packet_broadcast(
         &mut world,
@@ -151,24 +144,20 @@ fn packet_target_all_in_dim() {
 // packet_target_all_players
 // ---------------------------------------------------------------------------
 
-/// `AllPlayers` pushes to every player in `PlayerIndex`, regardless of dim.
+/// `AllPlayers` pushes to every session, regardless of dim.
 #[test]
 fn packet_target_all_players() {
     let mut world = build_bridge_world();
 
     let dim = Entity::from_raw_u32(200).expect("nonzero");
 
-    let player_x = Entity::from_raw_u32(30).expect("nonzero");
-    let player_y = Entity::from_raw_u32(31).expect("nonzero");
-    let player_z = Entity::from_raw_u32(32).expect("nonzero");
-
     let socket_x = spawn_connection(&mut world);
     let socket_y = spawn_connection(&mut world);
     let socket_z = spawn_connection(&mut world);
 
-    register_player(&mut world, player_x, socket_x, dim);
-    register_player(&mut world, player_y, socket_y, dim);
-    register_player(&mut world, player_z, socket_z, dim);
+    register_player(&mut world, socket_x, dim);
+    register_player(&mut world, socket_y, dim);
+    register_player(&mut world, socket_z, dim);
 
     write_packet_broadcast(
         &mut world,
@@ -188,24 +177,22 @@ fn packet_target_all_players() {
 // packet_target_player_set
 // ---------------------------------------------------------------------------
 
-/// `PlayerSet` pushes to exactly the listed entities present in `PlayerIndex`;
-/// entities absent from the index are skipped without panic.
+/// `PlayerSet` pushes to exactly the listed entities that carry a session;
+/// entities without one are skipped without panic.
 #[test]
 fn packet_target_player_set() {
     let mut world = build_bridge_world();
 
     let dim = Entity::from_raw_u32(300).expect("nonzero");
 
-    let player_p = Entity::from_raw_u32(40).expect("nonzero");
-    let player_q = Entity::from_raw_u32(41).expect("nonzero");
     let absent = Entity::from_raw_u32(999).expect("nonzero");
 
     let socket_p = spawn_connection(&mut world);
     let socket_q = spawn_connection(&mut world);
 
-    register_player(&mut world, player_p, socket_p, dim);
-    register_player(&mut world, player_q, socket_q, dim);
-    // `absent` is NOT in PlayerIndex
+    let (player_p, _) = register_player(&mut world, socket_p, dim);
+    let (player_q, _) = register_player(&mut world, socket_q, dim);
+    // `absent` carries no session
 
     let mut set: SmallVec<[Entity; 8]> = SmallVec::new();
     set.push(player_p);
@@ -219,7 +206,7 @@ fn packet_target_player_set() {
         9,
     );
 
-    // Must not panic even though `absent` is not in PlayerIndex.
+    // Must not panic even though `absent` carries no session.
     run_system(&mut world, bridge_outbound);
 
     assert_eq!(world.get::<OutboundQueue>(socket_p).unwrap().total_len(), 1);
@@ -237,11 +224,10 @@ fn packet_target_missing_queue_counted() {
     let mut world = build_bridge_world();
 
     let dim = Entity::from_raw_u32(400).expect("nonzero");
-    let player = Entity::from_raw_u32(50).expect("nonzero");
 
     // Spawn a socket entity WITHOUT an OutboundQueue.
     let socket_no_queue = world.spawn_empty().id();
-    let session = register_player(&mut world, player, socket_no_queue, dim);
+    let (player, session) = register_player(&mut world, socket_no_queue, dim);
 
     let before = world
         .resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>()
@@ -280,9 +266,8 @@ fn priority_drain_order() {
     let mut world = build_bridge_world();
 
     let dim = Entity::from_raw_u32(500).expect("nonzero");
-    let player = Entity::from_raw_u32(60).expect("nonzero");
     let socket = spawn_connection(&mut world);
-    let session = register_player(&mut world, player, socket, dim);
+    let (player, session) = register_player(&mut world, socket, dim);
 
     // Write in reverse-priority order.
     write_packet(
@@ -393,7 +378,7 @@ fn epoch_filter_delivers_matching_epoch() {
 // ---------------------------------------------------------------------------
 
 /// A packet with the default PlayerSession(0) is always dropped because
-/// PlayerSession(0) never exists in SessionRegistry (counter starts at 1).
+/// PlayerSession(0) is never a session's id (counter starts at 1).
 /// This ensures no dim-system packet that slips through without stamping
 /// reaches a connection.
 #[test]
@@ -402,7 +387,7 @@ fn unstamped_packet_dropped() {
 
     let socket = spawn_connection(&mut world);
 
-    // Do NOT register any session — PlayerSession(0) is never in the registry.
+    // Do NOT register any session — PlayerSession(0) is never a session's id.
     write_packet_stamped(&mut world, PlayerSession(0), 0, PacketPriority::Normal, 99);
     run_system(&mut world, bridge_outbound);
 

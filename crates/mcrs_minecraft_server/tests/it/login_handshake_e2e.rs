@@ -3,7 +3,7 @@
 //! Four in-process integration tests exercise the steady-state path without a
 //! real TCP socket:
 //!
-//! - `e2e_login_handshake_completes`: synthetic login → `PlayerIndex` entry + `HostAnchorRef`.
+//! - `e2e_login_handshake_completes`: synthetic login → a session + `HostAnchorRef`.
 //! - `e2e_packet_round_trip`: outbound packet injected via `Messages<OutboundPlayerPacket>`;
 //!   asserts it travels through `bridge_outbound` → `OutboundQueue` → `dispatch_encode` →
 //!   blob on the mock socket channel within 2 ticks.
@@ -25,6 +25,7 @@ use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
@@ -38,8 +39,7 @@ use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::Block;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::session::SessionRegistry;
+use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -50,13 +50,14 @@ use mcrs_minecraft_server::runner::pump_channels;
 use mcrs_minecraft_server::world::aoi::TrackedBy;
 use mcrs_minecraft_server::world::bridge::{
     bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
+    forward_pending_inbound,
 };
 use mcrs_minecraft_server::world::bridge_queue::{InboundRateBucket, OutboundQueue};
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_minecraft_server::world::player_index::{HostAnchorRef, PlayerIndex};
+use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 
 use crate::support;
@@ -66,8 +67,8 @@ use crate::support;
 // ---------------------------------------------------------------------------
 
 /// A synthetic login drives the `LoginPlugin` observer chain so a connection
-/// entity reaches the in-game state: `PlayerIndex` carries one entry with a
-/// `HostAnchorRef` that points back to the connection entity.
+/// entity reaches the in-game state: one session exists, on the host anchor
+/// the connection's `HostAnchorRef` points at.
 ///
 /// Exercises BRIDGE-01/02/06/07 steady-state setup: the login path is the
 /// prerequisite for any bridge packet routing.
@@ -75,8 +76,6 @@ use crate::support;
 fn e2e_login_handshake_completes() {
     let mut app = App::new();
     app.add_plugins(LoginPlugin);
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerDespawn>();
@@ -92,36 +91,40 @@ fn e2e_login_handshake_completes() {
     ));
     app.update();
 
-    let world = app.world();
-
+    let session_count = app
+        .world_mut()
+        .query::<&Session>()
+        .iter(app.world())
+        .count();
     assert_eq!(
-        world.resource::<SessionRegistry>().iter().count(),
-        1,
-        "SessionRegistry must have one entry after accepted login",
+        session_count, 1,
+        "one session must exist after accepted login"
     );
 
+    let world = app.world();
     let host_anchor_ref = world
         .entity(connection_entity)
         .get::<HostAnchorRef>()
         .copied()
         .expect("connection entity must carry HostAnchorRef after login");
 
-    assert!(
-        world.get_entity(host_anchor_ref.0).is_ok(),
-        "host-anchor entity must exist in the world",
-    );
-
-    let (_, entry) = world
-        .resource::<SessionRegistry>()
-        .get_by_anchor(&host_anchor_ref.0)
-        .expect("SessionEntry must be present for host-anchor");
+    let anchor = world
+        .get_entity(host_anchor_ref.0)
+        .expect("host-anchor entity must exist in the world");
 
     assert_eq!(
-        entry.connection_entity, connection_entity,
-        "SessionEntry.connection_entity must point at the connection entity",
+        anchor
+            .get::<SessionConnection>()
+            .expect("the host anchor must know its connection")
+            .entity(),
+        connection_entity,
+        "the session's connection must be the connection entity",
     );
-    assert!(
-        entry.in_dim_entity.is_none(),
+    assert_eq!(
+        anchor
+            .get::<SessionPlacement>()
+            .map(SessionPlacement::place),
+        Some(Place::Unplaced),
         "newly logged-in player must not yet be placed in a dim",
     );
 }
@@ -142,12 +145,10 @@ fn e2e_login_handshake_completes() {
 #[test]
 fn e2e_packet_round_trip() {
     use mcrs_minecraft_core::BlockPos;
-    use mcrs_minecraft_level::session::{SessionEntry, SessionRegistry};
     use mcrs_minecraft_registry::BlockStateId;
 
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<SessionRegistry>();
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
 
     let dim = Entity::from_raw_u32(2).expect("nonzero");
@@ -161,19 +162,14 @@ fn e2e_packet_round_trip() {
         ))
         .id();
 
-    let host_anchor = world.spawn_empty().id();
     let session = PlayerSession(1);
-    world.resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: socket,
-            host_anchor,
-            dim,
-            previous_dim: None,
-            in_dim_entity: Some(socket),
-            epoch: 0,
-        },
-    );
+    let host_anchor = world
+        .spawn(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::InDim(dim), 0),
+        ))
+        .id();
+    world.entity_mut(socket).insert(HostAnchorRef(host_anchor));
 
     world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
@@ -309,11 +305,8 @@ fn build_join_host_app() -> App {
     app.insert_resource(RegistrySnapshot::<Biome>::default());
     app.insert_resource(support::corpus(&app));
 
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
-    app.init_resource::<mcrs_minecraft_server::world::player_index::PendingInboundBuffer>();
     app.init_resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>();
     app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
@@ -328,9 +321,11 @@ fn build_join_host_app() -> App {
         (
             bridge_inbound_to_channel,
             bridge_player_attach,
+            forward_pending_inbound,
             bridge_outbound,
             dispatch_encode,
-        ),
+        )
+            .chain(),
     );
     app.add_plugins(LoginPlugin);
     app.add_systems(Update, emit_initial_player_spawn);
@@ -348,7 +343,7 @@ fn build_join_host_app() -> App {
 /// what releases the client from the "Joining world" screen.
 ///
 /// Asserts:
-/// 1. `PlayerIndex.in_dim_entity` becomes `Some` (handoff bound).
+/// 1. The session is attached to its dimension (handoff bound).
 /// 2. A non-empty blob reaches the mock socket channel (play-login delivered).
 #[test]
 fn e2e_join_releases_joining_world() {
@@ -370,7 +365,7 @@ fn e2e_join_releases_joining_world() {
         .id();
 
     // Drive login: insert GameProfile + LoginState::Accepted so the
-    // on_login_accepted observer creates the host-anchor + PlayerIndex entry.
+    // on_login_accepted observer creates the host-anchor and its session.
     app.world_mut().entity_mut(connection_entity).insert((
         GameProfile {
             id: Uuid::new_v4(),
@@ -389,15 +384,6 @@ fn e2e_join_releases_joining_world() {
         .copied()
         .expect("HostAnchorRef present after login")
         .0;
-
-    // Make SessionEntry.connection_entity point at the mock connection entity
-    // so bridge_outbound routes blobs to the correct OutboundQueue.
-    {
-        let mut registry = app.world_mut().resource_mut::<SessionRegistry>();
-        if let Some((_, entry)) = registry.get_by_anchor_mut(&host_anchor) {
-            entry.connection_entity = connection_entity;
-        }
-    }
 
     // Bring up the server and spawn a real sub-app.
     app.world_mut()
@@ -438,21 +424,21 @@ fn e2e_join_releases_joining_world() {
     pump_channels(&mut app);
 
     // Tick 3: main First swaps host Messages; bridge_player_attach sees
-    //         OutboundPlayerAttached → sets in_dim_entity; bridge_outbound sees
+    //         OutboundPlayerAttached → attaches the session; bridge_outbound sees
     //         play-login packets → routes to OutboundQueue; dispatch_encode encodes
     //         and sends the blob.
     app.update();
     pump_channels(&mut app);
 
-    // Assertion 1: handoff completed — in_dim_entity bound.
-    let (_, entry) = app
+    // Assertion 1: handoff completed — the session is attached.
+    let place = app
         .world()
-        .resource::<SessionRegistry>()
-        .get_by_anchor(&host_anchor)
-        .expect("SessionEntry present");
+        .get::<SessionPlacement>(host_anchor)
+        .expect("session present")
+        .place();
     assert!(
-        entry.in_dim_entity.is_some(),
-        "SessionEntry.in_dim_entity must be Some after the full handoff round-trip",
+        matches!(place, Place::InDim(_)),
+        "the session must be attached to its dim after the full handoff round-trip, got {place:?}",
     );
 
     // Assertion 2: play-login delivered — at least one non-empty blob on the socket.

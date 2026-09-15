@@ -74,7 +74,7 @@ fn game_mode_from_env() -> GameMode {
 /// Carries the host-anchor entity on the in-dim player entity. Inserted by
 /// the per-dim spawn consumer so that subsequent per-dim systems can build
 /// `PacketTarget::SinglePlayer(host_anchor)` without querying the host's
-/// `PlayerIndex` or `ServerSideConnection`.
+/// sessions or `ServerSideConnection`.
 #[derive(bevy_ecs::component::Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HostAnchor(pub Entity);
 
@@ -124,9 +124,9 @@ pub struct PlayerBundle {
 /// `InboundPlayerSpawn` shuttled across the host→SubApp bus.
 ///
 /// The connection stays host-resident. This system only creates the
-/// simulation-side entity and signals the host to bind `in_dim_entity`
-/// via `OutboundPlayerAttached`. `PlayerIndex` and `ServerSideConnection`
-/// are host-resident and must NOT be accessed here.
+/// simulation-side entity and signals the host to attach the session via
+/// `OutboundPlayerAttached`. Sessions and `ServerSideConnection` are
+/// host-resident and must NOT be accessed here.
 fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
@@ -276,7 +276,6 @@ fn consume_inbound_player_spawn(
 
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
-            new_in_dim_entity: new_entity,
         });
     }
 }
@@ -311,17 +310,16 @@ pub struct PlayerJoinEvent {
 fn network_add(
     event: On<EntityNetworkAddEvent>,
     added_player: Query<(Entity, &GameProfile, &Transform), With<Player>>,
-    viewer: Query<(&Reposition, &crate::world::player_index::HostAnchorRef), With<Player>>,
+    viewer: Query<(&Reposition, &HostAnchor), With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let Ok((entity, profile, transform)) = added_player.get(event.entity) else {
         return;
     };
-    let Ok((reposition, host_anchor_ref)) = viewer.get(event.player) else {
+    let Ok((reposition, &HostAnchor(host_anchor))) = viewer.get(event.player) else {
         return;
     };
 
-    let host_anchor = host_anchor_ref.0;
     packet_writer.write(OutboundPlayerPacket {
         target: PacketTarget::SinglePlayer(host_anchor),
         priority: PacketPriority::Normal,
@@ -340,14 +338,7 @@ fn network_add(
 
 fn player_joined(
     event: On<PlayerJoinEvent>,
-    players: Query<
-        (
-            &GameProfile,
-            &PlayerGameMode,
-            &crate::world::player_index::HostAnchorRef,
-        ),
-        With<Player>,
-    >,
+    players: Query<(&GameProfile, &PlayerGameMode, &HostAnchor), With<Player>>,
     positions: Query<&Transform, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {

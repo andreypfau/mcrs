@@ -16,7 +16,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession, SessionRegistry};
+use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession, Session};
 use mcrs_minecraft_server::world::bridge::bridge_outbound;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft_server::world::bus::{
@@ -39,7 +39,6 @@ use mock_connection::{
 fn cross_player_isolation() {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<SessionRegistry>();
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
 
     // --- Connect player A ---
@@ -47,8 +46,14 @@ fn cross_player_isolation() {
     let socket_a = spawn_connection(&mut world);
     register_session(&mut world, session_a, socket_a, 0);
 
-    // --- Disconnect A: remove the session entry ---
-    world.resource_mut::<SessionRegistry>().remove(&session_a);
+    // --- Disconnect A: despawn its session ---
+    let anchor_a = world
+        .query::<(Entity, &Session)>()
+        .iter(&world)
+        .find(|(_, session)| session.0 == session_a)
+        .map(|(anchor, _)| anchor)
+        .expect("session_a registered");
+    world.despawn(anchor_a);
 
     // Despawn the socket so Bevy can potentially reuse the slot (simulating
     // the entity generation churn that happens under real disconnect/reconnect).
@@ -66,8 +71,8 @@ fn cross_player_isolation() {
     write_packet_stamped(&mut world, session_a, 0, PacketPriority::Normal, 1);
     run_system(&mut world, bridge_outbound);
 
-    // B's queue must be empty: A's session is gone from the registry so
-    // bridge_outbound takes the registry-miss path and drops the packet.
+    // B's queue must be empty: A's session is gone, so bridge_outbound finds
+    // no session to route to and drops the packet.
     let queue_b = world
         .get::<OutboundQueue>(socket_b)
         .expect("OutboundQueue on socket_b");

@@ -5,9 +5,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
-use mcrs_minecraft_level::session::{
-    PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
-};
+use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
@@ -15,14 +13,12 @@ use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_server::world::bridge::bridge_inbound_to_channel;
 use mcrs_minecraft_server::world::bus::InboundPlayerPacket;
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
-use mcrs_minecraft_server::world::player_index::PendingInboundBuffer;
+use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle};
 
 fn build_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<InboundPlayerPacket>>();
-    world.init_resource::<SessionRegistry>();
     world.init_resource::<PlayerSessionCounter>();
-    world.init_resource::<PendingInboundBuffer>();
     world.init_resource::<DimChannelsResource>();
     world
 }
@@ -62,17 +58,17 @@ fn register_session(
     in_dim_entity: Option<Entity>,
 ) -> PlayerSession {
     let session = world.resource_mut::<PlayerSessionCounter>().next();
-    world.resource_mut::<SessionRegistry>().insert(
+    let place = match in_dim_entity {
+        Some(_) => Place::InDim(dim),
+        None => Place::Joining(dim),
+    };
+    world.entity_mut(host_anchor).insert(SessionBundle::placed(
         session,
-        SessionEntry {
-            connection_entity,
-            host_anchor,
-            dim,
-            previous_dim: None,
-            in_dim_entity,
-            epoch: 0,
-        },
-    );
+        SessionPlacement::new(place, 0),
+    ));
+    world
+        .entity_mut(connection_entity)
+        .insert(HostAnchorRef(host_anchor));
     session
 }
 
