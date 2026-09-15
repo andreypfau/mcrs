@@ -232,7 +232,7 @@ fn main() {
         .add_systems(
             Update,
             (
-                stream::advance,
+                stream::advance.in_set(mcrs_minecraft_client::columns::ClientTerrainSet::Build),
                 cave::toggle,
                 render::toggle_wireframe,
                 #[cfg(target_os = "macos")]

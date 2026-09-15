@@ -54,6 +54,22 @@ struct DimTick;
 /// again between ticks, so a column read from the save is not held for the next tick.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnDrain;
+
+/// The stages of a [`ColumnDrain`], in the order they run. Every one only acts on what is
+/// pending, which is what lets the drain run between ticks as well as at their end.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ColumnDrainSet {
+    /// Finished generation and saved columns come off the pool into their sections.
+    Collect,
+    /// The column index, block entities and heightmaps catch up with what landed.
+    Reconcile,
+    /// Ticket levels spread, sections spawn, and the columns they need are queued and dispatched.
+    Request,
+    /// A finished light epoch is retired and the next one dispatched.
+    Light,
+    /// Ready columns go out and the outbox is flushed towards the host.
+    Send,
+}
 use crate::WorldSave;
 use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block::MinecraftBlockPlugin;
@@ -291,21 +307,44 @@ pub fn spawn_dim_subapp(
 
     sub_app.add_systems(FixedPreUpdate, drain_to_dim_inbox.in_set(DimInboxDrain));
     sub_app.add_schedule(Schedule::new(ColumnDrain));
+    sub_app.configure_sets(
+        ColumnDrain,
+        (
+            ColumnDrainSet::Collect,
+            ColumnDrainSet::Reconcile,
+            ColumnDrainSet::Request,
+            ColumnDrainSet::Light,
+            ColumnDrainSet::Send,
+        )
+            .chain(),
+    );
     sub_app.add_systems(
         ColumnDrain,
         (
-            crate::world::chunk::process_completed_columns,
-            crate::world::chunk::deliver_merged_columns,
+            (
+                crate::world::chunk::process_completed_columns,
+                crate::world::chunk::deliver_merged_columns,
+            )
+                .chain()
+                .in_set(ColumnDrainSet::Collect),
             // The light packet walks the column index, which is rebuilt here rather than left
             // to the tick: a column sent before its sections are in it goes out unlit.
-            mcrs_minecraft_level::world::storage::column::reconcile_columns,
-            mcrs_minecraft_level::world::storage::block_entity::reconcile_block_entities,
-            crate::world::heightmap::prime_column_heightmaps,
-            mcrs_minecraft_level::world::lifecycle::ticket::propagate_section_levels,
-            mcrs_minecraft_level::world::lifecycle::ticket::spawn_chunks,
-            crate::world::chunk::enqueue_pending_columns,
-            crate::world::chunk::dispatch_column_generation
-                .run_if(bevy_ecs::prelude::resource_exists::<FillContext>),
+            (
+                mcrs_minecraft_level::world::storage::column::reconcile_columns,
+                mcrs_minecraft_level::world::storage::block_entity::reconcile_block_entities,
+                crate::world::heightmap::prime_column_heightmaps,
+            )
+                .chain()
+                .in_set(ColumnDrainSet::Reconcile),
+            (
+                mcrs_minecraft_level::world::lifecycle::ticket::propagate_section_levels,
+                mcrs_minecraft_level::world::lifecycle::ticket::spawn_chunks,
+                crate::world::chunk::enqueue_pending_columns,
+                crate::world::chunk::dispatch_column_generation
+                    .run_if(bevy_ecs::prelude::resource_exists::<FillContext>),
+            )
+                .chain()
+                .in_set(ColumnDrainSet::Request),
             // A finished epoch frees its slot and unblocks its area only when it is
             // retired, so retiring once a tick leaves most of the light engine's
             // concurrency idle while columns arrive many times a tick. Retire and
@@ -318,13 +357,17 @@ pub fn spawn_dim_subapp(
                 .chain()
                 .run_if(
                     bevy_ecs::prelude::resource_exists::<mcrs_minecraft_light::prelude::Lighting>,
-                ),
-            crate::world::entity::player::column_view::project_ready_columns,
-            crate::world::entity::player::column_view::send_column_queue,
-            crate::world::aoi::mirror_held_columns,
-            flush_from_dim_outbox,
-        )
-            .chain(),
+                )
+                .in_set(ColumnDrainSet::Light),
+            (
+                crate::world::entity::player::column_view::project_ready_columns,
+                crate::world::entity::player::column_view::send_column_queue,
+                crate::world::aoi::mirror_held_columns,
+                flush_from_dim_outbox,
+            )
+                .chain()
+                .in_set(ColumnDrainSet::Send),
+        ),
     );
     sub_app.add_systems(FixedLast, |world: &mut World| {
         world.run_schedule(ColumnDrain)

@@ -146,7 +146,11 @@ pub fn run() {
         .insert_resource(loader)
         .add_systems(
             Update,
-            (stream::advance, cave::toggle, render::toggle_wireframe),
+            (
+                stream::advance.in_set(crate::columns::ClientTerrainSet::Build),
+                cave::toggle,
+                render::toggle_wireframe,
+            ),
         )
         .add_systems(
             PostUpdate,

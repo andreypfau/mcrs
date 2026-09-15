@@ -26,6 +26,14 @@ use smallvec::SmallVec;
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
 
+/// A dimension's side of the light engine: what it hands the light world before intake, and
+/// what it sends once the light world has published.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DimLightSet {
+    Feed,
+    Emit,
+}
+
 pub struct DimLightPlugin {
     pub registry: Arc<LightRegistry>,
     pub bounds: LightBounds,
@@ -39,23 +47,29 @@ impl Plugin for DimLightPlugin {
             bounds: self.bounds,
             sky: self.sky,
         })
+        .configure_sets(
+            Last,
+            (
+                DimLightSet::Feed.before(LightSet::Intake),
+                DimLightSet::Emit.after(LightSet::Publish),
+            ),
+        )
         // Sections land in `FixedLast`, so `Last` is the first schedule of the
         // same tick that can see them.
         .add_systems(
             Last,
             (
-                feed_light_edits.before(LightSet::Intake),
-                reprioritize_light_work
-                    .after(feed_light_edits)
-                    .before(LightSet::Intake),
-                // After the block edits it bounds, and after the maps have taken
-                // this tick's edits: a bound must never describe blocks the
-                // light world has not been handed.
-                feed_column_surfaces
-                    .after(feed_light_edits)
-                    .after(crate::world::heightmap::update_column_heightmaps)
-                    .before(LightSet::Intake),
-                emit_light_updates.after(LightSet::Publish),
+                (
+                    feed_light_edits,
+                    reprioritize_light_work,
+                    // After the block edits it bounds, and after the maps have taken
+                    // this tick's edits: a bound must never describe blocks the
+                    // light world has not been handed.
+                    feed_column_surfaces.after(crate::world::heightmap::update_column_heightmaps),
+                )
+                    .chain()
+                    .in_set(DimLightSet::Feed),
+                emit_light_updates.in_set(DimLightSet::Emit),
             ),
         );
     }

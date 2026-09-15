@@ -6,6 +6,7 @@ use anyhow::{Context, Result, anyhow};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::prelude::{IntoScheduleConfigs, On, Query, ResMut, Resource, Single};
+use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_chunk::PalettedContainer;
@@ -406,17 +407,29 @@ fn extent_of(registries: &[ReceivedRegistry], dimension_type_id: i32) -> Option<
 
 pub struct ColumnCachePlugin;
 
+/// Columns reach the store after the frame's packets are read, and whatever builds on the
+/// store runs after them, so a column is taken up in the frame it arrived.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ClientTerrainSet {
+    Settle,
+    Build,
+}
+
 impl Plugin for ColumnCachePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ColumnStore>();
         app.init_resource::<Arrivals>();
         app.add_observer(receive_column_packets);
-        app.add_systems(
+        app.configure_sets(
             Update,
-            settle_columns
-                .after(ClientNetworkSystems::Receive)
-                .before(ClientNetworkSystems::Flush),
+            (
+                ClientTerrainSet::Settle
+                    .after(ClientNetworkSystems::Receive)
+                    .before(ClientNetworkSystems::Flush),
+                ClientTerrainSet::Build.after(ClientTerrainSet::Settle),
+            ),
         );
+        app.add_systems(Update, settle_columns.in_set(ClientTerrainSet::Settle));
     }
 }
 
