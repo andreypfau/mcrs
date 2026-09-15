@@ -29,25 +29,23 @@ use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use rustc_hash::FxHashMap;
 use tracing::{error, info_span};
 
-use crate::world::chunk::{CancellationToken, ColumnSource};
-use crate::world::format::anvil::{SavedColumns, column_sections, saved_block_entities};
-use crate::world::generate::feature_program::{FeatureProgram, RunScratch};
-use crate::world::generate::modern_carvers::{
-    CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers,
-};
-use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-use crate::world::generate::staging::{
-    ColumnDelta, FilledSnapshot, RegionSnapshots, cell_index, rank, region_column, region_slot,
-};
-use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
-use crate::world::generate::structures::place::{column_clip, place_structures};
-use crate::world::generate::{
-    BetaCaveBlockIds, ColumnBlocks, SurfaceIds, apply_beta_carvers, apply_beta_surface,
-    apply_material_surface, fill_column_dense_any, spans_dimension,
-};
-use crate::world::heightmap::{
+use crate::feature_program::{FeatureProgram, RunScratch};
+use crate::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, TerrainHeightmaps, build_column_heightmaps,
     build_terrain_heightmaps,
+};
+use crate::modern_carvers::{CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers};
+use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::saved::{SavedColumns, column_sections, saved_block_entities};
+use crate::staging::{
+    ColumnDelta, FilledSnapshot, RegionSnapshots, cell_index, rank, region_column, region_slot,
+};
+use crate::structures::index::{BiomeLookup, StructureIndex};
+use crate::structures::place::{column_clip, place_structures};
+use crate::task::{CancellationToken, ColumnSource};
+use crate::{
+    BetaCaveBlockIds, ColumnBlocks, SurfaceIds, apply_beta_carvers, apply_beta_surface,
+    apply_material_surface, fill_column_dense_any, spans_dimension,
 };
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
@@ -93,7 +91,7 @@ pub enum ColumnGenerator {
 }
 
 impl ColumnProgram {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn modern(features: Option<Arc<FeatureProgram>>) -> Self {
         ColumnProgram {
             generator: ColumnGenerator::Modern {
@@ -897,16 +895,16 @@ pub fn dimension_y_sections(router: &NoiseRouter, min_y: i32, section_count: u32
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::format::anvil::SectionData;
-    use crate::world::generate::staging::StagingStore;
-    use crate::world::generate::tests::{bare_fill_context, build_beta_router, generate_region};
+    use crate::saved::SectionData;
+    use crate::staging::StagingStore;
+    use crate::tests::{bare_fill_context, build_beta_router, generate_region};
 
     fn flat_snapshot(col: ColumnPos, y_sections: &Arc<[i32]>, fill: VoxelId) -> FilledSnapshot {
-        crate::world::generate::tests::flat_snapshot(col, y_sections, |_| Some(fill), None)
+        crate::tests::flat_snapshot(col, y_sections, |_| Some(fill), None)
     }
 
     fn region_of(center: ColumnPos, y_sections: &Arc<[i32]>, fill: VoxelId) -> RegionSnapshots {
-        crate::world::generate::tests::region_of(center, |col| flat_snapshot(col, y_sections, fill))
+        crate::tests::region_of(center, |col| flat_snapshot(col, y_sections, fill))
     }
 
     #[test]
@@ -1070,12 +1068,11 @@ mod tests {
     /// maps and the final maps are one descent over the same blocks.
     #[test]
     fn the_terrain_maps_are_taken_after_the_carvers() {
-        use crate::world::generate::tests::{beta_carver_table, block_tags, blocks};
-        use crate::world::heightmap::heightmap_predicates;
+        use crate::heightmap::heightmap_predicates;
+        use crate::tests::{beta_carver_table, block_tags, blocks};
 
         let router = Arc::new(build_beta_router());
-        let (source, registry) =
-            crate::world::generate::tests::beta_surface::build_beta_biome_source();
+        let (source, registry) = crate::tests::beta_surface::build_beta_biome_source();
         let source = Arc::new(source);
         let carved = FillContext {
             y_sections: dimension_y_sections(&router, -64, 24),

@@ -1,29 +1,14 @@
-pub mod index;
-pub mod place;
-
-use std::borrow::Cow;
-use std::cmp::Ordering;
-use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
-
-use bevy_app::{App, Plugin};
-use bevy_asset::{AssetServer, Assets, Handle};
-use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
+use crate::block_state::try_resolve_state;
 use bevy_math::IVec3;
-use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
-use mcrs_minecraft_assets::{AppState, DynTagRegistry};
+use mcrs_minecraft_assets::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_registry::DynRegistryIndex;
-use mcrs_minecraft_worldgen::bevy::{
-    StructureAsset, StructureSetAsset, TemplateAsset, TemplatePoolAsset,
-};
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::template::Projection;
@@ -31,19 +16,23 @@ use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, PaletteState, ResolvedState, Template, TemplateManifest, bounding_box,
 };
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_structure::frozen::{
+    ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure, FrozenStructures, PoolId,
+    SetId, StructureId, StructureKind, TemplateId,
+};
+use mcrs_minecraft_worldgen_structure::jigsaw::TERRAIN_MARGIN;
 use mcrs_minecraft_worldgen_structure::{
     DecorationStep, PoolAlias, PoolElement, Structure, StructurePlacement, StructureSet,
     TemplatePool, TerrainAdaptation,
 };
+use std::borrow::Cow;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
-use crate::world::chunk::try_resolve_state;
-use crate::world::generate::features::{possible_biomes, registry_of};
-use crate::world::generate::routers::DimensionBiomeSources;
-use mcrs_minecraft_worldgen_structure::frozen::{
-    DimensionStructureTables, ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure,
-    FrozenStructures, PoolId, SetId, StructureId, StructureKind, TemplateId,
-};
-use mcrs_minecraft_worldgen_structure::jigsaw::TERRAIN_MARGIN;
+pub mod index;
+
+pub mod place;
 
 // Vanilla marks these `dynamicShape()` and never files them as full blocks when
 // ordering a template; the block schema carries no such flag, so the set lives here.
@@ -73,7 +62,7 @@ pub(crate) const DYNAMIC_SHAPE_BLOCKS: &[&str] = &[
     "minecraft:sulfur_spike",
 ];
 
-pub(crate) fn resolve_palette_state(
+pub fn resolve_palette_state(
     blocks: &BlockDefinitions,
     state: &PaletteState,
 ) -> Option<ResolvedState> {
@@ -92,9 +81,6 @@ pub(crate) fn resolve_palette_state(
         full_block,
     })
 }
-
-#[derive(Resource, Default, Clone)]
-pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStructureTables>>);
 
 pub struct StructureInputs<'a> {
     pub sets: &'a BTreeMap<ResourceLocation, StructureSet>,
@@ -588,111 +574,4 @@ pub fn live_sets(
             (!candidates.is_empty()).then_some((SetId(index as u32), candidates))
         })
         .collect()
-}
-
-pub fn dimension_tables(
-    frozen: Arc<FrozenStructures>,
-    biomes: &DynRegistryIndex<Biome>,
-    sources: &DimensionBiomeSources,
-    named: impl Fn(&bevy_asset::Handle<Biome>) -> Option<ResourceLocation>,
-) -> DimensionStructures {
-    let mut tables = DimensionStructures::default();
-    for (dimension, source) in &sources.0 {
-        let mut mask = FixedBitSet::with_capacity(biomes.len() as usize);
-        for id in possible_biomes(source, &named) {
-            if let Some(index) = biomes.get(id.as_str()) {
-                mask.insert(index as usize);
-            }
-        }
-        let live = live_sets(&frozen, &mask);
-        tracing::info!(
-            %dimension,
-            live_sets = live.len(),
-            candidates = live.iter().map(|(_, structures)| structures.len()).sum::<usize>(),
-            "resolved the structure sets"
-        );
-        tables.0.insert(
-            dimension.clone(),
-            Arc::new(DimensionStructureTables {
-                frozen: Arc::clone(&frozen),
-                live,
-            }),
-        );
-    }
-    tables
-}
-
-pub struct StructurePlugin;
-
-impl Plugin for StructurePlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(
-            OnEnter(AppState::Playing),
-            build_dimension_structures.before(crate::world::enqueue_dim_spawns_from_preset),
-        );
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn build_dimension_structures(
-    mut commands: Commands,
-    sources: Option<Res<DimensionBiomeSources>>,
-    sets: Res<Assets<StructureSetAsset>>,
-    structures: Res<Assets<StructureAsset>>,
-    pools: Res<Assets<TemplatePoolAsset>>,
-    templates: Res<Assets<TemplateAsset>>,
-    asset_server: Res<AssetServer>,
-    blocks: Res<Blocks>,
-    biomes: Res<DynRegistryIndex<Biome>>,
-    biome_tags: Res<DynTagRegistry<Biome>>,
-) {
-    let Some(sources) = sources else { return };
-
-    let sets = registry_of(&sets, &asset_server, "worldgen/structure_set", |asset| {
-        &asset.set
-    });
-    let structures = registry_of(&structures, &asset_server, "worldgen/structure", |asset| {
-        &asset.structure
-    });
-    let pool_assets = registry_of(&pools, &asset_server, "worldgen/template_pool", |asset| {
-        asset
-    });
-    let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> = pool_assets
-        .values()
-        .flat_map(|asset| asset.deps.templates.iter())
-        .map(|(id, handle)| (id.clone(), handle.clone()))
-        .collect();
-    let pools: BTreeMap<ResourceLocation, TemplatePool> = pool_assets
-        .iter()
-        .map(|(id, asset)| (id.clone(), asset.pool.clone()))
-        .collect();
-
-    let template = |id: &ResourceLocation| {
-        let handle = template_handles.get(id)?;
-        Some(Cow::Borrowed(&templates.get(handle)?.template))
-    };
-    let resolve = |state: &PaletteState| resolve_palette_state(&blocks.0, state);
-    let frozen = freeze(&StructureInputs {
-        sets: &sets,
-        structures: &structures,
-        pools: &pools,
-        template: &template,
-        resolve: &resolve,
-        biomes: &biomes,
-        biome_tags: &biome_tags,
-    })
-    .unwrap_or_else(|error| panic!("the structure registries do not resolve: {error}"));
-    tracing::info!(
-        sets = frozen.sets.len(),
-        structures = frozen.structures.len(),
-        pools = frozen.pools.len(),
-        templates = frozen.templates.len(),
-        "froze the structure registries"
-    );
-    commands.insert_resource(dimension_tables(
-        Arc::new(frozen),
-        &biomes,
-        &sources,
-        |handle| rl_from_asset_path(asset_server.get_path(handle.id())?.path(), "worldgen/biome"),
-    ));
 }

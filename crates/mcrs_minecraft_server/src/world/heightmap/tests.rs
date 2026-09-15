@@ -1,5 +1,9 @@
 use super::*;
-use crate::world::generate::tests::{block_tags, blocks as corpus, tag_members};
+use mcrs_minecraft_block::definition::BlockStateFlags;
+use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_worldgen_generator::heightmap::*;
+use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus, tag_members};
 use std::collections::HashSet;
 use std::sync::OnceLock;
 

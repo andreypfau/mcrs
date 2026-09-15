@@ -6,9 +6,9 @@ use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use rustc_hash::FxHashMap;
 
-use crate::world::chunk::ColumnSource;
-use crate::world::format::anvil::SectionData;
-use crate::world::heightmap::{ColumnHeightmapSet, TerrainHeightmaps};
+use crate::heightmap::{ColumnHeightmapSet, TerrainHeightmaps};
+use crate::saved::SectionData;
+use crate::task::ColumnSource;
 
 /// How far a column has climbed. The order is the ladder's order, so a
 /// readiness test is a comparison.

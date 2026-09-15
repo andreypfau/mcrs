@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::BlockPos;
 
-use crate::world::generate::beta_chunk_seed;
+use crate::beta_chunk_seed;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::BlocksMut;
 use mcrs_minecraft_random::Random;
@@ -168,7 +168,7 @@ pub fn place_all_ores<R: Random>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::generate::tests::corpus;
+    use crate::tests::corpus;
     use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
     use mcrs_minecraft_random::legacy::LegacyRandom;
 

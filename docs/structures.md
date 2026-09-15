@@ -708,7 +708,7 @@ after-place hook, which two structures define (`DesertPyramidStructure.java:32-6
 
 **M6. Rungs.** The current ladder cuts the steps into rungs at
 `vegetal_decoration` and `top_layer_modification`
-(`crates/mcrs_minecraft_server/src/world/generate/feature_program.rs:275-296`).
+(`crates/mcrs_minecraft_worldgen_generator/src/feature_program.rs:275-296`).
 Every structure step — `underground_structures` 3, `surface_structures` 4,
 `strongholds` 5, `underground_decoration` 7 — lies in the first rung, so
 materialisation never straddles a cut and a structure's blocks are merged
@@ -985,7 +985,7 @@ under Beta finds nothing, as it should.
 Populate seeds a `java.util.Random` with the world seed, draws two longs
 forced odd, and reseeds with `x·a + z·b ^ seed` for the chunk
 (`ChunkProviderGenerate.java:329-334`; mcrs already has it,
-`crates/mcrs_minecraft_server/src/world/generate/mod.rs:760-768`). Dungeons
+`crates/mcrs_minecraft_worldgen_generator/src/lib.rs:760-768`). Dungeons
 are the third decorator, after a water lake gated by `nextInt(4) == 0` and a
 lava lake gated by `nextInt(8) == 0` (`:340-353`), so the draws before the
 first attempt are the two gates, the lakes' positions and, when a lake

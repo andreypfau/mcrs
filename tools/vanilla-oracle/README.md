@@ -127,7 +127,7 @@ Rust stage under test runs before carving.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpSurface --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
 ```
 
 Two search modes pick the coordinates. `findBiomes` walks outward from the origin
@@ -375,7 +375,7 @@ the private `palettes` list is read by reflection.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpTemplates --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
 ```
 
 One file, `templates.bin`. The task throws if the pack lists anything other
@@ -385,7 +385,7 @@ and the dump must not.
 
 The listed subset, what each entry pins, and what the fixture cannot pin are
 beside the fixture in
-`crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/templates_capture_procedure.md`.
+`crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/templates_capture_procedure.md`.
 
 ## Binary layout
 
@@ -482,7 +482,7 @@ climate sampler from `randomState.createClimateSampler(SamplerContext.builder().
 cd tools/vanilla-oracle
 ./gradlew dumpPlacement --console=plain --no-daemon -PoracleOut=<dir>
 cp <dir>/structure_cells.bin ../../crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/
-cp <dir>/structure_sites.bin ../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/
+cp <dir>/structure_sites.bin ../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/
 ```
 
 Two files, both deterministic:
@@ -503,7 +503,7 @@ The field-by-field layouts, the provenance of every value and the case summaries
 are beside each fixture:
 `crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/structure_cells_capture_procedure.md`
 and
-`crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/structure_sites_capture_procedure.md`.
+`crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/structure_sites_capture_procedure.md`.
 
 ---
 
@@ -523,7 +523,7 @@ its three rotations.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpTemplatePlacement --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
 ```
 
 One file, `template_placement.bin`, deterministic. The run log must contain no
@@ -534,7 +534,7 @@ loaded the way the fixture claims.
 How `StubLevel` stands in for a server, the two entry points the cases go
 through, what each case pins and what the fixture cannot pin are beside the
 fixture in
-`crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/template_placement_capture_procedure.md`.
+`crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/template_placement_capture_procedure.md`.
 
 ## Binary layout
 

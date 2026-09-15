@@ -1,0 +1,72 @@
+[package]
+name = "mcrs_minecraft_worldgen_generator"
+description = "The column pipeline of the noise chunk generator: fill, surface, carvers, features, structures and the read out of the save"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_app = { workspace = true, optional = true }
+bevy_asset.workspace = true
+bevy_ecs.workspace = true
+bevy_math.workspace = true
+bitflags = "2.10.0"
+fixedbitset.workspace = true
+mcrs_minecraft_anvil.workspace = true
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_level.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_random.workspace = true
+mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
+mcrs_minecraft_worldgen_carver.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_feature_place.workspace = true
+mcrs_minecraft_worldgen_noise.workspace = true
+mcrs_minecraft_worldgen_structure.workspace = true
+mcrs_minecraft_worldgen_surface.workspace = true
+mcrs_minecraft_worldgen_testing = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+rustc-hash.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, optional = true }
+tracing.workspace = true
+
+[dev-dependencies]
+base64.workspace = true
+bevy_app.workspace = true
+bytes.workspace = true
+criterion = { version = "0.7", features = ["html_reports"] }
+mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_worldgen_testing.workspace = true
+rand_xoshiro.workspace = true
+serde_json.workspace = true
+
+[features]
+# The helpers the generation tests share, for the tests of the crates that drive the pipeline.
+test-support = ["dep:bevy_app", "dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_worldgen_feature/test-support"]
+telemetry-tracy = []
+
+[[bench]]
+name = "beta_chunks"
+harness = false
+
+[[bench]]
+name = "generate_columns"
+harness = false
+
+[[bench]]
+name = "overworld_pipeline"
+harness = false
+
+[[bench]]
+name = "biome_matrix"
+harness = false

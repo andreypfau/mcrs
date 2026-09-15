@@ -20,8 +20,9 @@ pub mod bus;
 pub mod channel_types;
 pub mod chunk;
 pub mod entity;
-pub mod format;
 pub mod generate;
+#[cfg(test)]
+mod generation_tests;
 pub mod heightmap;
 mod inventory;
 pub mod light;

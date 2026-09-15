@@ -21,13 +21,11 @@ use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use super::build_beta_router;
-use crate::world::chunk::CancellationToken;
-use crate::world::generate::ColumnBlocks;
-use crate::world::generate::modern_carvers::CarverBiomeTable;
-use crate::world::generate::stages::extent;
-use crate::world::generate::{
-    BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, generate_column,
-};
+use crate::ColumnBlocks;
+use crate::modern_carvers::CarverBiomeTable;
+use crate::stages::extent;
+use crate::task::CancellationToken;
+use crate::{BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, generate_column};
 
 // ── Corpus deserialization ────────────────────────────────────────────────────
 

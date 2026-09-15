@@ -8,11 +8,11 @@ use mcrs_minecraft_worldgen_structure::placement::SpreadPlacement;
 
 use super::structures::{frozen_shared, preset};
 use super::{biome_index, block_tags, blocks, build_settings_router};
-use crate::world::generate::features::possible_biomes;
-use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
-use crate::world::generate::structures::live_sets;
-use crate::world::heightmap::heightmap_predicates;
+use crate::features::possible_biomes;
+use crate::heightmap::heightmap_predicates;
+use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::structures::index::{BiomeLookup, StructureIndex};
+use crate::structures::live_sets;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, SetId};
 
 const SEED: u64 = 12345;

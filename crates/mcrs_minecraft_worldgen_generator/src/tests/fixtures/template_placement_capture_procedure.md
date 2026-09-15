@@ -14,7 +14,7 @@ writes.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpTemplatePlacement --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
@@ -23,7 +23,7 @@ Output is deterministic: two consecutive runs produce a byte-identical file
 of throwing, so a hit means a compound in the fixture was not loaded the way
 the fixture claims. The capture that produced this file had none.
 
-**Consumer:** `crates/mcrs_minecraft_server/src/world/generate/tests/template_parity.rs`,
+**Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/template_parity.rs`,
 which compiles every processor chain through the real resolver, places each
 case into a box region with the same floors, and asserts the written-block
 hash (or full list), the block-entity compounds, and the placement random's

@@ -96,7 +96,7 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
         MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
     };
 
-    use crate::world::chunk::try_resolve_state;
+    use crate::block_state::try_resolve_state;
 
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = load_json_dir("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =

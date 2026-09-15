@@ -15,14 +15,12 @@ use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
-use crate::world::generate::SurfaceIds;
-use crate::world::generate::feature_program::FeatureProgram;
-use crate::world::generate::features::FeatureTables;
-use crate::world::generate::modern_carvers::ModernCarverBlockIds;
-use crate::world::generate::stages::{
-    ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections,
-};
-use crate::world::heightmap::heightmap_predicates;
+use crate::SurfaceIds;
+use crate::feature_program::FeatureProgram;
+use crate::features::FeatureTables;
+use crate::heightmap::heightmap_predicates;
+use crate::modern_carvers::ModernCarverBlockIds;
+use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
 
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_surface::{

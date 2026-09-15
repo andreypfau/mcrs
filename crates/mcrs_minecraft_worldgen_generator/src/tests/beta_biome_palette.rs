@@ -7,8 +7,8 @@ use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 
 use super::build_beta_router;
-use crate::world::chunk::CancellationToken;
-use crate::world::generate::generate_column;
+use crate::generate_column;
+use crate::task::CancellationToken;
 
 pub(super) fn make_beta_biome() -> Biome {
     Biome {

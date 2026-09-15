@@ -20,11 +20,11 @@ use mcrs_minecraft_worldgen_structure::placement::{
     scan_biome_window, select_with_removal,
 };
 
-use crate::world::generate::modern_carvers::climate_target_at;
-use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-use crate::world::generate::stages::extent;
-use crate::world::generate::{base_height, heightmap_kind};
-use crate::world::heightmap::HeightmapPredicates;
+use crate::heightmap::HeightmapPredicates;
+use crate::modern_carvers::climate_target_at;
+use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::stages::extent;
+use crate::{base_height, heightmap_kind};
 use mcrs_minecraft_worldgen_structure::frozen::{
     DimensionStructureTables, SetId, StructureId, StructureKind,
 };

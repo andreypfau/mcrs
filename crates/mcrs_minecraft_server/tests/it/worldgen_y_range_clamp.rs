@@ -1,11 +1,11 @@
 use mcrs_minecraft_level::palette::AirCount;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_server::world::chunk::CancellationToken;
-use mcrs_minecraft_server::world::generate::generate_column;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen_generator::generate_column;
+use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {

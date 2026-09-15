@@ -3,18 +3,18 @@
 //! updates inside the second, and what one staged snapshot weighs.
 //!
 //! ```text
-//! cargo test --release -p mcrs_minecraft_server the_ladder_costs -- --ignored --nocapture
+//! cargo test --release -p mcrs_minecraft_worldgen_generator the_ladder_costs -- --ignored --nocapture
 //! ```
 
 use std::time::{Duration, Instant};
 
 use mcrs_minecraft_chunk::PalettedContainer;
 
-use crate::world::chunk::CancellationToken;
-use crate::world::generate::ColumnBlocks;
-use crate::world::generate::stages::{fill_column, merge_column, run_region};
-use crate::world::generate::staging::{FilledSnapshot, Stage, StagingStore, rank};
-use crate::world::heightmap::{HeightmapPredicates, build_terrain_heightmaps};
+use crate::ColumnBlocks;
+use crate::heightmap::{HeightmapPredicates, build_terrain_heightmaps};
+use crate::stages::{fill_column, merge_column, run_region};
+use crate::staging::{FilledSnapshot, Stage, StagingStore, rank};
+use crate::task::CancellationToken;
 
 /// The widest consumer there is: the forest tree feature, whose crowns and
 /// decorators reach past the column that seeds them and so read the ring.

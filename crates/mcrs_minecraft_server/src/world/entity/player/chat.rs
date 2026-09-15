@@ -3,7 +3,6 @@ use crate::world::bus::{
     ArrivalCause, MovePayload, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 use crate::world::entity::player::HostAnchor;
-use crate::world::generate::stages::FillContext;
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
@@ -20,6 +19,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::text::{Color, IntoText};
+use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use tracing::info;
 
 pub struct ChatPlugin;

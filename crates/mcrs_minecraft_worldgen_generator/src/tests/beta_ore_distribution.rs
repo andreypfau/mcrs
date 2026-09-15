@@ -10,7 +10,7 @@ use mcrs_minecraft_worldgen_feature_place::ore_beta::{
 };
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
-use crate::world::generate::{BetaOreBlockIds, place_all_ores};
+use crate::{BetaOreBlockIds, place_all_ores};
 
 // ── Counting RNG: pins total LegacyRandom advances for the ore stream ───────────
 
@@ -360,9 +360,9 @@ fn the_populate_feature_is_the_populate_step() {
 
     use mcrs_minecraft_protocol::ColumnPos;
 
-    use crate::world::generate::ColumnBlocks;
-    use crate::world::generate::beta_ores::apply_beta_ores_in;
-    use crate::world::generate::stages::{ColumnRegion, run_column};
+    use crate::ColumnBlocks;
+    use crate::beta_ores::apply_beta_ores_in;
+    use crate::stages::{ColumnRegion, run_column};
 
     let router = super::build_beta_router();
     let seed = router.world_seed as i64;

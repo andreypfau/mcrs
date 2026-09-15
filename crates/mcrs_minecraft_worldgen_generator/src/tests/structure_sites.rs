@@ -12,12 +12,12 @@ use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
 use super::structures::{frozen_shared, preset};
 use super::{biome_index, block_tags, blocks, build_settings_router};
-use crate::world::generate::base_height;
-use crate::world::generate::features::possible_biomes;
-use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-use crate::world::generate::structures::index::{BiomeLookup, StructureIndex};
-use crate::world::generate::structures::live_sets;
-use crate::world::heightmap::{HeightmapKinds, heightmap_predicates};
+use crate::base_height;
+use crate::features::possible_biomes;
+use crate::heightmap::{HeightmapKinds, heightmap_predicates};
+use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::structures::index::{BiomeLookup, StructureIndex};
+use crate::structures::live_sets;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, StructureKind};
 
 const MAGIC: &[u8; 8] = b"MCSITES0";
@@ -48,8 +48,8 @@ struct DumpSeed {
 }
 
 fn read_dump() -> Vec<DumpSeed> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/world/generate/tests/fixtures/structure_sites.bin");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/tests/fixtures/structure_sites.bin");
     let mut r = open_dump(&path, MAGIC);
     let seeds = (0..r.get_u32_le())
         .map(|_| DumpSeed {

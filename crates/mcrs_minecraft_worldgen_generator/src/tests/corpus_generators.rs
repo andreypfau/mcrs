@@ -10,8 +10,8 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature};
 
-use crate::world::generate::feature_program::{FeatureProgram, Generator, Nested, RunScratch};
-use crate::world::generate::features::FeatureTables;
+use crate::feature_program::{FeatureProgram, Generator, Nested, RunScratch};
+use crate::features::FeatureTables;
 use mcrs_minecraft_worldgen_feature::compile::LoadedFeatures;
 
 use super::{
@@ -177,9 +177,9 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
         };
         assert_eq!(shape, matches, "{name}");
 
-        let compiled = crate::world::generate::trees::compile_provider(
+        let compiled = crate::trees::compile_provider(
             &proto,
-            &crate::world::generate::feature_program::Resolver::new(
+            &crate::feature_program::Resolver::new(
                 &blocks().0,
                 Some(block_tags()),
                 Some(fluid_tags()),

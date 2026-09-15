@@ -19,9 +19,9 @@ use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use tracing::{error, info};
 
-use crate::world::chunk::try_resolve_state;
 use crate::world::generate::structures::DimensionStructures;
 use crate::world_options::{LoadedWorldPreset, WorldSeed};
+use mcrs_minecraft_worldgen_generator::block_state::try_resolve_state;
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
 /// Every dimension's biome source, keyed by the id the world preset gave it.

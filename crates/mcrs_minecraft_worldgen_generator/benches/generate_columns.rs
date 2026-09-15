@@ -1,11 +1,11 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
-use mcrs_minecraft_server::world::chunk::CancellationToken;
-use mcrs_minecraft_server::world::generate::generate_column;
+use mcrs_minecraft_worldgen_generator::generate_column;
+use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use std::hint::black_box;
 
-#[path = "../src/world/generate/tests/support.rs"]
+#[path = "../src/tests/support.rs"]
 mod support;
 
 use support::build_settings_router;

@@ -28,9 +28,9 @@ use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use super::structures::frozen_shared;
 use super::template_manifest::{parse_state, resolve};
 use super::{biome_registry, build_program_with, corpus, corpus_features, one_step};
-use crate::world::block_entity::BLOCK_ENTITY_TYPES;
-use crate::world::generate::feature_program::{FeatureProgram, RunScratch};
-use crate::world::generate::structures::place::place_element;
+use crate::feature_program::{FeatureProgram, RunScratch};
+use crate::structures::place::place_element;
+use mcrs_minecraft_worldgen_feature_place::block_entity::BLOCK_ENTITY_TYPES;
 use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenElement};
 
 const MAGIC: &[u8; 8] = b"MCTMPLP0";
@@ -82,8 +82,8 @@ struct Dump {
 }
 
 fn read_dump() -> Dump {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/world/generate/tests/fixtures/template_placement.bin");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/tests/fixtures/template_placement.bin");
     let mut r = open_dump(&path, MAGIC);
     let vec3 = |r: &mut bytes::Bytes| [r.get_i32_le(), r.get_i32_le(), r.get_i32_le()];
     let types = (0..r.get_u32_le()).map(|_| dump_string(&mut r)).collect();

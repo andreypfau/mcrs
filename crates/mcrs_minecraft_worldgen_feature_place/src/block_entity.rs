@@ -798,6 +798,62 @@ impl BeeOccupant {
 /// The occupants a hive a generator wrote start with.
 pub const BEE_MIN_TICKS_IN_HIVE: i32 = 600;
 
+/// `BuiltInRegistries.BLOCK_ENTITY_TYPE` in registration order
+/// (`world/level/block/entity/BlockEntityTypes.java`): the index is how the
+/// chunk packet names a block entity. The registry is built in rather than
+/// shipped, so the order is the only place the number comes from.
+pub const BLOCK_ENTITY_TYPES: [&str; 49] = [
+    "minecraft:furnace",
+    "minecraft:chest",
+    "minecraft:trapped_chest",
+    "minecraft:ender_chest",
+    "minecraft:jukebox",
+    "minecraft:dispenser",
+    "minecraft:dropper",
+    "minecraft:sign",
+    "minecraft:hanging_sign",
+    "minecraft:mob_spawner",
+    "minecraft:creaking_heart",
+    "minecraft:piston",
+    "minecraft:brewing_stand",
+    "minecraft:enchanting_table",
+    "minecraft:end_portal",
+    "minecraft:beacon",
+    "minecraft:skull",
+    "minecraft:daylight_detector",
+    "minecraft:hopper",
+    "minecraft:comparator",
+    "minecraft:banner",
+    "minecraft:structure_block",
+    "minecraft:end_gateway",
+    "minecraft:command_block",
+    "minecraft:shulker_box",
+    "minecraft:conduit",
+    "minecraft:barrel",
+    "minecraft:smoker",
+    "minecraft:blast_furnace",
+    "minecraft:lectern",
+    "minecraft:bell",
+    "minecraft:jigsaw",
+    "minecraft:campfire",
+    "minecraft:beehive",
+    "minecraft:sculk_sensor",
+    "minecraft:calibrated_sculk_sensor",
+    "minecraft:sculk_catalyst",
+    "minecraft:sculk_shrieker",
+    "minecraft:chiseled_bookshelf",
+    "minecraft:shelf",
+    "minecraft:brushable_block",
+    "minecraft:decorated_pot",
+    "minecraft:crafter",
+    "minecraft:trial_spawner",
+    "minecraft:vault",
+    "minecraft:test_block",
+    "minecraft:test_instance_block",
+    "minecraft:copper_golem_statue",
+    "minecraft:potent_sulfur",
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;

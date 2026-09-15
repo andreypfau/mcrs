@@ -45,7 +45,7 @@ impl Dump {
 
 fn read_dump(name: &str) -> Dump {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/world/generate/tests/fixtures")
+        .join("src/tests/fixtures")
         .join(name);
     let mut r = open_dump(&path, MAGIC);
     assert_eq!(dump_string(&mut r), "minecraft:overworld");

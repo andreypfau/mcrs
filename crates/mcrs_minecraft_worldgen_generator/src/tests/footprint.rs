@@ -10,12 +10,10 @@ use mcrs_minecraft_chunk::{Blocks, BlocksMut, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_protocol::ColumnPos;
 
-use crate::world::generate::ColumnBlocks;
-use crate::world::generate::stages::ColumnRegion;
-use crate::world::generate::staging::RegionSnapshots;
-use crate::world::generate::tests::{
-    bare_fill_context, build_beta_router, flat_snapshot, region_of,
-};
+use crate::ColumnBlocks;
+use crate::stages::ColumnRegion;
+use crate::staging::RegionSnapshots;
+use crate::tests::{bare_fill_context, build_beta_router, flat_snapshot, region_of};
 
 const CENTRE: ColumnPos = ColumnPos { x: 0, z: 0 };
 const Y_SECTIONS: [i32; 1] = [0];

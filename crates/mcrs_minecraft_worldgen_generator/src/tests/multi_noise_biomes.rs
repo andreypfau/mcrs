@@ -6,9 +6,9 @@ use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_settings_router;
-use crate::world::generate::modern_carvers::climate_target_at;
-use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-use crate::world::generate::multi_noise_palettes;
+use crate::modern_carvers::climate_target_at;
+use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::multi_noise_palettes;
 use bevy_math::IVec3;
 
 /// The preset's biomes numbered in the order the preset names them, which is

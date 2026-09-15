@@ -8,8 +8,8 @@ use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature_place::template::{Placement, place_template};
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
 
-use crate::world::generate::feature_program::{CompiledElement, FeatureProgram, Run};
-use crate::world::generate::structures::index::StructureIndex;
+use crate::feature_program::{CompiledElement, FeatureProgram, Run};
+use crate::structures::index::StructureIndex;
 use mcrs_minecraft_worldgen_structure::frozen::{ElementId, StructureKind};
 use mcrs_minecraft_worldgen_structure::jigsaw::{Piece, Start};
 

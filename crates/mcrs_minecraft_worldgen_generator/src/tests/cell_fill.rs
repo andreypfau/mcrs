@@ -7,8 +7,8 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::FINAL_DENSITY;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
-use crate::world::chunk::CancellationToken;
-use crate::world::generate::{ColumnBlocks, NO_TOP, column_fluid_field, fill_column_dense_any};
+use crate::task::CancellationToken;
+use crate::{ColumnBlocks, NO_TOP, column_fluid_field, fill_column_dense_any};
 
 use super::build_settings_router as build_router;
 use super::ladder::structure_dimension;

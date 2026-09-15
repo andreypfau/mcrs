@@ -1,7 +1,7 @@
-use crate::world::generate::beta_ores::{BetaOreBlockIds, apply_beta_ores_in};
-use crate::world::generate::features::FeatureTables;
-use crate::world::generate::structures::{check_block_entity_ids, resolve_palette_state};
-use crate::world::generate::trees::{
+use crate::beta_ores::{BetaOreBlockIds, apply_beta_ores_in};
+use crate::features::FeatureTables;
+use crate::structures::{check_block_entity_ids, resolve_palette_state};
+use crate::trees::{
     build_tree_tables, compile_decorator, compile_provider, compile_tree, state_of, with_property,
 };
 use fixedbitset::FixedBitSet;
@@ -584,7 +584,7 @@ impl<W: WorldGenVolume> TreeSink<W> for TreeRun<'_, '_, '_> {
 }
 
 impl Nested {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn places_something(&self) -> bool {
         self.generator
             .as_ref()
@@ -628,7 +628,7 @@ impl Generator {
     /// A container whose every entry is a shape this build has no code for
     /// still compiles — the entries keep their chains and their draws — so
     /// having a generator is not the same as placing something.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn places_something(&self) -> bool {
         let any = |nested: &[Nested]| nested.iter().any(Nested::places_something);
         match self {
@@ -2462,7 +2462,7 @@ impl<'a> Resolver<'a> {
 
 impl BlockResolver for Resolver<'_> {
     fn state(&self, state: &BlockState) -> Option<VoxelId> {
-        crate::world::chunk::try_resolve_state(self.blocks, state).map(|id| VoxelId::from(id.0))
+        crate::block_state::try_resolve_state(self.blocks, state).map(|id| VoxelId::from(id.0))
     }
 
     fn states(&self, query: StateQuery<'_>) -> Option<StateMask> {

@@ -1,29 +1,51 @@
+// Other crates' tests reach these helpers through `test-support`, where the
+// `#[test]` functions that also use them are compiled out.
+#![cfg_attr(not(test), allow(dead_code, unused_imports))]
+
+#[cfg(test)]
 mod base_height;
 mod beta_biome_palette;
+#[cfg(test)]
 mod beta_cave_parity;
+#[cfg(test)]
 mod beta_ore_distribution;
 pub(crate) mod beta_surface;
+#[cfg(test)]
 mod beta_surface_parity;
+#[cfg(test)]
 mod cell_census;
+#[cfg(test)]
 mod cell_fill;
-mod corpus_generators;
-mod corpus_ores;
+pub mod corpus_generators;
+pub mod corpus_ores;
+#[cfg(test)]
 mod footprint;
-mod ladder;
+pub mod ladder;
+#[cfg(test)]
 mod modern_carvers;
+#[cfg(test)]
 mod modern_features;
+#[cfg(test)]
 mod multi_noise_biomes;
+#[cfg(test)]
 mod perf;
+#[cfg(test)]
 mod rungs;
+#[cfg(test)]
 mod structure_index;
+#[cfg(test)]
 mod structure_layouts;
+#[cfg(test)]
 mod structure_sites;
-mod structures;
-mod surface;
+pub mod structures;
+pub mod surface;
+#[cfg(test)]
 mod surface_parity;
+#[cfg(test)]
 mod template_manifest;
+#[cfg(test)]
 mod template_parity;
-mod trees;
+pub mod trees;
 
 mod support;
 pub use support::*;
@@ -43,15 +65,13 @@ use mcrs_minecraft_protocol::ColumnPos;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 
-use crate::world::chunk::{CancellationToken, ColumnSource};
-use crate::world::generate::ColumnBlocks;
-use crate::world::generate::feature_program::FeatureProgram;
-use crate::world::generate::features::FeatureTables;
-use crate::world::generate::stages::{FillContext, fill_column, merge_column, run_region};
-use crate::world::generate::staging::{
-    FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column,
-};
-use crate::world::heightmap::TerrainHeightmaps;
+use crate::ColumnBlocks;
+use crate::feature_program::FeatureProgram;
+use crate::features::FeatureTables;
+use crate::heightmap::TerrainHeightmaps;
+use crate::stages::{FillContext, fill_column, merge_column, run_region};
+use crate::staging::{FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column};
+use crate::task::{CancellationToken, ColumnSource};
 use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
@@ -157,7 +177,7 @@ pub fn build_program_with(
 /// A fill context over one router and the corpus, with nothing else wired in.
 pub fn bare_fill_context(
     router: impl Into<std::sync::Arc<mcrs_minecraft_worldgen_density::router::NoiseRouter>>,
-) -> crate::world::generate::stages::FillContext {
+) -> crate::stages::FillContext {
     fill_context_with(router, None)
 }
 
@@ -168,18 +188,18 @@ pub fn bare_fill_context(
 /// which silently turns the modifiers that walk the ground into no-ops.
 pub fn fill_context_with(
     router: impl Into<std::sync::Arc<mcrs_minecraft_worldgen_density::router::NoiseRouter>>,
-    features: Option<std::sync::Arc<crate::world::generate::feature_program::FeatureProgram>>,
-) -> crate::world::generate::stages::FillContext {
+    features: Option<std::sync::Arc<crate::feature_program::FeatureProgram>>,
+) -> crate::stages::FillContext {
     let router = router.into();
-    crate::world::generate::stages::FillContext {
-        y_sections: crate::world::generate::stages::dimension_y_sections(&router, -64, 24),
+    crate::stages::FillContext {
+        y_sections: crate::stages::dimension_y_sections(&router, -64, 24),
         router,
         material: None,
         blocks: blocks().0.clone(),
         biome: None,
         predicates: None,
         saved: None,
-        program: crate::world::generate::stages::ColumnProgram::modern(features),
+        program: crate::stages::ColumnProgram::modern(features),
         structures: None,
     }
 }
@@ -315,8 +335,8 @@ pub fn generate_region(
 /// the way the shipped Beta biomes do.
 pub fn beta_carver_table(
     source: &mcrs_minecraft_biome::source::BiomeSource,
-) -> crate::world::generate::modern_carvers::CarverBiomeTable {
-    crate::world::generate::modern_carvers::CarverBiomeTable::beta(source, |_| {
+) -> crate::modern_carvers::CarverBiomeTable {
+    crate::modern_carvers::CarverBiomeTable::beta(source, |_| {
         Arc::from([mcrs_minecraft_worldgen_carver::config::CarverConfig::BetaCave])
     })
     .expect("a Beta biome source")

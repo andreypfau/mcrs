@@ -15,9 +15,9 @@ use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_beta_router;
-use crate::world::chunk::CancellationToken;
-use crate::world::generate::ColumnBlocks;
-use crate::world::generate::{apply_beta_surface, generate_column};
+use crate::ColumnBlocks;
+use crate::task::CancellationToken;
+use crate::{apply_beta_surface, generate_column};
 
 // ── Corpus deserialization ────────────────────────────────────────────────────
 
@@ -33,9 +33,6 @@ struct ColumnFixture {
     biome_id: u8,
     #[serde(with = "serde_base64")]
     pre_cave: Vec<u8>,
-    // post_cave is captured but reserved for the cave-parity gate
-    #[serde(with = "serde_base64")]
-    post_cave: Vec<u8>,
 }
 
 mod serde_base64 {
@@ -167,11 +164,6 @@ fn beta_land_biome_to_back2beta_id(b: BetaLandBiome) -> u8 {
 /// are all within scope.  Widening beyond ±8 would include deep stone that back2beta
 /// doesn't change, adding noise without signal.
 const SURFACE_BAND_HALF: i32 = 8;
-
-/// Block IDs from the corpus that count as "sea-level fill" (checked in addition
-/// to the surface band).  back2beta places stationary-water (9) below sea level
-/// at water-adjacent columns; the surface pass places water-level-0 there.
-const BACK2BETA_SEA_FILL_IDS: &[u8] = &[9]; // stationary-water
 
 /// Result of comparing one column's generated output against a fixture.
 #[derive(Debug)]

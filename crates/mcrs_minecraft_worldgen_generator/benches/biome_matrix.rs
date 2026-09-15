@@ -16,18 +16,18 @@ use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_server::world::chunk::CancellationToken;
-use mcrs_minecraft_server::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-use mcrs_minecraft_server::world::generate::{
+use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
+use mcrs_minecraft_worldgen_generator::task::CancellationToken;
+use mcrs_minecraft_worldgen_generator::{
     ColumnBlocks, SurfaceIds, apply_material_surface, fill_column_dense_any,
 };
-use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
 };
 
-#[path = "../src/world/generate/tests/support.rs"]
+#[path = "../src/tests/support.rs"]
 mod support;
 
 use support::{

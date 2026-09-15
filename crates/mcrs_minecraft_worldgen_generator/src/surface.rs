@@ -1,5 +1,5 @@
-use crate::world::generate::multi_noise_biomes::BiomeGrid;
-use crate::world::generate::{ColumnBlocks, NO_TOP};
+use crate::multi_noise_biomes::BiomeGrid;
+use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;

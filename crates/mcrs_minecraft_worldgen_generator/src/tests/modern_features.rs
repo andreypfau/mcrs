@@ -12,13 +12,11 @@ use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSte
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature};
 
-use crate::world::generate::ColumnBlocks;
-use crate::world::generate::feature_program::FeatureProgram;
-use crate::world::generate::features::FeatureTables;
-use crate::world::generate::stages::{
-    ColumnProgram, ColumnRegion, FillContext, dimension_y_sections, run_column,
-};
-use crate::world::generate::staging::RegionSnapshots;
+use crate::ColumnBlocks;
+use crate::feature_program::FeatureProgram;
+use crate::features::FeatureTables;
+use crate::stages::{ColumnProgram, ColumnRegion, FillContext, dimension_y_sections, run_column};
+use crate::staging::RegionSnapshots;
 
 use super::{
     TEMPERATE, bare_fill_context, biome_registry, block_tags, blocks, build_beta_router,
@@ -334,15 +332,8 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
     use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, StateQuery};
 
     let biomes = biome_registry(&[BIOME]);
-    let resolver = crate::world::generate::feature_program::Resolver::new(
-        &blocks().0,
-        None,
-        None,
-        &biomes,
-        0,
-        &[],
-    )
-    .expect("the corpus resolves");
+    let resolver = crate::feature_program::Resolver::new(&blocks().0, None, None, &biomes, 0, &[])
+        .expect("the corpus resolves");
     let set = HolderSet::One(ResourceLocation::parse("minecraft:empty").unwrap());
     let mask = resolver
         .states(StateQuery::Fluids(&set))

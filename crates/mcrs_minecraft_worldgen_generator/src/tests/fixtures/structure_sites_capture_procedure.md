@@ -12,7 +12,7 @@ so every `#minecraft:has_structure/*` tag is bound.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpPlacement --console=plain --no-daemon -PoracleOut=<dir>
-cp <dir>/structure_sites.bin ../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/
+cp <dir>/structure_sites.bin ../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/
 ```
 
 Output is deterministic: re-running produces a byte-identical file (49 635

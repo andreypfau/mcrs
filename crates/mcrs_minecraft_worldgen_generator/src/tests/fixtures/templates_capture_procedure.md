@@ -10,13 +10,13 @@ at `DataVersion` 5015), opened through the vanilla pack's `ResourceManager`.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpTemplates --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
 ```
 
 Output is deterministic: re-running produces a byte-identical file (4 620 732
 bytes).
 
-**Consumer:** `crates/mcrs_minecraft_server/src/world/generate/tests/template_manifest.rs`,
+**Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/template_manifest.rs`,
 which freezes the shipped `assets/minecraft/structure` tree — the jar's own
 structure tree, every file at `DataVersion` 5015 — and asserts, for every one
 of the 1511 templates, the size, the palette count,

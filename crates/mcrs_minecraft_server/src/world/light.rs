@@ -18,7 +18,7 @@ use mcrs_minecraft_light::prelude::{
     BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SkyLight,
 };
 
-use crate::world::heightmap::SurfaceHeightmap;
+use mcrs_minecraft_worldgen_generator::heightmap::SurfaceHeightmap;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 

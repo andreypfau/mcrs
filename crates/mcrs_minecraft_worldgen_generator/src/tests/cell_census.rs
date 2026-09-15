@@ -1,7 +1,7 @@
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_noise::interval::Interval;
 
-use crate::world::generate::{CellFill, CellLattice, FillBuffers, column_fluid_field};
+use crate::{CellFill, CellLattice, FillBuffers, column_fluid_field};
 
 use super::build_settings_router;
 

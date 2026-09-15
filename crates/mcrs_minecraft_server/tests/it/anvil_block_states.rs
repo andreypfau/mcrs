@@ -9,7 +9,7 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, load_block_
 use mcrs_minecraft_level::palette::AirCount;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_server::world::format::anvil::{
+use mcrs_minecraft_worldgen_generator::saved::{
     CorpusBlockStates, SnapshotBiomes, column_sections,
 };
 

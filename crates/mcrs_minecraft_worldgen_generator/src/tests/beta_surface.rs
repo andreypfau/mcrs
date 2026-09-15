@@ -10,9 +10,9 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 
 use super::build_beta_router;
-use crate::world::chunk::CancellationToken;
-use crate::world::generate::ColumnBlocks;
-use crate::world::generate::{apply_beta_surface, generate_column};
+use crate::ColumnBlocks;
+use crate::task::CancellationToken;
+use crate::{apply_beta_surface, generate_column};
 
 fn make_beta_biome() -> Biome {
     Biome {

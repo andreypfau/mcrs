@@ -1,9 +1,4 @@
-use crate::world::format::anvil::SectionData;
-use mcrs_minecraft_level::palette::ChunkBlocks;
-
 use crate::world::block_entity::spawn_block_entities;
-use crate::world::generate::stages::{FillContext, fill_pooled, merge_column, run_region};
-use crate::world::generate::staging::{ColumnDelta, FilledSnapshot, Stage, StagingStore};
 use crate::world::heightmap::PendingColumnHeightmaps;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -12,11 +7,11 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
-use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerChunkObserver;
+use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::markers::ChunkGenerating;
 use mcrs_minecraft_level::world::lifecycle::markers::ChunkLoaded;
@@ -26,26 +21,20 @@ use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::worldgen::beta_biome::BetaBiomeSourcePlugin;
-use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
+use mcrs_minecraft_worldgen_generator::saved::SectionData;
+use mcrs_minecraft_worldgen_generator::stages::{
+    FillContext, fill_pooled, merge_column, run_region,
+};
+use mcrs_minecraft_worldgen_generator::staging::{
+    ColumnDelta, FilledSnapshot, Stage, StagingStore,
+};
+use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
 use rustc_hash::FxHashMap;
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 use tracing::{info, trace};
-
-pub(crate) fn try_resolve_state(
-    blocks: &BlockDefinitions,
-    state: &ProtoBlockState,
-) -> Option<mcrs_minecraft_registry::BlockStateId> {
-    let block = blocks.block(state.name.as_str())?;
-    let mut id = block.default_state_id;
-    for (property, value) in state.properties.iter().flatten() {
-        id = block.with_text(id, property, value)?;
-    }
-    Some(id)
-}
 
 pub struct ChunkPlugin;
 
@@ -78,36 +67,6 @@ impl Plugin for ChunkPlugin {
 }
 
 pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
-
-/// Token for cooperative cancellation of chunk generation tasks.
-///
-/// The token is cloned and passed to worker tasks. When `cancel()` is called,
-/// tasks check `is_cancelled()` between section generations and can exit early.
-#[derive(Clone)]
-pub struct CancellationToken(Arc<AtomicBool>);
-
-impl CancellationToken {
-    /// Create a new uncancelled token.
-    pub fn new() -> Self {
-        Self(Arc::new(AtomicBool::new(false)))
-    }
-
-    /// Signal cancellation to all clones of this token.
-    pub fn cancel(&self) {
-        self.0.store(true, Ordering::Release);
-    }
-
-    /// Check if cancellation has been signaled.
-    pub fn is_cancelled(&self) -> bool {
-        self.0.load(Ordering::Acquire)
-    }
-}
-
-impl Default for CancellationToken {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// Sort key for the priority queue. Lower distance_sq values are dequeued first.
 /// The column position (col_x, col_z) serves as a tiebreaker for determinism.
@@ -242,21 +201,6 @@ impl ColumnScheduler {
         let task = pool.spawn(work(cancel.clone()));
         self.store.set_stage(col, stage);
         self.in_flight.push(InFlightStage { col, cancel, task });
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum ColumnSource {
-    Saved,
-    Generated,
-}
-
-impl ColumnSource {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Saved => "save",
-            Self::Generated => "worldgen",
-        }
     }
 }
 
@@ -837,10 +781,12 @@ pub(crate) fn dispatch_column_generation(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::generate::tests::blocks as corpus;
     use bevy_app::{App, Update};
     use mcrs_minecraft_block::definition::schema::PropertyValue;
     use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
+    use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
+    use mcrs_minecraft_worldgen_generator::block_state::try_resolve_state;
+    use mcrs_minecraft_worldgen_generator::tests::blocks as corpus;
 
     fn noise_settings_state(field: &str) -> ProtoBlockState {
         let path = concat!(
@@ -906,15 +852,15 @@ mod tests {
     /// bug shows up as a column that never arrives.
     #[test]
     fn the_ladder_delivers_the_column_the_fill_produced() {
-        use crate::world::generate::stages::fill_column;
-        use crate::world::generate::tests::build_beta_router;
         use crate::world::heightmap::PendingColumnHeightmaps;
+        use mcrs_minecraft_worldgen_generator::stages::fill_column;
+        use mcrs_minecraft_worldgen_generator::tests::build_beta_router;
 
         CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
 
         let router = Arc::new(build_beta_router());
         let col = ColumnPos::new(1, -2);
-        let ctx = crate::world::generate::tests::bare_fill_context(router);
+        let ctx = mcrs_minecraft_worldgen_generator::tests::bare_fill_context(router);
         let y_sections = ctx.y_sections.clone();
 
         let mut app = App::new();
@@ -964,7 +910,7 @@ mod tests {
         }
         assert!(delivered, "the ladder never delivered the column");
 
-        let mut buffer = crate::world::generate::ColumnBlocks::new(&y_sections);
+        let mut buffer = mcrs_minecraft_worldgen_generator::ColumnBlocks::new(&y_sections);
         let alone = fill_column(&ctx, col, &mut buffer, &CancellationToken::new())
             .expect("the fill was not cancelled");
         let bottom = y_sections[0];
@@ -997,7 +943,7 @@ mod tests {
                 .world()
                 .get::<ChunkBlocks>(*entity)
                 .expect("a delivered section carries its blocks");
-            for cell in 0..crate::world::generate::ColumnBlocks::SECTION_VOLUME {
+            for cell in 0..mcrs_minecraft_worldgen_generator::ColumnBlocks::SECTION_VOLUME {
                 let local = mcrs_minecraft_core::LocalPos::from_index(cell);
                 let (x, ly, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
                 assert_eq!(

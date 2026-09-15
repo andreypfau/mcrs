@@ -14,13 +14,11 @@ use mcrs_minecraft_worldgen_feature::placer::{PlacerScratch, decorate};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder};
 use mcrs_minecraft_worldgen_feature_place::ore_modern::{OreScratch, place_modern_ore};
 
-use crate::world::generate::ColumnBlocks;
-use crate::world::generate::feature_program::{FeatureProgram, Generator};
-use crate::world::generate::features::FeatureTables;
-use crate::world::generate::stages::{
-    ColumnRegion, FillContext, decoration_seed, dimension_y_sections,
-};
-use crate::world::generate::staging::{FilledSnapshot, RegionSnapshots, region_column};
+use crate::ColumnBlocks;
+use crate::feature_program::{FeatureProgram, Generator};
+use crate::features::FeatureTables;
+use crate::stages::{ColumnRegion, FillContext, decoration_seed, dimension_y_sections};
+use crate::staging::{FilledSnapshot, RegionSnapshots, region_column};
 
 use super::{
     biome_registry, blocks, build_program, build_settings_router, corpus_features,

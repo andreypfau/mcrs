@@ -1,5 +1,13 @@
-use std::collections::{BTreeMap, HashMap};
-
+use super::{
+    assets_root, corpus, density_function_registry, load_json_dir, noise_registry, router_blocks,
+};
+use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::surface::{Visit, descend_strip, set_block};
+use crate::task::CancellationToken;
+use crate::{
+    ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
+    multi_noise_palettes, spans_dimension,
+};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
@@ -10,21 +18,12 @@ use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch, NO_WATER,
 };
-
-use crate::world::chunk::CancellationToken;
-use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-use crate::world::generate::surface::{Visit, descend_strip, set_block};
-use crate::world::generate::{
-    ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
-    multi_noise_palettes, spans_dimension,
-};
-
-use super::{
-    assets_root, corpus, density_function_registry, load_json_dir, noise_registry, router_blocks,
-};
+use std::collections::{BTreeMap, HashMap};
 
 const AIR: VoxelId = VoxelId(0);
+
 const STONE: VoxelId = VoxelId(1);
+
 const WATER: VoxelId = VoxelId(2);
 
 /// Every visit the descent made, as `(y, depth_above, depth_below, water)`.
@@ -44,7 +43,7 @@ fn walk(column: &ColumnBlocks, height: i32, min_y: i32) -> Vec<(i32, i32, i32, i
     seen
 }
 
-fn fill(column: &ColumnBlocks, range: std::ops::RangeInclusive<i32>, state: VoxelId) {
+pub fn fill(column: &ColumnBlocks, range: std::ops::RangeInclusive<i32>, state: VoxelId) {
     for y in range {
         column.set(0, y, 0, state);
     }
@@ -139,7 +138,7 @@ pub(super) fn biome_ids() -> HashMap<String, u32> {
     ids
 }
 
-pub(super) fn overworld_material_router(
+pub fn overworld_material_router(
     seed: u64,
     ids: &HashMap<String, u32>,
 ) -> (NoiseRouter, MaterialProgram) {
@@ -393,7 +392,7 @@ fn grid_biomes(
 }
 
 /// The preset's biomes as a registry, and the ids it gave them.
-fn overworld_biome_registry() -> (
+pub fn overworld_biome_registry() -> (
     mcrs_minecraft_assets::RegistrySnapshot<Biome>,
     HashMap<String, u32>,
 ) {
@@ -433,13 +432,13 @@ fn overworld_biome_registry() -> (
 
 /// The per-dimension inputs a column stage reads, resolved the way
 /// `dispatch_column_generation` resolves them for the pool.
-fn fill_context(
+pub fn fill_context(
     router: NoiseRouter,
     material: MaterialProgram,
     registry: mcrs_minecraft_assets::RegistrySnapshot<mcrs_minecraft_biome::Biome>,
     source: mcrs_minecraft_biome::source::BiomeSource,
-) -> crate::world::generate::stages::FillContext {
-    use crate::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
+) -> crate::stages::FillContext {
+    use crate::multi_noise_biomes::MultiNoiseBiomeTable;
     use mcrs_minecraft_biome::source::BiomeSource;
 
     use super::blocks;
@@ -452,16 +451,14 @@ fn fill_context(
         .map(std::sync::Arc::new),
         _ => None,
     };
-    crate::world::generate::stages::FillContext {
+    crate::stages::FillContext {
         biome: Some((std::sync::Arc::new(source), registry)),
-        program: crate::world::generate::stages::ColumnProgram {
-            generator: crate::world::generate::stages::ColumnGenerator::Modern {
+        program: crate::stages::ColumnProgram {
+            generator: crate::stages::ColumnGenerator::Modern {
                 multi_noise,
                 surface: Some(surface),
                 carver_blocks: std::sync::Arc::new(
-                    crate::world::generate::modern_carvers::ModernCarverBlockIds::for_test(
-                        Vec::new(),
-                    ),
+                    crate::modern_carvers::ModernCarverBlockIds::for_test(Vec::new()),
                 ),
             },
             carvers: None,
@@ -470,75 +467,6 @@ fn fill_context(
         material: Some(std::sync::Arc::new(material)),
         ..super::bare_fill_context(router)
     }
-}
-
-/// A delivery owes only the sections it was asked for — the ticket layer caps
-/// how many it spawns a tick and cuts a column's sections across two of them —
-/// while the fill covers the whole dimension, because the bedrock floor is a
-/// material rule and a column surfaced over a slice would be left open at the
-/// bottom.
-#[test]
-fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
-    use bevy_app::App;
-    use bevy_ecs::entity::Entity;
-    use mcrs_minecraft_biome::source::BiomeSource;
-    use mcrs_minecraft_core::SectionPos;
-    use mcrs_minecraft_protocol::ColumnPos;
-
-    use crate::world::chunk::{CancellationToken, carried_sections};
-    use crate::world::generate::stages::fill_column;
-
-    let (registry, ids) = overworld_biome_registry();
-    let (router, material) = overworld_material_router(2, &ids);
-    let ctx = fill_context(
-        router,
-        material,
-        registry,
-        BiomeSource::MultiNoise(MultiNoiseBiomeSource {
-            preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
-            biomes: None,
-        }),
-    );
-
-    let col = ColumnPos::new(3, -7);
-    let carried = [-4, 3, 4];
-    let mut app = App::new();
-    let sections: Vec<(Entity, SectionPos)> = carried
-        .iter()
-        .map(|&y| {
-            (
-                app.world_mut().spawn_empty().id(),
-                SectionPos::new(col.x, y, col.z),
-            )
-        })
-        .collect();
-
-    let y_sections = ctx.y_sections.clone();
-    let mut column = ColumnBlocks::new(&y_sections);
-    let snapshot = fill_column(&ctx, col, &mut column, &CancellationToken::new())
-        .expect("the fill was not cancelled");
-
-    let bottom = y_sections[0];
-    let delivered = carried_sections(&sections, &snapshot.sections, bottom);
-    assert_eq!(
-        delivered.len(),
-        carried.len(),
-        "the delivery returned sections it was not asked for"
-    );
-    let bedrock = VoxelId::from(corpus().default_state("minecraft:bedrock"));
-    let floor = delivered
-        .iter()
-        .find(|(_, pos, _)| pos.y == carried[0])
-        .expect("the bottom section came back");
-    let (palette, _) = floor.2.as_ref().expect("the bottom section carries blocks");
-    let mut states = Vec::with_capacity(ColumnBlocks::SECTION_VOLUME);
-    palette.0.for_each(|state| states.push(state));
-    // The palette runs y, then z, then x, so the first layer is the floor of
-    // the dimension, which `bedrock_floor` covers whole.
-    assert!(
-        states[..256].iter().all(|state| *state == bedrock),
-        "the bottom of the world is open: the material rules never ran over this dispatch"
-    );
 }
 
 /// A `minecraft:fixed` source answers one biome at every quart cell, so the
@@ -550,8 +478,8 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_minecraft_protocol::ColumnPos;
 
-    use crate::world::chunk::CancellationToken;
-    use crate::world::generate::stages::fill_column;
+    use crate::stages::fill_column;
+    use crate::task::CancellationToken;
 
     let generate = |biome: &str| -> (Vec<VoxelId>, Vec<u8>) {
         let (registry, ids) = overworld_biome_registry();
@@ -634,7 +562,7 @@ fn surfaced_column_fixed(
     y_sections: &[i32],
     bypass_shortcuts: bool,
 ) -> ColumnBlocks {
-    use crate::world::generate::multi_noise_biomes::BiomeGrid;
+    use crate::multi_noise_biomes::BiomeGrid;
     use bevy_math::IVec3;
     use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 

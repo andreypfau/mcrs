@@ -1,8 +1,8 @@
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
-use crate::world::chunk::CancellationToken;
-use crate::world::generate::{ColumnBlocks, base_height, fill_column_dense_any};
-use crate::world::heightmap::{HeightmapKinds, build_terrain_heightmaps, heightmap_predicates};
+use crate::heightmap::{HeightmapKinds, build_terrain_heightmaps, heightmap_predicates};
+use crate::task::CancellationToken;
+use crate::{ColumnBlocks, base_height, fill_column_dense_any};
 
 use super::{block_tags, blocks, build_settings_router};
 

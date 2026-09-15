@@ -88,8 +88,8 @@ fn read_piece(r: &mut impl Buf) -> DumpPiece {
 }
 
 fn read_dump() -> Vec<DumpSeed> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/world/generate/tests/fixtures/structure_layouts.bin");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/tests/fixtures/structure_layouts.bin");
     let mut r = open_dump(&path, MAGIC);
     let seeds = (0..r.get_u32_le())
         .map(|_| DumpSeed {

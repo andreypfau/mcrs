@@ -1,6 +1,6 @@
-use crate::world::chunk::CancellationToken;
-use crate::world::generate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
-use crate::world::heightmap::{HeightmapKinds, HeightmapPredicates};
+use crate::heightmap::{HeightmapKinds, HeightmapPredicates};
+use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
+use crate::task::CancellationToken;
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
@@ -1145,7 +1145,11 @@ pub fn apply_beta_surface(
     }
 }
 
+pub mod block_state;
 pub mod column_blocks;
+pub mod heightmap;
+pub mod saved;
+pub mod task;
 pub use column_blocks::ColumnBlocks;
 pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_carvers};
@@ -1154,15 +1158,13 @@ pub mod feature_program;
 pub mod features;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;
-pub mod routers;
 pub mod stages;
 pub mod staging;
 pub mod structures;
 pub mod surface;
 pub mod trees;
 pub use beta_ores::{BetaOreBlockIds, place_all_ores};
-pub use routers::{DimensionBiomeSources, DimensionRouters};
 pub use surface::{SurfaceIds, apply_material_surface, spans_dimension};
 
-#[cfg(test)]
-pub(crate) mod tests;
+#[cfg(any(test, feature = "test-support"))]
+pub mod tests;

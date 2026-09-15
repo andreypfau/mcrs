@@ -3446,6 +3446,7 @@ dependencies = [
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_generator",
  "mcrs_telemetry",
  "tokio",
 ]
@@ -3791,7 +3792,6 @@ dependencies = [
 name = "mcrs_minecraft_server"
 version = "0.1.0"
 dependencies = [
- "base64",
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
@@ -3800,7 +3800,6 @@ dependencies = [
  "bevy_state",
  "bevy_tasks",
  "bevy_time",
- "bitflags 2.10.0",
  "bytes",
  "criterion",
  "derive_more",
@@ -3820,7 +3819,6 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
- "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
@@ -3828,14 +3826,12 @@ dependencies = [
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_feature_place",
- "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_generator",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
- "mcrs_minecraft_worldgen_testing",
  "proptest",
  "rand 0.10.0",
  "rand 0.9.2",
- "rand_xoshiro",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -3973,6 +3969,46 @@ dependencies = [
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_generator"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_math",
+ "bitflags 2.10.0",
+ "bytes",
+ "criterion",
+ "fixedbitset",
+ "mcrs_minecraft_anvil",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_biome",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_level",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_carver",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_feature_place",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_structure",
+ "mcrs_minecraft_worldgen_surface",
+ "mcrs_minecraft_worldgen_testing",
+ "rand_xoshiro",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]

@@ -13,7 +13,7 @@ with `PlacementOracle.java`, which writes `structure_sites.bin`)
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpJigsaw --console=plain --no-daemon -PoracleOut=<dir>
-cp <dir>/structure_layouts.bin ../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures/
+cp <dir>/structure_layouts.bin ../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/
 ```
 
 Output is deterministic: re-running produces a byte-identical file (3 830 805

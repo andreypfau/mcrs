@@ -12,7 +12,7 @@ use mcrs_minecraft_worldgen_feature::template::{
 use mcrs_minecraft_worldgen_testing::{assets_dir, dump_placements, dump_string, open_dump};
 
 use super::corpus;
-use crate::world::generate::structures::{DYNAMIC_SHAPE_BLOCKS, resolve_palette_state};
+use crate::structures::{DYNAMIC_SHAPE_BLOCKS, resolve_palette_state};
 
 const MAGIC: &[u8; 8] = b"MCTMPLT0";
 
@@ -49,8 +49,7 @@ struct DumpListed {
 }
 
 fn read_dump() -> (Vec<String>, Vec<DumpManifest>, Vec<DumpListed>) {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/world/generate/tests/fixtures/templates.bin");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/tests/fixtures/templates.bin");
     let mut r = open_dump(&path, MAGIC);
     let dynamic = (0..r.get_u32_le()).map(|_| dump_string(&mut r)).collect();
     let manifests = (0..r.get_u32_le())

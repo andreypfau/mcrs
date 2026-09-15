@@ -13,8 +13,8 @@ use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSte
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen_feature::proto::{Holder, PlacedFeature};
 
-use crate::world::generate::features::FeatureTables;
-use crate::world::generate::staging::FilledSnapshot;
+use crate::features::FeatureTables;
+use crate::staging::FilledSnapshot;
 
 use super::{TEMPERATE, blocks, generate_region};
 

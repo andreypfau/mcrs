@@ -10,24 +10,24 @@ use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_server::world::chunk::CancellationToken;
-use mcrs_minecraft_server::world::generate::modern_carvers::{
-    CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers,
-};
-use mcrs_minecraft_server::world::generate::multi_noise_biomes::MultiNoiseBiomeTable;
-use mcrs_minecraft_server::world::generate::{
-    ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
-    multi_noise_palettes,
-};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
+use mcrs_minecraft_worldgen_generator::modern_carvers::{
+    CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers,
+};
+use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
+use mcrs_minecraft_worldgen_generator::task::CancellationToken;
+use mcrs_minecraft_worldgen_generator::{
+    ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
+    multi_noise_palettes,
+};
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch,
 };
 
-#[path = "../src/world/generate/tests/support.rs"]
+#[path = "../src/tests/support.rs"]
 mod support;
 
 use support::{

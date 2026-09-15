@@ -21,10 +21,10 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_server::world::block_entity::{BlockEntity, packet_entry, spawn_block_entities};
-use mcrs_minecraft_server::world::format::anvil::saved_block_entities;
 use mcrs_minecraft_worldgen_feature_place::block_entity::{
     BeeOccupant, EndGatewayData, GeneratedBlockEntity,
 };
+use mcrs_minecraft_worldgen_generator::saved::saved_block_entities;
 
 fn section_pos() -> SectionPos {
     SectionPos::new(2, 4, -1)

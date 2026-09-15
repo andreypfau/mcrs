@@ -8,10 +8,10 @@ use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::{assets_root, build_settings_router, corpus};
-use crate::world::generate::modern_carvers::{
+use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers, climate_target_at,
 };
-use crate::world::generate::{ColumnBlocks, column_fluid_field};
+use crate::{ColumnBlocks, column_fluid_field};
 
 fn overworld_height() -> HeightContext {
     HeightContext {
@@ -372,7 +372,7 @@ fn asset_maps() -> (
 
 #[test]
 fn the_freeze_resolution_builds_the_dimension_tables() {
-    use crate::world::generate::modern_carvers::resolve_carver_biomes;
+    use crate::modern_carvers::resolve_carver_biomes;
     use mcrs_minecraft_biome::climate::{Parameter, ParameterPoint};
 
     let (carvers_by_biome, config_by_location) = asset_maps();
@@ -468,7 +468,7 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
 /// carves nothing with no other symptom.
 #[test]
 fn a_loaded_carver_asset_names_its_carver() {
-    use crate::world::generate::modern_carvers::CARVER_REGISTRY;
+    use crate::modern_carvers::CARVER_REGISTRY;
     use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 
     let location = rl_from_asset_path(

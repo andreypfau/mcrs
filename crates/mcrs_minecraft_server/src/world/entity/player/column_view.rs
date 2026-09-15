@@ -33,8 +33,9 @@ use mcrs_minecraft_protocol::{ColumnPos, Encode};
 use crate::world::block_entity::{BlockEntity, packet_entry};
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
-use crate::world::heightmap::{
-    MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap, client_heightmaps,
+use crate::world::heightmap::client_heightmaps;
+use mcrs_minecraft_worldgen_generator::heightmap::{
+    MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use tracing::{trace, warn};

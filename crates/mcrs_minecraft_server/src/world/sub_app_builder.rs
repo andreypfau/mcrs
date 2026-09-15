@@ -59,10 +59,8 @@ use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block::MinecraftBlockPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
-use crate::world::format::anvil::SavedColumns;
 use crate::world::generate::DimensionRouters;
-use crate::world::generate::stages::{FillContext, dimension_y_sections};
-use crate::world::heightmap::{DimHeightmapPlugin, HeightmapPredicates};
+use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
 use mcrs_minecraft_assets::RegistrySnapshot;
@@ -78,6 +76,9 @@ use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
+use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
+use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
+use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {

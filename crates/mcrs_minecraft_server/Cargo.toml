@@ -8,13 +8,13 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_worldgen_generator.workspace = true
 mcrs_minecraft_worldgen_feature_place.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
-mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome.workspace = true
@@ -31,7 +31,6 @@ mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
-mcrs_minecraft_random.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_anvil.workspace = true
 bevy_math.workspace = true
@@ -52,29 +51,18 @@ bytes.workspace = true
 flume.workspace = true
 thiserror.workspace = true
 serde = { version = "1.0.228", features = ["derive"] }
-bitflags = "2.10.0"
 tracing = { workspace = true }
 
 [dev-dependencies]
-mcrs_minecraft_worldgen_testing.workspace = true
+mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 tracing-subscriber = "0.3"
-rand_xoshiro = { workspace = true }
-base64 = { workspace = true }
 proptest = "1.11.0"
 rand09 = { package = "rand", version = "0.9" }
 criterion = { version = "0.7", features = ["html_reports"] }
 
 [features]
-telemetry-tracy = ["mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy"]
-
-[[bench]]
-name = "beta_chunks"
-harness = false
-
-[[bench]]
-name = "generate_columns"
-harness = false
+telemetry-tracy = ["mcrs_minecraft_worldgen_generator/telemetry-tracy", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy"]
 
 [[bench]]
 name = "tr07_scale"
@@ -82,12 +70,4 @@ harness = false
 
 [[bench]]
 name = "tr07_baseline"
-harness = false
-
-[[bench]]
-name = "overworld_pipeline"
-harness = false
-
-[[bench]]
-name = "biome_matrix"
 harness = false

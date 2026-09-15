@@ -18,10 +18,8 @@ use mcrs_minecraft_worldgen_structure::{Structure, StructureSet, TemplatePool};
 use mcrs_minecraft_worldgen_testing::assets_dir;
 
 use super::{biome_index, biome_tags, corpus, load_json_dir};
-use crate::world::generate::features::possible_biomes;
-use crate::world::generate::structures::{
-    StructureInputs, freeze, live_sets, resolve_palette_state,
-};
+use crate::features::possible_biomes;
+use crate::structures::{StructureInputs, freeze, live_sets, resolve_palette_state};
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
 
 /// Every shipped structure whose type has no generator yet; each is frozen as

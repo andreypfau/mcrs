@@ -14,18 +14,18 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_server::world::chunk::CancellationToken;
-use mcrs_minecraft_server::world::generate::ColumnBlocks;
-use mcrs_minecraft_server::world::generate::modern_carvers::CarverBiomeTable;
-use mcrs_minecraft_server::world::generate::stages::extent;
-use mcrs_minecraft_server::world::generate::{
-    BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, fill_column_dense_any,
-};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_minecraft_worldgen_generator::ColumnBlocks;
+use mcrs_minecraft_worldgen_generator::modern_carvers::CarverBiomeTable;
+use mcrs_minecraft_worldgen_generator::stages::extent;
+use mcrs_minecraft_worldgen_generator::task::CancellationToken;
+use mcrs_minecraft_worldgen_generator::{
+    BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, fill_column_dense_any,
+};
 
-#[path = "../src/world/generate/tests/support.rs"]
+#[path = "../src/tests/support.rs"]
 mod support;
 
 use support::{build_settings_router, corpus};

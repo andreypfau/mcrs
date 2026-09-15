@@ -6,8 +6,8 @@ use mcrs_minecraft_worldgen_carver::water::WaterMask;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 
-use crate::world::generate::ColumnBlocks;
-use crate::world::generate::modern_carvers::{CarverBiomeTable, carve_sources};
+use crate::ColumnBlocks;
+use crate::modern_carvers::{CarverBiomeTable, carve_sources};
 
 pub struct BetaCaveBlockIds {
     pub air: VoxelId,
@@ -122,7 +122,7 @@ pub fn apply_beta_carvers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::generate::tests::corpus;
+    use crate::tests::corpus;
 
     #[test]
     fn the_fill_frees_only_what_beta_carves_and_floors_it_with_lava() {

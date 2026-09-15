@@ -95,6 +95,7 @@ mcrs_minecraft_worldgen_density = { path = "crates/mcrs_minecraft_worldgen_densi
 mcrs_minecraft_worldgen_surface = { path = "crates/mcrs_minecraft_worldgen_surface", default-features = false }
 mcrs_minecraft_worldgen_feature = { path = "crates/mcrs_minecraft_worldgen_feature", default-features = false }
 mcrs_minecraft_worldgen_feature_place = { path = "crates/mcrs_minecraft_worldgen_feature_place", default-features = false }
+mcrs_minecraft_worldgen_generator = { path = "crates/mcrs_minecraft_worldgen_generator" }
 mcrs_minecraft_worldgen_carver = { path = "crates/mcrs_minecraft_worldgen_carver", default-features = false }
 mcrs_minecraft_worldgen_structure = { path = "crates/mcrs_minecraft_worldgen_structure" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
@@ -114,6 +115,7 @@ mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_telemetry.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_worldgen_generator.workspace = true
 bevy_state.workspace = true
 mcrs_minecraft_client.workspace = true
 mcrs_minecraft_assets.workspace = true
@@ -177,6 +179,9 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_worldgen_feature_place"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_generator"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_worldgen_carver"]
