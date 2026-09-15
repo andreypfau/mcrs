@@ -37,6 +37,9 @@ pub struct WorldStates {
     /// States whose block declares side properties yet never rotates them:
     /// fire and chorus plant.
     pub unrotated: StateMask,
+    /// States whose block declares facing or side properties yet never
+    /// mirrors them: the anvils on top of `unrotated`.
+    pub unmirrored: StateMask,
     /// `BlockState.hasBlockEntity`: the only states a block entity can sit on.
     pub has_block_entity: StateMask,
     /// The block each state id belongs to; a state past the table is its own

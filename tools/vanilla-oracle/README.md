@@ -517,8 +517,8 @@ with their final states (hashed, or in full for a fixed subset), every block
 entity it loaded, and the placement random's state afterwards. Ahead of the
 cases it writes three censuses: the `BLOCK_ENTITY_TYPE` registry order, which
 block creates which block entity and whether that entity is a
-`RandomizableContainer`, and every block state that any rotation changes with
-its three rotations.
+`RandomizableContainer`, and every block state that any rotation or mirror
+changes with its three rotations and two mirrors.
 
 ```sh
 cd tools/vanilla-oracle
@@ -541,7 +541,7 @@ fixture in
 Little-endian, same primitives as the other dumps; `u8` is one raw byte.
 
 ```
-magic            8 bytes, ASCII "MCTMPLP0"
+magic            8 bytes, ASCII "MCTMPLP1"
 format_version   u32   currently 1
 world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
 
@@ -558,12 +558,13 @@ EntityBlock whose newBlockEntity(ZERO, defaultBlockState()) is non-null:
 rotation_palette_count  u32
 rotation_palette        str * count       BlockStateParser.serialize, interned in
                                           first-use order over (state, cw90,
-                                          cw180, ccw90)
-rotation_count   u32   states that at least one rotation changes
+                                          cw180, ccw90, left_right, front_back)
+rotation_count   u32   states that at least one rotation or mirror changes
 repeated rotation_count times, BLOCK order then getPossibleStates() order:
-  state, cw90, cw180, ccw90   u32 * 4     palette indices; state.rotate(
-                                          CLOCKWISE_90 | CLOCKWISE_180 |
-                                          COUNTERCLOCKWISE_90)
+  state, cw90, cw180, ccw90,  u32 * 6     palette indices; state.rotate(
+  left_right, front_back                  CLOCKWISE_90 | CLOCKWISE_180 |
+                                          COUNTERCLOCKWISE_90), state.mirror(
+                                          LEFT_RIGHT | FRONT_BACK)
 
 palette_count    u32   global block-state palette over every written block,
 palette          str * palette_count      interned in first-use order, file order

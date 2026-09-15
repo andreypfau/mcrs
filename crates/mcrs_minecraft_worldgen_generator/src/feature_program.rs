@@ -2333,6 +2333,13 @@ impl<'a> Resolver<'a> {
                 .state_mask(|state| self.blocks.shape(state.collision_shape).is_empty()),
             bedrock: block("minecraft:bedrock"),
             unrotated: union_masks(&[&block("minecraft:fire"), &block("minecraft:chorus_plant")]),
+            unmirrored: union_masks(&[
+                &block("minecraft:fire"),
+                &block("minecraft:chorus_plant"),
+                &block("minecraft:anvil"),
+                &block("minecraft:chipped_anvil"),
+                &block("minecraft:damaged_anvil"),
+            ]),
             has_block_entity: self.flag_mask(BlockStateFlags::HAS_BLOCK_ENTITY),
             block_of_state: (0..self.blocks.state_count())
                 .map(|id| self.blocks.block_index(BlockStateId(id as u16)))

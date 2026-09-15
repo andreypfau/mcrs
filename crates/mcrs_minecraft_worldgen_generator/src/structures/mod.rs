@@ -6,7 +6,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::HolderSet;
-use mcrs_minecraft_core::Rotation;
+use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
@@ -178,7 +178,7 @@ fn freeze_element(
         PoolElement::Single(single) | PoolElement::LegacySingle(single) => {
             let template = freeze_template(inputs, frozen, pool, &single.location)?;
             let size = frozen.manifests[template.0 as usize].size;
-            let bounds = bounding_box(size, IVec3::ZERO, Rotation::None);
+            let bounds = bounding_box(size, IVec3::ZERO, Rotation::None, Mirror::None, IVec3::ZERO);
             (
                 FrozenElement::Single {
                     template,

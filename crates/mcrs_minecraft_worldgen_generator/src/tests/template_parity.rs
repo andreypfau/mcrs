@@ -7,8 +7,8 @@ use bevy_math::IVec3;
 use bytes::Buf;
 use mcrs_minecraft_chunk::{Blocks, BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -21,7 +21,7 @@ use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature, processor_list};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
-use mcrs_minecraft_worldgen_feature_place::template::rotate_state;
+use mcrs_minecraft_worldgen_feature_place::template::{mirror_state, rotate_state};
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
@@ -33,7 +33,7 @@ use crate::structures::place::place_element;
 use mcrs_minecraft_worldgen_feature_place::block_entity::BLOCK_ENTITY_TYPES;
 use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenElement};
 
-const MAGIC: &[u8; 8] = b"MCTMPLP0";
+const MAGIC: &[u8; 8] = b"MCTMPLP1";
 const BIOME: &str = "minecraft:plains";
 const WORLD_SEED: i64 = 0x5EED;
 const FNV_OFFSET: u64 = 0xcbf29ce484222325;
@@ -76,7 +76,7 @@ struct Dump {
     types: Vec<String>,
     blocks: Vec<(String, String, bool)>,
     rotation_palette: Vec<String>,
-    rotations: Vec<[u32; 4]>,
+    rotations: Vec<[u32; 6]>,
     palette: Vec<String>,
     cases: Vec<DumpCase>,
 }
@@ -265,7 +265,7 @@ fn the_loot_seeded_kinds_and_every_template_block_entity_id_are_pinned() {
 }
 
 #[test]
-fn every_block_state_rotates_as_the_reference_does() {
+fn every_block_state_rotates_and_mirrors_as_the_reference_does() {
     let dump = dump();
     let program = program();
     let mut resolved: HashMap<&str, VoxelId> = HashMap::new();
@@ -274,13 +274,13 @@ fn every_block_state_rotates_as_the_reference_does() {
             .entry(text)
             .or_insert_with(|| resolve(&parse_state(text)))
     };
-    let census: HashMap<VoxelId, [VoxelId; 3]> = dump
+    let census: HashMap<VoxelId, [VoxelId; 5]> = dump
         .rotations
         .iter()
         .map(|row| {
-            let [state, cw, half, ccw] =
+            let [state, cw, half, ccw, left_right, front_back] =
                 row.map(|index| resolve_text(dump.rotation_palette[index as usize].as_str()));
-            (state, [cw, half, ccw])
+            (state, [cw, half, ccw, left_right, front_back])
         })
         .collect();
     assert_eq!(
@@ -294,15 +294,20 @@ fn every_block_state_rotates_as_the_reference_does() {
         Rotation::Clockwise180,
         Rotation::Counterclockwise90,
     ];
+    let mirrors = [Mirror::LeftRight, Mirror::FrontBack];
     let mut mismatches = Vec::new();
     for id in 0..corpus().state_count() {
         let state = VoxelId(id as u16);
-        let expected = census.get(&state).copied().unwrap_or([state; 3]);
-        for (turn, want) in turns.iter().zip(expected) {
-            let got = rotate_state(&program.world, state, *turn);
+        let expected = census.get(&state).copied().unwrap_or([state; 5]);
+        let got = turns
+            .map(|turn| rotate_state(&program.world, state, turn))
+            .into_iter()
+            .chain(mirrors.map(|mirror| mirror_state(&program.world, state, mirror)));
+        let labels = ["cw90", "cw180", "ccw90", "left_right", "front_back"];
+        for ((label, want), got) in labels.iter().zip(expected).zip(got) {
             if got != want {
                 mismatches.push(format!(
-                    "{} {turn:?}: want {}, got {}",
+                    "{} {label}: want {}, got {}",
                     state_named(state),
                     state_named(want),
                     state_named(got)
@@ -312,7 +317,7 @@ fn every_block_state_rotates_as_the_reference_does() {
     }
     assert!(
         mismatches.is_empty(),
-        "{} states rotate differently; the first 20:\n{}",
+        "{} states rotate or mirror differently; the first 20:\n{}",
         mismatches.len(),
         mismatches[..mismatches.len().min(20)].join("\n")
     );

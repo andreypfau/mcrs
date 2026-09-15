@@ -7,8 +7,8 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::value_provider::{HeightContext, pick_weighted_by};
+use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffle};
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
@@ -214,8 +214,12 @@ pub fn shuffled_jigsaws<'a>(
                 .iter()
                 .map(|block| PlacedJigsaw {
                     block,
-                    pos: transform(IVec3::from(block.pos.map(i32::from)), rotation, IVec3::ZERO)
-                        + position,
+                    pos: transform(
+                        IVec3::from(block.pos.map(i32::from)),
+                        Mirror::None,
+                        rotation,
+                        IVec3::ZERO,
+                    ) + position,
                     front: rotation.rotate(block.front),
                     top: rotation.rotate(block.top),
                 })
@@ -252,6 +256,8 @@ pub fn element_bounds(
             frozen.manifests[template.0 as usize].size,
             position,
             rotation,
+            Mirror::None,
+            IVec3::ZERO,
         )),
         FrozenElement::List { elements, .. } => elements
             .iter()

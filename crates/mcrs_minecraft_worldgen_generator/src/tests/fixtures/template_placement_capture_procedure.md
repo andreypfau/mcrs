@@ -18,7 +18,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
-(4 735 866 bytes). The run log must contain no `Serialization errors` line —
+(4 977 514 bytes). The run log must contain no `Serialization errors` line —
 `placeInWorld` reports block-entity load problems through its logger instead
 of throwing, so a hit means a compound in the fixture was not loaded the way
 the fixture claims. The capture that produced this file had none.
@@ -100,7 +100,7 @@ draws from.
 |---|---|
 | `type_ids` | `BuiltInRegistries.BLOCK_ENTITY_TYPE` iteration order, `getKey(type)` |
 | `block_id`, `type_id`, `loot_seeded` | every `EntityBlock` in `BuiltInRegistries.BLOCK` order; `newBlockEntity(BlockPos.ZERO, defaultBlockState())`, its `getType()`, `instanceof RandomizableContainer` |
-| rotation rows | every `getStateDefinition().getPossibleStates()` of every block; `state.rotate(CLOCKWISE_90)`, `rotate(CLOCKWISE_180)`, `rotate(COUNTERCLOCKWISE_90)`; a row only when any differs; strings via `BlockStateParser.serialize` |
+| rotation rows | every `getStateDefinition().getPossibleStates()` of every block; `state.rotate(CLOCKWISE_90)`, `rotate(CLOCKWISE_180)`, `rotate(COUNTERCLOCKWISE_90)`, `mirror(LEFT_RIGHT)`, `mirror(FRONT_BACK)`; a row only when any differs; strings via `BlockStateParser.serialize` |
 | pool case key | `getTemplateLocation()`, the `processors` holder's key (`ref:` + id) or `inline`, `getProjection()`, `instanceof LegacySinglePoolElement` |
 | pool case order | `Registries.TEMPLATE_POOL` sorted by `Identifier.toString()`, `getTemplates()` raw pairs in order, `ListPoolElement.getElements()` in order, first occurrence of a key |
 | `rotation`, `liquid` | `Rotation.values()[k % 4]`; `k % 8 == 7 ? IGNORE_WATERLOGGING : APPLY_WATERLOGGING` |
@@ -122,7 +122,9 @@ list. Censuses: 49 block-entity types; 190 entity blocks, of which 33 create a
 `RandomizableContainer` (`chest` and the eight copper chests → `chest`,
 `trapped_chest`, `barrel`, `dispenser`, `dropper`, `hopper`, `crafter`,
 `decorated_pot`, `shulker_box` and its sixteen colours); 30 206 block states
-that some rotation changes, over 587 blocks.
+that some rotation or mirror changes, over 587 blocks (18 668 of them mirror,
+the rest rotate only: axis blocks, the anvils, and every `facing` off the
+mirrored axis).
 
 Pool cases (1383) by template family: `village` 573, `abandoned_camp` 297,
 `trial_chambers` 193, `bastion` 167, `trail_ruins` 84, `ancient_city` 58,

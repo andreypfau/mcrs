@@ -8,7 +8,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::{Deserialize, Serialize};
 
-use mcrs_minecraft_core::Rotation;
+use mcrs_minecraft_core::{Mirror, Rotation};
 
 pub const TEMPLATE_DATA_VERSION: i32 = 5015;
 
@@ -433,26 +433,65 @@ impl Template {
     }
 }
 
-pub fn transform(pos: IVec3, rotation: Rotation, pivot: IVec3) -> IVec3 {
-    let IVec3 { x, y, z } = pos;
+pub fn transform(pos: IVec3, mirror: Mirror, rotation: Rotation, pivot: IVec3) -> IVec3 {
+    let IVec3 { x, y, z } = match mirror {
+        Mirror::None => pos,
+        Mirror::LeftRight => IVec3::new(pos.x, pos.y, -pos.z),
+        Mirror::FrontBack => IVec3::new(-pos.x, pos.y, pos.z),
+    };
     let (px, pz) = (pivot.x, pivot.z);
     match rotation {
-        Rotation::None => pos,
+        Rotation::None => IVec3::new(x, y, z),
         Rotation::Counterclockwise90 => IVec3::new(px - pz + z, y, px + pz - x),
         Rotation::Clockwise90 => IVec3::new(px + pz - z, y, pz - px + x),
         Rotation::Clockwise180 => IVec3::new(px + px - x, y, pz + pz - z),
     }
 }
 
-pub fn bounding_box(size: [u16; 3], position: IVec3, rotation: Rotation) -> BoundingBox {
+pub fn bounding_box(
+    size: [u16; 3],
+    position: IVec3,
+    rotation: Rotation,
+    mirror: Mirror,
+    pivot: IVec3,
+) -> BoundingBox {
     let far = IVec3::new(
         i32::from(size[0]) - 1,
         i32::from(size[1]) - 1,
         i32::from(size[2]) - 1,
     );
-    let a = transform(IVec3::ZERO, rotation, IVec3::ZERO);
-    let b = transform(far, rotation, IVec3::ZERO);
+    let a = transform(IVec3::ZERO, mirror, rotation, pivot);
+    let b = transform(far, mirror, rotation, pivot);
     BoundingBox::from_corners(a.into(), b.into()).moved(position)
+}
+
+/// Where the template's `(0, 0, 0)` corner lands when a piece placed at
+/// `zero_pos` is transformed in place, so its box minimum stays put.
+pub fn zero_position_with_transform(
+    zero_pos: IVec3,
+    mirror: Mirror,
+    rotation: Rotation,
+    size_x: i32,
+    size_z: i32,
+) -> IVec3 {
+    let (size_x, size_z) = (size_x - 1, size_z - 1);
+    let mirror_dx = if mirror == Mirror::FrontBack {
+        size_x
+    } else {
+        0
+    };
+    let mirror_dz = if mirror == Mirror::LeftRight {
+        size_z
+    } else {
+        0
+    };
+    let (dx, dz) = match rotation {
+        Rotation::Counterclockwise90 => (mirror_dz, size_x - mirror_dx),
+        Rotation::Clockwise90 => (size_z - mirror_dz, mirror_dx),
+        Rotation::Clockwise180 => (size_x - mirror_dx, size_z - mirror_dz),
+        Rotation::None => (mirror_dx, mirror_dz),
+    };
+    zero_pos + IVec3::new(dx, 0, dz)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -951,25 +990,47 @@ mod tests {
     fn transform_follows_the_rotation_formulas() {
         let pos = IVec3::new(3, 5, 7);
         let pivot = IVec3::new(2, 0, 4);
-        assert_eq!(transform(pos, Rotation::None, pivot), pos);
+        let at = |mirror, rotation| transform(pos, mirror, rotation, pivot);
+        assert_eq!(at(Mirror::None, Rotation::None), pos);
         assert_eq!(
-            transform(pos, Rotation::Counterclockwise90, pivot),
+            at(Mirror::None, Rotation::Counterclockwise90),
             IVec3::new(2 - 4 + 7, 5, 2 + 4 - 3)
         );
         assert_eq!(
-            transform(pos, Rotation::Clockwise90, pivot),
+            at(Mirror::None, Rotation::Clockwise90),
             IVec3::new(2 + 4 - 7, 5, 4 - 2 + 3)
         );
         assert_eq!(
-            transform(pos, Rotation::Clockwise180, pivot),
+            at(Mirror::None, Rotation::Clockwise180),
             IVec3::new(4 - 3, 5, 8 - 7)
+        );
+    }
+
+    #[test]
+    fn transform_mirrors_before_it_rotates() {
+        let pos = IVec3::new(3, 5, 7);
+        let pivot = IVec3::new(2, 0, 4);
+        let at = |mirror, rotation| transform(pos, mirror, rotation, pivot);
+        assert_eq!(at(Mirror::LeftRight, Rotation::None), IVec3::new(3, 5, -7));
+        assert_eq!(at(Mirror::FrontBack, Rotation::None), IVec3::new(-3, 5, 7));
+        assert_eq!(
+            at(Mirror::LeftRight, Rotation::Clockwise90),
+            IVec3::new(2 + 4 + 7, 5, 4 - 2 + 3)
+        );
+        assert_eq!(
+            at(Mirror::FrontBack, Rotation::Counterclockwise90),
+            IVec3::new(2 - 4 + 7, 5, 2 + 4 + 3)
+        );
+        assert_eq!(
+            at(Mirror::FrontBack, Rotation::Clockwise180),
+            IVec3::new(4 + 3, 5, 8 - 7)
         );
     }
 
     #[test]
     fn bounding_box_covers_the_rotated_footprint() {
         let at = IVec3::new(10, 20, 30);
-        let boxed = |r| bounding_box([3, 4, 5], at, r);
+        let boxed = |r| bounding_box([3, 4, 5], at, r, Mirror::None, IVec3::ZERO);
         assert_eq!(
             boxed(Rotation::None),
             BoundingBox {
@@ -1000,6 +1061,81 @@ mod tests {
         );
     }
 
+    #[test]
+    fn bounding_box_takes_the_mirror_and_the_pivot_into_account() {
+        let at = IVec3::new(10, 20, 30);
+        let pivot = IVec3::new(1, 0, 2);
+        assert_eq!(
+            bounding_box(
+                [3, 4, 5],
+                at,
+                Rotation::Clockwise90,
+                Mirror::FrontBack,
+                pivot
+            ),
+            BoundingBox {
+                min: (at + IVec3::new(-1, 0, -1)).into(),
+                max: (at + IVec3::new(3, 3, 1)).into()
+            }
+        );
+        assert_eq!(
+            bounding_box(
+                [3, 4, 5],
+                at,
+                Rotation::None,
+                Mirror::LeftRight,
+                IVec3::ZERO
+            ),
+            BoundingBox {
+                min: (at + IVec3::new(0, 0, -4)).into(),
+                max: (at + IVec3::new(2, 3, 0)).into()
+            }
+        );
+    }
+
+    #[test]
+    fn the_zero_position_keeps_the_box_minimum_where_the_piece_was() {
+        let zero = IVec3::new(-5, 3, 11);
+        let (size_x, size_z) = (3, 5);
+        let shift = |m, r| zero_position_with_transform(zero, m, r, size_x, size_z) - zero;
+        assert_eq!(shift(Mirror::None, Rotation::None), IVec3::ZERO);
+        assert_eq!(
+            shift(Mirror::FrontBack, Rotation::None),
+            IVec3::new(2, 0, 0)
+        );
+        assert_eq!(
+            shift(Mirror::LeftRight, Rotation::None),
+            IVec3::new(0, 0, 4)
+        );
+        assert_eq!(
+            shift(Mirror::None, Rotation::Clockwise90),
+            IVec3::new(4, 0, 0)
+        );
+        assert_eq!(shift(Mirror::LeftRight, Rotation::Clockwise90), IVec3::ZERO);
+        assert_eq!(
+            shift(Mirror::None, Rotation::Counterclockwise90),
+            IVec3::new(0, 0, 2)
+        );
+        assert_eq!(
+            shift(Mirror::FrontBack, Rotation::Counterclockwise90),
+            IVec3::ZERO
+        );
+        assert_eq!(
+            shift(Mirror::None, Rotation::Clockwise180),
+            IVec3::new(2, 0, 4)
+        );
+        assert_eq!(
+            shift(Mirror::LeftRight, Rotation::Clockwise180),
+            IVec3::new(2, 0, 0)
+        );
+        for mirror in Mirror::ALL {
+            for rotation in Rotation::ALL {
+                let position = zero_position_with_transform(zero, mirror, rotation, size_x, size_z);
+                let bounds = bounding_box([3, 4, 5], position, rotation, mirror, IVec3::ZERO);
+                assert_eq!(bounds.min, BlockPos::from(zero), "{mirror:?} {rotation:?}");
+            }
+        }
+    }
     #[test]
     fn box_arithmetic_is_inclusive() {
         let a = BoundingBox::from_corners(BlockPos::new(0, 0, 0), BlockPos::new(4, 2, 4));

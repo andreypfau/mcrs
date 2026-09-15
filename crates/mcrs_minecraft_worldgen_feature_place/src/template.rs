@@ -2,10 +2,10 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
+use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
@@ -136,6 +136,96 @@ pub fn rotate_state(world: &WorldStates, state: VoxelId, rotation: Rotation) -> 
         for side in Direction::HORIZONTAL {
             let value = value_of(layout, state, side.name()).expect("checked above");
             out = layout.try_set(out, rotation.rotate(side).name(), value);
+        }
+    }
+    out
+}
+
+fn rail_mirror(shape: &str, mirror: Mirror) -> Option<&'static str> {
+    Some(match (mirror, shape) {
+        (Mirror::LeftRight, "ascending_north") => "ascending_south",
+        (Mirror::LeftRight, "ascending_south") => "ascending_north",
+        (Mirror::LeftRight, "south_east") => "north_east",
+        (Mirror::LeftRight, "south_west") => "north_west",
+        (Mirror::LeftRight, "north_west") => "south_west",
+        (Mirror::LeftRight, "north_east") => "south_east",
+        (Mirror::FrontBack, "ascending_east") => "ascending_west",
+        (Mirror::FrontBack, "ascending_west") => "ascending_east",
+        (Mirror::FrontBack, "south_east") => "south_west",
+        (Mirror::FrontBack, "south_west") => "south_east",
+        (Mirror::FrontBack, "north_west") => "north_east",
+        (Mirror::FrontBack, "north_east") => "north_west",
+        _ => return None,
+    })
+}
+
+// The reference keeps the inner shapes of a front-back mirrored stair as they
+// are, so a mirrored inner corner is not the corner a player would build.
+fn stair_mirror(shape: &str, mirror: Mirror) -> Option<&'static str> {
+    Some(match (mirror, shape) {
+        (Mirror::LeftRight, "inner_left") => "inner_right",
+        (Mirror::LeftRight, "inner_right") => "inner_left",
+        (_, "outer_left") => "outer_right",
+        (_, "outer_right") => "outer_left",
+        _ => return None,
+    })
+}
+
+/// `BlockState.mirror`, over the property names the block overrides act on:
+/// a facing on the mirrored axis is a half turn, and the rest reflect.
+pub fn mirror_state(world: &WorldStates, state: VoxelId, mirror: Mirror) -> VoxelId {
+    if mirror == Mirror::None || world.unmirrored.contains(state.0 as usize) {
+        return state;
+    }
+    let Some(layout) = world.layout_of(state) else {
+        return state;
+    };
+    let facing = value_of(layout, state, "facing").and_then(direction_named);
+    let flipped = facing.is_some_and(|d| mirror.rotation(d) == Rotation::Clockwise180);
+    let mut out = if flipped {
+        rotate_state(world, state, Rotation::Clockwise180)
+    } else {
+        state
+    };
+    for property in &layout.properties {
+        let index = layout.value_index(state, property);
+        let count = property.values.len() as u16;
+        let value = &*property.values[index as usize];
+        match &*property.name {
+            "hinge" => out = layout.with_index(out, property, (index + 1) % count),
+            "rotation" => out = layout.with_index(out, property, mirror.mirror_index(index, count)),
+            "shape" => {
+                let mirrored = match facing {
+                    Some(_) => flipped.then(|| stair_mirror(value, mirror)).flatten(),
+                    None => rail_mirror(value, mirror),
+                };
+                if let Some(mirrored) = mirrored {
+                    out = layout.try_set(out, "shape", mirrored);
+                }
+            }
+            "orientation" => {
+                if let Some((front, top)) = value
+                    .split_once('_')
+                    .and_then(|(f, t)| Some((direction_named(f)?, direction_named(t)?)))
+                {
+                    let mirrored = format!(
+                        "{}_{}",
+                        mirror.mirror(front).name(),
+                        mirror.mirror(top).name()
+                    );
+                    out = layout.try_set(out, "orientation", &mirrored);
+                }
+            }
+            _ => {}
+        }
+    }
+    if Direction::HORIZONTAL
+        .iter()
+        .all(|d| layout.property(d.name()).is_some())
+    {
+        for side in Direction::HORIZONTAL {
+            let value = value_of(layout, state, side.name()).expect("checked above");
+            out = layout.try_set(out, mirror.mirror(side).name(), value);
         }
     }
     out
@@ -575,7 +665,7 @@ pub fn place_template<W: WorldGenVolume>(
     let mut processed = Vec::with_capacity(blocks.len());
     for block in blocks.iter() {
         let template_pos = IVec3::from(block.pos.map(i32::from));
-        let world_pos = transform(template_pos, p.rotation, IVec3::ZERO) + p.position;
+        let world_pos = transform(template_pos, Mirror::None, p.rotation, IVec3::ZERO) + p.position;
         if !whole_piece && !inside(world_pos) {
             continue;
         }
@@ -859,6 +949,7 @@ mod tests {
             .map(|b| {
                 let pos = transform(
                     IVec3::from(b.pos.map(i32::from)),
+                    Mirror::None,
                     Rotation::Clockwise90,
                     IVec3::ZERO,
                 ) + IVec3::new(4, 5, 4);

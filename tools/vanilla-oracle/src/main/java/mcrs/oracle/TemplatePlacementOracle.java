@@ -44,6 +44,7 @@ import net.minecraft.world.RandomizableContainer;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -68,7 +69,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 import net.minecraft.world.level.storage.LevelStorageSource;
 
 public final class TemplatePlacementOracle {
-    private static final byte[] MAGIC = "MCTMPLP0".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] MAGIC = "MCTMPLP1".getBytes(StandardCharsets.US_ASCII);
     private static final BlockPos PIECE_POSITION = new BlockPos(8, 62, 8);
     private static final BlockPos FEATURE_ORIGIN = new BlockPos(8, 64, 8);
     private static final int SEA_LEVEL = 64;
@@ -209,13 +210,17 @@ public final class TemplatePlacementOracle {
                 BlockState cw = state.rotate(Rotation.CLOCKWISE_90);
                 BlockState half = state.rotate(Rotation.CLOCKWISE_180);
                 BlockState ccw = state.rotate(Rotation.COUNTERCLOCKWISE_90);
-                if (cw == state && half == state && ccw == state) {
+                BlockState leftRight = state.mirror(Mirror.LEFT_RIGHT);
+                BlockState frontBack = state.mirror(Mirror.FRONT_BACK);
+                if (cw == state && half == state && ccw == state && leftRight == state && frontBack == state) {
                     continue;
                 }
                 Bin.i32(rows, states.of(state));
                 Bin.i32(rows, states.of(cw));
                 Bin.i32(rows, states.of(half));
                 Bin.i32(rows, states.of(ccw));
+                Bin.i32(rows, states.of(leftRight));
+                Bin.i32(rows, states.of(frontBack));
                 count++;
                 any = true;
             }
@@ -226,7 +231,7 @@ public final class TemplatePlacementOracle {
         states.write(out);
         Bin.i32(out, count);
         rows.writeTo(out);
-        System.out.println("rotation census: " + count + " rotating states over " + blocks + " blocks, "
+        System.out.println("rotation census: " + count + " rotating or mirroring states over " + blocks + " blocks, "
             + states.indices.size() + " distinct states");
     }
 
