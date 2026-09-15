@@ -72,20 +72,19 @@ fn reprioritize_light_work(
     mut queue: ResMut<LightWorkQueue>,
     players: Query<&Transform, With<Player>>,
     mut scored_for: Local<Vec<ColumnPos>>,
+    mut player_columns: Local<Vec<ColumnPos>>,
 ) {
     if pending.is_empty() && queue.0.is_empty() {
         return;
     }
-    let player_columns: Vec<ColumnPos> = players
-        .iter()
-        .map(|at| ColumnPos::from(at.translation))
-        .collect();
+    player_columns.clear();
+    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     // Nothing to score against, and a score is only stale once a player has moved to another
     // column: the walk is worth its cost then and wasted otherwise.
-    if player_columns.is_empty() || *scored_for == player_columns {
+    if player_columns.is_empty() || *scored_for == *player_columns {
         return;
     }
-    scored_for.clone_from(&player_columns);
+    scored_for.clone_from(&*player_columns);
 
     let score = |column: ColumnPos| {
         crate::world::chunk::min_column_distance(&column, &player_columns)
@@ -101,11 +100,10 @@ fn feed_light_edits(
     blocks: Query<&ChunkBlocks>,
     players: Query<&Transform, With<Player>>,
     mut placed: MessageReader<BlockPlaced>,
+    mut player_columns: Local<Vec<ColumnPos>>,
 ) {
-    let player_columns: Vec<ColumnPos> = players
-        .iter()
-        .map(|at| ColumnPos::from(at.translation))
-        .collect();
+    player_columns.clear();
+    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     // A column is not sent until its light is published, so the light queue has
     // to drain in the sender's order: the same distance to the nearest player
     // that the column scheduler already treats as a ticket level.
@@ -141,14 +139,13 @@ fn feed_column_surfaces(
     mut pending: ResMut<PendingEdits>,
     columns: Query<(&ColumnPosComponent, &SurfaceHeightmap), Changed<SurfaceHeightmap>>,
     players: Query<&Transform, With<Player>>,
+    mut player_columns: Local<Vec<ColumnPos>>,
 ) {
     if columns.is_empty() {
         return;
     }
-    let player_columns: Vec<ColumnPos> = players
-        .iter()
-        .map(|at| ColumnPos::from(at.translation))
-        .collect();
+    player_columns.clear();
+    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     for (pos, surface) in &columns {
         let distance = crate::world::chunk::min_column_distance(&pos.0, &player_columns);
         pending.push_with_priority(

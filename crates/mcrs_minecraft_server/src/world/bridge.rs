@@ -127,11 +127,10 @@ pub fn bridge_outbound(
                 // recipient whose epoch has advanced past a broadcast's
                 // unstamped epoch.
                 let dim = *dim_entity;
-                let recipients: Vec<Entity> = session_registry
+                for socket in session_registry
                     .iter_in_dim(dim)
                     .map(|(_, entry)| entry.connection_entity)
-                    .collect();
-                for socket in recipients {
+                {
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
@@ -144,11 +143,10 @@ pub fn bridge_outbound(
                 // Not epoch-filtered — see AllInDim above. A fresh global
                 // broadcast must reach every current session regardless of how
                 // many dim transfers each has made.
-                let recipients: Vec<Entity> = session_registry
+                for socket in session_registry
                     .iter()
                     .map(|(_, entry)| entry.connection_entity)
-                    .collect();
-                for socket in recipients {
+                {
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
@@ -161,15 +159,11 @@ pub fn bridge_outbound(
                 // Not epoch-filtered — see AllInDim above. The recipient set is
                 // the current observer set computed this tick; each member must
                 // receive it at whatever epoch they currently hold.
-                let recipients: Vec<Entity> = set
-                    .iter()
-                    .filter_map(|e| {
-                        session_registry
-                            .get_by_anchor(e)
-                            .map(|(_, entry)| entry.connection_entity)
-                    })
-                    .collect();
-                for socket in recipients {
+                for socket in set.iter().filter_map(|e| {
+                    session_registry
+                        .get_by_anchor(e)
+                        .map(|(_, entry)| entry.connection_entity)
+                }) {
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {

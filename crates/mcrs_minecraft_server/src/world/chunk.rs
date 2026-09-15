@@ -11,6 +11,7 @@ use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::FULL_LEVEL;
@@ -299,9 +300,9 @@ pub(crate) fn process_completed_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     ctx: Option<Res<FillContext>>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut done: Local<Vec<(ColumnPos, Option<StageResult>)>>,
 ) {
     let rungs = ctx.map_or(1, |ctx| ctx.rungs());
-    let mut done: Vec<(ColumnPos, Option<StageResult>)> = Vec::new();
     scheduler
         .in_flight
         .retain_mut(|stage| match block_on(future::poll_once(&mut stage.task)) {
@@ -312,7 +313,7 @@ pub(crate) fn process_completed_columns(
             None => true,
         });
 
-    for (col, result) in done {
+    for (col, result) in done.drain(..) {
         let Some(result) = result else {
             scheduler.store.forget(col);
             continue;
@@ -385,21 +386,17 @@ pub(crate) fn deliver_merged_columns(
     mut commands: Commands,
     mut slow: Local<SlowColumns>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut ready: Local<Vec<ColumnKey>>,
 ) {
     let done = top_of_ladder(ctx.map_or(1, |ctx| ctx.rungs()));
-    let ready: Vec<ColumnKey> = scheduler
-        .pending
-        .keys()
-        .copied()
-        .filter(|key| {
-            scheduler
-                .store
-                .stage(key.chunk_column_pos)
-                .is_some_and(|at| at >= done)
-        })
-        .collect();
+    ready.extend(scheduler.pending.keys().copied().filter(|key| {
+        scheduler
+            .store
+            .stage(key.chunk_column_pos)
+            .is_some_and(|at| at >= done)
+    }));
 
-    for key in ready {
+    for key in ready.drain(..) {
         let col = key.chunk_column_pos;
         // No merged column means the store was evicted under the request; the
         // column keeps its place in the queue and climbs the ladder again.
@@ -479,6 +476,8 @@ pub(crate) fn enqueue_pending_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     players: Query<&Transform, With<Player>>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut columns: Local<HashMap<ColumnPos, Vec<(Entity, i32)>>>,
+    mut player_positions: Local<Vec<ColumnPos>>,
 ) {
     requested.extend(
         stages
@@ -488,7 +487,6 @@ pub(crate) fn enqueue_pending_columns(
             .map(|change| (change.section, change.pos)),
     );
     let mut section_stages = stages.p1();
-    let mut columns: HashMap<ColumnPos, Vec<(Entity, i32)>> = HashMap::new();
     for (section, pos) in requested.drain(..) {
         if section_stages.get(section) != Some(SectionStage::Loading) {
             continue;
@@ -507,12 +505,10 @@ pub(crate) fn enqueue_pending_columns(
         return;
     }
 
-    let player_positions: Vec<ColumnPos> = players
-        .iter()
-        .map(|t| ColumnPos::from(t.translation))
-        .collect();
+    player_positions.clear();
+    player_positions.extend(players.iter().map(|t| ColumnPos::from(t.translation)));
 
-    for (col, sections) in columns {
+    for (col, sections) in columns.drain() {
         if scheduler.is_pending(col) {
             // Merge new sections into the existing entry so the column is
             // delivered with ALL its sections in a single batch.
@@ -560,6 +556,8 @@ fn cancel_stale_columns(
     ctx: Option<Res<FillContext>>,
     views: Query<&ColumnView>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut player_views: Local<Vec<ChunkTrackingView>>,
+    mut stale: Local<Vec<ColumnKey>>,
 ) {
     // Every rung costs two rings: `Delivered(U)` needs the last rung run over
     // the 3×3 of `U`, which needs the one below it merged over the 5×5, and so
@@ -569,7 +567,8 @@ fn cancel_stale_columns(
     // full, and a column that far out is loaded like any other.
     let rings = (FULL_LEVEL - Ticket::PLAYER_LOADING.level) as i32;
 
-    let player_views: Vec<_> = views.iter().filter_map(ColumnView::view).collect();
+    player_views.clear();
+    player_views.extend(views.iter().filter_map(ColumnView::view));
 
     if player_views.is_empty() {
         return;
@@ -583,26 +582,23 @@ fn cancel_stale_columns(
         })
     };
 
-    let stale: Vec<(ColumnKey, Vec<Entity>)> = scheduler
-        .priority_index
-        .iter()
-        .filter_map(|(col, key)| {
-            if wanted(*col, rings) {
-                return None;
-            }
-            let pending = scheduler.pending.get(key)?;
-            Some((*key, pending.sections.iter().map(|(e, _)| *e).collect()))
-        })
-        .collect();
+    stale.extend(
+        scheduler
+            .priority_index
+            .iter()
+            .filter(|(col, key)| !wanted(**col, rings) && scheduler.pending.contains_key(*key))
+            .map(|(_, key)| *key),
+    );
 
-    for (key, entities) in stale {
+    for key in stale.drain(..) {
         trace!("Canceling stale column {:?}", key);
         column_trace::forget(&mut traces, key.chunk_column_pos);
 
-        scheduler.pending.remove(&key);
         scheduler.priority_index.remove(&key.chunk_column_pos);
-
-        for entity in entities {
+        let Some(pending) = scheduler.pending.remove(&key) else {
+            continue;
+        };
+        for (entity, _) in pending.sections {
             stages.set(entity, SectionStage::Unloading);
         }
     }
@@ -624,21 +620,19 @@ fn cancel_stale_columns(
 fn reprioritize_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     players: Query<&Transform, With<Player>>,
+    mut player_positions: Local<Vec<ColumnPos>>,
+    mut updates: Local<Vec<(ColumnKey, ColumnKey)>>,
 ) {
     if scheduler.pending.is_empty() {
         return;
     }
 
-    let player_positions: Vec<ColumnPos> = players
-        .iter()
-        .map(|t| ColumnPos::from(t.translation))
-        .collect();
+    player_positions.clear();
+    player_positions.extend(players.iter().map(|t| ColumnPos::from(t.translation)));
 
     if player_positions.is_empty() {
         return;
     }
-
-    let mut updates: Vec<(ColumnKey, ColumnKey)> = Vec::new();
 
     for (&col, &old_key) in &scheduler.priority_index {
         let new_distance_sq = min_column_distance(&col, &player_positions);
@@ -647,7 +641,7 @@ fn reprioritize_columns(
         }
     }
 
-    for (old_key, new_key) in updates {
+    for (old_key, new_key) in updates.drain(..) {
         if let Some(pending_column) = scheduler.pending.remove(&old_key) {
             scheduler.pending.insert(new_key, pending_column);
             scheduler
@@ -681,6 +675,7 @@ pub(crate) fn dispatch_column_generation(
     mut scheduler: ResMut<ColumnScheduler>,
     ctx: Res<FillContext>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut wanted: Local<Vec<ColumnPos>>,
 ) {
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
 
@@ -695,17 +690,14 @@ pub(crate) fn dispatch_column_generation(
     }
     let ctx = ctx.as_ref();
 
-    let wanted: Vec<ColumnPos> = scheduler
-        .pending
-        .keys()
-        .map(|key| key.chunk_column_pos)
-        .collect();
+    wanted.clear();
+    wanted.extend(scheduler.pending.keys().map(|key| key.chunk_column_pos));
 
     let rungs = ctx.rungs();
     let done = top_of_ladder(rungs);
 
     let mut dispatched = 0usize;
-    'wanted: for u in wanted {
+    'wanted: for &u in wanted.iter() {
         // A column at the top of its ladder derived everything it needed, or it
         // could not have got there; it is leaving the queue at this tick's
         // delivery. On a settled view that is every pending column, and walking

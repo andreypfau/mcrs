@@ -549,6 +549,8 @@ pub(crate) fn send_column_queue(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut nearest: Local<Vec<ColumnPos>>,
+    mut batch: Local<Vec<PacketPayload>>,
 ) {
     players
         .iter_mut()
@@ -588,7 +590,8 @@ pub(crate) fn send_column_queue(
                 .view
                 .map(|view| view.center)
                 .unwrap_or(SectionPos::new(0, 0, 0));
-            let mut nearest: Vec<ColumnPos> = chunk_view.in_state(ColumnState::Ready).collect();
+            nearest.clear();
+            nearest.extend(chunk_view.in_state(ColumnState::Ready));
             if allowed < nearest.len() {
                 nearest.select_nth_unstable_by_key(allowed, |pos| column_distance_sq(*pos, center));
                 nearest.truncate(allowed);
@@ -597,9 +600,9 @@ pub(crate) fn send_column_queue(
 
             let mut sends = 0usize;
             let mut batch_bytes = 0usize;
-            let mut batch = Vec::with_capacity(nearest.len());
+            batch.clear();
 
-            for column_pos in nearest {
+            for column_pos in nearest.drain(..) {
                 if batch_bytes >= MAX_BATCH_BYTES {
                     break;
                 }
@@ -728,7 +731,7 @@ pub(crate) fn send_column_queue(
                 });
             };
             emit(PacketPayload::ChunkBatchStart);
-            for column in batch {
+            for column in batch.drain(..) {
                 emit(column);
             }
             emit(PacketPayload::ChunkBatchFinished { batch_size });

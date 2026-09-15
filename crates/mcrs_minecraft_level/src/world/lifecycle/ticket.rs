@@ -356,6 +356,8 @@ pub fn spawn_chunks(
     mut stages: SectionStages,
     players: Query<(&Transform, &InDimension), With<Player>>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut centers: Local<Vec<SectionPos>>,
+    mut keys_to_process: Local<Vec<SectionPos>>,
 ) {
     for (dim, mut levels, mut section_index) in dims.iter_mut() {
         if levels.pending_spawn.is_empty() {
@@ -365,13 +367,16 @@ pub fn spawn_chunks(
         // The backlog outlives the walk that raised it, so what is spawned first is chosen
         // against where the players stand now. Ticketing a section the player has since flown
         // past ahead of the one under their feet is what leaves a hole underneath them.
-        let centers: Vec<SectionPos> = players
-            .iter()
-            .filter(|(_, in_dim)| in_dim.entity() == dim)
-            .map(|(transform, _)| SectionPos::from(transform.translation))
-            .collect();
+        centers.clear();
+        centers.extend(
+            players
+                .iter()
+                .filter(|(_, in_dim)| in_dim.entity() == dim)
+                .map(|(transform, _)| SectionPos::from(transform.translation)),
+        );
 
-        let mut keys_to_process: Vec<SectionPos> = levels.pending_spawn.iter().copied().collect();
+        keys_to_process.clear();
+        keys_to_process.extend(levels.pending_spawn.iter().copied());
         if MAX_SPAWNS_PER_TICK < keys_to_process.len() {
             keys_to_process.select_nth_unstable_by_key(MAX_SPAWNS_PER_TICK, |pos| {
                 nearest_player_distance_sq(*pos, &centers)
@@ -380,7 +385,7 @@ pub fn spawn_chunks(
         }
         keys_to_process.sort_unstable_by_key(|pos| nearest_player_distance_sq(*pos, &centers));
 
-        for pos in keys_to_process {
+        for pos in keys_to_process.drain(..) {
             levels.pending_spawn.swap_remove(&pos);
             if !levels.is_loaded(pos) {
                 continue;
