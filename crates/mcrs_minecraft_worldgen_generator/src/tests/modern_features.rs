@@ -116,7 +116,7 @@ fn run_tables(tables: FeatureTables, center: ColumnPos) -> Vec<(ColumnPos, Vec<(
 fn a_modern_run_places_the_ore_the_window_biome_carries() {
     let deltas = run(ColumnPos::new(3, -5));
     let written: usize = deltas.iter().map(|(_, writes)| writes.len()).sum();
-    assert_eq!(written, 132, "the twenty veins of this column");
+    assert_eq!(written, 129, "the twenty veins of this column");
     assert!(
         deltas.len() > 1,
         "a vein seeded at the border reaches the neighbour"

@@ -775,10 +775,18 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
 }
 
 /// `setDecorationSeed`: the unit seed every object of one column is offset from.
+/// The two scales are `WorldgenRandom.nextLong` over a Xoroshiro source, which
+/// routes each 32-bit half through `next(32)`: the top half of one Xoroshiro
+/// long each, sign-extended and summed as `java.util.Random` does.
 pub(crate) fn decoration_seed(world_seed: i64, origin_x: i32, origin_z: i32) -> i64 {
     let mut rng = XoroshiroRandom::new(world_seed as u64);
-    let a = Random::next_i64(&mut rng) | 1;
-    let b = Random::next_i64(&mut rng) | 1;
+    let mut wrapped_long = || {
+        let upper = (Random::next_i64(&mut rng) >> 32) as i32 as i64;
+        let lower = (Random::next_i64(&mut rng) >> 32) as i32 as i64;
+        (upper << 32).wrapping_add(lower)
+    };
+    let a = wrapped_long() | 1;
+    let b = wrapped_long() | 1;
     (origin_x as i64)
         .wrapping_mul(a)
         .wrapping_add((origin_z as i64).wrapping_mul(b))
@@ -937,6 +945,20 @@ mod tests {
 
     fn region_of(center: ColumnPos, y_sections: &Arc<[i32]>, fill: VoxelId) -> RegionSnapshots {
         crate::tests::region_of(center, |col| flat_snapshot(col, y_sections, fill))
+    }
+
+    /// Pinned to the stream seeds `structure_geometry.bin` carries for world
+    /// seed 0x5EED, step 4, index 19.
+    #[test]
+    fn the_decoration_seed_is_the_reference_chain() {
+        for (chunk_x, chunk_z, stream_seed) in [
+            (0, 0, 64320i64),
+            (7, -3, 707511858771705856),
+            (-12, 25, 6263296114296960368),
+        ] {
+            let seed = decoration_seed(0x5EED, chunk_x * 16, chunk_z * 16);
+            assert_eq!(seed.wrapping_add(19 + 40_000), stream_seed);
+        }
     }
 
     #[test]
