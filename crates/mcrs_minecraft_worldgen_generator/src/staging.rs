@@ -4,6 +4,7 @@ use std::sync::Arc;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use rustc_hash::FxHashMap;
 
 use crate::heightmap::{ColumnHeightmapSet, TerrainHeightmaps};
@@ -82,6 +83,8 @@ pub struct ColumnDelta {
     /// The block entities among those writes, delivered with the column that
     /// holds them.
     pub block_entities: Vec<GeneratedBlockEntity>,
+    /// The entities spawned into this column, delivered the same way.
+    pub entities: Vec<GeneratedEntity>,
 }
 
 /// A column at rest: filled, which the first rung of every run in its 3×3 reads
@@ -99,6 +102,9 @@ pub struct FilledSnapshot {
     pub source: ColumnSource,
     /// What the save held, or what the merged deltas brought.
     pub block_entities: Vec<GeneratedBlockEntity>,
+    /// What the merged deltas spawned; nothing is saved yet, so a column read
+    /// off the save has none.
+    pub entities: Vec<GeneratedEntity>,
 }
 
 impl FilledSnapshot {
@@ -152,6 +158,7 @@ struct ColumnEntry {
     /// so a column that comes back climbs its own ladder again and merges from
     /// the very same deltas. Nobody has to be sent back down.
     out: Vec<[Option<Arc<ColumnDelta>>; 9]>,
+    block_entities_taken: bool,
     entities_taken: bool,
 }
 
@@ -247,12 +254,27 @@ impl StagingStore {
         let Some(entry) = self.columns.get_mut(&col) else {
             return Vec::new();
         };
-        if std::mem::replace(&mut entry.entities_taken, true) {
+        if std::mem::replace(&mut entry.block_entities_taken, true) {
             return Vec::new();
         }
         entry
             .top()
             .map(|snapshot| snapshot.block_entities.clone())
+            .unwrap_or_default()
+    }
+
+    /// The column's spawned entities, handed over once like its block
+    /// entities.
+    pub fn take_entities(&mut self, col: ColumnPos) -> Vec<GeneratedEntity> {
+        let Some(entry) = self.columns.get_mut(&col) else {
+            return Vec::new();
+        };
+        if std::mem::replace(&mut entry.entities_taken, true) {
+            return Vec::new();
+        }
+        entry
+            .top()
+            .map(|snapshot| snapshot.entities.clone())
             .unwrap_or_default()
     }
 
@@ -367,6 +389,7 @@ mod tests {
             maps: None,
             source: ColumnSource::Generated,
             block_entities: Vec::new(),
+            entities: Vec::new(),
         }
     }
 
@@ -447,6 +470,7 @@ mod tests {
                     source_rank: rank(source),
                     writes: vec![(cell_index(0, LocalPos::new(1, 2, 3)), VoxelId(7))],
                     block_entities: Vec::new(),
+                    entities: Vec::new(),
                 },
             );
         }
@@ -464,6 +488,7 @@ mod tests {
                 source_rank: rank(target),
                 writes: vec![(cell_index(0, LocalPos::new(1, 2, 3)), VoxelId(9))],
                 block_entities: Vec::new(),
+                entities: Vec::new(),
             },
         );
         assert_eq!(

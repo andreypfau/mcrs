@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
-use bevy_math::IVec3;
+use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{BoundingBox, Direction};
@@ -652,6 +652,24 @@ pub fn transform(pos: IVec3, mirror: Mirror, rotation: Rotation, pivot: IVec3) -
         Rotation::Counterclockwise90 => IVec3::new(px - pz + z, y, px + pz - x),
         Rotation::Clockwise90 => IVec3::new(px + pz - z, y, pz - px + x),
         Rotation::Clockwise180 => IVec3::new(px + px - x, y, pz + pz - z),
+    }
+}
+
+/// The continuous form of [`transform`], for an entity inside its block: the
+/// mirror reflects across the block's far face and the rotation carries the
+/// `+1` the block corner needs.
+pub fn transform_continuous(pos: DVec3, mirror: Mirror, rotation: Rotation, pivot: IVec3) -> DVec3 {
+    let DVec3 { x, y, z } = match mirror {
+        Mirror::None => pos,
+        Mirror::LeftRight => DVec3::new(pos.x, pos.y, 1.0 - pos.z),
+        Mirror::FrontBack => DVec3::new(1.0 - pos.x, pos.y, pos.z),
+    };
+    let (px, pz) = (f64::from(pivot.x), f64::from(pivot.z));
+    match rotation {
+        Rotation::None => DVec3::new(x, y, z),
+        Rotation::Counterclockwise90 => DVec3::new(px - pz + z, y, px + pz + 1.0 - x),
+        Rotation::Clockwise90 => DVec3::new(px + pz + 1.0 - z, y, pz - px + x),
+        Rotation::Clockwise180 => DVec3::new(px + px + 1.0 - x, y, pz + pz + 1.0 - z),
     }
 }
 

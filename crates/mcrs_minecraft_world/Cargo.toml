@@ -29,10 +29,10 @@ serde_json.workspace = true
 bevy_reflect.workspace = true
 thiserror.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
+mcrs_minecraft_worldgen_feature.workspace = true
 bevy_math.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
-mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true

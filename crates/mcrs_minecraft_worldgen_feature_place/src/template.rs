@@ -25,6 +25,7 @@ use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, JigsawBlock, transform};
 
 use crate::block_entity::GeneratedBlockEntity;
+use crate::entity::GeneratedEntity;
 
 fn direction_named(name: &str) -> Option<Direction> {
     Direction::all().into_iter().find(|d| d.name() == name)
@@ -669,6 +670,9 @@ pub struct Placement<'a> {
     pub clip: Option<BoundingBox>,
     pub chain: &'a CompiledChain,
     pub waterlog: bool,
+    /// The inverse of `ignoreEntities`: whether the template's entities are
+    /// placed at all.
+    pub place_entities: bool,
 }
 
 fn run_processor<W: WorldGenVolume>(
@@ -875,16 +879,20 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
 }
 
 /// `StructureTemplate.placeInWorld` for one palette the caller has already
-/// drawn.
-// ponytail: `template.entities` is frozen but never placed from here. The
-// jigsaw kinds (cushions, village animals and villagers, golems, piglins, the
-// hoglin, outpost allays) stay unplaced; the upgrade is a second typed list
-// delivered like block entities, which the igloo's villagers need first.
+/// drawn. The template's entities land in `spawns`, clipped by their block
+/// position and never finalized.
+// ponytail: only the villager pair is placed, and only unfinalized, which is
+// what the igloo asks for. A jigsaw piece finalizes what it places, so the
+// jigsaw kinds (village villagers and animals, cushions, golems, piglins, the
+// hoglin, outpost allays) are frozen but stay unplaced; the upgrade is a
+// finalized `GeneratedKind` per kind.
+#[allow(clippy::too_many_arguments)]
 pub fn place_template<W: WorldGenVolume>(
     p: &Placement<'_>,
     volume: &mut W,
     rng: &mut XoroshiroRandom,
     entities: &mut Vec<GeneratedBlockEntity>,
+    spawns: &mut Vec<GeneratedEntity>,
 ) -> bool {
     let Some(blocks) = p.template.palettes.get(p.palette) else {
         return false;
@@ -984,6 +992,22 @@ pub fn place_template<W: WorldGenVolume>(
             }
             true
         });
+    }
+
+    if !p.place_entities {
+        return true;
+    }
+    for entity in &p.template.entities {
+        let block_pos =
+            transform(IVec3::from(entity.block_pos), p.mirror, p.rotation, p.pivot) + p.position;
+        if !inside(block_pos) {
+            continue;
+        }
+        if let Some(spawn) =
+            GeneratedEntity::from_template(entity, p.mirror, p.rotation, p.pivot, p.position, rng)
+        {
+            spawns.push(spawn);
+        }
     }
     true
 }
@@ -1164,6 +1188,7 @@ mod tests {
             clip,
             chain,
             waterlog: false,
+            place_entities: true,
         }
     }
 
@@ -1171,7 +1196,7 @@ mod tests {
         let mut region = new_region();
         let mut rng = XoroshiroRandom::new(7);
         let mut entities = Vec::new();
-        let placed = place_template(p, &mut region, &mut rng, &mut entities);
+        let placed = place_template(p, &mut region, &mut rng, &mut entities, &mut Vec::new());
         (region, entities, rng, placed)
     }
 
@@ -1269,7 +1294,8 @@ mod tests {
             &placement(&template, &chain, Rotation::None, Some(clip)),
             &mut region,
             &mut rng,
-            &mut entities
+            &mut entities,
+            &mut Vec::new(),
         ));
         assert!(region.writes.is_empty(), "every block moved to y=29..30");
         assert!(entities.is_empty());
@@ -1459,7 +1485,7 @@ mod tests {
         region.blocks.set(BlockPos::new(4, 5, 4), WATER);
         let mut rng = XoroshiroRandom::new(1);
         let mut entities = Vec::new();
-        place_template(&p, &mut region, &mut rng, &mut entities);
+        place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
         let wet = with(fence, &[("waterlogged", "true")]);
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), wet);
         assert_eq!(
@@ -1480,7 +1506,7 @@ mod tests {
         p.waterlog = false;
         let mut region = new_region();
         region.blocks.set(BlockPos::new(4, 5, 4), WATER);
-        place_template(&p, &mut region, &mut rng, &mut entities);
+        place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), fence);
         assert_eq!(region.get(BlockPos::new(5, 5, 4)), fence);
     }
@@ -1508,7 +1534,7 @@ mod tests {
         region.blocks.set(BlockPos::new(7, 5, 4), WATER);
         let mut rng = XoroshiroRandom::new(1);
         let mut entities = Vec::new();
-        place_template(&p, &mut region, &mut rng, &mut entities);
+        place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
         assert_eq!(
             region.get(BlockPos::new(5, 5, 4)),
             fence,
@@ -1534,7 +1560,7 @@ mod tests {
         let mut region = new_region();
         region.blocks.set(BlockPos::new(4, 5, 4), WATER);
         let mut rng = XoroshiroRandom::new(1);
-        place_template(&p, &mut region, &mut rng, &mut Vec::new());
+        place_template(&p, &mut region, &mut rng, &mut Vec::new(), &mut Vec::new());
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), slab);
     }
 
@@ -1627,6 +1653,7 @@ mod tests {
             &mut region,
             &mut rng,
             &mut Vec::new(),
+            &mut Vec::new(),
         );
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), STONE);
         assert_eq!(region.writes.len(), template.palettes[0].len() - 1);
@@ -1666,5 +1693,49 @@ mod tests {
             .iter()
             .find(|(pos, _)| *pos == BlockPos::new(4, 5, 4));
         assert_eq!(origin.unwrap().1, DIRT, "distance zero has chance zero");
+    }
+
+    #[test]
+    fn a_template_villager_is_placed_once_by_the_column_that_holds_it() {
+        use crate::entity::GeneratedKind;
+        use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity, VillagerData};
+
+        let mut template = template();
+        template.entities = vec![
+            FrozenEntity {
+                pos: [2.5, 1.0, 1.5],
+                block_pos: [2, 1, 1],
+                rotation: [-4.5, 0.0],
+                kind: EntityKind::Villager {
+                    data: VillagerData::default(),
+                },
+            },
+            FrozenEntity {
+                pos: [0.5, 1.0, 0.5],
+                block_pos: [0, 1, 0],
+                rotation: [0.0, 0.0],
+                kind: EntityKind::Camel,
+            },
+        ];
+        let chain = vec![];
+        let mut p = placement(&template, &chain, Rotation::Clockwise90, None);
+        p.position = IVec3::new(16, 5, 4);
+        let columns = [
+            BoundingBox::from_corners(BlockPos::new(0, 0, 0), BlockPos::new(15, 12, 15)),
+            BoundingBox::from_corners(BlockPos::new(16, 0, 0), BlockPos::new(31, 12, 15)),
+        ];
+        let mut spawns = Vec::new();
+        for clip in columns {
+            p.clip = Some(clip);
+            let mut region = new_region();
+            let mut rng = XoroshiroRandom::new(7);
+            place_template(&p, &mut region, &mut rng, &mut Vec::new(), &mut spawns);
+        }
+        let [villager] = spawns.as_slice() else {
+            panic!("{spawns:?}");
+        };
+        assert!(matches!(villager.kind, GeneratedKind::Villager { .. }));
+        assert_eq!(villager.pos, [15.5, 6.0, 6.5]);
+        assert_eq!(villager.rotation, [85.5, 0.0]);
     }
 }

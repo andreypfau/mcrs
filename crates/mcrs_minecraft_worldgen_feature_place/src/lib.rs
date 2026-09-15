@@ -6,6 +6,7 @@ pub mod block_pile;
 pub mod chorus_plant;
 pub mod coral;
 pub mod end;
+pub mod entity;
 pub mod fallen_tree;
 pub mod fill_layer;
 pub mod geode;

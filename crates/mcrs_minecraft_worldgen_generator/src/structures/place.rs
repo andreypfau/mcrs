@@ -140,10 +140,12 @@ pub fn place_element<W: WorldGenVolume>(
                     clip,
                     chain,
                     waterlog: over.unwrap_or(liquid) == LiquidSettings::ApplyWaterlogging,
+                    place_entities: false,
                 },
                 region,
                 rng,
                 &mut run.entities,
+                &mut run.spawns,
             )
         }
         CompiledElement::List(elements) => elements.iter().all(|inner| {

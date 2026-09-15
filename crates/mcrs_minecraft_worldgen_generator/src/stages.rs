@@ -24,6 +24,7 @@ use mcrs_minecraft_worldgen_feature::placer::{
     PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,
 };
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
+use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_surface::MaterialScratch;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use rustc_hash::FxHashMap;
@@ -303,6 +304,7 @@ pub fn fill_column(
             maps,
             source: ColumnSource::Saved,
             block_entities,
+            entities: Vec::new(),
         });
     }
 
@@ -434,6 +436,7 @@ fn pack(
         maps,
         source: ColumnSource::Generated,
         block_entities: Vec::new(),
+        entities: Vec::new(),
     }
 }
 
@@ -456,6 +459,8 @@ pub struct ColumnRegion<'a> {
     /// wrote; they travel with the writes, in the delta of the column that
     /// holds them.
     block_entities: Vec<GeneratedBlockEntity>,
+    /// What the generators spawned, routed the same way by position.
+    entities: Vec<GeneratedEntity>,
 }
 
 impl<'a> ColumnRegion<'a> {
@@ -475,6 +480,7 @@ impl<'a> ColumnRegion<'a> {
             own: Vec::new(),
             ring: Default::default(),
             block_entities: Vec::new(),
+            entities: Vec::new(),
         }
     }
 
@@ -556,16 +562,31 @@ impl<'a> ColumnRegion<'a> {
                 ),
             }
         }
+        let mut entities: [Vec<GeneratedEntity>; 9] = Default::default();
+        for entity in self.entities {
+            match region_slot(self.center, entity.column()) {
+                Some(slot) => entities[slot].push(entity),
+                None => debug_assert!(
+                    false,
+                    "an entity at {:?} left the region of {:?}",
+                    entity.pos, self.center
+                ),
+            }
+        }
         writes
             .into_iter()
             .zip(block_entities)
+            .zip(entities)
             .enumerate()
-            .filter(|(_, (writes, entities))| !writes.is_empty() || !entities.is_empty())
-            .map(|(slot, (writes, block_entities))| {
+            .filter(|(_, ((writes, block_entities), entities))| {
+                !writes.is_empty() || !block_entities.is_empty() || !entities.is_empty()
+            })
+            .map(|(slot, ((writes, block_entities), entities))| {
                 let delta = ColumnDelta {
                     source_rank,
                     writes,
                     block_entities,
+                    entities,
                 };
                 (region_column(self.center, slot), delta)
             })
@@ -749,7 +770,7 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
                 },
             );
         }
-        (region.block_entities, *pool) = run.finish();
+        (region.block_entities, region.entities, *pool) = run.finish();
     });
 }
 
@@ -786,6 +807,7 @@ pub fn merge_column(
         maps: snapshot.maps.clone(),
         source: snapshot.source,
         block_entities: Vec::new(),
+        entities: Vec::new(),
     };
     if deltas.iter().any(|delta| !delta.writes.is_empty()) {
         for &(cell, state) in deltas.iter().flat_map(|delta| &delta.writes) {
@@ -815,6 +837,12 @@ pub fn merge_column(
         &merged,
         has_block_entity,
     );
+    merged.entities = snapshot
+        .entities
+        .iter()
+        .chain(deltas.iter().flat_map(|delta| delta.entities.iter()))
+        .cloned()
+        .collect();
     merged
 }
 
@@ -957,6 +985,52 @@ mod tests {
         assert!(deltas.iter().any(|(target, _)| *target == center));
     }
 
+    #[test]
+    fn an_entity_reaches_the_column_under_it_and_merges_in_once() {
+        use mcrs_minecraft_worldgen_feature_place::entity::witch;
+
+        let y_sections: Arc<[i32]> = Arc::from(vec![0i32, 1]);
+        let center = ColumnPos::new(-1, 2);
+        let snapshots = region_of(center, &y_sections, VoxelId(1));
+        let column = ColumnBlocks::new(&y_sections);
+        column.unpack(&snapshots[4].sections);
+        let ctx = bare_fill_context(build_beta_router());
+        let mut region = ColumnRegion::new(&snapshots, &column, &ctx);
+        let mut rng = XoroshiroRandom::new(3);
+        let own = witch(
+            BlockPos::new(center.x * 16 + 3, 20, center.z * 16 + 4),
+            &mut rng,
+        );
+        let west = ColumnPos::new(center.x - 1, center.z);
+        let neighbour = witch(BlockPos::new(west.x * 16 + 15, 20, west.z * 16), &mut rng);
+        assert_eq!(
+            neighbour.column(),
+            west,
+            "the block's bottom centre floors into its column"
+        );
+        region.entities = vec![own.clone(), neighbour.clone()];
+
+        let deltas = region.finish();
+        assert_eq!(deltas.len(), 2);
+        let of = |col: ColumnPos| &deltas.iter().find(|(target, _)| *target == col).unwrap().1;
+        assert_eq!(of(center).entities, vec![own]);
+        assert_eq!(of(west).entities, vec![neighbour.clone()]);
+        assert!(of(west).writes.is_empty());
+
+        let merged = merge_column(
+            &flat_snapshot(west, &y_sections, VoxelId(1)),
+            &[Arc::new(ColumnDelta {
+                source_rank: rank(center),
+                writes: Vec::new(),
+                block_entities: Vec::new(),
+                entities: of(west).entities.clone(),
+            })],
+            None,
+            None,
+        );
+        assert_eq!(merged.entities, vec![neighbour]);
+    }
+
     /// Within one rung the nine columns of a 3×3 run at once, so a neighbour's
     /// write reaches a column only at the merge that closes the rung. What the
     /// reference gets from decorating into shared chunks, the ladder gets
@@ -1016,6 +1090,7 @@ mod tests {
                     source_rank: rank,
                     writes: vec![(cell, VoxelId(rank as u16 * 10))],
                     block_entities: Vec::new(),
+                    entities: Vec::new(),
                 },
             );
         }
@@ -1058,6 +1133,7 @@ mod tests {
                 "minecraft:chests/simple_dungeon".to_owned(),
                 0,
             )],
+            entities: Vec::new(),
         });
         let merged = merge_column(&snapshot, std::slice::from_ref(&delta), None, None);
         assert_eq!(
@@ -1145,6 +1221,7 @@ mod tests {
             source_rank: 2,
             writes: vec![(cell, chest)],
             block_entities: vec![entity(1)],
+            entities: Vec::new(),
         });
         let has_block_entity = mcrs_minecraft_worldgen_feature::placer::mask_of([chest.0]);
 
@@ -1160,6 +1237,7 @@ mod tests {
             source_rank: 5,
             writes: vec![(cell, chest)],
             block_entities: vec![entity(2)],
+            entities: Vec::new(),
         });
         let merged = merge_column(
             &snapshot,
@@ -1177,6 +1255,7 @@ mod tests {
             source_rank: 5,
             writes: vec![(cell, stone)],
             block_entities: Vec::new(),
+            entities: Vec::new(),
         });
         let merged = merge_column(&snapshot, &[placed, buried], None, Some(&has_block_entity));
         assert!(

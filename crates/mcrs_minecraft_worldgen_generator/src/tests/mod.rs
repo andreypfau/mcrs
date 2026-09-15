@@ -261,6 +261,7 @@ pub fn flat_snapshot(
         maps: None,
         source: ColumnSource::Generated,
         block_entities: Vec::new(),
+        entities: Vec::new(),
     }
 }
 

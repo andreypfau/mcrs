@@ -60,6 +60,7 @@ use mcrs_minecraft_worldgen_feature_place::end::{
     CompiledEndSpikes, CompiledVoidStartPlatform, place_end_gateway, place_end_island,
     place_end_platform, place_end_podium, place_end_spike, place_void_start_platform, seed_spikes,
 };
+use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_feature_place::fallen_tree::{CompiledFallenTree, place_fallen_tree};
 use mcrs_minecraft_worldgen_feature_place::fill_layer::{CompiledFillLayer, place_fill_layer};
 use mcrs_minecraft_worldgen_feature_place::geode::{CompiledGeode, GeodeCrystal, place_geode};
@@ -530,6 +531,7 @@ impl FeatureProgram {
     pub fn run(&self, scratch: RunScratch) -> Run<'_> {
         Run {
             entities: Vec::new(),
+            spawns: Vec::new(),
             moss_patch: self.moss_patch.as_deref(),
             scratch,
         }
@@ -555,10 +557,11 @@ impl FeatureProgram {
 }
 
 /// What every generator of one column's run shares: the block entities it
-/// grows and the bare `pale_moss_patch` a tree decorator runs on the tree's own
-/// source.
+/// grows, the entities it spawns and the bare `pale_moss_patch` a tree
+/// decorator runs on the tree's own source.
 pub struct Run<'a> {
     pub entities: Vec<GeneratedBlockEntity>,
+    pub spawns: Vec<GeneratedEntity>,
     pub moss_patch: Option<&'a Generator>,
     scratch: RunScratch,
 }
@@ -572,8 +575,8 @@ pub struct RunScratch {
 }
 
 impl Run<'_> {
-    pub fn finish(self) -> (Vec<GeneratedBlockEntity>, RunScratch) {
-        (self.entities, self.scratch)
+    pub fn finish(self) -> (Vec<GeneratedBlockEntity>, Vec<GeneratedEntity>, RunScratch) {
+        (self.entities, self.spawns, self.scratch)
     }
 }
 
@@ -845,10 +848,12 @@ impl Generator {
                         clip: None,
                         chain: &config.chain,
                         waterlog: true,
+                        place_entities: false,
                     },
                     region,
                     rng,
                     &mut run.entities,
+                    &mut run.spawns,
                 )
             }
         }

@@ -545,7 +545,7 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
                 &mut rng,
                 liquid,
             );
-            let (block_entities, _) = run.finish();
+            let (block_entities, _, _) = run.finish();
             faults.extend(compare_chunk(
                 &format!("{label} chunk {:?}", chunk.chunk),
                 chunk,

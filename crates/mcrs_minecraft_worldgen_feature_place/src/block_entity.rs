@@ -367,7 +367,9 @@ pub enum GeneratedBlockEntity {
 /// NBT has no boolean, so a flag is a byte. The tagged enum this sits inside
 /// buffers the compound before it knows the variant, and a buffered byte never
 /// reaches `deserialize_bool` — without this the whole gateway fails to load.
-fn nbt_flag<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+pub(crate) fn nbt_flag<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<bool, D::Error> {
     struct Flag;
     impl serde::de::Visitor<'_> for Flag {
         type Value = bool;

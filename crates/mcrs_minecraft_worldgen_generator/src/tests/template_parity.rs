@@ -688,7 +688,7 @@ fn every_pool_element_places_as_the_reference_does() {
                 &mut rng,
                 liquid,
             );
-            let (entities, _) = run.finish();
+            let (entities, _, _) = run.finish();
             let outcome = Outcome {
                 placed,
                 writes: region.writes,
@@ -791,7 +791,7 @@ fn every_template_feature_places_as_the_reference_does() {
                 IVec3::from_array(case.position).into(),
                 &|_| true,
             );
-            let (entities, _) = run.finish();
+            let (entities, _, _) = run.finish();
             let outcome = Outcome {
                 placed,
                 writes: region.writes,
@@ -931,10 +931,12 @@ fn every_ruined_portal_chain_places_as_the_reference_does() {
                     clip: case.clip,
                     chain: &chain,
                     waterlog: true,
+                    place_entities: false,
                 },
                 &mut region,
                 &mut rng,
                 &mut entities,
+                &mut Vec::new(),
             );
             let outcome = Outcome {
                 placed,
