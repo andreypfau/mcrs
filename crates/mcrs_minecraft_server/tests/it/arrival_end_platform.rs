@@ -225,7 +225,10 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         entry
             .control_sender
             .try_send(ToDim::SpawnEntity {
-                move_id: MoveId(7),
+                move_id: MoveId {
+                    source: Entity::PLACEHOLDER,
+                    seq: 7,
+                },
                 epoch: 0,
                 cause: ArrivalCause::EndPlatform,
                 payload: MovePayload::Player {

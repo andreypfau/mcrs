@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
 use rustc_hash::FxHashMap;
@@ -10,16 +8,26 @@ use crate::session::{MoveId, PlayerSession};
 /// At 20 TPS this is 5 seconds.
 pub const MOVE_TIMEOUT_TICKS: u32 = 100;
 
-/// Process-global monotonic source of `MoveId`s. The source dim allocates the id
-/// at move-out so it can stamp its in-transit entity with the same id the host
-/// echoes back on confirm/rollback; the host keys its in-flight table on that id.
-/// One global counter keeps ids unique across every dim so the host's single
-/// `InFlightMoves` map can never collide.
-static NEXT_MOVE_ID: AtomicU64 = AtomicU64::new(1);
+/// The ids of the moves a dimension starts. The source allocates the id at move-out so it can
+/// stamp its in-transit entity with the id the host echoes back on confirm or rollback.
+#[derive(Resource, Debug)]
+pub struct MoveIds {
+    source: Entity,
+    next: u64,
+}
 
-/// Allocate a fresh, process-unique `MoveId` (never 0).
-pub fn alloc_move_id() -> MoveId {
-    MoveId(NEXT_MOVE_ID.fetch_add(1, Ordering::Relaxed))
+impl MoveIds {
+    pub fn new(source: Entity) -> Self {
+        Self { source, next: 0 }
+    }
+
+    pub fn allocate(&mut self) -> MoveId {
+        self.next += 1;
+        MoveId {
+            source: self.source,
+            seq: self.next,
+        }
+    }
 }
 
 pub struct InFlightEntry {
@@ -51,16 +59,7 @@ impl Default for InFlightMoves {
 }
 
 impl InFlightMoves {
-    /// Allocate a fresh `MoveId` (never 0) and store the entry.
-    pub fn alloc(&mut self, entry: InFlightEntry) -> MoveId {
-        let id = alloc_move_id();
-        self.entries.insert(id, entry);
-        id
-    }
-
-    /// Store an entry under a caller-allocated `MoveId` (from [`alloc_move_id`]).
-    /// The host uses this so the in-flight key matches the id the source stamped
-    /// on its in-transit entity.
+    /// Stores an entry under the id the source stamped on its in-transit entity.
     pub fn insert(&mut self, id: MoveId, entry: InFlightEntry) {
         self.entries.insert(id, entry);
     }

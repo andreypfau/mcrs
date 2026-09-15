@@ -5,7 +5,7 @@
 
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::world::in_flight::{InFlightEntry, InFlightMoves, alloc_move_id};
+use mcrs_minecraft_level::world::in_flight::{InFlightEntry, InFlightMoves, MoveIds};
 
 fn entry() -> InFlightEntry {
     InFlightEntry {
@@ -20,7 +20,7 @@ fn entry() -> InFlightEntry {
 fn tick_all_times_out_exactly_at_threshold() {
     let mut moves = InFlightMoves::default();
     moves.timeout_ticks = 3;
-    let id = alloc_move_id();
+    let id = MoveIds::new(Entity::PLACEHOLDER).allocate();
     moves.insert(id, entry());
 
     assert!(moves.tick_all().is_empty(), "ticks=1, below threshold");
@@ -40,7 +40,7 @@ fn tick_all_times_out_exactly_at_threshold() {
 fn entry_removed_before_timeout_never_fires() {
     let mut moves = InFlightMoves::default();
     moves.timeout_ticks = 5;
-    let id = alloc_move_id();
+    let id = MoveIds::new(Entity::PLACEHOLDER).allocate();
     moves.insert(id, entry());
     moves.tick_all(); // ticks=1
 
@@ -55,8 +55,9 @@ fn entry_removed_before_timeout_never_fires() {
 fn multiple_in_flight_moves_time_out_independently() {
     let mut moves = InFlightMoves::default();
     moves.timeout_ticks = 2;
-    let a = alloc_move_id();
-    let b = alloc_move_id();
+    let mut ids = MoveIds::new(Entity::PLACEHOLDER);
+    let a = ids.allocate();
+    let b = ids.allocate();
     assert_ne!(a, b, "source-allocated ids are unique");
     moves.insert(a, entry());
     moves.tick_all(); // a: ticks=1

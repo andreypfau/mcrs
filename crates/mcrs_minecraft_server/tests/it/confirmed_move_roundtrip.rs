@@ -23,7 +23,7 @@ use mcrs_minecraft_level::session::{MoveId, PlayerSession, SessionEntry, Session
 use mcrs_minecraft_level::world::channels::{
     DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY, ToDimReceiver,
 };
-use mcrs_minecraft_level::world::in_flight::{InFlightMoves, alloc_move_id};
+use mcrs_minecraft_level::world::in_flight::{InFlightMoves, MoveIds};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::runner::{expire_moves, pump_channels};
@@ -210,7 +210,7 @@ fn in_flight_present(h: &Harness, move_id: MoveId) -> bool {
 fn confirmed_move_keeps_source_until_confirm_then_despawns() {
     let mut h = build_harness();
     let mut source_dim = build_source_dim(h.source_ctl_rx.clone());
-    let move_id = alloc_move_id();
+    let move_id = MoveIds::new(Entity::PLACEHOLDER).allocate();
 
     let entity = initiate_move(&h, &mut source_dim, move_id);
 
@@ -289,7 +289,7 @@ fn never_acked_move_rolls_back_on_tick_timeout() {
         .resource_mut::<InFlightMoves>()
         .timeout_ticks = 3;
     let mut source_dim = build_source_dim(h.source_ctl_rx.clone());
-    let move_id = alloc_move_id();
+    let move_id = MoveIds::new(Entity::PLACEHOLDER).allocate();
 
     let entity = initiate_move(&h, &mut source_dim, move_id);
 
@@ -340,7 +340,7 @@ fn pumping_between_ticks_does_not_age_a_move() {
         .resource_mut::<InFlightMoves>()
         .timeout_ticks = 3;
     let mut source_dim = build_source_dim(h.source_ctl_rx.clone());
-    let move_id = alloc_move_id();
+    let move_id = MoveIds::new(Entity::PLACEHOLDER).allocate();
 
     let entity = initiate_move(&h, &mut source_dim, move_id);
 
@@ -363,7 +363,7 @@ fn disconnected_target_rolls_back_immediately() {
     // Disconnected on the very first pass.
     h.dest_ctl_rx = None;
     let mut source_dim = build_source_dim(h.source_ctl_rx.clone());
-    let move_id = alloc_move_id();
+    let move_id = MoveIds::new(Entity::PLACEHOLDER).allocate();
 
     let entity = initiate_move(&h, &mut source_dim, move_id);
 

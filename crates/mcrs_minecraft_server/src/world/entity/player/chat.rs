@@ -11,7 +11,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_level::entity::InTransit;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::session::{Owner, PlayerSession};
-use mcrs_minecraft_level::world::in_flight::alloc_move_id;
+use mcrs_minecraft_level::world::in_flight::MoveIds;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
@@ -46,6 +46,7 @@ fn handle_command(
     >,
     mut commands: Commands,
     fill: Option<Res<FillContext>>,
+    mut move_ids: ResMut<MoveIds>,
 ) {
     let Some(pkt) = event.decode::<ServerboundChatCommand>() else {
         return;
@@ -106,7 +107,7 @@ fn handle_command(
             let session = owner.0;
             // Source-allocated id: stamp the in-transit entity with the same id
             // the host echoes back on confirm/rollback so the source can match it.
-            let move_id = alloc_move_id();
+            let move_id = move_ids.allocate();
             let payload = MovePayload::Player {
                 uuid: profile.id,
                 username: profile.username.clone(),

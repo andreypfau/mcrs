@@ -234,6 +234,9 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockPlaced>();
 
     sub_app.init_resource::<mcrs_minecraft_level::session::DimPlayerIndex>();
+    sub_app.insert_resource(mcrs_minecraft_level::world::in_flight::MoveIds::new(
+        label_entity,
+    ));
 
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));

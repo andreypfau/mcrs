@@ -5,7 +5,7 @@
 
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_level::entity::InTransit;
-use mcrs_minecraft_level::world::in_flight::alloc_move_id;
+use mcrs_minecraft_level::world::in_flight::MoveIds;
 
 fn without_in_transit_contains(world: &mut World, target: Entity) -> bool {
     let mut q = world.query_filtered::<Entity, Without<InTransit>>();
@@ -23,7 +23,7 @@ fn in_transit_marker_hides_then_un_hides_the_same_entity() {
 
     // Hide-on-move-out: stamping the marker excludes it from those systems while
     // the entity stays live (it is NOT despawned).
-    let id = alloc_move_id();
+    let id = MoveIds::new(Entity::PLACEHOLDER).allocate();
     world.entity_mut(e).insert(InTransit { move_id: id });
     assert!(
         !without_in_transit_contains(&mut world, e),
@@ -42,7 +42,7 @@ fn in_transit_marker_hides_then_un_hides_the_same_entity() {
 #[test]
 fn in_transit_carries_the_move_id_for_confirm_rollback_matching() {
     let mut world = World::new();
-    let id = alloc_move_id();
+    let id = MoveIds::new(Entity::PLACEHOLDER).allocate();
     let e = world.spawn(InTransit { move_id: id }).id();
     // The source resolves confirm/rollback by matching this id against the id the
     // host echoes back, so it must round-trip exactly.
