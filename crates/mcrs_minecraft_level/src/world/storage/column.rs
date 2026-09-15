@@ -1,10 +1,9 @@
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
-use crate::world::lifecycle::markers::{ChunkFresh, ChunkLoaded, ChunkUnloaded, ChunkUnloading};
+use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{
-    Added, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query, SystemSet, With,
-    Without,
+    Bundle, Commands, Component, Entity, IntoScheduleConfigs, MessageReader, Query, SystemSet,
 };
 use mcrs_minecraft_core::SectionPos;
 use rustc_hash::FxHashMap;
@@ -15,13 +14,6 @@ pub use mcrs_minecraft_core::ColumnPos;
 #[derive(Component, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct Column;
-
-/// Back-link from a chunk entity to its owning column entity. It is what says a
-/// section is counted in its column's `section_count`: `reconcile_columns`
-/// attaches it as the section joins and takes it off as the section leaves, in
-/// the same run as the matching increment or decrement.
-#[derive(Component, Clone, Copy, Debug)]
-pub struct InColumn(pub Entity);
 
 /// Per-column entry in `ColumnIndex`.
 #[derive(Debug, Clone, Copy)]
@@ -148,32 +140,14 @@ impl ColumnBundle {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnLifecycleSet;
 
-/// Reconciles the column index against the sections that landed or left this
-/// run. One system rather than two: a split pair has one `Added` window per
-/// system, and the two instances of the pair (the tick and the column drain)
-/// interleave, so a section could be counted by one half and not the other.
-///
-/// A section already on its way out is not counted at all. Cancelling one whose
-/// generation had finished leaves it holding `ChunkLoaded` and `ChunkUnloading`
-/// together, and counting it would spend an unloading edge that has already
-/// gone by — the column would then hold a section that never leaves it.
+/// Brings the column index in line with every section whose stage crossed
+/// `Loaded`. It decides from the stage the section holds now rather than from
+/// the edge, so the tick's run and the drain's run can both read the same
+/// messages and the second finds nothing left to do.
 pub fn reconcile_columns(
-    newly_loaded: Query<
-        (Entity, &SectionPos, &InDimension),
-        (
-            Added<ChunkLoaded>,
-            With<ChunkFresh>,
-            Without<InColumn>,
-            Without<ChunkUnloading>,
-            Without<ChunkUnloaded>,
-        ),
-    >,
-    newly_unloading: Query<
-        (Entity, &SectionPos, &InDimension),
-        (Added<ChunkUnloading>, With<InColumn>),
-    >,
-    mut dimensions: Query<&mut ColumnIndex>,
-    dim_configs: Query<&DimensionTypeConfig>,
+    mut changes: MessageReader<SectionStageChanged>,
+    stages: Query<&SectionStage>,
+    mut dimensions: Query<(&mut ColumnIndex, &DimensionTypeConfig)>,
     mut columns: Query<&mut ColumnSections>,
     mut commands: Commands,
 ) {
@@ -181,76 +155,85 @@ pub fn reconcile_columns(
     // gathered here and land with the entity's own `ColumnSections`.
     let mut spawned: FxHashMap<Entity, ColumnSections> = FxHashMap::default();
 
-    for (chunk_entity, chunk_pos, in_dim) in newly_loaded.iter() {
-        let col_pos = ColumnPos::from(*chunk_pos);
-        let Ok(mut column_index) = dimensions.get_mut(in_dim.0) else {
+    for change in changes.read() {
+        if !change.landed() && !change.left() {
+            continue;
+        }
+        let Ok((mut column_index, dim_config)) = dimensions.get_mut(change.dim) else {
             continue;
         };
-        let Ok(dim_config) = dim_configs.get(in_dim.0) else {
-            continue;
-        };
-        let slot = *match column_index.0.entry(col_pos) {
-            std::collections::hash_map::Entry::Vacant(v) => {
-                let col_entity = commands
-                    .spawn(ColumnBundle::new(col_pos, *in_dim, dim_config))
+        let col_pos = ColumnPos::from(change.pos);
+        let y = change.pos.y;
+        let loaded = stages.get(change.section) == Ok(&SectionStage::Loaded);
+        let holds =
+            |sections: &ColumnSections| sections.lookup(y) == SectionLookup::Loaded(change.section);
+        let counted =
+            column_index
+                .0
+                .get(&col_pos)
+                .is_some_and(|slot| match spawned.get(&slot.entity) {
+                    Some(sections) => holds(sections),
+                    None => columns.get(slot.entity).is_ok_and(holds),
+                });
+
+        if loaded && !counted {
+            let slot = column_index.0.entry(col_pos).or_insert_with(|| {
+                let entity = commands
+                    .spawn(ColumnBundle::new(
+                        col_pos,
+                        InDimension(change.dim),
+                        dim_config,
+                    ))
                     .id();
                 spawned.insert(
-                    col_entity,
+                    entity,
                     ColumnSections::new(
                         dim_config.min_y >> SectionPos::BITS,
                         dim_config.section_count as usize,
                     ),
                 );
-                v.insert(ColumnSlot {
-                    entity: col_entity,
-                    section_count: 1,
-                })
-            }
-            std::collections::hash_map::Entry::Occupied(o) => {
-                let slot = o.into_mut();
+                ColumnSlot {
+                    entity,
+                    section_count: 0,
+                }
+            });
+            let sections = match spawned.get_mut(&slot.entity) {
+                Some(sections) => sections,
+                None => columns
+                    .get_mut(slot.entity)
+                    .unwrap_or_else(|_| {
+                        panic!("column {col_pos:?} is in the index without its ColumnSections")
+                    })
+                    .into_inner(),
+            };
+            if sections.lookup(y) == SectionLookup::Unloaded {
                 slot.section_count += 1;
-                slot
             }
-        };
-        match spawned.get_mut(&slot.entity) {
-            Some(column_chunks) => column_chunks.set_loaded(chunk_pos.y, chunk_entity),
-            None => columns
-                .get_mut(slot.entity)
-                .unwrap_or_else(|_| {
-                    panic!("column {col_pos:?} is in the index without its ColumnSections")
-                })
-                .set_loaded(chunk_pos.y, chunk_entity),
+            sections.set_loaded(y, change.section);
+        } else if !loaded && counted {
+            let slot = column_index
+                .0
+                .get_mut(&col_pos)
+                .expect("a counted section's column is in the index");
+            assert!(
+                slot.section_count > 0,
+                "column {col_pos:?} counts fewer sections than it holds",
+            );
+            slot.section_count -= 1;
+            let column_entity = slot.entity;
+            let emptied = slot.section_count == 0;
+            if let Ok(mut sections) = columns.get_mut(column_entity) {
+                sections.set_unloaded(y);
+            }
+            if emptied {
+                column_index.0.remove(&col_pos);
+                commands.entity(column_entity).despawn();
+            }
         }
-        commands.entity(chunk_entity).insert(InColumn(slot.entity));
     }
 
-    for (col_entity, column_chunks) in spawned {
-        commands.entity(col_entity).insert(column_chunks);
-    }
-
-    for (chunk_entity, chunk_pos, in_dim) in newly_unloading.iter() {
-        commands.entity(chunk_entity).try_remove::<InColumn>();
-        let col_pos = ColumnPos::from(*chunk_pos);
-        let Ok(mut column_index) = dimensions.get_mut(in_dim.0) else {
-            continue;
-        };
-        let slot = column_index.0.get_mut(&col_pos).unwrap_or_else(|| {
-            panic!("section of {col_pos:?} holds InColumn but the column left the index")
-        });
-        assert!(
-            slot.section_count > 0,
-            "column {col_pos:?} counts fewer sections than hold its InColumn",
-        );
-        slot.section_count -= 1;
-        let column_entity = slot.entity;
-        let emptied = slot.section_count == 0;
-        if let Ok(mut column_chunks) = columns.get_mut(column_entity) {
-            column_chunks.set_unloaded(chunk_pos.y);
-        }
-        if emptied {
-            column_index.0.remove(&col_pos);
-            commands.entity(column_entity).despawn();
-        }
+    for (column_entity, sections) in spawned {
+        commands.entity(column_entity).insert(sections);
     }
 }
 
@@ -280,105 +263,149 @@ mod tests {
         Entity::from_raw_u32(index + 1).expect("valid entity index")
     }
 
-    #[test]
-    fn a_section_cancelled_before_it_loaded_does_not_decrement_its_column() {
+    fn app_with_dimension() -> (App, Entity) {
         let mut app = App::new();
+        app.add_message::<SectionStageChanged>();
         app.add_systems(FixedUpdate, reconcile_columns);
         let dim = app
             .world_mut()
             .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))
             .id();
-        let pos = SectionPos::new(0, 0, 0);
-        app.world_mut().spawn((pos, InDimension(dim), ChunkLoaded));
-        app.world_mut().run_schedule(FixedUpdate);
+        (app, dim)
+    }
 
+    fn spawn_section(app: &mut App, dim: Entity, pos: SectionPos, stage: SectionStage) -> Entity {
+        let section = app.world_mut().spawn((pos, InDimension(dim), stage)).id();
         app.world_mut()
-            .spawn((SectionPos::new(0, 1, 0), InDimension(dim), ChunkUnloading));
+            .write_message(SectionStageChanged::spawned(section, pos, dim, stage));
+        section
+    }
+
+    fn move_to(app: &mut App, section: Entity, to: SectionStage) {
+        let world = app.world_mut();
+        let pos = *world.get::<SectionPos>(section).expect("section pos");
+        let dim = world.get::<InDimension>(section).expect("dimension").0;
+        let from = world.get::<SectionStage>(section).copied();
+        world.entity_mut(section).insert(to);
+        world.write_message(SectionStageChanged {
+            section,
+            pos,
+            dim,
+            from,
+            to,
+        });
+    }
+
+    fn counted(app: &App, dim: Entity) -> Option<u32> {
+        app.world()
+            .get::<ColumnIndex>(dim)
+            .expect("column index")
+            .0
+            .get(&ColumnPos::new(0, 0))
+            .map(|slot| slot.section_count)
+    }
+
+    #[test]
+    fn a_section_cancelled_before_it_loaded_does_not_decrement_its_column() {
+        let (mut app, dim) = app_with_dimension();
+        spawn_section(
+            &mut app,
+            dim,
+            SectionPos::new(0, 0, 0),
+            SectionStage::Loaded,
+        );
         app.world_mut().run_schedule(FixedUpdate);
 
-        let index = app.world().get::<ColumnIndex>(dim).expect("column index");
-        assert_eq!(
-            index.0.get(&ColumnPos::new(0, 0)).map(|s| s.section_count),
-            Some(1),
+        let cancelled = spawn_section(
+            &mut app,
+            dim,
+            SectionPos::new(0, 1, 0),
+            SectionStage::Loading,
         );
+        move_to(&mut app, cancelled, SectionStage::Unloading);
+        app.world_mut().run_schedule(FixedUpdate);
+
+        assert_eq!(counted(&app, dim), Some(1));
     }
 
     #[test]
     fn a_section_unloaded_twice_only_decrements_once() {
-        let mut app = App::new();
-        app.add_systems(FixedUpdate, reconcile_columns);
-        let dim = app
-            .world_mut()
-            .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))
-            .id();
-        let kept = app
-            .world_mut()
-            .spawn((SectionPos::new(0, 0, 0), InDimension(dim), ChunkLoaded))
-            .id();
-        let leaving = app
-            .world_mut()
-            .spawn((SectionPos::new(0, 1, 0), InDimension(dim), ChunkLoaded))
-            .id();
+        let (mut app, dim) = app_with_dimension();
+        let kept = spawn_section(
+            &mut app,
+            dim,
+            SectionPos::new(0, 0, 0),
+            SectionStage::Loaded,
+        );
+        let leaving = spawn_section(
+            &mut app,
+            dim,
+            SectionPos::new(0, 1, 0),
+            SectionStage::Loaded,
+        );
         app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(counted(&app, dim), Some(2));
 
-        let count = |app: &App| {
+        move_to(&mut app, leaving, SectionStage::Unloading);
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(counted(&app, dim), Some(1));
+
+        // A section waiting to despawn can be handed tickets and lose them again,
+        // so the same section reaches `Unloading` a second time.
+        move_to(&mut app, leaving, SectionStage::Loading);
+        app.world_mut().run_schedule(FixedUpdate);
+        move_to(&mut app, leaving, SectionStage::Unloading);
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(counted(&app, dim), Some(1));
+
+        let column = app.world().get::<ColumnIndex>(dim).expect("column index").0
+            [&ColumnPos::new(0, 0)]
+            .entity;
+        assert_eq!(
             app.world()
-                .get::<ColumnIndex>(dim)
-                .expect("column index")
-                .0
-                .get(&ColumnPos::new(0, 0))
-                .map(|s| s.section_count)
-        };
-        assert_eq!(count(&app), Some(2));
-
-        app.world_mut().entity_mut(leaving).insert(ChunkUnloading);
-        app.world_mut().run_schedule(FixedUpdate);
-        assert_eq!(count(&app), Some(1));
-
-        // A chunk waiting to despawn can be handed tickets and lose them again,
-        // so the same section reaches `ChunkUnloading` a second time.
-        app.world_mut()
-            .entity_mut(leaving)
-            .remove::<ChunkUnloading>();
-        app.world_mut().run_schedule(FixedUpdate);
-        app.world_mut().entity_mut(leaving).insert(ChunkUnloading);
-        app.world_mut().run_schedule(FixedUpdate);
-        assert_eq!(count(&app), Some(1));
-
-        assert!(app.world().get::<InColumn>(kept).is_some());
+                .get::<ColumnSections>(column)
+                .expect("column sections")
+                .lookup(0),
+            SectionLookup::Loaded(kept)
+        );
     }
 
-    /// A section cancelled after its generation finished carries `ChunkUnloading`
-    /// and `ChunkLoaded` at once, and the tick's reconciler and the drain's see
-    /// that pair through separate `Added` windows.
     #[test]
-    fn a_section_that_lands_already_cancelled_leaves_no_column_behind() {
+    fn the_tick_and_the_drain_count_a_section_once() {
         #[derive(bevy_ecs::schedule::ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
         struct Drain;
 
-        let mut app = App::new();
-        app.add_systems(FixedUpdate, reconcile_columns);
+        let (mut app, dim) = app_with_dimension();
         app.add_systems(Drain, reconcile_columns);
-        let dim = app
-            .world_mut()
-            .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))
-            .id();
-
-        let chunk = app
-            .world_mut()
-            .spawn((SectionPos::new(0, 0, 0), InDimension(dim), ChunkUnloading))
-            .id();
-        app.world_mut().run_schedule(FixedUpdate);
-        app.world_mut().entity_mut(chunk).insert(ChunkLoaded);
-        app.world_mut().run_schedule(Drain);
-        app.world_mut().run_schedule(FixedUpdate);
-        app.world_mut().run_schedule(Drain);
-
-        let index = app.world().get::<ColumnIndex>(dim).expect("column index");
-        assert_eq!(
-            index.0.get(&ColumnPos::new(0, 0)).map(|s| s.section_count),
-            None
+        let section = spawn_section(
+            &mut app,
+            dim,
+            SectionPos::new(0, 0, 0),
+            SectionStage::Loaded,
         );
+        app.world_mut().run_schedule(FixedUpdate);
+        app.world_mut().run_schedule(Drain);
+        assert_eq!(counted(&app, dim), Some(1));
+
+        move_to(&mut app, section, SectionStage::Unloading);
+        app.world_mut().run_schedule(Drain);
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(counted(&app, dim), None);
+    }
+
+    #[test]
+    fn a_section_that_left_before_it_was_counted_leaves_no_column_behind() {
+        let (mut app, dim) = app_with_dimension();
+        let section = spawn_section(
+            &mut app,
+            dim,
+            SectionPos::new(0, 0, 0),
+            SectionStage::Loaded,
+        );
+        move_to(&mut app, section, SectionStage::Unloading);
+        app.world_mut().run_schedule(FixedUpdate);
+
+        assert_eq!(counted(&app, dim), None);
     }
 
     #[test]

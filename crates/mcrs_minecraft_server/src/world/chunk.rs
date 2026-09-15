@@ -2,7 +2,7 @@ use crate::world::block_entity::spawn_block_entities;
 use crate::world::heightmap::PendingColumnHeightmaps;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
+use bevy_ecs::prelude::{Local, MessageReader, ParamSet, Query, Resource, With, resource_exists};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
@@ -13,10 +13,9 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_level::world::lifecycle::markers::ChunkGenerating;
-use mcrs_minecraft_level::world::lifecycle::markers::ChunkLoaded;
-use mcrs_minecraft_level::world::lifecycle::markers::ChunkLoading;
-use mcrs_minecraft_level::world::lifecycle::markers::ChunkUnloading;
+use mcrs_minecraft_level::world::lifecycle::stage::{
+    SectionStage, SectionStageChanged, SectionStages,
+};
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
 use mcrs_minecraft_protocol::ColumnPos;
@@ -372,6 +371,7 @@ pub(crate) fn deliver_merged_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
     section_dimensions: Query<&InDimension>,
+    mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
     mut commands: Commands,
 ) {
@@ -444,15 +444,14 @@ pub(crate) fn deliver_merged_columns(
                 Some((blocks, biomes)) => {
                     commands
                         .entity(entity)
-                        .try_insert((ChunkLoaded, ChunkBlocks::new(blocks), biomes))
-                        .try_remove::<ChunkGenerating>();
+                        .try_insert((ChunkBlocks::new(blocks), biomes));
+                    // One cancelled while it generated keeps the blocks for a ticket that
+                    // takes it back, but stays on its way out.
+                    if stages.get(entity) == Some(SectionStage::Generating) {
+                        stages.set(entity, SectionStage::Loaded);
+                    }
                 }
-                None => {
-                    commands
-                        .entity(entity)
-                        .try_insert(ChunkUnloading)
-                        .try_remove::<ChunkGenerating>();
-                }
+                None => stages.set(entity, SectionStage::Unloading),
             }
         }
     }
@@ -464,38 +463,44 @@ pub(crate) fn deliver_merged_columns(
 /// arrive after its first stage was dispatched merge into the same entry and
 /// reach the same delivery.
 pub(crate) fn enqueue_pending_columns(
-    mut commands: Commands,
+    mut stages: ParamSet<(MessageReader<SectionStageChanged>, SectionStages)>,
+    mut requested: Local<Vec<(Entity, SectionPos)>>,
     mut scheduler: ResMut<ColumnScheduler>,
-    loading_query: Query<(Entity, &SectionPos), With<ChunkLoading>>,
     players: Query<&Transform, With<Player>>,
 ) {
-    // Collect player positions for distance calculations
+    requested.extend(
+        stages
+            .p0()
+            .read()
+            .filter(|change| change.to == SectionStage::Loading)
+            .map(|change| (change.section, change.pos)),
+    );
+    let mut section_stages = stages.p1();
+    let mut columns: HashMap<ColumnPos, Vec<(Entity, i32)>> = HashMap::new();
+    for (section, pos) in requested.drain(..) {
+        if section_stages.get(section) != Some(SectionStage::Loading) {
+            continue;
+        }
+        trace!(
+            "Requested generation for chunk section at ({}, {}, {})",
+            pos.x, pos.y, pos.z
+        );
+        section_stages.set(section, SectionStage::Generating);
+        columns
+            .entry(ColumnPos::new(pos.x, pos.z))
+            .or_default()
+            .push((section, pos.y));
+    }
+    if columns.is_empty() {
+        return;
+    }
+
     let player_positions: Vec<ColumnPos> = players
         .iter()
         .map(|t| ColumnPos::from(t.translation))
         .collect();
 
-    let mut columns: HashMap<ColumnPos, Vec<(Entity, i32)>> = HashMap::new();
-    for (entity, pos) in loading_query.iter() {
-        trace!(
-            "Requested generation for chunk section at ({}, {}, {})",
-            pos.x, pos.y, pos.z
-        );
-
-        columns
-            .entry(ColumnPos::new(pos.x, pos.z))
-            .or_default()
-            .push((entity, pos.y));
-    }
-
     for (col, sections) in columns {
-        for &(entity, _) in &sections {
-            commands
-                .entity(entity)
-                .insert(ChunkGenerating)
-                .remove::<ChunkLoading>();
-        }
-
         if scheduler.is_pending(col) {
             // Merge new sections into the existing entry so the column is
             // delivered with ALL its sections in a single batch.
@@ -519,9 +524,27 @@ pub(crate) fn enqueue_pending_columns(
 ///
 /// "Wanted" is widened by the halo: a column two away from one a view wants
 /// is still an input to its run, so it is neither cancelled nor evicted.
+#[cfg(test)]
+pub(crate) fn request_section(
+    world: &mut bevy_ecs::world::World,
+    dim: Entity,
+    pos: SectionPos,
+) -> Entity {
+    let section = world
+        .spawn((pos, InDimension(dim), SectionStage::Loading))
+        .id();
+    world.write_message(SectionStageChanged::spawned(
+        section,
+        pos,
+        dim,
+        SectionStage::Loading,
+    ));
+    section
+}
+
 fn cancel_stale_columns(
     mut scheduler: ResMut<ColumnScheduler>,
-    mut commands: Commands,
+    mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
     players: Query<&PlayerChunkObserver>,
 ) {
@@ -567,10 +590,7 @@ fn cancel_stale_columns(
         scheduler.priority_index.remove(&key.chunk_column_pos);
 
         for entity in entities {
-            commands
-                .entity(entity)
-                .try_insert(ChunkUnloading)
-                .try_remove::<ChunkGenerating>();
+            stages.set(entity, SectionStage::Unloading);
         }
     }
 
@@ -864,6 +884,7 @@ mod tests {
         let y_sections = ctx.y_sections.clone();
 
         let mut app = App::new();
+        app.add_message::<SectionStageChanged>();
         app.insert_resource(ctx.clone());
         app.init_resource::<PendingColumnHeightmaps>();
         app.insert_resource(ColumnScheduler {
@@ -885,24 +906,21 @@ mod tests {
                 .chain(),
         );
 
+        let dim = app.world_mut().spawn_empty().id();
         let carried: Vec<i32> = vec![-1, 0, 4];
         let sections: Vec<Entity> = carried
             .iter()
-            .map(|&y| {
-                app.world_mut()
-                    .spawn((SectionPos::new(col.x, y, col.z), ChunkLoading))
-                    .id()
-            })
+            .map(|&y| request_section(app.world_mut(), dim, SectionPos::new(col.x, y, col.z)))
             .collect();
+        let loaded = |app: &App, section: Entity| {
+            app.world().get::<SectionStage>(section) == Some(&SectionStage::Loaded)
+        };
 
         let mut delivered = false;
         let deadline = Instant::now() + Duration::from_secs(120);
         while Instant::now() < deadline {
             app.update();
-            if sections
-                .iter()
-                .all(|e| app.world().get::<ChunkLoaded>(*e).is_some())
-            {
+            if sections.iter().all(|e| loaded(&app, *e)) {
                 delivered = true;
                 break;
             }
@@ -917,17 +935,14 @@ mod tests {
 
         // A section ticketed after the column was delivered must be delivered
         // from the same merged blocks, not from the snapshot the neighbours read.
-        let late = app
-            .world_mut()
-            .spawn((SectionPos::new(col.x, 5, col.z), ChunkLoading))
-            .id();
+        let late = request_section(app.world_mut(), dim, SectionPos::new(col.x, 5, col.z));
         let deadline = Instant::now() + Duration::from_secs(30);
-        while Instant::now() < deadline && app.world().get::<ChunkLoaded>(late).is_none() {
+        while Instant::now() < deadline && !loaded(&app, late) {
             app.update();
             std::thread::sleep(Duration::from_millis(1));
         }
         assert!(
-            app.world().get::<ChunkLoaded>(late).is_some(),
+            loaded(&app, late),
             "a section ticketed after the delivery was never delivered"
         );
 
@@ -958,13 +973,18 @@ mod tests {
     #[test]
     fn cancel_stale_columns_unloads_stale_sections() {
         let mut app = App::new();
+        app.add_message::<SectionStageChanged>();
         app.insert_resource(ColumnScheduler::default());
         app.add_systems(Update, cancel_stale_columns);
 
         spawn_observer_with_view(&mut app, SectionPos::new(0, 0, 0), 2);
 
+        let dim = app.world_mut().spawn_empty().id();
         let stale_pos = SectionPos::new(100, 0, 100);
-        let stale_section = app.world_mut().spawn((stale_pos, ChunkGenerating)).id();
+        let stale_section = app
+            .world_mut()
+            .spawn((stale_pos, InDimension(dim), SectionStage::Generating))
+            .id();
 
         let stale_col = ColumnPos::new(stale_pos.x, stale_pos.z);
         let key = ColumnKey::new(0, stale_col);
@@ -977,13 +997,10 @@ mod tests {
 
         app.update();
 
-        assert!(
-            app.world().get::<ChunkUnloading>(stale_section).is_some(),
-            "a stale section gets ChunkUnloading"
-        );
-        assert!(
-            app.world().get::<ChunkGenerating>(stale_section).is_none(),
-            "ChunkGenerating removed alongside the unload"
+        assert_eq!(
+            app.world().get::<SectionStage>(stale_section),
+            Some(&SectionStage::Unloading),
+            "a stale section is sent on its way out"
         );
     }
 }

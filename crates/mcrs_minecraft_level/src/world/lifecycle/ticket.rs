@@ -1,20 +1,18 @@
 //! Section tickets.
 
+use std::collections::VecDeque;
+
 use crate::entity::physics::Transform;
 use crate::entity::player::Player;
+use crate::palette::ChunkBlocks;
 use crate::world::dimension::InDimension;
-use crate::world::lifecycle::markers::ChunkFresh;
-use crate::world::lifecycle::markers::ChunkLoaded;
-use crate::world::lifecycle::markers::ChunkUnloaded;
-use crate::world::lifecycle::markers::ChunkUnloading;
+use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged, SectionStages};
 use crate::world::lifecycle::trace::{self, ColumnStage};
-use crate::world::storage::section::Section;
 use crate::world::storage::section::SectionBundle;
 use crate::world::storage::section::SectionIndex;
-use bevy_app::{App, First, FixedUpdate, Plugin};
+use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
-use bevy_ecs::query::With;
 use indexmap::IndexMap;
 use mcrs_minecraft_core::SectionPos;
 use rustc_hash::{FxBuildHasher, FxHashMap};
@@ -36,29 +34,17 @@ pub struct ChunkSpawnSet;
 
 impl Plugin for TicketPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(First, expire_fresh_chunks);
+        app.add_message::<SectionStageChanged>();
         app.add_systems(FixedUpdate, spawn_chunks.in_set(ChunkSpawnSet));
         app.add_systems(
             FixedUpdate,
             (
-                unload_chunks,
                 // Before the spawn, so a section it takes leaves the index in the same run
                 // that could hand its position to a fresh one.
                 despawn_chunks.before(ChunkSpawnSet),
                 remove_tickets_from_chunks,
             ),
         );
-    }
-}
-
-/// Sections land after `FixedUpdate` has run, so a section's `ChunkFresh` has to
-/// survive the whole tick after the one it landed in for the once-per-tick readers
-/// of `Added<ChunkLoaded>` to see it.
-fn expire_fresh_chunks(fresh: Query<(Entity, Ref<ChunkFresh>)>, mut commands: Commands) {
-    for (entity, marker) in fresh.iter() {
-        if !marker.is_added() {
-            commands.entity(entity).try_remove::<ChunkFresh>();
-        }
     }
 }
 
@@ -176,41 +162,49 @@ impl ChunkTicketsCommands {
     }
 }
 
+/// The queue outlives the tick because of the cap. An entry whose section was taken back
+/// in the meantime no longer holds `Unloading` and is dropped when it comes up.
 fn despawn_chunks(
     mut commands: Commands,
+    mut changes: MessageReader<SectionStageChanged>,
+    mut condemned: Local<VecDeque<Entity>>,
     mut dims: Query<(&mut SectionIndex, &ChunkTicketsCommands)>,
-    chunk_statuses: Query<(Entity, &SectionPos, &InDimension), With<ChunkUnloaded>>,
+    sections: Query<(&SectionStage, &SectionPos, &InDimension)>,
 ) {
+    condemned.extend(
+        changes
+            .read()
+            .filter(|change| change.to == SectionStage::Unloading)
+            .map(|change| change.section),
+    );
     let mut taken = 0usize;
-    for (chunk, chunk_pos, dim) in chunk_statuses.iter() {
+    for _ in 0..condemned.len() {
         if taken >= MAX_DESPAWNS_PER_TICK {
             break;
         }
-        let Ok((mut chunk_index, tickets)) = dims.get_mut(**dim) else {
+        let Some(section) = condemned.pop_front() else {
+            break;
+        };
+        let Ok((stage, pos, dim)) = sections.get(section) else {
+            continue;
+        };
+        if *stage != SectionStage::Unloading {
+            continue;
+        }
+        let Ok((mut section_index, tickets)) = dims.get_mut(**dim) else {
             continue;
         };
         // Somebody asked for this section again while it was on its way out. `spawn_chunks`
         // brings it back with the blocks it already holds, which is the whole point of
         // leaving it alone: taking it now would mean generating the same terrain twice.
-        if !tickets.queued_tickets(*chunk_pos).is_empty() {
+        if !tickets.queued_tickets(*pos).is_empty() {
+            condemned.push_back(section);
             continue;
         }
-        chunk_index.remove(*chunk_pos);
-        commands.entity(chunk).try_despawn();
+        section_index.remove(*pos);
+        commands.entity(section).try_despawn();
         taken += 1;
     }
-}
-
-fn unload_chunks(
-    mut commands: Commands,
-    chunk_statuses: Query<(Entity, &SectionPos, &InDimension), With<ChunkUnloading>>,
-) {
-    chunk_statuses.iter().for_each(|(chunk, _chunk_pos, _dim)| {
-        commands
-            .entity(chunk)
-            .try_remove::<ChunkUnloading>()
-            .try_insert(ChunkUnloaded);
-    })
 }
 
 /// Squared distance to the nearest player, or zero when the dimension holds none: with nobody
@@ -223,15 +217,11 @@ fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
         .unwrap_or(0)
 }
 
-/// A chunk awaiting despawn must not be handed the ticket: `despawn_chunks`
-/// takes it with the entity, and nothing re-raises a ticket a view already
-/// believes it has placed, so the section never loads again. The ticket stays
-/// queued instead and spawns a fresh entity once the old one is gone.
 pub fn spawn_chunks(
     mut dims: Query<(Entity, &mut ChunkTicketsCommands, &mut SectionIndex)>,
     mut commands: Commands,
-    mut chunks: Query<(Entity, &mut SectionTicketHolder), With<Section>>,
-    condemned: Query<(), Or<(With<ChunkUnloading>, With<ChunkUnloaded>)>>,
+    mut holders: Query<(&mut SectionTicketHolder, Has<ChunkBlocks>)>,
+    mut stages: SectionStages,
     players: Query<(&Transform, &InDimension), With<Player>>,
 ) {
     for (dim, mut chunk_tickets, mut chunk_index) in dims.iter_mut() {
@@ -272,23 +262,25 @@ pub fn spawn_chunks(
                     ))
                     .id();
                 chunk_index.insert(pos, chunk_entity);
+                stages.spawned(chunk_entity, pos, dim, SectionStage::Loading);
                 continue;
             };
 
+            let Ok((mut ticket_holder, has_blocks)) = holders.get_mut(chunk_entity) else {
+                continue;
+            };
+            ticket_holder.add_all(tickets);
             // A section on its way out still holds the blocks it was generated with, so a
             // ticket arriving before it goes takes it back rather than waiting for the
-            // despawn and generating the same terrain again. `ChunkLoaded` and `ChunkFresh`
-            // go back on together: everything downstream keys off that pair to count the
-            // section into its column and hand it to the light engine.
-            if condemned.contains(chunk_entity) {
-                commands
-                    .entity(chunk_entity)
-                    .try_remove::<ChunkUnloading>()
-                    .try_remove::<ChunkUnloaded>()
-                    .try_insert((ChunkLoaded, ChunkFresh));
-            }
-            if let Ok((_, mut ticket_holder)) = chunks.get_mut(chunk_entity) {
-                ticket_holder.add_all(tickets);
+            // despawn and generating the same terrain again. One condemned before its blocks
+            // arrived has nothing to keep and is generated again.
+            if stages.get(chunk_entity) == Some(SectionStage::Unloading) {
+                let back = if has_blocks {
+                    SectionStage::Loaded
+                } else {
+                    SectionStage::Loading
+                };
+                stages.set(chunk_entity, back);
             }
         }
     }
@@ -296,36 +288,79 @@ pub fn spawn_chunks(
 
 fn remove_tickets_from_chunks(
     mut dims: Query<(&mut ChunkTicketsCommands, &SectionIndex)>,
-    mut chunks: Query<(Entity, &mut SectionTicketHolder), With<Section>>,
-    mut commands: Commands,
+    mut holders: Query<&mut SectionTicketHolder>,
+    mut stages: SectionStages,
 ) {
-    dims.iter_mut()
-        .for_each(|(mut chunk_tickets, chunk_index)| {
-            chunk_tickets
-                .remove_tickets
-                .drain()
-                .for_each(|(pos, ticket_kinds)| {
-                    let Some(chunk_entity) = chunk_index.get(pos) else {
-                        return;
-                    };
-                    if let Ok((_, mut ticket_holder)) = chunks.get_mut(chunk_entity) {
-                        ticket_kinds.iter().for_each(|kind| {
-                            ticket_holder.remove(*kind);
-                        });
-                        if ticket_holder.0.is_empty() {
-                            commands
-                                .entity(chunk_entity)
-                                .try_remove::<ChunkLoaded>()
-                                .try_insert(ChunkUnloading);
-                        }
-                    }
-                });
-        });
+    for (mut chunk_tickets, chunk_index) in dims.iter_mut() {
+        for (pos, ticket_kinds) in chunk_tickets.remove_tickets.drain() {
+            let Some(chunk_entity) = chunk_index.get(pos) else {
+                continue;
+            };
+            let Ok(mut ticket_holder) = holders.get_mut(chunk_entity) else {
+                continue;
+            };
+            for kind in ticket_kinds {
+                ticket_holder.remove(kind);
+            }
+            if ticket_holder.0.is_empty() {
+                stages.set(chunk_entity, SectionStage::Unloading);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy_ecs::message::Messages;
+
+    fn app_with_dimension() -> (App, Entity) {
+        let mut app = App::new();
+        app.add_message::<SectionStageChanged>();
+        app.add_systems(
+            FixedUpdate,
+            (
+                despawn_chunks.before(ChunkSpawnSet),
+                spawn_chunks.in_set(ChunkSpawnSet),
+            ),
+        );
+        let dim = app
+            .world_mut()
+            .spawn((ChunkTicketsCommands::default(), SectionIndex::new()))
+            .id();
+        (app, dim)
+    }
+
+    fn condemned_section(app: &mut App, dim: Entity, pos: SectionPos, blocks: bool) -> Entity {
+        let mut section = app.world_mut().spawn((
+            SectionBundle::new(InDimension(dim), pos),
+            SectionTicketHolder(Vec::new()),
+        ));
+        section.insert(SectionStage::Unloading);
+        if blocks {
+            section.insert(ChunkBlocks::default());
+        }
+        let section = section.id();
+        app.world_mut()
+            .get_mut::<SectionIndex>(dim)
+            .expect("section index")
+            .insert(pos, section);
+        app.world_mut().write_message(SectionStageChanged {
+            section,
+            pos,
+            dim,
+            from: Some(SectionStage::Loaded),
+            to: SectionStage::Unloading,
+        });
+        section
+    }
+
+    fn raise_ticket(app: &mut App, dim: Entity, pos: SectionPos) {
+        app.world_mut()
+            .get_mut::<ChunkTicketsCommands>(dim)
+            .expect("ticket commands")
+            .add_ticket(pos, Ticket::new(TicketKind::Forced));
+    }
 
     #[test]
     fn a_cancelled_request_leaves_the_queue_rather_than_emptying_in_place() {
@@ -346,32 +381,20 @@ mod tests {
     /// what is under them, not what they asked for first.
     #[test]
     fn a_backlog_spawns_the_sections_nearest_the_player_first() {
-        let mut app = App::new();
-        app.add_systems(FixedUpdate, spawn_chunks);
-        let dim = app
-            .world_mut()
-            .spawn((ChunkTicketsCommands::default(), SectionIndex::new()))
-            .id();
+        let (mut app, dim) = app_with_dimension();
         app.world_mut()
             .spawn((Player, Transform::default(), InDimension(dim)));
 
         let under_the_player = SectionPos::new(0, 0, 0);
-        let mut dim_entity = app.world_mut().entity_mut(dim);
-        let mut tickets = dim_entity
-            .get_mut::<ChunkTicketsCommands>()
-            .expect("ticket commands");
         // Raised first and far away, so insertion order alone would fill the whole tick.
         for x in 0..=MAX_SPAWNS_PER_TICK as i32 {
-            tickets.add_ticket(
-                SectionPos::new(1000 + x, 0, 0),
-                Ticket::new(TicketKind::Forced),
-            );
+            raise_ticket(&mut app, dim, SectionPos::new(1000 + x, 0, 0));
         }
-        tickets.add_ticket(under_the_player, Ticket::new(TicketKind::Forced));
+        raise_ticket(&mut app, dim, under_the_player);
 
         app.world_mut().run_schedule(FixedUpdate);
 
-        let index = app.world().get::<SectionIndex>(dim).expect("chunk index");
+        let index = app.world().get::<SectionIndex>(dim).expect("section index");
         assert!(
             index.get(under_the_player).is_some(),
             "the section under the player spawns even though it was asked for last"
@@ -389,36 +412,10 @@ mod tests {
     /// than despawning it and generating the same terrain again.
     #[test]
     fn a_ticket_arriving_before_the_despawn_takes_the_section_back() {
-        let mut app = App::new();
-        app.add_systems(
-            FixedUpdate,
-            (
-                despawn_chunks.before(ChunkSpawnSet),
-                spawn_chunks.in_set(ChunkSpawnSet),
-            ),
-        );
-        let dim = app
-            .world_mut()
-            .spawn((ChunkTicketsCommands::default(), SectionIndex::new()))
-            .id();
+        let (mut app, dim) = app_with_dimension();
         let pos = SectionPos::new(0, 0, 0);
-        let dying = app
-            .world_mut()
-            .spawn((
-                SectionBundle::new(InDimension(dim), pos),
-                SectionTicketHolder(Vec::new()),
-                ChunkUnloaded,
-            ))
-            .id();
-        let mut dim_entity = app.world_mut().entity_mut(dim);
-        dim_entity
-            .get_mut::<SectionIndex>()
-            .expect("chunk index")
-            .insert(pos, dying);
-        dim_entity
-            .get_mut::<ChunkTicketsCommands>()
-            .expect("ticket commands")
-            .add_ticket(pos, Ticket::new(TicketKind::Forced));
+        let dying = condemned_section(&mut app, dim, pos, true);
+        raise_ticket(&mut app, dim, pos);
 
         app.world_mut().run_schedule(FixedUpdate);
 
@@ -429,14 +426,23 @@ mod tests {
         assert_eq!(
             app.world()
                 .get::<SectionIndex>(dim)
-                .expect("chunk index")
+                .expect("section index")
                 .get(pos),
             Some(dying),
             "and it keeps its place in the index rather than being replaced"
         );
-        assert!(app.world().get::<ChunkLoaded>(dying).is_some());
-        assert!(app.world().get::<ChunkFresh>(dying).is_some());
-        assert!(app.world().get::<ChunkUnloaded>(dying).is_none());
+        assert_eq!(
+            app.world().get::<SectionStage>(dying),
+            Some(&SectionStage::Loaded)
+        );
+        let messages = app.world().resource::<Messages<SectionStageChanged>>();
+        assert!(
+            messages
+                .get_cursor()
+                .read(messages)
+                .any(|change| change.section == dying && change.landed()),
+            "it lands again, which is what counts it back into its column and its light"
+        );
         assert_eq!(
             app.world()
                 .get::<SectionTicketHolder>(dying)
@@ -448,69 +454,41 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_section_taken_back_before_its_blocks_arrived_is_generated_again() {
+        let (mut app, dim) = app_with_dimension();
+        let pos = SectionPos::new(0, 0, 0);
+        let dying = condemned_section(&mut app, dim, pos, false);
+        raise_ticket(&mut app, dim, pos);
+
+        app.world_mut().run_schedule(FixedUpdate);
+
+        assert_eq!(
+            app.world().get::<SectionStage>(dying),
+            Some(&SectionStage::Loading)
+        );
+    }
+
     /// A ticket raised after the section is gone must still land, or the view believes it
     /// asked for something nothing will ever deliver.
     #[test]
     fn a_ticket_outlives_the_chunk_it_arrived_too_late_for() {
-        let mut app = App::new();
-        app.add_systems(
-            FixedUpdate,
-            (
-                despawn_chunks.before(ChunkSpawnSet),
-                spawn_chunks.in_set(ChunkSpawnSet),
-            ),
-        );
-        let dim = app
-            .world_mut()
-            .spawn((ChunkTicketsCommands::default(), SectionIndex::new()))
-            .id();
+        let (mut app, dim) = app_with_dimension();
         let pos = SectionPos::new(0, 0, 0);
-        let dying = app
-            .world_mut()
-            .spawn((
-                SectionBundle::new(InDimension(dim), pos),
-                SectionTicketHolder(Vec::new()),
-                ChunkUnloaded,
-            ))
-            .id();
-        let mut dim_entity = app.world_mut().entity_mut(dim);
-        dim_entity
-            .get_mut::<SectionIndex>()
-            .expect("chunk index")
-            .insert(pos, dying);
+        let dying = condemned_section(&mut app, dim, pos, true);
 
         // Nobody wants it, so it goes.
         app.world_mut().run_schedule(FixedUpdate);
         assert!(app.world().get_entity(dying).is_err());
 
-        app.world_mut()
-            .entity_mut(dim)
-            .get_mut::<ChunkTicketsCommands>()
-            .expect("ticket commands")
-            .add_ticket(pos, Ticket::new(TicketKind::Forced));
+        raise_ticket(&mut app, dim, pos);
         app.world_mut().run_schedule(FixedUpdate);
         let respawned = app
             .world()
             .get::<SectionIndex>(dim)
-            .expect("chunk index")
+            .expect("section index")
             .get(pos)
             .expect("the ticket spawns a fresh section once the old one is gone");
         assert_ne!(respawned, dying);
-    }
-
-    #[test]
-    fn chunk_fresh_lasts_through_the_tick_after_the_one_it_landed_in() {
-        let mut app = App::new();
-        app.add_systems(First, expire_fresh_chunks);
-        app.update();
-
-        let section = app.world_mut().spawn(ChunkLoaded).id();
-        assert!(app.world().get::<ChunkFresh>(section).is_some());
-
-        app.update();
-        assert!(app.world().get::<ChunkFresh>(section).is_some());
-
-        app.update();
-        assert!(app.world().get::<ChunkFresh>(section).is_none());
     }
 }

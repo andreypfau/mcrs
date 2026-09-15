@@ -1,6 +1,7 @@
 use crate::world::chunk::{
     CHUNK_TASK_POOL, ColumnScheduler, SchedulerConfig, deliver_merged_columns,
     dispatch_column_generation, enqueue_pending_columns, process_completed_columns,
+    request_section,
 };
 use crate::world::heightmap::PendingColumnHeightmaps;
 use bevy_app::{App, Update};
@@ -12,7 +13,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::palette::ChunkBlocks;
-use mcrs_minecraft_level::world::lifecycle::markers::{ChunkLoaded, ChunkLoading};
+use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
 use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
@@ -162,6 +163,8 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
 
     let mut app = App::new();
     dim.install(&mut app);
+    app.add_message::<SectionStageChanged>();
+    let dimension_entity = app.world_mut().spawn_empty().id();
     app.init_resource::<PendingColumnHeightmaps>();
     app.insert_resource(ColumnScheduler {
         config: SchedulerConfig {
@@ -197,9 +200,11 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
             let ids = y_sections
                 .iter()
                 .map(|&y| {
-                    app.world_mut()
-                        .spawn((SectionPos::new(col.x, y, col.z), ChunkLoading))
-                        .id()
+                    request_section(
+                        app.world_mut(),
+                        dimension_entity,
+                        SectionPos::new(col.x, y, col.z),
+                    )
                 })
                 .collect();
             sections.insert(col, ids);
@@ -226,10 +231,9 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
         }
 
         let delivered = next == requests.len()
-            && sections
-                .values()
-                .flatten()
-                .all(|entity| app.world().get::<ChunkLoaded>(*entity).is_some());
+            && sections.values().flatten().all(|entity| {
+                app.world().get::<SectionStage>(*entity) == Some(&SectionStage::Loaded)
+            });
         if delivered {
             break;
         }
@@ -545,6 +549,7 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
     use mcrs_minecraft_worldgen_feature_place::block_entity::{BeeOccupant, GeneratedBlockEntity};
 
     let mut app = App::new();
+    app.add_message::<SectionStageChanged>();
     app.init_resource::<PendingColumnHeightmaps>();
     app.insert_resource(ColumnScheduler::default());
 

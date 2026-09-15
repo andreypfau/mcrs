@@ -10,7 +10,7 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_level::world::lifecycle::markers::{ChunkFresh, ChunkLoaded};
+use mcrs_minecraft_level::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPosComponent};
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::prelude::LightWorkQueue;
@@ -39,10 +39,8 @@ impl Plugin for DimLightPlugin {
             bounds: self.bounds,
             sky: self.sky,
         })
-        // `ChunkLoaded` and the block palette land in `FixedLast`, so `Last` is
-        // the first schedule of the same tick that can see them.
-        // After `Track`, so that a section respawned at a position the same tick
-        // its predecessor died loads back after the unload rather than before it.
+        // Sections land in `FixedLast`, so `Last` is the first schedule of the
+        // same tick that can see them.
         .add_systems(
             Last,
             (
@@ -99,10 +97,9 @@ fn reprioritize_light_work(
 
 fn feed_light_edits(
     mut pending: ResMut<PendingEdits>,
-    loaded: Query<(Entity, &SectionPos, &ChunkBlocks), (Added<ChunkLoaded>, With<ChunkFresh>)>,
-    positions: Query<&SectionPos>,
+    mut stages: MessageReader<SectionStageChanged>,
+    blocks: Query<&ChunkBlocks>,
     players: Query<&Transform, With<Player>>,
-    mut unloaded: RemovedComponents<ChunkLoaded>,
     mut placed: MessageReader<BlockPlaced>,
 ) {
     let player_columns: Vec<ColumnPos> = players
@@ -117,17 +114,18 @@ fn feed_light_edits(
         pending.push_with_priority(edit, distance.clamp(0, Priority::MAX as i32) as Priority);
     };
 
-    for entity in unloaded.read() {
-        if let Ok(pos) = positions.get(entity) {
-            queue(Edit::UnloadSection { pos: *pos });
+    for change in stages.read() {
+        if change.left() {
+            queue(Edit::UnloadSection { pos: change.pos });
+        } else if change.landed()
+            && let Ok(section_blocks) = blocks.get(change.section)
+        {
+            queue(Edit::LoadSection {
+                pos: change.pos,
+                entity: change.section.to_bits(),
+                blocks: Arc::clone(&section_blocks.0),
+            });
         }
-    }
-    for (entity, pos, blocks) in &loaded {
-        queue(Edit::LoadSection {
-            pos: *pos,
-            entity: entity.to_bits(),
-            blocks: Arc::clone(&blocks.0),
-        });
     }
     for placed in placed.read() {
         queue(Edit::SetBlock {

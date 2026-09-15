@@ -5,7 +5,7 @@ use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Added, Component, ContainsEntity, MessageReader, On, Query, With};
+use bevy_ecs::prelude::{Added, Component, ContainsEntity, MessageReader, On, Query};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_core::SectionPos;
@@ -17,7 +17,7 @@ use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::palette::{AirCount, BiomePalette, ChunkBlocks};
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_minecraft_level::world::lifecycle::markers::ChunkLoaded;
+use mcrs_minecraft_level::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_level::world::lifecycle::ticket::ChunkSpawnSet;
 use mcrs_minecraft_level::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
@@ -317,7 +317,7 @@ fn resolve_column(
 pub(crate) fn project_ready_columns(
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
     dims: Query<(&SectionIndex, &ColumnIndex, &DimensionTypeConfig)>,
-    chunks: Query<Entity, With<ChunkLoaded>>,
+    chunks: Query<&SectionStage>,
     codec_params: LightCodecParams,
     light_status: mcrs_minecraft_light::prelude::LightStatus,
 ) {
@@ -330,8 +330,13 @@ pub(crate) fn project_ready_columns(
         let off = offset_sections(rep, type_config.min_y);
         let view = &mut *chunk_view;
         let sections_of = |col: ColumnPos| {
-            resolve_column(chunk_index, column_index, col, section_count, off)
-                .filter(|(_, sections)| sections.iter().all(|&e| chunks.contains(e)))
+            resolve_column(chunk_index, column_index, col, section_count, off).filter(
+                |(_, sections)| {
+                    sections
+                        .iter()
+                        .all(|&e| chunks.get(e) == Ok(&SectionStage::Loaded))
+                },
+            )
         };
         // A cell's light is decided by the blocks within fifteen of it, which
         // reaches one column out and no further. So the neighbours owe this
@@ -403,7 +408,8 @@ pub(crate) fn send_column_queue(
         &InDimension,
         &HostAnchor,
     )>,
-    chunks: Query<(&ChunkBlocks, &BiomePalette, Option<&SectionBlockEntities>), With<ChunkLoaded>>,
+    chunks: Query<(&ChunkBlocks, &BiomePalette, Option<&SectionBlockEntities>)>,
+    stages: Query<&SectionStage>,
     block_entities_held: Query<&'static BlockEntity>,
     dim_chunk_indexes: Query<&SectionIndex>,
     dim_column_indexes: Query<&ColumnIndex>,
@@ -476,12 +482,15 @@ pub(crate) fn send_column_queue(
                         |(column_entity, sections)| {
                             sections
                                 .into_iter()
-                                .map(|chunk_e| chunks.get(chunk_e))
-                                .collect::<Result<Vec<_>, _>>()
+                                .map(|chunk_e| match stages.get(chunk_e) {
+                                    Ok(SectionStage::Loaded) => chunks.get(chunk_e).ok(),
+                                    _ => None,
+                                })
+                                .collect::<Option<Vec<_>>>()
                                 .map(|sections| (column_entity, sections))
                         },
                     );
-                let Some(Ok((column_entity, sections))) = held else {
+                let Some(Some((column_entity, sections))) = held else {
                     warn!(
                         col_x = column_pos.x,
                         col_z = column_pos.z,
@@ -730,7 +739,11 @@ mod tests {
             let entities: Vec<Entity> = (0..SECTIONS as i32)
                 .map(|y| {
                     let section = world
-                        .spawn((ChunkBlocks::default(), BiomePalette::default(), ChunkLoaded))
+                        .spawn((
+                            ChunkBlocks::default(),
+                            BiomePalette::default(),
+                            SectionStage::Loaded,
+                        ))
                         .id();
                     chunk_index.insert(SectionPos::new(col.x, y, col.z), section);
                     section

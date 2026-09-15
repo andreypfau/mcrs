@@ -24,12 +24,12 @@ world/
 ├── in_flight.rs      moves between dimensions awaiting their destination's acknowledgement
 ├── sub_app.rs        per-dimension sub-app labels and spawn/despawn queues
 ├── lifecycle/
-│   ├── markers.rs    section lifecycle markers
+│   ├── stage.rs      SectionStage, the SectionStageChanged message every transition writes, SectionStages
 │   ├── ticket.rs     section tickets, SectionTicketHolder, spawn and despawn of section entities
 │   └── trace.rs      per-column stage trace for diagnostics
 └── storage/
     ├── block_entity.rs  InSection, SectionBlockEntities, BlockEntityPos
-    ├── column.rs        Column, ColumnBundle, ColumnSections, SectionLookup, ColumnIndex, ColumnSlot, InColumn, ColumnLifecycleSet, ColumnPlugin
+    ├── column.rs        Column, ColumnBundle, ColumnSections, SectionLookup, ColumnIndex, ColumnSlot, ColumnLifecycleSet, ColumnPlugin
     └── section.rs       Section, SectionBundle, SectionIndex, SectionPlugin
 ```
 

@@ -9,7 +9,7 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_anvil::{DATA_VERSION, PaletteLookup, Properties, parse_chunk};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_level::world::lifecycle::markers::ChunkUnloaded;
+use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_level::world::lifecycle::ticket::{ChunkTicketsCommands, TicketPlugin};
 use mcrs_minecraft_level::world::storage::block_entity::{
     InSection, SectionBlockEntities, reconcile_block_entities,
@@ -257,7 +257,16 @@ fn despawning_a_section_leaves_no_orphan_block_entity() {
         .to_vec();
     assert_eq!(held.len(), count);
 
-    app.world_mut().entity_mut(section).insert(ChunkUnloaded);
+    app.world_mut()
+        .entity_mut(section)
+        .insert(SectionStage::Unloading);
+    app.world_mut().write_message(SectionStageChanged {
+        section,
+        pos: section_pos(),
+        dim,
+        from: Some(SectionStage::Loaded),
+        to: SectionStage::Unloading,
+    });
     app.world_mut().run_schedule(FixedUpdate);
 
     assert!(

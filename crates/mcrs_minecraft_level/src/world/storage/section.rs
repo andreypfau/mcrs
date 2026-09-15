@@ -2,7 +2,7 @@ pub use mcrs_minecraft_core::SectionPos;
 
 use crate::entity::SectionEntities;
 use crate::world::dimension::InDimension;
-use crate::world::lifecycle::markers::ChunkLoading;
+use crate::world::lifecycle::stage::SectionStage;
 use crate::world::lifecycle::ticket::TicketPlugin;
 use bevy_app::{App, Plugin};
 use bevy_derive::Deref;
@@ -23,7 +23,7 @@ pub struct SectionBundle {
     pub pos: SectionPos,
     pub entities: SectionEntities,
     marker: Section,
-    chunk_loading: ChunkLoading,
+    stage: SectionStage,
 }
 
 #[derive(Component, Debug, Default)]
@@ -37,7 +37,7 @@ impl SectionBundle {
             pos: chunk_pos,
             entities: SectionEntities::default(),
             marker: Section,
-            chunk_loading: ChunkLoading,
+            stage: SectionStage::Loading,
         }
     }
 }

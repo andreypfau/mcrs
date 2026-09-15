@@ -10,7 +10,7 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::{BlockPalette, ChunkBlocks};
 use mcrs_minecraft_level::world::dimension::InDimension;
-use mcrs_minecraft_level::world::lifecycle::markers::ChunkLoaded;
+use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use mcrs_minecraft_light::prelude::{
@@ -64,11 +64,20 @@ fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
         .expect("the dimension entity");
     for y in SECTIONS {
         let solid = stone_floor && y == STONE_SECTION_Y;
-        world.spawn((
-            SectionPos::new(0, y, 0),
-            InDimension(dimension),
-            ChunkBlocks::new(filled(if solid { stone } else { air })),
-            ChunkLoaded,
+        let pos = SectionPos::new(0, y, 0);
+        let section = world
+            .spawn((
+                pos,
+                InDimension(dimension),
+                ChunkBlocks::new(filled(if solid { stone } else { air })),
+                SectionStage::Loaded,
+            ))
+            .id();
+        world.write_message(SectionStageChanged::spawned(
+            section,
+            pos,
+            dimension,
+            SectionStage::Loaded,
         ));
     }
     settle(app, label);
@@ -410,11 +419,20 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     for (x, z) in SPREAD {
         for y in SECTIONS {
             let solid = y == STONE_SECTION_Y;
-            world.spawn((
-                SectionPos::new(x, y, z),
-                InDimension(dimension),
-                ChunkBlocks::new(filled(if solid { stone } else { air })),
-                ChunkLoaded,
+            let pos = SectionPos::new(x, y, z);
+            let section = world
+                .spawn((
+                    pos,
+                    InDimension(dimension),
+                    ChunkBlocks::new(filled(if solid { stone } else { air })),
+                    SectionStage::Loaded,
+                ))
+                .id();
+            world.write_message(SectionStageChanged::spawned(
+                section,
+                pos,
+                dimension,
+                SectionStage::Loaded,
             ));
         }
     }

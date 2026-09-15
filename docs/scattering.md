@@ -165,7 +165,7 @@ Classifying every value before storing it, per the project's ECS rule:
 | --- | --- | --- | --- |
 | Seed, compiled feature tables (§4.3) | truth | `WorldgenFreeze` build | cloned into the sub-app once, like `DimensionRouters` (`generate/routers.rs:36`) |
 | Which columns players want, at which target | derived from players | the dispatcher, each drain | `worldgen.md` §16: never stored |
-| A column's stage | derived, but only recoverable by redoing the work | the staging store | an enum field, not a marker (X10); the section entities keep `ChunkLoading → ChunkGenerating → ChunkLoaded` exactly as now (`chunk.rs:473-485`) |
+| A column's stage | derived, but only recoverable by redoing the work | the staging store | an enum field, not a marker (X10); each section entity holds one `SectionStage` that moves `Loading → Generating → Loaded` |
 | A filled column, its palettes, its six maps | materialised projection of the seed | the staging store | read by up to nine `run`s; recomputing is a whole fill |
 | A unit's out-of-column writes (its deltas) | materialised, temporary | the staging store | consumed by one merge each, then dropped |
 | The rank of a unit | pure function | nobody | computed where compared |
@@ -189,7 +189,7 @@ Run        the column's own program against its 3×3 window; own writes into
            a private buffer, out-of-column writes into eight deltas
 Merged     own buffer + the eight incoming deltas, applied in rank order;
            the four final maps rebuilt; packed
-Delivered  the sections enter the ECS as ChunkLoaded
+Delivered  the sections enter the ECS as SectionStage::Loaded
 ```
 
 `Filled` is today's task up to and including `into_sections`
@@ -375,7 +375,7 @@ write into `U` has run and its delta has been merged. This closes the hole that
 §13 of `worldgen.md` describes: light reads its neighbours at radius one
 (`epoch.rs:84-91`), and every neighbour it can see is either delivered — and
 so final — or absent, which the light code already treats as "not yet"
-(`light.rs:119-130` seeds on `Added<ChunkLoaded>` and re-seeds seams as
+(`light.rs` seeds on a section landing in `Loaded` and re-seeds seams as
 neighbours arrive). No radius-two dependency on light is declared, and the
 light code does not change.
 
