@@ -19,9 +19,12 @@ cd tools/vanilla-oracle
     -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
 ```
 
-Output is deterministic: two consecutive runs produce a byte-identical file
-(755 334 bytes). The run log must contain no `Serialization errors` line; the
-capture that produced this file had none.
+Output is deterministic in every value: two consecutive runs produce a file
+of the same size (754 828 bytes) that differs only in the order of the
+`attributes` list inside the igloo's villagers and the ocean ruin's drowned,
+which the JVM's identity hashes decide, so a consumer comparing entity NBT
+must sort that list. The run log must contain no `Serialization errors`
+line; the capture that produced this file had none.
 
 **Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/structure_geometry.rs`,
 which runs the site and the layout over a `SiteWorld` that is the same flat
@@ -91,6 +94,24 @@ at the terrain step and never updates them for structure writes, and the
 `WORLD_SURFACE` and `OCEAN_FLOOR` maps a piece may ask for are, on a chunk
 that is still generating, the same terrain. A piece that reads a height after
 another piece wrote under it therefore sees the floor.
+
+**A beached shipwreck is lowered before any chunk is placed.** The
+reference lowers a `ShipwreckPiece` that fits its region in the first chunk
+that decorates it (`ShipwreckPieces.ShipwreckPiece.postProcess`): the
+minimum of `getHeight(WORLD_SURFACE_WG)` over the template's unrotated
+footprint, less half the template height, less a `nextInt(3)` of that
+chunk's placement stream. The port fixes the height at layout and spends the
+draw at the end of the layout stream. So that the two agree, the harness
+runs the same footprint walk over the stub's heights before placement and
+takes the draw from the layout's `WorldgenRandom` — `setLargeFeatureSeed`
+for the case chunk, replayed past the rotation and template picks of
+`ShipwreckStructure.generatePieces` — then calls `adjustPositionHeight`,
+which also marks the piece adjusted so `postProcess` draws nothing. The
+ocean shipwreck takes the mean over the same footprint with no draw and is
+left to `postProcess`. The start box is written before the piece moves, so
+it is the box `generate` built at y 90, as `structure_pieces.bin` records
+it; the placed blocks and the palette pick (positional on the lowered
+template position) follow the lowered piece.
 
 **Difficulty is Normal at overworld clock time zero.** `getCurrentDifficultyAt`
 answers `DifficultyInstance(NORMAL, 0, 0, 0.0)`, what `ServerLevel` answers
@@ -168,7 +189,7 @@ biome being the first of the structure's `biomes` set. The set placement is
 not consulted: `generate` runs at the chunk whether or not a set would start
 there, and the flat floor with a matching biome makes every site pass.
 
-75 cases, 75 present, 1 751 placed chunks, 818 483 written positions, 716
+75 cases, 75 present, 1 751 placed chunks, 818 483 written positions, 710
 palette states, 36 full lists (every 50th placed chunk), 632 block entities
 (347 `brushable_block`, 205 `chest`, 36 `banner`, 15 `mob_spawner`, 7
 `jigsaw`, 6 `dispenser`, 4 `campfire`, 4 `furnace`, 2 `brewing_stand`, 2
@@ -255,3 +276,5 @@ trailer.
   entity's `finalizeSpawn` in whichever chunk holds its marker; the file
   records that chunk. A port that moves a draw to another column will differ
   in both columns' streams.
+- **The beached shipwreck's placement-stream draw.** Replaced above by the
+  layout stream's; the reference's own value for it is in no fixture.

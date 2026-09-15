@@ -32,7 +32,7 @@ use crate::structures::place::{column_clip, place_start};
 const MAGIC: &[u8; 8] = b"MCSTRGE0";
 
 /// Every structure type the oracle places and this build cannot yet.
-const UNPORTED_GEOMETRY_TYPES: [&str; 12] = [
+const UNPORTED_GEOMETRY_TYPES: [&str; 11] = [
     "minecraft:end_city",
     "minecraft:igloo",
     "minecraft:jungle_temple",
@@ -41,7 +41,6 @@ const UNPORTED_GEOMETRY_TYPES: [&str; 12] = [
     "minecraft:ocean_monument",
     "minecraft:ocean_ruin",
     "minecraft:ruined_portal",
-    "minecraft:shipwreck",
     "minecraft:stronghold",
     "minecraft:swamp_hut",
     "minecraft:woodland_mansion",
@@ -563,5 +562,5 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
         faults[..faults.len().min(20)].join("\n")
     );
     assert_eq!(unported, UNPORTED_GEOMETRY_TYPES.into_iter().collect());
-    assert_eq!((placed, chunks), (12, 621));
+    assert_eq!((placed, chunks), (18, 638));
 }

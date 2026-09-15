@@ -22,14 +22,13 @@ const MAGIC: &[u8; 8] = b"MCSTRPC0";
 /// them and this build produces none. The jungle temple and end city have no
 /// present case at the dump's shared chunks and join the list with their own
 /// cases.
-const UNPORTED_PIECE_TYPES: [&str; 10] = [
+const UNPORTED_PIECE_TYPES: [&str; 9] = [
     "minecraft:igloo",
     "minecraft:mineshaft",
     "minecraft:nether_fossil",
     "minecraft:ocean_monument",
     "minecraft:ocean_ruin",
     "minecraft:ruined_portal",
-    "minecraft:shipwreck",
     "minecraft:stronghold",
     "minecraft:swamp_hut",
     "minecraft:woodland_mansion",
@@ -166,5 +165,5 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
         compared += 1;
     }
     assert_eq!(unported, UNPORTED_PIECE_TYPES.into_iter().collect());
-    assert_eq!((compared, pieces), (117, 10317));
+    assert_eq!((compared, pieces), (164, 10364));
 }

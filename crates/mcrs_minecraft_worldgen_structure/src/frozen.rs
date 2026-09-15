@@ -75,6 +75,8 @@ pub enum StructureKind {
     },
     Shipwreck {
         is_beached: bool,
+        /// The variant's template list in the reference's draw order.
+        templates: Vec<TemplateId>,
     },
     Stronghold,
     SwampHut,

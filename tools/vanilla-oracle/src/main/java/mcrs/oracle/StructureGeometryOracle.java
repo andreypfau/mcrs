@@ -24,6 +24,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.LayeredRegistryAccess;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.Vec3i;
 import net.minecraft.core.component.DataComponentInitializers;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -39,6 +40,7 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.ServerPacksSource;
 import net.minecraft.server.packs.resources.MultiPackResourceManager;
 import net.minecraft.util.RandomSource;
+import net.minecraft.util.Util;
 import net.minecraft.util.datafix.DataFixers;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
@@ -49,6 +51,7 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.biome.FixedBiomeSource;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
@@ -56,6 +59,7 @@ import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.LegacyRandomSource;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
@@ -67,6 +71,7 @@ import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.TemplateStructurePiece;
 import net.minecraft.world.level.levelgen.structure.structures.JigsawStructure;
+import net.minecraft.world.level.levelgen.structure.structures.ShipwreckPieces;
 import net.minecraft.world.level.levelgen.structure.structures.ShipwreckStructure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
@@ -200,6 +205,7 @@ public final class StructureGeometryOracle {
     }
 
     private static final Field IS_BEACHED;
+    private static final Field BEACHED_TEMPLATES;
     /// Template pieces place with `knownShape` false, which runs
     /// `updateFromNeighbourShapes` over every placed block against the live
     /// world's light and neighbours; the port does not reproduce that pass,
@@ -210,6 +216,8 @@ public final class StructureGeometryOracle {
         try {
             IS_BEACHED = ShipwreckStructure.class.getDeclaredField("isBeached");
             IS_BEACHED.setAccessible(true);
+            BEACHED_TEMPLATES = ShipwreckPieces.class.getDeclaredField("STRUCTURE_LOCATION_BEACHED");
+            BEACHED_TEMPLATES.setAccessible(true);
             PLACE_SETTINGS = TemplateStructurePiece.class.getDeclaredField("placeSettings");
             PLACE_SETTINGS.setAccessible(true);
         } catch (NoSuchFieldException e) {
@@ -274,11 +282,6 @@ public final class StructureGeometryOracle {
         }
         BoundingBox box = start.getBoundingBox();
         box(out, box);
-        Bin.i32(out, start.getPieces().size());
-        int step = structure.step().ordinal();
-        out.write(step);
-        Bin.i32(out, c.index());
-
         BlockState air = Blocks.AIR.defaultBlockState();
         Function<BlockPos, BlockState> base = pos -> {
             int layer = pos.getY() - minY;
@@ -288,6 +291,14 @@ public final class StructureGeometryOracle {
         StubLevel level = new StubLevel(
             this.access, dim.type(), base, dim.seaLevel(), new XoroshiroRandomSource(0L), WORLD_SEED, biome, true, this.server
         );
+        if (structure instanceof ShipwreckStructure ship && IS_BEACHED.getBoolean(ship)) {
+            lowerBeachedShipwreck(start, level, c.chunk());
+        }
+        Bin.i32(out, start.getPieces().size());
+        int step = structure.step().ordinal();
+        out.write(step);
+        Bin.i32(out, c.index());
+
         level.placing(start);
         int maxY = dim.heights().getMaxY();
         List<ChunkPos> chunks = new ArrayList<>();
@@ -329,6 +340,35 @@ public final class StructureGeometryOracle {
             + " chunks, " + writes + " writes, " + level.blockEntities().size() + " block entities, " + entities
             + " entities");
         return true;
+    }
+
+    /// A beached shipwreck that fits its region is lowered by the first chunk
+    /// that decorates it, from that chunk's live heightmaps and a `nextInt(3)`
+    /// of that chunk's placement stream. The port fixes the height at layout
+    /// and spends the draw at the end of the layout stream, so the piece is
+    /// lowered here before any chunk is placed: the same footprint walk
+    /// `ShipwreckPiece.postProcess` makes, over the stub's heights, with the
+    /// draw taken from the layout's `WorldgenRandom` replayed past the
+    /// rotation and template picks of `ShipwreckStructure.generatePieces`.
+    private static void lowerBeachedShipwreck(final StructureStart start, final StubLevel level, final ChunkPos chunk)
+        throws IllegalAccessException {
+        for (StructurePiece piece : start.getPieces()) {
+            if (!(piece instanceof ShipwreckPieces.ShipwreckPiece ship) || ship.isTooBigToFitInWorldGenRegion()) {
+                continue;
+            }
+            Vec3i size = ship.template().getSize();
+            BlockPos position = ship.templatePosition();
+            BlockPos corner = position.offset(size.getX() - 1, 0, size.getZ() - 1);
+            int lowest = level.getMaxY() + 1;
+            for (BlockPos p : BlockPos.betweenClosed(position, corner)) {
+                lowest = Math.min(lowest, level.getHeight(Heightmap.Types.WORLD_SURFACE_WG, p.getX(), p.getZ()));
+            }
+            WorldgenRandom layout = new WorldgenRandom(new LegacyRandomSource(0L));
+            layout.setLargeFeatureSeed(WORLD_SEED, chunk.x(), chunk.z());
+            Rotation.getRandom(layout);
+            Util.getRandom((Object[]) BEACHED_TEMPLATES.get(null), layout);
+            ship.adjustPositionHeight(ship.calculateBeachedPosition(lowest, layout));
+        }
     }
 
     private static net.minecraft.resources.ResourceKey<Level> levelKey(final Dimension dim) {

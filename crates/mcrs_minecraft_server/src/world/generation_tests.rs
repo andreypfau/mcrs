@@ -481,6 +481,14 @@ const FORTRESS: Consumer = Consumer::Structure {
     biome: "minecraft:nether_wastes",
 };
 
+/// A shipwreck: one template piece lowered to the ocean floor at layout, its
+/// chests seeded through data markers, every write clipped to the column that
+/// runs.
+const SHIPWRECK: Consumer = Consumer::Structure {
+    id: "minecraft:shipwreck",
+    biome: "minecraft:deep_frozen_ocean",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -505,6 +513,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != DESERT_PYRAMID
         && consumer != BURIED_TREASURE
         && consumer != FORTRESS
+        && consumer != SHIPWRECK
     {
         assert!(
             crossed > 0,
@@ -559,6 +568,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         DESERT_PYRAMID,
         BURIED_TREASURE,
         FORTRESS,
+        SHIPWRECK,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

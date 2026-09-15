@@ -95,12 +95,37 @@ pub struct FortressPiece {
     pub gen_depth: i32,
 }
 
+/// The one template piece of a shipwreck: laid out at the fixed floor of 90,
+/// with the height it is lowered to at placement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShipwreckPiece {
+    pub template: TemplateId,
+    pub position: IVec3,
+    pub rotation: Rotation,
+    pub is_beached: bool,
+    pub bounds: BoundingBox,
+    /// The template position's `y` once lowered to the ground, which the
+    /// reference reads from the live heightmaps of the first decorating chunk
+    /// and this layout fixes from the density heights.
+    pub height: i32,
+}
+
+impl ShipwreckPiece {
+    pub const LAYOUT_FLOOR: i32 = 90;
+    pub const PIVOT: IVec3 = IVec3::new(4, 0, 15);
+
+    pub fn placed_position(&self) -> IVec3 {
+        IVec3::new(self.position.x, self.height, self.position.z)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
     DesertPyramid(DesertPyramidPiece),
     BuriedTreasure(BuriedTreasurePiece),
     Fortress(FortressPiece),
+    Shipwreck(ShipwreckPiece),
 }
 
 impl Piece {
@@ -110,6 +135,7 @@ impl Piece {
             Piece::DesertPyramid(piece) => piece.bounds,
             Piece::BuriedTreasure(piece) => piece.bounds,
             Piece::Fortress(piece) => piece.bounds,
+            Piece::Shipwreck(piece) => piece.bounds,
         }
     }
 
@@ -123,6 +149,11 @@ impl Piece {
             Piece::DesertPyramid(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::BuriedTreasure(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::Fortress(piece) => piece.bounds = piece.bounds.moved(delta),
+            Piece::Shipwreck(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                piece.position += delta;
+                piece.height += delta.y;
+            }
         }
     }
 
@@ -348,6 +379,29 @@ enum PieceTag {
         #[serde(rename = "GD")]
         gen_depth: i32,
     },
+    #[serde(rename = "minecraft:shipwreck")]
+    Shipwreck {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "TPX")]
+        template_x: i32,
+        #[serde(rename = "TPY")]
+        template_y: i32,
+        #[serde(rename = "TPZ")]
+        template_z: i32,
+        #[serde(rename = "Template")]
+        template: ResourceLocation,
+        #[serde(rename = "isBeached", deserialize_with = "nbt_flag")]
+        is_beached: bool,
+        #[serde(rename = "Rot", with = "rotation::legacy")]
+        rotation: Rotation,
+        #[serde(deserialize_with = "nbt_flag")]
+        height_adjusted: bool,
+    },
     #[serde(rename = "minecraft:nebcr")]
     FortressBridgeCrossing(GridTag),
     #[serde(rename = "minecraft:nebef")]
@@ -445,6 +499,9 @@ impl GridTag {
         }))
     }
 }
+
+/// `Direction.NORTH.get2DDataValue()`: every template piece faces north.
+const NORTH_ORIENTATION: i32 = 2;
 
 const NO_ORIENTATION: i32 = -1;
 
@@ -558,6 +615,18 @@ impl Serialize for PieceNbt<'_> {
                     FortressKind::StairsRoom => PieceTag::FortressStairsRoom(grid),
                 }
             }
+            Piece::Shipwreck(piece) => PieceTag::Shipwreck {
+                bounds: box_array(piece.bounds),
+                orientation: NORTH_ORIENTATION,
+                gen_depth: 0,
+                template_x: piece.position.x,
+                template_y: piece.height,
+                template_z: piece.position.z,
+                template: self.context.template_name(piece.template),
+                is_beached: piece.is_beached,
+                rotation: piece.rotation,
+                height_adjusted: true,
+            },
         };
         tag.serialize(serializer)
     }
@@ -676,6 +745,29 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
             .piece(FortressKind::MonsterThrone),
             PieceTag::FortressRoomCrossing(grid) => grid.piece(FortressKind::RoomCrossing),
             PieceTag::FortressStairsRoom(grid) => grid.piece(FortressKind::StairsRoom),
+            PieceTag::Shipwreck {
+                bounds,
+                template_x,
+                template_y,
+                template_z,
+                template,
+                is_beached,
+                rotation,
+                ..
+            } => {
+                let bounds = box_of(bounds);
+                let template = *self.0.frozen.template_ids.get(&template).ok_or_else(|| {
+                    D::Error::custom(format!("the template {template} is not loaded"))
+                })?;
+                Ok(Piece::Shipwreck(ShipwreckPiece {
+                    template,
+                    position: IVec3::new(template_x, bounds.min.y, template_z),
+                    rotation,
+                    is_beached,
+                    bounds,
+                    height: template_y,
+                }))
+            }
         }
     }
 }
@@ -924,6 +1016,42 @@ mod tests {
         assert_eq!(turn.get_byte("Chest"), Some(1));
         let throne = to_nbt_compound(&piece(FortressKind::MonsterThrone).nbt(&context)).unwrap();
         assert_eq!(throne.get_byte("Mob"), Some(0));
+    }
+
+    #[test]
+    fn a_shipwreck_piece_writes_its_lowered_template_position_under_the_layout_box() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::Shipwreck(ShipwreckPiece {
+            template: TemplateId(0),
+            position: IVec3::new(-288, 90, 176),
+            rotation: Rotation::Clockwise90,
+            is_beached: true,
+            bounds: BoundingBox {
+                min: BlockPos::new(-292, 90, 187),
+                max: BlockPos::new(-269, 98, 195),
+            },
+            height: 58,
+        });
+        assert_eq!(round_trip(&context, &piece), piece);
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:shipwreck"));
+        assert_eq!(tag.get_int("O"), Some(2));
+        assert_eq!(tag.get_int("GD"), Some(0));
+        assert_eq!(
+            (tag.get_int("TPX"), tag.get_int("TPY"), tag.get_int("TPZ")),
+            (Some(-288), Some(58), Some(176))
+        );
+        assert_eq!(
+            tag.get_string("Template"),
+            Some("minecraft:village/plains/houses/house_1")
+        );
+        assert_eq!(tag.get_byte("isBeached"), Some(1));
+        assert_eq!(tag.get_string("Rot"), Some("CLOCKWISE_90"));
+        assert_eq!(tag.get_byte("height_adjusted"), Some(1));
     }
 
     #[test]

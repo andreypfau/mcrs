@@ -297,14 +297,15 @@ impl StructureIndex {
                             })
                             .collect::<Vec<_>>(),
                     },
-                    Piece::DesertPyramid(_) | Piece::BuriedTreasure(_) | Piece::Fortress(_) => {
-                        BeardPiece {
-                            bounds: piece.bounds(),
-                            projection: Projection::Rigid,
-                            ground_level_delta: 0,
-                            junctions: Vec::new(),
-                        }
-                    }
+                    Piece::DesertPyramid(_)
+                    | Piece::BuriedTreasure(_)
+                    | Piece::Fortress(_)
+                    | Piece::Shipwreck(_) => BeardPiece {
+                        bounds: piece.bounds(),
+                        projection: Projection::Rigid,
+                        ground_level_delta: 0,
+                        junctions: Vec::new(),
+                    },
                 };
                 (adaptation, beard_piece)
             })

@@ -20,7 +20,7 @@ use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure, FrozenStructures,
     OceanRuinConfig, PoolId, SetId, StructureId, StructureKind, TemplateId,
 };
-use mcrs_minecraft_worldgen_structure::hardcoded::ruined_portal;
+use mcrs_minecraft_worldgen_structure::hardcoded::{ruined_portal, shipwreck};
 use mcrs_minecraft_worldgen_structure::piece::TERRAIN_MARGIN;
 use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 use mcrs_minecraft_worldgen_structure::{
@@ -355,6 +355,12 @@ fn freeze_structures(
         let step_index = per_step.entry(settings.step).or_default();
         let biomes = biome_mask(inputs, id, &settings.biomes)?;
         freeze_structure_templates(inputs, frozen, id, structure.templates())?;
+        let templates = |names: &[&str]| {
+            names
+                .iter()
+                .map(|name| frozen.template_ids[&ResourceLocation::minecraft(name)])
+                .collect::<Vec<TemplateId>>()
+        };
         let kind = match structure {
             Structure::Jigsaw { jigsaw, .. } => {
                 let start_pool = *frozen.pool_ids.get(&jigsaw.start_pool).ok_or_else(|| {
@@ -414,12 +420,6 @@ fn freeze_structures(
                 cluster_probability: cluster_probability.0 as f32,
             }),
             Structure::RuinedPortal { setups, .. } => {
-                let templates = |names: &[&str]| {
-                    names
-                        .iter()
-                        .map(|name| frozen.template_ids[&ResourceLocation::minecraft(name)])
-                        .collect::<Vec<TemplateId>>()
-                };
                 let portals = templates(ruined_portal::PORTALS);
                 let giant_portals = templates(ruined_portal::GIANT_PORTALS);
                 StructureKind::RuinedPortal {
@@ -430,6 +430,11 @@ fn freeze_structures(
             }
             Structure::Shipwreck { is_beached, .. } => StructureKind::Shipwreck {
                 is_beached: *is_beached,
+                templates: templates(if *is_beached {
+                    shipwreck::BEACHED
+                } else {
+                    shipwreck::OCEAN
+                }),
             },
             Structure::Stronghold { .. } => StructureKind::Stronghold,
             Structure::SwampHut { .. } => StructureKind::SwampHut,

@@ -174,7 +174,7 @@ pub fn site(ctx: &mut Context<'_>) -> Option<Site> {
             portals,
             giant_portals,
         } => hardcoded::ruined_portal::site(setups, portals, giant_portals, ctx, &mut rng)?,
-        StructureKind::Shipwreck { is_beached } => {
+        StructureKind::Shipwreck { is_beached, .. } => {
             hardcoded::shipwreck::site(*is_beached, ctx, &mut rng)?
         }
         StructureKind::Stronghold => hardcoded::stronghold::site(ctx, &mut rng)?,
@@ -216,9 +216,10 @@ pub fn layout(ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
         StructureKind::RuinedPortal { setups, .. } => {
             hardcoded::ruined_portal::layout(setups, ctx, site)
         }
-        StructureKind::Shipwreck { is_beached } => {
-            hardcoded::shipwreck::layout(*is_beached, ctx, site)
-        }
+        StructureKind::Shipwreck {
+            is_beached,
+            templates,
+        } => hardcoded::shipwreck::layout(*is_beached, templates, ctx, site),
         StructureKind::Stronghold => hardcoded::stronghold::layout(ctx, site),
         StructureKind::SwampHut => hardcoded::swamp_hut::layout(ctx, site),
         StructureKind::WoodlandMansion => hardcoded::woodland_mansion::layout(ctx, site),

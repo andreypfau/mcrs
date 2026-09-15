@@ -137,6 +137,7 @@ use mcrs_minecraft_worldgen_structure::{DecorationStep, LiquidSettings};
 use mcrs_minecraft_worldgen_structure_place::buried_treasure::BuriedTreasureBlocks;
 use mcrs_minecraft_worldgen_structure_place::fortress::FortressBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
+use mcrs_minecraft_worldgen_structure_place::template_piece::ignore_structure_and_air;
 use rustc_hash::FxHashMap;
 use std::ops::Range;
 use std::sync::Arc;
@@ -285,6 +286,7 @@ pub enum CompiledStructure {
     DesertPyramid(Box<DesertPyramidBlocks>),
     BuriedTreasure(Box<BuriedTreasureBlocks>),
     Fortress(Box<FortressBlocks>),
+    Shipwreck(CompiledChain),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -1080,6 +1082,10 @@ fn compile_structures(
                     FortressBlocks::compile(resolver, &resolver.world)
                         .map_err(|error| error.within(&structure.id))?,
                 ))),
+                StructureKind::Shipwreck { .. } => Some(CompiledStructure::Shipwreck(
+                    ignore_structure_and_air(resolver)
+                        .map_err(|error| error.within(&structure.id))?,
+                )),
                 _ => None,
             })
         })

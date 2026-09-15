@@ -3,6 +3,7 @@ pub mod buried_treasure;
 pub mod canvas;
 pub mod fortress;
 pub mod scattered;
+pub mod template_piece;
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{HolderSet, ResourceLocation};

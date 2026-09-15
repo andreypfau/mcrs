@@ -164,7 +164,7 @@ agree and are dropped from both sides:
 | Piece `id` | Fields |
 |---|---|
 | `minecraft:tedp`, `minecraft:tejp`, `minecraft:tesh` | `HPos` (`ScatteredFeaturePiece.heightPosition`, −1 until placed) |
-| `minecraft:shipwreck` | `TPY`, `height_adjusted` (`ShipwreckPieces.ShipwreckPiece.adjustPositionHeight`) |
+| `minecraft:shipwreck` | `TPY`, `height_adjusted` (`ShipwreckPieces.ShipwreckPiece.adjustPositionHeight`); `BB` and `TPX`/`TPZ` are compared, since the layout here keeps the box at the y 90 the reference builds it at and carries the lowered height beside it |
 
 Placement flags — `hasPlacedChest0..3`, `placedMainChest`, `placedHiddenChest`,
 `placedTrap1`, `placedTrap2`, `Witch`, `Cat`, `Chest`, `Mob`, `hps` — are

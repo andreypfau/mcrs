@@ -138,10 +138,19 @@ fn every_hardcoded_type_freezes_its_own_config() {
         .collect();
     assert!(portal_sizes.iter().all(|size| *size != [0; 3]));
 
-    assert!(matches!(
-        structure("minecraft:shipwreck_beached").kind,
-        StructureKind::Shipwreck { is_beached: true }
-    ));
+    let StructureKind::Shipwreck {
+        is_beached,
+        templates,
+    } = &structure("minecraft:shipwreck_beached").kind
+    else {
+        panic!("not a shipwreck");
+    };
+    assert!(is_beached);
+    assert_eq!(templates.len(), 11);
+    let StructureKind::Shipwreck { templates, .. } = &structure("minecraft:shipwreck").kind else {
+        panic!("not a shipwreck");
+    };
+    assert_eq!(templates.len(), 20);
     assert!(matches!(
         structure("minecraft:nether_fossil").kind,
         StructureKind::NetherFossil { .. }
