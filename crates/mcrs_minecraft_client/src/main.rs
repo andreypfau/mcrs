@@ -35,6 +35,8 @@ use mcrs_minecraft_client::{
     asset_corpus, camera, cave, config, gui, input, local_player, player, render, sky, sky_render,
     stream,
 };
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
@@ -190,8 +192,11 @@ fn main() {
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
     #[cfg(feature = "singleplayer")]
-    let server =
-        server_address().unwrap_or_else(|| host_integrated_server(world.as_deref(), &assets));
+    let server = server_address().unwrap_or_else(|| {
+        let traces = ColumnTraceSink::default();
+        app.insert_resource(traces.clone());
+        host_integrated_server(world.as_deref(), &assets, traces)
+    });
     #[cfg(not(feature = "singleplayer"))]
     let server = server_address()
         .expect("a client built without singleplayer hosts no server; set MCRS_SERVER");
@@ -325,12 +330,17 @@ const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
 /// Singleplayer, the way the vanilla client plays it: a server of our own on a
 /// loopback port, which the client then joins like any other.
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-fn host_integrated_server(world: Option<&Path>, assets: &str) -> SocketAddr {
+fn host_integrated_server(
+    world: Option<&Path>,
+    assets: &str,
+    traces: ColumnTraceSink,
+) -> SocketAddr {
     let mut server = App::new();
     server.add_plugins(
         MinecraftServerPlugin::embedded()
             .with_assets(assets)
-            .with_world(world.map(Path::to_path_buf)),
+            .with_world(world.map(Path::to_path_buf))
+            .with_column_traces(traces),
     );
     let address = server.world().resource::<BoundAddress>().0;
     mcrs_minecraft_server::spawn_server_thread(server, mcrs_minecraft_server::run_server_loop);

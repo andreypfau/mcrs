@@ -19,7 +19,7 @@ use mcrs_minecraft_level::world::lifecycle::stage::{
 };
 use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
-use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_world::worldgen::beta_biome::BetaBiomeSourcePlugin;
 use mcrs_minecraft_worldgen_generator::saved::SectionData;
@@ -298,6 +298,7 @@ impl SlowColumns {
 pub(crate) fn process_completed_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     ctx: Option<Res<FillContext>>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     let rungs = ctx.map_or(1, |ctx| ctx.rungs());
     let mut done: Vec<(ColumnPos, Option<StageResult>)> = Vec::new();
@@ -330,8 +331,8 @@ pub(crate) fn process_completed_columns(
         }
         match result {
             StageResult::Filled(snapshot) => {
-                column_trace::mark(col, ColumnStage::Filled);
-                column_trace::set_source(col, snapshot.source.label());
+                column_trace::mark(&mut traces, col, ColumnStage::Filled);
+                column_trace::set_source(&mut traces, col, snapshot.source.label());
                 let source = snapshot.source;
                 scheduler.store.insert_filled(*snapshot);
                 // A column the save already holds was decorated before it was
@@ -347,14 +348,14 @@ pub(crate) fn process_completed_columns(
                 scheduler.store.set_stage(col, stage);
             }
             StageResult::Ran(rung, deltas) => {
-                column_trace::mark(col, ColumnStage::Ran);
+                column_trace::mark(&mut traces, col, ColumnStage::Ran);
                 for (target, delta) in deltas {
                     scheduler.store.push_delta(col, rung, target, delta);
                 }
                 scheduler.store.set_stage(col, Stage::Ran(rung as u8));
             }
             StageResult::Merged(rung, merged) => {
-                column_trace::mark(col, ColumnStage::Merged);
+                column_trace::mark(&mut traces, col, ColumnStage::Merged);
                 scheduler.store.insert_staged(col, rung, Arc::new(*merged));
                 scheduler.store.set_stage(col, Stage::Merged(rung as u8));
             }
@@ -383,6 +384,7 @@ pub(crate) fn deliver_merged_columns(
     ctx: Option<Res<FillContext>>,
     mut commands: Commands,
     mut slow: Local<SlowColumns>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     let done = top_of_ladder(ctx.map_or(1, |ctx| ctx.rungs()));
     let ready: Vec<ColumnKey> = scheduler
@@ -442,8 +444,8 @@ pub(crate) fn deliver_merged_columns(
         }
 
         slow.report(col, entry.queued, entry.sections.len(), source);
-        column_trace::mark(col, ColumnStage::Loaded);
-        column_trace::set_source(col, source.label());
+        column_trace::mark(&mut traces, col, ColumnStage::Loaded);
+        column_trace::set_source(&mut traces, col, source.label());
         if let Some(maps) = maps {
             pending_heightmaps.0.insert(col, maps);
         }
@@ -476,6 +478,7 @@ pub(crate) fn enqueue_pending_columns(
     mut requested: Local<Vec<(Entity, SectionPos)>>,
     mut scheduler: ResMut<ColumnScheduler>,
     players: Query<&Transform, With<Player>>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     requested.extend(
         stages
@@ -521,7 +524,7 @@ pub(crate) fn enqueue_pending_columns(
             continue;
         }
 
-        column_trace::mark(col, ColumnStage::Queued);
+        column_trace::mark(&mut traces, col, ColumnStage::Queued);
         let distance_sq = min_column_distance(&col, &player_positions);
         let key = ColumnKey::new(distance_sq, col);
         scheduler.pending.insert(key, PendingColumn::new(sections));
@@ -556,6 +559,7 @@ fn cancel_stale_columns(
     mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
     views: Query<&ColumnView>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     // Every rung costs two rings: `Delivered(U)` needs the last rung run over
     // the 3×3 of `U`, which needs the one below it merged over the 5×5, and so
@@ -593,7 +597,7 @@ fn cancel_stale_columns(
 
     for (key, entities) in stale {
         trace!("Canceling stale column {:?}", key);
-        column_trace::forget(key.chunk_column_pos);
+        column_trace::forget(&mut traces, key.chunk_column_pos);
 
         scheduler.pending.remove(&key);
         scheduler.priority_index.remove(&key.chunk_column_pos);
@@ -676,6 +680,7 @@ fn square(centre: ColumnPos, radius: i32) -> impl Iterator<Item = ColumnPos> {
 pub(crate) fn dispatch_column_generation(
     mut scheduler: ResMut<ColumnScheduler>,
     ctx: Res<FillContext>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
 
@@ -716,7 +721,7 @@ pub(crate) fn dispatch_column_generation(
             if dispatched == budget {
                 break 'wanted;
             }
-            column_trace::mark(v, ColumnStage::Generating);
+            column_trace::mark(&mut traces, v, ColumnStage::Generating);
             let ctx = ctx.clone();
             scheduler.spawn(task_pool, v, Stage::Filling, |cancel| async move {
                 fill_pooled(&ctx, v, &cancel)

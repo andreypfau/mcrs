@@ -72,6 +72,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
 use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
@@ -183,6 +184,9 @@ pub fn spawn_dim_subapp(
         .unwrap_or_default()
         .0;
 
+    let column_traces = app.world().get_resource::<ColumnTraceSink>().cloned();
+    let trace_dimension = request.dimension_id.as_str().to_owned();
+
     let mut sub_app = SubApp::new();
 
     sub_app.insert_resource(ToDimReceiver::<ToDim> {
@@ -235,6 +239,9 @@ pub fn spawn_dim_subapp(
 
     sub_app.init_resource::<mcrs_minecraft_level::session::DimPlayerIndex>();
     sub_app.init_resource::<OutboxTelemetry>();
+    if column_traces.is_some() {
+        sub_app.init_resource::<ColumnTraceLog>();
+    }
     sub_app.insert_resource(mcrs_minecraft_level::world::in_flight::MoveIds::new(
         label_entity,
     ));
@@ -482,6 +489,11 @@ pub fn spawn_dim_subapp(
             sub_world.insert_resource(*time);
         }
         mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
+        if let Some(traces) = &column_traces
+            && let Some(mut log) = sub_world.get_resource_mut::<ColumnTraceLog>()
+        {
+            traces.record(&trace_dimension, log.drain());
+        }
 
         // Also extract OutboundPlayerAttached written directly to the sub-app Messages
         // (i.e., before flush_from_dim_outbox drains it). This covers the case where

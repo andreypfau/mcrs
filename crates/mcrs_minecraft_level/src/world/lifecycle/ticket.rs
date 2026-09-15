@@ -9,7 +9,7 @@ use crate::palette::ChunkBlocks;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::level::{ENTITY_TICKING_LEVEL, FULL_LEVEL, SectionLevels};
 use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged, SectionStages};
-use crate::world::lifecycle::trace::{self, ColumnStage};
+use crate::world::lifecycle::trace::{self, ColumnStage, ColumnTraceLog};
 use crate::world::storage::section::{SectionBundle, SectionIndex};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::lifecycle::Remove;
@@ -355,6 +355,7 @@ pub fn spawn_chunks(
     has_blocks: Query<Has<ChunkBlocks>>,
     mut stages: SectionStages,
     players: Query<(&Transform, &InDimension), With<Player>>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     for (dim, mut levels, mut section_index) in dims.iter_mut() {
         if levels.pending_spawn.is_empty() {
@@ -386,7 +387,7 @@ pub fn spawn_chunks(
             }
 
             let Some(section) = section_index.get(pos) else {
-                trace::mark(pos.into(), ColumnStage::Spawned);
+                trace::mark(&mut traces, pos.into(), ColumnStage::Spawned);
                 let section = commands
                     .spawn(SectionBundle::new(InDimension(dim), pos))
                     .id();

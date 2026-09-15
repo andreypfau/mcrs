@@ -6,8 +6,8 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_level::world::lifecycle::trace::{self, ColumnStage};
-use mcrs_minecraft_network::client::ReceivedRegistries;
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceSink, TraceEvent};
+use mcrs_minecraft_network::client::{ClientConnection, JoinedGame, ReceivedRegistries};
 
 use crate::blocks::{self, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
@@ -80,6 +80,7 @@ pub struct Loader {
     groups: Arena,
     sprites: usize,
     sent: Vec<(u32, u32)>,
+    trace: Vec<TraceEvent>,
 }
 
 enum PackLoad {
@@ -166,6 +167,7 @@ impl Loader {
             groups: Arena::new(budget.groups),
             sprites: 0,
             sent: Vec::new(),
+            trace: Vec::new(),
         }
     }
 
@@ -384,7 +386,7 @@ impl Loader {
         for change in changes.drain(..) {
             match change {
                 ColumnChange::Departed(pos, column) => {
-                    trace::forget(pos);
+                    self.trace.push(TraceEvent::Forget(pos));
                     self.columns -= 1;
                     self.to_tint.retain(|queued| *queued != pos);
                     for (sy, section) in column.sections() {
@@ -400,7 +402,8 @@ impl Loader {
                     }
                 }
                 ColumnChange::Arrived(pos, column) => {
-                    trace::mark(pos, ColumnStage::Received);
+                    self.trace
+                        .push(TraceEvent::mark(pos, ColumnStage::Received));
                     self.columns += 1;
                     self.to_tint.push(pos);
                     // The column the change carries, not the one the store holds now: a column
@@ -520,7 +523,10 @@ impl Loader {
             slot
         };
         cave.set_section(section, slot, mesh.connectivity);
-        trace::mark(ColumnPos::new(section[0], section[2]), ColumnStage::Meshed);
+        self.trace.push(TraceEvent::mark(
+            ColumnPos::new(section[0], section[2]),
+            ColumnStage::Meshed,
+        ));
         self.resident.insert(
             section,
             Resident {
@@ -826,6 +832,8 @@ pub fn advance(
     store: Option<ResMut<ColumnStore>>,
     registries: Query<&ReceivedRegistries>,
     camera: Single<&GlobalTransform, With<Camera3d>>,
+    traces: Option<Res<ColumnTraceSink>>,
+    joined: Option<Single<&JoinedGame, With<ClientConnection>>>,
 ) {
     let Some(mut store) = store else {
         return;
@@ -938,6 +946,11 @@ pub fn advance(
         loader.uploads.push(Upload::Geometry(placement));
     }
     drop(flushing);
+
+    match (&traces, &joined) {
+        (Some(traces), Some(joined)) => traces.record(&joined.dimension, loader.trace.drain(..)),
+        _ => loader.trace.clear(),
+    }
 
     if !loader.caught_up() {
         return;

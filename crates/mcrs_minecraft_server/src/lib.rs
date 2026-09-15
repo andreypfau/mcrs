@@ -29,6 +29,7 @@ use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
+use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_network::NetworkPlugin;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
@@ -50,6 +51,9 @@ pub struct MinecraftServerPlugin {
     /// World folder to read saved chunks from. Without one, and for any column
     /// the folder has never saved, the dimension generates its terrain.
     pub world: Option<PathBuf>,
+    /// Shared with a client in the same process, whose debug views read each
+    /// dimension's column lifecycle from it.
+    pub column_traces: Option<ColumnTraceSink>,
 }
 
 /// `MCRS_NO_LIGHTING=1` leaves the block light table unbuilt, so no dimension
@@ -77,6 +81,7 @@ impl Default for MinecraftServerPlugin {
             owns_task_pools: true,
             asset_path: None,
             world: None,
+            column_traces: None,
         }
     }
 }
@@ -90,6 +95,7 @@ impl MinecraftServerPlugin {
             owns_task_pools: false,
             asset_path: None,
             world: None,
+            column_traces: None,
         }
     }
 
@@ -102,6 +108,13 @@ impl MinecraftServerPlugin {
 
     pub fn with_world(self, world: Option<PathBuf>) -> Self {
         Self { world, ..self }
+    }
+
+    pub fn with_column_traces(self, traces: ColumnTraceSink) -> Self {
+        Self {
+            column_traces: Some(traces),
+            ..self
+        }
     }
 }
 
@@ -120,6 +133,9 @@ impl Plugin for MinecraftServerPlugin {
             world_seed.0 = settings.seed as u64;
         }
         app.insert_resource(world_seed);
+        if let Some(traces) = &self.column_traces {
+            app.insert_resource(traces.clone());
+        }
         app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
         app.add_plugins(NetworkPlugin {

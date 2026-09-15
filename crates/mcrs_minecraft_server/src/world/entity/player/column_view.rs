@@ -2,6 +2,7 @@ use crate::world::light_codec::{
     LightCodecParams, build_full_light_data, build_fullbright_light_data,
 };
 use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_ecs::change_detection::ResMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::{Add, Discard};
 use bevy_ecs::message::MessageWriter;
@@ -21,7 +22,7 @@ use mcrs_minecraft_level::world::lifecycle::ticket::{
     ChunkSpawnSet, MAX_SPAWNS_PER_TICK, SectionTickets, Ticket,
 };
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
-use mcrs_minecraft_level::world::lifecycle::trace::ColumnStage;
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
@@ -238,6 +239,7 @@ pub(crate) fn update_view(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
     mut left: Local<Vec<ColumnPos>>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     for (player, mut chunk_view, transform, distance, in_dim, rep, host_anchor) in &mut players {
         let Ok((mut tickets, type_config)) = dims.get_mut(in_dim.entity()) else {
@@ -274,7 +276,7 @@ pub(crate) fn update_view(
 
         let off = offset_sections(rep, type_config.min_y);
         for column in left.drain(..) {
-            column_trace::forget(column);
+            column_trace::forget(&mut traces, column);
             let Some(state) = view.set(column, None) else {
                 continue;
             };
@@ -350,6 +352,7 @@ pub(crate) fn raise_queued_columns(
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
     mut dims: Query<(&mut SectionTickets, &DimensionTypeConfig)>,
     mut nearest: Local<Vec<ColumnPos>>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     for (mut chunk_view, in_dim, rep) in &mut players {
         let Some(view) = chunk_view.view else {
@@ -375,7 +378,7 @@ pub(crate) fn raise_queued_columns(
         for column in nearest.drain(..) {
             chunk_view.set(column, Some(ColumnState::Awaiting));
             apply_loading_tickets(&mut tickets, column, off, type_config.section_count, true);
-            column_trace::mark(column, ColumnStage::Ticketed);
+            column_trace::mark(&mut traces, column, ColumnStage::Ticketed);
         }
     }
 }
@@ -446,6 +449,7 @@ pub(crate) fn project_ready_columns(
     codec_params: LightCodecParams,
     light_status: mcrs_minecraft_light::prelude::LightStatus,
     mut ready: Local<Vec<ColumnPos>>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     let await_light = light_status.is_installed() && !crate::lighting_disabled();
     for (mut chunk_view, dim, rep) in &mut players {
@@ -488,7 +492,7 @@ pub(crate) fn project_ready_columns(
         }));
         for col in ready.drain(..) {
             trace!("Column {:?} ready", col);
-            column_trace::mark(col, ColumnStage::Ready);
+            column_trace::mark(&mut traces, col, ColumnStage::Ready);
             chunk_view.set(col, Some(ColumnState::Ready));
         }
     }
@@ -544,6 +548,7 @@ pub(crate) fn send_column_queue(
     codec_params: LightCodecParams,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     players
         .iter_mut()
@@ -675,7 +680,7 @@ pub(crate) fn send_column_queue(
                     rep.convert_chunk_z(column_pos.z),
                 );
 
-                column_trace::mark(column_pos, ColumnStage::Sent);
+                column_trace::mark(&mut traces, column_pos, ColumnStage::Sent);
                 chunk_view.set(column_pos, Some(ColumnState::Sent));
                 held.write(ColumnHeld {
                     player,

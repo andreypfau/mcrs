@@ -1,10 +1,12 @@
 use std::time::Duration;
 
+use bevy::ecs::system::SystemParam;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::text::{FontSize, LineBreak};
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
-use mcrs_minecraft_level::world::lifecycle::trace::{self, ColumnSample, ColumnStage};
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnSample, ColumnStage, ColumnTraceSink};
+use mcrs_minecraft_network::client::{ClientConnection, JoinedGame};
 
 use crate::player::Player;
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
@@ -65,13 +67,30 @@ struct ChunkMapCell(usize);
 
 pub struct ChunkMapPlugin;
 
+/// The traced columns of the dimension this client joined.
+#[derive(SystemParam)]
+pub struct JoinedTraces<'w, 's> {
+    traces: Res<'w, ColumnTraceSink>,
+    joined: Query<'w, 's, &'static JoinedGame, With<ClientConnection>>,
+}
+
+impl JoinedTraces<'_, '_> {
+    pub fn snapshot(&self, out: &mut Vec<ColumnSample>) {
+        match self.joined.single() {
+            Ok(joined) => self.traces.snapshot(&joined.dimension, out),
+            Err(_) => out.clear(),
+        }
+    }
+}
+
 impl Plugin for ChunkMapPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ChunkMap {
-            visible: crate::config::chunk_map(),
-        })
-        .add_systems(Startup, spawn)
-        .add_systems(Update, (toggle, render).chain());
+        app.init_resource::<ColumnTraceSink>()
+            .insert_resource(ChunkMap {
+                visible: crate::config::chunk_map(),
+            })
+            .add_systems(Startup, spawn)
+            .add_systems(Update, (toggle, render).chain());
         if let Some(interval) = crate::config::census_interval() {
             app.insert_resource(Census {
                 interval: Duration::from_secs_f32(interval.max(0.05)),
@@ -95,6 +114,7 @@ fn census(
     time: Res<Time>,
     mut samples: Local<Vec<ColumnSample>>,
     mut sent: Local<Vec<Duration>>,
+    traces: JoinedTraces,
 ) {
     let now = time.elapsed();
     if now < census.next {
@@ -102,7 +122,7 @@ fn census(
     }
     census.next = now + census.interval;
 
-    trace::snapshot(&mut samples);
+    traces.snapshot(&mut samples);
     let mut counts = [0usize; ColumnStage::ALL.len()];
     sent.clear();
     for sample in samples.iter() {
@@ -251,6 +271,7 @@ fn render(
     mut samples: Local<Vec<ColumnSample>>,
     mut stages: Local<HashMap<ColumnPos, ColumnStage>>,
     mut sent: Local<Vec<Duration>>,
+    traces: JoinedTraces,
 ) {
     let Ok(mut visibility) = root.single_mut() else {
         return;
@@ -268,7 +289,7 @@ fn render(
     let centre = ColumnPos::new(feet.x >> 4, feet.z >> 4);
     let half = SPAN / 2;
 
-    trace::snapshot(&mut samples);
+    traces.snapshot(&mut samples);
     stages.clear();
     sent.clear();
     let mut counts = [0usize; ColumnStage::ALL.len()];
