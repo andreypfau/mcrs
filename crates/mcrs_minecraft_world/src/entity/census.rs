@@ -86,6 +86,16 @@ fn entity_types_follow_the_registry_order() {
 }
 
 #[test]
+fn every_template_entity_kind_is_a_registered_entity_type() {
+    for id in mcrs_minecraft_worldgen_feature::template::EntityKind::IDS {
+        assert!(
+            minecraft::ALL.iter().any(|t| t.identifier.as_str() == id),
+            "{id} is not an entity type"
+        );
+    }
+}
+
+#[test]
 fn items_carry_their_registry_index() {
     let census = read_census();
     let expected = &census.ids["minecraft:item"];

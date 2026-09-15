@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::io::Cursor;
 
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
@@ -6,6 +7,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::{Nbt, from_bytes_unnamed};
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_core::{Mirror, Rotation};
@@ -86,6 +88,7 @@ pub struct FrozenBlock {
 pub struct FrozenTemplate {
     pub size: [u16; 3],
     pub palettes: Vec<Box<[FrozenBlock]>>,
+    pub entities: Vec<FrozenEntity>,
 }
 
 impl FrozenTemplate {
@@ -93,8 +96,123 @@ impl FrozenTemplate {
         FrozenTemplate {
             size: [0; 3],
             palettes: Vec::new(),
+            entities: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FrozenEntity {
+    pub pos: [f64; 3],
+    pub block_pos: [i32; 3],
+    pub rotation: [f32; 2],
+    pub kind: EntityKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VillagerData {
+    #[serde(rename = "type", default = "plains")]
+    pub kind: ResourceLocation,
+    #[serde(default = "none")]
+    pub profession: ResourceLocation,
+    #[serde(default = "one")]
+    pub level: i32,
+}
+
+fn plains() -> ResourceLocation {
+    ResourceLocation::minecraft("plains")
+}
+
+fn none() -> ResourceLocation {
+    ResourceLocation::minecraft("none")
+}
+
+fn one() -> i32 {
+    1
+}
+
+impl Default for VillagerData {
+    fn default() -> Self {
+        VillagerData {
+            kind: plains(),
+            profession: none(),
+            level: 1,
+        }
+    }
+}
+
+/// Every entity id the shipped templates carry; any other id fails the
+/// freeze.
+// ponytail: only the villager pair, which the igloo places, keeps its data.
+// The jigsaw kinds are never placed, so a cat drops its variant and a piglin
+// its sword; the upgrade is a data-carrying variant per kind that gets placed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "id")]
+pub enum EntityKind {
+    #[serde(rename = "minecraft:allay")]
+    Allay,
+    #[serde(rename = "minecraft:armor_stand")]
+    ArmorStand,
+    #[serde(rename = "minecraft:camel")]
+    Camel,
+    #[serde(rename = "minecraft:cat")]
+    Cat,
+    #[serde(rename = "minecraft:cow")]
+    Cow,
+    #[serde(rename = "minecraft:cushion")]
+    Cushion,
+    #[serde(rename = "minecraft:hoglin")]
+    Hoglin,
+    #[serde(rename = "minecraft:horse")]
+    Horse,
+    #[serde(rename = "minecraft:iron_golem")]
+    IronGolem,
+    #[serde(rename = "minecraft:pig")]
+    Pig,
+    #[serde(rename = "minecraft:piglin")]
+    Piglin,
+    #[serde(rename = "minecraft:piglin_brute")]
+    PiglinBrute,
+    #[serde(rename = "minecraft:sheep")]
+    Sheep,
+    #[serde(rename = "minecraft:villager")]
+    Villager {
+        #[serde(rename = "VillagerData", default)]
+        data: VillagerData,
+    },
+    #[serde(rename = "minecraft:zombie_villager")]
+    ZombieVillager {
+        #[serde(rename = "VillagerData", default)]
+        data: VillagerData,
+    },
+}
+
+impl EntityKind {
+    pub const IDS: [&'static str; 15] = [
+        "minecraft:allay",
+        "minecraft:armor_stand",
+        "minecraft:camel",
+        "minecraft:cat",
+        "minecraft:cow",
+        "minecraft:cushion",
+        "minecraft:hoglin",
+        "minecraft:horse",
+        "minecraft:iron_golem",
+        "minecraft:pig",
+        "minecraft:piglin",
+        "minecraft:piglin_brute",
+        "minecraft:sheep",
+        "minecraft:villager",
+        "minecraft:zombie_villager",
+    ];
+}
+
+#[derive(Deserialize)]
+struct EntityTag {
+    #[serde(rename = "Rotation", default)]
+    rotation: [f32; 2],
+    #[serde(flatten)]
+    kind: EntityKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -119,9 +237,16 @@ pub struct JigsawBlock {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct DataMarker {
+    pub pos: [u16; 3],
+    pub metadata: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct TemplateManifest {
     pub size: [u16; 3],
     pub jigsaws: Vec<Vec<JigsawBlock>>,
+    pub markers: Vec<Vec<DataMarker>>,
 }
 
 impl TemplateManifest {
@@ -129,8 +254,31 @@ impl TemplateManifest {
         TemplateManifest {
             size: [0; 3],
             jigsaws: Vec::new(),
+            markers: Vec::new(),
         }
     }
+}
+
+/// One palette's data markers in block order at their world positions,
+/// clipped to the placing box.
+pub fn data_markers<'a>(
+    markers: &'a [DataMarker],
+    position: IVec3,
+    mirror: Mirror,
+    rotation: Rotation,
+    pivot: IVec3,
+    clip: Option<BoundingBox>,
+) -> impl Iterator<Item = (IVec3, &'a str)> + 'a {
+    markers
+        .iter()
+        .map(move |marker| {
+            let pos = IVec3::from(marker.pos.map(i32::from));
+            (
+                transform(pos, mirror, rotation, pivot) + position,
+                marker.metadata.as_str(),
+            )
+        })
+        .filter(move |(pos, _)| clip.is_none_or(|clip| clip.is_inside((*pos).into())))
 }
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -178,9 +326,22 @@ pub enum TemplateError {
         pos: [u16; 3],
         what: String,
     },
+    #[error("{id}: structure block at {pos:?}: {what}")]
+    Marker {
+        id: ResourceLocation,
+        pos: [u16; 3],
+        what: String,
+    },
+    #[error("{id}: entity {index}: {what}")]
+    Entity {
+        id: ResourceLocation,
+        index: usize,
+        what: String,
+    },
 }
 
 const JIGSAW: &str = "minecraft:jigsaw";
+const STRUCTURE_BLOCK: &str = "minecraft:structure_block";
 const STRUCTURE_VOID: &str = "minecraft:structure_void";
 
 fn orientation(name: &str) -> Option<(Direction, Direction)> {
@@ -337,8 +498,26 @@ impl Template {
             blocks.push(([pos.0.0, pos.0.1, pos.1], state, block.nbt.as_ref()));
         }
 
+        let mut entities = Vec::with_capacity(self.entities.len());
+        for (index, entity) in self.entities.iter().enumerate() {
+            let bytes = Nbt::new(String::new(), entity.nbt.clone()).write_unnamed();
+            let tag: EntityTag =
+                from_bytes_unnamed(Cursor::new(bytes)).map_err(|error| TemplateError::Entity {
+                    id: err_id(),
+                    index,
+                    what: error.to_string(),
+                })?;
+            entities.push(FrozenEntity {
+                pos: entity.pos,
+                block_pos: entity.block_pos,
+                rotation: tag.rotation,
+                kind: tag.kind,
+            });
+        }
+
         let mut frozen = Vec::with_capacity(palettes.len());
         let mut jigsaws = Vec::with_capacity(palettes.len());
+        let mut markers = Vec::with_capacity(palettes.len());
         for (palette, states) in palettes.iter().zip(&resolved) {
             let mut full = Vec::new();
             let mut other = Vec::new();
@@ -359,7 +538,28 @@ impl Template {
                 ordered.extend(list);
             }
             let mut palette_jigsaws = Vec::new();
+            let mut palette_markers = Vec::new();
             for &(pos, state, nbt) in &ordered {
+                if palette[state].id.as_str() == STRUCTURE_BLOCK {
+                    let Some(nbt) = nbt else { continue };
+                    match nbt.get_string("mode") {
+                        Some("DATA") => palette_markers.push(DataMarker {
+                            pos,
+                            metadata: nbt.get_string("metadata").unwrap_or_default().to_owned(),
+                        }),
+                        Some("SAVE" | "LOAD" | "CORNER") => {}
+                        other => {
+                            return Err(TemplateError::Marker {
+                                id: err_id(),
+                                pos,
+                                what: match other {
+                                    Some(mode) => format!("unknown mode `{mode}`"),
+                                    None => "missing mode".to_owned(),
+                                },
+                            });
+                        }
+                    }
+                }
                 if palette[state].id.as_str() != JIGSAW {
                     continue;
                 }
@@ -423,13 +623,19 @@ impl Template {
                     .collect(),
             );
             jigsaws.push(palette_jigsaws);
+            markers.push(palette_markers);
         }
         Ok((
             FrozenTemplate {
                 size,
                 palettes: frozen,
+                entities,
             },
-            TemplateManifest { size, jigsaws },
+            TemplateManifest {
+                size,
+                jigsaws,
+                markers,
+            },
         ))
     }
 }
@@ -966,6 +1172,192 @@ mod tests {
             )),
             "selection_priority: not a number"
         );
+    }
+
+    fn structure_block(pos: [i32; 3], entries: &[(&str, NbtTag)]) -> TemplateBlock {
+        block(pos, 0, Some(jigsaw_nbt(entries)))
+    }
+
+    #[test]
+    fn data_markers_keep_block_order_per_palette_and_skip_other_modes() {
+        let t = Template {
+            palette: None,
+            palettes: Some(vec![
+                vec![
+                    state("minecraft:structure_block", &[("mode", "data")]),
+                    state("minecraft:oak_planks", &[]),
+                ],
+                vec![
+                    state("minecraft:stone", &[]),
+                    state("minecraft:oak_planks", &[]),
+                ],
+            ]),
+            ..template(
+                vec![],
+                vec![
+                    structure_block([1, 1, 0], &[("mode", s("DATA")), ("metadata", s("chest"))]),
+                    structure_block([0, 0, 1], &[("mode", s("SAVE"))]),
+                    structure_block([0, 0, 0], &[("mode", s("DATA"))]),
+                    block([1, 0, 0], 1, None),
+                ],
+            )
+        };
+        let (_, manifest) = t.freeze(&id(), &resolve).unwrap();
+        assert_eq!(
+            manifest.markers,
+            vec![
+                vec![
+                    DataMarker {
+                        pos: [0, 0, 0],
+                        metadata: String::new(),
+                    },
+                    DataMarker {
+                        pos: [1, 1, 0],
+                        metadata: "chest".into(),
+                    },
+                ],
+                vec![],
+            ]
+        );
+
+        let markers: Vec<_> = data_markers(
+            &manifest.markers[0],
+            IVec3::new(10, 20, 30),
+            Mirror::None,
+            Rotation::Clockwise90,
+            IVec3::ZERO,
+            None,
+        )
+        .collect();
+        assert_eq!(
+            markers,
+            [
+                (IVec3::new(10, 20, 30), ""),
+                (IVec3::new(10, 21, 31), "chest")
+            ]
+        );
+        let clipped: Vec<_> = data_markers(
+            &manifest.markers[0],
+            IVec3::new(10, 20, 30),
+            Mirror::None,
+            Rotation::Clockwise90,
+            IVec3::ZERO,
+            Some(BoundingBox::point(BlockPos::new(10, 21, 31))),
+        )
+        .collect();
+        assert_eq!(clipped, [(IVec3::new(10, 21, 31), "chest")]);
+
+        let bad = |entries: &[(&str, NbtTag)]| {
+            let t = template(
+                vec![state("minecraft:structure_block", &[])],
+                vec![structure_block([0, 0, 0], entries)],
+            );
+            match t.freeze(&id(), &resolve).unwrap_err() {
+                TemplateError::Marker { pos, what, .. } => {
+                    assert_eq!(pos, [0, 0, 0]);
+                    what
+                }
+                other => panic!("{other}"),
+            }
+        };
+        assert_eq!(bad(&[]), "missing mode");
+        assert_eq!(bad(&[("mode", s("data"))]), "unknown mode `data`");
+    }
+
+    fn entity(nbt: NbtCompound) -> TemplateEntity {
+        TemplateEntity {
+            nbt,
+            block_pos: [1, 0, 2],
+            pos: [1.5, 0.0, 2.5],
+        }
+    }
+
+    #[test]
+    fn entities_freeze_into_typed_kinds() {
+        let villager = jigsaw_nbt(&[
+            ("id", s("minecraft:villager")),
+            (
+                "Rotation",
+                NbtTag::List(vec![NbtTag::Float(90.0), NbtTag::Float(-5.0)]),
+            ),
+            ("Health", NbtTag::Float(20.0)),
+            (
+                "VillagerData",
+                NbtTag::Compound(jigsaw_nbt(&[
+                    ("profession", s("minecraft:cleric")),
+                    ("level", NbtTag::Int(2)),
+                ])),
+            ),
+        ]);
+        let camel = jigsaw_nbt(&[("id", s("minecraft:camel"))]);
+        let t = Template {
+            entities: vec![entity(villager), entity(camel)],
+            ..template(
+                vec![state("minecraft:oak_planks", &[])],
+                vec![block([0, 0, 0], 0, None)],
+            )
+        };
+        let (frozen, _) = t.freeze(&id(), &resolve).unwrap();
+        assert_eq!(
+            frozen.entities,
+            [
+                FrozenEntity {
+                    pos: [1.5, 0.0, 2.5],
+                    block_pos: [1, 0, 2],
+                    rotation: [90.0, -5.0],
+                    kind: EntityKind::Villager {
+                        data: VillagerData {
+                            kind: ResourceLocation::minecraft("plains"),
+                            profession: ResourceLocation::minecraft("cleric"),
+                            level: 2,
+                        },
+                    },
+                },
+                FrozenEntity {
+                    pos: [1.5, 0.0, 2.5],
+                    block_pos: [1, 0, 2],
+                    rotation: [0.0, 0.0],
+                    kind: EntityKind::Camel,
+                },
+            ]
+        );
+
+        let t = Template {
+            entities: vec![entity(jigsaw_nbt(&[("id", s("minecraft:witch"))]))],
+            ..t
+        };
+        assert!(matches!(
+            t.freeze(&id(), &resolve).unwrap_err(),
+            TemplateError::Entity { index: 0, .. }
+        ));
+    }
+
+    #[test]
+    fn shipped_template_entities_are_the_pinned_kinds() {
+        let any = |_: &PaletteState| {
+            Some(ResolvedState {
+                id: VoxelId(0),
+                full_block: false,
+            })
+        };
+        let mut found = std::collections::BTreeSet::new();
+        let mut count = 0;
+        for path in nbt_files(&assets_dir().join("minecraft/structure")) {
+            let template: Template =
+                from_gzip_bytes(Cursor::new(std::fs::read(&path).unwrap())).unwrap();
+            let (frozen, _) = template
+                .freeze(&ResourceLocation::minecraft(&path.to_string_lossy()), &any)
+                .unwrap_or_else(|e| panic!("{e}"));
+            count += frozen.entities.len();
+            found.extend(frozen.entities.iter().map(|e| {
+                serde_json::to_value(&e.kind).unwrap()["id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            }));
+        }
+        assert_eq!(count, 288);
+        assert_eq!(found.into_iter().collect::<Vec<_>>(), EntityKind::IDS);
     }
 
     #[test]

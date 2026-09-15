@@ -34,4 +34,5 @@ uuid.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true

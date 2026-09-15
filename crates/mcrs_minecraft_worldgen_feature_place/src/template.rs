@@ -876,8 +876,10 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
 
 /// `StructureTemplate.placeInWorld` for one palette the caller has already
 /// drawn.
-// ponytail: template entities are never placed (172 shipped templates carry
-// some); the upgrade is a second typed list delivered like block entities.
+// ponytail: `template.entities` is frozen but never placed from here. The
+// jigsaw kinds (cushions, village animals and villagers, golems, piglins, the
+// hoglin, outpost allays) stay unplaced; the upgrade is a second typed list
+// delivered like block entities, which the igloo's villagers need first.
 pub fn place_template<W: WorldGenVolume>(
     p: &Placement<'_>,
     volume: &mut W,
@@ -1131,6 +1133,7 @@ mod tests {
             .put_string("LootTable", "minecraft:chests/simple_dungeon".to_owned());
         blocks.push(chest);
         FrozenTemplate {
+            entities: vec![],
             size: [3, 2, 3],
             palettes: vec![blocks.into_boxed_slice()],
         }
@@ -1443,6 +1446,7 @@ mod tests {
     fn a_fence_written_into_water_takes_it_and_floods_its_neighbour() {
         let fence = dry_fence();
         let template = FrozenTemplate {
+            entities: vec![],
             size: [2, 1, 1],
             palettes: vec![
                 vec![block([0, 0, 0], fence), block([1, 0, 0], fence)].into_boxed_slice(),
@@ -1486,6 +1490,7 @@ mod tests {
         let fence = dry_fence();
         let candle = with(CANDLE, &[("lit", "true"), ("waterlogged", "false")]);
         let template = FrozenTemplate {
+            entities: vec![],
             size: [4, 1, 1],
             palettes: vec![
                 vec![
@@ -1519,6 +1524,7 @@ mod tests {
     fn a_double_slab_refuses_water() {
         let slab = with(SLAB, &[("type", "double"), ("waterlogged", "false")]);
         let template = FrozenTemplate {
+            entities: vec![],
             size: [1, 1, 1],
             palettes: vec![vec![block([0, 0, 0], slab)].into_boxed_slice()],
         };
