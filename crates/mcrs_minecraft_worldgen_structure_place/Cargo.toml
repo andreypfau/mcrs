@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_worldgen_structure_place"
+description = "What the hardcoded structure pieces write: the piece canvas, the per-family painters and the after-place hooks"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_math.workspace = true
+fixedbitset.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_random.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_feature_place.workspace = true
+mcrs_minecraft_worldgen_structure.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }

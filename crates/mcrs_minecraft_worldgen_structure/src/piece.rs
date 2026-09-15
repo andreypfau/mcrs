@@ -2,7 +2,7 @@ use std::fmt;
 
 use bevy_math::IVec3;
 use mcrs_minecraft_core::{BoundingBox, ResourceLocation, Rotation, rotation};
-use mcrs_minecraft_nbt::nbt_int_array;
+use mcrs_minecraft_nbt::{nbt_flag, nbt_int_array};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use serde::de::{DeserializeSeed, Error as _};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -10,6 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::frozen::{
     ElementId, FrozenElement, FrozenStructures, StructureId, StructureKind, TemplateId,
 };
+use crate::orient::Orientation;
 use crate::{LiquidSettings, PoolElement, SingleElement, TerrainAdaptation};
 
 pub const TERRAIN_MARGIN: i32 = 12;
@@ -36,15 +37,47 @@ pub struct JigsawPiece {
     pub junctions: Vec<Junction>,
 }
 
+/// The one piece of a desert pyramid: its box as laid out, at the fixed floor
+/// of 64, and the ground it is sunk to at placement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DesertPyramidPiece {
+    pub bounds: BoundingBox,
+    pub orientation: Orientation,
+    /// The lowest ground under the box, which the reference reads from the
+    /// live heightmap of the first decorating chunk and this layout fixes from
+    /// the density heights.
+    pub height_position: i32,
+}
+
+impl DesertPyramidPiece {
+    pub const WIDTH: i32 = 21;
+    pub const HEIGHT: i32 = 15;
+    pub const DEPTH: i32 = 21;
+    pub const LAYOUT_FLOOR: i32 = 64;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
+    DesertPyramid(DesertPyramidPiece),
 }
 
 impl Piece {
     pub fn bounds(&self) -> BoundingBox {
         match self {
             Piece::Jigsaw(piece) => piece.bounds,
+            Piece::DesertPyramid(piece) => piece.bounds,
+        }
+    }
+
+    /// `StructurePiece.move`, which for a jigsaw piece carries its position too.
+    pub fn move_by(&mut self, delta: IVec3) {
+        match self {
+            Piece::Jigsaw(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                piece.position += delta;
+            }
+            Piece::DesertPyramid(piece) => piece.bounds = piece.bounds.moved(delta),
         }
     }
 
@@ -236,9 +269,52 @@ enum PieceTag {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         liquid_settings: Option<LiquidSettings>,
     },
+    #[serde(rename = "minecraft:tedp")]
+    DesertPyramid {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "Width")]
+        width: i32,
+        #[serde(rename = "Height")]
+        height: i32,
+        #[serde(rename = "Depth")]
+        depth: i32,
+        #[serde(rename = "HPos")]
+        height_position: i32,
+        #[serde(rename = "hasPlacedChest0", deserialize_with = "nbt_flag")]
+        has_placed_chest_0: bool,
+        #[serde(rename = "hasPlacedChest1", deserialize_with = "nbt_flag")]
+        has_placed_chest_1: bool,
+        #[serde(rename = "hasPlacedChest2", deserialize_with = "nbt_flag")]
+        has_placed_chest_2: bool,
+        #[serde(rename = "hasPlacedChest3", deserialize_with = "nbt_flag")]
+        has_placed_chest_3: bool,
+    },
 }
 
 const NO_ORIENTATION: i32 = -1;
+
+fn box_array(bounds: BoundingBox) -> [i32; 6] {
+    [
+        bounds.min.x,
+        bounds.min.y,
+        bounds.min.z,
+        bounds.max.x,
+        bounds.max.y,
+        bounds.max.z,
+    ]
+}
+
+fn box_of(array: [i32; 6]) -> BoundingBox {
+    BoundingBox {
+        min: IVec3::new(array[0], array[1], array[2]).into(),
+        max: IVec3::new(array[3], array[4], array[5]).into(),
+    }
+}
 
 pub struct PieceNbt<'a> {
     piece: &'a Piece,
@@ -251,14 +327,7 @@ impl Serialize for PieceNbt<'_> {
             Piece::Jigsaw(piece) => {
                 let liquid = self.context.liquid_settings();
                 PieceTag::Jigsaw {
-                    bounds: [
-                        piece.bounds.min.x,
-                        piece.bounds.min.y,
-                        piece.bounds.min.z,
-                        piece.bounds.max.x,
-                        piece.bounds.max.y,
-                        piece.bounds.max.z,
-                    ],
+                    bounds: box_array(piece.bounds),
                     orientation: NO_ORIENTATION,
                     gen_depth: 0,
                     pos_x: piece.position.x,
@@ -271,6 +340,19 @@ impl Serialize for PieceNbt<'_> {
                     liquid_settings: (liquid != LiquidSettings::default()).then_some(liquid),
                 }
             }
+            Piece::DesertPyramid(piece) => PieceTag::DesertPyramid {
+                bounds: box_array(piece.bounds),
+                orientation: piece.orientation.data_2d(),
+                gen_depth: 0,
+                width: DesertPyramidPiece::WIDTH,
+                height: DesertPyramidPiece::HEIGHT,
+                depth: DesertPyramidPiece::DEPTH,
+                height_position: piece.height_position,
+                has_placed_chest_0: false,
+                has_placed_chest_1: false,
+                has_placed_chest_2: false,
+                has_placed_chest_3: false,
+            },
         };
         tag.serialize(serializer)
     }
@@ -311,15 +393,23 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     element,
                     position: IVec3::new(pos_x, pos_y, pos_z),
                     rotation,
-                    bounds: BoundingBox {
-                        min: IVec3::new(bounds[0], bounds[1], bounds[2]).into(),
-                        max: IVec3::new(bounds[3], bounds[4], bounds[5]).into(),
-                    },
+                    bounds: box_of(bounds),
                     projection,
                     ground_level_delta,
                     junctions,
                 }))
             }
+            PieceTag::DesertPyramid {
+                bounds,
+                orientation,
+                height_position,
+                ..
+            } => Ok(Piece::DesertPyramid(DesertPyramidPiece {
+                bounds: box_of(bounds),
+                orientation: Orientation::from_data_2d(orientation)
+                    .ok_or_else(|| D::Error::custom("a desert pyramid without an orientation"))?,
+                height_position,
+            })),
         }
     }
 }
@@ -458,6 +548,33 @@ mod tests {
         let junction = junction.extract_compound().unwrap();
         assert_eq!(junction.get_int("source_ground_y"), Some(65));
         assert_eq!(junction.get_string("dest_proj"), Some("terrain_matching"));
+    }
+
+    #[test]
+    fn a_desert_pyramid_piece_round_trips_with_its_constant_fields() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::DesertPyramid(DesertPyramidPiece {
+            bounds: BoundingBox {
+                min: BlockPos::new(-32, 64, 48),
+                max: BlockPos::new(-12, 78, 68),
+            },
+            orientation: Orientation::West,
+            height_position: 71,
+        });
+        assert_eq!(round_trip(&context, &piece), piece);
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:tedp"));
+        assert_eq!(tag.get_int("O"), Some(1));
+        assert_eq!(tag.get_int("GD"), Some(0));
+        assert_eq!(tag.get_int("Width"), Some(21));
+        assert_eq!(tag.get_int("Height"), Some(15));
+        assert_eq!(tag.get_int("Depth"), Some(21));
+        assert_eq!(tag.get_int("HPos"), Some(71));
+        assert_eq!(tag.get_byte("hasPlacedChest3"), Some(0));
     }
 
     #[test]

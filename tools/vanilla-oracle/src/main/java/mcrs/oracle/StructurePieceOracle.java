@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.Holder;
@@ -41,6 +42,10 @@ import net.minecraft.world.level.storage.LevelStorageSource;
  */
 public final class StructurePieceOracle {
     private static final byte[] MAGIC = "MCSTRPC0".getBytes(StandardCharsets.US_ASCII);
+    /// Structures whose sixteen shared case chunks hold no start at any seed:
+    /// each gets this many present starts more per seed and dimension, found
+    /// by walking the placement's cells on past the shared sixteen.
+    private static final Map<String, Integer> MORE_PRESENT = Map.of("minecraft:desert_pyramid", 2);
 
     public static void main(final String[] args) throws Exception {
         Path outDir = Path.of(args[0]);
@@ -117,7 +122,8 @@ public final class StructurePieceOracle {
             int present = 0;
             int pieces = 0;
             int cases = 0;
-            for (ChunkPos chunk : PlacementOracle.caseChunks(seed.state(), set.value().placement())) {
+            List<ChunkPos> shared = PlacementOracle.caseChunks(seed.state(), set.value().placement());
+            for (ChunkPos chunk : shared) {
                 StructureStart start = structure.generate(
                     holder, dim.level(), access, dim.generator(), dim.biomeSource(), climate, seed.randomState(),
                     templates, seed.seed(), chunk, 0, dim.heights(), structure.biomes()::contains
@@ -126,28 +132,30 @@ public final class StructurePieceOracle {
                     continue;
                 }
                 cases++;
-                Bin.i64(out, seed.seed());
-                Bin.str(out, dim.id());
-                Bin.str(out, PlacementOracle.id(holder));
-                Bin.i32(out, chunk.x());
-                Bin.i32(out, chunk.z());
-                out.write(start.isValid() ? 1 : 0);
-                if (start.isValid()) {
-                    present++;
-                    pieces += start.getPieces().size();
-                    box(out, start.getBoundingBox());
-                    Bin.i32(out, start.getPieces().size());
-                    for (StructurePiece piece : start.getPieces()) {
-                        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                        NbtIo.write(piece.createTag(context), new DataOutputStream(bytes));
-                        Bin.i32(out, bytes.size());
-                        bytes.writeTo(out);
-                    }
-                }
+                present += writeCase(out, context, dim, seed, holder, chunk, start) ? 1 : 0;
+                pieces += start.isValid() ? start.getPieces().size() : 0;
                 if (jigsaw) {
                     jigsawDone.add(PlacementOracle.id(holder));
                     break;
                 }
+            }
+            int more = MORE_PRESENT.getOrDefault(PlacementOracle.id(holder), 0);
+            for (ChunkPos chunk : PlacementOracle.cellsBeyond(seed.state(), set.value().placement(), shared.size())) {
+                if (more == 0) {
+                    break;
+                }
+                StructureStart start = structure.generate(
+                    holder, dim.level(), access, dim.generator(), dim.biomeSource(), climate, seed.randomState(),
+                    templates, seed.seed(), chunk, 0, dim.heights(), structure.biomes()::contains
+                );
+                if (!start.isValid()) {
+                    continue;
+                }
+                more--;
+                cases++;
+                present++;
+                pieces += start.getPieces().size();
+                writeCase(out, context, dim, seed, holder, chunk, start);
             }
             totals[0] += cases;
             totals[1] += present;
@@ -157,6 +165,35 @@ public final class StructurePieceOracle {
                     + " cases, " + present + " present, " + pieces + " pieces"
             );
         }
+    }
+
+    private static boolean writeCase(
+        final OutputStream out,
+        final StructurePieceSerializationContext context,
+        final PlacementOracle.Dim dim,
+        final PlacementOracle.SeedState seed,
+        final Holder.Reference<Structure> holder,
+        final ChunkPos chunk,
+        final StructureStart start
+    ) throws IOException {
+        Bin.i64(out, seed.seed());
+        Bin.str(out, dim.id());
+        Bin.str(out, PlacementOracle.id(holder));
+        Bin.i32(out, chunk.x());
+        Bin.i32(out, chunk.z());
+        out.write(start.isValid() ? 1 : 0);
+        if (!start.isValid()) {
+            return false;
+        }
+        box(out, start.getBoundingBox());
+        Bin.i32(out, start.getPieces().size());
+        for (StructurePiece piece : start.getPieces()) {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            NbtIo.write(piece.createTag(context), new DataOutputStream(bytes));
+            Bin.i32(out, bytes.size());
+            bytes.writeTo(out);
+        }
+        return true;
     }
 
     private static void box(final OutputStream out, final BoundingBox box) throws IOException {

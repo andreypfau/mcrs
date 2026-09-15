@@ -457,6 +457,14 @@ const OUTPOST: Consumer = Consumer::Structure {
     biome: "minecraft:plains",
 };
 
+/// A desert pyramid: one grid piece over four columns, dug fourteen blocks
+/// below its floor, with chests and the after-place sand, every write clipped
+/// to the column that runs.
+const DESERT_PYRAMID: Consumer = Consumer::Structure {
+    id: "minecraft:desert_pyramid",
+    biome: "minecraft:desert",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -477,7 +485,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         "{consumer:?} wrote nothing anywhere: the comparison below would hold \
          between two pipelines that both do nothing"
     );
-    if consumer != OUTPOST {
+    if consumer != OUTPOST && consumer != DESERT_PYRAMID {
         assert!(
             crossed > 0,
             "{consumer:?} wrote only into the columns that ran: nothing reaches the \
@@ -528,6 +536,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         Consumer::Corpus,
         VILLAGE,
         OUTPOST,
+        DESERT_PYRAMID,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

@@ -124,7 +124,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
             if walls != 1 {
                 continue;
             }
-            let chest = reorient(config, volume, pos);
+            let chest = reorient(&config.chest_facing, &config.chest_states, volume, pos);
             if volume.set_unless(&config.cannot_replace, pos, chest) {
                 entities.push(GeneratedBlockEntity::chest(
                     pos,
@@ -145,13 +145,19 @@ pub fn place_monster_room<W: WorldGenVolume>(
 }
 
 /// `StructurePiece.reorient` for a chest: back onto the one solid neighbour, or
-/// walk the default facing round until it points at open space.
-fn reorient<W: WorldGenVolume>(config: &CompiledMonsterRoom, volume: &W, pos: BlockPos) -> VoxelId {
+/// walk the default facing round until it points at open space. `chest_facing`
+/// is the chest in each `Direction::HORIZONTAL` facing, north first.
+pub fn reorient<W: WorldGenVolume>(
+    chest_facing: &[VoxelId; 4],
+    chest_states: &StateMask,
+    volume: &W,
+    pos: BlockPos,
+) -> VoxelId {
     let mut only_solid = None;
     for (index, side) in Direction::HORIZONTAL.iter().enumerate() {
         let state = volume.get(pos + side.normal());
-        if holds(&config.chest_states, state) {
-            return config.chest_facing[0];
+        if holds(chest_states, state) {
+            return chest_facing[0];
         }
         if holds(&volume.world().solid_render, state) {
             if only_solid.is_some() {
@@ -162,7 +168,7 @@ fn reorient<W: WorldGenVolume>(config: &CompiledMonsterRoom, volume: &W, pos: Bl
         }
     }
     if let Some(index) = only_solid {
-        return config.chest_facing[(index + 2) % 4];
+        return chest_facing[(index + 2) % 4];
     }
     let solid_render = |facing: usize| {
         let step = Direction::HORIZONTAL[facing].normal();
@@ -178,7 +184,7 @@ fn reorient<W: WorldGenVolume>(config: &CompiledMonsterRoom, volume: &W, pos: Bl
     if solid_render(facing) {
         facing = (facing + 2) % 4;
     }
-    config.chest_facing[facing]
+    chest_facing[facing]
 }
 
 /// `Util.toShuffledList(IntStream.rangeClosed(min, max), random)`.

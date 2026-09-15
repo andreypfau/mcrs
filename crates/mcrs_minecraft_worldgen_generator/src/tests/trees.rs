@@ -54,6 +54,7 @@ pub(super) fn biome_registry() -> RegistrySnapshot<Biome> {
     names.extend(CHECKPOINT.iter().map(|(biome, _)| *biome));
     names.push("minecraft:dappled_forest");
     names.push("minecraft:pale_garden");
+    names.push("minecraft:desert");
     super::biome_registry(&names)
 }
 

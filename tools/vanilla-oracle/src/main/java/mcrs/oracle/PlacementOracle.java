@@ -238,7 +238,21 @@ public final class PlacementOracle {
     }
 
     static List<ChunkPos> caseChunks(final ChunkGeneratorStructureState state, final StructurePlacement placement) {
+        return cells(state, placement, 0, SITE_CASES);
+    }
+
+    /// The placement's cells in the same walk, after the first `skip` of them.
+    static List<ChunkPos> cellsBeyond(final ChunkGeneratorStructureState state, final StructurePlacement placement, final int skip) {
+        return cells(state, placement, skip, Integer.MAX_VALUE);
+    }
+
+    /// The expanding square walk around the origin over the placement's cells,
+    /// dropping the first `skip` and stopping at `limit` or the radius cap.
+    private static List<ChunkPos> cells(
+        final ChunkGeneratorStructureState state, final StructurePlacement placement, final int skip, final int limit
+    ) {
         List<ChunkPos> cases = new ArrayList<>();
+        int seen = 0;
         for (int radius = 0; radius <= SITE_MAX_RADIUS; radius++) {
             for (int x = -radius; x <= radius; x++) {
                 for (int z = -radius; z <= radius; z++) {
@@ -246,8 +260,11 @@ public final class PlacementOracle {
                         continue;
                     }
                     if (placement.isStructureChunk(state, x, z)) {
+                        if (seen++ < skip) {
+                            continue;
+                        }
                         cases.add(new ChunkPos(x, z));
-                        if (cases.size() == SITE_CASES) {
+                        if (cases.size() == limit) {
                             return cases;
                         }
                     }

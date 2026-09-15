@@ -131,9 +131,10 @@ use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
 use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, TreeTables, place_tree};
 use mcrs_minecraft_worldgen_feature_place::vines::place_vines;
 use mcrs_minecraft_worldgen_structure::frozen::{
-    ElementId, FrozenElement, FrozenStructure, FrozenStructures, StructureId,
+    ElementId, FrozenElement, FrozenStructure, FrozenStructures, StructureId, StructureKind,
 };
 use mcrs_minecraft_worldgen_structure::{DecorationStep, LiquidSettings};
+use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
 use rustc_hash::FxHashMap;
 use std::ops::Range;
 use std::sync::Arc;
@@ -278,7 +279,9 @@ pub enum CompiledElement {
 /// One hardcoded structure type's tables with every name resolved: what its
 /// pieces place. Each type adds its variant with its generator.
 #[derive(Clone)]
-pub enum CompiledStructure {}
+pub enum CompiledStructure {
+    DesertPyramid(Box<DesertPyramidBlocks>),
+}
 
 /// Beta's populate step for the column the origin is in. It draws from one
 /// legacy stream seeded by the chunk, never from the source its step hands it.
@@ -467,7 +470,10 @@ impl FeatureProgram {
             Some(frozen) => compile_elements(frozen, &trees, &resolver, corpus)?,
             None => Vec::new(),
         };
-        let compiled_structures = vec![None; structures.map_or(0, |f| f.structures.len())];
+        let compiled_structures = match structures {
+            Some(frozen) => compile_structures(frozen, &resolver)?,
+            None => Vec::new(),
+        };
 
         Ok(FeatureProgram {
             rungs: rungs_of(
@@ -1048,6 +1054,25 @@ fn compile_elements(
 }
 
 type Compiled<T> = Result<T, FeatureCompileError>;
+
+fn compile_structures(
+    frozen: &FrozenStructures,
+    resolver: &Resolver<'_>,
+) -> Compiled<Vec<Option<CompiledStructure>>> {
+    frozen
+        .structures
+        .iter()
+        .map(|structure| {
+            Ok(match &structure.kind {
+                StructureKind::DesertPyramid => Some(CompiledStructure::DesertPyramid(Box::new(
+                    DesertPyramidBlocks::compile(resolver, &resolver.world, resolver.world_seed)
+                        .map_err(|error| error.within(&structure.id))?,
+                ))),
+                _ => None,
+            })
+        })
+        .collect()
+}
 
 fn compile_generator(
     feature: &Feature,

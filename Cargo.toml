@@ -99,6 +99,7 @@ mcrs_minecraft_worldgen_feature_place = { path = "crates/mcrs_minecraft_worldgen
 mcrs_minecraft_worldgen_generator = { path = "crates/mcrs_minecraft_worldgen_generator" }
 mcrs_minecraft_worldgen_carver = { path = "crates/mcrs_minecraft_worldgen_carver", default-features = false }
 mcrs_minecraft_worldgen_structure = { path = "crates/mcrs_minecraft_worldgen_structure" }
+mcrs_minecraft_worldgen_structure_place = { path = "crates/mcrs_minecraft_worldgen_structure_place" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
 mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light", default-features = false }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
@@ -189,6 +190,9 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_worldgen_structure"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_structure_place"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_random"]

@@ -17,7 +17,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
-(4 431 986 bytes).
+(4 434 677 bytes).
 
 **Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/structure_pieces.rs`,
 which builds the same start through the index over the same noise world and
@@ -74,9 +74,15 @@ every structure of `Registries.STRUCTURE` (registry order) whose
 - a `JigsawStructure` gets its first present case over all seeds, once, and
   no case at all if no seed yields one at those chunks. This is the parity
   check of the jigsaw piece codec; the layouts themselves are pinned by
-  `structure_layouts.bin`.
+  `structure_layouts.bin`;
+- a structure named in `MORE_PRESENT` gets, per seed and dimension, that many
+  present cases more: the same expanding square walk continues past the
+  shared sixteen cells (`PlacementOracle.cellsBeyond`), and each cell whose
+  `generate` yields a valid start is written until the count is met or the
+  walk reaches its radius cap. The desert pyramid asks for 2; seed 1 has only
+  one within the cap.
 
-1 938 cases, 543 present, 34 871 pieces. Per structure over all seeds:
+1 947 cases, 552 present, 34 880 pieces. Per structure over all seeds:
 
 | Structure | cases | present | pieces |
 |---|---|---|---|
@@ -97,11 +103,12 @@ every structure of `Registries.STRUCTURE` (registry order) whose
 | `ruined_portal_jungle` | 80 | 3 | 3 |
 | `ruined_portal_desert`, `ruined_portal_mountain`, `shipwreck_beached`, `swamp_hut` | 80 each | 2 each | 2 each |
 | `ruined_portal_swamp` | 80 | 1 | 1 |
-| `buried_treasure`, `desert_pyramid`, `jungle_pyramid`, `end_city` (end) | 80 each | 0 | 0 |
+| `desert_pyramid` | 89 | 9 | 9 |
+| `buried_treasure`, `jungle_pyramid`, `end_city` (end) | 80 each | 0 | 0 |
 | jigsaw: `ancient_city` 88, `bastion_remnant` 176, `trial_chambers` 188, five villages 84–148, `pillager_outpost` 8, `trail_ruins` 17, eight `abandoned_camp_*` 2–3 | 1 each | 1 each | 1 116 in total |
 
-The four types with no present case are not pinned by this file; their
-own cases are added with their ports. The monument writes one piece: its
+The three types with no present case are not pinned by this file; their
+own cases are added with their ports through `MORE_PRESENT`. The monument writes one piece: its
 rooms are held in memory and not serialised (`OceanMonumentPieces`), so the
 codec carries the building alone.
 
@@ -137,7 +144,7 @@ The file ends after the last case; there is no trailer.
 
 | Dumped value | Vanilla source |
 |---|---|
-| structure list, case chunks | as in `structure_sites_capture_procedure.md`, minus the mineshaft exclusion: every non-jigsaw structure with a placement is here |
+| structure list, case chunks | as in `structure_sites_capture_procedure.md`, minus the mineshaft exclusion: every non-jigsaw structure with a placement is here, plus the `MORE_PRESENT` cells |
 | `present`, `start_box` | as in `structure_layouts_capture_procedure.md` |
 | piece order | `StructurePiecesBuilder.build()` unchanged: the order each type's `addPieces` appends them |
 | `id` | `BuiltInRegistries.STRUCTURE_PIECE.getKey(piece.getType())` (`structure/StructurePiece.java:92`) |

@@ -196,7 +196,9 @@ fn structure_layouts_match_the_oracle() {
                     );
                     for (i, (piece, want)) in start.pieces.iter().zip(&expected.pieces).enumerate()
                     {
-                        let Piece::Jigsaw(piece) = piece;
+                        let Piece::Jigsaw(piece) = piece else {
+                            panic!("{label} piece #{i}: not a jigsaw piece");
+                        };
                         let label = format!("{label} piece #{i} {}", want.element);
                         assert_eq!(
                             render(frozen, &template_names, piece.element),

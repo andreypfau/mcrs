@@ -19,9 +19,9 @@ use crate::structures::index::StructureIndex;
 const MAGIC: &[u8; 8] = b"MCSTRPC0";
 
 /// Every structure type whose layout is not ported: the oracle has starts for
-/// them and this build produces none. The buried treasure, desert pyramid,
-/// jungle temple and end city have no present case at the dump's chunks and
-/// join the list with their own cases.
+/// them and this build produces none. The buried treasure, jungle temple and
+/// end city have no present case at the dump's shared chunks and join the list
+/// with their own cases.
 const UNPORTED_PIECE_TYPES: [&str; 11] = [
     "minecraft:fortress",
     "minecraft:igloo",
@@ -167,5 +167,5 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
         compared += 1;
     }
     assert_eq!(unported, UNPORTED_PIECE_TYPES.into_iter().collect());
-    assert_eq!((compared, pieces), (18, 1116));
+    assert_eq!((compared, pieces), (27, 1125));
 }

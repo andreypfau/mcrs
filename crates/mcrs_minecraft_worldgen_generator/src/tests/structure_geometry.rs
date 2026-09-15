@@ -32,9 +32,8 @@ use crate::structures::place::{column_clip, place_start};
 const MAGIC: &[u8; 8] = b"MCSTRGE0";
 
 /// Every structure type the oracle places and this build cannot yet.
-const UNPORTED_GEOMETRY_TYPES: [&str; 15] = [
+const UNPORTED_GEOMETRY_TYPES: [&str; 14] = [
     "minecraft:buried_treasure",
-    "minecraft:desert_pyramid",
     "minecraft:end_city",
     "minecraft:fortress",
     "minecraft:igloo",
@@ -537,10 +536,12 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
             let mut run = program.run(RunScratch::default());
             let mut rng = XoroshiroRandom::new(chunk.stream_seed as u64);
             place_start(
+                frozen,
                 program,
                 &mut run,
                 &mut region,
                 &start,
+                case.chunk,
                 column_clip(chunk.chunk, &y_sections),
                 &mut rng,
                 liquid,
@@ -564,5 +565,5 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
         faults[..faults.len().min(20)].join("\n")
     );
     assert_eq!(unported, UNPORTED_GEOMETRY_TYPES.into_iter().collect());
-    assert_eq!((placed, chunks), (3, 72));
+    assert_eq!((placed, chunks), (6, 84));
 }

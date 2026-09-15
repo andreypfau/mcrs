@@ -8,9 +8,15 @@ use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature_place::template::{Placement, SettingsRandom, place_template};
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
 
-use crate::feature_program::{CompiledElement, FeatureProgram, Run};
-use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenStructures, StructureKind};
-use mcrs_minecraft_worldgen_structure::piece::{Piece, Start};
+use crate::feature_program::{CompiledElement, CompiledStructure, FeatureProgram, Run};
+use crate::stages::decoration_seed;
+use mcrs_minecraft_worldgen_structure::frozen::{
+    ElementId, FrozenStructure, FrozenStructures, StructureKind,
+};
+use mcrs_minecraft_worldgen_structure::piece::{DesertPyramidPiece, Piece, Start};
+use mcrs_minecraft_worldgen_structure_place::after_place;
+use mcrs_minecraft_worldgen_structure_place::canvas::PieceCanvas;
+use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
 /// dimension floor to its ceiling.
@@ -29,8 +35,6 @@ pub fn column_clip(col: ColumnPos, y_sections: &[i32]) -> BoundingBox {
 
 /// `StructureStart.placeInChunk` for every start of `step` reaching the column:
 /// one stream per structure, shared by all of its starts and pieces here.
-// ponytail: no `Structure.afterPlace` hook; nothing jigsaw needs one, and the
-// two structures that do (desert pyramid, mansion) have no generator yet.
 #[allow(clippy::too_many_arguments)]
 pub fn place_structures<W: WorldGenVolume>(
     frozen: &FrozenStructures,
@@ -55,24 +59,48 @@ pub fn place_structures<W: WorldGenVolume>(
             .wrapping_add(structure.step_index as i64)
             .wrapping_add(10_000 * step as i64);
         let mut rng = XoroshiroRandom::new(seed as u64);
-        for (_, start) in group {
-            place_start(program, run, region, start, clip, &mut rng, liquid);
+        for (chunk, start) in group {
+            place_start(
+                frozen, program, run, region, start, *chunk, clip, &mut rng, liquid,
+            );
         }
     }
 }
 
+/// The reference sinks a desert pyramid by `nextInt(3)` of whichever column
+/// decorates it first and every later column only spends the draw; here the
+/// value is the start chunk's own, so the columns agree whichever runs first.
+fn desert_pyramid_sink(world_seed: i64, chunk: ColumnPos, structure: &FrozenStructure) -> i32 {
+    let seed = decoration_seed(world_seed, chunk.x * 16, chunk.z * 16)
+        .wrapping_add(structure.step_index as i64)
+        .wrapping_add(10_000 * structure.step as i64);
+    XoroshiroRandom::new(seed as u64).next_i32_bound(3)
+}
+
+fn sunk_bounds(piece: &DesertPyramidPiece, sink: i32) -> BoundingBox {
+    piece.bounds.moved(IVec3::new(
+        0,
+        piece.height_position - sink - piece.bounds.min.y,
+        0,
+    ))
+}
+
 /// `StructureStart.placeInChunk` for one start: every piece whose box meets
 /// the clip, in piece order, with the first piece's box centre at its floor as
-/// the reference position.
+/// the reference position, then the structure's after-place hook.
+#[allow(clippy::too_many_arguments)]
 pub fn place_start<W: WorldGenVolume>(
+    frozen: &FrozenStructures,
     program: &FeatureProgram,
     run: &mut Run,
     region: &mut W,
     start: &Start,
+    chunk: ColumnPos,
     clip: BoundingBox,
     rng: &mut XoroshiroRandom,
     liquid: LiquidSettings,
 ) {
+    let structure = &frozen.structures[start.structure.0 as usize];
     let first = start.pieces[0].bounds();
     let centre = *first.min + (*first.max - *first.min + IVec3::ONE) / 2;
     let reference = IVec3::new(centre.x, first.min.y, centre.z);
@@ -80,19 +108,54 @@ pub fn place_start<W: WorldGenVolume>(
         if !piece.bounds().intersects(clip) {
             continue;
         }
-        let Piece::Jigsaw(jigsaw) = piece;
-        place_element(
-            program,
-            run,
-            region,
-            jigsaw.element,
-            jigsaw.position,
-            reference,
-            jigsaw.rotation,
-            Some(clip),
-            rng,
-            liquid,
-        );
+        match piece {
+            Piece::Jigsaw(jigsaw) => {
+                place_element(
+                    program,
+                    run,
+                    region,
+                    jigsaw.element,
+                    jigsaw.position,
+                    reference,
+                    jigsaw.rotation,
+                    Some(clip),
+                    rng,
+                    liquid,
+                );
+            }
+            Piece::DesertPyramid(piece) => {
+                let Some(CompiledStructure::DesertPyramid(blocks)) =
+                    program.structure(start.structure)
+                else {
+                    continue;
+                };
+                let sink = desert_pyramid_sink(blocks.world_seed, chunk, structure);
+                let mut canvas = PieceCanvas {
+                    volume: region,
+                    entities: &mut run.entities,
+                    bounds: sunk_bounds(piece, sink),
+                    orientation: Some(piece.orientation),
+                    clip,
+                };
+                paint_desert_pyramid(blocks, &mut canvas, rng);
+            }
+        }
+    }
+    if let Some(CompiledStructure::DesertPyramid(blocks)) = program.structure(start.structure) {
+        for piece in &start.pieces {
+            let Piece::DesertPyramid(piece) = piece else {
+                continue;
+            };
+            let sink = desert_pyramid_sink(blocks.world_seed, chunk, structure);
+            after_place::desert_pyramid(
+                blocks,
+                region,
+                &mut run.entities,
+                clip,
+                sunk_bounds(piece, sink),
+                piece.orientation,
+            );
+        }
     }
 }
 

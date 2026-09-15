@@ -4017,6 +4017,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_feature_place",
  "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_structure",
+ "mcrs_minecraft_worldgen_structure_place",
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
  "rand_xoshiro",
@@ -4052,6 +4053,21 @@ dependencies = [
  "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_structure_place"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "fixedbitset",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_feature_place",
+ "mcrs_minecraft_worldgen_structure",
 ]
 
 [[package]]

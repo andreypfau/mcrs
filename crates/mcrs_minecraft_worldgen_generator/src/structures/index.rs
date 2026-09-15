@@ -14,6 +14,7 @@ use mcrs_minecraft_worldgen_density::router::{
 };
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, WorldStates};
+use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_structure::StructurePlacement;
 use mcrs_minecraft_worldgen_structure::placement::{
@@ -281,21 +282,29 @@ impl StructureIndex {
         let pieces = starts.iter().flat_map(|(_, start)| {
             let adaptation = frozen.structures[start.structure.0 as usize].adaptation;
             start.pieces.iter().map(move |piece| {
-                let Piece::Jigsaw(piece) = piece;
-                let junctions = piece.junctions.iter().map(|junction| JunctionPoint {
-                    x: junction.source_x,
-                    ground_y: junction.source_ground_y,
-                    z: junction.source_z,
-                });
-                (
-                    adaptation,
-                    BeardPiece {
+                let beard_piece = match piece {
+                    Piece::Jigsaw(piece) => BeardPiece {
                         bounds: piece.bounds,
                         projection: piece.projection,
                         ground_level_delta: piece.ground_level_delta,
-                        junctions,
+                        junctions: piece
+                            .junctions
+                            .iter()
+                            .map(|junction| JunctionPoint {
+                                x: junction.source_x,
+                                ground_y: junction.source_ground_y,
+                                z: junction.source_z,
+                            })
+                            .collect::<Vec<_>>(),
                     },
-                )
+                    Piece::DesertPyramid(_) => BeardPiece {
+                        bounds: piece.bounds(),
+                        projection: Projection::Rigid,
+                        ground_level_delta: 0,
+                        junctions: Vec::new(),
+                    },
+                };
+                (adaptation, beard_piece)
             })
         });
         let beard = Beard::collect(column, pieces);

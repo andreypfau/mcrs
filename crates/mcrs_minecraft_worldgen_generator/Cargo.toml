@@ -32,6 +32,7 @@ mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_feature_place.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
+mcrs_minecraft_worldgen_structure_place.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 mcrs_minecraft_worldgen_testing = { workspace = true, optional = true }
 bytes = { workspace = true, optional = true }
