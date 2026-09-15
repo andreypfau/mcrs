@@ -63,7 +63,7 @@ impl Plugin for WorldgenAssetsPlugin {
             .register_asset_loader(WorldgenAssetLoader::<FeatureAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<PlacedFeatureAsset>::default())
             .register_asset_loader(JsonLoader::<StructureSetAsset>::default())
-            .register_asset_loader(JsonLoader::<StructureAsset>::default())
+            .register_asset_loader(WorldgenAssetLoader::<StructureAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<TemplatePoolAsset>::default())
             .register_asset_loader(JsonLoader::<ProcessorListAsset>::default())
             .register_asset_loader(TemplateLoader);
@@ -329,10 +329,30 @@ pub struct StructureSetAsset {
     pub set: StructureSet,
 }
 
-#[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
-#[serde(transparent)]
+#[derive(Asset, TypePath, Debug, Clone)]
 pub struct StructureAsset {
     pub structure: Structure,
+    #[dependency]
+    pub deps: AssetRefs,
+}
+
+impl WorldgenAsset for StructureAsset {
+    type Proto = Structure;
+
+    fn references(structure: &Self::Proto) -> References {
+        let mut refs = References::default();
+        refs.templates.extend(
+            structure
+                .templates()
+                .iter()
+                .map(|path| ResourceLocation::minecraft(path)),
+        );
+        refs
+    }
+
+    fn build(structure: Self::Proto, deps: AssetRefs) -> Self {
+        Self { structure, deps }
+    }
 }
 
 #[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]

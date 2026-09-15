@@ -220,6 +220,21 @@ impl Structure {
             | Structure::WoodlandMansion { settings } => settings,
         }
     }
+
+    /// The `minecraft:` template paths the type's generator draws from, which
+    /// no datapack file names.
+    pub fn templates(&self) -> &'static [&'static str] {
+        match self {
+            Structure::EndCity { .. } => hardcoded::end_city::TEMPLATES,
+            Structure::Igloo { .. } => hardcoded::igloo::TEMPLATES,
+            Structure::NetherFossil { .. } => hardcoded::nether_fossil::TEMPLATES,
+            Structure::OceanRuin { .. } => hardcoded::ocean_ruin::TEMPLATES,
+            Structure::RuinedPortal { .. } => hardcoded::ruined_portal::TEMPLATES,
+            Structure::Shipwreck { .. } => hardcoded::shipwreck::TEMPLATES,
+            Structure::WoodlandMansion { .. } => hardcoded::woodland_mansion::TEMPLATES,
+            _ => &[],
+        }
+    }
 }
 
 // Flatten target: no `deny_unknown_fields`.

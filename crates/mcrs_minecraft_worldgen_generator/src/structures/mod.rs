@@ -256,24 +256,63 @@ fn freeze_template(
     if let Some(id) = frozen.template_ids.get(location) {
         return Ok(*id);
     }
-    let (template, manifest) = match (inputs.template)(location) {
-        Some(template) => {
-            let frozen = template
-                .freeze(location, inputs.resolve)
-                .map_err(|error| error.to_string())?;
-            check_block_entity_ids(location, &frozen.0)?;
-            frozen
-        }
+    match (inputs.template)(location) {
+        Some(template) => freeze_loaded_template(inputs, frozen, location, &template),
         None => {
             tracing::warn!(%pool, %location, "the template is not loaded; the element places nothing");
-            (FrozenTemplate::empty(), TemplateManifest::empty())
+            Ok(push_template(
+                frozen,
+                location,
+                FrozenTemplate::empty(),
+                TemplateManifest::empty(),
+            ))
         }
-    };
+    }
+}
+
+fn freeze_structure_templates(
+    inputs: &StructureInputs<'_>,
+    frozen: &mut FrozenStructures,
+    structure: &ResourceLocation,
+    paths: &[&str],
+) -> Result<(), String> {
+    for path in paths {
+        let location = ResourceLocation::minecraft(path);
+        if frozen.template_ids.contains_key(&location) {
+            continue;
+        }
+        let template = (inputs.template)(&location).ok_or_else(|| {
+            format!("{structure}: names the template {location}, which is not loaded")
+        })?;
+        freeze_loaded_template(inputs, frozen, &location, &template)?;
+    }
+    Ok(())
+}
+
+fn freeze_loaded_template(
+    inputs: &StructureInputs<'_>,
+    frozen: &mut FrozenStructures,
+    location: &ResourceLocation,
+    template: &Template,
+) -> Result<TemplateId, String> {
+    let (template, manifest) = template
+        .freeze(location, inputs.resolve)
+        .map_err(|error| error.to_string())?;
+    check_block_entity_ids(location, &template)?;
+    Ok(push_template(frozen, location, template, manifest))
+}
+
+fn push_template(
+    frozen: &mut FrozenStructures,
+    location: &ResourceLocation,
+    template: FrozenTemplate,
+    manifest: TemplateManifest,
+) -> TemplateId {
     let id = TemplateId(frozen.templates.len() as u32);
     frozen.templates.push(Arc::new(template));
     frozen.manifests.push(Arc::new(manifest));
     frozen.template_ids.insert(location.clone(), id);
-    Ok(id)
+    id
 }
 
 pub(crate) fn check_block_entity_ids(
@@ -314,6 +353,7 @@ fn freeze_structures(
         let settings = structure.settings();
         let step_index = per_step.entry(settings.step).or_default();
         let biomes = biome_mask(inputs, id, &settings.biomes)?;
+        freeze_structure_templates(inputs, frozen, id, structure.templates())?;
         let kind = match structure {
             Structure::Jigsaw { jigsaw, .. } => {
                 let start_pool = *frozen.pool_ids.get(&jigsaw.start_pool).ok_or_else(|| {

@@ -159,7 +159,13 @@ fn the_corpus_freezes_to_the_pinned_tables() {
     assert_eq!(frozen.sets.len(), 21);
     assert_eq!(frozen.structures.len(), 52);
     assert_eq!(frozen.pools.len(), 245);
-    assert_eq!(frozen.templates.len(), 1286);
+    assert_eq!(frozen.templates.len(), 1476);
+    for structure in corpus_registries().structures.values() {
+        for path in structure.templates() {
+            let id = frozen.template_ids[&ResourceLocation::minecraft(path)];
+            assert_ne!(frozen.templates[id.0 as usize].size, [0; 3], "{path}");
+        }
+    }
     let missing =
         ResourceLocation::parse("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_5")
             .unwrap();
@@ -432,6 +438,11 @@ fn every_dangling_id_is_named() {
             &[("minecraft:empty", EMPTY_POOL)]
         ),
         "minecraft:s: names the biome tag #minecraft:has_structure/gone, which is not loaded"
+    );
+    let igloo = r#"{"type": "minecraft:igloo", "biomes": [], "spawn_overrides": {}, "step": "surface_structures"}"#;
+    assert_eq!(
+        check(&[], &[("minecraft:s", igloo)], &[]),
+        "minecraft:s: names the template minecraft:igloo/top, which is not loaded"
     );
 }
 

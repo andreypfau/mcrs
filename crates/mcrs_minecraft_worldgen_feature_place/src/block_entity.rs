@@ -30,6 +30,16 @@ pub enum GeneratedBlockEntity {
     /// seed and rolls when a player first opens the chest.
     #[serde(rename = "minecraft:chest")]
     Chest(ContainerData),
+    #[serde(rename = "minecraft:trapped_chest")]
+    TrappedChest(ContainerData),
+    #[serde(rename = "minecraft:ender_chest")]
+    EnderChest {
+        x: i32,
+        y: i32,
+        z: i32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        components: Option<NbtCompound>,
+    },
     #[serde(rename = "minecraft:barrel")]
     Barrel(ContainerData),
     #[serde(rename = "minecraft:dispenser")]
@@ -606,9 +616,11 @@ pub struct EndGatewayData {
 impl GeneratedBlockEntity {
     /// The `id` each variant is tagged with; a save entry naming any other kind
     /// is one this type does not describe.
-    pub const IDS: [&'static str; 25] = [
+    pub const IDS: [&'static str; 27] = [
         "minecraft:beehive",
         "minecraft:chest",
+        "minecraft:trapped_chest",
+        "minecraft:ender_chest",
         "minecraft:mob_spawner",
         "minecraft:end_gateway",
         "minecraft:barrel",
@@ -636,8 +648,9 @@ impl GeneratedBlockEntity {
 
     /// The kinds that are a `RandomizableContainer`: a template placing one
     /// draws its `LootTableSeed` from the placement random.
-    pub const LOOT_SEEDED_IDS: [&'static str; 5] = [
+    pub const LOOT_SEEDED_IDS: [&'static str; 6] = [
         "minecraft:chest",
+        "minecraft:trapped_chest",
         "minecraft:barrel",
         "minecraft:dispenser",
         "minecraft:hopper",
@@ -653,6 +666,7 @@ impl GeneratedBlockEntity {
             | GeneratedBlockEntity::Campfire { x, y, z, .. }
             | GeneratedBlockEntity::Comparator { x, y, z, .. }
             | GeneratedBlockEntity::Bell { x, y, z, .. }
+            | GeneratedBlockEntity::EnderChest { x, y, z, .. }
             | GeneratedBlockEntity::CopperGolemStatue { x, y, z, .. }
             | GeneratedBlockEntity::Lectern { x, y, z, .. }
             | GeneratedBlockEntity::CreakingHeart { x, y, z, .. }
@@ -666,6 +680,7 @@ impl GeneratedBlockEntity {
             | GeneratedBlockEntity::TrialSpawner { x, y, z, .. }
             | GeneratedBlockEntity::Vault { x, y, z, .. } => BlockPos::new(*x, *y, *z),
             GeneratedBlockEntity::Chest(c)
+            | GeneratedBlockEntity::TrappedChest(c)
             | GeneratedBlockEntity::Barrel(c)
             | GeneratedBlockEntity::Dispenser(c) => BlockPos::new(c.x, c.y, c.z),
             GeneratedBlockEntity::Furnace(f)
@@ -926,6 +941,13 @@ mod tests {
             Chest(container(Some(
                 "minecraft:chests/village/village_toolsmith",
             ))),
+            TrappedChest(container(Some("minecraft:chests/woodland_mansion"))),
+            EnderChest {
+                x: 1,
+                y: -2,
+                z: 3,
+                components: None,
+            },
             Barrel(container(None)),
             Dispenser(container(None)),
             Hopper {

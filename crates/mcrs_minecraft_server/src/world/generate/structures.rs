@@ -19,8 +19,8 @@ use mcrs_minecraft_worldgen_generator::features::possible_biomes;
 use mcrs_minecraft_worldgen_generator::structures::{
     StructureInputs, freeze, live_sets, resolve_palette_state,
 };
-use mcrs_minecraft_worldgen_structure::TemplatePool;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, FrozenStructures};
+use mcrs_minecraft_worldgen_structure::{Structure, TemplatePool};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -89,16 +89,22 @@ pub(crate) fn build_dimension_structures(
     let sets = registry_of(&sets, &asset_server, "worldgen/structure_set", |asset| {
         &asset.set
     });
-    let structures = registry_of(&structures, &asset_server, "worldgen/structure", |asset| {
-        &asset.structure
+    let structure_assets = registry_of(&structures, &asset_server, "worldgen/structure", |asset| {
+        asset
     });
     let pool_assets = registry_of(&pools, &asset_server, "worldgen/template_pool", |asset| {
         asset
     });
     let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> = pool_assets
         .values()
-        .flat_map(|asset| asset.deps.templates.iter())
+        .map(|asset| &asset.deps)
+        .chain(structure_assets.values().map(|asset| &asset.deps))
+        .flat_map(|deps| deps.templates.iter())
         .map(|(id, handle)| (id.clone(), handle.clone()))
+        .collect();
+    let structures: BTreeMap<ResourceLocation, Structure> = structure_assets
+        .iter()
+        .map(|(id, asset)| (id.clone(), asset.structure.clone()))
         .collect();
     let pools: BTreeMap<ResourceLocation, TemplatePool> = pool_assets
         .iter()
