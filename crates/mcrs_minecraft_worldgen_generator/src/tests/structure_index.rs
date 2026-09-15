@@ -1,6 +1,7 @@
 use mcrs_minecraft_core::ColumnPos;
 use std::sync::{Arc, LazyLock};
 
+use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
@@ -14,6 +15,7 @@ use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::live_sets;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, SetId};
+use mcrs_minecraft_worldgen_structure::locate::locate_pos;
 use mcrs_minecraft_worldgen_structure::site::Stub;
 
 const SEED: u64 = 12345;
@@ -123,6 +125,48 @@ fn the_stronghold_rings_hold_every_position() {
     assert_eq!(rings.len(), 128);
     assert!(index.gate(strongholds, rings[0]));
     assert_eq!(index.rings(set("minecraft:villages")), None);
+}
+
+/// `/locate structure minecraft:stronghold` from the origin: the ring position
+/// nearest by chunk centre at `y = 32` whose site passes its biome test.
+#[test]
+fn locate_answers_the_nearest_stronghold_ring_position() {
+    let index = overworld();
+    let frozen = frozen_shared();
+    let strongholds = set("minecraft:strongholds");
+    let stronghold =
+        frozen.structure_ids[&ResourceLocation::parse("minecraft:stronghold").unwrap()];
+    let origin = IVec3::new(0, 64, 0);
+    let (found, structure) = index
+        .locate(origin, &[stronghold])
+        .expect("a stronghold ring position passes its biome test");
+    assert_eq!(structure, stronghold);
+
+    let distance = |chunk: &ColumnPos| {
+        let centre = IVec3::new(chunk.middle_block_x(), 32, chunk.middle_block_z());
+        centre.as_dvec3().distance_squared(origin.as_dvec3())
+    };
+    let expected = index
+        .rings(strongholds)
+        .unwrap()
+        .iter()
+        .filter(|&&chunk| {
+            index
+                .site(chunk, stronghold)
+                .is_some_and(|site| site.biome_ok)
+        })
+        .min_by(|a, b| distance(a).total_cmp(&distance(b)))
+        .copied()
+        .unwrap();
+    assert_eq!(
+        found,
+        locate_pos(&frozen.sets[strongholds.0 as usize].placement, expected)
+    );
+    assert!(index.starts_present(strongholds, expected, stronghold));
+    assert_eq!(
+        index.site(expected, stronghold).unwrap().position,
+        IVec3::new(expected.min_block_x(), 0, expected.min_block_z())
+    );
 }
 
 /// With the villages the only live set, nothing wider widens the scan. This

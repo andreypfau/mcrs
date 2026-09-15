@@ -20,6 +20,7 @@ use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenPool, FrozenSet, FrozenStructure, FrozenStructures,
     OceanRuinConfig, PoolId, SetId, StructureId, StructureKind, TemplateId,
 };
+use mcrs_minecraft_worldgen_structure::hardcoded::ruined_portal;
 use mcrs_minecraft_worldgen_structure::piece::TERRAIN_MARGIN;
 use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 use mcrs_minecraft_worldgen_structure::{
@@ -412,9 +413,21 @@ fn freeze_structures(
                 large_probability: large_probability.0 as f32,
                 cluster_probability: cluster_probability.0 as f32,
             }),
-            Structure::RuinedPortal { setups, .. } => StructureKind::RuinedPortal {
-                setups: setups.clone(),
-            },
+            Structure::RuinedPortal { setups, .. } => {
+                let templates = |names: &[&str]| {
+                    names
+                        .iter()
+                        .map(|name| frozen.template_ids[&ResourceLocation::minecraft(name)])
+                        .collect::<Vec<TemplateId>>()
+                };
+                let portals = templates(ruined_portal::PORTALS);
+                let giant_portals = templates(ruined_portal::GIANT_PORTALS);
+                StructureKind::RuinedPortal {
+                    setups: setups.clone(),
+                    portals,
+                    giant_portals,
+                }
+            }
             Structure::Shipwreck { is_beached, .. } => StructureKind::Shipwreck {
                 is_beached: *is_beached,
             },

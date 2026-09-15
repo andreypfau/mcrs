@@ -24,7 +24,16 @@ use super::frozen::{
 
 pub trait SiteWorld {
     fn biome_at(&mut self, block: IVec3) -> Option<u32>;
-    fn column_admits(&mut self, x: i32, z: i32, biomes: &BiomeMask) -> bool;
+    /// `couldStructureExistInColumn`: some biome sampled at quart resolution
+    /// in the column between the two block heights, inclusive, is in `biomes`.
+    fn column_admits(
+        &mut self,
+        x: i32,
+        z: i32,
+        min_block_y: i32,
+        max_block_y: i32,
+        biomes: &BiomeMask,
+    ) -> bool;
     /// `getBiomesWithin`: every biome sampled at quart resolution in the cube
     /// of `radius` around `centre` is in `biomes`.
     fn all_biomes_within(&mut self, centre: IVec3, radius: i32, biomes: &BiomeMask) -> bool;
@@ -160,9 +169,11 @@ pub fn site(ctx: &mut Context<'_>) -> Option<Site> {
             hardcoded::ocean_monument::site(surrounding, ctx, &mut rng)?
         }
         StructureKind::OceanRuin(config) => hardcoded::ocean_ruin::site(config, ctx, &mut rng)?,
-        StructureKind::RuinedPortal { setups } => {
-            hardcoded::ruined_portal::site(setups, ctx, &mut rng)?
-        }
+        StructureKind::RuinedPortal {
+            setups,
+            portals,
+            giant_portals,
+        } => hardcoded::ruined_portal::site(setups, portals, giant_portals, ctx, &mut rng)?,
         StructureKind::Shipwreck { is_beached } => {
             hardcoded::shipwreck::site(*is_beached, ctx, &mut rng)?
         }
@@ -202,7 +213,7 @@ pub fn layout(ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
         StructureKind::NetherFossil { .. } => hardcoded::nether_fossil::layout(ctx, site),
         StructureKind::OceanMonument { .. } => hardcoded::ocean_monument::layout(ctx, site),
         StructureKind::OceanRuin(config) => hardcoded::ocean_ruin::layout(config, ctx, site),
-        StructureKind::RuinedPortal { setups } => {
+        StructureKind::RuinedPortal { setups, .. } => {
             hardcoded::ruined_portal::layout(setups, ctx, site)
         }
         StructureKind::Shipwreck { is_beached } => {
@@ -287,10 +298,14 @@ fn jigsaw_site(
     let bottom_y = match config.project_start_to_heightmap {
         None => adjusted.y,
         Some(heightmap) => {
-            if !ctx
-                .world
-                .column_admits(centre_x, centre_z, &structure.biomes)
-            {
+            let max_y = ctx.accessor_min_y + ctx.accessor_height - 1;
+            if !ctx.world.column_admits(
+                centre_x,
+                centre_z,
+                ctx.accessor_min_y,
+                max_y,
+                &structure.biomes,
+            ) {
                 return None;
             }
             start_pos.y + ctx.world.free_height(centre_x, centre_z, heightmap)

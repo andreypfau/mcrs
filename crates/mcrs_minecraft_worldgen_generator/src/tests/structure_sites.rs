@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::ColumnPos;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use bevy_math::IVec3;
 use bytes::Buf;
@@ -8,19 +8,22 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_density::program::Workspace;
+use mcrs_minecraft_worldgen_feature::placer::WorldStates;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
 use super::structures::{frozen_shared, preset};
-use super::{biome_index, block_tags, blocks, build_settings_router};
+use super::{biome_index, biome_registry, block_tags, blocks, build_settings_router};
 use crate::base_height;
+use crate::feature_program::Resolver;
 use crate::features::possible_biomes;
 use crate::heightmap::{HeightmapKinds, heightmap_predicates};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::live_sets;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, StructureKind};
+use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 
-const MAGIC: &[u8; 8] = b"MCSITES0";
+const MAGIC: &[u8; 8] = b"MCSITES1";
 
 struct DumpCase {
     chunk: ColumnPos,
@@ -40,11 +43,47 @@ struct DumpProbe {
     floor: i32,
 }
 
+struct DumpSelection {
+    set: String,
+    cases: Vec<(ColumnPos, Option<String>)>,
+}
+
 struct DumpSeed {
     seed: i64,
     rings: Vec<(String, Vec<(i32, i32)>)>,
     sites: Vec<(String, Vec<DumpStructure>)>,
     heights: Vec<(String, Vec<DumpProbe>)>,
+    hardcoded: Vec<(String, Vec<DumpStructure>)>,
+    selection: Vec<(String, Vec<DumpSelection>)>,
+}
+
+fn read_sites(r: &mut bytes::Bytes) -> Vec<(String, Vec<DumpStructure>)> {
+    (0..r.get_u32_le())
+        .map(|_| {
+            let dimension = dump_string(r);
+            let structures = (0..r.get_u32_le())
+                .map(|_| DumpStructure {
+                    id: dump_string(r),
+                    set: dump_string(r),
+                    cases: (0..r.get_u32_le())
+                        .map(|_| {
+                            let chunk = (r.get_i32_le(), r.get_i32_le());
+                            let site = (r.get_u8() == 1).then(|| {
+                                let position =
+                                    IVec3::new(r.get_i32_le(), r.get_i32_le(), r.get_i32_le());
+                                (position, r.get_u8() == 1)
+                            });
+                            DumpCase {
+                                chunk: chunk.into(),
+                                site,
+                            }
+                        })
+                        .collect(),
+                })
+                .collect();
+            (dimension, structures)
+        })
+        .collect()
 }
 
 fn read_dump() -> Vec<DumpSeed> {
@@ -63,35 +102,7 @@ fn read_dump() -> Vec<DumpSeed> {
                     (id, positions)
                 })
                 .collect(),
-            sites: (0..r.get_u32_le())
-                .map(|_| {
-                    let dimension = dump_string(&mut r);
-                    let structures = (0..r.get_u32_le())
-                        .map(|_| DumpStructure {
-                            id: dump_string(&mut r),
-                            set: dump_string(&mut r),
-                            cases: (0..r.get_u32_le())
-                                .map(|_| {
-                                    let chunk = (r.get_i32_le(), r.get_i32_le());
-                                    let site = (r.get_u8() == 1).then(|| {
-                                        let position = IVec3::new(
-                                            r.get_i32_le(),
-                                            r.get_i32_le(),
-                                            r.get_i32_le(),
-                                        );
-                                        (position, r.get_u8() == 1)
-                                    });
-                                    DumpCase {
-                                        chunk: chunk.into(),
-                                        site,
-                                    }
-                                })
-                                .collect(),
-                        })
-                        .collect();
-                    (dimension, structures)
-                })
-                .collect(),
+            sites: read_sites(&mut r),
             heights: (0..r.get_u32_le())
                 .map(|_| {
                     let dimension = dump_string(&mut r);
@@ -104,6 +115,26 @@ fn read_dump() -> Vec<DumpSeed> {
                         })
                         .collect();
                     (dimension, probes)
+                })
+                .collect(),
+            hardcoded: read_sites(&mut r),
+            selection: (0..r.get_u32_le())
+                .map(|_| {
+                    let dimension = dump_string(&mut r);
+                    let sets = (0..r.get_u32_le())
+                        .map(|_| DumpSelection {
+                            set: dump_string(&mut r),
+                            cases: (0..r.get_u32_le())
+                                .map(|_| {
+                                    let chunk = ColumnPos::new(r.get_i32_le(), r.get_i32_le());
+                                    let selected =
+                                        Some(dump_string(&mut r)).filter(|id| !id.is_empty());
+                                    (chunk, selected)
+                                })
+                                .collect(),
+                        })
+                        .collect();
+                    (dimension, sets)
                 })
                 .collect(),
         })
@@ -160,10 +191,20 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
         Arc::new(build_settings_router(dimension.settings, seed as u64)),
         BiomeLookup::MultiNoise(Arc::new(biomes)),
         Some(heightmap_predicates(blocks(), block_tags())),
-        Default::default(),
+        Arc::clone(world_states()),
         dimension.accessor_min_y,
         dimension.accessor_height,
     )
+}
+
+fn world_states() -> &'static Arc<WorldStates> {
+    static STATES: LazyLock<Arc<WorldStates>> = LazyLock::new(|| {
+        let biomes = biome_registry(&["minecraft:plains"]);
+        let resolver =
+            Resolver::new(&blocks().0, None, None, &biomes, 0, &[]).expect("the corpus resolves");
+        Arc::new(resolver.world)
+    });
+    &STATES
 }
 
 /// The strict profile is the oracle. The fast profile can flip a biome at a
@@ -248,6 +289,91 @@ fn structure_sites_match_the_oracle() {
 }
 
 #[test]
+fn hardcoded_sites_match_the_oracle() {
+    let dump = read_dump();
+    let frozen = frozen_shared();
+    let mut cases = 0;
+    let mut present = 0;
+    let mut biome_ok = 0;
+    for entry in &dump {
+        let seed = entry.seed;
+        assert_eq!(entry.hardcoded.len(), 2);
+        for (dimension_id, structures) in &entry.hardcoded {
+            let index = build_index(&dimension(dimension_id), seed);
+            for structure in structures {
+                let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
+                assert!(!matches!(
+                    frozen.structures[id.0 as usize].kind,
+                    StructureKind::Jigsaw { .. } | StructureKind::Mineshaft { .. }
+                ));
+                assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
+                for case in &structure.cases {
+                    let ColumnPos { x, z } = case.chunk;
+                    let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
+                    let site = index.site(case.chunk, id);
+                    assert_eq!(site.is_some(), case.site.is_some(), "{label}: present");
+                    cases += 1;
+                    if let (Some(site), Some((position, ok))) = (site, case.site) {
+                        assert_eq!(site.position, position, "{label}: position");
+                        assert_eq!(site.biome_ok, ok, "{label}: biome");
+                        present += 1;
+                        biome_ok += ok as u32;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!((cases, present, biome_ok), (5 * 21 * 16, 866, 447));
+}
+
+/// Every set whose entries all have a site: the mineshaft's is not ported,
+/// so its set is the one left out.
+#[test]
+fn set_selection_matches_the_oracle() {
+    let dump = read_dump();
+    let frozen = frozen_shared();
+    let mut cases = 0;
+    let mut selected = 0;
+    let mut skipped = std::collections::BTreeSet::new();
+    for entry in &dump {
+        let seed = entry.seed;
+        assert_eq!(entry.selection.len(), 2);
+        for (dimension_id, sets) in &entry.selection {
+            let index = build_index(&dimension(dimension_id), seed);
+            for dumped in sets {
+                let set = frozen.set_ids[&ResourceLocation::parse(&dumped.set).unwrap()];
+                let unported = frozen.sets[set.0 as usize]
+                    .entries
+                    .iter()
+                    .any(|(structure, _)| {
+                        site_implies_piece(&frozen.structures[structure.0 as usize].kind).is_none()
+                    });
+                if unported {
+                    skipped.insert(dumped.set.as_str());
+                    continue;
+                }
+                assert_eq!(dumped.cases.len(), 16, "{}: cases", dumped.set);
+                for (chunk, expected) in &dumped.cases {
+                    let ColumnPos { x, z } = *chunk;
+                    let label = format!("seed {seed} {} at chunk ({x}, {z})", dumped.set);
+                    let ours = index
+                        .selected(set, *chunk)
+                        .map(|id| frozen.structures[id.0 as usize].id.to_string());
+                    assert_eq!(ours, *expected, "{label}");
+                    cases += 1;
+                    selected += ours.is_some() as u32;
+                }
+            }
+        }
+    }
+    assert_eq!(
+        skipped.into_iter().collect::<Vec<_>>(),
+        ["minecraft:mineshafts"]
+    );
+    assert_eq!((cases, selected), (5 * 20 * 16, 582));
+}
+
+#[test]
 fn base_heights_match_the_oracle() {
     let dump = read_dump();
     let predicates = heightmap_predicates(blocks(), block_tags());
@@ -300,13 +426,22 @@ fn site_positions_ignore_the_top_sixteen_seed_bits() {
             let index = build_index(&dimension, entry.seed);
             let flipped = build_index(&dimension, entry.seed ^ (0xFFFF << 48));
             let mut checked = 0;
-            for structure in structures {
+            let hardcoded = entry
+                .hardcoded
+                .iter()
+                .find(|(id, _)| id == dimension_id)
+                .map(|(_, structures)| structures.as_slice())
+                .unwrap_or_default();
+            for structure in structures.iter().chain(hardcoded) {
                 let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
-                let StructureKind::Jigsaw { config, .. } = &frozen.structures[id.0 as usize].kind
-                else {
-                    unreachable!()
+                let reads_a_height = match &frozen.structures[id.0 as usize].kind {
+                    StructureKind::Jigsaw { config, .. } => {
+                        config.project_start_to_heightmap.is_some()
+                    }
+                    StructureKind::Fortress | StructureKind::Stronghold => false,
+                    _ => true,
                 };
-                if config.project_start_to_heightmap.is_some() {
+                if reads_a_height {
                     continue;
                 }
                 for case in structure.cases.iter().take(3) {

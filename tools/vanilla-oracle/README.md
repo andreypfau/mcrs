@@ -491,13 +491,15 @@ Two files, both deterministic:
   each of the three dimensions, `getPotentialStructureChunk` and the full
   `isStructureChunk` verdict over the chunk squares `[-24, 25)²` and
   `[2000, 2025)²`.
-- `structure_sites.bin` (magic `MCSITES0`): the 128 stronghold ring chunks; for
-  every jigsaw structure live in the overworld and the nether, 16 placement
-  chunks found by walking square rings out from (0, 0), with
-  `findGenerationPoint` presence, the stub position, and the
-  `findValidGenerationPoint` biome verdict from a fresh context; and
-  `getBaseHeight` for `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG` at 64 columns per
-  dimension.
+- `structure_sites.bin` (magic `MCSITES1`): the 128 stronghold ring chunks; for
+  every jigsaw structure, and again for every hardcoded type except the
+  mineshaft, live in the overworld and the nether, 16 placement chunks found by
+  walking square rings out from (0, 0), with `findGenerationPoint` presence,
+  the stub position, and the `findValidGenerationPoint` biome verdict from a
+  fresh context; `getBaseHeight` for `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG` at
+  64 columns per dimension; and for every live set, the entry
+  `createStructures`' weighted draw with removal settles on at each of 16
+  placement chunks.
 
 The field-by-field layouts, the provenance of every value and the case summaries
 are beside each fixture:

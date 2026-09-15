@@ -1,6 +1,8 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 
+use super::on_top_of_chunk_centre;
 use crate::frozen::OceanRuinConfig;
 use crate::piece::Piece;
 use crate::site::{Context, Site, Stub};
@@ -56,14 +58,14 @@ pub const TEMPLATES: &[&str] = &[
     "underwater_ruin/big_warm_7",
 ];
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = None;
+pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
 
 pub fn site(
     _config: &OceanRuinConfig,
-    _ctx: &mut Context<'_>,
+    ctx: &mut Context<'_>,
     _rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
-    None
+    on_top_of_chunk_centre(ctx, HeightmapName::OceanFloorWg)
 }
 
 pub fn layout(_config: &OceanRuinConfig, _ctx: &mut Context<'_>, _site: Site) -> Vec<Piece> {

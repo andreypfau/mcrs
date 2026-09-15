@@ -182,17 +182,11 @@ fn structure_layouts_match_the_oracle() {
                     let ColumnPos { x, z } = case.chunk;
                     let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
                     cases += 1;
-                    let starts = index.starts_at(case.chunk);
-                    let ours: Vec<_> = starts.iter().filter(|s| s.structure == id).collect();
-                    assert_eq!(
-                        ours.len(),
-                        case.start.is_some() as usize,
-                        "{label}: present"
-                    );
-                    let Some(expected) = &case.start else {
+                    let ours = index.start_of(case.chunk, id);
+                    assert_eq!(ours.is_some(), case.start.is_some(), "{label}: present");
+                    let (Some(start), Some(expected)) = (&ours, &case.start) else {
                         continue;
                     };
-                    let start = ours[0];
                     present += 1;
                     assert_eq!(start.bounds, expected.bounds, "{label}: start box");
                     assert_eq!(

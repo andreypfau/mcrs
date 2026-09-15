@@ -177,6 +177,17 @@ impl StructureIndex {
         site(&mut self.context(view, chunk, structure))
     }
 
+    /// `Structure.generate` for one structure at one chunk, whatever its
+    /// set's draw would select there.
+    pub fn start_of(&self, chunk: ColumnPos, structure: StructureId) -> Option<Start> {
+        let mut view = self.view();
+        let site = self
+            .site_in(&mut view, chunk, structure)
+            .filter(|site| site.biome_ok)?;
+        let pieces = layout(&mut self.context(&mut view, chunk, structure), site);
+        (!pieces.is_empty()).then(|| Start::new(&self.tables.frozen, structure, pieces))
+    }
+
     pub fn starts_at(&self, chunk: ColumnPos) -> Vec<Start> {
         let sets = self.tables.live.iter().map(|(set, _)| *set);
         self.starts_of(&mut self.view(), chunk, sets)
@@ -301,9 +312,6 @@ impl StructureIndex {
         }
     }
 
-    // ponytail: a hardcoded structure has no site and so never selects; a set
-    // mixing one with jigsaw entries picks the jigsaw entry where vanilla would
-    // have placed the hardcoded one, until those generators exist.
     pub fn selected(&self, set: SetId, chunk: ColumnPos) -> Option<StructureId> {
         self.selected_site(&mut self.view(), set, chunk)
             .map(|(structure, _)| structure)
@@ -499,14 +507,21 @@ impl SiteWorld for View<'_> {
         }
     }
 
-    fn column_admits(&mut self, x: i32, z: i32, biomes: &BiomeMask) -> bool {
+    fn column_admits(
+        &mut self,
+        x: i32,
+        z: i32,
+        min_block_y: i32,
+        max_block_y: i32,
+        biomes: &BiomeMask,
+    ) -> bool {
         let table = match &self.index.biomes {
             BiomeLookup::MultiNoise(table) => table,
             BiomeLookup::Fixed(biome) => return biomes.contains(*biome as usize),
             BiomeLookup::None => return false,
         };
-        let min_quart_y = self.index.accessor_min_y >> 2;
-        let max_quart_y = (self.index.accessor_min_y + self.index.accessor_height - 1) >> 2;
+        let min_quart_y = min_block_y >> 2;
+        let max_quart_y = max_block_y >> 2;
         let cells = (max_quart_y - min_quart_y + 1) as usize;
         let volume = SampleGrid::new(
             IVec3::new(1, cells as i32, 1),

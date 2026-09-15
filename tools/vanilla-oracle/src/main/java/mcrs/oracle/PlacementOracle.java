@@ -3,6 +3,7 @@ package mcrs.oracle;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,13 +47,17 @@ import net.minecraft.world.level.levelgen.structure.StructureSet;
 import net.minecraft.world.level.levelgen.structure.placement.ConcentricRingsStructurePlacement;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.structures.JigsawStructure;
+import net.minecraft.world.level.levelgen.structure.structures.MineshaftStructure;
+import net.minecraft.world.level.levelgen.WorldgenRandom;
+import net.minecraft.world.level.levelgen.LegacyRandomSource;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import net.minecraft.world.level.storage.LevelStorageSource;
 
 public final class PlacementOracle {
     private static final byte[] CELLS_MAGIC = "MCPLACE0".getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] SITES_MAGIC = "MCSITES0".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SITES_MAGIC = "MCSITES1".getBytes(StandardCharsets.US_ASCII);
     static final int FORMAT_VERSION = 1;
     static final long[] SEEDS = {1L, 42L, 12345L, -7L, 0x7FFF_FFFF_0000_0001L};
     private static final int[][] GRIDS = {{-24, -24, 49}, {2000, 2000, 25}};
@@ -86,6 +91,9 @@ public final class PlacementOracle {
             LevelStorageSource.LevelStorageAccess storage = LevelStorageSource.createDefault(saveDir).createAccess("oracle")
         ) {
             RegistryAccess.Frozen loaded = loadWorldRegistries(resources);
+            RegistryAccess.Frozen access = RegistryLayer.createRegistryAccess()
+                .replaceFrom(RegistryLayer.WORLD, loaded)
+                .compositeAccess();
             StructureTemplateManager templates = new StructureTemplateManager(
                 resources, storage, DataFixers.getDataFixer(), BuiltInRegistries.BLOCK
             );
@@ -134,6 +142,14 @@ public final class PlacementOracle {
                     Bin.i32(out, 2);
                     for (int d = 0; d < 2; d++) {
                         writeHeights(out, dims.get(d), states.get(d).get(s));
+                    }
+                    Bin.i32(out, 2);
+                    for (int d = 0; d < 2; d++) {
+                        writeSites(out, loaded, templates, dims.get(d), states.get(d).get(s), hardcoded(loaded, states.get(d).get(s).state()));
+                    }
+                    Bin.i32(out, 2);
+                    for (int d = 0; d < 2; d++) {
+                        writeSelection(out, access, templates, dims.get(d), states.get(d).get(s));
                     }
                 }
             }
@@ -198,6 +214,15 @@ public final class PlacementOracle {
     static List<Holder.Reference<Structure>> jigsaws(final RegistryAccess.Frozen registries, final ChunkGeneratorStructureState state) {
         return registries.lookupOrThrow(Registries.STRUCTURE).listElements()
             .filter(holder -> holder.value() instanceof JigsawStructure && !state.getPlacementsForStructure(holder).isEmpty())
+            .toList();
+    }
+
+    /// Every type with its own `findGenerationPoint` except the mineshaft, whose
+    /// site builds its whole piece tree first.
+    static List<Holder.Reference<Structure>> hardcoded(final RegistryAccess.Frozen registries, final ChunkGeneratorStructureState state) {
+        return registries.lookupOrThrow(Registries.STRUCTURE).listElements()
+            .filter(holder -> !(holder.value() instanceof JigsawStructure) && !(holder.value() instanceof MineshaftStructure))
+            .filter(holder -> !state.getPlacementsForStructure(holder).isEmpty())
             .toList();
     }
 
@@ -300,13 +325,23 @@ public final class PlacementOracle {
         final Dim dim,
         final SeedState seed
     ) throws IOException {
+        writeSites(out, registries, templates, dim, seed, jigsaws(registries, seed.state()));
+    }
+
+    private static void writeSites(
+        final OutputStream out,
+        final RegistryAccess.Frozen registries,
+        final StructureTemplateManager templates,
+        final Dim dim,
+        final SeedState seed,
+        final List<Holder.Reference<Structure>> structures
+    ) throws IOException {
         Bin.str(out, dim.id());
         ChunkGeneratorStructureState state = seed.state();
-        List<Holder.Reference<Structure>> jigsaws = jigsaws(registries, state);
-        Bin.i32(out, jigsaws.size());
+        Bin.i32(out, structures.size());
         Climate.Sampler climate = climate(seed);
-        for (Holder.Reference<Structure> holder : jigsaws) {
-            JigsawStructure structure = (JigsawStructure) holder.value();
+        for (Holder.Reference<Structure> holder : structures) {
+            Structure structure = holder.value();
             Holder<StructureSet> set = singleSet(state, holder);
             Bin.str(out, id(holder));
             Bin.str(out, id(set));
@@ -317,8 +352,8 @@ public final class PlacementOracle {
             for (ChunkPos chunk : cases) {
                 Bin.i32(out, chunk.x());
                 Bin.i32(out, chunk.z());
-                Optional<Structure.GenerationStub> site = structure.findGenerationPoint(
-                    context(registries, templates, dim, seed, climate, structure, chunk)
+                Optional<Structure.GenerationStub> site = findGenerationPoint(
+                    structure, context(registries, templates, dim, seed, climate, structure, chunk)
                 );
                 out.write(site.isPresent() ? 1 : 0);
                 if (site.isPresent()) {
@@ -339,6 +374,123 @@ public final class PlacementOracle {
                 "  sites " + dim.id() + " seed " + seed.seed() + " " + id(holder) + ": " + cases.size() + " cases, "
                     + present + " present, " + valid + " biome ok"
             );
+        }
+    }
+
+    private static void writeSelection(
+        final OutputStream out,
+        final RegistryAccess.Frozen registries,
+        final StructureTemplateManager templates,
+        final Dim dim,
+        final SeedState seed
+    ) throws IOException {
+        Bin.str(out, dim.id());
+        ChunkGeneratorStructureState state = seed.state();
+        List<Holder<StructureSet>> sets = state.possibleStructureSets();
+        Bin.i32(out, sets.size());
+        Climate.Sampler climate = climate(seed);
+        for (Holder<StructureSet> set : sets) {
+            Bin.str(out, id(set));
+            List<ChunkPos> cases = caseChunks(state, set.value().placement());
+            Bin.i32(out, cases.size());
+            int selected = 0;
+            for (ChunkPos chunk : cases) {
+                Bin.i32(out, chunk.x());
+                Bin.i32(out, chunk.z());
+                Optional<String> choice = selected(registries, templates, dim, seed, climate, set.value(), chunk);
+                Bin.str(out, choice.orElse(""));
+                if (choice.isPresent()) {
+                    selected++;
+                }
+            }
+            System.out.println(
+                "  selection " + dim.id() + " seed " + seed.seed() + " " + id(set) + ": " + cases.size() + " cases, "
+                    + selected + " selected"
+            );
+        }
+    }
+
+    /// `ChunkGenerator.createStructures` over one set at one chunk: the weighted
+    /// draw with removal, each entry tried through `Structure.generate`.
+    private static Optional<String> selected(
+        final RegistryAccess.Frozen registries,
+        final StructureTemplateManager templates,
+        final Dim dim,
+        final SeedState seed,
+        final Climate.Sampler climate,
+        final StructureSet set,
+        final ChunkPos chunk
+    ) {
+        List<StructureSet.StructureSelectionEntry> entries = set.structures();
+        if (entries.size() == 1) {
+            StructureSet.StructureSelectionEntry only = entries.get(0);
+            return tryGenerate(registries, templates, dim, seed, climate, only, chunk) ? Optional.of(id(only.structure())) : Optional.empty();
+        }
+        List<StructureSet.StructureSelectionEntry> options = new ArrayList<>(entries);
+        WorldgenRandom random = new WorldgenRandom(new LegacyRandomSource(0L));
+        random.setLargeFeatureSeed(seed.seed(), chunk.x(), chunk.z());
+        int total = 0;
+        for (StructureSet.StructureSelectionEntry option : options) {
+            total += option.weight();
+        }
+        while (!options.isEmpty()) {
+            int choice = random.nextInt(total);
+            int index = 0;
+            for (StructureSet.StructureSelectionEntry option : options) {
+                choice -= option.weight();
+                if (choice < 0) {
+                    break;
+                }
+                index++;
+            }
+            StructureSet.StructureSelectionEntry picked = options.get(index);
+            if (tryGenerate(registries, templates, dim, seed, climate, picked, chunk)) {
+                return Optional.of(id(picked.structure()));
+            }
+            options.remove(index);
+            total -= picked.weight();
+        }
+        return Optional.empty();
+    }
+
+    private static boolean tryGenerate(
+        final RegistryAccess.Frozen registries,
+        final StructureTemplateManager templates,
+        final Dim dim,
+        final SeedState seed,
+        final Climate.Sampler climate,
+        final StructureSet.StructureSelectionEntry entry,
+        final ChunkPos chunk
+    ) {
+        Structure structure = entry.structure().value();
+        StructureStart start = structure.generate(
+            entry.structure(), dim.level(), registries, dim.generator(), dim.biomeSource(), climate, seed.randomState(),
+            templates, seed.seed(), chunk, 0, dim.heights(), structure.biomes()::contains
+        );
+        return start.isValid();
+    }
+
+    private static final Method FIND_GENERATION_POINT;
+
+    static {
+        try {
+            FIND_GENERATION_POINT = Structure.class.getDeclaredMethod("findGenerationPoint", Structure.GenerationContext.class);
+            FIND_GENERATION_POINT.setAccessible(true);
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /// `findGenerationPoint` is protected on `Structure`; every shipped type
+    /// widens it to public, but the call must go through the base type here.
+    @SuppressWarnings("unchecked")
+    private static Optional<Structure.GenerationStub> findGenerationPoint(
+        final Structure structure, final Structure.GenerationContext context
+    ) {
+        try {
+            return (Optional<Structure.GenerationStub>) FIND_GENERATION_POINT.invoke(structure, context);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
         }
     }
 

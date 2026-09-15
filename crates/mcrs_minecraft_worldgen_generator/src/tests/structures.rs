@@ -25,25 +25,9 @@ use crate::structures::{StructureInputs, freeze, live_sets, resolve_palette_stat
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
 use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 
-/// Every structure type the corpus uses that has no generator yet: its
+/// Every structure type the corpus uses whose site is not ported yet: its
 /// structures freeze with their config, never select and place nothing.
-const UNPORTED_TYPES: [&str; 15] = [
-    "minecraft:buried_treasure",
-    "minecraft:desert_pyramid",
-    "minecraft:end_city",
-    "minecraft:fortress",
-    "minecraft:igloo",
-    "minecraft:jungle_temple",
-    "minecraft:mineshaft",
-    "minecraft:nether_fossil",
-    "minecraft:ocean_monument",
-    "minecraft:ocean_ruin",
-    "minecraft:ruined_portal",
-    "minecraft:shipwreck",
-    "minecraft:stronghold",
-    "minecraft:swamp_hut",
-    "minecraft:woodland_mansion",
-];
+const UNPORTED_TYPES: [&str; 1] = ["minecraft:mineshaft"];
 
 pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
     let path = assets_dir()
@@ -137,11 +121,22 @@ fn every_hardcoded_type_freezes_its_own_config() {
         (0.3, 0.9)
     );
 
-    let StructureKind::RuinedPortal { setups } = &structure("minecraft:ruined_portal").kind else {
+    let StructureKind::RuinedPortal {
+        setups,
+        portals,
+        giant_portals,
+    } = &structure("minecraft:ruined_portal").kind
+    else {
         panic!("not a ruined portal");
     };
     assert_eq!(setups.len(), 2);
     assert!(setups[0].can_be_cold && !setups[0].replace_with_blackstone);
+    assert_eq!((portals.len(), giant_portals.len()), (10, 3));
+    let portal_sizes: Vec<[u16; 3]> = portals
+        .iter()
+        .map(|id| frozen().manifests[id.0 as usize].size)
+        .collect();
+    assert!(portal_sizes.iter().all(|size| *size != [0; 3]));
 
     assert!(matches!(
         structure("minecraft:shipwreck_beached").kind,

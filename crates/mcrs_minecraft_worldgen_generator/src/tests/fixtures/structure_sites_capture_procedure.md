@@ -15,15 +15,18 @@ cd tools/vanilla-oracle
 cp <dir>/structure_sites.bin ../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/
 ```
 
-Output is deterministic: re-running produces a byte-identical file (49 635
+Output is deterministic: re-running produces a byte-identical file (121 607
 bytes).
 
-**Consumer:** the structure start tests in `crates/mcrs_minecraft_server`, which
-assert, per seed, the 128 stronghold ring chunks in list order; for every jigsaw
-structure live in the overworld and the nether, whether the start step yields a
-site at each of 16 placement chunks, the site position, and whether the biome at
-that position admits the structure; and the two heightmap-flavoured base heights
-at 64 columns per dimension.
+**Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/structure_sites.rs`
+and `structure_index.rs`, which assert, per seed, the 128 stronghold ring chunks
+in list order; for every jigsaw structure, and again for every hardcoded type
+except the mineshaft, live in the overworld and the nether, whether the start
+step yields a site at each of 16 placement chunks, the site position, and
+whether the biome at that position admits the structure; the two
+heightmap-flavoured base heights at 64 columns per dimension; and for every
+structure set live in those dimensions, which entry the weighted draw with
+removal selects at each of 16 placement chunks.
 
 ---
 
@@ -58,7 +61,7 @@ the shipped `dimension_type` files).
 Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 
 ```
-magic            8 bytes, ASCII "MCSITES0"
+magic            8 bytes, ASCII "MCSITES1"
 format_version   u32   currently 1
 world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5015
 
@@ -101,9 +104,33 @@ repeated seed_count times, seeds in the order 1, 42, 12345, -7, 0x7FFF_FFFF_0000
       z                i32   i*53 - 700
       world_surface_wg i32   generator.getBaseHeight(x, z, WORLD_SURFACE_WG, heightAccessor, randomState)
       ocean_floor_wg   i32   generator.getBaseHeight(x, z, OCEAN_FLOOR_WG, heightAccessor, randomState)
+
+  dim_count      u32   2
+  repeated dim_count times, "minecraft:overworld" then "minecraft:the_nether":
+    dimension        str
+    structure_count  u32   structures in registry order that are neither
+                           JigsawStructure nor MineshaftStructure and have a
+                           non-empty getPlacementsForStructure in this
+                           dimension: 18 overworld, 3 nether
+    repeated structure_count times:
+      the same structure record as the jigsaw section above
+
+  dim_count      u32   2
+  repeated dim_count times, "minecraft:overworld" then "minecraft:the_nether":
+    dimension      str
+    set_count      u32   state.possibleStructureSets() in list order: 18 overworld, 3 nether
+    repeated set_count times:
+      set_id         str
+      case_count     u32   16
+      repeated case_count times:
+        chunk_x        i32
+        chunk_z        i32
+        selected       str   the structure id the set's draw settles on, "" when
+                             every entry is refused
 ```
 
-The file ends after the last probe of the last seed; there is no trailer.
+The file ends after the last selection case of the last seed; there is no
+trailer.
 
 **Case chunks.** For each structure the harness walks chunks in expanding
 square rings around (0, 0): radius 0, 1, 2, … up to 600; within a ring, x
@@ -123,6 +150,8 @@ Every shipped structure reaches 16 well inside the radius bound.
 | `site_present`, `x, y, z` | `JigsawStructure.findGenerationPoint` (`structure/structures/JigsawStructure.java:155-174`): `startHeight.sample` then `JigsawPlacement.addPieces` (`structure/pools/JigsawPlacement.java:51-141`); the position is the `GenerationStub` centre `(centerX, centerY, centerZ)` |
 | `biome_ok` | `Structure.findValidGenerationPoint` (`structure/Structure.java:235-237`) = `findGenerationPoint` filtered by `GenerationContext.isValidBiome` (`:289-300`), which resolves the biome at the stub position through `biomeSource.createResolver(climateSampler)` and tests `structure.biomes()::contains` |
 | `world_surface_wg`, `ocean_floor_wg` | `NoiseBasedChunkGenerator.getBaseHeight` (`levelgen/NoiseBasedChunkGenerator.java:157-166, 204-252`) |
+| hardcoded `site_present`, `x, y, z` | each type's `findGenerationPoint`, invoked reflectively because `Structure` declares it protected: `onTopOfChunkCenter` (`structure/Structure.java:138-159`) for the treasure, hut, igloo, shipwreck, ocean ruin and monument; `SinglePieceStructure.findGenerationPoint` (`structure/SinglePieceStructure.java:25-36`) for the pyramid and jungle temple; `getLowestYIn5by5Box` (`Structure.java:215-231`) for the end city and mansion; `structures/NetherFossilStructure.java:37-70`; `structures/RuinedPortalStructure.java:66-166, 178-238`; the fortress and stronghold at fixed heights |
+| `selected` | `ChunkGenerator.createStructures` (`world/level/chunk/ChunkGenerator.java:560-641`): a single entry is tried directly; otherwise the weighted draw with removal on a `WorldgenRandom` seeded by `setLargeFeatureSeed(seed, x, z)`; each try is `Structure.generate` (`structure/Structure.java:90-134`) with zero references, and succeeds when the start `isValid()` |
 
 ## Cases
 
@@ -143,3 +172,22 @@ Sites are absent only through `couldStructureExistInColumn` (the biome column
 test before heightmap projection); no shipped start pool is empty and no
 `start_jigsaw_name` is missing from its start pool, so
 `JigsawPlacement.addPieces` never returns empty for another reason here.
+
+Hardcoded types, 21 per seed (18 overworld, 3 nether), 1680 cases in total, 866
+present and 447 biome ok:
+
+| Structure | present | biome ok | what it pins |
+|---|---|---|---|
+| `fortress`, `stronghold`, `ruined_portal_nether` | 80 | 80 | sites that always exist; the fixed `y` of 64 and 0, the portal's nether height draws |
+| `ruined_portal*` (overworld, 6) | 80 each | 40 / 2 / 3 / 2 / 34 / 1 | setup weights, the giant-portal draw, rotation and mirror, the template box, `findSuitableY` per placement |
+| `shipwreck` / `shipwreck_beached` | 45 / 2 | same | `onTopOfChunkCenter` with `OCEAN_FLOOR_WG` against `WORLD_SURFACE_WG` |
+| `ocean_ruin_cold` / `_warm` | 41 / 6 | same | the same chunk-centre column test |
+| `monument` | 13 | 13 | `getBiomesWithin` over the 29-block cube at sea level |
+| `nether_fossil` | 29 | 8 | the base-column walk down from the sampled height, then the biome at the found block |
+| `igloo` / `swamp_hut` / `mansion` | 6 / 2 / 2 | same | the surface column test; the mansion's 5×5 lowest corner and rotation draw |
+| `buried_treasure`, `desert_pyramid`, `jungle_pyramid` | 0 | 0 | the column test refuses every case chunk near the origin for these seeds |
+
+Selection, 21 sets per seed (18 overworld, 3 nether); `mineshafts` is dumped
+but its site is not ported, so the consumer compares the other 20: 1600 cases,
+582 selected. `nether_complexes` pins the mixed draw: the fortress site always
+passes, so the bastion is selected only when the draw lands on it first.

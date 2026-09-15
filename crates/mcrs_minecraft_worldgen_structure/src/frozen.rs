@@ -70,6 +70,8 @@ pub enum StructureKind {
     OceanRuin(OceanRuinConfig),
     RuinedPortal {
         setups: Vec<RuinedPortalSetup>,
+        portals: Vec<TemplateId>,
+        giant_portals: Vec<TemplateId>,
     },
     Shipwreck {
         is_beached: bool,
