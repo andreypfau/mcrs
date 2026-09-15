@@ -7,7 +7,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_worldgen_feature::template::{
-    FrozenBlock, Joint, PaletteState, Template, TemplateManifest,
+    FrozenTemplate, Joint, PaletteState, Template, TemplateManifest,
 };
 use mcrs_minecraft_worldgen_testing::{assets_dir, dump_placements, dump_string, open_dump};
 
@@ -137,7 +137,7 @@ pub(super) fn resolve(state: &PaletteState) -> VoxelId {
         .id
 }
 
-fn freeze(id: &str) -> (Template, Vec<Box<[FrozenBlock]>>, TemplateManifest) {
+pub(super) fn freeze(id: &str) -> (Template, FrozenTemplate, TemplateManifest) {
     let id = ResourceLocation::parse(id).unwrap();
     let path = assets_dir()
         .join("minecraft/structure")
@@ -148,7 +148,7 @@ fn freeze(id: &str) -> (Template, Vec<Box<[FrozenBlock]>>, TemplateManifest) {
     let (frozen, manifest) = template
         .freeze(&id, &|state| resolve_palette_state(corpus(), state))
         .unwrap_or_else(|e| panic!("{e}"));
-    (template, frozen.palettes, manifest)
+    (template, frozen, manifest)
 }
 
 fn is_structure_void(state: &str) -> bool {
@@ -165,6 +165,7 @@ fn every_template_manifest_matches_the_oracle() {
     for dump in &manifests {
         let id = &dump.id;
         let (template, frozen, manifest) = freeze(id);
+        let frozen = frozen.palettes;
         assert_eq!(manifest.size.map(i32::from), dump.size, "{id}: size");
         assert_eq!(frozen.len(), dump.palettes.len(), "{id}: palette count");
         let file_palettes: Vec<&[PaletteState]> = match (&template.palette, &template.palettes) {
@@ -249,6 +250,7 @@ fn every_template_manifest_matches_the_oracle() {
     for dump in &listed {
         let id = &dump.id;
         let (_, frozen, _) = freeze(id);
+        let frozen = frozen.palettes;
         assert_eq!(frozen.len(), dump.palettes.len(), "{id}: palette count");
         for (p, (blocks, bits)) in dump.palettes.iter().enumerate() {
             let expected: Vec<([i32; 3], VoxelId)> = blocks

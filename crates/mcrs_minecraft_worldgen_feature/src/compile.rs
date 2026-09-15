@@ -226,6 +226,8 @@ pub enum StateQuery<'a> {
     SturdyFace(Direction),
     Solid,
     Replaceable,
+    /// `Block.isShapeFullBlock(state.getShape())`: the outline is the whole cube.
+    FullOutline,
 }
 
 /// The block and biome registries as the feature compiler needs them.
@@ -273,6 +275,7 @@ impl std::fmt::Display for StateQuery<'_> {
             StateQuery::SturdyFace(direction) => write!(f, "sturdy face {direction:?}"),
             StateQuery::Solid => f.write_str("solid"),
             StateQuery::Replaceable => f.write_str("replaceable"),
+            StateQuery::FullOutline => f.write_str("full outline"),
         }
     }
 }

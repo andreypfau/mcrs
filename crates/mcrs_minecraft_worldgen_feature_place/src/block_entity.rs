@@ -12,7 +12,16 @@ use mcrs_minecraft_core::value_provider::Weighted;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
+use mcrs_minecraft_worldgen_feature::template::Joint;
 use serde::{Deserialize, Serialize};
+
+fn empty_id() -> String {
+    "minecraft:empty".to_owned()
+}
+
+fn air_id() -> String {
+    "minecraft:air".to_owned()
+}
 
 /// A block entity a generator produced, in the compound the save, the chunk
 /// packet and the anvil reader all encode.
@@ -151,6 +160,30 @@ pub enum GeneratedBlockEntity {
         book: Option<SavedItem>,
         #[serde(rename = "Page", default, skip_serializing_if = "Option::is_none")]
         page: Option<i32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        components: Option<NbtCompound>,
+    },
+    /// A jigsaw block a non-jigsaw piece leaves in the world, the way the
+    /// ruined portals do; a jigsaw piece replaces its own before writing.
+    #[serde(rename = "minecraft:jigsaw")]
+    Jigsaw {
+        x: i32,
+        y: i32,
+        z: i32,
+        #[serde(default = "empty_id")]
+        name: String,
+        #[serde(default = "empty_id")]
+        target: String,
+        #[serde(default = "empty_id")]
+        pool: String,
+        #[serde(default = "air_id")]
+        final_state: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        joint: Option<Joint>,
+        #[serde(default)]
+        placement_priority: i32,
+        #[serde(default)]
+        selection_priority: i32,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
@@ -616,7 +649,7 @@ pub struct EndGatewayData {
 impl GeneratedBlockEntity {
     /// The `id` each variant is tagged with; a save entry naming any other kind
     /// is one this type does not describe.
-    pub const IDS: [&'static str; 27] = [
+    pub const IDS: [&'static str; 28] = [
         "minecraft:beehive",
         "minecraft:chest",
         "minecraft:trapped_chest",
@@ -635,6 +668,7 @@ impl GeneratedBlockEntity {
         "minecraft:bell",
         "minecraft:copper_golem_statue",
         "minecraft:lectern",
+        "minecraft:jigsaw",
         "minecraft:creaking_heart",
         "minecraft:decorated_pot",
         "minecraft:brushable_block",
@@ -669,6 +703,7 @@ impl GeneratedBlockEntity {
             | GeneratedBlockEntity::EnderChest { x, y, z, .. }
             | GeneratedBlockEntity::CopperGolemStatue { x, y, z, .. }
             | GeneratedBlockEntity::Lectern { x, y, z, .. }
+            | GeneratedBlockEntity::Jigsaw { x, y, z, .. }
             | GeneratedBlockEntity::CreakingHeart { x, y, z, .. }
             | GeneratedBlockEntity::DecoratedPot { x, y, z, .. }
             | GeneratedBlockEntity::BrushableBlock { x, y, z, .. }
@@ -1015,6 +1050,19 @@ mod tests {
                     components: None,
                 }),
                 page: Some(2),
+                components: None,
+            },
+            Jigsaw {
+                x: 1,
+                y: -2,
+                z: 3,
+                name: "minecraft:empty".to_owned(),
+                target: "minecraft:empty".to_owned(),
+                pool: "minecraft:empty".to_owned(),
+                final_state: "minecraft:netherrack".to_owned(),
+                joint: Some(Joint::Aligned),
+                placement_priority: 0,
+                selection_priority: 0,
                 components: None,
             },
             CreakingHeart {

@@ -512,8 +512,10 @@ and
 # Template placement dumps
 
 `TemplatePlacementOracle.main` places every distinct template pool element the
-data pack ships — and the two `minecraft:template` feature nodes
-(`desert_well`, `sulfur_spring`) — into a `StubLevel` over a flat floor and
+data pack ships — the two `minecraft:template` feature nodes (`desert_well`,
+`sulfur_spring`), and the thirteen ruined portal templates through the
+`RuinedPortalPiece` settings chain with mirror and pivot — into a `StubLevel`
+over a flat floor and
 records what `StructureTemplate.placeInWorld` wrote: the written positions
 with their final states (hashed, or in full for a fixed subset), every block
 entity it loaded, and the placement random's state afterwards. Ahead of the
@@ -543,7 +545,7 @@ fixture in
 Little-endian, same primitives as the other dumps; `u8` is one raw byte.
 
 ```
-magic            8 bytes, ASCII "MCTMPLP1"
+magic            8 bytes, ASCII "MCTMPLP2"
 format_version   u32   currently 1
 world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
 
@@ -573,34 +575,45 @@ palette          str * palette_count      interned in first-use order, file orde
 
 case_count       u32
 repeated case_count times:
-  kind           u8    0 template pool element, 1 template feature node
+  kind           u8    0 template pool element, 1 template feature node,
+                       2 ruined portal template through RuinedPortalPiece's
+                       settings
   template_key   str   kind 0: getTemplateLocation(); kind 1: entry template
-                       ids joined by ","
+                       ids joined by ","; kind 2: the template id
   processors_key str   "ref:<processor list id>" | "inline" | "none" (feature
                        without processors); a kind-0 inline list is always
                        empty (the dump aborts otherwise), a kind-1 one is the
-                       feature's own list (desert_well's append_loot rule)
-  projection     u8    0 rigid, 1 terrain_matching; kind 1: 0
-  legacy         u8    kind 0: 1 iff LegacySinglePoolElement; kind 1: 0
-  rotation       u8    kind 0: Rotation.values()[caseIndex % 4]; kind 1: 0
-  liquid         u8    kind 0: 1 (ignore_waterlogging) iff caseIndex % 8 == 7;
+                       feature's own list (desert_well's append_loot rule);
+                       kind 2: "portal:<placement>,cold=<b>,air_pocket=<b>,
+                       mossiness=<f>,blackstone=<b>", the Properties handed
+                       to makeSettings
+  projection     u8    0 rigid, 1 terrain_matching; kind 1 and 2: 0
+  legacy         u8    kind 0: 1 iff LegacySinglePoolElement; kind 1 and 2: 0
+  rotation       u8    kind 0 and 2: Rotation.values()[caseIndex % 4];
                        kind 1: 0
-  px, py, pz     i32 * 3   kind 0: (8, 62, 8); kind 1: origin (8, 64, 8)
-  rx, ry, rz     i32 * 3   kind 0: (center.x, minY, center.z) of
-                           template.getBoundingBox(rotation, position);
+  liquid         u8    kind 0: 1 (ignore_waterlogging) iff caseIndex % 8 == 7;
+                       kind 1 and 2: 0
+  mirror         u8    Mirror ordinal (none, left_right, front_back); kind 0
+                       and 1: 0; kind 2: portalIndex % 3
+  vx, vy, vz     i32 * 3   the rotation pivot; kind 0 and 1: (0, 0, 0);
+                           kind 2: (size.x / 2, 0, size.z / 2)
+  px, py, pz     i32 * 3   kind 0 and 2: (8, 62, 8); kind 1: origin (8, 64, 8)
+  rx, ry, rz     i32 * 3   kind 0 and 2: (center.x, minY, center.z) of
+                           template.getBoundingBox(settings, position);
                            kind 1: the origin
-  has_clip       u8    kind 0: 1; kind 1: 0
+  has_clip       u8    kind 0: 1; kind 1 and 2: 0
   clip           i32 * 6   when has_clip: min x, y, z, max x, y, z, inclusive;
                            always (0, -63, 0, 15, 319, 15)
-  placement_count  u32   kind 0: 2; kind 1: 6
+  placement_count  u32   kind 0: 2; kind 1: 6; kind 2: 3
   repeated placement_count times:
     floor          u8    0: dirt for y <= 63; 1: stone for y <= 60, water
-                         source 61..=63; air above either
+                         source 61..=63; 2: stone for y <= 60, lava source
+                         61..=63; air above any
     seed           i64   XoroshiroRandomSource(seed) is the placement random;
-                         kind 0: the case index; kind 1: 0, 1, 2
-    template_drawn str   kind 0: template_key; kind 1: the entry the weighted
-                         draw picked
-    rotation_drawn u8    kind 0: rotation; kind 1: the drawn rotation
+                         kind 0 and 2: the case index; kind 1: 0, 1, 2
+    template_drawn str   kind 0 and 2: template_key; kind 1: the entry the
+                         weighted draw picked
+    rotation_drawn u8    kind 0 and 2: rotation; kind 1: the drawn rotation
     x, y, z        i32 * 3   the position handed to placeInWorld
     placed         u8    what the placement returned
     count          u32   distinct written positions
@@ -608,7 +621,8 @@ repeated case_count times:
                          index) per written entry, first-write order, final
                          state
     full           u8    1 when the running placement index % 100 == 0, or
-                         kind 1 with seed 0
+                         kind 1 with seed 0, or kind 2 with case index % 6
+                         == 0
     entries        (i32 x, i32 y, i32 z, u32 palette index) * count, when full
     entity_count   u32
     repeated entity_count times, sorted by (x, y, z):
@@ -627,9 +641,12 @@ Kind-0 cases come first: pools sorted by `Identifier.toString()`,
 `(template, processors, projection, legacy)` key. Kind-1 cases follow:
 `desert_well` then `sulfur_spring`, nodes in
 `Stream.concat(Stream.of(self), getSubFeatures())` order, first occurrence of
-each `(template ids, processors)` key. The case index and the running
-placement index both run over the whole file. The file ends at the last
-`rng_hi`; there is no trailer.
+each `(template ids, processors)` key. Kind-2 cases close the file: the ten
+`ruined_portal/portal_N` then the three `giant_portal_N`, six setups each,
+the setup fields drawn from the running portal index as the capture
+procedure lists. The case index and the running placement index both run
+over the whole file. The file ends at the last `rng_hi`; there is no
+trailer.
 
 ---
 

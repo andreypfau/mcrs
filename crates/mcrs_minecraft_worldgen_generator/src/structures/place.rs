@@ -1,11 +1,11 @@
 use bevy_math::IVec3;
-use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
+use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
-use mcrs_minecraft_worldgen_feature_place::template::{Placement, place_template};
+use mcrs_minecraft_worldgen_feature_place::template::{Placement, SettingsRandom, place_template};
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
 
 use crate::feature_program::{CompiledElement, FeatureProgram, Run};
@@ -121,6 +121,9 @@ pub fn place_element<W: WorldGenVolume>(
                     position,
                     reference,
                     rotation,
+                    mirror: Mirror::None,
+                    pivot: IVec3::ZERO,
+                    random: SettingsRandom::Positional,
                     clip,
                     chain,
                     waterlog: over.unwrap_or(liquid) == LiquidSettings::ApplyWaterlogging,

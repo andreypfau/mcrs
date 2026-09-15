@@ -10,6 +10,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
+use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, compile_rule, state_of, states_of,
 };
@@ -304,7 +305,131 @@ pub enum CompiledProcessor {
         limit: IntProvider,
         world_seed: i64,
     },
+    BlockAge(BlockAgeTables),
+    BlackstoneReplace(Vec<(StateMask, VoxelId)>),
+    LavaSubmergedBlock {
+        full_outline: StateMask,
+    },
 }
+
+/// `BlockAgeProcessor`'s tables: what it ages and what it ages into.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlockAgeTables {
+    pub mossiness: f32,
+    pub full_stone: StateMask,
+    pub stairs: StateMask,
+    pub slabs: StateMask,
+    pub walls: StateMask,
+    pub obsidian: StateMask,
+    pub cracked_stone_bricks: VoxelId,
+    pub mossy_stone_bricks: VoxelId,
+    pub stone_brick_stairs: VoxelId,
+    pub mossy_stone_brick_stairs: VoxelId,
+    pub stone_slab: VoxelId,
+    pub stone_brick_slab: VoxelId,
+    pub mossy_stone_brick_slab: VoxelId,
+    pub mossy_stone_brick_wall: VoxelId,
+    pub crying_obsidian: VoxelId,
+}
+
+fn with_properties_of(world: &WorldStates, target: VoxelId, source: VoxelId) -> VoxelId {
+    match (world.layout_of(target), world.layout_of(source)) {
+        (Some(into), Some(from)) => into.with_properties_of(target, from, source),
+        _ => target,
+    }
+}
+
+impl BlockAgeTables {
+    fn age<R: Random>(&self, world: &WorldStates, state: VoxelId, rng: &mut R) -> Option<VoxelId> {
+        let id = state.0 as usize;
+        if self.full_stone.contains(id) {
+            if rng.next_f32() >= 0.5 {
+                return None;
+            }
+            let non_mossy = [
+                self.cracked_stone_bricks,
+                random_facing_stairs(world, self.stone_brick_stairs, rng),
+            ];
+            let mossy = [
+                self.mossy_stone_bricks,
+                random_facing_stairs(world, self.mossy_stone_brick_stairs, rng),
+            ];
+            Some(self.pick(rng, non_mossy, mossy))
+        } else if self.stairs.contains(id) {
+            if rng.next_f32() >= 0.5 {
+                return None;
+            }
+            let mossy = [
+                with_properties_of(world, self.mossy_stone_brick_stairs, state),
+                self.mossy_stone_brick_slab,
+            ];
+            Some(self.pick(rng, [self.stone_slab, self.stone_brick_slab], mossy))
+        } else if self.slabs.contains(id) {
+            (rng.next_f32() < self.mossiness)
+                .then(|| with_properties_of(world, self.mossy_stone_brick_slab, state))
+        } else if self.walls.contains(id) {
+            (rng.next_f32() < self.mossiness)
+                .then(|| with_properties_of(world, self.mossy_stone_brick_wall, state))
+        } else if self.obsidian.contains(id) {
+            (rng.next_f32() < 0.15).then_some(self.crying_obsidian)
+        } else {
+            None
+        }
+    }
+
+    fn pick<R: Random>(
+        &self,
+        rng: &mut R,
+        non_mossy: [VoxelId; 2],
+        mossy: [VoxelId; 2],
+    ) -> VoxelId {
+        let from = if rng.next_f32() < self.mossiness {
+            mossy
+        } else {
+            non_mossy
+        };
+        from[rng.next_i32_bound(2) as usize]
+    }
+}
+
+fn random_facing_stairs<R: Random>(world: &WorldStates, stairs: VoxelId, rng: &mut R) -> VoxelId {
+    let facing = Direction::HORIZONTAL[rng.next_i32_bound(4) as usize];
+    let half = ["top", "bottom"][rng.next_i32_bound(2) as usize];
+    let Some(layout) = world.layout_of(stairs) else {
+        return stairs;
+    };
+    let out = layout.try_set(stairs, "facing", facing.name());
+    layout.try_set(out, "half", half)
+}
+
+const BLACKSTONE_REPLACEMENTS: [(&str, &str); 23] = [
+    ("cobblestone", "blackstone"),
+    ("mossy_cobblestone", "blackstone"),
+    ("stone", "polished_blackstone"),
+    ("stone_bricks", "polished_blackstone_bricks"),
+    ("mossy_stone_bricks", "polished_blackstone_bricks"),
+    ("cobblestone_stairs", "blackstone_stairs"),
+    ("mossy_cobblestone_stairs", "blackstone_stairs"),
+    ("stone_stairs", "polished_blackstone_stairs"),
+    ("stone_brick_stairs", "polished_blackstone_brick_stairs"),
+    (
+        "mossy_stone_brick_stairs",
+        "polished_blackstone_brick_stairs",
+    ),
+    ("cobblestone_slab", "blackstone_slab"),
+    ("mossy_cobblestone_slab", "blackstone_slab"),
+    ("smooth_stone_slab", "polished_blackstone_slab"),
+    ("stone_slab", "polished_blackstone_slab"),
+    ("stone_brick_slab", "polished_blackstone_brick_slab"),
+    ("mossy_stone_brick_slab", "polished_blackstone_brick_slab"),
+    ("stone_brick_wall", "polished_blackstone_brick_wall"),
+    ("mossy_stone_brick_wall", "polished_blackstone_brick_wall"),
+    ("cobblestone_wall", "blackstone_wall"),
+    ("mossy_cobblestone_wall", "blackstone_wall"),
+    ("chiseled_stone_bricks", "chiseled_polished_blackstone"),
+    ("cracked_stone_bricks", "cracked_polished_blackstone_bricks"),
+    ("iron_bars", "iron_chain"),
+];
 
 pub type CompiledChain = Vec<CompiledProcessor>;
 
@@ -343,7 +468,7 @@ pub fn compile_chain(
         });
     }
     for (index, processor) in list.iter().enumerate() {
-        if let Some(compiled) = compile_processor(processor, kind, blocks, world_seed)
+        if let Some(compiled) = compile_processor(processor, blocks, world_seed)
             .map_err(|e| e.within(format!("processor {index}")))?
         {
             processors.push(compiled);
@@ -371,12 +496,10 @@ pub fn compile_chain(
 
 fn compile_processor(
     processor: &StructureProcessor,
-    kind: ChainKind,
     blocks: &dyn BlockResolver,
     world_seed: i64,
 ) -> Result<Option<CompiledProcessor>, FeatureCompileError> {
     use StructureProcessor::*;
-    let unsupported = |what: &str| Err(FeatureCompileError::Unsupported(what.to_owned()));
     Ok(Some(match processor {
         Nop => return Ok(None),
         BlockIgnore { blocks: states } => CompiledProcessor::BlockIgnore(states_of(
@@ -397,11 +520,6 @@ fn compile_processor(
         ProtectedBlocks { value } => {
             CompiledProcessor::ProtectedBlocks(states_of(blocks, StateQuery::Blocks(value))?)
         }
-        // ponytail: with a feature's own random on the settings, `block_rot`
-        // draws from the feature stream instead; no shipped list does that.
-        BlockRot { .. } if kind == ChainKind::Feature => {
-            return unsupported("block_rot in a feature's processor list");
-        }
         BlockRot {
             rottable_blocks,
             integrity,
@@ -418,18 +536,64 @@ fn compile_processor(
         },
         Capped { delegate, limit } => CompiledProcessor::Capped {
             delegate: Box::new(
-                compile_processor(delegate, kind, blocks, world_seed)?
+                compile_processor(delegate, blocks, world_seed)?
                     .unwrap_or(CompiledProcessor::Rule(Vec::new())),
             ),
             limit: limit.clone(),
             world_seed,
         },
-        // ponytail: no shipped list uses these three; each needs its own arm
-        // and the draw source it reads.
-        BlackstoneReplace => return unsupported("blackstone_replace"),
-        BlockAge { .. } => return unsupported("block_age"),
-        LavaSubmergedBlock => return unsupported("lava_submerged_block"),
+        BlackstoneReplace => CompiledProcessor::BlackstoneReplace(
+            BLACKSTONE_REPLACEMENTS
+                .iter()
+                .map(|(from, to)| Ok((block_mask(blocks, from)?, default_state(blocks, to)?)))
+                .collect::<Result<_, FeatureCompileError>>()?,
+        ),
+        BlockAge { mossiness } => {
+            let tag = |name: &str| {
+                states_of(
+                    blocks,
+                    StateQuery::BlockTag(&ResourceLocation::minecraft(name)),
+                )
+            };
+            CompiledProcessor::BlockAge(BlockAgeTables {
+                mossiness: *mossiness as f32,
+                full_stone: states_of(
+                    blocks,
+                    StateQuery::Blocks(&HolderSet::List(
+                        ["stone_bricks", "stone", "chiseled_stone_bricks"]
+                            .map(ResourceLocation::minecraft)
+                            .to_vec(),
+                    )),
+                )?,
+                stairs: tag("stairs")?,
+                slabs: tag("slabs")?,
+                walls: tag("walls")?,
+                obsidian: block_mask(blocks, "obsidian")?,
+                cracked_stone_bricks: default_state(blocks, "cracked_stone_bricks")?,
+                mossy_stone_bricks: default_state(blocks, "mossy_stone_bricks")?,
+                stone_brick_stairs: default_state(blocks, "stone_brick_stairs")?,
+                mossy_stone_brick_stairs: default_state(blocks, "mossy_stone_brick_stairs")?,
+                stone_slab: default_state(blocks, "stone_slab")?,
+                stone_brick_slab: default_state(blocks, "stone_brick_slab")?,
+                mossy_stone_brick_slab: default_state(blocks, "mossy_stone_brick_slab")?,
+                mossy_stone_brick_wall: default_state(blocks, "mossy_stone_brick_wall")?,
+                crying_obsidian: default_state(blocks, "crying_obsidian")?,
+            })
+        }
+        LavaSubmergedBlock => CompiledProcessor::LavaSubmergedBlock {
+            full_outline: states_of(blocks, StateQuery::FullOutline)?,
+        },
     }))
+}
+
+fn default_state(blocks: &dyn BlockResolver, name: &str) -> Result<VoxelId, FeatureCompileError> {
+    state_of(
+        blocks,
+        &BlockState {
+            name: ResourceLocation::minecraft(name),
+            properties: None,
+        },
+    )
 }
 
 fn compile_processor_rule(
@@ -484,6 +648,14 @@ fn compile_processor_rule(
     })
 }
 
+/// `StructurePlaceSettings.getRandom`: a fresh `LegacyRandom` seeded by the
+/// block position, or the placement stream when the settings carry one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingsRandom {
+    Positional,
+    Stream,
+}
+
 pub struct Placement<'a> {
     pub template: &'a FrozenTemplate,
     pub jigsaws: &'a [JigsawBlock],
@@ -491,9 +663,28 @@ pub struct Placement<'a> {
     pub position: IVec3,
     pub reference: IVec3,
     pub rotation: Rotation,
+    pub mirror: Mirror,
+    pub pivot: IVec3,
+    pub random: SettingsRandom,
     pub clip: Option<BoundingBox>,
     pub chain: &'a CompiledChain,
     pub waterlog: bool,
+}
+
+fn run_processor<W: WorldGenVolume>(
+    processor: &CompiledProcessor,
+    volume: &W,
+    p: &Placement<'_>,
+    b: &mut Processed,
+    rng: &mut XoroshiroRandom,
+) -> bool {
+    match p.random {
+        SettingsRandom::Positional => {
+            let mut positional = LegacyRandom::new(block_pos_seed(b.world_pos));
+            processor.process(volume, p, b, &mut positional)
+        }
+        SettingsRandom::Stream => processor.process(volume, p, b, rng),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -505,7 +696,13 @@ pub struct Processed {
 }
 
 impl CompiledProcessor {
-    fn process<W: WorldGenVolume>(&self, volume: &W, p: &Placement<'_>, b: &mut Processed) -> bool {
+    fn process<W: WorldGenVolume, R: Random>(
+        &self,
+        volume: &W,
+        p: &Placement<'_>,
+        b: &mut Processed,
+        rng: &mut R,
+    ) -> bool {
         match self {
             CompiledProcessor::BlockIgnore(mask) => !mask.contains(b.state.0 as usize),
             CompiledProcessor::JigsawReplacement { jigsaw } => {
@@ -560,7 +757,6 @@ impl CompiledProcessor {
                 rottable,
                 integrity,
             } => {
-                let mut rng = LegacyRandom::new(block_pos_seed(b.world_pos));
                 !rottable
                     .as_ref()
                     .is_none_or(|mask| mask.contains(b.state.0 as usize))
@@ -573,6 +769,43 @@ impl CompiledProcessor {
                 true
             }
             CompiledProcessor::Capped { .. } => true,
+            CompiledProcessor::BlockAge(age) => {
+                if let Some(aged) = age.age(volume.world(), b.state, rng) {
+                    b.state = aged;
+                }
+                true
+            }
+            CompiledProcessor::BlackstoneReplace(table) => {
+                let world = volume.world();
+                if let Some((_, target)) = table
+                    .iter()
+                    .find(|(mask, _)| mask.contains(b.state.0 as usize))
+                {
+                    let mut out = *target;
+                    if let (Some(from), Some(into)) =
+                        (world.layout_of(b.state), world.layout_of(out))
+                    {
+                        for name in ["facing", "half", "type"] {
+                            if let Some(value) = value_of(from, b.state, name) {
+                                out = into.try_set(out, name, value);
+                            }
+                        }
+                    }
+                    b.state = out;
+                }
+                true
+            }
+            CompiledProcessor::LavaSubmergedBlock { full_outline } => {
+                let world = volume.world();
+                if world
+                    .lava_states
+                    .contains(volume.get(b.world_pos.into()).0 as usize)
+                    && !full_outline.contains(b.state.0 as usize)
+                {
+                    b.state = world.lava;
+                }
+                true
+            }
         }
     }
 
@@ -581,6 +814,7 @@ impl CompiledProcessor {
         volume: &W,
         p: &Placement<'_>,
         processed: &mut [Processed],
+        stream: &mut XoroshiroRandom,
     ) {
         let CompiledProcessor::Capped {
             delegate,
@@ -605,7 +839,9 @@ impl CompiledProcessor {
                 break;
             }
             let mut altered = processed[index].clone();
-            if delegate.process(volume, p, &mut altered) && altered != processed[index] {
+            if run_processor(delegate, volume, p, &mut altered, stream)
+                && altered != processed[index]
+            {
                 processed[index] = altered;
                 replaced += 1;
             }
@@ -639,7 +875,7 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
 }
 
 /// `StructureTemplate.placeInWorld` for one palette the caller has already
-/// drawn, with no mirror and the pivot at the template origin.
+/// drawn.
 // ponytail: template entities are never placed (172 shipped templates carry
 // some); the upgrade is a second typed list delivered like block entities.
 pub fn place_template<W: WorldGenVolume>(
@@ -665,7 +901,7 @@ pub fn place_template<W: WorldGenVolume>(
     let mut processed = Vec::with_capacity(blocks.len());
     for block in blocks.iter() {
         let template_pos = IVec3::from(block.pos.map(i32::from));
-        let world_pos = transform(template_pos, Mirror::None, p.rotation, IVec3::ZERO) + p.position;
+        let world_pos = transform(template_pos, p.mirror, p.rotation, p.pivot) + p.position;
         if !whole_piece && !inside(world_pos) {
             continue;
         }
@@ -677,13 +913,13 @@ pub fn place_template<W: WorldGenVolume>(
         };
         if p.chain
             .iter()
-            .all(|processor| processor.process(volume, p, &mut b))
+            .all(|processor| run_processor(processor, volume, p, &mut b, rng))
         {
             processed.push(b);
         }
     }
     for processor in p.chain {
-        processor.finalize(volume, p, &mut processed);
+        processor.finalize(volume, p, &mut processed, rng);
     }
 
     let source =
@@ -696,9 +932,14 @@ pub fn place_template<W: WorldGenVolume>(
         }
         let pos = BlockPos::from(b.world_pos);
         let previous = p.waterlog.then(|| volume.get(pos));
-        let state = rotate_state(volume.world(), b.state, p.rotation);
+        let state = rotate_state(
+            volume.world(),
+            mirror_state(volume.world(), b.state, p.mirror),
+            p.rotation,
+        );
         volume.set(pos, state);
-        if let Some(nbt) = &b.nbt {
+        let holds_entity = volume.world().has_block_entity.contains(state.0 as usize);
+        if let Some(nbt) = b.nbt.as_ref().filter(|_| holds_entity) {
             let seed = GeneratedBlockEntity::wants_loot_seed(nbt).then(|| rng.next_i64());
             match GeneratedBlockEntity::from_template(nbt, pos, seed) {
                 Ok(Some(entity)) => entities.push(entity),
@@ -825,6 +1066,7 @@ mod tests {
             water_states: mask_of([WATER.0]),
             water_source: Arc::new(any_source.clone()),
             any_source_fluid: Arc::new(any_source),
+            has_block_entity: mask_of([STONE.0, JIGSAW.0]),
             block_of_state: block_of_state.into(),
             layouts: layouts.into(),
             ..WorldStates::default()
@@ -913,6 +1155,9 @@ mod tests {
             position: IVec3::new(4, 5, 4),
             reference: IVec3::new(4, 5, 4),
             rotation,
+            mirror: Mirror::None,
+            pivot: IVec3::ZERO,
+            random: SettingsRandom::Positional,
             clip,
             chain,
             waterlog: false,
@@ -1308,6 +1553,59 @@ mod tests {
             region.writes.iter().filter(|(_, s)| *s == STONE).count(),
             2,
             "stone is not rottable and never drawn for"
+        );
+    }
+
+    #[test]
+    fn block_rot_on_the_stream_spends_one_float_per_rottable_block() {
+        let template = template();
+        let integrity = 0.5;
+        let chain = vec![CompiledProcessor::BlockRot {
+            rottable: Some(mask_of([DIRT.0])),
+            integrity,
+        }];
+        let mut p = placement(&template, &chain, Rotation::None, None);
+        p.random = SettingsRandom::Stream;
+        let (region, _, mut rng, _) = place(&p);
+        let mut replay = XoroshiroRandom::new(7);
+        let expected = (0..9).filter(|_| replay.next_f32() <= integrity).count();
+        replay.next_i64();
+        assert_eq!(
+            region.writes.iter().filter(|(_, s)| *s == DIRT).count(),
+            expected
+        );
+        assert_eq!(
+            rng.next_i64(),
+            replay.next_i64(),
+            "nine floats, then the chest seed"
+        );
+    }
+
+    #[test]
+    fn a_mirrored_piece_pivots_before_it_rotates() {
+        let template = template();
+        let chain = vec![];
+        let mut p = placement(&template, &chain, Rotation::Clockwise90, None);
+        p.mirror = Mirror::FrontBack;
+        p.pivot = IVec3::new(1, 0, 1);
+        let (region, ..) = place(&p);
+        let expected: Vec<(BlockPos, VoxelId)> = template.palettes[0]
+            .iter()
+            .map(|b| {
+                let pos = transform(
+                    IVec3::from(b.pos.map(i32::from)),
+                    Mirror::FrontBack,
+                    Rotation::Clockwise90,
+                    IVec3::new(1, 0, 1),
+                ) + IVec3::new(4, 5, 4);
+                (BlockPos::from(pos), b.state)
+            })
+            .collect();
+        assert_eq!(region.writes, expected);
+        assert_eq!(
+            region.writes[0].0,
+            BlockPos::new(6, 5, 4),
+            "(0,0,0) mirrors to x=0, then turns about (1,1) onto (2,0)"
         );
     }
 

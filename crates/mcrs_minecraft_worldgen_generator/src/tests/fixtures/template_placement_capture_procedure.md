@@ -18,16 +18,17 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
-(4 977 514 bytes). The run log must contain no `Serialization errors` line —
+(5 459 589 bytes). The run log must contain no `Serialization errors` line —
 `placeInWorld` reports block-entity load problems through its logger instead
 of throwing, so a hit means a compound in the fixture was not loaded the way
 the fixture claims. The capture that produced this file had none.
 
 **Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/template_parity.rs`,
-which compiles every processor chain through the real resolver, places each
-case into a box region with the same floors, and asserts the written-block
-hash (or full list), the block-entity compounds, and the placement random's
-state afterwards; and pins the three censuses that precede the cases.
+which compiles every processor chain through the real resolver (the ruined
+portal chains from the properties their case key spells), places each case
+into a box region with the same floors, and asserts the written-block hash
+(or full list), the block-entity compounds, and the placement random's state
+afterwards; and pins the three censuses that precede the cases.
 
 The byte layout is in `tools/vanilla-oracle/README.md` under "Template
 placement dumps".
@@ -57,6 +58,24 @@ with one deliberate deviation: `setKnownShape(true)`. The feature leaves
 over every placed block afterwards; that pass is not reproduced by the port
 and would need a full block-shape model in the stub, so it is skipped here and
 listed below as something the fixture cannot pin.
+
+Portal cases place the thirteen `ruined_portal/*` templates the way a
+`RuinedPortalPiece` does, minus the piece's own post-processing. The settings
+come from the piece's private static `makeSettings(registries, mirror,
+rotation, verticalPlacement, pivot, properties)`, reached by reflection so the
+chain is the reference's own — `block_ignore(structure_block)` or
+`block_ignore(air, structure_block)` by `airPocket`, the gold, lava and
+netherrack rules, `block_age(mossiness)`,
+`protected_blocks(#features_cannot_replace)`, `lava_submerged_block`, and
+`blackstone_replace` when `replaceWithBlackstone` — with the pivot the
+structure computes, `(size.x / 2, 0, size.z / 2)`. Then
+`placeInWorld(level, position, reference, settings, random, 2)`, the call
+`TemplateStructurePiece.postProcess` makes; no clip, which is what the
+portal's `chunkBB.encapsulate(boundingBox)` amounts to. The same deliberate
+deviation as the feature cases applies: `setKnownShape(true)`, because the
+piece leaves `knownShape` false and the neighbour-shape pass is not
+reproduced. `spreadNetherrack`, the drip columns, vines and leaves run after
+`placeInWorld` in the piece and are not part of these cases.
 
 The `processors` field of `SinglePoolElement` is protected and read by
 reflection, only to derive the case key. A pool element whose inline list is
@@ -89,7 +108,9 @@ are swallowed the way `WorldGenRegion` swallows them (a lit candle placed into
 water is extinguished by `CandleBlock.placeLiquid` and emits smoke).
 
 Floors: `0` is dirt for `y <= 63`, air above; `1` is stone for `y <= 60`,
-source water for `61..=63`, air above. Every placement gets a fresh
+source water for `61..=63`, air above; `2` (portal cases only) is stone for
+`y <= 60`, source lava for `61..=63`, air above, so `lava_submerged_block`
+sees lava under the piece. Every placement gets a fresh
 `StubLevel` and a fresh `XoroshiroRandomSource(seed)`; the level's own random
 (`getRandom()`) is a `XoroshiroRandomSource(0)` that nothing in placement
 draws from.
@@ -104,6 +125,10 @@ draws from.
 | pool case key | `getTemplateLocation()`, the `processors` holder's key (`ref:` + id) or `inline`, `getProjection()`, `instanceof LegacySinglePoolElement` |
 | pool case order | `Registries.TEMPLATE_POOL` sorted by `Identifier.toString()`, `getTemplates()` raw pairs in order, `ListPoolElement.getElements()` in order, first occurrence of a key |
 | `rotation`, `liquid` | `Rotation.values()[k % 4]`; `k % 8 == 7 ? IGNORE_WATERLOGGING : APPLY_WATERLOGGING` |
+| `mirror`, `pivot` | kind 0 and 1: `NONE`, `BlockPos.ZERO` (what `SinglePoolElement` and `TemplateFeature` leave on the settings); kind 2: `Mirror.values()[k % 3]` and `(size.x / 2, 0, size.z / 2)` of the template, the portal structure's pivot |
+| portal case key | `portal:` + `VerticalPlacement.getSerializedName()`, `cold`, `air_pocket`, `mossiness` (`Float.toString`), `blackstone` from the `Properties` record |
+| portal case order | the thirteen templates in `STRUCTURE_LOCATION_PORTALS` then `STRUCTURE_LOCATION_GIANT_PORTALS` order, six setups each; over the running portal index `k`: placement `values()[k % 6]`, cold `k % 9 < 4`, mossiness `{0, 0.2, 0.5, 0.8, 1}[k % 5]`, air pocket `k % 7 < 3`, blackstone `k % 11 < 4`, `overgrown` and `vines` false (they act after `placeInWorld`) |
+| `reference` (kind 2) | `template.getBoundingBox(settings, position)` with the case's mirror, rotation and pivot: `(center.x, minY, center.z)` |
 | `reference` | `template.getBoundingBox(new StructurePlaceSettings().setRotation(rotation), position)`: `(center.x, minY, center.z)` — what `PoolElementStructurePiece.place` passes |
 | `clip` | `(0, minY + 1, 0, 15, minY + height - 1, 15)` of the overworld `DimensionType`, the chunk box `ChunkGenerator.applyBiomeDecoration` hands a piece |
 | feature case key | `TemplateFeature.templates().unwrap()` entry ids joined by `,`; `processors()` holder key, `inline`, or `none` |
@@ -116,8 +141,8 @@ draws from.
 
 ## Cases
 
-1389 cases, 2802 placements, 587 982 written positions in total, 1596
-distinct written states, 3010 block entities; 41 placements carry the full
+1467 cases, 3036 placements, 724 833 written positions in total, 1690
+distinct written states, 3304 block entities; 82 placements carry the full
 list. Censuses: 49 block-entity types; 190 entity blocks, of which 33 create a
 `RandomizableContainer` (`chest` and the eight copper chests → `chest`,
 `trapped_chest`, `barrel`, `dispenser`, `dropper`, `hopper`, `crafter`,
@@ -146,6 +171,20 @@ Feature cases (6): `desert_well/well` (no processors),
 share the key), and the four `sulfur_spring` size classes, each a weighted
 list of one to four templates over all four rotations, no processors.
 
+Portal cases (78): thirteen templates times six setups, three floors each,
+234 placements, all placed; 136 851 written positions, 41 full lists (one
+setup per template, the cases whose index is divisible by six, plus the
+running-index hundreds). Every rotation, every mirror (26 `none`, 26
+`left_right`, 26 `front_back`), every vertical placement and every shipped
+mossiness occurs, with and without the cold, air-pocket and blackstone flags.
+The block entities are 204 chests and 90 jigsaw blocks: a ruined portal is
+not a jigsaw piece, so its templates' jigsaw block is written as it is and
+loads a `minecraft:jigsaw` block entity. A chest that `lava_submerged_block`
+turns into lava loads nothing and draws no seed. The full lists carry the
+aged, blackstone-replaced and lava-submerged states — cracked and mossy
+stone bricks, mossy slabs, stairs and walls, crying obsidian, every polished
+blackstone family member, iron chains, magma and lava.
+
 Block entities placed, by type: `brushable_block` 1258, `chest` 600, `barrel`
 436, `campfire` 226, `banner` 174, `furnace` 68, `bell` 54, `blast_furnace`
 34, `smoker` 30, `brewing_stand` 28, `trial_spawner` 28, `lectern` 22,
@@ -172,10 +211,15 @@ are pinned only by their own unit tests.
   what a later piece sees of an earlier one, is not exercised.
 - **Template entities.** None is spawned (see above), so nothing pins the
   entity list or what `finalizeSpawn` would do.
-- **The neighbour-shape post pass** of `minecraft:template` features
-  (`knownShape = false`). With the deliberate `setKnownShape(true)`, a sulfur
-  spike at a template's edge keeps its file state; a real server may recompute
-  its `thickness` against the terrain.
+- **The neighbour-shape post pass** of `minecraft:template` features and of
+  the ruined portal piece (`knownShape = false`). With the deliberate
+  `setKnownShape(true)`, a sulfur spike at a template's edge keeps its file
+  state and a portal's walls, fences and iron bars keep their template
+  connections; a real server recomputes them against the terrain.
+- **The ruined portal's own post-processing.** `spreadNetherrack`, the drip
+  columns, vines and leaves draw from the piece random after `placeInWorld`
+  and are not in these cases; the portal cases pin the chain and the
+  transform only.
 - **Feature-flag filtering of `final_state`.** `DEFAULT_FLAGS` is the vanilla
   set; a world with experimental packs enabled would parse the same strings
   through a wider lookup, which changes nothing for the shipped corpus.

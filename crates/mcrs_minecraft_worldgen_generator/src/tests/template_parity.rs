@@ -14,26 +14,37 @@ use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, to_nbt_compound};
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_random::block_pos_seed;
+use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
-use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature, processor_list};
+use mcrs_minecraft_worldgen_feature::proto::{
+    Feature, Holder, PlacedFeature, ProcessorRule, StructureProcessor, processor_list,
+};
+use mcrs_minecraft_worldgen_feature::rule_test::RuleTest;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
-use mcrs_minecraft_worldgen_feature_place::template::{mirror_state, rotate_state};
+use mcrs_minecraft_worldgen_feature_place::template::{
+    ChainKind, Placement, SettingsRandom, compile_chain, mirror_state, place_template, rotate_state,
+};
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
 use super::structures::frozen_shared;
-use super::template_manifest::{parse_state, resolve};
-use super::{biome_registry, build_program_with, corpus, corpus_features, one_step};
+use super::template_manifest::{freeze, parse_state, resolve};
+use super::{
+    biome_registry, block_tags, blocks, build_program_with, corpus, corpus_features, fluid_tags,
+    one_step,
+};
 use crate::feature_program::{FeatureProgram, RunScratch};
 use crate::structures::place::place_element;
 use mcrs_minecraft_worldgen_feature_place::block_entity::BLOCK_ENTITY_TYPES;
 use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenElement};
 
-const MAGIC: &[u8; 8] = b"MCTMPLP1";
+const MAGIC: &[u8; 8] = b"MCTMPLP2";
 const BIOME: &str = "minecraft:plains";
 const WORLD_SEED: i64 = 0x5EED;
 const FNV_OFFSET: u64 = 0xcbf29ce484222325;
@@ -66,6 +77,8 @@ struct DumpCase {
     key: CaseKey,
     rotation: u8,
     liquid: u8,
+    mirror: u8,
+    pivot: [i32; 3],
     position: [i32; 3],
     reference: [i32; 3],
     clip: Option<BoundingBox>,
@@ -104,6 +117,8 @@ fn read_dump() -> Dump {
             let legacy = r.get_u8();
             let rotation = r.get_u8();
             let liquid = r.get_u8();
+            let mirror = r.get_u8();
+            let pivot = vec3(&mut r);
             let position = vec3(&mut r);
             let reference = vec3(&mut r);
             let clip = (r.get_u8() == 1).then(|| {
@@ -165,6 +180,8 @@ fn read_dump() -> Dump {
                 key: (template_key, processors_key, projection, legacy),
                 rotation,
                 liquid,
+                mirror,
+                pivot,
                 position,
                 reference,
                 clip,
@@ -402,8 +419,11 @@ fn region(min: BlockPos, max: BlockPos, floor: u8) -> BoxRegion {
     let region = BoxRegion::new(min, max, world.air);
     let mut region = match floor {
         0 => region.floor(63, state("minecraft:dirt")),
-        _ => region
+        1 => region
             .floor(63, state("minecraft:water"))
+            .floor(60, state("minecraft:stone")),
+        _ => region
+            .floor(63, state("minecraft:lava"))
             .floor(60, state("minecraft:stone")),
     };
     region.world = world;
@@ -772,6 +792,150 @@ fn every_template_feature_places_as_the_reference_does() {
                 &|_| true,
             );
             let (entities, _) = run.finish();
+            let outcome = Outcome {
+                placed,
+                writes: region.writes,
+                entities,
+                rng: [rng.next_i64(), rng.next_i64()],
+            };
+            faults.extend(compare(&label, placement, &outcome));
+        }
+    }
+    report(&faults, placements);
+}
+
+/// `RuinedPortalPiece.makeSettings`, from the properties the case key spells.
+fn portal_processors(key: &str) -> Vec<StructureProcessor> {
+    let fields: BTreeMap<&str, &str> = key
+        .strip_prefix("portal:")
+        .unwrap()
+        .split(',')
+        .map(|field| field.split_once('=').unwrap_or(("placement", field)))
+        .collect();
+    let flag = |name: &str| fields[name] == "true";
+    let (cold, air_pocket, blackstone) = (flag("cold"), flag("air_pocket"), flag("blackstone"));
+    let mossiness: f32 = fields["mossiness"].parse().unwrap();
+    let state = |name: &str| BlockState {
+        name: ResourceLocation::minecraft(name),
+        properties: None,
+    };
+    let replace = |source: &str, probability: Option<f32>, target: &str| ProcessorRule {
+        input_predicate: match probability {
+            Some(probability) => RuleTest::RandomBlockMatch {
+                block: ResourceLocation::minecraft(source),
+                probability,
+            },
+            None => RuleTest::BlockMatch {
+                block: ResourceLocation::minecraft(source),
+            },
+        },
+        location_predicate: RuleTest::AlwaysTrue,
+        position_predicate: None,
+        output_state: state(target),
+        block_entity_modifier: None,
+    };
+    let lava = if fields["placement"] == "on_ocean_floor" {
+        replace("lava", None, "magma_block")
+    } else if cold {
+        replace("lava", None, "netherrack")
+    } else {
+        replace("lava", Some(0.2), "magma_block")
+    };
+    let mut rules = vec![replace("gold_block", Some(0.3), "air"), lava];
+    if !cold {
+        rules.push(replace("netherrack", Some(0.07), "magma_block"));
+    }
+    let ignored = if air_pocket {
+        vec![state("structure_block")]
+    } else {
+        vec![state("air"), state("structure_block")]
+    };
+    let mut list = vec![
+        StructureProcessor::BlockIgnore { blocks: ignored },
+        StructureProcessor::Rule { rules },
+        StructureProcessor::BlockAge {
+            mossiness: f64::from(mossiness),
+        },
+        StructureProcessor::ProtectedBlocks {
+            value: mcrs_minecraft_core::HolderSet::Tag(ResourceLocation::minecraft(
+                "features_cannot_replace",
+            )),
+        },
+        StructureProcessor::LavaSubmergedBlock,
+    ];
+    if blackstone {
+        list.push(StructureProcessor::BlackstoneReplace);
+    }
+    list
+}
+
+#[test]
+fn every_ruined_portal_chain_places_as_the_reference_does() {
+    let dump = dump();
+    let biomes = biome_registry(&[BIOME]);
+    let resolver = crate::feature_program::Resolver::new(
+        &blocks().0,
+        Some(block_tags()),
+        Some(fluid_tags()),
+        &biomes,
+        WORLD_SEED,
+        &[],
+    )
+    .expect("the corpus resolves");
+    let mut templates: BTreeMap<&str, mcrs_minecraft_worldgen_feature::template::FrozenTemplate> =
+        BTreeMap::new();
+    let mut faults = Vec::new();
+    let mut placements = 0;
+    let cases: Vec<&DumpCase> = dump.cases.iter().filter(|case| case.kind == 2).collect();
+    assert_eq!(cases.len(), 78);
+    for case in cases {
+        let template = templates
+            .entry(case.key.0.as_str())
+            .or_insert_with(|| freeze(&case.key.0).1);
+        let chain = compile_chain(
+            &portal_processors(&case.key.1),
+            ChainKind::Feature,
+            &resolver,
+            WORLD_SEED,
+        )
+        .unwrap_or_else(|error| panic!("{}: {error}", case.key.1));
+        let rotation = Rotation::ALL[case.rotation as usize];
+        let mirror = Mirror::ALL[case.mirror as usize];
+        let position = IVec3::from_array(case.position);
+        let palette = LegacyRandom::new(block_pos_seed(position))
+            .next_i32_bound(template.palettes.len() as i32) as usize;
+        for placement in &case.placements {
+            placements += 1;
+            let label = format!(
+                "{} {} rotation {rotation:?} mirror {mirror:?} floor {} seed {}",
+                case.key.0, case.key.1, placement.floor, placement.seed
+            );
+            let mut region = region(
+                BlockPos::new(-48, -64, -48),
+                BlockPos::new(63, 319, 63),
+                placement.floor,
+            );
+            let mut rng = XoroshiroRandom::new(placement.seed as u64);
+            let mut entities = Vec::new();
+            let placed = place_template(
+                &Placement {
+                    template,
+                    jigsaws: &[],
+                    palette,
+                    position,
+                    reference: IVec3::from_array(case.reference),
+                    rotation,
+                    mirror,
+                    pivot: IVec3::from_array(case.pivot),
+                    random: SettingsRandom::Positional,
+                    clip: case.clip,
+                    chain: &chain,
+                    waterlog: true,
+                },
+                &mut region,
+                &mut rng,
+                &mut entities,
+            );
             let outcome = Outcome {
                 placed,
                 writes: region.writes,

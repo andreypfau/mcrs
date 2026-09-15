@@ -4,6 +4,7 @@ use crate::structures::{check_block_entity_ids, resolve_palette_state};
 use crate::trees::{
     build_tree_tables, compile_decorator, compile_provider, compile_tree, state_of, with_property,
 };
+use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
@@ -17,10 +18,10 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
+use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
@@ -115,7 +116,7 @@ use mcrs_minecraft_worldgen_feature_place::stepped_column::{
 };
 use mcrs_minecraft_worldgen_feature_place::tables::BlockTables;
 use mcrs_minecraft_worldgen_feature_place::template::{
-    ChainKind, CompiledChain, Placement, compile_chain, place_template,
+    ChainKind, CompiledChain, Placement, SettingsRandom, compile_chain, place_template,
 };
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::{
     BiomeClimate, CompiledBlueIce, CompiledDisk, CompiledFreezeTopLayer, CompiledUnderwaterMagma,
@@ -838,6 +839,9 @@ impl Generator {
                         position,
                         reference: position,
                         rotation,
+                        mirror: Mirror::None,
+                        pivot: IVec3::ZERO,
+                        random: SettingsRandom::Stream,
                         clip: None,
                         chain: &config.chain,
                         waterlog: true,
@@ -2516,6 +2520,17 @@ impl BlockResolver for Resolver<'_> {
             }
             StateQuery::Solid => return Some(self.world.solid.clone()),
             StateQuery::Replaceable => return Some(self.world.replaceable.clone()),
+            StateQuery::FullOutline => {
+                let mut full: FxHashMap<u32, bool> = FxHashMap::default();
+                for id in 0..self.blocks.state_count() {
+                    let shape = self.blocks.state(BlockStateId(id as u16)).selection_shape;
+                    if *full.entry(shape.0).or_insert_with(|| {
+                        VoxelShape::from_boxes(self.blocks.shape(shape)).occludes_full_block()
+                    }) {
+                        mask.insert(id);
+                    }
+                }
+            }
             StateQuery::SturdyFace(direction) => {
                 let face = mcrs_minecraft_core::Direction::all()[direction as usize];
                 let mut covers: FxHashMap<u32, bool> = FxHashMap::default();

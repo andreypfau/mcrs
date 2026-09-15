@@ -6,6 +6,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +23,7 @@ import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.Vec3i;
@@ -60,6 +62,7 @@ import net.minecraft.world.level.levelgen.structure.pools.ListPoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.SinglePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
+import net.minecraft.world.level.levelgen.structure.structures.RuinedPortalPiece;
 import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor;
@@ -69,20 +72,48 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 import net.minecraft.world.level.storage.LevelStorageSource;
 
 public final class TemplatePlacementOracle {
-    private static final byte[] MAGIC = "MCTMPLP1".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] MAGIC = "MCTMPLP2".getBytes(StandardCharsets.US_ASCII);
     private static final BlockPos PIECE_POSITION = new BlockPos(8, 62, 8);
     private static final BlockPos FEATURE_ORIGIN = new BlockPos(8, 64, 8);
     private static final int SEA_LEVEL = 64;
     private static final List<String> FEATURES = List.of("minecraft:desert_well", "minecraft:sulfur_spring");
+    private static final List<String> PORTALS = List.of(
+        "minecraft:ruined_portal/portal_1",
+        "minecraft:ruined_portal/portal_2",
+        "minecraft:ruined_portal/portal_3",
+        "minecraft:ruined_portal/portal_4",
+        "minecraft:ruined_portal/portal_5",
+        "minecraft:ruined_portal/portal_6",
+        "minecraft:ruined_portal/portal_7",
+        "minecraft:ruined_portal/portal_8",
+        "minecraft:ruined_portal/portal_9",
+        "minecraft:ruined_portal/portal_10",
+        "minecraft:ruined_portal/giant_portal_1",
+        "minecraft:ruined_portal/giant_portal_2",
+        "minecraft:ruined_portal/giant_portal_3"
+    );
+    private static final int PORTAL_SETUPS_PER_TEMPLATE = 6;
+    private static final float[] MOSSINESS = {0.0F, 0.2F, 0.5F, 0.8F, 1.0F};
     private static final long FNV_OFFSET = 0xcbf29ce484222325L;
     private static final long FNV_PRIME = 0x100000001b3L;
     private static final Field PROCESSORS;
+    private static final Method MAKE_SETTINGS;
 
     static {
         try {
             PROCESSORS = SinglePoolElement.class.getDeclaredField("processors");
             PROCESSORS.setAccessible(true);
-        } catch (NoSuchFieldException e) {
+            MAKE_SETTINGS = RuinedPortalPiece.class.getDeclaredMethod(
+                "makeSettings",
+                HolderLookup.Provider.class,
+                Mirror.class,
+                Rotation.class,
+                RuinedPortalPiece.VerticalPlacement.class,
+                BlockPos.class,
+                RuinedPortalPiece.Properties.class
+            );
+            MAKE_SETTINGS.setAccessible(true);
+        } catch (NoSuchFieldException | NoSuchMethodException e) {
             throw new ExceptionInInitializerError(e);
         }
     }
@@ -105,6 +136,22 @@ public final class TemplatePlacementOracle {
     private record PoolCase(SinglePoolElement element, String template, String processors) {}
 
     private record FeatureCase(TemplateFeature feature, String templates, String processors) {}
+
+    private record PortalCase(
+        String template,
+        Rotation rotation,
+        Mirror mirror,
+        RuinedPortalPiece.VerticalPlacement vertical,
+        RuinedPortalPiece.Properties properties
+    ) {
+        String key() {
+            return "portal:" + this.vertical.getSerializedName()
+                + ",cold=" + this.properties.cold()
+                + ",air_pocket=" + this.properties.airPocket()
+                + ",mossiness=" + this.properties.mossiness()
+                + ",blackstone=" + this.properties.replaceWithBlackstone();
+        }
+    }
 
     private final RegistryAccess access;
     private final DimensionType overworld;
@@ -238,6 +285,7 @@ public final class TemplatePlacementOracle {
     private void writePlacements(final OutputStream out) throws Exception {
         List<PoolCase> poolCases = this.poolCases();
         List<FeatureCase> featureCases = this.featureCases();
+        List<PortalCase> portalCases = portalCases();
         ByteArrayOutputStream cases = new ByteArrayOutputStream();
         int index = 0;
         for (PoolCase c : poolCases) {
@@ -245,12 +293,17 @@ public final class TemplatePlacementOracle {
         }
         for (FeatureCase c : featureCases) {
             this.writeFeatureCase(cases, c);
+            index++;
+        }
+        for (PortalCase c : portalCases) {
+            this.writePortalCase(cases, c, index++);
         }
         this.palette.write(out);
-        Bin.i32(out, poolCases.size() + featureCases.size());
+        Bin.i32(out, poolCases.size() + featureCases.size() + portalCases.size());
         cases.writeTo(out);
         System.out.println("cases: " + poolCases.size() + " pool, " + featureCases.size() + " feature, "
-            + this.runningPlacement + " placements, " + this.palette.indices.size() + " palette states");
+            + portalCases.size() + " portal, " + this.runningPlacement + " placements, "
+            + this.palette.indices.size() + " palette states");
     }
 
     private List<PoolCase> poolCases() throws Exception {
@@ -306,6 +359,26 @@ public final class TemplatePlacementOracle {
         return new ArrayList<>(cases.values());
     }
 
+    private static List<PortalCase> portalCases() {
+        List<PortalCase> cases = new ArrayList<>();
+        int k = 0;
+        for (String template : PORTALS) {
+            for (int setup = 0; setup < PORTAL_SETUPS_PER_TEMPLATE; setup++, k++) {
+                RuinedPortalPiece.Properties properties = new RuinedPortalPiece.Properties(
+                    k % 9 < 4, MOSSINESS[k % 5], k % 7 < 3, false, false, k % 11 < 4
+                );
+                cases.add(new PortalCase(
+                    template,
+                    Rotation.values()[k % 4],
+                    Mirror.values()[k % 3],
+                    RuinedPortalPiece.VerticalPlacement.values()[k % 6],
+                    properties
+                ));
+            }
+        }
+        return cases;
+    }
+
     private static String processorsKey(
         final Optional<Holder<StructureProcessorList>> processors, final boolean allowInlineRules
     ) {
@@ -328,9 +401,11 @@ public final class TemplatePlacementOracle {
         BlockState dirt = Blocks.DIRT.defaultBlockState();
         BlockState stone = Blocks.STONE.defaultBlockState();
         BlockState water = Blocks.WATER.defaultBlockState();
+        BlockState lava = Blocks.LAVA.defaultBlockState();
         return switch (floor) {
             case 0 -> pos -> pos.getY() <= 63 ? dirt : air;
             case 1 -> pos -> pos.getY() <= 60 ? stone : (pos.getY() <= 63 ? water : air);
+            case 2 -> pos -> pos.getY() <= 60 ? stone : (pos.getY() <= 63 ? lava : air);
             default -> throw new IllegalArgumentException("floor " + floor);
         };
     }
@@ -356,6 +431,8 @@ public final class TemplatePlacementOracle {
         out.write(c.element() instanceof LegacySinglePoolElement ? 1 : 0);
         out.write(rotation.ordinal());
         out.write(liquid == LiquidSettings.IGNORE_WATERLOGGING ? 1 : 0);
+        out.write(0);
+        pos(out, BlockPos.ZERO);
         pos(out, PIECE_POSITION);
         pos(out, reference);
         out.write(1);
@@ -384,6 +461,8 @@ public final class TemplatePlacementOracle {
         out.write(0);
         out.write(0);
         out.write(0);
+        out.write(0);
+        pos(out, BlockPos.ZERO);
         pos(out, FEATURE_ORIGIN);
         pos(out, FEATURE_ORIGIN);
         out.write(0);
@@ -413,6 +492,39 @@ public final class TemplatePlacementOracle {
                     out, level, floor, seed, entry.template().toString(), rotation, position, placed, random, seed == 0
                 );
             }
+        }
+    }
+
+    private void writePortalCase(final OutputStream out, final PortalCase c, final int index) throws Exception {
+        StructureTemplate template = this.templates.getOrCreate(Identifier.parse(c.template()));
+        BlockPos pivot = new BlockPos(template.getSize().getX() / 2, 0, template.getSize().getZ() / 2);
+        StructurePlaceSettings settings = (StructurePlaceSettings) MAKE_SETTINGS.invoke(
+            null, this.access, c.mirror(), c.rotation(), c.vertical(), pivot, c.properties()
+        );
+        settings.setKnownShape(true);
+        BoundingBox bb = template.getBoundingBox(settings, PIECE_POSITION);
+        BlockPos reference = new BlockPos(bb.getCenter().getX(), bb.minY(), bb.getCenter().getZ());
+
+        out.write(2);
+        Bin.str(out, c.template());
+        Bin.str(out, c.key());
+        out.write(0);
+        out.write(0);
+        out.write(c.rotation().ordinal());
+        out.write(0);
+        out.write(c.mirror().ordinal());
+        pos(out, pivot);
+        pos(out, PIECE_POSITION);
+        pos(out, reference);
+        out.write(0);
+        Bin.i32(out, 3);
+        for (int floor = 0; floor < 3; floor++) {
+            RandomSource random = new XoroshiroRandomSource(index);
+            StubLevel level = this.level(floor);
+            boolean placed = template.placeInWorld(level, PIECE_POSITION, reference, settings, random, 2);
+            this.writePlacement(
+                out, level, floor, index, c.template(), c.rotation(), PIECE_POSITION, placed, random, index % 6 == 0
+            );
         }
     }
 
