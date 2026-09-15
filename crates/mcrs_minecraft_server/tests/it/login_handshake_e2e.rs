@@ -351,7 +351,6 @@ fn build_join_host_app() -> App {
 fn e2e_join_releases_joining_world() {
     use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
     use mcrs_minecraft_network::ConnectionState;
-    use mcrs_minecraft_network::InGameConnectionState;
 
     let mut app = build_join_host_app();
 
@@ -415,7 +414,7 @@ fn e2e_join_releases_joining_world() {
     // Transition to Game — mirrors what on_configuration_ack does in production.
     app.world_mut()
         .entity_mut(connection_entity)
-        .insert((ConnectionState::Game, InGameConnectionState));
+        .insert(ConnectionState::Game);
 
     // Tick 1: emit_initial_player_spawn sends ToDim::Spawn on the control channel.
     //         Sub-app extract runs (no output yet), then sub-app FixedPreUpdate

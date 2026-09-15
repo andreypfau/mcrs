@@ -28,7 +28,7 @@ pub enum BridgeSet {
 }
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
+use mcrs_minecraft_network::{ConnectionState, EngineConnection, ServerSideConnection};
 use mcrs_minecraft_protocol::chunk::ChunkData;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -714,15 +714,13 @@ pub fn bridge_player_attach(
 }
 
 pub fn bridge_inbound(
-    mut conns: Query<
-        (
-            Entity,
-            &mut ServerSideConnection,
-            &mut InboundRateBucket,
-            Option<&HostAnchorRef>,
-        ),
-        With<InGameConnectionState>,
-    >,
+    mut conns: Query<(
+        Entity,
+        &mut ServerSideConnection,
+        &mut InboundRateBucket,
+        Option<&HostAnchorRef>,
+        &ConnectionState,
+    )>,
     mut commands: Commands,
     session_registry: Res<SessionRegistry>,
     dim_channels: Res<DimChannelsResource>,
@@ -732,7 +730,10 @@ pub fn bridge_inbound(
     use mcrs_minecraft_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
     use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 
-    for (entity, mut conn, mut bucket, anchor_ref) in conns.iter_mut() {
+    for (entity, mut conn, mut bucket, anchor_ref, state) in conns.iter_mut() {
+        if *state != ConnectionState::Game {
+            continue;
+        }
         bucket.refill();
 
         loop {

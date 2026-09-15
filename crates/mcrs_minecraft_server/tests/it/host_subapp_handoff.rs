@@ -108,13 +108,13 @@ fn spawn_accepted_connection(app: &mut App) -> (Entity, Entity) {
     (connection_entity, host_anchor)
 }
 
-/// Transition a connection entity to `ConnectionState::Game` and insert
-/// `InGameConnectionState` — mirrors what `on_configuration_ack` does.
+/// Transition a connection entity to `ConnectionState::Game` — mirrors what
+/// `on_configuration_ack` does.
 fn transition_to_game(app: &mut App, connection_entity: Entity) {
-    use mcrs_minecraft_network::{ConnectionState, InGameConnectionState};
+    use mcrs_minecraft_network::ConnectionState;
     app.world_mut()
         .entity_mut(connection_entity)
-        .insert((ConnectionState::Game, InGameConnectionState));
+        .insert(ConnectionState::Game);
 }
 
 // ---------------------------------------------------------------------------

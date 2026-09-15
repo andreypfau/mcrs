@@ -41,9 +41,7 @@ pub(crate) use server::SharedNetworkState;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod server;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
-pub use server::{
-    BoundAddress, InGameConnectionState, NetworkPlugin, ServerSideConnection, WebTransportEndpoint,
-};
+pub use server::{BoundAddress, NetworkPlugin, ServerSideConnection, WebTransportEndpoint};
 
 #[derive(Clone, Debug)]
 pub struct ReceivedPacket {

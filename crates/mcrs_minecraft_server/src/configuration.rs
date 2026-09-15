@@ -1,4 +1,4 @@
-use crate::client_info::ClientViewDistance;
+use crate::client_info::ClientInfo;
 use crate::disconnect::despawn_from_dims;
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
@@ -30,7 +30,7 @@ use mcrs_minecraft_level::dim::send_control_or_teardown;
 use mcrs_minecraft_level::session::SessionRegistry;
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
+use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };
@@ -286,10 +286,11 @@ impl Plugin for ConfigurationStatePlugin {
 /// is hot-reloaded, so they re-receive the registry data on reconnect.
 fn sync_dimension_type_changes(
     mut dim_type_events: MessageReader<AssetEvent<DimensionType>>,
-    mut players: Query<
-        (&mut ServerSideConnection, Option<&HostAnchorRef>),
-        With<InGameConnectionState>,
-    >,
+    mut players: Query<(
+        &mut ServerSideConnection,
+        &ConnectionState,
+        Option<&HostAnchorRef>,
+    )>,
     mut session_registry: ResMut<SessionRegistry>,
     dim_channels: Res<DimChannelsResource>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
@@ -301,7 +302,10 @@ fn sync_dimension_type_changes(
         return;
     }
 
-    for (mut con, host_anchor) in players.iter_mut() {
+    for (mut con, state, host_anchor) in players.iter_mut() {
+        if *state != ConnectionState::Game {
+            continue;
+        }
         info!("Sending reconfiguration to connected player");
         con.write_packet(&ClientboundStartConfiguration);
         let Some(host_anchor) = host_anchor.map(|anchor| anchor.0) else {
@@ -593,12 +597,8 @@ fn on_known_packs_response(
     commands.entity(entity).remove::<AwaitingKnownPacks>();
 }
 
-fn on_configuration_ack(
-    event: On<ReceivedPacketEvent>,
-    mut query: Query<(Entity, &mut ConnectionState)>,
-    mut commands: Commands,
-) {
-    let Ok((entity, mut state)) = query.get_mut(event.entity) else {
+fn on_configuration_ack(event: On<ReceivedPacketEvent>, mut query: Query<&mut ConnectionState>) {
+    let Ok(mut state) = query.get_mut(event.entity) else {
         return;
     };
     if *state != ConnectionState::Configuration {
@@ -608,7 +608,6 @@ fn on_configuration_ack(
         return;
     };
     *state = ConnectionState::Game;
-    commands.entity(entity).insert(InGameConnectionState);
 }
 
 /// Handles `ServerboundConfigurationAcknowledged` (packet 0x0F) sent during Game state.
@@ -617,7 +616,6 @@ fn on_configuration_ack(
 fn on_game_configuration_ack(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ConnectionState)>,
-    mut commands: Commands,
 ) {
     let Ok((entity, mut state)) = query.get_mut(event.entity) else {
         return;
@@ -630,10 +628,9 @@ fn on_game_configuration_ack(
     };
     info!("Player {:?} acknowledged reconfiguration", entity);
     *state = ConnectionState::Configuration;
-    commands.entity(entity).remove::<InGameConnectionState>();
 }
 
-/// Runs each Update tick. For every connection in `InGameConnectionState` whose
+/// Runs each Update tick. For every connection in the game state whose
 /// host-anchor still has `current_dim == Entity::PLACEHOLDER` (initial join not yet
 /// emitted), picks the first live `DimSubAppHandle` label entity and sends one
 /// `ToDim::Spawn` into the dimension's control channel, then sets `current_dim`
@@ -649,7 +646,7 @@ fn on_game_configuration_ack(
 const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
 pub fn emit_initial_player_spawn(
-    connections: Query<(&HostAnchorRef, Option<&ClientViewDistance>), With<InGameConnectionState>>,
+    connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     mut session_registry: ResMut<SessionRegistry>,
     live_dims: Query<Entity, With<DimSubAppHandle>>,
     profiles: Query<&GameProfile>,
@@ -676,9 +673,10 @@ pub fn emit_initial_player_spawn(
     };
 
     // Collect anchors first so we can mutably borrow session_registry below.
-    let anchors: Vec<(Entity, Option<ClientViewDistance>)> = connections
+    let anchors: Vec<(Entity, Option<u8>)> = connections
         .iter()
-        .map(|(anchor, view_distance)| (anchor.0, view_distance.copied()))
+        .filter(|(_, state, _)| **state == ConnectionState::Game)
+        .map(|(anchor, _, info)| (anchor.0, info.map(|info| info.view_distance)))
         .collect();
 
     for (host_anchor, view_distance) in anchors {
@@ -696,7 +694,7 @@ pub fn emit_initial_player_spawn(
             username: profile.username.clone(),
             position: DVec3::new(0.0, 128.0, 0.0),
             rotation: Vec2::ZERO,
-            view_distance: view_distance.map_or(VIEW_DISTANCE_FALLBACK, |requested| *requested),
+            view_distance: view_distance.unwrap_or(VIEW_DISTANCE_FALLBACK),
         };
         entry.dim = dim_label;
         send_control_or_teardown(

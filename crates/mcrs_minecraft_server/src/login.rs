@@ -37,12 +37,6 @@ impl bevy_app::Plugin for LoginPlugin {
 pub enum LoginState {
     #[default]
     Hello,
-    Key,
-    Authenticating,
-    Negotiating,
-    Verifying,
-    WaitingForDupeDisconnect,
-    ProtocolSwitching,
     Accepted,
 }
 
@@ -85,7 +79,6 @@ pub fn handle_hello_packet(
     if ConnectionState::Login != *state {
         return;
     }
-    println!("handle_hello_packet: {:?}", event.data);
     let Some(pkt) = event.decode::<ServerboundHello>() else {
         return;
     };
@@ -94,7 +87,7 @@ pub fn handle_hello_packet(
         username: pkt.username.to_string(),
         properties: Vec::new(),
     };
-    println!("new profile: {profile:?}");
+    tracing::debug!(?profile, "login hello");
     let response = ClientboundLoginFinished {
         profile: (&profile).into(),
         session_id: session_id.0,

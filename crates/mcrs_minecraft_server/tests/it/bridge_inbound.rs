@@ -13,7 +13,7 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_level::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
-use mcrs_minecraft_network::{InGameConnectionState, ReceivedPacket, ServerSideConnection};
+use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_server::world::bridge::bridge_inbound;
 use mcrs_minecraft_server::world::bridge_queue::{
     INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_TICKS, InboundRateBucket, OutboundQueue,
@@ -44,7 +44,7 @@ fn build_inbound_world() -> World {
     world
 }
 
-/// Spawn a connection entity with InGameConnectionState + InboundRateBucket +
+/// Spawn a connection entity in the game state with InboundRateBucket +
 /// OutboundQueue and a mock RawConnection that we can inject packets into.
 ///
 /// Returns `(socket_entity, inbound_tx)`. Send `ReceivedPacket` values into
@@ -54,7 +54,7 @@ fn spawn_ingame_connection(world: &mut World) -> (Entity, mpsc::Sender<ReceivedP
     let entity = world
         .spawn((
             ServerSideConnection { raw: Box::new(raw) },
-            InGameConnectionState,
+            ConnectionState::Game,
             InboundRateBucket::new(),
             OutboundQueue::default(),
         ))
