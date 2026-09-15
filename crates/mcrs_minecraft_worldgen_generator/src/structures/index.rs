@@ -297,7 +297,7 @@ impl StructureIndex {
                             })
                             .collect::<Vec<_>>(),
                     },
-                    Piece::DesertPyramid(_) => BeardPiece {
+                    Piece::DesertPyramid(_) | Piece::BuriedTreasure(_) => BeardPiece {
                         bounds: piece.bounds(),
                         projection: Projection::Rigid,
                         ground_level_delta: 0,

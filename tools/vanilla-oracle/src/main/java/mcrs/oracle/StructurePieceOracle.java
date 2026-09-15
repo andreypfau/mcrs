@@ -45,7 +45,10 @@ public final class StructurePieceOracle {
     /// Structures whose sixteen shared case chunks hold no start at any seed:
     /// each gets this many present starts more per seed and dimension, found
     /// by walking the placement's cells on past the shared sixteen.
-    private static final Map<String, Integer> MORE_PRESENT = Map.of("minecraft:desert_pyramid", 2);
+    private static final Map<String, Integer> MORE_PRESENT = Map.of(
+        "minecraft:desert_pyramid", 2,
+        "minecraft:buried_treasure", 2
+    );
 
     public static void main(final String[] args) throws Exception {
         Path outDir = Path.of(args[0]);

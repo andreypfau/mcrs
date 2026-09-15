@@ -134,6 +134,7 @@ use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenStructure, FrozenStructures, StructureId, StructureKind,
 };
 use mcrs_minecraft_worldgen_structure::{DecorationStep, LiquidSettings};
+use mcrs_minecraft_worldgen_structure_place::buried_treasure::BuriedTreasureBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
 use rustc_hash::FxHashMap;
 use std::ops::Range;
@@ -281,6 +282,7 @@ pub enum CompiledElement {
 #[derive(Clone)]
 pub enum CompiledStructure {
     DesertPyramid(Box<DesertPyramidBlocks>),
+    BuriedTreasure(Box<BuriedTreasureBlocks>),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -1066,6 +1068,10 @@ fn compile_structures(
             Ok(match &structure.kind {
                 StructureKind::DesertPyramid => Some(CompiledStructure::DesertPyramid(Box::new(
                     DesertPyramidBlocks::compile(resolver, &resolver.world, resolver.world_seed)
+                        .map_err(|error| error.within(&structure.id))?,
+                ))),
+                StructureKind::BuriedTreasure => Some(CompiledStructure::BuriedTreasure(Box::new(
+                    BuriedTreasureBlocks::compile(resolver, &resolver.world)
                         .map_err(|error| error.within(&structure.id))?,
                 ))),
                 _ => None,

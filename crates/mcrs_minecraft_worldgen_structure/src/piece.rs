@@ -56,10 +56,23 @@ impl DesertPyramidPiece {
     pub const LAYOUT_FLOOR: i32 = 64;
 }
 
+/// The one piece of a buried treasure: the block at (9, 90, 9) of its chunk,
+/// from which placement walks the column down to the chest's resting block.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuriedTreasurePiece {
+    pub bounds: BoundingBox,
+}
+
+impl BuriedTreasurePiece {
+    pub const LAYOUT_Y: i32 = 90;
+    pub const CHUNK_OFFSET: i32 = 9;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
     DesertPyramid(DesertPyramidPiece),
+    BuriedTreasure(BuriedTreasurePiece),
 }
 
 impl Piece {
@@ -67,6 +80,7 @@ impl Piece {
         match self {
             Piece::Jigsaw(piece) => piece.bounds,
             Piece::DesertPyramid(piece) => piece.bounds,
+            Piece::BuriedTreasure(piece) => piece.bounds,
         }
     }
 
@@ -78,6 +92,7 @@ impl Piece {
                 piece.position += delta;
             }
             Piece::DesertPyramid(piece) => piece.bounds = piece.bounds.moved(delta),
+            Piece::BuriedTreasure(piece) => piece.bounds = piece.bounds.moved(delta),
         }
     }
 
@@ -294,6 +309,15 @@ enum PieceTag {
         #[serde(rename = "hasPlacedChest3", deserialize_with = "nbt_flag")]
         has_placed_chest_3: bool,
     },
+    #[serde(rename = "minecraft:btp")]
+    BuriedTreasure {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+    },
 }
 
 const NO_ORIENTATION: i32 = -1;
@@ -353,6 +377,11 @@ impl Serialize for PieceNbt<'_> {
                 has_placed_chest_2: false,
                 has_placed_chest_3: false,
             },
+            Piece::BuriedTreasure(piece) => PieceTag::BuriedTreasure {
+                bounds: box_array(piece.bounds),
+                orientation: NO_ORIENTATION,
+                gen_depth: 0,
+            },
         };
         tag.serialize(serializer)
     }
@@ -410,6 +439,11 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     .ok_or_else(|| D::Error::custom("a desert pyramid without an orientation"))?,
                 height_position,
             })),
+            PieceTag::BuriedTreasure { bounds, .. } => {
+                Ok(Piece::BuriedTreasure(BuriedTreasurePiece {
+                    bounds: box_of(bounds),
+                }))
+            }
         }
     }
 }
@@ -575,6 +609,28 @@ mod tests {
         assert_eq!(tag.get_int("Depth"), Some(21));
         assert_eq!(tag.get_int("HPos"), Some(71));
         assert_eq!(tag.get_byte("hasPlacedChest3"), Some(0));
+    }
+
+    #[test]
+    fn a_buried_treasure_piece_round_trips_as_its_box_alone() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::BuriedTreasure(BuriedTreasurePiece {
+            bounds: BoundingBox::point(BlockPos::new(-23, 90, 41)),
+        });
+        assert_eq!(round_trip(&context, &piece), piece);
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:btp"));
+        assert_eq!(
+            tag.get_int_array("BB").map(<[i32]>::to_vec),
+            Some(vec![-23, 90, 41, -23, 90, 41])
+        );
+        assert_eq!(tag.get_int("O"), Some(-1));
+        assert_eq!(tag.get_int("GD"), Some(0));
+        assert_eq!(tag.child_tags.len(), 4);
     }
 
     #[test]

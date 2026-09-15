@@ -1,4 +1,5 @@
 pub mod after_place;
+pub mod buried_treasure;
 pub mod canvas;
 pub mod scattered;
 

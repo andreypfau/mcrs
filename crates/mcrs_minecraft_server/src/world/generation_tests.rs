@@ -465,6 +465,14 @@ const DESERT_PYRAMID: Consumer = Consumer::Structure {
     biome: "minecraft:desert",
 };
 
+/// A buried treasure: one block of one column, dug down from the ocean floor
+/// to the chest's resting block, with the fill around it never leaving the
+/// column that runs.
+const BURIED_TREASURE: Consumer = Consumer::Structure {
+    id: "minecraft:buried_treasure",
+    biome: "minecraft:beach",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -485,7 +493,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         "{consumer:?} wrote nothing anywhere: the comparison below would hold \
          between two pipelines that both do nothing"
     );
-    if consumer != OUTPOST && consumer != DESERT_PYRAMID {
+    if consumer != OUTPOST && consumer != DESERT_PYRAMID && consumer != BURIED_TREASURE {
         assert!(
             crossed > 0,
             "{consumer:?} wrote only into the columns that ran: nothing reaches the \
@@ -537,6 +545,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         VILLAGE,
         OUTPOST,
         DESERT_PYRAMID,
+        BURIED_TREASURE,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

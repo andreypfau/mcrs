@@ -15,6 +15,7 @@ use mcrs_minecraft_worldgen_structure::frozen::{
 };
 use mcrs_minecraft_worldgen_structure::piece::{DesertPyramidPiece, Piece, Start};
 use mcrs_minecraft_worldgen_structure_place::after_place;
+use mcrs_minecraft_worldgen_structure_place::buried_treasure::paint_buried_treasure;
 use mcrs_minecraft_worldgen_structure_place::canvas::PieceCanvas;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
 
@@ -138,6 +139,21 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                 };
                 paint_desert_pyramid(blocks, &mut canvas, rng);
+            }
+            Piece::BuriedTreasure(piece) => {
+                let Some(CompiledStructure::BuriedTreasure(blocks)) =
+                    program.structure(start.structure)
+                else {
+                    continue;
+                };
+                let mut canvas = PieceCanvas {
+                    volume: region,
+                    entities: &mut run.entities,
+                    bounds: piece.bounds,
+                    orientation: None,
+                    clip,
+                };
+                paint_buried_treasure(blocks, &mut canvas, rng);
             }
         }
     }
