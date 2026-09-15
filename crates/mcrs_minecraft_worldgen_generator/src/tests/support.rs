@@ -146,11 +146,12 @@ use mcrs_minecraft_assets::tag::TagLoader;
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_assets::tag::registry::TagSource;
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Fluids;
 use mcrs_minecraft_block::{Block, Fluid};
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 fn tag_dir(registry: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -220,6 +221,28 @@ pub fn biome_index() -> &'static DynRegistryIndex<Biome> {
     static INDEX: std::sync::OnceLock<DynRegistryIndex<Biome>> = std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
         DynRegistryIndex::build(load_json_dir::<serde::de::IgnoredAny>("biome").into_keys())
+    })
+}
+
+/// Every corpus biome's climate, indexed like [`biome_index`].
+pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
+    static CLIMATE: std::sync::OnceLock<std::sync::Arc<[BiomeClimate]>> =
+        std::sync::OnceLock::new();
+    CLIMATE.get_or_init(|| {
+        let biomes = load_json_dir::<Biome>("biome");
+        (0..biome_index().len())
+            .map(|id| {
+                let name = biome_index()
+                    .location(id)
+                    .expect("an index below the length");
+                let biome = &biomes[&ResourceLocation::parse(name.as_str()).expect("a corpus id")];
+                BiomeClimate {
+                    base_temperature: biome.temperature,
+                    frozen: biome.temperature_modifier == Some(TemperatureModifier::Frozen),
+                    has_precipitation: biome.has_precipitation,
+                }
+            })
+            .collect()
     })
 }
 

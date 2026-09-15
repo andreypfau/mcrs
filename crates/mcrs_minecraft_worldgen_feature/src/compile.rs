@@ -224,6 +224,8 @@ pub enum StateQuery<'a> {
     BlockTag(&'a ResourceLocation),
     Fluids(&'a HolderSet),
     SturdyFace(Direction),
+    /// `Block.isFaceFull(state.getCollisionShape(), direction)`.
+    FullCollisionFace(Direction),
     Solid,
     Replaceable,
     /// `Block.isShapeFullBlock(state.getShape())`: the outline is the whole cube.
@@ -273,6 +275,9 @@ impl std::fmt::Display for StateQuery<'_> {
             StateQuery::Block(id) => write!(f, "{id}"),
             StateQuery::BlockTag(tag) => write!(f, "#{tag}"),
             StateQuery::SturdyFace(direction) => write!(f, "sturdy face {direction:?}"),
+            StateQuery::FullCollisionFace(direction) => {
+                write!(f, "full collision face {direction:?}")
+            }
             StateQuery::Solid => f.write_str("solid"),
             StateQuery::Replaceable => f.write_str("replaceable"),
             StateQuery::FullOutline => f.write_str("full outline"),

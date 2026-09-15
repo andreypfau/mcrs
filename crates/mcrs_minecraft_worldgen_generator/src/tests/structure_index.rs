@@ -8,7 +8,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_structure::placement::SpreadPlacement;
 
 use super::structures::{frozen_shared, preset};
-use super::{biome_index, block_tags, blocks, build_settings_router};
+use super::{biome_index, block_tags, blocks, build_settings_router, corpus_climate};
 use crate::features::possible_biomes;
 use crate::heightmap::heightmap_predicates;
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
@@ -46,6 +46,7 @@ fn overworld() -> &'static StructureIndex {
             BiomeLookup::MultiNoise(Arc::new(biomes)),
             Some(heightmap_predicates(blocks(), block_tags())),
             Default::default(),
+            Arc::clone(corpus_climate()),
             -64,
             384,
         )
@@ -193,6 +194,7 @@ fn every_column_a_village_crosses_finds_its_start() {
         BiomeLookup::Fixed(plains),
         Some(heightmap_predicates(blocks(), block_tags())),
         Default::default(),
+        Arc::clone(corpus_climate()),
         -64,
         384,
     );

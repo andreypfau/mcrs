@@ -1,7 +1,7 @@
 use std::fmt;
 
 use bevy_math::IVec3;
-use mcrs_minecraft_core::{BoundingBox, ResourceLocation, Rotation, rotation};
+use mcrs_minecraft_core::{BoundingBox, Mirror, ResourceLocation, Rotation, mirror, rotation};
 use mcrs_minecraft_nbt::{nbt_flag, nbt_int_array};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use serde::de::{DeserializeSeed, Error as _};
@@ -11,7 +11,10 @@ use crate::frozen::{
     ElementId, FrozenElement, FrozenStructures, StructureId, StructureKind, TemplateId,
 };
 use crate::orient::Orientation;
-use crate::{LiquidSettings, OceanTemperature, PoolElement, SingleElement, TerrainAdaptation};
+use crate::{
+    LiquidSettings, OceanTemperature, PoolElement, PortalPlacement, SingleElement,
+    TerrainAdaptation,
+};
 
 pub const TERRAIN_MARGIN: i32 = 12;
 
@@ -159,6 +162,31 @@ impl OceanRuinPiece {
     pub const LAYOUT_FLOOR: i32 = 90;
 }
 
+/// `RuinedPortalPiece.Properties`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PortalProperties {
+    pub cold: bool,
+    pub mossiness: f32,
+    pub air_pocket: bool,
+    pub overgrown: bool,
+    pub vines: bool,
+    pub replace_with_blackstone: bool,
+}
+
+/// The one piece of a ruined portal: a template placed mirrored and rotated
+/// about the pivot at half its size.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuinedPortalPiece {
+    pub template: TemplateId,
+    pub position: IVec3,
+    pub rotation: Rotation,
+    pub mirror: Mirror,
+    pub bounds: BoundingBox,
+    pub placement: PortalPlacement,
+    pub properties: PortalProperties,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
@@ -168,6 +196,7 @@ pub enum Piece {
     Fortress(FortressPiece),
     Shipwreck(ShipwreckPiece),
     OceanRuin(OceanRuinPiece),
+    RuinedPortal(RuinedPortalPiece),
 }
 
 impl Piece {
@@ -180,6 +209,7 @@ impl Piece {
             Piece::Fortress(piece) => piece.bounds,
             Piece::Shipwreck(piece) => piece.bounds,
             Piece::OceanRuin(piece) => piece.bounds,
+            Piece::RuinedPortal(piece) => piece.bounds,
         }
     }
 
@@ -203,6 +233,10 @@ impl Piece {
                 piece.bounds = piece.bounds.moved(delta);
                 piece.position += delta;
                 piece.floor_y += delta.y;
+            }
+            Piece::RuinedPortal(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                piece.position += delta;
             }
         }
     }
@@ -566,6 +600,31 @@ enum PieceTag {
         #[serde(rename = "IsLarge", deserialize_with = "nbt_flag")]
         large: bool,
     },
+    #[serde(rename = "minecraft:rupo")]
+    RuinedPortal {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "TPX")]
+        pos_x: i32,
+        #[serde(rename = "TPY")]
+        pos_y: i32,
+        #[serde(rename = "TPZ")]
+        pos_z: i32,
+        #[serde(rename = "Template")]
+        template: ResourceLocation,
+        #[serde(rename = "Rotation", with = "rotation::legacy")]
+        rotation: Rotation,
+        #[serde(rename = "Mirror", with = "mirror::legacy")]
+        mirror: Mirror,
+        #[serde(rename = "VerticalPlacement")]
+        placement: PortalPlacement,
+        #[serde(rename = "Properties")]
+        properties: PortalProperties,
+    },
 }
 
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
@@ -778,6 +837,19 @@ impl Serialize for PieceNbt<'_> {
                 biome_temp: piece.biome_temp,
                 large: piece.large,
             },
+            Piece::RuinedPortal(piece) => PieceTag::RuinedPortal {
+                bounds: box_array(piece.bounds),
+                orientation: Orientation::North.data_2d(),
+                gen_depth: 0,
+                pos_x: piece.position.x,
+                pos_y: piece.position.y,
+                pos_z: piece.position.z,
+                template: self.context.template_name(piece.template),
+                rotation: piece.rotation,
+                mirror: piece.mirror,
+                placement: piece.placement,
+                properties: piece.properties,
+            },
         };
         tag.serialize(serializer)
     }
@@ -955,6 +1027,33 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     biome_temp,
                     large,
                     floor_y: template_y,
+                }))
+            }
+            PieceTag::RuinedPortal {
+                bounds,
+                pos_x,
+                pos_y,
+                pos_z,
+                template,
+                rotation,
+                mirror,
+                placement,
+                properties,
+                ..
+            } => {
+                let template = *self.0.frozen.template_ids.get(&template).ok_or_else(|| {
+                    D::Error::custom(format!(
+                        "the template {template} is not one any loaded structure draws"
+                    ))
+                })?;
+                Ok(Piece::RuinedPortal(RuinedPortalPiece {
+                    template,
+                    position: IVec3::new(pos_x, pos_y, pos_z),
+                    rotation,
+                    mirror,
+                    bounds: box_of(bounds),
+                    placement,
+                    properties,
                 }))
             }
         }

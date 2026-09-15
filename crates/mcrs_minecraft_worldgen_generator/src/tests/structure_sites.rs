@@ -12,7 +12,9 @@ use mcrs_minecraft_worldgen_feature::placer::WorldStates;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
 use super::structures::{frozen_shared, preset};
-use super::{biome_index, biome_registry, block_tags, blocks, build_settings_router};
+use super::{
+    biome_index, biome_registry, block_tags, blocks, build_settings_router, corpus_climate,
+};
 use crate::base_height;
 use crate::feature_program::Resolver;
 use crate::features::possible_biomes;
@@ -192,6 +194,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
         BiomeLookup::MultiNoise(Arc::new(biomes)),
         Some(heightmap_predicates(blocks(), block_tags())),
         Arc::clone(world_states()),
+        Arc::clone(corpus_climate()),
         dimension.accessor_min_y,
         dimension.accessor_height,
     )

@@ -20,7 +20,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic in every value: two consecutive runs produce a file
-of the same size (754 828 bytes) that differs only in the order of the
+of the same size (757 311 bytes) that differs only in the order of the
 `attributes` list inside the igloo's villagers and the ocean ruin's drowned,
 which the JVM's identity hashes decide, so a consumer comparing entity NBT
 must sort that list. The run log must contain no `Serialization errors`
@@ -172,10 +172,11 @@ end). The base is chosen by structure type.
 | Base | u8 | Layers | Types |
 |---|---|---|---|
 | dry | 0 | stone ≤ 60, dirt 61–62, grass block 63 | every other type, the beached shipwreck |
-| water | 1 | stone ≤ 30, gravel 31–40, water 41–62 | ocean ruin, monument, buried treasure, the ocean shipwreck |
+| water | 1 | stone ≤ 30, gravel 31–40, water 41–62 | ocean ruin, monument, buried treasure, the ocean shipwreck, a ruined portal whose every setup is `on_ocean_floor` |
 | cave | 2 | stone ≤ 63 with air at 33–40 | nether fossil, mineshaft |
 
-The beached flag is `ShipwreckStructure.isBeached`, read by reflection.
+The beached flag is `ShipwreckStructure.isBeached` and the portal setups are
+`RuinedPortalStructure.setups`, both read by reflection.
 
 ## Cases
 
@@ -189,7 +190,7 @@ biome being the first of the structure's `biomes` set. The set placement is
 not consulted: `generate` runs at the chunk whether or not a set would start
 there, and the flat floor with a matching biome makes every site pass.
 
-75 cases, 75 present, 1 751 placed chunks, 818 483 written positions, 710
+75 cases, 75 present, 1 751 placed chunks, 818 387 written positions, 740
 palette states, 36 full lists (every 50th placed chunk), 632 block entities
 (347 `brushable_block`, 205 `chest`, 36 `banner`, 15 `mob_spawner`, 7
 `jigsaw`, 6 `dispenser`, 4 `campfire`, 4 `furnace`, 2 `brewing_stand`, 2

@@ -71,6 +71,8 @@ import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.TemplateStructurePiece;
 import net.minecraft.world.level.levelgen.structure.structures.JigsawStructure;
+import net.minecraft.world.level.levelgen.structure.structures.RuinedPortalPiece;
+import net.minecraft.world.level.levelgen.structure.structures.RuinedPortalStructure;
 import net.minecraft.world.level.levelgen.structure.structures.ShipwreckPieces;
 import net.minecraft.world.level.levelgen.structure.structures.ShipwreckStructure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -206,6 +208,7 @@ public final class StructureGeometryOracle {
 
     private static final Field IS_BEACHED;
     private static final Field BEACHED_TEMPLATES;
+    private static final Field SETUPS;
     /// Template pieces place with `knownShape` false, which runs
     /// `updateFromNeighbourShapes` over every placed block against the live
     /// world's light and neighbours; the port does not reproduce that pass,
@@ -218,6 +221,8 @@ public final class StructureGeometryOracle {
             IS_BEACHED.setAccessible(true);
             BEACHED_TEMPLATES = ShipwreckPieces.class.getDeclaredField("STRUCTURE_LOCATION_BEACHED");
             BEACHED_TEMPLATES.setAccessible(true);
+            SETUPS = RuinedPortalStructure.class.getDeclaredField("setups");
+            SETUPS.setAccessible(true);
             PLACE_SETTINGS = TemplateStructurePiece.class.getDeclaredField("placeSettings");
             PLACE_SETTINGS.setAccessible(true);
         } catch (NoSuchFieldException e) {
@@ -229,9 +234,17 @@ public final class StructureGeometryOracle {
         return switch (BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type()).getPath()) {
             case "ocean_ruin", "ocean_monument", "buried_treasure" -> Base.WATER;
             case "shipwreck" -> IS_BEACHED.getBoolean(structure) ? Base.DRY : Base.WATER;
+            case "ruined_portal" -> onOceanFloor(structure) ? Base.WATER : Base.DRY;
             case "nether_fossil", "mineshaft" -> Base.CAVE;
             default -> Base.DRY;
         };
+    }
+
+    /// A ruined portal whose every setup sits on the ocean floor.
+    @SuppressWarnings("unchecked")
+    private static boolean onOceanFloor(final Structure structure) throws IllegalAccessException {
+        List<RuinedPortalStructure.Setup> setups = (List<RuinedPortalStructure.Setup>) SETUPS.get(structure);
+        return setups.stream().allMatch(s -> s.placement() == RuinedPortalPiece.VerticalPlacement.ON_OCEAN_FLOOR);
     }
 
     /// Layers from the dimension floor up; `null` is air. Every base ends at

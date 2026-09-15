@@ -1,5 +1,5 @@
 use bevy_math::IVec3;
-use mcrs_minecraft_core::{Mirror, Rotation};
+use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
@@ -7,7 +7,7 @@ use mcrs_minecraft_worldgen_feature::template::bounding_box;
 
 use super::random_rotation;
 use crate::frozen::TemplateId;
-use crate::piece::Piece;
+use crate::piece::{Piece, PortalProperties, RuinedPortalPiece};
 use crate::site::{Context, Site, Stub};
 use crate::{PortalPlacement, RuinedPortalSetup};
 
@@ -75,10 +75,8 @@ pub fn site(
     } else {
         Mirror::FrontBack
     };
-    let size = ctx.frozen.manifests[template.0 as usize].size;
-    let pivot = IVec3::new(i32::from(size[0]) / 2, 0, i32::from(size[2]) / 2);
     let base = IVec3::new(ctx.chunk.min_block_x(), 0, ctx.chunk.min_block_z());
-    let bounds = bounding_box(size, base, rotation, mirror, pivot);
+    let bounds = template_bounds(ctx, template, base, rotation, mirror);
     let centre = *bounds.min + (*bounds.max - *bounds.min + IVec3::ONE) / 2;
     let surface_y = ctx
         .world
@@ -149,9 +147,21 @@ fn portal_site(
             air_pocket,
             template,
             rotation,
-            mirrored: mirror == Mirror::FrontBack,
+            mirror,
         },
     )
+}
+
+fn template_bounds(
+    ctx: &Context<'_>,
+    template: TemplateId,
+    position: IVec3,
+    rotation: Rotation,
+    mirror: Mirror,
+) -> BoundingBox {
+    let size = ctx.frozen.manifests[template.0 as usize].size;
+    let pivot = IVec3::new(i32::from(size[0]) / 2, 0, i32::from(size[2]) / 2);
+    bounding_box(size, position, rotation, mirror, pivot)
 }
 
 fn sample(rng: &mut LegacyRandom, limit: f32) -> bool {
@@ -172,6 +182,36 @@ fn within_interval(rng: &mut LegacyRandom, min_preferred: i32, max: i32) -> i32 
     }
 }
 
-pub fn layout(_setups: &[RuinedPortalSetup], _ctx: &mut Context<'_>, _site: Site) -> Vec<Piece> {
-    Vec::new()
+pub fn layout(setups: &[RuinedPortalSetup], ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
+    let Stub::Portal {
+        setup,
+        air_pocket,
+        template,
+        rotation,
+        mirror,
+    } = site.stub
+    else {
+        unreachable!("a ruined portal site carries a portal stub")
+    };
+    let setup = &setups[setup];
+    let cold = setup.can_be_cold
+        && ctx
+            .world
+            .cold_enough_to_snow(site.position, ctx.height.sea_level);
+    vec![Piece::RuinedPortal(RuinedPortalPiece {
+        template,
+        position: site.position,
+        rotation,
+        mirror,
+        bounds: template_bounds(ctx, template, site.position, rotation, mirror),
+        placement: setup.placement,
+        properties: PortalProperties {
+            cold,
+            mossiness: setup.mossiness.0 as f32,
+            air_pocket,
+            overgrown: setup.overgrown,
+            vines: setup.vines,
+            replace_with_blackstone: setup.replace_with_blackstone,
+        },
+    })]
 }

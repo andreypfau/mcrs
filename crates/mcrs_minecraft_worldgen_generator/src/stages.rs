@@ -174,6 +174,9 @@ impl FillContext {
                 features
                     .as_ref()
                     .map_or_else(Default::default, |program| Arc::clone(&program.world)),
+                features
+                    .as_ref()
+                    .map_or_else(|| Arc::from([]), |program| Arc::clone(&program.climate)),
                 min_y,
                 height,
             ))

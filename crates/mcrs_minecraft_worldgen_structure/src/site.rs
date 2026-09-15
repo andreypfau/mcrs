@@ -43,6 +43,8 @@ pub trait SiteWorld {
     /// `Heightmap.Types.isOpaque` of `heightmap` on one state.
     fn opaque(&self, state: VoxelId, heightmap: HeightmapName) -> bool;
     fn states(&self) -> &WorldStates;
+    /// `Biome.coldEnoughToSnow` at `pos` for the biome sampled there.
+    fn cold_enough_to_snow(&mut self, pos: IVec3, sea_level: i32) -> bool;
 }
 
 /// `NoiseColumn`: states from `min_y` up, air outside.
@@ -98,7 +100,7 @@ pub enum Stub {
         air_pocket: bool,
         template: TemplateId,
         rotation: Rotation,
-        mirrored: bool,
+        mirror: Mirror,
     },
     Fossil,
     Mineshaft(Vec<Piece>),

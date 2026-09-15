@@ -25,22 +25,22 @@ use super::structure_pieces::{read_box, read_nbt};
 use super::structures::frozen_shared;
 use super::template_manifest::{parse_state, resolve};
 use super::template_parity::{canonical, fnv, program, state_named, written};
-use super::{biome_index, block_tags, blocks, corpus};
+use super::{biome_index, block_tags, blocks, corpus, corpus_climate};
 use crate::feature_program::RunScratch;
 use crate::heightmap::{HeightmapPredicates, heightmap_predicates};
 use crate::heightmap_kind;
 use crate::structures::place::{column_clip, place_start};
+use mcrs_minecraft_worldgen_feature_place::terrain_skin::{RAIN_TEMPERATURE, temperature};
 
 const MAGIC: &[u8; 8] = b"MCSTRGE0";
 
 /// Every structure type the oracle places and this build cannot yet.
-const UNPORTED_GEOMETRY_TYPES: [&str; 9] = [
+const UNPORTED_GEOMETRY_TYPES: [&str; 8] = [
     "minecraft:end_city",
     "minecraft:igloo",
     "minecraft:mineshaft",
     "minecraft:nether_fossil",
     "minecraft:ocean_monument",
-    "minecraft:ruined_portal",
     "minecraft:stronghold",
     "minecraft:swamp_hut",
     "minecraft:woodland_mansion",
@@ -274,6 +274,11 @@ impl SiteWorld for FlatSiteWorld<'_> {
 
     fn states(&self) -> &WorldStates {
         self.states
+    }
+
+    fn cold_enough_to_snow(&mut self, pos: IVec3, sea_level: i32) -> bool {
+        let climate = &corpus_climate()[self.biome as usize];
+        temperature(climate, pos.into(), sea_level) < RAIN_TEMPERATURE
     }
 }
 
@@ -633,5 +638,5 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
         faults[..faults.len().min(20)].join("\n")
     );
     assert_eq!(unported, UNPORTED_GEOMETRY_TYPES.into_iter().collect());
-    assert_eq!((placed, chunks), (27, 655));
+    assert_eq!((placed, chunks), (48, 687));
 }

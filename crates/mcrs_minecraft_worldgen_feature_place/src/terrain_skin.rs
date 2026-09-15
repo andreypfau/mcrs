@@ -340,10 +340,14 @@ fn snow_survives<W: WorldGenVolume>(
 /// Both tests are also gated on a block light below ten. Nothing has lit the
 /// column while it decorates, so the gate is open at every position.
 fn warm_enough_to_rain(climate: &BiomeClimate, pos: BlockPos, sea_level: i32) -> bool {
-    temperature(climate, pos, sea_level) >= 0.15
+    temperature(climate, pos, sea_level) >= RAIN_TEMPERATURE
 }
 
-fn temperature(climate: &BiomeClimate, pos: BlockPos, sea_level: i32) -> f32 {
+/// `Biome.warmEnoughToRain`'s threshold; below it the biome snows.
+pub const RAIN_TEMPERATURE: f32 = 0.15;
+
+/// `Biome.getHeightAdjustedTemperature`.
+pub fn temperature(climate: &BiomeClimate, pos: BlockPos, sea_level: i32) -> f32 {
     let adjusted = if climate.frozen {
         frozen_temperature(pos, climate.base_temperature)
     } else {

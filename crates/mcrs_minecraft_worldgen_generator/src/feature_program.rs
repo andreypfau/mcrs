@@ -137,6 +137,7 @@ use mcrs_minecraft_worldgen_structure::{DecorationStep, LiquidSettings};
 use mcrs_minecraft_worldgen_structure_place::buried_treasure::BuriedTreasureBlocks;
 use mcrs_minecraft_worldgen_structure_place::fortress::FortressBlocks;
 use mcrs_minecraft_worldgen_structure_place::jungle_temple::JungleTempleBlocks;
+use mcrs_minecraft_worldgen_structure_place::portal::RuinedPortalBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
 use mcrs_minecraft_worldgen_structure_place::template_piece::ignore_structure_and_air;
 use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
@@ -291,6 +292,7 @@ pub enum CompiledStructure {
     Fortress(Box<FortressBlocks>),
     Shipwreck(CompiledChain),
     OceanRuin(Box<OceanRuinBlocks>),
+    RuinedPortal(Box<RuinedPortalBlocks>),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -342,6 +344,8 @@ pub struct FeatureProgram {
     structures: Vec<Option<CompiledStructure>>,
     rungs: Arc<[Range<usize>]>,
     pub world: Arc<WorldStates>,
+    /// Indexed by the biome id [`WorldGenVolume::biome`] answers with.
+    pub climate: Arc<[BiomeClimate]>,
 }
 
 /// `GenerationStep.Decoration.values().length`: the reference walks at least
@@ -500,6 +504,7 @@ impl FeatureProgram {
             structures: compiled_structures,
             trees,
             world: Arc::new(resolver.world),
+            climate: Arc::from(climate),
         })
     }
 
@@ -1098,6 +1103,12 @@ fn compile_structures(
                     OceanRuinBlocks::compile(resolver, config.biome_temp, resolver.world_seed)
                         .map_err(|error| error.within(&structure.id))?,
                 ))),
+                StructureKind::RuinedPortal { setups, .. } => {
+                    Some(CompiledStructure::RuinedPortal(Box::new(
+                        RuinedPortalBlocks::compile(setups, resolver, resolver.world_seed)
+                            .map_err(|error| error.within(&structure.id))?,
+                    )))
+                }
                 _ => None,
             })
         })
@@ -2759,6 +2770,19 @@ impl BlockResolver for Resolver<'_> {
                 for id in 0..self.blocks.state_count() {
                     let state = self.blocks.state(BlockStateId(id as u16));
                     if full(state.selection_shape) || full(state.collision_shape) {
+                        mask.insert(id);
+                    }
+                }
+            }
+            StateQuery::FullCollisionFace(direction) => {
+                let face = mcrs_minecraft_core::Direction::all()[direction as usize];
+                let mut covers: FxHashMap<u32, bool> = FxHashMap::default();
+                for id in 0..self.blocks.state_count() {
+                    let shape = self.blocks.state(BlockStateId(id as u16)).collision_shape;
+                    if *covers.entry(shape.0).or_insert_with(|| {
+                        *VoxelShape::from_boxes(self.blocks.shape(shape)).face_mask(face)
+                            == FACE_MASK_FULL
+                    }) {
                         mask.insert(id);
                     }
                 }

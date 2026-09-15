@@ -19,6 +19,7 @@ use mcrs_minecraft_worldgen_structure_place::buried_treasure::paint_buried_treas
 use mcrs_minecraft_worldgen_structure_place::canvas::PieceCanvas;
 use mcrs_minecraft_worldgen_structure_place::fortress::paint_fortress;
 use mcrs_minecraft_worldgen_structure_place::jungle_temple::paint_jungle_temple;
+use mcrs_minecraft_worldgen_structure_place::portal::place_ruined_portal;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::paint_shipwreck;
@@ -228,6 +229,24 @@ pub fn place_start<W: WorldGenVolume>(
                     region,
                     &mut run.entities,
                     &mut run.spawns,
+                    rng,
+                );
+            }
+            Piece::RuinedPortal(piece) => {
+                let Some(CompiledStructure::RuinedPortal(blocks)) =
+                    program.structure(start.structure)
+                else {
+                    continue;
+                };
+                place_ruined_portal(
+                    blocks,
+                    piece,
+                    &frozen.templates[piece.template.0 as usize],
+                    region,
+                    &mut run.entities,
+                    &mut run.spawns,
+                    reference,
+                    clip,
                     rng,
                 );
             }

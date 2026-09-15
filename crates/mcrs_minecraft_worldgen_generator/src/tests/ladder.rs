@@ -9,8 +9,8 @@
 use super::corpus_ores::{one_biome_registry, ore_program, ore_tables};
 use super::structures::frozen_shared;
 use super::{
-    biome_index, block_tags, blocks, build_beta_router, build_program_with, corpus_features,
-    one_step,
+    biome_index, block_tags, blocks, build_beta_router, build_program_with, corpus_climate,
+    corpus_features, one_step,
 };
 use crate::heightmap::heightmap_predicates;
 use crate::modern_carvers::ModernCarverBlockIds;
@@ -142,6 +142,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         BiomeLookup::Fixed(biome),
         ctx.predicates.clone(),
         Default::default(),
+        Arc::clone(corpus_climate()),
         -64,
         384,
     );

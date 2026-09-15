@@ -506,6 +506,14 @@ const JUNGLE_TEMPLE: Consumer = Consumer::Structure {
     biome: "minecraft:jungle",
 };
 
+/// A ruined portal: one template written whole from the column holding its
+/// centre, then netherrack spread fourteen blocks around it, so the writes
+/// reach the ring from a single column.
+const RUINED_PORTAL: Consumer = Consumer::Structure {
+    id: "minecraft:ruined_portal",
+    biome: "minecraft:plains",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -590,6 +598,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         SHIPWRECK,
         OCEAN_RUIN,
         JUNGLE_TEMPLE,
+        RUINED_PORTAL,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

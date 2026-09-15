@@ -15,6 +15,9 @@ use mcrs_minecraft_worldgen_density::router::{
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, WorldStates};
 use mcrs_minecraft_worldgen_feature::template::Projection;
+use mcrs_minecraft_worldgen_feature_place::terrain_skin::{
+    BiomeClimate, RAIN_TEMPERATURE, temperature,
+};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_structure::StructurePlacement;
 use mcrs_minecraft_worldgen_structure::placement::{
@@ -55,6 +58,7 @@ pub struct StructureIndex {
     biomes: BiomeLookup,
     predicates: Option<HeightmapPredicates>,
     world: Arc<WorldStates>,
+    climate: Arc<[BiomeClimate]>,
     accessor_min_y: i32,
     accessor_height: i32,
     rings: RingSets,
@@ -72,6 +76,7 @@ impl StructureIndex {
         biomes: BiomeLookup,
         predicates: Option<HeightmapPredicates>,
         world: Arc<WorldStates>,
+        climate: Arc<[BiomeClimate]>,
         accessor_min_y: i32,
         accessor_height: i32,
     ) -> Self {
@@ -95,6 +100,7 @@ impl StructureIndex {
             biomes,
             predicates,
             world,
+            climate,
             accessor_min_y,
             accessor_height,
             rings,
@@ -302,7 +308,8 @@ impl StructureIndex {
                     | Piece::BuriedTreasure(_)
                     | Piece::Fortress(_)
                     | Piece::Shipwreck(_)
-                    | Piece::OceanRuin(_) => BeardPiece {
+                    | Piece::OceanRuin(_)
+                    | Piece::RuinedPortal(_) => BeardPiece {
                         bounds: piece.bounds(),
                         projection: Projection::Rigid,
                         ground_level_delta: 0,
@@ -637,5 +644,17 @@ impl SiteWorld for View<'_> {
 
     fn states(&self) -> &WorldStates {
         &self.index.world
+    }
+
+    fn cold_enough_to_snow(&mut self, pos: IVec3, sea_level: i32) -> bool {
+        let Some(biome) = self.biome_at(pos) else {
+            return false;
+        };
+        let climate = self
+            .index
+            .climate
+            .get(biome as usize)
+            .expect("a structure asking the climate needs the climate table");
+        temperature(climate, pos.into(), sea_level) < RAIN_TEMPERATURE
     }
 }
