@@ -32,13 +32,16 @@ base with the same one biome, asserts the start box, piece count, step and
 step index, then places the start chunk by chunk into a box region built
 from the same base — heights answered from the base alone — and asserts, per
 chunk, the written positions and states (count and hash, or the full list),
-the block entities, the entities (arrival order, a vehicle before each of its
-passengers, then type and every field the generated form carries against the
-tag, `UUID` aside; the packed entity data is the server's pairing encode and
-is not compared here), and the two `nextLong` values the placement stream
-yields afterwards. A present case this build has no layout for is
-counted by its structure type; the set of those types is pinned and shrinks
-as types are ported.
+the block entities, the entities, and the two `nextLong` values the placement
+stream yields afterwards. An entity is compared by its type and, over the
+compound `GeneratedEntity` serialises to with `UUID` dropped and its
+passengers as arrivals of their own, every field it writes against the
+reference's save tag; the fields only the reference writes
+(health, air, the follow-range roll, the brain) are the kind's defaults, and
+the packed entity data is left to the server's pairing, which derives it from
+components. A present case this build has no layout for is counted by its
+structure type; the set of those types is pinned and shrinks as types are
+ported.
 
 ---
 

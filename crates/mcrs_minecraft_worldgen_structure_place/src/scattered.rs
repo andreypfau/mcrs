@@ -2,8 +2,11 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
+use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnContext, VariantTables};
+use mcrs_minecraft_worldgen_feature_place::entity;
 use mcrs_minecraft_worldgen_structure::orient::{Orientation, world_pos};
 use mcrs_minecraft_worldgen_structure::piece::DesertPyramidPiece;
 
@@ -406,4 +409,134 @@ pub fn potential_suspicious_sand(
     sand_box
         .chain(doorways)
         .map(move |(x, y, z)| world_pos(Some(orientation), bounds, IVec3::new(x, y, z)))
+}
+
+#[derive(Clone, Debug)]
+pub struct SwampHutBlocks {
+    pub spruce_planks: Oriented,
+    pub oak_log: Oriented,
+    pub oak_fence: Oriented,
+    pub air: Oriented,
+    pub potted_red_mushroom: Oriented,
+    pub crafting_table: Oriented,
+    pub cauldron: Oriented,
+    pub stairs_north: Oriented,
+    pub stairs_east: Oriented,
+    pub stairs_west: Oriented,
+    pub stairs_south: Oriented,
+    pub stairs_north_outer_right: Oriented,
+    pub stairs_north_outer_left: Oriented,
+    pub stairs_south_outer_left: Oriented,
+    pub stairs_south_outer_right: Oriented,
+    pub replaceable_by_structures: StateMask,
+}
+
+impl SwampHutBlocks {
+    pub fn compile(
+        blocks: &dyn BlockResolver,
+        world: &WorldStates,
+    ) -> Result<Self, FeatureCompileError> {
+        let oriented = |block: &str| Ok(Oriented::of(world, state(blocks, block, &[])?));
+        let stairs = |facing: &str, shape: &str| {
+            Ok(Oriented::of(
+                world,
+                state(
+                    blocks,
+                    "minecraft:spruce_stairs",
+                    &[("facing", facing), ("shape", shape)],
+                )?,
+            ))
+        };
+        Ok(SwampHutBlocks {
+            spruce_planks: oriented("minecraft:spruce_planks")?,
+            oak_log: oriented("minecraft:oak_log")?,
+            oak_fence: oriented("minecraft:oak_fence")?,
+            air: oriented("minecraft:air")?,
+            potted_red_mushroom: oriented("minecraft:potted_red_mushroom")?,
+            crafting_table: oriented("minecraft:crafting_table")?,
+            cauldron: oriented("minecraft:cauldron")?,
+            stairs_north: stairs("north", "straight")?,
+            stairs_east: stairs("east", "straight")?,
+            stairs_west: stairs("west", "straight")?,
+            stairs_south: stairs("south", "straight")?,
+            stairs_north_outer_right: stairs("north", "outer_right")?,
+            stairs_north_outer_left: stairs("north", "outer_left")?,
+            stairs_south_outer_left: stairs("south", "outer_left")?,
+            stairs_south_outer_right: stairs("south", "outer_right")?,
+            replaceable_by_structures: replaceable_by_structures(blocks, world)?,
+        })
+    }
+}
+
+/// `SwampHutPiece.postProcess` for one column, `bounds` already raised to
+/// its ground: the hut, then the witch and the cat at the same cell, each
+/// spawned by the column holding it.
+pub fn paint_swamp_hut<W: WorldGenVolume>(
+    b: &SwampHutBlocks,
+    c: &mut PieceCanvas<'_, W>,
+    rng: &mut XoroshiroRandom,
+    structure: u32,
+    variants: &VariantTables,
+) {
+    let planks = &b.spruce_planks;
+    let log = &b.oak_log;
+    c.generate_box([1, 1, 1], [5, 1, 7], planks, planks, false);
+    c.generate_box([1, 4, 2], [5, 4, 7], planks, planks, false);
+    c.generate_box([2, 1, 0], [4, 1, 0], planks, planks, false);
+    c.generate_box([2, 2, 2], [3, 3, 2], planks, planks, false);
+    c.generate_box([1, 2, 3], [1, 3, 6], planks, planks, false);
+    c.generate_box([5, 2, 3], [5, 3, 6], planks, planks, false);
+    c.generate_box([2, 2, 7], [4, 3, 7], planks, planks, false);
+    c.generate_box([1, 0, 2], [1, 3, 2], log, log, false);
+    c.generate_box([5, 0, 2], [5, 3, 2], log, log, false);
+    c.generate_box([1, 0, 7], [1, 3, 7], log, log, false);
+    c.generate_box([5, 0, 7], [5, 3, 7], log, log, false);
+    c.place(&b.oak_fence, 2, 3, 2);
+    c.place(&b.oak_fence, 3, 3, 7);
+    c.place(&b.air, 1, 3, 4);
+    c.place(&b.air, 5, 3, 4);
+    c.place(&b.air, 5, 3, 5);
+    c.place(&b.potted_red_mushroom, 1, 3, 5);
+    c.place(&b.crafting_table, 3, 2, 6);
+    c.place(&b.cauldron, 4, 2, 6);
+    c.place(&b.oak_fence, 1, 2, 1);
+    c.place(&b.oak_fence, 5, 2, 1);
+    c.generate_box(
+        [0, 4, 1],
+        [6, 4, 1],
+        &b.stairs_north,
+        &b.stairs_north,
+        false,
+    );
+    c.generate_box([0, 4, 2], [0, 4, 7], &b.stairs_east, &b.stairs_east, false);
+    c.generate_box([6, 4, 2], [6, 4, 7], &b.stairs_west, &b.stairs_west, false);
+    c.generate_box(
+        [0, 4, 8],
+        [6, 4, 8],
+        &b.stairs_south,
+        &b.stairs_south,
+        false,
+    );
+    c.place(&b.stairs_north_outer_right, 0, 4, 1);
+    c.place(&b.stairs_north_outer_left, 6, 4, 1);
+    c.place(&b.stairs_south_outer_left, 0, 4, 8);
+    c.place(&b.stairs_south_outer_right, 6, 4, 8);
+    let log = log.unoriented();
+    for z in [2, 7] {
+        for x in [1, 5] {
+            c.fill_column_down(&b.replaceable_by_structures, log, x, -1, z);
+        }
+    }
+
+    let at = c.world_pos(2, 2, 5);
+    if !c.clip.is_inside(at) {
+        return;
+    }
+    c.spawns.push(entity::witch(at, rng));
+    let ctx = SpawnContext {
+        structure: Some(structure),
+        biome: c.volume.biome(at),
+        moon_brightness: 1.0,
+    };
+    c.spawns.push(entity::cat(at, &ctx, variants, rng));
 }

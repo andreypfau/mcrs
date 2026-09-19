@@ -6,6 +6,7 @@ use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileErro
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::block_entity::{ContainerData, GeneratedBlockEntity};
+use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_feature_place::room::reorient;
 use mcrs_minecraft_worldgen_structure::orient::{Orientation, world_pos};
 
@@ -55,6 +56,7 @@ pub fn replaceable_by_structures(
 pub struct PieceCanvas<'a, W: WorldGenVolume> {
     pub volume: &'a mut W,
     pub entities: &'a mut Vec<GeneratedBlockEntity>,
+    pub spawns: &'a mut Vec<GeneratedEntity>,
     pub bounds: BoundingBox,
     pub orientation: Option<Orientation>,
     pub clip: BoundingBox,
@@ -318,11 +320,13 @@ mod tests {
     fn canvas<'a>(
         region: &'a mut BoxRegion,
         entities: &'a mut Vec<GeneratedBlockEntity>,
+        spawns: &'a mut Vec<GeneratedEntity>,
         orientation: Orientation,
     ) -> PieceCanvas<'a, BoxRegion> {
         PieceCanvas {
             volume: region,
             entities,
+            spawns,
             bounds: BoundingBox {
                 min: BlockPos::new(8, 10, 8),
                 max: BlockPos::new(23, 20, 23),
@@ -339,12 +343,13 @@ mod tests {
     fn writes_are_oriented_and_clipped() {
         let mut region = region();
         let mut entities = Vec::new();
+        let mut spawns = Vec::new();
         let brick = Oriented([BRICK; 4]);
-        let mut east = canvas(&mut region, &mut entities, Orientation::East);
+        let mut east = canvas(&mut region, &mut entities, &mut spawns, Orientation::East);
         east.generate_box([0, 0, 0], [3, 0, 3], &brick, &brick, false);
         let writes = region.writes.len();
         assert_eq!(writes, 16, "the east box lands in x 8..=11, inside the clip");
-        let mut north = canvas(&mut region, &mut entities, Orientation::North);
+        let mut north = canvas(&mut region, &mut entities, &mut spawns, Orientation::North);
         north.generate_box([10, 0, 0], [13, 0, 3], &brick, &brick, false);
         assert_eq!(region.writes.len(), writes, "x 18..=21 is past the clip");
     }
@@ -353,7 +358,8 @@ mod tests {
     fn the_column_fills_down_through_air_only() {
         let mut region = region();
         let mut entities = Vec::new();
-        let mut canvas = canvas(&mut region, &mut entities, Orientation::North);
+        let mut spawns = Vec::new();
+        let mut canvas = canvas(&mut region, &mut entities, &mut spawns, Orientation::North);
         canvas.fill_column_down(&mask_of([AIR]), BRICK, 2, 5, 2);
         let column: Vec<i32> = region.writes.iter().map(|(pos, _)| pos.y).collect();
         assert_eq!(column, vec![15, 14, 13, 12, 11, 10]);
@@ -363,8 +369,9 @@ mod tests {
     fn interior_and_sphere_follow_the_reference_shape() {
         let mut region = region();
         let mut entities = Vec::new();
+        let mut spawns = Vec::new();
         let brick = Oriented([BRICK; 4]);
-        let mut canvas = canvas(&mut region, &mut entities, Orientation::North);
+        let mut canvas = canvas(&mut region, &mut entities, &mut spawns, Orientation::North);
         assert!(!canvas.is_interior(0, 0, 0), "y 11 is above the height of 10");
         assert!(canvas.is_interior(0, -3, 0));
         canvas.upper_half_sphere([0, 0, 0], [4, 4, 4], &brick, false);
@@ -378,7 +385,8 @@ mod tests {
         let brick = Oriented([BRICK; 4]);
         let mut rng = LegacyRandom::new(3);
         let mut replay = rng.clone();
-        let mut canvas = canvas(&mut region, &mut entities, Orientation::South);
+        let mut spawns = Vec::new();
+        let mut canvas = canvas(&mut region, &mut entities, &mut spawns, Orientation::South);
         canvas.generate_maybe_box(&mut rng, 0.5, [0, 0, 0], [2, 1, 2], &brick, &brick, false, true);
         for _ in 0..18 {
             replay.next_f32();

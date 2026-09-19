@@ -21,8 +21,7 @@ const MAGIC: &[u8; 8] = b"MCSTRPC0";
 /// Every structure type whose layout is not ported: the oracle has starts for
 /// them and this build produces none. The end city has no present case at the
 /// dump's shared chunks and joins the list with its own cases.
-const UNPORTED_PIECE_TYPES: [&str; 2] = [
-    "minecraft:swamp_hut",
+const UNPORTED_PIECE_TYPES: [&str; 1] = [
     "minecraft:woodland_mansion",
 ];
 
@@ -159,5 +158,5 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
         compared += 1;
     }
     assert_eq!(unported, UNPORTED_PIECE_TYPES.into_iter().collect());
-    assert_eq!((compared, pieces), (568, 33801));
+    assert_eq!((compared, pieces), (570, 33803));
 }

@@ -20,7 +20,7 @@ use mcrs_minecraft_worldgen_structure::{
 };
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
-use super::{biome_index, biome_tags, corpus, load_json_dir};
+use super::{biome_index, biome_tags, corpus, load_json_dir, structure_index, structure_tags};
 use crate::features::possible_biomes;
 use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state};
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
@@ -75,6 +75,10 @@ fn variant_selectors(registry: &str) -> BTreeMap<ResourceLocation, Vec<SpawnSele
 }
 
 pub(super) fn variant_inputs() -> VariantInputs<'static> {
+    static CATS: LazyLock<BTreeMap<ResourceLocation, Vec<SpawnSelector>>> =
+        LazyLock::new(|| variant_selectors("cat_variant"));
+    static CAT_SOUNDS: LazyLock<Vec<ResourceLocation>> =
+        LazyLock::new(|| variant_selectors("cat_sound_variant").into_keys().collect());
     static CHICKENS: LazyLock<BTreeMap<ResourceLocation, Vec<SpawnSelector>>> =
         LazyLock::new(|| variant_selectors("chicken_variant"));
     static CHICKEN_SOUNDS: LazyLock<Vec<ResourceLocation>> = LazyLock::new(|| {
@@ -85,6 +89,8 @@ pub(super) fn variant_inputs() -> VariantInputs<'static> {
     static ZOMBIE_NAUTILUSES: LazyLock<BTreeMap<ResourceLocation, Vec<SpawnSelector>>> =
         LazyLock::new(|| variant_selectors("zombie_nautilus_variant"));
     VariantInputs {
+        cats: Some(&CATS),
+        cat_sounds: &CAT_SOUNDS,
         chickens: Some(&CHICKENS),
         chicken_sounds: &CHICKEN_SOUNDS,
         zombie_nautiluses: Some(&ZOMBIE_NAUTILUSES),
@@ -106,6 +112,8 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
             resolve: &|state| resolve_palette_state(corpus(), state),
             biomes: biome_index(),
             biome_tags: biome_tags(),
+            structure_index: structure_index(),
+            structure_tags: structure_tags(),
             variants: &variant_inputs(),
         })
         .unwrap_or_else(|e| panic!("{e}"))
@@ -129,6 +137,49 @@ fn the_unported_type_census_is_pinned() {
         .map(|structure| structure.kind.type_name())
         .collect();
     assert_eq!(unported, UNPORTED_TYPES.into_iter().collect());
+}
+
+#[test]
+fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
+    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnContext;
+
+    let frozen = frozen();
+    let variants = &frozen.variants;
+    assert_eq!(variants.cats.ids.len(), 11);
+    assert_eq!(
+        variants.cats.ids[0],
+        ResourceLocation::minecraft("all_black")
+    );
+    assert_eq!(
+        variants.cat_sounds,
+        vec![
+            ResourceLocation::minecraft("classic"),
+            ResourceLocation::minecraft("royal"),
+        ]
+    );
+    let in_hut = SpawnContext {
+        structure: Some(frozen.structure_ids[&ResourceLocation::minecraft("swamp_hut")].0),
+        biome: biome_index().get("minecraft:swamp").unwrap(),
+        moon_brightness: 1.0,
+    };
+    let mut rng = XoroshiroRandom::new(1);
+    for _ in 0..20 {
+        assert_eq!(
+            variants.cats.pick(&in_hut, &mut rng),
+            Some(&ResourceLocation::minecraft("all_black"))
+        );
+    }
+    let elsewhere = SpawnContext {
+        structure: Some(frozen.structure_ids[&ResourceLocation::minecraft("igloo")].0),
+        moon_brightness: 0.0,
+        ..in_hut
+    };
+    let picked: BTreeSet<_> = (0..200)
+        .map(|_| variants.cats.pick(&elsewhere, &mut rng).unwrap().clone())
+        .collect();
+    assert_eq!(picked.len(), 10);
+    assert!(!picked.contains(&ResourceLocation::minecraft("all_black")));
 }
 
 #[test]
@@ -328,6 +379,8 @@ fn try_freeze_with(
     let pools = parse::<TemplatePool>(pools);
     let biomes = DynRegistryIndex::build(std::iter::empty());
     let tags = DynTagRegistry::default();
+    let structure_index = DynRegistryIndex::build(std::iter::empty());
+    let structure_tags = DynTagRegistry::default();
     let template = |id: &ResourceLocation| template(id).map(Cow::Owned);
     freeze(&StructureInputs {
         sets: &sets,
@@ -337,6 +390,8 @@ fn try_freeze_with(
         resolve,
         biomes: &biomes,
         biome_tags: &tags,
+        structure_index: &structure_index,
+        structure_tags: &structure_tags,
         variants: &VariantInputs::default(),
     })
 }

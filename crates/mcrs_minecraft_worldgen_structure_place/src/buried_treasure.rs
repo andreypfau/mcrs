@@ -137,9 +137,11 @@ mod tests {
         region.blocks.set(BlockPos::new(10, 5, 9), WATER);
         region.blocks.set(BlockPos::new(10, 4, 9), AIR);
         let mut entities = Vec::new();
+        let mut spawns = Vec::new();
         let mut canvas = PieceCanvas {
             volume: &mut region,
             entities: &mut entities,
+            spawns: &mut spawns,
             bounds: BoundingBox::point(BlockPos::new(9, 90, 9)),
             orientation: None,
             clip: BoundingBox {
@@ -171,9 +173,11 @@ mod tests {
             region.blocks.fill_layer(y, GRAVEL);
         }
         let mut entities = Vec::new();
+        let mut spawns = Vec::new();
         let mut canvas = PieceCanvas {
             volume: &mut region,
             entities: &mut entities,
+            spawns: &mut spawns,
             bounds: BoundingBox::point(BlockPos::new(9, 90, 9)),
             orientation: None,
             clip: BoundingBox {

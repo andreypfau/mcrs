@@ -79,6 +79,24 @@ impl JungleTemplePiece {
     pub const LAYOUT_FLOOR: i32 = 64;
 }
 
+/// The one piece of a swamp hut: its box as laid out, at the fixed floor of
+/// 64, and the ground it is raised to at placement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SwampHutPiece {
+    pub bounds: BoundingBox,
+    pub orientation: Orientation,
+    /// The mean ground under the box, which the reference reads from the
+    /// live heightmap and this layout fixes from the density heights.
+    pub height_position: i32,
+}
+
+impl SwampHutPiece {
+    pub const WIDTH: i32 = 7;
+    pub const HEIGHT: i32 = 7;
+    pub const DEPTH: i32 = 9;
+    pub const LAYOUT_FLOOR: i32 = 64;
+}
+
 /// The one piece of a buried treasure: the block at (9, 90, 9) of its chunk,
 /// from which placement walks the column down to the chest's resting block.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -374,6 +392,7 @@ pub enum Piece {
     Jigsaw(JigsawPiece),
     DesertPyramid(DesertPyramidPiece),
     JungleTemple(JungleTemplePiece),
+    SwampHut(SwampHutPiece),
     BuriedTreasure(BuriedTreasurePiece),
     Fortress(FortressPiece),
     Shipwreck(ShipwreckPiece),
@@ -392,6 +411,7 @@ impl Piece {
             Piece::Jigsaw(piece) => piece.bounds,
             Piece::DesertPyramid(piece) => piece.bounds,
             Piece::JungleTemple(piece) => piece.bounds,
+            Piece::SwampHut(piece) => piece.bounds,
             Piece::BuriedTreasure(piece) => piece.bounds,
             Piece::Fortress(piece) => piece.bounds,
             Piece::Shipwreck(piece) => piece.bounds,
@@ -414,6 +434,7 @@ impl Piece {
             }
             Piece::DesertPyramid(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::JungleTemple(piece) => piece.bounds = piece.bounds.moved(delta),
+            Piece::SwampHut(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::BuriedTreasure(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::Fortress(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::Shipwreck(piece) => {
@@ -717,6 +738,27 @@ enum PieceTag {
         placed_trap_1: bool,
         #[serde(rename = "placedTrap2", deserialize_with = "nbt_flag")]
         placed_trap_2: bool,
+    },
+    #[serde(rename = "minecraft:tesh")]
+    SwampHut {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "Width")]
+        width: i32,
+        #[serde(rename = "Height")]
+        height: i32,
+        #[serde(rename = "Depth")]
+        depth: i32,
+        #[serde(rename = "HPos")]
+        height_position: i32,
+        #[serde(rename = "Witch", deserialize_with = "nbt_flag")]
+        witch: bool,
+        #[serde(rename = "Cat", deserialize_with = "nbt_flag")]
+        cat: bool,
     },
     #[serde(rename = "minecraft:btp")]
     BuriedTreasure {
@@ -1282,6 +1324,17 @@ impl Serialize for PieceNbt<'_> {
                 placed_trap_1: false,
                 placed_trap_2: false,
             },
+            Piece::SwampHut(piece) => PieceTag::SwampHut {
+                bounds: box_array(piece.bounds),
+                orientation: piece.orientation.data_2d(),
+                gen_depth: 0,
+                width: SwampHutPiece::WIDTH,
+                height: SwampHutPiece::HEIGHT,
+                depth: SwampHutPiece::DEPTH,
+                height_position: piece.height_position,
+                witch: false,
+                cat: false,
+            },
             Piece::BuriedTreasure(piece) => PieceTag::BuriedTreasure {
                 bounds: box_array(piece.bounds),
                 orientation: NO_ORIENTATION,
@@ -1600,6 +1653,17 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 bounds: box_of(bounds),
                 orientation: Orientation::from_data_2d(orientation)
                     .ok_or_else(|| D::Error::custom("a jungle temple without an orientation"))?,
+                height_position,
+            })),
+            PieceTag::SwampHut {
+                bounds,
+                orientation,
+                height_position,
+                ..
+            } => Ok(Piece::SwampHut(SwampHutPiece {
+                bounds: box_of(bounds),
+                orientation: Orientation::from_data_2d(orientation)
+                    .ok_or_else(|| D::Error::custom("a swamp hut without an orientation"))?,
                 height_position,
             })),
             PieceTag::BuriedTreasure { bounds, .. } => {
@@ -2115,6 +2179,34 @@ mod tests {
         assert_eq!(tag.get_int("Depth"), Some(21));
         assert_eq!(tag.get_int("HPos"), Some(71));
         assert_eq!(tag.get_byte("hasPlacedChest3"), Some(0));
+    }
+
+    #[test]
+    fn a_swamp_hut_piece_round_trips_with_its_unspent_spawn_flags() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::SwampHut(SwampHutPiece {
+            bounds: BoundingBox {
+                min: BlockPos::new(112, 64, -48),
+                max: BlockPos::new(118, 70, -40),
+            },
+            orientation: Orientation::South,
+            height_position: 66,
+        });
+        assert_eq!(round_trip(&context, &piece), piece);
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:tesh"));
+        assert_eq!(tag.get_int("O"), Some(0));
+        assert_eq!(tag.get_int("GD"), Some(0));
+        assert_eq!(tag.get_int("Width"), Some(7));
+        assert_eq!(tag.get_int("Height"), Some(7));
+        assert_eq!(tag.get_int("Depth"), Some(9));
+        assert_eq!(tag.get_int("HPos"), Some(66));
+        assert_eq!(tag.get_byte("Witch"), Some(0));
+        assert_eq!(tag.get_byte("Cat"), Some(0));
     }
 
     #[test]

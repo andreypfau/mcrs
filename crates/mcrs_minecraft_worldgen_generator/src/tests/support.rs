@@ -152,6 +152,7 @@ use mcrs_minecraft_block::{Block, Fluid};
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
+use mcrs_minecraft_worldgen_structure::Structure;
 
 fn tag_dir(registry: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -249,4 +250,16 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
 pub fn biome_tags() -> &'static DynTagRegistry<Biome> {
     static TAGS: std::sync::OnceLock<DynTagRegistry<Biome>> = std::sync::OnceLock::new();
     TAGS.get_or_init(|| every_tag(biome_index()))
+}
+
+pub fn structure_index() -> &'static DynRegistryIndex<Structure> {
+    static INDEX: std::sync::OnceLock<DynRegistryIndex<Structure>> = std::sync::OnceLock::new();
+    INDEX.get_or_init(|| {
+        DynRegistryIndex::build(load_json_dir::<serde::de::IgnoredAny>("structure").into_keys())
+    })
+}
+
+pub fn structure_tags() -> &'static DynTagRegistry<Structure> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<Structure>> = std::sync::OnceLock::new();
+    TAGS.get_or_init(|| every_tag(structure_index()))
 }

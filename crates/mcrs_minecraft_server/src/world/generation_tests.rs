@@ -555,6 +555,13 @@ const STRONGHOLD: Consumer = Consumer::Structure {
     biome: "minecraft:plains",
 };
 
+/// A swamp hut: one grid piece inside its own column, raised to the ground,
+/// with the witch and the cat it spawns.
+const SWAMP_HUT: Consumer = Consumer::Structure {
+    id: "minecraft:swamp_hut",
+    biome: "minecraft:swamp",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -586,6 +593,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != MINESHAFT
         && consumer != IGLOO
         && consumer != STRONGHOLD
+        && consumer != SWAMP_HUT
     {
         assert!(
             crossed > 0,
@@ -649,6 +657,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         IGLOO,
         NETHER_FOSSIL,
         STRONGHOLD,
+        SWAMP_HUT,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

@@ -141,7 +141,7 @@ use mcrs_minecraft_worldgen_structure_place::portal::RuinedPortalBlocks;
 use mcrs_minecraft_worldgen_structure_place::ocean_monument::OceanMonumentBlocks;
 use mcrs_minecraft_worldgen_structure_place::mineshaft::MineshaftBlocks;
 use mcrs_minecraft_worldgen_structure_place::nether_fossil::NetherFossilBlocks;
-use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
+use mcrs_minecraft_worldgen_structure_place::scattered::{DesertPyramidBlocks, SwampHutBlocks};
 use mcrs_minecraft_worldgen_structure_place::stronghold::StrongholdBlocks;
 use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{
@@ -294,6 +294,7 @@ pub enum CompiledElement {
 pub enum CompiledStructure {
     DesertPyramid(Box<DesertPyramidBlocks>),
     JungleTemple(Box<JungleTempleBlocks>),
+    SwampHut(Box<SwampHutBlocks>),
     BuriedTreasure(Box<BuriedTreasureBlocks>),
     Fortress(Box<FortressBlocks>),
     Shipwreck(CompiledChain),
@@ -1096,6 +1097,10 @@ fn compile_structures(
                 ))),
                 StructureKind::JungleTemple => Some(CompiledStructure::JungleTemple(Box::new(
                     JungleTempleBlocks::compile(resolver, &resolver.world)
+                        .map_err(|error| error.within(&structure.id))?,
+                ))),
+                StructureKind::SwampHut => Some(CompiledStructure::SwampHut(Box::new(
+                    SwampHutBlocks::compile(resolver, &resolver.world)
                         .map_err(|error| error.within(&structure.id))?,
                 ))),
                 StructureKind::BuriedTreasure => Some(CompiledStructure::BuriedTreasure(Box::new(

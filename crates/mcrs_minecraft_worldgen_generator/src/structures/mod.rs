@@ -12,7 +12,7 @@ use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::spawn_condition::{
-    SpawnSelector, VariantTable, VariantTables,
+    IdSet, SpawnSelector, VariantTable, VariantTables,
 };
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
@@ -95,6 +95,9 @@ pub struct StructureInputs<'a> {
     pub resolve: &'a dyn Fn(&PaletteState) -> Option<ResolvedState>,
     pub biomes: &'a DynRegistryIndex<Biome>,
     pub biome_tags: &'a DynTagRegistry<Biome>,
+    /// The structure ids the tags are resolved against, and those tags.
+    pub structure_index: &'a DynRegistryIndex<Structure>,
+    pub structure_tags: &'a DynTagRegistry<Structure>,
     pub variants: &'a VariantInputs<'a>,
 }
 
@@ -103,6 +106,8 @@ pub struct StructureInputs<'a> {
 /// as its ids in order.
 #[derive(Default)]
 pub struct VariantInputs<'a> {
+    pub cats: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector>>>,
+    pub cat_sounds: &'a [ResourceLocation],
     pub chickens: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector>>>,
     pub chicken_sounds: &'a [ResourceLocation],
     pub zombie_nautiluses: Option<&'a BTreeMap<ResourceLocation, Vec<SpawnSelector>>>,
@@ -117,6 +122,43 @@ pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> 
     freeze_sets(inputs, &mut frozen)?;
     freeze_variants(inputs, &mut frozen)?;
     Ok(frozen)
+}
+
+fn structure_id_set(
+    inputs: &StructureInputs<'_>,
+    frozen: &FrozenStructures,
+    set: &HolderSet,
+) -> Result<IdSet, String> {
+    let mut mask = FixedBitSet::with_capacity(frozen.structures.len());
+    let mut insert = |id: &str| {
+        frozen
+            .structure_ids
+            .get(id)
+            .map(|id| mask.insert(id.0 as usize))
+            .ok_or_else(|| format!("names the structure {id}, which is not loaded"))
+    };
+    match set {
+        HolderSet::Tag(tag) => {
+            let key = TagKey::<Structure, _>::from_location(tag.clone());
+            let members = inputs
+                .structure_tags
+                .get(&key)
+                .ok_or_else(|| format!("names the structure tag #{tag}, which is not loaded"))?;
+            for index in members.iter() {
+                let id = inputs
+                    .structure_index
+                    .location(index)
+                    .expect("a tag member is an indexed structure");
+                insert(id.as_str())?;
+            }
+        }
+        HolderSet::One(_) | HolderSet::List(_) => {
+            for id in set.entries() {
+                insert(id.as_str())?;
+            }
+        }
+    }
+    Ok(Arc::new(mask))
 }
 
 fn freeze_variants(
@@ -134,30 +176,14 @@ fn freeze_variants(
             entries
                 .iter()
                 .map(|(id, selectors)| (id.clone(), selectors.as_slice())),
-            &|set| {
-                let mut ids = FixedBitSet::with_capacity(frozen.structures.len());
-                match set {
-                    HolderSet::Tag(tag) => {
-                        return Err(format!(
-                            "names the structure tag #{tag}, which is not loaded"
-                        ));
-                    }
-                    HolderSet::One(_) | HolderSet::List(_) => {
-                        for id in set.entries() {
-                            let index = frozen.structure_ids.get(id).ok_or_else(|| {
-                                format!("names the structure {id}, which is not loaded")
-                            })?;
-                            ids.insert(index.0 as usize);
-                        }
-                    }
-                }
-                Ok(Arc::new(ids))
-            },
+            &|set| structure_id_set(inputs, frozen, set),
             &|set| biome_mask(inputs, &owner, set),
         )
         .map_err(|error| format!("{registry}: {error}"))
     };
     frozen.variants = VariantTables {
+        cats: table("minecraft:cat_variant", inputs.variants.cats)?,
+        cat_sounds: inputs.variants.cat_sounds.to_vec(),
         chickens: table("minecraft:chicken_variant", inputs.variants.chickens)?,
         chicken_sounds: inputs.variants.chicken_sounds.to_vec(),
         zombie_nautiluses: table(
@@ -171,7 +197,7 @@ fn freeze_variants(
 
 fn biome_mask(
     inputs: &StructureInputs<'_>,
-    owner: &ResourceLocation,
+    owner: &dyn std::fmt::Display,
     set: &HolderSet,
 ) -> Result<BiomeMask, String> {
     let mut mask = FixedBitSet::with_capacity(inputs.biomes.len() as usize);
@@ -200,7 +226,7 @@ fn biome_mask(
 
 fn biome_tag_mask(
     inputs: &StructureInputs<'_>,
-    owner: &ResourceLocation,
+    owner: &dyn std::fmt::Display,
     tag: &str,
 ) -> Result<BiomeMask, String> {
     let tag = ResourceLocation::parse(tag).expect("a literal id");

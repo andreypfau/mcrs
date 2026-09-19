@@ -305,6 +305,7 @@ impl StructureIndex {
                     },
                     Piece::DesertPyramid(_)
                     | Piece::JungleTemple(_)
+                    | Piece::SwampHut(_)
                     | Piece::BuriedTreasure(_)
                     | Piece::Fortress(_)
                     | Piece::Shipwreck(_)

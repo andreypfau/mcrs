@@ -22,6 +22,8 @@ use mcrs_minecraft_environment::{timeline, world_clock};
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
+use mcrs_minecraft_worldgen::bevy::StructureAsset;
+use mcrs_minecraft_worldgen_structure::Structure;
 use {mcrs_minecraft_item as item, mcrs_minecraft_item::trim};
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
@@ -423,6 +425,13 @@ pub(crate) fn request_every_biome_tag(
     request_every_tag(&mut loader, &asset_server);
 }
 
+pub(crate) fn request_every_structure_tag(
+    mut loader: ResMut<TagLoader<Structure, u32>>,
+    asset_server: Res<AssetServer>,
+) {
+    request_every_tag(&mut loader, &asset_server);
+}
+
 fn request_every_tag<T: TaggedRegistry + 'static>(
     loader: &mut TagLoader<T, u32>,
     asset_server: &AssetServer,
@@ -518,6 +527,21 @@ pub(crate) fn index_biomes(
         .collect();
     tracing::info!(count = entries.len(), "indexed biomes");
     commands.insert_resource(DynRegistryIndex::<biome::Biome>::build(entries.into_iter()));
+}
+
+pub(crate) fn index_structures(
+    structures: Res<Assets<StructureAsset>>,
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+) {
+    let entries: Vec<_> = structures
+        .iter()
+        .filter_map(|(id, _)| {
+            rl_from_asset_path(asset_server.get_path(id)?.path(), "worldgen/structure")
+        })
+        .collect();
+    tracing::info!(count = entries.len(), "indexed structures");
+    commands.insert_resource(DynRegistryIndex::<Structure>::build(entries.into_iter()));
 }
 
 /// Resolve the timeline tag every dimension type names. The tag files were

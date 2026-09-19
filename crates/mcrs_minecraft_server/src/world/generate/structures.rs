@@ -3,6 +3,7 @@ use crate::world::generate::routers::DimensionBiomeSources;
 use bevy_app::{App, Plugin};
 use bevy_asset::{AssetServer, Assets, Handle};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
+use bevy_ecs::system::SystemParam;
 use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
@@ -11,7 +12,9 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::DynRegistryIndex;
-use mcrs_minecraft_world::variant::{ChickenSoundVariant, ChickenVariant, ZombieNautilusVariant};
+use mcrs_minecraft_world::variant::{
+    CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, ZombieNautilusVariant,
+};
 use mcrs_minecraft_worldgen::bevy::{
     StructureAsset, StructureSetAsset, TemplateAsset, TemplatePoolAsset,
 };
@@ -72,6 +75,16 @@ impl Plugin for StructurePlugin {
     }
 }
 
+/// The mob variant registries the structures' spawns pick from.
+#[derive(SystemParam)]
+pub(crate) struct VariantAssets<'w> {
+    cats: Res<'w, Assets<CatVariant>>,
+    cat_sounds: Res<'w, Assets<CatSoundVariant>>,
+    chickens: Res<'w, Assets<ChickenVariant>>,
+    chicken_sounds: Res<'w, Assets<ChickenSoundVariant>>,
+    zombie_nautiluses: Res<'w, Assets<ZombieNautilusVariant>>,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_dimension_structures(
     mut commands: Commands,
@@ -84,9 +97,9 @@ pub(crate) fn build_dimension_structures(
     blocks: Res<Blocks>,
     biomes: Res<DynRegistryIndex<Biome>>,
     biome_tags: Res<DynTagRegistry<Biome>>,
-    chickens: Res<Assets<ChickenVariant>>,
-    chicken_sounds: Res<Assets<ChickenSoundVariant>>,
-    zombie_nautiluses: Res<Assets<ZombieNautilusVariant>>,
+    structure_index: Res<DynRegistryIndex<Structure>>,
+    structure_tags: Res<DynTagRegistry<Structure>>,
+    variants: VariantAssets,
 ) {
     let Some(sources) = sources else { return };
 
@@ -120,11 +133,25 @@ pub(crate) fn build_dimension_structures(
         Some(Cow::Borrowed(&templates.get(handle)?.template))
     };
     let resolve = |state: &PaletteState| resolve_palette_state(&blocks.0, state);
-    let chickens = registry_of(&chickens, &asset_server, "chicken_variant", |asset| {
+    let cats = registry_of(&variants.cats, &asset_server, "cat_variant", |asset| {
         &asset.spawn_conditions
     });
+    let cat_sounds: Vec<ResourceLocation> = registry_of(
+        &variants.cat_sounds,
+        &asset_server,
+        "cat_sound_variant",
+        |_| &(),
+    )
+    .into_keys()
+    .collect();
+    let chickens = registry_of(
+        &variants.chickens,
+        &asset_server,
+        "chicken_variant",
+        |asset| &asset.spawn_conditions,
+    );
     let chicken_sounds: Vec<ResourceLocation> = registry_of(
-        &chicken_sounds,
+        &variants.chicken_sounds,
         &asset_server,
         "chicken_sound_variant",
         |_| &(),
@@ -132,7 +159,7 @@ pub(crate) fn build_dimension_structures(
     .into_keys()
     .collect();
     let zombie_nautiluses = registry_of(
-        &zombie_nautiluses,
+        &variants.zombie_nautiluses,
         &asset_server,
         "zombie_nautilus_variant",
         |asset| &asset.spawn_conditions,
@@ -145,7 +172,11 @@ pub(crate) fn build_dimension_structures(
         resolve: &resolve,
         biomes: &biomes,
         biome_tags: &biome_tags,
+        structure_index: &structure_index,
+        structure_tags: &structure_tags,
         variants: &VariantInputs {
+            cats: Some(&cats),
+            cat_sounds: &cat_sounds,
             chickens: Some(&chickens),
             chicken_sounds: &chicken_sounds,
             zombie_nautiluses: Some(&zombie_nautiluses),

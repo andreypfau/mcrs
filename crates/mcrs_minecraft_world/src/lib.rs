@@ -23,10 +23,10 @@ pub mod variant;
 pub mod worldgen;
 
 use crate::data_pack::{
-    check_tags_ready, index_biomes, index_timelines, register_static_registries_with_access,
-    request_data_pack_assets, request_every_biome_tag, request_every_block_tag,
-    request_every_fluid_tag, resolve_infiniburn_tags, resolve_timeline_tags,
-    start_loading_data_pack,
+    check_tags_ready, index_biomes, index_structures, index_timelines,
+    register_static_registries_with_access, request_data_pack_assets, request_every_biome_tag,
+    request_every_block_tag, request_every_fluid_tag, request_every_structure_tag,
+    resolve_infiniburn_tags, resolve_timeline_tags, start_loading_data_pack,
 };
 use crate::entity::tags as entity_type_tags;
 use bevy_app::{App, Plugin, PostStartup, Update};
@@ -46,6 +46,7 @@ use mcrs_minecraft_item::enchantment::tags as enchantment_tags;
 use mcrs_minecraft_item::tags as item_tags;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
+use mcrs_minecraft_worldgen_structure::Structure;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -151,6 +152,7 @@ impl Plugin for MinecraftWorldPlugin {
                 request_every_block_tag,
                 request_every_fluid_tag,
                 request_every_biome_tag,
+                request_every_structure_tag,
             )
                 .in_set(TagPhase::Request),
         );
@@ -166,7 +168,8 @@ impl Plugin for MinecraftWorldPlugin {
             entity_type_tags::ALL_ENTITY_TYPE_TAGS,
         )
         .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>(&[])
-        .add_tagged_registry::<mcrs_minecraft_biome::Biome, DynRegistryIndex<mcrs_minecraft_biome::Biome>>(&[]);
+        .add_tagged_registry::<mcrs_minecraft_biome::Biome, DynRegistryIndex<mcrs_minecraft_biome::Biome>>(&[])
+        .add_tagged_registry::<Structure, DynRegistryIndex<Structure>>(&[]);
 
         app.init_resource::<DimensionEnvironments>();
 
@@ -380,7 +383,7 @@ impl Plugin for MinecraftWorldPlugin {
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
                 (
-                    (index_timelines, index_biomes).before(TagPhase::Resolve),
+                    (index_timelines, index_biomes, index_structures).before(TagPhase::Resolve),
                     (resolve_infiniburn_tags, resolve_timeline_tags).in_set(TagPhase::Resolve),
                     freeze_timelines
                         .after(TagPhase::Freeze)

@@ -23,7 +23,7 @@ use mcrs_minecraft_worldgen_structure_place::mineshaft::paint_mineshaft;
 use mcrs_minecraft_worldgen_structure_place::portal::place_ruined_portal;
 use mcrs_minecraft_worldgen_structure_place::ocean_monument::paint_ocean_monument;
 use mcrs_minecraft_worldgen_structure_place::nether_fossil::paint_nether_fossil;
-use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
+use mcrs_minecraft_worldgen_structure_place::scattered::{paint_desert_pyramid, paint_swamp_hut};
 use mcrs_minecraft_worldgen_structure_place::stronghold::paint_stronghold;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{paint_igloo, paint_shipwreck};
@@ -143,6 +143,7 @@ pub fn place_start<W: WorldGenVolume>(
                 let mut canvas = PieceCanvas {
                     volume: region,
                     entities: &mut run.entities,
+                    spawns: &mut run.spawns,
                     bounds: sunk_bounds(piece, sink),
                     orientation: Some(piece.orientation),
                     clip,
@@ -163,11 +164,37 @@ pub fn place_start<W: WorldGenVolume>(
                 let mut canvas = PieceCanvas {
                     volume: region,
                     entities: &mut run.entities,
+                    spawns: &mut run.spawns,
                     bounds: raised,
                     orientation: Some(piece.orientation),
                     clip,
                 };
                 paint_jungle_temple(blocks, &mut canvas, rng);
+            }
+            Piece::SwampHut(piece) => {
+                let Some(CompiledStructure::SwampHut(blocks)) = program.structure(start.structure)
+                else {
+                    continue;
+                };
+                let mut canvas = PieceCanvas {
+                    volume: region,
+                    entities: &mut run.entities,
+                    spawns: &mut run.spawns,
+                    bounds: piece.bounds.moved(IVec3::new(
+                        0,
+                        piece.height_position - piece.bounds.min.y,
+                        0,
+                    )),
+                    orientation: Some(piece.orientation),
+                    clip,
+                };
+                paint_swamp_hut(
+                    blocks,
+                    &mut canvas,
+                    rng,
+                    start.structure.0,
+                    &frozen.variants,
+                );
             }
             Piece::BuriedTreasure(piece) => {
                 let Some(CompiledStructure::BuriedTreasure(blocks)) =
@@ -178,6 +205,7 @@ pub fn place_start<W: WorldGenVolume>(
                 let mut canvas = PieceCanvas {
                     volume: region,
                     entities: &mut run.entities,
+                    spawns: &mut run.spawns,
                     bounds: piece.bounds,
                     orientation: None,
                     clip,
@@ -192,6 +220,7 @@ pub fn place_start<W: WorldGenVolume>(
                 let mut canvas = PieceCanvas {
                     volume: region,
                     entities: &mut run.entities,
+                    spawns: &mut run.spawns,
                     bounds: piece.bounds,
                     orientation: Some(piece.orientation),
                     clip,
