@@ -53,7 +53,7 @@ fn the_structure_registries_land_before_playing() {
     assert_eq!(world.resource::<Assets<StructureSetAsset>>().len(), 21);
     assert_eq!(world.resource::<Assets<StructureAsset>>().len(), 52);
     assert_eq!(world.resource::<Assets<TemplatePoolAsset>>().len(), 245);
-    assert_eq!(world.resource::<Assets<ProcessorListAsset>>().len(), 36);
+    assert_eq!(world.resource::<Assets<ProcessorListAsset>>().len(), 39);
     assert_eq!(world.resource::<Assets<TemplateAsset>>().len(), 1511);
 
     let only_named_beside_a_missing_sibling = world
