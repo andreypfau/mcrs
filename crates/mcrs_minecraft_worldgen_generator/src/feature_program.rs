@@ -142,6 +142,7 @@ use mcrs_minecraft_worldgen_structure_place::ocean_monument::OceanMonumentBlocks
 use mcrs_minecraft_worldgen_structure_place::mineshaft::MineshaftBlocks;
 use mcrs_minecraft_worldgen_structure_place::nether_fossil::NetherFossilBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
+use mcrs_minecraft_worldgen_structure_place::stronghold::StrongholdBlocks;
 use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{
     IglooBlocks, ignore_structure_and_air,
@@ -302,6 +303,7 @@ pub enum CompiledStructure {
     Mineshaft(Box<MineshaftBlocks>),
     Igloo(Box<IglooBlocks>),
     NetherFossil(Box<NetherFossilBlocks>),
+    Stronghold(Box<StrongholdBlocks>),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -1145,6 +1147,10 @@ fn compile_structures(
                             .map_err(|error| error.within(&structure.id))?,
                     )))
                 }
+                StructureKind::Stronghold => Some(CompiledStructure::Stronghold(Box::new(
+                    StrongholdBlocks::compile(resolver, &resolver.world)
+                        .map_err(|error| error.within(&structure.id))?,
+                ))),
                 _ => None,
             })
         })

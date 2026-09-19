@@ -8,6 +8,7 @@ pub mod ocean_monument;
 pub mod mineshaft;
 pub mod nether_fossil;
 pub mod scattered;
+pub mod stronghold;
 pub mod template;
 pub mod template_piece;
 

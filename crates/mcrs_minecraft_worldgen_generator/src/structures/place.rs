@@ -24,6 +24,7 @@ use mcrs_minecraft_worldgen_structure_place::portal::place_ruined_portal;
 use mcrs_minecraft_worldgen_structure_place::ocean_monument::paint_ocean_monument;
 use mcrs_minecraft_worldgen_structure_place::nether_fossil::paint_nether_fossil;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
+use mcrs_minecraft_worldgen_structure_place::stronghold::paint_stronghold;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{paint_igloo, paint_shipwreck};
 
@@ -319,6 +320,21 @@ pub fn place_start<W: WorldGenVolume>(
                     &mut run.entities,
                     &mut run.spawns,
                 );
+            }
+            Piece::Stronghold(piece) => {
+                let Some(CompiledStructure::Stronghold(blocks)) =
+                    program.structure(start.structure)
+                else {
+                    continue;
+                };
+                let mut canvas = PieceCanvas {
+                    volume: region,
+                    entities: &mut run.entities,
+                    bounds: piece.bounds,
+                    orientation: Some(piece.orientation),
+                    clip,
+                };
+                paint_stronghold(blocks, piece.kind, piece.entry_door, &mut canvas, rng);
             }
         }
     }

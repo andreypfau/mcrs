@@ -313,7 +313,8 @@ impl StructureIndex {
                     | Piece::OceanMonument(_)
                     | Piece::Mineshaft(_)
                     | Piece::Igloo(_)
-                    | Piece::NetherFossil(_) => BeardPiece {
+                    | Piece::NetherFossil(_)
+                    | Piece::Stronghold(_) => BeardPiece {
                         bounds: piece.bounds(),
                         projection: Projection::Rigid,
                         ground_level_delta: 0,

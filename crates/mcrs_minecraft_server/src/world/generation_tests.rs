@@ -547,6 +547,14 @@ const NETHER_FOSSIL: Consumer = Consumer::Structure {
     biome: "minecraft:soul_sand_valley",
 };
 
+/// A stronghold: a tree of grid pieces buried below sea level with its
+/// portal room, chests and silverfish spawner, every write clipped to the
+/// column that runs.
+const STRONGHOLD: Consumer = Consumer::Structure {
+    id: "minecraft:stronghold",
+    biome: "minecraft:plains",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -577,6 +585,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != MONUMENT
         && consumer != MINESHAFT
         && consumer != IGLOO
+        && consumer != STRONGHOLD
     {
         assert!(
             crossed > 0,
@@ -639,6 +648,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         MINESHAFT,
         IGLOO,
         NETHER_FOSSIL,
+        STRONGHOLD,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

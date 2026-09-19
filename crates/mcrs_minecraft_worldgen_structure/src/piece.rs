@@ -315,6 +315,60 @@ pub struct NetherFossilPiece {
     pub bounds: BoundingBox,
 }
 
+/// The doorway a stronghold piece is entered through, spelled as the
+/// reference's legacy enum codec writes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SmallDoor {
+    Opening,
+    WoodDoor,
+    Grates,
+    IronDoor,
+}
+
+/// The stronghold piece types, each with the state its constructor draws or
+/// derives from its box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StrongholdKind {
+    /// The stairs the whole stronghold grows from.
+    Start,
+    StairsDown,
+    Straight {
+        left: bool,
+        right: bool,
+    },
+    PrisonHall,
+    LeftTurn,
+    RightTurn,
+    RoomCrossing {
+        variant: i32,
+    },
+    StraightStairsDown,
+    FiveCrossing {
+        left_low: bool,
+        left_high: bool,
+        right_low: bool,
+        right_high: bool,
+    },
+    ChestCorridor,
+    Library {
+        tall: bool,
+    },
+    PortalRoom,
+    FillerCorridor {
+        steps: i32,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StrongholdPiece {
+    pub kind: StrongholdKind,
+    pub entry_door: SmallDoor,
+    pub bounds: BoundingBox,
+    pub orientation: Orientation,
+    pub gen_depth: i32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
@@ -329,6 +383,7 @@ pub enum Piece {
     Mineshaft(MineshaftPiece),
     Igloo(IglooPiece),
     NetherFossil(NetherFossilPiece),
+    Stronghold(StrongholdPiece),
 }
 
 impl Piece {
@@ -346,6 +401,7 @@ impl Piece {
             Piece::Mineshaft(piece) => piece.bounds,
             Piece::Igloo(piece) => piece.bounds,
             Piece::NetherFossil(piece) => piece.bounds,
+            Piece::Stronghold(piece) => piece.bounds,
         }
     }
 
@@ -397,6 +453,7 @@ impl Piece {
                 piece.bounds = piece.bounds.moved(delta);
                 piece.position += delta;
             }
+            Piece::Stronghold(piece) => piece.bounds = piece.bounds.moved(delta),
         }
     }
 
@@ -905,6 +962,117 @@ enum PieceTag {
         #[serde(rename = "Rot", with = "rotation::legacy")]
         rotation: Rotation,
     },
+    #[serde(rename = "minecraft:shstart")]
+    StrongholdStart(StairsDownTag),
+    #[serde(rename = "minecraft:shsd")]
+    StrongholdStairsDown(StairsDownTag),
+    #[serde(rename = "minecraft:shs")]
+    StrongholdStraight {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "EntryDoor")]
+        entry_door: SmallDoor,
+        #[serde(rename = "Left", deserialize_with = "nbt_flag")]
+        left: bool,
+        #[serde(rename = "Right", deserialize_with = "nbt_flag")]
+        right: bool,
+    },
+    #[serde(rename = "minecraft:shph")]
+    StrongholdPrisonHall(DoorTag),
+    #[serde(rename = "minecraft:shlt")]
+    StrongholdLeftTurn(DoorTag),
+    #[serde(rename = "minecraft:shrt")]
+    StrongholdRightTurn(DoorTag),
+    #[serde(rename = "minecraft:shrc")]
+    StrongholdRoomCrossing {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "EntryDoor")]
+        entry_door: SmallDoor,
+        #[serde(rename = "Type")]
+        variant: i32,
+    },
+    #[serde(rename = "minecraft:shssd")]
+    StrongholdStraightStairsDown(DoorTag),
+    #[serde(rename = "minecraft:sh5c")]
+    StrongholdFiveCrossing {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "EntryDoor")]
+        entry_door: SmallDoor,
+        #[serde(rename = "leftLow", deserialize_with = "nbt_flag")]
+        left_low: bool,
+        #[serde(rename = "leftHigh", deserialize_with = "nbt_flag")]
+        left_high: bool,
+        #[serde(rename = "rightLow", deserialize_with = "nbt_flag")]
+        right_low: bool,
+        #[serde(rename = "rightHigh", deserialize_with = "nbt_flag")]
+        right_high: bool,
+    },
+    #[serde(rename = "minecraft:shcc")]
+    StrongholdChestCorridor {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "EntryDoor")]
+        entry_door: SmallDoor,
+        #[serde(rename = "Chest", deserialize_with = "nbt_flag")]
+        chest: bool,
+    },
+    #[serde(rename = "minecraft:shli")]
+    StrongholdLibrary {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "EntryDoor")]
+        entry_door: SmallDoor,
+        #[serde(rename = "Tall", deserialize_with = "nbt_flag")]
+        tall: bool,
+    },
+    #[serde(rename = "minecraft:shpr")]
+    StrongholdPortalRoom {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "EntryDoor")]
+        entry_door: SmallDoor,
+        #[serde(rename = "Mob", deserialize_with = "nbt_flag")]
+        mob: bool,
+    },
+    #[serde(rename = "minecraft:shfc")]
+    StrongholdFillerCorridor {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "EntryDoor")]
+        entry_door: SmallDoor,
+        #[serde(rename = "Steps")]
+        steps: i32,
+    },
 }
 
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
@@ -943,6 +1111,66 @@ impl Serialize for IntArray<'_> {
 /// `BoundingBox.CODEC.listOf()`: a list of int arrays.
 fn nbt_int_arrays<S: Serializer>(boxes: &[[i32; 6]], serializer: S) -> Result<S::Ok, S::Error> {
     serializer.collect_seq(boxes.iter().map(IntArray))
+}
+
+/// What every stronghold piece writes past `createTag`: its entry door.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DoorTag {
+    #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+    bounds: [i32; 6],
+    #[serde(rename = "O")]
+    orientation: i32,
+    #[serde(rename = "GD")]
+    gen_depth: i32,
+    #[serde(rename = "EntryDoor")]
+    entry_door: SmallDoor,
+}
+
+impl DoorTag {
+    fn of(piece: &StrongholdPiece) -> Self {
+        DoorTag {
+            bounds: box_array(piece.bounds),
+            orientation: piece.orientation.data_2d(),
+            gen_depth: piece.gen_depth,
+            entry_door: piece.entry_door,
+        }
+    }
+
+    fn with(bounds: [i32; 6], orientation: i32, gen_depth: i32, entry_door: SmallDoor) -> Self {
+        DoorTag {
+            bounds,
+            orientation,
+            gen_depth,
+            entry_door,
+        }
+    }
+
+    fn piece<E: serde::de::Error>(self, kind: StrongholdKind) -> Result<Piece, E> {
+        Ok(Piece::Stronghold(StrongholdPiece {
+            kind,
+            entry_door: self.entry_door,
+            bounds: box_of(self.bounds),
+            orientation: Orientation::from_data_2d(self.orientation)
+                .ok_or_else(|| E::custom("a stronghold piece without an orientation"))?,
+            gen_depth: self.gen_depth,
+        }))
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StairsDownTag {
+    #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+    bounds: [i32; 6],
+    #[serde(rename = "O")]
+    orientation: i32,
+    #[serde(rename = "GD")]
+    gen_depth: i32,
+    #[serde(rename = "EntryDoor")]
+    entry_door: SmallDoor,
+    #[serde(rename = "Source", deserialize_with = "nbt_flag")]
+    source: bool,
 }
 
 /// `StructurePiece.createTag` without the id: what every grid piece writes.
@@ -1220,6 +1448,92 @@ impl Serialize for PieceNbt<'_> {
                 template: self.context.template_name(piece.template),
                 rotation: piece.rotation,
             },
+            Piece::Stronghold(piece) => {
+                let door = DoorTag::of(piece);
+                let DoorTag {
+                    bounds,
+                    orientation,
+                    gen_depth,
+                    entry_door,
+                } = door;
+                let stairs = |source| StairsDownTag {
+                    bounds,
+                    orientation,
+                    gen_depth,
+                    entry_door,
+                    source,
+                };
+                match piece.kind {
+                    StrongholdKind::Start => PieceTag::StrongholdStart(stairs(true)),
+                    StrongholdKind::StairsDown => PieceTag::StrongholdStairsDown(stairs(false)),
+                    StrongholdKind::Straight { left, right } => PieceTag::StrongholdStraight {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        entry_door,
+                        left,
+                        right,
+                    },
+                    StrongholdKind::PrisonHall => PieceTag::StrongholdPrisonHall(door),
+                    StrongholdKind::LeftTurn => PieceTag::StrongholdLeftTurn(door),
+                    StrongholdKind::RightTurn => PieceTag::StrongholdRightTurn(door),
+                    StrongholdKind::RoomCrossing { variant } => PieceTag::StrongholdRoomCrossing {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        entry_door,
+                        variant,
+                    },
+                    StrongholdKind::StraightStairsDown => {
+                        PieceTag::StrongholdStraightStairsDown(door)
+                    }
+                    StrongholdKind::FiveCrossing {
+                        left_low,
+                        left_high,
+                        right_low,
+                        right_high,
+                    } => PieceTag::StrongholdFiveCrossing {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        entry_door,
+                        left_low,
+                        left_high,
+                        right_low,
+                        right_high,
+                    },
+                    StrongholdKind::ChestCorridor => PieceTag::StrongholdChestCorridor {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        entry_door,
+                        chest: false,
+                    },
+                    StrongholdKind::Library { tall } => PieceTag::StrongholdLibrary {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        entry_door,
+                        tall,
+                    },
+                    StrongholdKind::PortalRoom => PieceTag::StrongholdPortalRoom {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        entry_door,
+                        mob: false,
+                    },
+                    StrongholdKind::FillerCorridor { steps } => {
+                        PieceTag::StrongholdFillerCorridor {
+                            bounds,
+                            orientation,
+                            gen_depth,
+                            entry_door,
+                            steps,
+                        }
+                    }
+                }
+            }
         };
         tag.serialize(serializer)
     }
@@ -1539,6 +1853,87 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 rotation,
                 bounds: box_of(bounds),
             })),
+            PieceTag::StrongholdStart(tag) | PieceTag::StrongholdStairsDown(tag) => {
+                DoorTag::with(tag.bounds, tag.orientation, tag.gen_depth, tag.entry_door).piece(
+                    if tag.source {
+                        StrongholdKind::Start
+                    } else {
+                        StrongholdKind::StairsDown
+                    },
+                )
+            }
+            PieceTag::StrongholdStraight {
+                bounds,
+                orientation,
+                gen_depth,
+                entry_door,
+                left,
+                right,
+            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
+                .piece(StrongholdKind::Straight { left, right }),
+            PieceTag::StrongholdPrisonHall(door) => door.piece(StrongholdKind::PrisonHall),
+            PieceTag::StrongholdLeftTurn(door) => door.piece(StrongholdKind::LeftTurn),
+            PieceTag::StrongholdRightTurn(door) => door.piece(StrongholdKind::RightTurn),
+            PieceTag::StrongholdRoomCrossing {
+                bounds,
+                orientation,
+                gen_depth,
+                entry_door,
+                variant,
+            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
+                .piece(StrongholdKind::RoomCrossing { variant }),
+            PieceTag::StrongholdStraightStairsDown(door) => {
+                door.piece(StrongholdKind::StraightStairsDown)
+            }
+            PieceTag::StrongholdFiveCrossing {
+                bounds,
+                orientation,
+                gen_depth,
+                entry_door,
+                left_low,
+                left_high,
+                right_low,
+                right_high,
+            } => DoorTag::with(bounds, orientation, gen_depth, entry_door).piece(
+                StrongholdKind::FiveCrossing {
+                    left_low,
+                    left_high,
+                    right_low,
+                    right_high,
+                },
+            ),
+            PieceTag::StrongholdChestCorridor {
+                bounds,
+                orientation,
+                gen_depth,
+                entry_door,
+                ..
+            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
+                .piece(StrongholdKind::ChestCorridor),
+            PieceTag::StrongholdLibrary {
+                bounds,
+                orientation,
+                gen_depth,
+                entry_door,
+                tall,
+            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
+                .piece(StrongholdKind::Library { tall }),
+            PieceTag::StrongholdPortalRoom {
+                bounds,
+                orientation,
+                gen_depth,
+                entry_door,
+                ..
+            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
+                .piece(StrongholdKind::PortalRoom),
+            PieceTag::StrongholdFillerCorridor {
+                bounds,
+                orientation,
+                gen_depth,
+                entry_door,
+                steps,
+            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
+                .piece(StrongholdKind::FillerCorridor { steps }),
         }
     }
 }
@@ -2105,6 +2500,124 @@ mod tests {
         let json = r#"{"id":"minecraft:nefos","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"minecraft:nether_fossils/fossil_99","Rot":"NONE"}"#;
         let mut deserializer = serde_json::Deserializer::from_str(json);
         assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
+    }
+
+    #[test]
+    fn stronghold_pieces_round_trip_with_their_doors_and_constructor_state() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let bounds = BoundingBox {
+            min: BlockPos::new(1234, 24, -80),
+            max: BlockPos::new(1238, 28, -74),
+        };
+        let piece = |kind, entry_door| {
+            Piece::Stronghold(StrongholdPiece {
+                kind,
+                entry_door,
+                bounds,
+                orientation: Orientation::South,
+                gen_depth: 3,
+            })
+        };
+        for (kind, id) in [
+            (StrongholdKind::Start, "minecraft:shstart"),
+            (StrongholdKind::StairsDown, "minecraft:shsd"),
+            (
+                StrongholdKind::Straight {
+                    left: true,
+                    right: false,
+                },
+                "minecraft:shs",
+            ),
+            (StrongholdKind::PrisonHall, "minecraft:shph"),
+            (StrongholdKind::LeftTurn, "minecraft:shlt"),
+            (StrongholdKind::RightTurn, "minecraft:shrt"),
+            (
+                StrongholdKind::RoomCrossing { variant: 2 },
+                "minecraft:shrc",
+            ),
+            (StrongholdKind::StraightStairsDown, "minecraft:shssd"),
+            (
+                StrongholdKind::FiveCrossing {
+                    left_low: true,
+                    left_high: false,
+                    right_low: false,
+                    right_high: true,
+                },
+                "minecraft:sh5c",
+            ),
+            (StrongholdKind::ChestCorridor, "minecraft:shcc"),
+            (StrongholdKind::Library { tall: true }, "minecraft:shli"),
+            (StrongholdKind::PortalRoom, "minecraft:shpr"),
+            (
+                StrongholdKind::FillerCorridor { steps: 3 },
+                "minecraft:shfc",
+            ),
+        ] {
+            let piece = piece(kind, SmallDoor::IronDoor);
+            assert_eq!(round_trip(&context, &piece), piece);
+            let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+            assert_eq!(tag.get_string("id"), Some(id));
+            assert_eq!(tag.get_int("O"), Some(0));
+            assert_eq!(tag.get_int("GD"), Some(3));
+            assert_eq!(tag.get_string("EntryDoor"), Some("IRON_DOOR"));
+        }
+        let start =
+            to_nbt_compound(&piece(StrongholdKind::Start, SmallDoor::Opening).nbt(&context))
+                .unwrap();
+        assert_eq!(start.get_byte("Source"), Some(1));
+        assert_eq!(start.get_string("EntryDoor"), Some("OPENING"));
+        let stairs =
+            to_nbt_compound(&piece(StrongholdKind::StairsDown, SmallDoor::WoodDoor).nbt(&context))
+                .unwrap();
+        assert_eq!(stairs.get_byte("Source"), Some(0));
+        assert_eq!(stairs.get_string("EntryDoor"), Some("WOOD_DOOR"));
+        let crossing = to_nbt_compound(
+            &piece(
+                StrongholdKind::FiveCrossing {
+                    left_low: true,
+                    left_high: false,
+                    right_low: false,
+                    right_high: true,
+                },
+                SmallDoor::Grates,
+            )
+            .nbt(&context),
+        )
+        .unwrap();
+        assert_eq!(crossing.get_byte("leftLow"), Some(1));
+        assert_eq!(crossing.get_byte("rightLow"), Some(0));
+        assert_eq!(crossing.get_string("EntryDoor"), Some("GRATES"));
+        let room = to_nbt_compound(
+            &piece(
+                StrongholdKind::RoomCrossing { variant: 4 },
+                SmallDoor::Opening,
+            )
+            .nbt(&context),
+        )
+        .unwrap();
+        assert_eq!(room.get_int("Type"), Some(4));
+        let filler = to_nbt_compound(
+            &piece(
+                StrongholdKind::FillerCorridor { steps: 3 },
+                SmallDoor::Opening,
+            )
+            .nbt(&context),
+        )
+        .unwrap();
+        assert_eq!(filler.get_int("Steps"), Some(3));
+        let portal =
+            to_nbt_compound(&piece(StrongholdKind::PortalRoom, SmallDoor::Opening).nbt(&context))
+                .unwrap();
+        assert_eq!(portal.get_byte("Mob"), Some(0));
+        let corridor = to_nbt_compound(
+            &piece(StrongholdKind::ChestCorridor, SmallDoor::Opening).nbt(&context),
+        )
+        .unwrap();
+        assert_eq!(corridor.get_byte("Chest"), Some(0));
     }
 
     #[test]
