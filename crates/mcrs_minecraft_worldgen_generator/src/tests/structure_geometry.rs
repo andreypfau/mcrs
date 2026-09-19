@@ -635,5 +635,5 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
         faults[..faults.len().min(20)].join("\n")
     );
     assert_eq!(unported, UNPORTED_GEOMETRY_TYPES.into_iter().collect());
-    assert_eq!((placed, chunks), (57, 1325));
+    assert_eq!((placed, chunks), (60, 1329));
 }
