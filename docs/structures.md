@@ -27,7 +27,8 @@ and `~/src/github.com/BetrockPlusPlus/src/bpp_shared` (C++); SteelMC paths to
 `scattering.md` §7, this document is right and §16 below records the
 amendment.
 
-Every count below is a count; nothing in this document has been measured.
+Every count below is a count; the one measurement is the stronghold's beard
+cost in §12.
 
 ---
 
@@ -91,7 +92,7 @@ names its noise settings; there is no runtime switch.
 | Templates | `structure/*.nbt`, pinned at data version 5011 (T1) | none | `.mcstructure` (§10.2) |
 | Processors | eleven types (T5) | none | four types |
 | Adaptation | four shapes (§6) | none | the same four names |
-| Reproducibility here | starts and layouts bit for bit (§13) | dungeons and caves bit for bit | formats round-trip; positions **not** reproducible (SD14) |
+| Reproducibility here | starts, layouts and piece geometry bit for bit (§13) | dungeons and caves bit for bit | formats round-trip; positions **not** reproducible (SD14) |
 | Search | `/locate structure`, maps, eyes, dolphins (§9) | nothing to find | `/locate structure [useNewChunksOnly]` |
 
 **E3. The seed's width is a profile fact.** Java's placement and layout draws
@@ -546,7 +547,14 @@ that a pool with a typo places nothing silently; that is the failure mode Fe1
 forbids. The packed size after freeze (a `u16` position and a `VoxelId` per
 block, one list per template) is a measurement, not a guess; if it is too large
 to hold, the fallback is a per-pool lazy load behind the same validated
-manifest, never an unvalidated one. Whatever the outcome, the *manifest* —
+manifest, never an unvalidated one. Two rules ship. A template a hardcoded
+type names (its `TEMPLATES` list) must load or the freeze fails naming the
+structure and the file. A template a pool element names but the byte-exact
+corpus does not ship — there is one, `ancient_city/walls/intact_horizontal_wall_stairs_5`
+— freezes to an empty template with the element's weight still counted: that
+is what the reference does with the same data, so the element draws as in
+vanilla and places nothing, and refusing it would refuse the shipped corpus.
+Whatever the outcome, the *manifest* —
 each template's id, size, palette count and jigsaw blocks — is a separate,
 small, frozen table: it is all the site step (L2) and the search (R3) ever
 read, and a searcher links it without the block lists.
@@ -671,8 +679,18 @@ region (`ShipwreckPieces.java:199-211`: the four-corner minimum or mean), or
 (b) computed by every placing column from the `Filled` snapshots only, never
 from own writes, and only when the reads lie within the 3×3 of *every* column
 that can place the piece, which is a check on the piece's extent at freeze.
-(a) is the default; (b) is allowed where the extent admits it (the treasure's
-one column, the igloo's entrance column). Per-column decisions the reference
+(a) is the default and is what every type but one does: the scattered
+pieces' `HPos` is the mean (jungle temple, swamp hut) or the four-corner
+minimum (desert pyramid) of the `MOTION_BLOCKING_NO_LEAVES` density heights,
+the shipwreck's and ocean ruin's floor the four-corner or footprint walk over
+`OCEAN_FLOOR_WG` (`WORLD_SURFACE_WG` for a beached wreck), the igloo's
+entrance height `WORLD_SURFACE_WG` at the entrance column; a draw the
+reference takes beside such a read only in the first decorating chunk (the
+beached wreck's `nextInt(3)`) moves to the end of the layout stream, and a
+draw it takes on every call (the pyramid's `nextInt(3)`) keeps one burn per
+column. (b) is used by the one piece whose extent admits it: buried treasure
+reads `OCEAN_FLOOR_WG` of its own column's window at placement and walks down
+to its resting block, leaving the piece box as laid out. Per-column decisions the reference
 makes per chunk — the mineshaft's flooded-shell test on its own clipped box
 (`MineshaftPieces.java:1196-1247`), a mansion's cobblestone footing under its
 own columns (`WoodlandMansionStructure.java:62-92`) — stay per column and read
@@ -691,7 +709,8 @@ placement stream instead, the same substitution St1 makes for spawning.
 places the starts of every structure whose `step` is `s`, in the registry
 order of structure ids (path, then namespace: `resources/Identifier.java:152-159`),
 each structure reseeding the decoration source with
-`decorationSeed + index + 10000·s` where `index` counts structures of that step
+`decorationSeed + index + 10000·s` — `decorationSeed` being S2's, whose two
+longs pass through `WorldgenRandom.nextLong` — where `index` counts structures of that step
 in that order whether or not they have a start here; then the step's features
 run with their own indices (`ChunkGenerator.java:386-434`; S6). All starts of
 one structure that reach the column share one stream in sequence, in the order
@@ -717,9 +736,17 @@ before any plant asks whether it can stand on them.
 **M7. Block entities are data until delivery.** Chests, spawners, jigsaw
 blocks left as `final_state`, brushable blocks: D6 of `scattering.md` gives the
 column a typed list, and a piece appends to it. A loot table with its seed from
-the placement stream (T4) is such an entry; an entity a template spawns
-(172 templates carry some) is a second list of the same shape, delivered the
-same way, and not a component until then.
+the placement stream (T4) is such an entry; an entity a piece spawns is a
+second list of the same shape, `Vec<GeneratedEntity>` beside the block
+entities, one typed entry per kind (witch, cat, elder guardian, drowned with
+its chicken and nautilus mounts, shulker, item frame with elytra, evoker,
+vindicator, allay, the igloo's villager and zombie villager, chest minecart),
+each with the position, rotation, UUID and equipment its `finalizeSpawn` draws
+in reference order from the placement stream (St1). Delivery spawns them as
+mobs linked to their section, a tracker pairs them to players in range and
+removes them when the section unloads; nothing ticks them and nothing saves
+them (§15). The entities of a jigsaw template (172 templates carry some) are
+frozen and counted but not placed.
 
 ---
 
@@ -933,7 +960,22 @@ answers `site(C, S)` from its site level (I2) — the three gates and the site
 step, no chunk — and needs the layout only when a site can pass with no
 piece, which is a per-type fact fixed at freeze: a jigsaw start always has
 its centre piece, and the table of hardcoded types says which of them can
-return empty. With that table a locate never runs a layout.
+return empty. With that table a locate never runs a layout. The table is one
+constant per type, and every row is *true*:
+
+| Type | Why a passing site always has a piece |
+| --- | --- |
+| buried_treasure, desert_pyramid, jungle_temple, swamp_hut, igloo, nether_fossil, ruined_portal, shipwreck | the layout builds its piece from the site position with no further test |
+| ocean_ruin | the first ruin is always built; the cluster draws only add to it |
+| ocean_monument | the building is one piece |
+| end_city | the base tower is always built; the section generators only add to it |
+| woodland_mansion | the entrance and the first room are always built |
+| fortress | the start bridge is always added; the walk only adds to it |
+| stronghold | the layout retries with a re-seeded stream until a portal room exists |
+| mineshaft | the site itself builds the tree (L2) and the room is its first piece |
+
+So a search never runs a hardcoded layout either, and the index's site level
+answers `/locate` for every shipped structure.
 
 **R5. The other readers of the walk.** An explorer map calls the same walk
 with `search_radius` (default 50), `skip_existing_chunks` (default on) and
@@ -1132,8 +1174,9 @@ The freeze resolves and checks, naming the asset on failure:
 - the per-structure `(step, index)` of M5, from the sorted structure ids;
 - for each hardcoded type, that a generator exists in this build, as a census
   pinned by name, the way feature types with no generator are
-  (`generate/tests/corpus_generators.rs`); a type without one is logged and
-  places nothing, never a silent empty template;
+  (`generate/tests/corpus_generators.rs`); every one of the fifteen has one
+  and the census is pinned empty, so a type that loses its generator is a
+  test failure, not a silent empty start;
 - the "site implies a piece" table of R4 for the hardcoded types;
 - the sieve widths of R2, derived per set from `spacing − separation` and
   `spread_type`, so a datapack set gets its sieve without a code change;
@@ -1166,6 +1209,11 @@ Counts, to be replaced by `PERF.md` numbers.
   comparisons; plus one density-strip evaluation per terrain-matching
   attachment, which is the unknown that decides whether the strip evaluator
   needs a path of its own (a tape built for tiles, asked for a 1×H×1 volume).
+- **The beard, measured once**: a 102-piece stronghold costs about 60 µs per
+  column in a debug build, `starts_reaching` and the collect included, with
+  at most 38 rigid boxes surviving the 12-block reach filter; the first calls
+  are milliseconds of layout memoisation, not collection. Negligible beside a
+  column fill.
 - **The beard**: per column of a dimension with a live jigsaw structure, one
   walk of the starts reaching it besides the one the run makes — the 289
   chunks within eight, gated, until the memo of I2 answers them — then A2 over
@@ -1207,6 +1255,17 @@ mismatch (R5 of `worldgen.md`):
 - template geometry: one piece placed into an all-air region through the
   oracle's stub level, the analogue of tree geometry parity, with the
   processor chains of the corpus;
+- the hardcoded pieces (`structure_pieces.bin`): every non-jigsaw structure
+  over three dimensions, five seeds and the sixteen site chunks, each piece as
+  its serialised tag, 592 starts and 40 911 pieces compared, with the fields
+  the reference fills at placement (`HPos`; the shipwreck's, ocean ruin's and igloo's `TPY`)
+  dropped from both sides because SD3 fixes them at layout;
+- whole starts placed chunk by chunk (`structure_geometry.bin`): every
+  non-jigsaw type at three chunks into a flat level with a dry, water or cave
+  base, 75 starts and 1 751 chunks, comparing the writes, the block entities
+  and the spawned entities in arrival order with the UUID and the entity's own
+  rolls masked; the packed entity-data bytes the oracle also records are not
+  compared (§15);
 - `/locate`: the reference's answer for a seed set and a grid of player
   positions, including the cases where the first-ring answer is not the
   nearest start (R4);
@@ -1235,9 +1294,11 @@ Structurally: every shipped `structure_set`, `structure`, `template_pool` and
 templates round-trips to equal NBT; every id resolves at freeze; the census of
 §11.
 
-The ladder: `generate/tests/ladder.rs` gains a region with a village, a
-mansion and a mineshaft, and the oracle of `scattering.md` §3.6 against the
-parallel scheduler through every unobservable order (S5).
+The ladder: `generate/tests/ladder.rs` runs one structure per region — a
+village, an outpost and every hardcoded type in its own biome — and the
+oracle of `scattering.md` §3.6 against the parallel scheduler through every
+unobservable order (S5). The region with a village, a mansion and a mineshaft
+together is still owed (§15).
 
 Decorated parity with a reference world is not attainable (`worldgen.md`
 §15), and this document adds nothing that makes it so; what it adds is that
@@ -1267,7 +1328,8 @@ the *starts* of a reference world are, which is the half worth having.
   missing asset.** T6 and §11. SteelMC hardcodes mansion template sizes by name
   with a fallback (`steel-worldgen/src/structure/mansion/template.rs:8-46`)
   and panics on a missing template at placement; both are load-time errors
-  here.
+  here. The one exception is the pool template the corpus itself does not
+  ship, which T6 names and freezes as the reference does.
 - **Optimise the occupancy test before measuring it.** J6.
 - **Read the live world for a piece parameter.** M2, M3.
 - **Add the beard inside the graph, or accept a router whose root is not
@@ -1319,9 +1381,31 @@ that would be affected.
 - **The packed size of the templates** (T6) and **the cost of a 1×H×1 strip
   through the tile tape** (L3): measurements that decide a lazy load and a
   strip path respectively.
-- **The "site implies a piece" table** for the fifteen hardcoded types (R4):
-  written from the generators as they are ported, one row per type, and a
-  type without a row runs its layout on locate.
+- **The mansion-and-mineshaft ladder region** of §13: the ladder's structure
+  consumer runs one structure per dimension, so the mansion and the mineshaft
+  are each exercised alone; a region holding both, with the village, is owed
+  by the ladder test.
+- **The mineshaft's cave-spider spawner is per column.** The reference places
+  one per corridor from whichever chunk decorates first (`hasPlacedSpider`);
+  under M4 every column with a candidate section places one, so a spider
+  corridor straddling two columns can hold two spawners. Emulating the
+  reference's decoration order is not reproducible; the fixture records the
+  per-chunk behaviour.
+- **The ocean monument's room graph is not serialised.** The reference writes
+  the building alone and regenerates the rooms from the seed on load; the
+  in-memory start keeps them, the codec writes the building, and a loaded
+  building has no rooms until the save step (§17 item 7) regenerates them.
+- **Spawned entities are static and unsaved.** They have no AI, gravity or
+  ticking, despawn with their section, and an untouched column regenerates
+  them because no save writer exists yet (§17 item 7). The jigsaw templates'
+  entities are frozen and counted but not placed (M7).
+- **The geometry fixture's packed entity data** is recorded but not compared:
+  the server derives that packet from the components delivery builds, so the
+  comparison belongs with a server-side test.
+- **The nether fossil's site accepts only a full-block floor.** The reference
+  also accepts soul sand under the fossil; a base column holds the noise
+  settings' default block, so this matters only for a datapack whose default
+  block is soul sand.
 - **Whether the low-bit sieve pays for constraints with `k ≤ 1`** (villages,
   trail ruins, trial chambers): an 18-bit key halves the work of tier 2 at
   best; the sieve is derived regardless and the searcher measures whether to
@@ -1342,10 +1426,16 @@ is its specification. The `structure_references` scan is a query (I3).
 `scattering.md` §7, whose `r_w = 0` held for template pieces only; §7 of that
 document is amended to cite this section.
 
-**SD3. Piece parameters are fixed at layout from the density heights; Wn2 is
-the read rule of everything else.** M3, with the reference's own large-piece
-form as the canonical one. The divergence is listed in `worldgen.md`'s table
-with the reason: the reference's value was route-dependent.
+**SD3. Piece parameters are fixed at layout from the density heights, in
+each branch's own units, and the draws that went with them move to the end of
+the layout stream; Wn2 is the read rule of everything else.** M3, with the
+reference's own large-piece form as the canonical one: a small shipwreck uses
+the base height, not the first occupied height, because that is the unit its
+branch reads. A draw the reference takes beside such a read only in the first
+decorating chunk ends the layout stream; a draw it takes on every call keeps
+one burn per column. The one placement read is the treasure's resting block,
+from its own column's window. The divergence is listed in `worldgen.md`'s table
+and in Appendix C with the reason: the reference's value was route-dependent.
 
 **SD4. The order of starts of one structure within a column is ascending
 `(x, z)` of the start chunk.** M5. An input of the configuration hash. Not the
@@ -1497,11 +1587,24 @@ source for its generator exists.** §10.2.
 | Topic | Reference | Here | Reason |
 | --- | --- | --- | --- |
 | Placement, references | statuses with stored results, radius 8 | an index queried by reach | G1, P7, I3 |
-| Piece parameters read at placement | live world, first decorating chunk wins | fixed at layout from density heights | M3: the reference's value was route-dependent |
+| Piece parameters read at placement | live world, first decorating chunk wins | fixed at layout from density heights in each branch's own units; the draws beside them end the layout stream | M3, SD3: the reference's value was route-dependent |
+| Buried treasure's resting block | live heightmap at placement, piece box rewritten | `OCEAN_FLOOR_WG` of the placing column's window at placement, box unchanged | M3(b): the one column that can place it |
+| Ocean ruin floor walk | lowers through air, water and ice | air and water | M3: the density column of layout carries no ice |
 | Order of starts of one structure in a column | hash-table order | ascending start chunk | M5, SD4 |
 | Placement flags on pieces | stored, mutated at placement | derived from which column ran | M4 |
 | Unseeded draws in pyramid cellar and mansion allays | level random | placement stream | St1 |
-| Missing or unreadable template | empty template, generation continues | freeze error | Fe1, T6 |
+| `finalizeSpawn` and the other entity draws | level random; the entity's own random for UUID, yaw and attribute rolls | placement stream; the entity's own values from a positional fork of it | St1, M4, M7 |
+| Difficulty at spawn | `getCurrentDifficultyAt`: clock, moon, inhabited time | Normal at clock 0: the special multiplier is 0, so enchantment rolls draw and never pass; Peaceful does not suppress generation | generation has no difficulty input |
+| Halloween head on a drowned | date check at spawn | never | the same |
+| Loot-seeded data markers (the chests of the shipwreck, igloo, ocean ruin, end city and mansion) | handled from every chunk the piece touches, seed from that chunk's stream | clipped to the placing column, seed from its stream | M1, M5; the drowned markers stay per column, their count is deterministic |
+| Pyramid suspicious-sand list | accumulated on the piece as chunks decorate it | derived from the piece box, sorted `(y, z, x)` and deduplicated | M3, M4: a piece holds no placement state |
+| Nether fossil's dried ghast | written by the first chunk that finds the cell air | written by every touching column from the same positional draw | M1: encapsulated pieces write from every column |
+| Fortress lava well | `scheduleTick` on the lava | no tick; the lava stands where it is placed | D7 of `scattering.md` |
+| Fences, bars and walls in structure pieces | marked for shape post-processing by the live world | not re-shaped | D7 of `scattering.md`; the oracle's stub level does not post-process either |
+| Mineshaft cave-spider spawner | one per corridor, first decorating chunk wins | one per column with a candidate section | M4, §15 |
+| Ocean monument rooms | regenerated from the seed on load | kept in memory, not written; regeneration on load is owed | §15 |
+| Jigsaw template entities | placed and finalized | frozen, counted, not placed | M7, §15 |
+| Missing or unreadable template | empty template, generation continues | freeze error for a hardcoded type's template; a pool element's missing template is empty with its weight kept, as the shipped corpus needs | Fe1, T6 |
 | Template data version | datafixer from 5011 | pinned, checked | T1 |
 | Exclusion-zone cycle | unbounded recursion | freeze error | P3 |
 | Presence test for `/locate` | site with pieces discarded, then a chunk load | the index's site level, no chunk | R4, SD11 |

@@ -48,15 +48,22 @@ units of unrelated positions ran.
 **S2. The seed chain is data from the reference.** The unit seed is
 `setDecorationSeed(worldSeed, originX, originZ)` with the column's block origin
 (`ChunkGenerator.java:384-391`): reseed a Xoroshiro source with the world seed,
-draw two longs and OR each with 1, and take `(originX·a + originZ·b) ^ seed`
-(`levelgen/WorldgenRandom.java:44-51`). An object's seed is
+draw two longs through `WorldgenRandom.nextLong` and OR each with 1, and take
+`(originX·a + originZ·b) ^ seed` (`levelgen/WorldgenRandom.java:44-51`). The
+wrapper matters: over a Xoroshiro source `WorldgenRandom.next(32)` is the top
+32 bits of one Xoroshiro long (`WorldgenRandom.java:30-35`), and
+`BitRandomSource.nextLong` composes each long from two such draws, the first
+shifted up 32 and the second added sign-extended (`BitRandomSource.java:35-40`),
+so each of the two longs costs two Xoroshiro longs and is not either of them.
+`decoration_seed` in `crates/mcrs_minecraft_worldgen_generator/src/stages.rs`
+does exactly that, pinned against the per-chunk stream seeds the structure
+geometry fixture records. An object's seed is
 `decorationSeed + index + 10000·step` (`WorldgenRandom.java:53-56`), and every
 reseed is a fresh 128-bit upgrade of the long
 (`levelgen/XoroshiroRandomSource.java:45-46`). The decoration source is always
 Xoroshiro, regardless of the `legacy_random_source` flag of the noise settings
 (`ChunkGenerator.java:390`). `XoroshiroRandom::new` performs the same upgrade
-(`crates/mcrs_minecraft_random/src/xoroshiro.rs:20-23`), and nothing else of
-the chain exists in the workspace yet.
+(`crates/mcrs_minecraft_random/src/xoroshiro.rs:20-23`).
 
 Consequences of S2 that the scheduler must not break: the RNG state does not
 carry across objects, so skipping an object that does not belong to the window's
@@ -815,11 +822,17 @@ inspected in memory (the project's serde rule).
 Generation never touches the ECS (X1), so the generated column gains
 `block_entities: Vec<GeneratedBlockEntity>` beside its sections — position plus
 a typed enum over the kinds a generator can produce — written by `beehive`
-from step 6 so its draws happen (§5.2). The `Delivered` branch spawns one
-entity per entry under the section entity it inserts, the anvil path spawns the
-same entities from the saved list through the same types, and the packet
-assembler serialises them back through the section's index. Until step 8 does
-that, delivery drops the list with a counter.
+from step 6 so its draws happen (§5.2). The entities a structure spawns are a
+second list of the same shape, `entities: Vec<GeneratedEntity>`
+(`crates/mcrs_minecraft_worldgen_feature_place/src/entity.rs`): one typed
+entry per kind with the position, rotation, UUID, equipment and passengers its
+spawn draws, routed through the deltas and the merge exactly as the block
+entities are. The `Delivered` branch spawns one entity per entry under the
+section entity it inserts, the anvil path spawns the same entities from the
+saved list through the same types, and the packet assembler serialises them
+back through the section's index; a spawned mob is linked to its section the
+same way and despawns with it. What `structures.md` M7 and §15 say about the
+mobs holds here: static, tracked per player, not yet saved.
 
 **D7. Live-world block updates inside a feature are not reproduced.** The
 face update after a tree (`TreeFeature.java:216`) and the post-processing
