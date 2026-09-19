@@ -35,12 +35,11 @@ use mcrs_minecraft_worldgen_feature_place::terrain_skin::{RAIN_TEMPERATURE, temp
 const MAGIC: &[u8; 8] = b"MCSTRGE0";
 
 /// Every structure type the oracle places and this build cannot yet.
-const UNPORTED_GEOMETRY_TYPES: [&str; 8] = [
+const UNPORTED_GEOMETRY_TYPES: [&str; 7] = [
     "minecraft:end_city",
     "minecraft:igloo",
     "minecraft:mineshaft",
     "minecraft:nether_fossil",
-    "minecraft:ocean_monument",
     "minecraft:stronghold",
     "minecraft:swamp_hut",
     "minecraft:woodland_mansion",

@@ -187,6 +187,65 @@ pub struct RuinedPortalPiece {
     pub properties: PortalProperties,
 }
 
+/// One cell of the monument's room graph: which of its six faces are open,
+/// indexed by `Direction::id`, and which cell lies past each face.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MonumentRoom {
+    pub index: i32,
+    pub has_opening: [bool; 6],
+    pub connections: [Option<u8>; 6],
+}
+
+impl MonumentRoom {
+    pub const GRID_FLOOR: i32 = 25;
+    pub const LEFT_WING: i32 = 1001;
+    pub const RIGHT_WING: i32 = 1002;
+    pub const ROOF: i32 = 1003;
+
+    pub fn is_special(&self) -> bool {
+        self.index >= 75
+    }
+}
+
+/// The rooms fitted into the graph, each naming the cell it grows from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MonumentRoomKind {
+    Entry { room: u8 },
+    Core { room: u8 },
+    DoubleX { room: u8 },
+    DoubleXY { room: u8 },
+    DoubleY { room: u8 },
+    DoubleYZ { room: u8 },
+    DoubleZ { room: u8 },
+    Simple { room: u8, main_design: i32 },
+    SimpleTop { room: u8 },
+    Wing { main_design: i32 },
+    Penthouse,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MonumentChild {
+    pub kind: MonumentRoomKind,
+    pub bounds: BoundingBox,
+}
+
+/// The one piece of an ocean monument the save carries: the building, whose
+/// rooms the reference keeps in memory and rebuilds from the seed on load.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OceanMonumentPiece {
+    pub bounds: BoundingBox,
+    pub orientation: Orientation,
+    pub rooms: Vec<MonumentRoom>,
+    pub children: Vec<MonumentChild>,
+}
+
+impl OceanMonumentPiece {
+    pub const WIDTH: i32 = 58;
+    pub const HEIGHT: i32 = 23;
+    pub const DEPTH: i32 = 58;
+    pub const FLOOR: i32 = 39;
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
@@ -197,6 +256,7 @@ pub enum Piece {
     Shipwreck(ShipwreckPiece),
     OceanRuin(OceanRuinPiece),
     RuinedPortal(RuinedPortalPiece),
+    OceanMonument(OceanMonumentPiece),
 }
 
 impl Piece {
@@ -210,6 +270,7 @@ impl Piece {
             Piece::Shipwreck(piece) => piece.bounds,
             Piece::OceanRuin(piece) => piece.bounds,
             Piece::RuinedPortal(piece) => piece.bounds,
+            Piece::OceanMonument(piece) => piece.bounds,
         }
     }
 
@@ -237,6 +298,12 @@ impl Piece {
             Piece::RuinedPortal(piece) => {
                 piece.bounds = piece.bounds.moved(delta);
                 piece.position += delta;
+            }
+            Piece::OceanMonument(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                for child in &mut piece.children {
+                    child.bounds = child.bounds.moved(delta);
+                }
             }
         }
     }
@@ -625,6 +692,8 @@ enum PieceTag {
         #[serde(rename = "Properties")]
         properties: PortalProperties,
     },
+    #[serde(rename = "minecraft:omb")]
+    OceanMonumentBuilding(GridTag),
 }
 
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
@@ -677,10 +746,14 @@ impl GridTag {
         Ok(Piece::Fortress(FortressPiece {
             kind,
             bounds: box_of(self.bounds),
-            orientation: Orientation::from_data_2d(self.orientation)
-                .ok_or_else(|| E::custom("a fortress piece without an orientation"))?,
+            orientation: self.oriented()?,
             gen_depth: self.gen_depth,
         }))
+    }
+
+    fn oriented<E: serde::de::Error>(&self) -> Result<Orientation, E> {
+        Orientation::from_data_2d(self.orientation)
+            .ok_or_else(|| E::custom("a grid piece without an orientation"))
     }
 }
 
@@ -850,6 +923,11 @@ impl Serialize for PieceNbt<'_> {
                 placement: piece.placement,
                 properties: piece.properties,
             },
+            Piece::OceanMonument(piece) => PieceTag::OceanMonumentBuilding(GridTag {
+                bounds: box_array(piece.bounds),
+                orientation: piece.orientation.data_2d(),
+                gen_depth: 0,
+            }),
         };
         tag.serialize(serializer)
     }
@@ -1056,6 +1134,14 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     properties,
                 }))
             }
+            // The rooms are not in the save; the reference rebuilds them from the
+            // seed on load, which the save's loader does when it lands.
+            PieceTag::OceanMonumentBuilding(grid) => Ok(Piece::OceanMonument(OceanMonumentPiece {
+                bounds: box_of(grid.bounds),
+                orientation: grid.oriented()?,
+                rooms: Vec::new(),
+                children: Vec::new(),
+            })),
         }
     }
 }
@@ -1369,6 +1455,46 @@ mod tests {
         assert_eq!(tag.get_byte("isBeached"), Some(1));
         assert_eq!(tag.get_string("Rot"), Some("CLOCKWISE_90"));
         assert_eq!(tag.get_byte("height_adjusted"), Some(1));
+    }
+
+    #[test]
+    fn the_monument_building_round_trips_without_its_rooms() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let bounds = BoundingBox {
+            min: BlockPos::new(-29, 39, -29),
+            max: BlockPos::new(28, 61, 28),
+        };
+        let piece = Piece::OceanMonument(OceanMonumentPiece {
+            bounds,
+            orientation: Orientation::East,
+            rooms: vec![MonumentRoom {
+                index: 10,
+                has_opening: [false, true, true, false, false, true],
+                connections: [None, Some(1), Some(2), None, None, Some(3)],
+            }],
+            children: vec![MonumentChild {
+                kind: MonumentRoomKind::Simple {
+                    room: 0,
+                    main_design: 2,
+                },
+                bounds: BoundingBox::point(BlockPos::new(-20, 39, -7)),
+            }],
+        });
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:omb"));
+        assert_eq!(tag.get_int("O"), Some(3));
+        assert_eq!(tag.get_int("GD"), Some(0));
+        assert_eq!(tag.child_tags.len(), 4);
+        let Piece::OceanMonument(loaded) = round_trip(&context, &piece) else {
+            panic!("not a monument");
+        };
+        assert_eq!(loaded.bounds, bounds);
+        assert_eq!(loaded.orientation, Orientation::East);
+        assert!(loaded.rooms.is_empty() && loaded.children.is_empty());
     }
 
     #[test]

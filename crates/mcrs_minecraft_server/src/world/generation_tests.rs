@@ -514,6 +514,15 @@ const RUINED_PORTAL: Consumer = Consumer::Structure {
     biome: "minecraft:plains",
 };
 
+/// An ocean monument: one building piece over sixteen columns with its rooms
+/// in memory, water boxes read before they are written, pillars filled down
+/// to the floor and elder guardians spawned, every write clipped to the
+/// column that runs.
+const MONUMENT: Consumer = Consumer::Structure {
+    id: "minecraft:monument",
+    biome: "minecraft:deep_frozen_ocean",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -541,6 +550,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != SHIPWRECK
         && consumer != OCEAN_RUIN
         && consumer != JUNGLE_TEMPLE
+        && consumer != MONUMENT
     {
         assert!(
             crossed > 0,
@@ -599,6 +609,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         OCEAN_RUIN,
         JUNGLE_TEMPLE,
         RUINED_PORTAL,
+        MONUMENT,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

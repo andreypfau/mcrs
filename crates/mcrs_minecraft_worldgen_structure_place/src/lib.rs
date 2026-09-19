@@ -4,6 +4,7 @@ pub mod canvas;
 pub mod fortress;
 pub mod jungle_temple;
 pub mod portal;
+pub mod ocean_monument;
 pub mod scattered;
 pub mod template;
 pub mod template_piece;

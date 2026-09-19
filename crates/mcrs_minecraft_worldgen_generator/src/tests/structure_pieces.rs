@@ -21,11 +21,10 @@ const MAGIC: &[u8; 8] = b"MCSTRPC0";
 /// Every structure type whose layout is not ported: the oracle has starts for
 /// them and this build produces none. The end city has no present case at the
 /// dump's shared chunks and joins the list with its own cases.
-const UNPORTED_PIECE_TYPES: [&str; 7] = [
+const UNPORTED_PIECE_TYPES: [&str; 6] = [
     "minecraft:igloo",
     "minecraft:mineshaft",
     "minecraft:nether_fossil",
-    "minecraft:ocean_monument",
     "minecraft:stronghold",
     "minecraft:swamp_hut",
     "minecraft:woodland_mansion",

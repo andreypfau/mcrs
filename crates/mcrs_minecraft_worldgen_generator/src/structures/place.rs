@@ -20,6 +20,7 @@ use mcrs_minecraft_worldgen_structure_place::canvas::PieceCanvas;
 use mcrs_minecraft_worldgen_structure_place::fortress::paint_fortress;
 use mcrs_minecraft_worldgen_structure_place::jungle_temple::paint_jungle_temple;
 use mcrs_minecraft_worldgen_structure_place::portal::place_ruined_portal;
+use mcrs_minecraft_worldgen_structure_place::ocean_monument::paint_ocean_monument;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::paint_shipwreck;
@@ -249,6 +250,21 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                     rng,
                 );
+            }
+            Piece::OceanMonument(piece) => {
+                let Some(CompiledStructure::OceanMonument(blocks)) =
+                    program.structure(start.structure)
+                else {
+                    continue;
+                };
+                let mut canvas = PieceCanvas {
+                    volume: region,
+                    entities: &mut run.entities,
+                    bounds: piece.bounds,
+                    orientation: Some(piece.orientation),
+                    clip,
+                };
+                paint_ocean_monument(blocks, piece, &mut canvas, rng, &mut run.spawns);
             }
         }
     }
