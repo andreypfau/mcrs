@@ -162,5 +162,5 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
         compared += 1;
     }
     assert_eq!(unported, UNPORTED_PIECE_TYPES.into_iter().collect());
-    assert_eq!((compared, pieces), (383, 10861));
+    assert_eq!((compared, pieces), (396, 10874));
 }
