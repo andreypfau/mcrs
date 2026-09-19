@@ -3,7 +3,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
-use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, elder_guardian};
+use mcrs_minecraft_worldgen_feature_place::entity::elder_guardian;
 use mcrs_minecraft_worldgen_structure::piece::{
     MonumentRoom, MonumentRoomKind, OceanMonumentPiece,
 };
@@ -167,14 +167,13 @@ impl<W: WorldGenVolume> Room<'_, '_, W> {
     fn spawn_elder(
         &mut self,
         rng: &mut XoroshiroRandom,
-        spawns: &mut Vec<GeneratedEntity>,
         x: i32,
         y: i32,
         z: i32,
     ) {
         let pos = self.c.world_pos(x, y, z);
         if self.c.clip.is_inside(pos) {
-            spawns.push(elder_guardian(pos, rng));
+            self.c.spawns.push(elder_guardian(pos, rng));
         }
     }
 }
@@ -185,7 +184,6 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
     piece: &OceanMonumentPiece,
     c: &mut PieceCanvas<'_, W>,
     rng: &mut XoroshiroRandom,
-    spawns: &mut Vec<GeneratedEntity>,
 ) {
     let clip = c.clip;
     let orientation = c.orientation;
@@ -194,6 +192,7 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
         c: PieceCanvas {
             volume: &mut *c.volume,
             entities: &mut *c.entities,
+            spawns: &mut *c.spawns,
             bounds: piece.bounds,
             orientation,
             clip,
@@ -210,6 +209,7 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
             c: PieceCanvas {
                 volume: &mut *c.volume,
                 entities: &mut *c.entities,
+                spawns: &mut *c.spawns,
                 bounds: child.bounds,
                 orientation,
                 clip,
@@ -228,8 +228,8 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
                 simple_room(&mut r, rng, room, main_design)
             }
             MonumentRoomKind::SimpleTop { room } => simple_top_room(&mut r, rng, room),
-            MonumentRoomKind::Wing { main_design } => wing_room(&mut r, rng, spawns, main_design),
-            MonumentRoomKind::Penthouse => penthouse(&mut r, rng, spawns),
+            MonumentRoomKind::Wing { main_design } => wing_room(&mut r, rng, main_design),
+            MonumentRoomKind::Penthouse => penthouse(&mut r, rng),
         }
     }
 }
@@ -1007,7 +1007,6 @@ fn entry_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, room: u8) {
 fn penthouse<W: WorldGenVolume>(
     r: &mut Room<'_, '_, W>,
     rng: &mut XoroshiroRandom,
-    spawns: &mut Vec<GeneratedEntity>,
 ) {
     let (gray, light, black, lamp) = (r.b.gray, r.b.light, r.b.black, r.b.lamp);
     r.solid(&light, [2, -1, 2], [11, -1, 11]);
@@ -1043,7 +1042,7 @@ fn penthouse<W: WorldGenVolume>(
     r.solid(&light, [8, 0, 10], [8, 2, 10]);
     r.solid(&black, [6, -1, 7], [7, -1, 8]);
     r.water_box([6, -1, 3], [7, -1, 4]);
-    r.spawn_elder(rng, spawns, 6, 1, 6);
+    r.spawn_elder(rng, 6, 1, 6);
 }
 
 fn simple_room<W: WorldGenVolume>(
@@ -1245,7 +1244,6 @@ fn simple_top_room<W: WorldGenVolume>(
 fn wing_room<W: WorldGenVolume>(
     r: &mut Room<'_, '_, W>,
     rng: &mut XoroshiroRandom,
-    spawns: &mut Vec<GeneratedEntity>,
     main_design: i32,
 ) {
     let (light, black, lamp) = (r.b.light, r.b.black, r.b.lamp);
@@ -1292,7 +1290,7 @@ fn wing_room<W: WorldGenVolume>(
         r.place(&light, 13, 7, 20);
         r.solid(&light, [6, 0, 21], [7, 4, 21]);
         r.solid(&light, [15, 0, 21], [16, 4, 21]);
-        r.spawn_elder(rng, spawns, 11, 2, 16);
+        r.spawn_elder(rng, 11, 2, 16);
     } else if main_design == 1 {
         r.solid(&light, [9, 3, 18], [13, 3, 20]);
         r.solid(&light, [9, 0, 18], [9, 2, 18]);
@@ -1317,6 +1315,6 @@ fn wing_room<W: WorldGenVolume>(
         }
         r.solid(&black, [8, 3, 8], [8, 3, 13]);
         r.solid(&black, [14, 3, 8], [14, 3, 13]);
-        r.spawn_elder(rng, spawns, 11, 5, 13);
+        r.spawn_elder(rng, 11, 5, 13);
     }
 }

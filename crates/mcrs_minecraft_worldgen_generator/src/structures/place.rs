@@ -292,11 +292,12 @@ pub fn place_start<W: WorldGenVolume>(
                 let mut canvas = PieceCanvas {
                     volume: region,
                     entities: &mut run.entities,
+                    spawns: &mut run.spawns,
                     bounds: piece.bounds,
                     orientation: Some(piece.orientation),
                     clip,
                 };
-                paint_ocean_monument(blocks, piece, &mut canvas, rng, &mut run.spawns);
+                paint_ocean_monument(blocks, piece, &mut canvas, rng);
             }
             Piece::Mineshaft(piece) => {
                 let Some(CompiledStructure::Mineshaft(blocks)) = program.structure(start.structure)
@@ -359,6 +360,7 @@ pub fn place_start<W: WorldGenVolume>(
                 let mut canvas = PieceCanvas {
                     volume: region,
                     entities: &mut run.entities,
+                    spawns: &mut run.spawns,
                     bounds: piece.bounds,
                     orientation: Some(piece.orientation),
                     clip,

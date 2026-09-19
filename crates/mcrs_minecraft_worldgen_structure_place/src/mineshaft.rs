@@ -198,6 +198,7 @@ pub fn paint_mineshaft<W: WorldGenVolume>(
     let mut c = PieceCanvas {
         volume: &mut timbered,
         entities,
+        spawns,
         bounds: piece.bounds,
         orientation: piece.orientation(),
         clip,
@@ -211,7 +212,6 @@ pub fn paint_mineshaft<W: WorldGenVolume>(
         } => corridor(
             b,
             &mut c,
-            spawns,
             rng,
             *has_rails,
             *spider_corridor,
@@ -382,7 +382,6 @@ fn is_air<W: WorldGenVolume>(c: &Canvas<'_, W>, x: i32, y: i32, z: i32) -> bool 
 fn corridor<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut Canvas<'_, W>,
-    spawns: &mut Vec<GeneratedEntity>,
     rng: &mut XoroshiroRandom,
     has_rails: bool,
     spider_corridor: bool,
@@ -421,10 +420,10 @@ fn corridor<W: WorldGenVolume>(
             maybe_cobweb(b, c, rng, probability, 2, 2, z + dz);
         }
         if rng.next_i32_bound(100) == 0 {
-            create_minecart(b, c, spawns, rng, 2, 0, z - 1);
+            create_minecart(b, c, rng, 2, 0, z - 1);
         }
         if rng.next_i32_bound(100) == 0 {
-            create_minecart(b, c, spawns, rng, 0, 0, z + 1);
+            create_minecart(b, c, rng, 0, 0, z + 1);
         }
         if spider_corridor && !placed_spider {
             let spawner_z = z - 1 + rng.next_i32_bound(3);
@@ -531,7 +530,6 @@ fn sturdy_neighbours<W: WorldGenVolume>(
 fn create_minecart<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut Canvas<'_, W>,
-    spawns: &mut Vec<GeneratedEntity>,
     rng: &mut XoroshiroRandom,
     x: i32,
     y: i32,
@@ -549,7 +547,7 @@ fn create_minecart<W: WorldGenVolume>(
         &b.rail_ew
     };
     c.place(rail, x, y, z);
-    spawns.push(chest_minecart(
+    c.spawns.push(chest_minecart(
         pos,
         ABANDONED_MINESHAFT_LOOT.to_owned(),
         rng,
