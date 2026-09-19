@@ -28,7 +28,7 @@ use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 
 /// Every structure type the corpus uses whose site is not ported yet: its
 /// structures freeze with their config, never select and place nothing.
-const UNPORTED_TYPES: [&str; 1] = ["minecraft:mineshaft"];
+const UNPORTED_TYPES: [&str; 0] = [];
 
 pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
     let path = assets_dir()

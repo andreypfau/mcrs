@@ -139,6 +139,7 @@ use mcrs_minecraft_worldgen_structure_place::fortress::FortressBlocks;
 use mcrs_minecraft_worldgen_structure_place::jungle_temple::JungleTempleBlocks;
 use mcrs_minecraft_worldgen_structure_place::portal::RuinedPortalBlocks;
 use mcrs_minecraft_worldgen_structure_place::ocean_monument::OceanMonumentBlocks;
+use mcrs_minecraft_worldgen_structure_place::mineshaft::MineshaftBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
 use mcrs_minecraft_worldgen_structure_place::template_piece::ignore_structure_and_air;
 use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
@@ -295,6 +296,7 @@ pub enum CompiledStructure {
     OceanRuin(Box<OceanRuinBlocks>),
     RuinedPortal(Box<RuinedPortalBlocks>),
     OceanMonument(Box<OceanMonumentBlocks>),
+    Mineshaft(Box<MineshaftBlocks>),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -1117,6 +1119,18 @@ fn compile_structures(
                             .map_err(|error| error.within(&structure.id))?,
                     )))
                 }
+                StructureKind::Mineshaft {
+                    mineshaft_type,
+                    blocking,
+                } => Some(CompiledStructure::Mineshaft(Box::new(
+                    MineshaftBlocks::compile(
+                        resolver,
+                        &resolver.world,
+                        *mineshaft_type,
+                        Arc::clone(blocking),
+                    )
+                    .map_err(|error| error.within(&structure.id))?,
+                ))),
                 _ => None,
             })
         })
@@ -2582,6 +2596,7 @@ impl<'a> Resolver<'a> {
             solid: self.flag_mask(BlockStateFlags::LEGACY_SOLID),
             solid_render: self.flag_mask(BlockStateFlags::IS_SOLID_RENDER),
             sturdy_up: self.flag_mask(BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK),
+            center_down: Arc::new(crate::trees::face_support(self.blocks).center_down),
             empty_collision: self
                 .state_mask(|state| self.blocks.shape(state.collision_shape).is_empty()),
             bedrock: block("minecraft:bedrock"),

@@ -523,6 +523,14 @@ const MONUMENT: Consumer = Consumer::Structure {
     biome: "minecraft:deep_frozen_ocean",
 };
 
+/// A mineshaft: corridors, crossings and stairs branching from a room below
+/// sea level, with supports read off the column's own blocks, chest minecarts
+/// and cave spider spawners, every write clipped to the column that runs.
+const MINESHAFT: Consumer = Consumer::Structure {
+    id: "minecraft:mineshaft",
+    biome: "minecraft:plains",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -551,6 +559,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != OCEAN_RUIN
         && consumer != JUNGLE_TEMPLE
         && consumer != MONUMENT
+        && consumer != MINESHAFT
     {
         assert!(
             crossed > 0,
@@ -610,6 +619,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         JUNGLE_TEMPLE,
         RUINED_PORTAL,
         MONUMENT,
+        MINESHAFT,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

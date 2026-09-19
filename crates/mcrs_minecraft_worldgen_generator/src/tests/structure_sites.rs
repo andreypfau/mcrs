@@ -329,8 +329,8 @@ fn hardcoded_sites_match_the_oracle() {
     assert_eq!((cases, present, biome_ok), (5 * 21 * 16, 866, 447));
 }
 
-/// Every set whose entries all have a site: the mineshaft's is not ported,
-/// so its set is the one left out.
+/// Every set whose entries all have a site, which since the mineshaft's port
+/// is every set the dump holds.
 #[test]
 fn set_selection_matches_the_oracle() {
     let dump = read_dump();
@@ -369,11 +369,8 @@ fn set_selection_matches_the_oracle() {
             }
         }
     }
-    assert_eq!(
-        skipped.into_iter().collect::<Vec<_>>(),
-        ["minecraft:mineshafts"]
-    );
-    assert_eq!((cases, selected), (5 * 20 * 16, 582));
+    assert!(skipped.is_empty(), "sets without a site: {skipped:?}");
+    assert_eq!((cases, selected), (5 * 21 * 16, 660));
 }
 
 #[test]

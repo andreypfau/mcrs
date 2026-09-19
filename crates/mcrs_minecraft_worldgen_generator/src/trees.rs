@@ -193,13 +193,13 @@ fn leaf_distances(blocks: &BlockDefinitions, resolver: &Resolver<'_>) -> Compile
 
 /// Which faces of a state's collision shape can hold something up, as the
 /// reference's `SupportType` reads them.
-struct FaceSupport {
+pub(crate) struct FaceSupport {
     /// `SupportType.FULL` upwards.
     sturdy_up: FixedBitSet,
     /// A non-empty upward face, which is all a sea pickle asks of its floor.
     any_up: FixedBitSet,
     /// `SupportType.CENTER` downwards, which is what hangs a spore blossom.
-    center_down: FixedBitSet,
+    pub(crate) center_down: FixedBitSet,
 }
 
 /// `SupportType.CENTER`: the middle 2/16 of the face has to be covered.
@@ -214,7 +214,7 @@ fn covers_center(mask: &FaceMask) -> bool {
     })
 }
 
-fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
+pub(crate) fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
     let mut answers: HashMap<u32, [bool; 3]> = HashMap::default();
     let mut out = FaceSupport {
         sturdy_up: empty_mask(blocks),

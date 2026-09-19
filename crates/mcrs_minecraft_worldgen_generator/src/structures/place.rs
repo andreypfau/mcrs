@@ -19,6 +19,7 @@ use mcrs_minecraft_worldgen_structure_place::buried_treasure::paint_buried_treas
 use mcrs_minecraft_worldgen_structure_place::canvas::PieceCanvas;
 use mcrs_minecraft_worldgen_structure_place::fortress::paint_fortress;
 use mcrs_minecraft_worldgen_structure_place::jungle_temple::paint_jungle_temple;
+use mcrs_minecraft_worldgen_structure_place::mineshaft::paint_mineshaft;
 use mcrs_minecraft_worldgen_structure_place::portal::place_ruined_portal;
 use mcrs_minecraft_worldgen_structure_place::ocean_monument::paint_ocean_monument;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
@@ -265,6 +266,21 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                 };
                 paint_ocean_monument(blocks, piece, &mut canvas, rng, &mut run.spawns);
+            }
+            Piece::Mineshaft(piece) => {
+                let Some(CompiledStructure::Mineshaft(blocks)) = program.structure(start.structure)
+                else {
+                    continue;
+                };
+                paint_mineshaft(
+                    blocks,
+                    piece,
+                    region,
+                    &mut run.entities,
+                    &mut run.spawns,
+                    clip,
+                    rng,
+                );
             }
         }
     }

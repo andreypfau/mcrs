@@ -31,6 +31,10 @@ pub struct WorldStates {
     /// `isCollisionShapeFullBlock`, which is what `isFaceSturdy(UP)` reads on a
     /// full cube: the floor most features ask for.
     pub sturdy_up: StateMask,
+    /// `isFaceSturdy(DOWN, SupportType.CENTER)`: the collision shape covers
+    /// the middle of the underside, which is what a hanging block asks of
+    /// its ceiling.
+    pub center_down: StateMask,
     /// States whose collision shape is empty.
     pub empty_collision: StateMask,
     pub bedrock: StateMask,

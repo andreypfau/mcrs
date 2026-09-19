@@ -12,7 +12,7 @@ use crate::frozen::{
 };
 use crate::orient::Orientation;
 use crate::{
-    LiquidSettings, OceanTemperature, PoolElement, PortalPlacement, SingleElement,
+    LiquidSettings, MineshaftType, OceanTemperature, PoolElement, PortalPlacement, SingleElement,
     TerrainAdaptation,
 };
 
@@ -107,6 +107,45 @@ pub enum FortressKind {
     MonsterThrone,
     RoomCrossing,
     StairsRoom,
+}
+
+/// The mineshaft piece types, each with the state its constructor draws or
+/// its children hand back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MineshaftKind {
+    /// The start: the box each child corridor cuts through its wall, kept so
+    /// the wall is opened whichever column places the room.
+    Room {
+        entrances: Vec<BoundingBox>,
+    },
+    Corridor {
+        has_rails: bool,
+        spider_corridor: bool,
+        num_sections: i32,
+    },
+    Crossing {
+        two_floored: bool,
+    },
+    Stairs,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MineshaftPiece {
+    pub kind: MineshaftKind,
+    pub bounds: BoundingBox,
+    /// `None` for the room. A crossing keeps its direction without orienting
+    /// its writes; only corridors and stairs draw through their facing.
+    pub direction: Option<Orientation>,
+    pub gen_depth: i32,
+}
+
+impl MineshaftPiece {
+    pub fn orientation(&self) -> Option<Orientation> {
+        match self.kind {
+            MineshaftKind::Corridor { .. } | MineshaftKind::Stairs => self.direction,
+            MineshaftKind::Room { .. } | MineshaftKind::Crossing { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -257,6 +296,7 @@ pub enum Piece {
     OceanRuin(OceanRuinPiece),
     RuinedPortal(RuinedPortalPiece),
     OceanMonument(OceanMonumentPiece),
+    Mineshaft(MineshaftPiece),
 }
 
 impl Piece {
@@ -271,6 +311,7 @@ impl Piece {
             Piece::OceanRuin(piece) => piece.bounds,
             Piece::RuinedPortal(piece) => piece.bounds,
             Piece::OceanMonument(piece) => piece.bounds,
+            Piece::Mineshaft(piece) => piece.bounds,
         }
     }
 
@@ -303,6 +344,14 @@ impl Piece {
                 piece.bounds = piece.bounds.moved(delta);
                 for child in &mut piece.children {
                     child.bounds = child.bounds.moved(delta);
+                }
+            }
+            Piece::Mineshaft(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                if let MineshaftKind::Room { entrances } = &mut piece.kind {
+                    for entrance in entrances {
+                        *entrance = entrance.moved(delta);
+                    }
                 }
             }
         }
@@ -358,6 +407,29 @@ impl PieceContext<'_> {
             StructureKind::Jigsaw { config, .. } => config.liquid_settings,
             _ => LiquidSettings::default(),
         }
+    }
+
+    /// `MST`: the structure's `mineshaft_type` ordinal, which every piece
+    /// writes and none holds.
+    fn mineshaft_type(&self) -> i32 {
+        match &self.frozen.structures[self.structure.0 as usize].kind {
+            StructureKind::Mineshaft {
+                mineshaft_type: MineshaftType::Mesa,
+                ..
+            } => 1,
+            _ => 0,
+        }
+    }
+
+    fn mineshaft<E: serde::de::Error>(
+        &self,
+        mineshaft_type: i32,
+        piece: MineshaftPiece,
+    ) -> Result<Piece, E> {
+        if mineshaft_type != self.mineshaft_type() {
+            return Err(E::custom("a mineshaft piece of another mineshaft type"));
+        }
+        Ok(Piece::Mineshaft(piece))
     }
 
     pub fn template_name(&self, template: TemplateId) -> ResourceLocation {
@@ -694,6 +766,64 @@ enum PieceTag {
     },
     #[serde(rename = "minecraft:omb")]
     OceanMonumentBuilding(GridTag),
+    #[serde(rename = "minecraft:msroom")]
+    MineshaftRoom {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "MST")]
+        mineshaft_type: i32,
+        #[serde(rename = "Entrances", serialize_with = "nbt_int_arrays")]
+        entrances: Vec<[i32; 6]>,
+    },
+    #[serde(rename = "minecraft:mscorridor")]
+    MineshaftCorridor {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "MST")]
+        mineshaft_type: i32,
+        #[serde(rename = "hr", deserialize_with = "nbt_flag")]
+        has_rails: bool,
+        #[serde(rename = "sc", deserialize_with = "nbt_flag")]
+        spider_corridor: bool,
+        #[serde(rename = "hps", deserialize_with = "nbt_flag")]
+        has_placed_spider: bool,
+        #[serde(rename = "Num")]
+        num_sections: i32,
+    },
+    #[serde(rename = "minecraft:mscrossing")]
+    MineshaftCrossing {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "MST")]
+        mineshaft_type: i32,
+        #[serde(rename = "tf", deserialize_with = "nbt_flag")]
+        two_floored: bool,
+        #[serde(rename = "D")]
+        direction: i8,
+    },
+    #[serde(rename = "minecraft:msstairs")]
+    MineshaftStairs {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "MST")]
+        mineshaft_type: i32,
+    },
 }
 
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
@@ -719,6 +849,19 @@ mod biome_type {
             name => Err(D::Error::custom(format!("No value with id: {name}"))),
         }
     }
+}
+
+struct IntArray<'a>(&'a [i32; 6]);
+
+impl Serialize for IntArray<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        nbt_int_array(self.0, serializer)
+    }
+}
+
+/// `BoundingBox.CODEC.listOf()`: a list of int arrays.
+fn nbt_int_arrays<S: Serializer>(boxes: &[[i32; 6]], serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.collect_seq(boxes.iter().map(IntArray))
 }
 
 /// `StructurePiece.createTag` without the id: what every grid piece writes.
@@ -928,6 +1071,54 @@ impl Serialize for PieceNbt<'_> {
                 orientation: piece.orientation.data_2d(),
                 gen_depth: 0,
             }),
+            Piece::Mineshaft(piece) => {
+                let bounds = box_array(piece.bounds);
+                let orientation = piece
+                    .orientation()
+                    .map_or(NO_ORIENTATION, Orientation::data_2d);
+                let gen_depth = piece.gen_depth;
+                let mineshaft_type = self.context.mineshaft_type();
+                match &piece.kind {
+                    MineshaftKind::Room { entrances } => PieceTag::MineshaftRoom {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        mineshaft_type,
+                        entrances: entrances.iter().map(|b| box_array(*b)).collect(),
+                    },
+                    MineshaftKind::Corridor {
+                        has_rails,
+                        spider_corridor,
+                        num_sections,
+                    } => PieceTag::MineshaftCorridor {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        mineshaft_type,
+                        has_rails: *has_rails,
+                        spider_corridor: *spider_corridor,
+                        has_placed_spider: false,
+                        num_sections: *num_sections,
+                    },
+                    MineshaftKind::Crossing { two_floored } => PieceTag::MineshaftCrossing {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        mineshaft_type,
+                        two_floored: *two_floored,
+                        direction: piece
+                            .direction
+                            .expect("a crossing keeps its direction")
+                            .data_2d() as i8,
+                    },
+                    MineshaftKind::Stairs => PieceTag::MineshaftStairs {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                        mineshaft_type,
+                    },
+                }
+            }
         };
         tag.serialize(serializer)
     }
@@ -1142,9 +1333,83 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 rooms: Vec::new(),
                 children: Vec::new(),
             })),
+            PieceTag::MineshaftRoom {
+                bounds,
+                gen_depth,
+                mineshaft_type,
+                entrances,
+                ..
+            } => self.0.mineshaft(
+                mineshaft_type,
+                MineshaftPiece {
+                    kind: MineshaftKind::Room {
+                        entrances: entrances.into_iter().map(box_of).collect(),
+                    },
+                    bounds: box_of(bounds),
+                    direction: None,
+                    gen_depth,
+                },
+            ),
+            PieceTag::MineshaftCorridor {
+                bounds,
+                orientation,
+                gen_depth,
+                mineshaft_type,
+                has_rails,
+                spider_corridor,
+                num_sections,
+                ..
+            } => self.0.mineshaft(
+                mineshaft_type,
+                MineshaftPiece {
+                    kind: MineshaftKind::Corridor {
+                        has_rails,
+                        spider_corridor,
+                        num_sections,
+                    },
+                    bounds: box_of(bounds),
+                    direction: Some(facing(orientation, "a mineshaft corridor")?),
+                    gen_depth,
+                },
+            ),
+            PieceTag::MineshaftCrossing {
+                bounds,
+                gen_depth,
+                mineshaft_type,
+                two_floored,
+                direction,
+                ..
+            } => self.0.mineshaft(
+                mineshaft_type,
+                MineshaftPiece {
+                    kind: MineshaftKind::Crossing { two_floored },
+                    bounds: box_of(bounds),
+                    direction: Some(facing(i32::from(direction), "a mineshaft crossing")?),
+                    gen_depth,
+                },
+            ),
+            PieceTag::MineshaftStairs {
+                bounds,
+                orientation,
+                gen_depth,
+                mineshaft_type,
+            } => self.0.mineshaft(
+                mineshaft_type,
+                MineshaftPiece {
+                    kind: MineshaftKind::Stairs,
+                    bounds: box_of(bounds),
+                    direction: Some(facing(orientation, "mineshaft stairs")?),
+                    gen_depth,
+                },
+            ),
         }
     }
 }
+
+fn facing<E: serde::de::Error>(value: i32, what: &str) -> Result<Orientation, E> {
+    Orientation::from_data_2d(value).ok_or_else(|| E::custom(format!("{what} without a facing")))
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -1202,6 +1467,17 @@ mod tests {
             kind: StructureKind::Jigsaw {
                 start_pool: PoolId(0),
                 config: jigsaw,
+            },
+        });
+        frozen.structures.push(FrozenStructure {
+            id: ResourceLocation::parse("minecraft:mineshaft_mesa").unwrap(),
+            step: DecorationStep::UndergroundStructures,
+            step_index: 0,
+            adaptation: TerrainAdaptation::None,
+            biomes: Default::default(),
+            kind: StructureKind::Mineshaft {
+                mineshaft_type: MineshaftType::Mesa,
+                blocking: Default::default(),
             },
         });
         frozen
@@ -1495,6 +1771,133 @@ mod tests {
         assert_eq!(loaded.bounds, bounds);
         assert_eq!(loaded.orientation, Orientation::East);
         assert!(loaded.rooms.is_empty() && loaded.children.is_empty());
+    }
+
+    #[test]
+    fn mineshaft_pieces_round_trip_with_the_structure_s_type() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let mesa = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(1),
+        };
+        let bounds = BoundingBox {
+            min: BlockPos::new(18, 25, -40),
+            max: BlockPos::new(29, 33, -30),
+        };
+        let entrance = BoundingBox {
+            min: BlockPos::new(20, 26, -40),
+            max: BlockPos::new(22, 28, -39),
+        };
+        let pieces = [
+            (
+                MineshaftPiece {
+                    kind: MineshaftKind::Room {
+                        entrances: vec![entrance],
+                    },
+                    bounds,
+                    direction: None,
+                    gen_depth: 0,
+                },
+                "minecraft:msroom",
+                -1,
+            ),
+            (
+                MineshaftPiece {
+                    kind: MineshaftKind::Corridor {
+                        has_rails: true,
+                        spider_corridor: false,
+                        num_sections: 3,
+                    },
+                    bounds,
+                    direction: Some(Orientation::West),
+                    gen_depth: 4,
+                },
+                "minecraft:mscorridor",
+                1,
+            ),
+            (
+                MineshaftPiece {
+                    kind: MineshaftKind::Crossing { two_floored: true },
+                    bounds,
+                    direction: Some(Orientation::East),
+                    gen_depth: 2,
+                },
+                "minecraft:mscrossing",
+                -1,
+            ),
+            (
+                MineshaftPiece {
+                    kind: MineshaftKind::Stairs,
+                    bounds,
+                    direction: Some(Orientation::South),
+                    gen_depth: 7,
+                },
+                "minecraft:msstairs",
+                0,
+            ),
+        ];
+        for (piece, id, orientation) in pieces {
+            let piece = Piece::Mineshaft(piece);
+            assert_eq!(round_trip(&mesa, &piece), piece);
+            let tag = to_nbt_compound(&piece.nbt(&mesa)).unwrap();
+            assert_eq!(tag.get_string("id"), Some(id));
+            assert_eq!(tag.get_int("O"), Some(orientation));
+            assert_eq!(tag.get_int("MST"), Some(1));
+        }
+        let room = Piece::Mineshaft(pieces_room(bounds, entrance));
+        let tag = to_nbt_compound(&room.nbt(&mesa)).unwrap();
+        let entrances = tag.get_list("Entrances").unwrap();
+        assert_eq!(
+            entrances[0].extract_int_array().map(<[i32]>::to_vec),
+            Some(vec![20, 26, -40, 22, 28, -39])
+        );
+        let mut moved = room.clone();
+        moved.move_by(IVec3::new(0, 5, 0));
+        let Piece::Mineshaft(MineshaftPiece {
+            kind: MineshaftKind::Room { entrances },
+            ..
+        }) = &moved
+        else {
+            unreachable!()
+        };
+        assert_eq!(entrances[0].min.y, 31);
+
+        let crossing = to_nbt_compound(
+            &Piece::Mineshaft(MineshaftPiece {
+                kind: MineshaftKind::Crossing { two_floored: false },
+                bounds,
+                direction: Some(Orientation::East),
+                gen_depth: 2,
+            })
+            .nbt(&mesa),
+        )
+        .unwrap();
+        assert_eq!(crossing.get_byte("D"), Some(3));
+        assert_eq!(crossing.get_byte("tf"), Some(0));
+
+        let normal = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let mut bytes = Vec::new();
+        to_bytes(&room.nbt(&mesa), &mut bytes).unwrap();
+        assert!(
+            PieceSeed(normal)
+                .deserialize(&mut NbtDeserializer::new(Cursor::new(bytes), true))
+                .is_err(),
+            "a mesa piece does not load into a normal mineshaft"
+        );
+    }
+
+    fn pieces_room(bounds: BoundingBox, entrance: BoundingBox) -> MineshaftPiece {
+        MineshaftPiece {
+            kind: MineshaftKind::Room {
+                entrances: vec![entrance],
+            },
+            bounds,
+            direction: None,
+            gen_depth: 0,
+        }
     }
 
     #[test]

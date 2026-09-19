@@ -73,6 +73,7 @@ import net.minecraft.world.level.levelgen.structure.TemplateStructurePiece;
 import net.minecraft.world.level.levelgen.structure.structures.JigsawStructure;
 import net.minecraft.world.level.levelgen.structure.structures.RuinedPortalPiece;
 import net.minecraft.world.level.levelgen.structure.structures.RuinedPortalStructure;
+import net.minecraft.world.level.levelgen.structure.structures.MineshaftPieces;
 import net.minecraft.world.level.levelgen.structure.structures.ShipwreckPieces;
 import net.minecraft.world.level.levelgen.structure.structures.ShipwreckStructure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -214,6 +215,12 @@ public final class StructureGeometryOracle {
     /// world's light and neighbours; the port does not reproduce that pass,
     /// so it is switched off here exactly as the template placement dump does.
     private static final Field PLACE_SETTINGS;
+    /// A spider corridor's spawner goes to whichever of its chunks decorates
+    /// first with a section inside it, and every later chunk skips the draw:
+    /// a flag on the shared piece, so the answer is the player's route. The
+    /// port places per column, so the flag is cleared before every chunk and
+    /// the dump records what each chunk does on its own.
+    private static final Field HAS_PLACED_SPIDER;
 
     static {
         try {
@@ -225,6 +232,8 @@ public final class StructureGeometryOracle {
             SETUPS.setAccessible(true);
             PLACE_SETTINGS = TemplateStructurePiece.class.getDeclaredField("placeSettings");
             PLACE_SETTINGS.setAccessible(true);
+            HAS_PLACED_SPIDER = MineshaftPieces.MineShaftCorridor.class.getDeclaredField("hasPlacedSpider");
+            HAS_PLACED_SPIDER.setAccessible(true);
         } catch (NoSuchFieldException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -335,6 +344,11 @@ public final class StructureGeometryOracle {
             BoundingBox chunkBB = new BoundingBox(
                 chunk.getMinBlockX(), minY + 1, chunk.getMinBlockZ(), chunk.getMaxBlockX(), maxY, chunk.getMaxBlockZ()
             );
+            for (StructurePiece piece : start.getPieces()) {
+                if (piece instanceof MineshaftPieces.MineShaftCorridor) {
+                    HAS_PLACED_SPIDER.setBoolean(piece, false);
+                }
+            }
             start.placeInChunk(level, level.structureManager(), generator, random, chunkBB, chunk);
 
             Bin.i32(out, chunk.x());
