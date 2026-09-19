@@ -19,9 +19,8 @@ use crate::structures::index::StructureIndex;
 const MAGIC: &[u8; 8] = b"MCSTRPC0";
 
 /// Every structure type whose layout is not ported: the oracle has starts for
-/// them and this build produces none. The jungle temple and end city have no
-/// present case at the dump's shared chunks and join the list with their own
-/// cases.
+/// them and this build produces none. The end city has no present case at the
+/// dump's shared chunks and joins the list with its own cases.
 const UNPORTED_PIECE_TYPES: [&str; 8] = [
     "minecraft:igloo",
     "minecraft:mineshaft",

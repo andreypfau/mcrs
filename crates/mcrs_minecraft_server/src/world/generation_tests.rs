@@ -498,6 +498,14 @@ const OCEAN_RUIN: Consumer = Consumer::Structure {
     biome: "minecraft:frozen_ocean",
 };
 
+/// A jungle temple: one grid piece over four columns, its cellar dug four
+/// blocks below its floor, with dispensers, chests and a tripwire, every write
+/// clipped to the column that runs.
+const JUNGLE_TEMPLE: Consumer = Consumer::Structure {
+    id: "minecraft:jungle_pyramid",
+    biome: "minecraft:jungle",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -524,6 +532,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != FORTRESS
         && consumer != SHIPWRECK
         && consumer != OCEAN_RUIN
+        && consumer != JUNGLE_TEMPLE
     {
         assert!(
             crossed > 0,
@@ -580,6 +589,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         FORTRESS,
         SHIPWRECK,
         OCEAN_RUIN,
+        JUNGLE_TEMPLE,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

@@ -18,6 +18,7 @@ use mcrs_minecraft_worldgen_structure_place::after_place;
 use mcrs_minecraft_worldgen_structure_place::buried_treasure::paint_buried_treasure;
 use mcrs_minecraft_worldgen_structure_place::canvas::PieceCanvas;
 use mcrs_minecraft_worldgen_structure_place::fortress::paint_fortress;
+use mcrs_minecraft_worldgen_structure_place::jungle_temple::paint_jungle_temple;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::paint_shipwreck;
@@ -142,6 +143,26 @@ pub fn place_start<W: WorldGenVolume>(
                     clip,
                 };
                 paint_desert_pyramid(blocks, &mut canvas, rng);
+            }
+            Piece::JungleTemple(piece) => {
+                let Some(CompiledStructure::JungleTemple(blocks)) =
+                    program.structure(start.structure)
+                else {
+                    continue;
+                };
+                let raised = piece.bounds.moved(IVec3::new(
+                    0,
+                    piece.height_position - piece.bounds.min.y,
+                    0,
+                ));
+                let mut canvas = PieceCanvas {
+                    volume: region,
+                    entities: &mut run.entities,
+                    bounds: raised,
+                    orientation: Some(piece.orientation),
+                    clip,
+                };
+                paint_jungle_temple(blocks, &mut canvas, rng);
             }
             Piece::BuriedTreasure(piece) => {
                 let Some(CompiledStructure::BuriedTreasure(blocks)) =

@@ -34,10 +34,9 @@ use crate::structures::place::{column_clip, place_start};
 const MAGIC: &[u8; 8] = b"MCSTRGE0";
 
 /// Every structure type the oracle places and this build cannot yet.
-const UNPORTED_GEOMETRY_TYPES: [&str; 10] = [
+const UNPORTED_GEOMETRY_TYPES: [&str; 9] = [
     "minecraft:end_city",
     "minecraft:igloo",
-    "minecraft:jungle_temple",
     "minecraft:mineshaft",
     "minecraft:nether_fossil",
     "minecraft:ocean_monument",

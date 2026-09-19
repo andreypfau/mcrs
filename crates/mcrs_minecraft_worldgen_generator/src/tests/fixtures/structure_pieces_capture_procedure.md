@@ -17,7 +17,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
-(4 436 427 bytes).
+(4 439 357 bytes).
 
 **Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/structure_pieces.rs`,
 which builds the same start through the index over the same noise world and
@@ -79,10 +79,11 @@ every structure of `Registries.STRUCTURE` (registry order) whose
   present cases more: the same expanding square walk continues past the
   shared sixteen cells (`PlacementOracle.cellsBeyond`), and each cell whose
   `generate` yields a valid start is written until the count is met or the
-  walk reaches its radius cap. The desert pyramid and the buried treasure ask
-  for 2 each; seed 1 has only one pyramid within the cap.
+  walk reaches its radius cap. The desert pyramid, the buried treasure and
+  the jungle pyramid ask for 2 each; seed 1 has only one pyramid within the
+  cap.
 
-1 957 cases, 562 present, 34 890 pieces. Per structure over all seeds:
+1 967 cases, 572 present, 34 900 pieces. Per structure over all seeds:
 
 | Structure | cases | present | pieces |
 |---|---|---|---|
@@ -104,12 +105,12 @@ every structure of `Registries.STRUCTURE` (registry order) whose
 | `ruined_portal_desert`, `ruined_portal_mountain`, `shipwreck_beached`, `swamp_hut` | 80 each | 2 each | 2 each |
 | `ruined_portal_swamp` | 80 | 1 | 1 |
 | `desert_pyramid` | 89 | 9 | 9 |
-| `buried_treasure` | 90 | 10 | 10 |
-| `jungle_pyramid`, `end_city` (end) | 80 each | 0 | 0 |
+| `buried_treasure`, `jungle_pyramid` | 90 each | 10 each | 10 each |
+| `end_city` (end) | 80 | 0 | 0 |
 | jigsaw: `ancient_city` 88, `bastion_remnant` 176, `trial_chambers` 188, five villages 84–148, `pillager_outpost` 8, `trail_ruins` 17, eight `abandoned_camp_*` 2–3 | 1 each | 1 each | 1 116 in total |
 
-The two types with no present case are not pinned by this file; their
-own cases are added with their ports through `MORE_PRESENT`. The monument writes one piece: its
+The one type with no present case is not pinned by this file; its own
+cases are added with its port through `MORE_PRESENT`. The monument writes one piece: its
 rooms are held in memory and not serialised (`OceanMonumentPieces`), so the
 codec carries the building alone.
 

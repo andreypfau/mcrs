@@ -136,6 +136,7 @@ use mcrs_minecraft_worldgen_structure::frozen::{
 use mcrs_minecraft_worldgen_structure::{DecorationStep, LiquidSettings};
 use mcrs_minecraft_worldgen_structure_place::buried_treasure::BuriedTreasureBlocks;
 use mcrs_minecraft_worldgen_structure_place::fortress::FortressBlocks;
+use mcrs_minecraft_worldgen_structure_place::jungle_temple::JungleTempleBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
 use mcrs_minecraft_worldgen_structure_place::template_piece::ignore_structure_and_air;
 use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
@@ -285,6 +286,7 @@ pub enum CompiledElement {
 #[derive(Clone)]
 pub enum CompiledStructure {
     DesertPyramid(Box<DesertPyramidBlocks>),
+    JungleTemple(Box<JungleTempleBlocks>),
     BuriedTreasure(Box<BuriedTreasureBlocks>),
     Fortress(Box<FortressBlocks>),
     Shipwreck(CompiledChain),
@@ -1074,6 +1076,10 @@ fn compile_structures(
             Ok(match &structure.kind {
                 StructureKind::DesertPyramid => Some(CompiledStructure::DesertPyramid(Box::new(
                     DesertPyramidBlocks::compile(resolver, &resolver.world, resolver.world_seed)
+                        .map_err(|error| error.within(&structure.id))?,
+                ))),
+                StructureKind::JungleTemple => Some(CompiledStructure::JungleTemple(Box::new(
+                    JungleTempleBlocks::compile(resolver, &resolver.world)
                         .map_err(|error| error.within(&structure.id))?,
                 ))),
                 StructureKind::BuriedTreasure => Some(CompiledStructure::BuriedTreasure(Box::new(

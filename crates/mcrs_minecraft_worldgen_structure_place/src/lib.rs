@@ -2,6 +2,7 @@ pub mod after_place;
 pub mod buried_treasure;
 pub mod canvas;
 pub mod fortress;
+pub mod jungle_temple;
 pub mod scattered;
 pub mod template;
 pub mod template_piece;

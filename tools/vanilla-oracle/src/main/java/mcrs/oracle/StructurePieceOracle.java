@@ -47,7 +47,8 @@ public final class StructurePieceOracle {
     /// by walking the placement's cells on past the shared sixteen.
     private static final Map<String, Integer> MORE_PRESENT = Map.of(
         "minecraft:desert_pyramid", 2,
-        "minecraft:buried_treasure", 2
+        "minecraft:buried_treasure", 2,
+        "minecraft:jungle_pyramid", 2
     );
 
     public static void main(final String[] args) throws Exception {

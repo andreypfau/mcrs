@@ -56,6 +56,25 @@ impl DesertPyramidPiece {
     pub const LAYOUT_FLOOR: i32 = 64;
 }
 
+/// The one piece of a jungle temple, at the fixed floor of 64 as laid out and
+/// raised to its ground at placement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JungleTemplePiece {
+    pub bounds: BoundingBox,
+    pub orientation: Orientation,
+    /// The mean ground under the box, which the reference averages over the
+    /// live heightmap of the first decorating chunk and this layout fixes
+    /// from the density heights.
+    pub height_position: i32,
+}
+
+impl JungleTemplePiece {
+    pub const WIDTH: i32 = 12;
+    pub const HEIGHT: i32 = 10;
+    pub const DEPTH: i32 = 15;
+    pub const LAYOUT_FLOOR: i32 = 64;
+}
+
 /// The one piece of a buried treasure: the block at (9, 90, 9) of its chunk,
 /// from which placement walks the column down to the chest's resting block.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,6 +163,7 @@ impl OceanRuinPiece {
 pub enum Piece {
     Jigsaw(JigsawPiece),
     DesertPyramid(DesertPyramidPiece),
+    JungleTemple(JungleTemplePiece),
     BuriedTreasure(BuriedTreasurePiece),
     Fortress(FortressPiece),
     Shipwreck(ShipwreckPiece),
@@ -155,6 +175,7 @@ impl Piece {
         match self {
             Piece::Jigsaw(piece) => piece.bounds,
             Piece::DesertPyramid(piece) => piece.bounds,
+            Piece::JungleTemple(piece) => piece.bounds,
             Piece::BuriedTreasure(piece) => piece.bounds,
             Piece::Fortress(piece) => piece.bounds,
             Piece::Shipwreck(piece) => piece.bounds,
@@ -170,6 +191,7 @@ impl Piece {
                 piece.position += delta;
             }
             Piece::DesertPyramid(piece) => piece.bounds = piece.bounds.moved(delta),
+            Piece::JungleTemple(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::BuriedTreasure(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::Fortress(piece) => piece.bounds = piece.bounds.moved(delta),
             Piece::Shipwreck(piece) => {
@@ -397,6 +419,31 @@ enum PieceTag {
         has_placed_chest_2: bool,
         #[serde(rename = "hasPlacedChest3", deserialize_with = "nbt_flag")]
         has_placed_chest_3: bool,
+    },
+    #[serde(rename = "minecraft:tejp")]
+    JungleTemple {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "Width")]
+        width: i32,
+        #[serde(rename = "Height")]
+        height: i32,
+        #[serde(rename = "Depth")]
+        depth: i32,
+        #[serde(rename = "HPos")]
+        height_position: i32,
+        #[serde(rename = "placedMainChest", deserialize_with = "nbt_flag")]
+        placed_main_chest: bool,
+        #[serde(rename = "placedHiddenChest", deserialize_with = "nbt_flag")]
+        placed_hidden_chest: bool,
+        #[serde(rename = "placedTrap1", deserialize_with = "nbt_flag")]
+        placed_trap_1: bool,
+        #[serde(rename = "placedTrap2", deserialize_with = "nbt_flag")]
+        placed_trap_2: bool,
     },
     #[serde(rename = "minecraft:btp")]
     BuriedTreasure {
@@ -638,6 +685,19 @@ impl Serialize for PieceNbt<'_> {
                 has_placed_chest_2: false,
                 has_placed_chest_3: false,
             },
+            Piece::JungleTemple(piece) => PieceTag::JungleTemple {
+                bounds: box_array(piece.bounds),
+                orientation: piece.orientation.data_2d(),
+                gen_depth: 0,
+                width: JungleTemplePiece::WIDTH,
+                height: JungleTemplePiece::HEIGHT,
+                depth: JungleTemplePiece::DEPTH,
+                height_position: piece.height_position,
+                placed_main_chest: false,
+                placed_hidden_chest: false,
+                placed_trap_1: false,
+                placed_trap_2: false,
+            },
             Piece::BuriedTreasure(piece) => PieceTag::BuriedTreasure {
                 bounds: box_array(piece.bounds),
                 orientation: NO_ORIENTATION,
@@ -773,6 +833,17 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 bounds: box_of(bounds),
                 orientation: Orientation::from_data_2d(orientation)
                     .ok_or_else(|| D::Error::custom("a desert pyramid without an orientation"))?,
+                height_position,
+            })),
+            PieceTag::JungleTemple {
+                bounds,
+                orientation,
+                height_position,
+                ..
+            } => Ok(Piece::JungleTemple(JungleTemplePiece {
+                bounds: box_of(bounds),
+                orientation: Orientation::from_data_2d(orientation)
+                    .ok_or_else(|| D::Error::custom("a jungle temple without an orientation"))?,
                 height_position,
             })),
             PieceTag::BuriedTreasure { bounds, .. } => {
@@ -1051,6 +1122,35 @@ mod tests {
         assert_eq!(tag.get_int("Depth"), Some(21));
         assert_eq!(tag.get_int("HPos"), Some(71));
         assert_eq!(tag.get_byte("hasPlacedChest3"), Some(0));
+    }
+
+    #[test]
+    fn a_jungle_temple_piece_round_trips_with_its_constant_fields() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::JungleTemple(JungleTemplePiece {
+            bounds: BoundingBox {
+                min: BlockPos::new(-32, 64, 48),
+                max: BlockPos::new(-18, 73, 59),
+            },
+            orientation: Orientation::East,
+            height_position: 70,
+        });
+        assert_eq!(round_trip(&context, &piece), piece);
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:tejp"));
+        assert_eq!(tag.get_int("O"), Some(3));
+        assert_eq!(tag.get_int("GD"), Some(0));
+        assert_eq!(tag.get_int("Width"), Some(12));
+        assert_eq!(tag.get_int("Height"), Some(10));
+        assert_eq!(tag.get_int("Depth"), Some(15));
+        assert_eq!(tag.get_int("HPos"), Some(70));
+        assert_eq!(tag.get_byte("placedMainChest"), Some(0));
+        assert_eq!(tag.get_byte("placedTrap2"), Some(0));
+        assert_eq!(tag.child_tags.len(), 12);
     }
 
     #[test]

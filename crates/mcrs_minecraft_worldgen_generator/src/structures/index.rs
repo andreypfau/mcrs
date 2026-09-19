@@ -298,6 +298,7 @@ impl StructureIndex {
                             .collect::<Vec<_>>(),
                     },
                     Piece::DesertPyramid(_)
+                    | Piece::JungleTemple(_)
                     | Piece::BuriedTreasure(_)
                     | Piece::Fortress(_)
                     | Piece::Shipwreck(_)

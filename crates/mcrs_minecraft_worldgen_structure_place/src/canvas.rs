@@ -116,6 +116,30 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
+    /// `generateBox` with a `BlockSelector`: `select` is asked once per cell,
+    /// told whether the cell lies on the six faces, before the clip is tested.
+    pub fn generate_selected_box<'s>(
+        &mut self,
+        min: [i32; 3],
+        max: [i32; 3],
+        skip_air: bool,
+        mut select: impl FnMut(bool) -> &'s Oriented,
+    ) {
+        let [x0, y0, z0] = min;
+        let [x1, y1, z1] = max;
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                for z in z0..=z1 {
+                    if skip_air && self.is_air(x, y, z) {
+                        continue;
+                    }
+                    let edge = y == y0 || y == y1 || x == x0 || x == x1 || z == z0 || z == z1;
+                    self.place(select(edge), x, y, z);
+                }
+            }
+        }
+    }
+
     /// `generateMaybeBox`: one float per cell, drawn before any test.
     #[allow(clippy::too_many_arguments)]
     pub fn generate_maybe_box<R: Random>(
