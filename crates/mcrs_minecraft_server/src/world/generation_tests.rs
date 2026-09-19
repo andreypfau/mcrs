@@ -531,6 +531,15 @@ const MINESHAFT: Consumer = Consumer::Structure {
     biome: "minecraft:plains",
 };
 
+/// An igloo: three templates stacked down a shaft, lowered to the terrain under
+/// the entrance at layout, with the laboratory's chest and its villagers. Its
+/// only write past the clip is the snow over the trapdoor from a neighbour the
+/// top straddles, which the start this seed finds does not.
+const IGLOO: Consumer = Consumer::Structure {
+    id: "minecraft:igloo",
+    biome: "minecraft:snowy_plains",
+};
+
 fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     let dim = fill_context(consumer);
     let y_sections = &dim.ctx.y_sections;
@@ -560,6 +569,7 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
         && consumer != JUNGLE_TEMPLE
         && consumer != MONUMENT
         && consumer != MINESHAFT
+        && consumer != IGLOO
     {
         assert!(
             crossed > 0,
@@ -620,6 +630,7 @@ fn the_parallel_ladder_delivers_the_oracle_region() {
         RUINED_PORTAL,
         MONUMENT,
         MINESHAFT,
+        IGLOO,
     ] {
         assert_region_agrees(consumer, 1, &small_drives());
     }

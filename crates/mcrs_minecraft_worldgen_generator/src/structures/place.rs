@@ -24,7 +24,7 @@ use mcrs_minecraft_worldgen_structure_place::portal::place_ruined_portal;
 use mcrs_minecraft_worldgen_structure_place::ocean_monument::paint_ocean_monument;
 use mcrs_minecraft_worldgen_structure_place::scattered::paint_desert_pyramid;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
-use mcrs_minecraft_worldgen_structure_place::template_piece::paint_shipwreck;
+use mcrs_minecraft_worldgen_structure_place::template_piece::{paint_igloo, paint_shipwreck};
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
 /// dimension floor to its ceiling.
@@ -280,6 +280,25 @@ pub fn place_start<W: WorldGenVolume>(
                     &mut run.spawns,
                     clip,
                     rng,
+                );
+            }
+            Piece::Igloo(piece) => {
+                let Some(CompiledStructure::Igloo(blocks)) = program.structure(start.structure)
+                else {
+                    continue;
+                };
+                let template = piece.template.id(frozen).0 as usize;
+                paint_igloo(
+                    blocks,
+                    &frozen.templates[template],
+                    &frozen.manifests[template],
+                    piece,
+                    reference,
+                    clip,
+                    region,
+                    rng,
+                    &mut run.entities,
+                    &mut run.spawns,
                 );
             }
         }

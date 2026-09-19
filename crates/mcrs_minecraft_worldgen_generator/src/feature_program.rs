@@ -141,8 +141,10 @@ use mcrs_minecraft_worldgen_structure_place::portal::RuinedPortalBlocks;
 use mcrs_minecraft_worldgen_structure_place::ocean_monument::OceanMonumentBlocks;
 use mcrs_minecraft_worldgen_structure_place::mineshaft::MineshaftBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::DesertPyramidBlocks;
-use mcrs_minecraft_worldgen_structure_place::template_piece::ignore_structure_and_air;
 use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
+use mcrs_minecraft_worldgen_structure_place::template_piece::{
+    IglooBlocks, ignore_structure_and_air,
+};
 use rustc_hash::FxHashMap;
 use std::ops::Range;
 use std::sync::Arc;
@@ -297,6 +299,7 @@ pub enum CompiledStructure {
     RuinedPortal(Box<RuinedPortalBlocks>),
     OceanMonument(Box<OceanMonumentBlocks>),
     Mineshaft(Box<MineshaftBlocks>),
+    Igloo(Box<IglooBlocks>),
 }
 
 /// Beta's populate step for the column the origin is in. It draws from one
@@ -1130,6 +1133,9 @@ fn compile_structures(
                         Arc::clone(blocking),
                     )
                     .map_err(|error| error.within(&structure.id))?,
+                ))),
+                StructureKind::Igloo => Some(CompiledStructure::Igloo(Box::new(
+                    IglooBlocks::compile(resolver).map_err(|error| error.within(&structure.id))?,
                 ))),
                 _ => None,
             })

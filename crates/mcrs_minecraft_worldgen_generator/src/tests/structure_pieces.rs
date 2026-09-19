@@ -21,8 +21,7 @@ const MAGIC: &[u8; 8] = b"MCSTRPC0";
 /// Every structure type whose layout is not ported: the oracle has starts for
 /// them and this build produces none. The end city has no present case at the
 /// dump's shared chunks and joins the list with its own cases.
-const UNPORTED_PIECE_TYPES: [&str; 5] = [
-    "minecraft:igloo",
+const UNPORTED_PIECE_TYPES: [&str; 4] = [
     "minecraft:nether_fossil",
     "minecraft:stronghold",
     "minecraft:swamp_hut",
@@ -32,12 +31,13 @@ const UNPORTED_PIECE_TYPES: [&str; 5] = [
 /// Fields the reference fills in at placement from the live world, which the
 /// layout fixes here from the density heights instead: they are dropped from
 /// both sides before a piece is compared, keyed by the piece's `id`.
-const PLACEMENT_FIXED_FIELDS: [(&str, &[&str]); 5] = [
+const PLACEMENT_FIXED_FIELDS: [(&str, &[&str]); 6] = [
     ("minecraft:tedp", &["HPos"]),
     ("minecraft:tejp", &["HPos"]),
     ("minecraft:tesh", &["HPos"]),
     ("minecraft:shipwreck", &["TPY", "height_adjusted"]),
     ("minecraft:orp", &["TPY"]),
+    ("minecraft:iglu", &["TPY"]),
 ];
 
 pub(super) struct DumpCase {

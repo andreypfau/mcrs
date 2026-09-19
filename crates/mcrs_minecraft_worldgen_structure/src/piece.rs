@@ -10,6 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::frozen::{
     ElementId, FrozenElement, FrozenStructures, StructureId, StructureKind, TemplateId,
 };
+use crate::hardcoded::igloo::IglooTemplate;
 use crate::orient::Orientation;
 use crate::{
     LiquidSettings, MineshaftType, OceanTemperature, PoolElement, PortalPlacement, SingleElement,
@@ -285,6 +286,26 @@ impl OceanMonumentPiece {
     pub const FLOOR: i32 = 39;
 }
 
+/// One template of an igloo at the layout height of 90, with the height the
+/// whole igloo is lowered to at placement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IglooPiece {
+    pub template: IglooTemplate,
+    pub position: IVec3,
+    pub rotation: Rotation,
+    pub bounds: BoundingBox,
+    /// The template position's `y` once lowered to the ground under the
+    /// entrance, which the reference reads from the live heightmaps in every
+    /// decorating chunk and this layout fixes from the density heights.
+    pub height: i32,
+}
+
+impl IglooPiece {
+    pub fn placed_position(&self) -> IVec3 {
+        IVec3::new(self.position.x, self.height, self.position.z)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Piece {
     Jigsaw(JigsawPiece),
@@ -297,6 +318,7 @@ pub enum Piece {
     RuinedPortal(RuinedPortalPiece),
     OceanMonument(OceanMonumentPiece),
     Mineshaft(MineshaftPiece),
+    Igloo(IglooPiece),
 }
 
 impl Piece {
@@ -312,6 +334,7 @@ impl Piece {
             Piece::RuinedPortal(piece) => piece.bounds,
             Piece::OceanMonument(piece) => piece.bounds,
             Piece::Mineshaft(piece) => piece.bounds,
+            Piece::Igloo(piece) => piece.bounds,
         }
     }
 
@@ -353,6 +376,11 @@ impl Piece {
                         *entrance = entrance.moved(delta);
                     }
                 }
+            }
+            Piece::Igloo(piece) => {
+                piece.bounds = piece.bounds.moved(delta);
+                piece.position += delta;
+                piece.height += delta.y;
             }
         }
     }
@@ -824,6 +852,25 @@ enum PieceTag {
         #[serde(rename = "MST")]
         mineshaft_type: i32,
     },
+    #[serde(rename = "minecraft:iglu")]
+    Igloo {
+        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
+        bounds: [i32; 6],
+        #[serde(rename = "O")]
+        orientation: i32,
+        #[serde(rename = "GD")]
+        gen_depth: i32,
+        #[serde(rename = "TPX")]
+        template_x: i32,
+        #[serde(rename = "TPY")]
+        template_y: i32,
+        #[serde(rename = "TPZ")]
+        template_z: i32,
+        #[serde(rename = "Template")]
+        template: ResourceLocation,
+        #[serde(rename = "Rot", with = "rotation::legacy")]
+        rotation: Rotation,
+    },
 }
 
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
@@ -1119,6 +1166,16 @@ impl Serialize for PieceNbt<'_> {
                     },
                 }
             }
+            Piece::Igloo(piece) => PieceTag::Igloo {
+                bounds: box_array(piece.bounds),
+                orientation: NORTH_ORIENTATION,
+                gen_depth: 0,
+                template_x: piece.position.x,
+                template_y: piece.height,
+                template_z: piece.position.z,
+                template: piece.template.location(),
+                rotation: piece.rotation,
+            },
         };
         tag.serialize(serializer)
     }
@@ -1402,6 +1459,26 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     gen_depth,
                 },
             ),
+            PieceTag::Igloo {
+                bounds,
+                template_x,
+                template_y,
+                template_z,
+                template,
+                rotation,
+                ..
+            } => {
+                let bounds = box_of(bounds);
+                Ok(Piece::Igloo(IglooPiece {
+                    template: IglooTemplate::from_location(&template).ok_or_else(|| {
+                        D::Error::custom(format!("{template} is not an igloo template"))
+                    })?,
+                    position: IVec3::new(template_x, bounds.min.y, template_z),
+                    rotation,
+                    bounds,
+                    height: template_y,
+                }))
+            }
         }
     }
 }
@@ -1898,6 +1975,41 @@ mod tests {
             direction: None,
             gen_depth: 0,
         }
+    }
+
+    #[test]
+    fn an_igloo_piece_writes_its_lowered_template_position_under_the_layout_box() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::Igloo(IglooPiece {
+            template: IglooTemplate::Middle,
+            position: IVec3::new(-30, 84, 52),
+            rotation: Rotation::Counterclockwise90,
+            bounds: BoundingBox {
+                min: BlockPos::new(-30, 84, 52),
+                max: BlockPos::new(-28, 86, 54),
+            },
+            height: 57,
+        });
+        assert_eq!(round_trip(&context, &piece), piece);
+        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        assert_eq!(tag.get_string("id"), Some("minecraft:iglu"));
+        assert_eq!(tag.get_int("O"), Some(2));
+        assert_eq!(tag.get_int("GD"), Some(0));
+        assert_eq!(
+            (tag.get_int("TPX"), tag.get_int("TPY"), tag.get_int("TPZ")),
+            (Some(-30), Some(57), Some(52))
+        );
+        assert_eq!(tag.get_string("Template"), Some("minecraft:igloo/middle"));
+        assert_eq!(tag.get_string("Rot"), Some("COUNTERCLOCKWISE_90"));
+        assert_eq!(tag.child_tags.len(), 9);
+
+        let json = r#"{"id":"minecraft:iglu","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"minecraft:igloo/roof","Rot":"NONE"}"#;
+        let mut deserializer = serde_json::Deserializer::from_str(json);
+        assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
     }
 
     #[test]

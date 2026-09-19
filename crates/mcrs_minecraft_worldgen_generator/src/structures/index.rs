@@ -311,7 +311,8 @@ impl StructureIndex {
                     | Piece::OceanRuin(_)
                     | Piece::RuinedPortal(_)
                     | Piece::OceanMonument(_)
-                    | Piece::Mineshaft(_) => BeardPiece {
+                    | Piece::Mineshaft(_)
+                    | Piece::Igloo(_) => BeardPiece {
                         bounds: piece.bounds(),
                         projection: Projection::Rigid,
                         ground_level_delta: 0,

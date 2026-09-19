@@ -166,6 +166,7 @@ agree and are dropped from both sides:
 |---|---|
 | `minecraft:tedp`, `minecraft:tejp`, `minecraft:tesh` | `HPos` (`ScatteredFeaturePiece.heightPosition`, −1 until placed) |
 | `minecraft:shipwreck` | `TPY`, `height_adjusted` (`ShipwreckPieces.ShipwreckPiece.adjustPositionHeight`); `BB` and `TPX`/`TPZ` are compared, since the layout here keeps the box at the y 90 the reference builds it at and carries the lowered height beside it |
+| `minecraft:iglu` | `TPY` (`IglooPieces.IglooPiece.postProcess` lowers the template position by the `WORLD_SURFACE_WG` height under the entrance for the duration of the placement); `BB` and `TPX`/`TPZ` are compared for the same reason |
 
 Placement flags — `hasPlacedChest0..3`, `placedMainChest`, `placedHiddenChest`,
 `placedTrap1`, `placedTrap2`, `Witch`, `Cat`, `Chest`, `Mob`, `hps` — are
