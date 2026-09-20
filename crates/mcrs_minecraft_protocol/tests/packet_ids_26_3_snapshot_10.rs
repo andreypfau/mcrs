@@ -98,6 +98,9 @@ fn play_clientbound_ids() {
         0x38 => ClientboundMoveEntityRot, Clientbound, Game;
         0x46 => ClientboundPlayerInfoUpdate<'_>, Clientbound, Game;
         0x48 => ClientboundPlayerPosition, Clientbound, Game;
+        0x4A => ClientboundRecipeBookAdd, Clientbound, Game;
+        0x4B => ClientboundRecipeBookRemove, Clientbound, Game;
+        0x4C => ClientboundRecipeBookSettings, Clientbound, Game;
         0x4D => ClientboundRemoveEntities, Clientbound, Game;
         0x53 => ClientboundRespawn<'_>, Clientbound, Game;
         0x54 => ClientboundRotateHead, Clientbound, Game;
@@ -110,6 +113,7 @@ fn play_clientbound_ids() {
         0x77 => ClientboundStartConfiguration, Clientbound, Game;
         0x7B => ClientboundSystemChatPacket, Clientbound, Game;
         0x85 => ClientboundUpdateAttributes<'_>, Clientbound, Game;
+        0x87 => ClientboundUpdateRecipes, Clientbound, Game;
     }
 }
 
@@ -136,7 +140,10 @@ fn play_serverbound_ids() {
         0x1F => ServerboundMovePlayerPosRot, Serverbound, Game;
         0x20 => ServerboundMovePlayerRot, Serverbound, Game;
         0x21 => ServerboundMovePlayerStatusOnly, Serverbound, Game;
+        0x27 => ServerboundPlaceRecipe, Serverbound, Game;
         0x29 => ServerboundPlayerAction, Serverbound, Game;
+        0x2F => ServerboundRecipeBookChangeSettings, Serverbound, Game;
+        0x30 => ServerboundRecipeBookSeenRecipe, Serverbound, Game;
         0x36 => ServerboundSetCarriedItem, Serverbound, Game;
         0x42 => ServerboundUseItemOn, Serverbound, Game;
     }

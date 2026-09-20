@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::marker::PhantomData;
 use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context, bail, ensure};
@@ -301,6 +302,44 @@ impl RegistryLookup for Opaque {
 
     fn name(&self, _: &str, _: u32) -> Option<&ResourceLocation> {
         Some(&UNRESOLVED)
+    }
+}
+
+/// The exact bytes of one registry-dependent value, kept so a packet can
+/// carry it without the registries; the value walks the layout to find its
+/// length and is resolved on demand.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Raw<T>(pub bytes::Bytes, PhantomData<T>);
+
+impl<T: EncodeCtx + for<'a> DecodeCtx<'a>> Raw<T> {
+    pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<T> {
+        let mut r = &self.0[..];
+        let value = T::decode_ctx(ctx, &mut r)?;
+        ensure!(r.is_empty(), "{} trailing bytes after a raw value", r.len());
+        Ok(value)
+    }
+
+    pub fn from_value(value: &T, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
+        let mut bytes = Vec::new();
+        value.encode_ctx(ctx, &mut bytes)?;
+        Ok(Raw(bytes.into(), PhantomData))
+    }
+}
+
+impl<T> Encode for Raw<T> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        Ok(w.write_all(&self.0)?)
+    }
+}
+
+impl<T: for<'a> DecodeCtx<'a>> Decode<'_> for Raw<T> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let start = *r;
+        T::decode_ctx(&Opaque, r)?;
+        Ok(Raw(
+            bytes::Bytes::copy_from_slice(&start[..start.len() - r.len()]),
+            PhantomData,
+        ))
     }
 }
 

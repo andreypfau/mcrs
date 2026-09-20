@@ -4,9 +4,10 @@ pub mod clientbound {
     use crate::entity::player::*;
     use crate::entity::{EquipmentSlot, Metadata};
     use crate::game_event::GameEventKind;
-    use crate::item::RawStack;
+    use crate::item::{Raw, RawStack};
     use crate::packets::common::clientbound::KeepAlive;
     use crate::profile::{PlayerListActions, PlayerListEntry};
+    use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, SelectableRecipe};
     use crate::text::Text;
     use crate::{ColumnPos, Look, LpVec3, PositionFlag, VarInt};
     use crate::{Decode as _, Encode as _};
@@ -316,6 +317,25 @@ pub mod clientbound {
         pub flags: Vec<PositionFlag>,
     }
 
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x4A, state=Game)]
+    pub struct ClientboundRecipeBookAdd {
+        pub entries: Vec<Raw<RecipeBookEntry>>,
+        pub replace: bool,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x4B, state=Game)]
+    pub struct ClientboundRecipeBookRemove {
+        pub recipes: Vec<VarInt>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x4C, state=Game)]
+    pub struct ClientboundRecipeBookSettings {
+        pub book_settings: RecipeBookSettings,
+    }
+
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x4D, state=Game)]
     pub struct ClientboundRemoveEntities {
@@ -420,6 +440,15 @@ pub mod clientbound {
     pub struct ClientboundUpdateAttributes<'a> {
         pub entity_id: VarInt,
         pub attributes: Vec<AttributeSnapshot<'a>>,
+    }
+
+    /// `item_sets` is keyed by `recipe_property_set` id; vanilla writes it
+    /// from a hash map, so the order is whatever was received.
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x87, state=Game)]
+    pub struct ClientboundUpdateRecipes {
+        pub item_sets: Vec<(ResourceLocation, Raw<RecipePropertySet>)>,
+        pub stonecutter_recipes: Vec<Raw<SelectableRecipe>>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -539,6 +568,7 @@ pub mod serverbound {
     use crate::item::{ContainerInput, HashedSlot};
     use crate::packets::common::serverbound::{ClientInformation, KeepAlive};
     use crate::pos::MoveFlags;
+    use crate::recipe::RecipeBookType;
     use crate::{Bounded, Difficulty, Direction, GameMode, Look, Position, VarInt};
     use derive_more::From;
     use mcrs_minecraft_core::BlockPos;
@@ -676,6 +706,14 @@ pub mod serverbound {
         pub flags: MoveFlags,
     }
 
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x27, state=Game)]
+    pub struct ServerboundPlaceRecipe {
+        pub container_id: VarInt,
+        pub recipe: VarInt,
+        pub use_max_items: bool,
+    }
+
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x29, state=Game)]
     pub struct ServerboundPlayerAction {
@@ -683,6 +721,20 @@ pub mod serverbound {
         pub pos: BlockPos,
         pub direction: Direction,
         pub sequence: VarInt,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x2F, state=Game)]
+    pub struct ServerboundRecipeBookChangeSettings {
+        pub book_type: RecipeBookType,
+        pub is_open: bool,
+        pub is_filtering: bool,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x30, state=Game)]
+    pub struct ServerboundRecipeBookSeenRecipe {
+        pub recipe: VarInt,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
