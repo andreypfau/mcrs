@@ -13,18 +13,15 @@ minecraft:blocks_attacks
 minecraft:break_sound
 minecraft:brewing_fuel
 minecraft:bucket_entity_data
-minecraft:bundle_contents
 minecraft:can_break
 minecraft:can_place_on
 minecraft:cat/collar
 minecraft:cat/sound_variant
 minecraft:cat/variant
-minecraft:charged_projectiles
 minecraft:chicken/sound_variant
 minecraft:chicken/variant
 minecraft:compostable
 minecraft:consumable
-minecraft:container
 minecraft:container_loot
 minecraft:cooking_fuel
 minecraft:cow/sound_variant
@@ -71,7 +68,6 @@ minecraft:parrot/variant
 minecraft:piercing_weapon
 minecraft:pig/sound_variant
 minecraft:pig/variant
-minecraft:pot_decorations
 minecraft:potion_contents
 minecraft:potion_duration_scale
 minecraft:profile
@@ -89,7 +85,6 @@ minecraft:shulker/color
 minecraft:sign_text_back
 minecraft:sign_text_front
 minecraft:stored_enchantments
-minecraft:sulfur_cube_content
 minecraft:suspicious_stew_effects
 minecraft:tool
 minecraft:tooltip_display
@@ -100,7 +95,6 @@ minecraft:tropical_fish/pattern
 minecraft:tropical_fish/pattern_color
 minecraft:use_cooldown
 minecraft:use_effects
-minecraft:use_remainder
 minecraft:villager/variant
 minecraft:villager_food
 minecraft:waxed
