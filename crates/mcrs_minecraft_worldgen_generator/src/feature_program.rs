@@ -374,15 +374,19 @@ const DECORATION_STEPS: usize = DecorationStep::TopLayerModification as usize + 
 /// so a cut here is a point where every column in the world agrees on the
 /// blocks before any of them reads them again.
 ///
-/// Vegetation is cut off from what shapes the ground because it is the only
-/// thing that asks whether a block can stand where it was put: a lake that
-/// arrives after a plant leaves the plant in the air. The top layer is cut off
-/// from vegetation for the same reason in the other direction — snow settles on
+/// Ores are cut off from structures because an ore only replaces the rock it
+/// reads: a vein spilling from a neighbour that still sees the rock a
+/// structure has since hollowed out lands in the structure's air. Vegetation
+/// is cut off from what shapes the ground because it is the only thing that
+/// asks whether a block can stand where it was put: a lake that arrives after
+/// a plant leaves the plant in the air. The top layer is cut off from
+/// vegetation for the same reason in the other direction — snow settles on
 /// what grew.
 ///
 /// Every cut costs two rings of halo around each column, so the list is short
 /// on purpose.
-const RUNG_STARTS: [usize; 2] = [
+const RUNG_STARTS: [usize; 3] = [
+    6,  // underground_ores
     9,  // vegetal_decoration
     10, // top_layer_modification
 ];

@@ -433,12 +433,14 @@ fn run_writes(dim: &Dimension, wanted: &[ColumnPos]) -> (usize, usize) {
             let at = region_column(col, slot);
             filled.entry(at).or_insert_with(|| fill(at)).clone()
         });
-        for (target, delta) in run_region(ctx, &snapshots, 0) {
-            if delta.writes.is_empty() {
-                continue;
+        for rung in 0..ctx.rungs() {
+            for (target, delta) in run_region(ctx, &snapshots, rung) {
+                if delta.writes.is_empty() {
+                    continue;
+                }
+                carried += 1;
+                crossed += usize::from(target != col);
             }
-            carried += 1;
-            crossed += usize::from(target != col);
         }
     }
     (carried, crossed)
