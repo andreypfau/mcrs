@@ -152,6 +152,12 @@ impl<'a, T: Decode<'a>> Decode<'a> for Vec<T> {
     }
 }
 
+impl<T: Encode, const MAX_LEN: usize> Encode for Bounded<Vec<T>, MAX_LEN> {
+    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+        Bounded::<_, MAX_LEN>(self.0.as_slice()).encode(w)
+    }
+}
+
 impl<'a, T: Decode<'a>, const MAX_LEN: usize> Decode<'a> for Bounded<Vec<T>, MAX_LEN> {
     fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let len = VarInt::decode(r)?.0;
