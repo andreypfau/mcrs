@@ -52,7 +52,7 @@ pub struct LevelRange {
 #[derive(Debug, Clone)]
 pub enum LootCondition {
     MatchToolEnchantment {
-        enchantment_registry_index: u16,
+        enchantment: ResourceLocation,
         min_level: u8,
     },
     SurvivesExplosion,

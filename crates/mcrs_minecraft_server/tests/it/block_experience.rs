@@ -5,11 +5,12 @@ use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_item::component::Enchantments;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::enchantment::{EnchantmentData, register_all_enchantments};
 use mcrs_minecraft_level::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
+use mcrs_minecraft_protocol::item::Enchantments;
 use mcrs_minecraft_registry::StaticRegistry;
 
 fn harness() -> App {
@@ -41,12 +42,15 @@ fn collect_awards(mut reader: MessageReader<AwardExperience>, mut awarded: ResMu
     }
 }
 
-fn silk_touch_id(app: &App) -> u16 {
+fn enchanted(app: &App, enchantment: &str, level: i32) -> Enchantments {
     app.world()
         .resource::<StaticRegistry<EnchantmentData>>()
-        .id_of("minecraft:silk_touch")
-        .expect("silk touch is registered")
-        .raw() as u16
+        .id_of(enchantment)
+        .unwrap_or_else(|| panic!("{enchantment} is registered"));
+    Enchantments(vec![(
+        ResourceKey::from_location(ResourceLocation::parse(enchantment).unwrap()),
+        level,
+    )])
 }
 
 fn break_coal_ore(app: &mut App, tool: Option<Entity>, breaks: usize) -> Vec<i32> {
@@ -95,9 +99,7 @@ fn coal_ore_experience_stays_within_its_declared_range() {
 #[test]
 fn silk_touch_suppresses_block_experience() {
     let mut app = harness();
-    let id = silk_touch_id(&app);
-    let mut enchantments = Enchantments::default();
-    enchantments.insert(id, 1);
+    let enchantments = enchanted(&app, "minecraft:silk_touch", 1);
     let tool = app.world_mut().spawn(enchantments).id();
 
     let awarded = break_coal_ore(&mut app, Some(tool), 200);
@@ -112,14 +114,7 @@ fn silk_touch_suppresses_block_experience() {
 #[test]
 fn an_unrelated_enchantment_leaves_block_experience_alone() {
     let mut app = harness();
-    let efficiency = app
-        .world()
-        .resource::<StaticRegistry<EnchantmentData>>()
-        .id_of("minecraft:efficiency")
-        .expect("efficiency is registered")
-        .raw() as u16;
-    let mut enchantments = Enchantments::default();
-    enchantments.insert(efficiency, 3);
+    let enchantments = enchanted(&app, "minecraft:efficiency", 3);
     let tool = app.world_mut().spawn(enchantments).id();
 
     let awarded = break_coal_ore(&mut app, Some(tool), 200);

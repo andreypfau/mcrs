@@ -171,10 +171,13 @@ fn resolve_condition(
                 && let Some(first) = enchantments.first()
             {
                 let enchantment_id = &first.enchantments;
-                if let Some(static_id) = enchantment_registry.id_of(enchantment_id.as_str()) {
+                if enchantment_registry
+                    .id_of(enchantment_id.as_str())
+                    .is_some()
+                {
                     let min_level = first.levels.as_ref().and_then(|l| l.min).unwrap_or(1);
                     return LootCondition::MatchToolEnchantment {
-                        enchantment_registry_index: static_id.raw() as u16,
+                        enchantment: enchantment_id.clone(),
                         min_level,
                     };
                 }

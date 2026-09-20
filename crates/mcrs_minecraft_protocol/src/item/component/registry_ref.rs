@@ -86,7 +86,18 @@ pub(crate) use null_as_default;
 /// `ItemEnchantments.CODEC`: a map of enchantment id to level in 1..=255,
 /// kept in read order because vanilla's own order is hash order.
 #[derive(Clone, Debug, Eq, Default)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Enchantments(pub Vec<(ResourceKey<EnchantmentReg>, i32)>);
+
+impl Enchantments {
+    /// `ItemEnchantments.getLevel`: zero when absent.
+    pub fn level(&self, enchantment: &ResourceLocation) -> i32 {
+        self.0
+            .iter()
+            .find(|(key, _)| key.location() == enchantment)
+            .map_or(0, |(_, level)| *level)
+    }
+}
 
 impl PartialEq for Enchantments {
     fn eq(&self, other: &Self) -> bool {
@@ -293,6 +304,7 @@ impl Sample for DamageResistant {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 #[serde(deny_unknown_fields)]
 pub struct Tool {
     pub rules: Vec<ToolRule>,

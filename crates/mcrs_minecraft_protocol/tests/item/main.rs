@@ -1,3 +1,4 @@
+mod corpus;
 mod golden;
 mod harness;
 mod holders;
@@ -7,4 +8,5 @@ mod predicate;
 mod records;
 mod registry_refs;
 mod scaffold;
+mod symmetry;
 mod table;

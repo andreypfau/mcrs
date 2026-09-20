@@ -14,8 +14,7 @@ use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
-use mcrs_minecraft_item::component::Enchantments;
-use mcrs_minecraft_item::component::Tool;
+use mcrs_minecraft_item::component::{is_correct_for_drops, mining_speed};
 use mcrs_minecraft_item::{Item, ItemStack};
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -25,6 +24,7 @@ use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_protocol::item::{Enchantments, Tool};
 use mcrs_minecraft_registry::BlockStateId;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
@@ -350,16 +350,16 @@ pub fn extract_tool_data(
     };
     let item_id = stack.item_id();
     let item: &Item = item_id.as_ref();
-    let Some(tool) = tool.or(item.components.tool.as_ref()) else {
+    let Some(tool) = tool.or(item.components.get::<Tool>()) else {
         debug!(block, item = %item.identifier, "no tool component");
         return (!requires_correct_tool, 1.0);
     };
     let has_correct_tool = if requires_correct_tool {
-        tool.is_correct_block_for_drops(block, blocks, tag_registry)
+        is_correct_for_drops(tool, block, blocks, tag_registry)
     } else {
         true
     };
-    let speed = tool.get_mining_speed(block, blocks, tag_registry);
+    let speed = mining_speed(tool, block, blocks, tag_registry);
     debug!(
         block,
         item = %item.identifier,
@@ -401,15 +401,13 @@ fn handle_player_will_destroy_block(
             held.and_then(|slot| items.get(slot).ok())
                 .and_then(|(stack, _, tool)| {
                     tool.or_else(|| {
-                        AsRef::<Item>::as_ref(&stack.item_id())
+                        <&Item>::try_from(stack.item_id())
+                            .ok()?
                             .components
-                            .tool
-                            .as_ref()
+                            .get::<Tool>()
                     })
                 })
-                .is_some_and(|tool| {
-                    tool.is_correct_block_for_drops(block_id, &blocks, &tag_registry)
-                })
+                .is_some_and(|tool| is_correct_for_drops(tool, block_id, &blocks, &tag_registry))
         } else {
             true
         };

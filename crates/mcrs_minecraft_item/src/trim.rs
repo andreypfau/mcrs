@@ -1,20 +1,15 @@
 use bevy_asset::Asset;
 use bevy_reflect::TypePath;
+use mcrs_minecraft_protocol::item;
 use serde::{Deserialize, Serialize};
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
-pub struct TrimPattern {
-    pub asset_id: String,
-    pub description: serde_json::Value,
-    #[serde(default)]
-    pub decal: bool,
-}
+#[serde(transparent)]
+pub struct TrimPattern(pub item::TrimPattern);
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
-pub struct TrimMaterial {
-    pub palette_id: String,
-    pub description: serde_json::Value,
-}
+#[serde(transparent)]
+pub struct TrimMaterial(pub item::TrimMaterial);
 
 #[cfg(test)]
 mod tests {

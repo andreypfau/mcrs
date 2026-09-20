@@ -3,13 +3,12 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_protocol::item::Enchantments;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_registry::StaticRegistry;
 use tracing::{debug, warn};
-
-use mcrs_minecraft_item::component::Enchantments;
 
 /// The dimension's own random stream, as Java's `ServerLevel.getRandom()`. One
 /// world, one writer: every sub-app carries its own.
@@ -82,8 +81,8 @@ fn process_block_experience(
         return amount;
     };
     let mut value = amount as f32;
-    for (id, level) in enchantments.iter() {
-        let Some(data) = registry.get_by_raw(id as u32) else {
+    for (id, level) in &enchantments.0 {
+        let Some(data) = registry.get_by_loc(id.as_str()) else {
             continue;
         };
         let Some(effects) = data
@@ -96,15 +95,13 @@ fn process_block_experience(
         for conditional in effects {
             if conditional.requirements.is_some() {
                 debug!(
-                    enchantment = id,
+                    enchantment = %id,
                     "block_experience effect states requirements; no loot context to test them against"
                 );
                 continue;
             }
             let mut binomial = |n: f32, p: f32| remove_binomial(random, n, p);
-            value = conditional
-                .effect
-                .process(level as i32, value, &mut binomial);
+            value = conditional.effect.process(*level, value, &mut binomial);
         }
     }
     value as i32

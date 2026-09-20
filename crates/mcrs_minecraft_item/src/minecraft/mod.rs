@@ -1,11 +1,12 @@
 use crate::Item;
-use crate::component::ItemComponents;
-use crate::component::tool::ToolMaterial;
+use crate::component::ToolMaterial;
 use mcrs_minecraft_block::tags as block_tags;
+use mcrs_minecraft_protocol::item::ComponentMap;
 use mcrs_minecraft_registry::ItemId;
 use mcrs_minecraft_registry::StaticRegistry;
+use std::sync::LazyLock;
 
-pub const ALL: &[&Item] = &[
+pub static ALL: &[&Item] = &[
     &TORCH,
     &WOODEN_PICKAXE,
     &STONE_PICKAXE,
@@ -25,85 +26,70 @@ pub fn register_all_items(registry: &mut StaticRegistry<Item>) {
     }
 }
 
-pub const TORCH: Item = Item {
+pub static TORCH: Item = Item {
     id: ItemId(395),
     identifier: mcrs_minecraft_core::rl!("minecraft:torch"),
-    components: &ItemComponents::new(),
+    components: LazyLock::new(ComponentMap::default),
 };
 
-pub const WOODEN_PICKAXE: Item = Item {
+pub static WOODEN_PICKAXE: Item = Item {
     id: ItemId(1027),
     identifier: mcrs_minecraft_core::rl!("minecraft:wooden_pickaxe"),
-    components: &ItemComponents::new().with_pickaxe(
-        &ToolMaterial::WOOD,
-        &ToolMaterial::WOOD.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
-    ),
+    components: LazyLock::new(|| ToolMaterial::WOOD.tool(block_tags::MINEABLE_PICKAXE)),
 };
 
-pub const STONE_PICKAXE: Item = Item {
+pub static STONE_PICKAXE: Item = Item {
     id: ItemId(1037),
     identifier: mcrs_minecraft_core::rl!("minecraft:stone_pickaxe"),
-    components: &ItemComponents::new().with_pickaxe(
-        &ToolMaterial::STONE,
-        &ToolMaterial::STONE.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
-    ),
+    components: LazyLock::new(|| ToolMaterial::STONE.tool(block_tags::MINEABLE_PICKAXE)),
 };
 
-pub const GOLDEN_PICKAXE: Item = Item {
+pub static GOLDEN_PICKAXE: Item = Item {
     id: ItemId(1042),
     identifier: mcrs_minecraft_core::rl!("minecraft:golden_pickaxe"),
-    components: &ItemComponents::new().with_pickaxe(
-        &ToolMaterial::GOLD,
-        &ToolMaterial::GOLD.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
-    ),
+    components: LazyLock::new(|| ToolMaterial::GOLD.tool(block_tags::MINEABLE_PICKAXE)),
 };
 
-pub const IRON_PICKAXE: Item = Item {
+pub static IRON_PICKAXE: Item = Item {
     id: ItemId(1047),
     identifier: mcrs_minecraft_core::rl!("minecraft:iron_pickaxe"),
-    components: &ItemComponents::new().with_pickaxe(
-        &ToolMaterial::IRON,
-        &ToolMaterial::IRON.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
-    ),
+    components: LazyLock::new(|| ToolMaterial::IRON.tool(block_tags::MINEABLE_PICKAXE)),
 };
 
-pub const DIAMOND_PICKAXE: Item = Item {
+pub static DIAMOND_PICKAXE: Item = Item {
     id: ItemId(1052),
     identifier: mcrs_minecraft_core::rl!("minecraft:diamond_pickaxe"),
-    components: &ItemComponents::new().with_pickaxe(
-        &ToolMaterial::DIAMOND,
-        &ToolMaterial::DIAMOND.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
-    ),
+    components: LazyLock::new(|| ToolMaterial::DIAMOND.tool(block_tags::MINEABLE_PICKAXE)),
 };
 
-pub const IRON_AXE: Item = Item {
+pub static IRON_AXE: Item = Item {
     id: ItemId(1048),
     identifier: mcrs_minecraft_core::rl!("minecraft:iron_axe"),
-    components: &ItemComponents::new(),
+    components: LazyLock::new(ComponentMap::default),
 };
 
-pub const ELYTRA: Item = Item {
+pub static ELYTRA: Item = Item {
     id: ItemId(974),
     identifier: mcrs_minecraft_core::rl!("minecraft:elytra"),
-    components: &ItemComponents::new(),
+    components: LazyLock::new(ComponentMap::default),
 };
 
-pub const TRIDENT: Item = Item {
+pub static TRIDENT: Item = Item {
     id: ItemId(1483),
     identifier: mcrs_minecraft_core::rl!("minecraft:trident"),
-    components: &ItemComponents::new(),
+    components: LazyLock::new(ComponentMap::default),
 };
 
-pub const FISHING_ROD: Item = Item {
+pub static FISHING_ROD: Item = Item {
     id: ItemId(1186),
     identifier: mcrs_minecraft_core::rl!("minecraft:fishing_rod"),
-    components: &ItemComponents::new(),
+    components: LazyLock::new(ComponentMap::default),
 };
 
-pub const NAUTILUS_SHELL: Item = Item {
+pub static NAUTILUS_SHELL: Item = Item {
     id: ItemId(1484),
     identifier: mcrs_minecraft_core::rl!("minecraft:nautilus_shell"),
-    components: &ItemComponents::new(),
+    components: LazyLock::new(ComponentMap::default),
 };
 
 const STATE_TABLE_LEN: usize = 1 << 16;
@@ -131,5 +117,24 @@ impl AsRef<Item> for ItemId {
     #[inline]
     fn as_ref(&self) -> &Item {
         ID_TO_ITEM[self.0 as usize].unwrap_or_else(|| panic!("Invalid item id: {}", self.0))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ALL;
+    use mcrs_minecraft_registry::{RegistryLookup, StaticRegistryTable};
+
+    #[test]
+    fn item_ids_match_the_registry_report() {
+        let table = StaticRegistryTable::load(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/reports/registries.json"
+        ))
+        .unwrap();
+        for item in ALL {
+            let reported = table.id("item", &item.identifier.to_arc());
+            assert_eq!(reported, Some(u32::from(item.id.0)), "{}", item.identifier);
+        }
     }
 }

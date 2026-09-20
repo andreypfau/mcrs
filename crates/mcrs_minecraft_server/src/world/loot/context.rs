@@ -1,6 +1,6 @@
 use crate::world::loot::condition::LootCondition;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_item::component::Enchantments;
+use mcrs_minecraft_protocol::item::Enchantments;
 
 pub struct BlockBreakContext<'a> {
     pub tool_enchantments: Option<&'a Enchantments>,
@@ -16,15 +16,11 @@ impl LootCondition {
     pub fn check(&self, ctx: &BlockBreakContext) -> bool {
         match self {
             LootCondition::MatchToolEnchantment {
-                enchantment_registry_index,
+                enchantment,
                 min_level,
-            } => {
-                if let Some(enchantments) = ctx.tool_enchantments {
-                    enchantments.get_level_by_id(*enchantment_registry_index) >= *min_level
-                } else {
-                    false
-                }
-            }
+            } => ctx.tool_enchantments.is_some_and(|enchantments| {
+                enchantments.level(enchantment) >= i32::from(*min_level)
+            }),
             LootCondition::SurvivesExplosion => true,
             LootCondition::Inverted(inner) => !inner.check(ctx),
             LootCondition::AnyOf(conditions) => conditions.iter().any(|c| c.check(ctx)),

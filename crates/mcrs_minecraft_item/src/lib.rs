@@ -1,10 +1,11 @@
-use crate::component::ItemComponents;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Component;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_protocol::Slot;
+use mcrs_minecraft_protocol::item::ComponentMap;
 use mcrs_minecraft_registry::ItemId;
+use std::sync::LazyLock;
 
 pub mod component;
 pub mod enchantment;
@@ -15,7 +16,7 @@ pub mod trim;
 pub struct Item {
     pub id: ItemId,
     pub identifier: ResourceLocation<&'static str>,
-    pub components: &'static ItemComponents,
+    pub components: LazyLock<ComponentMap>,
 }
 
 impl TaggedRegistry for Item {
@@ -51,6 +52,8 @@ impl ItemStack {
     }
 }
 
+/// ponytail: a stack carries no per-stack patch yet, so the wire form is the
+/// bare prototype; diff `ComponentMap`s here once `ItemStack` holds one.
 impl From<ItemStack> for Slot {
     fn from(value: ItemStack) -> Self {
         Slot {

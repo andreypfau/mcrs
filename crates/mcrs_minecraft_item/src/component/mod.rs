@@ -1,149 +1,133 @@
-mod attribute;
-pub mod enchantments;
-pub mod lore;
-mod rarity;
-mod swing;
-pub mod tool;
-
-pub use attribute::AttributeModifiers;
-use bevy_ecs::component::Component;
-pub use enchantments::Enchantments;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_protocol::item::{CustomData, ItemComponentKind, Lore, MaxStackSize};
-use rarity::Rarity;
-use swing::SwingAnimation;
-pub use tool::Tool;
-use tool::{ToolMaterial, ToolRule};
+use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_core::{HolderSet, ResourceKey};
+use mcrs_minecraft_protocol::item::{
+    BlockReg, ComponentMap, Damage, Enchantable, MaxDamage, MaxStackSize, Tool, ToolRule,
+};
 
-#[derive(Default, Clone)]
-pub struct ItemComponents {
-    pub custom: Option<CustomData>,
-    pub max_stack_size: MaxStackSize,
-    pub lore: Lore,
-    pub enchantments: Enchantments,
-    pub repair_cost: RepairCost,
-    pub use_effects: UseEffects,
-    pub attribute_modifiers: AttributeModifiers,
-    pub rarity: Rarity,
-    pub tooltip_display: TooltipDisplay,
-    pub swing_animation: SwingAnimation,
-    pub max_damage: Option<MaxDamage>,
-    pub damage: Option<Damage>,
-    pub enchantable: Option<Enchantable>,
-    pub tool: Option<Tool>,
+pub struct ToolMaterial {
+    incorrect_blocks_for_drops: TagKey<Block>,
+    durability: i32,
+    speed: f32,
+    enchantment_value: i32,
 }
 
-impl ItemComponents {
-    pub const fn new() -> Self {
-        ItemComponents {
-            custom: None,
-            max_stack_size: MaxStackSize(Bounded(64)),
-            lore: Lore::new(Vec::new()),
-            enchantments: Enchantments::empty(),
-            repair_cost: RepairCost(0),
-            use_effects: UseEffects::DEFAULT,
-            attribute_modifiers: AttributeModifiers::new(Vec::new()),
-            rarity: Rarity::Common,
-            tooltip_display: TooltipDisplay::DEFAULT,
-            swing_animation: SwingAnimation::DEFAULT,
-            max_damage: None,
-            damage: None,
-            enchantable: None,
-            tool: None,
-        }
-    }
-
-    pub const fn with_durability(mut self, durability: u32) -> Self {
-        self.max_stack_size = MaxStackSize(Bounded(1));
-        self.max_damage = Some(MaxDamage(durability));
-        self.damage = Some(Damage(0));
-        self
-    }
-
-    pub const fn with_enchantable(mut self, value: u8) -> Self {
-        self.enchantable = Some(Enchantable(value));
-        self
-    }
-
-    pub const fn with_tool(mut self, tool: Tool) -> Self {
-        self.tool = Some(tool);
-        self
-    }
-
-    pub const fn with_pickaxe(self, material: &ToolMaterial, rules: &'static [ToolRule]) -> Self {
-        material.apply_tool_properties(self, rules)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Component)]
-pub struct RepairCost(pub u32);
-
-#[derive(Clone, Copy, Debug, Component)]
-pub struct UseEffects {
-    can_sprint: bool,
-    interact_vibrations: bool,
-    speed_multiplier: f32,
-}
-
-#[derive(Clone, Copy, Debug, Component)]
-pub struct Enchantable(pub u8);
-
-impl UseEffects {
-    pub const DEFAULT: Self = UseEffects {
-        can_sprint: false,
-        interact_vibrations: true,
-        speed_multiplier: 0.2,
+impl ToolMaterial {
+    pub const WOOD: ToolMaterial = ToolMaterial {
+        incorrect_blocks_for_drops: block_tags::INCORRECT_FOR_WOODEN_TOOL,
+        durability: 59,
+        speed: 2.0,
+        enchantment_value: 15,
+    };
+    pub const STONE: ToolMaterial = ToolMaterial {
+        incorrect_blocks_for_drops: block_tags::INCORRECT_FOR_STONE_TOOL,
+        durability: 131,
+        speed: 4.0,
+        enchantment_value: 5,
+    };
+    pub const COPPER: ToolMaterial = ToolMaterial {
+        incorrect_blocks_for_drops: block_tags::INCORRECT_FOR_COPPER_TOOL,
+        durability: 190,
+        speed: 5.0,
+        enchantment_value: 13,
+    };
+    pub const IRON: ToolMaterial = ToolMaterial {
+        incorrect_blocks_for_drops: block_tags::INCORRECT_FOR_IRON_TOOL,
+        durability: 250,
+        speed: 6.0,
+        enchantment_value: 14,
+    };
+    pub const DIAMOND: ToolMaterial = ToolMaterial {
+        incorrect_blocks_for_drops: block_tags::INCORRECT_FOR_DIAMOND_TOOL,
+        durability: 1561,
+        speed: 8.0,
+        enchantment_value: 10,
+    };
+    pub const GOLD: ToolMaterial = ToolMaterial {
+        incorrect_blocks_for_drops: block_tags::INCORRECT_FOR_GOLD_TOOL,
+        durability: 32,
+        speed: 12.0,
+        enchantment_value: 22,
+    };
+    pub const NETHERITE: ToolMaterial = ToolMaterial {
+        incorrect_blocks_for_drops: block_tags::INCORRECT_FOR_NETHERITE_TOOL,
+        durability: 2031,
+        speed: 9.0,
+        enchantment_value: 15,
     };
 
-    pub const fn new(can_sprint: bool, interact_vibrations: bool, speed_multiplier: f32) -> Self {
-        Self {
-            can_sprint,
-            interact_vibrations,
-            speed_multiplier,
-        }
-    }
-
-    pub fn can_sprint(&self) -> bool {
-        self.can_sprint
-    }
-
-    pub fn interact_vibrations(&self) -> bool {
-        self.interact_vibrations
-    }
-
-    pub fn speed_multiplier(&self) -> f32 {
-        self.speed_multiplier
+    pub fn tool(&self, mines_efficiently: TagKey<Block>) -> ComponentMap {
+        let tag = |key: TagKey<Block>| HolderSet::Tag(key.resource_location_arc());
+        ComponentMap(vec![
+            MaxStackSize(Bounded(1)).into(),
+            MaxDamage(Bounded(self.durability)).into(),
+            Damage(Bounded(0)).into(),
+            Enchantable {
+                value: Bounded(self.enchantment_value),
+            }
+            .into(),
+            Tool {
+                rules: vec![
+                    ToolRule {
+                        blocks: tag(self.incorrect_blocks_for_drops),
+                        speed: None,
+                        correct_for_drops: Some(false),
+                    },
+                    ToolRule {
+                        blocks: tag(mines_efficiently),
+                        speed: Some(self.speed),
+                        correct_for_drops: Some(true),
+                    },
+                ],
+                ..Tool::default()
+            }
+            .into(),
+        ])
     }
 }
 
-impl Default for UseEffects {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
+pub fn mining_speed(
+    tool: &Tool,
+    block: &str,
+    blocks: &BlockDefinitions,
+    tags: &DynTagRegistry<Block>,
+) -> f32 {
+    tool.rules
+        .iter()
+        .find(|rule| rule.speed.is_some() && contains(&rule.blocks, block, blocks, tags))
+        .and_then(|rule| rule.speed)
+        .unwrap_or(tool.default_mining_speed)
 }
 
-#[derive(Clone, Copy, Debug, Component)]
-pub struct MaxDamage(pub u32);
-
-#[derive(Clone, Copy, Debug, Component)]
-pub struct Damage(pub u32);
-
-#[derive(Clone, Debug, Default, Component)]
-pub struct TooltipDisplay {
-    pub hide_tooltip: bool,
-    pub hidden_components: Vec<ItemComponentKind>,
+pub fn is_correct_for_drops(
+    tool: &Tool,
+    block: &str,
+    blocks: &BlockDefinitions,
+    tags: &DynTagRegistry<Block>,
+) -> bool {
+    tool.rules
+        .iter()
+        .find(|rule| {
+            rule.correct_for_drops.is_some() && contains(&rule.blocks, block, blocks, tags)
+        })
+        .and_then(|rule| rule.correct_for_drops)
+        .unwrap_or(false)
 }
 
-impl TooltipDisplay {
-    pub const DEFAULT: Self = TooltipDisplay {
-        hide_tooltip: false,
-        hidden_components: Vec::new(),
-    };
-
-    pub fn new(hide_tooltip: bool, hidden_components: Vec<ItemComponentKind>) -> Self {
-        Self {
-            hide_tooltip,
-            hidden_components,
-        }
+fn contains(
+    set: &HolderSet<ResourceKey<BlockReg>>,
+    block: &str,
+    blocks: &BlockDefinitions,
+    tags: &DynTagRegistry<Block>,
+) -> bool {
+    match set {
+        HolderSet::Tag(tag) => blocks
+            .index_of(block)
+            .is_some_and(|id| tags.contains(&TagKey::<Block, _>::from_location(tag.clone()), id)),
+        _ => set.entries().iter().any(|key| key.as_str() == block),
     }
 }
