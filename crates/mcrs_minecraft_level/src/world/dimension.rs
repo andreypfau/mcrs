@@ -44,13 +44,15 @@ pub struct DimensionBundle {
 
 impl DimensionBundle {
     pub fn new(dimension_id: DimensionId, type_config: DimensionTypeConfig) -> Self {
+        let min_section_y = type_config.min_y >> SectionPos::BITS;
+        let max_section_y = min_section_y + type_config.section_count as i32 - 1;
         Self {
             dimension: Dimension,
             dimension_id,
             type_config,
             chunk_index: SectionIndex::default(),
             tickets: SectionTickets::default(),
-            levels: SectionLevels::default(),
+            levels: SectionLevels::bounded(min_section_y..=max_section_y),
             players: DimensionPlayers::default(),
             column_index: ColumnIndex::default(),
         }

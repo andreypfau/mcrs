@@ -2,6 +2,7 @@ use bevy_ecs::prelude::Component;
 use indexmap::IndexSet;
 use mcrs_minecraft_core::SectionPos;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+use std::ops::RangeInclusive;
 
 pub const ENTITY_TICKING_LEVEL: u8 = 31;
 pub const BLOCK_TICKING_LEVEL: u8 = 32;
@@ -28,9 +29,14 @@ impl FullStatus {
 
 /// A section's level is the lower of its own source and one more than the lowest of its 26
 /// neighbours. A level at or past `absent` is not stored.
+///
+/// Only sections within `section_y` take a level: a level reaching past the dimension's top or
+/// bottom would load a section no generator can fill, and one that is loaded but never filled
+/// is spawned and condemned every tick, ahead of everything farther from the player.
 #[derive(Debug)]
 pub struct LevelField {
     absent: u8,
+    section_y: RangeInclusive<i32>,
     levels: FxHashMap<SectionPos, u8>,
     relight: Vec<Vec<SectionPos>>,
     unlight: Vec<(SectionPos, u8)>,
@@ -38,8 +44,13 @@ pub struct LevelField {
 
 impl LevelField {
     pub fn new(absent: u8) -> Self {
+        Self::bounded(absent, i32::MIN..=i32::MAX)
+    }
+
+    pub fn bounded(absent: u8, section_y: RangeInclusive<i32>) -> Self {
         Self {
             absent,
+            section_y,
             levels: FxHashMap::default(),
             relight: vec![Vec::new(); absent as usize],
             unlight: Vec::new(),
@@ -59,6 +70,7 @@ impl LevelField {
         before: &mut FxHashMap<SectionPos, u8>,
     ) {
         let absent = self.absent;
+        let section_y = self.section_y.clone();
         for &pos in changed {
             let current = self.level(pos);
             if source(pos).min(absent) > current {
@@ -69,7 +81,7 @@ impl LevelField {
         // Whatever leaned on a level that went away is cleared, and every neighbour that could
         // stand in for it is kept as a seed to fill the cleared region back in.
         while let Some((pos, old)) = self.unlight.pop() {
-            for neighbour in neighbours(pos) {
+            for neighbour in neighbours(pos, &section_y) {
                 let level = self.level(neighbour);
                 if level == absent {
                     continue;
@@ -97,7 +109,7 @@ impl LevelField {
                     if self.level(pos) != level {
                         continue;
                     }
-                    for neighbour in neighbours(pos) {
+                    for neighbour in neighbours(pos, &section_y) {
                         if next < self.level(neighbour) {
                             self.set(neighbour, next, before);
                             self.relight[next as usize].push(neighbour);
@@ -124,8 +136,13 @@ impl LevelField {
     }
 }
 
-fn neighbours(pos: SectionPos) -> impl Iterator<Item = SectionPos> {
+fn neighbours(
+    pos: SectionPos,
+    section_y: &RangeInclusive<i32>,
+) -> impl Iterator<Item = SectionPos> {
+    let section_y = section_y.clone();
     (-1..=1)
+        .filter(move |dy| section_y.contains(&(pos.y + dy)))
         .flat_map(move |dy| {
             (-1..=1).flat_map(move |dz| {
                 (-1..=1).map(move |dx| SectionPos::new(pos.x + dx, pos.y + dy, pos.z + dz))
@@ -150,16 +167,20 @@ pub struct SectionLevels {
 
 impl Default for SectionLevels {
     fn default() -> Self {
-        Self {
-            loading: LevelField::new(FULL_LEVEL + 1),
-            simulation: LevelField::new(FULL_LEVEL),
-            pending_spawn: IndexSet::default(),
-            pending_release: FxHashSet::default(),
-        }
+        Self::bounded(i32::MIN..=i32::MAX)
     }
 }
 
 impl SectionLevels {
+    pub fn bounded(section_y: RangeInclusive<i32>) -> Self {
+        Self {
+            loading: LevelField::bounded(FULL_LEVEL + 1, section_y.clone()),
+            simulation: LevelField::bounded(FULL_LEVEL, section_y),
+            pending_spawn: IndexSet::default(),
+            pending_release: FxHashSet::default(),
+        }
+    }
+
     pub fn is_loaded(&self, pos: SectionPos) -> bool {
         self.loading.level(pos) <= FULL_LEVEL
     }
@@ -209,6 +230,29 @@ mod tests {
         assert_eq!(status(SectionPos::new(1, -1, 1)), FullStatus::BlockTicking);
         assert_eq!(status(SectionPos::new(-2, 0, 2)), FullStatus::Full);
         assert_eq!(status(SectionPos::new(3, 0, 0)), FullStatus::Inaccessible);
+    }
+
+    #[test]
+    fn a_level_stops_at_the_dimension_floor_and_ceiling() {
+        let mut field = LevelField::bounded(FULL_LEVEL + 1, -4..=19);
+        let origin = SectionPos::new(0, -4, 0);
+        field.update(
+            &[origin],
+            |pos| {
+                if pos == origin {
+                    ENTITY_TICKING_LEVEL
+                } else {
+                    u8::MAX
+                }
+            },
+            &mut FxHashMap::default(),
+        );
+
+        let status = |pos| FullStatus::from_level(field.level(pos));
+        assert_eq!(status(SectionPos::new(0, -3, 0)), FullStatus::BlockTicking);
+        assert_eq!(status(SectionPos::new(2, -4, 0)), FullStatus::Full);
+        assert_eq!(status(SectionPos::new(0, -5, 0)), FullStatus::Inaccessible);
+        assert_eq!(status(SectionPos::new(1, -6, 1)), FullStatus::Inaccessible);
     }
 
     /// Adding, lowering, raising and removing sources in any order has to leave exactly the
