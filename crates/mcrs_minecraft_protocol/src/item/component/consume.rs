@@ -20,7 +20,10 @@ use crate::{Decode, Encode, VarInt};
 
 /// Java's `Float.toString` for the values an error message can carry.
 fn java_float(value: f32) -> String {
-    if value.is_finite() && value.fract() == 0.0 && value.abs() < 1e7 {
+    if value.is_infinite() {
+        return if value > 0.0 { "Infinity" } else { "-Infinity" }.into();
+    }
+    if value.fract() == 0.0 && value.abs() < 1e7 {
         format!("{value:.1}")
     } else {
         value.to_string()

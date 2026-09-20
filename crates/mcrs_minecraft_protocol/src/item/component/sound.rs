@@ -4,7 +4,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Serialize};
 
-use crate::item::component::common::{Holder, Registered, SoundEventReg, lenient};
+use crate::item::component::common::{Holder, Registered, SoundEventReg, lenient_float};
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
 use crate::{Decode, Encode};
@@ -16,7 +16,7 @@ pub struct SoundEvent {
     pub sound_id: ResourceLocation,
     #[serde(
         default,
-        deserialize_with = "lenient",
+        deserialize_with = "lenient_float",
         skip_serializing_if = "Option::is_none"
     )]
     pub range: Option<f32>,
