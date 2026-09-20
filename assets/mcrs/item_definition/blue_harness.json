@@ -1,0 +1,35 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:item": {
+    "description": {
+      "identifier": "minecraft:blue_harness",
+      "protocol_id": 961
+    },
+    "components": {
+      "minecraft:lore": [],
+      "minecraft:item_name": {
+        "translate": "item.minecraft.blue_harness"
+      },
+      "minecraft:attribute_modifiers": [],
+      "minecraft:tooltip_display": {},
+      "minecraft:attack_animation": {},
+      "minecraft:rarity": "common",
+      "minecraft:enchantments": {},
+      "minecraft:repair_cost": 0,
+      "minecraft:max_stack_size": 1,
+      "minecraft:use_effects": {},
+      "minecraft:item_model": "minecraft:blue_harness",
+      "minecraft:interact_animation": {},
+      "minecraft:break_sound": "minecraft:entity.item.break",
+      "minecraft:equippable": {
+        "slot": "body",
+        "equip_sound": "minecraft:entity.happy_ghast.equip",
+        "asset_id": "minecraft:blue_harness",
+        "allowed_entities": "#minecraft:can_equip_harness",
+        "equip_on_interact": true,
+        "can_be_sheared": true,
+        "shearing_sound": "minecraft:entity.happy_ghast.unequip"
+      }
+    }
+  }
+}

@@ -13,7 +13,7 @@ use bevy_ecs::system::ScheduleSystem;
 use bevy_math::DVec3;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
-use mcrs_minecraft_item::ItemStack;
+use mcrs_minecraft_item::{ItemStack, Items};
 use mcrs_minecraft_level::aoi::{EntityTracker, PlayerObservers, TickInterval};
 use mcrs_minecraft_level::entity::mob::{
     Baby, CatVariant, ChickenVariant, EntityInSection, EntityKind, EntityUuid, Equipment, Health,
@@ -27,17 +27,16 @@ use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
 use mcrs_minecraft_protocol::entity::{EquipmentSlot, MetaDataValue, Metadata, MetadataEntry};
-use mcrs_minecraft_protocol::item::RawStack;
+use mcrs_minecraft_protocol::item::{ComponentPatch, RawStack};
 use mcrs_minecraft_protocol::packets::game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Slot, VarInt};
-use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, StaticRegistryTable};
+use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
 use mcrs_minecraft_world::entity::attribute::MAX_HEALTH;
 use mcrs_minecraft_world::entity::minecraft as entity_types;
 use mcrs_minecraft_world::entity::villager::VillagerData;
 use mcrs_minecraft_worldgen_feature_place::entity::{
-    Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, Item,
-    ItemStack as GeneratedStack,
+    Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, ItemStack as GeneratedStack,
 };
 use serde::de::value::StrDeserializer;
 use serde::de::{DeserializeOwned, IntoDeserializer};
@@ -73,15 +72,6 @@ pub struct MobTrackerPlugin;
 impl Plugin for MobTrackerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MobTrackerCache>();
-        if let Some(root) = app
-            .world()
-            .get_resource::<mcrs_minecraft_level::server_loop::AssetRoot>()
-        {
-            let path = format!("{}/mcrs/reports/registries.json", root.0);
-            let table = StaticRegistryTable::load(&path)
-                .unwrap_or_else(|err| panic!("cannot load the built-in registry table {path}: {err}"));
-            app.insert_resource(table);
-        }
         app.add_systems(
             FixedPostUpdate,
             MobTracker::systems()
@@ -103,6 +93,7 @@ pub fn spawn_generated_entities(
     dim: InDimension,
     sections: &[(Entity, SectionPos)],
     registry: Option<&RegistryAccess>,
+    items: Option<&Items>,
     entities: Vec<GeneratedEntity>,
 ) {
     for entity in entities {
@@ -114,7 +105,7 @@ pub fn spawn_generated_entities(
             tracing::debug!(pos = ?entity.pos, id = entity.kind.id(), "an entity outside the delivered sections");
             continue;
         };
-        spawn_one(commands, dim, section, registry, entity, None);
+        spawn_one(commands, dim, section, registry, items, entity, None);
     }
 }
 
@@ -123,6 +114,7 @@ fn spawn_one(
     dim: InDimension,
     section: Entity,
     registry: Option<&RegistryAccess>,
+    items: Option<&Items>,
     entity: GeneratedEntity,
     vehicle: Option<Entity>,
 ) {
@@ -196,7 +188,7 @@ fn spawn_one(
                 spawned.insert(Baby);
             }
             if !equipment.is_empty() {
-                spawned.insert(carried(equipment));
+                spawned.insert(carried(items, equipment));
             }
         }
         GeneratedKind::Chicken {
@@ -246,7 +238,7 @@ fn spawn_one(
             spawned.insert((
                 EntityKind(&entity_types::ITEM_FRAME),
                 ItemFrame {
-                    item: stack(item),
+                    item: stack(items, item),
                     facing,
                 },
             ));
@@ -268,7 +260,7 @@ fn spawn_one(
                 left_handed(left),
             ));
             if !equipment.is_empty() {
-                spawned.insert(carried(equipment));
+                spawned.insert(carried(items, equipment));
             }
         }
         GeneratedKind::Allay { left_handed: left } => {
@@ -309,7 +301,7 @@ fn spawn_one(
     }
     let id = spawned.id();
     for passenger in entity.passengers {
-        spawn_one(commands, dim, section, registry, passenger, Some(id));
+        spawn_one(commands, dim, section, registry, items, passenger, Some(id));
     }
 }
 
@@ -354,22 +346,20 @@ fn registered<T: DeserializeOwned + Default>(name: &str) -> T {
     })
 }
 
-fn stack(stack: GeneratedStack) -> ItemStack {
-    use mcrs_minecraft_item::minecraft::{ELYTRA, FISHING_ROD, IRON_AXE, NAUTILUS_SHELL, TRIDENT};
-    let item = match stack.id {
-        Item::Trident => &TRIDENT,
-        Item::FishingRod => &FISHING_ROD,
-        Item::NautilusShell => &NAUTILUS_SHELL,
-        Item::IronAxe => &IRON_AXE,
-        Item::Elytra => &ELYTRA,
-    };
-    ItemStack::new(item.id, stack.count as u8)
+/// A stack the corpus cannot name is carried as nothing.
+fn stack(items: Option<&Items>, stack: GeneratedStack) -> Option<ItemStack> {
+    let name = serde_json::to_value(stack.id).ok()?;
+    let id = items?.id_of(name.as_str()?);
+    if id.is_none() {
+        tracing::warn!(item = %name, "a spawned entity carries an item the corpus lacks");
+    }
+    Some(ItemStack::new(id?, stack.count as u8))
 }
 
-fn carried(equipment: GeneratedEquipment) -> Equipment {
+fn carried(items: Option<&Items>, equipment: GeneratedEquipment) -> Equipment {
     Equipment {
-        mainhand: equipment.mainhand.map(stack),
-        offhand: equipment.offhand.map(stack),
+        mainhand: equipment.mainhand.and_then(|stack| self::stack(items, stack)),
+        offhand: equipment.offhand.and_then(|stack| self::stack(items, stack)),
     }
 }
 
@@ -414,7 +404,8 @@ fn wire_id(entity: Entity) -> i32 {
 /// A stack the registries cannot encode is dropped from the packet rather
 /// than sent malformed.
 fn wire_stack(stack: ItemStack, lookup: &dyn RegistryLookup) -> Option<RawStack> {
-    RawStack::from_slot(&Slot::from(stack), lookup)
+    let slot = Slot::new(stack.item(), i32::from(stack.count()), ComponentPatch::default());
+    RawStack::from_slot(&slot, lookup)
         .inspect_err(|error| tracing::warn!(%error, "a mob's stack could not be encoded"))
         .ok()
 }
@@ -497,7 +488,7 @@ impl PairingItem<'_, '_> {
             if frame.facing != Direction::South {
                 put(HANGING_DIRECTION, MetaDataValue::Direction(frame.facing));
             }
-            if let Some(item) = wire_stack(frame.item, lookup) {
+            if let Some(item) = frame.item.and_then(|item| wire_stack(item, lookup)) {
                 put(FRAME_ITEM, MetaDataValue::Slot(item));
             }
         }
@@ -586,7 +577,6 @@ pub fn update_mob_tracked_by(
     mut mobs: Query<(&InDimension, &mut TrackedBy, Pairing), With<EntityKind>>,
     vehicles: Query<&RiddenBy>,
     registry: Res<RegistryAccess>,
-    static_table: Option<Res<StaticRegistryTable>>,
     blocks: Option<Res<Blocks>>,
     observers: Query<&PlayerObservers, With<Column>>,
     column_indices: Query<&ColumnIndex>,
@@ -594,10 +584,7 @@ pub fn update_mob_tracked_by(
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     let registry: &dyn RegistryLookup = &*registry;
-    let mut lookups: Vec<&dyn RegistryLookup> = Vec::with_capacity(3);
-    if let Some(table) = &static_table {
-        lookups.push(&**table);
-    }
+    let mut lookups: Vec<&dyn RegistryLookup> = Vec::with_capacity(2);
     lookups.push(registry);
     if let Some(blocks) = &blocks {
         lookups.push(&*blocks.0);
@@ -742,6 +729,7 @@ mod tests {
             &mut commands,
             InDimension(dim),
             &[(section, SectionPos::new(0, 4, 0))],
+            None,
             None,
             vec![witch],
         );

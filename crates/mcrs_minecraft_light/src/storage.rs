@@ -29,7 +29,7 @@ impl LightStorage {
             };
         }
         let mut arr = SectionNibbles::zeros();
-        for (byte, pair) in arr.0.iter_mut().zip(cells.chunks_exact(2)) {
+        for (byte, pair) in arr.0.iter_mut().zip(cells.as_chunks::<2>().0) {
             *byte = (pair[0] & 0x0F) | ((pair[1] & 0x0F) << 4);
         }
         LightStorage::Dense(Arc::new(arr))
@@ -47,7 +47,7 @@ impl LightStorage {
             LightStorage::Dense(packed) => packed
                 .0
                 .iter()
-                .zip(cells.chunks_exact(2))
+                .zip(cells.as_chunks::<2>().0)
                 .all(|(byte, pair)| *byte == (pair[0] & 0x0F) | ((pair[1] & 0x0F) << 4)),
         }
     }
@@ -57,7 +57,7 @@ impl LightStorage {
             LightStorage::Empty => cells.fill(0),
             LightStorage::Uniform(v) => cells.fill(*v),
             LightStorage::Dense(arr) => {
-                for (byte, pair) in arr.0.iter().zip(cells.chunks_exact_mut(2)) {
+                for (byte, pair) in arr.0.iter().zip(cells.as_chunks_mut::<2>().0) {
                     pair[0] = byte & 0x0F;
                     pair[1] = byte >> 4;
                 }

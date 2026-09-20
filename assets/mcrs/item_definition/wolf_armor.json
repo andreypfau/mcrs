@@ -1,0 +1,54 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:item": {
+    "description": {
+      "identifier": "minecraft:wolf_armor",
+      "protocol_id": 1004
+    },
+    "components": {
+      "minecraft:lore": [],
+      "minecraft:max_damage": 64,
+      "minecraft:item_name": {
+        "translate": "item.minecraft.wolf_armor"
+      },
+      "minecraft:attribute_modifiers": [
+        {
+          "type": "minecraft:armor",
+          "id": "minecraft:armor.body",
+          "amount": 11.0,
+          "operation": "add_value",
+          "slot": "body"
+        },
+        {
+          "type": "minecraft:armor_toughness",
+          "id": "minecraft:armor.body",
+          "amount": 0.0,
+          "operation": "add_value",
+          "slot": "body"
+        }
+      ],
+      "minecraft:tooltip_display": {},
+      "minecraft:attack_animation": {},
+      "minecraft:rarity": "common",
+      "minecraft:enchantments": {},
+      "minecraft:repair_cost": 0,
+      "minecraft:max_stack_size": 1,
+      "minecraft:item_model": "minecraft:wolf_armor",
+      "minecraft:use_effects": {},
+      "minecraft:damage": 0,
+      "minecraft:interact_animation": {},
+      "minecraft:break_sound": "minecraft:item.wolf_armor.break",
+      "minecraft:repairable": {
+        "items": "#minecraft:repairs_wolf_armor"
+      },
+      "minecraft:equippable": {
+        "slot": "body",
+        "equip_sound": "minecraft:item.armor.equip_wolf",
+        "asset_id": "minecraft:armadillo_scute",
+        "allowed_entities": "minecraft:wolf",
+        "can_be_sheared": true,
+        "shearing_sound": "minecraft:item.armor.unequip_wolf"
+      }
+    }
+  }
+}

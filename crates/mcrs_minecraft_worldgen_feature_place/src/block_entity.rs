@@ -12,6 +12,7 @@ use mcrs_minecraft_core::value_provider::Weighted;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
+use mcrs_minecraft_protocol::item::ItemStackWithSlot;
 use mcrs_minecraft_worldgen_feature::template::Joint;
 use serde::{Deserialize, Serialize};
 
@@ -63,7 +64,7 @@ pub enum GeneratedBlockEntity {
         #[serde(rename = "LootTableSeed", default, skip_serializing_if = "is_default")]
         loot_table_seed: i64,
         #[serde(rename = "Items", default, skip_serializing_if = "Vec::is_empty")]
-        items: Vec<SlotItem>,
+        items: Vec<ItemStackWithSlot>,
         #[serde(
             rename = "CustomName",
             default,
@@ -91,7 +92,7 @@ pub enum GeneratedBlockEntity {
         #[serde(default = "brew_time_total")]
         total_brew_time: i32,
         #[serde(rename = "Items", default, skip_serializing_if = "Vec::is_empty")]
-        items: Vec<SlotItem>,
+        items: Vec<ItemStackWithSlot>,
         #[serde(rename = "Fuel", default)]
         fuel: i32,
         #[serde(default = "fuel_total")]
@@ -113,7 +114,7 @@ pub enum GeneratedBlockEntity {
         y: i32,
         z: i32,
         #[serde(rename = "Items", default, skip_serializing_if = "Vec::is_empty")]
-        items: Vec<SlotItem>,
+        items: Vec<ItemStackWithSlot>,
         #[serde(rename = "CookingTimes", default, serialize_with = "nbt_int_array")]
         cooking_times: [i32; 4],
         #[serde(
@@ -453,17 +454,6 @@ pub struct SavedItem {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SlotItem {
-    #[serde(rename = "Slot")]
-    pub slot: i8,
-    pub id: String,
-    #[serde(default = "one")]
-    pub count: i32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub components: Option<NbtCompound>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Uuid(#[serde(serialize_with = "nbt_int_array")] pub [i32; 4]);
 
@@ -499,7 +489,7 @@ pub struct ContainerData {
     #[serde(rename = "LootTableSeed", default, skip_serializing_if = "is_default")]
     pub loot_table_seed: i64,
     #[serde(rename = "Items", default, skip_serializing_if = "Vec::is_empty")]
-    pub items: Vec<SlotItem>,
+    pub items: Vec<ItemStackWithSlot>,
     #[serde(
         rename = "CustomName",
         default,
@@ -526,7 +516,7 @@ pub struct FurnaceData {
     #[serde(default = "one_f32")]
     pub speed_multiplier: f32,
     #[serde(rename = "Items", default, skip_serializing_if = "Vec::is_empty")]
-    pub items: Vec<SlotItem>,
+    pub items: Vec<ItemStackWithSlot>,
     #[serde(
         rename = "RecipesUsed",
         default,
@@ -882,7 +872,10 @@ pub const BLOCK_ENTITY_TYPES: [&str; 49] = [
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_core::codec::Bounded;
+    use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
     use mcrs_minecraft_nbt::to_nbt_compound;
+    use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 
     const POS: BlockPos = BlockPos::new(1, -2, 3);
 
@@ -893,11 +886,13 @@ mod tests {
             z: 3,
             loot_table: loot.map(str::to_owned),
             loot_table_seed: 0,
-            items: vec![SlotItem {
+            items: vec![ItemStackWithSlot {
                 slot: 4,
-                id: "minecraft:bread".to_owned(),
-                count: 2,
-                components: None,
+                stack: ItemStackValue {
+                    item: ResourceKey::from_location(ResourceLocation::minecraft("bread")),
+                    count: Bounded(2),
+                    components: ComponentPatch::EMPTY,
+                },
             }],
             custom_name: Some(Text::Plain("box".to_owned())),
             components: None,

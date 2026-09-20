@@ -103,13 +103,13 @@ pub enum LootCondition {
     #[serde(rename = "minecraft:entity_properties")]
     EntityProperties {
         entity: EntityTarget,
-        predicate: EntityPredicate,
+        predicate: Box<EntityPredicate>,
     },
     #[serde(rename = "minecraft:damage_source_properties")]
-    DamageSourceProperties { predicate: DamageSourcePredicate },
+    DamageSourceProperties { predicate: Box<DamageSourcePredicate> },
     #[serde(rename = "minecraft:location_check")]
     LocationCheck {
-        predicate: LocationPredicate,
+        predicate: Box<LocationPredicate>,
         #[serde(rename = "offsetX", default, skip_serializing_if = "Option::is_none")]
         offset_x: Option<i32>,
         #[serde(rename = "offsetY", default, skip_serializing_if = "Option::is_none")]

@@ -86,6 +86,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_item::{Item, Items};
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
 use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
@@ -102,8 +103,10 @@ pub struct DimRegistryBundle {
     pub registry_access: RegistryAccess,
     pub light_registry: Option<std::sync::Arc<mcrs_minecraft_light::block::LightRegistry>>,
     pub blocks: Blocks,
+    pub items: Option<Items>,
     pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
     pub block_tag_registry: DynTagRegistry<Block>,
+    pub item_tag_registry: Option<DynTagRegistry<Item>>,
     pub heightmap_predicates: Option<HeightmapPredicates>,
     pub biome_registry: RegistrySnapshot<Biome>,
     pub biome_sources: crate::world::generate::routers::DimensionBiomeSources,
@@ -121,8 +124,10 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
             .get_resource::<mcrs_minecraft_block::light::BlockLightRegistry>()
             .map(|registry| registry.0.clone()),
         blocks: world.resource::<Blocks>().clone(),
+        items: world.get_resource::<Items>().cloned(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
+        item_tag_registry: world.get_resource::<DynTagRegistry<Item>>().cloned(),
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
         biome_sources: world
@@ -504,8 +509,14 @@ pub fn spawn_dim_subapp(
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.blocks.clone());
+    if let Some(items) = &registries.items {
+        sub_app.insert_resource(items.clone());
+    }
     sub_app.insert_resource(registries.static_enchantment_registry.clone());
     sub_app.insert_resource(registries.block_tag_registry.clone());
+    if let Some(item_tags) = &registries.item_tag_registry {
+        sub_app.insert_resource(item_tags.clone());
+    }
     if let Some(predicates) = &registries.heightmap_predicates {
         sub_app.insert_resource(predicates.clone());
     }

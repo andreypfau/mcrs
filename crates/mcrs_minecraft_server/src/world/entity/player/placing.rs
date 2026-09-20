@@ -47,7 +47,7 @@ fn handle_use_item_on(
     let Ok(stack) = items.get(slot) else {
         return;
     };
-    if stack.item_id().0 != TORCH_ITEM_ID {
+    if stack.item().0 != TORCH_ITEM_ID {
         return;
     }
 

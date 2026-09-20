@@ -3646,6 +3646,7 @@ dependencies = [
 name = "mcrs_minecraft_item"
 version = "0.1.0"
 dependencies = [
+ "bevy_app",
  "bevy_asset",
  "bevy_ecs",
  "bevy_reflect",
@@ -3655,6 +3656,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registry",
+ "rustc-hash 2.1.1",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3989,6 +3991,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",

@@ -554,3 +554,89 @@ impl Decode<'_> for HashedPatchMap {
         Ok(map)
     }
 }
+
+/// A stack in a slotted list: the player inventory, the ender chest and a
+/// chest's `Items`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ItemStackWithSlot {
+    pub slot: u8,
+    pub stack: ItemStackValue,
+}
+
+impl Serialize for ItemStackWithSlot {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = s.serialize_map(None)?;
+        map.serialize_entry("Slot", &(self.slot as i8))?;
+        map.serialize_entry("id", &self.stack.item)?;
+        map.serialize_entry("count", &self.stack.count)?;
+        if !self.stack.components.is_empty() {
+            map.serialize_entry("components", &self.stack.components)?;
+        }
+        map.end()
+    }
+}
+
+/// Written field by field: `flatten` would buffer the map and lose the NBT
+/// tag types inside `components`.
+impl<'de> Deserialize<'de> for ItemStackWithSlot {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct SlotVisitor;
+
+        impl<'de> Visitor<'de> for SlotVisitor {
+            type Value = ItemStackWithSlot;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("an item stack with a Slot")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                const FIELDS: [&str; 4] = ["Slot", "id", "count", "components"];
+                let mut slot = None;
+                let mut item = None;
+                let mut count = None;
+                let mut components = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    let taken = match key.as_str() {
+                        "Slot" => slot.is_some(),
+                        "id" => item.is_some(),
+                        "count" => count.is_some(),
+                        "components" => components.is_some(),
+                        other => return Err(A::Error::unknown_field(other, &FIELDS)),
+                    };
+                    if taken {
+                        return Err(A::Error::custom(format_args!("Duplicate key '{key}'")));
+                    }
+                    match key.as_str() {
+                        "Slot" => slot = Some((map.next_value_seed(IntSeed)? & 0xFF) as u8),
+                        "id" => item = Some(map.next_value()?),
+                        "count" => count = Some(map.next_value()?),
+                        _ => components = Some(map.next_value()?),
+                    }
+                }
+                let stack = ItemStackValue {
+                    item: item.ok_or_else(|| A::Error::missing_field("id"))?,
+                    count: count.unwrap_or_default(),
+                    components: components.unwrap_or_default(),
+                };
+                stack.validate().map_err(A::Error::custom)?;
+                Ok(ItemStackWithSlot {
+                    slot: slot.unwrap_or(0),
+                    stack,
+                })
+            }
+        }
+
+        d.deserialize_map(SlotVisitor)
+    }
+}
+
+struct IntSeed;
+
+impl<'de> serde::de::DeserializeSeed<'de> for IntSeed {
+    type Value = i32;
+
+    fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<i32, D::Error> {
+        codec::int_value(d)
+    }
+}

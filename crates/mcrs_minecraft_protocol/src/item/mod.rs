@@ -13,7 +13,8 @@ pub use ctx::{DecodeCtx, EncodeCtx, Raw};
 pub use kind::{ItemComponentKind, ItemComponentValue, ItemDataComponent};
 pub use patch::{ComponentMap, ComponentPatch};
 pub use stack::{
-    HashedPatchMap, HashedSlot, ItemStackValue, RawDelimitedStack, RawStack, Slot, Template,
+    HashedPatchMap, HashedSlot, ItemStackValue, ItemStackWithSlot, RawDelimitedStack, RawStack,
+    Slot, Template,
 };
 pub use trade::{ItemCost, MerchantOffer, RawMerchantOffer};
 

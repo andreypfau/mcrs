@@ -386,6 +386,7 @@ pub(crate) fn deliver_merged_columns(
     mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
     registry: Option<Res<RegistryAccess>>,
+    items: Option<Res<mcrs_minecraft_item::Items>>,
     mut commands: Commands,
     mut slow: Local<SlowColumns>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
@@ -444,6 +445,7 @@ pub(crate) fn deliver_merged_columns(
                     *dim,
                     &sections_data,
                     registry.as_deref(),
+                    items.as_deref(),
                     entities,
                 );
             }

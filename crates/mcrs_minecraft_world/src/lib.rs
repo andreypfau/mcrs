@@ -140,8 +140,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(test_types::TestInstanceLoader);
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
-        app.init_resource::<StaticRegistry<mcrs_minecraft_item::Item>>()
-            .init_resource::<StaticRegistry<sound::SoundEvent>>()
+        app.init_resource::<StaticRegistry<sound::SoundEvent>>()
             .init_resource::<StaticRegistry<entity::EntityType>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
             .init_resource::<LoadedRegistryAssets>();
@@ -160,7 +159,7 @@ impl Plugin for MinecraftWorldPlugin {
             block_tags::ALL_BLOCK_TAGS,
         )
         .add_tagged_registry::<mcrs_minecraft_block::Fluid, mcrs_minecraft_block::definition::Fluids>(&[])
-        .add_tagged_registry::<mcrs_minecraft_item::Item, StaticRegistry<mcrs_minecraft_item::Item>>(item_tags::ALL_ITEM_TAGS)
+        .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>(item_tags::ALL_ITEM_TAGS)
         .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>(
             enchantment_tags::ALL_ENCHANTMENT_TAGS,
         )
@@ -418,16 +417,11 @@ impl Plugin for MinecraftWorldPlugin {
             app.insert_resource(mcrs_minecraft_block::definition::Fluids(
                 definitions.clone(),
             ));
+            let items = mcrs_minecraft_item::load_item_definitions(&asset_server, &definitions)
+                .expect("the item definition corpus loads");
+            tracing::info!(items = items.len(), "loaded item definitions");
+            app.insert_resource(mcrs_minecraft_item::Items(std::sync::Arc::new(items)));
             app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
-        }
-        {
-            let mut items = app
-                .world_mut()
-                .resource_mut::<StaticRegistry<mcrs_minecraft_item::Item>>();
-            mcrs_minecraft_item::minecraft::register_all_items(&mut items);
-            tracing::info!(count = items.len(), "registered StaticRegistry<Item>");
-            items.freeze();
-            tracing::info!("frozen StaticRegistry<Item>");
         }
         {
             let mut sounds = app

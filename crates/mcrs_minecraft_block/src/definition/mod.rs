@@ -103,6 +103,7 @@ pub struct BlockEntry {
     pub state_count: u16,
     pub properties: BlockProperties,
     pub placement_filter: Option<PlacementFilter>,
+    pub container_slots: Option<u8>,
 }
 
 impl BlockEntry {
@@ -682,6 +683,11 @@ impl Builder {
             state_count: state_count as u16,
             properties,
             placement_filter: components.placement_filter,
+            container_slots: components
+                .block_entity
+                .as_ref()
+                .and_then(|block_entity| block_entity.container)
+                .map(|container| container.slot_count),
         });
         Ok(())
     }

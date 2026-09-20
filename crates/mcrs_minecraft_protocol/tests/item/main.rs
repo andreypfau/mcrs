@@ -11,5 +11,6 @@ mod recipe_packets;
 mod records;
 mod registry_refs;
 mod scaffold;
+mod slotted;
 mod symmetry;
 mod table;

@@ -569,17 +569,19 @@ pub(crate) fn resolve_timeline_tags(
 }
 
 pub(crate) fn register_static_registries_with_access(
-    item_registry: Res<StaticRegistry<item::Item>>,
+    items: Res<item::Items>,
     sound_registry: Res<StaticRegistry<sound::SoundEvent>>,
     entity_registry: Res<StaticRegistry<entity::EntityType>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut access: ResMut<mcrs_minecraft_assets::RegistryAccess>,
 ) {
     access.register(Box::new(
-        mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
+        mcrs_minecraft_assets::RegistrySnapshotErased::from_entries(
             "minecraft:item",
-            &item_registry,
-            |_, _| None,
+            items
+                .iter()
+                .map(|entry| (entry.identifier.clone(), None))
+                .collect(),
             Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
         ),
     ));

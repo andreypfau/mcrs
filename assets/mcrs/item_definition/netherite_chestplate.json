@@ -1,0 +1,64 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:item": {
+    "description": {
+      "identifier": "minecraft:netherite_chestplate",
+      "protocol_id": 1093
+    },
+    "components": {
+      "minecraft:lore": [],
+      "minecraft:max_damage": 592,
+      "minecraft:item_name": {
+        "translate": "item.minecraft.netherite_chestplate"
+      },
+      "minecraft:attribute_modifiers": [
+        {
+          "type": "minecraft:armor",
+          "id": "minecraft:armor.chestplate",
+          "amount": 8.0,
+          "operation": "add_value",
+          "slot": "chest"
+        },
+        {
+          "type": "minecraft:armor_toughness",
+          "id": "minecraft:armor.chestplate",
+          "amount": 3.0,
+          "operation": "add_value",
+          "slot": "chest"
+        },
+        {
+          "type": "minecraft:knockback_resistance",
+          "id": "minecraft:armor.chestplate",
+          "amount": 0.10000000149011612,
+          "operation": "add_value",
+          "slot": "chest"
+        }
+      ],
+      "minecraft:tooltip_display": {},
+      "minecraft:attack_animation": {},
+      "minecraft:rarity": "common",
+      "minecraft:enchantable": {
+        "value": 15
+      },
+      "minecraft:enchantments": {},
+      "minecraft:repair_cost": 0,
+      "minecraft:max_stack_size": 1,
+      "minecraft:item_model": "minecraft:netherite_chestplate",
+      "minecraft:use_effects": {},
+      "minecraft:damage": 0,
+      "minecraft:interact_animation": {},
+      "minecraft:break_sound": "minecraft:entity.item.break",
+      "minecraft:repairable": {
+        "items": "#minecraft:repairs_netherite_armor"
+      },
+      "minecraft:damage_resistant": {
+        "types": "#minecraft:is_fire"
+      },
+      "minecraft:equippable": {
+        "slot": "chest",
+        "equip_sound": "minecraft:item.armor.equip_netherite",
+        "asset_id": "minecraft:netherite"
+      }
+    }
+  }
+}

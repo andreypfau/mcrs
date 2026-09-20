@@ -14,8 +14,8 @@ use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
-use mcrs_minecraft_item::component::{is_correct_for_drops, mining_speed};
-use mcrs_minecraft_item::{Item, ItemStack};
+use mcrs_minecraft_item::tool::{is_correct_for_drops, mining_speed};
+use mcrs_minecraft_item::{Items, StackComponent};
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::reposition::Reposition;
@@ -43,8 +43,9 @@ impl Plugin for DiggingPlugin {
         app.add_systems(
             Update,
             (
-                (player_start_destroy_block, handle_player_will_destroy_block)
-                    .run_if(resource_exists::<DynTagRegistry<VanillaBlock>>),
+                (player_start_destroy_block, handle_player_will_destroy_block).run_if(
+                    resource_exists::<DynTagRegistry<VanillaBlock>>.and_then(resource_exists::<Items>),
+                ),
                 player_abort_destroy_block,
                 player_stop_destroy_block,
             ),
@@ -129,7 +130,8 @@ fn player_start_destroy_block(
         &BlockBreakSpeed,
         &PlayerHotbarSlots,
     )>,
-    items: Query<(&ItemStack, Option<&Tool>)>,
+    tools: Query<StackComponent<Tool>>,
+    items: Res<Items>,
     tag_registry: Res<DynTagRegistry<VanillaBlock>>,
     blocks: Res<Blocks>,
     time: Res<Time<Fixed>>,
@@ -177,6 +179,7 @@ fn player_start_destroy_block(
                 block_state,
                 &blocks,
                 hotbar,
+                &tools,
                 &items,
                 mining_efficiency,
                 block_break_speed,
@@ -309,7 +312,8 @@ fn get_destroy_speed(
     state: BlockStateId,
     blocks: &BlockDefinitions,
     hotbar: &PlayerHotbarSlots,
-    items: &Query<(&ItemStack, Option<&Tool>)>,
+    tools: &Query<StackComponent<Tool>>,
+    items: &Items,
     mining_efficiency: &MiningEfficiency,
     block_break_speed: &BlockBreakSpeed,
     tag_registry: &DynTagRegistry<VanillaBlock>,
@@ -319,7 +323,7 @@ fn get_destroy_speed(
         return 0.0;
     }
     let (has_correct_tool, mut speed) =
-        extract_tool_data(state, blocks, hotbar, items, tag_registry);
+        extract_tool_data(state, blocks, hotbar, tools, items, tag_registry);
     if speed > 1.0 {
         speed += mining_efficiency.value();
     }
@@ -332,7 +336,8 @@ pub fn extract_tool_data(
     state: BlockStateId,
     blocks: &BlockDefinitions,
     hotbar: &PlayerHotbarSlots,
-    items: &Query<(&ItemStack, Option<&Tool>)>,
+    tools: &Query<StackComponent<Tool>>,
+    items: &Items,
     tag_registry: &DynTagRegistry<VanillaBlock>,
 ) -> (bool, f32) {
     let block = blocks.owner(state).identifier.as_str();
@@ -344,14 +349,15 @@ pub fn extract_tool_data(
         debug!(block, "no selected slot");
         return (!requires_correct_tool, 1.0);
     };
-    let Ok((stack, tool)) = items.get(slot) else {
+    let Ok(held) = tools.get(slot) else {
         debug!(block, "slot entity missing ItemStack");
         return (!requires_correct_tool, 1.0);
     };
-    let item_id = stack.item_id();
-    let item: &Item = item_id.as_ref();
-    let Some(tool) = tool.or(item.components.get::<Tool>()) else {
-        debug!(block, item = %item.identifier, "no tool component");
+    let item = items
+        .get(held.stack.item())
+        .map_or("?", |entry| entry.identifier.as_str());
+    let Some(tool) = held.get(items) else {
+        debug!(block, item, "no tool component");
         return (!requires_correct_tool, 1.0);
     };
     let has_correct_tool = if requires_correct_tool {
@@ -362,7 +368,7 @@ pub fn extract_tool_data(
     let speed = mining_speed(tool, block, blocks, tag_registry);
     debug!(
         block,
-        item = %item.identifier,
+        item,
         requires_correct_tool,
         has_correct_tool,
         speed,
@@ -377,7 +383,8 @@ fn handle_player_will_destroy_block(
     mut writer: MessageWriter<BlockSetRequest>,
     mut destroyed: MessageWriter<BlockDestroyed>,
     players: Query<(&InDimension, &PlayerHotbarSlots)>,
-    items: Query<(&ItemStack, Option<&Enchantments>, Option<&Tool>)>,
+    tools: Query<(StackComponent<Tool>, StackComponent<Enchantments>)>,
+    items: Res<Items>,
     tag_registry: Res<DynTagRegistry<VanillaBlock>>,
     blocks: Res<Blocks>,
     mut loot_tables: ResMut<BlockLootTables>,
@@ -393,29 +400,24 @@ fn handle_player_will_destroy_block(
         let state = blocks.state(event.block_state);
         let block_id = blocks.owner(event.block_state).identifier.as_str();
         let held = hotbar.get_selected_slot();
+        let held_tool = held.and_then(|slot| tools.get(slot).ok());
 
         let has_correct_tool = if state
             .flags
             .contains(BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS)
         {
-            held.and_then(|slot| items.get(slot).ok())
-                .and_then(|(stack, _, tool)| {
-                    tool.or_else(|| {
-                        <&Item>::try_from(stack.item_id())
-                            .ok()?
-                            .components
-                            .get::<Tool>()
-                    })
-                })
+            held_tool
+                .as_ref()
+                .and_then(|(tool, _)| tool.get(&items))
                 .is_some_and(|tool| is_correct_for_drops(tool, block_id, &blocks, &tag_registry))
         } else {
             true
         };
 
         if has_correct_tool {
-            let tool_enchantments = held
-                .and_then(|slot| items.get(slot).ok())
-                .and_then(|(_, enchantments, _)| enchantments);
+            let tool_enchantments = held_tool
+                .as_ref()
+                .and_then(|(_, enchantments)| enchantments.get(&items));
 
             if let Some(loot) = state.loot {
                 match loot_tables.tables.get(&loot) {

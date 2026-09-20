@@ -70,7 +70,7 @@ pub struct Villager(pub VillagerData);
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ItemFrame {
-    pub item: ItemStack,
+    pub item: Option<ItemStack>,
     pub facing: Direction,
 }
 
