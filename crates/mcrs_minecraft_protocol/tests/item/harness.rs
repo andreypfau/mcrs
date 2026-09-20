@@ -14,6 +14,7 @@ use mcrs_minecraft_registry::RegistryLookup;
 pub struct TestLookup {
     by_name: HashMap<&'static str, HashMap<ResourceLocation, u32>>,
     by_id: HashMap<&'static str, Vec<Option<ResourceLocation>>>,
+    block_states: Vec<(u32, ResourceLocation, Vec<(String, String)>)>,
 }
 
 impl TestLookup {
@@ -21,6 +22,7 @@ impl TestLookup {
         let mut lookup = TestLookup {
             by_name: HashMap::new(),
             by_id: HashMap::new(),
+            block_states: Vec::new(),
         };
         lookup.registry(
             "item",
@@ -91,6 +93,17 @@ impl TestLookup {
         self.by_name.insert(name, by_name);
         self.by_id.insert(name, by_id);
     }
+
+    pub fn block_state(&mut self, id: u32, block: &str, properties: &[(&str, &str)]) {
+        self.block_states.push((
+            id,
+            ResourceLocation::minecraft(block),
+            properties
+                .iter()
+                .map(|(name, value)| (name.to_string(), value.to_string()))
+                .collect(),
+        ));
+    }
 }
 
 impl RegistryLookup for TestLookup {
@@ -100,6 +113,26 @@ impl RegistryLookup for TestLookup {
 
     fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
         self.by_id.get(registry)?.get(id as usize)?.as_ref()
+    }
+
+    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u32> {
+        self.block_states
+            .iter()
+            .find(|(_, name, known)| {
+                name == block
+                    && known.len() == properties.len()
+                    && known
+                        .iter()
+                        .all(|(k, v)| properties.contains(&(k.as_str(), v.as_str())))
+            })
+            .map(|(id, _, _)| *id)
+    }
+
+    fn block_state(&self, id: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+        self.block_states
+            .iter()
+            .find(|(known, _, _)| *known == id)
+            .map(|(_, name, properties)| (name.clone(), properties.clone()))
     }
 }
 

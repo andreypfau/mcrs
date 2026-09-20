@@ -1,8 +1,10 @@
+mod advancement;
 mod corpus;
 mod golden;
 mod harness;
 mod holders;
 mod nested;
+mod particle;
 mod plain;
 mod predicate;
 mod records;

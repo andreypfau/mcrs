@@ -28,6 +28,7 @@ pub mod __private {
     pub use crate::{Decode, Encode, Packet};
 }
 
+pub mod advancement;
 mod array;
 mod bit_set;
 mod block;
@@ -53,6 +54,7 @@ pub mod light_codec;
 mod lp_vec3;
 pub mod packed_section_pos;
 pub mod packets;
+pub mod particle;
 mod pos;
 pub mod profile;
 mod raw;

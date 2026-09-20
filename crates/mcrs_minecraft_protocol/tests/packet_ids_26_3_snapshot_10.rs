@@ -90,6 +90,7 @@ fn play_clientbound_ids() {
         0x26 => ClientboundGameEvent, Clientbound, Game;
         0x2C => ClientboundKeepAlive, Clientbound, Game;
         0x2D => ClientboundLevelChunkWithLight<'_>, Clientbound, Game;
+        0x2F => ClientboundLevelParticles, Clientbound, Game;
         0x30 => ClientboundLightUpdate<'_>, Clientbound, Game;
         0x31 => ClientboundLogin<'_>, Clientbound, Game;
         0x35 => ClientboundMoveEntityPos, Clientbound, Game;
@@ -109,6 +110,7 @@ fn play_clientbound_ids() {
         0x6C => ClientboundSetPassengers, Clientbound, Game;
         0x77 => ClientboundStartConfiguration, Clientbound, Game;
         0x7B => ClientboundSystemChatPacket, Clientbound, Game;
+        0x84 => ClientboundUpdateAdvancements, Clientbound, Game;
         0x85 => ClientboundUpdateAttributes<'_>, Clientbound, Game;
     }
 }
@@ -137,6 +139,7 @@ fn play_serverbound_ids() {
         0x20 => ServerboundMovePlayerRot, Serverbound, Game;
         0x21 => ServerboundMovePlayerStatusOnly, Serverbound, Game;
         0x29 => ServerboundPlayerAction, Serverbound, Game;
+        0x33 => ServerboundSeenAdvancements, Serverbound, Game;
         0x36 => ServerboundSetCarriedItem, Serverbound, Game;
         0x42 => ServerboundUseItemOn, Serverbound, Game;
     }

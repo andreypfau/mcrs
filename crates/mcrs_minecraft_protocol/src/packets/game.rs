@@ -1,4 +1,5 @@
 pub mod clientbound {
+    use crate::advancement::{AdvancementProgress, RawAdvancement};
     use crate::chunk::ChunkBlockUpdateEntry;
     use crate::entity::minecart::MinecartStep;
     use crate::entity::player::*;
@@ -6,6 +7,7 @@ pub mod clientbound {
     use crate::game_event::GameEventKind;
     use crate::item::RawStack;
     use crate::packets::common::clientbound::KeepAlive;
+    use crate::particle::RawParticle;
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::text::Text;
     use crate::{ColumnPos, Look, LpVec3, PositionFlag, VarInt};
@@ -126,6 +128,18 @@ pub mod clientbound {
         pub pos: ColumnPos,
         pub chunk_data: crate::chunk::ChunkData<'a>,
         pub light_data: crate::chunk::LightData<'a>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x2F, state=Game)]
+    pub struct ClientboundLevelParticles {
+        pub override_limiter: bool,
+        pub always_show: bool,
+        pub pos: DVec3,
+        pub dist: [f32; 3],
+        pub max_speed: f32,
+        pub count: i32,
+        pub particle: RawParticle,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -416,6 +430,16 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x84, state=Game)]
+    pub struct ClientboundUpdateAdvancements {
+        pub reset: bool,
+        pub added: Vec<RawAdvancement>,
+        pub removed: Vec<ResourceLocation>,
+        pub progress: Vec<(ResourceLocation, AdvancementProgress)>,
+        pub show_advancements: bool,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
     #[packet(id=0x85, state=Game)]
     pub struct ClientboundUpdateAttributes<'a> {
         pub entity_id: VarInt,
@@ -541,7 +565,7 @@ pub mod serverbound {
     use crate::pos::MoveFlags;
     use crate::{Bounded, Difficulty, Direction, GameMode, Look, Position, VarInt};
     use derive_more::From;
-    use mcrs_minecraft_core::BlockPos;
+    use mcrs_minecraft_core::{BlockPos, ResourceLocation};
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use uuid::Uuid;
 
@@ -683,6 +707,18 @@ pub mod serverbound {
         pub pos: BlockPos,
         pub direction: Direction,
         pub sequence: VarInt,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub enum SeenAdvancementsAction {
+        OpenedTab(ResourceLocation),
+        ClosedScreen,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
+    #[packet(id=0x33, state=Game)]
+    pub struct ServerboundSeenAdvancements {
+        pub action: SeenAdvancementsAction,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
