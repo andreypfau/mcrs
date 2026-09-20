@@ -423,14 +423,15 @@ pub fn unsigned_byte<'de, D: Deserializer<'de>>(d: D) -> Result<i8, D::Error> {
     int_value(d).map(|v| v as i8)
 }
 
-/// `lenientOptionalFieldOf`: a present-but-malformed value reads as absent.
+/// `lenientOptionalFieldOf`: a present-but-malformed value reads as absent,
+/// and so does a JSON `null`, which `JsonOps` reports as no entry at all.
 /// The value is buffered first so a failed parse never leaves a streaming
 /// input half-consumed.
 pub fn lenient<'de, D: Deserializer<'de>, T: DeserializeOwned + Default>(
     d: D,
 ) -> Result<T, D::Error> {
-    let tag = <NbtTag as Deserialize>::deserialize(d)?;
-    Ok(from_tag(tag).unwrap_or_default())
+    let tag = <Option<NbtTag> as Deserialize>::deserialize(d)?;
+    Ok(tag.and_then(|tag| from_tag(tag).ok()).unwrap_or_default())
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -203,8 +203,10 @@ fn is_zero(seed: &i64) -> bool {
 }
 
 /// `Codec.LONG`: any number's `longValue()`. A fraction is dropped; a value
-/// beyond the long range wraps from JSON (`BigDecimal.longValue`) and
-/// saturates from NBT (`Double.longValue`).
+/// beyond the long range wraps from JSON and saturates from NBT
+/// (`Double.longValue`). Vanilla wraps the exact decimal text
+/// (`BigDecimal.longValue`), while serde hands over the parsed double, so a
+/// text no double holds exactly (`1e40`) wraps to a different value.
 fn long_value<'de, D: Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
     struct LongValue {
         wrap_floats: bool,

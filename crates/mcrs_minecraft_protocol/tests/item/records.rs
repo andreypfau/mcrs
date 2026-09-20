@@ -11,10 +11,10 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
     BlockState, BrewingFuel, BucketEntityData, Compostable, CookingFuel, CustomData,
-    CustomModelData, DebugStickState, Fireworks, ItemComponentValue, ItemDataComponent, ItemModel,
-    LodestoneTracker, MapDecorations, NoteBlockSound, Profile, ProfileIdentity, Recipes,
-    ResolvableNumber, SignText, SignTextBack, SignTextFront, TooltipDisplay, TooltipStyle,
-    UseEffects, hash_ops,
+    CustomModelData, DebugStickState, Fireworks, ItemComponentKind, ItemComponentValue,
+    ItemDataComponent, ItemModel, LodestoneTracker, MapDecorations, NoteBlockSound, Profile,
+    ProfileIdentity, Recipes, ResolvableNumber, SignText, SignTextBack, SignTextFront,
+    TooltipDisplay, TooltipStyle, UseEffects, hash_ops,
 };
 use mcrs_minecraft_protocol::profile::Property;
 
@@ -134,6 +134,23 @@ fn error<T: ItemDataComponent>(json: &str) -> String {
         .to_string()
 }
 
+fn json_error(value: impl Into<ItemComponentValue>) -> String {
+    let mut out = Vec::new();
+    value
+        .into()
+        .serialize_value(&mut serde_json::Serializer::new(&mut out))
+        .unwrap_err()
+        .to_string()
+}
+
+fn wire_error(kind: ItemComponentKind, wire: &str) -> String {
+    let mut r = &hex(wire)[..];
+    format!(
+        "{:#}",
+        ItemComponentValue::decode_ctx_value(kind, &TestLookup::new(), &mut r).unwrap_err()
+    )
+}
+
 #[test]
 fn flat_records_match_vanilla() {
     check("use_effects_default", sample::<UseEffects>(0));
@@ -203,7 +220,21 @@ fn flat_records_match_vanilla() {
         error::<UseEffects>(r#"{"speed_multiplier":1.5}"#)
             .starts_with("Value 1.5 outside of range [0.0:1.0]")
     );
-    error::<mcrs_minecraft_protocol::item::Food>(r#"{"nutrition":-1,"saturation":0.6}"#);
+    assert!(
+        error::<mcrs_minecraft_protocol::item::Food>(r#"{"nutrition":-1,"saturation":0.6}"#)
+            .starts_with(GOLDEN["food_neg"]["error"])
+    );
+    assert!(
+        error::<mcrs_minecraft_protocol::item::Weapon>(r#"{"item_damage_per_attack":-1}"#)
+            .starts_with("Value must be non-negative: -1")
+    );
+    for id in ["minecraft:nope", "nope"] {
+        assert!(
+            error::<TooltipDisplay>(&format!(r#"{{"hidden_components":["{id}"]}}"#)).starts_with(
+                "Unknown registry key in ResourceKey[minecraft:root / minecraft:data_component_type]: minecraft:nope"
+            )
+        );
+    }
     assert!(
         error::<mcrs_minecraft_protocol::item::UseCooldown>(r#"{"seconds":0}"#)
             .starts_with("Value must be positive: 0.0")
@@ -304,6 +335,19 @@ fn text_bearing_records_match_vanilla() {
         error::<WrittenBookContent>(&big_page)
             .starts_with("Component was too large: greater than max size 32767")
     );
+    let page_of = |text: &str, count: usize| {
+        format!(
+            r#"{{"title":"T","author":"a","pages":["{}"]}}"#,
+            text.repeat(count)
+        )
+    };
+    for (text, fits) in [("\u{1F600}", 16382), ("\u{2028}", 5460)] {
+        parse::<WrittenBookContent>(&page_of(text, fits));
+        assert!(
+            error::<WrittenBookContent>(&page_of(text, fits + 1))
+                .contains("Component was too large: greater than max size 32767")
+        );
+    }
 
     check("sign_empty", SignTextFront(SignText::default()));
     check("sign_same_filtered", SignTextFront(sample::<SignText>(1)));
@@ -316,6 +360,10 @@ fn text_bearing_records_match_vanilla() {
     );
     assert_eq!(
         parse::<SignTextFront>(r#"{"messages":["a","b","c","d"],"filtered_messages":["a","b"]}"#),
+        SignTextFront(sample::<SignText>(1))
+    );
+    assert_eq!(
+        parse::<SignTextFront>(r#"{"messages":["a","b","c","d"],"filtered_messages":null}"#),
         SignTextFront(sample::<SignText>(1))
     );
     error::<SignTextFront>(r#"{"messages":["a","b","c"]}"#);
@@ -377,6 +425,46 @@ fn profiles_match_vanilla() {
         error::<Profile>(r#""abcdefghijklmnopq""#)
             .contains(r#"String "abcdefghijklmnopq" is too long: 17, expected range [0-16]"#)
     );
+    let nine = r#"["1","2","3","4","5","6","7","8","9"]"#;
+    let eighteen = parse::<Profile>(&format!(
+        r#"{{"name":"Steve","properties":{{"a":{nine},"b":{nine}}}}}"#
+    ));
+    let ProfileIdentity::Partial { properties, .. } = &eighteen.profile else {
+        panic!("{eighteen:?}");
+    };
+    assert_eq!(properties.len(), 18);
+    assert_eq!(
+        json_error(eighteen.clone()),
+        "List is too long: 18, expected range [0-16]"
+    );
+    let mut wire = Vec::new();
+    assert!(
+        ItemComponentValue::from(eighteen)
+            .encode_ctx_value(&TestLookup::new(), &mut wire)
+            .is_err()
+    );
+    let name65 = "n".repeat(65);
+    let err = wire_error(
+        Profile::KIND,
+        &format!("0001054e6f746368000141{}01620000000000", "6e".repeat(65)),
+    );
+    assert!(err.contains("expected <= 64, got 65"), "{err}");
+    let mut long_name = Profile::named("Notch").unwrap();
+    let ProfileIdentity::Partial { properties, .. } = &mut long_name.profile else {
+        panic!("{long_name:?}");
+    };
+    properties.push(Property {
+        name: name65,
+        value: "b".into(),
+        signature: None,
+    });
+    let err = ItemComponentValue::from(long_name)
+        .encode_ctx_value(&TestLookup::new(), &mut wire)
+        .unwrap_err();
+    assert!(
+        format!("{err:#}").contains("expected <= 64, got 65"),
+        "{err:#}"
+    );
 }
 
 #[test]
@@ -405,6 +493,23 @@ fn lodestone_and_fireworks_match_vanilla() {
     let wrapped = parse::<Fireworks>(r#"{"flight_duration":300}"#);
     assert_eq!(wrapped.flight_duration(), 44);
     check("fireworks_big", wrapped);
+    let mut r = &hex("ac0200")[..];
+    let from_wire =
+        ItemComponentValue::decode_ctx_value(Fireworks::KIND, &TestLookup::new(), &mut r).unwrap();
+    assert!(r.is_empty());
+    assert_eq!(
+        Fireworks::from_value(&from_wire).unwrap().flight_duration(),
+        300
+    );
+    let mut wire = Vec::new();
+    from_wire
+        .encode_ctx_value(&TestLookup::new(), &mut wire)
+        .unwrap();
+    assert_eq!(wire, hex("ac0200"));
+    assert_eq!(
+        json_error(from_wire),
+        "Unsigned byte was too large: 300 > 255"
+    );
 }
 
 #[test]

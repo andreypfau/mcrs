@@ -1,11 +1,11 @@
 use std::io::Write;
 use std::ops::Not;
 
-use anyhow::Context;
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registry::RegistryLookup;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::ser::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::book::size_limited;
 use crate::item::component::common::{ordinal_enum, unsigned_byte};
@@ -99,8 +99,23 @@ impl Sample for FireworkExplosion {
 
 pub const MAX_EXPLOSIONS: usize = 256;
 
-fn is_zero(value: &i8) -> bool {
+fn is_zero(value: &i32) -> bool {
     *value == 0
+}
+
+fn flight_duration<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
+    unsigned_byte(d).map(|b| b as u8 as i32)
+}
+
+/// The wire carries any VarInt, so a peer's value only fails here, as
+/// vanilla's does.
+fn unsigned_byte_tag<S: Serializer>(value: &i32, s: S) -> Result<S::Ok, S::Error> {
+    if *value > 255 {
+        return Err(S::Error::custom(format_args!(
+            "Unsigned byte was too large: {value} > 255"
+        )));
+    }
+    s.serialize_i8(*value as i8)
 }
 
 fn no_explosions(explosions: &Bounded<Vec<FireworkExplosion>, MAX_EXPLOSIONS>) -> bool {
@@ -112,10 +127,11 @@ fn no_explosions(explosions: &Bounded<Vec<FireworkExplosion>, MAX_EXPLOSIONS>) -
 pub struct Fireworks {
     #[serde(
         default,
-        deserialize_with = "unsigned_byte",
+        deserialize_with = "flight_duration",
+        serialize_with = "unsigned_byte_tag",
         skip_serializing_if = "is_zero"
     )]
-    flight_duration: i8,
+    flight_duration: i32,
     #[serde(
         default,
         deserialize_with = "size_limited",
@@ -132,30 +148,27 @@ impl Fireworks {
             explosions.len()
         );
         Ok(Fireworks {
-            flight_duration: flight_duration as i8,
+            flight_duration: flight_duration.into(),
             explosions: Bounded(explosions),
         })
     }
 
-    pub fn flight_duration(&self) -> u8 {
-        self.flight_duration as u8
+    pub fn flight_duration(&self) -> i32 {
+        self.flight_duration
     }
 }
 
 impl EncodeCtx for Fireworks {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.flight_duration() as i32).encode(&mut w)?;
+        VarInt(self.flight_duration).encode(&mut w)?;
         self.explosions.encode_ctx(ctx, w)
     }
 }
 
 impl DecodeCtx<'_> for Fireworks {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let flight_duration = VarInt::decode(r)?.0;
-        let flight_duration = u8::try_from(flight_duration)
-            .with_context(|| format!("Unsigned byte was too large: {flight_duration} > 255"))?;
         Ok(Fireworks {
-            flight_duration: flight_duration as i8,
+            flight_duration: VarInt::decode(r)?.0,
             explosions: Bounded::decode_ctx(ctx, r)?,
         })
     }

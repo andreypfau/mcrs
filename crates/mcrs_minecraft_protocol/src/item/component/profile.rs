@@ -6,7 +6,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
-use serde::ser::SerializeMap;
+use serde::ser::{Error as _, SerializeMap};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
@@ -122,6 +122,12 @@ impl Serialize for Profile {
                 properties
             }
         };
+        if properties.len() > MAX_PROPERTIES {
+            return Err(S::Error::custom(format_args!(
+                "List is too long: {}, expected range [0-{MAX_PROPERTIES}]",
+                properties.len()
+            )));
+        }
         if !properties.is_empty() {
             map.serialize_entry("properties", properties)?;
         }
@@ -292,13 +298,41 @@ fn properties<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Property>, D::Error
     d.deserialize_any(PropertiesVisitor)
 }
 
+#[derive(Encode, Decode)]
+struct WireProperty<'a> {
+    name: Bounded<&'a str, 64>,
+    value: Bounded<&'a str, 32767>,
+    signature: Option<Bounded<&'a str, 1024>>,
+}
+
 fn encode_properties(properties: &[Property], w: impl Write) -> anyhow::Result<()> {
     ensure!(
         properties.len() <= MAX_PROPERTIES,
         "{} properties exceed the maximum of {MAX_PROPERTIES}",
         properties.len()
     );
-    properties.encode(w)
+    let wire: Vec<WireProperty> = properties
+        .iter()
+        .map(|p| WireProperty {
+            name: Bounded(&p.name),
+            value: Bounded(&p.value),
+            signature: p.signature.as_deref().map(Bounded),
+        })
+        .collect();
+    wire.encode(w)
+}
+
+fn decode_properties(r: &mut &[u8]) -> anyhow::Result<Vec<Property>> {
+    let wire = Bounded::<Vec<WireProperty>, MAX_PROPERTIES>::decode(r)?.0;
+    Ok(grouped_by_name(
+        wire.into_iter()
+            .map(|p| Property {
+                name: p.name.0.into(),
+                value: p.value.0.into(),
+                signature: p.signature.map(|s| s.0.into()),
+            })
+            .collect(),
+    ))
 }
 
 impl EncodeCtx for Profile {
@@ -333,20 +367,17 @@ impl EncodeCtx for Profile {
 
 impl DecodeCtx<'_> for Profile {
     fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let properties = |r: &mut &[u8]| {
-            Bounded::<Vec<Property>, MAX_PROPERTIES>::decode(r).map(|b| grouped_by_name(b.0))
-        };
         let profile = if bool::decode(r)? {
             ProfileIdentity::Full(GameProfileValue {
                 id: Uuid::decode(r)?,
                 name: PlayerName::decode(r)?,
-                properties: properties(r)?,
+                properties: decode_properties(r)?,
             })
         } else {
             ProfileIdentity::Partial {
                 name: Option::decode(r)?,
                 id: Option::decode(r)?,
-                properties: properties(r)?,
+                properties: decode_properties(r)?,
             }
         };
         Ok(Profile {

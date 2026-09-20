@@ -107,13 +107,18 @@ pub struct WrittenBookContent {
 }
 
 /// `ComponentSerialization.flatRestrictedCodec`: a page is measured by the
-/// length of its flat JSON text.
+/// length of its flat JSON text in UTF-16 units, as Gson's `JsonWriter`
+/// emits it, which also escapes U+2028 and U+2029 as six characters.
 fn restricted_pages<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Filterable<Text>>, D::Error> {
     let pages = Vec::<Filterable<Text>>::deserialize(d)?;
     for page in &pages {
         for text in std::iter::once(&page.raw).chain(page.filtered.iter()) {
             let json = serde_json::to_string(text).map_err(D::Error::custom)?;
-            if json.chars().count() > WRITTEN_PAGE_CHARS {
+            let escaped = json
+                .chars()
+                .filter(|c| matches!(c, '\u{2028}' | '\u{2029}'))
+                .count();
+            if json.encode_utf16().count() + 5 * escaped > WRITTEN_PAGE_CHARS {
                 return Err(D::Error::custom(format_args!(
                     "Component was too large: greater than max size {WRITTEN_PAGE_CHARS}"
                 )));
