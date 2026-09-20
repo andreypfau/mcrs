@@ -3,6 +3,7 @@ mod harness;
 mod holders;
 mod nested;
 mod plain;
+mod predicate;
 mod records;
 mod registry_refs;
 mod scaffold;

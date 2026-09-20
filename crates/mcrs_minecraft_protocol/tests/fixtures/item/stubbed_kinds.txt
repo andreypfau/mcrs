@@ -1,3 +1,0 @@
-minecraft:can_break
-minecraft:can_place_on
-minecraft:lock
