@@ -56,6 +56,7 @@ pub mod packets;
 mod pos;
 pub mod profile;
 mod raw;
+pub mod recipe;
 pub mod registry;
 pub mod resource_pack;
 pub mod section;

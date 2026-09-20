@@ -9,7 +9,7 @@ pub mod stack;
 pub mod trade;
 
 pub use component::*;
-pub use ctx::{DecodeCtx, EncodeCtx};
+pub use ctx::{DecodeCtx, EncodeCtx, Raw};
 pub use kind::{ItemComponentKind, ItemComponentValue, ItemDataComponent};
 pub use patch::{ComponentMap, ComponentPatch};
 pub use stack::{

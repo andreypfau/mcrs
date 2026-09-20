@@ -5,6 +5,7 @@ mod holders;
 mod nested;
 mod plain;
 mod predicate;
+mod recipe_packets;
 mod records;
 mod registry_refs;
 mod scaffold;

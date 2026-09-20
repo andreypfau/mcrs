@@ -10,7 +10,7 @@ use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::{ItemReg, RegistryName};
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, nested};
 use crate::item::hash_ops;
 use crate::item::kind::ItemComponentKind;
 use crate::item::patch::{ComponentPatch, PersistentValue};
@@ -189,10 +189,12 @@ impl EncodeCtx for Template {
 
 impl<'a> DecodeCtx<'a> for Template {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let item = ResourceKey::decode_ctx(ctx, r)?;
-        let count = VarInt::decode(r)?.0;
-        let components = ComponentPatch::decode_ctx(ctx, r)?;
-        Template::new(item, count, components).map_err(anyhow::Error::msg)
+        nested(|| {
+            let item = ResourceKey::decode_ctx(ctx, r)?;
+            let count = VarInt::decode(r)?.0;
+            let components = ComponentPatch::decode_ctx(ctx, r)?;
+            Template::new(item, count, components).map_err(anyhow::Error::msg)
+        })
     }
 }
 
