@@ -241,3 +241,47 @@ fn errors_read_like_vanilla() {
     );
     let _: Template = serde_json::from_str(r#""minecraft:stone""#).unwrap();
 }
+
+#[test]
+fn wire_templates_are_checked_like_the_vanilla_constructor() {
+    let lookup = TestLookup::new();
+    let decode = |kind, wire: &str| {
+        let mut r = &hex(wire)[..];
+        ItemComponentValue::decode_ctx_value(kind, &lookup, &mut r)
+    };
+    let json = |value: &ItemComponentValue| {
+        let mut out = Vec::new();
+        value
+            .serialize_value(&mut serde_json::Serializer::new(&mut out))
+            .map(|()| String::from_utf8(out).unwrap())
+            .map_err(|e| e.to_string())
+    };
+
+    let air = decode(ItemComponentKind::UseRemainder, "00010000").unwrap_err();
+    assert_eq!(air.to_string(), "Item must not be minecraft:air");
+    let zero = decode(ItemComponentKind::UseRemainder, "01000000").unwrap_err();
+    assert_eq!(zero.to_string(), "Item must be non-empty");
+
+    let hundred = decode(ItemComponentKind::UseRemainder, "01640000").unwrap();
+    assert_eq!(
+        json(&hundred),
+        Err("Value must be within range [1;99]: 100".into())
+    );
+    let negative = decode(ItemComponentKind::ChargedProjectiles, "0101ffffffff0f0000").unwrap();
+    assert_eq!(
+        json(&negative),
+        Err("Value must be within range [1;99]: -1".into())
+    );
+    let mut wire = Vec::new();
+    negative.encode_ctx_value(&lookup, &mut wire).unwrap();
+    assert_eq!(wire, hex("0101ffffffff0f0000"));
+
+    for flag in ["02", "ff"] {
+        let back = decode(
+            ItemComponentKind::PotDecorations,
+            &format!("{flag}01010000000000"),
+        )
+        .unwrap();
+        assert_eq!(json(&back).unwrap(), r#"{"back":{"id":"minecraft:stone"}}"#);
+    }
+}
