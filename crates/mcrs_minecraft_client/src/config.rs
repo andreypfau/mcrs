@@ -52,11 +52,7 @@ const MESH_IN_FLIGHT: usize = 128;
 #[cfg(target_family = "wasm")]
 const MESH_PER_FRAME: usize = 32;
 
-/// The browser keeps vanilla's default; the desktop asks for three times vanilla's maximum.
-#[cfg(not(target_family = "wasm"))]
 const VIEW_DISTANCE: u8 = 96;
-#[cfg(target_family = "wasm")]
-const VIEW_DISTANCE: u8 = 12;
 pub const MAX_VIEW_DISTANCE: u8 = 96;
 
 static KNOBS: OnceLock<HashMap<String, String>> = OnceLock::new();
