@@ -7,12 +7,54 @@ use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::OptionalUnsignedInt;
+use crate::item::ctx::nested;
 use crate::item::{
     DecodeCtx, EncodeCtx, Holder, ItemComponentKind, ItemReg, Template, TrimPattern,
 };
 use crate::{Decode as _, Encode as _, VarInt};
 
-pub type Ingredient = HolderSet<ResourceKey<ItemReg>>;
+validated!(Ingredient);
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(remote = "Self", transparent)]
+pub struct Ingredient(pub HolderSet<ResourceKey<ItemReg>>);
+
+impl Ingredient {
+    pub fn new(values: HolderSet<ResourceKey<ItemReg>>) -> Result<Self, String> {
+        let ingredient = Ingredient(values);
+        ingredient.validate()?;
+        Ok(ingredient)
+    }
+}
+
+impl Validate for Ingredient {
+    fn validate(&self) -> Result<(), String> {
+        if matches!(self.0, HolderSet::Tag(_)) {
+            return Ok(());
+        }
+        let entries = self.0.entries();
+        if entries.is_empty() {
+            return Err("Ingredients can't be empty".into());
+        }
+        if entries.iter().any(|item| item.as_str() == "minecraft:air") {
+            return Err("Ingredient can't contain air".into());
+        }
+        Ok(())
+    }
+}
+
+impl EncodeCtx for Ingredient {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+        self.validate().map_err(anyhow::Error::msg)?;
+        self.0.encode_ctx(ctx, w)
+    }
+}
+
+impl DecodeCtx<'_> for Ingredient {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+        Ingredient::new(HolderSet::decode_ctx(ctx, r)?).map_err(anyhow::Error::msg)
+    }
+}
 
 /// `minecraft:slot_display`, whose ids are the wire dispatch prefix.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode)]
@@ -84,7 +126,9 @@ pub enum SlotDisplay {
     #[serde(rename = "minecraft:item_stack", alias = "item_stack")]
     ItemStack { item: Template },
     #[serde(rename = "minecraft:tag", alias = "tag")]
-    Tag { tag: Ingredient },
+    Tag {
+        tag: HolderSet<ResourceKey<ItemReg>>,
+    },
     #[serde(rename = "minecraft:dyed", alias = "dyed")]
     Dyed {
         dye: Box<SlotDisplay>,
@@ -164,42 +208,44 @@ impl EncodeCtx for SlotDisplay {
 
 impl DecodeCtx<'_> for SlotDisplay {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let nested = |r: &mut &[u8]| SlotDisplay::decode_ctx(ctx, r).map(Box::new);
-        Ok(match SlotDisplayType::decode(r)? {
-            SlotDisplayType::Empty => Self::Empty,
-            SlotDisplayType::AnyFuel => Self::AnyFuel,
-            SlotDisplayType::WithAnyPotion => Self::WithAnyPotion {
-                contents: nested(r)?,
-            },
-            SlotDisplayType::OnlyWithComponent => Self::OnlyWithComponent {
-                contents: nested(r)?,
-                component: ItemComponentKind::decode(r)?,
-            },
-            SlotDisplayType::Item => Self::Item {
-                item: ResourceKey::decode_ctx(ctx, r)?,
-            },
-            SlotDisplayType::ItemStack => Self::ItemStack {
-                item: Template::decode_ctx(ctx, r)?,
-            },
-            SlotDisplayType::Tag => Self::Tag {
-                tag: HolderSet::decode_ctx(ctx, r)?,
-            },
-            SlotDisplayType::Dyed => Self::Dyed {
-                dye: nested(r)?,
-                target: nested(r)?,
-            },
-            SlotDisplayType::SmithingTrim => Self::SmithingTrim {
-                base: nested(r)?,
-                material: nested(r)?,
-                pattern: Holder::decode_ctx(ctx, r)?,
-            },
-            SlotDisplayType::WithRemainder => Self::WithRemainder {
-                input: nested(r)?,
-                remainder: nested(r)?,
-            },
-            SlotDisplayType::Composite => Self::Composite {
-                contents: Vec::decode_ctx(ctx, r)?,
-            },
+        nested(|| {
+            let boxed = |r: &mut &[u8]| SlotDisplay::decode_ctx(ctx, r).map(Box::new);
+            Ok(match SlotDisplayType::decode(r)? {
+                SlotDisplayType::Empty => Self::Empty,
+                SlotDisplayType::AnyFuel => Self::AnyFuel,
+                SlotDisplayType::WithAnyPotion => Self::WithAnyPotion {
+                    contents: boxed(r)?,
+                },
+                SlotDisplayType::OnlyWithComponent => Self::OnlyWithComponent {
+                    contents: boxed(r)?,
+                    component: ItemComponentKind::decode(r)?,
+                },
+                SlotDisplayType::Item => Self::Item {
+                    item: ResourceKey::decode_ctx(ctx, r)?,
+                },
+                SlotDisplayType::ItemStack => Self::ItemStack {
+                    item: Template::decode_ctx(ctx, r)?,
+                },
+                SlotDisplayType::Tag => Self::Tag {
+                    tag: HolderSet::decode_ctx(ctx, r)?,
+                },
+                SlotDisplayType::Dyed => Self::Dyed {
+                    dye: boxed(r)?,
+                    target: boxed(r)?,
+                },
+                SlotDisplayType::SmithingTrim => Self::SmithingTrim {
+                    base: boxed(r)?,
+                    material: boxed(r)?,
+                    pattern: Holder::decode_ctx(ctx, r)?,
+                },
+                SlotDisplayType::WithRemainder => Self::WithRemainder {
+                    input: boxed(r)?,
+                    remainder: boxed(r)?,
+                },
+                SlotDisplayType::Composite => Self::Composite {
+                    contents: Vec::decode_ctx(ctx, r)?,
+                },
+            })
         })
     }
 }
@@ -534,7 +580,7 @@ impl EncodeCtx for SelectableRecipe {
 impl DecodeCtx<'_> for SelectableRecipe {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(SelectableRecipe {
-            input: HolderSet::decode_ctx(ctx, r)?,
+            input: Ingredient::decode_ctx(ctx, r)?,
             option_display: SlotDisplay::decode_ctx(ctx, r)?,
         })
     }

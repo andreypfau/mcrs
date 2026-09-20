@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::sync::{Arc, LazyLock};
@@ -20,6 +21,32 @@ pub trait EncodeCtx {
 
 pub trait DecodeCtx<'a>: Sized {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self>;
+}
+
+pub const MAX_NESTING: u32 = 64;
+
+thread_local! {
+    static NESTING: Cell<u32> = const { Cell::new(0) };
+}
+
+/// Bounds the recursion of a self-containing wire value, since the layout
+/// alone lets a few kilobytes of wrappers overflow the stack. A Java client
+/// only loses the connection to that; a Rust one would abort.
+pub(crate) fn nested<T>(decode: impl FnOnce() -> anyhow::Result<T>) -> anyhow::Result<T> {
+    struct Unwind(u32);
+    impl Drop for Unwind {
+        fn drop(&mut self) {
+            NESTING.set(self.0);
+        }
+    }
+    let depth = NESTING.get();
+    ensure!(
+        depth < MAX_NESTING,
+        "value nested deeper than {MAX_NESTING} levels"
+    );
+    NESTING.set(depth + 1);
+    let _unwind = Unwind(depth);
+    decode()
 }
 
 macro_rules! ctx_free {

@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentKind, ItemComponentValue,
     ItemReg, Raw, Template, TrimPattern,
@@ -17,7 +18,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundPlaceRecipe, ServerboundRecipeBookChangeSettings, ServerboundRecipeBookSeenRecipe,
 };
 use mcrs_minecraft_protocol::recipe::{
-    RecipeBookCategory, RecipeBookEntry, RecipeBookSettings, RecipeBookType,
+    Ingredient, RecipeBookCategory, RecipeBookEntry, RecipeBookSettings, RecipeBookType,
     RecipeBookTypeSettings, RecipeDisplay, RecipeDisplayType, SelectableRecipe, SlotDisplay,
     SlotDisplayType,
 };
@@ -107,7 +108,10 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
             },
             group: Some(5),
             category: RecipeBookCategory::CraftingMisc,
-            crafting_requirements: Some(vec![HolderSet::One(key("stone")), planks()]),
+            crafting_requirements: Some(vec![
+                Ingredient(HolderSet::One(key("stone"))),
+                Ingredient(planks()),
+            ]),
             flags: RecipeBookEntry::FLAG_NOTIFICATION | RecipeBookEntry::FLAG_HIGHLIGHT,
         },
         RecipeBookEntry {
@@ -235,13 +239,13 @@ fn update_recipes_matches_vanilla() {
     let smithing_base: Vec<ResourceKey<ItemReg>> = vec![key("iron_chestplate")];
     let stonecutter = [
         SelectableRecipe {
-            input: HolderSet::One(key("stone")),
+            input: Ingredient(HolderSet::One(key("stone"))),
             option_display: SlotDisplay::ItemStack {
                 item: Template::new(key("stone_bricks"), 4, ComponentPatch::EMPTY).unwrap(),
             },
         },
         SelectableRecipe {
-            input: planks(),
+            input: Ingredient(planks()),
             option_display: item("oak_planks"),
         },
     ];
@@ -335,6 +339,52 @@ fn shaped_display_rejects_mismatched_dimensions() {
     let wire = [1u8, 2, 2, 1, 0, 0, 0];
     let error = Raw::<RecipeDisplay>::decode(&mut &wire[..]).unwrap_err();
     assert_eq!(error.to_string(), "Invalid shaped recipe display contents");
+}
+
+#[test]
+fn ingredient_rejects_what_vanilla_refuses_to_construct() {
+    let lookup = TestLookup::new();
+    let air = ResourceLocation::minecraft("air");
+    let air_id = lookup.id("item", &air).unwrap() as u8;
+    let empty_stonecutter = [1, SlotDisplayType::Empty as u8];
+    let error = Raw::<SelectableRecipe>::decode(&mut &empty_stonecutter[..]).unwrap_err();
+    assert_eq!(error.to_string(), "Ingredients can't be empty");
+    let air_stonecutter = [3, air_id, 1, SlotDisplayType::Empty as u8];
+    let raw = Raw::<SelectableRecipe>::decode(&mut &air_stonecutter[..]).unwrap();
+    let error = raw.resolve(&lookup).unwrap_err();
+    assert_eq!(error.to_string(), "Ingredient can't contain air");
+    let error = Ingredient::new(HolderSet::List(vec![])).unwrap_err();
+    assert_eq!(error, "Ingredients can't be empty");
+    let error = serde_json::from_str::<Ingredient>(r#"["minecraft:air"]"#).unwrap_err();
+    assert!(
+        error.to_string().contains("Ingredient can't contain air"),
+        "{error}"
+    );
+    assert_eq!(
+        serde_json::from_str::<Ingredient>("\"#planks\"").unwrap(),
+        Ingredient(planks())
+    );
+}
+
+#[test]
+fn nested_displays_stop_at_the_depth_bound_instead_of_overflowing() {
+    let wrapped = |levels: u32| {
+        let mut wire = [SlotDisplayType::WithAnyPotion as u8].repeat(levels as usize);
+        wire.push(SlotDisplayType::Empty as u8);
+        wire
+    };
+    let wire = wrapped(MAX_NESTING - 1);
+    let raw = Raw::<SlotDisplay>::decode(&mut &wire[..]).unwrap();
+    assert_eq!(
+        raw.resolve(&TestLookup::new()).unwrap().kind(),
+        SlotDisplayType::WithAnyPotion
+    );
+    let error = Raw::<SlotDisplay>::decode(&mut &wrapped(MAX_NESTING)[..]).unwrap_err();
+    assert_eq!(error.to_string(), "value nested deeper than 64 levels");
+    let error = Raw::<SlotDisplay>::decode(&mut &wrapped(10_000)[..]).unwrap_err();
+    assert_eq!(error.to_string(), "value nested deeper than 64 levels");
+    let error = Raw::<SlotDisplay>::decode(&mut &wrapped(MAX_NESTING - 1)[..]);
+    assert!(error.is_ok(), "the bound is reset after a failed decode");
 }
 
 #[test]

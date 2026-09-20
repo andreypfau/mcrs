@@ -4,11 +4,14 @@
 
 use std::collections::BTreeMap;
 
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
-    BundleContents, ChargedProjectiles, Container, ItemComponentKind, ItemComponentValue,
-    PotDecorations, Template, hash_ops,
+    BundleContents, ChargedProjectiles, Container, DecodeCtx, ItemComponentKind,
+    ItemComponentValue, PotDecorations, Template, hash_ops,
 };
+use mcrs_minecraft_registry::RegistryLookup;
 use serde::Deserialize;
 
 use crate::harness::{PersistentValue, TestLookup, from_json, persistent_json};
@@ -167,6 +170,26 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
         .encode_ctx_value(&lookup, &mut wire)
         .unwrap();
     assert_eq!(wire, hex("02010101000000"));
+}
+
+#[test]
+fn bundles_in_bundles_stop_at_the_depth_bound_instead_of_overflowing() {
+    let lookup = TestLookup::new();
+    let bundle = lookup
+        .id("item", &ResourceLocation::minecraft("bundle"))
+        .unwrap() as u8;
+    let bundle_contents = ItemComponentKind::BundleContents.wire_id() as u8;
+    let wrapped = |levels: u32| {
+        let mut wire = [bundle, 1, 1, 0, bundle_contents, 1].repeat(levels as usize);
+        wire.extend([bundle, 1, 0, 0]);
+        wire
+    };
+    let wire = wrapped(MAX_NESTING - 1);
+    Template::decode_ctx(&lookup, &mut &wire[..]).unwrap();
+    let error = Template::decode_ctx(&lookup, &mut &wrapped(MAX_NESTING)[..]).unwrap_err();
+    assert_eq!(error.to_string(), "value nested deeper than 64 levels");
+    let error = Template::decode_ctx(&lookup, &mut &wrapped(10_000)[..]).unwrap_err();
+    assert_eq!(error.to_string(), "value nested deeper than 64 levels");
 }
 
 #[test]
