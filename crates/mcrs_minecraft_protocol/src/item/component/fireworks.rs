@@ -1,3 +1,162 @@
-use crate::item::component::common::stub_component;
+use std::io::Write;
+use std::ops::Not;
 
-stub_component!(FireworkExplosion, Fireworks);
+use anyhow::Context;
+use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
+use mcrs_minecraft_registry::RegistryLookup;
+use serde::{Deserialize, Serialize};
+
+use crate::item::component::book::size_limited;
+use crate::item::component::common::{ordinal_enum, unsigned_byte};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
+use crate::item::harness::Sample;
+use crate::{Bounded, Decode, Encode, VarInt};
+
+ordinal_enum! {
+    FireworkShape { SmallBall, LargeBall, Star, Creeper, Burst }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[serde(deny_unknown_fields)]
+pub struct FireworkExplosion {
+    pub shape: FireworkShape,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub colors: Vec<i32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fade_colors: Vec<i32>,
+    #[serde(default, skip_serializing_if = "Not::not")]
+    pub has_trail: bool,
+    #[serde(default, skip_serializing_if = "Not::not")]
+    pub has_twinkle: bool,
+}
+
+impl Default for FireworkExplosion {
+    fn default() -> Self {
+        FireworkExplosion {
+            shape: FireworkShape::SmallBall,
+            colors: Vec::new(),
+            fade_colors: Vec::new(),
+            has_trail: false,
+            has_twinkle: false,
+        }
+    }
+}
+
+ctx_free!(FireworkExplosion);
+
+impl Sample for FireworkExplosion {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID), ("shape", STRING_ID)];
+        if self.has_trail {
+            tags.extend([
+                ("colors", LIST_ID),
+                ("fade_colors", LIST_ID),
+                ("has_trail", BYTE_ID),
+                ("has_twinkle", BYTE_ID),
+            ]);
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            FireworkExplosion::default(),
+            FireworkExplosion {
+                shape: FireworkShape::Star,
+                colors: vec![0xFF0000, 0x00FF00],
+                fade_colors: vec![0x0000FF],
+                has_trail: true,
+                has_twinkle: true,
+            },
+        ]
+    }
+}
+
+pub const MAX_EXPLOSIONS: usize = 256;
+
+fn is_zero(value: &i8) -> bool {
+    *value == 0
+}
+
+fn no_explosions(explosions: &Bounded<Vec<FireworkExplosion>, MAX_EXPLOSIONS>) -> bool {
+    explosions.0.is_empty()
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Fireworks {
+    #[serde(
+        default,
+        deserialize_with = "unsigned_byte",
+        skip_serializing_if = "is_zero"
+    )]
+    flight_duration: i8,
+    #[serde(
+        default,
+        deserialize_with = "size_limited",
+        skip_serializing_if = "no_explosions"
+    )]
+    pub explosions: Bounded<Vec<FireworkExplosion>, MAX_EXPLOSIONS>,
+}
+
+impl Fireworks {
+    pub fn new(flight_duration: u8, explosions: Vec<FireworkExplosion>) -> anyhow::Result<Self> {
+        anyhow::ensure!(
+            explosions.len() <= MAX_EXPLOSIONS,
+            "Got {} explosions, but maximum is {MAX_EXPLOSIONS}",
+            explosions.len()
+        );
+        Ok(Fireworks {
+            flight_duration: flight_duration as i8,
+            explosions: Bounded(explosions),
+        })
+    }
+
+    pub fn flight_duration(&self) -> u8 {
+        self.flight_duration as u8
+    }
+}
+
+impl EncodeCtx for Fireworks {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+        VarInt(self.flight_duration() as i32).encode(&mut w)?;
+        self.explosions.encode_ctx(ctx, w)
+    }
+}
+
+impl DecodeCtx<'_> for Fireworks {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+        let flight_duration = VarInt::decode(r)?.0;
+        let flight_duration = u8::try_from(flight_duration)
+            .with_context(|| format!("Unsigned byte was too large: {flight_duration} > 255"))?;
+        Ok(Fireworks {
+            flight_duration: flight_duration as i8,
+            explosions: Bounded::decode_ctx(ctx, r)?,
+        })
+    }
+}
+
+impl Sample for Fireworks {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID)];
+        if self.flight_duration != 0 {
+            tags.extend([("flight_duration", BYTE_ID), ("explosions", LIST_ID)]);
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            Fireworks::default(),
+            Fireworks::new(
+                200,
+                vec![FireworkExplosion {
+                    shape: FireworkShape::Burst,
+                    colors: vec![1],
+                    ..Default::default()
+                }],
+            )
+            .unwrap(),
+        ]
+    }
+}

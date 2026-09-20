@@ -1,9 +1,17 @@
+use std::collections::BTreeMap;
+use std::io::Write;
+
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
+use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::item::component::common::{compound_or_snbt, stub_component};
-use crate::item::ctx::ctx_free;
+use crate::item::component::common::{
+    BlockReg, LootTableReg, MapDecorationTypeReg, RecipeReg, compound_or_snbt,
+};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free, decode_nbt_wire, encode_nbt_wire};
 use crate::item::harness::Sample;
 use crate::{Decode, Encode};
 
@@ -55,10 +63,168 @@ impl Sample for CustomData {
     }
 }
 
-stub_component!(
-    MapDecorations,
-    DebugStickState,
-    BucketEntityData,
-    Recipes,
-    ContainerLoot,
-);
+/// A kind whose wire form is its persistent form as one network NBT tag.
+macro_rules! nbt_wire {
+    ($($ty:ident),* $(,)?) => {$(
+        impl EncodeCtx for $ty {
+            fn encode_ctx(&self, _: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
+                encode_nbt_wire(self, w)
+            }
+        }
+
+        impl DecodeCtx<'_> for $ty {
+            fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+                decode_nbt_wire(r)
+            }
+        }
+    )*};
+}
+
+nbt_wire!(MapDecorations, DebugStickState, Recipes, ContainerLoot);
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
+#[serde(transparent)]
+pub struct BucketEntityData(pub CustomData);
+
+ctx_free!(BucketEntityData);
+
+impl Sample for BucketEntityData {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        self.0.nbt_tags()
+    }
+
+    fn samples() -> Vec<Self> {
+        CustomData::samples()
+            .into_iter()
+            .map(BucketEntityData)
+            .collect()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MapDecoration {
+    #[serde(rename = "type")]
+    pub kind: ResourceKey<MapDecorationTypeReg>,
+    pub x: f64,
+    pub z: f64,
+    pub rotation: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct MapDecorations(pub BTreeMap<String, MapDecoration>);
+
+impl Sample for MapDecorations {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID)];
+        if !self.0.is_empty() {
+            tags.extend([
+                ("m1", COMPOUND_ID),
+                ("m1.type", STRING_ID),
+                ("m1.x", DOUBLE_ID),
+                ("m1.z", DOUBLE_ID),
+                ("m1.rotation", FLOAT_ID),
+            ]);
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            MapDecorations::default(),
+            MapDecorations(BTreeMap::from([(
+                "m1".to_string(),
+                MapDecoration {
+                    kind: ResourceKey::from_location(ResourceLocation::minecraft("player")),
+                    x: 1.5,
+                    z: -2.5,
+                    rotation: 90.0,
+                },
+            )])),
+        ]
+    }
+}
+
+/// ponytail: the property name is accepted as any string until block state
+/// definitions reach this crate; vanilla rejects one the block does not have.
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct DebugStickState(pub BTreeMap<ResourceKey<BlockReg>, String>);
+
+impl Sample for DebugStickState {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID)];
+        if !self.0.is_empty() {
+            tags.push(("minecraft:oak_log", STRING_ID));
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            DebugStickState::default(),
+            DebugStickState(BTreeMap::from([(
+                ResourceKey::from_location(ResourceLocation::minecraft("oak_log")),
+                "axis".to_string(),
+            )])),
+        ]
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Recipes(pub Vec<ResourceKey<RecipeReg>>);
+
+impl Sample for Recipes {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        vec![("", LIST_ID)]
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            Recipes::default(),
+            Recipes(vec![
+                ResourceKey::from_location(ResourceLocation::minecraft("stone")),
+                ResourceKey::from_location(ResourceLocation::minecraft("oak_planks")),
+            ]),
+        ]
+    }
+}
+
+fn is_zero(seed: &i64) -> bool {
+    *seed == 0
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContainerLoot {
+    pub loot_table: ResourceKey<LootTableReg>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub seed: i64,
+}
+
+impl Sample for ContainerLoot {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID), ("loot_table", STRING_ID)];
+        if self.seed != 0 {
+            tags.push(("seed", LONG_ID));
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        let loot_table =
+            ResourceKey::from_location(ResourceLocation::minecraft("chests/simple_dungeon"));
+        vec![
+            ContainerLoot {
+                loot_table: loot_table.clone(),
+                seed: 0,
+            },
+            ContainerLoot {
+                loot_table,
+                seed: 123456789012,
+            },
+        ]
+    }
+}

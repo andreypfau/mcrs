@@ -1,12 +1,506 @@
-use crate::item::component::common::stub_component;
+use std::collections::BTreeMap;
+use std::io::Write;
+use std::ops::Not;
 
-stub_component!(
-    UseEffects,
-    CustomModelData,
-    TooltipDisplay,
-    Food,
-    UseCooldown,
-    Weapon,
-    AttackRange,
-    BlockState
-);
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, float_value};
+use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize};
+
+use crate::item::component::common::RgbInt;
+use crate::item::ctx::ctx_free;
+use crate::item::harness::Sample;
+use crate::item::kind::ItemComponentKind;
+use crate::{Decode, Encode, VarInt};
+
+macro_rules! float_default {
+    ($($value:literal $default:ident $is:ident),* $(,)?) => {$(
+        fn $default() -> f32 {
+            $value
+        }
+
+        fn $is(value: &f32) -> bool {
+            value.to_bits() == $value.to_bits()
+        }
+    )*};
+}
+
+float_default! {
+    0.2f32 speed_multiplier is_speed_multiplier,
+    0.0f32 zero is_zero,
+    3.0f32 three is_three,
+    5.0f32 five is_five,
+    0.3f32 hitbox_margin is_hitbox_margin,
+    1.0f32 one is_one,
+}
+
+/// A ranged float field, worded as `Codec.floatRange` (DFU) or as
+/// `ExtraCodecs.floatRange` and its positive and non-negative kin.
+macro_rules! checked_float {
+    ($($name:ident: $value:ident => $ok:expr, $message:literal),* $(,)?) => {$(
+        fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+            let $value = float_value(d)?;
+            if $ok {
+                Ok($value)
+            } else {
+                Err(D::Error::custom(format_args!($message)))
+            }
+        }
+    )*};
+}
+
+checked_float! {
+    unit_fraction: v => (0.0..=1.0).contains(&v), "Value {v:?} outside of range [0.0:1.0]",
+    mob_factor: v => (0.0..=2.0).contains(&v), "Value {v:?} outside of range [0.0:2.0]",
+    reach: v => (0.0..=64.0).contains(&v), "Value must be within range [0.0;64.0]: {v:?}",
+    margin: v => (0.0..=1.0).contains(&v), "Value must be within range [0.0;1.0]: {v:?}",
+    positive: v => v > 0.0, "Value must be positive: {v:?}",
+    non_negative: v => v >= 0.0, "Value must be non-negative: {v:?}",
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[serde(deny_unknown_fields)]
+pub struct UseEffects {
+    #[serde(default, skip_serializing_if = "Not::not")]
+    pub can_sprint: bool,
+    #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
+    pub interact_vibrations: bool,
+    #[serde(
+        default = "speed_multiplier",
+        deserialize_with = "unit_fraction",
+        skip_serializing_if = "is_speed_multiplier"
+    )]
+    pub speed_multiplier: f32,
+}
+
+impl Default for UseEffects {
+    fn default() -> Self {
+        UseEffects {
+            can_sprint: false,
+            interact_vibrations: true,
+            speed_multiplier: 0.2,
+        }
+    }
+}
+
+ctx_free!(UseEffects);
+
+impl Sample for UseEffects {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID)];
+        if self.can_sprint {
+            tags.extend([
+                ("can_sprint", BYTE_ID),
+                ("interact_vibrations", BYTE_ID),
+                ("speed_multiplier", FLOAT_ID),
+            ]);
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            UseEffects::default(),
+            UseEffects {
+                can_sprint: true,
+                interact_vibrations: false,
+                speed_multiplier: 0.5,
+            },
+        ]
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
+#[serde(deny_unknown_fields)]
+pub struct CustomModelData {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub floats: Vec<f32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flags: Vec<bool>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub strings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub colors: Vec<RgbInt>,
+}
+
+ctx_free!(CustomModelData);
+
+impl Sample for CustomModelData {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID)];
+        if !self.floats.is_empty() {
+            tags.extend([
+                ("floats", LIST_ID),
+                ("flags", LIST_ID),
+                ("strings", LIST_ID),
+                ("colors", LIST_ID),
+            ]);
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            CustomModelData::default(),
+            CustomModelData {
+                floats: vec![1.5, -2.0],
+                flags: vec![true, false],
+                strings: vec!["a".into(), "b".into()],
+                colors: vec![RgbInt(0xFF0000), RgbInt(-16711936)],
+            },
+        ]
+    }
+}
+
+/// `hiddenComponents` is a linked set: the order is kept, a repeat is dropped.
+fn distinct(kinds: Vec<ItemComponentKind>) -> Vec<ItemComponentKind> {
+    let mut seen = Vec::with_capacity(kinds.len());
+    for kind in kinds {
+        if !seen.contains(&kind) {
+            seen.push(kind);
+        }
+    }
+    seen
+}
+
+fn distinct_kinds<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<ItemComponentKind>, D::Error> {
+    Vec::deserialize(d).map(distinct)
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TooltipDisplay {
+    #[serde(default, skip_serializing_if = "Not::not")]
+    pub hide_tooltip: bool,
+    #[serde(
+        default,
+        deserialize_with = "distinct_kinds",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub hidden_components: Vec<ItemComponentKind>,
+}
+
+impl TooltipDisplay {
+    pub fn new(hide_tooltip: bool, hidden_components: Vec<ItemComponentKind>) -> Self {
+        TooltipDisplay {
+            hide_tooltip,
+            hidden_components: distinct(hidden_components),
+        }
+    }
+}
+
+impl Encode for TooltipDisplay {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.hide_tooltip.encode(&mut w)?;
+        self.hidden_components.encode(w)
+    }
+}
+
+impl Decode<'_> for TooltipDisplay {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        Ok(TooltipDisplay::new(bool::decode(r)?, Vec::decode(r)?))
+    }
+}
+
+ctx_free!(TooltipDisplay);
+
+impl Sample for TooltipDisplay {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID)];
+        if self.hide_tooltip {
+            tags.extend([("hide_tooltip", BYTE_ID), ("hidden_components", LIST_ID)]);
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            TooltipDisplay::default(),
+            TooltipDisplay::new(
+                true,
+                vec![
+                    ItemComponentKind::Enchantments,
+                    ItemComponentKind::Lore,
+                    ItemComponentKind::CreativeSlotLock,
+                ],
+            ),
+        ]
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Food {
+    pub nutrition: NonNegativeInt,
+    pub saturation: f32,
+    #[serde(default, skip_serializing_if = "Not::not")]
+    pub can_always_eat: bool,
+}
+
+impl Encode for Food {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        VarInt(self.nutrition.0).encode(&mut w)?;
+        self.saturation.encode(&mut w)?;
+        self.can_always_eat.encode(w)
+    }
+}
+
+impl Decode<'_> for Food {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        Ok(Food {
+            nutrition: Bounded(VarInt::decode(r)?.0),
+            saturation: f32::decode(r)?,
+            can_always_eat: bool::decode(r)?,
+        })
+    }
+}
+
+ctx_free!(Food);
+
+impl Sample for Food {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![
+            ("", COMPOUND_ID),
+            ("nutrition", INT_ID),
+            ("saturation", FLOAT_ID),
+        ];
+        if self.can_always_eat {
+            tags.push(("can_always_eat", BYTE_ID));
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            Food {
+                nutrition: Bounded(4),
+                saturation: 2.4,
+                can_always_eat: false,
+            },
+            Food {
+                nutrition: Bounded(1),
+                saturation: 0.6,
+                can_always_eat: true,
+            },
+        ]
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[serde(deny_unknown_fields)]
+pub struct UseCooldown {
+    #[serde(deserialize_with = "positive")]
+    pub seconds: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cooldown_group: Option<ResourceLocation>,
+}
+
+ctx_free!(UseCooldown);
+
+impl Sample for UseCooldown {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID), ("seconds", FLOAT_ID)];
+        if self.cooldown_group.is_some() {
+            tags.push(("cooldown_group", STRING_ID));
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            UseCooldown {
+                seconds: 1.5,
+                cooldown_group: None,
+            },
+            UseCooldown {
+                seconds: 0.5,
+                cooldown_group: Some(ResourceLocation::minecraft("ender_pearl")),
+            },
+        ]
+    }
+}
+
+fn one_damage() -> NonNegativeInt {
+    Bounded(1)
+}
+
+fn is_one_damage(value: &NonNegativeInt) -> bool {
+    value.0 == 1
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Weapon {
+    #[serde(default = "one_damage", skip_serializing_if = "is_one_damage")]
+    pub item_damage_per_attack: NonNegativeInt,
+    #[serde(
+        default = "zero",
+        deserialize_with = "non_negative",
+        skip_serializing_if = "is_zero"
+    )]
+    pub disable_blocking_for_seconds: f32,
+}
+
+impl Default for Weapon {
+    fn default() -> Self {
+        Weapon {
+            item_damage_per_attack: one_damage(),
+            disable_blocking_for_seconds: 0.0,
+        }
+    }
+}
+
+impl Encode for Weapon {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        VarInt(self.item_damage_per_attack.0).encode(&mut w)?;
+        self.disable_blocking_for_seconds.encode(w)
+    }
+}
+
+impl Decode<'_> for Weapon {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        Ok(Weapon {
+            item_damage_per_attack: Bounded(VarInt::decode(r)?.0),
+            disable_blocking_for_seconds: f32::decode(r)?,
+        })
+    }
+}
+
+ctx_free!(Weapon);
+
+impl Sample for Weapon {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID)];
+        if *self != Weapon::default() {
+            tags.extend([
+                ("item_damage_per_attack", INT_ID),
+                ("disable_blocking_for_seconds", FLOAT_ID),
+            ]);
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            Weapon::default(),
+            Weapon {
+                item_damage_per_attack: Bounded(2),
+                disable_blocking_for_seconds: 5.0,
+            },
+        ]
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[serde(deny_unknown_fields)]
+pub struct AttackRange {
+    #[serde(
+        default = "zero",
+        deserialize_with = "reach",
+        skip_serializing_if = "is_zero"
+    )]
+    pub min_reach: f32,
+    #[serde(
+        default = "three",
+        deserialize_with = "reach",
+        skip_serializing_if = "is_three"
+    )]
+    pub max_reach: f32,
+    #[serde(
+        default = "zero",
+        deserialize_with = "reach",
+        skip_serializing_if = "is_zero"
+    )]
+    pub min_creative_reach: f32,
+    #[serde(
+        default = "five",
+        deserialize_with = "reach",
+        skip_serializing_if = "is_five"
+    )]
+    pub max_creative_reach: f32,
+    #[serde(
+        default = "hitbox_margin",
+        deserialize_with = "margin",
+        skip_serializing_if = "is_hitbox_margin"
+    )]
+    pub hitbox_margin: f32,
+    #[serde(
+        default = "one",
+        deserialize_with = "mob_factor",
+        skip_serializing_if = "is_one"
+    )]
+    pub mob_factor: f32,
+}
+
+impl Default for AttackRange {
+    fn default() -> Self {
+        AttackRange {
+            min_reach: 0.0,
+            max_reach: 3.0,
+            min_creative_reach: 0.0,
+            max_creative_reach: 5.0,
+            hitbox_margin: 0.3,
+            mob_factor: 1.0,
+        }
+    }
+}
+
+ctx_free!(AttackRange);
+
+impl Sample for AttackRange {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID)];
+        if *self != AttackRange::default() {
+            tags.extend([
+                ("min_reach", FLOAT_ID),
+                ("max_reach", FLOAT_ID),
+                ("min_creative_reach", FLOAT_ID),
+                ("max_creative_reach", FLOAT_ID),
+                ("hitbox_margin", FLOAT_ID),
+                ("mob_factor", FLOAT_ID),
+            ]);
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            AttackRange::default(),
+            AttackRange {
+                min_reach: 1.0,
+                max_reach: 4.0,
+                min_creative_reach: 0.5,
+                max_creative_reach: 6.0,
+                hitbox_margin: 0.1,
+                mob_factor: 1.5,
+            },
+        ]
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
+#[serde(transparent)]
+pub struct BlockState(pub BTreeMap<String, String>);
+
+ctx_free!(BlockState);
+
+impl Sample for BlockState {
+    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+        let mut tags = vec![("", COMPOUND_ID)];
+        if !self.0.is_empty() {
+            tags.push(("facing", STRING_ID));
+        }
+        tags
+    }
+
+    fn samples() -> Vec<Self> {
+        vec![
+            BlockState::default(),
+            BlockState(BTreeMap::from([
+                ("facing".to_string(), "north".to_string()),
+                ("lit".to_string(), "true".to_string()),
+            ])),
+        ]
+    }
+}
