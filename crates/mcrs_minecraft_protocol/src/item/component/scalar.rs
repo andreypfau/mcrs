@@ -1,7 +1,10 @@
 use std::io::Write;
 
+use anyhow::ensure;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, PositiveInt, float_value, int_value};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, INT_ID};
+use serde::de::Error as _;
+use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::common::RgbInt;
@@ -47,13 +50,51 @@ impl Default for MaxStackSize {
     }
 }
 
+/// A record codec reads a map and nothing else, where the derived visitor
+/// would also take the fields as a sequence.
+macro_rules! record_codec {
+    ($($ty:ident),* $(,)?) => {$(
+        impl<'de> serde::Deserialize<'de> for $ty {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                struct MapOnly;
+
+                impl<'de> serde::de::Visitor<'de> for MapOnly {
+                    type Value = $ty;
+
+                    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        f.write_str("a map")
+                    }
+
+                    fn visit_map<A: serde::de::MapAccess<'de>>(
+                        self,
+                        map: A,
+                    ) -> Result<$ty, A::Error> {
+                        $ty::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+                    }
+                }
+
+                d.deserialize_map(MapOnly)
+            }
+        }
+
+        impl serde::Serialize for $ty {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                $ty::serialize(self, s)
+            }
+        }
+    )*};
+}
+pub(crate) use record_codec;
+
 macro_rules! var_int_record {
-    ($($ty:ident { $field:ident: $inner:ty }),* $(,)?) => {$(
+    ($($ty:ident { $field:ident: $inner:ty } $(=> $guard:expr)?),* $(,)?) => {$(
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-        #[serde(deny_unknown_fields)]
+        #[serde(remote = "Self", deny_unknown_fields)]
         pub struct $ty {
             pub $field: $inner,
         }
+
+        record_codec!($ty);
 
         impl Encode for $ty {
             fn encode(&self, w: impl Write) -> anyhow::Result<()> {
@@ -63,7 +104,9 @@ macro_rules! var_int_record {
 
         impl Decode<'_> for $ty {
             fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-                Ok($ty { $field: codec::Bounded(VarInt::decode(r)?.0) })
+                let $field = VarInt::decode(r)?.0;
+                $($guard;)?
+                Ok($ty { $field: codec::Bounded($field) })
             }
         }
 
@@ -86,7 +129,8 @@ macro_rules! var_int_record {
 }
 
 var_int_record! {
-    Enchantable { value: PositiveInt },
+    Enchantable { value: PositiveInt }
+        => ensure!(value > 0, "Enchantment value must be positive, but was {value}"),
     VillagerFood { nutrition: PositiveInt },
 }
 
@@ -145,14 +189,14 @@ ctx_free!(DyedColor);
 
 /// `Codec.FLOAT.validate` over `Float.compareTo`, which orders `-0.0` below
 /// `0.0` and `NaN` above everything, unlike `PartialOrd`.
-fn float_in_range<E: serde::de::Error>(
+fn float_in_range(
     value: f32,
     min: f32,
     max: f32,
     message: impl FnOnce(f32) -> String,
-) -> Result<f32, E> {
+) -> Result<f32, String> {
     if value.total_cmp(&min).is_lt() || value.total_cmp(&max).is_gt() {
-        return Err(E::custom(message(value)));
+        return Err(message(value));
     }
     Ok(value)
 }
@@ -165,14 +209,17 @@ macro_rules! float_newtype {
 
         impl Serialize for $ty {
             fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-                s.serialize_f32(self.0)
+                let value = float_in_range(self.0, $min, $max, $message).map_err(S::Error::custom)?;
+                s.serialize_f32(value)
             }
         }
 
         impl<'de> Deserialize<'de> for $ty {
             fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
                 let value = float_value(d)?;
-                float_in_range::<D::Error>(value, $min, $max, $message).map($ty)
+                float_in_range(value, $min, $max, $message)
+                    .map($ty)
+                    .map_err(D::Error::custom)
             }
         }
 

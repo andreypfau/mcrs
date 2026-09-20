@@ -1136,9 +1136,29 @@
       "error": "No key value in MapLike[{}]"
     },
     {
+      "kind": "enchantable",
+      "input": "[5]",
+      "error": "Not a JSON object: [5]"
+    },
+    {
+      "kind": "enchantable",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "enchantable",
+      "input": "5",
+      "error": "Not a JSON object: 5"
+    },
+    {
       "kind": "villager_food",
       "input": "{\"nutrition\":0}",
       "error": "Value must be positive: 0"
+    },
+    {
+      "kind": "villager_food",
+      "input": "[5]",
+      "error": "Not a JSON object: [5]"
     },
     {
       "kind": "dyed_color",
@@ -1191,6 +1211,31 @@
       "error": "Unknown element name:punch"
     },
     {
+      "kind": "attack_animation",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "[\"stab\",10]",
+      "error": "Not a JSON object: [\"stab\",10]"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "[\"stab\"]",
+      "error": "Not a JSON object: [\"stab\"]"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "\"stab\"",
+      "error": "Not a JSON object: \"stab\""
+    },
+    {
+      "kind": "attack_animation",
+      "input": "6",
+      "error": "Not a JSON object: 6"
+    },
+    {
       "kind": "interact_animation",
       "input": "{\"duration\":-1}",
       "error": "Value must be non-negative: -1"
@@ -1199,6 +1244,31 @@
       "kind": "interact_animation",
       "input": "{\"type\":\"punch\"}",
       "error": "Unknown element name:punch"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "[\"stab\",10]",
+      "error": "Not a JSON object: [\"stab\",10]"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "[\"stab\"]",
+      "error": "Not a JSON object: [\"stab\"]"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "\"stab\"",
+      "error": "Not a JSON object: \"stab\""
+    },
+    {
+      "kind": "interact_animation",
+      "input": "6",
+      "error": "Not a JSON object: 6"
     },
     {
       "kind": "dye",
@@ -1406,6 +1476,18 @@
       "kind": "attack_animation",
       "wire": "0503",
       "json": "{\"type\":\"none\",\"duration\":3}"
+    }
+  ],
+  "decode_errors": [
+    {
+      "kind": "enchantable",
+      "wire": "00",
+      "error": "Enchantment value must be positive, but was 0"
+    },
+    {
+      "kind": "enchantable",
+      "wire": "ffffffff0f",
+      "error": "Enchantment value must be positive, but was -1"
     }
   ]
 }

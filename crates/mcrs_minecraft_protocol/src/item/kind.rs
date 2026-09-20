@@ -260,7 +260,7 @@ macro_rules! data_components {
                     )));
                 }
                 match self {
-                    $(Self::$ty(value) => value.serialize(s)),*
+                    $(Self::$ty(value) => Serialize::serialize(value, s)),*
                 }
             }
 
@@ -269,7 +269,7 @@ macro_rules! data_components {
                 d: D,
             ) -> Result<Self, D::Error> {
                 match kind {
-                    $(ItemComponentKind::$ty => <$ty>::deserialize(d).map(Self::$ty)),*
+                    $(ItemComponentKind::$ty => <$ty as Deserialize<'de>>::deserialize(d).map(Self::$ty)),*
                 }
             }
         }

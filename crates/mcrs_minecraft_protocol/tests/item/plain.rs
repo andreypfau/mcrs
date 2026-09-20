@@ -5,7 +5,7 @@
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
     AdditionalTradeCost, CreativeSlotLock, ItemComponentKind, ItemComponentValue,
-    MapPostProcessing, hash_ops,
+    MapPostProcessing, MinimumAttackCharge, PotionDurationScale, hash_ops,
 };
 use serde::Deserialize;
 
@@ -16,6 +16,7 @@ struct Golden {
     values: Vec<Value>,
     errors: Vec<Failure>,
     decodes: Vec<Decoded>,
+    decode_errors: Vec<DecodeFailure>,
 }
 
 #[derive(Deserialize)]
@@ -41,6 +42,13 @@ struct Decoded {
     kind: String,
     wire: String,
     json: String,
+}
+
+#[derive(Deserialize)]
+struct DecodeFailure {
+    kind: String,
+    wire: String,
+    error: String,
 }
 
 fn golden() -> Golden {
@@ -185,7 +193,87 @@ fn rejected_inputs_are_rejected_with_the_vanilla_range_messages() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 33);
+    assert_eq!(checked, 47);
+}
+
+#[test]
+fn records_read_a_list_no_better_than_vanilla_does() {
+    for (kind, tag) in [
+        (
+            ItemComponentKind::Enchantable,
+            NbtTag::List(vec![NbtTag::Int(7)]),
+        ),
+        (ItemComponentKind::Enchantable, NbtTag::Int(7)),
+        (
+            ItemComponentKind::VillagerFood,
+            NbtTag::List(vec![NbtTag::Int(7)]),
+        ),
+        (ItemComponentKind::AttackAnimation, NbtTag::List(vec![])),
+        (
+            ItemComponentKind::AttackAnimation,
+            NbtTag::List(vec![NbtTag::String("stab".into()), NbtTag::Int(10)]),
+        ),
+        (ItemComponentKind::InteractAnimation, NbtTag::Int(6)),
+    ] {
+        assert!(
+            ItemComponentValue::deserialize_value(kind, tag.clone()).is_err(),
+            "{kind} read {tag:?}"
+        );
+    }
+}
+
+#[test]
+fn wire_values_the_vanilla_constructor_refuses_fail_to_decode() {
+    let mut checked = 0;
+    for row in golden().decode_errors {
+        let kind = kind(&row.kind);
+        let bytes = hex(&row.wire);
+        let error = ItemComponentValue::decode_ctx_value(kind, &TestLookup::new(), &mut &bytes[..])
+            .err()
+            .unwrap_or_else(|| panic!("{kind} decoded {}", row.wire));
+        assert!(
+            format!("{error:#}").contains(&row.error),
+            "{kind} on {}: {error:#} is not {}",
+            row.wire,
+            row.error
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 2);
+}
+
+#[test]
+fn out_of_range_floats_are_refused_on_write_as_well() {
+    fn refused(value: &(impl serde::Serialize + std::fmt::Debug), message: &str) {
+        let json = serde_json::to_string(value).unwrap_err().to_string();
+        assert_eq!(json, message, "{value:?} to json");
+        let mut nbt = Vec::new();
+        let error = mcrs_minecraft_nbt::to_bytes_unnamed(value, &mut nbt).unwrap_err();
+        assert!(
+            error.to_string().contains(message),
+            "{value:?} to nbt: {error}"
+        );
+    }
+    refused(
+        &MinimumAttackCharge(-0.0),
+        "Value must be within range [0.0;1.0]: -0.0",
+    );
+    refused(
+        &MinimumAttackCharge(1.5),
+        "Value must be within range [0.0;1.0]: 1.5",
+    );
+    refused(
+        &MinimumAttackCharge(f32::NAN),
+        "Value must be within range [0.0;1.0]: NaN",
+    );
+    refused(
+        &PotionDurationScale(-1.0),
+        "Value must be non-negative: -1.0",
+    );
+    assert_eq!(
+        serde_json::to_string(&MinimumAttackCharge(1.0)).unwrap(),
+        "1.0"
+    );
 }
 
 #[test]

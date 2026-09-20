@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::DyeColor;
 use crate::item::component::common::ordinal_enum;
+use crate::item::component::scalar::record_codec;
 use crate::item::ctx::ctx_free;
 use crate::item::harness::Sample;
 use crate::{Decode, Encode, VarInt};
@@ -169,13 +170,15 @@ fn is_whack(kind: &SwingAnimationKind) -> bool {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct SwingAnimation {
     #[serde(rename = "type", default = "whack", skip_serializing_if = "is_whack")]
     pub kind: SwingAnimationKind,
     #[serde(default, skip_serializing_if = "is_default")]
     pub duration: Bounded<0, { i32::MAX }, 6>,
 }
+
+record_codec!(SwingAnimation);
 
 impl Default for SwingAnimation {
     fn default() -> Self {
