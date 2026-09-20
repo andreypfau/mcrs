@@ -151,7 +151,7 @@ fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
         assert_eq!(back, value, "{label} wire decode");
         checked += 1;
     }
-    assert_eq!(checked, 30);
+    assert_eq!(checked, 33);
 }
 
 fn wire_only(label: &str, value: impl Into<ItemComponentValue>) {
@@ -277,6 +277,23 @@ fn errors_read_like_vanilla() {
             .contains("Value must be non-negative: -1.0"),
         "{error}"
     );
+    for (input, kind) in [
+        (
+            r#"{"contact_cooldown_ticks":-1}"#,
+            ItemComponentKind::KineticWeapon,
+        ),
+        (
+            r#"{"sound_event":"minecraft:entity.item.break","use_duration":1.0,"range":1.0,"durability_damage":-1,"description":"x"}"#,
+            ItemComponentKind::Instrument,
+        ),
+    ] {
+        let mut d = serde_json::Deserializer::from_str(input);
+        let error = ItemComponentValue::deserialize_value(kind, &mut d).unwrap_err();
+        assert!(
+            error.to_string().contains("Value must be non-negative: -1"),
+            "{input}: {error}"
+        );
+    }
     let bad_type = [5u8];
     let error = ConsumeEffect::decode_ctx(&lookup, &mut &bad_type[..]).unwrap_err();
     assert_eq!(error.to_string(), "unknown consume effect type 5");

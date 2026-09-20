@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::item::component::common::{
     Holder, HolderWireOnly, InstrumentReg, JukeboxSongReg, Registered,
 };
-use crate::item::component::consume::{non_negative_float, positive_float};
+use crate::item::component::consume::{non_negative_float, non_negative_int, positive_float};
 use crate::item::component::sound::SoundEvent;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
@@ -23,7 +23,11 @@ pub struct InstrumentValue {
     pub use_duration: f32,
     #[serde(deserialize_with = "positive_float")]
     pub range: f32,
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(
+        default,
+        deserialize_with = "non_negative_int",
+        skip_serializing_if = "is_default"
+    )]
     pub durability_damage: NonNegativeInt,
     pub description: Text,
 }

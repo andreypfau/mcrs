@@ -1,4 +1,5 @@
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
 use serde::de::Error as _;
@@ -12,7 +13,9 @@ use crate::ResourceLocation;
 /// serializes back the way it came, except that a one-entry list writes as the
 /// bare entry, as `compactListCodec` does. With `ALWAYS_LIST` — the codec's
 /// `alwaysUseList` — a bare entry is refused and only a tag or a list reads.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// A direct set is equal by its entries, so `One(x)` and `List([x])` compare
+/// equal however they were read.
+#[derive(Debug, Clone)]
 pub enum HolderSet<T = ResourceLocation, const ALWAYS_LIST: bool = false> {
     Tag(ResourceLocation),
     One(T),
@@ -26,6 +29,27 @@ impl<T, const ALWAYS_LIST: bool> HolderSet<T, ALWAYS_LIST> {
             HolderSet::Tag(_) => &[],
             HolderSet::One(entry) => std::slice::from_ref(entry),
             HolderSet::List(entries) => entries,
+        }
+    }
+}
+
+impl<T: PartialEq, const ALWAYS_LIST: bool> PartialEq for HolderSet<T, ALWAYS_LIST> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (HolderSet::Tag(a), HolderSet::Tag(b)) => a == b,
+            (HolderSet::Tag(_), _) | (_, HolderSet::Tag(_)) => false,
+            _ => self.entries() == other.entries(),
+        }
+    }
+}
+
+impl<T: Eq, const ALWAYS_LIST: bool> Eq for HolderSet<T, ALWAYS_LIST> {}
+
+impl<T: Hash, const ALWAYS_LIST: bool> Hash for HolderSet<T, ALWAYS_LIST> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            HolderSet::Tag(tag) => tag.hash(state),
+            _ => self.entries().hash(state),
         }
     }
 }

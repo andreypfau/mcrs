@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::item::component::common::{DamageTypeReg, Holder};
 use crate::item::component::consume::{
-    float_default, is_one, is_true, is_zero, non_negative_float, one, positive_float, zero,
+    float_default, is_one, is_true, is_zero, non_negative_float, non_negative_int, one,
+    positive_float, zero,
 };
 use crate::item::component::sound::SoundEvent;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
@@ -232,9 +233,17 @@ impl DecodeCtx<'_> for PiercingWeapon {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct KineticWeapon {
-    #[serde(default = "ten", skip_serializing_if = "is_ten")]
+    #[serde(
+        default = "ten",
+        deserialize_with = "non_negative_int",
+        skip_serializing_if = "is_ten"
+    )]
     pub contact_cooldown_ticks: NonNegativeInt,
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(
+        default,
+        deserialize_with = "non_negative_int",
+        skip_serializing_if = "is_default"
+    )]
     pub delay_ticks: NonNegativeInt,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dismount_conditions: Option<KineticCondition>,
@@ -309,6 +318,7 @@ impl DecodeCtx<'_> for KineticWeapon {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct KineticCondition {
+    #[serde(deserialize_with = "non_negative_int")]
     pub max_duration_ticks: NonNegativeInt,
     #[serde(default = "zero", skip_serializing_if = "is_zero")]
     pub min_speed: f32,
