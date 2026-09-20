@@ -245,15 +245,16 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         ))
     }
 
+    // -0.0 writes as +0.0: the reference's float tags fold the sign away.
     fn serialize_f32(self, v: f32) -> Result<()> {
         self.parse_state(FLOAT_ID)?;
-        self.output.write_f32_be(v)?;
+        self.output.write_f32_be(v + 0.0)?;
         Ok(())
     }
 
     fn serialize_f64(self, v: f64) -> Result<()> {
         self.parse_state(DOUBLE_ID)?;
-        self.output.write_f64_be(v)?;
+        self.output.write_f64_be(v + 0.0)?;
         Ok(())
     }
 

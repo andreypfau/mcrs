@@ -33,6 +33,7 @@ impl TestLookup {
                 "item.armor.equip_generic",
                 "item.shears.snip",
                 "item.armor.equip_iron",
+                "entity.generic.eat",
             ],
         );
         lookup.registry("mob_effect", &["speed", "slowness", "haste"]);
@@ -59,6 +60,11 @@ impl TestLookup {
         lookup.registry("cat_variant", &["tabby", "jellie"]);
         lookup.registry("cat_sound_variant", &["classic", "royal"]);
         lookup.registry("decorated_pot_pattern", &["angler", "skull"]);
+        lookup.registry("trim_material", &["amethyst"]);
+        lookup.registry("trim_pattern", &["coast"]);
+        lookup.registry("instrument", &["ponder_goat_horn"]);
+        lookup.registry("jukebox_song", &["pigstep"]);
+        lookup.registry("painting_variant", &["kebab"]);
         lookup
     }
 
