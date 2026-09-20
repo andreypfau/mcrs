@@ -216,6 +216,20 @@ impl<'de> Deserialize<'de> for Profile {
     }
 }
 
+/// `PropertyMap` is a list multimap: a value sits under its name, and the
+/// names keep the order they first appeared in.
+fn grouped_by_name(properties: Vec<Property>) -> Vec<Property> {
+    let mut grouped: Vec<Property> = Vec::with_capacity(properties.len());
+    for property in properties {
+        let end = grouped
+            .iter()
+            .rposition(|p| p.name == property.name)
+            .map_or(grouped.len(), |i| i + 1);
+        grouped.insert(end, property);
+    }
+    grouped
+}
+
 fn check_property(property: &Property) -> Result<(), String> {
     BoundedString::<64>::new(&*property.name).map_err(|e| e.to_string())?;
     BoundedString::<32767>::new(&*property.value).map_err(|e| e.to_string())?;
@@ -248,7 +262,7 @@ fn properties<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Property>, D::Error
             for property in &properties {
                 check_property(property).map_err(A::Error::custom)?;
             }
-            Ok(properties)
+            Ok(grouped_by_name(properties))
         }
 
         fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
@@ -319,17 +333,20 @@ impl EncodeCtx for Profile {
 
 impl DecodeCtx<'_> for Profile {
     fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+        let properties = |r: &mut &[u8]| {
+            Bounded::<Vec<Property>, MAX_PROPERTIES>::decode(r).map(|b| grouped_by_name(b.0))
+        };
         let profile = if bool::decode(r)? {
             ProfileIdentity::Full(GameProfileValue {
                 id: Uuid::decode(r)?,
                 name: PlayerName::decode(r)?,
-                properties: Bounded::<Vec<Property>, MAX_PROPERTIES>::decode(r)?.0,
+                properties: properties(r)?,
             })
         } else {
             ProfileIdentity::Partial {
                 name: Option::decode(r)?,
                 id: Option::decode(r)?,
-                properties: Bounded::<Vec<Property>, MAX_PROPERTIES>::decode(r)?.0,
+                properties: properties(r)?,
             }
         };
         Ok(Profile {

@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::ops::Not;
 
+use anyhow::ensure;
 use mcrs_minecraft_core::codec::{self, is_default};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registry::RegistryLookup;
@@ -114,7 +115,7 @@ fn restricted_pages<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Filterable<Te
             let json = serde_json::to_string(text).map_err(D::Error::custom)?;
             if json.chars().count() > WRITTEN_PAGE_CHARS {
                 return Err(D::Error::custom(format_args!(
-                    "Component was too large: > {WRITTEN_PAGE_CHARS}"
+                    "Component was too large: greater than max size {WRITTEN_PAGE_CHARS}"
                 )));
             }
         }
@@ -134,10 +135,17 @@ impl EncodeCtx for WrittenBookContent {
 
 impl DecodeCtx<'_> for WrittenBookContent {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+        let title = Filterable::decode_ctx(ctx, r)?;
+        let author = String::decode(r)?;
+        let generation = VarInt::decode(r)?.0;
+        ensure!(
+            (0..=3).contains(&generation),
+            "Generation was {generation}, but must be between 0 and 3"
+        );
         Ok(WrittenBookContent {
-            title: Filterable::decode_ctx(ctx, r)?,
-            author: String::decode(r)?,
-            generation: codec::Bounded(VarInt::decode(r)?.0),
+            title,
+            author,
+            generation: codec::Bounded(generation),
             pages: Vec::decode_ctx(ctx, r)?,
             resolved: bool::decode(r)?,
         })

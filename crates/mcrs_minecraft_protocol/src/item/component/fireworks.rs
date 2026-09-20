@@ -2,9 +2,10 @@ use std::io::Write;
 use std::ops::Not;
 
 use anyhow::Context;
+use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registry::RegistryLookup;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::item::component::book::size_limited;
 use crate::item::component::common::{ordinal_enum, unsigned_byte};
@@ -16,13 +17,37 @@ ordinal_enum! {
     FireworkShape { SmallBall, LargeBall, Star, Creeper, Burst }
 }
 
+/// `Codec.INT.listOf()`: each element is any number's `intValue()`.
+fn int_list<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<i32>, D::Error> {
+    struct Element(i32);
+
+    impl<'de> Deserialize<'de> for Element {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            int_value(d).map(Element)
+        }
+    }
+
+    Ok(Vec::<Element>::deserialize(d)?
+        .into_iter()
+        .map(|Element(v)| v)
+        .collect())
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(deny_unknown_fields)]
 pub struct FireworkExplosion {
     pub shape: FireworkShape,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "int_list",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub colors: Vec<i32>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "int_list",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub fade_colors: Vec<i32>,
     #[serde(default, skip_serializing_if = "Not::not")]
     pub has_trail: bool,

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt;
 use std::io::Write;
 
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
@@ -6,6 +7,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
 use mcrs_minecraft_registry::RegistryLookup;
+use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::item::component::common::{
@@ -101,6 +103,9 @@ impl Sample for BucketEntityData {
     }
 }
 
+/// ponytail: the persistent codec carries no registry, so an unknown
+/// decoration type id is accepted here where vanilla fails the load; a
+/// `DeserializeSeed` holding the lookup is the upgrade path.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MapDecoration {
@@ -146,8 +151,9 @@ impl Sample for MapDecorations {
     }
 }
 
-/// ponytail: the property name is accepted as any string until block state
-/// definitions reach this crate; vanilla rejects one the block does not have.
+/// ponytail: the block id and the property name are accepted as any strings
+/// until a registry and block state definitions reach the persistent codec;
+/// vanilla rejects an unknown block and a property the block does not have.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DebugStickState(pub BTreeMap<ResourceKey<BlockReg>, String>);
@@ -196,11 +202,55 @@ fn is_zero(seed: &i64) -> bool {
     *seed == 0
 }
 
+/// `Codec.LONG`: any number's `longValue()`. A fraction is dropped; a value
+/// beyond the long range wraps from JSON (`BigDecimal.longValue`) and
+/// saturates from NBT (`Double.longValue`).
+fn long_value<'de, D: Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
+    struct LongValue {
+        wrap_floats: bool,
+    }
+
+    impl Visitor<'_> for LongValue {
+        type Value = i64;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a number")
+        }
+
+        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<i64, E> {
+            Ok(v)
+        }
+
+        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<i64, E> {
+            Ok(v as i64)
+        }
+
+        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<i64, E> {
+            if !self.wrap_floats {
+                return Ok(v as i64);
+            }
+            let truncated = v.trunc();
+            Ok(if truncated.abs() >= 2f64.powi(127) {
+                0
+            } else {
+                truncated as i128 as i64
+            })
+        }
+    }
+
+    let wrap_floats = d.is_human_readable();
+    d.deserialize_any(LongValue { wrap_floats })
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContainerLoot {
     pub loot_table: ResourceKey<LootTableReg>,
-    #[serde(default, skip_serializing_if = "is_zero")]
+    #[serde(
+        default,
+        deserialize_with = "long_value",
+        skip_serializing_if = "is_zero"
+    )]
     pub seed: i64,
 }
 

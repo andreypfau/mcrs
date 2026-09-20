@@ -12,9 +12,11 @@ use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
     BlockState, BrewingFuel, BucketEntityData, Compostable, CookingFuel, CustomData,
     CustomModelData, DebugStickState, Fireworks, ItemComponentValue, ItemDataComponent, ItemModel,
-    LodestoneTracker, MapDecorations, NoteBlockSound, Profile, Recipes, ResolvableNumber, SignText,
-    SignTextBack, SignTextFront, TooltipDisplay, TooltipStyle, UseEffects, hash_ops,
+    LodestoneTracker, MapDecorations, NoteBlockSound, Profile, ProfileIdentity, Recipes,
+    ResolvableNumber, SignText, SignTextBack, SignTextFront, TooltipDisplay, TooltipStyle,
+    UseEffects, hash_ops,
 };
+use mcrs_minecraft_protocol::profile::Property;
 
 use crate::harness::{PersistentValue, TestLookup, from_json, persistent_json};
 
@@ -214,6 +216,30 @@ fn flat_records_match_vanilla() {
         error::<mcrs_minecraft_protocol::item::AttackRange>(r#"{"min_reach":65}"#)
             .starts_with("Value must be within range [0.0;64.0]: 65.0")
     );
+    assert!(
+        error::<UseEffects>(r#"{"speed_multiplier":-0.0}"#)
+            .starts_with("Value -0.0 outside of range [0.0:1.0]")
+    );
+    assert!(
+        error::<mcrs_minecraft_protocol::item::AttackRange>(r#"{"min_reach":-0.0}"#)
+            .starts_with("Value must be within range [0.0;64.0]: -0.0")
+    );
+    assert!(
+        error::<mcrs_minecraft_protocol::item::AttackRange>(r#"{"mob_factor":-0.0}"#)
+            .starts_with("Value -0.0 outside of range [0.0:2.0]")
+    );
+    assert!(
+        error::<mcrs_minecraft_protocol::item::Weapon>(r#"{"disable_blocking_for_seconds":-0.0}"#)
+            .starts_with("Value must be non-negative: -0.0")
+    );
+    assert!(
+        error::<mcrs_minecraft_protocol::item::Weapon>(r#"{"disable_blocking_for_seconds":1e40}"#)
+            .starts_with("Value must be non-negative: ")
+    );
+    assert!(
+        error::<mcrs_minecraft_protocol::item::UseCooldown>(r#"{"seconds":-0.0}"#)
+            .starts_with("Value must be positive: -0.0")
+    );
 }
 
 #[test]
@@ -253,6 +279,31 @@ fn text_bearing_records_match_vanilla() {
         error::<WrittenBookContent>(r#"{"title":"T","author":"me","generation":4}"#)
             .starts_with("Value must be within range [0;3]: 4")
     );
+    for (wire, generation) in [
+        ("015400026d65050000", 5),
+        ("015400026d65ffffffff0f0000", -1),
+    ] {
+        let mut r = &hex(wire)[..];
+        let err = ItemComponentValue::decode_ctx_value(
+            WrittenBookContent::KIND,
+            &TestLookup::new(),
+            &mut r,
+        )
+        .err()
+        .unwrap();
+        assert_eq!(
+            err.to_string(),
+            format!("Generation was {generation}, but must be between 0 and 3")
+        );
+    }
+    let big_page = format!(
+        r#"{{"title":"T","author":"me","pages":["{}"]}}"#,
+        "a".repeat(32766)
+    );
+    assert!(
+        error::<WrittenBookContent>(&big_page)
+            .starts_with("Component was too large: greater than max size 32767")
+    );
 
     check("sign_empty", SignTextFront(SignText::default()));
     check("sign_same_filtered", SignTextFront(sample::<SignText>(1)));
@@ -283,6 +334,41 @@ fn profiles_match_vanilla() {
         ),
         sample::<Profile>(3)
     );
+    let interleaved = |signature: Option<&str>| {
+        vec![
+            Property {
+                name: "x".into(),
+                value: "1".into(),
+                signature: None,
+            },
+            Property {
+                name: "x".into(),
+                value: "2".into(),
+                signature: None,
+            },
+            Property {
+                name: "textures".into(),
+                value: "t".into(),
+                signature: signature.map(Into::into),
+            },
+        ]
+    };
+    let full = parse::<Profile>(
+        r#"{"id":[1,2,3,4],"name":"Steve","properties":[{"name":"x","value":"1"},{"name":"textures","value":"t"},{"name":"x","value":"2"}]}"#,
+    );
+    let ProfileIdentity::Full(profile) = &full.profile else {
+        panic!("{full:?}");
+    };
+    assert_eq!(profile.properties, interleaved(None));
+    check("profile_interleaved", full);
+    let partial = parse::<Profile>(
+        r#"{"name":"Steve","properties":[{"name":"x","value":"1"},{"name":"textures","value":"t","signature":"s"},{"name":"x","value":"2"}]}"#,
+    );
+    let ProfileIdentity::Partial { properties, .. } = &partial.profile else {
+        panic!("{partial:?}");
+    };
+    assert_eq!(*properties, interleaved(Some("s")));
+    check("profile_partial_interleaved", partial);
     assert!(
         error::<Profile>(r#"{"name":"has space"}"#)
             .contains("Player name contained disallowed characters: 'has space'")
@@ -307,6 +393,13 @@ fn lodestone_and_fireworks_match_vanilla() {
 
     check("explosion_min", sample::<FireworkExplosion>(0));
     check("explosion_full", sample::<FireworkExplosion>(1));
+    let narrowed =
+        parse::<FireworkExplosion>(r#"{"shape":"star","colors":[1.5,-2.7],"fade_colors":[3.9]}"#);
+    assert_eq!(
+        (&narrowed.colors[..], &narrowed.fade_colors[..]),
+        (&[1, -2][..], &[3][..])
+    );
+    check("explosion_float_colors", narrowed);
     check("fireworks_empty", sample::<Fireworks>(0));
     check("fireworks_full", sample::<Fireworks>(1));
     let wrapped = parse::<Fireworks>(r#"{"flight_duration":300}"#);
@@ -356,6 +449,22 @@ fn nbt_wire_records_match_vanilla() {
         ),
         sample::<mcrs_minecraft_protocol::item::ContainerLoot>(0)
     );
+    for (label, json, seed) in [
+        (
+            "loot_float_seed",
+            r#"{"loot_table":"chests/x","seed":1.5}"#,
+            1,
+        ),
+        (
+            "loot_big_seed",
+            r#"{"loot_table":"chests/x","seed":1e19}"#,
+            -8446744073709551616,
+        ),
+    ] {
+        let loot = parse::<mcrs_minecraft_protocol::item::ContainerLoot>(json);
+        assert_eq!(loot.seed, seed);
+        check(label, loot);
+    }
 }
 
 #[test]

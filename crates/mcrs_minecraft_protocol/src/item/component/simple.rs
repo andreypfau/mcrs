@@ -36,12 +36,13 @@ float_default! {
 }
 
 /// A ranged float field, worded as `Codec.floatRange` (DFU) or as
-/// `ExtraCodecs.floatRange` and its positive and non-negative kin.
+/// `ExtraCodecs.floatRange` and its positive and non-negative kin. The
+/// bounds compare as `Float.compareTo` does: -0.0 sits below 0.0.
 macro_rules! checked_float {
-    ($($name:ident: $value:ident => $ok:expr, $message:literal),* $(,)?) => {$(
+    ($($name:ident: $value:ident in $min:literal $op:tt $max:expr => $message:literal),* $(,)?) => {$(
         fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
             let $value = float_value(d)?;
-            if $ok {
+            if $value.total_cmp(&$min).$op() && $value.total_cmp(&$max).is_le() {
                 Ok($value)
             } else {
                 Err(D::Error::custom(format_args!($message)))
@@ -51,12 +52,12 @@ macro_rules! checked_float {
 }
 
 checked_float! {
-    unit_fraction: v => (0.0..=1.0).contains(&v), "Value {v:?} outside of range [0.0:1.0]",
-    mob_factor: v => (0.0..=2.0).contains(&v), "Value {v:?} outside of range [0.0:2.0]",
-    reach: v => (0.0..=64.0).contains(&v), "Value must be within range [0.0;64.0]: {v:?}",
-    margin: v => (0.0..=1.0).contains(&v), "Value must be within range [0.0;1.0]: {v:?}",
-    positive: v => v > 0.0, "Value must be positive: {v:?}",
-    non_negative: v => v >= 0.0, "Value must be non-negative: {v:?}",
+    unit_fraction: v in 0.0 is_ge 1.0 => "Value {v:?} outside of range [0.0:1.0]",
+    mob_factor: v in 0.0 is_ge 2.0 => "Value {v:?} outside of range [0.0:2.0]",
+    reach: v in 0.0 is_ge 64.0 => "Value must be within range [0.0;64.0]: {v:?}",
+    margin: v in 0.0 is_ge 1.0 => "Value must be within range [0.0;1.0]: {v:?}",
+    positive: v in 0.0 is_gt f32::MAX => "Value must be positive: {v:?}",
+    non_negative: v in 0.0 is_ge f32::MAX => "Value must be non-negative: {v:?}",
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
