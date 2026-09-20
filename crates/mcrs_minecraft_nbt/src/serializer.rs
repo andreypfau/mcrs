@@ -42,8 +42,18 @@ impl<W: Write> WriteAdaptor<W> {
     write_number_be!(write_i32_be, i32);
     write_number_be!(write_u64_be, u64);
     write_number_be!(write_i64_be, i64);
-    write_number_be!(write_f32_be, f32);
-    write_number_be!(write_f64_be, f64);
+    // Vanilla's float and double tags fold -0.0 into +0.0 as they are made.
+    pub fn write_f32_be(&mut self, value: f32) -> Result<()> {
+        self.writer
+            .write_all(&(value + 0.0).to_be_bytes())
+            .map_err(Error::Incomplete)
+    }
+
+    pub fn write_f64_be(&mut self, value: f64) -> Result<()> {
+        self.writer
+            .write_all(&(value + 0.0).to_be_bytes())
+            .map_err(Error::Incomplete)
+    }
 
     pub fn write_slice(&mut self, value: &[u8]) -> Result<()> {
         self.writer.write_all(value).map_err(Error::Incomplete)?;

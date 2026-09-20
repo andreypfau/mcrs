@@ -69,7 +69,11 @@ impl<'de, T: Deserialize<'de>, const ALWAYS_LIST: bool> Deserialize<'de>
             }
 
             fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
-                Vec::deserialize(value::SeqAccessDeserializer::new(seq)).map(HolderSet::List)
+                let mut entries = Vec::deserialize(value::SeqAccessDeserializer::new(seq))?;
+                if !ALWAYS_LIST && entries.len() == 1 {
+                    return Ok(HolderSet::One(entries.remove(0)));
+                }
+                Ok(HolderSet::List(entries))
             }
         }
 

@@ -65,8 +65,22 @@ impl<R: Read + Seek> NbtReadHelper<R> {
     define_get_number_be!(get_i32_be, i32);
     define_get_number_be!(get_u64_be, u64);
     define_get_number_be!(get_i64_be, i64);
-    define_get_number_be!(get_f32_be, f32);
-    define_get_number_be!(get_f64_be, f64);
+    // Vanilla's float and double tags fold -0.0 into +0.0 as they are read.
+    pub fn get_f32_be(&mut self) -> Result<f32> {
+        let mut buf = [0u8; 4];
+        self.reader
+            .read_exact(&mut buf)
+            .map_err(Error::Incomplete)?;
+        Ok(f32::from_be_bytes(buf) + 0.0)
+    }
+
+    pub fn get_f64_be(&mut self) -> Result<f64> {
+        let mut buf = [0u8; 8];
+        self.reader
+            .read_exact(&mut buf)
+            .map_err(Error::Incomplete)?;
+        Ok(f64::from_be_bytes(buf) + 0.0)
+    }
 
     /// Fills `buf` with `count` bytes, reusing its allocation.
     pub fn read_into(&mut self, buf: &mut Vec<u8>, count: usize) -> Result<()> {
