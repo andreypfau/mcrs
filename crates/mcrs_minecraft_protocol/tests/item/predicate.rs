@@ -56,7 +56,7 @@ fn decode(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
 fn predicates_match_the_vanilla_codecs() {
     let cases: Vec<Case> =
         serde_json::from_str(include_str!("../fixtures/item/predicate_vanilla.json")).unwrap();
-    assert_eq!(cases.len(), 64);
+    assert_eq!(cases.len(), 81);
     for case in cases {
         let kind = ItemComponentKind::from_id(&case.kind).unwrap();
         let label = format!("{} {}", case.kind, case.input);
@@ -141,7 +141,7 @@ fn predicate_errors_read_like_vanilla() {
         ),
         (
             "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":\"x\"}}}}",
-            "invalid type: string \"x\", expected i32",
+            "invalid type: string \"x\", expected a number",
         ),
         (
             "{\"predicates\":{\"minecraft:damage\":{\"foo\":1}}}",
@@ -161,7 +161,55 @@ fn predicate_errors_read_like_vanilla() {
         ),
         (
             "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":3,\"max\":1}}]}}}}",
-            "Swapped bounds in range: Optional[3] is higher than Optional[1]",
+            "Swapped bounds in range: Optional[3.0] is higher than Optional[1.0]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":0.0,\"max\":-0.0}}]}}}}",
+            "Swapped bounds in range: Optional[0.0] is higher than Optional[-0.0]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":1e300,\"max\":1e-300}}]}}}}",
+            "Swapped bounds in range: Optional[1.0E300] is higher than Optional[1.0E-300]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[[]]}}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":5.1,\"max\":4.9}}}}",
+            "Swapped bounds in range: Optional[5] is higher than Optional[4]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:firework_explosion\":{\"has_twinkle\":0,\"has_trail\":1}}}",
+            "invalid type: integer `0`, expected a boolean",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":[1,2]}]}}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":{\"ambient\":1}}]}}}}",
+            "invalid type: integer `1`, expected a boolean",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"count\":[[\"a\",1]]}}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:fireworks\":{\"explosions\":{\"contains\":[[]]}}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:fireworks\":{\"explosions\":[]}}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:enchantments\":[[]]}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:trim\":[]}}",
+            "invalid type: sequence, expected a map",
         ),
         (
             "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":{},\"minecraft:speed\":{}}]}}}}",
@@ -183,6 +231,10 @@ fn predicate_errors_read_like_vanilla() {
         (
             "{\"predicates\":{\"minecraft:damage\":[1,2]}}",
             "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"count\":true}",
+            "invalid type: boolean `true`, expected a number",
         ),
     ] {
         let message = error(ItemComponentKind::Lock, json);
@@ -228,6 +280,55 @@ fn the_partial_predicate_list_is_capped_on_the_wire() {
             .contains("list of 65 entries exceeds the maximum of 64"),
         "{error}"
     );
+}
+
+/// `Double.equals` tells `-0.0` from `0.0`, so this range is not a point.
+/// It stays out of the golden table because vanilla's own wire loses the
+/// sign (`DoubleTag.valueOf` folds every zero into one tag).
+#[test]
+fn a_double_range_between_the_two_zeros_is_kept() {
+    let input = "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":-0.0,\"max\":0.0}}]}}}}";
+    let value = from_json(ItemComponentKind::CanBreak, input);
+    assert_eq!(
+        json_value(&value),
+        serde_json::from_str::<serde_json::Value>(input).unwrap()
+    );
+    assert_eq!(hash_ops::hash(&PersistentValue(&value)).unwrap(), 816994624);
+}
+
+/// `DataComponentMatchers.partial` is a map, so two predicate lists that
+/// differ only in order are the same value; the NBT predicate compares as
+/// `CompoundTag` does, by key rather than by position.
+#[test]
+fn predicate_order_does_not_affect_equality() {
+    for (a, b) in [
+        (
+            "{\"predicates\":{\"minecraft:damage\":{},\"minecraft:trim\":{}}}",
+            "{\"predicates\":{\"minecraft:trim\":{},\"minecraft:damage\":{}}}",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:custom_data\":{\"b\":1,\"a\":2}}}",
+            "{\"predicates\":{\"minecraft:custom_data\":{\"a\":2,\"b\":1}}}",
+        ),
+        (
+            "{\"nbt\":{\"b\":1,\"a\":{\"y\":2,\"x\":1}}}",
+            "{\"nbt\":{\"a\":{\"x\":1,\"y\":2},\"b\":1}}",
+        ),
+    ] {
+        let a = from_json(ItemComponentKind::CanBreak, a);
+        let b = from_json(ItemComponentKind::CanBreak, b);
+        assert_eq!(a, b);
+        assert_eq!(decode(ItemComponentKind::CanBreak, &wire(&a)), a);
+    }
+    let a = from_json(
+        ItemComponentKind::CanBreak,
+        "{\"predicates\":{\"minecraft:damage\":{},\"minecraft:trim\":{}}}",
+    );
+    let b = from_json(
+        ItemComponentKind::CanBreak,
+        "{\"predicates\":{\"minecraft:damage\":{\"damage\":1},\"minecraft:trim\":{}}}",
+    );
+    assert_ne!(a, b);
 }
 
 #[derive(Deserialize)]

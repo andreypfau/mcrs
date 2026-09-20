@@ -11,8 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::item::component::common::{
     AttributeReg, BlockReg, CompactList, EnchantmentReg, EquipmentSlotGroup, ItemReg,
     JukeboxSongReg, MinMaxBounds, MobEffectReg, NbtPredicate, PotionReg, TrimMaterialReg,
-    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, optional_flag, ordinal_enum,
-    serialize_unit,
+    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, ordinal_enum, serialize_unit,
 };
 use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free, decode_nbt_wire, encode_nbt_wire};
 use crate::item::harness::Sample;
@@ -453,8 +452,14 @@ impl DecodeCtx<'_> for DataComponentMatchers {
 
 /// `DataComponentPredicate.CODEC`: a map whose key names a predicate type, or
 /// a component type that must merely be present.
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ComponentPredicates(pub Vec<ComponentPredicateEntry>);
+
+impl PartialEq for ComponentPredicates {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.len() == other.0.len() && self.0.iter().all(|entry| other.0.contains(entry))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ComponentPredicateEntry {
@@ -571,7 +576,7 @@ impl<'de> Deserialize<'de> for UnitMap {
 }
 
 macro_rules! predicate_types {
-    ($($id:literal $name:literal : $variant:ident($shape:ident $ty:ty)),* $(,)?) => {
+    ($($id:literal $name:literal : $variant:ident($ty:ty)),* $(,)?) => {
         /// The `data_component_predicate_type` registry in registration
         /// order, which is the wire id.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -607,7 +612,7 @@ macro_rules! predicate_types {
 
             fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
                 match self {
-                    $(Self::$variant => $shape::<$ty, D>(d).map(ComponentPredicate::$variant)),*
+                    $(Self::$variant => <$ty as Deserialize<'de>>::deserialize(d).map(ComponentPredicate::$variant)),*
                 }
             }
         }
@@ -641,49 +646,76 @@ macro_rules! predicate_types {
 }
 
 predicate_types! {
-     0 "damage"                : Damage(record DamagePredicate),
-     1 "enchantments"          : Enchantments(value EnchantmentsPredicate),
-     2 "stored_enchantments"   : StoredEnchantments(value EnchantmentsPredicate),
-     3 "potion_contents"       : PotionContents(record PotionsPredicate),
-     4 "custom_data"           : CustomData(value NbtPredicate),
-     5 "container"             : Container(record ContainerPredicate),
-     6 "bundle_contents"       : BundleContents(record ContainerPredicate),
-     7 "firework_explosion"    : FireworkExplosion(record FireworkPredicate),
-     8 "fireworks"             : Fireworks(record FireworksPredicate),
-     9 "writable_book_content" : WritableBookContent(record WritableBookPredicate),
-    10 "written_book_content"  : WrittenBookContent(record WrittenBookPredicate),
-    11 "attribute_modifiers"   : AttributeModifiers(record AttributeModifiersPredicate),
-    12 "trim"                  : Trim(record TrimPredicate),
-    13 "jukebox_playable"      : JukeboxPlayable(record JukeboxPlayablePredicate),
-    14 "villager/variant"      : VillagerVariant(value HolderSet<ResourceKey<VillagerTypeReg>>),
-}
-
-fn value<'de, T: Deserialize<'de>, D: Deserializer<'de>>(d: D) -> Result<T, D::Error> {
-    T::deserialize(d)
+     0 "damage"                : Damage(DamagePredicate),
+     1 "enchantments"          : Enchantments(EnchantmentsPredicate),
+     2 "stored_enchantments"   : StoredEnchantments(EnchantmentsPredicate),
+     3 "potion_contents"       : PotionContents(PotionsPredicate),
+     4 "custom_data"           : CustomData(NbtPredicate),
+     5 "container"             : Container(ContainerPredicate),
+     6 "bundle_contents"       : BundleContents(ContainerPredicate),
+     7 "firework_explosion"    : FireworkExplosion(FireworkPredicate),
+     8 "fireworks"             : Fireworks(FireworksPredicate),
+     9 "writable_book_content" : WritableBookContent(WritableBookPredicate),
+    10 "written_book_content"  : WrittenBookContent(WrittenBookPredicate),
+    11 "attribute_modifiers"   : AttributeModifiers(AttributeModifiersPredicate),
+    12 "trim"                  : Trim(TrimPredicate),
+    13 "jukebox_playable"      : JukeboxPlayable(JukeboxPlayablePredicate),
+    14 "villager/variant"      : VillagerVariant(HolderSet<ResourceKey<VillagerTypeReg>>),
 }
 
 /// A derived record also reads a positional sequence; `RecordCodecBuilder`
-/// only reads a map.
-fn record<'de, T: Deserialize<'de>, D: Deserializer<'de>>(d: D) -> Result<T, D::Error> {
-    struct MapOnly<T>(std::marker::PhantomData<T>);
+/// only reads a map. The derive is kept inherent through `remote = "Self"`
+/// and reached only from a map.
+macro_rules! record {
+    ($($name:ident $(<$param:ident>)?),* $(,)?) => {$(
+        impl<'de $(, $param: Deserialize<'de>)?> Deserialize<'de> for $name $(<$param>)? {
+            fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                struct MapOnly<T>(std::marker::PhantomData<T>);
 
-    impl<'de, T: Deserialize<'de>> Visitor<'de> for MapOnly<T> {
-        type Value = T;
+                impl<'de $(, $param: Deserialize<'de>)?> Visitor<'de> for MapOnly<$name $(<$param>)?> {
+                    type Value = $name $(<$param>)?;
 
-        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            f.write_str("a map")
+                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        f.write_str("a map")
+                    }
+
+                    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+                        <$name $(<$param>)?>::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+                    }
+                }
+
+                d.deserialize_map(MapOnly(std::marker::PhantomData))
+            }
         }
 
-        fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<T, A::Error> {
-            T::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+        impl $(<$param: Serialize>)? Serialize for $name $(<$param>)? {
+            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                <$name $(<$param>)?>::serialize(self, s)
+            }
         }
-    }
+    )*};
+}
 
-    d.deserialize_map(MapOnly(std::marker::PhantomData))
+record! {
+    DamagePredicate,
+    EnchantmentPredicate,
+    PotionsPredicate,
+    MobEffectInstancePredicate,
+    CollectionPredicate<P>,
+    CountedPredicate<P>,
+    ContainerPredicate,
+    FireworkPredicate,
+    FireworksPredicate,
+    WritableBookPredicate,
+    WrittenBookPredicate,
+    AttributeModifiersPredicate,
+    AttributeModifierPredicate,
+    TrimPredicate,
+    JukeboxPlayablePredicate,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct DamagePredicate {
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub durability: MinMaxBounds<i32>,
@@ -696,7 +728,7 @@ pub struct DamagePredicate {
 pub struct EnchantmentsPredicate(pub Vec<EnchantmentPredicate>);
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct EnchantmentPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enchantments: Option<HolderSet<ResourceKey<EnchantmentReg>>>,
@@ -705,7 +737,7 @@ pub struct EnchantmentPredicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct PotionsPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub potions: Option<HolderSet<ResourceKey<PotionReg>>>,
@@ -730,30 +762,28 @@ impl<'de> Deserialize<'de> for MobEffectsPredicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct MobEffectInstancePredicate {
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub amplifier: MinMaxBounds<i32>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub duration: MinMaxBounds<i32>,
-    #[serde(
-        default,
-        deserialize_with = "optional_flag",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ambient: Option<bool>,
-    #[serde(
-        default,
-        deserialize_with = "optional_flag",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub visible: Option<bool>,
 }
 
 /// `CollectionPredicate`: elements that must each appear, per-element
-/// occurrence counts, and the collection's size.
+/// occurrence counts, and the collection's size. The bounds are spelled out
+/// because a defaulted field makes the derive infer `P: Default`, and an
+/// inherent `deserialize` whose bounds fail silently yields to the trait's.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(
+    remote = "Self",
+    deny_unknown_fields,
+    bound(serialize = "P: Serialize", deserialize = "P: Deserialize<'de>")
+)]
 pub struct CollectionPredicate<P> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contains: Option<Vec<P>>,
@@ -774,7 +804,11 @@ impl<P> Default for CollectionPredicate<P> {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(
+    remote = "Self",
+    deny_unknown_fields,
+    bound(serialize = "P: Serialize", deserialize = "P: Deserialize<'de>")
+)]
 pub struct CountedPredicate<P> {
     pub test: P,
     pub count: MinMaxBounds<i32>,
@@ -782,7 +816,7 @@ pub struct CountedPredicate<P> {
 
 /// `ContainerPredicate` and `BundlePredicate`, which share one shape.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct ContainerPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub items: Option<CollectionPredicate<ItemPredicate>>,
@@ -793,26 +827,18 @@ ordinal_enum! {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct FireworkPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shape: Option<FireworkShape>,
-    #[serde(
-        default,
-        deserialize_with = "optional_flag",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub has_twinkle: Option<bool>,
-    #[serde(
-        default,
-        deserialize_with = "optional_flag",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub has_trail: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct FireworksPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub explosions: Option<CollectionPredicate<FireworkPredicate>>,
@@ -821,14 +847,14 @@ pub struct FireworksPredicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct WritableBookPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<CollectionPredicate<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct WrittenBookPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<CollectionPredicate<Text>>,
@@ -838,16 +864,12 @@ pub struct WrittenBookPredicate {
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub generation: MinMaxBounds<i32>,
-    #[serde(
-        default,
-        deserialize_with = "optional_flag",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolved: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct AttributeModifiersPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modifiers: Option<CollectionPredicate<AttributeModifierPredicate>>,
@@ -858,7 +880,7 @@ ordinal_enum! {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct AttributeModifierPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribute: Option<HolderSet<ResourceKey<AttributeReg>>>,
@@ -873,7 +895,7 @@ pub struct AttributeModifierPredicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct TrimPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material: Option<HolderSet<ResourceKey<TrimMaterialReg>>>,
@@ -882,7 +904,7 @@ pub struct TrimPredicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct JukeboxPlayablePredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub song: Option<HolderSet<ResourceKey<JukeboxSongReg>>>,

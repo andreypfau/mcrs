@@ -160,7 +160,7 @@ fn control_escape(c: char) -> Option<String> {
 
 /// Java's `Double.toString`: the shortest digits that round-trip but never
 /// fewer than two, plain notation in `[1e-3, 1e7)` and `d.dddE±n` outside.
-fn java_double(v: f64) -> String {
+pub fn java_double(v: f64) -> String {
     let two_digits = format!("{v:.1e}");
     java_number(v, format!("{v:e}"), two_digits.parse() == Ok(v), two_digits)
 }

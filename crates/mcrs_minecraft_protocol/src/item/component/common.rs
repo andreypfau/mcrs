@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -1003,7 +1004,7 @@ impl DecodeCtx<'_> for ValueMatcher {
     }
 }
 
-/// `MinMaxBounds.Ints`: a bare int when both bounds agree, else `{min, max}`.
+/// `MinMaxBounds`: a bare number when both bounds agree, else `{min, max}`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct MinMaxBounds<T> {
     pub min: Option<T>,
@@ -1021,10 +1022,48 @@ impl<T> MinMaxBounds<T> {
     }
 }
 
-impl<T: Serialize + PartialEq> Serialize for MinMaxBounds<T> {
+/// A bound read as its `Codec` reads any number, ordered and printed as its
+/// boxed Java type is.
+pub trait Bound: Copy + Serialize {
+    fn read<'de, D: Deserializer<'de>>(d: D) -> Result<Self, D::Error>;
+    fn compare(self, other: Self) -> Ordering;
+    fn java_string(self) -> String;
+}
+
+impl Bound for i32 {
+    fn read<'de, D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        int_value(d)
+    }
+
+    fn compare(self, other: Self) -> Ordering {
+        self.cmp(&other)
+    }
+
+    fn java_string(self) -> String {
+        self.to_string()
+    }
+}
+
+/// `Double.compareTo` and `Double.equals` order `-0.0` below `0.0`, unlike
+/// the primitive operators.
+impl Bound for f64 {
+    fn read<'de, D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        f64::deserialize(d)
+    }
+
+    fn compare(self, other: Self) -> Ordering {
+        self.total_cmp(&other)
+    }
+
+    fn java_string(self) -> String {
+        mcrs_minecraft_nbt::snbt::java_double(self)
+    }
+}
+
+impl<T: Bound> Serialize for MinMaxBounds<T> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        if let (Some(min), Some(max)) = (&self.min, &self.max)
-            && min == max
+        if let (Some(min), Some(max)) = (self.min, self.max)
+            && min.compare(max) == Ordering::Equal
         {
             return min.serialize(s);
         }
@@ -1039,24 +1078,54 @@ impl<T: Serialize + PartialEq> Serialize for MinMaxBounds<T> {
     }
 }
 
-impl<'de, T: DeserializeOwned + Clone + PartialOrd + fmt::Display> Deserialize<'de>
-    for MinMaxBounds<T>
-{
+fn optional_bound<'de, T: Bound, D: Deserializer<'de>>(d: D) -> Result<Option<T>, D::Error> {
+    struct OptionalBound<T>(PhantomData<T>);
+
+    impl<'de, T: Bound> Visitor<'de> for OptionalBound<T> {
+        type Value = Option<T>;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a number")
+        }
+
+        fn visit_none<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_some<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
+            T::read(d).map(Some)
+        }
+    }
+
+    d.deserialize_option(OptionalBound(PhantomData))
+}
+
+impl<'de, T: Bound> Deserialize<'de> for MinMaxBounds<T> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields, bound = "T: DeserializeOwned")]
+        #[serde(deny_unknown_fields, bound = "T: Bound")]
         struct Range<T> {
-            #[serde(default)]
+            #[serde(default, deserialize_with = "optional_bound")]
             min: Option<T>,
-            #[serde(default)]
+            #[serde(default, deserialize_with = "optional_bound")]
             max: Option<T>,
         }
 
-        struct BoundsVisitor<T>(PhantomData<T>);
+        struct BoundsVisitor<T>(PhantomData<T>, bool);
 
-        impl<'de, T: DeserializeOwned + Clone + PartialOrd + fmt::Display> Visitor<'de>
-            for BoundsVisitor<T>
-        {
+        fn exactly<T: Bound, E: serde::de::Error>(number: Number) -> Result<MinMaxBounds<T>, E> {
+            let exact = T::read(number).map_err(E::custom)?;
+            Ok(MinMaxBounds {
+                min: Some(exact),
+                max: Some(exact),
+            })
+        }
+
+        impl<'de, T: Bound> Visitor<'de> for BoundsVisitor<T> {
             type Value = MinMaxBounds<T>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1064,50 +1133,50 @@ impl<'de, T: DeserializeOwned + Clone + PartialOrd + fmt::Display> Deserialize<'
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-                let Range { min, max } =
+                let Range::<T> { min, max } =
                     Range::deserialize(value::MapAccessDeserializer::new(map))?;
-                if let (Some(lo), Some(hi)) = (&min, &max)
-                    && lo > hi
+                if let (Some(lo), Some(hi)) = (min, max)
+                    && lo.compare(hi) == Ordering::Greater
                 {
                     return Err(A::Error::custom(format_args!(
-                        "Swapped bounds in range: Optional[{lo}] is higher than Optional[{hi}]"
+                        "Swapped bounds in range: Optional[{}] is higher than Optional[{}]",
+                        lo.java_string(),
+                        hi.java_string()
                     )));
                 }
                 Ok(MinMaxBounds { min, max })
             }
 
             fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
-                let exact = T::deserialize(value::I64Deserializer::new(v))?;
-                Ok(MinMaxBounds {
-                    min: Some(exact.clone()),
-                    max: Some(exact),
-                })
+                exactly(Number::I64(v, self.1))
             }
 
             fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Self::Value, E> {
-                let exact = T::deserialize(value::U64Deserializer::new(v))?;
-                Ok(MinMaxBounds {
-                    min: Some(exact.clone()),
-                    max: Some(exact),
-                })
+                exactly(Number::U64(v, self.1))
             }
 
             fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<Self::Value, E> {
-                let exact = T::deserialize(value::F64Deserializer::new(v))?;
-                Ok(MinMaxBounds {
-                    min: Some(exact.clone()),
-                    max: Some(exact),
-                })
+                exactly(Number::F64(v, self.1))
             }
         }
 
-        d.deserialize_any(BoundsVisitor(PhantomData))
+        let human_readable = d.is_human_readable();
+        d.deserialize_any(BoundsVisitor(PhantomData, human_readable))
     }
 }
 
 /// `NbtPredicate`: a compound written as SNBT text, read from either.
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct NbtPredicate(pub NbtCompound);
+
+/// `CompoundTag.equals` is map equality at every depth; the SNBT writer
+/// sorts keys, so its text is that comparison.
+impl PartialEq for NbtPredicate {
+    fn eq(&self, other: &Self) -> bool {
+        mcrs_minecraft_nbt::snbt::write_compound(&self.0)
+            == mcrs_minecraft_nbt::snbt::write_compound(&other.0)
+    }
+}
 
 impl Serialize for NbtPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {

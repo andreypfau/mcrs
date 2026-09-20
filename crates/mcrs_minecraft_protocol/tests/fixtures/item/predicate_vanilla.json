@@ -1035,5 +1035,241 @@
   "hash": -1324727340,
   "wire": "0a0a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a65000000100a00156d696e6563726166743a756e627265616b61626c6500000a000a707265646963617465730a00106d696e6563726166743a64616d6167650a000a6475726162696c6974790300036d696e0000000100000800156d696e6563726166743a637573746f6d5f6461746100057b783a317d000a0005636f756e740300036d696e000000020300036d617800000005000900056974656d730800000002000f6d696e6563726166743a73746f6e65000f6d696e6563726166743a6170706c6500",
   "ordered": false
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":2.0}",
+  "json": {
+   "count": 2
+  },
+  "hash": -1718777129,
+  "wire": "0a030005636f756e740000000200",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"items\":\"minecraft:apple\",\"count\":{\"min\":1e3}}",
+  "json": {
+   "items": "minecraft:apple",
+   "count": {
+    "min": 1000
+   }
+  },
+  "hash": -482866169,
+  "wire": "0a0a0005636f756e740300036d696e000003e8000800056974656d73000f6d696e6563726166743a6170706c6500",
+  "ordered": false
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":2147483648}",
+  "json": {
+   "count": -2147483648
+  },
+  "hash": 1746200416,
+  "wire": "0a030005636f756e748000000000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":1.5}",
+  "json": {
+   "count": 1
+  },
+  "hash": -2145220866,
+  "wire": "0a030005636f756e740000000100",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":-2.5}",
+  "json": {
+   "count": -2
+  },
+  "hash": -1002958430,
+  "wire": "0a030005636f756e74fffffffe00",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":{\"min\":1.9999,\"max\":2.0001}}",
+  "json": {
+   "count": {
+    "min": 1,
+    "max": 2
+   }
+  },
+  "hash": 1242786153,
+  "wire": "0a0a0005636f756e740300036d696e000000010300036d6178000000020000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":{\"min\":null,\"max\":3}}",
+  "json": {
+   "count": {
+    "max": 3
+   }
+  },
+  "hash": -18026,
+  "wire": "0a0a0005636f756e740300036d6178000000030000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:damage\":{\"durability\":1.0}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {
+     "durability": 1
+    }
+   }
+  },
+  "hash": 1002099776,
+  "wire": "01000000000101000a03000a6475726162696c6974790000000100",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:damage\":{\"durability\":1.5}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {
+     "durability": 1
+    }
+   }
+  },
+  "hash": 1002099776,
+  "wire": "01000000000101000a03000a6475726162696c6974790000000100",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":5.9,\"max\":5.1}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {
+     "durability": 5
+    }
+   }
+  },
+  "hash": -728823234,
+  "wire": "01000000000101000a03000a6475726162696c6974790000000500",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":2,\"max\":2.0}}]}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:attribute_modifiers": {
+     "modifiers": {
+      "contains": [
+       {
+        "amount": 2.0
+       }
+      ]
+     }
+    }
+   }
+  },
+  "hash": -20194438,
+  "wire": "010000000001010b0a0a00096d6f64696669657273090008636f6e7461696e730a00000001060006616d6f756e744000000000000000000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":12345678}]}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:attribute_modifiers": {
+     "modifiers": {
+      "contains": [
+       {
+        "amount": 12345678.0
+       }
+      ]
+     }
+    }
+   }
+  },
+  "hash": 1668590217,
+  "wire": "010000000001010b0a0a00096d6f64696669657273090008636f6e7461696e730a00000001060006616d6f756e7441678c29c0000000000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":0.0001,\"max\":0.001}}]}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:attribute_modifiers": {
+     "modifiers": {
+      "contains": [
+       {
+        "amount": {
+         "min": 0.0001,
+         "max": 0.001
+        }
+       }
+      ]
+     }
+    }
+   }
+  },
+  "hash": -656317479,
+  "wire": "010000000001010b0a0a00096d6f64696669657273090008636f6e7461696e730a000000010a0006616d6f756e740600036d696e3f1a36e2eb1c432d0600036d61783f50624dd2f1a9fc00000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:firework_explosion\":{\"has_twinkle\":false,\"has_trail\":true}}}",
+  "json": {
+   "predicates": {
+    "minecraft:firework_explosion": {
+     "has_twinkle": false,
+     "has_trail": true
+    }
+   }
+  },
+  "hash": 459572169,
+  "wire": "01000000000101070a0100096861735f747261696c0101000b6861735f7477696e6b6c650000",
+  "ordered": false
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:custom_data\":{\"b\":1,\"a\":2}}}",
+  "json": {
+   "predicates": {
+    "minecraft:custom_data": "{a:2b,b:1b}"
+   }
+  },
+  "hash": 1575726088,
+  "wire": "010000000001010408000b7b613a32622c623a31627d",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:damage\":{},\"minecraft:trim\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {},
+    "minecraft:trim": {}
+   }
+  },
+  "hash": 333659100,
+  "wire": "01000000000201000a00010c0a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:trim\":{},\"minecraft:damage\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {},
+    "minecraft:trim": {}
+   }
+  },
+  "hash": 333659100,
+  "wire": "010000000002010c0a0001000a00",
+  "ordered": true
  }
 ]
