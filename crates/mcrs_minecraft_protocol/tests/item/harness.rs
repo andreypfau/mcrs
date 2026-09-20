@@ -28,13 +28,37 @@ impl TestLookup {
         );
         lookup.registry(
             "sound_event",
-            &["entity.item.break", "item.armor.equip_generic"],
+            &[
+                "entity.item.break",
+                "item.armor.equip_generic",
+                "item.shears.snip",
+                "item.armor.equip_iron",
+            ],
         );
         lookup.registry("mob_effect", &["speed", "slowness", "haste"]);
         lookup.registry("enchantment", &["sharpness", "unbreaking"]);
         lookup.registry("damage_type", &["in_fire", "lava"]);
         lookup.registry("block", &["stone", "dirt"]);
         lookup.registry("entity_type", &["zombie", "pig"]);
+        lookup.registry("block_entity_type", &["chest", "sign"]);
+        lookup.registry("potion", &["water", "swiftness"]);
+        lookup.registry("attribute", &["armor", "attack_damage"]);
+        lookup.registry("banner_pattern", &["globe", "creeper"]);
+        lookup.registry("block_transformer", &["axe", "shovel"]);
+        lookup.registry("villager_type", &["plains", "desert"]);
+        lookup.registry("wolf_variant", &["pale", "ashen"]);
+        lookup.registry("wolf_sound_variant", &["classic", "big"]);
+        lookup.registry("pig_variant", &["temperate", "cold"]);
+        lookup.registry("pig_sound_variant", &["classic", "mini"]);
+        lookup.registry("cow_variant", &["temperate", "warm"]);
+        lookup.registry("cow_sound_variant", &["classic", "moody"]);
+        lookup.registry("chicken_variant", &["temperate", "cold"]);
+        lookup.registry("chicken_sound_variant", &["classic", "picky"]);
+        lookup.registry("zombie_nautilus_variant", &["temperate", "warm"]);
+        lookup.registry("frog_variant", &["temperate", "warm"]);
+        lookup.registry("cat_variant", &["tabby", "jellie"]);
+        lookup.registry("cat_sound_variant", &["classic", "royal"]);
+        lookup.registry("decorated_pot_pattern", &["angler", "skull"]);
         lookup
     }
 
