@@ -350,5 +350,690 @@
   "hash": -30747989,
   "wire": "0a0a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a65000000100a00156d696e6563726166743a756e627265616b61626c6500000a000a707265646963617465730a00106d696e6563726166743a64616d616765000800156d696e6563726166743a637573746f6d5f6461746100057b783a317d000a0005636f756e740300036d696e000000020300036d617800000005000900056974656d730800000002000f6d696e6563726166743a73746f6e65000f6d696e6563726166743a6170706c6500",
   "ordered": false
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":1}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {
+     "durability": {
+      "min": 1
+     }
+    }
+   }
+  },
+  "hash": -106891656,
+  "wire": "01000000000101000a0a000a6475726162696c6974790300036d696e000000010000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:damage\":{\"durability\":1}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {
+     "durability": 1
+    }
+   }
+  },
+  "hash": 1002099776,
+  "wire": "01000000000101000a03000a6475726162696c6974790000000100",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":1,\"max\":1},\"damage\":{\"max\":9}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {
+     "durability": 1,
+     "damage": {
+      "max": 9
+     }
+    }
+   }
+  },
+  "hash": 427513087,
+  "wire": "01000000000101000a0a000664616d6167650300036d6178000000090003000a6475726162696c6974790000000100",
+  "ordered": false
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:damage\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {}
+   }
+  },
+  "hash": 357172252,
+  "wire": "01000000000101000a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:enchantments\":[{\"enchantments\":\"minecraft:sharpness\",\"levels\":{\"min\":2}}]}}",
+  "json": {
+   "predicates": {
+    "minecraft:enchantments": [
+     {
+      "enchantments": "minecraft:sharpness",
+      "levels": {
+       "min": 2
+      }
+     }
+    ]
+   }
+  },
+  "hash": 207245375,
+  "wire": "0100000000010101090a0000000108000c656e6368616e746d656e747300136d696e6563726166743a73686172706e6573730a00066c6576656c730300036d696e000000020000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:enchantments\":[]}}",
+  "json": {
+   "predicates": {
+    "minecraft:enchantments": []
+   }
+  },
+  "hash": -293383225,
+  "wire": "0100000000010101090000000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:enchantments\":[{\"enchantments\":[\"minecraft:sharpness\",\"minecraft:unbreaking\"],\"levels\":3},{}]}}",
+  "json": {
+   "predicates": {
+    "minecraft:enchantments": [
+     {
+      "enchantments": [
+       "minecraft:sharpness",
+       "minecraft:unbreaking"
+      ],
+      "levels": 3
+     },
+     {}
+    ]
+   }
+  },
+  "hash": 419099581,
+  "wire": "0100000000010101090a0000000209000c656e6368616e746d656e7473080000000200136d696e6563726166743a73686172706e65737300146d696e6563726166743a756e627265616b696e670300066c6576656c73000000030000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:stored_enchantments\":[{\"levels\":{\"max\":1}}]}}",
+  "json": {
+   "predicates": {
+    "minecraft:stored_enchantments": [
+     {
+      "levels": {
+       "max": 1
+      }
+     }
+    ]
+   }
+  },
+  "hash": 2068271348,
+  "wire": "0100000000010102090a000000010a00066c6576656c730300036d6178000000010000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:potion_contents\":{\"potions\":\"minecraft:healing\",\"effects\":{\"contains\":[{\"minecraft:speed\":{\"amplifier\":1,\"duration\":{\"min\":100},\"ambient\":true,\"visible\":false}}],\"count\":[{\"test\":{\"minecraft:haste\":{}},\"count\":{\"min\":1}}],\"size\":{}}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:potion_contents": {
+     "potions": "minecraft:healing",
+     "effects": {
+      "contains": [
+       {
+        "minecraft:speed": {
+         "amplifier": 1,
+         "duration": {
+          "min": 100
+         },
+         "ambient": true,
+         "visible": false
+        }
+       }
+      ],
+      "count": [
+       {
+        "test": {
+         "minecraft:haste": {}
+        },
+        "count": {
+         "min": 1
+        }
+       }
+      ],
+      "size": {}
+     }
+    }
+   }
+  },
+  "hash": -989938158,
+  "wire": "01000000000101030a0a000765666665637473090008636f6e7461696e730a000000010a000f6d696e6563726166743a73706565640a00086475726174696f6e0300036d696e000000640001000776697369626c6500030009616d706c696669657200000001010007616d6269656e740100000a000473697a6500090005636f756e740a000000010a0004746573740a000f6d696e6563726166743a686173746500000a0005636f756e740300036d696e00000001000000080007706f74696f6e7300116d696e6563726166743a6865616c696e6700",
+  "ordered": false
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:potion_contents\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:potion_contents": {}
+   }
+  },
+  "hash": 1859267552,
+  "wire": "01000000000101030a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:potion_contents\":{\"potions\":[\"minecraft:healing\",\"minecraft:swiftness\"],\"effects\":{}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:potion_contents": {
+     "potions": [
+      "minecraft:healing",
+      "minecraft:swiftness"
+     ],
+     "effects": {}
+    }
+   }
+  },
+  "hash": 1121875380,
+  "wire": "01000000000101030a0a00076566666563747300090007706f74696f6e73080000000200116d696e6563726166743a6865616c696e6700136d696e6563726166743a73776966746e65737300",
+  "ordered": false
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:custom_data\":{\"x\":1}}}",
+  "json": {
+   "predicates": {
+    "minecraft:custom_data": "{x:1b}"
+   }
+  },
+  "hash": -1690141427,
+  "wire": "01000000000101040800067b783a31627d",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:custom_data\":\"{x:1}\"}}",
+  "json": {
+   "predicates": {
+    "minecraft:custom_data": "{x:1}"
+   }
+  },
+  "hash": 1228088297,
+  "wire": "01000000000101040800057b783a317d",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:custom_data\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:custom_data": "{}"
+   }
+  },
+  "hash": 1997574644,
+  "wire": "01000000000101040800027b7d",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:container\":{\"items\":{\"size\":3,\"contains\":[{\"items\":\"minecraft:apple\",\"count\":{\"min\":2}}]}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:container": {
+     "items": {
+      "contains": [
+       {
+        "items": "minecraft:apple",
+        "count": {
+         "min": 2
+        }
+       }
+      ],
+      "size": 3
+     }
+    }
+   }
+  },
+  "hash": 1416026649,
+  "wire": "01000000000101050a0a00056974656d73090008636f6e7461696e730a000000010a0005636f756e740300036d696e00000002000800056974656d73000f6d696e6563726166743a6170706c650003000473697a65000000030000",
+  "ordered": false
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:container\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:container": {}
+   }
+  },
+  "hash": 343634990,
+  "wire": "01000000000101050a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:bundle_contents\":{\"items\":{\"count\":[{\"test\":{\"items\":\"minecraft:stone\"},\"count\":2}]}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:bundle_contents": {
+     "items": {
+      "count": [
+       {
+        "test": {
+         "items": "minecraft:stone"
+        },
+        "count": 2
+       }
+      ]
+     }
+    }
+   }
+  },
+  "hash": 292990783,
+  "wire": "01000000000101060a0a00056974656d73090005636f756e740a000000010a0004746573740800056974656d73000f6d696e6563726166743a73746f6e6500030005636f756e7400000002000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:firework_explosion\":{\"shape\":\"star\",\"has_twinkle\":true}}}",
+  "json": {
+   "predicates": {
+    "minecraft:firework_explosion": {
+     "shape": "star",
+     "has_twinkle": true
+    }
+   }
+  },
+  "hash": -1476889576,
+  "wire": "01000000000101070a080005736861706500047374617201000b6861735f7477696e6b6c650100",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:firework_explosion\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:firework_explosion": {}
+   }
+  },
+  "hash": -1458019760,
+  "wire": "01000000000101070a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:fireworks\":{\"explosions\":{\"contains\":[{\"shape\":\"burst\",\"has_trail\":false}],\"size\":{\"min\":1}},\"flight_duration\":{\"max\":2}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:fireworks": {
+     "explosions": {
+      "contains": [
+       {
+        "shape": "burst",
+        "has_trail": false
+       }
+      ],
+      "size": {
+       "min": 1
+      }
+     },
+     "flight_duration": {
+      "max": 2
+     }
+    }
+   }
+  },
+  "hash": 887753138,
+  "wire": "01000000000101080a0a000a6578706c6f73696f6e73090008636f6e7461696e730a000000010100096861735f747261696c00080005736861706500056275727374000a000473697a650300036d696e0000000100000a000f666c696768745f6475726174696f6e0300036d6178000000020000",
+  "ordered": false
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:fireworks\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:fireworks": {}
+   }
+  },
+  "hash": -1279954920,
+  "wire": "01000000000101080a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:writable_book_content\":{\"pages\":{\"contains\":[\"hello\"],\"size\":1}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:writable_book_content": {
+     "pages": {
+      "contains": [
+       "hello"
+      ],
+      "size": 1
+     }
+    }
+   }
+  },
+  "hash": -1731503192,
+  "wire": "01000000000101090a0a00057061676573090008636f6e7461696e730800000001000568656c6c6f03000473697a65000000010000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:writable_book_content\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:writable_book_content": {}
+   }
+  },
+  "hash": -2075786377,
+  "wire": "01000000000101090a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:written_book_content\":{\"pages\":{\"contains\":[\"a\",{\"text\":\"b\",\"bold\":true}]},\"author\":\"me\",\"title\":\"t\",\"generation\":{\"min\":1},\"resolved\":true}}}",
+  "json": {
+   "predicates": {
+    "minecraft:written_book_content": {
+     "pages": {
+      "contains": [
+       "a",
+       {
+        "text": "b",
+        "bold": true
+       }
+      ]
+     },
+     "author": "me",
+     "title": "t",
+     "generation": {
+      "min": 1
+     },
+     "resolved": true
+    }
+   }
+  },
+  "hash": -1015532392,
+  "wire": "010000000001010a0a0a000a67656e65726174696f6e0300036d696e00000001000a00057061676573090008636f6e7461696e730a000000020800000001610008000474657874000162010004626f6c64010000080006617574686f7200026d650800057469746c650001740100087265736f6c7665640100",
+  "ordered": false
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:written_book_content\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:written_book_content": {}
+   }
+  },
+  "hash": -401823564,
+  "wire": "010000000001010a0a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"attribute\":\"minecraft:attack_damage\",\"id\":\"minecraft:base_attack_damage\",\"amount\":{\"min\":1.5},\"operation\":\"add_value\",\"slot\":\"mainhand\"}]}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:attribute_modifiers": {
+     "modifiers": {
+      "contains": [
+       {
+        "attribute": "minecraft:attack_damage",
+        "id": "minecraft:base_attack_damage",
+        "amount": {
+         "min": 1.5
+        },
+        "operation": "add_value",
+        "slot": "mainhand"
+       }
+      ]
+     }
+    }
+   }
+  },
+  "hash": 1294958442,
+  "wire": "010000000001010b0a0a00096d6f64696669657273090008636f6e7461696e730a000000010a0006616d6f756e740600036d696e3ff80000000000000008000961747472696275746500176d696e6563726166743a61747461636b5f64616d6167650800026964001c6d696e6563726166743a626173655f61747461636b5f64616d616765080004736c6f7400086d61696e68616e640800096f7065726174696f6e00096164645f76616c7565000000",
+  "ordered": false
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":2}]}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:attribute_modifiers": {
+     "modifiers": {
+      "contains": [
+       {
+        "amount": 2.0
+       }
+      ]
+     }
+    }
+   }
+  },
+  "hash": -20194438,
+  "wire": "010000000001010b0a0a00096d6f64696669657273090008636f6e7461696e730a00000001060006616d6f756e744000000000000000000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:attribute_modifiers\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:attribute_modifiers": {}
+   }
+  },
+  "hash": -1910997021,
+  "wire": "010000000001010b0a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:trim\":{\"material\":\"minecraft:gold\",\"pattern\":[\"minecraft:sentry\",\"minecraft:vex\"]}}}",
+  "json": {
+   "predicates": {
+    "minecraft:trim": {
+     "material": "minecraft:gold",
+     "pattern": [
+      "minecraft:sentry",
+      "minecraft:vex"
+     ]
+    }
+   }
+  },
+  "hash": -260975213,
+  "wire": "010000000001010c0a0800086d6174657269616c000e6d696e6563726166743a676f6c640900077061747465726e080000000200106d696e6563726166743a73656e747279000d6d696e6563726166743a76657800",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:trim\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:trim": {}
+   }
+  },
+  "hash": -1530002493,
+  "wire": "010000000001010c0a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:jukebox_playable\":{\"song\":\"minecraft:cat\"}}}",
+  "json": {
+   "predicates": {
+    "minecraft:jukebox_playable": {
+     "song": "minecraft:cat"
+    }
+   }
+  },
+  "hash": -1851286777,
+  "wire": "010000000001010d0a080004736f6e67000d6d696e6563726166743a63617400",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:jukebox_playable\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:jukebox_playable": {}
+   }
+  },
+  "hash": -1296658965,
+  "wire": "010000000001010d0a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:villager/variant\":\"minecraft:plains\"}}",
+  "json": {
+   "predicates": {
+    "minecraft:villager/variant": "minecraft:plains"
+   }
+  },
+  "hash": -752816164,
+  "wire": "010000000001010e0800106d696e6563726166743a706c61696e73",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"predicates\":{\"minecraft:damage\":{\"durability\":1}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {
+     "durability": 1
+    }
+   }
+  },
+  "hash": 1002099776,
+  "wire": "0a0a000a707265646963617465730a00106d696e6563726166743a64616d61676503000a6475726162696c69747900000001000000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":1,\"max\":1}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:damage": {
+     "durability": 1
+    }
+   }
+  },
+  "hash": 1002099776,
+  "wire": "0a0a000a707265646963617465730a00106d696e6563726166743a64616d61676503000a6475726162696c69747900000001000000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"predicates\":{\"minecraft:container\":{\"items\":{\"contains\":[{\"predicates\":{\"minecraft:damage\":{\"damage\":{\"max\":9}}}}]}}}}",
+  "json": {
+   "predicates": {
+    "minecraft:container": {
+     "items": {
+      "contains": [
+       {
+        "predicates": {
+         "minecraft:damage": {
+          "damage": {
+           "max": 9
+          }
+         }
+        }
+       }
+      ]
+     }
+    }
+   }
+  },
+  "hash": -571960135,
+  "wire": "0a0a000a707265646963617465730a00136d696e6563726166743a636f6e7461696e65720a00056974656d73090008636f6e7461696e730a000000010a000a707265646963617465730a00106d696e6563726166743a64616d6167650a000664616d6167650300036d6178000000090000000000000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_place_on",
+  "input": "[{\"blocks\":[\"minecraft:stone\",\"minecraft:dirt\"],\"state\":{\"age\":{\"min\":\"1\",\"max\":\"3\"}},\"nbt\":\"{a:1b,name:\\\"x\\\"}\",\"components\":{\"minecraft:max_stack_size\":16,\"minecraft:custom_data\":{\"x\":100000,\"name\":\"mcrs\"},\"minecraft:damage\":7},\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":1}},\"minecraft:custom_name\":{},\"custom_data\":\"{x:1}\",\"minecraft:villager/variant\":[\"minecraft:plains\",\"minecraft:desert\"]}},{\"nbt\":{\"b\":2}}]",
+  "json": [
+   {
+    "blocks": [
+     "minecraft:stone",
+     "minecraft:dirt"
+    ],
+    "state": {
+     "age": {
+      "min": "1",
+      "max": "3"
+     }
+    },
+    "nbt": "{a:1b,name:\"x\"}",
+    "components": {
+     "minecraft:max_stack_size": 16,
+     "minecraft:damage": 7,
+     "minecraft:custom_data": {
+      "x": 100000,
+      "name": "mcrs"
+     }
+    },
+    "predicates": {
+     "minecraft:damage": {
+      "durability": {
+       "min": 1
+      }
+     },
+     "minecraft:custom_name": {},
+     "minecraft:custom_data": "{x:1}",
+     "minecraft:villager/variant": [
+      "minecraft:plains",
+      "minecraft:desert"
+     ]
+    }
+   },
+   {
+    "nbt": "{b:2b}"
+   }
+  ],
+  "hash": -410981383,
+  "wire": "020103010901010361676500010131010133010a01000161010800046e616d6500017800030110000a03000178000186a00800046e616d6500046d6372730003070401000a0a000a6475726162696c6974790300036d696e00000001000000060a0001040800057b783a317d010e09080000000200106d696e6563726166743a706c61696e7300106d696e6563726166743a6465736572740000010a0100016202000000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"items\":[\"minecraft:stone\",\"minecraft:apple\"],\"count\":{\"min\":2,\"max\":5},\"components\":{\"minecraft:max_stack_size\":16,\"minecraft:unbreakable\":{}},\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":1}},\"minecraft:custom_data\":\"{x:1}\"}}",
+  "json": {
+   "items": [
+    "minecraft:stone",
+    "minecraft:apple"
+   ],
+   "count": {
+    "min": 2,
+    "max": 5
+   },
+   "components": {
+    "minecraft:max_stack_size": 16,
+    "minecraft:unbreakable": {}
+   },
+   "predicates": {
+    "minecraft:damage": {
+     "durability": {
+      "min": 1
+     }
+    },
+    "minecraft:custom_data": "{x:1}"
+   }
+  },
+  "hash": -1324727340,
+  "wire": "0a0a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a65000000100a00156d696e6563726166743a756e627265616b61626c6500000a000a707265646963617465730a00106d696e6563726166743a64616d6167650a000a6475726162696c6974790300036d696e0000000100000800156d696e6563726166743a637573746f6d5f6461746100057b783a317d000a0005636f756e740300036d696e000000020300036d617800000005000900056974656d730800000002000f6d696e6563726166743a73746f6e65000f6d696e6563726166743a6170706c6500",
+  "ordered": false
  }
 ]

@@ -3,20 +3,22 @@ use std::io::Write;
 
 use anyhow::{bail, ensure};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::RegistryLookup;
-use serde::de::{Error as _, MapAccess, Visitor};
+use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::common::{
-    BlockReg, CompactList, ItemReg, MinMaxBounds, NbtPredicate, ValueMatcher, deserialize_unit,
+    AttributeReg, BlockReg, CompactList, EnchantmentReg, EquipmentSlotGroup, ItemReg,
+    JukeboxSongReg, MinMaxBounds, MobEffectReg, NbtPredicate, PotionReg, TrimMaterialReg,
+    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, optional_flag, ordinal_enum,
     serialize_unit,
 };
-use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free, decode_nbt_wire, encode_nbt_wire};
 use crate::item::harness::Sample;
 use crate::item::kind::{ItemComponentKind, ItemComponentValue};
 use crate::item::patch::ComponentMap;
+use crate::text::{IntoText, Text};
 use crate::{Decode, Encode, VarInt};
 
 pub const MAX_PARTIAL_PREDICATES: usize = 64;
@@ -256,35 +258,56 @@ pub struct StatePropertiesPredicate(pub Vec<(String, ValueMatcher)>);
 
 impl Serialize for StatePropertiesPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_map(self.0.iter().map(|(name, matcher)| (name, matcher)))
+        serialize_entries(&self.0, s)
     }
 }
 
 impl<'de> Deserialize<'de> for StatePropertiesPredicate {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct PropertiesVisitor;
+        deserialize_entries(d).map(StatePropertiesPredicate)
+    }
+}
 
-        impl<'de> Visitor<'de> for PropertiesVisitor {
-            type Value = StatePropertiesPredicate;
+/// A map kept in the order read, refusing a repeated key.
+fn serialize_entries<K: Serialize, V: Serialize, S: Serializer>(
+    entries: &[(K, V)],
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    s.collect_map(entries.iter().map(|(key, value)| (key, value)))
+}
 
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a map of property names to matchers")
-            }
+fn deserialize_entries<'de, D, K, V>(d: D) -> Result<Vec<(K, V)>, D::Error>
+where
+    D: Deserializer<'de>,
+    K: Deserialize<'de> + PartialEq + fmt::Display,
+    V: Deserialize<'de>,
+{
+    struct EntriesVisitor<K, V>(std::marker::PhantomData<(K, V)>);
 
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                let mut properties: Vec<(String, ValueMatcher)> = Vec::new();
-                while let Some(name) = map.next_key::<String>()? {
-                    if properties.iter().any(|(seen, _)| *seen == name) {
-                        return Err(A::Error::custom(format_args!("Duplicate key '{name}'")));
-                    }
-                    properties.push((name, map.next_value()?));
-                }
-                Ok(StatePropertiesPredicate(properties))
-            }
+    impl<'de, K, V> Visitor<'de> for EntriesVisitor<K, V>
+    where
+        K: Deserialize<'de> + PartialEq + fmt::Display,
+        V: Deserialize<'de>,
+    {
+        type Value = Vec<(K, V)>;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a map")
         }
 
-        d.deserialize_map(PropertiesVisitor)
+        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+            let mut entries: Vec<(K, V)> = Vec::new();
+            while let Some(key) = map.next_key::<K>()? {
+                if entries.iter().any(|(seen, _)| *seen == key) {
+                    return Err(A::Error::custom(format_args!("Duplicate key '{key}'")));
+                }
+                entries.push((key, map.next_value()?));
+            }
+            Ok(entries)
+        }
     }
+
+    d.deserialize_map(EntriesVisitor(std::marker::PhantomData))
 }
 
 impl EncodeCtx for StatePropertiesPredicate {
@@ -372,10 +395,10 @@ impl EncodeCtx for DataComponentMatchers {
         VarInt(predicates.len() as i32).encode(&mut *w)?;
         for entry in predicates {
             match entry {
-                ComponentPredicateEntry::Typed { kind, value } => {
+                ComponentPredicateEntry::Typed(predicate) => {
                     true.encode(&mut *w)?;
-                    kind.encode(&mut *w)?;
-                    encode_nbt_wire(value, &mut *w)?;
+                    predicate.kind().encode(&mut *w)?;
+                    encode_nbt_wire(predicate, &mut *w)?;
                 }
                 ComponentPredicateEntry::AnyValue(kind) => {
                     false.encode(&mut *w)?;
@@ -405,10 +428,10 @@ impl DecodeCtx<'_> for DataComponentMatchers {
         let mut predicates = ComponentPredicates::default();
         for _ in 0..partial {
             let entry = match bool::decode(r)? {
-                true => ComponentPredicateEntry::Typed {
-                    kind: ComponentPredicateType::decode(r)?,
-                    value: decode_nbt_wire(r)?,
-                },
+                true => {
+                    let kind = ComponentPredicateType::decode(r)?;
+                    ComponentPredicateEntry::Typed(decode_predicate_wire(kind, r)?)
+                }
                 false => {
                     let kind = ItemComponentKind::decode(r)?;
                     decode_nbt_wire::<UnitMap>(r)?;
@@ -433,22 +456,16 @@ impl DecodeCtx<'_> for DataComponentMatchers {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ComponentPredicates(pub Vec<ComponentPredicateEntry>);
 
-/// ponytail: the fifteen predicate codecs are kept as the tag they were read
-/// as, so a value re-emits in its input shape and a JSON number lands in the
-/// narrowest NBT tag rather than the codec's; modelling each codec removes it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ComponentPredicateEntry {
-    Typed {
-        kind: ComponentPredicateType,
-        value: NbtTag,
-    },
+    Typed(ComponentPredicate),
     AnyValue(ItemComponentKind),
 }
 
 impl ComponentPredicateEntry {
     fn same_key(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Typed { kind: a, .. }, Self::Typed { kind: b, .. }) => a == b,
+            (Self::Typed(a), Self::Typed(b)) => a.kind() == b.kind(),
             (Self::AnyValue(a), Self::AnyValue(b)) => a == b,
             _ => false,
         }
@@ -456,10 +473,28 @@ impl ComponentPredicateEntry {
 
     fn id(&self) -> ResourceLocation<&'static str> {
         match self {
-            Self::Typed { kind, .. } => kind.id(),
+            Self::Typed(predicate) => predicate.kind().id(),
             Self::AnyValue(kind) => kind.id(),
         }
     }
+}
+
+/// `fromCodecWithRegistries`: one network NBT tag of whatever root type the
+/// predicate's codec writes, read back through that codec.
+fn decode_predicate_wire(
+    kind: ComponentPredicateType,
+    r: &mut &[u8],
+) -> anyhow::Result<ComponentPredicate> {
+    match r.first() {
+        None => bail!("empty input for a network NBT tag"),
+        Some(&mcrs_minecraft_nbt::END_ID) => bail!("a network NBT tag must not be TAG_End"),
+        Some(_) => {}
+    }
+    let mut cursor = std::io::Cursor::new(*r);
+    let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
+    let value = kind.deserialize(&mut d)?;
+    *r = &r[cursor.position() as usize..];
+    Ok(value)
 }
 
 impl Serialize for ComponentPredicates {
@@ -467,8 +502,8 @@ impl Serialize for ComponentPredicates {
         let mut map = s.serialize_map(Some(self.0.len()))?;
         for entry in &self.0 {
             match entry {
-                ComponentPredicateEntry::Typed { value, .. } => {
-                    map.serialize_entry(entry.id().as_str(), value)?
+                ComponentPredicateEntry::Typed(predicate) => {
+                    map.serialize_entry(entry.id().as_str(), predicate)?
                 }
                 ComponentPredicateEntry::AnyValue(_) => {
                     map.serialize_entry(entry.id().as_str(), &UnitMap)?
@@ -494,10 +529,7 @@ impl<'de> Deserialize<'de> for ComponentPredicates {
                 let mut entries: Vec<ComponentPredicateEntry> = Vec::new();
                 while let Some(key) = map.next_key::<String>()? {
                     let entry = match ComponentPredicateType::from_id(&key) {
-                        Some(kind) => ComponentPredicateEntry::Typed {
-                            kind,
-                            value: map.next_value()?,
-                        },
+                        Some(kind) => ComponentPredicateEntry::Typed(map.next_value_seed(kind)?),
                         None => match ItemComponentKind::from_id(&key) {
                             Some(kind) => {
                                 map.next_value::<UnitMap>()?;
@@ -539,13 +571,45 @@ impl<'de> Deserialize<'de> for UnitMap {
 }
 
 macro_rules! predicate_types {
-    ($($id:literal $name:literal : $variant:ident),* $(,)?) => {
+    ($($id:literal $name:literal : $variant:ident($shape:ident $ty:ty)),* $(,)?) => {
         /// The `data_component_predicate_type` registry in registration
         /// order, which is the wire id.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         #[repr(u8)]
         pub enum ComponentPredicateType {
             $($variant = $id),*
+        }
+
+        /// A predicate as its type's codec reads it.
+        #[derive(Clone, Debug, PartialEq)]
+        pub enum ComponentPredicate {
+            $($variant($ty)),*
+        }
+
+        impl ComponentPredicate {
+            pub fn kind(&self) -> ComponentPredicateType {
+                match self {
+                    $(Self::$variant(_) => ComponentPredicateType::$variant),*
+                }
+            }
+        }
+
+        impl Serialize for ComponentPredicate {
+            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                match self {
+                    $(Self::$variant(value) => value.serialize(s)),*
+                }
+            }
+        }
+
+        impl<'de> DeserializeSeed<'de> for ComponentPredicateType {
+            type Value = ComponentPredicate;
+
+            fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
+                match self {
+                    $(Self::$variant => $shape::<$ty, D>(d).map(ComponentPredicate::$variant)),*
+                }
+            }
         }
 
         impl ComponentPredicateType {
@@ -577,21 +641,251 @@ macro_rules! predicate_types {
 }
 
 predicate_types! {
-     0 "damage"                : Damage,
-     1 "enchantments"          : Enchantments,
-     2 "stored_enchantments"   : StoredEnchantments,
-     3 "potion_contents"       : PotionContents,
-     4 "custom_data"           : CustomData,
-     5 "container"             : Container,
-     6 "bundle_contents"       : BundleContents,
-     7 "firework_explosion"    : FireworkExplosion,
-     8 "fireworks"             : Fireworks,
-     9 "writable_book_content" : WritableBookContent,
-    10 "written_book_content"  : WrittenBookContent,
-    11 "attribute_modifiers"   : AttributeModifiers,
-    12 "trim"                  : Trim,
-    13 "jukebox_playable"      : JukeboxPlayable,
-    14 "villager/variant"      : VillagerVariant,
+     0 "damage"                : Damage(record DamagePredicate),
+     1 "enchantments"          : Enchantments(value EnchantmentsPredicate),
+     2 "stored_enchantments"   : StoredEnchantments(value EnchantmentsPredicate),
+     3 "potion_contents"       : PotionContents(record PotionsPredicate),
+     4 "custom_data"           : CustomData(value NbtPredicate),
+     5 "container"             : Container(record ContainerPredicate),
+     6 "bundle_contents"       : BundleContents(record ContainerPredicate),
+     7 "firework_explosion"    : FireworkExplosion(record FireworkPredicate),
+     8 "fireworks"             : Fireworks(record FireworksPredicate),
+     9 "writable_book_content" : WritableBookContent(record WritableBookPredicate),
+    10 "written_book_content"  : WrittenBookContent(record WrittenBookPredicate),
+    11 "attribute_modifiers"   : AttributeModifiers(record AttributeModifiersPredicate),
+    12 "trim"                  : Trim(record TrimPredicate),
+    13 "jukebox_playable"      : JukeboxPlayable(record JukeboxPlayablePredicate),
+    14 "villager/variant"      : VillagerVariant(value HolderSet<ResourceKey<VillagerTypeReg>>),
+}
+
+fn value<'de, T: Deserialize<'de>, D: Deserializer<'de>>(d: D) -> Result<T, D::Error> {
+    T::deserialize(d)
+}
+
+/// A derived record also reads a positional sequence; `RecordCodecBuilder`
+/// only reads a map.
+fn record<'de, T: Deserialize<'de>, D: Deserializer<'de>>(d: D) -> Result<T, D::Error> {
+    struct MapOnly<T>(std::marker::PhantomData<T>);
+
+    impl<'de, T: Deserialize<'de>> Visitor<'de> for MapOnly<T> {
+        type Value = T;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a map")
+        }
+
+        fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<T, A::Error> {
+            T::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+        }
+    }
+
+    d.deserialize_map(MapOnly(std::marker::PhantomData))
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DamagePredicate {
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
+    pub durability: MinMaxBounds<i32>,
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
+    pub damage: MinMaxBounds<i32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct EnchantmentsPredicate(pub Vec<EnchantmentPredicate>);
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnchantmentPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enchantments: Option<HolderSet<ResourceKey<EnchantmentReg>>>,
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
+    pub levels: MinMaxBounds<i32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PotionsPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub potions: Option<HolderSet<ResourceKey<PotionReg>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<CollectionPredicate<MobEffectsPredicate>>,
+}
+
+/// `Codec.unboundedMap` of effect to instance predicate, in the order read.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct MobEffectsPredicate(pub Vec<(ResourceKey<MobEffectReg>, MobEffectInstancePredicate)>);
+
+impl Serialize for MobEffectsPredicate {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        serialize_entries(&self.0, s)
+    }
+}
+
+impl<'de> Deserialize<'de> for MobEffectsPredicate {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        deserialize_entries(d).map(MobEffectsPredicate)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MobEffectInstancePredicate {
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
+    pub amplifier: MinMaxBounds<i32>,
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
+    pub duration: MinMaxBounds<i32>,
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ambient: Option<bool>,
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub visible: Option<bool>,
+}
+
+/// `CollectionPredicate`: elements that must each appear, per-element
+/// occurrence counts, and the collection's size.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CollectionPredicate<P> {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contains: Option<Vec<P>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub count: Option<Vec<CountedPredicate<P>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<MinMaxBounds<i32>>,
+}
+
+impl<P> Default for CollectionPredicate<P> {
+    fn default() -> Self {
+        CollectionPredicate {
+            contains: None,
+            count: None,
+            size: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CountedPredicate<P> {
+    pub test: P,
+    pub count: MinMaxBounds<i32>,
+}
+
+/// `ContainerPredicate` and `BundlePredicate`, which share one shape.
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContainerPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub items: Option<CollectionPredicate<ItemPredicate>>,
+}
+
+ordinal_enum! {
+    FireworkShape { SmallBall, LargeBall, Star, Creeper, Burst }
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FireworkPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shape: Option<FireworkShape>,
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub has_twinkle: Option<bool>,
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub has_trail: Option<bool>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FireworksPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub explosions: Option<CollectionPredicate<FireworkPredicate>>,
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
+    pub flight_duration: MinMaxBounds<i32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WritableBookPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pages: Option<CollectionPredicate<String>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WrittenBookPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pages: Option<CollectionPredicate<Text>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
+    pub generation: MinMaxBounds<i32>,
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub resolved: Option<bool>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AttributeModifiersPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modifiers: Option<CollectionPredicate<AttributeModifierPredicate>>,
+}
+
+ordinal_enum! {
+    AttributeOperation { AddValue, AddMultipliedBase, AddMultipliedTotal }
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AttributeModifierPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attribute: Option<HolderSet<ResourceKey<AttributeReg>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<ResourceLocation>,
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
+    pub amount: MinMaxBounds<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation: Option<AttributeOperation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slot: Option<EquipmentSlotGroup>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrimPredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material: Option<HolderSet<ResourceKey<TrimMaterialReg>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<HolderSet<ResourceKey<TrimPatternReg>>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JukeboxPlayablePredicate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub song: Option<HolderSet<ResourceKey<JukeboxSongReg>>>,
 }
 
 impl Encode for ComponentPredicateType {
@@ -632,11 +926,8 @@ impl Sample for AdventureModePredicate {
                         ("components", COMPOUND_ID),
                         ("components.minecraft:max_stack_size", INT_ID),
                         ("components.minecraft:damage", INT_ID),
-                        ("predicates", COMPOUND_ID),
-                        ("predicates.minecraft:damage", COMPOUND_ID),
-                        ("predicates.minecraft:custom_name", COMPOUND_ID),
-                        ("predicates.minecraft:custom_data", STRING_ID),
                     ]);
+                    tags.extend(sample_matcher_tags());
                 }
                 tags
             }
@@ -717,10 +1008,8 @@ impl Sample for ItemPredicate {
             tags.extend([
                 ("components", COMPOUND_ID),
                 ("components.minecraft:max_stack_size", INT_ID),
-                ("predicates", COMPOUND_ID),
-                ("predicates.minecraft:damage", COMPOUND_ID),
-                ("predicates.minecraft:custom_data", STRING_ID),
             ]);
+            tags.extend(sample_matcher_tags());
         }
         tags
     }
@@ -756,12 +1045,16 @@ impl Sample for ItemPredicate {
     }
 }
 
-fn block(path: &str) -> ResourceKey<BlockReg> {
+fn key<R>(path: &str) -> ResourceKey<R> {
     ResourceKey::from_location(ResourceLocation::minecraft(path))
 }
 
+fn block(path: &str) -> ResourceKey<BlockReg> {
+    key(path)
+}
+
 fn item(path: &str) -> ResourceKey<ItemReg> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path))
+    key(path)
 }
 
 fn sample_compound() -> mcrs_minecraft_nbt::compound::NbtCompound {
@@ -771,41 +1064,248 @@ fn sample_compound() -> mcrs_minecraft_nbt::compound::NbtCompound {
     tag
 }
 
+fn sample_matcher_tags() -> Vec<(&'static str, u8)> {
+    use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
+    vec![
+        ("predicates", COMPOUND_ID),
+        ("predicates.minecraft:damage", COMPOUND_ID),
+        ("predicates.minecraft:damage.durability", COMPOUND_ID),
+        ("predicates.minecraft:damage.durability.min", INT_ID),
+        ("predicates.minecraft:damage.damage", INT_ID),
+        ("predicates.minecraft:custom_name", COMPOUND_ID),
+        ("predicates.minecraft:custom_data", STRING_ID),
+        ("predicates.minecraft:villager/variant", LIST_ID),
+        ("predicates.minecraft:enchantments", LIST_ID),
+        ("predicates.minecraft:stored_enchantments", LIST_ID),
+        ("predicates.minecraft:potion_contents", COMPOUND_ID),
+        ("predicates.minecraft:potion_contents.potions", STRING_ID),
+        ("predicates.minecraft:potion_contents.effects", COMPOUND_ID),
+        (
+            "predicates.minecraft:potion_contents.effects.contains",
+            LIST_ID,
+        ),
+        (
+            "predicates.minecraft:potion_contents.effects.count",
+            LIST_ID,
+        ),
+        (
+            "predicates.minecraft:potion_contents.effects.size",
+            COMPOUND_ID,
+        ),
+        ("predicates.minecraft:container", COMPOUND_ID),
+        ("predicates.minecraft:container.items", COMPOUND_ID),
+        ("predicates.minecraft:container.items.contains", LIST_ID),
+        ("predicates.minecraft:container.items.size", INT_ID),
+        ("predicates.minecraft:bundle_contents", COMPOUND_ID),
+        ("predicates.minecraft:firework_explosion", COMPOUND_ID),
+        ("predicates.minecraft:firework_explosion.shape", STRING_ID),
+        (
+            "predicates.minecraft:firework_explosion.has_twinkle",
+            BYTE_ID,
+        ),
+        ("predicates.minecraft:fireworks", COMPOUND_ID),
+        ("predicates.minecraft:fireworks.explosions", COMPOUND_ID),
+        (
+            "predicates.minecraft:fireworks.flight_duration",
+            COMPOUND_ID,
+        ),
+        ("predicates.minecraft:fireworks.flight_duration.max", INT_ID),
+        ("predicates.minecraft:writable_book_content", COMPOUND_ID),
+        (
+            "predicates.minecraft:writable_book_content.pages",
+            COMPOUND_ID,
+        ),
+        (
+            "predicates.minecraft:writable_book_content.pages.size",
+            INT_ID,
+        ),
+        ("predicates.minecraft:written_book_content", COMPOUND_ID),
+        (
+            "predicates.minecraft:written_book_content.author",
+            STRING_ID,
+        ),
+        (
+            "predicates.minecraft:written_book_content.generation",
+            COMPOUND_ID,
+        ),
+        (
+            "predicates.minecraft:written_book_content.generation.min",
+            INT_ID,
+        ),
+        (
+            "predicates.minecraft:written_book_content.resolved",
+            BYTE_ID,
+        ),
+        ("predicates.minecraft:attribute_modifiers", COMPOUND_ID),
+        (
+            "predicates.minecraft:attribute_modifiers.modifiers",
+            COMPOUND_ID,
+        ),
+        (
+            "predicates.minecraft:attribute_modifiers.modifiers.contains",
+            LIST_ID,
+        ),
+        ("predicates.minecraft:trim", COMPOUND_ID),
+        ("predicates.minecraft:trim.material", STRING_ID),
+        ("predicates.minecraft:trim.pattern", LIST_ID),
+        ("predicates.minecraft:jukebox_playable", COMPOUND_ID),
+        ("predicates.minecraft:jukebox_playable.song", STRING_ID),
+    ]
+}
+
 fn sample_matchers() -> DataComponentMatchers {
     use crate::item::component::{CustomData, Damage, MaxStackSize};
     use mcrs_minecraft_core::codec::Bounded;
 
     let mut custom = mcrs_minecraft_nbt::compound::NbtCompound::new();
     custom.put_int("x", 100_000);
-    let mut damage = mcrs_minecraft_nbt::compound::NbtCompound::new();
-    damage.put_component("durability", {
-        let mut range = mcrs_minecraft_nbt::compound::NbtCompound::new();
-        range.put_byte("min", 1);
-        range
-    });
+    let mut predicate_data = mcrs_minecraft_nbt::compound::NbtCompound::new();
+    predicate_data.put_int("x", 1);
+    let at_least = |min: i32| MinMaxBounds {
+        min: Some(min),
+        max: None,
+    };
+    let at_most = |max: i32| MinMaxBounds {
+        min: None,
+        max: Some(max),
+    };
+    let exactly = |n: i32| MinMaxBounds {
+        min: Some(n),
+        max: Some(n),
+    };
     DataComponentMatchers {
         components: ComponentMap(vec![
             MaxStackSize(Bounded(16)).into(),
             CustomData(custom).into(),
             Damage(Bounded(7)).into(),
         ]),
-        predicates: ComponentPredicates(vec![
-            ComponentPredicateEntry::Typed {
-                kind: ComponentPredicateType::Damage,
-                value: NbtTag::Compound(damage),
-            },
-            ComponentPredicateEntry::AnyValue(ItemComponentKind::CustomName),
-            ComponentPredicateEntry::Typed {
-                kind: ComponentPredicateType::CustomData,
-                value: NbtTag::String("{x:1}".into()),
-            },
-            ComponentPredicateEntry::Typed {
-                kind: ComponentPredicateType::VillagerVariant,
-                value: NbtTag::List(vec![
-                    NbtTag::String("minecraft:plains".into()),
-                    NbtTag::String("minecraft:desert".into()),
-                ]),
-            },
-        ]),
+        predicates: ComponentPredicates(
+            [
+                ComponentPredicate::Damage(DamagePredicate {
+                    durability: at_least(1),
+                    damage: exactly(3),
+                }),
+                ComponentPredicate::CustomData(NbtPredicate(predicate_data)),
+                ComponentPredicate::VillagerVariant(HolderSet::List(vec![
+                    key("plains"),
+                    key("desert"),
+                ])),
+                ComponentPredicate::Enchantments(EnchantmentsPredicate(vec![
+                    EnchantmentPredicate {
+                        enchantments: Some(HolderSet::One(key("sharpness"))),
+                        levels: at_least(2),
+                    },
+                    EnchantmentPredicate::default(),
+                ])),
+                ComponentPredicate::StoredEnchantments(EnchantmentsPredicate(vec![])),
+                ComponentPredicate::PotionContents(PotionsPredicate {
+                    potions: Some(HolderSet::One(key("healing"))),
+                    effects: Some(CollectionPredicate {
+                        contains: Some(vec![MobEffectsPredicate(vec![(
+                            key("speed"),
+                            MobEffectInstancePredicate {
+                                amplifier: exactly(1),
+                                duration: at_least(100),
+                                ambient: Some(true),
+                                visible: Some(false),
+                            },
+                        )])]),
+                        count: Some(vec![CountedPredicate {
+                            test: MobEffectsPredicate(vec![(
+                                key("haste"),
+                                MobEffectInstancePredicate::default(),
+                            )]),
+                            count: at_least(1),
+                        }]),
+                        size: Some(MinMaxBounds::ANY),
+                    }),
+                }),
+                ComponentPredicate::Container(ContainerPredicate {
+                    items: Some(CollectionPredicate {
+                        contains: Some(vec![ItemPredicate {
+                            items: Some(HolderSet::One(item("apple"))),
+                            count: at_least(2),
+                            ..Default::default()
+                        }]),
+                        count: None,
+                        size: Some(exactly(3)),
+                    }),
+                }),
+                ComponentPredicate::BundleContents(ContainerPredicate::default()),
+                ComponentPredicate::FireworkExplosion(FireworkPredicate {
+                    shape: Some(FireworkShape::Star),
+                    has_twinkle: Some(true),
+                    has_trail: None,
+                }),
+                ComponentPredicate::Fireworks(FireworksPredicate {
+                    explosions: Some(CollectionPredicate {
+                        contains: Some(vec![FireworkPredicate {
+                            shape: Some(FireworkShape::Burst),
+                            has_twinkle: None,
+                            has_trail: Some(false),
+                        }]),
+                        count: None,
+                        size: Some(at_least(1)),
+                    }),
+                    flight_duration: at_most(2),
+                }),
+                ComponentPredicate::WritableBookContent(WritableBookPredicate {
+                    pages: Some(CollectionPredicate {
+                        contains: Some(vec!["hello".into()]),
+                        count: None,
+                        size: Some(exactly(1)),
+                    }),
+                }),
+                ComponentPredicate::WrittenBookContent(WrittenBookPredicate {
+                    pages: Some(CollectionPredicate {
+                        contains: Some(vec![Text::text("a"), "b".bold()]),
+                        count: None,
+                        size: None,
+                    }),
+                    author: Some("me".into()),
+                    title: Some("t".into()),
+                    generation: at_least(1),
+                    resolved: Some(true),
+                }),
+                ComponentPredicate::AttributeModifiers(AttributeModifiersPredicate {
+                    modifiers: Some(CollectionPredicate {
+                        contains: Some(vec![
+                            AttributeModifierPredicate {
+                                attribute: Some(HolderSet::One(key("attack_damage"))),
+                                id: Some(ResourceLocation::minecraft("base_attack_damage")),
+                                amount: MinMaxBounds {
+                                    min: Some(1.5),
+                                    max: None,
+                                },
+                                operation: Some(AttributeOperation::AddValue),
+                                slot: Some(EquipmentSlotGroup::Mainhand),
+                            },
+                            AttributeModifierPredicate {
+                                amount: MinMaxBounds {
+                                    min: Some(2.0),
+                                    max: Some(2.0),
+                                },
+                                ..Default::default()
+                            },
+                        ]),
+                        count: None,
+                        size: None,
+                    }),
+                }),
+                ComponentPredicate::Trim(TrimPredicate {
+                    material: Some(HolderSet::One(key("gold"))),
+                    pattern: Some(HolderSet::List(vec![key("sentry"), key("vex")])),
+                }),
+                ComponentPredicate::JukeboxPlayable(JukeboxPlayablePredicate {
+                    song: Some(HolderSet::One(key("cat"))),
+                }),
+            ]
+            .into_iter()
+            .map(ComponentPredicateEntry::Typed)
+            .chain([ComponentPredicateEntry::AnyValue(
+                ItemComponentKind::CustomName,
+            )])
+            .collect(),
+        ),
     }
 }

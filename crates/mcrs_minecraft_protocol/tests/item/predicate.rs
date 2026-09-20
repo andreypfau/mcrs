@@ -56,7 +56,7 @@ fn decode(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
 fn predicates_match_the_vanilla_codecs() {
     let cases: Vec<Case> =
         serde_json::from_str(include_str!("../fixtures/item/predicate_vanilla.json")).unwrap();
-    assert_eq!(cases.len(), 26);
+    assert_eq!(cases.len(), 64);
     for case in cases {
         let kind = ItemComponentKind::from_id(&case.kind).unwrap();
         let label = format!("{} {}", case.kind, case.input);
@@ -123,15 +123,95 @@ fn predicate_errors_read_like_vanilla() {
             "{\"blocks\":\"a\",\"blocks\":\"b\"}",
             "duplicate field `blocks`",
         ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":\"junk\"}}",
+            "invalid type: string \"junk\", expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":[1,2]}}",
+            "invalid type: sequence, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":true}}",
+            "invalid type: boolean `true`, expected a map",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":5,\"max\":2}}}}",
+            "Swapped bounds in range: Optional[5] is higher than Optional[2]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":\"x\"}}}}",
+            "invalid type: string \"x\", expected i32",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"foo\":1}}}",
+            "unknown field `foo`, expected `durability` or `damage`",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:enchantments\":{}}}",
+            "invalid type: map, expected a sequence",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:firework_explosion\":{\"shape\":\"nope\"}}}",
+            "unknown variant `nope`",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:villager/variant\":{}}}",
+            "invalid type: map, expected",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":3,\"max\":1}}]}}}}",
+            "Swapped bounds in range: Optional[3] is higher than Optional[1]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:potion_contents\":{\"effects\":{\"contains\":[{\"minecraft:speed\":{},\"minecraft:speed\":{}}]}}}}",
+            "Duplicate key 'minecraft:speed'",
+        ),
     ] {
         let message = error(ItemComponentKind::CanBreak, json);
         assert!(message.starts_with(expected), "{json}: {message}");
     }
-    let message = error(
-        ItemComponentKind::Lock,
-        "{\"predicates\":{\"minecraft:damage\":{},\"damage\":{}}}",
-    );
-    assert!(message.starts_with("Duplicate key 'damage'"), "{message}");
+    for (json, expected) in [
+        (
+            "{\"predicates\":{\"minecraft:damage\":{},\"damage\":{}}}",
+            "Duplicate key 'damage'",
+        ),
+        (
+            "{\"count\":{\"min\":5,\"max\":2}}",
+            "Swapped bounds in range: Optional[5] is higher than Optional[2]",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":[1,2]}}",
+            "invalid type: sequence, expected a map",
+        ),
+    ] {
+        let message = error(ItemComponentKind::Lock, json);
+        assert!(message.starts_with(expected), "{json}: {message}");
+    }
+}
+
+/// A predicate the wire carries in a shape its codec refuses fails to decode,
+/// as vanilla's `fromCodecWithRegistries` does, instead of passing through.
+#[test]
+fn malformed_predicate_values_are_refused_on_the_wire() {
+    for (wire, expected) in [
+        (
+            "01000000000101000800046a756e6b",
+            "Trying to deserialize a map without a compound ID (id 8)",
+        ),
+        (
+            "01000000000101000a0a000a6475726162696c6974790300036d696e000000050300036d6178000000020000",
+            "Swapped bounds in range",
+        ),
+        ("010000000001010e0a00", "invalid type: map, expected"),
+    ] {
+        let bytes = hex(wire);
+        let mut r = &bytes[..];
+        let error =
+            ItemComponentValue::decode_ctx_value(ItemComponentKind::CanBreak, &lookup(), &mut r)
+                .unwrap_err();
+        assert!(error.to_string().contains(expected), "{wire}: {error}");
+    }
 }
 
 #[test]

@@ -326,15 +326,21 @@ macro_rules! resolvable {
                     }
 
                     fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<$name, E> {
-                        $number(Number::I64(value, self.0)).map($name::Constant).map_err(E::custom)
+                        $number(Number::I64(value, self.0))
+                            .map($name::Constant)
+                            .map_err(E::custom)
                     }
 
                     fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<$name, E> {
-                        $number(Number::U64(value, self.0)).map($name::Constant).map_err(E::custom)
+                        $number(Number::U64(value, self.0))
+                            .map($name::Constant)
+                            .map_err(E::custom)
                     }
 
                     fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<$name, E> {
-                        $number(Number::F64(value, self.0)).map($name::Constant).map_err(E::custom)
+                        $number(Number::F64(value, self.0))
+                            .map($name::Constant)
+                            .map_err(E::custom)
                     }
                 }
 
@@ -1033,7 +1039,9 @@ impl<T: Serialize + PartialEq> Serialize for MinMaxBounds<T> {
     }
 }
 
-impl<'de, T: DeserializeOwned + Clone> Deserialize<'de> for MinMaxBounds<T> {
+impl<'de, T: DeserializeOwned + Clone + PartialOrd + fmt::Display> Deserialize<'de>
+    for MinMaxBounds<T>
+{
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields, bound = "T: DeserializeOwned")]
@@ -1046,7 +1054,9 @@ impl<'de, T: DeserializeOwned + Clone> Deserialize<'de> for MinMaxBounds<T> {
 
         struct BoundsVisitor<T>(PhantomData<T>);
 
-        impl<'de, T: DeserializeOwned + Clone> Visitor<'de> for BoundsVisitor<T> {
+        impl<'de, T: DeserializeOwned + Clone + PartialOrd + fmt::Display> Visitor<'de>
+            for BoundsVisitor<T>
+        {
             type Value = MinMaxBounds<T>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1056,6 +1066,13 @@ impl<'de, T: DeserializeOwned + Clone> Deserialize<'de> for MinMaxBounds<T> {
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
                 let Range { min, max } =
                     Range::deserialize(value::MapAccessDeserializer::new(map))?;
+                if let (Some(lo), Some(hi)) = (&min, &max)
+                    && lo > hi
+                {
+                    return Err(A::Error::custom(format_args!(
+                        "Swapped bounds in range: Optional[{lo}] is higher than Optional[{hi}]"
+                    )));
+                }
                 Ok(MinMaxBounds { min, max })
             }
 
