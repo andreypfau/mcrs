@@ -17,7 +17,7 @@ use crate::item::component::attribute::AttributeOperation;
 use crate::item::component::fireworks::FireworkShape;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
 use crate::item::harness::Sample;
-use crate::item::kind::{ItemComponentKind, ItemComponentValue};
+use crate::item::kind::ItemComponentKind;
 use crate::item::patch::ComponentMap;
 use crate::text::{IntoText, Text};
 use crate::{Decode, Encode, VarInt};
@@ -382,11 +382,7 @@ impl MatcherFields {
 impl EncodeCtx for DataComponentMatchers {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         let w: &mut dyn Write = &mut w;
-        VarInt(self.components.0.len() as i32).encode(&mut *w)?;
-        for value in &self.components.0 {
-            value.kind().encode(&mut *w)?;
-            value.encode_ctx_value(ctx, &mut *w)?;
-        }
+        self.components.encode_ctx(ctx, &mut *w)?;
         let predicates = &self.predicates.0;
         ensure!(
             predicates.len() <= MAX_PARTIAL_PREDICATES,
@@ -414,13 +410,7 @@ impl EncodeCtx for DataComponentMatchers {
 
 impl DecodeCtx<'_> for DataComponentMatchers {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let exact = VarInt::decode(r)?.0;
-        ensure!(exact >= 0, "attempt to decode a list with negative length");
-        let mut components = ComponentMap::default();
-        for _ in 0..exact {
-            let kind = ItemComponentKind::decode(r)?;
-            components.set_value(ItemComponentValue::decode_ctx_value(kind, ctx, r)?);
-        }
+        let components = ComponentMap::decode_ctx(ctx, r)?;
         let partial = VarInt::decode(r)?.0;
         ensure!(
             (0..=MAX_PARTIAL_PREDICATES as i32).contains(&partial),

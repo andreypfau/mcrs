@@ -323,6 +323,31 @@ impl ComponentMap {
     }
 }
 
+impl EncodeCtx for ComponentMap {
+    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
+        let w: &mut dyn Write = &mut w;
+        VarInt(self.0.len() as i32).encode(&mut *w)?;
+        for value in &self.0 {
+            value.kind().encode(&mut *w)?;
+            value.encode_ctx_value(ctx, &mut *w)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> DecodeCtx<'a> for ComponentMap {
+    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        let len = VarInt::decode(r)?.0;
+        ensure!(len >= 0, "attempt to decode a list with negative length");
+        let mut map = ComponentMap::default();
+        for _ in 0..len {
+            let kind = ItemComponentKind::decode(r)?;
+            map.set_value(ItemComponentValue::decode_ctx_value(kind, ctx, r)?);
+        }
+        Ok(map)
+    }
+}
+
 impl Serialize for ComponentMap {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(None)?;

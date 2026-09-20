@@ -6,6 +6,7 @@ pub mod hash_ops;
 pub mod kind;
 pub mod patch;
 pub mod stack;
+pub mod trade;
 
 pub use component::*;
 pub use ctx::{DecodeCtx, EncodeCtx};
@@ -14,6 +15,7 @@ pub use patch::{ComponentMap, ComponentPatch};
 pub use stack::{
     HashedPatchMap, HashedSlot, ItemStackValue, RawDelimitedStack, RawStack, Slot, Template,
 };
+pub use trade::{ItemCost, MerchantOffer, RawMerchantOffer};
 
 use crate::{Decode, Encode};
 

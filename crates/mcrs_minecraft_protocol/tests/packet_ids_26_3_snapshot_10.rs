@@ -82,7 +82,10 @@ fn play_clientbound_ids() {
         0x08 => ClientboundBlockUpdate, Clientbound, Game;
         0x0B => ClientboundChunkBatchFinished, Clientbound, Game;
         0x0C => ClientboundChunkBatchStart, Clientbound, Game;
+        0x11 => ClientboundContainerClose, Clientbound, Game;
         0x12 => ClientboundContainerSetContent, Clientbound, Game;
+        0x13 => ClientboundContainerSetData, Clientbound, Game;
+        0x14 => ClientboundContainerSetSlot, Clientbound, Game;
         0x20 => ClientboundDisconnect, Clientbound, Game;
         0x22 => ClientboundEntityEvent, Clientbound, Game;
         0x23 => ClientboundEntityPositionSync, Clientbound, Game;
@@ -92,10 +95,12 @@ fn play_clientbound_ids() {
         0x2D => ClientboundLevelChunkWithLight<'_>, Clientbound, Game;
         0x30 => ClientboundLightUpdate<'_>, Clientbound, Game;
         0x31 => ClientboundLogin<'_>, Clientbound, Game;
+        0x34 => ClientboundMerchantOffers, Clientbound, Game;
         0x35 => ClientboundMoveEntityPos, Clientbound, Game;
         0x36 => ClientboundMoveEntityPosRot, Clientbound, Game;
         0x37 => ClientboundMoveMinecartAlongTrack, Clientbound, Game;
         0x38 => ClientboundMoveEntityRot, Clientbound, Game;
+        0x3B => ClientboundOpenScreen, Clientbound, Game;
         0x46 => ClientboundPlayerInfoUpdate<'_>, Clientbound, Game;
         0x48 => ClientboundPlayerPosition, Clientbound, Game;
         0x4D => ClientboundRemoveEntities, Clientbound, Game;
@@ -104,11 +109,15 @@ fn play_clientbound_ids() {
         0x55 => ClientboundSectionBlocksUpdate<'_>, Clientbound, Game;
         0x5F => ClientboundSetChunkCacheCenter, Clientbound, Game;
         0x60 => ClientboundChunkCacheRadius, Clientbound, Game;
+        0x61 => ClientboundSetCursorItem, Clientbound, Game;
         0x64 => ClientboundSetEntityData<'_>, Clientbound, Game;
         0x67 => ClientboundSetEquipment, Clientbound, Game;
+        0x6A => ClientboundSetHeldSlot, Clientbound, Game;
         0x6C => ClientboundSetPassengers, Clientbound, Game;
+        0x6D => ClientboundSetPlayerInventory, Clientbound, Game;
         0x77 => ClientboundStartConfiguration, Clientbound, Game;
         0x7B => ClientboundSystemChatPacket, Clientbound, Game;
+        0x7E => ClientboundTakeItemEntity, Clientbound, Game;
         0x85 => ClientboundUpdateAttributes<'_>, Clientbound, Game;
     }
 }
@@ -130,14 +139,23 @@ fn play_serverbound_ids() {
         0x0B => ServerboundChunkBatchReceived, Serverbound, Game;
         0x0E => ServerboundClientInformation<'_>, Serverbound, Game;
         0x10 => ServerboundConfigurationAcknowledged, Serverbound, Game;
+        0x11 => ServerboundContainerButtonClick, Serverbound, Game;
         0x12 => ServerboundContainerClick, Serverbound, Game;
+        0x13 => ServerboundContainerClose, Serverbound, Game;
+        0x14 => ServerboundContainerSlotStateChanged, Serverbound, Game;
+        0x18 => ServerboundEditBook<'_>, Serverbound, Game;
         0x1C => ServerboundKeepAlive, Serverbound, Game;
         0x1E => ServerboundMovePlayerPos, Serverbound, Game;
         0x1F => ServerboundMovePlayerPosRot, Serverbound, Game;
         0x20 => ServerboundMovePlayerRot, Serverbound, Game;
         0x21 => ServerboundMovePlayerStatusOnly, Serverbound, Game;
+        0x24 => ServerboundPickItemFromBlock, Serverbound, Game;
+        0x25 => ServerboundPickItemFromEntity, Serverbound, Game;
         0x29 => ServerboundPlayerAction, Serverbound, Game;
+        0x31 => ServerboundRenameItem<'_>, Serverbound, Game;
+        0x34 => ServerboundSelectTrade, Serverbound, Game;
         0x36 => ServerboundSetCarriedItem, Serverbound, Game;
+        0x39 => ServerboundSetCreativeModeSlot, Serverbound, Game;
         0x42 => ServerboundUseItemOn, Serverbound, Game;
     }
 }
