@@ -700,7 +700,16 @@ the window as any object does.
 `placedTrap`, `Witch`, `Mob` and their kin exist so that a re-run of a chunk's
 decoration does not place a chest twice. Every block belongs to one column,
 and a column's run is bit-identical on re-run (St1), so the flag equals "the
-column holding that block has run" and is not stored. The reference's
+column holding that block has run" and is not stored. The one flag whose
+block is drawn per chunk, the mineshaft corridor's `hasPlacedSpider`, is
+replaced by a column chosen at layout: chunks decorate in the reference in
+the order they load, which players and pregenerators walk outward from the
+origin, so the column nearest the origin among those holding a section
+whose three candidate cells lie inside it under the ocean floor places the
+spawner, columns nearer than it draw the reference's `nextInt(3)` per
+section and place nothing, and columns farther draw nothing, as the
+reference's chunks do once the flag is set. A reloaded piece carries no
+host, since the reference's tag has no slot for one (the save, §15). The reference's
 unseeded draws — a pyramid's cellar (`DesertPyramidPiece.java:741, 832`), a
 mansion's allay count (`WoodlandMansionPieces.java:1509`) — draw from the
 placement stream instead, the same substitution St1 makes for spawning.
@@ -1380,16 +1389,13 @@ that would be affected.
 - **The packed size of the templates** (T6) and **the cost of a 1×H×1 strip
   through the tile tape** (L3): measurements that decide a lazy load and a
   strip path respectively.
-- **The mineshaft's cave-spider spawner is per column.** The reference places
-  one per corridor from whichever chunk decorates first (`hasPlacedSpider`);
-  under M4 every column with a candidate section places one, so a spider
-  corridor straddling two columns can hold two spawners. Emulating the
-  reference's decoration order is not reproducible; the fixture records the
-  per-chunk behaviour.
 - **The ocean monument's room graph is not serialised.** The reference writes
   the building alone and regenerates the rooms from the seed on load; the
   in-memory start keeps them, the codec writes the building, and a loaded
   building has no rooms until the save step (§17 item 7) regenerates them.
+  The mineshaft corridor's spawner host (M4) is in the same position: the
+  reference's tag has no slot for it, so a loaded spider corridor has none
+  and places no spawner until that step recomputes it from the heights.
 - **Spawned entities are static and unsaved.** They have no AI, gravity or
   ticking, despawn with their section, and an untouched column regenerates
   them because no save writer exists yet (§17 item 7). The jigsaw templates'
@@ -1596,7 +1602,7 @@ source for its generator exists.** §10.2.
 | Nether fossil's dried ghast | written by the first chunk that finds the cell air | written by every touching column from the same positional draw | M1: encapsulated pieces write from every column |
 | Fortress lava well | `scheduleTick` on the lava | no tick; the lava stands where it is placed | D7 of `scattering.md` |
 | Fences, bars and walls in structure pieces | marked for shape post-processing by the live world | not re-shaped | D7 of `scattering.md`; the oracle's stub level does not post-process either |
-| Mineshaft cave-spider spawner | one per corridor, first decorating chunk wins | one per column with a candidate section | M4, §15 |
+| Mineshaft cave-spider spawner | one per corridor, first decorating chunk wins | one per corridor, from the column nearest the origin that holds a whole candidate window; a nearer column holding only a cut window would win in the reference on a lucky draw | M4 |
 | Ocean monument rooms | regenerated from the seed on load | kept in memory, not written; regeneration on load is owed | §15 |
 | Jigsaw template entities | placed and finalized | frozen, counted, not placed | M7, §15 |
 | Missing or unreadable template | empty template, generation continues | freeze error for a hardcoded type's template; a pool element's missing template is empty with its weight kept, as the shipped corpus needs | Fe1, T6 |

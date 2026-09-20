@@ -1,7 +1,9 @@
 use std::fmt;
 
 use bevy_math::IVec3;
-use mcrs_minecraft_core::{BoundingBox, Mirror, ResourceLocation, Rotation, mirror, rotation};
+use mcrs_minecraft_core::{
+    BoundingBox, ColumnPos, Mirror, ResourceLocation, Rotation, mirror, rotation,
+};
 use mcrs_minecraft_nbt::{nbt_flag, nbt_int_array};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use serde::de::{DeserializeSeed, Error as _};
@@ -141,6 +143,9 @@ pub enum MineshaftKind {
         has_rails: bool,
         spider_corridor: bool,
         num_sections: i32,
+        /// The one column that places a spider corridor's spawner, chosen at
+        /// layout; not in the reference's tag, so a reloaded piece has none.
+        spawner_host: Option<ColumnPos>,
     },
     Crossing {
         two_floored: bool,
@@ -1537,6 +1542,7 @@ impl Serialize for PieceNbt<'_> {
                         has_rails,
                         spider_corridor,
                         num_sections,
+                        spawner_host: _,
                     } => PieceTag::MineshaftCorridor {
                         bounds,
                         orientation,
@@ -1964,6 +1970,7 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                         has_rails,
                         spider_corridor,
                         num_sections,
+                        spawner_host: None,
                     },
                     bounds: box_of(bounds),
                     direction: Some(facing(orientation, "a mineshaft corridor")?),
@@ -2174,7 +2181,6 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
 fn facing<E: serde::de::Error>(value: i32, what: &str) -> Result<Orientation, E> {
     Orientation::from_data_2d(value).ok_or_else(|| E::custom(format!("{what} without a facing")))
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -2604,6 +2610,7 @@ mod tests {
                         has_rails: true,
                         spider_corridor: false,
                         num_sections: 3,
+                        spawner_host: None,
                     },
                     bounds,
                     direction: Some(Orientation::West),

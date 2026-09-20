@@ -20,7 +20,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic in every value: two consecutive runs produce a file
-of the same size (757 925 bytes) that differs only in the order of the
+of the same size (580 701 bytes) that differs only in the order of the
 `attributes` list inside the igloo's villagers and the ocean ruin's drowned,
 which the JVM's identity hashes decide, so a consumer comparing entity NBT
 must sort that list. The run log must contain no `Serialization errors`
@@ -154,20 +154,19 @@ which `placeBlock` calls for fences, bars and walls, is taken by an empty
 `ProtoChunk` per chunk and resolved by nothing: the live-world post-processing
 pass `docs/scattering.md` already lists as not reproduced.
 
-**A mineshaft corridor's spider flag is cleared before every chunk.**
-`MineShaftCorridor.hasPlacedSpider` lives on the piece the start's chunks
-share: the cave spider spawner goes to whichever chunk decorates first with
-a candidate section inside it, and every chunk after that skips the
-`nextInt(3)` draw of every section. Which chunk that is depends on the order
-the chunks decorate in, which is the player's route and no function of the
-seed. The port places per column, so the flag is reset by reflection before
-each `placeInChunk` and the file records what each chunk does on its own:
-a corridor straddling two chunks with a candidate section in each gets a
-spawner in both here, where a live world gives the first chunk one and the
-other none. The consumer's per-column placement is what this pins. Every
-other placement flag (`hasPlacedChest`, `placedTrap`, `Witch`, `Mob` and
-their kin) guards a block that belongs to exactly one chunk, so per-chunk
-and shared answer alike and nothing is reset for them.
+**A start's chunks are placed nearest the origin first.** The chunks a
+start's box covers are sorted by the squared distance of their centre from
+(0, 0), ties by x then z, before any is placed, and nothing is reset between
+them. `MineShaftCorridor.hasPlacedSpider` lives on the piece the start's
+chunks share: the cave spider spawner goes to whichever chunk decorates
+first with a candidate section inside it, and every chunk after that skips
+the `nextInt(3)` draw of every section. In a live world that order is the
+player's route; the port fixes it as this order, choosing at layout the
+first column in it that holds a section whose three candidate cells all lie
+inside it under the ocean floor, and the file records the reference walked
+in the same order. Every other placement flag (`hasPlacedChest`,
+`placedTrap`, `Witch`, `Mob` and their kin) guards a block that belongs to
+exactly one chunk, so the order does not touch them.
 
 **Entity-own random values are masked.** `Entity.random` is seeded from the
 clock and cannot be reproduced. Before an entity's tag is written: `UUID` is

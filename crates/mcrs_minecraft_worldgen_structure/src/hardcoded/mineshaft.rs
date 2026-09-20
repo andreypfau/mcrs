@@ -1,13 +1,17 @@
+use std::cmp::Ordering;
+
 use bevy_math::IVec3;
-use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 
 use crate::MineshaftType;
-use crate::orient::{Orientation, find_collision, move_below_sea_level, offset_vertically};
+use crate::orient::{
+    Orientation, find_collision, move_below_sea_level, offset_vertically, world_pos,
+};
 use crate::piece::{MineshaftKind, MineshaftPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
 
@@ -54,11 +58,75 @@ pub fn site(
     Some((start + IVec3::new(0, dy, 0), Stub::Mineshaft(pieces)))
 }
 
-pub fn layout(_mineshaft_type: MineshaftType, _ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
-    match site.stub {
-        Stub::Mineshaft(pieces) => pieces,
-        _ => unreachable!("a mineshaft site carries its pieces"),
+pub fn layout(_mineshaft_type: MineshaftType, ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
+    let Stub::Mineshaft(mut pieces) = site.stub else {
+        unreachable!("a mineshaft site carries its pieces")
+    };
+    for piece in &mut pieces {
+        let Piece::Mineshaft(MineshaftPiece {
+            kind:
+                MineshaftKind::Corridor {
+                    spider_corridor: true,
+                    num_sections,
+                    spawner_host,
+                    ..
+                },
+            bounds,
+            direction,
+            ..
+        }) = piece
+        else {
+            continue;
+        };
+        *spawner_host = spawner_host_of(*bounds, *direction, *num_sections, ctx.world);
     }
+    pieces
+}
+
+/// Which of two columns a corridor crossing both decorates first. The
+/// reference leaves this to the order chunks load; players and pregenerators
+/// both walk outward from the origin, so the column nearer to it goes first.
+pub fn decorates_first(a: ColumnPos, b: ColumnPos) -> Ordering {
+    let distance = |column: ColumnPos| {
+        let (x, z) = (i64::from(column.x) * 16 + 8, i64::from(column.z) * 16 + 8);
+        x * x + z * z
+    };
+    distance(a)
+        .cmp(&distance(b))
+        .then(a.x.cmp(&b.x))
+        .then(a.z.cmp(&b.z))
+}
+
+/// The reference draws the spawner's cell per section from the placement
+/// stream of whichever chunk decorates the corridor first, and the chunks
+/// after it never draw. The column that decorates first among those holding a
+/// section whose three candidate cells all lie inside it and under the ocean
+/// floor stands in for that chunk: the reference's draw there cannot miss, so
+/// it always places by that section. Every corridor of two sections or more
+/// has such a section, since chunk borders can cut at most one of its windows.
+fn spawner_host_of(
+    bounds: BoundingBox,
+    direction: Option<Orientation>,
+    num_sections: i32,
+    world: &mut dyn SiteWorld,
+) -> Option<ColumnPos> {
+    let mut host: Option<ColumnPos> = None;
+    for section in 0..num_sections {
+        let z = 2 + section * 5;
+        let cells = [-1, 0, 1].map(|dz| world_pos(direction, bounds, IVec3::new(1, 0, z + dz)));
+        let column = ColumnPos::new(cells[0].x >> 4, cells[0].z >> 4);
+        if host.is_some_and(|host| decorates_first(column, host) != Ordering::Less) {
+            continue;
+        }
+        let safe = cells.iter().all(|cell| {
+            ColumnPos::new(cell.x >> 4, cell.z >> 4) == column
+                && cell.y + 1 < world.free_height(cell.x, cell.z, HeightmapName::OceanFloorWg)
+        });
+        if safe {
+            host = Some(column);
+        }
+    }
+    host
 }
 
 fn piece_tree(rng: &mut LegacyRandom, west: i32, north: i32) -> Vec<Piece> {
@@ -264,6 +332,7 @@ impl Layout {
                     has_rails,
                     spider_corridor,
                     num_sections,
+                    spawner_host: None,
                 },
                 bounds,
                 direction: Some(direction),

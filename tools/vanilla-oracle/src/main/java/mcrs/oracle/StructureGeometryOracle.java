@@ -73,7 +73,6 @@ import net.minecraft.world.level.levelgen.structure.TemplateStructurePiece;
 import net.minecraft.world.level.levelgen.structure.structures.JigsawStructure;
 import net.minecraft.world.level.levelgen.structure.structures.RuinedPortalPiece;
 import net.minecraft.world.level.levelgen.structure.structures.RuinedPortalStructure;
-import net.minecraft.world.level.levelgen.structure.structures.MineshaftPieces;
 import net.minecraft.world.level.levelgen.structure.structures.ShipwreckPieces;
 import net.minecraft.world.level.levelgen.structure.structures.ShipwreckStructure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -90,6 +89,19 @@ public final class StructureGeometryOracle {
     private static final byte[] MAGIC = "MCSTRGE0".getBytes(StandardCharsets.US_ASCII);
     private static final long WORLD_SEED = StubLevel.WORLD_SEED;
     private static final List<ChunkPos> CHUNKS = List.of(new ChunkPos(0, 0), new ChunkPos(7, -3), new ChunkPos(-12, 25));
+
+    /// The order a start's chunks decorate in: nearest the origin first, as a
+    /// player walking out from spawn or a pregenerator's spiral loads them.
+    /// Placement flags a start's chunks share (`hasPlacedSpider`) then fall
+    /// the way the port decides them.
+    private static final Comparator<ChunkPos> DECORATES_FIRST = Comparator
+        .comparingLong((ChunkPos chunk) -> {
+            long x = chunk.x() * 16L + 8;
+            long z = chunk.z() * 16L + 8;
+            return x * x + z * z;
+        })
+        .thenComparingInt(ChunkPos::x)
+        .thenComparingInt(ChunkPos::z);
     /// The jigsaw structures placed here: the codec path exists for them, so
     /// they prove the placement harness; their template entities are none.
     private static final List<String> JIGSAW_CASES = List.of("minecraft:trail_ruins");
@@ -220,7 +232,6 @@ public final class StructureGeometryOracle {
     /// a flag on the shared piece, so the answer is the player's route. The
     /// port places per column, so the flag is cleared before every chunk and
     /// the dump records what each chunk does on its own.
-    private static final Field HAS_PLACED_SPIDER;
 
     static {
         try {
@@ -232,8 +243,6 @@ public final class StructureGeometryOracle {
             SETUPS.setAccessible(true);
             PLACE_SETTINGS = TemplateStructurePiece.class.getDeclaredField("placeSettings");
             PLACE_SETTINGS.setAccessible(true);
-            HAS_PLACED_SPIDER = MineshaftPieces.MineShaftCorridor.class.getDeclaredField("hasPlacedSpider");
-            HAS_PLACED_SPIDER.setAccessible(true);
         } catch (NoSuchFieldException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -329,6 +338,7 @@ public final class StructureGeometryOracle {
                 chunks.add(new ChunkPos(x, z));
             }
         }
+        chunks.sort(DECORATES_FIRST);
         Bin.i32(out, chunks.size());
         int writes = 0;
         int entities = 0;
@@ -344,11 +354,6 @@ public final class StructureGeometryOracle {
             BoundingBox chunkBB = new BoundingBox(
                 chunk.getMinBlockX(), minY + 1, chunk.getMinBlockZ(), chunk.getMaxBlockX(), maxY, chunk.getMaxBlockZ()
             );
-            for (StructurePiece piece : start.getPieces()) {
-                if (piece instanceof MineshaftPieces.MineShaftCorridor) {
-                    HAS_PLACED_SPIDER.setBoolean(piece, false);
-                }
-            }
             start.placeInChunk(level, level.structureManager(), generator, random, chunkBB, chunk);
 
             Bin.i32(out, chunk.x());

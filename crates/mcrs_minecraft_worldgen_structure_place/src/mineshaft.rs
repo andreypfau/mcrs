@@ -1,8 +1,10 @@
+use std::cmp::Ordering;
+
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ResourceLocation};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, ResourceLocation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen_feature::compile::{
@@ -13,6 +15,7 @@ use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, StateMask, WorldGenVolu
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, chest_minecart};
 use mcrs_minecraft_worldgen_structure::MineshaftType;
+use mcrs_minecraft_worldgen_structure::hardcoded::mineshaft::decorates_first;
 use mcrs_minecraft_worldgen_structure::piece::{MineshaftKind, MineshaftPiece};
 
 use crate::canvas::{PieceCanvas, replaceable_by_structures};
@@ -209,6 +212,7 @@ pub fn paint_mineshaft<W: WorldGenVolume>(
             has_rails,
             spider_corridor,
             num_sections,
+            spawner_host,
         } => corridor(
             b,
             &mut c,
@@ -216,6 +220,7 @@ pub fn paint_mineshaft<W: WorldGenVolume>(
             *has_rails,
             *spider_corridor,
             *num_sections,
+            *spawner_host,
         ),
         MineshaftKind::Crossing { two_floored } => crossing(b, &mut c, *two_floored),
         MineshaftKind::Stairs => stairs(b, &mut c),
@@ -386,8 +391,13 @@ fn corridor<W: WorldGenVolume>(
     has_rails: bool,
     spider_corridor: bool,
     num_sections: i32,
+    spawner_host: Option<ColumnPos>,
 ) {
     let length = num_sections * 5 - 1;
+    let column = ColumnPos::new(c.clip.min.x >> 4, c.clip.min.z >> 4);
+    let draws_spawner = spider_corridor
+        && spawner_host.is_none_or(|host| decorates_first(column, host) != Ordering::Greater);
+    let hosts_spawner = spawner_host == Some(column);
     air(b, c, [0, 0, 0], [2, 1, length]);
     c.generate_maybe_box(
         rng,
@@ -425,10 +435,10 @@ fn corridor<W: WorldGenVolume>(
         if rng.next_i32_bound(100) == 0 {
             create_minecart(b, c, rng, 0, 0, z + 1);
         }
-        if spider_corridor && !placed_spider {
+        if draws_spawner && !placed_spider {
             let spawner_z = z - 1 + rng.next_i32_bound(3);
             let pos = c.world_pos(1, 0, spawner_z);
-            if c.clip.is_inside(pos) && c.is_interior(1, 0, spawner_z) {
+            if hosts_spawner && c.clip.is_inside(pos) && c.is_interior(1, 0, spawner_z) {
                 placed_spider = true;
                 c.volume.inner.set(pos, b.spawner);
                 c.entities.push(GeneratedBlockEntity::mob_spawner(
