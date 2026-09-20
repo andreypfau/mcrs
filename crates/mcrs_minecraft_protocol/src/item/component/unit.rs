@@ -1,8 +1,9 @@
-use crate::item::component::common::{stub_component, unit_component};
+use crate::item::component::common::unit_component;
 
 unit_component! {
     Unbreakable,
     CreativeSlotLock,
+    IntangibleProjectile,
+    Glider,
+    Waxed,
 }
-
-stub_component!(IntangibleProjectile, Glider, Waxed);
