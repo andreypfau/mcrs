@@ -11,9 +11,11 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::item::component::common::{
     AttributeReg, BlockReg, CompactList, EnchantmentReg, EquipmentSlotGroup, ItemReg,
     JukeboxSongReg, MinMaxBounds, MobEffectReg, NbtPredicate, PotionReg, TrimMaterialReg,
-    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, ordinal_enum, serialize_unit,
+    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, serialize_unit,
 };
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free, decode_nbt_wire, encode_nbt_wire};
+use crate::item::component::attribute::AttributeOperation;
+use crate::item::component::fireworks::FireworkShape;
+use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
 use crate::item::harness::Sample;
 use crate::item::kind::{ItemComponentKind, ItemComponentValue};
 use crate::item::patch::ComponentMap;
@@ -822,10 +824,6 @@ pub struct ContainerPredicate {
     pub items: Option<CollectionPredicate<ItemPredicate>>,
 }
 
-ordinal_enum! {
-    FireworkShape { SmallBall, LargeBall, Star, Creeper, Burst }
-}
-
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct FireworkPredicate {
@@ -873,10 +871,6 @@ pub struct WrittenBookPredicate {
 pub struct AttributeModifiersPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modifiers: Option<CollectionPredicate<AttributeModifierPredicate>>,
-}
-
-ordinal_enum! {
-    AttributeOperation { AddValue, AddMultipliedBase, AddMultipliedTotal }
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
