@@ -28,13 +28,23 @@ impl TestLookup {
         );
         lookup.registry(
             "sound_event",
-            &["entity.item.break", "item.armor.equip_generic"],
+            &[
+                "entity.item.break",
+                "item.armor.equip_generic",
+                "entity.generic.eat",
+            ],
         );
         lookup.registry("mob_effect", &["speed", "slowness", "haste"]);
         lookup.registry("enchantment", &["sharpness", "unbreaking"]);
         lookup.registry("damage_type", &["in_fire", "lava"]);
         lookup.registry("block", &["stone", "dirt"]);
         lookup.registry("entity_type", &["zombie", "pig"]);
+        lookup.registry("trim_material", &["amethyst"]);
+        lookup.registry("trim_pattern", &["coast"]);
+        lookup.registry("instrument", &["ponder_goat_horn"]);
+        lookup.registry("jukebox_song", &["pigstep"]);
+        lookup.registry("banner_pattern", &["creeper"]);
+        lookup.registry("painting_variant", &["kebab"]);
         lookup
     }
 

@@ -1,0 +1,176 @@
+id sound_event minecraft:entity.item.break 914
+id sound_event minecraft:entity.generic.eat 702
+id sound_event minecraft:item.armor.equip_generic 70
+id mob_effect minecraft:speed 0
+id mob_effect minecraft:slowness 1
+id mob_effect minecraft:haste 2
+id mob_effect minecraft:regeneration 9
+id mob_effect minecraft:absorption 21
+id mob_effect minecraft:fire_resistance 11
+id damage_type minecraft:in_fire 21
+id damage_type minecraft:lava 24
+id trim_material minecraft:amethyst 0
+id trim_pattern minecraft:coast 1
+id instrument minecraft:ponder_goat_horn 4
+id jukebox_song minecraft:pigstep 14
+id banner_pattern minecraft:creeper 4
+id painting_variant minecraft:kebab 24
+id consume_effect_type minecraft:apply_effects 0
+id consume_effect_type minecraft:remove_effects 1
+id consume_effect_type minecraft:clear_all_effects 2
+id consume_effect_type minecraft:teleport_randomly 3
+id consume_effect_type minecraft:play_sound 4
+break_sound_ref in "minecraft:entity.item.break"
+break_sound_ref json "minecraft:entity.item.break"
+break_sound_ref nbt 08001b6d696e6563726166743a656e746974792e6974656d2e627265616b
+break_sound_ref hash 123447120
+break_sound_ref wire 9307
+break_sound_direct in {"sound_id":"mcrs:custom"}
+break_sound_direct json {"sound_id":"mcrs:custom"}
+break_sound_direct nbt 0a080008736f756e645f6964000b6d6372733a637573746f6d00
+break_sound_direct hash -2103882935
+break_sound_direct wire 000b6d6372733a637573746f6d00
+break_sound_ranged in {"sound_id":"mcrs:custom","range":12.5}
+break_sound_ranged json {"sound_id":"mcrs:custom","range":12.5}
+break_sound_ranged nbt 0a080008736f756e645f6964000b6d6372733a637573746f6d05000572616e67654148000000
+break_sound_ranged hash -1169531666
+break_sound_ranged wire 000b6d6372733a637573746f6d0141480000
+consumable_default in {}
+consumable_default json {}
+consumable_default nbt 0a00
+consumable_default hash -982207288
+consumable_default wire 3fcccccd01bf050100
+consumable_explicit in {"consume_seconds":1.6,"animation":"eat","sound":"minecraft:entity.generic.eat","has_consume_particles":true,"on_consume_effects":[]}
+consumable_explicit json {}
+consumable_explicit nbt 0a00
+consumable_explicit hash -982207288
+consumable_explicit wire 3fcccccd01bf050100
+consumable_full in {"consume_seconds":2.5,"animation":"drink","sound":{"sound_id":"mcrs:sip","range":8.0},"has_consume_particles":false,"on_consume_effects":[{"type":"minecraft:apply_effects","effects":[{"id":"minecraft:speed","amplifier":1,"duration":100},{"id":"minecraft:slowness","duration":20,"ambient":true,"show_particles":false,"hidden_effect":{"duration":5}}],"probability":0.5},{"type":"minecraft:remove_effects","effects":["minecraft:speed","minecraft:slowness"]},{"type":"minecraft:remove_effects","effects":"minecraft:haste"},{"type":"minecraft:clear_all_effects"},{"type":"minecraft:teleport_randomly","diameter":8.0,"directional_particles":false},{"type":"minecraft:play_sound","sound":"minecraft:entity.item.break"},{"type":"minecraft:play_sound","sound":{"sound_id":"mcrs:ding"}}]}
+consumable_full json {"consume_seconds":2.5,"animation":"drink","sound":{"sound_id":"mcrs:sip","range":8.0},"has_consume_particles":false,"on_consume_effects":[{"effects":[{"id":"minecraft:speed","amplifier":1,"duration":100,"show_icon":true},{"id":"minecraft:slowness","duration":20,"ambient":true,"show_particles":false,"show_icon":false,"hidden_effect":{"duration":5,"show_icon":true}}],"probability":0.5,"type":"minecraft:apply_effects"},{"effects":["minecraft:speed","minecraft:slowness"],"type":"minecraft:remove_effects"},{"effects":"minecraft:haste","type":"minecraft:remove_effects"},{"type":"minecraft:clear_all_effects"},{"diameter":8.0,"directional_particles":false,"type":"minecraft:teleport_randomly"},{"sound":"minecraft:entity.item.break","type":"minecraft:play_sound"},{"sound":{"sound_id":"mcrs:ding"},"type":"minecraft:play_sound"}]}
+consumable_full nbt 0a0900126f6e5f636f6e73756d655f656666656374730a00000007090007656666656374730a000000020300086475726174696f6e0000006401000973686f775f69636f6e01010009616d706c6966696572010800026964000f6d696e6563726166743a7370656564000300086475726174696f6e0000001401000973686f775f69636f6e000a000d68696464656e5f6566666563740300086475726174696f6e0000000501000973686f775f69636f6e0100010007616d6269656e7401080002696400126d696e6563726166743a736c6f776e65737301000e73686f775f7061727469636c6573000005000b70726f626162696c6974793f0000000800047479706500176d696e6563726166743a6170706c795f6566666563747300090007656666656374730800000002000f6d696e6563726166743a737065656400126d696e6563726166743a736c6f776e6573730800047479706500186d696e6563726166743a72656d6f76655f656666656374730008000765666665637473000f6d696e6563726166743a68617374650800047479706500186d696e6563726166743a72656d6f76655f656666656374730008000474797065001b6d696e6563726166743a636c6561725f616c6c5f6566666563747300010015646972656374696f6e616c5f7061727469636c6573000500086469616d657465724100000008000474797065001b6d696e6563726166743a74656c65706f72745f72616e646f6d6c7900080005736f756e64001b6d696e6563726166743a656e746974792e6974656d2e627265616b0800047479706500146d696e6563726166743a706c61795f736f756e64000a0005736f756e64080008736f756e645f696400096d6372733a64696e67000800047479706500146d696e6563726166743a706c61795f736f756e64000a0005736f756e64080008736f756e645f696400086d6372733a73697005000572616e6765410000000005000f636f6e73756d655f7365636f6e6473402000000100156861735f636f6e73756d655f7061727469636c657300080009616e696d6174696f6e00056472696e6b00
+consumable_full hash 982421279
+consumable_full wire 402000000200086d6372733a73697001410000000007000200016400010100010014010000010005000101003f00000001030001010202020341000000000493070400096d6372733a64696e6700
+consumable_bare_ids in {"on_consume_effects":[{"type":"teleport_randomly"},{"type":"apply_effects","effects":[{"id":"speed"}],"probability":1.0}]}
+consumable_bare_ids json {"on_consume_effects":[{"type":"minecraft:teleport_randomly"},{"effects":[{"id":"minecraft:speed","show_icon":true}],"type":"minecraft:apply_effects"}]}
+consumable_bare_ids nbt 0a0900126f6e5f636f6e73756d655f656666656374730a0000000208000474797065001b6d696e6563726166743a74656c65706f72745f72616e646f6d6c7900090007656666656374730a0000000101000973686f775f69636f6e010800026964000f6d696e6563726166743a7370656564000800047479706500176d696e6563726166743a6170706c795f656666656374730000
+consumable_bare_ids hash -106188581
+consumable_bare_ids wire 3fcccccd01bf0501020341800000010001000000000101003f800000
+death_protection_default in {}
+death_protection_default json {}
+death_protection_default nbt 0a00
+death_protection_default hash -982207288
+death_protection_default wire 00
+death_protection_totem in {"death_effects":[{"type":"minecraft:clear_all_effects"},{"type":"minecraft:apply_effects","effects":[{"id":"minecraft:regeneration","amplifier":1,"duration":900},{"id":"minecraft:absorption","amplifier":1,"duration":100},{"id":"minecraft:fire_resistance","duration":800}]}]}
+death_protection_totem json {"death_effects":[{"type":"minecraft:clear_all_effects"},{"effects":[{"id":"minecraft:regeneration","amplifier":1,"duration":900,"show_icon":true},{"id":"minecraft:absorption","amplifier":1,"duration":100,"show_icon":true},{"id":"minecraft:fire_resistance","duration":800,"show_icon":true}],"type":"minecraft:apply_effects"}]}
+death_protection_totem nbt 0a09000d64656174685f656666656374730a0000000208000474797065001b6d696e6563726166743a636c6561725f616c6c5f6566666563747300090007656666656374730a000000030300086475726174696f6e0000038401000973686f775f69636f6e01010009616d706c696669657201080002696400166d696e6563726166743a726567656e65726174696f6e000300086475726174696f6e0000006401000973686f775f69636f6e01010009616d706c696669657201080002696400146d696e6563726166743a6162736f727074696f6e000300086475726174696f6e0000032001000973686f775f69636f6e01080002696400196d696e6563726166743a666972655f726573697374616e6365000800047479706500176d696e6563726166743a6170706c795f656666656374730000
+death_protection_totem hash -1307422628
+death_protection_totem wire 020200030901840700010100150164000101000b00a006000101003f800000
+blocks_attacks_default in {}
+blocks_attacks_default json {}
+blocks_attacks_default nbt 0a00
+blocks_attacks_default hash -982207288
+blocks_attacks_default wire 000000003f8000000142b4000000000000003f8000003f800000000000003f800000000000
+blocks_attacks_explicit in {"block_delay_seconds":0.0,"disable_cooldown_scale":1.0,"damage_reductions":[{"horizontal_blocking_angle":90.0,"base":0.0,"factor":1.0}],"item_damage":{"threshold":1.0,"base":0.0,"factor":1.0}}
+blocks_attacks_explicit json {}
+blocks_attacks_explicit nbt 0a00
+blocks_attacks_explicit hash -982207288
+blocks_attacks_explicit wire 000000003f8000000142b4000000000000003f8000003f800000000000003f800000000000
+blocks_attacks_full in {"block_delay_seconds":0.25,"disable_cooldown_scale":2.0,"damage_reductions":[{"horizontal_blocking_angle":45.0,"type":"#minecraft:bypasses_shield","base":1.0,"factor":0.5},{"type":["minecraft:in_fire","minecraft:lava"],"base":0.0,"factor":1.0},{"type":"minecraft:lava","base":2.0,"factor":0.0}],"item_damage":{"threshold":3.0,"base":1.0,"factor":0.25},"bypassed_by":"minecraft:in_fire","block_sound":"minecraft:entity.item.break","disabled_sound":{"sound_id":"mcrs:off"}}
+blocks_attacks_full json {"block_delay_seconds":0.25,"disable_cooldown_scale":2.0,"damage_reductions":[{"horizontal_blocking_angle":45.0,"type":"#minecraft:bypasses_shield","base":1.0,"factor":0.5},{"type":["minecraft:in_fire","minecraft:lava"],"base":0.0,"factor":1.0},{"type":"minecraft:lava","base":2.0,"factor":0.0}],"item_damage":{"threshold":3.0,"base":1.0,"factor":0.25},"bypassed_by":"minecraft:in_fire","block_sound":"minecraft:entity.item.break","disabled_sound":{"sound_id":"mcrs:off"}}
+blocks_attacks_full nbt 0a050013626c6f636b5f64656c61795f7365636f6e64733e8000000a000e64697361626c65645f736f756e64080008736f756e645f696400086d6372733a6f66660008000b62797061737365645f627900116d696e6563726166743a696e5f6669726508000b626c6f636b5f736f756e64001b6d696e6563726166743a656e746974792e6974656d2e627265616b09001164616d6167655f726564756374696f6e730a00000003050019686f72697a6f6e74616c5f626c6f636b696e675f616e676c654234000008000474797065001a236d696e6563726166743a62797061737365735f736869656c64050006666163746f723f000000050004626173653f8000000009000474797065080000000200116d696e6563726166743a696e5f66697265000e6d696e6563726166743a6c617661050006666163746f723f80000005000462617365000000000008000474797065000e6d696e6563726166743a6c617661050006666163746f72000000000500046261736540000000000a000b6974656d5f64616d6167650500097468726573686f6c6440400000050006666163746f723e800000050004626173653f8000000005001664697361626c655f636f6f6c646f776e5f7363616c654000000000
+blocks_attacks_full hash -602309293
+blocks_attacks_full wire 3e8000004000000003423400000100196d696e6563726166743a62797061737365735f736869656c643f8000003f00000042b4000001031518000000003f80000042b400000102184000000000000000404000003f8000003e8000000102150193070100086d6372733a6f666600
+piercing_weapon_default in {}
+piercing_weapon_default json {}
+piercing_weapon_default nbt 0a00
+piercing_weapon_default hash -982207288
+piercing_weapon_default wire 01000000
+piercing_weapon_explicit in {"deals_knockback":true,"dismounts":false}
+piercing_weapon_explicit json {}
+piercing_weapon_explicit nbt 0a00
+piercing_weapon_explicit hash -982207288
+piercing_weapon_explicit wire 01000000
+piercing_weapon_full in {"deals_knockback":false,"dismounts":true,"sound":"minecraft:entity.item.break","hit_sound":{"sound_id":"mcrs:hit","range":4.0}}
+piercing_weapon_full json {"deals_knockback":false,"dismounts":true,"sound":"minecraft:entity.item.break","hit_sound":{"sound_id":"mcrs:hit","range":4.0}}
+piercing_weapon_full nbt 0a0a00096869745f736f756e64080008736f756e645f696400086d6372733a68697405000572616e67654080000000080005736f756e64001b6d696e6563726166743a656e746974792e6974656d2e627265616b01000f6465616c735f6b6e6f636b6261636b000100096469736d6f756e74730100
+piercing_weapon_full hash -1638682714
+piercing_weapon_full wire 00010193070100086d6372733a6869740140800000
+kinetic_weapon_default in {}
+kinetic_weapon_default json {}
+kinetic_weapon_default nbt 0a00
+kinetic_weapon_default hash -982207288
+kinetic_weapon_default wire 0a00000000000000003f8000000000
+kinetic_weapon_explicit in {"contact_cooldown_ticks":10,"delay_ticks":0,"forward_movement":0.0,"damage_multiplier":1.0}
+kinetic_weapon_explicit json {}
+kinetic_weapon_explicit nbt 0a00
+kinetic_weapon_explicit hash -982207288
+kinetic_weapon_explicit wire 0a00000000000000003f8000000000
+kinetic_weapon_full in {"contact_cooldown_ticks":5,"delay_ticks":2,"dismount_conditions":{"max_duration_ticks":10},"knockback_conditions":{"max_duration_ticks":20,"min_speed":1.5},"damage_conditions":{"max_duration_ticks":30,"min_speed":0.5,"min_relative_speed":2.0},"forward_movement":0.5,"damage_multiplier":2.0,"sound":"minecraft:entity.item.break","hit_sound":"minecraft:item.armor.equip_generic"}
+kinetic_weapon_full json {"contact_cooldown_ticks":5,"delay_ticks":2,"dismount_conditions":{"max_duration_ticks":10},"knockback_conditions":{"max_duration_ticks":20,"min_speed":1.5},"damage_conditions":{"max_duration_ticks":30,"min_speed":0.5,"min_relative_speed":2.0},"forward_movement":0.5,"damage_multiplier":2.0,"sound":"minecraft:entity.item.break","hit_sound":"minecraft:item.armor.equip_generic"}
+kinetic_weapon_full nbt 0a030016636f6e746163745f636f6f6c646f776e5f7469636b73000000050a00136469736d6f756e745f636f6e646974696f6e730300126d61785f6475726174696f6e5f7469636b730000000a00050010666f72776172645f6d6f76656d656e743f0000000800096869745f736f756e6400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e657269630a00146b6e6f636b6261636b5f636f6e646974696f6e730300126d61785f6475726174696f6e5f7469636b73000000140500096d696e5f73706565643fc0000000080005736f756e64001b6d696e6563726166743a656e746974792e6974656d2e627265616b03000b64656c61795f7469636b730000000205001164616d6167655f6d756c7469706c696572400000000a001164616d6167655f636f6e646974696f6e730300126d61785f6475726174696f6e5f7469636b730000001e0500126d696e5f72656c61746976655f7370656564400000000500096d696e5f73706565643f0000000000
+kinetic_weapon_full hash -804998914
+kinetic_weapon_full wire 0502010a000000000000000001143fc0000000000000011e3f000000400000003f000000400000000193070147
+trim_ref in {"material":"minecraft:amethyst","pattern":"minecraft:coast"}
+trim_ref json {"material":"minecraft:amethyst","pattern":"minecraft:coast"}
+trim_ref nbt 0a0800086d6174657269616c00126d696e6563726166743a616d6574687973740800077061747465726e000f6d696e6563726166743a636f61737400
+trim_ref hash 2026465758
+trim_ref wire 0102
+trim_inline in {"material":{"palette_id":"mcrs:pal","description":"Pal"},"pattern":{"asset_id":"mcrs:pat","description":{"translate":"trim.mcrs.pat"},"decal":true}}
+trim_inline json {"material":{"palette_id":"mcrs:pal","description":"Pal"},"pattern":{"asset_id":"mcrs:pat","description":{"translate":"trim.mcrs.pat"},"decal":true}}
+trim_inline nbt 0a0a00086d6174657269616c08000a70616c657474655f696400086d6372733a70616c08000b6465736372697074696f6e000350616c000a00077061747465726e0a000b6465736372697074696f6e0800097472616e736c617465000d7472696d2e6d6372732e7061740008000861737365745f696400086d6372733a706174010005646563616c010000
+trim_inline hash -938376699
+trim_inline wire 00086d6372733a70616c08000350616c00086d6372733a7061740a0800097472616e736c617465000d7472696d2e6d6372732e7061740001
+trim_mixed in {"material":"minecraft:amethyst","pattern":{"asset_id":"mcrs:pat","description":"Pat"}}
+trim_mixed json {"material":"minecraft:amethyst","pattern":{"asset_id":"mcrs:pat","description":"Pat","decal":false}}
+trim_mixed nbt 0a0800086d6174657269616c00126d696e6563726166743a616d6574687973740a00077061747465726e08000b6465736372697074696f6e000350617408000861737365745f696400086d6372733a706174010005646563616c000000
+trim_mixed hash 1739132615
+trim_mixed wire 0100086d6372733a70617408000350617400
+provides_trim_material_ref in "minecraft:amethyst"
+provides_trim_material_ref json "minecraft:amethyst"
+provides_trim_material_ref nbt 0800126d696e6563726166743a616d657468797374
+provides_trim_material_ref hash -1835958683
+provides_trim_material_ref wire 01
+provides_trim_material_inline in {"palette_id":"mcrs:pal","description":"Pal"}
+provides_trim_material_inline json {"palette_id":"mcrs:pal","description":"Pal"}
+provides_trim_material_inline nbt 0a08000a70616c657474655f696400086d6372733a70616c08000b6465736372697074696f6e000350616c00
+provides_trim_material_inline hash -953120295
+provides_trim_material_inline wire 00086d6372733a70616c08000350616c
+instrument_ref in "minecraft:ponder_goat_horn"
+instrument_ref json "minecraft:ponder_goat_horn"
+instrument_ref nbt 08001a6d696e6563726166743a706f6e6465725f676f61745f686f726e
+instrument_ref hash -1123313158
+instrument_ref wire 05
+instrument_inline in {"sound_event":"minecraft:entity.item.break","use_duration":7.0,"range":256.0,"description":"Horn"}
+instrument_inline json {"sound_event":"minecraft:entity.item.break","use_duration":7.0,"range":256.0,"description":"Horn"}
+instrument_inline nbt 0a08000b736f756e645f6576656e74001b6d696e6563726166743a656e746974792e6974656d2e627265616b05000572616e67654380000008000b6465736372697074696f6e0004486f726e05000c7573655f6475726174696f6e40e0000000
+instrument_inline hash -23971197
+instrument_inline wire 00930740e000004380000000080004486f726e
+instrument_inline_full in {"sound_event":{"sound_id":"mcrs:toot","range":16.0},"use_duration":0.0,"range":1.5,"durability_damage":3,"description":{"translate":"instrument.mcrs.toot"}}
+instrument_inline_full json {"sound_event":{"sound_id":"mcrs:toot","range":16.0},"use_duration":0.0,"range":1.5,"durability_damage":3,"description":{"translate":"instrument.mcrs.toot"}}
+instrument_inline_full nbt 0a0a000b736f756e645f6576656e74080008736f756e645f696400096d6372733a746f6f7405000572616e676541800000000300116475726162696c6974795f64616d6167650000000305000572616e67653fc000000a000b6465736372697074696f6e0800097472616e736c6174650014696e737472756d656e742e6d6372732e746f6f740005000c7573655f6475726174696f6e0000000000
+instrument_inline_full hash -110702158
+instrument_inline_full wire 0000096d6372733a746f6f740141800000000000003fc00000030a0800097472616e736c6174650014696e737472756d656e742e6d6372732e746f6f7400
+jukebox_playable_ref in "minecraft:pigstep"
+jukebox_playable_ref json "minecraft:pigstep"
+jukebox_playable_ref nbt 0800116d696e6563726166743a70696773746570
+jukebox_playable_ref hash -1338710766
+jukebox_playable_ref wire 0f
+jukebox_playable_direct wire 009307080004536f6e674148000007
+jukebox_playable_direct_sound wire 0000096d6372733a736f6e67000a0800097472616e736c6174650009736f6e672e6d637273003f80000000
+banner_patterns_empty in []
+banner_patterns_empty json []
+banner_patterns_empty nbt 090000000000
+banner_patterns_empty hash -1978007022
+banner_patterns_empty wire 00
+banner_patterns_full in [{"pattern":"minecraft:creeper","color":"red"},{"pattern":{"asset_id":"mcrs:x","translation_key":"block.mcrs.banner.x"},"color":"light_blue"}]
+banner_patterns_full json [{"pattern":"minecraft:creeper","color":"red"},{"pattern":{"asset_id":"mcrs:x","translation_key":"block.mcrs.banner.x"},"color":"light_blue"}]
+banner_patterns_full nbt 090a00000002080005636f6c6f7200037265640800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f72000a6c696768745f626c75650a00077061747465726e08000f7472616e736c6174696f6e5f6b65790013626c6f636b2e6d6372732e62616e6e65722e7808000861737365745f696400066d6372733a780000
+banner_patterns_full hash 1709605774
+banner_patterns_full wire 02050e00066d6372733a7813626c6f636b2e6d6372732e62616e6e65722e7803
+painting_variant_ref in "minecraft:kebab"
+painting_variant_ref json "minecraft:kebab"
+painting_variant_ref nbt 08000f6d696e6563726166743a6b65626162
+painting_variant_ref hash -670067346
+painting_variant_ref wire 19
+painting_variant_direct wire 000201086d6372733a617274010800015400
+painting_variant_direct_both wire 001010086d6372733a62696700010a0800097472616e736c617465000b617574686f722e6d63727300
