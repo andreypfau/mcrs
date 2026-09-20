@@ -1297,8 +1297,7 @@ templates round-trips to equal NBT; every id resolves at freeze; the census of
 The ladder: `generate/tests/ladder.rs` runs one structure per region — a
 village, an outpost and every hardcoded type in its own biome — and the
 oracle of `scattering.md` §3.6 against the parallel scheduler through every
-unobservable order (S5). The region with a village, a mansion and a mineshaft
-together is still owed (§15).
+unobservable order (S5).
 
 Decorated parity with a reference world is not attainable (`worldgen.md`
 §15), and this document adds nothing that makes it so; what it adds is that
@@ -1381,10 +1380,6 @@ that would be affected.
 - **The packed size of the templates** (T6) and **the cost of a 1×H×1 strip
   through the tile tape** (L3): measurements that decide a lazy load and a
   strip path respectively.
-- **The mansion-and-mineshaft ladder region** of §13: the ladder's structure
-  consumer runs one structure per dimension, so the mansion and the mineshaft
-  are each exercised alone; a region holding both, with the village, is owed
-  by the ladder test.
 - **The mineshaft's cave-spider spawner is per column.** The reference places
   one per corridor from whichever chunk decorates first (`hasPlacedSpider`);
   under M4 every column with a candidate section places one, so a spider
