@@ -528,7 +528,7 @@ impl HeightProvider {
                 let min = min_inclusive.resolve_y(context);
                 let max = max_inclusive.resolve_y(context);
                 let inner = inner.0;
-                if max - min - inner + 1 <= 0 {
+                if max - min - inner < 0 {
                     return min;
                 }
                 let upper = next_int_guarded(rng, min + inner, max);

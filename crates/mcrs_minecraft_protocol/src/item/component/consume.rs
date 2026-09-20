@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::io::Write;
 
 use anyhow::bail;
-use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, float_value, int_value};
+use mcrs_minecraft_core::codec::{default_true, float_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registry::RegistryLookup;
@@ -54,19 +54,6 @@ pub(crate) fn non_negative_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32,
         )));
     }
     Ok(value)
-}
-
-/// `ExtraCodecs.NON_NEGATIVE_INT`: the core alias's bound, in vanilla's words.
-pub(crate) fn non_negative_int<'de, D: Deserializer<'de>>(
-    d: D,
-) -> Result<NonNegativeInt, D::Error> {
-    let value = int_value(d)?;
-    if value < 0 {
-        return Err(D::Error::custom(format_args!(
-            "Value must be non-negative: {value}"
-        )));
-    }
-    Ok(codec::Bounded(value))
 }
 
 /// `Codec.floatRange(0, 1)`.

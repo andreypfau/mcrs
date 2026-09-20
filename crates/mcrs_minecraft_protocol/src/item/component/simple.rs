@@ -3,7 +3,7 @@ use std::io::Write;
 use std::ops::Not;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, float_value, int_value};
+use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, float_value};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -181,18 +181,6 @@ fn distinct_kinds<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<ItemComponentKi
         .map(distinct)
 }
 
-/// `ExtraCodecs.NON_NEGATIVE_INT`: the same bound as `NonNegativeInt`, worded
-/// differently.
-fn non_negative_int<'de, D: Deserializer<'de>>(d: D) -> Result<NonNegativeInt, D::Error> {
-    let value = int_value(d)?;
-    if value < 0 {
-        return Err(D::Error::custom(format_args!(
-            "Value must be non-negative: {value}"
-        )));
-    }
-    Ok(Bounded(value))
-}
-
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TooltipDisplay {
@@ -257,7 +245,6 @@ impl Sample for TooltipDisplay {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Food {
-    #[serde(deserialize_with = "non_negative_int")]
     pub nutrition: NonNegativeInt,
     pub saturation: f32,
     #[serde(default, skip_serializing_if = "Not::not")]
@@ -358,11 +345,7 @@ fn is_one_damage(value: &NonNegativeInt) -> bool {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Weapon {
-    #[serde(
-        default = "one_damage",
-        deserialize_with = "non_negative_int",
-        skip_serializing_if = "is_one_damage"
-    )]
+    #[serde(default = "one_damage", skip_serializing_if = "is_one_damage")]
     pub item_damage_per_attack: NonNegativeInt,
     #[serde(
         default = "zero",

@@ -41,6 +41,7 @@ impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> Vo
     /// Fill the box `[x0, x1) x [y0, y1) x [z0, z1)` in section-local coords.
     /// Produces output identical to per-voxel `set` calls over the same box,
     /// with bulk-optimized palette bookkeeping.
+    #[allow(clippy::too_many_arguments)]
     pub fn fill_box(
         &mut self,
         x0: usize,

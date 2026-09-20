@@ -587,7 +587,7 @@ pub fn update_mob_tracked_by(
     vehicles: Query<&RiddenBy>,
     registry: Res<RegistryAccess>,
     static_table: Option<Res<StaticRegistryTable>>,
-    blocks: Res<Blocks>,
+    blocks: Option<Res<Blocks>>,
     observers: Query<&PlayerObservers, With<Column>>,
     column_indices: Query<&ColumnIndex>,
     players: Query<(&Transform, &HostAnchor, &Reposition), With<Player>>,
@@ -599,7 +599,9 @@ pub fn update_mob_tracked_by(
         lookups.push(&**table);
     }
     lookups.push(registry);
-    lookups.push(&**blocks);
+    if let Some(blocks) = &blocks {
+        lookups.push(&*blocks.0);
+    }
     let lookup = ChainLookup(&lookups);
     for (in_dim, mut tracked_by, pairing) in mobs.iter_mut() {
         let at = pairing.transform.translation;

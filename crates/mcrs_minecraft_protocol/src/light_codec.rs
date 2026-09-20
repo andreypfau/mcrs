@@ -4,6 +4,7 @@ use anyhow::{Context, bail, ensure};
 /// What one wire row says about a layer. A row absent from both masks is not
 /// "dark": vanilla means "unchanged", and a delta update leans on that.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum RowLight {
     Unchanged,
     Empty,
