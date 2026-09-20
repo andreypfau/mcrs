@@ -21,9 +21,7 @@ impl Encode for bool {
 
 impl Decode<'_> for bool {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let n = r.read_u8()?;
-        ensure!(n <= 1, "decoded boolean byte is not 0 or 1 (got {n})");
-        Ok(n == 1)
+        Ok(r.read_u8()? != 0)
     }
 }
 

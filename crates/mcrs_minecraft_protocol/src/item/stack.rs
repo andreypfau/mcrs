@@ -168,6 +168,9 @@ impl Template {
         count: i32,
         components: ComponentPatch,
     ) -> Result<Self, String> {
+        if count == 0 {
+            return Err("Item must be non-empty".into());
+        }
         let stack = ItemStackValue {
             item,
             count: codec::Bounded(count),
@@ -188,11 +191,10 @@ impl EncodeCtx for Template {
 
 impl<'a> DecodeCtx<'a> for Template {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Ok(Template(ItemStackValue {
-            item: ResourceKey::decode_ctx(ctx, r)?,
-            count: codec::Bounded(VarInt::decode(r)?.0),
-            components: ComponentPatch::decode_ctx(ctx, r)?,
-        }))
+        let item = ResourceKey::decode_ctx(ctx, r)?;
+        let count = VarInt::decode(r)?.0;
+        let components = ComponentPatch::decode_ctx(ctx, r)?;
+        Template::new(item, count, components).map_err(anyhow::Error::msg)
     }
 }
 

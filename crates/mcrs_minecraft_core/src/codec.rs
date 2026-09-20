@@ -108,6 +108,12 @@ impl<'de, const MIN: i32, const MAX: i32, const DEFAULT: i32> Deserialize<'de>
 
 impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Serialize for Bounded<MIN, MAX, DEFAULT> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if !(MIN..=MAX).contains(&self.0) {
+            return Err(serde::ser::Error::custom(format!(
+                "Value must be within range [{MIN};{MAX}]: {}",
+                self.0
+            )));
+        }
         self.0.serialize(serializer)
     }
 }

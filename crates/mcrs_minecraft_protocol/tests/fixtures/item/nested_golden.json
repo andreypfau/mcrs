@@ -1,0 +1,118 @@
+{
+ "lookup": {
+  "item": {
+   "stone": 1,
+   "diamond_sword": 1050,
+   "apple": 1007,
+   "bundle": 1153,
+   "arrow": 1009,
+   "brick": 1142
+  }
+ },
+ "cases": [
+  {
+   "name": "use_remainder_plain",
+   "kind": "minecraft:use_remainder",
+   "json": "{\"id\":\"minecraft:stone\"}",
+   "nbt": "0a0800026964000f6d696e6563726166743a73746f6e6500",
+   "wire": "01010000",
+   "hash": 725422587
+  },
+  {
+   "name": "use_remainder_full",
+   "kind": "minecraft:use_remainder",
+   "json": "{\"id\":\"minecraft:diamond_sword\",\"count\":3,\"components\":{\"minecraft:max_stack_size\":16,\"minecraft:damage\":7,\"minecraft:custom_name\":\"named\",\"minecraft:unbreakable\":{},\"!minecraft:repair_cost\":{}}}",
+   "nbt": "0a0a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a65000000100300106d696e6563726166743a64616d616765000000070a00156d696e6563726166743a756e627265616b61626c65000800156d696e6563726166743a637573746f6d5f6e616d6500056e616d65640a0016216d696e6563726166743a7265706169725f636f73740000030005636f756e7400000003080002696400176d696e6563726166743a6469616d6f6e645f73776f726400",
+   "wire": "9a0803040101100307060800056e616d65640413",
+   "hash": -1619506781
+  },
+  {
+   "name": "charged_empty",
+   "kind": "minecraft:charged_projectiles",
+   "json": "[]",
+   "nbt": "090000000000",
+   "wire": "00",
+   "hash": -1978007022
+  },
+  {
+   "name": "charged_two",
+   "kind": "minecraft:charged_projectiles",
+   "json": "[{\"id\":\"minecraft:arrow\"},{\"id\":\"minecraft:diamond_sword\",\"count\":3,\"components\":{\"minecraft:max_stack_size\":16,\"minecraft:damage\":7,\"minecraft:custom_name\":\"named\",\"minecraft:unbreakable\":{},\"!minecraft:repair_cost\":{}}}]",
+   "nbt": "090a000000020800026964000f6d696e6563726166743a6172726f77000a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a65000000100300106d696e6563726166743a64616d616765000000070a00156d696e6563726166743a756e627265616b61626c65000800156d696e6563726166743a637573746f6d5f6e616d6500056e616d65640a0016216d696e6563726166743a7265706169725f636f73740000030005636f756e7400000003080002696400176d696e6563726166743a6469616d6f6e645f73776f726400",
+   "wire": "02f1070100009a0803040101100307060800056e616d65640413",
+   "hash": -1667897513
+  },
+  {
+   "name": "bundle_empty",
+   "kind": "minecraft:bundle_contents",
+   "json": "[]",
+   "nbt": "090000000000",
+   "wire": "00",
+   "hash": -1978007022
+  },
+  {
+   "name": "bundle_nested",
+   "kind": "minecraft:bundle_contents",
+   "json": "[{\"id\":\"minecraft:stone\",\"count\":64},{\"id\":\"minecraft:bundle\",\"components\":{\"minecraft:bundle_contents\":[{\"id\":\"minecraft:stone\"}]}},{\"id\":\"minecraft:apple\",\"count\":99}]",
+   "nbt": "090a00000003030005636f756e74000000400800026964000f6d696e6563726166743a73746f6e65000a000a636f6d706f6e656e74730900196d696e6563726166743a62756e646c655f636f6e74656e74730a000000010800026964000f6d696e6563726166743a73746f6e650000080002696400106d696e6563726166743a62756e646c6500030005636f756e74000000630800026964000f6d696e6563726166743a6170706c6500",
+   "wire": "03014000008109010100340101010000ef07630000",
+   "hash": 594125839
+  },
+  {
+   "name": "pot_empty",
+   "kind": "minecraft:pot_decorations",
+   "json": "{}",
+   "nbt": "0a00",
+   "wire": "00000000",
+   "hash": -982207288
+  },
+  {
+   "name": "pot_two",
+   "kind": "minecraft:pot_decorations",
+   "json": "{\"back\":{\"id\":\"minecraft:brick\"},\"right\":{\"id\":\"minecraft:diamond_sword\",\"count\":3,\"components\":{\"minecraft:max_stack_size\":16,\"minecraft:damage\":7,\"minecraft:custom_name\":\"named\",\"minecraft:unbreakable\":{},\"!minecraft:repair_cost\":{}}}}",
+   "nbt": "0a0a00046261636b0800026964000f6d696e6563726166743a627269636b000a000572696768740a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a65000000100300106d696e6563726166743a64616d616765000000070a00156d696e6563726166743a756e627265616b61626c65000800156d696e6563726166743a637573746f6d5f6e616d6500056e616d65640a0016216d696e6563726166743a7265706169725f636f73740000030005636f756e7400000003080002696400176d696e6563726166743a6469616d6f6e645f73776f72640000",
+   "wire": "01f60801000000019a0803040101100307060800056e616d6564041300",
+   "hash": 594537945
+  },
+  {
+   "name": "pot_full",
+   "kind": "minecraft:pot_decorations",
+   "json": "{\"back\":{\"id\":\"minecraft:stone\"},\"left\":{\"id\":\"minecraft:stone\"},\"right\":{\"id\":\"minecraft:stone\"},\"front\":{\"id\":\"minecraft:brick\",\"count\":2}}",
+   "nbt": "0a0a00046c6566740800026964000f6d696e6563726166743a73746f6e65000a00046261636b0800026964000f6d696e6563726166743a73746f6e65000a000572696768740800026964000f6d696e6563726166743a73746f6e65000a000566726f6e74030005636f756e74000000020800026964000f6d696e6563726166743a627269636b0000",
+   "wire": "01010100000101010000010101000001f608020000",
+   "hash": 526522695
+  },
+  {
+   "name": "container_empty",
+   "kind": "minecraft:container",
+   "json": "[]",
+   "nbt": "090000000000",
+   "wire": "00",
+   "hash": -1978007022
+  },
+  {
+   "name": "container_sparse",
+   "kind": "minecraft:container",
+   "json": "[{\"slot\":0,\"item\":{\"id\":\"minecraft:stone\",\"count\":64}},{\"slot\":3,\"item\":{\"id\":\"minecraft:diamond_sword\",\"count\":3,\"components\":{\"minecraft:max_stack_size\":16,\"minecraft:damage\":7,\"minecraft:custom_name\":\"named\",\"minecraft:unbreakable\":{},\"!minecraft:repair_cost\":{}}}}]",
+   "nbt": "090a000000020a00046974656d030005636f756e74000000400800026964000f6d696e6563726166743a73746f6e6500030004736c6f7400000000000a00046974656d0a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a65000000100300106d696e6563726166743a64616d616765000000070a00156d696e6563726166743a756e627265616b61626c65000800156d696e6563726166743a637573746f6d5f6e616d6500056e616d65640a0016216d696e6563726166743a7265706169725f636f73740000030005636f756e7400000003080002696400176d696e6563726166743a6469616d6f6e645f73776f726400030004736c6f740000000300",
+   "wire": "0401014000000000019a0803040101100307060800056e616d65640413",
+   "hash": -1356806922
+  },
+  {
+   "name": "sulfur_plain",
+   "kind": "minecraft:sulfur_cube_content",
+   "json": "{\"id\":\"minecraft:stone\"}",
+   "nbt": "0a0800026964000f6d696e6563726166743a73746f6e6500",
+   "wire": "01010000",
+   "hash": 725422587
+  },
+  {
+   "name": "sulfur_full",
+   "kind": "minecraft:sulfur_cube_content",
+   "json": "{\"id\":\"minecraft:diamond_sword\",\"count\":3,\"components\":{\"minecraft:max_stack_size\":16,\"minecraft:damage\":7,\"minecraft:custom_name\":\"named\",\"minecraft:unbreakable\":{},\"!minecraft:repair_cost\":{}}}",
+   "nbt": "0a0a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a65000000100300106d696e6563726166743a64616d616765000000070a00156d696e6563726166743a756e627265616b61626c65000800156d696e6563726166743a637573746f6d5f6e616d6500056e616d65640a0016216d696e6563726166743a7265706169725f636f73740000030005636f756e7400000003080002696400176d696e6563726166743a6469616d6f6e645f73776f726400",
+   "wire": "9a0803040101100307060800056e616d65640413",
+   "hash": -1619506781
+  }
+ ]
+}

@@ -1,9 +1,3 @@
-minecraft:bundle_contents
 minecraft:can_break
 minecraft:can_place_on
-minecraft:charged_projectiles
-minecraft:container
 minecraft:lock
-minecraft:pot_decorations
-minecraft:sulfur_cube_content
-minecraft:use_remainder

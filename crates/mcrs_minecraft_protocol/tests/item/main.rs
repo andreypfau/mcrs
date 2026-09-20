@@ -1,6 +1,7 @@
 mod golden;
 mod harness;
 mod holders;
+mod nested;
 mod plain;
 mod records;
 mod registry_refs;
