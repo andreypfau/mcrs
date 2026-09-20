@@ -72,10 +72,24 @@ impl NbtTag {
                     return Err(Error::LargeLength(len));
                 }
 
-                w.write_u8_be(list.first().unwrap_or(&NbtTag::End).get_type_id())?;
+                let element_type = list_element_type(list)?;
+                w.write_u8_be(element_type)?;
                 w.write_i32_be(len as i32)?;
                 for nbt_tag in list {
-                    nbt_tag.serialize_data(w)?;
+                    match nbt_tag {
+                        NbtTag::Compound(compound)
+                            if element_type == COMPOUND_ID && !is_wrapper(compound) =>
+                        {
+                            compound.serialize_content(w)?
+                        }
+                        _ if element_type == COMPOUND_ID => {
+                            w.write_u8_be(nbt_tag.get_type_id())?;
+                            w.write_u16_be(0)?;
+                            nbt_tag.serialize_data(w)?;
+                            w.write_u8_be(END_ID)?;
+                        }
+                        _ => nbt_tag.serialize_data(w)?,
+                    }
                 }
             }
             NbtTag::Compound(compound) => {
@@ -143,13 +157,20 @@ impl NbtTag {
                     return Err(Error::NegativeLength(len));
                 }
 
+                reader.push_depth()?;
                 for _ in 0..len {
                     Self::skip_data(reader, tag_type_id)?;
                 }
+                reader.pop_depth();
 
                 Ok(())
             }
-            COMPOUND_ID => NbtCompound::skip_content(reader),
+            COMPOUND_ID => {
+                reader.push_depth()?;
+                NbtCompound::skip_content(reader)?;
+                reader.pop_depth();
+                Ok(())
+            }
             INT_ARRAY_ID => {
                 let len = reader.get_i32_be()?;
                 if len < 0 {
@@ -217,15 +238,25 @@ impl NbtTag {
                     return Err(Error::NegativeLength(len));
                 }
 
+                reader.push_depth()?;
                 let mut list = Vec::with_capacity(len as usize);
                 for _ in 0..len {
-                    let tag = NbtTag::deserialize_data(reader, tag_type_id)?;
-                    assert_eq!(tag.get_type_id(), tag_type_id);
-                    list.push(tag);
+                    list.push(match NbtTag::deserialize_data(reader, tag_type_id)? {
+                        NbtTag::Compound(mut compound) if is_wrapper(&compound) => {
+                            compound.child_tags.pop().unwrap().1
+                        }
+                        tag => tag,
+                    });
                 }
+                reader.pop_depth();
                 Ok(NbtTag::List(list))
             }
-            COMPOUND_ID => Ok(NbtTag::Compound(NbtCompound::deserialize_content(reader)?)),
+            COMPOUND_ID => {
+                reader.push_depth()?;
+                let compound = NbtCompound::deserialize_content(reader)?;
+                reader.pop_depth();
+                Ok(NbtTag::Compound(compound))
+            }
             INT_ARRAY_ID => {
                 let len = reader.get_i32_be()?;
                 if len < 0 {
@@ -256,6 +287,20 @@ impl NbtTag {
             }
             _ => Err(Error::UnknownTagId(tag_id)),
         }
+    }
+
+    pub fn read_unnamed<R: Read + Seek>(reader: &mut NbtReadHelper<R>) -> Result<NbtTag, Error> {
+        match Self::deserialize(reader)? {
+            NbtTag::End => Err(Error::EndRoot),
+            tag => Ok(tag),
+        }
+    }
+
+    pub fn write_unnamed<W: Write>(&self, w: &mut WriteAdaptor<W>) -> serializer::Result<()> {
+        if matches!(self, NbtTag::End) {
+            return Err(Error::EndRoot);
+        }
+        self.serialize(w)
     }
 
     pub fn extract_byte(&self) -> Option<i8> {
@@ -351,6 +396,29 @@ impl NbtTag {
     }
 }
 
+/// A mixed list is written as compounds with every non-compound element
+/// wrapped as `{"": value}`; a compound that already looks like a wrapper is
+/// wrapped again so the reader's single unwrap gives it back unchanged.
+fn is_wrapper(compound: &NbtCompound) -> bool {
+    matches!(compound.child_tags.as_slice(), [(key, _)] if key.is_empty())
+}
+
+fn list_element_type(list: &[NbtTag]) -> Result<u8, Error> {
+    let mut element_type = END_ID;
+    for tag in list {
+        let id = tag.get_type_id();
+        if id == END_ID {
+            return Err(Error::SerdeError("a list cannot hold TAG_End".to_string()));
+        }
+        if element_type == END_ID {
+            element_type = id;
+        } else if element_type != id {
+            return Ok(COMPOUND_ID);
+        }
+    }
+    Ok(element_type)
+}
+
 impl From<&str> for NbtTag {
     fn from(value: &str) -> Self {
         NbtTag::String(value.to_string())
@@ -383,8 +451,11 @@ impl From<bool> for NbtTag {
     }
 }
 
+/// A human-readable format has no array tags: `JsonOps` writes them as plain
+/// lists of signed numbers.
 impl Serialize for NbtTag {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let plain_lists = serializer.is_human_readable();
         match self {
             NbtTag::End => serializer.serialize_unit(),
             NbtTag::Byte(v) => serializer.serialize_i8(*v),
@@ -393,22 +464,20 @@ impl Serialize for NbtTag {
             NbtTag::Long(v) => serializer.serialize_i64(*v),
             NbtTag::Float(v) => serializer.serialize_f32(*v),
             NbtTag::Double(v) => serializer.serialize_f64(*v),
+            NbtTag::ByteArray(v) if plain_lists => {
+                serializer.collect_seq(v.iter().map(|b| *b as i8))
+            }
             NbtTag::ByteArray(v) => {
                 serializer.serialize_newtype_variant(NBT_ARRAY_TAG, 0, NBT_BYTE_ARRAY_TAG, v)
             }
             NbtTag::String(v) => serializer.serialize_str(v),
-            NbtTag::List(v) => {
-                use serde::ser::SerializeSeq;
-                let mut seq = serializer.serialize_seq(Some(v.len()))?;
-                for item in v.iter() {
-                    seq.serialize_element(item)?;
-                }
-                seq.end()
-            }
+            NbtTag::List(v) => serializer.collect_seq(v),
             NbtTag::Compound(v) => v.serialize(serializer),
+            NbtTag::IntArray(v) if plain_lists => serializer.collect_seq(v),
             NbtTag::IntArray(v) => {
                 serializer.serialize_newtype_variant(NBT_ARRAY_TAG, 0, NBT_INT_ARRAY_TAG, v)
             }
+            NbtTag::LongArray(v) if plain_lists => serializer.collect_seq(v),
             NbtTag::LongArray(v) => {
                 serializer.serialize_newtype_variant(NBT_ARRAY_TAG, 0, NBT_LONG_ARRAY_TAG, v)
             }
@@ -418,7 +487,40 @@ impl Serialize for NbtTag {
 
 impl<'de> Deserialize<'de> for NbtTag {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct NbtTagVisitor;
+        struct NbtTagVisitor {
+            json_numbers: bool,
+        }
+
+        impl NbtTagVisitor {
+            fn integer(&self, v: i64) -> NbtTag {
+                if !self.json_numbers {
+                    return NbtTag::Long(v);
+                }
+                if let Ok(v) = i8::try_from(v) {
+                    NbtTag::Byte(v)
+                } else if let Ok(v) = i16::try_from(v) {
+                    NbtTag::Short(v)
+                } else if let Ok(v) = i32::try_from(v) {
+                    NbtTag::Int(v)
+                } else {
+                    NbtTag::Long(v)
+                }
+            }
+
+            fn float(&self, v: f64) -> NbtTag {
+                if !self.json_numbers {
+                    return NbtTag::Double(v);
+                }
+                if v.fract() == 0.0 && (-9223372036854775808.0..9223372036854775808.0).contains(&v)
+                {
+                    self.integer(v as i64)
+                } else if (v as f32) as f64 == v {
+                    NbtTag::Float(v as f32)
+                } else {
+                    NbtTag::Double(v)
+                }
+            }
+        }
 
         impl<'de> serde::de::Visitor<'de> for NbtTagVisitor {
             type Value = NbtTag;
@@ -444,11 +546,15 @@ impl<'de> Deserialize<'de> for NbtTag {
             }
 
             fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
-                Ok(NbtTag::Long(v))
+                Ok(self.integer(v))
             }
 
             fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Self::Value, E> {
-                i64::try_from(v).map(NbtTag::Long).map_err(E::custom)
+                match i64::try_from(v) {
+                    Ok(v) => Ok(self.integer(v)),
+                    Err(_) if self.json_numbers => Ok(self.float(v as f64)),
+                    Err(err) => Err(E::custom(err)),
+                }
             }
 
             fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E> {
@@ -456,7 +562,7 @@ impl<'de> Deserialize<'de> for NbtTag {
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
-                Ok(NbtTag::Double(v))
+                Ok(self.float(v))
             }
 
             fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
@@ -510,6 +616,9 @@ impl<'de> Deserialize<'de> for NbtTag {
             }
         }
 
-        deserializer.deserialize_newtype_struct(NBT_ARRAY_TAG, NbtTagVisitor)
+        let visitor = NbtTagVisitor {
+            json_numbers: deserializer.is_human_readable() && !crate::reading_binary(),
+        };
+        deserializer.deserialize_newtype_struct(NBT_ARRAY_TAG, visitor)
     }
 }

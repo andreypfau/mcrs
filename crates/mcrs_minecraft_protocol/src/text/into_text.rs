@@ -2,7 +2,9 @@
 
 use std::borrow::Cow;
 
-use super::{ClickEvent, Color, Font, HoverEvent, Text};
+use mcrs_minecraft_core::ResourceLocation;
+
+use super::{ClickEvent, Color, HoverEvent, Text};
 
 /// Trait for any data that can be converted to a [`Text`] object.
 ///
@@ -40,9 +42,9 @@ pub trait IntoText<'a>: Sized {
     }
 
     /// Sets the font of the text.
-    fn font(self, font: Font) -> Text {
+    fn font(self, font: impl Into<ResourceLocation>) -> Text {
         let mut value = self.into_text();
-        value.font = Some(font);
+        value.font = Some(font.into());
         value
     }
     /// Clears the font of the text. Font of parent [`Text`] object will be
@@ -171,33 +173,37 @@ pub trait IntoText<'a>: Sized {
     /// On click, opens the given URL. Has to be `http` or `https` protocol.
     fn on_click_open_url(self, url: impl Into<Cow<'static, str>>) -> Text {
         let mut value = self.into_text();
-        value.click_event = Some(ClickEvent::OpenUrl(url.into()));
+        value.click_event = Some(ClickEvent::OpenUrl { url: url.into() });
         value
     }
     /// On click, sends a command. Doesn't actually have to be a command, can be
     /// a simple chat message.
     fn on_click_run_command(self, command: impl Into<Cow<'static, str>>) -> Text {
         let mut value = self.into_text();
-        value.click_event = Some(ClickEvent::RunCommand(command.into()));
+        value.click_event = Some(ClickEvent::RunCommand {
+            command: command.into(),
+        });
         value
     }
     /// On click, copies the given text to the chat box.
     fn on_click_suggest_command(self, command: impl Into<Cow<'static, str>>) -> Text {
         let mut value = self.into_text();
-        value.click_event = Some(ClickEvent::SuggestCommand(command.into()));
+        value.click_event = Some(ClickEvent::SuggestCommand {
+            command: command.into(),
+        });
         value
     }
     /// On click, turns the page of the opened book to the given number.
     /// Indexing starts at `1`.
     fn on_click_change_page(self, page: impl Into<i32>) -> Text {
         let mut value = self.into_text();
-        value.click_event = Some(ClickEvent::ChangePage(page.into()));
+        value.click_event = Some(ClickEvent::ChangePage { page: page.into() });
         value
     }
     /// On click, copies the given text to clipboard.
     fn on_click_copy_to_clipboard(self, text: impl Into<Cow<'static, str>>) -> Text {
         let mut value = self.into_text();
-        value.click_event = Some(ClickEvent::CopyToClipboard(text.into()));
+        value.click_event = Some(ClickEvent::CopyToClipboard { value: text.into() });
         value
     }
     /// Clears the `click_event` property of the text. Property of the parent
@@ -211,7 +217,9 @@ pub trait IntoText<'a>: Sized {
     /// On mouse hover, shows the given text in a tooltip.
     fn on_hover_show_text(self, text: impl IntoText<'static>) -> Text {
         let mut value = self.into_text();
-        value.hover_event = Some(HoverEvent::ShowText(text.into_text()));
+        value.hover_event = Some(HoverEvent::ShowText {
+            value: text.into_text(),
+        });
         value
     }
     /// Clears the `hover_event` property of the text. Property of the parent

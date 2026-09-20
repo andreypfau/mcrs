@@ -4,12 +4,13 @@ use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
 use mcrs_minecraft_protocol::entity::{EquipmentSlot, Metadata};
+use mcrs_minecraft_protocol::item::RawStack;
 use mcrs_minecraft_protocol::packets::game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{GameEventKind, GameMode, Look, Text};
-use mcrs_minecraft_protocol::{Slot, VarInt};
 use mcrs_minecraft_registry::BlockStateId;
 use smallvec::SmallVec;
 use std::time::Instant;
@@ -130,7 +131,7 @@ pub enum PacketPayload {
     },
     SetEquipment {
         entity_id: i32,
-        slots: Vec<(EquipmentSlot, Slot)>,
+        slots: Vec<(EquipmentSlot, RawStack)>,
     },
     UpdateAttributes {
         entity_id: i32,

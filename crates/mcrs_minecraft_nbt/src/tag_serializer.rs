@@ -40,6 +40,10 @@ impl serde::ser::Serializer for TagSerializer {
     type SerializeStruct = StructSerializer;
     type SerializeStructVariant = Impossible<NbtTag, Self::Error>;
 
+    fn is_human_readable(&self) -> bool {
+        false
+    }
+
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
         Ok(NbtTag::Byte(if v { 1 } else { 0 }))
     }

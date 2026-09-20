@@ -55,7 +55,7 @@ impl From<ItemStack> for Slot {
     fn from(value: ItemStack) -> Self {
         Slot {
             id: value.item_id,
-            count: value.count,
+            count: i32::from(value.count),
             components: Default::default(),
         }
     }

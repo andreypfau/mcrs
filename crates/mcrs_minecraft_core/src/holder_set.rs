@@ -9,7 +9,8 @@ use crate::ResourceLocation;
 
 /// A registry element set as `RegistryCodecs.holderSet` writes it: a `#tag`,
 /// one entry, or a list of entries. The three shapes are kept apart so a value
-/// serializes back the way it came. With `ALWAYS_LIST` — the codec's
+/// serializes back the way it came, except that a one-entry list writes as the
+/// bare entry, as `compactListCodec` does. With `ALWAYS_LIST` — the codec's
 /// `alwaysUseList` — a bare entry is refused and only a tag or a list reads.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum HolderSet<T = ResourceLocation, const ALWAYS_LIST: bool = false> {
@@ -50,7 +51,7 @@ impl<'de, T: Deserialize<'de>, const ALWAYS_LIST: bool> Deserialize<'de>
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
                 if let Some(tag) = text.strip_prefix('#') {
-                    return ResourceLocation::parse(tag)
+                    return ResourceLocation::read(tag)
                         .map(HolderSet::Tag)
                         .map_err(E::custom);
                 }
@@ -81,6 +82,9 @@ impl<T: Serialize, const ALWAYS_LIST: bool> Serialize for HolderSet<T, ALWAYS_LI
         match self {
             HolderSet::Tag(tag) => serializer.serialize_str(&format!("#{}", tag.as_str())),
             HolderSet::One(entry) => entry.serialize(serializer),
+            HolderSet::List(entries) if !ALWAYS_LIST && entries.len() == 1 => {
+                entries[0].serialize(serializer)
+            }
             HolderSet::List(entries) => entries.serialize(serializer),
         }
     }

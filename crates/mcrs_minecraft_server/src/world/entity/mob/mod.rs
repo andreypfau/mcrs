@@ -4,7 +4,7 @@ use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::prelude::{
-    Changed, Commands, Entity, Has, IntoScheduleConfigs, MessageWriter, On, Query, Resource,
+    Changed, Commands, Entity, Has, IntoScheduleConfigs, MessageWriter, On, Query, Res, Resource,
     SystemCondition, With,
 };
 use bevy_ecs::query::QueryData;
@@ -26,9 +26,11 @@ use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
 use mcrs_minecraft_protocol::entity::{EquipmentSlot, MetaDataValue, Metadata, MetadataEntry};
+use mcrs_minecraft_protocol::item::RawStack;
 use mcrs_minecraft_protocol::packets::game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Slot, VarInt};
+use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, StaticRegistryTable};
 use mcrs_minecraft_world::entity::attribute::MAX_HEALTH;
 use mcrs_minecraft_world::entity::minecraft as entity_types;
 use mcrs_minecraft_world::entity::villager::VillagerData;
@@ -70,6 +72,15 @@ pub struct MobTrackerPlugin;
 impl Plugin for MobTrackerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MobTrackerCache>();
+        if let Some(root) = app
+            .world()
+            .get_resource::<mcrs_minecraft_level::server_loop::AssetRoot>()
+        {
+            let path = format!("{}/mcrs/reports/registries.json", root.0);
+            let table = StaticRegistryTable::load(&path)
+                .unwrap_or_else(|err| panic!("cannot load the built-in registry table {path}: {err}"));
+            app.insert_resource(table);
+        }
         app.add_systems(
             FixedPostUpdate,
             MobTracker::systems()
@@ -399,11 +410,24 @@ fn wire_id(entity: Entity) -> i32 {
     entity.index_u32() as i32
 }
 
+/// A stack the registries cannot encode is dropped from the packet rather
+/// than sent malformed.
+fn wire_stack(stack: ItemStack, lookup: &dyn RegistryLookup) -> Option<RawStack> {
+    RawStack::from_slot(&Slot::from(stack), lookup)
+        .inspect_err(|error| tracing::warn!(%error, "a mob's stack could not be encoded"))
+        .ok()
+}
+
 impl PairingItem<'_, '_> {
     /// What a player is told when it starts seeing the entity: the add packet
     /// with the data that differs from the kind's defaults, its attributes,
     /// what it holds and who rides whom.
-    fn packets(&self, reposition: &Reposition, vehicles: &Query<&RiddenBy>) -> Vec<PacketPayload> {
+    fn packets(
+        &self,
+        reposition: &Reposition,
+        vehicles: &Query<&RiddenBy>,
+        lookup: &dyn RegistryLookup,
+    ) -> Vec<PacketPayload> {
         let id = wire_id(self.entity);
         let mut out = vec![PacketPayload::PlayerEnteredView {
             entity_id: id,
@@ -414,7 +438,7 @@ impl PairingItem<'_, '_> {
             pitch: self.transform.rotation.pitch(),
             data: self.frame.map_or(0, |frame| frame.facing.id() as i32),
         }];
-        let metadata = self.entity_data();
+        let metadata = self.entity_data(lookup);
         if !metadata.is_empty() {
             out.push(PacketPayload::SetEntityData {
                 entity_id: id,
@@ -432,12 +456,12 @@ impl PairingItem<'_, '_> {
             });
         }
         if let Some(equipment) = self.equipment {
-            let slots: Vec<(EquipmentSlot, Slot)> = [
+            let slots: Vec<(EquipmentSlot, RawStack)> = [
                 (EquipmentSlot::MainHand, equipment.mainhand),
                 (EquipmentSlot::OffHand, equipment.offhand),
             ]
             .into_iter()
-            .filter_map(|(slot, stack)| Some((slot, Slot::from(stack?))))
+            .filter_map(|(slot, stack)| Some((slot, wire_stack(stack?, lookup)?)))
             .collect();
             if !slots.is_empty() {
                 out.push(PacketPayload::SetEquipment {
@@ -463,7 +487,7 @@ impl PairingItem<'_, '_> {
         out
     }
 
-    fn entity_data(&self) -> Vec<MetadataEntry<'static>> {
+    fn entity_data(&self, lookup: &dyn RegistryLookup) -> Vec<MetadataEntry<'static>> {
         let mut data = Vec::new();
         let mut put = |index: u8, value: MetaDataValue<'static>| {
             data.push(MetadataEntry { index, value });
@@ -472,7 +496,9 @@ impl PairingItem<'_, '_> {
             if frame.facing != Direction::South {
                 put(HANGING_DIRECTION, MetaDataValue::Direction(frame.facing));
             }
-            put(FRAME_ITEM, MetaDataValue::Slot(Slot::from(frame.item)));
+            if let Some(item) = wire_stack(frame.item, lookup) {
+                put(FRAME_ITEM, MetaDataValue::Slot(item));
+            }
         }
         if let Some(health) = self.health
             && health.current != 1.0
@@ -558,11 +584,20 @@ fn remove(entity: Entity) -> PacketPayload {
 pub fn update_mob_tracked_by(
     mut mobs: Query<(&InDimension, &mut TrackedBy, Pairing), With<EntityKind>>,
     vehicles: Query<&RiddenBy>,
+    registry: Res<RegistryAccess>,
+    static_table: Option<Res<StaticRegistryTable>>,
     observers: Query<&PlayerObservers, With<Column>>,
     column_indices: Query<&ColumnIndex>,
     players: Query<(&Transform, &HostAnchor, &Reposition), With<Player>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
+    let registry: &dyn RegistryLookup = &*registry;
+    let mut lookups: Vec<&dyn RegistryLookup> = Vec::with_capacity(2);
+    if let Some(table) = &static_table {
+        lookups.push(&**table);
+    }
+    lookups.push(registry);
+    let lookup = ChainLookup(&lookups);
     for (in_dim, mut tracked_by, pairing) in mobs.iter_mut() {
         let at = pairing.transform.translation;
         let seen_by = column_indices
@@ -588,7 +623,7 @@ pub fn update_mob_tracked_by(
             let Ok((_, anchor, reposition)) = players.get(player) else {
                 continue;
             };
-            for payload in pairing.packets(reposition, &vehicles) {
+            for payload in pairing.packets(reposition, &vehicles, &lookup) {
                 packets.write(to(anchor.0, payload));
             }
         }
@@ -656,6 +691,7 @@ mod tests {
         let mut app = App::new();
         app.add_schedule(Schedule::new(FixedPostUpdate));
         app.add_message::<OutboundPlayerPacket>();
+        app.insert_resource(RegistryAccess::default());
         app.add_plugins(MobTrackerPlugin);
 
         let dim = app.world_mut().spawn(ColumnIndex::default()).id();

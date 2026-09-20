@@ -8,13 +8,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
 /// Text color
-#[derive(Default, Debug, PartialOrd, Eq, Ord, Clone, Copy)]
+#[derive(Debug, PartialOrd, Eq, Ord, Clone, Copy)]
 pub enum Color {
-    /// The default color for the text will be used, which varies by context
-    /// (in some cases, it's white; in others, it's black; in still others, it
-    /// is a shade of gray that isn't normally used on text).
-    #[default]
-    Reset,
     /// RGB Color
     Rgb(RgbColor),
     /// One of the 16 named Minecraft colors
@@ -75,7 +70,6 @@ pub enum NamedColor {
 pub struct ColorError;
 
 impl Color {
-    pub const RESET: Self = Self::Reset;
     pub const AQUA: Self = Self::Named(NamedColor::Aqua);
     pub const BLACK: Self = Self::Named(NamedColor::Black);
     pub const BLUE: Self = Self::Named(NamedColor::Blue);
@@ -168,13 +162,11 @@ impl NamedColor {
 impl PartialEq for Color {
     fn eq(&self, other: &Self) -> bool {
         match (*self, *other) {
-            (Self::Reset, Self::Reset) => true,
             (Self::Rgb(rgb1), Self::Rgb(rgb2)) => rgb1 == rgb2,
             (Self::Named(normal1), Self::Named(normal2)) => normal1 == normal2,
             (Self::Rgb(rgb), Self::Named(normal)) | (Self::Named(normal), Self::Rgb(rgb)) => {
                 rgb == RgbColor::from(normal)
             }
-            (Self::Reset, _) | (_, Self::Reset) => false,
         }
     }
 }
@@ -182,15 +174,8 @@ impl PartialEq for Color {
 impl Hash for Color {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
-            Self::Reset => state.write_u8(0),
-            Self::Rgb(rgb) => {
-                state.write_u8(1);
-                rgb.hash(state);
-            }
-            Self::Named(normal) => {
-                state.write_u8(1);
-                RgbColor::from(*normal).hash(state);
-            }
+            Self::Rgb(rgb) => rgb.hash(state),
+            Self::Named(normal) => RgbColor::from(*normal).hash(state),
         }
     }
 }
@@ -238,10 +223,6 @@ impl TryFrom<&str> for Color {
             return Ok(Self::Rgb(RgbColor::try_from(value)?));
         }
 
-        if value == "reset" {
-            return Ok(Self::Reset);
-        }
-
         Ok(Self::Named(NamedColor::try_from(value)?))
     }
 }
@@ -272,26 +253,22 @@ impl TryFrom<&str> for NamedColor {
     }
 }
 
+/// `TextColor.parseColor`: `#` followed by whatever `Integer.parseInt(s, 16)`
+/// takes, in `0..=0xFFFFFF`.
 impl TryFrom<&str> for RgbColor {
     type Error = ColorError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let to_num = |d| match d {
-            b'0'..=b'9' => Ok(d - b'0'),
-            b'a'..=b'f' => Ok(d - b'a' + 0xa),
-            b'A'..=b'F' => Ok(d - b'A' + 0xa),
-            _ => Err(ColorError),
-        };
-
-        if let &[b'#', r0, r1, g0, g1, b0, b1] = value.as_bytes() {
-            Ok(RgbColor {
-                r: to_num(r0)? << 4 | to_num(r1)?,
-                g: to_num(g0)? << 4 | to_num(g1)?,
-                b: to_num(b0)? << 4 | to_num(b1)?,
-            })
-        } else {
-            Err(ColorError)
+        let digits = value.strip_prefix('#').ok_or(ColorError)?;
+        let rgb = i32::from_str_radix(digits, 16).map_err(|_| ColorError)?;
+        if !(0..=0xFFFFFF).contains(&rgb) {
+            return Err(ColorError);
         }
+        Ok(RgbColor {
+            r: (rgb >> 16) as u8,
+            g: (rgb >> 8) as u8,
+            b: rgb as u8,
+        })
     }
 }
 
@@ -313,18 +290,23 @@ impl<'de> Visitor<'de> for ColorVisitor {
     type Value = Color;
 
     fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "a hex color (#rrggbb), a normal color or 'reset'")
+        write!(f, "a hex color (#rrggbb) or a named color")
     }
 
     fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<Self::Value, E> {
-        Color::try_from(s).map_err(|_| E::custom("invalid color"))
+        Color::try_from(s).map_err(|_| {
+            if s.starts_with('#') {
+                E::custom(format_args!("Invalid color value: {s}"))
+            } else {
+                E::custom(format_args!("Invalid color name: {s}"))
+            }
+        })
     }
 }
 
 impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Color::Reset => write!(f, "reset"),
             Color::Rgb(rgb) => rgb.fmt(f),
             Color::Named(normal) => normal.fmt(f),
         }
@@ -333,7 +315,7 @@ impl fmt::Display for Color {
 
 impl fmt::Display for RgbColor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
+        write!(f, "#{:02X}{:02X}{:02X}", self.r, self.g, self.b)
     }
 }
 
@@ -362,7 +344,18 @@ mod tests {
         assert_eq!(Color::try_from("blue"), Ok(NamedColor::Blue.into()));
         assert!(Color::try_from("#ffTf00").is_err());
         assert!(Color::try_from("#ffš00").is_err());
-        assert!(Color::try_from("#00000000").is_err());
+        assert!(Color::try_from("#1000000").is_err());
+        assert!(Color::try_from("#-1").is_err());
         assert!(Color::try_from("#").is_err());
+        assert!(Color::try_from("reset").is_err());
+        assert_eq!(
+            Color::try_from("#f80"),
+            Ok(RgbColor::new(0, 0x0f, 0x80).into())
+        );
+        assert_eq!(
+            Color::try_from("#+ff"),
+            Ok(RgbColor::new(0, 0, 0xff).into())
+        );
+        assert_eq!(Color::try_from("#00000000"), Ok(NamedColor::Black.into()));
     }
 }

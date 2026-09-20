@@ -19,6 +19,7 @@ pub struct GameProfile<'a> {
 pub struct Property<S = String> {
     pub name: S,
     pub value: S,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<S>,
 }
 

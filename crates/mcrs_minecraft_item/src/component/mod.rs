@@ -8,6 +8,7 @@ pub mod tool;
 pub use attribute::AttributeModifiers;
 use bevy_ecs::component::Component;
 pub use enchantments::Enchantments;
+use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_protocol::item::{CustomData, ItemComponentKind, Lore, MaxStackSize};
 use rarity::Rarity;
 use swing::SwingAnimation;
@@ -36,7 +37,7 @@ impl ItemComponents {
     pub const fn new() -> Self {
         ItemComponents {
             custom: None,
-            max_stack_size: MaxStackSize(64),
+            max_stack_size: MaxStackSize(Bounded(64)),
             lore: Lore::new(Vec::new()),
             enchantments: Enchantments::empty(),
             repair_cost: RepairCost(0),
@@ -53,7 +54,7 @@ impl ItemComponents {
     }
 
     pub const fn with_durability(mut self, durability: u32) -> Self {
-        self.max_stack_size = MaxStackSize(1);
+        self.max_stack_size = MaxStackSize(Bounded(1));
         self.max_damage = Some(MaxDamage(durability));
         self.damage = Some(Damage(0));
         self

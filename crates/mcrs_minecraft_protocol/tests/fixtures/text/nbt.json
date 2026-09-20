@@ -1,0 +1,728 @@
+[
+ {
+  "name": "list_root",
+  "input": "090800000002000161000162",
+  "input_snbt": "[\"a\",\"b\"]",
+  "json": {
+   "text": "a",
+   "extra": [
+    "b"
+   ]
+  },
+  "snbt": "{extra:[\"b\"],text:\"a\"}"
+ },
+ {
+  "name": "list_root_mixed",
+  "input": "090a000000020800000001610008000474657874000162010004626f6c640100",
+  "input_snbt": "[\"a\",{bold:1b,text:\"b\"}]",
+  "json": {
+   "text": "a",
+   "extra": [
+    {
+     "text": "b",
+     "bold": true
+    }
+   ]
+  },
+  "snbt": "{extra:[{bold:1b,text:\"b\"}],text:\"a\"}"
+ },
+ {
+  "name": "bold_2b",
+  "input": "0a08000474657874000178010004626f6c640200",
+  "input_snbt": "{bold:2b,text:\"x\"}",
+  "json": {
+   "text": "x",
+   "bold": true
+  },
+  "snbt": "{bold:1b,text:\"x\"}"
+ },
+ {
+  "name": "bold_int",
+  "input": "0a08000474657874000178030004626f6c640000000100",
+  "input_snbt": "{bold:1,text:\"x\"}",
+  "json": {
+   "text": "x",
+   "bold": true
+  },
+  "snbt": "{bold:1b,text:\"x\"}"
+ },
+ {
+  "name": "bold_string",
+  "input": "0a08000474657874000178080004626f6c6400047472756500",
+  "input_snbt": "{bold:\"true\",text:\"x\"}",
+  "error": "Not a number"
+ },
+ {
+  "name": "shadow_long",
+  "input": "0a04000c736861646f775f636f6c6f7200000001000000010800047465787400017800",
+  "input_snbt": "{shadow_color:4294967297L,text:\"x\"}",
+  "json": {
+   "text": "x",
+   "shadow_color": 1
+  },
+  "snbt": "{shadow_color:1,text:\"x\"}"
+ },
+ {
+  "name": "shadow_float",
+  "input": "0a05000c736861646f775f636f6c6f723ff333330800047465787400017800",
+  "input_snbt": "{shadow_color:1.9f,text:\"x\"}",
+  "json": {
+   "text": "x",
+   "shadow_color": 1
+  },
+  "snbt": "{shadow_color:1,text:\"x\"}"
+ },
+ {
+  "name": "shadow_int_array",
+  "input": "0a0b000c736861646f775f636f6c6f7200000004000000010000000200000003000000040800047465787400017800",
+  "input_snbt": "{shadow_color:[I;1,2,3,4],text:\"x\"}",
+  "json": {
+   "text": "x",
+   "shadow_color": -50331907
+  },
+  "snbt": "{shadow_color:-50331907,text:\"x\"}"
+ },
+ {
+  "name": "shadow_list_int",
+  "input": "0a09000c736861646f775f636f6c6f720300000004000000010000000000000000000000010800047465787400017800",
+  "input_snbt": "{shadow_color:[1,0,0,1],text:\"x\"}",
+  "json": {
+   "text": "x",
+   "shadow_color": -65536
+  },
+  "snbt": "{shadow_color:-65536,text:\"x\"}"
+ },
+ {
+  "name": "uuid_list_int",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000b73686f775f656e746974790800026964000d6d696e6563726166743a706967090004757569640300000004000000010000000200000003000000040000",
+  "input_snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",uuid:[1,2,3,4]},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:pig",
+    "uuid": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "action": "show_entity"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",uuid:[I;1,2,3,4]},text:\"x\"}"
+ },
+ {
+  "name": "uuid_list_long",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000b73686f775f656e746974790800026964000d6d696e6563726166743a70696709000475756964040000000400000000000000010000000000000002000000000000000300000000000000040000",
+  "input_snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",uuid:[1L,2L,3L,4L]},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:pig",
+    "uuid": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "action": "show_entity"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",uuid:[I;1,2,3,4]},text:\"x\"}"
+ },
+ {
+  "name": "uuid_string",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000b73686f775f656e746974790800026964000d6d696e6563726166743a70696708000475756964002430303030303030312d303030322d303030332d303030342d3030303030303030303030350000",
+  "input_snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",uuid:\"00000001-0002-0003-0004-000000000005\"},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:pig",
+    "uuid": [
+     1,
+     131075,
+     262144,
+     5
+    ],
+    "action": "show_entity"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",uuid:[I;1,131075,262144,5]},text:\"x\"}"
+ },
+ {
+  "name": "extra_wrapped_homogeneous",
+  "input": "0a090005657874726108000000020001610001620800047465787400017800",
+  "input_snbt": "{extra:[\"a\",\"b\"],text:\"x\"}",
+  "json": {
+   "text": "x",
+   "extra": [
+    "a",
+    "b"
+   ]
+  },
+  "snbt": "{extra:[\"a\",\"b\"],text:\"x\"}"
+ },
+ {
+  "name": "extra_wrapped_compound_in_wrapper",
+  "input": "0a09000565787472610a0000000108000474657874000161010004626f6c6401000800047465787400017800",
+  "input_snbt": "{extra:[{bold:1b,text:\"a\"}],text:\"x\"}",
+  "json": {
+   "text": "x",
+   "extra": [
+    {
+     "text": "a",
+     "bold": true
+    }
+   ]
+  },
+  "snbt": "{extra:[{bold:1b,text:\"a\"}],text:\"x\"}"
+ },
+ {
+  "name": "page_double_frac",
+  "input": "0a0a000b636c69636b5f6576656e74080006616374696f6e000b6368616e67655f7061676506000470616765400d99999999999a000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"change_page\",page:3.7d},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "page": 3,
+    "action": "change_page"
+   }
+  },
+  "snbt": "{click_event:{action:\"change_page\",page:3},text:\"x\"}"
+ },
+ {
+  "name": "page_double_big",
+  "input": "0a0a000b636c69636b5f6576656e74080006616374696f6e000b6368616e67655f706167650600047061676541e65a0bc0000000000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"change_page\",page:3.0E9d},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "page": 2147483647,
+    "action": "change_page"
+   }
+  },
+  "snbt": "{click_event:{action:\"change_page\",page:2147483647},text:\"x\"}"
+ },
+ {
+  "name": "page_long_big",
+  "input": "0a0a000b636c69636b5f6576656e74080006616374696f6e000b6368616e67655f70616765040004706167650000000100000001000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"change_page\",page:4294967297L},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "page": 1,
+    "action": "change_page"
+   }
+  },
+  "snbt": "{click_event:{action:\"change_page\",page:1},text:\"x\"}"
+ },
+ {
+  "name": "page_byte",
+  "input": "0a0a000b636c69636b5f6576656e74080006616374696f6e000b6368616e67655f706167650100047061676503000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"change_page\",page:3b},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "page": 3,
+    "action": "change_page"
+   }
+  },
+  "snbt": "{click_event:{action:\"change_page\",page:3},text:\"x\"}"
+ },
+ {
+  "name": "with_wrapped",
+  "input": "0a090004776974680a000000020800000001610003000000000005000800097472616e736c61746500016b00",
+  "input_snbt": "{translate:\"k\",with:[\"a\",5]}",
+  "json": {
+   "translate": "k",
+   "with": [
+    "a",
+    5
+   ]
+  },
+  "snbt": "{translate:\"k\",with:[\"a\",5]}"
+ },
+ {
+  "name": "with_int_array",
+  "input": "0a0b0004776974680000000200000001000000020800097472616e736c61746500016b00",
+  "input_snbt": "{translate:\"k\",with:[I;1,2]}",
+  "json": {
+   "translate": "k",
+   "with": [
+    1,
+    2
+   ]
+  },
+  "snbt": "{translate:\"k\",with:[1,2]}"
+ },
+ {
+  "name": "with_byte_array_arg",
+  "input": "0a0900047769746807000000010000000201020800097472616e736c61746500016b00",
+  "input_snbt": "{translate:\"k\",with:[[B;1B,2B]]}",
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string; Second: Not a list: {translate:\"k\",with:[[B;1B,2B]]}; Second: No matching codec found"
+ },
+ {
+  "name": "with_long_arg",
+  "input": "0a09000477697468040000000100000000000000070800097472616e736c61746500016b00",
+  "input_snbt": "{translate:\"k\",with:[7L]}",
+  "json": {
+   "translate": "k",
+   "with": [
+    7
+   ]
+  },
+  "snbt": "{translate:\"k\",with:[7L]}"
+ },
+ {
+  "name": "interpret_plain",
+  "input": "0a0800036e6274000161010005706c61696e01010009696e746572707265740108000773746f7261676500017300",
+  "input_snbt": "{interpret:1b,nbt:\"a\",plain:1b,storage:\"s\"}",
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string; Second: Not a list: {interpret:1b,nbt:\"a\",plain:1b,storage:\"s\"}; Second: No matching codec found"
+ },
+ {
+  "name": "interpret_int",
+  "input": "0a0800036e6274000161030009696e746572707265740000000108000773746f7261676500017300",
+  "input_snbt": "{interpret:1,nbt:\"a\",storage:\"s\"}",
+  "json": {
+   "nbt": "a",
+   "interpret": true,
+   "storage": "minecraft:s"
+  },
+  "snbt": "{interpret:1b,nbt:\"a\",storage:\"minecraft:s\"}"
+ },
+ {
+  "name": "interpret_string",
+  "input": "0a0800036e6274000161080009696e7465727072657400047472756508000773746f7261676500017300",
+  "input_snbt": "{interpret:\"true\",nbt:\"a\",storage:\"s\"}",
+  "json": {
+   "nbt": "a",
+   "storage": "minecraft:s"
+  },
+  "snbt": "{nbt:\"a\",storage:\"minecraft:s\"}"
+ },
+ {
+  "name": "font_bare",
+  "input": "0a08000474657874000178080004666f6e740003616c7400",
+  "input_snbt": "{font:\"alt\",text:\"x\"}",
+  "json": {
+   "text": "x",
+   "font": "minecraft:alt"
+  },
+  "snbt": "{font:\"minecraft:alt\",text:\"x\"}"
+ },
+ {
+  "name": "text_int",
+  "input": "0a030004746578740000000500",
+  "input_snbt": "{text:5}",
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string; Second: Not a list: {text:5}; Second: No matching codec found"
+ },
+ {
+  "name": "text_and_extra_style",
+  "input": "0a080005636f6c6f720003726564090005657874726108000000010001620800047465787400016100",
+  "input_snbt": "{color:\"red\",extra:[\"b\"],text:\"a\"}",
+  "json": {
+   "text": "a",
+   "extra": [
+    "b"
+   ],
+   "color": "red"
+  },
+  "snbt": "{color:\"red\",extra:[\"b\"],text:\"a\"}"
+ },
+ {
+  "name": "custom_payload_int_array",
+  "input": "0a0a000b636c69636b5f6576656e740b00077061796c6f6164000000020000000100000002080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[I;1,2]},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": [
+     1,
+     2
+    ],
+    "action": "custom"
+   }
+  },
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[I;1,2]},text:\"x\"}"
+ },
+ {
+  "name": "custom_payload_end_list",
+  "input": "0a0a000b636c69636b5f6576656e740900077061796c6f61640000000000080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[]},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": [],
+    "action": "custom"
+   }
+  },
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[]},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_text_list_nbt",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f7465787409000576616c756508000000020001610001620000",
+  "input_snbt": "{hover_event:{action:\"show_text\",value:[\"a\",\"b\"]},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "value": {
+     "text": "a",
+     "extra": [
+      "b"
+     ]
+    },
+    "action": "show_text"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_text\",value:{extra:[\"b\"],text:\"a\"}},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_item_count_byte",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e74010005636f756e7403080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "input_snbt": "{hover_event:{action:\"show_item\",count:3b,id:\"minecraft:stone\"},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "count": 3,
+    "action": "show_item"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_item\",count:3,id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_item_count_long",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e74040005636f756e740000000000000003080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "input_snbt": "{hover_event:{action:\"show_item\",count:3L,id:\"minecraft:stone\"},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "count": 3,
+    "action": "show_item"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_item\",count:3,id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "color_hex",
+  "input": "0a080005636f6c6f720004236162630800047465787400017800",
+  "input_snbt": "{color:\"#abc\",text:\"x\"}",
+  "json": {
+   "text": "x",
+   "color": "#000ABC"
+  },
+  "snbt": "{color:\"#000ABC\",text:\"x\"}"
+ },
+ {
+  "name": "insertion_int",
+  "input": "0a030009696e73657274696f6e000000050800047465787400017800",
+  "input_snbt": "{insertion:5,text:\"x\"}",
+  "error": "Not a string"
+ },
+ {
+  "name": "score_name_selector",
+  "input": "0a0a000573636f72650800046e616d65000b40655b6c696d69743d315d0800096f626a65637469766500016f0000",
+  "input_snbt": "{score:{name:\"@e[limit=1]\",objective:\"o\"}}",
+  "json": {
+   "score": {
+    "name": "@e[limit=1]",
+    "objective": "o"
+   }
+  },
+  "snbt": "{score:{name:\"@e[limit=1]\",objective:\"o\"}}"
+ },
+ {
+  "name": "keybind_byte",
+  "input": "0a0100076b657962696e640100",
+  "input_snbt": "{keybind:1b}",
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string; Second: Not a list: {keybind:1b}; Second: No matching codec found"
+ },
+ {
+  "name": "empty_compound",
+  "input": "0a00",
+  "input_snbt": "{}",
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string; Second: Not a list: {}; Second: No matching codec found"
+ },
+ {
+  "name": "extra_empty",
+  "input": "0a090005657874726100000000000800047465787400017800",
+  "input_snbt": "{extra:[],text:\"x\"}",
+  "error": "List must have contents"
+ },
+ {
+  "name": "extra_int_list",
+  "input": "0a0900056578747261030000000200000001000000020800047465787400017800",
+  "input_snbt": "{extra:[1,2],text:\"x\"}",
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string; Second: Not a list: 2; Second: Not a map: 2; Failed to parse either. First: Failed to parse either. First: Not a string; Second: Not a list: 1; Second: Not a map: 1; List must have contents"
+ },
+ {
+  "name": "object_hat_byte",
+  "input": "0a0800067370726974650003613a620100036861740000",
+  "input_snbt": "{hat:0b,sprite:\"a:b\"}",
+  "json": {
+   "sprite": "a:b"
+  },
+  "snbt": "{sprite:\"a:b\"}"
+ },
+ {
+  "name": "object_atlas_only",
+  "input": "0a08000561746c61730003613a6200",
+  "input_snbt": "{atlas:\"a:b\"}",
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string; Second: Not a list: {atlas:\"a:b\"}; Second: No matching codec found"
+ },
+ {
+  "name": "show_item_custom_data_arrays",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e740a000a636f6d706f6e656e74730a00156d696e6563726166743a637573746f6d5f646174610700016200000001010b000175000000040000000100000002000000030000000401000166010c00016c0000000100000000000000010000080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "input_snbt": "{hover_event:{action:\"show_item\",components:{\"minecraft:custom_data\":{b:[B;1B],f:1b,l:[L;1L],u:[I;1,2,3,4]}},id:\"minecraft:stone\"},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "components": {
+     "minecraft:custom_data": {
+      "b": [
+       1
+      ],
+      "u": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "f": 1,
+      "l": [
+       1
+      ]
+     }
+    },
+    "action": "show_item"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_item\",components:{\"minecraft:custom_data\":{b:[B;1B],f:1b,l:[L;1L],u:[I;1,2,3,4]}},id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "show_item_custom_name_styled",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e740a000a636f6d706f6e656e74730a00156d696e6563726166743a637573746f6d5f6e616d6503000c736861646f775f636f6c6f720000000508000474657874000161010004626f6c64010000080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "input_snbt": "{hover_event:{action:\"show_item\",components:{\"minecraft:custom_name\":{bold:1b,shadow_color:5,text:\"a\"}},id:\"minecraft:stone\"},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "components": {
+     "minecraft:custom_name": {
+      "text": "a",
+      "shadow_color": 5,
+      "bold": true
+     }
+    },
+    "action": "show_item"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_item\",components:{\"minecraft:custom_name\":{bold:1b,shadow_color:5,text:\"a\"}},id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "show_item_lore_mixed",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e740a000a636f6d706f6e656e747309000e6d696e6563726166743a6c6f72650a0000000208000000016100080004746578740001620100066974616c6963000000080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "input_snbt": "{hover_event:{action:\"show_item\",components:{\"minecraft:lore\":[\"a\",{italic:0b,text:\"b\"}]},id:\"minecraft:stone\"},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "components": {
+     "minecraft:lore": [
+      "a",
+      {
+       "text": "b",
+       "italic": false
+      }
+     ]
+    },
+    "action": "show_item"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_item\",components:{\"minecraft:lore\":[\"a\",{italic:0b,text:\"b\"}]},id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "show_item_max_stack",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e740a000a636f6d706f6e656e74730100186d696e6563726166743a6d61785f737461636b5f73697a651000080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "input_snbt": "{hover_event:{action:\"show_item\",components:{\"minecraft:max_stack_size\":16b},id:\"minecraft:stone\"},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "components": {
+     "minecraft:max_stack_size": 16
+    },
+    "action": "show_item"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_item\",components:{\"minecraft:max_stack_size\":16},id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "show_item_damage_removed",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e740a000a636f6d706f6e656e74730a0011216d696e6563726166743a64616d6167650000080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "input_snbt": "{hover_event:{action:\"show_item\",components:{\"!minecraft:damage\":{}},id:\"minecraft:stone\"},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "components": {
+     "!minecraft:damage": {}
+    },
+    "action": "show_item"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_item\",components:{\"!minecraft:damage\":{}},id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "show_entity_custom_uuid_in_name_hover",
+  "input": "0a080004746578740001780a000b686f7665725f6576656e740a00046e616d650800047465787400016e0a000b686f7665725f6576656e74080006616374696f6e000b73686f775f656e746974790800026964000d6d696e6563726166743a636f770b00047575696400000004000000050000000600000007000000080000080006616374696f6e000b73686f775f656e746974790800026964000d6d696e6563726166743a7069670b00047575696400000004000000010000000200000003000000040000",
+  "input_snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",name:{hover_event:{action:\"show_entity\",id:\"minecraft:cow\",uuid:[I;5,6,7,8]},text:\"n\"},uuid:[I;1,2,3,4]},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:pig",
+    "uuid": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "name": {
+     "text": "n",
+     "hover_event": {
+      "id": "minecraft:cow",
+      "uuid": [
+       5,
+       6,
+       7,
+       8
+      ],
+      "action": "show_entity"
+     }
+    },
+    "action": "show_entity"
+   }
+  },
+  "snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",name:{hover_event:{action:\"show_entity\",id:\"minecraft:cow\",uuid:[I;5,6,7,8]},text:\"n\"},uuid:[I;1,2,3,4]},text:\"x\"}"
+ },
+ {
+  "name": "custom_payload_long_array",
+  "input": "0a0a000b636c69636b5f6576656e740c00077061796c6f61640000000200000000000000010000000000000002080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[L;1L,2L]},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": [
+     1,
+     2
+    ],
+    "action": "custom"
+   }
+  },
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[L;1L,2L]},text:\"x\"}"
+ },
+ {
+  "name": "custom_payload_byte_array",
+  "input": "0a0a000b636c69636b5f6576656e740700077061796c6f6164000000020102080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[B;1B,2B]},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": [
+     1,
+     2
+    ],
+    "action": "custom"
+   }
+  },
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[B;1B,2B]},text:\"x\"}"
+ },
+ {
+  "name": "custom_payload_nested_array",
+  "input": "0a0a000b636c69636b5f6576656e740a00077061796c6f61640b00016100000002000000010000000200080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:{a:[I;1,2]}},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": {
+     "a": [
+      1,
+      2
+     ]
+    },
+    "action": "custom"
+   }
+  },
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:{a:[I;1,2]}},text:\"x\"}"
+ },
+ {
+  "name": "custom_payload_byte",
+  "input": "0a0a000b636c69636b5f6576656e740100077061796c6f616401080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:1b},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": 1,
+    "action": "custom"
+   }
+  },
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:1b},text:\"x\"}"
+ },
+ {
+  "name": "custom_payload_short",
+  "input": "0a0a000b636c69636b5f6576656e740200077061796c6f61640001080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:1s},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": 1,
+    "action": "custom"
+   }
+  },
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:1s},text:\"x\"}"
+ },
+ {
+  "name": "custom_payload_float",
+  "input": "0a0a000b636c69636b5f6576656e740500077061796c6f61643fc00000080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:1.5f},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": 1.5,
+    "action": "custom"
+   }
+  },
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:1.5f},text:\"x\"}"
+ },
+ {
+  "name": "custom_payload_list_of_lists",
+  "input": "0a0a000b636c69636b5f6576656e740900077061796c6f6164090000000201000000010102000000010002080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "input_snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[[1b],[2s]]},text:\"x\"}",
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": [
+     [
+      1
+     ],
+     [
+      2
+     ]
+    ],
+    "action": "custom"
+   }
+  },
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[[1b],[2s]]},text:\"x\"}"
+ }
+]

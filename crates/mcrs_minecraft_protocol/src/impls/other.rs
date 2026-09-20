@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::io::{Cursor, Write};
+use std::sync::Arc;
 
 use anyhow::Context;
 use mcrs_minecraft_core::ResourceLocation;
@@ -75,6 +76,12 @@ impl<'a> Decode<'a> for ResourceLocation<Cow<'a, str>> {
     }
 }
 
+impl Decode<'_> for ResourceLocation<Arc<str>> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        Ok(ResourceLocation::parse(<&str>::decode(r)?)?)
+    }
+}
+
 impl Encode for ItemId {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
         VarInt(self.0 as i32).encode(w)
@@ -84,8 +91,8 @@ impl Encode for ItemId {
 impl Decode<'_> for ItemId {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = VarInt::decode(r)?.0;
-        let errmsg = "invalid item ID";
-
-        Ok(ItemId(id.try_into().context(errmsg)?))
+        Ok(ItemId(id.try_into().with_context(|| {
+            format!("item id {id} is out of range")
+        })?))
     }
 }

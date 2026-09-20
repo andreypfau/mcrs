@@ -10,7 +10,9 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::serverbound::{ClientInformation, KeepAlive};
@@ -40,7 +42,9 @@ use mcrs_minecraft_protocol::{
     WritePacket, uuid::Uuid,
 };
 use md5::{Digest, Md5};
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::OnceLock;
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{Receiver, channel};
@@ -90,10 +94,54 @@ pub struct ReceivedRegistry {
     pub entries: Vec<RegistryEntry>,
 }
 
-/// Registry snapshots as the server sent them. Nothing reads these yet: which
-/// of these and the on-disk assets wins is a separate question.
+/// Registry snapshots as the server sent them, in network id order. Which of
+/// these and the on-disk assets wins for game data is a separate question;
+/// as the `RegistryLookup` for stacks they are the only authority.
 #[derive(Component, Default, Debug)]
-pub struct ReceivedRegistries(pub Vec<ReceivedRegistry>);
+pub struct ReceivedRegistries(pub Vec<ReceivedRegistry>, OnceLock<LookupIndex>);
+
+/// Name and network id of every entry, keyed by the registry's bare path so
+/// the key form matches the item component registry markers.
+#[derive(Default, Debug)]
+pub struct LookupIndex {
+    by_name: HashMap<Box<str>, HashMap<ResourceLocation, u32>>,
+    by_id: HashMap<Box<str>, Vec<Option<ResourceLocation>>>,
+}
+
+impl ReceivedRegistries {
+    fn index(&self) -> &LookupIndex {
+        self.1.get_or_init(|| {
+            let mut index = LookupIndex::default();
+            for registry in &self.0 {
+                let key: Box<str> = registry
+                    .registry
+                    .split_once(':')
+                    .map_or(registry.registry.as_str(), |(_, path)| path)
+                    .into();
+                let by_id = index.by_id.entry(key.clone()).or_default();
+                let by_name = index.by_name.entry(key).or_default();
+                for (id, entry) in registry.entries.iter().enumerate() {
+                    let location = ResourceLocation::parse(&entry.id).ok();
+                    if let Some(location) = &location {
+                        by_name.insert(location.clone(), id as u32);
+                    }
+                    by_id.push(location);
+                }
+            }
+            index
+        })
+    }
+}
+
+impl RegistryLookup for ReceivedRegistries {
+    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+        self.index().by_name.get(registry)?.get(name).copied()
+    }
+
+    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+        self.index().by_id.get(registry)?.get(id as usize)?.as_ref()
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct ReceivedTagGroup {
@@ -404,6 +452,7 @@ fn handle_configuration_packet(
             known_packs: Vec::new(),
         });
     } else if let Some(data) = event.decode::<ClientboundRegistryData>() {
+        registries.1.take();
         registries.0.push(ReceivedRegistry {
             registry: data.registry.to_string(),
             entries: data
@@ -577,5 +626,35 @@ mod tests {
         drop(inbound);
         app.update();
         assert!(app.should_exit().is_none());
+    }
+}
+
+#[cfg(test)]
+mod lookup_tests {
+    use super::*;
+
+    #[test]
+    fn received_registries_resolve_names_and_network_ids() {
+        let mut registries = ReceivedRegistries::default();
+        let entry = |id: &str| RegistryEntry {
+            id: id.to_owned(),
+            data: None,
+        };
+        registries.0.push(ReceivedRegistry {
+            registry: "minecraft:enchantment".to_owned(),
+            entries: vec![entry("minecraft:sharpness"), entry("minecraft:unbreaking")],
+        });
+        let unbreaking = ResourceLocation::minecraft("unbreaking");
+        assert_eq!(registries.id("enchantment", &unbreaking), Some(1));
+        assert_eq!(registries.name("enchantment", 1), Some(&unbreaking));
+        assert_eq!(registries.name("enchantment", 2), None);
+        assert_eq!(registries.id("item", &unbreaking), None);
+
+        registries.1.take();
+        registries.0.push(ReceivedRegistry {
+            registry: "minecraft:damage_type".to_owned(),
+            entries: vec![entry("minecraft:lava")],
+        });
+        assert_eq!(registries.name("damage_type", 0), Some(&ResourceLocation::minecraft("lava")));
     }
 }

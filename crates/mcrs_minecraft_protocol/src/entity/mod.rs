@@ -1,5 +1,6 @@
+use crate::item::RawStack;
 use crate::text::Text;
-use crate::{Direction, GlobalPos, Slot, VarInt, VarLong};
+use crate::{Direction, GlobalPos, VarInt, VarLong};
 use bevy_math::{Vec3, Vec4};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_protocol::entity::player::HumanoidArm;
@@ -79,7 +80,7 @@ pub enum MetaDataValue<'a> {
     String(&'a str),
     Text(Text),
     OptionalText(Option<Text>),
-    Slot(Slot),
+    Slot(RawStack),
     Boolean(bool),
     Rotations(Vec3),
     BlockPos(BlockPos),
@@ -156,7 +157,9 @@ impl crate::Decode<'_> for OptionalUnsignedInt {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Encode, Decode)]
+/// `DyeColor.STREAM_CODEC`: the id, out of range reading as white (`ZERO`).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Encode, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DyeColor {
     White,
     Orange,
@@ -174,6 +177,38 @@ pub enum DyeColor {
     Green,
     Red,
     Black,
+}
+
+impl DyeColor {
+    pub const ALL: [Self; 16] = [
+        Self::White,
+        Self::Orange,
+        Self::Magenta,
+        Self::LightBlue,
+        Self::Yellow,
+        Self::Lime,
+        Self::Pink,
+        Self::Gray,
+        Self::LightGray,
+        Self::Cyan,
+        Self::Purple,
+        Self::Blue,
+        Self::Brown,
+        Self::Green,
+        Self::Red,
+        Self::Black,
+    ];
+}
+
+impl crate::Decode<'_> for DyeColor {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let id = VarInt::decode(r)?.0;
+        Ok(usize::try_from(id)
+            .ok()
+            .and_then(|id| Self::ALL.get(id))
+            .copied()
+            .unwrap_or(Self::White))
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Encode, Decode)]
@@ -272,5 +307,34 @@ impl EquipmentSlot {
             .get(id as usize)
             .copied()
             .ok_or_else(|| anyhow::anyhow!("invalid equipment slot {id}"))
+    }
+
+    /// `EquipmentSlot.STREAM_CODEC` numbers the slots differently from the
+    /// equipment packet's ordinal: hands first, then armour, offhand at 5.
+    pub const fn equippable_id(self) -> u8 {
+        match self {
+            Self::MainHand => 0,
+            Self::Feet => 1,
+            Self::Legs => 2,
+            Self::Chest => 3,
+            Self::Head => 4,
+            Self::OffHand => 5,
+            Self::Body => 6,
+            Self::Saddle => 7,
+        }
+    }
+
+    /// Out of range reads as the first slot (`ByIdMap` `ZERO`).
+    pub const fn from_equippable_id(id: u8) -> Self {
+        match id {
+            1 => Self::Feet,
+            2 => Self::Legs,
+            3 => Self::Chest,
+            4 => Self::Head,
+            5 => Self::OffHand,
+            6 => Self::Body,
+            7 => Self::Saddle,
+            _ => Self::MainHand,
+        }
     }
 }

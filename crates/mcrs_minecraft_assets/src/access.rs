@@ -3,8 +3,10 @@ use bevy_asset::Asset;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
 
 #[derive(Debug, Clone)]
 pub struct PackSource {
@@ -158,6 +160,50 @@ pub struct RegistryAccess(Arc<RegistryAccessInner>);
 #[derive(Default)]
 pub struct RegistryAccessInner {
     registries: Vec<Box<dyn ErasedRegistrySnapshot>>,
+    lookup: OnceLock<LookupIndex>,
+}
+
+/// Name and network id of every entry, keyed by the registry's bare path so
+/// the key form matches the item component registry markers.
+#[derive(Default)]
+struct LookupIndex {
+    by_name: HashMap<Box<str>, HashMap<ResourceLocation<Arc<str>>, u32>>,
+    by_id: HashMap<Box<str>, Vec<Option<ResourceLocation<Arc<str>>>>>,
+}
+
+impl LookupIndex {
+    fn build(registries: &[Box<dyn ErasedRegistrySnapshot>]) -> Self {
+        let mut index = LookupIndex::default();
+        for registry in registries {
+            let key = registry.registry_key();
+            let key: Box<str> = key.split_once(':').map_or(key, |(_, path)| path).into();
+            let by_id = index.by_id.entry(key.clone()).or_default();
+            let by_name = index.by_name.entry(key).or_default();
+            for entry in registry.iter_entries() {
+                let id = entry.network_id as usize;
+                if by_id.len() <= id {
+                    by_id.resize(id + 1, None);
+                }
+                by_id[id] = Some(entry.location.clone());
+                by_name.insert(entry.location.clone(), entry.network_id);
+            }
+        }
+        index
+    }
+}
+
+impl RegistryLookup for RegistryAccess {
+    fn id(&self, registry: &str, name: &ResourceLocation<Arc<str>>) -> Option<u32> {
+        self.lookup().by_name.get(registry)?.get(name).copied()
+    }
+
+    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation<Arc<str>>> {
+        self.lookup()
+            .by_id
+            .get(registry)?
+            .get(id as usize)?
+            .as_ref()
+    }
 }
 
 impl RegistryAccess {
@@ -181,6 +227,12 @@ impl RegistryAccess {
 
     pub fn iter(&self) -> impl Iterator<Item = &dyn ErasedRegistrySnapshot> {
         self.0.registries.iter().map(|b| &**b)
+    }
+
+    fn lookup(&self) -> &LookupIndex {
+        self.0
+            .lookup
+            .get_or_init(|| LookupIndex::build(&self.0.registries))
     }
 
     pub fn len(&self) -> usize {
@@ -306,6 +358,42 @@ mod tests {
             None,
         );
         let _: Box<dyn ErasedRegistrySnapshot> = Box::new(erased);
+    }
+
+    #[test]
+    fn an_id_no_entry_owns_has_no_name() {
+        struct Sparse(Vec<ResourceLocation<Arc<str>>>);
+
+        impl ErasedRegistrySnapshot for Sparse {
+            fn registry_key(&self) -> &str {
+                "minecraft:item"
+            }
+
+            fn len(&self) -> usize {
+                self.0.len()
+            }
+
+            fn iter_entries(&self) -> Box<dyn Iterator<Item = ErasedEntry<'_>> + '_> {
+                Box::new(self.0.iter().enumerate().map(|(i, location)| ErasedEntry {
+                    network_id: i as u32 * 2,
+                    location,
+                    data: None,
+                    pack_source: None,
+                }))
+            }
+        }
+
+        let mut access = RegistryAccess::default();
+        access.register(Box::new(Sparse(vec![
+            make_location("stone"),
+            make_location("dirt"),
+        ])));
+        assert_eq!(access.name("item", 0), Some(&make_location("stone")));
+        assert_eq!(access.name("item", 1), None);
+        assert_eq!(access.name("item", 2), Some(&make_location("dirt")));
+        assert_eq!(access.name("item", 3), None);
+        assert_eq!(access.id("item", &make_location("dirt")), Some(2));
+        assert_eq!(access.id("block", &make_location("dirt")), None);
     }
 
     #[test]

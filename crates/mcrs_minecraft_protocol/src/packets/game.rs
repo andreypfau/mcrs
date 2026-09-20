@@ -4,10 +4,11 @@ pub mod clientbound {
     use crate::entity::player::*;
     use crate::entity::{EquipmentSlot, Metadata};
     use crate::game_event::GameEventKind;
+    use crate::item::RawStack;
     use crate::packets::common::clientbound::KeepAlive;
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::text::Text;
-    use crate::{ColumnPos, Look, LpVec3, PositionFlag, Slot, VarInt};
+    use crate::{ColumnPos, Look, LpVec3, PositionFlag, VarInt};
     use crate::{Decode as _, Encode as _};
     use bevy_math::DVec3;
     use mcrs_minecraft_core::BlockPos;
@@ -64,8 +65,8 @@ pub mod clientbound {
     pub struct ClientboundContainerSetContent {
         pub container_id: VarInt,
         pub state_seqno: VarInt,
-        pub slot_data: Vec<Slot>,
-        pub carried_item: Slot,
+        pub slot_data: Vec<RawStack>,
+        pub carried_item: RawStack,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -355,7 +356,7 @@ pub mod clientbound {
     #[packet(id=0x67, state=Game)]
     pub struct ClientboundSetEquipment {
         pub entity_id: VarInt,
-        pub slots: Vec<(EquipmentSlot, Slot)>,
+        pub slots: Vec<(EquipmentSlot, RawStack)>,
     }
 
     impl crate::Encode for ClientboundSetEquipment {
@@ -378,7 +379,7 @@ pub mod clientbound {
             let mut slots = Vec::new();
             loop {
                 let byte = u8::decode(r)?;
-                slots.push((EquipmentSlot::from_id(byte & 0x7F)?, Slot::decode(r)?));
+                slots.push((EquipmentSlot::from_id(byte & 0x7F)?, RawStack::decode(r)?));
                 if byte & 0x80 == 0 {
                     return Ok(Self { entity_id, slots });
                 }

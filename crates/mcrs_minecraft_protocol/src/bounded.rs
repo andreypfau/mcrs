@@ -32,6 +32,7 @@ use serde::{Deserialize, Serialize};
     Serialize,
     Deserialize,
 )]
+#[serde(transparent)]
 pub struct Bounded<T, const MAX: usize>(pub T);
 
 impl<T, const MAX: usize> Bounded<T, MAX> {

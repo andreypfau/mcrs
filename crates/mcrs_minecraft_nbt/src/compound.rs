@@ -284,72 +284,14 @@ impl From<NbtCompound> for NbtTag {
     }
 }
 
-/// SNBT display implementation for NbtCompound
 impl Display for NbtCompound {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str("{")?;
-        for (i, (key, value)) in self.child_tags.iter().enumerate() {
-            if i > 0 {
-                f.write_str(", ")?;
-            }
-            f.write_str(&format!("{key}: {value}"))?;
-        }
-        f.write_str("}")
+        f.write_str(&crate::snbt::write_compound(self))
     }
 }
 
 impl Display for NbtTag {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NbtTag::End => Ok(()),
-            NbtTag::Byte(value) => f.write_fmt(format_args!("{value}")),
-            NbtTag::Short(value) => f.write_fmt(format_args!("{value}")),
-            NbtTag::Int(value) => f.write_fmt(format_args!("{value}")),
-            NbtTag::Long(value) => f.write_fmt(format_args!("{value}")),
-            NbtTag::Float(value) => f.write_fmt(format_args!("{value}")),
-            NbtTag::Double(value) => f.write_fmt(format_args!("{value}")),
-            NbtTag::String(value) => f.write_fmt(format_args!("\"{value}\"")),
-            NbtTag::Compound(value) => f.write_fmt(format_args!("{value}")),
-            NbtTag::ByteArray(value) => {
-                f.write_str("[B; ")?;
-                for (i, byte) in value.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(", ")?;
-                    }
-                    f.write_fmt(format_args!("{byte}"))?;
-                }
-                f.write_str("]")
-            }
-            NbtTag::List(value) => {
-                f.write_str("[")?;
-                for (i, tag) in value.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(", ")?;
-                    }
-                    f.write_fmt(format_args!("{tag}"))?;
-                }
-                f.write_str("]")
-            }
-            NbtTag::IntArray(value) => {
-                f.write_str("[I; ")?;
-                for (i, int) in value.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(", ")?;
-                    }
-                    f.write_fmt(format_args!("{int}"))?;
-                }
-                f.write_str("]")
-            }
-            NbtTag::LongArray(value) => {
-                f.write_str("[L; ")?;
-                for (i, long) in value.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(", ")?;
-                    }
-                    f.write_fmt(format_args!("{long}"))?;
-                }
-                f.write_str("]")
-            }
-        }
+        f.write_str(&crate::snbt::write(self))
     }
 }

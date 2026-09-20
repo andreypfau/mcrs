@@ -1,14 +1,13 @@
 use serde::ser::Impossible;
 use serde::{Serialize, ser};
-use std::io::{Cursor, Write};
+use std::io::Write;
 
-use crate::compound::NbtCompound;
-use crate::deserializer::NbtReadHelper;
 use crate::tag::NbtTag;
+use crate::tag_serializer::TagSerializer;
 use crate::{
     BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error, FLOAT_ID, INT_ARRAY_ID, INT_ID,
     LIST_ID, LONG_ARRAY_ID, LONG_ID, NBT_ARRAY_TAG, NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG,
-    NBT_LONG_ARRAY_TAG, Nbt, SHORT_ID, STRING_ID,
+    NBT_LONG_ARRAY_TAG, SHORT_ID, STRING_ID,
 };
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -81,9 +80,7 @@ enum State {
     Named(String),
     // Used by maps to check if key is a `String`.
     MapKey,
-    FirstListElement { len: i32 },
-    ListElement,
-    CheckedListElement,
+    ArrayElement,
 }
 
 impl<W: Write> Serializer<W> {
@@ -93,11 +90,6 @@ impl<W: Write> Serializer<W> {
                 self.output.write_u8_be(tag)?;
                 NbtTag::String(name.clone()).serialize_data(&mut self.output)?;
             }
-            State::FirstListElement { len } => {
-                self.output.write_u8_be(tag)?;
-                self.output.write_i32_be(*len)?;
-                self.expected_list_tag = tag;
-            }
             State::MapKey => {
                 if tag != STRING_ID {
                     return Err(Error::SerdeError(format!(
@@ -105,13 +97,10 @@ impl<W: Write> Serializer<W> {
                     )));
                 }
             }
-            State::ListElement => {
-                // Rust rules mandate this is all the same type
-            }
-            State::CheckedListElement => {
+            State::ArrayElement => {
                 if tag != self.expected_list_tag {
                     return Err(Error::SerdeError(format!(
-                        "List values must all be of the same type! Expected {} but found {}!",
+                        "Array values must all be of the same type! Expected {} but found {}!",
                         self.expected_list_tag, tag
                     )));
                 }
@@ -121,21 +110,28 @@ impl<W: Write> Serializer<W> {
                     return Err(Error::SerdeError(
                         "Invalid state: already handled root component!".to_string(),
                     ));
-                } else {
-                    if tag != COMPOUND_ID {
-                        return Err(Error::SerdeError(format!(
-                            "Invalid state: root is not a `Compound`! ({tag})"
-                        )));
-                    }
-                    self.handled_root = true;
-                    self.output.write_u8_be(tag)?;
-                    if let Some(root_name) = root_name {
-                        NbtTag::String(root_name.clone()).serialize_data(&mut self.output)?;
-                    }
+                }
+                if root_name.is_some() && tag != COMPOUND_ID {
+                    return Err(Error::NoRootCompound(tag));
+                }
+                self.handled_root = true;
+                self.output.write_u8_be(tag)?;
+                if let Some(root_name) = root_name {
+                    NbtTag::String(root_name.clone()).serialize_data(&mut self.output)?;
                 }
             }
         };
         Ok(())
+    }
+
+    fn skip_value(&self) -> Result<()> {
+        match self.state {
+            State::Named(_) => Ok(()),
+            State::Root(_) => Err(Error::EndRoot),
+            _ => Err(Error::SerdeError(
+                "a list or map key cannot hold nothing".to_string(),
+            )),
+        }
     }
 }
 
@@ -157,24 +153,22 @@ pub fn to_bytes<T: Serialize>(value: &T, w: impl Write) -> Result<()> {
     to_bytes_named(value, String::new(), w)
 }
 
-// todo: do not use serialization into bytes
-pub fn to_nbt_compound_unnamed<T: Serialize>(value: &T) -> Result<NbtCompound> {
-    let mut buf = Vec::new();
-    to_bytes_unnamed(value, &mut buf)?;
-
-    let mut cursor = Cursor::new(buf);
-    let mut reader = NbtReadHelper::new(&mut cursor);
-    let nbt = Nbt::read_unnamed(&mut reader)?;
-
-    Ok(nbt.root_tag)
+/// Lists are buffered because the element type is only known once every
+/// element is seen: a mixed list is written as compounds. Arrays stream.
+pub enum SeqSink<'a, W: Write> {
+    Array(&'a mut Serializer<W>),
+    List {
+        serializer: &'a mut Serializer<W>,
+        elements: Vec<NbtTag>,
+    },
 }
 
-impl<W: Write> ser::Serializer for &mut Serializer<W> {
+impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     type Ok = ();
     type Error = Error;
 
-    type SerializeSeq = Self;
-    type SerializeTuple = Self;
+    type SerializeSeq = SeqSink<'a, W>;
+    type SerializeTuple = SeqSink<'a, W>;
     type SerializeTupleStruct = Impossible<(), Error>;
     type SerializeTupleVariant = Impossible<(), Error>;
     type SerializeMap = Self;
@@ -285,7 +279,7 @@ impl<W: Write> ser::Serializer for &mut Serializer<W> {
 
     // Just skip serializing if value is none
     fn serialize_none(self) -> Result<()> {
-        Ok(())
+        self.skip_value()
     }
 
     fn serialize_some<T: ?Sized + Serialize>(self, value: &T) -> Result<()> {
@@ -293,7 +287,7 @@ impl<W: Write> ser::Serializer for &mut Serializer<W> {
     }
 
     fn serialize_unit(self) -> Result<()> {
-        Ok(())
+        self.skip_value()
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
@@ -326,7 +320,7 @@ impl<W: Write> ser::Serializer for &mut Serializer<W> {
         value: &T,
     ) -> Result<()> {
         if name == NBT_ARRAY_TAG {
-            if matches!(self.state, State::Root(_) | State::MapKey) {
+            if matches!(self.state, State::Root(Some(_)) | State::MapKey) {
                 return Err(Error::SerdeError("Invalid `Serializer` state!".to_string()));
             }
             self.pending_array = Some(variant);
@@ -366,21 +360,14 @@ impl<W: Write> ser::Serializer for &mut Serializer<W> {
 
                 // We can mark anything as an NBT array list, so mark as needed to be checked.
                 self.expected_list_tag = expected_tag;
-                self.state = State::CheckedListElement;
+                self.state = State::ArrayElement;
+                Ok(SeqSink::Array(self))
             }
-            None => {
-                self.parse_state(LIST_ID)?;
-                self.state = State::FirstListElement { len: len as i32 };
-                if len == 0 {
-                    // If we have no elements, the `FirstListElement` state will never be invoked, so
-                    // write the (unknown) list type and length here.
-                    self.output.write_u8_be(END_ID)?;
-                    self.output.write_i32_be(0)?;
-                }
-            }
+            None => Ok(SeqSink::List {
+                serializer: self,
+                elements: Vec::with_capacity(len),
+            }),
         }
-
-        Ok(self)
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
@@ -430,36 +417,44 @@ impl<W: Write> ser::Serializer for &mut Serializer<W> {
     }
 }
 
-impl<W: Write> ser::SerializeTuple for &mut Serializer<W> {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_element<T: ?Sized + Serialize>(
-        &mut self,
-        value: &T,
-    ) -> std::result::Result<(), Self::Error> {
-        value.serialize(&mut **self)?;
-        self.state = State::CheckedListElement;
-        Ok(())
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
-}
-
-impl<W: Write> ser::SerializeSeq for &mut Serializer<W> {
+impl<W: Write> ser::SerializeSeq for SeqSink<'_, W> {
     type Ok = ();
     type Error = Error;
 
     fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
-        value.serialize(&mut **self)?;
-        self.state = State::ListElement;
-        Ok(())
+        match self {
+            SeqSink::Array(serializer) => value.serialize(&mut **serializer),
+            SeqSink::List { elements, .. } => {
+                elements.push(value.serialize(TagSerializer)?);
+                Ok(())
+            }
+        }
     }
 
     fn end(self) -> Result<()> {
-        Ok(())
+        match self {
+            SeqSink::Array(_) => Ok(()),
+            SeqSink::List {
+                serializer,
+                elements,
+            } => {
+                serializer.parse_state(LIST_ID)?;
+                NbtTag::List(elements).serialize_data(&mut serializer.output)
+            }
+        }
+    }
+}
+
+impl<W: Write> ser::SerializeTuple for SeqSink<'_, W> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
+        ser::SerializeSeq::serialize_element(self, value)
+    }
+
+    fn end(self) -> Result<()> {
+        ser::SerializeSeq::end(self)
     }
 }
 

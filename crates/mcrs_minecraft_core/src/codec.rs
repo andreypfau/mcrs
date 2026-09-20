@@ -1,5 +1,75 @@
-use serde::de::Error as _;
+use std::fmt;
+
+use serde::de::{Error as _, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+/// `Codec.INT`: any number's `intValue()`. An integer keeps its low 32 bits;
+/// a fraction is dropped, and a value beyond the int range keeps its low 32
+/// bits from JSON (`BigDecimal.intValue`) but saturates from NBT
+/// (`Double.intValue`).
+pub fn int_value<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
+    struct IntValue {
+        wrap_floats: bool,
+    }
+
+    impl Visitor<'_> for IntValue {
+        type Value = i32;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a number")
+        }
+
+        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<i32, E> {
+            Ok(v as i32)
+        }
+
+        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<i32, E> {
+            Ok(v as i32)
+        }
+
+        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<i32, E> {
+            if !self.wrap_floats {
+                return Ok(v as i32);
+            }
+            let truncated = v.trunc();
+            Ok(if truncated.abs() >= 2f64.powi(127) {
+                0
+            } else {
+                truncated as i128 as i32
+            })
+        }
+    }
+
+    let wrap_floats = d.is_human_readable();
+    d.deserialize_any(IntValue { wrap_floats })
+}
+
+/// `Codec.FLOAT`: any number's `floatValue()`.
+pub fn float_value<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+    struct FloatValue;
+
+    impl Visitor<'_> for FloatValue {
+        type Value = f32;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a number")
+        }
+
+        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<f32, E> {
+            Ok(v as f32)
+        }
+
+        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<f32, E> {
+            Ok(v as f32)
+        }
+
+        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<f32, E> {
+            Ok(v as f32)
+        }
+    }
+
+    d.deserialize_any(FloatValue)
+}
 
 /// A `Codec.intRange(MIN, MAX)` payload, with the value `optionalFieldOf`
 /// falls back to. Stated once here rather than as a validator per field,
@@ -26,7 +96,7 @@ impl<'de, const MIN: i32, const MAX: i32, const DEFAULT: i32> Deserialize<'de>
     for Bounded<MIN, MAX, DEFAULT>
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let value = i32::deserialize(deserializer)?;
+        let value = int_value(deserializer)?;
         if !(MIN..=MAX).contains(&value) {
             return Err(D::Error::custom(format!(
                 "Value must be within range [{MIN};{MAX}]: {value}"
@@ -77,4 +147,23 @@ macro_rules! validated {
             }
         }
     )*};
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn int_value_reads_any_number_as_java_does() {
+        let read = |json: &str| serde_json::from_str::<NonNegativeInt>(json);
+        assert_eq!(read("1.5").unwrap().0, 1);
+        assert_eq!(read("2.9").unwrap().0, 2);
+        assert_eq!(read("1e10").unwrap().0, 1410065408);
+        assert_eq!(read("4294967297").unwrap().0, 1);
+        assert_eq!(
+            read("3000000000.0").unwrap_err().to_string(),
+            "Value must be within range [0;2147483647]: -1294967296"
+        );
+        assert_eq!(read("1e300").unwrap().0, 0);
+    }
 }

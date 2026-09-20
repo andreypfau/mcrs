@@ -146,6 +146,38 @@ impl ResourceLocation<Arc<str>> {
             None => Err(ResourceLocationError(s.to_owned())),
         }
     }
+
+    /// `Identifier.read`: a missing or empty namespace is `minecraft`, and
+    /// both halves are checked against vanilla's character sets.
+    pub fn read(s: &str) -> Result<Self, InvalidResourceLocation> {
+        let (namespace, path) = match s.split_once(':') {
+            Some(("", path)) => ("minecraft", path),
+            Some((namespace, path)) => (namespace, path),
+            None => ("minecraft", s),
+        };
+        let invalid = |reason: String| InvalidResourceLocation {
+            input: s.to_owned(),
+            reason,
+        };
+        if namespace == ".."
+            || !namespace
+                .chars()
+                .all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_' | '-' | '.'))
+        {
+            return Err(invalid(format!(
+                "Non [a-z0-9_.-] character in namespace of identifier: {namespace}:{path}"
+            )));
+        }
+        if !path
+            .chars()
+            .all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_' | '-' | '.' | '/'))
+        {
+            return Err(invalid(format!(
+                "Non [a-z0-9/._-] character in path of location: {namespace}:{path}"
+            )));
+        }
+        Ok(ResourceLocation::new(namespace, path))
+    }
 }
 
 // ─── Cow<str> constructors ───────────────────────────────────────────────────
@@ -262,6 +294,13 @@ impl<S: AsRef<str>> fmt::Debug for ResourceLocation<S> {
 #[error("missing ':' separator in ResourceLocation: {0:?}")]
 pub struct ResourceLocationError(pub String);
 
+#[derive(Debug, thiserror::Error)]
+#[error("Not a valid resource location: {input} {reason}")]
+pub struct InvalidResourceLocation {
+    pub input: String,
+    pub reason: String,
+}
+
 impl std::str::FromStr for ResourceLocation<Arc<str>> {
     type Err = ResourceLocationError;
 
@@ -280,15 +319,13 @@ impl<S: AsRef<str>> Serialize for ResourceLocation<S> {
 
 impl<'de> Deserialize<'de> for ResourceLocation<Arc<str>> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let s = String::deserialize(d)?;
-        ResourceLocation::parse(&s).map_err(serde::de::Error::custom)
+        ResourceLocation::read(&String::deserialize(d)?).map_err(serde::de::Error::custom)
     }
 }
 
 impl<'de> Deserialize<'de> for ResourceLocation<Cow<'static, str>> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let s = String::deserialize(d)?;
-        ResourceLocation::parse_cow(Cow::Owned(s)).map_err(serde::de::Error::custom)
+        ResourceLocation::<Arc<str>>::deserialize(d).map(Into::into)
     }
 }
 
@@ -326,3 +363,34 @@ macro_rules! rl {
 // Re-export the proc macro under a hidden name for use by the rl! declarative macro.
 #[doc(hidden)]
 pub use mcrs_minecraft_core_macros::rl_impl as __rl_impl;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_bare_path_reads_in_the_minecraft_namespace() {
+        let read = |json: &str| serde_json::from_str::<ResourceLocation<Arc<str>>>(json).unwrap();
+        assert_eq!(read(r#""alt""#).as_str(), "minecraft:alt");
+        assert_eq!(read(r#""block/stone""#).as_str(), "minecraft:block/stone");
+        assert_eq!(read(r#""mcrs:alt""#).as_str(), "mcrs:alt");
+        assert_eq!(read(r#"":alt""#).as_str(), "minecraft:alt");
+        assert!(ResourceLocation::parse("alt").is_err());
+    }
+
+    #[test]
+    fn vanilla_character_sets_are_enforced() {
+        let read = |json: &str| serde_json::from_str::<ResourceLocation<Arc<str>>>(json);
+        assert_eq!(
+            read(r#""MC:alt""#).unwrap_err().to_string(),
+            "Not a valid resource location: MC:alt Non [a-z0-9_.-] character in namespace of identifier: MC:alt"
+        );
+        assert_eq!(
+            read(r#""minecraft:Alt""#).unwrap_err().to_string(),
+            "Not a valid resource location: minecraft:Alt Non [a-z0-9/._-] character in path of location: minecraft:Alt"
+        );
+        assert!(read(r#""..:x""#).is_err());
+        assert!(read(r#""a:b:c""#).is_err());
+        assert_eq!(read(r#""a.b-c_1:d/e.f-g_2""#).unwrap().as_str(), "a.b-c_1:d/e.f-g_2");
+    }
+}

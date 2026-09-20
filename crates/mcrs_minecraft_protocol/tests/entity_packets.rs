@@ -4,14 +4,19 @@ use mcrs_minecraft_protocol::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
     OptionalUnsignedInt, Pose, VillagerData,
 };
+use mcrs_minecraft_protocol::item::RawStack;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     AttributeModifier, AttributeOperation, AttributeSnapshot, ClientboundAddEntity,
     ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
     ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, Slot, VarInt};
-use mcrs_minecraft_registry::{BlockStateId, ItemId};
+use mcrs_minecraft_registry::{BlockStateId, ItemId, NoRegistries};
 use uuid::Uuid;
+
+fn raw(slot: Slot) -> RawStack {
+    RawStack::from_slot(&slot, &NoRegistries).unwrap()
+}
 
 fn round_trip<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
     packet: &P,
@@ -54,7 +59,7 @@ fn entity_data_uses_the_serializer_ids_of_26_3() {
         (4, MetaDataValue::OptionalText(None), 6),
         (
             5,
-            MetaDataValue::Slot(Slot::new(ItemId(974), 1, Default::default())),
+            MetaDataValue::Slot(raw(Slot::new(ItemId(974), 1, Default::default()))),
             7,
         ),
         (6, MetaDataValue::Boolean(true), 8),
@@ -148,12 +153,12 @@ fn equipment_chains_slots_with_the_continuation_bit() {
         slots: vec![
             (
                 EquipmentSlot::MainHand,
-                Slot::new(ItemId(1483), 1, Default::default()),
+                raw(Slot::new(ItemId(1483), 1, Default::default())),
             ),
-            (EquipmentSlot::OffHand, Slot::EMPTY),
+            (EquipmentSlot::OffHand, RawStack::EMPTY),
             (
                 EquipmentSlot::Head,
-                Slot::new(ItemId(1), 3, Default::default()),
+                raw(Slot::new(ItemId(1), 3, Default::default())),
             ),
         ],
     };
@@ -168,7 +173,7 @@ fn equipment_chains_slots_with_the_continuation_bit() {
 
     let single = ClientboundSetEquipment {
         entity_id: VarInt(1),
-        slots: vec![(EquipmentSlot::Saddle, Slot::EMPTY)],
+        slots: vec![(EquipmentSlot::Saddle, RawStack::EMPTY)],
     };
     let mut buf = Vec::new();
     assert_eq!(round_trip(&single, &mut buf), [1, 7, 0]);
