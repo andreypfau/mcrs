@@ -132,7 +132,7 @@ fn nbt_drops_negative_zero(input: &str) -> bool {
 #[test]
 fn every_golden_sample_matches_vanilla() {
     let (lookup, samples) = parse_fixture();
-    assert_eq!(samples.len(), 62);
+    assert_eq!(samples.len(), 71);
     let mut kinds_seen = std::collections::BTreeSet::new();
     for sample in &samples {
         let Golden {
@@ -310,4 +310,173 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
         mcrs_minecraft_protocol::item::EquipmentSlotGroup::Any
     );
     assert_eq!(modifiers.0[0].display, AttributeDisplay::Default);
+}
+
+#[test]
+fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
+    use mcrs_minecraft_protocol::Decode;
+    use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, EncodeCtx, RawStack, Slot};
+    use mcrs_minecraft_registry::ItemId;
+
+    let lookup = TestLookup::new();
+    let enchantments = from_json(
+        ItemComponentKind::Enchantments,
+        r#"{"minecraft:sharpness":5,"minecraft:unbreaking":3}"#,
+    )
+    .unwrap();
+    let slot = Slot::new(
+        ItemId(2),
+        1,
+        ComponentPatch {
+            added: vec![enchantments],
+            removed: Vec::new(),
+        },
+    );
+    let mut wire = Vec::new();
+    slot.encode_ctx(&lookup, &mut wire).unwrap();
+    let raw = RawStack::decode(&mut &wire[..]).unwrap();
+    assert_eq!(raw.0, wire);
+    assert_eq!(raw.resolve(&lookup).unwrap(), slot);
+
+    let ItemComponentValue::Enchantments(expected) = &slot.components.added[0] else {
+        unreachable!()
+    };
+    let reversed = Enchantments(expected.0.iter().rev().cloned().collect());
+    assert_eq!(&reversed, expected);
+    assert_ne!(Enchantments(vec![expected.0[0].clone()]), *expected);
+}
+
+#[test]
+fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
+    let lookup = TestLookup::new();
+    let decode = |wire: &[u8]| {
+        let mut r = wire;
+        ItemComponentValue::decode_ctx_value(ItemComponentKind::Enchantments, &lookup, &mut r)
+            .map(|value| persistent_json(&value))
+            .map_err(|e| e.to_string())
+    };
+    assert_eq!(decode(&[1, 0, 0]).unwrap(), r#"{"minecraft:sharpness":0}"#);
+    assert_eq!(
+        decode(&[2, 0, 5, 0, 3]).unwrap(),
+        r#"{"minecraft:sharpness":3}"#
+    );
+    assert_eq!(
+        decode(&[1, 0, 0x80, 0x02]).unwrap_err(),
+        "Enchantment minecraft:sharpness has invalid level 256"
+    );
+    assert!(
+        from_json(
+            ItemComponentKind::Enchantments,
+            r#"{"minecraft:sharpness":0}"#
+        )
+        .unwrap_err()
+        .starts_with("Value 0 outside of range [1:255]")
+    );
+}
+
+#[test]
+fn nbt_floats_keep_vanillas_number_semantics() {
+    use mcrs_minecraft_nbt::tag::NbtTag;
+
+    fn from_tag(kind: ItemComponentKind, tag: NbtTag) -> Result<String, String> {
+        let mut bytes = Vec::new();
+        mcrs_minecraft_nbt::to_bytes_unnamed(&tag, &mut bytes).unwrap();
+        let mut cursor = std::io::Cursor::new(&bytes[..]);
+        let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
+        ItemComponentValue::deserialize_value(kind, &mut d)
+            .map(|value| persistent_json(&value))
+            .map_err(|e| e.to_string())
+    }
+    fn compound(entries: Vec<(&str, NbtTag)>) -> NbtTag {
+        NbtTag::Compound(NbtCompound {
+            child_tags: entries
+                .into_iter()
+                .map(|(k, v)| (k.to_owned(), v))
+                .collect(),
+        })
+    }
+    let tool = |speed: f32| {
+        compound(vec![(
+            "rules",
+            NbtTag::List(vec![compound(vec![
+                ("blocks", NbtTag::String("minecraft:stone".into())),
+                ("speed", NbtTag::Float(speed)),
+            ])]),
+        )])
+    };
+    for speed in [f32::INFINITY, f32::NAN, -0.0] {
+        let error = from_tag(ItemComponentKind::Tool, tool(speed)).unwrap_err();
+        assert!(error.contains("Value must be positive: "), "{error}");
+    }
+    assert!(
+        from_tag(ItemComponentKind::Tool, tool(f32::MAX))
+            .unwrap()
+            .contains(r#""speed":3.4028235e"#)
+    );
+
+    let visibility = |value: f32| {
+        compound(vec![
+            (
+                "targeting_entity_types",
+                NbtTag::String("minecraft:zombie".into()),
+            ),
+            ("visibility", NbtTag::Float(value)),
+        ])
+    };
+    assert!(from_tag(ItemComponentKind::MobVisibility, visibility(-0.0)).is_err());
+    assert!(from_tag(ItemComponentKind::MobVisibility, visibility(f32::NAN)).is_err());
+    assert!(from_tag(ItemComponentKind::MobVisibility, visibility(0.0)).is_ok());
+
+    let color = |tag: NbtTag| compound(vec![("custom_color", tag)]);
+    assert_eq!(
+        from_tag(ItemComponentKind::PotionContents, color(NbtTag::Float(1.9))).unwrap(),
+        r#"{"custom_color":1}"#
+    );
+    assert_eq!(
+        from_tag(
+            ItemComponentKind::PotionContents,
+            color(NbtTag::Long(2147483648))
+        )
+        .unwrap(),
+        r#"{"custom_color":-2147483648}"#
+    );
+    assert_eq!(
+        from_tag(
+            ItemComponentKind::PotionContents,
+            color(NbtTag::Double(3e9))
+        )
+        .unwrap(),
+        r#"{"custom_color":2147483647}"#
+    );
+
+    let stew = |tag: NbtTag| {
+        NbtTag::List(vec![compound(vec![
+            ("id", NbtTag::String("minecraft:speed".into())),
+            ("duration", tag),
+        ])])
+    };
+    assert_eq!(
+        from_tag(
+            ItemComponentKind::SuspiciousStewEffects,
+            stew(NbtTag::Double(3e9))
+        )
+        .unwrap(),
+        r#"[{"id":"minecraft:speed","duration":2147483647}]"#
+    );
+    assert_eq!(
+        from_tag(
+            ItemComponentKind::SuspiciousStewEffects,
+            stew(NbtTag::Byte(1))
+        )
+        .unwrap(),
+        r#"[{"id":"minecraft:speed","duration":1}]"#
+    );
+    assert_eq!(
+        from_tag(
+            ItemComponentKind::SuspiciousStewEffects,
+            stew(NbtTag::List(vec![NbtTag::Int(1), NbtTag::Int(2)]))
+        )
+        .unwrap(),
+        r#"[{"id":"minecraft:speed"}]"#
+    );
 }

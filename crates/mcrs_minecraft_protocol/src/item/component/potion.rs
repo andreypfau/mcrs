@@ -1,6 +1,7 @@
 use std::fmt;
 use std::io::Write;
 
+use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registry::RegistryLookup;
@@ -69,12 +70,24 @@ impl<'de> Deserialize<'de> for PotionContents {
         struct Full {
             #[serde(default)]
             potion: Option<ResourceKey<PotionReg>>,
-            #[serde(default)]
+            #[serde(default, deserialize_with = "optional_int")]
             custom_color: Option<i32>,
             #[serde(default)]
             custom_effects: Vec<MobEffectInstance>,
             #[serde(default)]
             custom_name: Option<String>,
+        }
+
+        fn optional_int<'de, D: Deserializer<'de>>(d: D) -> Result<Option<i32>, D::Error> {
+            struct Int(i32);
+
+            impl<'de> Deserialize<'de> for Int {
+                fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                    int_value(d).map(Int)
+                }
+            }
+
+            Ok(Option::<Int>::deserialize(d)?.map(|Int(v)| v))
         }
 
         struct ContentsVisitor;

@@ -6,13 +6,13 @@ use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, float_value,
 use mcrs_minecraft_core::{HolderSet, ResourceKey, validated};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registry::RegistryLookup;
-use serde::de::{Error as _, MapAccess, Visitor};
+use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::common::{
     BannerPatternReg, BlockReg, BlockTransformerReg, DamageTypeReg, EnchantmentReg, EntityTypeReg,
-    ItemReg, MobEffectReg, lenient,
+    ItemReg, MobEffectReg,
 };
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
@@ -74,8 +74,14 @@ registry_key_component! {
 
 /// `ItemEnchantments.CODEC`: a map of enchantment id to level in 1..=255,
 /// kept in read order because vanilla's own order is hash order.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Eq, Default)]
 pub struct Enchantments(pub Vec<(ResourceKey<EnchantmentReg>, i32)>);
+
+impl PartialEq for Enchantments {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.len() == other.0.len() && self.0.iter().all(|entry| other.0.contains(entry))
+    }
+}
 
 pub const MIN_ENCHANTMENT_LEVEL: i32 = 1;
 pub const MAX_ENCHANTMENT_LEVEL: i32 = 255;
@@ -159,12 +165,15 @@ impl DecodeCtx<'_> for Enchantments {
             Vec::with_capacity((len as usize).min(r.len()));
         for _ in 0..len {
             let enchantment = ResourceKey::decode_ctx(ctx, r)?;
-            let level = check_level(VarInt::decode(r)?.0).map_err(anyhow::Error::msg)?;
+            let level = VarInt::decode(r)?.0;
             ensure!(
-                entries.iter().all(|(k, _)| *k != enchantment),
-                "Duplicate key: {enchantment}"
+                (0..=MAX_ENCHANTMENT_LEVEL).contains(&level),
+                "Enchantment {enchantment} has invalid level {level}"
             );
-            entries.push((enchantment, level));
+            match entries.iter_mut().find(|(k, _)| *k == enchantment) {
+                Some(entry) => entry.1 = level,
+                None => entries.push((enchantment, level)),
+            }
         }
         Ok(Enchantments(entries))
     }
@@ -320,7 +329,9 @@ validated!(ToolRule);
 impl Validate for ToolRule {
     fn validate(&self) -> Result<(), String> {
         match self.speed {
-            Some(speed) if speed <= 0.0 => Err(format!("Value must be positive: {speed:?}")),
+            Some(speed) if !(speed > 0.0 && speed <= f32::MAX) => {
+                Err(format!("Value must be positive: {speed:?}"))
+            }
             _ => Ok(()),
         }
     }
@@ -465,7 +476,7 @@ pub struct MobVisibility {
 
 fn visibility_range<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
     let visibility = float_value(d)?;
-    if (0.0..=MAX_MOB_VISIBILITY).contains(&visibility) {
+    if visibility.total_cmp(&0.0).is_ge() && visibility.total_cmp(&MAX_MOB_VISIBILITY).is_le() {
         Ok(visibility)
     } else {
         Err(D::Error::custom(format_args!(
@@ -586,17 +597,62 @@ fn is_default_stew_duration(duration: &i32) -> bool {
     *duration == DEFAULT_STEW_DURATION
 }
 
+/// `Codec.INT.lenientOptionalFieldOf`: anything that is not a number reads as
+/// the default. Sequences and maps are drained so a streaming input is left at
+/// the next field.
 fn lenient_duration<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
-    struct Duration(i32);
+    struct LenientDuration {
+        human_readable: bool,
+    }
 
-    impl<'de> Deserialize<'de> for Duration {
-        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-            int_value(d).map(Duration)
+    impl<'de> Visitor<'de> for LenientDuration {
+        type Value = i32;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a duration")
+        }
+
+        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<i32, E> {
+            Ok(v as i32)
+        }
+
+        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<i32, E> {
+            Ok(v as i32)
+        }
+
+        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<i32, E> {
+            if self.human_readable {
+                int_value(serde::de::value::F64Deserializer::<E>::new(v))
+            } else {
+                Ok(v as i32)
+            }
+        }
+
+        fn visit_bool<E: serde::de::Error>(self, _: bool) -> Result<i32, E> {
+            Ok(DEFAULT_STEW_DURATION)
+        }
+
+        fn visit_unit<E: serde::de::Error>(self) -> Result<i32, E> {
+            Ok(DEFAULT_STEW_DURATION)
+        }
+
+        fn visit_str<E: serde::de::Error>(self, _: &str) -> Result<i32, E> {
+            Ok(DEFAULT_STEW_DURATION)
+        }
+
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<i32, A::Error> {
+            while seq.next_element::<IgnoredAny>()?.is_some() {}
+            Ok(DEFAULT_STEW_DURATION)
+        }
+
+        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<i32, A::Error> {
+            while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+            Ok(DEFAULT_STEW_DURATION)
         }
     }
 
-    let duration: Option<Duration> = lenient(d)?;
-    Ok(duration.map_or(DEFAULT_STEW_DURATION, |Duration(v)| v))
+    let human_readable = d.is_human_readable();
+    d.deserialize_any(LenientDuration { human_readable })
 }
 
 impl EncodeCtx for StewEntry {

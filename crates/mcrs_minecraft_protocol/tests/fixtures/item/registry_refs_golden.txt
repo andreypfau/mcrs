@@ -463,3 +463,56 @@ sample minecraft:bees []
   wire 00
   wire_roundtrip true remaining 0
   hash -1978007022
+sample minecraft:potion_contents {"custom_color":1.5}
+  json {"custom_color":1}
+  snbt {custom_color:1}
+  nbt 0a03000c637573746f6d5f636f6c6f720000000100
+  wire 0001000000010000
+  wire_roundtrip true remaining 0
+  hash -136329960
+sample minecraft:potion_contents {"custom_color":2147483648}
+  json {"custom_color":-2147483648}
+  snbt {custom_color:-2147483648}
+  nbt 0a03000c637573746f6d5f636f6c6f728000000000
+  wire 0001800000000000
+  wire_roundtrip true remaining 0
+  hash 535405702
+sample minecraft:potion_contents {"custom_color":null}
+  json {}
+  snbt {}
+  nbt 0a00
+  wire 00000000
+  wire_roundtrip true remaining 0
+  hash -982207288
+sample minecraft:suspicious_stew_effects [{"id":"minecraft:speed","duration":null}]
+  json [{"id":"minecraft:speed"}]
+  snbt [{id:"minecraft:speed"}]
+  nbt 090a000000010800026964000f6d696e6563726166743a737065656400
+  wire 0100a001
+  wire_roundtrip true remaining 0
+  hash -748833595
+sample minecraft:suspicious_stew_effects [{"id":"minecraft:speed","duration":true}]
+  json [{"id":"minecraft:speed"}]
+  snbt [{id:"minecraft:speed"}]
+  nbt 090a000000010800026964000f6d696e6563726166743a737065656400
+  wire 0100a001
+  wire_roundtrip true remaining 0
+  hash -748833595
+sample minecraft:suspicious_stew_effects [{"id":"minecraft:speed","duration":1.9}]
+  json [{"id":"minecraft:speed","duration":1}]
+  snbt [{duration:1,id:"minecraft:speed"}]
+  nbt 090a000000010300086475726174696f6e000000010800026964000f6d696e6563726166743a737065656400
+  wire 010001
+  wire_roundtrip true remaining 0
+  hash 1914576818
+sample minecraft:mob_visibility {"targeting_entity_types":"minecraft:zombie","visibility":-0.0}
+  error Value must be within range [0.0;10.0]: -0.0
+sample minecraft:mob_visibility {"targeting_entity_types":"minecraft:zombie","visibility":0.0}
+  json {"targeting_entity_types":"minecraft:zombie","visibility":0.0}
+  snbt {targeting_entity_types:"minecraft:zombie",visibility:0.0f}
+  nbt 0a05000a7669736962696c69747900000000080016746172676574696e675f656e746974795f747970657300106d696e6563726166743a7a6f6d62696500
+  wire 029a0100000000
+  wire_roundtrip true remaining 0
+  hash 332418851
+sample minecraft:tool {"rules":[{"blocks":"minecraft:stone","speed":-0.0}]}
+  error Value must be positive: -0.0
