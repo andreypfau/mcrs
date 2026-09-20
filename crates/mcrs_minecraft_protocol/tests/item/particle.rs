@@ -1,6 +1,3 @@
-//! Values produced by the vanilla 26.3-snapshot-10 `ParticleTypes` codecs and
-//! `ClientboundLevelParticlesPacket`.
-
 use std::collections::BTreeMap;
 
 use bevy_math::DVec3;
@@ -52,8 +49,10 @@ fn lookup() -> TestLookup {
             ("diamond_sword", 1050),
         ],
     );
-    lookup.block_state(1, "stone", &[]);
+    lookup.default_block_state(1, "stone", &[]);
+    lookup.default_block_state(6884, "furnace", &[("facing", "north"), ("lit", "false")]);
     lookup.block_state(6883, "furnace", &[("facing", "north"), ("lit", "true")]);
+    lookup.block_state(6886, "furnace", &[("facing", "south"), ("lit", "false")]);
     lookup
 }
 
@@ -163,6 +162,17 @@ fn golden_values_decode_to_the_expected_fields() {
         })
     );
     assert_eq!(
+        check("block_furnace_default"),
+        ParticleOptions::Block(BlockParticle {
+            block_state: BlockStateValue {
+                block: ResourceKey::from_location(
+                    mcrs_minecraft_core::ResourceLocation::minecraft("furnace")
+                ),
+                properties: BTreeMap::new(),
+            },
+        })
+    );
+    assert_eq!(
         check("dust_scaled"),
         ParticleOptions::Dust(DustParticle {
             color: RgbInt(0x123456),
@@ -227,7 +237,11 @@ fn data_forms_validate_like_vanilla() {
     );
     assert!(
         error(r#"{"type":"minecraft:geyser","water_blocks":0}"#)
-            .contains("Value must be within range [1;2147483647]: 0")
+            .contains(golden("geyser_zero.parse_error"))
+    );
+    assert!(
+        error(r#"{"type":"minecraft:trail","target":[0,0,0],"color":1,"duration":0}"#)
+            .contains(golden("trail_zero.parse_error"))
     );
     assert!(error(r#"{"type":"minecraft:nope"}"#).contains("nope"));
     assert!(error(
@@ -240,12 +254,10 @@ fn data_forms_validate_like_vanilla() {
     let rgb: ParticleOptions =
         serde_json::from_str(r#"{"type":"dust","color":[1.0,0.0,0.0],"scale":1}"#).unwrap();
     assert_eq!(to_hex(&wire(&rgb)), "15ffff00003f800000");
-    let partial: ParticleOptions = serde_json::from_str(
-        r#"{"type":"block","block_state":{"id":"minecraft:furnace","properties":{"lit":"true"}}}"#,
-    )
-    .unwrap();
+    let unknown: ParticleOptions =
+        serde_json::from_str(r#"{"type":"block","block_state":"minecraft:nope"}"#).unwrap();
     assert!(
-        partial
+        unknown
             .encode_ctx(&lookup(), &mut Vec::new())
             .unwrap_err()
             .to_string()
@@ -297,4 +309,29 @@ fn level_particles_packet_matches_vanilla() {
     let mut out = Vec::new();
     rebuilt.encode(&mut out).unwrap();
     assert_eq!(to_hex(&out), to_hex(&bytes));
+}
+
+#[test]
+fn block_states_read_from_data_resolve_like_vanilla() {
+    let labels: Vec<&str> = GOLDEN
+        .lines()
+        .filter_map(|line| line.split_once(".input = "))
+        .map(|(label, _)| label)
+        .collect();
+    assert_eq!(labels.len(), 7, "{labels:?}");
+    for label in labels {
+        let parsed: ParticleOptions =
+            serde_json::from_str(golden(&format!("{label}.input"))).unwrap();
+        let bytes = wire(&parsed);
+        assert_eq!(
+            to_hex(&bytes),
+            golden(&format!("{label}.parsed_wire")),
+            "{label}: wire"
+        );
+        let resolved = ParticleOptions::decode_ctx(&lookup(), &mut &bytes[..]).unwrap();
+        let json: serde_json::Value = serde_json::to_value(&resolved).unwrap();
+        let vanilla: serde_json::Value =
+            serde_json::from_str(golden(&format!("{label}.parsed_json"))).unwrap();
+        assert_eq!(json, vanilla, "{label}: json of the resolved state");
+    }
 }

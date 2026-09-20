@@ -22,6 +22,7 @@ use mcrs_minecraft_level::entity::mob::{
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::reposition::Reposition;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
@@ -586,17 +587,19 @@ pub fn update_mob_tracked_by(
     vehicles: Query<&RiddenBy>,
     registry: Res<RegistryAccess>,
     static_table: Option<Res<StaticRegistryTable>>,
+    blocks: Res<Blocks>,
     observers: Query<&PlayerObservers, With<Column>>,
     column_indices: Query<&ColumnIndex>,
     players: Query<(&Transform, &HostAnchor, &Reposition), With<Player>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     let registry: &dyn RegistryLookup = &*registry;
-    let mut lookups: Vec<&dyn RegistryLookup> = Vec::with_capacity(2);
+    let mut lookups: Vec<&dyn RegistryLookup> = Vec::with_capacity(3);
     if let Some(table) = &static_table {
         lookups.push(&**table);
     }
     lookups.push(registry);
+    lookups.push(&**blocks);
     let lookup = ChainLookup(&lookups);
     for (in_dim, mut tracked_by, pairing) in mobs.iter_mut() {
         let at = pairing.transform.translation;

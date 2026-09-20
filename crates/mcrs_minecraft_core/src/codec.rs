@@ -84,6 +84,16 @@ impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Default for Bounded<MIN
     }
 }
 
+impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Bounded<MIN, MAX, DEFAULT> {
+    fn out_of_range(value: i32) -> String {
+        match (MIN, MAX) {
+            (0, i32::MAX) => format!("Value must be non-negative: {value}"),
+            (1, i32::MAX) => format!("Value must be positive: {value}"),
+            _ => format!("Value must be within range [{MIN};{MAX}]: {value}"),
+        }
+    }
+}
+
 pub fn is_default<T: Default + PartialEq>(value: &T) -> bool {
     *value == T::default()
 }
@@ -98,9 +108,7 @@ impl<'de, const MIN: i32, const MAX: i32, const DEFAULT: i32> Deserialize<'de>
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = int_value(deserializer)?;
         if !(MIN..=MAX).contains(&value) {
-            return Err(D::Error::custom(format!(
-                "Value must be within range [{MIN};{MAX}]: {value}"
-            )));
+            return Err(D::Error::custom(Self::out_of_range(value)));
         }
         Ok(Bounded(value))
     }
@@ -109,10 +117,7 @@ impl<'de, const MIN: i32, const MAX: i32, const DEFAULT: i32> Deserialize<'de>
 impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Serialize for Bounded<MIN, MAX, DEFAULT> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if !(MIN..=MAX).contains(&self.0) {
-            return Err(serde::ser::Error::custom(format!(
-                "Value must be within range [{MIN};{MAX}]: {}",
-                self.0
-            )));
+            return Err(serde::ser::Error::custom(Self::out_of_range(self.0)));
         }
         self.0.serialize(serializer)
     }
@@ -168,7 +173,7 @@ mod tests {
         assert_eq!(read("4294967297").unwrap().0, 1);
         assert_eq!(
             read("3000000000.0").unwrap_err().to_string(),
-            "Value must be within range [0;2147483647]: -1294967296"
+            "Value must be non-negative: -1294967296"
         );
         assert_eq!(read("1e300").unwrap().0, 0);
     }

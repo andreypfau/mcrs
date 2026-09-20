@@ -1,6 +1,3 @@
-//! Values produced by the vanilla 26.3-snapshot-10 `Advancement`, `DisplayInfo`
-//! and `ClientboundUpdateAdvancementsPacket` codecs.
-
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_protocol::advancement::{
     Advancement, AdvancementHolder, AdvancementProgress, AdvancementType, CriterionProgress,

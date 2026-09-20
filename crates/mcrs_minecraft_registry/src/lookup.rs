@@ -5,13 +5,15 @@ pub trait RegistryLookup: Sync {
     fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation>;
 
     /// The state id of `block` with `properties`, each unspecified property
-    /// taking the block's default.
+    /// taking the block's default. A property the block lacks, or a value the
+    /// property lacks, is ignored the way the block state codec ignores it.
     fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u32> {
         let _ = (block, properties);
         None
     }
 
-    /// The block and every property of state `id`.
+    /// The block of state `id` and every property, or none when `id` is the
+    /// block's default state, since that is the state a bare block id names.
     fn block_state(&self, id: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
         let _ = id;
         None

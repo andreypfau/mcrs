@@ -289,10 +289,10 @@ impl DecodeCtx<'_> for ParticleOptions {
     }
 }
 
-/// `BlockState.CODEC`: the bare block id when the state has no properties,
-/// else `{id, properties}`; `properties` left out reads as the default state.
-/// Properties read from a datapack stay as written, so a partial set is
-/// completed only when the id is resolved.
+/// A bare block id names the block's default state, which is what empty
+/// `properties` mean; any other state is `{id, properties}`. Properties read
+/// from a datapack stay as written, so a partial set is completed only when
+/// the id is resolved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockStateValue {
     pub block: ResourceKey<BlockReg>,
@@ -453,8 +453,8 @@ pub struct PowerParticle {
     pub power: f32,
 }
 
-/// `ScalableParticleOptionsBase.SCALE`: rejected outside 0.01..=4 when read
-/// from data, clamped into it from the wire.
+/// Rejected outside 0.01..=4 when read from data, clamped into it from the
+/// wire.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct ParticleScale(pub f32);
 
@@ -702,8 +702,8 @@ impl Decode<'_> for TrailParticle {
 
 ctx_free!(VibrationParticle, TrailParticle);
 
-/// The exact bytes of one `ParticleTypes.STREAM_CODEC` value, kept so a packet
-/// can carry a particle without the registries.
+/// The exact wire bytes of one particle, kept so a packet can carry it
+/// without the registries.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawParticle(pub Bytes);
 

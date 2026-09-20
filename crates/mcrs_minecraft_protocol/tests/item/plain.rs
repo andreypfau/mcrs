@@ -170,22 +170,9 @@ fn rejected_inputs_are_rejected_with_the_vanilla_range_messages() {
             .err()
             .unwrap_or_else(|| panic!("{kind} accepted {}", row.input));
         if row.error.starts_with("Value must") {
-            // ponytail: `Bounded` in mcrs_minecraft_core words POSITIVE_INT and
-            // NON_NEGATIVE_INT as a plain range; give it the vanilla wording and
-            // drop the second form here.
-            let bounded = row
-                .error
-                .replace(
-                    "Value must be positive: ",
-                    "Value must be within range [1;2147483647]: ",
-                )
-                .replace(
-                    "Value must be non-negative: ",
-                    "Value must be within range [0;2147483647]: ",
-                );
             let message = error.to_string();
             assert!(
-                message.starts_with(&row.error) || message.starts_with(&bounded),
+                message.starts_with(&row.error),
                 "{kind} on {}: {error} is not {}",
                 row.input,
                 row.error

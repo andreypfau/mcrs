@@ -26,7 +26,7 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_registry::{BlockStateId, RegistryLookup};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
 
@@ -284,6 +284,50 @@ impl BlockDefinitions {
             .map(|s| size_of::<Box<[Aabb]>>() + s.len() * size_of::<Aabb>())
             .sum();
         states + shapes
+    }
+}
+
+impl RegistryLookup for BlockDefinitions {
+    fn id(&self, _: &str, _: &ResourceLocation) -> Option<u32> {
+        None
+    }
+
+    fn name(&self, _: &str, _: u32) -> Option<&ResourceLocation> {
+        None
+    }
+
+    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u32> {
+        let entry = self.block(block.as_str())?;
+        let id = properties
+            .iter()
+            .fold(entry.default_state_id, |id, (name, value)| {
+                entry.with_text(id, name, value).unwrap_or(id)
+            });
+        Some(u32::from(id.0))
+    }
+
+    fn block_state(&self, id: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+        let id = BlockStateId(u16::try_from(id).ok()?);
+        if id.0 as usize >= self.states.len() {
+            return None;
+        }
+        let entry = self.owner(id);
+        let properties = if id == entry.default_state_id {
+            Vec::new()
+        } else {
+            entry
+                .properties
+                .0
+                .iter()
+                .map(|property| {
+                    let value = entry
+                        .value_of(id, &property.name)
+                        .expect("the state's own property");
+                    (property.name.to_string(), value.to_text())
+                })
+                .collect()
+        };
+        Some((entry.identifier.clone(), properties))
     }
 }
 
@@ -1009,6 +1053,52 @@ mod tests {
         let definitions = build(&[source]).unwrap();
         assert_eq!(definitions.state(BlockStateId(0)).light_emission, 15);
         assert_eq!(definitions.state(BlockStateId(1)).light_emission, 0);
+    }
+
+    #[test]
+    fn the_registry_lookup_resolves_states_the_way_the_block_state_codec_does() {
+        let source = file(
+            "minecraft:furnace",
+            0,
+            r#", "properties": { "facing": ["north", "south"], "lit": [true, false] }"#,
+            "",
+        )
+        .replace(r#""default_state_id": 0"#, r#""default_state_id": 1"#);
+        let definitions = build(&[source, file("minecraft:stone", 4, "", "")]).unwrap();
+        let furnace = ResourceLocation::minecraft("furnace");
+        let stone = ResourceLocation::minecraft("stone");
+        let lookup: &dyn RegistryLookup = &definitions;
+
+        assert_eq!(lookup.block_state_id(&furnace, &[]), Some(1));
+        assert_eq!(lookup.block_state_id(&furnace, &[("lit", "true")]), Some(0));
+        assert_eq!(
+            lookup.block_state_id(&furnace, &[("lit", "nope"), ("facing", "south")]),
+            Some(3)
+        );
+        assert_eq!(
+            lookup.block_state_id(&furnace, &[("bogus", "x"), ("lit", "true")]),
+            Some(0)
+        );
+        assert_eq!(lookup.block_state_id(&stone, &[("lit", "true")]), Some(4));
+        assert_eq!(
+            lookup.block_state_id(&ResourceLocation::minecraft("nope"), &[]),
+            None
+        );
+
+        assert_eq!(lookup.block_state(1), Some((furnace.clone(), vec![])));
+        assert_eq!(
+            lookup.block_state(2),
+            Some((
+                furnace,
+                vec![
+                    ("facing".to_string(), "south".to_string()),
+                    ("lit".to_string(), "true".to_string())
+                ]
+            ))
+        );
+        assert_eq!(lookup.block_state(4), Some((stone, vec![])));
+        assert_eq!(lookup.block_state(5), None);
+        assert_eq!(lookup.block_state(u32::MAX), None);
     }
 
     #[test]

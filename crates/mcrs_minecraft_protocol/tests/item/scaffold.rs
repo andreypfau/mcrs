@@ -195,7 +195,7 @@ fn a_delimited_stack_skips_what_a_value_leaves_unread() {
     for (kind, value, message) in [
         (1, 0, "[1;99]: 0"),
         (1, 100, "[1;99]: 100"),
-        (2, 0, "[1;2147483647]: 0"),
+        (2, 0, "Value must be positive: 0"),
     ] {
         let error = with_component(kind, value)
             .resolve(&lookup)
