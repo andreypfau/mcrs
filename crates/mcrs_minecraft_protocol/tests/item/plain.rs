@@ -193,7 +193,7 @@ fn rejected_inputs_are_rejected_with_the_vanilla_range_messages() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 47);
+    assert_eq!(checked, 49);
 }
 
 #[test]

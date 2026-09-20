@@ -1077,6 +1077,86 @@
       "kind": "map_post_processing",
       "value": "SCALE",
       "wire": "01"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"duration\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":null,\"duration\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":\"stab\",\"duration\":null}",
+      "json": "{\"type\":\"stab\"}",
+      "nbt": "0a0800047479706500047374616200",
+      "hash": -1450690709,
+      "wire": "0206"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":null,\"duration\":3}",
+      "json": "{\"duration\":3}",
+      "nbt": "0a0300086475726174696f6e0000000300",
+      "hash": -271167860,
+      "wire": "0103"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"duration\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":null,\"duration\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":\"stab\",\"duration\":null}",
+      "json": "{\"type\":\"stab\"}",
+      "nbt": "0a0800047479706500047374616200",
+      "hash": -1450690709,
+      "wire": "0206"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":null,\"duration\":3}",
+      "json": "{\"duration\":3}",
+      "nbt": "0a0300086475726174696f6e0000000300",
+      "hash": -271167860,
+      "wire": "0103"
     }
   ],
   "errors": [
@@ -1314,6 +1394,16 @@
       "kind": "cushion/color",
       "input": "\"pinkish\"",
       "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "enchantable",
+      "input": "{\"value\":null}",
+      "error": "No key value in MapLike[{\"value\":null}]"
+    },
+    {
+      "kind": "villager_food",
+      "input": "{\"nutrition\":null}",
+      "error": "No key nutrition in MapLike[{\"nutrition\":null}]"
     }
   ],
   "decodes": [

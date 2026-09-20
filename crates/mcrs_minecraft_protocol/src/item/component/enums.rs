@@ -2,7 +2,7 @@ use std::io::Write;
 
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, STRING_ID};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::entity::DyeColor;
 use crate::item::component::common::ordinal_enum;
@@ -161,33 +161,39 @@ sparse_enum!(TropicalFishPattern {
     Clayfish = 1281,
 });
 
-fn whack() -> SwingAnimationKind {
-    SwingAnimationKind::Whack
+#[allow(clippy::derivable_impls)]
+impl Default for SwingAnimationKind {
+    fn default() -> Self {
+        SwingAnimationKind::Whack
+    }
 }
 
-fn is_whack(kind: &SwingAnimationKind) -> bool {
-    *kind == SwingAnimationKind::Whack
+/// `optionalFieldOf` reads a JSON `null` as a missing key.
+fn null_is_absent<'de, D: Deserializer<'de>, T: Deserialize<'de> + Default>(
+    d: D,
+) -> Result<T, D::Error> {
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct SwingAnimation {
-    #[serde(rename = "type", default = "whack", skip_serializing_if = "is_whack")]
+    #[serde(
+        rename = "type",
+        default,
+        deserialize_with = "null_is_absent",
+        skip_serializing_if = "is_default"
+    )]
     pub kind: SwingAnimationKind,
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(
+        default,
+        deserialize_with = "null_is_absent",
+        skip_serializing_if = "is_default"
+    )]
     pub duration: Bounded<0, { i32::MAX }, 6>,
 }
 
 record_codec!(SwingAnimation);
-
-impl Default for SwingAnimation {
-    fn default() -> Self {
-        SwingAnimation {
-            kind: whack(),
-            duration: Bounded::default(),
-        }
-    }
-}
 
 impl Encode for SwingAnimation {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
@@ -208,7 +214,7 @@ impl Decode<'_> for SwingAnimation {
 impl Sample for SwingAnimation {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
-        if !is_whack(&self.kind) {
+        if !is_default(&self.kind) {
             tags.push(("type", STRING_ID));
         }
         if !is_default(&self.duration) {
