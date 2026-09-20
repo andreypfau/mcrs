@@ -1,0 +1,559 @@
+<mxfile host="drawio-plugin" modified="2026-09-13T08:09:04.838Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36" version="22.1.22" etag="6jJJk6qXtfIh5BfLxWtT" type="embed" pages="4">
+  <diagram name="1 · Сейчас: одна волна" id="0">
+    <mxGraphModel dx="1354" dy="764" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t1" value="Генерация колонки в mcrs сегодня" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=20;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="30" width="1400" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="Лестница из четырёх стадий (enum Stage в staging.rs). Диспетчер в dispatch_column_generation обходит запрошенные колонки по приоритету и выдаёт каждой ту стадию, которая ей причитается следующей." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="40" y="62" width="1400" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" value="Стадия" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="130" width="300" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="Что делает" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="380" y="130" width="460" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t5" value="От каких колонок зависит" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="880" y="130" width="560" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" value="1. Filling → Filled&#xa;&#xa;fill_column()&#xa;generate/stages.rs:209" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="180" width="300" height="202" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" value="• Сохранённая колонка читается из Anvil и&#xa;  сразу считается слитой&#xa;• fill_column_dense_any: шум, акифер, биомы&#xa;• Поверхность: apply_material_surface&#xa;  или apply_beta_surface&#xa;• pre_carve: WORLD_SURFACE_WG и&#xa;  OCEAN_FLOOR_WG замораживаются здесь&#xa;• Карверы: apply_modern_carvers&#xa;• pack: палитры секций и четыре&#xa;  финальные карты высот" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="180" width="460" height="202" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" value="Ни от каких. Колонка — чистая функция сида&#xa;и своих координат.&#xa;&#xa;Собственный радиус: 0&#xa;&#xa;Диспетчер всё равно заполняет 5×5 вокруг&#xa;запрошенной колонки, потому что этого&#xa;требует Run её соседей." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="880" y="180" width="560" height="202" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" value="2. Running → Ran&#xa;&#xa;run_region() → run_column()&#xa;generate/stages.rs:754" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="422" width="300" height="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" value="• Центр разворачивается в плотный буфер&#xa;• ColumnRegion над 3×3 снапшотов Filled&#xa;• decorate(): одиннадцать шагов подряд,&#xa;  каждая фича на своём источнике&#xa;  seed = decoration_seed + index + 10000·step&#xa;• В свою колонку пишет сразу, в соседей —&#xa;  в ColumnDelta" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="422" width="460" height="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" value="Filled всех девяти колонок 3×3&#xa;(StagingStore::region)&#xa;&#xa;Радиус: 1&#xa;&#xa;Читает блоки, биомы и карты высот соседей,&#xa;но не их дельты. Вот здесь и рождается баг&#xa;с висящими кустами: колонка не видит озеро,&#xa;которое сосед положит ей под ноги." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="880" y="422" width="560" height="184" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n6" target="n9" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" value="3. Merging → Merged&#xa;&#xa;merge_column()&#xa;generate/stages.rs:705" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="646" width="300" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" value="• Берёт Filled центра&#xa;• Накладывает до девяти дельт в порядке&#xa;  возрастания ранга, побеждает последняя&#xa;• Перестраивает четыре карты высот&#xa;• pre_carve не трогает" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="646" width="460" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" value="Ran всех девяти колонок 3×3&#xa;(StagingStore::neighbourhood_reached)&#xa;&#xa;Радиус: 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="880" y="646" width="560" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n9" target="n13" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" value="4. Delivered&#xa;&#xa;deliver_merged_columns()&#xa;world/chunk.rs:414" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="798" width="300" height="94" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" value="• Секции уходят в ECS&#xa;• Карты высот в PendingColumnHeightmaps&#xa;• Блок-сущности спавнятся ровно один раз&#xa;• Дальше движок света, уже вне лестницы" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="798" width="460" height="94" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" value="Merged самой колонки&#xa;&#xa;Радиус: 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="880" y="798" width="560" height="94" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n13" target="n17" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o21" value="Накопленный итог&#xa;Чтобы отдать колонку, надо заполнить 5×5 вокруг неё. При дальности прорисовки V игроку уходит радиус D = V + 1, а заполняется радиус D + 2." style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;strokeWidth=2;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="952" width="1400" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="o22" value="Обозначения" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;strokeWidth=2;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="1062" width="300" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="ls23" value="" style="rounded=0;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="o22" vertex="1">
+          <mxGeometry x="12" y="30" width="28" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lt24" value="Заполнение рельефа" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;" parent="o22" vertex="1">
+          <mxGeometry x="50" y="28" width="240" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ls25" value="" style="rounded=0;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="o22" vertex="1">
+          <mxGeometry x="12" y="54" width="28" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lt26" value="Прогон фич" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;" parent="o22" vertex="1">
+          <mxGeometry x="50" y="52" width="240" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ls27" value="" style="rounded=0;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="o22" vertex="1">
+          <mxGeometry x="12" y="78" width="28" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lt28" value="Слияние дельт" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;" parent="o22" vertex="1">
+          <mxGeometry x="50" y="76" width="240" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ls29" value="" style="rounded=0;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="o22" vertex="1">
+          <mxGeometry x="12" y="102" width="28" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lt30" value="Выдача в ECS" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;" parent="o22" vertex="1">
+          <mxGeometry x="50" y="100" width="240" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ls31" value="" style="rounded=0;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="o22" vertex="1">
+          <mxGeometry x="12" y="126" width="28" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lt32" value="Зависимость и радиус" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;" parent="o22" vertex="1">
+          <mxGeometry x="50" y="124" width="240" height="20" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="2 · Пошаговые волны" id="1">
+    <mxGraphModel dx="1354" dy="764" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t1" value="Предлагаемая лестница: рунг на группу шагов" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=20;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="30" width="1500" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="Стадия Run разрезается на рунги. Рунг k читает мир, слитый по рунгу k−1, поэтому фича никогда не видит устаревшую землю под собой. Правило проверяется локально, по своему 3×3, и транзитивно вынуждает всю воронку." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="40" y="62" width="1500" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" value="Ступень" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="130" width="300" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="Что должно быть готово" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="380" y="130" width="520" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t5" value="Радиус вокруг&#xa;отдаваемой колонки" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="940" y="124" width="180" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="t6" value="Содержимое рунга" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="130" width="440" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" value="Filled" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="180" width="300" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" value="Ничего. Чистая функция сида и координат." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="180" width="520" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" value="6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=28;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="940" y="180" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" value="Run рунг 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="280" width="300" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" value="Filled на радиусе 1 (своё 3×3)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="280" width="520" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" value="5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=28;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="940" y="280" width="180" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" value="Шаги 0–8: raw_generation, lakes,&#xa;local_modifications, underground_structures,&#xa;surface_structures, underground_ores,&#xa;underground_decoration, fluid_springs.&#xa;Шаг 5 strongholds пуст во всех биомах,&#xa;его рунг схлопывается." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="280" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n7" target="n10" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" value="Merged рунг 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="450" width="300" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" value="Ran рунг 0 на радиусе 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="450" width="520" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" value="4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=28;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="940" y="450" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n10" target="n15" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" value="Run рунг 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="550" width="300" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="n20" value="Merged рунг 0 на радиусе 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="550" width="520" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" value="3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=28;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="940" y="550" width="180" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" value="Шаг 9: vegetal_decoration.&#xa;Единственные блоки с проверкой&#xa;выживания живут здесь." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="550" width="440" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n15" target="n19" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n24" value="Merged рунг 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="666" width="300" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" value="Ran рунг 1 на радиусе 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="666" width="520" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" value="2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=28;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="940" y="666" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e27" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n19" target="n24" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n28" value="Run рунг 2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="766" width="300" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="n29" value="Merged рунг 1 на радиусе 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="766" width="520" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="n30" value="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=28;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="940" y="766" width="180" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="n31" value="Шаг 10: top_layer_modification.&#xa;Снег читает карту высот, в которую&#xa;уже вошла растительность соседей." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="766" width="440" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="e32" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n24" target="n28" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n33" value="Merged рунг 2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="882" width="300" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n34" value="Ran рунг 2 на радиусе 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="882" width="520" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n35" value="0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=28;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="940" y="882" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e36" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n28" target="n33" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n37" value="Delivered" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="982" width="300" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n38" value="Merged последнего рунга у самой колонки" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="380" y="982" width="520" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n39" value="0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=28;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="940" y="982" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e40" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n33" target="n37" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o41" value="Откуда берутся два кольца на рунг&#xa;&#xa;Слияние рунга k у колонки требует, чтобы рунг k прогнали все, кто в неё&#xa;пишет, — это её 3×3, кольцо номер один. Чтобы они могли его прогнать,&#xa;их собственное окно чтения должно быть финальным по рунгу k−1 —&#xa;это кольцо номер два. Отсюда радиус филла = D + 2L." style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;strokeWidth=2;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="1102" width="760" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="o42" value="Цена и планировщик&#xa;&#xa;Рунг, в который никто не записал, сливается передачей Arc без копирования;&#xa;перестройка карт высот случается только там, где записи есть.&#xa;Планировщик не ждёт: колонка, у которой рунг ещё не готов, пропускается,&#xa;и воркер берёт следующую из очереди по приоритету." style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;strokeWidth=2;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="840" y="1102" width="760" height="150" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="3 · Гало в кольцах" id="2">
+    <mxGraphModel dx="821" dy="764" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t1" value="Форма гало: лестница, а не одинаковая работа по всем колонкам" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=20;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="30" width="1500" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="Пример: дальность прорисовки 2, то есть D = 3, и три рунга. Каждое следующее кольцо наружу стоит на одну ступень ниже. Каждая колонка проходит каждую ступень ровно один раз." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="40" y="62" width="1500" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="175" y="175" width="570" height="570" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="радиус 9 — только Filled" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=11;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="183" y="181" width="554" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="r5" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d79b00;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="205" y="205" width="510" height="510" as="geometry" />
+        </mxCell>
+        <mxCell id="t6" value="радиус 8 — Ran рунг 0" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=11;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="213" y="211" width="494" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="r7" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="235" y="235" width="450" height="450" as="geometry" />
+        </mxCell>
+        <mxCell id="t8" value="радиус 7 — Merged рунг 0" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=11;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="243" y="241" width="434" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="r9" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d79b00;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="265" y="265" width="390" height="390" as="geometry" />
+        </mxCell>
+        <mxCell id="t10" value="радиус 6 — Ran рунг 1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=11;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="273" y="271" width="374" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="r11" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="295" y="295" width="330" height="330" as="geometry" />
+        </mxCell>
+        <mxCell id="t12" value="радиус 5 — Merged рунг 1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=11;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="303" y="301" width="314" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="r13" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d79b00;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="325" y="325" width="270" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="t14" value="радиус 4 — Ran рунг 2" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=11;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="333" y="331" width="254" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="r15" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="355" y="355" width="210" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="t16" value="0–3 — уходит игроку" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=11;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="363" y="361" width="194" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" value="Радиус филла = D + 2L, где D = дальность прорисовки + 1, L = число рунгов.&#xa;Заполнено колонок = (2·(D + 2L) + 1)².&#xa;Сегодня L = 1, поэтому радиус филла D + 2 — те самые 5×5 в диспетчере." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="790" width="780" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="t18" value="Сколько колонок надо заполнить" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="900" y="130" width="700" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" value="Дальность" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="900" y="170" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n20" value="Отдаётся" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1030" y="170" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" value="L = 1 (сейчас)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="170" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" value="L = 3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1320" y="170" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" value="L = 10 (полное)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1470" y="170" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n24" value="2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="900" y="220" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" value="49" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1030" y="220" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" value="121" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="220" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n27" value="361  (2.98×)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1320" y="220" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n28" value="2 209  (18.3×)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1470" y="220" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n29" value="16" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="900" y="270" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n30" value="1 225" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1030" y="270" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n31" value="1 521" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="270" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n32" value="2 209  (1.45×)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1320" y="270" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n33" value="5 625  (3.70×)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1470" y="270" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n34" value="32" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="900" y="320" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n35" value="4 489" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1030" y="320" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n36" value="5 041" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="320" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n37" value="6 241  (1.24×)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1320" y="320" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n38" value="11 449  (2.27×)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1470" y="320" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n39" value="96" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="900" y="370" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n40" value="38 025" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1030" y="370" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n41" value="39 601" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="370" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n42" value="42 849  (1.08×)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1320" y="370" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n43" value="55 225  (1.39×)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1470" y="370" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="t44" value="Кратности в скобках — относительно сегодняшнего поведения." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=11;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="900" y="440" width="740" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="o45" value="Что растёт, а что нет&#xa;&#xa;Объём работы на колонку не меняется: те же фичи прогоняются по разу.&#xa;Растут три вещи — сколько колонок одновременно живут в памяти,&#xa;насколько широкий фронт надо гнать впереди движущегося игрока,&#xa;и задержка от запроса до выдачи на холодном старте.&#xa;Пропускная способность при неподвижном игроке не меняется вовсе." style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;strokeWidth=2;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="900" y="500" width="740" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="o46" value="Обозначения" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;strokeWidth=2;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="900" y="700" width="300" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="ls47" value="" style="rounded=0;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="o46" vertex="1">
+          <mxGeometry x="12" y="30" width="28" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lt48" value="Только заполнено" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;" parent="o46" vertex="1">
+          <mxGeometry x="50" y="28" width="240" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ls49" value="" style="rounded=0;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="o46" vertex="1">
+          <mxGeometry x="12" y="54" width="28" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lt50" value="Прогнан рунг" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;" parent="o46" vertex="1">
+          <mxGeometry x="50" y="52" width="240" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ls51" value="" style="rounded=0;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="o46" vertex="1">
+          <mxGeometry x="12" y="78" width="28" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lt52" value="Слит рунг" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;" parent="o46" vertex="1">
+          <mxGeometry x="50" y="76" width="240" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ls53" value="" style="rounded=0;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="o46" vertex="1">
+          <mxGeometry x="12" y="102" width="28" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lt54" value="Уходит игроку" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;" parent="o46" vertex="1">
+          <mxGeometry x="50" y="100" width="240" height="20" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="4 · Ваниль для сравнения" id="3">
+    <mxGraphModel dx="821" dy="764" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t1" value="Пирамида статусов ванили 26.3" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=20;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="30" width="1500" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="ChunkPyramid.GENERATION_PYRAMID. Накопленный радиус посчитан алгоритмом ChunkStep.Builder.buildAccumulatedDependencies." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=0;" parent="1" vertex="1">
+          <mxGeometry x="40" y="62" width="1500" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" value="Статус" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="130" width="340" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="Прямые требования" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="130" width="620" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t5" value="Накопленный радиус" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="130" width="220" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" value="EMPTY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="180" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" value="—" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="180" width="620" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" value="0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="180" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" value="STRUCTURE_STARTS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="270" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" value="EMPTY на радиусе 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="270" width="620" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" value="0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="270" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n6" target="n9" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" value="STRUCTURE_REFERENCES" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="360" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" value="STRUCTURE_STARTS на радиусе 8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="360" width="620" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" value="8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="360" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n9" target="n13" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" value="BIOMES" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="450" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" value="STRUCTURE_STARTS на радиусе 8;&#xa;STRUCTURE_REFERENCES на радиусе 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="450" width="620" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" value="8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="450" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n13" target="n17" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" value="TERRAIN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="540" width="340" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" value="BIOMES на радиусе 1; STRUCTURE_STARTS на радиусе 8&#xa;blockStateWriteRadius = 0&#xa;Внутри: шум, поверхность, карверы. Карверы пишут через&#xa;chunk.setBlockState, статус ещё BIOMES, поэтому они&#xa;опускают WORLD_SURFACE_WG и OCEAN_FLOOR_WG." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="540" width="620" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" value="9" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="540" width="220" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="e24" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n17" target="n21" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" value="FEATURES" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="682" width="340" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" value="TERRAIN на радиусе 1; STRUCTURE_STARTS на радиусе 8&#xa;blockStateWriteRadius = 1&#xa;WorldGenRegion пишет прямо в живые ProtoChunk соседей.&#xa;Статус уже TERRAIN, поэтому обновляются только четыре&#xa;финальные карты высот, а WG-пара заморожена." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="682" width="620" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="n27" value="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="682" width="220" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="e28" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n21" target="n25" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n29" value="INITIALIZE_LIGHT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="824" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n30" value="FEATURES на радиусе 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="824" width="620" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n31" value="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="824" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e32" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n25" target="n29" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n33" value="LIGHT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="914" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n34" value="INITIALIZE_LIGHT на радиусе 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="914" width="620" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n35" value="11" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="914" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e36" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n29" target="n33" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n37" value="SPAWN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="1004" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n38" value="LIGHT на радиусе 0; BIOMES на радиусе 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="1004" width="620" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n39" value="11" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="1004" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e40" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n33" target="n37" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n41" value="FULL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="1094" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n42" value="SPAWN на радиусе 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="420" y="1094" width="620" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n43" value="11" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;spacingRight=8;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;spacingLeft=0;spacingTop=0;" parent="1" vertex="1">
+          <mxGeometry x="1080" y="1094" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e44" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Helvetica;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n37" target="n41" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o45" value="Лестница для FULL&#xa;&#xa;радиус 1 — INITIALIZE_LIGHT&#xa;радиус 2 — TERRAIN&#xa;радиус 3 — BIOMES&#xa;радиусы 4–11 — STRUCTURE_STARTS&#xa;&#xa;Блокогенерирующее гало ванили —&#xa;радиус 2, ровно как у нас сегодня.&#xa;Дальше идёт только бухгалтерия&#xa;по структурам, блоки там&#xa;не генерируются." style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;strokeWidth=2;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="1340" y="180" width="280" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="o46" value="Почему у ванили нет нашего бага&#xa;&#xa;Весь worldgen ванили идёт через&#xa;один ConsecutiveExecutor(«worldgen»),&#xa;то есть строго по одному чанку&#xa;за раз. Снапшотов нет: любая фича&#xa;читает то, что соседи уже записали&#xa;в живой ProtoChunk.&#xa;&#xa;SteelMC копирует эту модель —&#xa;тот же block_state_write_radius: 1&#xa;и запись в живые чанки под&#xa;RwLock секций." style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;strokeWidth=2;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="1340" y="470" width="280" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="o47" value="Остаточное расхождение у ванили&#xa;&#xa;Порядок декорирования всё-таки влияет на результат: если соседний чанк декорировался раньше,&#xa;его растения окажутся над лавой озера. Но объём внутри блоба ваниль всегда очищает,&#xa;поэтому растения, стоящие прямо в лаве, у неё не появляются никогда." style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;strokeWidth=2;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="40" y="1204" width="1280" height="90" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
