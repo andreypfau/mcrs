@@ -1,7 +1,3 @@
-//! Values produced by the vanilla 26.3-snapshot-10 classes for the flat,
-//! text-bearing, NBT-on-the-wire and fuel components: each fixture row is
-//! the vanilla JSON, NBT bytes, wire bytes and CRC32C hash of one value.
-
 use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
 

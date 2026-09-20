@@ -1,5 +1,3 @@
-//! Per-kind sample values for the round-trip test tables.
-
 pub trait Sample: Sized {
     fn samples() -> Vec<Self>;
 

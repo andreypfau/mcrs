@@ -539,8 +539,7 @@ mod tests {
 
     use super::{HashSerializer, hash};
 
-    // Golden values printed by HashOps.CRC32C_INSTANCE in the 26.3-snapshot-10
-    // client, fed through NbtOps.convertTo and Codec.encodeStart.
+    // Golden values printed by the 26.3-snapshot-10 client.
     const EMPTY: i32 = -1609117614;
     const EMPTY_MAP: i32 = -982207288;
     const EMPTY_LIST: i32 = -1978007022;

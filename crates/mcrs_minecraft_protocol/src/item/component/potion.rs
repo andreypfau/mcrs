@@ -14,10 +14,9 @@ use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
 use crate::{Decode, Encode};
 
-/// `PotionContents.CODEC`: the full map, or on read a bare potion id. Custom
-/// effects never carry a hidden effect: vanilla's `customEffects()` accessor
-/// hands out copies made by `setDetailsFrom`, which leaves it behind, so no
-/// encoder ever sees one.
+/// The full map, or on read a bare potion id. Custom effects never carry a
+/// hidden effect: vanilla hands out copies that leave it behind, so no encoder
+/// ever sees one.
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PotionContents {

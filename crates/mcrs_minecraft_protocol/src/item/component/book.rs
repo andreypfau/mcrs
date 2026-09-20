@@ -14,8 +14,7 @@ use crate::item::harness::Sample;
 use crate::text::{IntoText, Text};
 use crate::{Bounded, Decode, Encode, VarInt};
 
-/// `Codec.sizeLimitedListOf`: the length check the transparent `Bounded`
-/// serde lacks.
+/// The length check the transparent `Bounded` serde lacks.
 pub(crate) fn size_limited<'de, D: Deserializer<'de>, T: DeserializeOwned, const MAX: usize>(
     d: D,
 ) -> Result<Bounded<Vec<T>, MAX>, D::Error> {
@@ -106,9 +105,9 @@ pub struct WrittenBookContent {
     pub resolved: bool,
 }
 
-/// `ComponentSerialization.flatRestrictedCodec`: a page is measured by the
-/// length of its flat JSON text in UTF-16 units, as Gson's `JsonWriter`
-/// emits it, which also escapes U+2028 and U+2029 as six characters.
+/// A page is measured by the length of its flat JSON text in UTF-16 units, as
+/// Gson's `JsonWriter` emits it, which also escapes U+2028 and U+2029 as six
+/// characters.
 fn restricted_pages<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Filterable<Text>>, D::Error> {
     let pages = Vec::<Filterable<Text>>::deserialize(d)?;
     for page in &pages {

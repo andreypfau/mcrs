@@ -20,7 +20,7 @@ pub const MAX_PROPERTIES: usize = 16;
 
 pub type PlayerName = BoundedString<16>;
 
-/// `StringUtil.isValidPlayerName`: printable ASCII, no spaces.
+/// Printable ASCII, no spaces.
 fn player_name(text: &str) -> Result<PlayerName, String> {
     let name = PlayerName::new(text).map_err(|e| e.to_string())?;
     if text.chars().any(|c| c <= ' ' || c >= '\x7f') {
@@ -31,7 +31,7 @@ fn player_name(text: &str) -> Result<PlayerName, String> {
     Ok(name)
 }
 
-/// `UUIDUtil.CODEC`: four ints, most significant first.
+/// Four ints, most significant first.
 fn uuid_ints(id: Uuid) -> IntArray<4> {
     let (msb, lsb) = id.as_u64_pair();
     IntArray([
@@ -222,8 +222,8 @@ impl<'de> Deserialize<'de> for Profile {
     }
 }
 
-/// `PropertyMap` is a list multimap: a value sits under its name, and the
-/// names keep the order they first appeared in.
+/// A list multimap: a value sits under its name, and the names keep the order
+/// they first appeared in.
 fn grouped_by_name(properties: Vec<Property>) -> Vec<Property> {
     let mut grouped: Vec<Property> = Vec::with_capacity(properties.len());
     for property in properties {
@@ -245,8 +245,7 @@ fn check_property(property: &Property) -> Result<(), String> {
     Ok(())
 }
 
-/// `ExtraCodecs.PROPERTY_MAP`: a list of properties, or on read a map from
-/// a name to its values.
+/// A list of properties, or on read a map from a name to its values.
 fn properties<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Property>, D::Error> {
     struct PropertiesVisitor;
 

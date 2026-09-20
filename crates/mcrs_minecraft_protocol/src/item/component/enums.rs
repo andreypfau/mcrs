@@ -25,8 +25,7 @@ macro_rules! enum_samples {
     )*};
 }
 
-/// `ByIdMap.continuous` over the ordinal with a `CLAMP` or `WRAP`
-/// out-of-bounds strategy.
+/// The wire id is the ordinal; an out-of-range id is clamped or wrapped.
 macro_rules! continuous_enum {
     ($name:ident [$strategy:ident] { $($variant:ident),* $(,)? }) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -60,7 +59,7 @@ macro_rules! continuous_enum {
     (@wrap $id:expr, $len:expr) => { $id.rem_euclid($len) };
 }
 
-/// `ByIdMap.sparse`: explicit ids, an unknown one reading as the first variant.
+/// Explicit wire ids; an unknown one reads as the first variant.
 macro_rules! sparse_enum {
     ($name:ident { $($variant:ident = $id:literal),* $(,)? }) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -168,7 +167,7 @@ impl Default for SwingAnimationKind {
     }
 }
 
-/// `optionalFieldOf` reads a JSON `null` as a missing key.
+/// A JSON `null` reads as a missing key.
 fn null_is_absent<'de, D: Deserializer<'de>, T: Deserialize<'de> + Default>(
     d: D,
 ) -> Result<T, D::Error> {

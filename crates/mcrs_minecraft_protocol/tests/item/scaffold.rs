@@ -69,12 +69,22 @@ fn a_patch_reads_and_writes_the_vanilla_map() {
         duplicate.to_string().contains("Duplicate key"),
         "{duplicate}"
     );
-    let removed_last = serde_json::from_str::<ComponentPatch>(r#"{"damage":1,"!damage":{}}"#).unwrap();
-    assert_eq!(serde_json::to_string(&removed_last).unwrap(), r#"{"!minecraft:damage":{}}"#);
+    let removed_last =
+        serde_json::from_str::<ComponentPatch>(r#"{"damage":1,"!damage":{}}"#).unwrap();
+    assert_eq!(
+        serde_json::to_string(&removed_last).unwrap(),
+        r#"{"!minecraft:damage":{}}"#
+    );
     let set_last = serde_json::from_str::<ComponentPatch>(r#"{"!damage":{},"damage":1}"#).unwrap();
-    assert_eq!(serde_json::to_string(&set_last).unwrap(), r#"{"minecraft:damage":1}"#);
+    assert_eq!(
+        serde_json::to_string(&set_last).unwrap(),
+        r#"{"minecraft:damage":1}"#
+    );
     let fraction = serde_json::from_str::<ComponentPatch>(r#"{"damage":1.5}"#).unwrap();
-    assert_eq!(serde_json::to_string(&fraction).unwrap(), r#"{"minecraft:damage":1}"#);
+    assert_eq!(
+        serde_json::to_string(&fraction).unwrap(),
+        r#"{"minecraft:damage":1}"#
+    );
     let out_of_range =
         serde_json::from_str::<ComponentPatch>(r#"{"max_stack_size":100}"#).unwrap_err();
     assert!(
@@ -229,6 +239,18 @@ fn a_hashed_slot_writes_the_map_then_the_set() {
     let mut oversized = vec![1, 3, 0x81, 0x02];
     oversized.extend(std::iter::repeat_n([0, 0, 0, 0, 0], 257).flatten());
     assert!(HashedSlot::decode(&mut &oversized[..]).is_err());
+}
+
+#[test]
+fn a_hashed_patch_collapses_repeated_kinds_like_a_hash_map() {
+    let wire = [2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 2, 3, 3, 3, 3];
+    assert_eq!(
+        HashedPatchMap::decode(&mut &wire[..]).unwrap(),
+        HashedPatchMap {
+            added: vec![(ItemComponentKind::MaxStackSize, 2)],
+            removed: vec![ItemComponentKind::Damage],
+        }
+    );
 }
 
 #[test]
@@ -527,7 +549,9 @@ fn identifiers_read_with_the_default_namespace_everywhere() {
     let layers: ResolvableInt = serde_json::from_str(r#""foo""#).unwrap();
     assert_eq!(
         layers,
-        ResolvableInt::Reference(ResourceKey::from_location(ResourceLocation::minecraft("foo")))
+        ResolvableInt::Reference(ResourceKey::from_location(ResourceLocation::minecraft(
+            "foo"
+        )))
     );
     assert!(serde_json::from_str::<ResolvableInt>(r#""Foo""#).is_err());
 
@@ -568,6 +592,9 @@ fn color_channels_floor_and_mask_as_argb_does() {
         serde_json::from_str::<RgbInt>("[1.0,-0.5,0.5]").unwrap(),
         RgbInt(-32641)
     );
-    assert_eq!(serde_json::from_str::<RgbInt>("4294967295").unwrap(), RgbInt(-1));
+    assert_eq!(
+        serde_json::from_str::<RgbInt>("4294967295").unwrap(),
+        RgbInt(-1)
+    );
     assert_eq!(serde_json::from_str::<RgbInt>("1.9").unwrap(), RgbInt(1));
 }

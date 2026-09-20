@@ -8,12 +8,12 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::item::component::attribute::AttributeOperation;
 use crate::item::component::common::{
     AttributeReg, BlockReg, CompactList, EnchantmentReg, EquipmentSlotGroup, ItemReg,
     JukeboxSongReg, MinMaxBounds, MobEffectReg, NbtPredicate, PotionReg, TrimMaterialReg,
     TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, serialize_unit,
 };
-use crate::item::component::attribute::AttributeOperation;
 use crate::item::component::fireworks::FireworkShape;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
 use crate::item::harness::Sample;
@@ -61,8 +61,8 @@ predicate_newtype!(
     Lock(ItemPredicate),
 );
 
-/// `AdventureModePredicate.CODEC`: one predicate bare, otherwise a non-empty
-/// list; the wire allows an empty list.
+/// One predicate bare, otherwise a non-empty list; the wire allows an empty
+/// list.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct AdventureModePredicate(pub CompactList<BlockPredicate>);
@@ -173,7 +173,7 @@ impl DecodeCtx<'_> for BlockPredicate {
     }
 }
 
-/// `ItemPredicate.CODEC`; the wire form of `lock` is this as one NBT tag.
+/// The wire form of `lock` is this as one NBT tag.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ItemPredicate {
     pub items: Option<HolderSet<ResourceKey<ItemReg>>>,
@@ -253,7 +253,7 @@ fn set_once<'de, A: MapAccess<'de>, T: Deserialize<'de>>(
     Ok(())
 }
 
-/// `StatePropertiesPredicate`: property name to matcher, in the order read.
+/// Property name to matcher, in the order read.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct StatePropertiesPredicate(pub Vec<(String, ValueMatcher)>);
 
@@ -323,8 +323,8 @@ impl DecodeCtx<'_> for StatePropertiesPredicate {
     }
 }
 
-/// `DataComponentMatchers`: exact values a component must equal and partial
-/// predicates it must satisfy, both flattened into the owning predicate.
+/// Exact values a component must equal and partial predicates it must
+/// satisfy, both flattened into the owning predicate.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct DataComponentMatchers {
     pub components: ComponentMap,
@@ -452,8 +452,8 @@ impl DecodeCtx<'_> for DataComponentMatchers {
     }
 }
 
-/// `DataComponentPredicate.CODEC`: a map whose key names a predicate type, or
-/// a component type that must merely be present.
+/// A map whose key names a predicate type, or a component type that must
+/// merely be present.
 #[derive(Clone, Debug, Default)]
 pub struct ComponentPredicates(pub Vec<ComponentPredicateEntry>);
 
@@ -486,8 +486,8 @@ impl ComponentPredicateEntry {
     }
 }
 
-/// `fromCodecWithRegistries`: one network NBT tag of whatever root type the
-/// predicate's codec writes, read back through that codec.
+/// One network NBT tag of whatever root type the predicate's codec writes,
+/// read back through that codec.
 fn decode_predicate_wire(
     kind: ComponentPredicateType,
     r: &mut &[u8],
@@ -562,7 +562,7 @@ impl<'de> Deserialize<'de> for ComponentPredicates {
     }
 }
 
-/// `MapCodec.unitCodec`: `{}` written, any map read.
+/// `{}` written, any map read.
 struct UnitMap;
 
 impl Serialize for UnitMap {
@@ -665,9 +665,9 @@ predicate_types! {
     14 "villager/variant"      : VillagerVariant(HolderSet<ResourceKey<VillagerTypeReg>>),
 }
 
-/// A derived record also reads a positional sequence; `RecordCodecBuilder`
-/// only reads a map. The derive is kept inherent through `remote = "Self"`
-/// and reached only from a map.
+/// A derived record also reads a positional sequence, where vanilla reads
+/// only a map. The derive is kept inherent through `remote = "Self"` and
+/// reached only from a map.
 macro_rules! record {
     ($($name:ident $(<$param:ident>)?),* $(,)?) => {$(
         impl<'de $(, $param: Deserialize<'de>)?> Deserialize<'de> for $name $(<$param>)? {
@@ -747,7 +747,7 @@ pub struct PotionsPredicate {
     pub effects: Option<CollectionPredicate<MobEffectsPredicate>>,
 }
 
-/// `Codec.unboundedMap` of effect to instance predicate, in the order read.
+/// Effect to instance predicate, in the order read.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct MobEffectsPredicate(pub Vec<(ResourceKey<MobEffectReg>, MobEffectInstancePredicate)>);
 
@@ -776,8 +776,8 @@ pub struct MobEffectInstancePredicate {
     pub visible: Option<bool>,
 }
 
-/// `CollectionPredicate`: elements that must each appear, per-element
-/// occurrence counts, and the collection's size. The bounds are spelled out
+/// Elements that must each appear, per-element occurrence counts, and the
+/// collection's size. The bounds are spelled out
 /// because a defaulted field makes the derive infer `P: Default`, and an
 /// inherent `deserialize` whose bounds fail silently yields to the trait's.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -816,7 +816,6 @@ pub struct CountedPredicate<P> {
     pub count: MinMaxBounds<i32>,
 }
 
-/// `ContainerPredicate` and `BundlePredicate`, which share one shape.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct ContainerPredicate {

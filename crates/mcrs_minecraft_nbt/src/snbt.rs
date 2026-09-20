@@ -766,8 +766,8 @@ impl<'a> Parser<'a> {
     }
 }
 
-/// `java.util.UUID.fromString`: five dash-separated hex groups, each group
-/// masked to its field width, at most 36 characters in total.
+/// Five dash-separated hex groups, each group masked to its field width, at
+/// most 36 characters in total.
 fn parse_uuid(text: &str) -> Option<(i64, i64)> {
     if text.len() > 36 {
         return None;

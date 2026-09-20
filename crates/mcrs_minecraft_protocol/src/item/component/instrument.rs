@@ -108,8 +108,8 @@ impl DecodeCtx<'_> for JukeboxSong {
     }
 }
 
-/// The persistent form is the registry id alone (`RegistryFixedCodec`); the
-/// wire form carries the song inline.
+/// The persistent form is the registry id alone; the wire form carries the
+/// song inline.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct JukeboxPlayable(pub HolderWireOnly<JukeboxSong>);

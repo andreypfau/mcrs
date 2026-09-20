@@ -12,16 +12,15 @@ use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::kind::{ItemComponentKind, ItemComponentValue, ItemDataComponent};
 use crate::{Decode, Encode, VarInt};
 
-/// `DataComponentPatch`: values set on top of an item's prototype and kinds
-/// removed from it. A kind appears at most once across both lists.
+/// Values set on top of an item's prototype and kinds removed from it; a kind
+/// appears at most once across both lists.
 #[derive(Clone, Debug, Default)]
 pub struct ComponentPatch {
     pub added: Vec<ItemComponentValue>,
     pub removed: Vec<ItemComponentKind>,
 }
 
-/// Map equality, as `DataComponentPatch.equals`: order is not part of the
-/// value.
+/// Order is not part of the value.
 impl PartialEq for ComponentPatch {
     fn eq(&self, other: &Self) -> bool {
         self.added.len() == other.added.len()
@@ -121,7 +120,6 @@ impl ComponentPatch {
         Ok(patch)
     }
 
-    /// `DELIMITED_STREAM_CODEC`: every value is preceded by its byte length.
     pub fn encode_delimited_ctx(
         &self,
         ctx: &dyn RegistryLookup,
@@ -135,8 +133,8 @@ impl ComponentPatch {
         })
     }
 
-    /// The bytes a value leaves unread inside its length prefix are skipped,
-    /// as `lengthPrefixed` advances by the declared size unconditionally.
+    /// The bytes a value leaves unread inside its length prefix are skipped:
+    /// the declared size is advanced unconditionally.
     pub fn decode_delimited_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         Self::decode_with(ctx, r, |kind, ctx, r| {
             let len = VarInt::decode(r)?.0;
@@ -167,7 +165,6 @@ impl<'a> DecodeCtx<'a> for ComponentPatch {
     }
 }
 
-/// The persistent form of one value, `serialize_value` as a `Serialize`.
 pub struct PersistentValue<'a>(pub &'a ItemComponentValue);
 
 impl Serialize for PersistentValue<'_> {
@@ -274,7 +271,6 @@ impl<'de> Deserialize<'de> for ComponentPatch {
     }
 }
 
-/// `DataComponentMap`: one value per kind, an item's prototype.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ComponentMap(pub Vec<ItemComponentValue>);
 
@@ -294,7 +290,6 @@ impl ComponentMap {
         }
     }
 
-    /// The map with `patch` applied on top of this prototype.
     pub fn apply(&self, patch: &ComponentPatch) -> ComponentMap {
         let mut map = self.clone();
         for added in &patch.added {
@@ -304,9 +299,8 @@ impl ComponentMap {
         map
     }
 
-    /// The patch that turns this prototype into `other`, normalised as
-    /// `PatchedDataComponentMap` keeps it: no addition equal to the prototype
-    /// value, no removal of a kind the prototype lacks.
+    /// The patch that turns this prototype into `other`, normalised: no addition
+    /// equal to the prototype value, no removal of a kind the prototype lacks.
     pub fn diff(&self, other: &ComponentMap) -> ComponentPatch {
         let mut patch = ComponentPatch::EMPTY;
         for value in &other.0 {

@@ -1,7 +1,3 @@
-//! Values produced by the vanilla 26.3-snapshot-10 codecs of the scalar, unit
-//! and enum kinds through `JsonOps`, `NbtOps`, `HashOps.CRC32C_INSTANCE` and
-//! each kind's `STREAM_CODEC`.
-
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
     AdditionalTradeCost, CreativeSlotLock, ItemComponentKind, ItemComponentValue,

@@ -99,7 +99,7 @@ impl EncodeCtx for AttributeDisplay {
     }
 }
 
-/// An unknown type id reads as `Default`, `ByIdMap` `ZERO`.
+/// An unknown type id reads as `Default`.
 impl DecodeCtx<'_> for AttributeDisplay {
     fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(match VarInt::decode(r)?.0 {

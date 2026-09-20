@@ -18,8 +18,8 @@ impl RegistryName for NumberProviderReg {
     const NAME: &'static str = "number_provider";
 }
 
-/// `ResolvableNumber.CODEC`: a float, or the id of a number provider; the
-/// wire is a flag then the float or the id string.
+/// A float, or the id of a number provider; the wire is a flag then the float
+/// or the id string.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ResolvableNumber {
     Constant(f32),

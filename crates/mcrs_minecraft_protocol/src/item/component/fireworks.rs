@@ -17,7 +17,6 @@ ordinal_enum! {
     FireworkShape { SmallBall, LargeBall, Star, Creeper, Burst }
 }
 
-/// `Codec.INT.listOf()`: each element is any number's `intValue()`.
 fn int_list<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<i32>, D::Error> {
     struct Element(i32);
 

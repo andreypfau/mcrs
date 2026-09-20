@@ -153,8 +153,8 @@ impl<'a> DecodeCtx<'a> for PotDecorations {
 
 pub const MAX_CONTAINER_SLOTS: usize = 256;
 
-/// `ItemContainerContents`: dense by slot index; the persistent form lists
-/// only the occupied slots, so trailing empty slots do not survive a save.
+/// Dense by slot index; the persistent form lists only the occupied slots, so
+/// trailing empty slots do not survive a save.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Container {
     slots: Bounded<Vec<Option<Template>>, MAX_CONTAINER_SLOTS>,

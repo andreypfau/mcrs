@@ -35,9 +35,8 @@ float_default! {
     1.0f32 one is_one,
 }
 
-/// A ranged float field, worded as `Codec.floatRange` (DFU) or as
-/// `ExtraCodecs.floatRange` and its positive and non-negative kin. The
-/// bounds compare as `Float.compareTo` does: -0.0 sits below 0.0.
+/// A ranged float field with vanilla's error wording; the bounds order -0.0
+/// below 0.0.
 macro_rules! checked_float {
     ($($name:ident: $value:ident in $min:literal $op:tt $max:expr => $message:literal),* $(,)?) => {$(
         fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
@@ -154,7 +153,7 @@ impl Sample for CustomModelData {
     }
 }
 
-/// `hiddenComponents` is a linked set: the order is kept, a repeat is dropped.
+/// A linked set: the order is kept, a repeat is dropped.
 fn distinct(kinds: Vec<ItemComponentKind>) -> Vec<ItemComponentKind> {
     let mut seen = Vec::with_capacity(kinds.len());
     for kind in kinds {
@@ -165,8 +164,8 @@ fn distinct(kinds: Vec<ItemComponentKind>) -> Vec<ItemComponentKind> {
     seen
 }
 
-/// `DataComponentType.CODEC` is the registry's `byNameCodec`, worded unlike
-/// a patch's unknown key.
+/// An unknown kind is worded as a registry lookup failure, unlike a patch's
+/// unknown key.
 fn distinct_kinds<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<ItemComponentKind>, D::Error> {
     Vec::<ResourceLocation>::deserialize(d)?
         .iter()
@@ -181,8 +180,7 @@ fn distinct_kinds<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<ItemComponentKi
         .map(distinct)
 }
 
-/// `ExtraCodecs.NON_NEGATIVE_INT`: the same bound as `NonNegativeInt`, worded
-/// differently.
+/// The same bound as `NonNegativeInt`, with vanilla's error wording.
 fn non_negative_int<'de, D: Deserializer<'de>>(d: D) -> Result<NonNegativeInt, D::Error> {
     let value = int_value(d)?;
     if value < 0 {

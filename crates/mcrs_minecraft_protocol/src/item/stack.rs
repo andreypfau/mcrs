@@ -18,8 +18,7 @@ use crate::{Decode, Encode, VarInt};
 
 validated!(ItemStackValue);
 
-/// `ItemStack.MAP_CODEC`, before prototype normalisation: the patch is
-/// re-emitted as read.
+/// Before prototype normalisation: the patch is re-emitted as read.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct ItemStackValue {
@@ -40,7 +39,7 @@ impl Validate for ItemStackValue {
     }
 }
 
-/// `ItemStack.OPTIONAL_CODEC`: `{}` stands for no stack.
+/// `{}` stands for no stack.
 pub mod optional_stack {
     use super::*;
 
@@ -110,8 +109,7 @@ pub mod optional_stack {
     }
 }
 
-/// `ItemStackTemplate`: a stack written as a map, or as the bare item id when
-/// it is one plain item.
+/// A stack written as a map, or as the bare item id when it is one plain item.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Template(pub ItemStackValue);
 
@@ -198,7 +196,6 @@ impl<'a> DecodeCtx<'a> for Template {
     }
 }
 
-/// A stack on the wire, `ItemStack.OPTIONAL_STREAM_CODEC`.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Slot {
     pub id: ItemId,
@@ -234,7 +231,7 @@ impl Slot {
         self
     }
 
-    /// `ItemStack.isEmpty`: no items, or the air item.
+    /// No items, or the air item.
     pub const fn is_empty(&self) -> bool {
         self.count <= 0 || self.id.0 == 0
     }
@@ -325,7 +322,7 @@ impl<'a> DecodeCtx<'a> for Slot {
     }
 }
 
-/// The exact bytes of one `OPTIONAL_STREAM_CODEC` stack, kept so packets can
+/// The exact bytes of one wire stack, kept so packets can
 /// carry stacks without the registries; the value walks the layout to find
 /// its length and is resolved on demand.
 // ponytail: every stack is parsed twice, once to measure and once to resolve; fine at inventory
@@ -372,8 +369,7 @@ impl Decode<'_> for RawStack {
     }
 }
 
-/// `OPTIONAL_UNTRUSTED_STREAM_CODEC`: a stack whose component values carry a
-/// length prefix, and which is validated on resolve.
+/// A stack whose component values carry a length prefix, validated on resolve.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawDelimitedStack(pub Bytes);
 
@@ -386,9 +382,9 @@ impl Default for RawDelimitedStack {
 impl RawDelimitedStack {
     pub const EMPTY: RawDelimitedStack = RawDelimitedStack(Bytes::from_static(&[0]));
 
-    /// `validatedStreamCodec` re-encodes the stack through `ItemStack.CODEC`;
-    /// here every codec's checks sit on the read side, so the stack is read
-    /// back from its persistent form instead.
+    /// Vanilla validates by re-encoding through the persistent codec; here every
+    /// codec's checks sit on the read side, so the stack is read back from its
+    /// persistent form instead.
     pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<Slot> {
         let mut r = &self.0[..];
         let slot = Slot::decode_delimited_ctx(ctx, &mut r)?;
@@ -424,8 +420,6 @@ impl Decode<'_> for RawDelimitedStack {
     }
 }
 
-/// `HashedStack.ActualItem`; `Option<HashedSlot>` on the wire is the whole
-/// `HashedStack`.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct HashedSlot {
     pub id: ItemId,
@@ -470,8 +464,6 @@ impl Decode<'_> for HashedSlot {
 
 pub const MAX_HASHED_COMPONENTS: usize = 256;
 
-/// `HashedPatchMap`: the `HashOps` hash of every added value and the set of
-/// removed kinds.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct HashedPatchMap {
     pub added: Vec<(ItemComponentKind, i32)>,
@@ -545,20 +537,17 @@ impl Decode<'_> for HashedPatchMap {
         for _ in 0..added {
             let kind = ItemComponentKind::decode(r)?;
             let hash = i32::decode(r)?;
-            ensure!(
-                map.added.iter().all(|(k, _)| *k != kind),
-                "duplicate hashed component {kind}"
-            );
-            map.added.push((kind, hash));
+            match map.added.iter_mut().find(|(k, _)| *k == kind) {
+                Some(slot) => slot.1 = hash,
+                None => map.added.push((kind, hash)),
+            }
         }
         let removed = count(r)?;
         for _ in 0..removed {
             let kind = ItemComponentKind::decode(r)?;
-            ensure!(
-                !map.removed.contains(&kind),
-                "duplicate removed component {kind}"
-            );
-            map.removed.push(kind);
+            if !map.removed.contains(&kind) {
+                map.removed.push(kind);
+            }
         }
         Ok(map)
     }

@@ -1,10 +1,3 @@
-//! Values produced by the vanilla 26.3-snapshot-10 codecs of every kind that
-//! references a registry by raw id or holder set, captured with the world
-//! registries loaded from the vanilla data pack. Each `sample` block of the
-//! fixture holds the JSON vanilla wrote back, the NBT and wire bytes, and the
-//! `HashOps.CRC32C_INSTANCE` hash; `id` lines are the registry ids the capture
-//! session had.
-
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_nbt::compound::NbtCompound;

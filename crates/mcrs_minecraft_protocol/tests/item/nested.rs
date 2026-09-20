@@ -1,7 +1,3 @@
-//! Values produced by the vanilla 26.3-snapshot-10 codecs of the kinds that
-//! embed item stack templates, through `JsonOps`, `NbtOps`, the stream codec
-//! and `HashOps.CRC32C_INSTANCE`.
-
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_nbt::tag::NbtTag;

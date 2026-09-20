@@ -165,10 +165,12 @@ pub struct RegistryAccessInner {
 
 /// Name and network id of every entry, keyed by the registry's bare path so
 /// the key form matches the item component registry markers.
+type ByRegistry<T> = HashMap<Box<str>, T>;
+
 #[derive(Default)]
 struct LookupIndex {
-    by_name: HashMap<Box<str>, HashMap<ResourceLocation<Arc<str>>, u32>>,
-    by_id: HashMap<Box<str>, Vec<Option<ResourceLocation<Arc<str>>>>>,
+    by_name: ByRegistry<HashMap<ResourceLocation<Arc<str>>, u32>>,
+    by_id: ByRegistry<Vec<Option<ResourceLocation<Arc<str>>>>>,
 }
 
 impl LookupIndex {

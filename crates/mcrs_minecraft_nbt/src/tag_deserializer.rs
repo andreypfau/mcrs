@@ -56,7 +56,7 @@ impl<'de> de::Deserializer<'de> for NbtTag {
         }
     }
 
-    /// `NbtOps.getBooleanValue`: any numeric tag, true when non-zero.
+    /// Any numeric tag, true when non-zero.
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         match self {
             NbtTag::Byte(v) => visitor.visit_bool(v != 0),

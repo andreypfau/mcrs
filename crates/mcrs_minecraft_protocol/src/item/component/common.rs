@@ -76,14 +76,13 @@ registries! {
     DialogReg = "dialog",
 }
 
-/// A value that lives in a registry and may also be written inline.
 pub trait Registered:
     EncodeCtx + for<'a> DecodeCtx<'a> + Serialize + DeserializeOwned + Clone + PartialEq + fmt::Debug
 {
     type Registry: RegistryName;
 }
 
-/// `RegistryCodecs.holder`: a registry id, or the entry itself written inline.
+/// A registry id, or the entry itself written inline.
 pub enum Holder<T: Registered> {
     Reference(ResourceKey<T::Registry>),
     Direct(T),
@@ -210,7 +209,7 @@ impl<'a, T: Registered> DecodeCtx<'a> for HolderWireOnly<T> {
     }
 }
 
-/// `Filterable.codec`: `{raw, filtered?}`, read leniently from a bare value.
+/// `{raw, filtered?}`, read leniently from a bare value.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Filterable<T> {
@@ -393,8 +392,8 @@ resolvable!(
     float_value
 );
 
-/// A number a visitor already holds, replayed through the `Codec.INT` /
-/// `Codec.FLOAT` readers; the flag is the source's `is_human_readable`.
+/// A number a visitor already holds, replayed through the int and float
+/// readers; the flag is the source's `is_human_readable`.
 enum Number {
     I64(i64, bool),
     U64(u64, bool),
@@ -425,13 +424,12 @@ impl<'de> Deserializer<'de> for Number {
     }
 }
 
-/// `ExtraCodecs.UNSIGNED_BYTE`: any number's `intValue()`, low byte kept.
+/// Any number, truncated to an int with the low byte kept.
 pub fn unsigned_byte<'de, D: Deserializer<'de>>(d: D) -> Result<i8, D::Error> {
     int_value(d).map(|v| v as i8)
 }
 
-/// `lenientOptionalFieldOf`: a present-but-malformed value reads as absent,
-/// and so does a JSON `null`, which `JsonOps` reports as no entry at all.
+/// A present-but-malformed value reads as absent, and so does a JSON `null`.
 /// The value is buffered first so a failed parse never leaves a streaming
 /// input half-consumed.
 pub fn lenient<'de, D: Deserializer<'de>, T: DeserializeOwned + Default>(
@@ -441,7 +439,7 @@ pub fn lenient<'de, D: Deserializer<'de>, T: DeserializeOwned + Default>(
     Ok(tag.and_then(|tag| from_tag(tag).ok()).unwrap_or_default())
 }
 
-/// `lenientOptionalFieldOf(Codec.FLOAT)`: only a number reads as a value;
+/// Only a number reads as a value;
 /// anything else present (a JSON boolean or null included) is consumed and
 /// reads as absent.
 pub fn lenient_float<'de, D: Deserializer<'de>>(d: D) -> Result<Option<f32>, D::Error> {
@@ -509,7 +507,7 @@ pub struct MobEffectInstance {
 }
 
 /// `show_icon` is resolved on read (absent means `show_particles`) and always
-/// written, as `MobEffectInstance.Details.MAP_CODEC` does.
+/// written.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(from = "MobEffectDetailsRepr")]
 pub struct MobEffectDetails {
@@ -638,8 +636,8 @@ impl DecodeCtx<'_> for MobEffectDetails {
     }
 }
 
-/// `TypedEntityData.codec`: a compound whose `id` names the type, read from a
-/// compound or an SNBT string; the `id` is lifted out and written back first.
+/// A compound whose `id` names the type, read from a compound or an SNBT
+/// string; the `id` is lifted out and written back first.
 #[derive(Clone, PartialEq)]
 pub struct TypedEntityData<R> {
     pub id: ResourceKey<R>,
@@ -707,8 +705,7 @@ impl<R: RegistryName> DecodeCtx<'_> for TypedEntityData<R> {
     }
 }
 
-/// `CustomData.COMPOUND_TAG_CODEC`: a compound, or on read an SNBT string
-/// that parses to one.
+/// A compound, or on read an SNBT string that parses to one.
 pub fn compound_or_snbt<'de, D: Deserializer<'de>>(d: D) -> Result<NbtCompound, D::Error> {
     struct CompoundVisitor;
 
@@ -750,7 +747,7 @@ macro_rules! ordinal_enum {
             }
         }
 
-        /// Out-of-range ids read as the first variant, `ByIdMap` `ZERO`.
+        /// Out-of-range ids read as the first variant.
         impl Decode<'_> for $name {
             fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
                 let id = VarInt::decode(r)?.0;
@@ -776,14 +773,14 @@ ordinal_enum! {
     ItemUseAnimation { None, Eat, Drink, Block, Bow, Trident, Crossbow, Spyglass, TootHorn, Brush, Bundle, Spear }
 }
 
-/// `ARGB.color` over `as8BitChannel`: each channel floored to eight bits and
-/// masked, so an out-of-range channel never bleeds into its neighbour.
+/// Each channel is floored to eight bits and masked, so an out-of-range
+/// channel never bleeds into its neighbour.
 fn argb_from_floats(a: f32, r: f32, g: f32, b: f32) -> i32 {
     let channel = |v: f32| (v * 255.0).floor() as i32 & 0xFF;
     (channel(a) << 24) | (channel(r) << 16) | (channel(g) << 8) | channel(b)
 }
 
-/// `Codec.INT`, or on read `N` float channels in 0..=1.
+/// An int, or on read `N` float channels in 0..=1.
 macro_rules! color_int {
     ($(#[$meta:meta])* $name:ident, $channels:literal, $from:expr) => {
         $(#[$meta])*
@@ -843,20 +840,20 @@ macro_rules! color_int {
 }
 
 color_int!(
-    /// `ExtraCodecs.RGB_COLOR_CODEC`: an int, or on read `[r, g, b]`.
+    /// An int, or on read `[r, g, b]`.
     RgbInt,
     3,
     |[r, g, b]: [f32; 3]| argb_from_floats(1.0, r, g, b)
 );
 
 color_int!(
-    /// `ExtraCodecs.ARGB_COLOR_CODEC`: an int, or on read `[r, g, b, a]`.
+    /// An int, or on read `[r, g, b, a]`.
     ArgbInt,
     4,
     |[r, g, b, a]: [f32; 4]| argb_from_floats(a, r, g, b)
 );
 
-/// `Codec.string(0, MAX_CHARS)`: bounded in UTF-16 code units.
+/// Bounded in UTF-16 code units.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct BoundedString<const MAX_CHARS: usize>(pub String);
 
@@ -910,8 +907,8 @@ impl<const MAX_CHARS: usize> DecodeCtx<'_> for BoundedString<MAX_CHARS> {
     }
 }
 
-/// `ExtraCodecs.compactListCodec`: one element writes bare, any other count
-/// writes a list; a bare element reads as a one-element list.
+/// One element writes bare, any other count writes a list; a bare element
+/// reads as a one-element list.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompactList<T>(pub Vec<T>);
 
@@ -980,8 +977,8 @@ impl<'a, T: DecodeCtx<'a>> DecodeCtx<'a> for CompactList<T> {
     }
 }
 
-/// `Codec.INT_STREAM` of a fixed length: a plain array in JSON, a
-/// `TAG_Int_Array` in NBT and in the hash.
+/// A fixed-length int array: a plain array in JSON, a `TAG_Int_Array` in NBT
+/// and in the hash.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct IntArray<const N: usize>(pub [i32; N]);
 
@@ -1023,7 +1020,6 @@ impl<'de, const N: usize> Deserialize<'de> for IntArray<N> {
     }
 }
 
-/// `StatePropertiesPredicate` value: an exact value or a `{min, max}` range.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ValueMatcher {
@@ -1064,7 +1060,7 @@ impl DecodeCtx<'_> for ValueMatcher {
     }
 }
 
-/// `MinMaxBounds`: a bare number when both bounds agree, else `{min, max}`.
+/// A bare number when both bounds agree, else `{min, max}`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct MinMaxBounds<T> {
     pub min: Option<T>,
@@ -1082,8 +1078,8 @@ impl<T> MinMaxBounds<T> {
     }
 }
 
-/// A bound read as its `Codec` reads any number, ordered and printed as its
-/// boxed Java type is.
+/// A bound read from any number, ordered and printed as its boxed Java type
+/// is.
 pub trait Bound: Copy + Serialize {
     fn read<'de, D: Deserializer<'de>>(d: D) -> Result<Self, D::Error>;
     fn compare(self, other: Self) -> Ordering;
@@ -1104,8 +1100,8 @@ impl Bound for i32 {
     }
 }
 
-/// `Double.compareTo` and `Double.equals` order `-0.0` below `0.0`, unlike
-/// the primitive operators.
+/// `-0.0` orders below `0.0` and is not equal to it, unlike the primitive
+/// operators.
 impl Bound for f64 {
     fn read<'de, D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         f64::deserialize(d)
@@ -1225,12 +1221,12 @@ impl<'de, T: Bound> Deserialize<'de> for MinMaxBounds<T> {
     }
 }
 
-/// `NbtPredicate`: a compound written as SNBT text, read from either.
+/// A compound written as SNBT text, read from either.
 #[derive(Clone, Debug, Default)]
 pub struct NbtPredicate(pub NbtCompound);
 
-/// `CompoundTag.equals` is map equality at every depth; the SNBT writer
-/// sorts keys, so its text is that comparison.
+/// Equality is map equality at every depth; the SNBT writer sorts keys, so
+/// its text is that comparison.
 impl PartialEq for NbtPredicate {
     fn eq(&self, other: &Self) -> bool {
         mcrs_minecraft_nbt::snbt::write_compound(&self.0)
@@ -1264,7 +1260,7 @@ impl Decode<'_> for NbtPredicate {
     }
 }
 
-/// `MapCodec.unitCodec`: writes `{}` and reads any map, ignoring its fields.
+/// Writes `{}` and reads any map, ignoring its fields.
 pub fn serialize_unit<S: Serializer>(s: S) -> Result<S::Ok, S::Error> {
     s.serialize_map(Some(0))?.end()
 }
@@ -1338,4 +1334,3 @@ macro_rules! unit_component {
     )*};
 }
 pub(crate) use unit_component;
-

@@ -1,7 +1,6 @@
 use crate::Item;
-use crate::component::ToolMaterial;
+use crate::component::{ToolMaterial, common_item_components};
 use mcrs_minecraft_block::tags as block_tags;
-use mcrs_minecraft_protocol::item::ComponentMap;
 use mcrs_minecraft_registry::ItemId;
 use mcrs_minecraft_registry::StaticRegistry;
 use std::sync::LazyLock;
@@ -29,7 +28,7 @@ pub fn register_all_items(registry: &mut StaticRegistry<Item>) {
 pub static TORCH: Item = Item {
     id: ItemId(395),
     identifier: mcrs_minecraft_core::rl!("minecraft:torch"),
-    components: LazyLock::new(ComponentMap::default),
+    components: LazyLock::new(common_item_components),
 };
 
 pub static WOODEN_PICKAXE: Item = Item {
@@ -65,31 +64,31 @@ pub static DIAMOND_PICKAXE: Item = Item {
 pub static IRON_AXE: Item = Item {
     id: ItemId(1048),
     identifier: mcrs_minecraft_core::rl!("minecraft:iron_axe"),
-    components: LazyLock::new(ComponentMap::default),
+    components: LazyLock::new(common_item_components),
 };
 
 pub static ELYTRA: Item = Item {
     id: ItemId(974),
     identifier: mcrs_minecraft_core::rl!("minecraft:elytra"),
-    components: LazyLock::new(ComponentMap::default),
+    components: LazyLock::new(common_item_components),
 };
 
 pub static TRIDENT: Item = Item {
     id: ItemId(1483),
     identifier: mcrs_minecraft_core::rl!("minecraft:trident"),
-    components: LazyLock::new(ComponentMap::default),
+    components: LazyLock::new(common_item_components),
 };
 
 pub static FISHING_ROD: Item = Item {
     id: ItemId(1186),
     identifier: mcrs_minecraft_core::rl!("minecraft:fishing_rod"),
-    components: LazyLock::new(ComponentMap::default),
+    components: LazyLock::new(common_item_components),
 };
 
 pub static NAUTILUS_SHELL: Item = Item {
     id: ItemId(1484),
     identifier: mcrs_minecraft_core::rl!("minecraft:nautilus_shell"),
-    components: LazyLock::new(ComponentMap::default),
+    components: LazyLock::new(common_item_components),
 };
 
 const STATE_TABLE_LEN: usize = 1 << 16;

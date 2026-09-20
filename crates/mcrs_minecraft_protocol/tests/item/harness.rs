@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -115,36 +115,11 @@ pub fn from_json(kind: ItemComponentKind, json: &str) -> ItemComponentValue {
     ItemComponentValue::deserialize_value(kind, &mut d).expect("deserialize_value")
 }
 
-/// A kind whose codec is not implemented answers every read with the same
-/// message; the ledger below names each one, so a kind stays visible until
-/// its batch removes it from the list.
-fn is_stub(kind: ItemComponentKind) -> bool {
-    let mut d = serde_json::Deserializer::from_str("{}");
-    ItemComponentValue::deserialize_value(kind, &mut d)
-        .err()
-        .is_some_and(|e| e.to_string().contains("is not implemented"))
-}
-
-#[test]
-fn stubbed_kinds_are_exactly_the_listed_ones() {
-    let listed: BTreeSet<&str> = include_str!("../fixtures/item/stubbed_kinds.txt")
-        .lines()
-        .filter(|line| !line.is_empty())
-        .collect();
-    let stubbed: BTreeSet<String> = ItemComponentKind::ALL
-        .iter()
-        .filter(|kind| is_stub(**kind))
-        .map(|kind| kind.id().to_string())
-        .collect();
-    let stubbed: BTreeSet<&str> = stubbed.iter().map(String::as_str).collect();
-    assert_eq!(stubbed, listed);
-}
-
 pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>() {
     let lookup = TestLookup::new();
     let samples = T::samples();
     assert!(
-        !samples.is_empty() || is_stub(T::KIND),
+        !samples.is_empty(),
         "{} is implemented but has no samples",
         T::KIND.id()
     );

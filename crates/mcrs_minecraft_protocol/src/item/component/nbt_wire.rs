@@ -17,7 +17,7 @@ use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free, decode_nbt_wire, encode_n
 use crate::item::harness::Sample;
 use crate::{Decode, Encode};
 
-/// `CustomData.CODEC`: the compound as is; an SNBT string reads as one too.
+/// The compound as is; an SNBT string reads as one too.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Encode, Decode)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 #[serde(transparent)]
@@ -202,11 +202,10 @@ fn is_zero(seed: &i64) -> bool {
     *seed == 0
 }
 
-/// `Codec.LONG`: any number's `longValue()`. A fraction is dropped; a value
-/// beyond the long range wraps from JSON and saturates from NBT
-/// (`Double.longValue`). Vanilla wraps the exact decimal text
-/// (`BigDecimal.longValue`), while serde hands over the parsed double, so a
-/// text no double holds exactly (`1e40`) wraps to a different value.
+/// Any number reads as a long: a fraction is dropped; a value beyond the long
+/// range wraps from JSON and saturates from NBT. Vanilla wraps the exact
+/// decimal text, while serde hands over the parsed double, so a text no double
+/// holds exactly (`1e40`) wraps to a different value.
 fn long_value<'de, D: Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
     struct LongValue {
         wrap_floats: bool,

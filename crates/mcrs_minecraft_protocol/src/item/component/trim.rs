@@ -37,8 +37,7 @@ impl DecodeCtx<'_> for TrimMaterial {
     }
 }
 
-/// `decal` is `optionalAlwaysPresentFieldOf`: absent reads as false, always
-/// written.
+/// `decal`: absent reads as false, always written.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TrimPattern {

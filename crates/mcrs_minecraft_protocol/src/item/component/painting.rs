@@ -49,8 +49,8 @@ impl DecodeCtx<'_> for PaintingVariantValue {
     }
 }
 
-/// The persistent form is the registry id alone (`RegistryFixedCodec`); the
-/// wire form carries the variant inline.
+/// The persistent form is the registry id alone; the wire form carries the
+/// variant inline.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PaintingVariant(pub HolderWireOnly<PaintingVariantValue>);

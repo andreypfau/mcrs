@@ -221,7 +221,6 @@ macro_rules! data_components {
                 }
             }
 
-            /// The payload alone, without the kind prefix.
             pub fn encode_ctx_value(
                 &self,
                 ctx: &dyn RegistryLookup,

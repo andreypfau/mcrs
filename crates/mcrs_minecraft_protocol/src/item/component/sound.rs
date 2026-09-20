@@ -9,7 +9,6 @@ use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
 use crate::{Decode, Encode};
 
-/// `SoundEvent.DIRECT_CODEC`; the wire form is `DIRECT_STREAM_CODEC`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SoundEvent {

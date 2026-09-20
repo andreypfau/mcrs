@@ -580,7 +580,8 @@ fn vanilla_json_edge_cases() {
         "https://exämple.com/",
         "http:foo",
     ] {
-        let input = format!(r#"{{"text":"x","click_event":{{"action":"open_url","url":"{url}"}}}}"#);
+        let input =
+            format!(r#"{{"text":"x","click_event":{{"action":"open_url","url":"{url}"}}}}"#);
         Text::from_str(&input).unwrap_or_else(|e| panic!("{url}: {e}"));
     }
     for (input, message) in [
@@ -613,19 +614,47 @@ fn vanilla_json_edge_cases() {
         assert!(err.contains(message), "{input}: {err}");
     }
     for (url, message) in [
-        ("https://ex ample.com/", "Illegal character in authority at index 10"),
-        ("https://example.com/ä%zz", "Malformed escape pair at index 21"),
-        ("HTTPS://Example.com/%zz", "Malformed escape pair at index 20"),
-        ("https://example.com/a%", "Malformed escape pair at index 21"),
-        ("https://example.com/a#b#c", "Illegal character in fragment at index 23"),
-        ("https://example.com/a[b]", "Illegal character in path at index 21"),
+        (
+            "https://ex ample.com/",
+            "Illegal character in authority at index 10",
+        ),
+        (
+            "https://example.com/ä%zz",
+            "Malformed escape pair at index 21",
+        ),
+        (
+            "HTTPS://Example.com/%zz",
+            "Malformed escape pair at index 20",
+        ),
+        (
+            "https://example.com/a%",
+            "Malformed escape pair at index 21",
+        ),
+        (
+            "https://example.com/a#b#c",
+            "Illegal character in fragment at index 23",
+        ),
+        (
+            "https://example.com/a[b]",
+            "Illegal character in path at index 21",
+        ),
         ("https:", "Expected scheme-specific part at index 6"),
-        ("https://example.com/a%2", "Malformed escape pair at index 21"),
-        ("ftp://example.com", "Unsupported protocol in URI: ftp://example.com"),
+        (
+            "https://example.com/a%2",
+            "Malformed escape pair at index 21",
+        ),
+        (
+            "ftp://example.com",
+            "Unsupported protocol in URI: ftp://example.com",
+        ),
         ("example.com", "Missing protocol in URI: example.com"),
-        ("https://example.com/a b", "Illegal character in path at index 21"),
+        (
+            "https://example.com/a b",
+            "Illegal character in path at index 21",
+        ),
     ] {
-        let input = format!(r#"{{"text":"x","click_event":{{"action":"open_url","url":"{url}"}}}}"#);
+        let input =
+            format!(r#"{{"text":"x","click_event":{{"action":"open_url","url":"{url}"}}}}"#);
         let err = Text::from_str(&input).unwrap_err().to_string();
         assert!(err.contains(message), "{url}: {err}");
     }

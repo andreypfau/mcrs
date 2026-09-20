@@ -1,6 +1,3 @@
-//! Values produced by the vanilla 26.3-snapshot-10 classes: `DataComponentPatch`,
-//! `HashedPatchMap`, `ItemStackTemplate` and `HashOps.CRC32C_INSTANCE`.
-
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -207,8 +204,7 @@ fn errors_read_like_vanilla() {
     );
 }
 
-/// `MobEffectInstance.CODEC` through `JsonOps`, `NbtOps` and
-/// `HashOps.CRC32C_INSTANCE`: `show_icon` is always written.
+/// `show_icon` is always written.
 #[test]
 fn a_mob_effect_instance_matches_vanilla_with_show_icon_resolved() {
     use mcrs_minecraft_protocol::item::MobEffectInstance;

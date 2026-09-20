@@ -19,8 +19,7 @@ use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
 use crate::{Decode, Encode, VarInt};
 
-/// `RegistryFixedCodec` / `ByteBufCodecs.holderRegistry`: an id string, one
-/// raw VarInt on the wire, never inline.
+/// An id string, one raw VarInt on the wire, never inline.
 macro_rules! registry_key_component {
     ($($ty:ident($registry:ident) [$($sample:literal),+]),* $(,)?) => {$(
         #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -73,7 +72,7 @@ registry_key_component! {
     BlockTransformerRef(BlockTransformerReg) ["axe", "shovel"],
 }
 
-/// `optionalFieldOf` with a default: JSON's `null` reads as an absent field.
+/// JSON's `null` reads as an absent field.
 macro_rules! null_as_default {
     ($($name:ident: $ty:ty = $default:expr;)*) => {$(
         fn $name<'de, D: serde::Deserializer<'de>>(d: D) -> Result<$ty, D::Error> {
@@ -83,14 +82,14 @@ macro_rules! null_as_default {
 }
 pub(crate) use null_as_default;
 
-/// `ItemEnchantments.CODEC`: a map of enchantment id to level in 1..=255,
-/// kept in read order because vanilla's own order is hash order.
+/// Enchantment id to level in 1..=255, kept in read order because vanilla's
+/// own order is hash order.
 #[derive(Clone, Debug, Eq, Default)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Enchantments(pub Vec<(ResourceKey<EnchantmentReg>, i32)>);
 
 impl Enchantments {
-    /// `ItemEnchantments.getLevel`: zero when absent.
+    /// Zero when absent.
     pub fn level(&self, enchantment: &ResourceLocation) -> i32 {
         self.0
             .iter()
@@ -644,9 +643,8 @@ fn is_default_stew_duration(duration: &i32) -> bool {
     *duration == DEFAULT_STEW_DURATION
 }
 
-/// `Codec.INT.lenientOptionalFieldOf`: anything that is not a number reads as
-/// the default. Sequences and maps are drained so a streaming input is left at
-/// the next field.
+/// Anything that is not a number reads as the default. Sequences and maps are
+/// drained so a streaming input is left at the next field.
 fn lenient_duration<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
     struct LenientDuration {
         human_readable: bool,

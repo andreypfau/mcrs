@@ -385,7 +385,6 @@ impl<'de> Deserialize<'de> for TranslateArg {
     }
 }
 
-/// `ExtraCodecs.nonEmptyList`.
 fn non_empty<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Vec<T>, D::Error> {
     let list = Vec::deserialize(d)?;
     if list.is_empty() {
@@ -478,8 +477,8 @@ pub enum TextContent {
     },
 }
 
-/// `ComponentSerialization.StrictEither`: a present `type` admits only the
-/// codec it names, otherwise the first codec that accepts the map wins.
+/// A present `type` admits only the codec it names, otherwise the first codec
+/// that accepts the map wins.
 impl<'de> Deserialize<'de> for TextContent {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
@@ -598,9 +597,7 @@ impl<'de> Deserialize<'de> for TextContent {
                         source,
                     } = from_tag(tag()).map_err(E::custom)?;
                     if interpret && plain {
-                        return Err(E::custom(
-                            "'interpret' and 'plain' flags can't be both on",
-                        ));
+                        return Err(E::custom("'interpret' and 'plain' flags can't be both on"));
                     }
                     TextContent::Nbt {
                         typed: (),
@@ -767,7 +764,7 @@ pub enum ClickEvent {
     },
 }
 
-/// `Dialog.CODEC`: a registry id, or the dialog written inline.
+/// A registry id, or the dialog written inline.
 // ponytail: an inline dialog is carried as its compound and not validated; give it the typed
 // dialog codecs once they live below the protocol crate.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -878,8 +875,7 @@ impl<'de> Deserialize<'de> for ClickEvent {
     }
 }
 
-/// `ExtraCodecs.POSITIVE_INT` over `Codec.INT`, which takes any number's
-/// `intValue()`.
+/// Any number is accepted and truncated to an int before the bound check.
 fn positive_int<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
     let value = int_value(d)?;
     if value < 1 {
@@ -890,7 +886,6 @@ fn positive_int<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
     Ok(value)
 }
 
-/// `ExtraCodecs.CHAT_STRING`.
 fn chat_string<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     let value = String::deserialize(d)?;
     if let Some(c) = value.chars().find(|&c| c == '§' || c < ' ' || c == '\x7f') {
@@ -901,8 +896,7 @@ fn chat_string<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     Ok(value)
 }
 
-/// `ExtraCodecs.UNTRUSTED_URI`: a `java.net.URI` whose scheme is http or
-/// https, kept as written.
+/// A URI whose scheme is http or https, kept as written.
 fn untrusted_uri<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     let value = String::deserialize(d)?;
     let scheme = java_uri::scheme(&value).map_err(de::Error::custom)?;
@@ -1113,7 +1107,7 @@ impl<'de> Deserialize<'de> for HoverEvent {
     }
 }
 
-/// `UUIDUtil.LENIENT_CODEC`: four ints, or on read the hyphenated string.
+/// Four ints, or on read the hyphenated string.
 mod lenient_uuid {
     use super::*;
 
@@ -1128,8 +1122,7 @@ mod lenient_uuid {
         .serialize(s)
     }
 
-    /// `UUID.fromString`: five hex groups of any length, each masked to its
-    /// width.
+    /// Five hex groups of any length, each masked to its width.
     fn from_string(v: &str) -> Result<Uuid, String> {
         if v.len() > 36 {
             return Err("UUID string too large".to_owned());
@@ -1139,10 +1132,10 @@ mod lenient_uuid {
             return Err(format!("Invalid UUID string: {v}"));
         };
         let hex = |group: &str| {
-            i64::from_str_radix(group, 16)
-                .map_err(|_| format!("For input string: \"{group}\""))
+            i64::from_str_radix(group, 16).map_err(|_| format!("For input string: \"{group}\""))
         };
-        let most = ((hex(a)? & 0xffff_ffff) << 32) | ((hex(b)? & 0xffff) << 16) | (hex(c)? & 0xffff);
+        let most =
+            ((hex(a)? & 0xffff_ffff) << 32) | ((hex(b)? & 0xffff) << 16) | (hex(c)? & 0xffff);
         let least = ((hex(d)? & 0xffff) << 48) | (hex(e)? & 0xffff_ffff_ffff);
         Ok(Uuid::from_u64_pair(most as u64, least as u64))
     }

@@ -10,7 +10,6 @@ use crate::item::ctx::ctx_free;
 use crate::item::harness::Sample;
 use crate::{Decode, Encode};
 
-/// `BlockPos.CODEC`: `[x, y, z]`.
 mod pos {
     use super::*;
 

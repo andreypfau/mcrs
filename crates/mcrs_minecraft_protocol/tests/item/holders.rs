@@ -1,7 +1,3 @@
-//! Values produced by the vanilla 26.3-snapshot-10 codecs for the kinds that
-//! carry a holder or a consume effect, with the registry ids the vanilla
-//! buffer resolved them against.
-
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::ResourceLocation;

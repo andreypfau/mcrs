@@ -3,11 +3,33 @@ use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{HolderSet, ResourceKey};
 use mcrs_minecraft_protocol::item::{
-    BlockReg, ComponentMap, Damage, Enchantable, MaxDamage, MaxStackSize, Tool, ToolRule,
+    AttackAnimation, AttributeModifiers, BlockReg, BreakSound, ComponentMap, Damage, Enchantable,
+    Enchantments, Holder, InteractAnimation, Lore, MaxDamage, MaxStackSize, Rarity, RepairCost,
+    SwingAnimation, Tool, ToolRule, TooltipDisplay, UseEffects,
 };
+
+pub fn common_item_components() -> ComponentMap {
+    ComponentMap(vec![
+        MaxStackSize::default().into(),
+        Lore::default().into(),
+        Enchantments::default().into(),
+        RepairCost(Bounded(0)).into(),
+        UseEffects::default().into(),
+        AttributeModifiers::default().into(),
+        Rarity::Common.into(),
+        BreakSound(Holder::reference(ResourceLocation::minecraft(
+            "entity.item.break",
+        )))
+        .into(),
+        TooltipDisplay::default().into(),
+        AttackAnimation(SwingAnimation::default()).into(),
+        InteractAnimation(SwingAnimation::default()).into(),
+    ])
+}
 
 pub struct ToolMaterial {
     incorrect_blocks_for_drops: TagKey<Block>,
@@ -62,14 +84,17 @@ impl ToolMaterial {
 
     pub fn tool(&self, mines_efficiently: TagKey<Block>) -> ComponentMap {
         let tag = |key: TagKey<Block>| HolderSet::Tag(key.resource_location_arc());
-        ComponentMap(vec![
-            MaxStackSize(Bounded(1)).into(),
-            MaxDamage(Bounded(self.durability)).into(),
-            Damage(Bounded(0)).into(),
+        let mut map = common_item_components();
+        map.set_value(MaxStackSize(Bounded(1)).into());
+        map.set_value(MaxDamage(Bounded(self.durability)).into());
+        map.set_value(Damage(Bounded(0)).into());
+        map.set_value(
             Enchantable {
                 value: Bounded(self.enchantment_value),
             }
             .into(),
+        );
+        map.set_value(
             Tool {
                 rules: vec![
                     ToolRule {
@@ -86,7 +111,8 @@ impl ToolMaterial {
                 ..Tool::default()
             }
             .into(),
-        ])
+        );
+        map
     }
 }
 
@@ -129,5 +155,54 @@ fn contains(
             .index_of(block)
             .is_some_and(|id| tags.contains(&TagKey::<Block, _>::from_location(tag.clone()), id)),
         _ => set.entries().iter().any(|key| key.as_str() == block),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_protocol::item::{ComponentPatch, SwingAnimationKind};
+
+    #[test]
+    fn common_item_components_match_vanilla() {
+        let map = common_item_components();
+        assert_eq!(map.0.len(), 11);
+        assert_eq!(map.get::<MaxStackSize>(), Some(&MaxStackSize(Bounded(64))));
+        assert_eq!(map.get::<Lore>().unwrap().lines(), &Vec::new());
+        assert_eq!(map.get::<Enchantments>(), Some(&Enchantments(vec![])));
+        assert_eq!(map.get::<RepairCost>(), Some(&RepairCost(Bounded(0))));
+        assert_eq!(
+            map.get::<UseEffects>(),
+            Some(&UseEffects {
+                can_sprint: false,
+                interact_vibrations: true,
+                speed_multiplier: 0.2,
+            })
+        );
+        assert_eq!(
+            map.get::<AttributeModifiers>(),
+            Some(&AttributeModifiers(vec![]))
+        );
+        assert_eq!(map.get::<Rarity>(), Some(&Rarity::Common));
+        assert_eq!(
+            map.get::<BreakSound>(),
+            Some(&BreakSound(Holder::reference(ResourceLocation::minecraft(
+                "entity.item.break"
+            ))))
+        );
+        assert_eq!(
+            map.get::<TooltipDisplay>(),
+            Some(&TooltipDisplay::new(false, vec![]))
+        );
+        let whack = SwingAnimation {
+            kind: SwingAnimationKind::Whack,
+            duration: Bounded(6),
+        };
+        assert_eq!(map.get::<AttackAnimation>(), Some(&AttackAnimation(whack)));
+        assert_eq!(
+            map.get::<InteractAnimation>(),
+            Some(&InteractAnimation(whack))
+        );
+        assert_eq!(map.diff(&map), ComponentPatch::EMPTY);
     }
 }

@@ -30,8 +30,7 @@ fn java_float(value: f32) -> String {
     }
 }
 
-/// `ExtraCodecs.POSITIVE_FLOAT`; `Float.compareTo` order, so `-0.0` and NaN
-/// are out of range.
+/// `-0.0` and NaN are out of range.
 pub(crate) fn positive_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
     let value = float_value(d)?;
     if value.total_cmp(&0.0) != Ordering::Greater || value.total_cmp(&f32::MAX) == Ordering::Greater
@@ -44,7 +43,6 @@ pub(crate) fn positive_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::
     Ok(value)
 }
 
-/// `ExtraCodecs.NON_NEGATIVE_FLOAT`.
 pub(crate) fn non_negative_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
     let value = float_value(d)?;
     if value.total_cmp(&0.0) == Ordering::Less || value.total_cmp(&f32::MAX) == Ordering::Greater {
@@ -56,7 +54,7 @@ pub(crate) fn non_negative_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32,
     Ok(value)
 }
 
-/// `ExtraCodecs.NON_NEGATIVE_INT`: the core alias's bound, in vanilla's words.
+/// The core alias's bound, with vanilla's error wording.
 pub(crate) fn non_negative_int<'de, D: Deserializer<'de>>(
     d: D,
 ) -> Result<NonNegativeInt, D::Error> {
@@ -69,7 +67,6 @@ pub(crate) fn non_negative_int<'de, D: Deserializer<'de>>(
     Ok(codec::Bounded(value))
 }
 
-/// `Codec.floatRange(0, 1)`.
 fn unit_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
     let value = float_value(d)?;
     if value.total_cmp(&0.0) == Ordering::Less || value.total_cmp(&1.0) == Ordering::Greater {
@@ -81,7 +78,7 @@ fn unit_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
     Ok(value)
 }
 
-/// `optionalFieldOf` omits with `Float.equals`, which compares bits.
+/// The default is compared by bits, so `-0.0` is still written.
 macro_rules! float_default {
     ($($default:ident / $is:ident = $value:literal),* $(,)?) => {$(
         pub(crate) fn $default() -> f32 {

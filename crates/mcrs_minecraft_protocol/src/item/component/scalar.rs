@@ -134,7 +134,6 @@ var_int_record! {
     VillagerFood { nutrition: PositiveInt },
 }
 
-/// `Codec.INT`: any number's `intValue()`; the wire is a VarInt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct MapId(#[serde(deserialize_with = "int_value")] pub i32);
@@ -187,8 +186,8 @@ pub struct DyedColor(pub RgbInt);
 
 ctx_free!(DyedColor);
 
-/// `Codec.FLOAT.validate` over `Float.compareTo`, which orders `-0.0` below
-/// `0.0` and `NaN` above everything, unlike `PartialOrd`.
+/// Bounds order `-0.0` below `0.0` and `NaN` above everything, unlike
+/// `PartialOrd`.
 fn float_in_range(
     value: f32,
     min: f32,
@@ -238,9 +237,7 @@ macro_rules! float_newtype {
 }
 
 float_newtype! {
-    /// `ExtraCodecs.floatRange(0, 1)`.
     MinimumAttackCharge [0.0, 1.0] |n| format!("Value must be within range [0.0;1.0]: {n:?}"),
-    /// `ExtraCodecs.NON_NEGATIVE_FLOAT`.
     PotionDurationScale [0.0, f32::MAX] |n| format!("Value must be non-negative: {n:?}"),
 }
 
