@@ -136,10 +136,10 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
         r#"[{"slot":3,"item":"minecraft:apple"},{"slot":0,"item":{"id":"minecraft:stone","count":64}},{"slot":3,"item":{"id":"minecraft:diamond_sword","count":3,"components":{"max_stack_size":16,"damage":7,"custom_name":"named","unbreakable":{},"!repair_cost":{}}}}]"#,
     )
     .unwrap();
-    assert_eq!(sparse.0.len(), 4);
-    assert!(sparse.0[1].is_none() && sparse.0[2].is_none());
+    assert_eq!(sparse.slots().len(), 4);
+    assert!(sparse.slots()[1].is_none() && sparse.slots()[2].is_none());
     assert_eq!(
-        sparse.0[3].as_ref().map(|t| t.0.item.as_str()),
+        sparse.slots()[3].as_ref().map(|t| t.0.item.as_str()),
         Some("minecraft:diamond_sword")
     );
     let case = golden
@@ -156,8 +156,8 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     let ItemComponentValue::Container(trailing) = trailing else {
         panic!("not a container");
     };
-    assert_eq!(trailing.0.len(), 2);
-    assert!(trailing.0[1].is_none());
+    assert_eq!(trailing.slots().len(), 2);
+    assert!(trailing.slots()[1].is_none());
     assert_eq!(
         serde_json::to_string(&trailing).unwrap(),
         r#"[{"slot":0,"item":{"id":"minecraft:stone"}}]"#
@@ -200,6 +200,21 @@ fn errors_read_like_vanilla() {
             .to_string()
             .starts_with("List is too long: 257, expected range [0-256]"),
         "{too_long}"
+    );
+    let mut entries = entries;
+    entries[5] = r#"{"slot":300,"item":"minecraft:stone"}"#.into();
+    let too_long_with_bad_entry =
+        serde_json::from_str::<Container>(&format!("[{}]", entries.join(","))).unwrap_err();
+    assert!(
+        too_long_with_bad_entry
+            .to_string()
+            .starts_with("List is too long: 257, expected range [0-256]"),
+        "{too_long_with_bad_entry}"
+    );
+    let too_many_slots = Container::new(vec![None; 257]).unwrap_err();
+    assert_eq!(
+        too_many_slots.to_string(),
+        "Got 257 items, but maximum is 256"
     );
 
     let arrows = vec![r#""minecraft:arrow""#; 1025].join(",");

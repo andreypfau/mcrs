@@ -6,7 +6,7 @@ use mcrs_minecraft_core::codec::{self, int_value};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registry::RegistryLookup;
-use serde::de::{Error as _, SeqAccess, Visitor};
+use serde::de::{Error as _, IgnoredAny, SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -156,7 +156,26 @@ pub const MAX_CONTAINER_SLOTS: usize = 256;
 /// `ItemContainerContents`: dense by slot index; the persistent form lists
 /// only the occupied slots, so trailing empty slots do not survive a save.
 #[derive(Clone, Debug, PartialEq, Default)]
-pub struct Container(pub Vec<Option<Template>>);
+pub struct Container {
+    slots: Bounded<Vec<Option<Template>>, MAX_CONTAINER_SLOTS>,
+}
+
+impl Container {
+    pub fn new(slots: Vec<Option<Template>>) -> anyhow::Result<Self> {
+        ensure!(
+            slots.len() <= MAX_CONTAINER_SLOTS,
+            "Got {} items, but maximum is {MAX_CONTAINER_SLOTS}",
+            slots.len()
+        );
+        Ok(Self {
+            slots: Bounded(slots),
+        })
+    }
+
+    pub fn slots(&self) -> &[Option<Template>] {
+        &self.slots.0
+    }
+}
 
 #[derive(Serialize)]
 struct SlotEntryRef<'a> {
@@ -167,26 +186,15 @@ struct SlotEntryRef<'a> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SlotEntry {
-    #[serde(deserialize_with = "slot_index")]
+    #[serde(deserialize_with = "int_value")]
     slot: i32,
     item: Template,
-}
-
-fn slot_index<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
-    let slot = int_value(d)?;
-    if !(0..MAX_CONTAINER_SLOTS as i32).contains(&slot) {
-        return Err(D::Error::custom(format_args!(
-            "Value {slot} outside of range [0:{}]",
-            MAX_CONTAINER_SLOTS - 1
-        )));
-    }
-    Ok(slot)
 }
 
 impl Serialize for Container {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let occupied: Vec<SlotEntryRef> = self
-            .0
+            .slots()
             .iter()
             .enumerate()
             .filter_map(|(slot, item)| {
@@ -219,23 +227,36 @@ impl<'de> Deserialize<'de> for Container {
                 let mut entries: Vec<SlotEntry> = Vec::new();
                 while let Some(entry) = seq.next_element()? {
                     entries.push(entry);
+                    if entries.len() == MAX_CONTAINER_SLOTS {
+                        let mut total = entries.len();
+                        while seq.next_element::<IgnoredAny>()?.is_some() {
+                            total += 1;
+                        }
+                        if total > MAX_CONTAINER_SLOTS {
+                            return Err(A::Error::custom(format_args!(
+                                "List is too long: {total}, expected range [0-{MAX_CONTAINER_SLOTS}]"
+                            )));
+                        }
+                    }
                 }
-                if entries.len() > MAX_CONTAINER_SLOTS {
-                    return Err(A::Error::custom(format_args!(
-                        "List is too long: {}, expected range [0-{MAX_CONTAINER_SLOTS}]",
-                        entries.len()
-                    )));
-                }
-                let len = entries
-                    .iter()
-                    .map(|entry| entry.slot as usize + 1)
-                    .max()
-                    .unwrap_or(0);
-                let mut slots = vec![None; len];
+                let mut slots = Vec::new();
                 for entry in entries {
-                    slots[entry.slot as usize] = Some(entry.item);
+                    let slot = usize::try_from(entry.slot)
+                        .ok()
+                        .filter(|slot| *slot < MAX_CONTAINER_SLOTS)
+                        .ok_or_else(|| {
+                            A::Error::custom(format_args!(
+                                "Value {} outside of range [0:{}]",
+                                entry.slot,
+                                MAX_CONTAINER_SLOTS - 1
+                            ))
+                        })?;
+                    if slots.len() <= slot {
+                        slots.resize(slot + 1, None);
+                    }
+                    slots[slot] = Some(entry.item);
                 }
-                Ok(Container(slots))
+                Container::new(slots).map_err(A::Error::custom)
             }
         }
 
@@ -245,19 +266,15 @@ impl<'de> Deserialize<'de> for Container {
 
 impl EncodeCtx for Container {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        ensure!(
-            self.0.len() <= MAX_CONTAINER_SLOTS,
-            "list of {} entries exceeds the maximum of {MAX_CONTAINER_SLOTS}",
-            self.0.len()
-        );
-        self.0.encode_ctx(ctx, w)
+        self.slots.encode_ctx(ctx, w)
     }
 }
 
 impl<'a> DecodeCtx<'a> for Container {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Bounded::<Vec<Option<Template>>, MAX_CONTAINER_SLOTS>::decode_ctx(ctx, r)
-            .map(|slots| Container(slots.0))
+        Ok(Self {
+            slots: Bounded::decode_ctx(ctx, r)?,
+        })
     }
 }
 
@@ -390,13 +407,14 @@ impl Sample for Container {
     fn samples() -> Vec<Self> {
         vec![
             Container::default(),
-            Container(vec![Some(plain("stone", 1))]),
-            Container(vec![
+            Container::new(vec![Some(plain("stone", 1))]).unwrap(),
+            Container::new(vec![
                 Some(plain("stone", 64)),
                 None,
                 None,
                 Some(patched_sword()),
-            ]),
+            ])
+            .unwrap(),
         ]
     }
 }
