@@ -124,6 +124,14 @@ impl PropertyValue {
             PropertyValue::Bool(value) => text == if *value { "true" } else { "false" },
         }
     }
+
+    pub fn to_text(&self) -> String {
+        match self {
+            PropertyValue::Str(value) => value.to_string(),
+            PropertyValue::Int(value) => value.to_string(),
+            PropertyValue::Bool(value) => value.to_string(),
+        }
+    }
 }
 
 impl fmt::Display for PropertyValue {

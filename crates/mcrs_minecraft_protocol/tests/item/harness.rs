@@ -14,6 +14,14 @@ use mcrs_minecraft_registry::RegistryLookup;
 pub struct TestLookup {
     by_name: HashMap<&'static str, HashMap<ResourceLocation, u32>>,
     by_id: HashMap<&'static str, Vec<Option<ResourceLocation>>>,
+    block_states: Vec<TestBlockState>,
+}
+
+struct TestBlockState {
+    id: u32,
+    block: ResourceLocation,
+    properties: Vec<(String, String)>,
+    default: bool,
 }
 
 impl TestLookup {
@@ -21,6 +29,7 @@ impl TestLookup {
         let mut lookup = TestLookup {
             by_name: HashMap::new(),
             by_id: HashMap::new(),
+            block_states: Vec::new(),
         };
         lookup.registry(
             "item",
@@ -91,6 +100,32 @@ impl TestLookup {
         self.by_name.insert(name, by_name);
         self.by_id.insert(name, by_id);
     }
+
+    pub fn block_state(&mut self, id: u32, block: &str, properties: &[(&str, &str)]) {
+        self.add_block_state(id, block, properties, false);
+    }
+
+    pub fn default_block_state(&mut self, id: u32, block: &str, properties: &[(&str, &str)]) {
+        self.add_block_state(id, block, properties, true);
+    }
+
+    fn add_block_state(
+        &mut self,
+        id: u32,
+        block: &str,
+        properties: &[(&str, &str)],
+        default: bool,
+    ) {
+        self.block_states.push(TestBlockState {
+            id,
+            block: ResourceLocation::minecraft(block),
+            properties: properties
+                .iter()
+                .map(|(name, value)| (name.to_string(), value.to_string()))
+                .collect(),
+            default,
+        });
+    }
 }
 
 impl RegistryLookup for TestLookup {
@@ -100,6 +135,50 @@ impl RegistryLookup for TestLookup {
 
     fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
         self.by_id.get(registry)?.get(id as usize)?.as_ref()
+    }
+
+    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u32> {
+        let states: Vec<&TestBlockState> = self
+            .block_states
+            .iter()
+            .filter(|state| &state.block == block)
+            .collect();
+        let default = states.iter().find(|state| state.default)?;
+        let wanted: Vec<(&str, &str)> = default
+            .properties
+            .iter()
+            .map(|(name, value)| {
+                let given = properties
+                    .iter()
+                    .find(|(k, v)| {
+                        k == name
+                            && states
+                                .iter()
+                                .any(|s| s.properties.contains(&(k.to_string(), v.to_string())))
+                    })
+                    .map(|(_, v)| *v);
+                (name.as_str(), given.unwrap_or(value.as_str()))
+            })
+            .collect();
+        states
+            .iter()
+            .find(|state| {
+                state
+                    .properties
+                    .iter()
+                    .all(|(k, v)| wanted.contains(&(k.as_str(), v.as_str())))
+            })
+            .map(|state| state.id)
+    }
+
+    fn block_state(&self, id: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+        let state = self.block_states.iter().find(|state| state.id == id)?;
+        let properties = if state.default {
+            Vec::new()
+        } else {
+            state.properties.clone()
+        };
+        Some((state.block.clone(), properties))
     }
 }
 

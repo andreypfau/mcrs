@@ -330,6 +330,14 @@ impl RegistryLookup for Opaque {
     fn name(&self, _: &str, _: u32) -> Option<&ResourceLocation> {
         Some(&UNRESOLVED)
     }
+
+    fn block_state_id(&self, _: &ResourceLocation, _: &[(&str, &str)]) -> Option<u32> {
+        Some(0)
+    }
+
+    fn block_state(&self, _: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+        Some((UNRESOLVED.clone(), Vec::new()))
+    }
 }
 
 /// The exact bytes of one registry-dependent value, kept so a packet can

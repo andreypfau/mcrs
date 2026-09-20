@@ -232,6 +232,7 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
     /// occurrence, swap_remove when a count reaches zero), so serialized output
     /// is bit-identical. Palette index lookups are memoized across the box,
     /// avoiding the per-block reverse-index hashing of repeated `set` calls.
+    #[allow(clippy::too_many_arguments)]
     pub fn fill_box(
         &mut self,
         x0: usize,
@@ -259,8 +260,8 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                 }
                 let mut cube = Box::new([[[original; DIM]; DIM]; DIM]);
                 for y in y0..y1 {
-                    for z in z0..z1 {
-                        cube[y][z][x0..x1].fill(value);
+                    for row in &mut cube[y][z0..z1] {
+                        row[x0..x1].fill(value);
                     }
                 }
                 *self = Self::from_split_cube(
