@@ -1,0 +1,354 @@
+[
+ {
+  "kind": "can_place_on",
+  "input": "{}",
+  "json": {},
+  "hash": -982207288,
+  "wire": "010000000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_place_on",
+  "input": "{\"blocks\":\"minecraft:stone\"}",
+  "json": {
+   "blocks": "minecraft:stone"
+  },
+  "hash": -1161294463,
+  "wire": "0101020100000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_place_on",
+  "input": "[{\"blocks\":\"minecraft:stone\"}]",
+  "json": {
+   "blocks": "minecraft:stone"
+  },
+  "hash": -1161294463,
+  "wire": "0101020100000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"blocks\":[\"minecraft:stone\"]}",
+  "json": {
+   "blocks": "minecraft:stone"
+  },
+  "hash": -1161294463,
+  "wire": "0101020100000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "[{\"blocks\":\"minecraft:dirt\",\"state\":{\"lit\":\"true\"}},{\"blocks\":[\"minecraft:stone\",\"minecraft:dirt\"]}]",
+  "json": [
+   {
+    "blocks": "minecraft:dirt",
+    "state": {
+     "lit": "true"
+    }
+   },
+   {
+    "blocks": [
+     "minecraft:stone",
+     "minecraft:dirt"
+    ]
+   }
+  ],
+  "hash": -462335748,
+  "wire": "020102090101036c69740104747275650000000103010900000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"state\":{\"lit\":\"true\"},\"nbt\":{\"b\":2}}",
+  "json": {
+   "state": {
+    "lit": "true"
+   },
+   "nbt": "{b:2b}"
+  },
+  "hash": -834756607,
+  "wire": "01000101036c6974010474727565010a0100016202000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"state\":{\"open\":{\"max\":\"false\"}}}",
+  "json": {
+   "state": {
+    "open": {
+     "max": "false"
+    }
+   }
+  },
+  "hash": 1108786755,
+  "wire": "01000101046f70656e0000010566616c7365000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"components\":{\"minecraft:custom_name\":\"named\",\"minecraft:unbreakable\":{}}}",
+  "json": {
+   "components": {
+    "minecraft:custom_name": "named",
+    "minecraft:unbreakable": {}
+   }
+  },
+  "hash": 1390568536,
+  "wire": "0100000002060800056e616d65640400",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:villager/variant\":[\"minecraft:plains\",\"minecraft:desert\"]}}",
+  "json": {
+   "predicates": {
+    "minecraft:villager/variant": [
+     "minecraft:plains",
+     "minecraft:desert"
+    ]
+   }
+  },
+  "hash": 456988224,
+  "wire": "010000000001010e09080000000200106d696e6563726166743a706c61696e7300106d696e6563726166743a646573657274",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:creative_slot_lock\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:creative_slot_lock": {}
+   }
+  },
+  "hash": 377711726,
+  "wire": "01000000000100140a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"predicates\":{\"minecraft:max_stack_size\":{\"ignored\":1}}}",
+  "json": {
+   "predicates": {
+    "minecraft:max_stack_size": {}
+   }
+  },
+  "hash": 706037523,
+  "wire": "01000000000100010a00",
+  "ordered": true
+ },
+ {
+  "kind": "can_place_on",
+  "input": "[{\"blocks\":[\"minecraft:stone\",\"minecraft:dirt\"],\"state\":{\"age\":{\"min\":\"1\",\"max\":\"3\"}},\"nbt\":\"{a:1b,name:\\\"x\\\"}\",\"components\":{\"minecraft:max_stack_size\":16,\"minecraft:custom_data\":{\"x\":100000,\"name\":\"mcrs\"},\"minecraft:damage\":7},\"predicates\":{\"minecraft:damage\":{},\"minecraft:custom_name\":{},\"custom_data\":\"{x:1}\",\"minecraft:villager/variant\":\"minecraft:plains\"}},{\"nbt\":{\"b\":2}}]",
+  "json": [
+   {
+    "blocks": [
+     "minecraft:stone",
+     "minecraft:dirt"
+    ],
+    "state": {
+     "age": {
+      "min": "1",
+      "max": "3"
+     }
+    },
+    "nbt": "{a:1b,name:\"x\"}",
+    "components": {
+     "minecraft:max_stack_size": 16,
+     "minecraft:custom_data": {
+      "x": 100000,
+      "name": "mcrs"
+     },
+     "minecraft:damage": 7
+    },
+    "predicates": {
+     "minecraft:damage": {},
+     "minecraft:custom_name": {},
+     "minecraft:custom_data": "{x:1}",
+     "minecraft:villager/variant": "minecraft:plains"
+    }
+   },
+   {
+    "nbt": "{b:2b}"
+   }
+  ],
+  "hash": 1423720923,
+  "wire": "020103010901010361676500010131010133010a01000161010800046e616d6500017800030110000a03000178000186a00800046e616d6500046d6372730003070401000a0000060a0001040800057b783a317d010e0800106d696e6563726166743a706c61696e730000010a0100016202000000",
+  "ordered": true
+ },
+ {
+  "kind": "can_break",
+  "input": "{\"state\":{\"lit\":\"true\",\"age\":{\"min\":\"1\",\"max\":\"3\"},\"open\":{\"min\":\"false\"},\"half\":{}}}",
+  "json": {
+   "state": {
+    "half": {},
+    "lit": "true",
+    "age": {
+     "min": "1",
+     "max": "3"
+    },
+    "open": {
+     "min": "false"
+    }
+   }
+  },
+  "hash": 996844022,
+  "wire": "01000104036c69740104747275650361676500010131010133046f70656e00010566616c7365000468616c66000000000000",
+  "ordered": false
+ },
+ {
+  "kind": "lock",
+  "input": "{}",
+  "json": {},
+  "hash": -982207288,
+  "wire": "0a00",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"items\":\"minecraft:diamond_sword\"}",
+  "json": {
+   "items": "minecraft:diamond_sword"
+  },
+  "hash": -1034209539,
+  "wire": "0a0800056974656d7300176d696e6563726166743a6469616d6f6e645f73776f726400",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"items\":[]}",
+  "json": {
+   "items": []
+  },
+  "hash": 424635584,
+  "wire": "0a0900056974656d73000000000000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":{\"max\":4}}",
+  "json": {
+   "count": {
+    "max": 4
+   }
+  },
+  "hash": 1443325365,
+  "wire": "0a0a0005636f756e740300036d6178000000040000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":{\"min\":2}}",
+  "json": {
+   "count": {
+    "min": 2
+   }
+  },
+  "hash": -513403695,
+  "wire": "0a0a0005636f756e740300036d696e000000020000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":{\"min\":5,\"max\":5}}",
+  "json": {
+   "count": 5
+  },
+  "hash": 1592607949,
+  "wire": "0a030005636f756e740000000500",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":-1}",
+  "json": {
+   "count": -1
+  },
+  "hash": 805750762,
+  "wire": "0a030005636f756e74ffffffff00",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":{}}",
+  "json": {},
+  "hash": -982207288,
+  "wire": "0a00",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"predicates\":{\"minecraft:max_stack_size\":{}}}",
+  "json": {
+   "predicates": {
+    "minecraft:max_stack_size": {}
+   }
+  },
+  "hash": 706037523,
+  "wire": "0a0a000a707265646963617465730a00186d696e6563726166743a6d61785f737461636b5f73697a65000000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"components\":{\"minecraft:damage\":7}}",
+  "json": {
+   "components": {
+    "minecraft:damage": 7
+   }
+  },
+  "hash": -940706547,
+  "wire": "0a0a000a636f6d706f6e656e74730300106d696e6563726166743a64616d616765000000070000",
+  "ordered": true
+ },
+ {
+  "kind": "lock",
+  "input": "{\"items\":\"minecraft:diamond_sword\",\"count\":3}",
+  "json": {
+   "items": "minecraft:diamond_sword",
+   "count": 3
+  },
+  "hash": 2129919253,
+  "wire": "0a030005636f756e74000000030800056974656d7300176d696e6563726166743a6469616d6f6e645f73776f726400",
+  "ordered": false
+ },
+ {
+  "kind": "lock",
+  "input": "{\"count\":5,\"components\":{\"minecraft:custom_data\":\"{y:2}\"}}",
+  "json": {
+   "count": 5,
+   "components": {
+    "minecraft:custom_data": {
+     "y": 2
+    }
+   }
+  },
+  "hash": 790849511,
+  "wire": "0a0a000a636f6d706f6e656e74730a00156d696e6563726166743a637573746f6d5f6461746103000179000000020000030005636f756e740000000500",
+  "ordered": false
+ },
+ {
+  "kind": "lock",
+  "input": "{\"items\":[\"minecraft:stone\",\"minecraft:apple\"],\"count\":{\"min\":2,\"max\":5},\"components\":{\"minecraft:max_stack_size\":16,\"minecraft:unbreakable\":{}},\"predicates\":{\"minecraft:damage\":{},\"minecraft:custom_data\":\"{x:1}\"}}",
+  "json": {
+   "items": [
+    "minecraft:stone",
+    "minecraft:apple"
+   ],
+   "count": {
+    "min": 2,
+    "max": 5
+   },
+   "components": {
+    "minecraft:max_stack_size": 16,
+    "minecraft:unbreakable": {}
+   },
+   "predicates": {
+    "minecraft:damage": {},
+    "minecraft:custom_data": "{x:1}"
+   }
+  },
+  "hash": -30747989,
+  "wire": "0a0a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a65000000100a00156d696e6563726166743a756e627265616b61626c6500000a000a707265646963617465730a00106d696e6563726166743a64616d616765000800156d696e6563726166743a637573746f6d5f6461746100057b783a317d000a0005636f756e740300036d696e000000020300036d617800000005000900056974656d730800000002000f6d696e6563726166743a73746f6e65000f6d696e6563726166743a6170706c6500",
+  "ordered": false
+ }
+]

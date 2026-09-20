@@ -14,8 +14,6 @@ minecraft:break_sound
 minecraft:brewing_fuel
 minecraft:bucket_entity_data
 minecraft:bundle_contents
-minecraft:can_break
-minecraft:can_place_on
 minecraft:cat/collar
 minecraft:cat/sound_variant
 minecraft:cat/variant
@@ -56,7 +54,6 @@ minecraft:item_model
 minecraft:jukebox_playable
 minecraft:kinetic_weapon
 minecraft:llama/variant
-minecraft:lock
 minecraft:lodestone_tracker
 minecraft:map_decorations
 minecraft:map_id
