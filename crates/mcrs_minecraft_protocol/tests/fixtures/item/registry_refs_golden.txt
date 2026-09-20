@@ -54,6 +54,7 @@ id minecraft:potion minecraft:swiftness 13
 id minecraft:potion minecraft:water 0
 id minecraft:block_entity_type minecraft:chest 1
 id minecraft:block_entity_type minecraft:sign 7
+id minecraft:attribute minecraft:scale 30
 sample minecraft:damage_type "minecraft:in_fire"
   json "minecraft:in_fire"
   snbt "minecraft:in_fire"
@@ -516,3 +517,52 @@ sample minecraft:mob_visibility {"targeting_entity_types":"minecraft:zombie","vi
   hash 332418851
 sample minecraft:tool {"rules":[{"blocks":"minecraft:stone","speed":-0.0}]}
   error Value must be positive: -0.0
+sample minecraft:enchantments {"sharpness":1,"sharpness":2}
+  json {"minecraft:sharpness":2}
+  snbt {"minecraft:sharpness":2}
+  nbt 0a0300136d696e6563726166743a73686172706e6573730000000200
+  wire 012102
+  wire_roundtrip true remaining 0
+  hash -1580618251
+sample minecraft:tool {"rules":[],"default_mining_speed":null,"damage_per_block":null,"can_destroy_blocks_in_creative":null}
+  json {"rules":[]}
+  snbt {rules:[]}
+  nbt 0a09000572756c6573000000000000
+  wire 003f8000000101
+  wire_roundtrip true remaining 0
+  hash 937295970
+sample minecraft:equippable {"slot":"head","equip_sound":null,"dispensable":null,"swappable":null,"damage_on_hurt":null,"equip_on_interact":null,"can_be_sheared":null,"shearing_sound":null}
+  json {"slot":"head"}
+  snbt {slot:"head"}
+  nbt 0a080004736c6f7400046865616400
+  wire 04470000000101010000a80b
+  wire_roundtrip true remaining 0
+  hash 497790992
+sample minecraft:attribute_modifiers [{"type":"minecraft:scale","id":"mcrs:x","amount":1,"operation":"add_value","slot":null,"display":null}]
+  json [{"type":"minecraft:scale","id":"mcrs:x","amount":1.0,"operation":"add_value"}]
+  snbt [{amount:1.0d,id:"mcrs:x",operation:"add_value",type:"minecraft:scale"}]
+  nbt 090a00000001060006616d6f756e743ff0000000000000080002696400066d6372733a7808000474797065000f6d696e6563726166743a7363616c650800096f7065726174696f6e00096164645f76616c756500
+  wire 011e066d6372733a783ff0000000000000000000
+  wire_roundtrip true remaining 0
+  hash 1672400214
+sample minecraft:potion_contents {"potion":null,"custom_color":null,"custom_effects":null,"custom_name":null}
+  json {}
+  snbt {}
+  nbt 0a00
+  wire 00000000
+  wire_roundtrip true remaining 0
+  hash -982207288
+sample minecraft:entity_data {"id":"minecraft:pig","id2":1,"id":"minecraft:zombie"}
+  json {"id2":1,"id":"minecraft:zombie"}
+  snbt {id:"minecraft:zombie",id2:1b}
+  nbt 0a01000369643201080002696400106d696e6563726166743a7a6f6d62696500
+  wire 9a010a0100036964320100
+  wire_roundtrip true remaining 0
+  hash -94464848
+sample minecraft:entity_data {"id":"minecraft:pig","a":1,"a":2}
+  json {"a":2,"id":"minecraft:pig"}
+  snbt {a:2b,id:"minecraft:pig"}
+  nbt 0a01000161020800026964000d6d696e6563726166743a70696700
+  wire 650a010001610200
+  wire_roundtrip true remaining 0
+  hash 1762996336

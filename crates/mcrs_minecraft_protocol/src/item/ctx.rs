@@ -275,7 +275,7 @@ impl<'a, R: RegistryName, const L: bool> DecodeCtx<'a> for HolderSet<ResourceKey
             return Ok(HolderSet::Tag(ResourceLocation::decode(r)?));
         }
         let len = raw as usize - 1;
-        if len == 1 {
+        if len == 1 && !L {
             return Ok(HolderSet::One(ResourceKey::decode_ctx(ctx, r)?));
         }
         let mut entries = Vec::with_capacity(len.min(r.len()));

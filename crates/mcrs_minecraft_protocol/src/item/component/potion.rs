@@ -9,6 +9,7 @@ use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::common::{MobEffectDetails, MobEffectInstance, PotionReg};
+use crate::item::component::registry_ref::null_as_default;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
 use crate::{Decode, Encode};
@@ -72,10 +73,14 @@ impl<'de> Deserialize<'de> for PotionContents {
             potion: Option<ResourceKey<PotionReg>>,
             #[serde(default, deserialize_with = "optional_int")]
             custom_color: Option<i32>,
-            #[serde(default)]
+            #[serde(default, deserialize_with = "effects_or_default")]
             custom_effects: Vec<MobEffectInstance>,
             #[serde(default)]
             custom_name: Option<String>,
+        }
+
+        null_as_default! {
+            effects_or_default: Vec<MobEffectInstance> = Vec::new();
         }
 
         fn optional_int<'de, D: Deserializer<'de>>(d: D) -> Result<Option<i32>, D::Error> {

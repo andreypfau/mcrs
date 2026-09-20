@@ -6,6 +6,7 @@ use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Serialize};
 
 use crate::item::component::common::{AttributeReg, EquipmentSlotGroup, ordinal_enum};
+use crate::item::component::registry_ref::null_as_default;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
 use crate::item::harness::Sample;
 use crate::text::{IntoText, Text};
@@ -22,10 +23,23 @@ pub struct AttributeEntry {
     pub attribute: ResourceKey<AttributeReg>,
     #[serde(flatten)]
     pub modifier: AttributeModifierValue,
-    #[serde(default = "any_slot", skip_serializing_if = "is_any")]
+    #[serde(
+        default = "any_slot",
+        deserialize_with = "slot_or_default",
+        skip_serializing_if = "is_any"
+    )]
     pub slot: EquipmentSlotGroup,
-    #[serde(default, skip_serializing_if = "is_default_display")]
+    #[serde(
+        default,
+        deserialize_with = "display_or_default",
+        skip_serializing_if = "is_default_display"
+    )]
     pub display: AttributeDisplay,
+}
+
+null_as_default! {
+    slot_or_default: EquipmentSlotGroup = any_slot();
+    display_or_default: AttributeDisplay = AttributeDisplay::Default;
 }
 
 fn any_slot() -> EquipmentSlotGroup {

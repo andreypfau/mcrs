@@ -1,9 +1,10 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::io::Write;
 
 use anyhow::ensure;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, float_value, int_value};
-use mcrs_minecraft_core::{HolderSet, ResourceKey, validated};
+use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, validated};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
@@ -72,6 +73,16 @@ registry_key_component! {
     BlockTransformerRef(BlockTransformerReg) ["axe", "shovel"],
 }
 
+/// `optionalFieldOf` with a default: JSON's `null` reads as an absent field.
+macro_rules! null_as_default {
+    ($($name:ident: $ty:ty = $default:expr;)*) => {$(
+        fn $name<'de, D: serde::Deserializer<'de>>(d: D) -> Result<$ty, D::Error> {
+            Ok(<Option<$ty> as serde::Deserialize>::deserialize(d)?.unwrap_or_else(|| $default))
+        }
+    )*};
+}
+pub(crate) use null_as_default;
+
 /// `ItemEnchantments.CODEC`: a map of enchantment id to level in 1..=255,
 /// kept in read order because vanilla's own order is hash order.
 #[derive(Clone, Debug, Eq, Default)]
@@ -128,17 +139,29 @@ impl<'de> Deserialize<'de> for Enchantments {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                let mut entries: Vec<(ResourceKey<EnchantmentReg>, i32)> =
+                let mut entries: Vec<(Cow<'de, str>, ResourceKey<EnchantmentReg>, i32)> =
                     Vec::with_capacity(map.size_hint().unwrap_or(0));
-                while let Some((key, Level(level))) =
-                    map.next_entry::<ResourceKey<EnchantmentReg>, Level>()?
-                {
-                    if entries.iter().any(|(k, _)| *k == key) {
-                        return Err(A::Error::custom(format_args!("Duplicate key: {key}")));
+                while let Some((raw, Level(level))) = map.next_entry::<Cow<'de, str>, Level>()? {
+                    if let Some(entry) = entries.iter_mut().find(|(r, _, _)| *r == raw) {
+                        entry.2 = level;
+                        continue;
                     }
-                    entries.push((key, level));
+                    let key = ResourceKey::from_location(
+                        ResourceLocation::read(&raw).map_err(A::Error::custom)?,
+                    );
+                    if entries.iter().any(|(_, k, _)| *k == key) {
+                        return Err(A::Error::custom(format_args!(
+                            "Duplicate entry for key: {key}"
+                        )));
+                    }
+                    entries.push((raw, key, level));
                 }
-                Ok(Enchantments(entries))
+                Ok(Enchantments(
+                    entries
+                        .into_iter()
+                        .map(|(_, k, level)| (k, level))
+                        .collect(),
+                ))
             }
         }
 
@@ -275,16 +298,28 @@ pub struct Tool {
     pub rules: Vec<ToolRule>,
     #[serde(
         default = "default_mining_speed",
+        deserialize_with = "mining_speed_or_default",
         skip_serializing_if = "is_default_mining_speed"
     )]
     pub default_mining_speed: f32,
-    #[serde(default = "one", skip_serializing_if = "is_one")]
+    #[serde(
+        default = "one",
+        deserialize_with = "damage_per_block_or_default",
+        skip_serializing_if = "is_one"
+    )]
     pub damage_per_block: NonNegativeInt,
     #[serde(
         default = "mcrs_minecraft_core::codec::default_true",
+        deserialize_with = "creative_or_default",
         skip_serializing_if = "std::clone::Clone::clone"
     )]
     pub can_destroy_blocks_in_creative: bool,
+}
+
+null_as_default! {
+    mining_speed_or_default: f32 = default_mining_speed();
+    damage_per_block_or_default: NonNegativeInt = one();
+    creative_or_default: bool = true;
 }
 
 fn default_mining_speed() -> f32 {

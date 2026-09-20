@@ -159,36 +159,24 @@ impl Decode<'_> for i128 {
 
 impl Encode for f32 {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        ensure!(
-            self.is_finite(),
-            "attempt to encode non-finite f32 ({self})"
-        );
         Ok(w.write_f32::<BigEndian>(*self)?)
     }
 }
 
 impl Decode<'_> for f32 {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let f = r.read_f32::<BigEndian>()?;
-        ensure!(f.is_finite(), "attempt to decode non-finite f32 ({f})");
-        Ok(f)
+        Ok(r.read_f32::<BigEndian>()?)
     }
 }
 
 impl Encode for f64 {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        ensure!(
-            self.is_finite(),
-            "attempt to encode non-finite f64 ({self})"
-        );
         Ok(w.write_f64::<BigEndian>(*self)?)
     }
 }
 
 impl Decode<'_> for f64 {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let f = r.read_f64::<BigEndian>()?;
-        ensure!(f.is_finite(), "attempt to decode non-finite f64 ({f})");
-        Ok(f)
+        Ok(r.read_f64::<BigEndian>()?)
     }
 }

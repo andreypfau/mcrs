@@ -111,10 +111,6 @@ fn nbt_tree(bytes: &[u8]) -> NbtTag {
     sorted(mcrs_minecraft_nbt::from_bytes_unnamed(&mut std::io::Cursor::new(bytes)).unwrap())
 }
 
-/// A one-entry list and a bare entry are the same holder set to vanilla and
-/// write the same bytes, but `HolderSet::One` and `HolderSet::List` are
-/// distinct values here, so read-backs are compared through their persistent
-/// form rather than by `PartialEq`.
 fn from_json(kind: ItemComponentKind, json: &str) -> Result<ItemComponentValue, String> {
     let mut d = serde_json::Deserializer::from_str(json);
     ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())
@@ -122,17 +118,10 @@ fn from_json(kind: ItemComponentKind, json: &str) -> Result<ItemComponentValue, 
 
 /// Vanilla's record codecs read only the keys they know, so the `extra` field
 /// in that sample is accepted there; here a malformed datapack fails at load.
-///
-/// `FloatTag.valueOf` hands `-0.0f` the cached `ZERO`, so vanilla's NBT alone
-/// loses the sign that its JSON and wire forms keep.
-fn nbt_drops_negative_zero(input: &str) -> bool {
-    input.contains("-0.0")
-}
-
 #[test]
 fn every_golden_sample_matches_vanilla() {
     let (lookup, samples) = parse_fixture();
-    assert_eq!(samples.len(), 71);
+    assert_eq!(samples.len(), 78);
     let mut kinds_seen = std::collections::BTreeSet::new();
     for sample in &samples {
         let Golden {
@@ -181,12 +170,10 @@ fn every_golden_sample_matches_vanilla() {
                     "{kind}: vanilla's JSON reads back the same"
                 );
 
-                if !nbt_drops_negative_zero(input) {
-                    let mut our_nbt = Vec::new();
-                    mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut our_nbt)
-                        .unwrap();
-                    assert_eq!(nbt_tree(&our_nbt), nbt_tree(nbt), "{kind} {input}: NBT");
-                }
+                let mut our_nbt = Vec::new();
+                mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut our_nbt)
+                    .unwrap();
+                assert_eq!(nbt_tree(&our_nbt), nbt_tree(nbt), "{kind} {input}: NBT");
 
                 let mut our_wire = Vec::new();
                 value.encode_ctx_value(&lookup, &mut our_wire).unwrap();
@@ -423,9 +410,20 @@ fn nbt_floats_keep_vanillas_number_semantics() {
             ("visibility", NbtTag::Float(value)),
         ])
     };
-    assert!(from_tag(ItemComponentKind::MobVisibility, visibility(-0.0)).is_err());
+    assert_eq!(
+        from_tag(ItemComponentKind::MobVisibility, visibility(-0.0)).unwrap(),
+        r#"{"targeting_entity_types":"minecraft:zombie","visibility":0.0}"#
+    );
     assert!(from_tag(ItemComponentKind::MobVisibility, visibility(f32::NAN)).is_err());
     assert!(from_tag(ItemComponentKind::MobVisibility, visibility(0.0)).is_ok());
+    assert!(
+        from_json(
+            ItemComponentKind::MobVisibility,
+            r#"{"targeting_entity_types":"minecraft:zombie","visibility":-0.0}"#
+        )
+        .unwrap_err()
+        .starts_with("Value must be within range [0.0;10.0]: -0.0")
+    );
 
     let color = |tag: NbtTag| compound(vec![("custom_color", tag)]);
     assert_eq!(
@@ -479,4 +477,122 @@ fn nbt_floats_keep_vanillas_number_semantics() {
         .unwrap(),
         r#"[{"id":"minecraft:speed"}]"#
     );
+}
+
+#[test]
+fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
+    let (lookup, _) = parse_fixture();
+    let wire = [0x02, 0x9a, 0x01, 0x80, 0x00, 0x00, 0x00];
+    let value = ItemComponentValue::decode_ctx_value(
+        ItemComponentKind::MobVisibility,
+        &lookup,
+        &mut &wire[..],
+    )
+    .unwrap();
+    assert!(persistent_json(&value).ends_with(r#""visibility":-0.0}"#));
+    let mut nbt = Vec::new();
+    mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut nbt).unwrap();
+    assert!(nbt.ends_with(&[0x00, 0x00, 0x00, 0x00, 0x00]));
+    let mut cursor = std::io::Cursor::new(&nbt[..]);
+    let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
+    let reloaded =
+        ItemComponentValue::deserialize_value(ItemComponentKind::MobVisibility, &mut d).unwrap();
+    assert!(persistent_json(&reloaded).ends_with(r#""visibility":0.0}"#));
+}
+
+#[test]
+fn non_finite_floats_cross_the_wire() {
+    let (lookup, _) = parse_fixture();
+    for (kind, wire, json) in [
+        (
+            ItemComponentKind::Tool,
+            hex("010201013f800000007f8000000101"),
+            r#"{"rules":[{"blocks":"minecraft:stone","speed":1.0}],"default_mining_speed":null}"#,
+        ),
+        (
+            ItemComponentKind::AttributeModifiers,
+            hex("011e066d6372733a787ff0000000000000000000"),
+            r#"[{"type":"minecraft:scale","id":"mcrs:x","amount":null,"operation":"add_value"}]"#,
+        ),
+    ] {
+        let mut r = &wire[..];
+        let value = ItemComponentValue::decode_ctx_value(kind, &lookup, &mut r).unwrap();
+        assert!(r.is_empty());
+        assert_eq!(persistent_json(&value), json, "{kind}");
+        let mut encoded = Vec::new();
+        value.encode_ctx_value(&lookup, &mut encoded).unwrap();
+        assert_eq!(encoded, wire, "{kind}");
+    }
+    let mut nbt = Vec::new();
+    mcrs_minecraft_nbt::to_bytes_unnamed(
+        &PersistentValue(
+            &from_json(
+                ItemComponentKind::Tool,
+                r#"{"rules":[],"default_mining_speed":1e40}"#,
+            )
+            .unwrap(),
+        ),
+        &mut nbt,
+    )
+    .unwrap();
+    assert_eq!(
+        nbt_tree(&nbt),
+        nbt_tree(&hex(
+            "0a05001464656661756c745f6d696e696e675f73706565647f80000009000572756c6573000000000000"
+        ))
+    );
+}
+
+#[test]
+fn two_spellings_of_one_enchantment_are_still_a_duplicate() {
+    assert_eq!(
+        persistent_json(
+            &from_json(
+                ItemComponentKind::Enchantments,
+                r#"{"minecraft:sharpness":1,"minecraft:unbreaking":3,"minecraft:sharpness":2}"#
+            )
+            .unwrap()
+        ),
+        r#"{"minecraft:sharpness":2,"minecraft:unbreaking":3}"#
+    );
+    assert!(
+        from_json(
+            ItemComponentKind::Enchantments,
+            r#"{"minecraft:sharpness":1,"sharpness":2}"#
+        )
+        .unwrap_err()
+        .starts_with("Duplicate entry for key: minecraft:sharpness")
+    );
+}
+
+#[test]
+fn a_one_entry_list_is_the_bare_entry() {
+    use mcrs_minecraft_core::HolderSet;
+    use mcrs_minecraft_protocol::item::DamageResistant;
+
+    let lookup = TestLookup::new();
+    let bare = from_json(
+        ItemComponentKind::DamageResistant,
+        r#"{"types":"minecraft:lava"}"#,
+    )
+    .unwrap();
+    let list = from_json(
+        ItemComponentKind::DamageResistant,
+        r#"{"types":["minecraft:lava"]}"#,
+    )
+    .unwrap();
+    assert_eq!(bare, list);
+    let mut wire = Vec::new();
+    bare.encode_ctx_value(&lookup, &mut wire).unwrap();
+    let decoded = ItemComponentValue::decode_ctx_value(
+        ItemComponentKind::DamageResistant,
+        &lookup,
+        &mut &wire[..],
+    )
+    .unwrap();
+    assert_eq!(decoded, bare);
+    let ItemComponentValue::DamageResistant(DamageResistant { types }) = decoded else {
+        unreachable!()
+    };
+    assert!(matches!(types, HolderSet::One(_)));
 }

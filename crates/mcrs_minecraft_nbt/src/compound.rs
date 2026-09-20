@@ -100,9 +100,10 @@ impl NbtCompound {
     }
 
     pub fn put(&mut self, name: &str, value: impl Into<NbtTag>) {
-        let name = name.to_string();
-        if !self.child_tags.iter().any(|(key, _)| key == &name) {
-            self.child_tags.push((name, value.into()));
+        let value = value.into();
+        match self.child_tags.iter_mut().find(|(key, _)| key == name) {
+            Some(entry) => entry.1 = value,
+            None => self.child_tags.push((name.to_string(), value)),
         }
     }
 

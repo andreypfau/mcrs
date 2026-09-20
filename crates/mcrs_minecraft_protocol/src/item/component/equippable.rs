@@ -9,6 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::entity::EquipmentSlot;
 use crate::item::component::common::{EntityTypeReg, Holder};
+use crate::item::component::registry_ref::null_as_default;
 use crate::item::component::sound::SoundEvent;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
@@ -46,7 +47,11 @@ impl<'de> Deserialize<'de> for EquipmentSlot {
 #[serde(deny_unknown_fields)]
 pub struct Equippable {
     pub slot: EquipmentSlot,
-    #[serde(default = "equip_generic", skip_serializing_if = "is_equip_generic")]
+    #[serde(
+        default = "equip_generic",
+        deserialize_with = "equip_sound_or_default",
+        skip_serializing_if = "is_equip_generic"
+    )]
     pub equip_sound: Holder<SoundEvent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<ResourceLocation>,
@@ -56,25 +61,47 @@ pub struct Equippable {
     pub allowed_entities: Option<HolderSet<ResourceKey<EntityTypeReg>>>,
     #[serde(
         default = "default_true",
+        deserialize_with = "true_or_default",
         skip_serializing_if = "std::clone::Clone::clone"
     )]
     pub dispensable: bool,
     #[serde(
         default = "default_true",
+        deserialize_with = "true_or_default",
         skip_serializing_if = "std::clone::Clone::clone"
     )]
     pub swappable: bool,
     #[serde(
         default = "default_true",
+        deserialize_with = "true_or_default",
         skip_serializing_if = "std::clone::Clone::clone"
     )]
     pub damage_on_hurt: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        default,
+        deserialize_with = "false_or_default",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
     pub equip_on_interact: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        default,
+        deserialize_with = "false_or_default",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
     pub can_be_sheared: bool,
-    #[serde(default = "shears_snip", skip_serializing_if = "is_shears_snip")]
+    #[serde(
+        default = "shears_snip",
+        deserialize_with = "shearing_sound_or_default",
+        skip_serializing_if = "is_shears_snip"
+    )]
     pub shearing_sound: Holder<SoundEvent>,
+}
+
+null_as_default! {
+    equip_sound_or_default: Holder<SoundEvent> = equip_generic();
+    shearing_sound_or_default: Holder<SoundEvent> = shears_snip();
+    true_or_default: bool = true;
+    false_or_default: bool = false;
 }
 
 pub const EQUIP_GENERIC_SOUND: &str = "item.armor.equip_generic";
