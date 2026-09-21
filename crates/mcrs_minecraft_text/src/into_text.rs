@@ -4,8 +4,7 @@ use std::borrow::Cow;
 
 use mcrs_minecraft_core::ResourceLocation;
 
-use super::{ClickEvent, Color, HoverEvent, HoverItem, TextComponent};
-use crate::item::Template;
+use super::{ClickEvent, Color, HoverEvent, HoverItem, Text};
 
 /// Trait for any data that can be converted to a [`Text`] object.
 ///
@@ -15,142 +14,142 @@ use crate::item::Template;
 /// # Usage
 ///
 /// ```
-/// # use mcrs_minecraft_protocol::text::{IntoText, Text, color::NamedColor};
+/// # use mcrs_minecraft_text::{IntoText, Text, color::NamedColor};
 /// let mut my_text: Text = "".into_text();
 /// my_text = my_text.color(NamedColor::Red).bold();
 /// my_text = my_text.add_child("CRABBBBB".obfuscated());
-pub trait IntoText<'a, I: HoverItem = Template>: Sized {
+pub trait IntoText<'a, I: HoverItem = ()>: Sized {
     /// Converts to a [`Text`] object, either owned or borrowed.
-    fn into_cow_text(self) -> Cow<'a, TextComponent<I>>;
+    fn into_cow_text(self) -> Cow<'a, Text<I>>;
 
     /// Converts to an owned [`Text`] object.
-    fn into_text(self) -> TextComponent<I> {
+    fn into_text(self) -> Text<I> {
         self.into_cow_text().into_owned()
     }
 
     /// Sets the color of the text.
-    fn color(self, color: impl Into<Color>) -> TextComponent<I> {
+    fn color(self, color: impl Into<Color>) -> Text<I> {
         let mut value = self.into_text();
         value.color = Some(color.into());
         value
     }
     /// Clears the color of the text. Color of parent [`Text`] object will be
     /// used.
-    fn clear_color(self) -> TextComponent<I> {
+    fn clear_color(self) -> Text<I> {
         let mut value = self.into_text();
         value.color = None;
         value
     }
 
     /// Sets the font of the text.
-    fn font(self, font: impl Into<ResourceLocation>) -> TextComponent<I> {
+    fn font(self, font: impl Into<ResourceLocation>) -> Text<I> {
         let mut value = self.into_text();
         value.font = Some(font.into());
         value
     }
     /// Clears the font of the text. Font of parent [`Text`] object will be
     /// used.
-    fn clear_font(self) -> TextComponent<I> {
+    fn clear_font(self) -> Text<I> {
         let mut value = self.into_text();
         value.font = None;
         value
     }
 
     /// Makes the text bold.
-    fn bold(self) -> TextComponent<I> {
+    fn bold(self) -> Text<I> {
         let mut value = self.into_text();
         value.bold = Some(true);
         value
     }
     /// Makes the text not bold.
-    fn not_bold(self) -> TextComponent<I> {
+    fn not_bold(self) -> Text<I> {
         let mut value = self.into_text();
         value.bold = Some(false);
         value
     }
     /// Clears the `bold` property of the text. Property of the parent [`Text`]
     /// object will be used.
-    fn clear_bold(self) -> TextComponent<I> {
+    fn clear_bold(self) -> Text<I> {
         let mut value = self.into_text();
         value.bold = None;
         value
     }
 
     /// Makes the text italic.
-    fn italic(self) -> TextComponent<I> {
+    fn italic(self) -> Text<I> {
         let mut value = self.into_text();
         value.italic = Some(true);
         value
     }
     /// Makes the text not italic.
-    fn not_italic(self) -> TextComponent<I> {
+    fn not_italic(self) -> Text<I> {
         let mut value = self.into_text();
         value.italic = Some(false);
         value
     }
     /// Clears the `italic` property of the text. Property of the parent
     /// [`Text`] object will be used.
-    fn clear_italic(self) -> TextComponent<I> {
+    fn clear_italic(self) -> Text<I> {
         let mut value = self.into_text();
         value.italic = None;
         value
     }
 
     /// Makes the text underlined.
-    fn underlined(self) -> TextComponent<I> {
+    fn underlined(self) -> Text<I> {
         let mut value = self.into_text();
         value.underlined = Some(true);
         value
     }
     /// Makes the text not underlined.
-    fn not_underlined(self) -> TextComponent<I> {
+    fn not_underlined(self) -> Text<I> {
         let mut value = self.into_text();
         value.underlined = Some(false);
         value
     }
     /// Clears the `underlined` property of the text. Property of the parent
     /// [`Text`] object will be used.
-    fn clear_underlined(self) -> TextComponent<I> {
+    fn clear_underlined(self) -> Text<I> {
         let mut value = self.into_text();
         value.underlined = None;
         value
     }
 
     /// Adds a strikethrough effect to the text.
-    fn strikethrough(self) -> TextComponent<I> {
+    fn strikethrough(self) -> Text<I> {
         let mut value = self.into_text();
         value.strikethrough = Some(true);
         value
     }
     /// Removes the strikethrough effect from the text.
-    fn not_strikethrough(self) -> TextComponent<I> {
+    fn not_strikethrough(self) -> Text<I> {
         let mut value = self.into_text();
         value.strikethrough = Some(false);
         value
     }
     /// Clears the `strikethrough` property of the text. Property of the parent
     /// [`Text`] object will be used.
-    fn clear_strikethrough(self) -> TextComponent<I> {
+    fn clear_strikethrough(self) -> Text<I> {
         let mut value = self.into_text();
         value.strikethrough = None;
         value
     }
 
     /// Makes the text obfuscated.
-    fn obfuscated(self) -> TextComponent<I> {
+    fn obfuscated(self) -> Text<I> {
         let mut value = self.into_text();
         value.obfuscated = Some(true);
         value
     }
     /// Makes the text not obfuscated.
-    fn not_obfuscated(self) -> TextComponent<I> {
+    fn not_obfuscated(self) -> Text<I> {
         let mut value = self.into_text();
         value.obfuscated = Some(false);
         value
     }
     /// Clears the `obfuscated` property of the text. Property of the parent
     /// [`Text`] object will be used.
-    fn clear_obfuscated(self) -> TextComponent<I> {
+    fn clear_obfuscated(self) -> Text<I> {
         let mut value = self.into_text();
         value.obfuscated = None;
         value
@@ -158,28 +157,28 @@ pub trait IntoText<'a, I: HoverItem = Template>: Sized {
 
     /// Adds an `insertion` property to the text. When shift-clicked, the given
     /// text will be inserted into chat box for the client.
-    fn insertion(self, insertion: impl Into<Cow<'static, str>>) -> TextComponent<I> {
+    fn insertion(self, insertion: impl Into<Cow<'static, str>>) -> Text<I> {
         let mut value = self.into_text();
         value.insertion = Some(insertion.into());
         value
     }
     /// Clears the `insertion` property of the text. Property of the parent
     /// [`Text`] object will be used.
-    fn clear_insertion(self) -> TextComponent<I> {
+    fn clear_insertion(self) -> Text<I> {
         let mut value = self.into_text();
         value.insertion = None;
         value
     }
 
     /// On click, opens the given URL. Has to be `http` or `https` protocol.
-    fn on_click_open_url(self, url: impl Into<Cow<'static, str>>) -> TextComponent<I> {
+    fn on_click_open_url(self, url: impl Into<Cow<'static, str>>) -> Text<I> {
         let mut value = self.into_text();
         value.click_event = Some(ClickEvent::OpenUrl { url: url.into() });
         value
     }
     /// On click, sends a command. Doesn't actually have to be a command, can be
     /// a simple chat message.
-    fn on_click_run_command(self, command: impl Into<Cow<'static, str>>) -> TextComponent<I> {
+    fn on_click_run_command(self, command: impl Into<Cow<'static, str>>) -> Text<I> {
         let mut value = self.into_text();
         value.click_event = Some(ClickEvent::RunCommand {
             command: command.into(),
@@ -187,7 +186,7 @@ pub trait IntoText<'a, I: HoverItem = Template>: Sized {
         value
     }
     /// On click, copies the given text to the chat box.
-    fn on_click_suggest_command(self, command: impl Into<Cow<'static, str>>) -> TextComponent<I> {
+    fn on_click_suggest_command(self, command: impl Into<Cow<'static, str>>) -> Text<I> {
         let mut value = self.into_text();
         value.click_event = Some(ClickEvent::SuggestCommand {
             command: command.into(),
@@ -196,27 +195,27 @@ pub trait IntoText<'a, I: HoverItem = Template>: Sized {
     }
     /// On click, turns the page of the opened book to the given number.
     /// Indexing starts at `1`.
-    fn on_click_change_page(self, page: impl Into<i32>) -> TextComponent<I> {
+    fn on_click_change_page(self, page: impl Into<i32>) -> Text<I> {
         let mut value = self.into_text();
         value.click_event = Some(ClickEvent::ChangePage { page: page.into() });
         value
     }
     /// On click, copies the given text to clipboard.
-    fn on_click_copy_to_clipboard(self, text: impl Into<Cow<'static, str>>) -> TextComponent<I> {
+    fn on_click_copy_to_clipboard(self, text: impl Into<Cow<'static, str>>) -> Text<I> {
         let mut value = self.into_text();
         value.click_event = Some(ClickEvent::CopyToClipboard { value: text.into() });
         value
     }
     /// Clears the `click_event` property of the text. Property of the parent
     /// [`Text`] object will be used.
-    fn clear_click_event(self) -> TextComponent<I> {
+    fn clear_click_event(self) -> Text<I> {
         let mut value = self.into_text();
         value.click_event = None;
         value
     }
 
     /// On mouse hover, shows the given text in a tooltip.
-    fn on_hover_show_text(self, text: impl IntoText<'static, I>) -> TextComponent<I> {
+    fn on_hover_show_text(self, text: impl IntoText<'static, I>) -> Text<I> {
         let mut value = self.into_text();
         value.hover_event = Some(HoverEvent::<I>::ShowText {
             value: text.into_text(),
@@ -225,113 +224,113 @@ pub trait IntoText<'a, I: HoverItem = Template>: Sized {
     }
     /// Clears the `hover_event` property of the text. Property of the parent
     /// [`Text`] object will be used.
-    fn clear_hover_event(self) -> TextComponent<I> {
+    fn clear_hover_event(self) -> Text<I> {
         let mut value = self.into_text();
         value.hover_event = None;
         value
     }
 
     /// Adds a child [`Text`] object.
-    fn add_child(self, text: impl IntoText<'static, I>) -> TextComponent<I> {
+    fn add_child(self, text: impl IntoText<'static, I>) -> Text<I> {
         let mut value = self.into_text();
         value.extra.push(text.into_text());
         value
     }
 }
 
-impl<'a, I: HoverItem> IntoText<'a, I> for TextComponent<I> {
-    fn into_cow_text(self) -> Cow<'a, TextComponent<I>> {
+impl<'a, I: HoverItem> IntoText<'a, I> for Text<I> {
+    fn into_cow_text(self) -> Cow<'a, Text<I>> {
         Cow::Owned(self)
     }
 }
-impl<'a, I: HoverItem> IntoText<'a, I> for &'a TextComponent<I> {
-    fn into_cow_text(self) -> Cow<'a, TextComponent<I>> {
+impl<'a, I: HoverItem> IntoText<'a, I> for &'a Text<I> {
+    fn into_cow_text(self) -> Cow<'a, Text<I>> {
         Cow::Borrowed(self)
     }
 }
-impl<'a, I: HoverItem> From<&'a TextComponent<I>> for TextComponent<I> {
-    fn from(value: &'a TextComponent<I>) -> Self {
+impl<'a, I: HoverItem> From<&'a Text<I>> for Text<I> {
+    fn from(value: &'a Text<I>) -> Self {
         value.clone()
     }
 }
 
-impl<'a, I: HoverItem> IntoText<'a, I> for Cow<'a, TextComponent<I>> {
-    fn into_cow_text(self) -> Cow<'a, TextComponent<I>> {
+impl<'a, I: HoverItem> IntoText<'a, I> for Cow<'a, Text<I>> {
+    fn into_cow_text(self) -> Cow<'a, Text<I>> {
         self
     }
 }
-impl<'a, I: HoverItem> From<Cow<'a, TextComponent<I>>> for TextComponent<I> {
-    fn from(value: Cow<'a, TextComponent<I>>) -> Self {
+impl<'a, I: HoverItem> From<Cow<'a, Text<I>>> for Text<I> {
+    fn from(value: Cow<'a, Text<I>>) -> Self {
         value.into_owned()
     }
 }
-impl<'a, 'b, I: HoverItem> IntoText<'a, I> for &'a Cow<'b, TextComponent<I>> {
-    fn into_cow_text(self) -> Cow<'a, TextComponent<I>> {
+impl<'a, 'b, I: HoverItem> IntoText<'a, I> for &'a Cow<'b, Text<I>> {
+    fn into_cow_text(self) -> Cow<'a, Text<I>> {
         self.clone()
     }
 }
-impl<'a, 'b, I: HoverItem> From<&'a Cow<'b, TextComponent<I>>> for TextComponent<I> {
-    fn from(value: &'a Cow<'b, TextComponent<I>>) -> Self {
+impl<'a, 'b, I: HoverItem> From<&'a Cow<'b, Text<I>>> for Text<I> {
+    fn from(value: &'a Cow<'b, Text<I>>) -> Self {
         value.clone().into_owned()
     }
 }
 
 impl<'a, I: HoverItem> IntoText<'a, I> for String {
-    fn into_cow_text(self) -> Cow<'a, TextComponent<I>> {
-        Cow::Owned(TextComponent::text(self))
+    fn into_cow_text(self) -> Cow<'a, Text<I>> {
+        Cow::Owned(Text::text(self))
     }
 }
-impl<I: HoverItem> From<String> for TextComponent<I> {
+impl<I: HoverItem> From<String> for Text<I> {
     fn from(value: String) -> Self {
         value.into_text()
     }
 }
 impl<'b, I: HoverItem> IntoText<'b, I> for &String {
-    fn into_cow_text(self) -> Cow<'b, TextComponent<I>> {
-        Cow::Owned(TextComponent::text(self.clone()))
+    fn into_cow_text(self) -> Cow<'b, Text<I>> {
+        Cow::Owned(Text::text(self.clone()))
     }
 }
-impl<'a, I: HoverItem> From<&'a String> for TextComponent<I> {
+impl<'a, I: HoverItem> From<&'a String> for Text<I> {
     fn from(value: &'a String) -> Self {
         value.into_text()
     }
 }
 
 impl<'a, I: HoverItem> IntoText<'a, I> for Cow<'static, str> {
-    fn into_cow_text(self) -> Cow<'a, TextComponent<I>> {
-        Cow::Owned(TextComponent::text(self))
+    fn into_cow_text(self) -> Cow<'a, Text<I>> {
+        Cow::Owned(Text::text(self))
     }
 }
-impl<I: HoverItem> From<Cow<'static, str>> for TextComponent<I> {
+impl<I: HoverItem> From<Cow<'static, str>> for Text<I> {
     fn from(value: Cow<'static, str>) -> Self {
         value.into_text()
     }
 }
 impl<I: HoverItem> IntoText<'static, I> for &Cow<'static, str> {
-    fn into_cow_text(self) -> Cow<'static, TextComponent<I>> {
-        Cow::Owned(TextComponent::text(self.clone()))
+    fn into_cow_text(self) -> Cow<'static, Text<I>> {
+        Cow::Owned(Text::text(self.clone()))
     }
 }
-impl<'a, I: HoverItem> From<&'a Cow<'static, str>> for TextComponent<I> {
+impl<'a, I: HoverItem> From<&'a Cow<'static, str>> for Text<I> {
     fn from(value: &'a Cow<'static, str>) -> Self {
         value.into_text()
     }
 }
 
 impl<'a, I: HoverItem> IntoText<'a, I> for &'static str {
-    fn into_cow_text(self) -> Cow<'a, TextComponent<I>> {
-        Cow::Owned(TextComponent::text(self))
+    fn into_cow_text(self) -> Cow<'a, Text<I>> {
+        Cow::Owned(Text::text(self))
     }
 }
-impl<I: HoverItem> From<&'static str> for TextComponent<I> {
+impl<I: HoverItem> From<&'static str> for Text<I> {
     fn from(value: &'static str) -> Self {
         value.into_text()
     }
 }
 
 impl<'a, 'b, I: HoverItem, T: IntoText<'a, I>, const N: usize> IntoText<'b, I> for [T; N] {
-    fn into_cow_text(self) -> Cow<'b, TextComponent<I>> {
-        let mut txt = TextComponent::text("");
+    fn into_cow_text(self) -> Cow<'b, Text<I>> {
+        let mut txt = Text::text("");
 
         for child in self {
             txt = txt.add_child(child.into_cow_text().into_owned());
@@ -342,8 +341,8 @@ impl<'a, 'b, I: HoverItem, T: IntoText<'a, I>, const N: usize> IntoText<'b, I> f
 }
 
 impl<'a, 'c, I: HoverItem, T: IntoText<'a, I> + Clone, const N: usize> IntoText<'c, I> for &[T; N] {
-    fn into_cow_text(self) -> Cow<'c, TextComponent<I>> {
-        let mut txt = TextComponent::text("");
+    fn into_cow_text(self) -> Cow<'c, Text<I>> {
+        let mut txt = Text::text("");
 
         for child in self {
             txt = txt.add_child(child.clone().into_cow_text().into_owned());
@@ -357,8 +356,8 @@ macro_rules! impl_primitives {
     ($($primitive:ty),+) => {
         $(
             impl<'a, I: HoverItem> IntoText<'a, I> for $primitive {
-                fn into_cow_text(self) -> Cow<'a, TextComponent<I>> {
-                    Cow::Owned(TextComponent::text(self.to_string()))
+                fn into_cow_text(self) -> Cow<'a, Text<I>> {
+                    Cow::Owned(Text::text(self.to_string()))
                 }
             }
         )+

@@ -3794,6 +3794,7 @@ dependencies = [
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol_macros",
  "mcrs_minecraft_registry",
+ "mcrs_minecraft_text",
  "rand 0.10.0",
  "serde",
  "serde_json",
@@ -3886,6 +3887,20 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "mcrs_minecraft_text"
+version = "0.1.0"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_profile",
+ "mcrs_minecraft_registry",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "uuid",
 ]
 
 [[package]]

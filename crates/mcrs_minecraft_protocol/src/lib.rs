@@ -65,7 +65,12 @@ mod serial;
 pub mod setting;
 pub mod sound;
 mod teleport_flags;
-pub mod text;
+/// Text components with the item stack template as the hover item.
+pub mod text {
+    pub use mcrs_minecraft_text::*;
+
+    pub use crate::item::Text;
+}
 pub mod var_int;
 mod var_long;
 

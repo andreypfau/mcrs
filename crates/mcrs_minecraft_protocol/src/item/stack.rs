@@ -107,6 +107,8 @@ pub mod optional_stack {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Template(pub ItemStackValue);
 
+impl mcrs_minecraft_text::HoverItem for Template {}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TemplateRepr {

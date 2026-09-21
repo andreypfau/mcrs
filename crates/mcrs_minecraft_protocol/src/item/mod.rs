@@ -14,6 +14,8 @@ pub use ctx::{DecodeCtx, EncodeCtx, Raw};
 pub use kind::{ItemComponentKind, ItemComponentValue, ItemDataComponent};
 pub use patch::{ComponentMap, ComponentPatch};
 pub use stack::{HashedPatchMap, ItemStackValue, ItemStackWithSlot, Template};
+
+pub type Text = mcrs_minecraft_text::Text<Template>;
 pub use trade::{ItemCost, MerchantOffer, RawMerchantOffer};
 pub use wire::{HashedStack, ProtoStack, RawDelimitedStack, RawStack};
 pub use wire::{decode_component_value, decode_delimited_patch, encode_delimited_patch};

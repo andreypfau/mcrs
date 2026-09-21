@@ -4,8 +4,14 @@ use mcrs_minecraft_core::rl;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{from_bytes_unnamed, to_bytes_unnamed};
 
-use super::*;
-use crate::{Decode, Encode};
+use std::str::FromStr;
+
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_protocol::text::*;
+use mcrs_minecraft_protocol::{Decode, Encode};
+use serde::Deserialize;
+use uuid::Uuid;
 
 #[test]
 fn text_round_trip() {
@@ -260,7 +266,7 @@ struct VanillaCase {
 #[test]
 fn every_vanilla_fixture_round_trips_through_json_nbt_and_the_wire() {
     let cases: Vec<VanillaCase> =
-        serde_json::from_str(include_str!("../../tests/fixtures/text/vanilla.json")).unwrap();
+        serde_json::from_str(include_str!("fixtures/text/vanilla.json")).unwrap();
     assert_eq!(cases.len(), 38);
     for case in cases {
         let name = &case.name;
@@ -371,7 +377,7 @@ const PROBE_DIVERGENCES: &[&str] = &[
 #[test]
 fn vanilla_probe_cases_read_and_reject_alike() {
     let cases: Vec<ProbeCase> =
-        serde_json::from_str(include_str!("../../tests/fixtures/text/probe.json")).unwrap();
+        serde_json::from_str(include_str!("fixtures/text/probe.json")).unwrap();
     assert_eq!(cases.len(), 97);
     let mut failures = Vec::new();
     for case in cases {
@@ -422,7 +428,7 @@ struct WireCase {
 #[test]
 fn vanilla_stream_codec_bytes_decode_and_re_encode() {
     let cases: Vec<WireCase> =
-        serde_json::from_str(include_str!("../../tests/fixtures/text/wire.json")).unwrap();
+        serde_json::from_str(include_str!("fixtures/text/wire.json")).unwrap();
     assert_eq!(cases.len(), 9);
     for case in cases {
         let name = &case.name;
@@ -493,8 +499,7 @@ const NBT_DIVERGENCES: &[&str] = &[];
 
 #[test]
 fn vanilla_nbt_bytes_decode_to_the_same_json_and_re_encode_to_the_same_tags() {
-    let cases: Vec<NbtCase> =
-        serde_json::from_str(include_str!("../../tests/fixtures/text/nbt.json")).unwrap();
+    let cases: Vec<NbtCase> = serde_json::from_str(include_str!("fixtures/text/nbt.json")).unwrap();
     assert_eq!(cases.len(), 55);
     let mut failures = Vec::new();
     for case in cases {
