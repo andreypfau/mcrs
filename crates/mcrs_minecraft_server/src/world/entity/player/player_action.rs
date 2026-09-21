@@ -2,7 +2,9 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{MessageWriter, On};
+use bevy_ecs::system::Query;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_item::SelectedHotbarSlot;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Direction;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundPlayerAction;
@@ -22,6 +24,7 @@ impl Plugin for PlayerActionPlugin {
 pub struct PlayerAction {
     pub player: Entity,
     pub kind: PlayerActionKind,
+    pub selected_hotbar_slot: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -84,6 +87,7 @@ impl From<ServerboundPlayerAction> for PlayerActionKind {
 fn handle_player_action_packet(
     event: On<ReceivedPacketEvent>,
     mut writer: MessageWriter<PlayerAction>,
+    selected: Query<&SelectedHotbarSlot>,
 ) {
     let Some(pkt) = event.decode::<ServerboundPlayerAction>() else {
         return;
@@ -91,6 +95,7 @@ fn handle_player_action_packet(
     writer.write(PlayerAction {
         player: event.entity,
         kind: PlayerActionKind::from(pkt),
+        selected_hotbar_slot: selected.get(event.entity).map_or(0, |s| s.0),
     });
 }
 

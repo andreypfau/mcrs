@@ -115,8 +115,12 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
                 inventory.push(ItemStackWithSlot { slot, stack });
             }
         }
+        inventory.sort_by_key(|entry| entry.slot);
     }
-    let transform = world.get::<Transform>(player).copied().unwrap_or(Transform::IDENTITY);
+    let transform = world
+        .get::<Transform>(player)
+        .copied()
+        .unwrap_or(Transform::IDENTITY);
     let rotation: Rotation = transform.rotation;
     let dimension = world
         .get::<InDimension>(player)

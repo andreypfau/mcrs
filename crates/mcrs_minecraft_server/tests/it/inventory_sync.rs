@@ -12,7 +12,9 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::{
     DirtyStacks, Items, SelectedHotbarSlot, SlotTable, load_item_definitions, mutate, slots,
 };
+use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue, RawStack};
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
@@ -57,6 +59,8 @@ pub(crate) fn world() -> (World, Entity, Entity) {
             SlotTable::fixed(slots::COUNT),
             SelectedHotbarSlot(3),
             HostAnchor(anchor),
+            InDimension(anchor),
+            Transform::IDENTITY,
         ))
         .id();
     (world, player, anchor)

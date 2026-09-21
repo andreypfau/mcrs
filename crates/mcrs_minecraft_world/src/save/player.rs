@@ -60,7 +60,9 @@ impl Serialize for PlayerDat {
         map.serialize_entry(DIMENSION, &self.dimension)?;
         map.serialize_entry(INVENTORY, &self.inventory)?;
         map.serialize_entry(SELECTED_ITEM_SLOT, &self.selected_item_slot)?;
-        map.serialize_entry(EQUIPMENT, &self.equipment)?;
+        if !self.equipment.is_empty() {
+            map.serialize_entry(EQUIPMENT, &self.equipment)?;
+        }
         for (key, tag) in self.rest.child_tags.iter() {
             map.serialize_entry(key, tag)?;
         }
@@ -100,7 +102,8 @@ impl<'de> Deserialize<'de> for PlayerDat {
                         }
                     }
                 }
-                dat.data_version = data_version.ok_or_else(|| A::Error::missing_field(DATA_VERSION))?;
+                dat.data_version =
+                    data_version.ok_or_else(|| A::Error::missing_field(DATA_VERSION))?;
                 let pos = pos.ok_or_else(|| A::Error::missing_field(POS))?;
                 dat.pos = <[f64; 3]>::try_from(pos.as_slice())
                     .map_err(|_| A::Error::invalid_length(pos.len(), &"3 coordinates"))?;

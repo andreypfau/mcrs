@@ -1,6 +1,5 @@
 use crate::world::entity::player::ability::PlayerGameMode;
 use crate::world::entity::player::player_action::{PlayerAction, PlayerActionKind};
-use crate::world::inventory::held_stack;
 use crate::world::item::chest::{MenuContainer, close_container_menu};
 use crate::world::item::menu::{CurrentMenu, Menu, MenuLayout};
 use crate::world::item::sync::MenuResync;
@@ -763,7 +762,7 @@ pub fn close_menus(world: &mut World) {
 }
 
 pub fn handle_drop_actions(world: &mut World, mut cursor: Local<MessageCursor<PlayerAction>>) {
-    let actions: Vec<(Entity, PlayerActionKind)> = cursor
+    let actions: Vec<(Entity, PlayerActionKind, u8)> = cursor
         .read(world.resource::<Messages<PlayerAction>>())
         .filter(|action| {
             matches!(
@@ -773,27 +772,30 @@ pub fn handle_drop_actions(world: &mut World, mut cursor: Local<MessageCursor<Pl
                     | PlayerActionKind::SwapItemWithOffhand
             )
         })
-        .map(|action| (action.player, action.kind.clone()))
+        .map(|action| {
+            (
+                action.player,
+                action.kind.clone(),
+                action.selected_hotbar_slot,
+            )
+        })
         .collect();
     if actions.is_empty() {
         return;
     }
     let items = world.resource::<Items>().clone();
-    for (player, kind) in actions {
+    for (player, kind, selected) in actions {
         if world
             .get::<PlayerGameMode>(player)
             .is_some_and(|mode| mode.0 == GameMode::Spectator)
         {
             continue;
         }
-        let Some((table, selected)) = world
-            .get::<SlotTable>(player)
-            .zip(world.get::<SelectedHotbarSlot>(player))
-        else {
+        let Some(table) = world.get::<SlotTable>(player) else {
             continue;
         };
-        let held_cell = (player, slots::held(selected.0));
-        let held = held_stack(table, selected);
+        let held_cell = (player, slots::held(selected));
+        let held = table.get(held_cell.1);
         match kind {
             PlayerActionKind::DropItem => {
                 if let Some(thrown) = held.and_then(|held| take(world, held, 1, &items)) {

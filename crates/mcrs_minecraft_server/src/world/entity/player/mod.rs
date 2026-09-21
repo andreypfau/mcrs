@@ -15,10 +15,9 @@ use crate::world::entity::player::placing::PlacingPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
 use crate::world::inventory::PlayerInventoryBundle;
+use crate::world::item::StackSet;
 use crate::world::sub_app_builder::DimTypeIndex;
 use bevy_app::{FixedUpdate, Plugin, Update};
-use bevy_ecs::schedule::IntoScheduleConfigs;
-use mcrs_minecraft_level::aoi::every_n_ticks;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
@@ -26,9 +25,11 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_item::{SlotTable, slots};
+use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
@@ -106,7 +107,9 @@ impl Plugin for DimPlayerPlugin {
         app.add_systems(FixedUpdate, (despawn_on_confirm, unhide_on_rollback));
         app.add_systems(
             FixedUpdate,
-            persistence::autosave_players.run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
+            persistence::autosave_players
+                .after(StackSet::Sync)
+                .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
         );
         app.add_observer(network_add);
         app.add_observer(player_joined);

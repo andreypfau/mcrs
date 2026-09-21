@@ -12,7 +12,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, SectionPos};
 use mcrs_minecraft_item::mutate::spawn_stack;
-use mcrs_minecraft_item::{Items, dropped};
+use mcrs_minecraft_item::{Items, dropped, mutate};
 use mcrs_minecraft_level::entity::mob::{EntityInSection, EntityKind, EntityUuid};
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform, Velocity};
 use mcrs_minecraft_level::world::dimension::InDimension;
@@ -111,7 +111,13 @@ pub fn throw(world: &mut World, player: Entity, stack: Entity) {
         .zip(world.get::<Transform>(player))
         .map(|(dim, transform)| (dim.0, *transform))
     else {
-        dropped::spawn_dropped(world, stack, THROWN_PICKUP_DELAY, Some(player));
+        tracing::warn!(
+            ?player,
+            ?stack,
+            "a stack thrown by a player with no position is lost"
+        );
+        mutate::detach(world, stack);
+        world.despawn(stack);
         return;
     };
     let pos = transform.translation + DVec3::new(0.0, EYE_HEIGHT - 0.3, 0.0);

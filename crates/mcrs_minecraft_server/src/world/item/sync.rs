@@ -1,7 +1,7 @@
 use crate::world::aoi::TrackedBy;
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
-use crate::world::item::menu::{Menu, MenuLayout, MenuViewer};
+use crate::world::item::menu::{CurrentMenu, Menu, MenuLayout, MenuViewer};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::resource::Resource;
@@ -30,6 +30,9 @@ pub struct MenuResync {
 /// correctly; vanilla skips those by hashing the remote slot. Upgrade: keep a
 /// hashed copy per menu cell and compare before sending.
 pub fn sync_stack_slots(world: &mut World) {
+    let Some(items) = world.get_resource::<Items>().cloned() else {
+        return;
+    };
     let mut dirty = std::mem::take(&mut *world.resource_mut::<DirtyStacks>());
     let resync = std::mem::take(&mut *world.resource_mut::<MenuResync>());
     if dirty.cells.is_empty()
@@ -44,9 +47,6 @@ pub fn sync_stack_slots(world: &mut World) {
     dirty.roots.sort_unstable();
     dirty.roots.dedup();
 
-    let Some(items) = world.get_resource::<Items>().cloned() else {
-        return;
-    };
     let registry = world.resource::<RegistryAccess>().clone();
     let blocks = world.resource::<Blocks>().clone();
     let lookups: [&dyn RegistryLookup; 2] = [&registry, &*blocks.0];
@@ -106,7 +106,12 @@ pub fn sync_stack_slots(world: &mut World) {
         }
         let hits: Vec<(Entity, Entity, i16)> = menus
             .iter(world)
-            .filter(|(menu, _, _)| !resent.contains(menu))
+            .filter(|(menu, _, viewer)| {
+                !resent.contains(menu)
+                    && world
+                        .get::<CurrentMenu>(viewer.0)
+                        .is_some_and(|current| current.0 == *menu)
+            })
             .filter_map(|(menu, layout, viewer)| {
                 let slot = layout.0.iter().position(|cell| *cell == (holder, index))?;
                 Some((menu, viewer.0, slot as i16))
