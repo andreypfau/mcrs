@@ -11,42 +11,8 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode};
 
-use crate::harness::TestLookup;
-
-const GOLDEN: &str = include_str!("../fixtures/particles_golden.txt");
-
-fn golden(key: &str) -> &'static str {
-    let prefix = format!("{key} = ");
-    GOLDEN
-        .lines()
-        .find_map(|line| line.strip_prefix(&prefix))
-        .unwrap_or_else(|| panic!("no golden value {key}"))
-}
-
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
-
-fn to_hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
-}
-
-fn lookup() -> TestLookup {
-    let mut lookup = TestLookup::new();
-    lookup.registry_with_ids(
-        "item",
-        &[
-            ("air", 0),
-            ("stone", 1),
-            ("apple", 1007),
-            ("diamond_sword", 1050),
-        ],
-    );
-    lookup
-}
+use crate::harness::hex;
+use crate::particle::{golden, lookup, to_hex};
 
 fn id(text: &str) -> ResourceLocation {
     ResourceLocation::parse(text).unwrap()

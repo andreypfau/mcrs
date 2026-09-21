@@ -3,10 +3,11 @@ use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemComponentValue, hash_ops};
 
-use crate::harness::{PersistentValue, TestLookup, persistent_json};
+use crate::harness::{
+    PersistentValue, TestLookup, from_nbt, hex, json_value, nbt_tree, persistent_json,
+};
 
 const GOLDEN: &str = include_str!("../fixtures/item/registry_refs_golden.txt");
 
@@ -26,29 +27,10 @@ enum Outcome {
     },
 }
 
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
-
 fn parse_fixture() -> (TestLookup, Vec<Golden>) {
-    let mut ids: BTreeMap<String, Vec<(String, u32)>> = BTreeMap::new();
     let mut samples = Vec::new();
     let mut lines = GOLDEN.lines().peekable();
     while let Some(line) = lines.next() {
-        if let Some(rest) = line.strip_prefix("id ") {
-            let [registry, name, id] = rest.split(' ').collect::<Vec<_>>()[..] else {
-                panic!("malformed id line: {line}");
-            };
-            let registry = registry.strip_prefix("minecraft:").unwrap();
-            let name = name.strip_prefix("minecraft:").unwrap();
-            ids.entry(registry.to_owned())
-                .or_default()
-                .push((name.to_owned(), id.parse().unwrap()));
-            continue;
-        }
         let Some(rest) = line.strip_prefix("sample ") else {
             continue;
         };
@@ -78,32 +60,7 @@ fn parse_fixture() -> (TestLookup, Vec<Golden>) {
             outcome,
         });
     }
-    let mut lookup = TestLookup::new();
-    for (registry, entries) in ids {
-        let entries: Vec<(&str, u32)> = entries.iter().map(|(n, id)| (n.as_str(), *id)).collect();
-        lookup.registry_with_ids(Box::leak(registry.into_boxed_str()), &entries);
-    }
-    (lookup, samples)
-}
-
-fn sorted(tag: NbtTag) -> NbtTag {
-    match tag {
-        NbtTag::Compound(compound) => {
-            let mut child_tags: Vec<(String, NbtTag)> = compound
-                .child_tags
-                .into_iter()
-                .map(|(key, value)| (key, sorted(value)))
-                .collect();
-            child_tags.sort_by(|a, b| a.0.cmp(&b.0));
-            NbtTag::Compound(NbtCompound { child_tags })
-        }
-        NbtTag::List(items) => NbtTag::List(items.into_iter().map(sorted).collect()),
-        other => other,
-    }
-}
-
-fn nbt_tree(bytes: &[u8]) -> NbtTag {
-    sorted(mcrs_minecraft_nbt::from_bytes_unnamed(&mut std::io::Cursor::new(bytes)).unwrap())
+    (TestLookup::with_id_lines(GOLDEN), samples)
 }
 
 fn from_json(kind: ItemComponentKind, json: &str) -> Result<ItemComponentValue, String> {
@@ -155,10 +112,8 @@ fn every_golden_sample_matches_vanilla() {
                 }
                 let value = from_json(*kind, input)
                     .unwrap_or_else(|e| panic!("{kind} rejected {input}: {e}"));
-                let ours: serde_json::Value =
-                    serde_json::from_str(&persistent_json(&value)).unwrap();
                 let theirs: serde_json::Value = serde_json::from_str(json).unwrap();
-                assert_eq!(ours, theirs, "{kind} {input}: JSON");
+                assert_eq!(json_value(&value), theirs, "{kind} {input}: JSON");
                 assert_eq!(
                     persistent_json(&from_json(*kind, json).unwrap()),
                     persistent_json(&value),
@@ -172,11 +127,7 @@ fn every_golden_sample_matches_vanilla() {
 
                 let mut our_wire = Vec::new();
                 value.encode_ctx(&lookup, &mut our_wire).unwrap();
-                assert_eq!(
-                    hex_string(&our_wire),
-                    hex_string(wire),
-                    "{kind} {input}: wire"
-                );
+                assert_eq!(our_wire, *wire, "{kind} {input}: wire");
                 let mut r = &wire[..];
                 let decoded = decode_component_value(*kind, &lookup, &mut r).unwrap();
                 assert!(r.is_empty(), "{kind}: trailing wire bytes");
@@ -195,10 +146,6 @@ fn every_golden_sample_matches_vanilla() {
         }
     }
     assert_eq!(kinds_seen.len(), 30);
-}
-
-fn hex_string(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 #[test]
@@ -482,10 +429,7 @@ fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
     let mut nbt = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut nbt).unwrap();
     assert!(nbt.ends_with(&[0x00, 0x00, 0x00, 0x00, 0x00]));
-    let mut cursor = std::io::Cursor::new(&nbt[..]);
-    let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
-    let reloaded =
-        ItemComponentValue::deserialize_value(ItemComponentKind::MobVisibility, &mut d).unwrap();
+    let reloaded = from_nbt(ItemComponentKind::MobVisibility, &nbt);
     assert!(persistent_json(&reloaded).ends_with(r#""visibility":0.0}"#));
 }
 

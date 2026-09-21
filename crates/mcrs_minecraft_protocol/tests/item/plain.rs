@@ -1,5 +1,4 @@
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_protocol::item::{
     AdditionalTradeCost, CreativeSlotLock, ItemComponentKind, ItemComponentValue,
@@ -7,7 +6,10 @@ use mcrs_minecraft_protocol::item::{
 };
 use serde::Deserialize;
 
-use crate::harness::{PersistentValue, TestLookup, from_json, persistent_json};
+use crate::harness::{
+    PersistentValue, TestLookup, decode, from_json, hex, json_value, nbt_tree, persistent_json,
+    wire,
+};
 
 #[derive(Deserialize)]
 struct Golden {
@@ -57,41 +59,6 @@ fn kind(id: &str) -> ItemComponentKind {
     ItemComponentKind::from_id(id).unwrap_or_else(|| panic!("{id} is not a kind"))
 }
 
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
-
-fn wire(value: &ItemComponentValue) -> Vec<u8> {
-    let mut out = Vec::new();
-    value.encode_ctx(&TestLookup::new(), &mut out).unwrap();
-    out
-}
-
-fn decode(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
-    let mut r = bytes;
-    let value = decode_component_value(kind, &TestLookup::new(), &mut r).unwrap();
-    assert!(r.is_empty(), "{kind}: {} trailing bytes", r.len());
-    value
-}
-
-/// Vanilla writes compound keys in hash order, so trees compare sorted.
-fn nbt_tree(bytes: &[u8]) -> NbtTag {
-    fn sort(tag: &mut NbtTag) {
-        if let NbtTag::Compound(compound) = tag {
-            compound.child_tags.sort_by(|a, b| a.0.cmp(&b.0));
-            for (_, child) in &mut compound.child_tags {
-                sort(child);
-            }
-        }
-    }
-    let mut tag = mcrs_minecraft_nbt::from_bytes_unnamed(&mut std::io::Cursor::new(bytes)).unwrap();
-    sort(&mut tag);
-    tag
-}
-
 fn transient_value(kind: ItemComponentKind, text: &str) -> ItemComponentValue {
     match (kind, text) {
         (ItemComponentKind::AdditionalTradeCost, n) => {
@@ -106,6 +73,7 @@ fn transient_value(kind: ItemComponentKind, text: &str) -> ItemComponentValue {
 
 #[test]
 fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
+    let lookup = TestLookup::new();
     let mut checked = 0;
     for row in golden().values {
         let Some(input) = &row.input else { continue };
@@ -113,7 +81,7 @@ fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
         let value = from_json(kind, input);
         let json = persistent_json(&value);
         assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&json).unwrap(),
+            json_value(&value),
             serde_json::from_str::<serde_json::Value>(row.json.as_ref().unwrap()).unwrap(),
             "{kind} json of {input}"
         );
@@ -133,8 +101,12 @@ fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
         );
 
         let bytes = hex(&row.wire);
-        assert_eq!(wire(&value), bytes, "{kind} wire of {input}");
-        assert_eq!(decode(kind, &bytes), value, "{kind} wire decode of {input}");
+        assert_eq!(wire(&lookup, &value), bytes, "{kind} wire of {input}");
+        assert_eq!(
+            decode(&lookup, kind, &bytes),
+            value,
+            "{kind} wire decode of {input}"
+        );
         checked += 1;
     }
     assert!(checked > 100, "{checked} rows checked");
@@ -142,6 +114,7 @@ fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
 
 #[test]
 fn transient_values_match_the_vanilla_wire() {
+    let lookup = TestLookup::new();
     let mut checked = 0;
     for row in golden().values {
         let Some(text) = &row.value else { continue };
@@ -149,8 +122,12 @@ fn transient_values_match_the_vanilla_wire() {
         assert!(!kind.is_persistent(), "{kind}");
         let value = transient_value(kind, text);
         let bytes = hex(&row.wire);
-        assert_eq!(wire(&value), bytes, "{kind} wire of {text}");
-        assert_eq!(decode(kind, &bytes), value, "{kind} wire decode of {text}");
+        assert_eq!(wire(&lookup, &value), bytes, "{kind} wire of {text}");
+        assert_eq!(
+            decode(&lookup, kind, &bytes),
+            value,
+            "{kind} wire decode of {text}"
+        );
         checked += 1;
     }
     assert_eq!(checked, 6);
@@ -261,13 +238,14 @@ fn out_of_range_floats_are_refused_on_write_as_well() {
 
 #[test]
 fn out_of_range_wire_ids_decode_as_vanilla_does() {
+    let lookup = TestLookup::new();
     let mut checked = 0;
     for row in golden().decodes {
         let kind = kind(&row.kind);
-        let value = decode(kind, &hex(&row.wire));
+        let value = decode(&lookup, kind, &hex(&row.wire));
         if kind.is_persistent() {
             assert_eq!(
-                serde_json::from_str::<serde_json::Value>(&persistent_json(&value)).unwrap(),
+                json_value(&value),
                 serde_json::from_str::<serde_json::Value>(&row.json).unwrap(),
                 "{kind} from {}",
                 row.wire

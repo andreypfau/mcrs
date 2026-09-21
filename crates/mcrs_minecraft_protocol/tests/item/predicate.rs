@@ -1,13 +1,11 @@
-use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
-use std::collections::BTreeMap;
-
 use mcrs_minecraft_protocol::item::{
     ComponentPredicateType, ItemComponentKind, ItemComponentValue, hash_ops,
 };
+use mcrs_minecraft_registry::{RegistryLookup, StaticRegistryTable};
 use serde::Deserialize;
 
-use crate::harness::{PersistentValue, TestLookup, from_json, persistent_json};
+use crate::harness::{PersistentValue, TestLookup, decode, from_json, hex, json_value, wire};
 
 #[derive(Deserialize)]
 struct Case {
@@ -22,34 +20,10 @@ struct Case {
     ordered: bool,
 }
 
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
-
 fn lookup() -> TestLookup {
     let mut lookup = TestLookup::new();
     lookup.registry_with_ids("block", &[("stone", 1), ("dirt", 9)]);
     lookup
-}
-
-fn json_value(value: &ItemComponentValue) -> serde_json::Value {
-    serde_json::from_str(&persistent_json(value)).unwrap()
-}
-
-fn wire(value: &ItemComponentValue) -> Vec<u8> {
-    let mut out = Vec::new();
-    value.encode_ctx(&lookup(), &mut out).unwrap();
-    out
-}
-
-fn decode(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
-    let mut r = bytes;
-    let value = decode_component_value(kind, &lookup(), &mut r).unwrap();
-    assert!(r.is_empty(), "{} trailing bytes", r.len());
-    value
 }
 
 #[test]
@@ -57,6 +31,7 @@ fn predicates_match_the_vanilla_codecs() {
     let cases: Vec<Case> =
         serde_json::from_str(include_str!("../fixtures/item/predicate_vanilla.json")).unwrap();
     assert_eq!(cases.len(), 81);
+    let lookup = lookup();
     for case in cases {
         let kind = ItemComponentKind::from_id(&case.kind).unwrap();
         let label = format!("{} {}", case.kind, case.input);
@@ -70,9 +45,9 @@ fn predicates_match_the_vanilla_codecs() {
 
         let bytes = hex(&case.wire);
         if case.ordered {
-            assert_eq!(wire(&value), bytes, "{label}");
+            assert_eq!(wire(&lookup, &value), bytes, "{label}");
         }
-        let decoded = decode(kind, &bytes);
+        let decoded = decode(&lookup, kind, &bytes);
         assert_eq!(json_value(&decoded), case.json, "{label} from the wire");
         assert_eq!(
             hash_ops::hash(&PersistentValue(&decoded)).unwrap(),
@@ -80,9 +55,13 @@ fn predicates_match_the_vanilla_codecs() {
             "{label} from the wire"
         );
         if case.ordered {
-            assert_eq!(wire(&decoded), bytes, "{label} re-encoded");
+            assert_eq!(wire(&lookup, &decoded), bytes, "{label} re-encoded");
         } else {
-            assert_eq!(decode(kind, &wire(&decoded)), decoded, "{label} re-encoded");
+            assert_eq!(
+                decode(&lookup, kind, &wire(&lookup, &decoded)),
+                decoded,
+                "{label} re-encoded"
+            );
         }
     }
 }
@@ -298,6 +277,7 @@ fn a_double_range_between_the_two_zeros_is_kept() {
 /// by position.
 #[test]
 fn predicate_order_does_not_affect_equality() {
+    let lookup = lookup();
     for (a, b) in [
         (
             "{\"predicates\":{\"minecraft:damage\":{},\"minecraft:trim\":{}}}",
@@ -315,7 +295,10 @@ fn predicate_order_does_not_affect_equality() {
         let a = from_json(ItemComponentKind::CanBreak, a);
         let b = from_json(ItemComponentKind::CanBreak, b);
         assert_eq!(a, b);
-        assert_eq!(decode(ItemComponentKind::CanBreak, &wire(&a)), a);
+        assert_eq!(
+            decode(&lookup, ItemComponentKind::CanBreak, &wire(&lookup, &a)),
+            a
+        );
     }
     let a = from_json(
         ItemComponentKind::CanBreak,
@@ -328,28 +311,18 @@ fn predicate_order_does_not_affect_equality() {
     assert_ne!(a, b);
 }
 
-#[derive(Deserialize)]
-struct Report {
-    entries: BTreeMap<String, Entry>,
-}
-
-#[derive(Deserialize)]
-struct Entry {
-    protocol_id: u32,
-}
-
 #[test]
 fn predicate_type_ids_are_the_registry_protocol_ids() {
-    let report: BTreeMap<String, Report> = serde_json::from_str(include_str!(
+    let report = StaticRegistryTable::from_json(include_bytes!(
         "../../../../assets/mcrs/reports/registries.json"
     ))
     .unwrap();
-    let entries = &report["minecraft:data_component_predicate_type"].entries;
+    let entries = report.registry("data_component_predicate_type").unwrap();
     assert_eq!(entries.len(), ComponentPredicateType::ALL.len());
     for kind in ComponentPredicateType::ALL {
         assert_eq!(
-            entries[kind.id().as_str()].protocol_id,
-            *kind as u32,
+            report.id("data_component_predicate_type", &kind.id().into()),
+            Some(*kind as u32),
             "{kind:?}"
         );
         assert_eq!(

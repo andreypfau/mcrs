@@ -5,18 +5,19 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
-    BlockState, BrewingFuel, BucketEntityData, Compostable, CookingFuel, CustomData,
-    CustomModelData, DebugStickState, Fireworks, ItemComponentKind, ItemComponentValue,
-    ItemDataComponent, ItemModel, LodestoneTracker, MapDecorations, NoteBlockSound, Profile,
-    ProfileIdentity, Recipes, ResolvableNumber, SignText, SignTextBack, SignTextFront,
-    TooltipDisplay, TooltipStyle, UseEffects, hash_ops,
+    AttackRange, BlockState, BrewingFuel, BucketEntityData, Compostable, ContainerLoot,
+    CookingFuel, CustomData, CustomModelData, DebugStickState, Fireworks, Food, ItemComponentKind,
+    ItemComponentValue, ItemDataComponent, ItemModel, LodestoneTracker, MapDecorations,
+    NoteBlockSound, Profile, ProfileIdentity, Recipes, ResolvableNumber, SignText, SignTextBack,
+    SignTextFront, TooltipDisplay, TooltipStyle, UseCooldown, UseEffects, Weapon, hash_ops,
 };
 use mcrs_minecraft_protocol::profile::Property;
 
-use crate::harness::{PersistentValue, TestLookup, from_json, persistent_json};
+use crate::harness::{
+    PersistentValue, TestLookup, from_json, from_nbt, hex, nbt_tree, persistent_json,
+};
 
 type Row = HashMap<&'static str, &'static str>;
 
@@ -30,46 +31,10 @@ static GOLDEN: LazyLock<HashMap<&'static str, Row>> = LazyLock::new(|| {
     rows
 });
 
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
-
-/// Vanilla writes its compounds in hash order, so trees compare sorted.
-fn sorted(tag: NbtTag) -> NbtTag {
-    match tag {
-        NbtTag::Compound(compound) => {
-            let mut child_tags: Vec<(String, NbtTag)> = compound
-                .child_tags
-                .into_iter()
-                .map(|(key, value)| (key, sorted(value)))
-                .collect();
-            child_tags.sort_by(|a, b| a.0.cmp(&b.0));
-            NbtTag::Compound(NbtCompound { child_tags })
-        }
-        NbtTag::List(items) => NbtTag::List(items.into_iter().map(sorted).collect()),
-        other => other,
-    }
-}
-
-fn nbt_tree(bytes: &[u8]) -> NbtTag {
-    sorted(mcrs_minecraft_nbt::from_bytes_unnamed(&mut std::io::Cursor::new(bytes)).unwrap())
-}
-
 fn our_nbt(value: &ItemComponentValue) -> Vec<u8> {
     let mut out = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(value), &mut out).unwrap();
     out
-}
-
-fn from_nbt(value: &ItemComponentValue, bytes: &[u8]) -> ItemComponentValue {
-    let mut cursor = std::io::Cursor::new(bytes);
-    let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
-    let back = ItemComponentValue::deserialize_value(value.kind(), &mut d).unwrap();
-    assert_eq!(cursor.position() as usize, bytes.len());
-    back
 }
 
 fn check(label: &str, value: impl Into<ItemComponentValue>) {
@@ -92,7 +57,7 @@ fn check_read_as(label: &str, value: ItemComponentValue, read: ItemComponentValu
         nbt_tree(&vanilla_nbt),
         "{label}: NBT"
     );
-    assert_eq!(from_nbt(&value, &vanilla_nbt), value, "{label}: from NBT");
+    assert_eq!(from_nbt(kind, &vanilla_nbt), value, "{label}: from NBT");
 
     let vanilla_wire = hex(row["wire"]);
     let mut wire = Vec::new();
@@ -155,35 +120,14 @@ fn flat_records_match_vanilla() {
     check("cmd_full", sample::<CustomModelData>(1));
     check("tooltip_default", sample::<TooltipDisplay>(0));
     check("tooltip_full", sample::<TooltipDisplay>(1));
-    check("food_min", sample::<mcrs_minecraft_protocol::item::Food>(0));
-    check(
-        "food_full",
-        sample::<mcrs_minecraft_protocol::item::Food>(1),
-    );
-    check(
-        "cooldown_min",
-        sample::<mcrs_minecraft_protocol::item::UseCooldown>(0),
-    );
-    check(
-        "cooldown_full",
-        sample::<mcrs_minecraft_protocol::item::UseCooldown>(1),
-    );
-    check(
-        "weapon_default",
-        sample::<mcrs_minecraft_protocol::item::Weapon>(0),
-    );
-    check(
-        "weapon_full",
-        sample::<mcrs_minecraft_protocol::item::Weapon>(1),
-    );
-    check(
-        "attack_range_default",
-        sample::<mcrs_minecraft_protocol::item::AttackRange>(0),
-    );
-    check(
-        "attack_range_full",
-        sample::<mcrs_minecraft_protocol::item::AttackRange>(1),
-    );
+    check("food_min", sample::<Food>(0));
+    check("food_full", sample::<Food>(1));
+    check("cooldown_min", sample::<UseCooldown>(0));
+    check("cooldown_full", sample::<UseCooldown>(1));
+    check("weapon_default", sample::<Weapon>(0));
+    check("weapon_full", sample::<Weapon>(1));
+    check("attack_range_default", sample::<AttackRange>(0));
+    check("attack_range_full", sample::<AttackRange>(1));
     check("block_state_empty", BlockState::default());
     check(
         "block_state_one",
@@ -217,11 +161,11 @@ fn flat_records_match_vanilla() {
             .starts_with("Value 1.5 outside of range [0.0:1.0]")
     );
     assert!(
-        error::<mcrs_minecraft_protocol::item::Food>(r#"{"nutrition":-1,"saturation":0.6}"#)
+        error::<Food>(r#"{"nutrition":-1,"saturation":0.6}"#)
             .starts_with(GOLDEN["food_neg"]["error"])
     );
     assert!(
-        error::<mcrs_minecraft_protocol::item::Weapon>(r#"{"item_damage_per_attack":-1}"#)
+        error::<Weapon>(r#"{"item_damage_per_attack":-1}"#)
             .starts_with("Value must be non-negative: -1")
     );
     for id in ["minecraft:nope", "nope"] {
@@ -231,16 +175,13 @@ fn flat_records_match_vanilla() {
             )
         );
     }
+    assert!(error::<UseCooldown>(r#"{"seconds":0}"#).starts_with("Value must be positive: 0.0"));
     assert!(
-        error::<mcrs_minecraft_protocol::item::UseCooldown>(r#"{"seconds":0}"#)
-            .starts_with("Value must be positive: 0.0")
-    );
-    assert!(
-        error::<mcrs_minecraft_protocol::item::AttackRange>(r#"{"mob_factor":2.5}"#)
+        error::<AttackRange>(r#"{"mob_factor":2.5}"#)
             .starts_with("Value 2.5 outside of range [0.0:2.0]")
     );
     assert!(
-        error::<mcrs_minecraft_protocol::item::AttackRange>(r#"{"min_reach":65}"#)
+        error::<AttackRange>(r#"{"min_reach":65}"#)
             .starts_with("Value must be within range [0.0;64.0]: 65.0")
     );
     assert!(
@@ -248,24 +189,23 @@ fn flat_records_match_vanilla() {
             .starts_with("Value -0.0 outside of range [0.0:1.0]")
     );
     assert!(
-        error::<mcrs_minecraft_protocol::item::AttackRange>(r#"{"min_reach":-0.0}"#)
+        error::<AttackRange>(r#"{"min_reach":-0.0}"#)
             .starts_with("Value must be within range [0.0;64.0]: -0.0")
     );
     assert!(
-        error::<mcrs_minecraft_protocol::item::AttackRange>(r#"{"mob_factor":-0.0}"#)
+        error::<AttackRange>(r#"{"mob_factor":-0.0}"#)
             .starts_with("Value -0.0 outside of range [0.0:2.0]")
     );
     assert!(
-        error::<mcrs_minecraft_protocol::item::Weapon>(r#"{"disable_blocking_for_seconds":-0.0}"#)
+        error::<Weapon>(r#"{"disable_blocking_for_seconds":-0.0}"#)
             .starts_with("Value must be non-negative: -0.0")
     );
     assert!(
-        error::<mcrs_minecraft_protocol::item::Weapon>(r#"{"disable_blocking_for_seconds":1e40}"#)
+        error::<Weapon>(r#"{"disable_blocking_for_seconds":1e40}"#)
             .starts_with("Value must be non-negative: ")
     );
     assert!(
-        error::<mcrs_minecraft_protocol::item::UseCooldown>(r#"{"seconds":-0.0}"#)
-            .starts_with("Value must be positive: -0.0")
+        error::<UseCooldown>(r#"{"seconds":-0.0}"#).starts_with("Value must be positive: -0.0")
     );
 }
 
@@ -529,19 +469,11 @@ fn nbt_wire_records_match_vanilla() {
         parse::<Recipes>(r#"["minecraft:stone","oak_planks"]"#),
         sample::<Recipes>(1)
     );
-    check(
-        "loot_min",
-        sample::<mcrs_minecraft_protocol::item::ContainerLoot>(0),
-    );
-    check(
-        "loot_full",
-        sample::<mcrs_minecraft_protocol::item::ContainerLoot>(1),
-    );
+    check("loot_min", sample::<ContainerLoot>(0));
+    check("loot_full", sample::<ContainerLoot>(1));
     assert_eq!(
-        parse::<mcrs_minecraft_protocol::item::ContainerLoot>(
-            r#"{"loot_table":"minecraft:chests/simple_dungeon","seed":0}"#
-        ),
-        sample::<mcrs_minecraft_protocol::item::ContainerLoot>(0)
+        parse::<ContainerLoot>(r#"{"loot_table":"minecraft:chests/simple_dungeon","seed":0}"#),
+        sample::<ContainerLoot>(0)
     );
     for (label, json, seed) in [
         (
@@ -555,7 +487,7 @@ fn nbt_wire_records_match_vanilla() {
             -8446744073709551616,
         ),
     ] {
-        let loot = parse::<mcrs_minecraft_protocol::item::ContainerLoot>(json);
+        let loot = parse::<ContainerLoot>(json);
         assert_eq!(loot.seed, seed);
         check(label, loot);
     }

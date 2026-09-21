@@ -1,17 +1,19 @@
+mod common;
+
 use std::io::Cursor;
 
 use mcrs_minecraft_core::rl;
-use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{from_bytes_unnamed, to_bytes_unnamed};
 
 use std::str::FromStr;
 
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::text::*;
 use mcrs_minecraft_protocol::{Decode, Encode};
 use serde::Deserialize;
 use uuid::Uuid;
+
+use common::{hex, nbt_tree, sorted};
 
 #[test]
 fn text_round_trip() {
@@ -22,11 +24,6 @@ fn text_round_trip() {
     let json = format!("{before:#}");
 
     let after = Text::from_str(&json).unwrap();
-
-    println!("==== Before ====\n");
-    println!("{before:#?}");
-    println!("==== After ====\n");
-    println!("{after:#?}");
 
     assert_eq!(before, after);
     assert_eq!(before.to_string(), after.to_string());
@@ -43,91 +40,56 @@ fn non_object_data_types() {
 }
 
 #[test]
-fn translate() {
-    let txt = Text::translate(
-        "chat.type.advancement.task",
-        ["arg1".into_text(), "arg2".into_text()],
-    );
-    let serialized = txt.to_string();
-    let deserialized = Text::from_str(&serialized).unwrap();
-    assert_eq!(
-        serialized,
-        r#"{"translate":"chat.type.advancement.task","with":["arg1","arg2"]}"#
-    );
-    assert_eq!(txt, deserialized);
-}
-
-#[test]
-fn score() {
-    let txt = Text::score("foo", "bar");
-    let serialized = txt.to_string();
-    let deserialized = Text::from_str(&serialized).unwrap();
-    assert_eq!(serialized, r#"{"score":{"name":"foo","objective":"bar"}}"#);
-    assert_eq!(txt, deserialized);
-}
-
-#[test]
-fn selector() {
-    let separator = Text::text("bar").color(Color::RED).bold();
-    let txt = Text::selector("foo", Some(separator));
-    let serialized = txt.to_string();
-    let deserialized = Text::from_str(&serialized).unwrap();
-    assert_eq!(
-        serialized,
-        r##"{"selector":"foo","separator":{"text":"bar","color":"red","bold":true}}"##
-    );
-    assert_eq!(txt, deserialized);
-}
-
-#[test]
-fn keybind() {
-    let txt = Text::keybind("foo");
-    let serialized = txt.to_string();
-    let deserialized = Text::from_str(&serialized).unwrap();
-    assert_eq!(serialized, r#"{"keybind":"foo"}"#);
-    assert_eq!(txt, deserialized);
-}
-
-#[test]
-fn block_nbt() {
-    let source = DataSource::Block {
-        typed: (),
-        block: "foo".into(),
+fn content_variants_round_trip_through_json() {
+    let nbt = |source, expected| {
+        (
+            Text::nbt(source, "bar", true, Some("baz".into_text())),
+            expected,
+        )
     };
-    let txt = Text::nbt(source, "bar", true, Some("baz".into_text()));
-    let serialized = txt.to_string();
-    let deserialized = Text::from_str(&serialized).unwrap();
-    let expected = r#"{"nbt":"bar","interpret":true,"separator":"baz","block":"foo"}"#;
-    assert_eq!(serialized, expected);
-    assert_eq!(txt, deserialized);
-}
-
-#[test]
-fn entity_nbt() {
-    let source = DataSource::Entity {
-        typed: (),
-        entity: "foo".into(),
-    };
-    let txt = Text::nbt(source, "bar", true, Some("baz".into_text()));
-    let serialized = txt.to_string();
-    let deserialized = Text::from_str(&serialized).unwrap();
-    let expected = r#"{"nbt":"bar","interpret":true,"separator":"baz","entity":"foo"}"#;
-    assert_eq!(serialized, expected);
-    assert_eq!(txt, deserialized);
-}
-
-#[test]
-fn storage_nbt() {
-    let source = DataSource::Storage {
-        typed: (),
-        storage: rl!("foo").into(),
-    };
-    let txt = Text::nbt(source, "bar", true, Some("baz".into_text()));
-    let serialized = txt.to_string();
-    let deserialized = Text::from_str(&serialized).unwrap();
-    let expected = r#"{"nbt":"bar","interpret":true,"separator":"baz","storage":"minecraft:foo"}"#;
-    assert_eq!(serialized, expected);
-    assert_eq!(txt, deserialized);
+    for (txt, expected) in [
+        (
+            Text::translate(
+                "chat.type.advancement.task",
+                ["arg1".into_text(), "arg2".into_text()],
+            ),
+            r#"{"translate":"chat.type.advancement.task","with":["arg1","arg2"]}"#,
+        ),
+        (
+            Text::score("foo", "bar"),
+            r#"{"score":{"name":"foo","objective":"bar"}}"#,
+        ),
+        (
+            Text::selector("foo", Some(Text::text("bar").color(Color::RED).bold())),
+            r#"{"selector":"foo","separator":{"text":"bar","color":"red","bold":true}}"#,
+        ),
+        (Text::keybind("foo"), r#"{"keybind":"foo"}"#),
+        nbt(
+            DataSource::Block {
+                typed: (),
+                block: "foo".into(),
+            },
+            r#"{"nbt":"bar","interpret":true,"separator":"baz","block":"foo"}"#,
+        ),
+        nbt(
+            DataSource::Entity {
+                typed: (),
+                entity: "foo".into(),
+            },
+            r#"{"nbt":"bar","interpret":true,"separator":"baz","entity":"foo"}"#,
+        ),
+        nbt(
+            DataSource::Storage {
+                typed: (),
+                storage: rl!("foo").into(),
+            },
+            r#"{"nbt":"bar","interpret":true,"separator":"baz","storage":"minecraft:foo"}"#,
+        ),
+    ] {
+        let serialized = txt.to_string();
+        assert_eq!(serialized, expected);
+        assert_eq!(Text::from_str(&serialized).unwrap(), txt);
+    }
 }
 
 #[test]
@@ -224,37 +186,6 @@ fn a_boolean_inside_a_content_variant_survives_nbt() {
     }
 }
 
-fn hex(s: &str) -> Vec<u8> {
-    (0..s.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
-        .collect()
-}
-
-/// Vanilla's `CompoundTag` is a hash map, so its byte order is not
-/// reproducible; compounds are compared with their keys sorted.
-fn canonical(tag: NbtTag) -> NbtTag {
-    match tag {
-        NbtTag::Compound(c) => {
-            let mut entries: Vec<_> = c
-                .child_tags
-                .into_iter()
-                .map(|(k, v)| (k, canonical(v)))
-                .collect();
-            entries.sort_by(|a, b| a.0.cmp(&b.0));
-            NbtTag::Compound(NbtCompound {
-                child_tags: entries,
-            })
-        }
-        NbtTag::List(items) => NbtTag::List(items.into_iter().map(canonical).collect()),
-        other => other,
-    }
-}
-
-fn nbt_tree(bytes: &[u8]) -> NbtTag {
-    canonical(from_bytes_unnamed(&mut Cursor::new(bytes)).unwrap())
-}
-
 #[derive(Deserialize)]
 struct VanillaCase {
     name: String,
@@ -345,11 +276,8 @@ fn vanilla_rejections() {
 struct ProbeCase {
     name: String,
     input: serde_json::Value,
-    #[serde(default)]
     json: Option<serde_json::Value>,
-    #[serde(default)]
     nbt: Option<String>,
-    #[serde(default)]
     error: Option<String>,
 }
 
@@ -492,20 +420,12 @@ struct NbtCase {
     error: Option<String>,
 }
 
-/// Where the NBT reader knowingly differs: a `1b` flag is written back as
-/// the boolean it stands for, so `show_icon`-style bytes below `with` are
-/// not distinguishable from booleans.
-const NBT_DIVERGENCES: &[&str] = &[];
-
 #[test]
 fn vanilla_nbt_bytes_decode_to_the_same_json_and_re_encode_to_the_same_tags() {
     let cases: Vec<NbtCase> = serde_json::from_str(include_str!("fixtures/text/nbt.json")).unwrap();
     assert_eq!(cases.len(), 55);
     let mut failures = Vec::new();
     for case in cases {
-        if NBT_DIVERGENCES.contains(&case.name.as_str()) {
-            continue;
-        }
         let name = &case.name;
         let bytes = hex(&case.input);
         let mut r: &[u8] = &bytes;
@@ -523,7 +443,7 @@ fn vanilla_nbt_bytes_decode_to_the_same_json_and_re_encode_to_the_same_tags() {
                 }
                 let mut ours = Vec::new();
                 text.encode(&mut ours).unwrap();
-                let vanilla = canonical(
+                let vanilla = sorted(
                     mcrs_minecraft_nbt::snbt::parse_tag(case.snbt.as_ref().unwrap()).unwrap(),
                 );
                 if nbt_tree(&ours) != vanilla {

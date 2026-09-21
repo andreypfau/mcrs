@@ -1,3 +1,6 @@
+#[path = "../common/mod.rs"]
+mod common;
+
 mod advancement;
 mod corpus;
 mod golden;

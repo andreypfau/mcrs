@@ -1,6 +1,5 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
-use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
     HashedPatchMap, HashedStack, ItemComponentKind, ItemComponentValue, ItemStackValue, Lore,
@@ -11,17 +10,10 @@ use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registry::{ItemId, NoRegistries};
 use serde::{Deserialize, Serialize};
 
-use crate::harness::TestLookup;
+use crate::harness::{TestLookup, custom_data};
 
 fn stack_size(n: i32) -> MaxStackSize {
     MaxStackSize(Bounded(n))
-}
-
-fn custom_data() -> CustomData {
-    let mut tag = NbtCompound::new();
-    tag.put_int("x", 100000);
-    tag.put_string("name", "mcrs".into());
-    CustomData(tag)
 }
 
 fn patch() -> ComponentPatch {

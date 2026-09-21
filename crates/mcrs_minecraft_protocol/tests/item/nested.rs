@@ -3,7 +3,6 @@ use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
     BundleContents, ChargedProjectiles, Container, DecodeCtx, ItemComponentKind,
@@ -12,7 +11,7 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::Deserialize;
 
-use crate::harness::{PersistentValue, TestLookup, from_json, persistent_json};
+use crate::harness::{PersistentValue, TestLookup, from_json, hex, nbt_tree, persistent_json};
 
 #[derive(Deserialize)]
 struct Golden {
@@ -34,49 +33,10 @@ fn golden() -> Golden {
     serde_json::from_str(include_str!("../fixtures/item/nested_golden.json")).unwrap()
 }
 
-fn lookup(golden: &Golden) -> TestLookup {
-    let mut lookup = TestLookup::new();
-    for (registry, entries) in &golden.lookup {
-        let registry: &'static str = Box::leak(registry.clone().into_boxed_str());
-        let entries: Vec<(&str, u32)> = entries.iter().map(|(k, v)| (k.as_str(), *v)).collect();
-        lookup.registry_with_ids(registry, &entries);
-    }
-    lookup
-}
-
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
-
-/// Vanilla writes compounds in hash order, so trees are compared with every
-/// compound sorted by key.
-fn sorted(tag: NbtTag) -> NbtTag {
-    match tag {
-        NbtTag::Compound(mut compound) => {
-            compound.child_tags = compound
-                .child_tags
-                .into_iter()
-                .map(|(key, value)| (key, sorted(value)))
-                .collect();
-            compound.child_tags.sort_by(|a, b| a.0.cmp(&b.0));
-            NbtTag::Compound(compound)
-        }
-        NbtTag::List(list) => NbtTag::List(list.into_iter().map(sorted).collect()),
-        other => other,
-    }
-}
-
-fn nbt_tree(bytes: &[u8]) -> NbtTag {
-    sorted(mcrs_minecraft_nbt::from_bytes_unnamed(&mut std::io::Cursor::new(bytes)).unwrap())
-}
-
 #[test]
 fn nested_kinds_match_vanilla_in_every_form() {
     let golden = golden();
-    let lookup = lookup(&golden);
+    let lookup = TestLookup::from_ids(&golden.lookup);
     for case in &golden.cases {
         let kind = ItemComponentKind::from_id(&case.kind).unwrap();
         let value = from_json(kind, &case.json);
@@ -132,7 +92,7 @@ fn a_bare_item_id_reads_as_a_plain_template() {
 #[test]
 fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     let golden = golden();
-    let lookup = lookup(&golden);
+    let lookup = TestLookup::from_ids(&golden.lookup);
     let sparse: Container = serde_json::from_str(
         r#"[{"slot":3,"item":"minecraft:apple"},{"slot":0,"item":{"id":"minecraft:stone","count":64}},{"slot":3,"item":{"id":"minecraft:diamond_sword","count":3,"components":{"max_stack_size":16,"damage":7,"custom_name":"named","unbreakable":{},"!repair_cost":{}}}}]"#,
     )

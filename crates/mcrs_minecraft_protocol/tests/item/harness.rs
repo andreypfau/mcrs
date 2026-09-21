@@ -1,9 +1,11 @@
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_protocol::item;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
@@ -11,11 +13,13 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_registry::RegistryLookup;
 
+pub use crate::common::{hex, nbt_tree};
+
 /// Every name a sample may reference, with the ids a capture session would
 /// have handed out.
 pub struct TestLookup {
-    by_name: HashMap<&'static str, HashMap<ResourceLocation, u32>>,
-    by_id: HashMap<&'static str, Vec<Option<ResourceLocation>>>,
+    by_name: HashMap<String, HashMap<ResourceLocation, u32>>,
+    by_id: HashMap<String, Vec<Option<ResourceLocation>>>,
     block_states: Vec<TestBlockState>,
 }
 
@@ -79,7 +83,31 @@ impl TestLookup {
         lookup
     }
 
-    fn registry(&mut self, name: &'static str, paths: &[&str]) {
+    pub fn with_id_lines(text: &str) -> Self {
+        let mut ids: BTreeMap<String, BTreeMap<String, u32>> = BTreeMap::new();
+        for line in text.lines().filter_map(|line| line.strip_prefix("id ")) {
+            let [registry, name, id] = line.split(' ').collect::<Vec<_>>()[..] else {
+                panic!("malformed id line: {line}");
+            };
+            let registry = registry.strip_prefix("minecraft:").unwrap_or(registry);
+            let name = name.strip_prefix("minecraft:").unwrap_or(name);
+            ids.entry(registry.into())
+                .or_default()
+                .insert(name.into(), id.parse().unwrap());
+        }
+        Self::from_ids(&ids)
+    }
+
+    pub fn from_ids(ids: &BTreeMap<String, BTreeMap<String, u32>>) -> Self {
+        let mut lookup = Self::new();
+        for (registry, entries) in ids {
+            let entries: Vec<(&str, u32)> = entries.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+            lookup.registry_with_ids(registry, &entries);
+        }
+        lookup
+    }
+
+    fn registry(&mut self, name: &str, paths: &[&str]) {
         let entries: Vec<(&str, u32)> = paths
             .iter()
             .enumerate()
@@ -88,7 +116,7 @@ impl TestLookup {
         self.registry_with_ids(name, &entries);
     }
 
-    pub fn registry_with_ids(&mut self, name: &'static str, entries: &[(&str, u32)]) {
+    pub fn registry_with_ids(&mut self, name: &str, entries: &[(&str, u32)]) {
         let mut by_id = Vec::new();
         let mut by_name = HashMap::new();
         for (path, id) in entries {
@@ -99,19 +127,11 @@ impl TestLookup {
             by_id[*id as usize] = Some(location.clone());
             by_name.insert(location, *id);
         }
-        self.by_name.insert(name, by_name);
-        self.by_id.insert(name, by_id);
+        self.by_name.insert(name.into(), by_name);
+        self.by_id.insert(name.into(), by_id);
     }
 
-    pub fn block_state(&mut self, id: u32, block: &str, properties: &[(&str, &str)]) {
-        self.add_block_state(id, block, properties, false);
-    }
-
-    pub fn default_block_state(&mut self, id: u32, block: &str, properties: &[(&str, &str)]) {
-        self.add_block_state(id, block, properties, true);
-    }
-
-    fn add_block_state(
+    pub fn block_state(
         &mut self,
         id: u32,
         block: &str,
@@ -191,9 +211,36 @@ pub fn persistent_json(value: &ItemComponentValue) -> String {
     String::from_utf8(out).unwrap()
 }
 
+pub fn json_value(value: &ItemComponentValue) -> serde_json::Value {
+    serde_json::from_str(&persistent_json(value)).unwrap()
+}
+
 pub fn from_json(kind: ItemComponentKind, json: &str) -> ItemComponentValue {
     let mut d = serde_json::Deserializer::from_str(json);
     ItemComponentValue::deserialize_value(kind, &mut d).expect("deserialize_value")
+}
+
+pub fn wire(lookup: &TestLookup, value: &ItemComponentValue) -> Vec<u8> {
+    let mut out = Vec::new();
+    value
+        .encode_ctx(lookup, &mut out)
+        .unwrap_or_else(|e| panic!("{}: encode {value:?}: {e}", value.kind()));
+    out
+}
+
+pub fn decode(lookup: &TestLookup, kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
+    let mut r = bytes;
+    let value = decode_component_value(kind, lookup, &mut r)
+        .unwrap_or_else(|e| panic!("{kind}: decode {bytes:02x?}: {e}"));
+    assert!(r.is_empty(), "{kind}: {} trailing bytes", r.len());
+    value
+}
+
+pub fn custom_data() -> item::CustomData {
+    let mut tag = NbtCompound::new();
+    tag.put_int("x", 100000);
+    tag.put_string("name", "mcrs".into());
+    item::CustomData(tag)
 }
 
 pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>() {
@@ -244,21 +291,19 @@ pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>()
             );
         }
 
-        let mut wire = Vec::new();
-        value
-            .encode_ctx(&lookup, &mut wire)
-            .expect("encode_ctx_value");
-        let mut r = &wire[..];
-        let back = decode_component_value(kind, &lookup, &mut r).expect("decode_ctx_value");
-        assert!(r.is_empty(), "{} trailing bytes after {kind}", r.len());
-        assert_eq!(back, value, "wire round trip of {kind}");
+        let bytes = wire(&lookup, &value);
+        assert_eq!(
+            decode(&lookup, kind, &bytes),
+            value,
+            "wire round trip of {kind}"
+        );
         if kind.is_unit() {
             let expected: &[u8] = if kind.is_nbt_wire() {
                 &[0x0A, 0x00]
             } else {
                 &[]
             };
-            assert_eq!(wire, expected, "unit wire form of {kind}");
+            assert_eq!(bytes, expected, "unit wire form of {kind}");
         }
     }
 }
@@ -286,7 +331,7 @@ fn check_tag_widths(kind: ItemComponentKind, bytes: &[u8], expected: &[(&str, u8
     }
 }
 
-fn from_nbt(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
+pub fn from_nbt(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
     let mut cursor = std::io::Cursor::new(bytes);
     let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
     let value = ItemComponentValue::deserialize_value(kind, &mut d).expect("from nbt");

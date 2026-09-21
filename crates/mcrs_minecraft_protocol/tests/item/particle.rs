@@ -15,11 +15,11 @@ use mcrs_minecraft_protocol::particle::{
 };
 use mcrs_minecraft_protocol::{Decode, Encode};
 
-use crate::harness::TestLookup;
+use crate::harness::{TestLookup, hex};
 
 const GOLDEN: &str = include_str!("../fixtures/particles_golden.txt");
 
-fn golden(key: &str) -> &'static str {
+pub(crate) fn golden(key: &str) -> &'static str {
     let prefix = format!("{key} = ");
     GOLDEN
         .lines()
@@ -27,18 +27,11 @@ fn golden(key: &str) -> &'static str {
         .unwrap_or_else(|| panic!("no golden value {key}"))
 }
 
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
-
-fn to_hex(bytes: &[u8]) -> String {
+pub(crate) fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn lookup() -> TestLookup {
+pub(crate) fn lookup() -> TestLookup {
     let mut lookup = TestLookup::new();
     lookup.registry_with_ids(
         "item",
@@ -49,10 +42,25 @@ fn lookup() -> TestLookup {
             ("diamond_sword", 1050),
         ],
     );
-    lookup.default_block_state(1, "stone", &[]);
-    lookup.default_block_state(6884, "furnace", &[("facing", "north"), ("lit", "false")]);
-    lookup.block_state(6883, "furnace", &[("facing", "north"), ("lit", "true")]);
-    lookup.block_state(6886, "furnace", &[("facing", "south"), ("lit", "false")]);
+    lookup.block_state(1, "stone", &[], true);
+    lookup.block_state(
+        6884,
+        "furnace",
+        &[("facing", "north"), ("lit", "false")],
+        true,
+    );
+    lookup.block_state(
+        6883,
+        "furnace",
+        &[("facing", "north"), ("lit", "true")],
+        false,
+    );
+    lookup.block_state(
+        6886,
+        "furnace",
+        &[("facing", "south"), ("lit", "false")],
+        false,
+    );
     lookup
 }
 
