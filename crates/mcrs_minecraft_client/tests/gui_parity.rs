@@ -190,6 +190,16 @@ fn title_mask(width: u32, height: u32, scale: u32) -> Rect {
     }
 }
 
+fn player_preview_mask(width: u32, height: u32, scale: u32) -> Rect {
+    let inventory = inventory_rect(width, height, scale);
+    Rect {
+        x: inventory.x + 26,
+        y: inventory.y + 8,
+        w: 49,
+        h: 70,
+    }
+}
+
 fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/gui")
 }
@@ -278,7 +288,10 @@ fn hotbar_and_inventory_match_vanilla() {
         &shot,
         "inventory",
         inventory_rect(WIDTH, HEIGHT, SCALE),
-        &[title_mask(WIDTH, HEIGHT, SCALE)],
+        &[
+            title_mask(WIDTH, HEIGHT, SCALE),
+            player_preview_mask(WIDTH, HEIGHT, SCALE),
+        ],
     );
 }
 

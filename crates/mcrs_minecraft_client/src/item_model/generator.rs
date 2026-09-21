@@ -59,8 +59,8 @@ pub fn extrude(
         let u0 = x + UV_SHRINK;
         let u1 = x + 1.0 - UV_SHRINK;
         let (v0, v1) = match facing {
-            Side::Left | Side::Right => (y + UV_SHRINK, y + 1.0 - UV_SHRINK),
-            Side::Up | Side::Down => (y + 1.0 - UV_SHRINK, y + UV_SHRINK),
+            Side::Up | Side::Down => (y + UV_SHRINK, y + 1.0 - UV_SHRINK),
+            Side::Left | Side::Right => (y + 1.0 - UV_SHRINK, y + UV_SHRINK),
         };
         let (start_x, start_y, end_x, end_y) = match facing {
             Side::Up => (x, y, x + 1.0, y),
@@ -99,7 +99,7 @@ fn side_faces(side: u32, frames: &[&[u8]]) -> Vec<(Side, u32, u32)> {
                 }
                 for facing in Side::ALL {
                     let (dx, dy) = facing.step();
-                    if transparent(frame, x as i32 - dx, y as i32 - dy)
+                    if transparent(frame, x as i32 + dx, y as i32 + dy)
                         && seen.insert((facing, x, y))
                     {
                         faces.push((facing, x, y));
@@ -197,5 +197,23 @@ mod tests {
             .map(|q| q.positions.iter().map(|p| p.x).fold(0.0, f32::max))
             .fold(0.0, f32::max);
         assert_eq!(widest, 2.0 * scale / 16.0);
+    }
+
+    #[test]
+    fn side_faces_sit_on_the_silhouette_edges_not_between_opaque_texels() {
+        let sprite = SpriteRef { array: 0, layer: 0 };
+        let column = pixel_sprite(2, |x, _| x == 0);
+        let quads = extrude(sprite, 2, &[&column], 0).unwrap();
+        let edge = |dir: Dir, axis: fn(&Vec3) -> f32| -> Vec<f32> {
+            quads[2..]
+                .iter()
+                .filter(|q| q.dir == dir)
+                .map(|q| axis(&q.positions[0]))
+                .collect()
+        };
+        assert_eq!(edge(Dir::Up, |p| p.y), [1.0]);
+        assert_eq!(edge(Dir::Down, |p| p.y), [0.0]);
+        assert_eq!(edge(Dir::West, |p| p.x), [0.0, 0.0]);
+        assert_eq!(edge(Dir::East, |p| p.x), [0.5, 0.5]);
     }
 }

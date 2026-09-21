@@ -24,7 +24,8 @@ noon sky: nothing but the sky colour shows through the translucent hotbar and th
 
 1. Run the vanilla 26.3-snapshot-10 client (`~/Library/Application Support/minecraft/versions/26.3-snapshot-10`)
    against the world folder above; `options.txt` lines: `guiScale:2`, `fullscreen:false`,
-   `renderDistance:2`, `glintSpeed:0.5`, `glintStrength:0.75`, `hideGui:false`.
+   `renderDistance:2`, `glintSpeed:0.5`, `glintStrength:0.75`, `hideGui:false`,
+   `menuBackgroundBlurriness:0` (otherwise the HUD under the open inventory is blurred).
 2. `/time set 6000`, `/gamerule doDaylightCycle false`, look straight up (`/tp @s ~ ~ ~ 0 -90`).
 3. Open the inventory (E), move the cursor to GUI (138, 126) (physical (276, 252)), press F2.
 4. Crop `screenshots/<latest>.png` at the same rectangles the test uses at scale 2:
