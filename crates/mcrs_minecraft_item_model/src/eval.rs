@@ -120,9 +120,9 @@ impl<S: StackView> Evaluator<'_, S> {
                 ignore_default,
             } => {
                 if *ignore_default {
-                    self.stack.has_non_default(component.0)
+                    self.stack.has_non_default(*component)
                 } else {
-                    self.stack.has(component.0)
+                    self.stack.has(*component)
                 }
             }
             ConditionProperty::CustomModelData { index } => {
@@ -184,12 +184,11 @@ impl<S: StackView> Evaluator<'_, S> {
     pub fn charge_type(&self) -> ChargeType {
         let projectiles = self.stack.children();
         if projectiles.is_empty() {
-            return ChargeType::None;
-        }
-        let rocket = projectiles
+            ChargeType::None
+        } else if projectiles
             .iter()
-            .any(|child| child.item().as_str() == "minecraft:firework_rocket");
-        if rocket {
+            .any(|c| c.item().as_str() == "minecraft:firework_rocket")
+        {
             ChargeType::Rocket
         } else {
             ChargeType::Arrow

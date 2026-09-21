@@ -3,8 +3,7 @@ use std::marker::PhantomData;
 
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::codec::Validate;
-use mcrs_minecraft_core::codec::default_true;
+use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
 use mcrs_minecraft_item_component::{
     ComponentPredicate, ComponentPredicateType, DimensionReg, DyeColor, EntityTypeReg,
     ItemComponentKind, ItemComponentValue, RgbInt, TrimMaterialReg,
@@ -24,25 +23,13 @@ fn is_one(value: &f32) -> bool {
     *value == 1.0
 }
 
-fn is_true(value: &bool) -> bool {
-    *value
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
-}
-
-fn is_zero(value: &u32) -> bool {
-    *value == 0
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClientItem {
     pub model: UnbakedItemModel,
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
     pub hand_animation_on_swap: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub oversized_in_gui: bool,
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub swap_animation_scale: f32,
@@ -130,19 +117,6 @@ pub enum UnbakedItemModel {
 }
 
 impl UnbakedItemModel {
-    pub fn kind(&self) -> &'static str {
-        match self {
-            Self::Empty => "empty",
-            Self::Model { .. } => "model",
-            Self::Composite { .. } => "composite",
-            Self::Condition { .. } => "condition",
-            Self::Select { .. } => "select",
-            Self::RangeDispatch { .. } => "range_dispatch",
-            Self::Special { .. } => "special",
-            Self::BundleSelectedItem => "bundle/selected_item",
-        }
-    }
-
     pub fn children(&self) -> Vec<&UnbakedItemModel> {
         match self {
             Self::Empty | Self::BundleSelectedItem | Self::Model { .. } | Self::Special { .. } => {
@@ -214,15 +188,15 @@ pub enum ConditionProperty {
     Broken,
     #[serde(rename = "minecraft:has_component", alias = "has_component")]
     HasComponent {
-        component: ComponentKindId,
-        #[serde(default, skip_serializing_if = "is_false")]
+        component: ItemComponentKind,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         ignore_default: bool,
     },
     #[serde(rename = "minecraft:component", alias = "component")]
     Component(ComponentMatches),
     #[serde(rename = "minecraft:custom_model_data", alias = "custom_model_data")]
     CustomModelData {
-        #[serde(default, skip_serializing_if = "is_zero")]
+        #[serde(default, skip_serializing_if = "is_default")]
         index: u32,
     },
     #[serde(rename = "minecraft:using_item", alias = "using_item")]
@@ -244,25 +218,6 @@ pub enum ConditionProperty {
         alias = "bundle/has_selected_item"
     )]
     BundleHasSelectedItem,
-}
-
-/// A data component named by id, as `has_component` and `component` spell it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ComponentKindId(pub ItemComponentKind);
-
-impl Serialize for ComponentKindId {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(self.0.id().as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for ComponentKindId {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let id = String::deserialize(d)?;
-        ItemComponentKind::from_id(&id)
-            .map(ComponentKindId)
-            .ok_or_else(|| D::Error::custom(format_args!("unknown data component `{id}`")))
-    }
 }
 
 /// `{ predicate: <type>, value: <predicate of that type> }`.
@@ -491,7 +446,7 @@ pub enum SelectSwitch {
     ChargeType { cases: Vec<Case<ChargeType>> },
     #[serde(rename = "minecraft:custom_model_data", alias = "custom_model_data")]
     CustomModelData {
-        #[serde(default, skip_serializing_if = "is_zero")]
+        #[serde(default, skip_serializing_if = "is_default")]
         index: u32,
         cases: Vec<Case<String>>,
     },
@@ -522,21 +477,6 @@ pub enum SelectSwitch {
 }
 
 impl SelectSwitch {
-    pub fn kind(&self) -> &'static str {
-        match self {
-            Self::TrimMaterial { .. } => "trim_material",
-            Self::DisplayContext { .. } => "display_context",
-            Self::BlockState { .. } => "block_state",
-            Self::ChargeType { .. } => "charge_type",
-            Self::CustomModelData { .. } => "custom_model_data",
-            Self::MainHand { .. } => "main_hand",
-            Self::LocalTime { .. } => "local_time",
-            Self::ContextEntityType { .. } => "context_entity_type",
-            Self::ContextDimension { .. } => "context_dimension",
-            Self::Component(_) => "component",
-        }
-    }
-
     pub fn case_models(&self) -> Vec<&UnbakedItemModel> {
         fn models<T>(cases: &[Case<T>]) -> Vec<&UnbakedItemModel> {
             cases.iter().map(|case| &case.model).collect()
@@ -561,14 +501,12 @@ fn validate_cases<T: PartialEq + fmt::Debug>(cases: &[Case<T>]) -> Result<(), St
         return Err("Empty case list".to_owned());
     }
     let values: Vec<&T> = cases.iter().flat_map(|case| &case.when).collect();
-    let mut duplicates: Vec<String> = Vec::new();
-    for (i, value) in values.iter().enumerate() {
-        let first = values.iter().position(|seen| seen == value);
-        let second = values[i + 1..].iter().any(|later| later == value);
-        if first == Some(i) && second {
-            duplicates.push(format!("{value:?}"));
-        }
-    }
+    let duplicates: Vec<String> = values
+        .iter()
+        .enumerate()
+        .filter(|(i, v)| !values[..*i].contains(v) && values[i + 1..].contains(v))
+        .map(|(_, v)| format!("{v:?}"))
+        .collect();
     if duplicates.is_empty() {
         Ok(())
     } else {
@@ -687,17 +625,17 @@ impl<'de> DeserializeSeed<'de> for CasesSeed {
 pub enum RangeProperty {
     #[serde(rename = "minecraft:damage", alias = "damage")]
     Damage {
-        #[serde(default = "default_true", skip_serializing_if = "is_true")]
+        #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
         normalize: bool,
     },
     #[serde(rename = "minecraft:count", alias = "count")]
     Count {
-        #[serde(default = "default_true", skip_serializing_if = "is_true")]
+        #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
         normalize: bool,
     },
     #[serde(rename = "minecraft:custom_model_data", alias = "custom_model_data")]
     CustomModelData {
-        #[serde(default, skip_serializing_if = "is_zero")]
+        #[serde(default, skip_serializing_if = "is_default")]
         index: u32,
     },
     #[serde(rename = "minecraft:cooldown", alias = "cooldown")]
@@ -708,7 +646,7 @@ pub enum RangeProperty {
     CrossbowPull,
     #[serde(rename = "minecraft:use_duration", alias = "use_duration")]
     UseDuration {
-        #[serde(default, skip_serializing_if = "is_false")]
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         remaining: bool,
     },
     #[serde(rename = "minecraft:use_cycle", alias = "use_cycle")]
@@ -718,13 +656,13 @@ pub enum RangeProperty {
     },
     #[serde(rename = "minecraft:time", alias = "time")]
     Time {
-        #[serde(default = "default_true", skip_serializing_if = "is_true")]
+        #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
         wobble: bool,
         source: TimeSource,
     },
     #[serde(rename = "minecraft:compass", alias = "compass")]
     Compass {
-        #[serde(default = "default_true", skip_serializing_if = "is_true")]
+        #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
         wobble: bool,
         target: CompassTarget,
     },
@@ -762,7 +700,7 @@ pub enum TintSource {
     Grass { temperature: f32, downfall: f32 },
     #[serde(rename = "minecraft:custom_model_data", alias = "custom_model_data")]
     CustomModelData {
-        #[serde(default, skip_serializing_if = "is_zero")]
+        #[serde(default, skip_serializing_if = "is_default")]
         index: u32,
         default: RgbInt,
     },
@@ -809,7 +747,7 @@ pub enum SpecialModel {
     #[serde(rename = "minecraft:chest", alias = "chest")]
     Chest {
         texture: ResourceLocation,
-        #[serde(default, skip_serializing_if = "is_zero_f32")]
+        #[serde(default, skip_serializing_if = "is_default")]
         openness: f32,
         #[serde(default, skip_serializing_if = "is_default")]
         chest_type: ChestType,
@@ -827,7 +765,7 @@ pub enum SpecialModel {
         kind: HeadKind,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         texture: Option<ResourceLocation>,
-        #[serde(default, skip_serializing_if = "is_zero_f32")]
+        #[serde(default, skip_serializing_if = "is_default")]
         animation: f32,
     },
     #[serde(rename = "minecraft:player_head", alias = "player_head")]
@@ -835,7 +773,7 @@ pub enum SpecialModel {
     #[serde(rename = "minecraft:shulker_box", alias = "shulker_box")]
     ShulkerBox {
         texture: ResourceLocation,
-        #[serde(default, skip_serializing_if = "is_zero_f32")]
+        #[serde(default, skip_serializing_if = "is_default")]
         openness: f32,
     },
     #[serde(rename = "minecraft:shield", alias = "shield")]
@@ -846,14 +784,6 @@ pub enum SpecialModel {
     DecoratedPot,
     #[serde(rename = "minecraft:end_cube", alias = "end_cube")]
     EndCube { effect: EndCubeEffect },
-}
-
-fn is_zero_f32(value: &f32) -> bool {
-    *value == 0.0
-}
-
-fn is_default<T: Default + PartialEq>(value: &T) -> bool {
-    *value == T::default()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -917,45 +847,6 @@ pub enum DisplayContext {
     OnShelf,
 }
 
-impl DisplayContext {
-    pub const ALL: [Self; 10] = [
-        Self::None,
-        Self::ThirdpersonLefthand,
-        Self::ThirdpersonRighthand,
-        Self::FirstpersonLefthand,
-        Self::FirstpersonRighthand,
-        Self::Head,
-        Self::Gui,
-        Self::Ground,
-        Self::Fixed,
-        Self::OnShelf,
-    ];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::ThirdpersonLefthand => "thirdperson_lefthand",
-            Self::ThirdpersonRighthand => "thirdperson_righthand",
-            Self::FirstpersonLefthand => "firstperson_lefthand",
-            Self::FirstpersonRighthand => "firstperson_righthand",
-            Self::Head => "head",
-            Self::Gui => "gui",
-            Self::Ground => "ground",
-            Self::Fixed => "fixed",
-            Self::OnShelf => "on_shelf",
-        }
-    }
-
-    pub fn left_hand(self) -> bool {
-        matches!(self, Self::ThirdpersonLefthand | Self::FirstpersonLefthand)
-    }
-
-    /// Index into a display table: `none` has no entry, the others are ordinal minus one.
-    pub fn slot(self) -> Option<usize> {
-        (self != Self::None).then(|| self as usize - 1)
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChargeType {
@@ -1013,9 +904,9 @@ mod tests {
         }
     }
 
-    fn property_name<T: Serialize>(property: &T) -> String {
-        match serde_json::to_value(property).unwrap() {
-            Value::Object(map) => map["property"].as_str().unwrap().to_owned(),
+    fn json_str<T: Serialize>(v: &T, key: &str) -> String {
+        match serde_json::to_value(v).unwrap() {
+            Value::Object(map) => map[key].as_str().unwrap().to_owned(),
             other => panic!("{other}"),
         }
     }
@@ -1023,9 +914,9 @@ mod tests {
     #[test]
     fn every_item_model_asset_reads_and_writes_back_structurally_equal() {
         let mut files = 0;
-        let mut kinds: BTreeMap<&str, usize> = BTreeMap::new();
+        let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
         let mut properties: BTreeMap<String, usize> = BTreeMap::new();
-        let mut tints: BTreeMap<&str, usize> = BTreeMap::new();
+        let mut tints: BTreeMap<String, usize> = BTreeMap::new();
         let mut swap_scales = 0;
         for (id, bytes) in &corpus() {
             files += 1;
@@ -1040,32 +931,23 @@ mod tests {
                 swap_scales += 1;
             }
             for node in item.model.walk() {
-                *kinds.entry(node.kind()).or_default() += 1;
+                *kinds.entry(json_str(node, "type")).or_default() += 1;
                 match node {
                     UnbakedItemModel::Condition { property, .. } => {
-                        let name = format!("condition {}", property_name(property));
+                        let name = format!("condition {}", json_str(property, "property"));
                         *properties.entry(name).or_default() += 1;
                     }
                     UnbakedItemModel::Select { switch, .. } => {
-                        let name = format!("select minecraft:{}", switch.kind());
+                        let name = format!("select {}", json_str(switch, "property"));
                         *properties.entry(name).or_default() += 1;
                     }
                     UnbakedItemModel::RangeDispatch { property, .. } => {
-                        let name = format!("range {}", property_name(property));
+                        let name = format!("range {}", json_str(property, "property"));
                         *properties.entry(name).or_default() += 1;
                     }
                     UnbakedItemModel::Model { tints: sources, .. } => {
                         for tint in sources {
-                            let name = match tint {
-                                TintSource::Constant { .. } => "constant",
-                                TintSource::Dye { .. } => "dye",
-                                TintSource::Potion { .. } => "potion",
-                                TintSource::Firework { .. } => "firework",
-                                TintSource::Grass { .. } => "grass",
-                                TintSource::CustomModelData { .. } => "custom_model_data",
-                                TintSource::Team { .. } => "team",
-                            };
-                            *tints.entry(name).or_default() += 1;
+                            *tints.entry(json_str(tint, "type")).or_default() += 1;
                         }
                     }
                     _ => {}
@@ -1074,16 +956,17 @@ mod tests {
         }
         assert_eq!(files, 1658);
         assert_eq!(swap_scales, 7);
-        let expected_kinds: BTreeMap<&str, usize> = [
-            ("model", 2253),
-            ("special", 91),
-            ("select", 71),
-            ("composite", 34),
-            ("condition", 26),
-            ("bundle/selected_item", 17),
-            ("range_dispatch", 8),
+        let expected_kinds: BTreeMap<String, usize> = [
+            ("minecraft:model", 2253),
+            ("minecraft:special", 91),
+            ("minecraft:select", 71),
+            ("minecraft:composite", 34),
+            ("minecraft:condition", 26),
+            ("minecraft:bundle/selected_item", 17),
+            ("minecraft:range_dispatch", 8),
         ]
         .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
         .collect();
         assert_eq!(kinds, expected_kinds);
         let expected_properties: BTreeMap<String, usize> = [
@@ -1108,14 +991,15 @@ mod tests {
         .map(|(k, v)| (k.to_owned(), v))
         .collect();
         assert_eq!(properties, expected_properties);
-        let expected_tints: BTreeMap<&str, usize> = [
-            ("dye", 50),
-            ("constant", 11),
-            ("grass", 6),
-            ("potion", 4),
-            ("firework", 1),
+        let expected_tints: BTreeMap<String, usize> = [
+            ("minecraft:dye", 50),
+            ("minecraft:constant", 11),
+            ("minecraft:grass", 6),
+            ("minecraft:potion", 4),
+            ("minecraft:firework", 1),
         ]
         .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
         .collect();
         assert_eq!(tints, expected_tints);
     }
