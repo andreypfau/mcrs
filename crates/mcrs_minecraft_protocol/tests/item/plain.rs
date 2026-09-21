@@ -1,3 +1,5 @@
+use mcrs_minecraft_protocol::item::EncodeCtx;
+use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
     AdditionalTradeCost, CreativeSlotLock, ItemComponentKind, ItemComponentValue,
@@ -65,14 +67,14 @@ fn hex(text: &str) -> Vec<u8> {
 fn wire(value: &ItemComponentValue) -> Vec<u8> {
     let mut out = Vec::new();
     value
-        .encode_ctx_value(&TestLookup::new(), &mut out)
+        .encode_ctx(&TestLookup::new(), &mut out)
         .unwrap();
     out
 }
 
 fn decode(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
     let mut r = bytes;
-    let value = ItemComponentValue::decode_ctx_value(kind, &TestLookup::new(), &mut r).unwrap();
+    let value = decode_component_value(kind, &TestLookup::new(), &mut r).unwrap();
     assert!(r.is_empty(), "{kind}: {} trailing bytes", r.len());
     value
 }
@@ -211,7 +213,7 @@ fn wire_values_the_vanilla_constructor_refuses_fail_to_decode() {
     for row in golden().decode_errors {
         let kind = kind(&row.kind);
         let bytes = hex(&row.wire);
-        let error = ItemComponentValue::decode_ctx_value(kind, &TestLookup::new(), &mut &bytes[..])
+        let error = decode_component_value(kind, &TestLookup::new(), &mut &bytes[..])
             .err()
             .unwrap_or_else(|| panic!("{kind} decoded {}", row.wire));
         assert!(

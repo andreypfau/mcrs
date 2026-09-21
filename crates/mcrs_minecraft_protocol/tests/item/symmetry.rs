@@ -1,3 +1,4 @@
+use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_protocol::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
@@ -153,10 +154,10 @@ fn wire_round_trip(lookup: &TestLookup, value: &ItemComponentValue) {
     let kind = value.kind();
     let mut wire = Vec::new();
     value
-        .encode_ctx_value(lookup, &mut wire)
+        .encode_ctx(lookup, &mut wire)
         .unwrap_or_else(|e| panic!("{kind}: encode {value:?}: {e}"));
     let mut r = &wire[..];
-    let back = ItemComponentValue::decode_ctx_value(kind, lookup, &mut r)
+    let back = decode_component_value(kind, lookup, &mut r)
         .unwrap_or_else(|e| panic!("{kind}: decode {wire:02x?} of {value:?}: {e}"));
     assert!(
         r.is_empty(),

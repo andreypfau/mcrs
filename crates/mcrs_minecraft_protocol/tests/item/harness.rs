@@ -1,3 +1,5 @@
+use mcrs_minecraft_protocol::item::EncodeCtx;
+use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::HashMap;
 
 use mcrs_minecraft_core::ResourceLocation;
@@ -244,11 +246,11 @@ pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>()
 
         let mut wire = Vec::new();
         value
-            .encode_ctx_value(&lookup, &mut wire)
+            .encode_ctx(&lookup, &mut wire)
             .expect("encode_ctx_value");
         let mut r = &wire[..];
         let back =
-            ItemComponentValue::decode_ctx_value(kind, &lookup, &mut r).expect("decode_ctx_value");
+            decode_component_value(kind, &lookup, &mut r).expect("decode_ctx_value");
         assert!(r.is_empty(), "{} trailing bytes after {kind}", r.len());
         assert_eq!(back, value, "wire round trip of {kind}");
         if kind.is_unit() {

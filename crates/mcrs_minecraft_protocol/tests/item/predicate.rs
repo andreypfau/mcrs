@@ -1,3 +1,5 @@
+use mcrs_minecraft_protocol::item::EncodeCtx;
+use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_protocol::item::{
@@ -39,13 +41,13 @@ fn json_value(value: &ItemComponentValue) -> serde_json::Value {
 
 fn wire(value: &ItemComponentValue) -> Vec<u8> {
     let mut out = Vec::new();
-    value.encode_ctx_value(&lookup(), &mut out).unwrap();
+    value.encode_ctx(&lookup(), &mut out).unwrap();
     out
 }
 
 fn decode(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
     let mut r = bytes;
-    let value = ItemComponentValue::decode_ctx_value(kind, &lookup(), &mut r).unwrap();
+    let value = decode_component_value(kind, &lookup(), &mut r).unwrap();
     assert!(r.is_empty(), "{} trailing bytes", r.len());
     value
 }
@@ -258,7 +260,7 @@ fn malformed_predicate_values_are_refused_on_the_wire() {
         let bytes = hex(wire);
         let mut r = &bytes[..];
         let error =
-            ItemComponentValue::decode_ctx_value(ItemComponentKind::CanBreak, &lookup(), &mut r)
+            decode_component_value(ItemComponentKind::CanBreak, &lookup(), &mut r)
                 .unwrap_err();
         assert!(error.to_string().contains(expected), "{wire}: {error}");
     }
@@ -270,7 +272,7 @@ fn the_partial_predicate_list_is_capped_on_the_wire() {
     wire.extend(std::iter::repeat_n([0x00, 0x01, 0x0A, 0x00], 65).flatten());
     let mut r = &wire[..];
     let error =
-        ItemComponentValue::decode_ctx_value(ItemComponentKind::CanBreak, &lookup(), &mut r)
+        decode_component_value(ItemComponentKind::CanBreak, &lookup(), &mut r)
             .unwrap_err();
     assert!(
         error

@@ -1,16 +1,11 @@
 use std::fmt;
-use std::io::Write;
 
-use anyhow::bail;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::Error as _;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
-use crate::{Decode, Encode, VarInt};
 
 /// Every data component kind in vanilla registration order, which is the wire
 /// id: `$id` must equal the entry's position, which is asserted at compile time.
@@ -221,36 +216,6 @@ macro_rules! data_components {
                 }
             }
 
-            pub fn encode_ctx_value(
-                &self,
-                ctx: &dyn RegistryLookup,
-                w: impl Write,
-            ) -> anyhow::Result<()> {
-                match self {
-                    $(Self::$ty(value) => {
-                        if ItemComponentKind::$ty.is_nbt_wire() {
-                            encode_nbt_wire(value, w)
-                        } else {
-                            value.encode_ctx(ctx, w)
-                        }
-                    })*
-                }
-            }
-
-            pub fn decode_ctx_value(
-                kind: ItemComponentKind,
-                ctx: &dyn RegistryLookup,
-                r: &mut &[u8],
-            ) -> anyhow::Result<Self> {
-                match kind {
-                    $(ItemComponentKind::$ty => Ok(Self::$ty(if kind.is_nbt_wire() {
-                        decode_nbt_wire(r)?
-                    } else {
-                        <$ty>::decode_ctx(ctx, r)?
-                    })),)*
-                }
-            }
-
             pub fn serialize_value<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
                 if !self.kind().is_persistent() {
                     return Err(S::Error::custom(format_args!(
@@ -358,22 +323,6 @@ impl ItemComponentKind {
 impl fmt::Display for ItemComponentKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.id().as_str())
-    }
-}
-
-impl Encode for ItemComponentKind {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.wire_id() as i32).encode(w)
-    }
-}
-
-impl Decode<'_> for ItemComponentKind {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        match u16::try_from(id).ok().and_then(Self::from_wire_id) {
-            Some(kind) => Ok(kind),
-            None => bail!("unknown data component type {id}"),
-        }
     }
 }
 

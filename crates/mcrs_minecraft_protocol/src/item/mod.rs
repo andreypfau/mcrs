@@ -11,6 +11,7 @@ pub(crate) mod wire;
 
 pub use component::*;
 pub use ctx::{DecodeCtx, EncodeCtx, Raw};
+pub use wire::{decode_component_value, decode_delimited_patch, encode_delimited_patch};
 pub use kind::{ItemComponentKind, ItemComponentValue, ItemDataComponent};
 pub use patch::{ComponentMap, ComponentPatch};
 pub use stack::{

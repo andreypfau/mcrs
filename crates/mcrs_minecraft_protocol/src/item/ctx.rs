@@ -11,7 +11,6 @@ use uuid::Uuid;
 
 use crate::entity::DyeColor;
 use crate::item::component::{Holder, Registered, RegistryName};
-use crate::item::kind::ItemComponentKind;
 use crate::text::Text;
 use crate::{Bounded, Decode, Encode, VarInt, VarLong};
 
@@ -89,7 +88,6 @@ ctx_free!(
     NbtCompound,
     ResourceLocation<Arc<str>>,
     ItemId,
-    ItemComponentKind,
     DyeColor,
 );
 

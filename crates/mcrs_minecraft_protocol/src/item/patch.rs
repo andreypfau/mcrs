@@ -1,16 +1,11 @@
 use std::fmt;
-use std::io::Write;
 
-use anyhow::ensure;
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::deserialize_unit;
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::kind::{ItemComponentKind, ItemComponentValue, ItemDataComponent};
-use crate::{Decode, Encode, VarInt};
 
 /// Values set on top of an item's prototype and kinds removed from it; a kind
 /// appears at most once across both lists.
@@ -73,95 +68,6 @@ impl ComponentPatch {
         if !self.removed.contains(&kind) {
             self.removed.push(kind);
         }
-    }
-
-    fn encode_with(
-        &self,
-        ctx: &dyn RegistryLookup,
-        mut w: impl Write,
-        mut value: impl FnMut(
-            &ItemComponentValue,
-            &dyn RegistryLookup,
-            &mut dyn Write,
-        ) -> anyhow::Result<()>,
-    ) -> anyhow::Result<()> {
-        VarInt(self.added.len() as i32).encode(&mut w)?;
-        VarInt(self.removed.len() as i32).encode(&mut w)?;
-        for added in &self.added {
-            added.kind().encode(&mut w)?;
-            value(added, ctx, &mut w)?;
-        }
-        for removed in &self.removed {
-            removed.encode(&mut w)?;
-        }
-        Ok(())
-    }
-
-    fn decode_with<'a>(
-        ctx: &dyn RegistryLookup,
-        r: &mut &'a [u8],
-        mut value: impl FnMut(
-            ItemComponentKind,
-            &dyn RegistryLookup,
-            &mut &'a [u8],
-        ) -> anyhow::Result<ItemComponentValue>,
-    ) -> anyhow::Result<Self> {
-        let added = VarInt::decode(r)?.0;
-        let removed = VarInt::decode(r)?.0;
-        ensure!(added >= 0 && removed >= 0, "negative component count");
-        let mut patch = ComponentPatch::EMPTY;
-        for _ in 0..added {
-            let kind = ItemComponentKind::decode(r)?;
-            patch.set_value(value(kind, ctx, r)?);
-        }
-        for _ in 0..removed {
-            patch.remove(ItemComponentKind::decode(r)?);
-        }
-        Ok(patch)
-    }
-
-    pub fn encode_delimited_ctx(
-        &self,
-        ctx: &dyn RegistryLookup,
-        w: impl Write,
-    ) -> anyhow::Result<()> {
-        self.encode_with(ctx, w, |value, ctx, w| {
-            let mut bytes = Vec::new();
-            value.encode_ctx_value(ctx, &mut bytes)?;
-            VarInt(bytes.len() as i32).encode(&mut *w)?;
-            Ok(w.write_all(&bytes)?)
-        })
-    }
-
-    /// The bytes a value leaves unread inside its length prefix are skipped:
-    /// the declared size is advanced unconditionally.
-    pub fn decode_delimited_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Self::decode_with(ctx, r, |kind, ctx, r| {
-            let len = VarInt::decode(r)?.0;
-            ensure!(len >= 0, "negative component length");
-            let len = len as usize;
-            ensure!(
-                len <= r.len(),
-                "component {kind} declares {len} bytes but {} remain",
-                r.len()
-            );
-            let (mut slice, rest) = r.split_at(len);
-            let value = ItemComponentValue::decode_ctx_value(kind, ctx, &mut slice)?;
-            *r = rest;
-            Ok(value)
-        })
-    }
-}
-
-impl EncodeCtx for ComponentPatch {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.encode_with(ctx, w, |value, ctx, w| value.encode_ctx_value(ctx, w))
-    }
-}
-
-impl<'a> DecodeCtx<'a> for ComponentPatch {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Self::decode_with(ctx, r, ItemComponentValue::decode_ctx_value)
     }
 }
 
@@ -314,31 +220,6 @@ impl ComponentMap {
             }
         }
         patch
-    }
-}
-
-impl EncodeCtx for ComponentMap {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        let w: &mut dyn Write = &mut w;
-        VarInt(self.0.len() as i32).encode(&mut *w)?;
-        for value in &self.0 {
-            value.kind().encode(&mut *w)?;
-            value.encode_ctx_value(ctx, &mut *w)?;
-        }
-        Ok(())
-    }
-}
-
-impl<'a> DecodeCtx<'a> for ComponentMap {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let len = VarInt::decode(r)?.0;
-        ensure!(len >= 0, "attempt to decode a list with negative length");
-        let mut map = ComponentMap::default();
-        for _ in 0..len {
-            let kind = ItemComponentKind::decode(r)?;
-            map.set_value(ItemComponentValue::decode_ctx_value(kind, ctx, r)?);
-        }
-        Ok(map)
     }
 }
 

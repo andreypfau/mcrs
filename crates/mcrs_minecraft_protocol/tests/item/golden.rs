@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_protocol::item::{
+use mcrs_minecraft_protocol::item::{decode_delimited_patch, encode_delimited_patch,
     ComponentPatch, CreativeSlotLock, CustomData, CustomName, Damage, DecodeCtx, EncodeCtx,
     HashedPatchMap, ItemComponentKind, ItemComponentValue, Lore, MaxStackSize, Template,
     Unbreakable, hash_ops,
@@ -67,13 +67,11 @@ fn a_patch_matches_the_vanilla_stream_codec() {
 
     let delimited = hex(PATCH_DELIMITED_WIRE);
     let mut out = Vec::new();
-    patch
-        .encode_delimited_ctx(&TestLookup::new(), &mut out)
-        .unwrap();
+    encode_delimited_patch(&patch, &TestLookup::new(), &mut out).unwrap();
     assert_eq!(out, delimited);
     let mut r = &delimited[..];
     assert_eq!(
-        ComponentPatch::decode_delimited_ctx(&TestLookup::new(), &mut r).unwrap(),
+        decode_delimited_patch(&TestLookup::new(), &mut r).unwrap(),
         patch
     );
     assert!(r.is_empty());

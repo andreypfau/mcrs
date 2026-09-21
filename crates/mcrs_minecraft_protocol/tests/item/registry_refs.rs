@@ -1,3 +1,5 @@
+use mcrs_minecraft_protocol::item::EncodeCtx;
+use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -169,14 +171,14 @@ fn every_golden_sample_matches_vanilla() {
                 assert_eq!(nbt_tree(&our_nbt), nbt_tree(nbt), "{kind} {input}: NBT");
 
                 let mut our_wire = Vec::new();
-                value.encode_ctx_value(&lookup, &mut our_wire).unwrap();
+                value.encode_ctx(&lookup, &mut our_wire).unwrap();
                 assert_eq!(
                     hex_string(&our_wire),
                     hex_string(wire),
                     "{kind} {input}: wire"
                 );
                 let mut r = &wire[..];
-                let decoded = ItemComponentValue::decode_ctx_value(*kind, &lookup, &mut r).unwrap();
+                let decoded = decode_component_value(*kind, &lookup, &mut r).unwrap();
                 assert!(r.is_empty(), "{kind}: trailing wire bytes");
                 assert_eq!(
                     persistent_json(&decoded),
@@ -246,10 +248,10 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
     let lookup = TestLookup::new();
     let head = from_json(ItemComponentKind::Equippable, r#"{"slot":"head"}"#).unwrap();
     let mut wire = Vec::new();
-    head.encode_ctx_value(&lookup, &mut wire).unwrap();
+    head.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(wire[0], 4);
     wire[0] = 9;
-    let decoded = ItemComponentValue::decode_ctx_value(
+    let decoded = decode_component_value(
         ItemComponentKind::Equippable,
         &lookup,
         &mut &wire[..],
@@ -266,13 +268,13 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
     )
     .unwrap();
     let mut wire = Vec::new();
-    entry.encode_ctx_value(&lookup, &mut wire).unwrap();
+    entry.encode_ctx(&lookup, &mut wire).unwrap();
     let len = wire.len();
     assert_eq!(&wire[len - 3..], &[2, 10, 1]);
     wire[len - 3] = 7;
     wire[len - 2] = 11;
     wire[len - 1] = 3;
-    let decoded = ItemComponentValue::decode_ctx_value(
+    let decoded = decode_component_value(
         ItemComponentKind::AttributeModifiers,
         &lookup,
         &mut &wire[..],
@@ -331,7 +333,7 @@ fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
     let lookup = TestLookup::new();
     let decode = |wire: &[u8]| {
         let mut r = wire;
-        ItemComponentValue::decode_ctx_value(ItemComponentKind::Enchantments, &lookup, &mut r)
+        decode_component_value(ItemComponentKind::Enchantments, &lookup, &mut r)
             .map(|value| persistent_json(&value))
             .map_err(|e| e.to_string())
     };
@@ -476,7 +478,7 @@ fn nbt_floats_keep_vanillas_number_semantics() {
 fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
     let (lookup, _) = parse_fixture();
     let wire = [0x02, 0x9a, 0x01, 0x80, 0x00, 0x00, 0x00];
-    let value = ItemComponentValue::decode_ctx_value(
+    let value = decode_component_value(
         ItemComponentKind::MobVisibility,
         &lookup,
         &mut &wire[..],
@@ -509,11 +511,11 @@ fn non_finite_floats_cross_the_wire() {
         ),
     ] {
         let mut r = &wire[..];
-        let value = ItemComponentValue::decode_ctx_value(kind, &lookup, &mut r).unwrap();
+        let value = decode_component_value(kind, &lookup, &mut r).unwrap();
         assert!(r.is_empty());
         assert_eq!(persistent_json(&value), json, "{kind}");
         let mut encoded = Vec::new();
-        value.encode_ctx_value(&lookup, &mut encoded).unwrap();
+        value.encode_ctx(&lookup, &mut encoded).unwrap();
         assert_eq!(encoded, wire, "{kind}");
     }
     let mut nbt = Vec::new();
@@ -576,8 +578,8 @@ fn a_one_entry_list_is_the_bare_entry() {
     .unwrap();
     assert_eq!(bare, list);
     let mut wire = Vec::new();
-    bare.encode_ctx_value(&lookup, &mut wire).unwrap();
-    let decoded = ItemComponentValue::decode_ctx_value(
+    bare.encode_ctx(&lookup, &mut wire).unwrap();
+    let decoded = decode_component_value(
         ItemComponentKind::DamageResistant,
         &lookup,
         &mut &wire[..],

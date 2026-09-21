@@ -1,3 +1,5 @@
+use mcrs_minecraft_protocol::item::EncodeCtx;
+use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::ResourceLocation;
@@ -95,10 +97,10 @@ fn nested_kinds_match_vanilla_in_every_form() {
         );
 
         let mut wire = Vec::new();
-        value.encode_ctx_value(&lookup, &mut wire).unwrap();
+        value.encode_ctx(&lookup, &mut wire).unwrap();
         assert_eq!(wire, hex(&case.wire), "{} wire", case.name);
         let mut r = &wire[..];
-        let decoded = ItemComponentValue::decode_ctx_value(kind, &lookup, &mut r).unwrap();
+        let decoded = decode_component_value(kind, &lookup, &mut r).unwrap();
         assert!(r.is_empty(), "{} trailing bytes", case.name);
         assert_eq!(decoded, value, "{} wire round trip", case.name);
 
@@ -150,7 +152,7 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
 
     let mut r = &hex("02010101000000")[..];
     let trailing =
-        ItemComponentValue::decode_ctx_value(ItemComponentKind::Container, &lookup, &mut r)
+        decode_component_value(ItemComponentKind::Container, &lookup, &mut r)
             .unwrap();
     let ItemComponentValue::Container(trailing) = trailing else {
         panic!("not a container");
@@ -163,7 +165,7 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     );
     let mut wire = Vec::new();
     ItemComponentValue::Container(trailing)
-        .encode_ctx_value(&lookup, &mut wire)
+        .encode_ctx(&lookup, &mut wire)
         .unwrap();
     assert_eq!(wire, hex("02010101000000"));
 }
@@ -266,7 +268,7 @@ fn wire_templates_are_checked_like_the_vanilla_constructor() {
     let lookup = TestLookup::new();
     let decode = |kind, wire: &str| {
         let mut r = &hex(wire)[..];
-        ItemComponentValue::decode_ctx_value(kind, &lookup, &mut r)
+        decode_component_value(kind, &lookup, &mut r)
     };
     let json = |value: &ItemComponentValue| {
         let mut out = Vec::new();
@@ -292,7 +294,7 @@ fn wire_templates_are_checked_like_the_vanilla_constructor() {
         Err("Value must be within range [1;99]: -1".into())
     );
     let mut wire = Vec::new();
-    negative.encode_ctx_value(&lookup, &mut wire).unwrap();
+    negative.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(wire, hex("0101ffffffff0f0000"));
 
     for flag in ["02", "ff"] {

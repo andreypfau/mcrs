@@ -1,6 +1,9 @@
 //! Wire forms of the data component types. The types themselves carry only
 //! serde; every `Encode`/`Decode`/`EncodeCtx`/`DecodeCtx` impl lives here.
 
+pub use kind::decode_component_value;
+pub use patch::{decode_delimited_patch, encode_delimited_patch};
+
 mod attribute;
 mod banner;
 mod book;
@@ -13,10 +16,12 @@ mod equippable;
 mod fireworks;
 mod fuel;
 mod instrument;
+mod kind;
 mod lodestone;
 mod nbt_wire;
 mod nested;
 mod painting;
+mod patch;
 mod potion;
 mod predicate;
 mod profile;

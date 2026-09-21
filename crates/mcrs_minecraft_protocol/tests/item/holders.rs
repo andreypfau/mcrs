@@ -1,3 +1,5 @@
+use mcrs_minecraft_protocol::item::EncodeCtx;
+use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::ResourceLocation;
@@ -139,10 +141,10 @@ fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
 
         let wire = hex(&fields["wire"]);
         let mut out = Vec::new();
-        value.encode_ctx_value(&lookup, &mut out).unwrap();
+        value.encode_ctx(&lookup, &mut out).unwrap();
         assert_eq!(out, wire, "{label} wire");
         let mut r = &wire[..];
-        let back = ItemComponentValue::decode_ctx_value(kind, &lookup, &mut r).unwrap();
+        let back = decode_component_value(kind, &lookup, &mut r).unwrap();
         assert!(r.is_empty(), "{label} trailing bytes");
         assert_eq!(back, value, "{label} wire decode");
         checked += 1;
@@ -155,10 +157,10 @@ fn wire_only(label: &str, value: impl Into<ItemComponentValue>) {
     let value = value.into();
     let wire = hex(&samples[label]["wire"]);
     let mut out = Vec::new();
-    value.encode_ctx_value(&lookup, &mut out).unwrap();
+    value.encode_ctx(&lookup, &mut out).unwrap();
     assert_eq!(out, wire, "{label} wire");
     let mut r = &wire[..];
-    let back = ItemComponentValue::decode_ctx_value(value.kind(), &lookup, &mut r).unwrap();
+    let back = decode_component_value(value.kind(), &lookup, &mut r).unwrap();
     assert!(r.is_empty());
     assert_eq!(back, value);
     let mut s = serde_json::Serializer::new(Vec::new());

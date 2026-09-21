@@ -14,6 +14,7 @@ use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, nested};
 use crate::item::hash_ops;
 use crate::item::kind::ItemComponentKind;
 use crate::item::patch::{ComponentPatch, PersistentValue};
+use crate::item::wire::{decode_delimited_patch, encode_delimited_patch};
 use crate::{Decode, Encode, VarInt};
 
 validated!(ItemStackValue);
@@ -304,11 +305,11 @@ impl Slot {
         ctx: &dyn RegistryLookup,
         w: impl Write,
     ) -> anyhow::Result<()> {
-        self.encode_with(ctx, w, |patch, ctx, w| patch.encode_delimited_ctx(ctx, w))
+        self.encode_with(ctx, w, |patch, ctx, w| encode_delimited_patch(patch, ctx, w))
     }
 
     pub fn decode_delimited_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Self::decode_with(ctx, r, ComponentPatch::decode_delimited_ctx)
+        Self::decode_with(ctx, r, decode_delimited_patch)
     }
 }
 
