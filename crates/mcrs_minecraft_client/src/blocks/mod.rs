@@ -15,6 +15,8 @@ mod build;
 
 mod tint;
 
+pub(crate) use tint::{load_colormap, sample_colormap};
+
 /// A block state as the resource pack names it: the block's identifier and
 /// every property it declares, rendered the way a blockstates file spells them.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]

@@ -13,6 +13,7 @@ use super::asset::{
 use super::generator;
 use super::transform::compose;
 use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
+use crate::blocks::load_colormap;
 use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
 use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
 
@@ -96,6 +97,7 @@ pub struct BakedClientItem {
 pub struct ItemModels {
     pub by_id: HashMap<ResourceLocation, Arc<BakedClientItem>>,
     pub missing: Arc<BakedClientItem>,
+    pub grass_colormap: Option<Vec<u8>>,
 }
 
 impl ItemModels {
@@ -133,6 +135,7 @@ pub fn bake_all(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<ItemModels,
     }
     Ok(ItemModels {
         by_id,
+        grass_colormap: Some(load_colormap(pack, "grass")?),
         missing: Arc::new(BakedClientItem {
             root: BakedNode::Model {
                 model: missing,
