@@ -11,7 +11,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use super::{SaveError, WORLD_VERSION, check_data_version, fixed};
+use super::{SaveError, WORLD_VERSION, check_data_version};
 
 /// The keys mcrs models, typed; every other root key rides along in `rest`
 /// so a vanilla file survives a round trip through a server that does not
@@ -84,8 +84,8 @@ impl<'de> Deserialize<'de> for PlayerDat {
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<PlayerDat, A::Error> {
                 let mut dat = PlayerDat::default();
                 let mut data_version = None;
-                let mut pos: Option<Vec<f64>> = None;
-                let mut rotation: Option<Vec<f32>> = None;
+                let mut pos = None;
+                let mut rotation = None;
                 let mut dimension = None;
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
@@ -104,12 +104,8 @@ impl<'de> Deserialize<'de> for PlayerDat {
                 }
                 dat.data_version =
                     data_version.ok_or_else(|| A::Error::missing_field(DATA_VERSION))?;
-                let pos = pos.ok_or_else(|| A::Error::missing_field(POS))?;
-                dat.pos = <[f64; 3]>::try_from(pos.as_slice())
-                    .map_err(|_| A::Error::invalid_length(pos.len(), &"3 coordinates"))?;
-                let rotation = rotation.ok_or_else(|| A::Error::missing_field(ROTATION))?;
-                dat.rotation = <[f32; 2]>::try_from(rotation.as_slice())
-                    .map_err(|_| A::Error::invalid_length(rotation.len(), &"yaw and pitch"))?;
+                dat.pos = pos.ok_or_else(|| A::Error::missing_field(POS))?;
+                dat.rotation = rotation.ok_or_else(|| A::Error::missing_field(ROTATION))?;
                 dat.dimension = dimension.ok_or_else(|| A::Error::missing_field(DIMENSION))?;
                 Ok(dat)
             }
@@ -138,17 +134,14 @@ pub fn read_player_dat(world: &Path, player: Uuid) -> Result<Option<PlayerDat>, 
 pub fn parse_player_dat(bytes: &[u8], path: &Path) -> Result<PlayerDat, SaveError> {
     let dat: PlayerDat = super::decode(bytes, path)?;
     check_data_version(dat.data_version, path)?;
-    for (index, value) in dat.rotation.iter().enumerate() {
-        if !value.is_finite() {
-            return Err(SaveError::OutOfRange {
-                path: path.to_path_buf(),
-                field: ROTATION,
-                value: format!("{value} at {index}"),
-                expected: "finite",
-            });
-        }
+    if dat.rotation.iter().any(|v| !v.is_finite()) {
+        return Err(SaveError::OutOfRange {
+            path: path.to_path_buf(),
+            field: ROTATION,
+            value: format!("{:?}", dat.rotation),
+            expected: "finite",
+        });
     }
-    let _: [f64; 3] = fixed(&dat.pos, POS, path)?;
     Ok(dat)
 }
 

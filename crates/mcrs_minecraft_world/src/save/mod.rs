@@ -110,14 +110,6 @@ impl Default for GameRules {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct PlayerData {
-    pub pos: [f64; 3],
-    pub yaw: f32,
-    pub pitch: f32,
-    pub dimension: String,
-}
-
 pub type WorldClockStates = HashMap<ResourceLocation<Arc<str>>, ClockState>;
 
 pub fn read_level_dat(world: &Path) -> Result<LevelDat, SaveError> {
@@ -143,21 +135,6 @@ pub fn read_weather(world: &Path) -> Result<WeatherData, SaveError> {
 pub fn read_game_rules(world: &Path) -> Result<GameRules, SaveError> {
     let path = saved_data_path(world, "game_rules");
     parse_game_rules(&read_bytes(&path)?, &path)
-}
-
-pub fn read_player(world: &Path, player: Uuid) -> Result<PlayerData, SaveError> {
-    let path = player::player_dat_path(world, player);
-    parse_player(&read_bytes(&path)?, &path)
-}
-
-fn parse_player(bytes: &[u8], path: &Path) -> Result<PlayerData, SaveError> {
-    let dat = player::parse_player_dat(bytes, path)?;
-    Ok(PlayerData {
-        pos: dat.pos,
-        yaw: dat.rotation[0],
-        pitch: dat.rotation[1],
-        dimension: dat.dimension,
-    })
 }
 
 fn saved_data_path(world: &Path, name: &str) -> PathBuf {
