@@ -17,6 +17,8 @@ use crate::world::entity::{EntityBundle, MinecraftEntityType};
 use crate::world::inventory::PlayerInventoryBundle;
 use crate::world::sub_app_builder::DimTypeIndex;
 use bevy_app::{FixedUpdate, Plugin, Update};
+use bevy_ecs::schedule::IntoScheduleConfigs;
+use mcrs_minecraft_level::aoi::every_n_ticks;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
@@ -24,6 +26,7 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
 use bevy_ecs::resource::Resource;
+use bevy_ecs::world::World;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -45,6 +48,7 @@ pub mod digging;
 mod game_mode;
 mod inventory;
 pub mod movement;
+pub mod persistence;
 mod placing;
 pub mod player_action;
 
@@ -99,6 +103,10 @@ impl Plugin for DimPlayerPlugin {
         app.add_systems(Update, consume_inbound_player_spawn);
         app.add_systems(Update, despawn_inbound_player);
         app.add_systems(FixedUpdate, (despawn_on_confirm, unhide_on_rollback));
+        app.add_systems(
+            FixedUpdate,
+            persistence::autosave_players.run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
+        );
         app.add_observer(network_add);
         app.add_observer(player_joined);
     }
@@ -170,6 +178,7 @@ fn consume_inbound_player_spawn(
                 },
             ))
             .id();
+        commands.queue(move |world: &mut World| persistence::load_player(world, new_entity));
         dim_index.0.insert(spawn.session, new_entity);
 
         let host = spawn.host_anchor;
@@ -297,7 +306,10 @@ pub fn despawn_inbound_player(
         dim_index.0.remove(&msg.session);
         for (entity, anchor) in players.iter() {
             if anchor.0 == msg.host_anchor {
-                commands.entity(entity).despawn();
+                commands.queue(move |world: &mut World| {
+                    persistence::write_player(world, entity);
+                    world.despawn(entity);
+                });
             }
         }
     }

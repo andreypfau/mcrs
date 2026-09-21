@@ -523,6 +523,9 @@ pub fn spawn_dim_subapp(
     }
     sub_app.insert_resource(registries.biome_registry.clone());
     sub_app.insert_resource(registries.structures.clone());
+    if let Some(save) = &registries.world_save {
+        sub_app.insert_resource(save.clone());
+    }
 
     // Seed the time resources so an inspector that reads `Res<Time<…>>` on a
     // sub-app that has never been pumped gets a valid default. The extract
