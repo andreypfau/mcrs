@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::io::Write;
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use std::{fmt, ops};
@@ -18,6 +19,15 @@ use crate::item::component::Profile;
 use crate::item::component::common::{ArgbInt, DialogReg, EntityTypeReg, IntArray, lenient};
 use crate::item::ctx::{decode_nbt_wire, encode_nbt_wire};
 use crate::{Decode, Encode};
+
+/// What a `show_item` hover carries; `()` for a consumer with no item model.
+pub trait HoverItem:
+    Clone + PartialEq + fmt::Debug + Serialize + serde::de::DeserializeOwned + Send + Sync + 'static
+{
+}
+
+impl HoverItem for () {}
+impl HoverItem for Template {}
 
 pub mod color;
 mod into_text;
@@ -42,7 +52,7 @@ pub use into_text::IntoText;
 /// ```
 /// use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 ///
-/// let txt = "The text is ".into_text()
+/// let txt: Text = "The text is ".into_text()
 ///     + "Red".color(Color::RED)
 ///     + ", "
 ///     + "Green".color(Color::GREEN)
@@ -57,11 +67,19 @@ pub use into_text::IntoText;
 ///     r#"{"text":"The text is ","extra":[{"text":"Red","color":"red"},", ",{"text":"Green","color":"green"},", and also ",{"text":"Blue","color":"blue"},"! And maybe even ",{"text":"Italic","italic":true},"."]}"#
 /// );
 /// ```
-#[derive(Clone, PartialEq, Default)]
-pub struct Text(Box<TextInner>);
+#[derive(Clone, PartialEq)]
+pub struct TextComponent<I: HoverItem>(Box<TextInner<I>>);
+
+pub type Text = TextComponent<Template>;
+
+impl<I: HoverItem> Default for TextComponent<I> {
+    fn default() -> Self {
+        TextComponent(Box::default())
+    }
+}
 
 /// A plain literal with no style and no siblings is written as a bare string.
-impl Serialize for Text {
+impl<I: HoverItem> Serialize for TextComponent<I> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self.0.collapse_to_string() {
             Some(text) => s.serialize_str(text),
@@ -114,13 +132,13 @@ pub fn optional_flag<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Optio
 }
 
 /// Text data and formatting.
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct TextInner {
+#[derive(Clone, PartialEq, Debug, Serialize)]
+pub struct TextInner<I: HoverItem> {
     #[serde(flatten)]
-    pub content: TextContent,
+    pub content: TextContent<I>,
 
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub extra: Vec<Text>,
+    pub extra: Vec<TextComponent<I>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<Color>,
@@ -147,7 +165,7 @@ pub struct TextInner {
     pub click_event: Option<ClickEvent>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub hover_event: Option<HoverEvent>,
+    pub hover_event: Option<HoverEvent<I>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub insertion: Option<Cow<'static, str>>,
@@ -162,7 +180,27 @@ pub struct TextInner {
 /// tags, so an int array below `with` or a hover item would come back a list.
 /// `with` is read directly too: a JSON `true` argument is a boolean, which
 /// an NBT buffer would turn into a byte.
-impl<'de> Deserialize<'de> for TextInner {
+impl<I: HoverItem> Default for TextInner<I> {
+    fn default() -> Self {
+        TextInner {
+            content: TextContent::default(),
+            extra: Vec::new(),
+            color: None,
+            shadow_color: None,
+            bold: None,
+            italic: None,
+            underlined: None,
+            strikethrough: None,
+            obfuscated: None,
+            click_event: None,
+            hover_event: None,
+            insertion: None,
+            font: None,
+        }
+    }
+}
+
+impl<'de, I: HoverItem> Deserialize<'de> for TextInner<I> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct Flag(Option<bool>);
 
@@ -172,18 +210,18 @@ impl<'de> Deserialize<'de> for TextInner {
             }
         }
 
-        struct Siblings(Vec<Text>);
+        struct Siblings<I: HoverItem>(Vec<TextComponent<I>>);
 
-        impl<'de> Deserialize<'de> for Siblings {
+        impl<'de, I: HoverItem> Deserialize<'de> for Siblings<I> {
             fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
                 non_empty(d).map(Siblings)
             }
         }
 
-        struct InnerVisitor;
+        struct InnerVisitor<I>(PhantomData<I>);
 
-        impl<'de> Visitor<'de> for InnerVisitor {
-            type Value = TextInner;
+        impl<'de, I: HoverItem> Visitor<'de> for InnerVisitor<I> {
+            type Value = TextInner<I>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a text component")
@@ -192,7 +230,7 @@ impl<'de> Deserialize<'de> for TextInner {
             fn visit_map<A: de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
                 let mut inner = TextInner::default();
                 let mut content = NbtCompound::new();
-                let mut with: Option<Vec<TranslateArg>> = None;
+                let mut with: Option<Vec<TranslateArg<I>>> = None;
                 let mut seen: Vec<&'static str> = Vec::new();
                 macro_rules! style {
                     ($key:expr, $field:ident, $ty:ty, $get:expr) => {{
@@ -206,7 +244,7 @@ impl<'de> Deserialize<'de> for TextInner {
                 }
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
-                        "extra" => style!("extra", extra, Siblings, |v: Siblings| v.0),
+                        "extra" => style!("extra", extra, Siblings<I>, |v: Siblings<I>| v.0),
                         "color" => style!("color", color, Color, Some),
                         "shadow_color" => style!("shadow_color", shadow_color, ArgbInt, Some),
                         "bold" => style!("bold", bold, Flag, |v: Flag| v.0),
@@ -217,7 +255,7 @@ impl<'de> Deserialize<'de> for TextInner {
                         }
                         "obfuscated" => style!("obfuscated", obfuscated, Flag, |v: Flag| v.0),
                         "click_event" => style!("click_event", click_event, ClickEvent, Some),
-                        "hover_event" => style!("hover_event", hover_event, HoverEvent, Some),
+                        "hover_event" => style!("hover_event", hover_event, HoverEvent<I>, Some),
                         "insertion" => style!("insertion", insertion, String, |v: String| Some(
                             Cow::Owned(v)
                         )),
@@ -241,11 +279,11 @@ impl<'de> Deserialize<'de> for TextInner {
             }
         }
 
-        d.deserialize_map(InnerVisitor)
+        d.deserialize_map(InnerVisitor(PhantomData))
     }
 }
 
-impl TextInner {
+impl<I: HoverItem> TextInner<I> {
     fn collapse_to_string(&self) -> Option<&str> {
         match &self.content {
             TextContent::Text { text, .. }
@@ -295,19 +333,19 @@ discriminators! {
 /// A translation argument: a primitive travels as itself, anything else is a
 /// component, and a component that is a plain string is read as the string.
 #[derive(Clone, PartialEq, Debug)]
-pub enum TranslateArg {
+pub enum TranslateArg<I: HoverItem> {
     Bool(bool),
     Number(NbtTag),
-    Text(Text),
+    Text(TextComponent<I>),
 }
 
-impl From<Text> for TranslateArg {
-    fn from(text: Text) -> Self {
+impl<I: HoverItem> From<TextComponent<I>> for TranslateArg<I> {
+    fn from(text: TextComponent<I>) -> Self {
         TranslateArg::Text(text)
     }
 }
 
-impl Serialize for TranslateArg {
+impl<I: HoverItem> Serialize for TranslateArg<I> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
             TranslateArg::Bool(v) => s.serialize_bool(*v),
@@ -317,18 +355,18 @@ impl Serialize for TranslateArg {
     }
 }
 
-impl<'de> Deserialize<'de> for TranslateArg {
+impl<'de, I: HoverItem> Deserialize<'de> for TranslateArg<I> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct ArgVisitor;
+        struct ArgVisitor<I>(PhantomData<I>);
 
-        fn number<'de, E: de::Error>(
+        fn number<'de, I: HoverItem, E: de::Error>(
             d: impl Deserializer<'de, Error = E>,
-        ) -> Result<TranslateArg, E> {
+        ) -> Result<TranslateArg<I>, E> {
             <NbtTag as Deserialize>::deserialize(d).map(TranslateArg::Number)
         }
 
-        impl<'de> Visitor<'de> for ArgVisitor {
-            type Value = TranslateArg;
+        impl<'de, I: HoverItem> Visitor<'de> for ArgVisitor<I> {
+            type Value = TranslateArg<I>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a number, a boolean, a string or a text component")
@@ -367,21 +405,21 @@ impl<'de> Deserialize<'de> for TranslateArg {
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                Ok(TranslateArg::Text(Text::text(v.to_owned())))
+                Ok(TranslateArg::Text(TextComponent::text(v.to_owned())))
             }
 
             fn visit_seq<A: de::SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
-                Text::deserialize(de::value::SeqAccessDeserializer::new(seq))
+                TextComponent::deserialize(de::value::SeqAccessDeserializer::new(seq))
                     .map(TranslateArg::Text)
             }
 
             fn visit_map<A: de::MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-                Text::deserialize(de::value::MapAccessDeserializer::new(map))
+                TextComponent::deserialize(de::value::MapAccessDeserializer::new(map))
                     .map(TranslateArg::Text)
             }
         }
 
-        d.deserialize_any(ArgVisitor)
+        d.deserialize_any(ArgVisitor(PhantomData))
     }
 }
 
@@ -396,7 +434,7 @@ fn non_empty<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Vec
 /// The text content of a Text object.
 #[derive(Clone, PartialEq, Debug, Serialize)]
 #[serde(untagged)]
-pub enum TextContent {
+pub enum TextContent<I: HoverItem> {
     /// Normal text
     Text {
         #[serde(skip)]
@@ -417,7 +455,7 @@ pub enum TextContent {
         /// Optional list of text components to be inserted into slots in the
         /// translation text. Ignored if `translate` is not present.
         #[serde(skip_serializing_if = "Vec::is_empty")]
-        with: Vec<TranslateArg>,
+        with: Vec<TranslateArg<I>>,
     },
     /// Displays the name of the button that is currently bound to a certain
     /// configurable control on the client.
@@ -449,7 +487,7 @@ pub enum TextContent {
         /// An optional custom separator used when the selector returns multiple
         /// entities. Defaults to the ", " text with gray color.
         #[serde(skip_serializing_if = "Option::is_none")]
-        separator: Option<Text>,
+        separator: Option<TextComponent<I>>,
     },
     /// Displays NBT values read from a block entity, an entity or command
     /// storage.
@@ -462,7 +500,7 @@ pub enum TextContent {
         #[serde(skip_serializing_if = "std::ops::Not::not")]
         plain: bool,
         #[serde(skip_serializing_if = "Option::is_none")]
-        separator: Option<Text>,
+        separator: Option<TextComponent<I>>,
         #[serde(flatten)]
         source: DataSource,
     },
@@ -473,13 +511,13 @@ pub enum TextContent {
         #[serde(flatten)]
         object: ObjectInfo,
         #[serde(skip_serializing_if = "Option::is_none")]
-        fallback: Option<Text>,
+        fallback: Option<TextComponent<I>>,
     },
 }
 
 /// A present `type` admits only the codec it names, otherwise the first codec
 /// that accepts the map wins.
-impl<'de> Deserialize<'de> for TextContent {
+impl<'de, I: HoverItem> Deserialize<'de> for TextContent<I> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         struct TextRepr {
@@ -487,12 +525,13 @@ impl<'de> Deserialize<'de> for TextContent {
         }
 
         #[derive(Deserialize)]
-        struct TranslateRepr {
+        #[serde(bound = "")]
+        struct TranslateRepr<I: HoverItem> {
             translate: String,
             #[serde(default, deserialize_with = "lenient")]
             fallback: Option<String>,
             #[serde(default)]
-            with: Vec<TranslateArg>,
+            with: Vec<TranslateArg<I>>,
         }
 
         #[derive(Deserialize)]
@@ -506,31 +545,34 @@ impl<'de> Deserialize<'de> for TextContent {
         }
 
         #[derive(Deserialize)]
-        struct SelectorRepr {
+        #[serde(bound = "")]
+        struct SelectorRepr<I: HoverItem> {
             selector: String,
             #[serde(default)]
-            separator: Option<Text>,
+            separator: Option<TextComponent<I>>,
         }
 
         #[derive(Deserialize)]
-        struct NbtRepr {
+        #[serde(bound = "")]
+        struct NbtRepr<I: HoverItem> {
             nbt: String,
             #[serde(default, deserialize_with = "lenient")]
             interpret: bool,
             #[serde(default, deserialize_with = "lenient")]
             plain: bool,
             #[serde(default, deserialize_with = "lenient")]
-            separator: Option<Text>,
+            separator: Option<TextComponent<I>>,
             #[serde(flatten)]
             source: DataSource,
         }
 
         #[derive(Deserialize)]
-        struct ObjectRepr {
+        #[serde(bound = "")]
+        struct ObjectRepr<I: HoverItem> {
             #[serde(flatten)]
             object: ObjectInfo,
             #[serde(default)]
-            fallback: Option<Text>,
+            fallback: Option<TextComponent<I>>,
         }
 
         const TYPES: [&str; 7] = [
@@ -543,7 +585,10 @@ impl<'de> Deserialize<'de> for TextContent {
             "object",
         ];
 
-        fn read<E: de::Error>(name: &str, compound: &NbtCompound) -> Result<TextContent, E> {
+        fn read<I: HoverItem, E: de::Error>(
+            name: &str,
+            compound: &NbtCompound,
+        ) -> Result<TextContent<I>, E> {
             let tag = || NbtTag::Compound(compound.clone());
             let content = match name {
                 "text" => {
@@ -554,7 +599,7 @@ impl<'de> Deserialize<'de> for TextContent {
                     }
                 }
                 "translatable" => {
-                    let TranslateRepr {
+                    let TranslateRepr::<I> {
                         translate,
                         fallback,
                         with,
@@ -578,7 +623,7 @@ impl<'de> Deserialize<'de> for TextContent {
                     TextContent::ScoreboardValue { typed: (), score }
                 }
                 "selector" => {
-                    let SelectorRepr {
+                    let SelectorRepr::<I> {
                         selector,
                         separator,
                     } = from_tag(tag()).map_err(E::custom)?;
@@ -589,7 +634,7 @@ impl<'de> Deserialize<'de> for TextContent {
                     }
                 }
                 "nbt" => {
-                    let NbtRepr {
+                    let NbtRepr::<I> {
                         nbt,
                         interpret,
                         plain,
@@ -609,7 +654,8 @@ impl<'de> Deserialize<'de> for TextContent {
                     }
                 }
                 "object" => {
-                    let ObjectRepr { object, fallback } = from_tag(tag()).map_err(E::custom)?;
+                    let ObjectRepr::<I> { object, fallback } =
+                        from_tag(tag()).map_err(E::custom)?;
                     TextContent::Object {
                         typed: (),
                         object,
@@ -629,7 +675,7 @@ impl<'de> Deserialize<'de> for TextContent {
             Some(_) => Err(de::Error::custom("'type' is not a string")),
             None => TYPES
                 .iter()
-                .find_map(|name| read::<D::Error>(name, &compound).ok())
+                .find_map(|name| read::<I, D::Error>(name, &compound).ok())
                 .ok_or_else(|| {
                     de::Error::custom("data did not match any variant of untagged enum TextContent")
                 }),
@@ -1057,44 +1103,46 @@ mod java_uri {
 #[derive(Clone, PartialEq, Debug, Serialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 #[allow(clippy::enum_variant_names)]
-pub enum HoverEvent {
+pub enum HoverEvent<I: HoverItem> {
     ShowText {
-        value: Text,
+        value: TextComponent<I>,
     },
-    ShowItem(Box<Template>),
+    ShowItem(Box<I>),
     ShowEntity {
         id: ResourceKey<EntityTypeReg>,
         #[serde(with = "lenient_uuid")]
         uuid: Uuid,
         #[serde(skip_serializing_if = "Option::is_none")]
-        name: Option<Text>,
+        name: Option<TextComponent<I>>,
     },
 }
 
-impl<'de> Deserialize<'de> for HoverEvent {
+impl<'de, I: HoverItem> Deserialize<'de> for HoverEvent<I> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        struct ShowText {
-            value: Text,
+        #[serde(bound = "")]
+        struct ShowText<I: HoverItem> {
+            value: TextComponent<I>,
         }
 
         #[derive(Deserialize)]
-        struct ShowEntity {
+        #[serde(bound = "")]
+        struct ShowEntity<I: HoverItem> {
             id: ResourceKey<EntityTypeReg>,
             #[serde(deserialize_with = "lenient_uuid::deserialize")]
             uuid: Uuid,
             #[serde(default)]
-            name: Option<Text>,
+            name: Option<TextComponent<I>>,
         }
 
         let (action, compound) = tagged_compound(d, "action")?;
         Ok(match action.as_str() {
             "show_text" => HoverEvent::ShowText {
-                value: variant::<D, ShowText>(compound)?.value,
+                value: variant::<D, ShowText<I>>(compound)?.value,
             },
-            "show_item" => HoverEvent::ShowItem(Box::new(variant::<D, Template>(compound)?)),
+            "show_item" => HoverEvent::ShowItem(Box::new(variant::<D, I>(compound)?)),
             "show_entity" => {
-                let ShowEntity { id, uuid, name } = variant::<D, ShowEntity>(compound)?;
+                let ShowEntity::<I> { id, uuid, name } = variant::<D, ShowEntity<I>>(compound)?;
                 HoverEvent::ShowEntity { id, uuid, name }
             }
             other => {
@@ -1170,20 +1218,20 @@ mod lenient_uuid {
     }
 }
 
-impl Encode for Text {
+impl<I: HoverItem> Encode for TextComponent<I> {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
         encode_nbt_wire(self, w)
     }
 }
 
-impl Decode<'_> for Text {
+impl<I: HoverItem> Decode<'_> for TextComponent<I> {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         decode_nbt_wire(r)
     }
 }
 
 #[allow(clippy::self_named_constructors)]
-impl Text {
+impl<I: HoverItem> TextComponent<I> {
     /// Constructs a new plain text object.
     pub fn text(plain: impl Into<Cow<'static, str>>) -> Self {
         Self(Box::new(TextInner {
@@ -1197,7 +1245,10 @@ impl Text {
 
     /// Create translated text based on the given translation key, with extra
     /// text components to be inserted into the slots of the translation text.
-    pub fn translate(key: impl Into<Cow<'static, str>>, with: impl Into<Vec<Text>>) -> Self {
+    pub fn translate(
+        key: impl Into<Cow<'static, str>>,
+        with: impl Into<Vec<TextComponent<I>>>,
+    ) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::Translate {
                 typed: (),
@@ -1228,7 +1279,10 @@ impl Text {
 
     /// Creates a text component for selecting entity names with an optional
     /// custom separator.
-    pub fn selector(selector: impl Into<Cow<'static, str>>, separator: Option<Text>) -> Self {
+    pub fn selector(
+        selector: impl Into<Cow<'static, str>>,
+        separator: Option<TextComponent<I>>,
+    ) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::EntityNames {
                 typed: (),
@@ -1258,7 +1312,7 @@ impl Text {
         source: DataSource,
         nbt: impl Into<Cow<'static, str>>,
         interpret: bool,
-        separator: Option<Text>,
+        separator: Option<TextComponent<I>>,
     ) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::Nbt {
@@ -1357,7 +1411,11 @@ impl Text {
             }
         }
 
-        fn to_legacy_inner(this: &Text, result: &mut String, mods: &mut Modifiers) {
+        fn to_legacy_inner<I: HoverItem>(
+            this: &TextComponent<I>,
+            result: &mut String,
+            mods: &mut Modifiers,
+        ) {
             let new_mods = Modifiers {
                 obfuscated: this.0.obfuscated,
                 bold: this.0.bold,
@@ -1404,21 +1462,21 @@ impl Text {
     }
 }
 
-impl Deref for Text {
-    type Target = TextInner;
+impl<I: HoverItem> Deref for TextComponent<I> {
+    type Target = TextInner<I>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for Text {
+impl<I: HoverItem> DerefMut for TextComponent<I> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl<T: IntoText<'static>> ops::Add<T> for Text {
+impl<I: HoverItem, T: IntoText<'static, I>> ops::Add<T> for TextComponent<I> {
     type Output = Self;
 
     fn add(self, rhs: T) -> Self::Output {
@@ -1426,49 +1484,49 @@ impl<T: IntoText<'static>> ops::Add<T> for Text {
     }
 }
 
-impl<T: IntoText<'static>> ops::AddAssign<T> for Text {
+impl<I: HoverItem, T: IntoText<'static, I>> ops::AddAssign<T> for TextComponent<I> {
     fn add_assign(&mut self, rhs: T) {
         self.extra.push(rhs.into_text());
     }
 }
 
-impl<'a> From<Text> for Cow<'a, Text> {
-    fn from(value: Text) -> Self {
+impl<'a, I: HoverItem> From<TextComponent<I>> for Cow<'a, TextComponent<I>> {
+    fn from(value: TextComponent<I>) -> Self {
         Cow::Owned(value)
     }
 }
 
-impl<'a> From<&'a Text> for Cow<'a, Text> {
-    fn from(value: &'a Text) -> Self {
+impl<'a, I: HoverItem> From<&'a TextComponent<I>> for Cow<'a, TextComponent<I>> {
+    fn from(value: &'a TextComponent<I>) -> Self {
         Cow::Borrowed(value)
     }
 }
 
-impl FromStr for Text {
+impl<I: HoverItem> FromStr for TextComponent<I> {
     type Err = serde_json::error::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
-            Ok(Text::default())
+            Ok(TextComponent::default())
         } else {
             serde_json::from_str(s)
         }
     }
 }
 
-impl From<Text> for String {
-    fn from(value: Text) -> Self {
+impl<I: HoverItem> From<TextComponent<I>> for String {
+    fn from(value: TextComponent<I>) -> Self {
         format!("{value}")
     }
 }
 
-impl fmt::Debug for Text {
+impl<I: HoverItem> fmt::Debug for TextComponent<I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
 }
 
-impl fmt::Display for Text {
+impl<I: HoverItem> fmt::Display for TextComponent<I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let string = if f.alternate() {
             serde_json::to_string_pretty(self)
@@ -1481,7 +1539,7 @@ impl fmt::Display for Text {
     }
 }
 
-impl Default for TextContent {
+impl<I: HoverItem> Default for TextContent<I> {
     fn default() -> Self {
         Self::Text {
             typed: (),
@@ -1490,23 +1548,23 @@ impl Default for TextContent {
     }
 }
 
-impl<'de> Deserialize<'de> for Text {
+impl<'de, I: HoverItem> Deserialize<'de> for TextComponent<I> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct TextVisitor;
+        struct TextVisitor<I>(PhantomData<I>);
 
-        impl<'de> Visitor<'de> for TextVisitor {
-            type Value = Text;
+        impl<'de, I: HoverItem> Visitor<'de> for TextVisitor<I> {
+            type Value = TextComponent<I>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 write!(formatter, "a text component data type")
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                Ok(Text::text(v.to_string()))
+                Ok(TextComponent::text(v.to_string()))
             }
 
             fn visit_string<E: de::Error>(self, v: String) -> Result<Self::Value, E> {
-                Ok(Text::text(v))
+                Ok(TextComponent::text(v))
             }
 
             fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
@@ -1514,7 +1572,7 @@ impl<'de> Deserialize<'de> for Text {
                     return Err(de::Error::custom("List must have contents"));
                 };
 
-                while let Some(child) = seq.next_element::<Text>()? {
+                while let Some(child) = seq.next_element::<TextComponent<I>>()? {
                     res += child;
                 }
 
@@ -1524,18 +1582,18 @@ impl<'de> Deserialize<'de> for Text {
             fn visit_map<A: de::MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
                 use de::value::MapAccessDeserializer;
 
-                Ok(Text(Box::new(TextInner::deserialize(
+                Ok(TextComponent(Box::new(TextInner::deserialize(
                     MapAccessDeserializer::new(map),
                 )?)))
             }
         }
 
-        deserializer.deserialize_any(TextVisitor)
+        deserializer.deserialize_any(TextVisitor(PhantomData))
     }
 }
 
-impl From<TextInner> for Text {
-    fn from(inner: TextInner) -> Self {
+impl<I: HoverItem> From<TextInner<I>> for TextComponent<I> {
+    fn from(inner: TextInner<I>) -> Self {
         Self(Box::new(inner))
     }
 }

@@ -125,7 +125,7 @@ fn storage_nbt() {
 
 #[test]
 fn text_to_legacy_lossy() {
-    let text = "Heavily formatted green text\n"
+    let text: Text = "Heavily formatted green text\n"
         .bold()
         .italic()
         .strikethrough()
