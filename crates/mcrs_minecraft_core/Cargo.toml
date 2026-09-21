@@ -20,5 +20,5 @@ mcrs_minecraft_random.workspace = true
 serde_json.workspace = true
 
 [features]
-default = ["bevy"]
+default = []
 bevy = ["dep:bevy_ecs"]

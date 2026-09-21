@@ -16,5 +16,5 @@ serde_json.workspace = true
 tracing.workspace = true
 
 [features]
-default = ["bevy"]
+default = []
 bevy = ["dep:bevy_ecs", "mcrs_minecraft_core/bevy"]

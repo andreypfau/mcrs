@@ -14,5 +14,5 @@ bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
 
 [features]
-default = ["bevy"]
+default = []
 bevy = ["dep:bevy_ecs"]

@@ -244,7 +244,7 @@ impl<'a, R: RegistryName> DecodeCtx<'a> for ResourceKey<R> {
     }
 }
 
-impl<T: Registered> EncodeCtx for Holder<T> {
+impl<T: Registered + EncodeCtx> EncodeCtx for Holder<T> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         match self {
             Holder::Reference(key) => {
@@ -261,7 +261,7 @@ impl<T: Registered> EncodeCtx for Holder<T> {
     }
 }
 
-impl<'a, T: Registered> DecodeCtx<'a> for Holder<T> {
+impl<'a, T: Registered + DecodeCtx<'a>> DecodeCtx<'a> for Holder<T> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let raw = VarInt::decode(r)?.0;
         if raw == 0 {
