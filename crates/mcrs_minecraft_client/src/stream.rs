@@ -14,6 +14,7 @@ use mcrs_minecraft_network::client::{ClientConnection, JoinedGame, ReceivedRegis
 
 use crate::blocks::{self, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
+use crate::item_model::bake::{ItemModels, bake_all as bake_items};
 use crate::model::Pack;
 use crate::render::{Animation, AtlasUpdate, Budget, Placement, SectionDesc, Upload, Uploads};
 use mcrs_minecraft_mesh::arena::{Arena, Block};
@@ -107,6 +108,7 @@ pub struct BlockCatalog {
     biomes: Vec<String>,
     sprites: usize,
     sent: Vec<(u32, u32)>,
+    items_baked: bool,
 }
 
 #[derive(Resource)]
@@ -163,6 +165,7 @@ struct Baked {
     catalog: Catalog,
     blocks: Vec<BlockInfo>,
     sprites: Option<Upload>,
+    items: Option<ItemModels>,
 }
 
 pub struct Status {
@@ -769,6 +772,7 @@ impl BlockCatalog {
             biomes: Vec::new(),
             sprites: 0,
             sent: Vec::new(),
+            items_baked: false,
         }
     }
 
@@ -840,8 +844,17 @@ impl BlockCatalog {
         let sent = self.sent.clone();
         let definitions = definitions.clone();
         let pack = pack.clone();
+        let bake_items_too = !self.items_baked;
+        self.items_baked = true;
         self.baking = Some(pool.spawn(async move {
             blocks::extend(&pack, &mut catalog, &definitions, &states, &biomes);
+            let items = bake_items_too.then(|| {
+                let started = std::time::Instant::now();
+                let items = bake_items(&pack, &mut catalog.sprites)
+                    .unwrap_or_else(|reason| panic!("cannot bake the item models: {reason}"));
+                info!(items = items.by_id.len(), elapsed = ?started.elapsed(), "baked the item models");
+                items
+            });
             let blocks = catalog.blocks.clone();
             let sprites = (catalog.sprites.len() != known).then(|| {
                 let sprites = &catalog.sprites;
@@ -882,11 +895,12 @@ impl BlockCatalog {
                 catalog,
                 blocks,
                 sprites,
+                items,
             }
         }));
     }
 
-    fn publish(&mut self, baked: Baked, uploads: &Uploads) {
+    fn publish(&mut self, baked: Baked, uploads: &Uploads) -> Option<ItemModels> {
         if let Some(sprites) = baked.sprites {
             self.sprites = baked.catalog.sprites.len();
             self.sent = baked.catalog.sprites.counts();
@@ -898,6 +912,7 @@ impl BlockCatalog {
         self.failures = baked.catalog.failures.len();
         self.catalog = Some(baked.catalog);
         self.blocks = Arc::new(baked.blocks);
+        baked.items
     }
 }
 
@@ -1237,6 +1252,7 @@ fn bake_catalog(
     assets: Res<AssetServer>,
     definitions: Res<Blocks>,
     registries: Query<&ReceivedRegistries>,
+    mut commands: Commands,
 ) {
     let catalog = &mut *catalog;
     let pack = catalog.poll_pack(&assets);
@@ -1247,11 +1263,13 @@ fn bake_catalog(
         && let Some(baked) = check_ready(task)
     {
         catalog.baking = None;
-        catalog.publish(baked, &uploads);
+        if let Some(items) = catalog.publish(baked, &uploads) {
+            commands.insert_resource(items);
+        }
     }
     if let Some(pack) = pack
         && catalog.baking.is_none()
-        && !catalog.to_bake.is_empty()
+        && (!catalog.to_bake.is_empty() || !catalog.items_baked)
         && !catalog.biomes.is_empty()
     {
         catalog.start_baking(&pack, &definitions, AsyncComputeTaskPool::get());

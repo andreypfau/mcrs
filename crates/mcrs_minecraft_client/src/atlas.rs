@@ -5,8 +5,11 @@ use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
 use mcrs_minecraft_mesh::block::{Pass, SpriteRef};
 use mcrs_minecraft_mesh::pack::MAX_SPRITES;
-use std::collections::HashMap;
+use serde::Deserialize;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
+
+pub const MISSING_SPRITE: &str = "minecraft:missingno";
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Opacity {
@@ -33,10 +36,21 @@ pub struct SpriteArray {
     frame_pixels: Vec<u8>,
 }
 
+/// The base texture a permuted sprite copies and the palette swap it applies.
+type Permutation = (String, PaletteMapping);
+
 pub struct SpriteRegistry {
     arrays: Vec<SpriteArray>,
     index: HashMap<String, SpriteRef>,
     animations: Vec<Animation>,
+    permutations: HashMap<String, Permutation>,
+}
+
+struct Source {
+    data: Vec<u8>,
+    width: u32,
+    height: u32,
+    animation: Option<anim::Animation>,
 }
 
 impl SpriteRegistry {
@@ -45,6 +59,7 @@ impl SpriteRegistry {
             arrays: Vec::new(),
             index: HashMap::new(),
             animations: Vec::new(),
+            permutations: HashMap::new(),
         }
     }
 
@@ -81,10 +96,79 @@ impl SpriteRegistry {
         self.animations.get(index)
     }
 
+    pub fn is_animated(&self, sprite: SpriteRef) -> bool {
+        self.animation(sprite.layer).is_some()
+    }
+
     pub fn opacity(&self, sprite: SpriteRef) -> Opacity {
         match self.animation(sprite.layer) {
             Some(animation) => animation.opacity,
             None => self.arrays[sprite.array as usize].stills[sprite.layer as usize],
+        }
+    }
+
+    /// Registers the paletted permutations every `atlases/*.json` declares, so
+    /// an id such as `minecraft:trims/items/chestplate_trim_quartz` interns
+    /// although no such file exists.
+    pub fn load_atlases(&mut self, pack: &Pack) -> Result<(), String> {
+        for (id, bytes) in pack.entries("atlases", "json") {
+            let sources: AtlasSources = serde_json::from_slice(bytes)
+                .map_err(|error| format!("cannot parse atlas {id}: {error}"))?;
+            self.permutations.extend(sources.permutations(pack)?);
+        }
+        Ok(())
+    }
+
+    fn source(&self, pack: &Pack, id: &str) -> Result<Source, String> {
+        let path = model::resource_path(id, "textures", "png");
+        if let Some(bytes) = pack.get(&path) {
+            let (data, width, height) = decode_png(bytes, &path)?;
+            return Ok(Source {
+                data,
+                width,
+                height,
+                animation: anim::read(pack, &path)?,
+            });
+        }
+        if let Some((base, mapping)) = self.permutations.get(id) {
+            let base_path = model::resource_path(base, "textures", "png");
+            let (mut data, width, height) = decode_png(pack.read(&base_path)?, &base_path)?;
+            for pixel in data.as_chunks_mut::<4>().0 {
+                *pixel = rgba(mapping.apply(argb(pixel)));
+            }
+            return Ok(Source {
+                data,
+                width,
+                height,
+                animation: anim::read(pack, &base_path)?,
+            });
+        }
+        if model::split_id(id) == model::split_id(MISSING_SPRITE) {
+            return Ok(Source {
+                data: missing_image(),
+                width: 16,
+                height: 16,
+                animation: None,
+            });
+        }
+        Err(format!("{path} is not in the resource pack"))
+    }
+
+    /// The pixels of every frame the sprite holds, level zero, row-major RGBA.
+    pub fn frames(&self, sprite: SpriteRef) -> Vec<&[u8]> {
+        let array = &self.arrays[sprite.array as usize];
+        let stride = (array.size * array.size * 4) as usize;
+        match self.animation(sprite.layer) {
+            Some(animation) => (0..animation.count as usize)
+                .map(|step| {
+                    let layer = animation.frame_base as usize + step;
+                    &array.frame_pixels[layer * stride..(layer + 1) * stride]
+                })
+                .collect(),
+            None => {
+                let layer = sprite.layer as usize;
+                vec![&array.still_pixels[layer * stride..(layer + 1) * stride]]
+            }
         }
     }
 
@@ -93,21 +177,16 @@ impl SpriteRegistry {
             return Ok(sprite);
         }
         let path = model::resource_path(id, "textures", "png");
-        let bytes = pack.read(&path)?;
-        let image = Image::from_buffer(
-            bytes,
-            ImageType::Extension("png"),
-            CompressedImageFormats::NONE,
-            true,
-            ImageSampler::nearest(),
-            RenderAssetUsages::default(),
-        )
-        .map_err(|error| format!("cannot decode {path}: {error}"))?;
-        let animation = anim::read(pack, &path)?;
-        let image_size = (image.width(), image.height());
+        let Source {
+            data,
+            width,
+            height,
+            animation,
+        } = self.source(pack, id)?;
+        let image_size = (width, height);
         let (frame_width, frame_height) = match &animation {
             Some(animation) => animation.frame_size(image_size),
-            None => (image.width(), image.width()),
+            None => (width, width),
         };
         if frame_width != frame_height {
             return Err(format!(
@@ -115,9 +194,6 @@ impl SpriteRegistry {
             ));
         }
         let side = frame_width;
-        let data = image
-            .data
-            .ok_or_else(|| format!("{path} decoded without pixel data"))?;
 
         let sequence = match &animation {
             Some(animation) => animation.unroll(id, image_size),
@@ -185,6 +261,194 @@ impl SpriteRegistry {
         };
         self.index.insert(id.to_string(), sprite);
         Ok(sprite)
+    }
+}
+
+fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), String> {
+    let image = Image::from_buffer(
+        bytes,
+        ImageType::Extension("png"),
+        CompressedImageFormats::NONE,
+        true,
+        ImageSampler::nearest(),
+        RenderAssetUsages::default(),
+    )
+    .map_err(|error| format!("cannot decode {path}: {error}"))?;
+    let (width, height) = (image.width(), image.height());
+    let data = image
+        .data
+        .ok_or_else(|| format!("{path} decoded without pixel data"))?;
+    Ok((data, width, height))
+}
+
+fn argb(rgba: &[u8; 4]) -> u32 {
+    u32::from_be_bytes([rgba[3], rgba[0], rgba[1], rgba[2]])
+}
+
+fn rgba(argb: u32) -> [u8; 4] {
+    let [a, r, g, b] = argb.to_be_bytes();
+    [r, g, b, a]
+}
+
+/// The 16x16 magenta and black checker vanilla generates for a texture it cannot find.
+fn missing_image() -> Vec<u8> {
+    let mut data = Vec::with_capacity(16 * 16 * 4);
+    for y in 0..16 {
+        for x in 0..16 {
+            let magenta = (x < 8) == (y < 8);
+            data.extend_from_slice(&if magenta {
+                [0xF8, 0x00, 0xF8, 0xFF]
+            } else {
+                [0x00, 0x00, 0x00, 0xFF]
+            });
+        }
+    }
+    data
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AtlasSources {
+    sources: Vec<AtlasSource>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", deny_unknown_fields)]
+#[allow(dead_code)]
+enum AtlasSource {
+    #[serde(rename = "minecraft:directory", alias = "directory")]
+    Directory { source: String, prefix: String },
+    #[serde(rename = "minecraft:single", alias = "single")]
+    Single {
+        resource: String,
+        #[serde(default)]
+        sprite: Option<String>,
+    },
+    #[serde(rename = "minecraft:filter", alias = "filter")]
+    Filter { pattern: IdentifierPattern },
+    #[serde(rename = "minecraft:unstitch", alias = "unstitch")]
+    Unstitch {
+        resource: String,
+        #[serde(default = "one")]
+        divisor_x: f64,
+        #[serde(default = "one")]
+        divisor_y: f64,
+        regions: Vec<UnstitchRegion>,
+    },
+    #[serde(rename = "minecraft:paletted_permutations", alias = "paletted_permutations")]
+    PalettedPermutations {
+        textures: Vec<String>,
+        palette_key: String,
+        permutations: BTreeMap<String, String>,
+        #[serde(default = "underscore")]
+        separator: String,
+    },
+}
+
+fn one() -> f64 {
+    1.0
+}
+
+fn underscore() -> String {
+    "_".to_string()
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct IdentifierPattern {
+    #[serde(default)]
+    namespace: Option<String>,
+    #[serde(default)]
+    path: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct UnstitchRegion {
+    sprite: String,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+impl AtlasSources {
+    /// Every permuted sprite id with the base texture it copies and the palette swap it applies.
+    /// Only paletted permutations create sprites here; the other sources name files that
+    /// intern on demand.
+    fn permutations(
+        &self,
+        pack: &Pack,
+    ) -> Result<Vec<(String, Permutation)>, String> {
+        let mut out = Vec::new();
+        for source in &self.sources {
+            let AtlasSource::PalettedPermutations {
+                textures,
+                palette_key,
+                permutations,
+                separator,
+            } = source
+            else {
+                continue;
+            };
+            let base = Palette::load(pack, palette_key)?;
+            for (suffix, palette) in permutations {
+                let mapping = PaletteMapping::create(&base, &Palette::load(pack, palette)?)?;
+                for texture in textures {
+                    out.push((
+                        format!("{texture}{separator}{suffix}"),
+                        (texture.clone(), mapping.clone()),
+                    ));
+                }
+            }
+        }
+        Ok(out)
+    }
+}
+
+struct Palette(Vec<u32>);
+
+impl Palette {
+    fn load(pack: &Pack, id: &str) -> Result<Self, String> {
+        let path = model::resource_path(id, "textures/palettes", "png");
+        let (data, _, _) = decode_png(pack.read(&path)?, &path)?;
+        Ok(Self(data.as_chunks::<4>().0.iter().map(argb).collect()))
+    }
+}
+
+#[derive(Clone)]
+pub struct PaletteMapping(HashMap<u32, u32>);
+
+impl PaletteMapping {
+    fn create(base: &Palette, target: &Palette) -> Result<Self, String> {
+        if base.0.len() != target.0.len() {
+            return Err(format!(
+                "PaletteMapping has different sizes: {} != {}",
+                base.0.len(),
+                target.0.len()
+            ));
+        }
+        Ok(Self(
+            base.0
+                .iter()
+                .zip(&target.0)
+                .filter(|(key, _)| **key >> 24 != 0)
+                .map(|(key, value)| (key | 0xFF00_0000, *value))
+                .collect(),
+        ))
+    }
+
+    fn apply(&self, pixel: u32) -> u32 {
+        let alpha = pixel >> 24;
+        if alpha == 0 {
+            return pixel;
+        }
+        let opaque = pixel | 0xFF00_0000;
+        let target = *self.0.get(&opaque).unwrap_or(&opaque);
+        let target_alpha = target >> 24;
+        (alpha * target_alpha / 255) << 24 | (target & 0x00FF_FFFF)
     }
 }
 
@@ -687,6 +951,65 @@ mod tests {
         downsample_2x2(&src, 2, 0, 0, &mut dst);
         assert_eq!(&dst[..3], &[255, 255, 255]);
         assert_eq!(dst[3], 63);
+    }
+
+    #[test]
+    fn every_atlas_parses_and_the_item_trims_permute_into_sprites() {
+        let pack = Pack::corpus();
+        let mut permuted = 0;
+        for (id, bytes) in pack.entries("atlases", "json") {
+            let sources: AtlasSources =
+                serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{id}: {e}"));
+            permuted += sources.permutations(pack).unwrap().len();
+        }
+        assert_eq!(permuted, 64);
+        let mut registry = SpriteRegistry::new();
+        registry.load_atlases(pack).unwrap();
+        let quartz = registry
+            .intern(pack, "minecraft:trims/items/chestplate_trim_quartz")
+            .unwrap();
+        let base = registry
+            .intern(pack, "minecraft:trims/items/chestplate_trim")
+            .unwrap();
+        let quartz_pixels = registry.frames(quartz)[0].to_vec();
+        let base_pixels = registry.frames(base)[0].to_vec();
+        assert_ne!(quartz_pixels, base_pixels);
+        for (q, b) in quartz_pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(base_pixels.as_chunks::<4>().0)
+        {
+            assert_eq!(q[3] == 0, b[3] == 0);
+        }
+        assert!(registry.intern(pack, "minecraft:trims/items/chestplate_trim_nope").is_err());
+    }
+
+    #[test]
+    fn the_missing_sprite_is_a_generated_checker() {
+        let mut registry = SpriteRegistry::new();
+        let sprite = registry.intern(Pack::corpus(), MISSING_SPRITE).unwrap();
+        let pixels = registry.frames(sprite)[0];
+        assert_eq!(pixels.len(), 16 * 16 * 4);
+        assert_eq!(&pixels[..4], &[0xF8, 0, 0xF8, 0xFF]);
+        assert_eq!(&pixels[8 * 4..8 * 4 + 4], &[0, 0, 0, 0xFF]);
+        assert_eq!(registry.opacity(sprite), Opacity::Solid);
+    }
+
+    #[test]
+    fn a_palette_mapping_scales_alpha_and_leaves_unknown_colours_alone() {
+        let mapping = PaletteMapping::create(
+            &Palette(vec![0xFF11_2233, 0x0000_0000]),
+            &Palette(vec![0x8044_5566, 0xFF00_0000]),
+        )
+        .unwrap();
+        assert_eq!(mapping.apply(0xFF11_2233), 0x8044_5566);
+        assert_eq!(mapping.apply(0x8011_2233), 0x4044_5566);
+        assert_eq!(mapping.apply(0x00AA_BBCC), 0x00AA_BBCC);
+        assert_eq!(mapping.apply(0xFFAA_BBCC), 0xFFAA_BBCC);
+        assert!(
+            PaletteMapping::create(&Palette(vec![1]), &Palette(vec![1, 2])).is_err()
+        );
     }
 }
 

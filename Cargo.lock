@@ -3562,6 +3562,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_level",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_nbt",
