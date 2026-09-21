@@ -2,7 +2,7 @@ use std::io::Write;
 
 use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::entity::DyeColor;
+use crate::item::component::enums::DyeColor;
 use crate::item::component::text::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
 use crate::item::wire::{newtype_ctx_wire, newtype_wire};

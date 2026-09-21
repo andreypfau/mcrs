@@ -3,9 +3,9 @@ use std::io::Write;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::entity::DyeColor;
 use crate::item::component::banner::*;
 use crate::item::component::common::Holder;
+use crate::item::component::enums::DyeColor;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::wire::newtype_ctx_wire;
 use crate::{Decode, Encode};

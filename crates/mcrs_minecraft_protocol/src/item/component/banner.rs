@@ -1,8 +1,8 @@
 use mcrs_minecraft_core::ResourceLocation;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::DyeColor;
 use crate::item::component::common::{BannerPatternReg, Holder, Registered};
+use crate::item::component::enums::DyeColor;
 use crate::item::harness::Sample;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

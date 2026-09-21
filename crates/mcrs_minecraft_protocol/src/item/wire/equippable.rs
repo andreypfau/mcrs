@@ -2,8 +2,8 @@ use std::io::Write;
 
 use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::entity::EquipmentSlot;
 use crate::item::component::common::Holder;
+use crate::item::component::equippable::EquipmentSlot;
 use crate::item::component::equippable::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::{Decode, Encode, VarInt};

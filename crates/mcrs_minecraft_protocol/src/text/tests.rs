@@ -5,6 +5,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{from_bytes_unnamed, to_bytes_unnamed};
 
 use super::*;
+use crate::{Decode, Encode};
 
 #[test]
 fn text_round_trip() {

@@ -4,11 +4,72 @@ use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::entity::EquipmentSlot;
 use crate::item::component::common::{EntityTypeReg, Holder};
 use crate::item::component::registry_ref::null_as_default;
 use crate::item::component::sound::SoundEvent;
 use crate::item::harness::Sample;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum EquipmentSlot {
+    MainHand,
+    OffHand,
+    Feet,
+    Legs,
+    Chest,
+    Head,
+    Body,
+    Saddle,
+}
+
+impl EquipmentSlot {
+    pub const ALL: [Self; 8] = [
+        Self::MainHand,
+        Self::OffHand,
+        Self::Feet,
+        Self::Legs,
+        Self::Chest,
+        Self::Head,
+        Self::Body,
+        Self::Saddle,
+    ];
+
+    pub fn from_id(id: u8) -> anyhow::Result<Self> {
+        Self::ALL
+            .get(id as usize)
+            .copied()
+            .ok_or_else(|| anyhow::anyhow!("invalid equipment slot {id}"))
+    }
+
+    /// `EquipmentSlot.STREAM_CODEC` numbers the slots differently from the
+    /// equipment packet's ordinal: hands first, then armour, offhand at 5.
+    pub const fn equippable_id(self) -> u8 {
+        match self {
+            Self::MainHand => 0,
+            Self::Feet => 1,
+            Self::Legs => 2,
+            Self::Chest => 3,
+            Self::Head => 4,
+            Self::OffHand => 5,
+            Self::Body => 6,
+            Self::Saddle => 7,
+        }
+    }
+
+    /// Out of range reads as the first slot (`ByIdMap` `ZERO`).
+    pub const fn from_equippable_id(id: u8) -> Self {
+        match id {
+            1 => Self::Feet,
+            2 => Self::Legs,
+            3 => Self::Chest,
+            4 => Self::Head,
+            5 => Self::OffHand,
+            6 => Self::Body,
+            7 => Self::Saddle,
+            _ => Self::MainHand,
+        }
+    }
+}
 
 const SLOT_NAMES: [(&str, EquipmentSlot); 8] = [
     ("mainhand", EquipmentSlot::MainHand),

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::item::component::profile::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
-use crate::profile::Property;
+
 use crate::{Bounded, Decode, Encode};
 
 struct WireProperty<'a> {
@@ -122,6 +122,24 @@ impl DecodeCtx<'_> for Profile {
                     }
                 }),
             },
+        })
+    }
+}
+
+impl<S: Encode> Encode for Property<S> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.name.encode(&mut w)?;
+        self.value.encode(&mut w)?;
+        self.signature.encode(w)
+    }
+}
+
+impl<'a, S: Decode<'a>> Decode<'a> for Property<S> {
+    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        Ok(Property {
+            name: S::decode(r)?,
+            value: S::decode(r)?,
+            signature: Option::decode(r)?,
         })
     }
 }

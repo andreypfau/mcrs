@@ -1,4 +1,6 @@
 use crate::item::RawStack;
+pub use crate::item::component::enums::DyeColor;
+pub use crate::item::component::equippable::EquipmentSlot;
 use crate::text::Text;
 use crate::{Direction, GlobalPos, VarInt, VarLong};
 use bevy_math::{Vec3, Vec4};
@@ -157,60 +159,6 @@ impl crate::Decode<'_> for OptionalUnsignedInt {
     }
 }
 
-/// `DyeColor.STREAM_CODEC`: the id, out of range reading as white (`ZERO`).
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Encode, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DyeColor {
-    White,
-    Orange,
-    Magenta,
-    LightBlue,
-    Yellow,
-    Lime,
-    Pink,
-    Gray,
-    LightGray,
-    Cyan,
-    Purple,
-    Blue,
-    Brown,
-    Green,
-    Red,
-    Black,
-}
-
-impl DyeColor {
-    pub const ALL: [Self; 16] = [
-        Self::White,
-        Self::Orange,
-        Self::Magenta,
-        Self::LightBlue,
-        Self::Yellow,
-        Self::Lime,
-        Self::Pink,
-        Self::Gray,
-        Self::LightGray,
-        Self::Cyan,
-        Self::Purple,
-        Self::Blue,
-        Self::Brown,
-        Self::Green,
-        Self::Red,
-        Self::Black,
-    ];
-}
-
-impl crate::Decode<'_> for DyeColor {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        Ok(usize::try_from(id)
-            .ok()
-            .and_then(|id| Self::ALL.get(id))
-            .copied()
-            .unwrap_or(Self::White))
-    }
-}
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Encode, Decode)]
 pub enum Pose {
     #[default]
@@ -275,66 +223,4 @@ pub struct VillagerData {
     pub kind: VarInt,
     pub profession: VarInt,
     pub level: VarInt,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum EquipmentSlot {
-    MainHand,
-    OffHand,
-    Feet,
-    Legs,
-    Chest,
-    Head,
-    Body,
-    Saddle,
-}
-
-impl EquipmentSlot {
-    pub const ALL: [Self; 8] = [
-        Self::MainHand,
-        Self::OffHand,
-        Self::Feet,
-        Self::Legs,
-        Self::Chest,
-        Self::Head,
-        Self::Body,
-        Self::Saddle,
-    ];
-
-    pub fn from_id(id: u8) -> anyhow::Result<Self> {
-        Self::ALL
-            .get(id as usize)
-            .copied()
-            .ok_or_else(|| anyhow::anyhow!("invalid equipment slot {id}"))
-    }
-
-    /// `EquipmentSlot.STREAM_CODEC` numbers the slots differently from the
-    /// equipment packet's ordinal: hands first, then armour, offhand at 5.
-    pub const fn equippable_id(self) -> u8 {
-        match self {
-            Self::MainHand => 0,
-            Self::Feet => 1,
-            Self::Legs => 2,
-            Self::Chest => 3,
-            Self::Head => 4,
-            Self::OffHand => 5,
-            Self::Body => 6,
-            Self::Saddle => 7,
-        }
-    }
-
-    /// Out of range reads as the first slot (`ByIdMap` `ZERO`).
-    pub const fn from_equippable_id(id: u8) -> Self {
-        match id {
-            1 => Self::Feet,
-            2 => Self::Legs,
-            3 => Self::Chest,
-            4 => Self::Head,
-            5 => Self::OffHand,
-            6 => Self::Body,
-            7 => Self::Saddle,
-            _ => Self::MainHand,
-        }
-    }
 }

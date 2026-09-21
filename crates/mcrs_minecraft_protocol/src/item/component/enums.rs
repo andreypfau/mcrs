@@ -2,7 +2,6 @@ use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, STRING_ID};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::entity::DyeColor;
 use crate::item::component::common::ordinal_enum;
 use crate::item::component::scalar::record_codec;
 use crate::item::harness::Sample;
@@ -211,6 +210,48 @@ transparent_newtype! {
     SheepColor(DyeColor),
     ShulkerColor(DyeColor),
     CushionColor(DyeColor),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DyeColor {
+    White,
+    Orange,
+    Magenta,
+    LightBlue,
+    Yellow,
+    Lime,
+    Pink,
+    Gray,
+    LightGray,
+    Cyan,
+    Purple,
+    Blue,
+    Brown,
+    Green,
+    Red,
+    Black,
+}
+
+impl DyeColor {
+    pub const ALL: [Self; 16] = [
+        Self::White,
+        Self::Orange,
+        Self::Magenta,
+        Self::LightBlue,
+        Self::Yellow,
+        Self::Lime,
+        Self::Pink,
+        Self::Gray,
+        Self::LightGray,
+        Self::Cyan,
+        Self::Purple,
+        Self::Blue,
+        Self::Brown,
+        Self::Green,
+        Self::Red,
+        Self::Black,
+    ];
 }
 
 impl Sample for DyeColor {

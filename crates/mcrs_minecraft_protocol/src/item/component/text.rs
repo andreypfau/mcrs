@@ -3,8 +3,8 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::Bounded;
-use crate::entity::DyeColor;
 use crate::item::component::common::lenient;
+use crate::item::component::enums::DyeColor;
 use crate::item::harness::Sample;
 use crate::text::{IntoText, Text};
 

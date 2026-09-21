@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::io::Write;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
@@ -16,8 +15,6 @@ use uuid::Uuid;
 
 use crate::item::Template;
 use crate::item::component::Profile;
-use crate::item::ctx::{decode_nbt_wire, encode_nbt_wire};
-use crate::{Decode, Encode};
 use mcrs_minecraft_core::codec::{ArgbInt, IntArray, lenient, optional_flag};
 use mcrs_minecraft_registry::{DialogReg, EntityTypeReg};
 
@@ -1173,18 +1170,6 @@ mod lenient_uuid {
         }
 
         d.deserialize_any(UuidVisitor)
-    }
-}
-
-impl<I: HoverItem> Encode for TextComponent<I> {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        encode_nbt_wire(self, w)
-    }
-}
-
-impl<I: HoverItem> Decode<'_> for TextComponent<I> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        decode_nbt_wire(r)
     }
 }
 

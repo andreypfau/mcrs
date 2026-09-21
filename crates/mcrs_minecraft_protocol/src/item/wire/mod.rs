@@ -32,6 +32,7 @@ mod simple;
 mod sound;
 mod stack;
 mod text;
+mod text_component;
 mod trim;
 mod unit;
 mod variants;

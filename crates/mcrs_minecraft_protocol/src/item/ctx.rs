@@ -9,7 +9,6 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 use uuid::Uuid;
 
-use crate::entity::DyeColor;
 use crate::item::component::{Holder, Registered, RegistryName};
 use crate::text::Text;
 use crate::{Bounded, Decode, Encode, VarInt, VarLong};
@@ -88,7 +87,6 @@ ctx_free!(
     NbtCompound,
     ResourceLocation<Arc<str>>,
     ItemId,
-    DyeColor,
 );
 
 impl<T: EncodeCtx> EncodeCtx for Option<T> {
