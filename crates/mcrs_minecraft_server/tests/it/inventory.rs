@@ -12,7 +12,10 @@ use mcrs_minecraft_assets::{RegistrySnapshotErased, snapshot::RegistrySnapshot};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ColumnPos, ResourceKey, ResourceLocation};
-use mcrs_minecraft_item::{DroppedItem, ItemStack, Items, SlotTable, mutate, slots, stack_to_slot};
+use bevy_ecs::system::Command;
+use mcrs_minecraft_inventory::value::spawn_stack;
+use mcrs_minecraft_inventory::{Op, Slot, Transaction};
+use mcrs_minecraft_item::{DroppedItem, ItemStack, Items, SlotTable, slots, stack_to_slot};
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
@@ -38,8 +41,8 @@ use mcrs_minecraft_server::world::bus::{
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_server::world::entity::item::spawn_dropped;
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
-use mcrs_minecraft_server::world::item::click::drop_stack;
-use mcrs_minecraft_server::world::item::menu::{CurrentMenu, Menu};
+use mcrs_minecraft_inventory::{CurrentMenu, Menu};
+use mcrs_minecraft_server::world::item::click::commit;
 use mcrs_minecraft_server::world::session::SessionBundle;
 use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
@@ -220,13 +223,21 @@ impl Server {
 
     fn spawn(&mut self, item: &str, count: u8) -> Entity {
         let items = self.items();
-        mutate::spawn_stack(self.world(), &value(item, count), &items).unwrap()
+        spawn_stack(self.world(), &value(item, count), &items).unwrap()
+    }
+
+    fn place(&mut self, stack: Entity, holder: Entity, cell: u16) {
+        Transaction(vec![Op::Place {
+            stack,
+            to: Slot::new(holder, cell),
+        }])
+        .apply(self.world());
     }
 
     fn give(&mut self, item: &str, count: u8, cell: u16) -> Entity {
         let player = self.player();
         let stack = self.spawn(item, count);
-        mutate::move_stack(self.world(), stack, player, cell).unwrap();
+        self.place(stack, player, cell);
         stack
     }
 
@@ -435,11 +446,15 @@ fn damaging_a_pickaxe_inside_a_shulker_resends_the_shulker_cell() {
     let cell = slots::HOTBAR.start + 2;
     let shulker = server.give("shulker_box", 1, cell);
     let pickaxe = server.spawn("diamond_pickaxe", 1);
-    mutate::move_stack(server.world(), pickaxe, shulker, 4).unwrap();
+    server.place(pickaxe, shulker, 4);
     let before: Vec<_> = set_slots(&server.ticks(2)).map(|(slot, _)| slot).collect();
     assert_eq!(before, vec![cell as i16]);
 
-    mutate::set(server.world(), pickaxe, Damage(Bounded(3)));
+    Transaction(vec![Op::Insert {
+        stack: pickaxe,
+        component: Damage(Bounded(3)).into(),
+    }])
+    .apply(server.world());
     let packets = server.ticks(2);
     let resent: Vec<_> = set_slots(&packets).collect();
     assert_eq!(resent.len(), 1, "{packets:?}");
@@ -462,7 +477,14 @@ fn a_drop_adds_an_item_entity_and_its_stack_metadata() {
     let stone = server.give("stone", 7, slots::HOTBAR.start);
     server.ticks(2);
 
-    drop_stack(server.world(), player, stone);
+    commit(
+        server.world(),
+        vec![Op::Drop {
+            from: Slot::new(player, slots::HOTBAR.start),
+            count: 7,
+            thrower: player,
+        }],
+    );
     assert_eq!(
         server
             .world()
@@ -503,8 +525,7 @@ fn a_pickup_announces_the_full_take_then_fills_the_held_stack_and_a_free_cell() 
         .get::<mcrs_minecraft_level::world::dimension::InDimension>(player)
         .unwrap()
         .0;
-    let item = server.spawn("stone", 7);
-    spawn_dropped(server.world(), item, dim, SPAWN, DVec3::ZERO, 0, None);
+    let item = spawn_dropped(server.world(), value("stone", 7), dim, SPAWN, DVec3::ZERO, 0, None);
 
     let packets = server.ticks(2);
     let take = packets

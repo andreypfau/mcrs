@@ -1,15 +1,16 @@
 use crate::world::bus::PacketPayload;
 use crate::world::entity::item::EYE_HEIGHT;
 use crate::world::inventory::NextContainerId;
-use crate::world::item::click::{PLAYER_MENU_CELLS, insert_or_drop};
-use crate::world::item::menu::{CurrentMenu, Menu, MenuLayout, MenuViewer, MenusOf};
-use crate::world::item::sync::{MenuResync, to};
-use bevy_ecs::component::Component;
+use crate::world::item::click::return_carried;
+use crate::world::item::sync::to;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_item::{Items, SlotTable, slots};
+use mcrs_minecraft_inventory::{
+    CurrentMenu, Menu, MenuContainer, MenuLayout, MenuSlots, MenuViewer, MenusOf, RemoteSlots, container_menu_layout,
+};
+use mcrs_minecraft_item::SlotTable;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_protocol::Text;
@@ -24,10 +25,6 @@ pub struct OpenContainerRequest {
     pub player: Entity,
     pub container: Entity,
 }
-
-/// The block entity a container menu shows; the menu closes with it.
-#[derive(Component, Debug)]
-pub struct MenuContainer(pub Entity);
 
 fn inventory_menu(world: &World, player: Entity) -> Option<Entity> {
     world
@@ -45,17 +42,10 @@ fn inventory_menu(world: &World, player: Entity) -> Option<Entity> {
 /// Returns the player to their inventory menu; the client is told when it
 /// did not ask for the close itself.
 pub fn close_container_menu(world: &mut World, player: Entity, menu: Entity, notify: bool) {
-    let items = world.resource::<Items>().clone();
     let Some(container_id) = world.get::<Menu>(menu).map(|menu| menu.container_id) else {
         return;
     };
-    if let Some(carried) = world
-        .get::<SlotTable>(player)
-        .and_then(|table| table.get(slots::CARRIED))
-        && let Err(error) = insert_or_drop(world, player, carried, &items)
-    {
-        tracing::debug!(%error, ?player, "the carried stack could not be returned on close");
-    }
+    return_carried(world, player);
     world.despawn(menu);
     match inventory_menu(world, player) {
         Some(inventory) => {
@@ -99,11 +89,15 @@ pub fn open_containers(world: &mut World) {
         let mut next = player.entry::<NextContainerId>().or_default();
         next.get_mut().0 = next.get().0 % 100 + 1;
         let container_id = next.get().0;
-        let layout: Vec<(Entity, u16)> = (0..(CHEST_ROWS * 9) as u16)
-            .map(|index| (req.container, index))
-            .chain((slots::MAIN.start..slots::HOTBAR.end).map(|index| (req.player, index)))
-            .collect();
-        debug_assert_eq!(layout.len(), CHEST_ROWS * 9 + PLAYER_MENU_CELLS);
+        let layout = container_menu_layout(
+            req.container,
+            req.player,
+            MenuSlots {
+                own: (CHEST_ROWS * 9) as u16,
+                player_slots: true,
+                trailing_result: false,
+            },
+        );
         let menu = world
             .spawn((
                 Menu {
@@ -113,6 +107,7 @@ pub fn open_containers(world: &mut World) {
                 MenuLayout(layout),
                 MenuViewer(req.player),
                 MenuContainer(req.container),
+                RemoteSlots::fresh(),
             ))
             .id();
         world.entity_mut(req.player).insert(CurrentMenu(menu));
@@ -128,7 +123,6 @@ pub fn open_containers(world: &mut World) {
         world
             .resource_mut::<Messages<crate::world::bus::OutboundPlayerPacket>>()
             .write(packet);
-        world.resource_mut::<MenuResync>().menus_full.push(menu);
     }
 }
 

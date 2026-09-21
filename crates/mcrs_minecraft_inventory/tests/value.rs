@@ -1,12 +1,32 @@
 mod common;
 
+use bevy_ecs::entity::Entity;
+use bevy_ecs::world::World;
+use mcrs_minecraft_inventory::value::spawn_stack;
+use mcrs_minecraft_inventory::{Op, TransactionError};
 use mcrs_minecraft_item::held::SlotTable;
-use mcrs_minecraft_item::{
-    Held, ItemStack, mutate, same_item_same_components, stack_to_slot, stack_to_value,
-};
+use mcrs_minecraft_item::{Held, ItemStack, StackError, same_item_same_components, stack_to_slot, stack_to_value};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
 
-use common::{items, world};
+use common::{apply, items, place, set_count, world};
+
+fn apply_value(world: &mut World, stack: Entity, value: &ItemStackValue) -> Result<(), StackError> {
+    match apply(
+        world,
+        vec![Op::Apply {
+            stack,
+            value: value.clone(),
+        }],
+    ) {
+        Ok(()) => Ok(()),
+        Err(TransactionError::Stack(error)) => Err(error),
+        Err(other) => panic!("{other}"),
+    }
+}
+
+fn remove(world: &mut World, stack: Entity, kind: ItemComponentKind) {
+    apply(world, vec![Op::Remove { stack, kind }]).unwrap();
+}
 
 fn parse(json: &str) -> ItemStackValue {
     serde_json::from_str(json).unwrap()
@@ -35,7 +55,7 @@ fn spawn_then_read_is_the_identity() {
     let mut world = world();
     for json in [CHESTPLATE, BOOK, POTION, SHULKER, BUNDLE, NO_LORE] {
         let value = parse(json);
-        let stack = mutate::spawn_stack(&mut world, &value, items()).unwrap();
+        let stack = spawn_stack(&mut world, &value, items()).unwrap();
         assert_eq!(stack_to_value(&world, stack, items()), value, "{json}");
         let slot = stack_to_slot(&world, stack, items());
         assert_eq!(slot.count, value.count.0);
@@ -53,12 +73,12 @@ fn prototype_values_and_absent_removals_normalise_away() {
     let value = parse(
         r#"{"id": "minecraft:stone", "components": {"minecraft:max_stack_size": 64, "!minecraft:food": {}}}"#,
     );
-    let stack = mutate::spawn_stack(&mut world, &value, items()).unwrap();
+    let stack = spawn_stack(&mut world, &value, items()).unwrap();
     assert_eq!(
         stack_to_value(&world, stack, items()).components,
         ComponentPatch::EMPTY
     );
-    let shulker = mutate::spawn_stack(
+    let shulker = spawn_stack(
         &mut world,
         &parse(r#"{"id": "minecraft:shulker_box", "components": {"minecraft:container": []}}"#),
         items(),
@@ -73,7 +93,7 @@ fn prototype_values_and_absent_removals_normalise_away() {
 #[test]
 fn nested_stacks_are_child_entities() {
     let mut world = world();
-    let shulker = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
+    let shulker = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
     let table = world.get::<SlotTable>(shulker).unwrap();
     assert_eq!(table.len(), 27);
     let cells: Vec<u16> = table.iter().map(|(index, _)| index).collect();
@@ -102,7 +122,7 @@ fn nested_stacks_are_child_entities() {
 #[test]
 fn apply_value_reconciles_an_existing_subtree() {
     let mut world = world();
-    let shulker = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
+    let shulker = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
     let before: Vec<Option<bevy_ecs::entity::Entity>> = (0..27)
         .map(|i| world.get::<SlotTable>(shulker).unwrap().get(i))
         .collect();
@@ -111,7 +131,7 @@ fn apply_value_reconciles_an_existing_subtree() {
             {"slot": 0, "item": {"id": "minecraft:stone", "count": 3}},
             {"slot": 5, "item": {"id": "minecraft:iron_pickaxe"}}]}}"#,
     );
-    mutate::apply_value(&mut world, shulker, &next, items()).unwrap();
+    apply_value(&mut world, shulker, &next).unwrap();
     let after: Vec<Option<bevy_ecs::entity::Entity>> = (0..27)
         .map(|i| world.get::<SlotTable>(shulker).unwrap().get(i))
         .collect();
@@ -134,24 +154,24 @@ fn apply_value_reconciles_an_existing_subtree() {
 #[test]
 fn same_item_same_components_compares_subtrees() {
     let mut world = world();
-    let a = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
-    let b = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
+    let a = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
+    let b = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
     assert!(same_item_same_components(&world, a, b, items()));
     let stone = world.get::<SlotTable>(b).unwrap().get(0).unwrap();
-    mutate::set_count(&mut world, stone, 63);
+    set_count(&mut world, stone, 63);
     assert!(!same_item_same_components(&world, a, b, items()));
-    let other = mutate::spawn_stack(&mut world, &parse(BUNDLE), items()).unwrap();
+    let other = spawn_stack(&mut world, &parse(BUNDLE), items()).unwrap();
     assert!(!same_item_same_components(&world, a, other, items()));
-    let plain = mutate::spawn_stack(&mut world, &parse(NO_LORE), items()).unwrap();
+    let plain = spawn_stack(&mut world, &parse(NO_LORE), items()).unwrap();
     let with_lore =
-        mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
+        spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
     assert!(!same_item_same_components(
         &world,
         plain,
         with_lore,
         items()
     ));
-    mutate::remove::<mcrs_minecraft_protocol::item::Lore>(&mut world, with_lore);
+    remove(&mut world, with_lore, ItemComponentKind::Lore);
     assert!(same_item_same_components(&world, plain, with_lore, items()));
 }
 
@@ -161,7 +181,7 @@ fn a_child_kind_on_an_item_without_one_is_refused() {
     let value = parse(
         r#"{"id": "minecraft:stone", "components": {"minecraft:bundle_contents": ["minecraft:stick"]}}"#,
     );
-    let error = mutate::spawn_stack(&mut world, &value, items()).unwrap_err();
+    let error = spawn_stack(&mut world, &value, items()).unwrap_err();
     assert!(matches!(
         error,
         mcrs_minecraft_item::StackError::UnsupportedChildKind {
@@ -175,8 +195,8 @@ fn a_child_kind_on_an_item_without_one_is_refused() {
 fn a_refused_value_leaves_the_world_untouched() {
     let mut world = world();
     let chest = world.spawn(SlotTable::fixed(1)).id();
-    let shulker = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
-    mutate::move_stack(&mut world, shulker, chest, 0).unwrap();
+    let shulker = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
+    place(&mut world, shulker, chest, 0).unwrap();
     let before = stack_to_value(&world, shulker, items());
     let stacks =
         |world: &mut bevy_ecs::world::World| world.query::<&ItemStack>().iter(world).count();
@@ -199,9 +219,9 @@ fn a_refused_value_leaves_the_world_untouched() {
         ),
     ] {
         let value = parse(json);
-        let error = mutate::spawn_stack(&mut world, &value, items()).unwrap_err();
+        let error = spawn_stack(&mut world, &value, items()).unwrap_err();
         assert!(format!("{error:?}").starts_with(expected), "{error:?}");
-        let error = mutate::apply_value(&mut world, shulker, &value, items()).unwrap_err();
+        let error = apply_value(&mut world, shulker, &value).unwrap_err();
         assert!(format!("{error:?}").starts_with(expected), "{error:?}");
         assert_eq!(stacks(&mut world), 6, "{json}");
         assert_eq!(stack_to_value(&world, shulker, items()), before, "{json}");
@@ -217,17 +237,17 @@ fn child_kind_tombstones_and_empty_foreign_kinds_survive() {
         r#"{"id": "minecraft:stone", "count": 1, "components": {"minecraft:bundle_contents": []}}"#,
     ] {
         let value = parse(json);
-        let stack = mutate::spawn_stack(&mut world, &value, items()).unwrap();
+        let stack = spawn_stack(&mut world, &value, items()).unwrap();
         assert_eq!(stack_to_value(&world, stack, items()), value, "{json}");
     }
-    let shulker = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
+    let shulker = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
     let emptied = parse(
         r#"{"id": "minecraft:shulker_box", "count": 1, "components": {"!minecraft:container": {}}}"#,
     );
-    mutate::apply_value(&mut world, shulker, &emptied, items()).unwrap();
+    apply_value(&mut world, shulker, &emptied).unwrap();
     assert_eq!(stack_to_value(&world, shulker, items()), emptied);
     assert_eq!(world.query::<&ItemStack>().iter(&world).count(), 3);
-    mutate::apply_value(&mut world, shulker, &parse(SHULKER), items()).unwrap();
+    apply_value(&mut world, shulker, &parse(SHULKER)).unwrap();
     assert_eq!(stack_to_value(&world, shulker, items()), parse(SHULKER));
 }
 
@@ -236,19 +256,19 @@ fn a_tombstoned_child_kind_has_no_cells() {
     let mut world = world();
     let emptied =
         parse(r#"{"id": "minecraft:shulker_box", "components": {"!minecraft:container": {}}}"#);
-    let shulker = mutate::spawn_stack(&mut world, &emptied, items()).unwrap();
+    let shulker = spawn_stack(&mut world, &emptied, items()).unwrap();
     let stone =
-        mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
+        spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
     assert!(world.get::<SlotTable>(shulker).is_none());
     assert!(matches!(
-        mutate::move_stack(&mut world, stone, shulker, 0),
-        Err(mcrs_minecraft_item::MoveError::HolderMissing(holder)) if holder == shulker
+        place(&mut world, stone, shulker, 0),
+        Err(TransactionError::HolderMissing(holder)) if holder == shulker
     ));
-    let full = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
-    mutate::apply_value(&mut world, full, &emptied, items()).unwrap();
+    let full = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
+    apply_value(&mut world, full, &emptied).unwrap();
     assert!(world.get::<SlotTable>(full).is_none());
     assert_eq!(world.query::<&Held>().iter(&world).count(), 0);
-    mutate::apply_value(&mut world, full, &parse(SHULKER), items()).unwrap();
+    apply_value(&mut world, full, &parse(SHULKER)).unwrap();
     assert_eq!(world.get::<SlotTable>(full).unwrap().len(), 27);
     assert_eq!(stack_to_value(&world, full, items()), parse(SHULKER));
 }
@@ -256,7 +276,7 @@ fn a_tombstoned_child_kind_has_no_cells() {
 #[test]
 fn a_count_outside_the_byte_is_refused() {
     let mut world = world();
-    let stone = mutate::spawn_stack(
+    let stone = spawn_stack(
         &mut world,
         &parse(r#"{"id": "minecraft:stone", "count": 2}"#),
         items(),
@@ -266,11 +286,11 @@ fn a_count_outside_the_byte_is_refused() {
         let mut value = parse(r#"{"id": "minecraft:stone"}"#);
         value.count = mcrs_minecraft_core::codec::Bounded(count);
         assert!(matches!(
-            mutate::spawn_stack(&mut world, &value, items()),
+            spawn_stack(&mut world, &value, items()),
             Err(mcrs_minecraft_item::StackError::BadCount { count: c, .. }) if c == count
         ));
         assert!(matches!(
-            mutate::apply_value(&mut world, stone, &value, items()),
+            apply_value(&mut world, stone, &value),
             Err(mcrs_minecraft_item::StackError::BadCount { .. })
         ));
     }
@@ -281,52 +301,39 @@ fn a_count_outside_the_byte_is_refused() {
 #[test]
 fn a_crossbow_refuses_a_projectile_past_the_codec_bound() {
     let mut world = world();
-    let crossbow = mutate::spawn_stack(
+    let crossbow = spawn_stack(
         &mut world,
         &parse(r#"{"id": "minecraft:crossbow"}"#),
         items(),
     )
     .unwrap();
     let arrow =
-        mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:arrow"}"#), items()).unwrap();
+        spawn_stack(&mut world, &parse(r#"{"id": "minecraft:arrow"}"#), items()).unwrap();
     let bound = mcrs_minecraft_protocol::item::MAX_CHARGED_PROJECTILES as u16;
     assert!(matches!(
-        mutate::move_stack(&mut world, arrow, crossbow, bound),
-        Err(mcrs_minecraft_item::MoveError::OutOfRange { .. })
+        place(&mut world, arrow, crossbow, bound),
+        Err(TransactionError::OutOfRange { .. })
     ));
-    mutate::move_stack(&mut world, arrow, crossbow, bound - 1).unwrap();
+    place(&mut world, arrow, crossbow, bound - 1).unwrap();
     let value = stack_to_value(&world, crossbow, items());
     assert_eq!(value.components.added.len(), 1);
 }
 
 #[test]
-fn reapplying_a_value_queues_its_cell_once() {
+fn reapplying_a_value_bumps_the_revision_once() {
     let mut world = world();
     let chest = world.spawn(SlotTable::fixed(1)).id();
-    let shulker = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
-    mutate::move_stack(&mut world, shulker, chest, 0).unwrap();
-    std::mem::take(&mut *world.resource_mut::<mcrs_minecraft_item::DirtyStacks>());
-    let revision = world
-        .get::<mcrs_minecraft_item::StackRevision>(shulker)
-        .unwrap()
-        .0;
-    mutate::apply_value(&mut world, shulker, &parse(SHULKER), items()).unwrap();
-    let dirty = std::mem::take(&mut *world.resource_mut::<mcrs_minecraft_item::DirtyStacks>());
-    assert_eq!(dirty.cells, [(chest, 0)]);
-    assert!(dirty.roots.is_empty());
-    assert_eq!(
-        world
-            .get::<mcrs_minecraft_item::StackRevision>(shulker)
-            .unwrap()
-            .0,
-        revision + 1
-    );
+    let shulker = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
+    place(&mut world, shulker, chest, 0).unwrap();
+    let revision = common::revision(&world, shulker);
+    apply_value(&mut world, shulker, &parse(SHULKER)).unwrap();
+    assert_eq!(common::revision(&world, shulker), revision + 1);
 }
 
 #[test]
 fn a_campfire_table_is_bounded_but_not_allocated() {
     let mut world = world();
-    let campfire = mutate::spawn_stack(
+    let campfire = spawn_stack(
         &mut world,
         &parse(r#"{"id": "minecraft:campfire"}"#),
         items(),

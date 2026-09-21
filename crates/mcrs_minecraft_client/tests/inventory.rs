@@ -8,8 +8,9 @@ use bevy::prelude::*;
 use bytes::Bytes;
 use mcrs_minecraft_block::definition::load_block_definitions;
 use mcrs_minecraft_client::inventory::{
-    ContainerSeqno, InventoryPlugin, MenuLayout, OpenMenu, Screen, inventory_index_to_cell,
+    ContainerSeqno, InventoryPlugin, OpenMenu, Screen, inventory_index_to_cell,
 };
+use mcrs_minecraft_inventory::{MenuLayout, Slot};
 use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::{
@@ -408,10 +409,10 @@ fn a_chest_lays_out_over_the_menu_and_the_player() {
         assert_eq!(world.get::<SlotTable>(menu).unwrap().len(), 27);
         let layout = &world.get::<MenuLayout>(menu).unwrap().0;
         assert_eq!(layout.len(), 63);
-        assert_eq!(layout[0], (menu, 0));
-        assert_eq!(layout[26], (menu, 26));
-        assert_eq!(layout[27], (player, slots::MAIN.start));
-        assert_eq!(layout[62], (player, slots::HOTBAR.end - 1));
+        assert_eq!(layout[0], Slot::new(menu, 0));
+        assert_eq!(layout[26], Slot::new(menu, 26));
+        assert_eq!(layout[27], Slot::new(player, slots::MAIN.start));
+        assert_eq!(layout[62], Slot::new(player, slots::HOTBAR.end - 1));
     }
 
     client.receive_golden::<ClientboundContainerSetContent>("container_set_content_chest");
@@ -536,6 +537,6 @@ fn the_lectern_has_no_player_slots() {
     let menu = client.open_menu("lectern", 6);
     assert_eq!(
         client.world().get::<MenuLayout>(menu).unwrap().0,
-        vec![(menu, 0)]
+        vec![Slot::new(menu, 0)]
     );
 }

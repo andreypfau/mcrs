@@ -7,9 +7,9 @@ use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use mcrs_minecraft_item::dropped::{
     AIR_DRAG, GRAVITY, INFINITE_LIFETIME, INFINITE_PICKUP_DELAY, LIFETIME,
 };
-use mcrs_minecraft_item::{
-    DroppedItem, ItemStack, Items, max_stack_size, mutate, same_item_same_components,
-};
+use bevy_ecs::system::Command;
+use mcrs_minecraft_inventory::{Op, Transaction};
+use mcrs_minecraft_item::{DroppedItem, ItemStack, Items, max_stack_size, same_item_same_components};
 use mcrs_minecraft_level::entity::physics::{Transform, Velocity};
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
@@ -184,16 +184,7 @@ fn try_merge(world: &mut World, items: &Items, this: Entity, other: Entity) {
     } else {
         (other, this)
     };
-    let (Some(into_item), Some(from_item)) = (
-        world.get::<DroppedItem>(into).copied(),
-        world.get::<DroppedItem>(from).copied(),
-    ) else {
-        return;
-    };
-    mutate::merge_into(world, from, into, max);
-    let mut merged = world.get_mut::<DroppedItem>(into).unwrap();
-    merged.pickup_delay = into_item.pickup_delay.max(from_item.pickup_delay);
-    merged.age = into_item.age.min(from_item.age);
+    Transaction(vec![Op::MergeDropped { from, into }]).apply(world);
 }
 
 fn count(world: &World, stack: Entity) -> u8 {

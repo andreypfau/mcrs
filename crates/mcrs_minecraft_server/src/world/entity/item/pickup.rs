@@ -3,13 +3,15 @@ use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, Pac
 use crate::world::entity::item::{ITEM_HEIGHT, ITEM_WIDTH};
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::PlayerGameMode;
-use crate::world::item::click::{insert_stack, room_for};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::With;
+use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_item::{DroppedItem, Held, ItemStack, Items, mutate};
+use mcrs_minecraft_inventory::{MenuSnapshot, Planner, Source, StackView, Transaction, player_menu_layout};
+use mcrs_minecraft_item::{DroppedItem, Items};
+use rustc_hash::FxHashMap;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::PlayerSession;
@@ -48,15 +50,23 @@ pub fn pickup_items(world: &mut World) {
         return;
     }
     let items = world.resource::<Items>().clone();
+    // One snapshot per player for the tick, so two pickups cannot book the
+    // same cell twice.
+    let mut snapshots: FxHashMap<Entity, MenuSnapshot> = FxHashMap::default();
     for (player, player_dim, at, creative) in players {
+        let mut ops = Vec::new();
         for &(item, item_dim, item_at) in &ready {
             if item_dim != player_dim || !touching(at, item_at) || world.get_entity(item).is_err() {
                 continue;
             }
-            let Some(count) = world.get::<ItemStack>(item).map(|stack| stack.count()) else {
+            let Some(view) = StackView::of(world, item, &items) else {
                 continue;
             };
-            let room = room_for(world, player, item, &items);
+            let snapshot = snapshots
+                .entry(player)
+                .or_insert_with(|| MenuSnapshot::new(world, &items, player, player_menu_layout(player)));
+            let mut planner = Planner::new(snapshot);
+            let room = planner.room_for(&view);
             if room == 0 && !creative {
                 continue;
             }
@@ -80,7 +90,7 @@ pub fn pickup_items(world: &mut World) {
                     data: PacketPayload::TakeItemEntity {
                         item_id: item.index_u32() as i32,
                         player_id: player.index_u32() as i32,
-                        amount: i32::from(count),
+                        amount: i32::from(view.count),
                     },
                     session: PlayerSession(0),
                     epoch: 0,
@@ -89,24 +99,13 @@ pub fn pickup_items(world: &mut World) {
                 world.despawn(item);
                 continue;
             }
-            let taking = u8::try_from(room).map_or(count, |room| room.min(count));
-            let Some(taken) = mutate::split(world, item, taking, &items) else {
-                continue;
-            };
-            if let Err(error) = insert_stack(world, player, taken, &items) {
-                tracing::debug!(%error, ?player, "a picked up stack could not be stored");
-            }
-            let unplaced =
-                world.get::<ItemStack>(taken).is_some() && world.get::<Held>(taken).is_none();
-            if unplaced {
-                if world.get_entity(item).is_ok() {
-                    mutate::merge_into(world, taken, item, u8::MAX);
-                }
-                if world.get::<ItemStack>(taken).is_some() {
-                    tracing::warn!(?player, "a picked up remainder had nowhere to go");
-                    world.despawn(taken);
-                }
-            }
+            planner.snapshot.add_item(item, view);
+            planner.insert_stack(Source::Item(item));
+            planner.snapshot.take(Source::Item(item));
+            ops.extend(planner.ops);
+        }
+        if !ops.is_empty() {
+            Transaction(ops).apply(world);
         }
     }
 }

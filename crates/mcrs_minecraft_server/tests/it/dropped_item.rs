@@ -1,4 +1,4 @@
-use crate::inventory_sync::{corpus, drain, stone, world};
+use crate::inventory_sync::{corpus, drain, place, set_count, stone, world};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
@@ -7,7 +7,8 @@ use bevy_math::DVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, SectionPos};
-use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, WireStack, mutate, slots};
+use mcrs_minecraft_inventory::{MenuContainer, Op, Slot};
+use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, WireStack, slots};
 use mcrs_minecraft_level::entity::mob::EntityKind;
 use mcrs_minecraft_level::entity::physics::{Transform, Velocity};
 use mcrs_minecraft_level::palette::ChunkBlocks;
@@ -24,11 +25,10 @@ use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::item::pickup::pickup_items;
 use mcrs_minecraft_server::world::entity::item::tick::tick_dropped_items;
 use mcrs_minecraft_server::world::entity::item::{BlockDrop, spawn_dropped};
-use mcrs_minecraft_server::world::item::chest::{
-    MenuContainer, OpenContainerRequest, close_dead_menus, open_containers,
-};
-use mcrs_minecraft_server::world::item::click::{CloseContainerRequest, close_menus, drop_stack};
-use mcrs_minecraft_server::world::item::menu::{CurrentMenu, Menu, open_menus};
+use mcrs_minecraft_server::world::item::chest::{OpenContainerRequest, close_dead_menus, open_containers};
+use mcrs_minecraft_server::world::item::click::{CloseContainerRequest, close_menus, commit};
+use mcrs_minecraft_server::world::item::menu::open_menus;
+use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
 use mcrs_minecraft_worldgen_feature_place::block_entity::{ContainerData, GeneratedBlockEntity};
 
@@ -66,19 +66,24 @@ fn standing(world: &mut World, player: Entity, dim: Entity) {
         .insert((InDimension(dim), Transform::from_xyz(8.5, FLOOR_TOP, 8.5)));
 }
 
+fn stone_value(count: u8) -> ItemStackValue {
+    ItemStackValue {
+        item: ResourceKey::from_location(ResourceLocation::minecraft("stone")),
+        count: Bounded(i32::from(count)),
+        components: ComponentPatch::EMPTY,
+    }
+}
+
 fn resting_item(world: &mut World, dim: Entity, count: u8) -> Entity {
-    let stack = stone(world);
-    mutate::set_count(world, stack, count);
     spawn_dropped(
         world,
-        stack,
+        stone_value(count),
         dim,
         DVec3::new(8.5, FLOOR_TOP, 8.5),
         DVec3::ZERO,
         0,
         None,
-    );
-    stack
+    )
 }
 
 fn tick(world: &mut World, times: usize) {
@@ -93,7 +98,15 @@ fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
     let dim = dimension(&mut world);
     standing(&mut world, player, dim);
     let stack = stone(&mut world);
-    drop_stack(&mut world, player, stack);
+    place(&mut world, stack, player, slots::HOTBAR.start);
+    commit(
+        &mut world,
+        vec![Op::Drop {
+            from: Slot::new(player, slots::HOTBAR.start),
+            count: 7,
+            thrower: player,
+        }],
+    );
 
     let entity = world.entity(stack);
     assert_eq!(entity.get::<DroppedItem>().unwrap().pickup_delay, 40);
@@ -112,10 +125,9 @@ fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
 fn an_item_falls_onto_the_floor_and_ages() {
     let (mut world, _, _) = world();
     let dim = dimension(&mut world);
-    let stack = stone(&mut world);
-    spawn_dropped(
+    let stack = spawn_dropped(
         &mut world,
-        stack,
+        stone_value(7),
         dim,
         DVec3::new(8.5, 4.0, 8.5),
         DVec3::ZERO,
@@ -156,8 +168,8 @@ fn pickup_fills_the_held_slot_first_and_announces_the_take_before_the_stack_move
     for index in slots::HOTBAR.chain(slots::MAIN) {
         let filler = stone(&mut world);
         let count = if index == slots::held(3) { 60 } else { 64 };
-        mutate::set_count(&mut world, filler, count);
-        mutate::move_stack(&mut world, filler, player, index).unwrap();
+        set_count(&mut world, filler, count);
+        place(&mut world, filler, player, index);
     }
     let item = resting_item(&mut world, dim, 7);
     drain(&mut world);
@@ -186,7 +198,7 @@ fn pickup_fills_the_held_slot_first_and_announces_the_take_before_the_stack_move
         .unwrap()
         .get(slots::MAIN.start)
         .unwrap();
-    mutate::set_count(&mut world, free, 0);
+    set_count(&mut world, free, 0);
     pickup_items(&mut world);
     assert!(world.get_entity(item).is_err());
     let main = world
@@ -233,7 +245,7 @@ fn chest(world: &mut World, dim: Entity) -> Entity {
         ))
         .id();
     let stack = stone(world);
-    mutate::move_stack(world, stack, chest, 3).unwrap();
+    place(world, stack, chest, 3);
     chest
 }
 

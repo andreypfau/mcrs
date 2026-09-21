@@ -5,11 +5,11 @@ pub mod sync;
 
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use mcrs_minecraft_item::DirtyStacks;
+use mcrs_minecraft_inventory::{ContainerClickRequest, handle_container_clicks};
 
-/// Every stack mutation of a tick runs in `Mutate`; `Sync` then reads the
-/// `DirtyStacks` queue once, so readers outside these sets see a table that
-/// is at most one tick stale, never half-applied.
+/// Every stack mutation of a tick runs in `Mutate`; `Sync` then reads what
+/// changed once, so readers outside these sets see a table that is at most
+/// one tick stale, never half-applied.
 #[derive(SystemSet, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum StackSet {
     Mutate,
@@ -21,9 +21,7 @@ pub struct ItemPlugin;
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
         app.configure_sets(FixedUpdate, (StackSet::Mutate, StackSet::Sync).chain())
-            .init_resource::<DirtyStacks>()
-            .init_resource::<sync::MenuResync>()
-            .add_message::<click::ContainerClickRequest>()
+            .add_message::<ContainerClickRequest>()
             .add_message::<click::CreativeSlotRequest>()
             .add_message::<click::CloseContainerRequest>()
             .add_message::<chest::OpenContainerRequest>()
@@ -36,7 +34,7 @@ impl Plugin for ItemPlugin {
                     menu::open_menus,
                     chest::close_dead_menus,
                     chest::open_containers,
-                    click::handle_container_clicks,
+                    handle_container_clicks,
                     click::handle_creative_slots,
                     click::close_menus,
                     click::handle_drop_actions,

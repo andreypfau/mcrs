@@ -2,7 +2,8 @@ use bevy_ecs::prelude::{Commands, Component};
 use bevy_ecs::world::EntityWorldMut;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_item::mutate::{self, spawn_stack};
+use bevy_ecs::system::Command;
+use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::{Items, SlotTable};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
@@ -63,24 +64,17 @@ fn fill_container(mut entity: EntityWorldMut) {
             return;
         };
         world.entity_mut(holder).insert(SlotTable::fixed(usize::from(slot_count)));
-        let Some(corpus) = world.get_resource::<Items>().cloned() else {
+        if world.get_resource::<Items>().is_none() {
             return;
-        };
-        for entry in items {
-            if entry.slot >= slot_count {
-                continue;
-            }
-            let stack = match spawn_stack(world, &entry.stack, &corpus) {
-                Ok(stack) => stack,
-                Err(error) => {
-                    tracing::warn!(%error, block, "a container holds a stack the corpus cannot spawn");
-                    continue;
-                }
-            };
-            if let Err(error) = mutate::move_stack(world, stack, holder, u16::from(entry.slot)) {
-                tracing::warn!(%error, block, "a container slot could not be filled");
-                world.despawn(stack);
-            }
+        }
+        // One transaction per slot: a stack the corpus cannot spawn must not
+        // take the rest of the container with it.
+        for entry in items.into_iter().filter(|entry| entry.slot < slot_count) {
+            Transaction(vec![Op::Spawn {
+                value: entry.stack,
+                to: Slot::new(holder, u16::from(entry.slot)),
+            }])
+            .apply(world);
         }
     });
 }

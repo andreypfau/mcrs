@@ -28,6 +28,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_inventory::{Op, Slot};
 use mcrs_minecraft_item::{SlotTable, slots};
 use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -311,18 +312,21 @@ pub fn despawn_inbound_player(
         for (entity, anchor) in players.iter() {
             if anchor.0 == msg.host_anchor {
                 commands.queue(move |world: &mut World| {
-                    let unsaved: Vec<Entity> = world
+                    let unsaved: Vec<Op> = world
                         .get::<SlotTable>(entity)
                         .map(|table| {
                             std::iter::once(slots::CARRIED)
                                 .chain(slots::CRAFT)
-                                .filter_map(|index| table.get(index))
+                                .filter(|index| table.get(*index).is_some())
+                                .map(|index| Op::Drop {
+                                    from: Slot::new(entity, index),
+                                    count: u8::MAX,
+                                    thrower: entity,
+                                })
                                 .collect()
                         })
                         .unwrap_or_default();
-                    for stack in unsaved {
-                        crate::world::entity::item::throw(world, entity, stack);
-                    }
+                    crate::world::item::click::commit(world, unsaved);
                     persistence::write_player(world, entity);
                     world.despawn(entity);
                 });

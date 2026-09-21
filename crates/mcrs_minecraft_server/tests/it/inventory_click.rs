@@ -1,16 +1,15 @@
-use crate::inventory_sync::{corpus, drain, stone, world};
+use crate::inventory_sync::{corpus, drain, place, set_count, stone, world};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
-use mcrs_minecraft_item::{
-    DirtyStacks, DroppedItem, ItemStack, SlotTable, Thrower, mutate, slots, stack_to_slot,
-};
+use mcrs_minecraft_inventory::{ContainerClickRequest, CurrentMenu, Menu, Remote, RemoteSlots, handle_container_clicks};
+use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, Thrower, slots, stack_to_slot};
+use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack, RawStack};
 use mcrs_minecraft_server::world::bus::PacketPayload;
-use mcrs_minecraft_server::world::item::click::{
-    CloseContainerRequest, ContainerClickRequest, close_menus, handle_container_clicks,
-};
-use mcrs_minecraft_server::world::item::menu::{CurrentMenu, Menu, open_menus};
+use mcrs_minecraft_server::world::item::click::{CloseContainerRequest, close_menus};
+use mcrs_minecraft_server::world::item::menu::open_menus;
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
 
 fn opened() -> (World, Entity) {
@@ -44,6 +43,7 @@ fn click_claiming(
         .resource_mut::<Messages<ContainerClickRequest>>()
         .write(ContainerClickRequest {
             player,
+            game_mode: GameMode::Survival,
             container_id: 0,
             state_id,
             slot,
@@ -52,7 +52,14 @@ fn click_claiming(
             changed,
             carried: None,
         });
-    handle_container_clicks(world);
+    handle_clicks(world);
+}
+
+/// A fresh reader would re-read every click of the world's lifetime, so the
+/// requests are cleared once handled, as a frame's message update would.
+fn handle_clicks(world: &mut World) {
+    world.run_system_once(handle_container_clicks).unwrap();
+    world.resource_mut::<Messages<ContainerClickRequest>>().clear();
 }
 
 fn cell(world: &World, player: Entity, index: u16) -> Option<(Entity, u8)> {
@@ -64,7 +71,7 @@ fn cell(world: &World, player: Entity, index: u16) -> Option<(Entity, u8)> {
 fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
     let (mut world, player) = opened();
     let stack = stone(&mut world);
-    mutate::move_stack(&mut world, stack, player, slots::HOTBAR.start).unwrap();
+    place(&mut world, stack, player, slots::HOTBAR.start);
 
     click(
         &mut world,
@@ -91,7 +98,7 @@ fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
 fn right_click_takes_half_then_places_one() {
     let (mut world, player) = opened();
     let stack = stone(&mut world);
-    mutate::move_stack(&mut world, stack, player, slots::HOTBAR.start).unwrap();
+    place(&mut world, stack, player, slots::HOTBAR.start);
 
     click(
         &mut world,
@@ -121,7 +128,7 @@ fn right_click_takes_half_then_places_one() {
 fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
     let (mut world, player) = opened();
     let stack = stone(&mut world);
-    mutate::move_stack(&mut world, stack, player, slots::HOTBAR.start).unwrap();
+    place(&mut world, stack, player, slots::HOTBAR.start);
 
     click(
         &mut world,
@@ -147,7 +154,7 @@ fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
 fn throw_turns_the_stack_into_a_dropped_item() {
     let (mut world, player) = opened();
     let stack = stone(&mut world);
-    mutate::move_stack(&mut world, stack, player, slots::HOTBAR.start).unwrap();
+    place(&mut world, stack, player, slots::HOTBAR.start);
 
     click(
         &mut world,
@@ -165,7 +172,7 @@ fn throw_turns_the_stack_into_a_dropped_item() {
 fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
     let (mut world, player) = opened();
     let stack = stone(&mut world);
-    mutate::move_stack(&mut world, stack, player, slots::HOTBAR.start).unwrap();
+    place(&mut world, stack, player, slots::HOTBAR.start);
     sync_stack_slots(&mut world);
     drain(&mut world);
 
@@ -179,12 +186,11 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
         0,
         vec![(untouched, claimed)],
     );
-    assert!(
-        world
-            .resource::<DirtyStacks>()
-            .cells
-            .contains(&(player, untouched))
-    );
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(matches!(
+        world.get::<RemoteSlots>(menu).unwrap().cells[usize::from(untouched)],
+        Remote::Claimed(Some(_))
+    ));
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
     assert_eq!(packets.len(), 1, "{packets:?}");
@@ -197,6 +203,7 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
         .resource_mut::<Messages<ContainerClickRequest>>()
         .write(ContainerClickRequest {
             player,
+            game_mode: GameMode::Survival,
             container_id: 0,
             state_id: 0,
             slot: -1,
@@ -205,7 +212,7 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
             changed: Vec::new(),
             carried: None,
         });
-    handle_container_clicks(&mut world);
+    handle_clicks(&mut world);
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
     assert_eq!(packets.len(), 1, "{packets:?}");
@@ -221,14 +228,14 @@ fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
     world.init_resource::<Messages<CloseContainerRequest>>();
     let held_cell = slots::held(3);
     let held = stone(&mut world);
-    mutate::set_count(&mut world, held, 30);
-    mutate::move_stack(&mut world, held, player, held_cell).unwrap();
+    set_count(&mut world, held, 30);
+    place(&mut world, held, player, held_cell);
     let first = stone(&mut world);
-    mutate::set_count(&mut world, first, 50);
-    mutate::move_stack(&mut world, first, player, slots::HOTBAR.start).unwrap();
+    set_count(&mut world, first, 50);
+    place(&mut world, first, player, slots::HOTBAR.start);
     let carried = stone(&mut world);
-    mutate::set_count(&mut world, carried, 10);
-    mutate::move_stack(&mut world, carried, player, slots::CARRIED).unwrap();
+    set_count(&mut world, carried, 10);
+    place(&mut world, carried, player, slots::CARRIED);
 
     world.write_message(CloseContainerRequest {
         player,

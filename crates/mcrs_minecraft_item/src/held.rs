@@ -139,7 +139,7 @@ impl SlotTable {
             .find(|index| self.accepts(*index) && self.get(*index).is_none())
     }
 
-    pub(crate) fn accepts(&self, index: u16) -> bool {
+    pub fn accepts(&self, index: u16) -> bool {
         let index = index as usize;
         match self.bound {
             Some(bound) => index < bound,

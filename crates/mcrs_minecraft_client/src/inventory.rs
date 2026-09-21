@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_item::mutate::{apply_value, move_stack, spawn_stack};
-use mcrs_minecraft_item::{DirtyStacks, ItemStack, Items, SelectedHotbarSlot, SlotTable, slots};
+use bevy::ecs::system::Command;
+use mcrs_minecraft_inventory::{MenuLayout, Op, Slot, Transaction, container_menu_layout, menu_slots, stack_in};
+use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, item_of, slots};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, ReceivedRegistries};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -35,10 +36,6 @@ pub struct OpenMenu {
     pub title: Text,
 }
 
-/// Menu index to `(holder, cell)`, in the vanilla menu's slot order.
-#[derive(Component, Debug)]
-pub struct MenuLayout(pub Vec<(Entity, u16)>);
-
 #[derive(Resource, Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {
     #[default]
@@ -59,7 +56,6 @@ impl Plugin for InventoryPlugin {
             .unwrap_or_else(|err| panic!("{}: {err}", report.display()));
         app.insert_resource(table)
             .init_resource::<Screen>()
-            .init_resource::<DirtyStacks>()
             .add_observer(receive_inventory_packets)
             .configure_sets(
                 Update,
@@ -70,10 +66,7 @@ impl Plugin for InventoryPlugin {
             )
             .add_systems(
                 Update,
-                (
-                    forget_dirty_stacks.after(ClientNetworkSystems::Receive),
-                    (select_hotbar_slot, toggle_inventory).in_set(InventoryInput),
-                ),
+                (select_hotbar_slot, toggle_inventory).in_set(InventoryInput),
             );
     }
 
@@ -95,71 +88,6 @@ impl Plugin for InventoryPlugin {
 
 pub fn inventory_index_to_cell(index: i32) -> Option<u16> {
     u8::try_from(index).ok().and_then(slots::from_inventory_index)
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MenuSlots {
-    pub own: u16,
-    pub player_slots: bool,
-    pub trailing_result: bool,
-}
-
-/// Vanilla menus add their own slots first, then the player's main and hotbar
-/// rows; the lectern adds none of the player's and the crafter appends a
-/// non-interactive result slot after them.
-pub fn menu_slots(menu_type: &str) -> Option<MenuSlots> {
-    let own = |own| MenuSlots {
-        own,
-        player_slots: true,
-        trailing_result: false,
-    };
-    Some(match menu_type {
-        "minecraft:generic_9x1" => own(9),
-        "minecraft:generic_9x2" => own(18),
-        "minecraft:generic_9x3" => own(27),
-        "minecraft:generic_9x4" => own(36),
-        "minecraft:generic_9x5" => own(45),
-        "minecraft:generic_9x6" => own(54),
-        "minecraft:generic_3x3" => own(9),
-        "minecraft:crafter_3x3" => MenuSlots {
-            own: 9,
-            player_slots: true,
-            trailing_result: true,
-        },
-        "minecraft:anvil" => own(3),
-        "minecraft:beacon" => own(1),
-        "minecraft:blast_furnace" => own(3),
-        "minecraft:brewing_stand" => own(5),
-        "minecraft:crafting" => own(10),
-        "minecraft:enchantment" => own(2),
-        "minecraft:furnace" => own(3),
-        "minecraft:grindstone" => own(3),
-        "minecraft:hopper" => own(5),
-        "minecraft:lectern" => MenuSlots {
-            own: 1,
-            player_slots: false,
-            trailing_result: false,
-        },
-        "minecraft:loom" => own(4),
-        "minecraft:merchant" => own(3),
-        "minecraft:shulker_box" => own(27),
-        "minecraft:smithing" => own(4),
-        "minecraft:smoker" => own(3),
-        "minecraft:cartography_table" => own(3),
-        "minecraft:stonecutter" => own(2),
-        _ => return None,
-    })
-}
-
-pub fn menu_layout(menu: Entity, player: Entity, slots: MenuSlots) -> Vec<(Entity, u16)> {
-    let mut layout: Vec<(Entity, u16)> = (0..slots.own).map(|cell| (menu, cell)).collect();
-    if slots.player_slots {
-        layout.extend(slots::MAIN.chain(slots::HOTBAR).map(|cell| (player, cell)));
-    }
-    if slots.trailing_result {
-        layout.push((menu, slots.own));
-    }
-    layout
 }
 
 fn resolve(raw: &RawStack, lookup: &dyn RegistryLookup) -> anyhow::Result<Option<ItemStackValue>> {
@@ -206,7 +134,7 @@ fn receive_inventory_packets(
         };
         commands.queue(move |world: &mut World| {
             if let Some(player) = player(world) {
-                set_cell(world, player, slots::CARRIED, item);
+                set_cell(world, Slot::new(player, slots::CARRIED), item);
             }
         });
     } else if let Some(packet) = event.decode::<ClientboundSetPlayerInventory>() {
@@ -221,7 +149,7 @@ fn receive_inventory_packets(
         };
         commands.queue(move |world: &mut World| {
             if let Some(player) = player(world) {
-                set_cell(world, player, cell, item);
+                set_cell(world, Slot::new(player, cell), item);
             }
         });
     } else if let Some(packet) = event.decode::<ClientboundSetHeldSlot>() {
@@ -265,47 +193,34 @@ fn container(world: &mut World, container_id: i32) -> Option<Entity> {
     open_menu(world).filter(|(_, id)| *id == container_id).map(|(menu, _)| menu)
 }
 
-fn holder_cell(world: &World, container: Entity, index: usize) -> Option<(Entity, u16)> {
+fn holder_cell(world: &World, container: Entity, index: usize) -> Option<Slot> {
     match world.get::<MenuLayout>(container) {
         Some(layout) => layout.0.get(index).copied(),
         None => u16::try_from(index)
             .ok()
             .filter(|cell| usize::from(*cell) < slots::MENU_COUNT)
-            .map(|cell| (container, cell)),
+            .map(|cell| Slot::new(container, cell)),
     }
 }
 
-fn set_cell(world: &mut World, holder: Entity, cell: u16, value: Option<ItemStackValue>) {
-    let items = world.resource::<Items>().clone();
-    let current = world.get::<SlotTable>(holder).and_then(|table| table.get(cell));
+/// A cell keeps its stack entity when the item stays the same, so a count or
+/// component change is a revision rather than a respawn.
+fn set_cell(world: &mut World, cell: Slot, value: Option<ItemStackValue>) {
+    let current = stack_in(world, cell);
     let same_item = |world: &World, stack: Entity, value: &ItemStackValue| {
-        world.get::<ItemStack>(stack).map(ItemStack::item) == items.id_of(value.item.as_str())
+        item_of(world, stack) == world.resource::<Items>().id_of(value.item.as_str())
     };
-    match (current, value) {
-        (None, None) => {}
-        (Some(stack), None) => {
-            world.despawn(stack);
-        }
-        (Some(stack), Some(value)) if same_item(world, stack, &value) => {
-            if let Err(err) = apply_value(world, stack, &value, &items) {
-                warn!("cell {cell} of {holder:?}: {err}");
-            }
-        }
-        (current, Some(value)) => {
-            if let Some(stack) = current {
-                world.despawn(stack);
-            }
-            match spawn_stack(world, &value, &items) {
-                Ok(stack) => {
-                    if let Err(err) = move_stack(world, stack, holder, cell) {
-                        warn!("cell {cell} of {holder:?}: {err}");
-                        world.despawn(stack);
-                    }
-                }
-                Err(err) => warn!("cell {cell} of {holder:?}: {err}"),
-            }
-        }
-    }
+    let ops = match (current, value) {
+        (None, None) => Vec::new(),
+        (Some(stack), None) => vec![Op::Despawn { stack }],
+        (Some(stack), Some(value)) if same_item(world, stack, &value) => vec![Op::Apply { stack, value }],
+        (current, Some(value)) => current
+            .map(|stack| Op::Despawn { stack })
+            .into_iter()
+            .chain(std::iter::once(Op::Spawn { value, to: cell }))
+            .collect(),
+    };
+    Transaction(ops).apply(world);
 }
 
 fn set_seqno(world: &mut World, container: Entity, seqno: i32) {
@@ -326,7 +241,7 @@ fn apply_set_content(
     };
     for (index, value) in stacks.into_iter().enumerate() {
         match holder_cell(world, container, index) {
-            Some((holder, cell)) => set_cell(world, holder, cell, value),
+            Some(cell) => set_cell(world, cell, value),
             None if value.is_some() => {
                 warn!("container_set_content {container_id}: slot {index} has nowhere to land");
             }
@@ -334,7 +249,7 @@ fn apply_set_content(
         }
     }
     if let Some(player) = player(world) {
-        set_cell(world, player, slots::CARRIED, carried);
+        set_cell(world, Slot::new(player, slots::CARRIED), carried);
     }
     set_seqno(world, container, seqno);
 }
@@ -343,13 +258,13 @@ fn apply_set_slot(world: &mut World, container_id: i32, seqno: i32, slot: i16, i
     let Some(container) = container(world, container_id) else {
         return;
     };
-    let Some((holder, cell)) = usize::try_from(slot)
+    let Some(cell) = usize::try_from(slot)
         .ok()
         .and_then(|index| holder_cell(world, container, index))
     else {
         return;
     };
-    set_cell(world, holder, cell, item);
+    set_cell(world, cell, item);
     set_seqno(world, container, seqno);
 }
 
@@ -373,7 +288,7 @@ fn open_screen(world: &mut World, container_id: i32, menu_type: ResourceLocation
         },
         SlotTable::fixed(usize::from(slots.own) + usize::from(slots.trailing_result)),
         ContainerSeqno::default(),
-        MenuLayout(menu_layout(menu, player, slots)),
+        MenuLayout(container_menu_layout(menu, player, slots)),
     ));
     *world.resource_mut::<Screen>() = Screen::Container(menu);
     set_cursor_grabbed(world, false);
@@ -476,11 +391,4 @@ fn toggle_inventory(
     }
     *screen = Screen::None;
     grab(&mut cursor, true);
-}
-
-fn forget_dirty_stacks(mut dirty: ResMut<DirtyStacks>) {
-    if !dirty.cells.is_empty() || !dirty.roots.is_empty() {
-        dirty.cells.clear();
-        dirty.roots.clear();
-    }
 }

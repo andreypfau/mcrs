@@ -4,14 +4,15 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::{RegistryAccess, RegistrySnapshotErased};
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_item::{
-    DirtyStacks, Items, SelectedHotbarSlot, SlotTable, load_item_definitions, mutate, slots,
-};
+use mcrs_minecraft_inventory::value::spawn_stack;
+use mcrs_minecraft_inventory::{Op, Slot, Transaction};
+use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, load_item_definitions, slots};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
@@ -19,7 +20,7 @@ use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue, RawStack};
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::item::menu::open_menus;
-use mcrs_minecraft_server::world::item::sync::{MenuResync, sync_stack_slots};
+use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
 
 pub(crate) fn corpus() -> &'static (Blocks, Items) {
     static CORPUS: OnceLock<(Blocks, Items)> = OnceLock::new();
@@ -49,8 +50,6 @@ pub(crate) fn world() -> (World, Entity, Entity) {
     world.insert_resource(blocks.clone());
     world.insert_resource(items.clone());
     world.insert_resource(registry);
-    world.init_resource::<DirtyStacks>();
-    world.init_resource::<MenuResync>();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     let anchor = world.spawn_empty().id();
     let player = world
@@ -79,7 +78,19 @@ pub(crate) fn stone(world: &mut World) -> Entity {
         count: Bounded(7),
         components: ComponentPatch::EMPTY,
     };
-    mutate::spawn_stack(world, &value, &corpus().1).unwrap()
+    spawn_stack(world, &value, &corpus().1).unwrap()
+}
+
+pub(crate) fn place(world: &mut World, stack: Entity, holder: Entity, index: u16) {
+    Transaction(vec![Op::Place {
+        stack,
+        to: Slot::new(holder, index),
+    }])
+    .apply(world);
+}
+
+pub(crate) fn set_count(world: &mut World, stack: Entity, count: u8) {
+    Transaction(vec![Op::SetCount { stack, count }]).apply(world);
 }
 
 #[test]
@@ -126,7 +137,7 @@ fn dirty_cells_become_set_slot_and_cursor_packets() {
     drain(&mut world);
 
     let stack = stone(&mut world);
-    mutate::move_stack(&mut world, stack, player, slots::HOTBAR.start).unwrap();
+    place(&mut world, stack, player, slots::HOTBAR.start);
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
     assert_eq!(packets.len(), 1, "{packets:?}");
@@ -145,7 +156,7 @@ fn dirty_cells_become_set_slot_and_cursor_packets() {
     );
     assert_ne!(*item, RawStack::EMPTY);
 
-    mutate::move_stack(&mut world, stack, player, slots::CARRIED).unwrap();
+    place(&mut world, stack, player, slots::CARRIED);
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
     assert_eq!(packets.len(), 2, "{packets:?}");

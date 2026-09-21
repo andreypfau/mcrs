@@ -503,10 +503,12 @@ mod tests {
     use mcrs_minecraft_block::definition::load_block_definitions;
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-    use mcrs_minecraft_item::{DirtyStacks, SlotTable, load_item_definitions, mutate};
+    use bevy::ecs::system::Command;
+    use mcrs_minecraft_inventory::{Op, Slot, Transaction};
+    use mcrs_minecraft_item::{SlotTable, load_item_definitions};
     use mcrs_minecraft_protocol::item::{
         BundleContents, ChargedProjectiles, ComponentPatch, Damage, Enchantments,
-        FireworkExplosion, FireworkShape, ItemComponentKind, ItemStackValue, MaxStackSize, RgbInt,
+        FireworkExplosion, FireworkShape, ItemComponentKind, ItemStackValue, RgbInt,
         Template,
     };
 
@@ -546,8 +548,22 @@ mod tests {
         }
     }
 
+    fn world() -> World {
+        let mut world = World::new();
+        world.insert_resource(items().clone());
+        world
+    }
+
     fn spawn(world: &mut World, path: &str, count: i32, components: ComponentPatch) -> Entity {
-        mutate::spawn_stack(world, &value(path, count, components), items()).unwrap()
+        mcrs_minecraft_inventory::value::spawn_stack(world, &value(path, count, components), items()).unwrap()
+    }
+
+    fn set<K: mcrs_minecraft_protocol::item::ItemDataComponent>(world: &mut World, stack: Entity, value: K) {
+        Transaction(vec![Op::Insert {
+            stack,
+            component: value.into_value(),
+        }])
+        .apply(world);
     }
 
     type Lookup<'w> = Box<dyn Fn(Entity) -> Option<EntityRef<'w>> + 'w>;
@@ -583,7 +599,7 @@ mod tests {
 
     #[test]
     fn damage_and_count_ranges_follow_the_stack() {
-        let mut world = World::new();
+        let mut world = world();
         let pick = spawn(
             &mut world,
             "diamond_pickaxe",
@@ -596,7 +612,7 @@ mod tests {
         assert!(e.condition(&ConditionProperty::Damaged));
         assert!(!e.condition(&ConditionProperty::Broken));
         drop(e);
-        mutate::set(&mut world, pick, Damage(Bounded(1560)));
+        set(&mut world, pick, Damage(Bounded(1560)));
         let e = eval(&world, pick);
         assert!(e.condition(&ConditionProperty::Broken));
         drop(e);
@@ -608,7 +624,7 @@ mod tests {
 
     #[test]
     fn bundle_fullness_weighs_children_and_nested_bundles() {
-        let mut world = World::new();
+        let mut world = world();
         let inner = value(
             "bundle",
             1,
@@ -636,7 +652,7 @@ mod tests {
 
     #[test]
     fn charge_type_reads_the_loaded_projectiles() {
-        let mut world = World::new();
+        let mut world = world();
         let charged = |projectile: Option<&str>| {
             patch(|p| {
                 p.set(
@@ -665,7 +681,7 @@ mod tests {
 
     #[test]
     fn has_component_distinguishes_prototype_and_patch() {
-        let mut world = World::new();
+        let mut world = world();
         let stone = spawn(&mut world, "stone", 1, ComponentPatch::EMPTY);
         let max_stack = |ignore_default| ConditionProperty::HasComponent {
             component: ComponentKindId(ItemComponentKind::MaxStackSize),
@@ -680,8 +696,12 @@ mod tests {
         assert!(!e.condition(&max_stack(true)));
         assert!(!e.condition(&dyed(false)));
         drop(e);
-        mutate::set(&mut world, stone, DyedColor(RgbInt(0xFF0000)));
-        mutate::remove::<MaxStackSize>(&mut world, stone);
+        set(&mut world, stone, DyedColor(RgbInt(0xFF0000)));
+        Transaction(vec![Op::Remove {
+            stack: stone,
+            kind: ItemComponentKind::MaxStackSize,
+        }])
+        .apply(&mut world);
         let e = eval(&world, stone);
         assert!(e.condition(&dyed(false)));
         assert!(e.condition(&dyed(true)));
@@ -691,7 +711,7 @@ mod tests {
 
     #[test]
     fn tints_follow_vanilla_colour_rules() {
-        let mut world = World::new();
+        let mut world = world();
         let star = spawn(
             &mut world,
             "firework_star",
@@ -768,7 +788,7 @@ mod tests {
 
     #[test]
     fn a_block_item_shows_its_top_north_and_east_faces_lit_from_the_side() {
-        let mut world = World::new();
+        let mut world = world();
         let stone = spawn(&mut world, "stone", 1, ComponentPatch::EMPTY);
         let layers = resolved(&world, stone);
         assert_eq!(layers.gui_light, GuiLight::Side);
@@ -804,7 +824,7 @@ mod tests {
 
     #[test]
     fn a_flat_item_is_drawn_at_sprite_colour_and_glints_when_enchanted() {
-        let mut world = World::new();
+        let mut world = world();
         let stick = spawn(&mut world, "stick", 1, ComponentPatch::EMPTY);
         let layers = resolved(&world, stick);
         assert_eq!(layers.gui_light, GuiLight::Front);
@@ -848,12 +868,15 @@ mod tests {
             missing: models().missing.clone(),
             grass_colormap: None,
         });
-        app.init_resource::<DirtyStacks>();
         app.add_systems(Update, resolve_item_layers);
         let world = app.world_mut();
         let holder = world.spawn(SlotTable::fixed(9)).id();
-        let held = spawn(world, "stick", 1, ComponentPatch::EMPTY);
-        mutate::move_stack(world, held, holder, 0).unwrap();
+        Transaction(vec![Op::Spawn {
+            value: value("stick", 1, ComponentPatch::EMPTY),
+            to: Slot::new(holder, 0),
+        }])
+        .apply(world);
+        let held = world.get::<SlotTable>(holder).unwrap().get(0).unwrap();
         let loose = spawn(world, "stick", 1, ComponentPatch::EMPTY);
         app.update();
         assert_eq!(
@@ -879,7 +902,7 @@ mod tests {
         );
 
         let world = app.world_mut();
-        mutate::set(world, held, ItemModel(ResourceLocation::minecraft("stone")));
+        set(world, held, ItemModel(ResourceLocation::minecraft("stone")));
         app.update();
         let after = app
             .world()

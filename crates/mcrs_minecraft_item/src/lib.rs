@@ -6,9 +6,7 @@ pub mod effective;
 pub mod enchantment;
 pub mod held;
 pub mod inventory;
-pub mod mutate;
 pub mod stack;
-pub mod sync;
 pub mod tags;
 pub mod tool;
 pub mod trim;
@@ -23,10 +21,8 @@ pub use effective::{
 };
 pub use held::{Held, Holds, SlotTable};
 pub use inventory::{SelectedHotbarSlot, slots};
-pub use mutate::{MoveError, StackCommands};
 pub use stack::{ItemStack, StackRevision};
-pub use sync::DirtyStacks;
-pub use value::{StackError, same_item_same_components, stack_to_slot, stack_to_value};
+pub use value::{StackError, item_of, same_item_same_components, stack_to_slot, stack_to_value};
 
 pub enum Item {}
 

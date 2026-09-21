@@ -11,6 +11,7 @@ mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_inventory.workspace = true
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_assets.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [

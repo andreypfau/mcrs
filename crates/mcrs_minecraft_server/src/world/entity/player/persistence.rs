@@ -2,7 +2,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Component, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_item::inventory::slots;
-use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, mutate, value};
+use bevy_ecs::system::Command;
+use mcrs_minecraft_inventory::{Op, Slot, Transaction};
+use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, stack_to_value};
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::{DimensionId, InDimension};
@@ -52,7 +54,6 @@ pub fn load_player(world: &mut World, player: Entity) {
             return;
         }
     };
-    let items = world.resource::<Items>().clone();
     for entry in dat
         .inventory
         .iter()
@@ -61,11 +62,11 @@ pub fn load_player(world: &mut World, player: Entity) {
         let Some(cell) = slots::from_inventory_index(entry.slot) else {
             continue;
         };
-        place(world, player, cell, &entry.stack, &items);
+        place(world, player, cell, &entry.stack);
     }
     for (key, stack) in &dat.equipment {
         match EQUIPMENT.iter().find(|(name, _)| name == key) {
-            Some((_, cell)) => place(world, player, *cell, stack, &items),
+            Some((_, cell)) => place(world, player, *cell, stack),
             None => warn!(%uuid, "equipment slot {key} is not a player slot; dropped"),
         }
     }
@@ -81,24 +82,12 @@ pub fn load_player(world: &mut World, player: Entity) {
         .insert((SelectedHotbarSlot(selected), LoadedPlayerDat(dat.rest)));
 }
 
-fn place(
-    world: &mut World,
-    player: Entity,
-    cell: u16,
-    stack: &mcrs_minecraft_protocol::item::ItemStackValue,
-    items: &Items,
-) {
-    let entity = match value::spawn_stack(world, stack, items) {
-        Ok(entity) => entity,
-        Err(err) => {
-            warn!("saved stack in cell {cell} dropped: {err}");
-            return;
-        }
-    };
-    if let Err(err) = mutate::move_stack(world, entity, player, cell) {
-        warn!("saved stack in cell {cell} dropped: {err:?}");
-        world.despawn(entity);
-    }
+fn place(world: &mut World, player: Entity, cell: u16, stack: &mcrs_minecraft_protocol::item::ItemStackValue) {
+    Transaction(vec![Op::Spawn {
+        value: stack.clone(),
+        to: Slot::new(player, cell),
+    }])
+    .apply(world);
 }
 
 pub fn save_player(world: &World, player: Entity) -> PlayerDat {
@@ -108,7 +97,7 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
     let mut equipment = std::collections::BTreeMap::new();
     if let Some(table) = table {
         for (cell, stack) in table.iter() {
-            let stack = value::stack_to_value(world, stack, items);
+            let stack = stack_to_value(world, stack, items);
             if let Some((name, _)) = EQUIPMENT.iter().find(|(_, c)| *c == cell) {
                 equipment.insert((*name).to_owned(), stack);
             } else if let Some(slot) = slots::inventory_index(cell) {
