@@ -2,7 +2,6 @@ pub mod molang;
 pub mod schema;
 
 use core::time::Duration;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bevy_platform::time::Instant;
@@ -11,8 +10,6 @@ use bevy_asset::AssetServer;
 use bevy_asset::io::AssetSourceId;
 use bevy_ecs::resource::Resource;
 use bevy_math::Vec3;
-use bevy_tasks::block_on;
-use bevy_tasks::futures_lite::StreamExt;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::molang::{MolangError, StateCondition};
@@ -22,7 +19,7 @@ use self::schema::{
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
-use mcrs_minecraft_assets::asset::read_whole;
+use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
@@ -389,16 +386,8 @@ pub struct LoadReport {
 pub enum LoadError {
     #[error("the default asset source is missing")]
     NoAssetSource,
-    #[error("failed to list `{directory}`: {source}")]
-    ListDirectory {
-        directory: String,
-        source: bevy_asset::io::AssetReaderError,
-    },
-    #[error("failed to read `{path}`: {source}")]
-    Read {
-        path: String,
-        source: bevy_asset::io::AssetReaderError,
-    },
+    #[error(transparent)]
+    Corpus(#[from] CorpusReadError),
     #[error("`{path}` read as zero bytes")]
     Empty { path: String },
     #[error("failed to parse `{path}`: {source}")]
@@ -440,53 +429,17 @@ pub fn load_block_definitions(
     let source = asset_server
         .get_source(AssetSourceId::Default)
         .map_err(|_| LoadError::NoAssetSource)?;
-    let reader = source.reader();
-
-    let mut paths = block_on(async {
-        let mut stream = reader
-            .read_directory(Path::new(CORPUS_DIRECTORY))
-            .await
-            .map_err(|source| LoadError::ListDirectory {
-                directory: CORPUS_DIRECTORY.into(),
-                source,
-            })?;
-        let mut paths = Vec::new();
-        while let Some(path) = stream.next().await {
-            if path.extension().is_some_and(|e| e == "json") {
-                paths.push(path);
-            }
-        }
-        Ok::<Vec<PathBuf>, LoadError>(paths)
-    })?;
-    paths.sort();
-
-    // One block_on for the whole corpus: entering the executor per file cost
-    // far more than reading or parsing the 1286 files put together.
-    let corpus: Vec<Vec<u8>> = block_on(async {
-        let mut corpus = Vec::with_capacity(paths.len());
-        for path in &paths {
-            let bytes = read_whole(reader, path)
-                .await
-                .map_err(|source| LoadError::Read {
-                    path: path.display().to_string(),
-                    source,
-                })?;
-            if bytes.is_empty() {
-                return Err(LoadError::Empty {
-                    path: path.display().to_string(),
-                });
-            }
-            corpus.push(bytes);
-        }
-        Ok::<Vec<Vec<u8>>, LoadError>(corpus)
-    })?;
+    let corpus = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
 
     let mut builder = Builder::new();
-    for (path, bytes) in paths.iter().zip(corpus) {
-        let display = path.display().to_string();
+    let files = corpus.len();
+    for (path, bytes) in corpus {
+        if bytes.is_empty() {
+            return Err(LoadError::Empty { path });
+        }
         let file: BlockDefinitionFile =
             serde_json::from_slice(&bytes).map_err(|source| LoadError::Parse {
-                path: display.clone(),
+                path: path.clone(),
                 source,
             })?;
         let block = file.block.description.identifier.as_str().to_owned();
@@ -497,7 +450,7 @@ pub fn load_block_definitions(
 
     let definitions = builder.finish()?;
     let report = LoadReport {
-        files: paths.len(),
+        files,
         states: definitions.states.len(),
         permutations: builder.permutations,
         shapes: definitions.shapes.len(),
