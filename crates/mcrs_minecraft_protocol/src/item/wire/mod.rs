@@ -1,12 +1,33 @@
 //! Wire forms of the data component types. The types themselves carry only
 //! serde; every `Encode`/`Decode`/`EncodeCtx`/`DecodeCtx` impl lives here.
 
+mod attribute;
+mod banner;
+mod book;
+mod combat;
 mod common;
+mod consume;
+mod entity_data;
 mod enums;
+mod equippable;
+mod fireworks;
+mod fuel;
+mod instrument;
+mod lodestone;
+mod nbt_wire;
+mod nested;
+mod painting;
+mod potion;
+mod predicate;
+mod profile;
 mod registry_ref;
-mod variants;
 mod scalar;
+mod simple;
+mod sound;
+mod text;
+mod trim;
 mod unit;
+mod variants;
 
 /// A newtype over an `Encode + Decode` inner value.
 macro_rules! newtype_wire {
