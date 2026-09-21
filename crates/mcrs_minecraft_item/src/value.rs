@@ -80,7 +80,10 @@ fn read_plain<K: ItemDataComponent + Component>(entity: EntityRef) -> Option<Ite
     entity.get::<K>().cloned().map(K::into_value)
 }
 
-fn insert_plain<K: ItemDataComponent + Component>(entity: &mut EntityWorldMut, value: &ItemComponentValue) {
+fn insert_plain<K: ItemDataComponent + Component>(
+    entity: &mut EntityWorldMut,
+    value: &ItemComponentValue,
+) {
     let value = K::from_value(value)
         .unwrap_or_else(|| panic!("{} written as {:?}", K::KIND, value.kind()))
         .clone();
@@ -97,7 +100,10 @@ fn contains_plain<K: ItemDataComponent + Component>(entity: EntityRef) -> bool {
     entity.contains::<K>()
 }
 
-fn differs_plain<K: ItemDataComponent + Component>(entity: EntityRef, prototype: Option<&ItemComponentValue>) -> bool {
+fn differs_plain<K: ItemDataComponent + Component>(
+    entity: EntityRef,
+    prototype: Option<&ItemComponentValue>,
+) -> bool {
     entity.get::<K>() != prototype.and_then(K::from_value)
 }
 
@@ -118,7 +124,9 @@ fn entry<'a>(world: &World, stack: Entity, items: &'a Items) -> Result<&'a ItemE
         .get::<ItemStack>(stack)
         .ok_or(StackError::NotAStack(stack))?
         .item;
-    items.get(item).ok_or_else(|| StackError::UnknownItem(format!("#{}", item.0)))
+    items
+        .get(item)
+        .ok_or_else(|| StackError::UnknownItem(format!("#{}", item.0)))
 }
 
 fn named_entry<'a>(items: &'a Items, value: &ItemStackValue) -> Result<&'a ItemEntry, StackError> {
@@ -137,17 +145,28 @@ pub(crate) fn child_kind(entry: &ItemEntry) -> Option<ItemComponentKind> {
 // ponytail: the campfire's four slots are not in the block corpus, so its
 // stacks accept the codec bound; upgrade by dumping block-entity slot counts.
 fn container_slots(entry: &ItemEntry) -> usize {
-    entry.container_slots.map_or(MAX_CONTAINER_SLOTS, usize::from)
+    entry
+        .container_slots
+        .map_or(MAX_CONTAINER_SLOTS, usize::from)
 }
 
 fn children(world: &World, stack: Entity) -> Vec<Option<Entity>> {
     world
         .get::<SlotTable>(stack)
-        .map(|table| (0..table.len() as u16).map(|index| table.get(index)).collect())
+        .map(|table| {
+            (0..table.len() as u16)
+                .map(|index| table.get(index))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
-fn child_value(world: &World, stack: Entity, kind: ItemComponentKind, items: &Items) -> ItemComponentValue {
+fn child_value(
+    world: &World,
+    stack: Entity,
+    kind: ItemComponentKind,
+    items: &Items,
+) -> ItemComponentValue {
     let mut templates: Vec<Option<Template>> = children(world, stack)
         .into_iter()
         .map(|child| child.map(|child| Template(stack_to_value(world, child, items))))
@@ -155,7 +174,10 @@ fn child_value(world: &World, stack: Entity, kind: ItemComponentKind, items: &It
     let dense = || templates.iter().flatten().cloned().collect();
     match kind {
         ItemComponentKind::Container => {
-            let occupied = templates.iter().rposition(Option::is_some).map_or(0, |last| last + 1);
+            let occupied = templates
+                .iter()
+                .rposition(Option::is_some)
+                .map_or(0, |last| last + 1);
             templates.truncate(occupied);
             Container::new(templates)
                 .expect("a slot table never outgrows the container bound")
@@ -179,9 +201,11 @@ fn child_targets(value: &ItemComponentValue) -> Vec<Option<&ItemStackValue>> {
         ItemComponentValue::BundleContents(list) => {
             list.0.iter().map(|template| Some(&template.0)).collect()
         }
-        ItemComponentValue::ChargedProjectiles(list) => {
-            list.items().iter().map(|template| Some(&template.0)).collect()
-        }
+        ItemComponentValue::ChargedProjectiles(list) => list
+            .items()
+            .iter()
+            .map(|template| Some(&template.0))
+            .collect(),
         other => unreachable!("{} holds no child stacks", other.kind()),
     }
 }
@@ -214,7 +238,10 @@ pub fn stack_to_value(world: &World, stack: Entity, items: &Items) -> ItemStackV
         }
     }
     if own_child_kind.is_none() && !children(world, stack).is_empty() {
-        unreachable!("{} holds child stacks without a child kind", entry.identifier);
+        unreachable!(
+            "{} holds child stacks without a child kind",
+            entry.identifier
+        );
     }
     ItemStackValue {
         item: ResourceKey::from_location(entry.identifier.clone()),
@@ -229,7 +256,11 @@ pub fn stack_to_slot(world: &World, stack: Entity, items: &Items) -> ProtoStack 
     ProtoStack::new(item, value.count.0, value.components)
 }
 
-pub fn spawn_stack(world: &mut World, value: &ItemStackValue, items: &Items) -> Result<Entity, StackError> {
+pub fn spawn_stack(
+    world: &mut World,
+    value: &ItemStackValue,
+    items: &Items,
+) -> Result<Entity, StackError> {
     let entry = named_entry(items, value)?;
     check(entry, value, items)?;
     let stack = spawn_checked(world, entry, value, items);
@@ -302,7 +333,12 @@ fn check(entry: &ItemEntry, value: &ItemStackValue, items: &Items) -> Result<(),
     Ok(())
 }
 
-fn spawn_checked(world: &mut World, entry: &ItemEntry, value: &ItemStackValue, items: &Items) -> Entity {
+fn spawn_checked(
+    world: &mut World,
+    entry: &ItemEntry,
+    value: &ItemStackValue,
+    items: &Items,
+) -> Entity {
     let stack = world
         .spawn((
             ItemStack {
@@ -316,7 +352,13 @@ fn spawn_checked(world: &mut World, entry: &ItemEntry, value: &ItemStackValue, i
     stack
 }
 
-fn write_value(world: &mut World, stack: Entity, entry: &ItemEntry, value: &ItemStackValue, items: &Items) {
+fn write_value(
+    world: &mut World,
+    stack: Entity,
+    entry: &ItemEntry,
+    value: &ItemStackValue,
+    items: &Items,
+) {
     let own_child_kind = child_kind(entry);
     let effective = entry.prototype.apply(&value.components);
     let mut entity = world.entity_mut(stack);
@@ -370,11 +412,10 @@ fn reconcile_children(
         .take(existing.len().max(targets.len()))
         .enumerate()
     {
-        let target_entry = target.map(|target| named_entry(items, target).expect("checked before the write"));
+        let target_entry =
+            target.map(|target| named_entry(items, target).expect("checked before the write"));
         let kept = match (child, target_entry) {
-            (Some(child), Some(target_entry)) => {
-                item_of(world, child) == Some(target_entry.id)
-            }
+            (Some(child), Some(target_entry)) => item_of(world, child) == Some(target_entry.id),
             (None, None) => true,
             _ => false,
         };

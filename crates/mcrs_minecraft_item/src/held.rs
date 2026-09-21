@@ -83,7 +83,10 @@ impl SlotTable {
     }
 
     fn place(&mut self, index: u16, stack: Entity) {
-        assert!(self.accepts(index), "cell {index} is outside the table holding {stack:?}");
+        assert!(
+            self.accepts(index),
+            "cell {index} is outside the table holding {stack:?}"
+        );
         let index = index as usize;
         if index >= self.cells.len() {
             self.cells.resize(index + 1, None);

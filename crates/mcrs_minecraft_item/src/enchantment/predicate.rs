@@ -106,7 +106,9 @@ pub enum LootCondition {
         predicate: Box<EntityPredicate>,
     },
     #[serde(rename = "minecraft:damage_source_properties")]
-    DamageSourceProperties { predicate: Box<DamageSourcePredicate> },
+    DamageSourceProperties {
+        predicate: Box<DamageSourcePredicate>,
+    },
     #[serde(rename = "minecraft:location_check")]
     LocationCheck {
         predicate: Box<LocationPredicate>,

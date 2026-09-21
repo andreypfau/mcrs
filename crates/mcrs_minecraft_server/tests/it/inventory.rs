@@ -12,9 +12,7 @@ use mcrs_minecraft_assets::{RegistrySnapshotErased, snapshot::RegistrySnapshot};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ColumnPos, ResourceKey, ResourceLocation};
-use mcrs_minecraft_item::{
-    DroppedItem, ItemStack, Items, SlotTable, mutate, slots, stack_to_slot,
-};
+use mcrs_minecraft_item::{DroppedItem, ItemStack, Items, SlotTable, mutate, slots, stack_to_slot};
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
@@ -24,7 +22,7 @@ use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, ContainerInput, Damage, HashedStack, ItemStackValue, ItemStackWithSlot,
-    RawDelimitedStack, RawStack, ProtoStack,
+    ProtoStack, RawDelimitedStack, RawStack,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClick, ServerboundSetCreativeModeSlot,
@@ -357,7 +355,11 @@ fn a_creative_slot_is_answered_with_one_set_slot() {
     server.join();
     let items = server.items();
     let registry = server.world().resource::<RegistryAccess>().clone();
-    let slot = ProtoStack::from_value(&value("diamond_pickaxe", 1), &registry as &dyn RegistryLookup).unwrap();
+    let slot = ProtoStack::from_value(
+        &value("diamond_pickaxe", 1),
+        &registry as &dyn RegistryLookup,
+    )
+    .unwrap();
     let cell = slots::held(0);
     server.send(&ServerboundSetCreativeModeSlot {
         slot: cell as i16,
@@ -445,7 +447,10 @@ fn damaging_a_pickaxe_inside_a_shulker_resends_the_shulker_cell() {
     let registry = server.world().resource::<RegistryAccess>().clone();
     let sent = resent[0].1.resolve(&registry).unwrap();
     assert_eq!(sent, stack_to_slot(server.world(), shulker, &items));
-    assert_eq!(server.world().get::<Damage>(pickaxe), Some(&Damage(Bounded(3))));
+    assert_eq!(
+        server.world().get::<Damage>(pickaxe),
+        Some(&Damage(Bounded(3)))
+    );
 }
 
 #[test]
@@ -459,7 +464,11 @@ fn a_drop_adds_an_item_entity_and_its_stack_metadata() {
 
     drop_stack(server.world(), player, stone);
     assert_eq!(
-        server.world().get::<DroppedItem>(stone).unwrap().pickup_delay,
+        server
+            .world()
+            .get::<DroppedItem>(stone)
+            .unwrap()
+            .pickup_delay,
         40
     );
     let packets = server.ticks(2);

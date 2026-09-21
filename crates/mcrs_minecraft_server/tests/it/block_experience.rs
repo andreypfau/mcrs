@@ -1,4 +1,3 @@
-
 use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::prelude::*;

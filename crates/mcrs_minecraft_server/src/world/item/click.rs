@@ -11,15 +11,15 @@ use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::mutate::{self, MoveError};
 use mcrs_minecraft_item::{
-    DirtyStacks, ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable,
-    max_stack_size, same_item_same_components, slots, stack_to_slot, stack_to_value,
+    DirtyStacks, ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size,
+    same_item_same_components, slots, stack_to_slot, stack_to_value,
 };
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::component::Equippable;
-use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack, RawDelimitedStack, ProtoStack};
+use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack, ProtoStack, RawDelimitedStack};
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClick, ServerboundContainerClose, ServerboundSetCreativeModeSlot,
 };
@@ -185,8 +185,9 @@ fn client_matches(
     hashed: Option<&HashedStack>,
     items: &Items,
 ) -> bool {
-    let server =
-        stack_in(world, cell).map_or(ProtoStack::EMPTY, |stack| stack_to_slot(world, stack, items));
+    let server = stack_in(world, cell).map_or(ProtoStack::EMPTY, |stack| {
+        stack_to_slot(world, stack, items)
+    });
     hashed.map_or(server.is_empty(), |hashed| hashed.matches(&server))
 }
 
@@ -451,9 +452,7 @@ fn quick_move(
         armour_cell(world, stack).filter(|cell| stack_in(world, (player, *cell)).is_none())
     {
         vec![(player, armour)]
-    } else if is_offhand_item(world, stack)
-        && stack_in(world, (player, slots::OFFHAND)).is_none()
-    {
+    } else if is_offhand_item(world, stack) && stack_in(world, (player, slots::OFFHAND)).is_none() {
         vec![(player, slots::OFFHAND)]
     } else if slots::MAIN.contains(&slot) {
         layout_range(
@@ -687,8 +686,7 @@ pub fn handle_creative_slots(world: &mut World) {
         if let Some(existing) =
             existing.filter(|existing| stack_to_value(world, *existing, &items).item == value.item)
         {
-            let over_max =
-                value.count.0 > i32::from(max_stack_size(world.entity(existing)));
+            let over_max = value.count.0 > i32::from(max_stack_size(world.entity(existing)));
             if !over_max && let Err(error) = mutate::apply_value(world, existing, &value, &items) {
                 tracing::warn!(%error, player = ?req.player, "a creative stack was rejected");
             }

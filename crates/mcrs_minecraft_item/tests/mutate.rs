@@ -2,7 +2,9 @@ mod common;
 
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::{Held, ItemStack, MoveError, StackRevision, mutate, stack_to_value};
-use mcrs_minecraft_protocol::item::{ComponentPatch, Damage, ItemComponentKind, Lore, MaxStackSize, Unbreakable};
+use mcrs_minecraft_protocol::item::{
+    ComponentPatch, Damage, ItemComponentKind, Lore, MaxStackSize, Unbreakable,
+};
 
 use common::{drain, holder, items, spawn, world};
 
@@ -14,10 +16,16 @@ fn revision(world: &bevy_ecs::world::World, stack: bevy_ecs::entity::Entity) -> 
 fn a_stack_carries_its_effective_components() {
     let mut world = world();
     let stone = spawn(&mut world, "stone", 1);
-    assert_eq!(world.get::<MaxStackSize>(stone), Some(&MaxStackSize(Bounded(64))));
+    assert_eq!(
+        world.get::<MaxStackSize>(stone),
+        Some(&MaxStackSize(Bounded(64)))
+    );
     assert_eq!(world.get::<Lore>(stone), Some(&Lore::default()));
     assert_eq!(world.get::<Damage>(stone), None);
-    assert_eq!(stack_to_value(&world, stone, items()).components, ComponentPatch::EMPTY);
+    assert_eq!(
+        stack_to_value(&world, stone, items()).components,
+        ComponentPatch::EMPTY
+    );
 }
 
 #[test]
@@ -25,12 +33,18 @@ fn set_equal_to_the_prototype_leaves_no_patch() {
     let mut world = world();
     let stone = spawn(&mut world, "stone", 1);
     mutate::set(&mut world, stone, MaxStackSize(Bounded(16)));
-    assert_eq!(world.get::<MaxStackSize>(stone), Some(&MaxStackSize(Bounded(16))));
+    assert_eq!(
+        world.get::<MaxStackSize>(stone),
+        Some(&MaxStackSize(Bounded(16)))
+    );
     let patch = stack_to_value(&world, stone, items()).components;
     assert_eq!(patch.added, [MaxStackSize(Bounded(16)).into()]);
     assert!(patch.removed.is_empty());
     mutate::set(&mut world, stone, MaxStackSize(Bounded(64)));
-    assert_eq!(stack_to_value(&world, stone, items()).components, ComponentPatch::EMPTY);
+    assert_eq!(
+        stack_to_value(&world, stone, items()).components,
+        ComponentPatch::EMPTY
+    );
     assert_eq!(revision(&world, stone), 3);
 }
 
@@ -45,10 +59,16 @@ fn remove_tombstones_a_prototype_value_and_clears_the_rest() {
     assert_eq!(patch.removed, [ItemComponentKind::Lore]);
     mutate::set(&mut world, stone, Unbreakable);
     assert_eq!(world.get::<Unbreakable>(stone), Some(&Unbreakable));
-    assert_eq!(stack_to_value(&world, stone, items()).components.added, [Unbreakable.into()]);
+    assert_eq!(
+        stack_to_value(&world, stone, items()).components.added,
+        [Unbreakable.into()]
+    );
     mutate::remove::<Unbreakable>(&mut world, stone);
     assert_eq!(world.get::<Unbreakable>(stone), None);
-    assert_eq!(stack_to_value(&world, stone, items()).components.removed, [ItemComponentKind::Lore]);
+    assert_eq!(
+        stack_to_value(&world, stone, items()).components.removed,
+        [ItemComponentKind::Lore]
+    );
 }
 
 #[test]
@@ -71,7 +91,11 @@ fn set_count_zero_despawns_the_subtree() {
 fn chest_of_shulker(
     world: &mut bevy_ecs::world::World,
     chest_cell: u16,
-) -> (bevy_ecs::entity::Entity, bevy_ecs::entity::Entity, bevy_ecs::entity::Entity) {
+) -> (
+    bevy_ecs::entity::Entity,
+    bevy_ecs::entity::Entity,
+    bevy_ecs::entity::Entity,
+) {
     let chest = holder(world, 27);
     let shulker = spawn(world, "shulker_box", 1);
     world
@@ -105,14 +129,35 @@ fn moving_between_two_shulkers_bumps_both_parents() {
     drain(&mut world);
     let (before_a, before_b) = (revision(&world, shulker_a), revision(&world, shulker_b));
     mutate::move_stack(&mut world, pickaxe, shulker_b, 9).unwrap();
-    assert_eq!(world.get::<Held>(pickaxe), Some(&Held { holder: shulker_b, index: 9 }));
+    assert_eq!(
+        world.get::<Held>(pickaxe),
+        Some(&Held {
+            holder: shulker_b,
+            index: 9
+        })
+    );
     assert_eq!(revision(&world, shulker_a), before_a + 1);
     assert_eq!(revision(&world, shulker_b), before_b + 1);
     let cells = drain(&mut world).cells;
     assert_eq!(cells.len(), 2);
-    assert!(cells.contains(&(chest_a, 1)) && cells.contains(&(chest_b, 2)), "{cells:?}");
-    assert_eq!(world.get::<mcrs_minecraft_item::SlotTable>(shulker_a).unwrap().get(4), None);
-    assert_eq!(world.get::<mcrs_minecraft_item::SlotTable>(shulker_b).unwrap().get(9), Some(pickaxe));
+    assert!(
+        cells.contains(&(chest_a, 1)) && cells.contains(&(chest_b, 2)),
+        "{cells:?}"
+    );
+    assert_eq!(
+        world
+            .get::<mcrs_minecraft_item::SlotTable>(shulker_a)
+            .unwrap()
+            .get(4),
+        None
+    );
+    assert_eq!(
+        world
+            .get::<mcrs_minecraft_item::SlotTable>(shulker_b)
+            .unwrap()
+            .get(9),
+        Some(pickaxe)
+    );
 }
 
 #[test]
@@ -130,7 +175,10 @@ fn move_errors_are_returned_not_panicked() {
         mutate::move_stack(&mut world, b, chest, 3),
         Err(MoveError::OutOfRange { index: 3, .. })
     ));
-    assert!(mutate::move_stack(&mut world, a, chest, 0).is_ok(), "re-placing a stack in its own cell is a no-op");
+    assert!(
+        mutate::move_stack(&mut world, a, chest, 0).is_ok(),
+        "re-placing a stack in its own cell is a no-op"
+    );
     let (_, shulker, pickaxe) = chest_of_shulker(&mut world, 1);
     world
         .entity_mut(pickaxe)
@@ -163,14 +211,22 @@ fn split_and_merge_move_counts() {
     assert_eq!(world.get::<ItemStack>(half).unwrap().count(), 15);
     assert_eq!(world.get::<ItemStack>(stone).unwrap().count(), 25);
     assert!(world.get::<Held>(half).is_none());
-    assert!(mcrs_minecraft_item::same_item_same_components(&world, stone, half, items()));
+    assert!(mcrs_minecraft_item::same_item_same_components(
+        &world,
+        stone,
+        half,
+        items()
+    ));
     assert_eq!(mutate::merge_into(&mut world, half, stone, 30), 5);
     assert_eq!(world.get::<ItemStack>(stone).unwrap().count(), 30);
     assert_eq!(world.get::<ItemStack>(half).unwrap().count(), 10);
     assert_eq!(mutate::merge_into(&mut world, half, stone, 64), 10);
     assert!(world.get_entity(half).is_err());
     let rest = mutate::split(&mut world, stone, 99, items()).unwrap();
-    assert!(world.get_entity(stone).is_err(), "splitting everything despawns the source");
+    assert!(
+        world.get_entity(stone).is_err(),
+        "splitting everything despawns the source"
+    );
     assert_eq!(world.get::<ItemStack>(rest).unwrap().count(), 40);
 }
 
@@ -211,13 +267,26 @@ fn moving_a_non_stack_or_dropped_stack_is_an_error() {
     let chest = holder(&mut world, 2);
     let gone = spawn(&mut world, "stone", 1);
     world.despawn(gone);
-    assert!(matches!(mutate::move_stack(&mut world, gone, chest, 0), Err(MoveError::NotAStack(e)) if e == gone));
+    assert!(
+        matches!(mutate::move_stack(&mut world, gone, chest, 0), Err(MoveError::NotAStack(e)) if e == gone)
+    );
     let bare = world.spawn_empty().id();
-    assert!(matches!(mutate::move_stack(&mut world, bare, chest, 0), Err(MoveError::NotAStack(e)) if e == bare));
+    assert!(
+        matches!(mutate::move_stack(&mut world, bare, chest, 0), Err(MoveError::NotAStack(e)) if e == bare)
+    );
     let dropped = spawn(&mut world, "stone", 1);
     mcrs_minecraft_item::dropped::spawn_dropped(&mut world, dropped, 0, None);
-    assert!(matches!(mutate::move_stack(&mut world, dropped, chest, 0), Err(MoveError::Dropped(e)) if e == dropped));
-    assert_eq!(world.get::<mcrs_minecraft_item::SlotTable>(chest).unwrap().iter().count(), 0);
+    assert!(
+        matches!(mutate::move_stack(&mut world, dropped, chest, 0), Err(MoveError::Dropped(e)) if e == dropped)
+    );
+    assert_eq!(
+        world
+            .get::<mcrs_minecraft_item::SlotTable>(chest)
+            .unwrap()
+            .iter()
+            .count(),
+        0
+    );
 }
 
 #[test]

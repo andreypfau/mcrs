@@ -8,10 +8,10 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_item::{Items, load_item_definitions};
+use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::{DirtyStacks, SlotTable, mutate};
+use mcrs_minecraft_item::{Items, load_item_definitions};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue, Template};
 
 pub fn corpus() -> &'static (Blocks, Items) {

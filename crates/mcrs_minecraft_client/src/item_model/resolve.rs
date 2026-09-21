@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::schedule::SystemSet;
+use bevy::ecs::world::EntityRef;
 use bevy::math::{EulerRot, Mat3, Mat4, Quat, Vec3};
 use bevy::prelude::{
     Commands, Component, DetectChanges, Entity, Has, IntoScheduleConfigs, Query, Ref, Res,
     SystemCondition, With, resource_exists,
 };
-use bevy::ecs::world::EntityRef;
 use bytemuck::{Pod, Zeroable};
 use mcrs_minecraft_item::{
     Held, ItemStack, Items, StackRevision, bundle_weight, children, component_value, damage_value,
@@ -123,7 +123,9 @@ pub fn resolve<'a>(
     };
     let mut layers = Vec::new();
     evaluator.collect(&item.root, &mut layers);
-    let gui_light = layers.first().map_or(GuiLight::Front, |layer| layer.model.gui_light);
+    let gui_light = layers
+        .first()
+        .map_or(GuiLight::Front, |layer| layer.model.gui_light);
     let foil = if has_foil(stack, items) {
         Foil::Standard
     } else {
@@ -193,7 +195,14 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
                 property,
                 on_true,
                 on_false,
-            } => self.collect(if self.condition(property) { on_true } else { on_false }, out),
+            } => self.collect(
+                if self.condition(property) {
+                    on_true
+                } else {
+                    on_false
+                },
+                out,
+            ),
             BakedNode::Select {
                 switch,
                 cases,
@@ -207,7 +216,8 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
                 fallback,
             } => {
                 let value = self.range(property) * scale;
-                let chosen = BakedNode::range_index(thresholds, value).map_or(&**fallback, |i| &models[i]);
+                let chosen =
+                    BakedNode::range_index(thresholds, value).map_or(&**fallback, |i| &models[i]);
                 self.collect(chosen, out);
             }
         }
@@ -235,10 +245,11 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
                     has_component(self.stack, self.items, component.0)
                 }
             }
-            ConditionProperty::CustomModelData { index } => self
-                .custom_model_data()
-                .and_then(|data| data.flags.get(*index as usize))
-                == Some(&true),
+            ConditionProperty::CustomModelData { index } => {
+                self.custom_model_data()
+                    .and_then(|data| data.flags.get(*index as usize))
+                    == Some(&true)
+            }
             ConditionProperty::Component(_)
             | ConditionProperty::UsingItem
             | ConditionProperty::Selected
@@ -264,11 +275,15 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
             SelectSwitch::BlockState {
                 block_state_property,
                 cases,
-            } => find(cases, self.get::<BlockState>()?.0.get(block_state_property)?),
+            } => find(
+                cases,
+                self.get::<BlockState>()?.0.get(block_state_property)?,
+            ),
             SelectSwitch::ChargeType { cases } => find(cases, &self.charge_type()),
-            SelectSwitch::CustomModelData { index, cases } => {
-                find(cases, self.custom_model_data()?.strings.get(*index as usize)?)
-            }
+            SelectSwitch::CustomModelData { index, cases } => find(
+                cases,
+                self.custom_model_data()?.strings.get(*index as usize)?,
+            ),
             SelectSwitch::Component(switch) => {
                 let value = component_value(self.stack, switch.component)?;
                 switch
@@ -350,7 +365,10 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
                     .unwrap_or(default.0),
             ),
             TintSource::Firework { default } => {
-                match self.get::<FireworkExplosion>().map_or(&[][..], |e| &e.colors[..]) {
+                match self
+                    .get::<FireworkExplosion>()
+                    .map_or(&[][..], |e| &e.colors[..])
+                {
                     [] => default.0 as u32,
                     [only] => opaque(*only),
                     colors => {
@@ -365,13 +383,17 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
             TintSource::Grass {
                 temperature,
                 downfall,
-            } => sample_colormap(self.models.grass_colormap.as_deref(), *temperature, *downfall)
-                .map_or(0xFFFF_00FF, |[r, g, b, _]| {
-                    0xFF00_0000
-                        | ((r * 255.0) as u32) << 16
-                        | ((g * 255.0) as u32) << 8
-                        | (b * 255.0) as u32
-                }),
+            } => sample_colormap(
+                self.models.grass_colormap.as_deref(),
+                *temperature,
+                *downfall,
+            )
+            .map_or(0xFFFF_00FF, |[r, g, b, _]| {
+                0xFF00_0000
+                    | ((r * 255.0) as u32) << 16
+                    | ((g * 255.0) as u32) << 8
+                    | (b * 255.0) as u32
+            }),
             TintSource::CustomModelData { index, default } => opaque(
                 self.custom_model_data()
                     .and_then(|data| data.colors.get(*index as usize))
@@ -392,7 +414,12 @@ fn gui_matrix(model: &BakedItemModel, local: Mat4) -> Mat4 {
     } else {
         let radians = display.rotation_deg * (std::f32::consts::PI / 180.0);
         Mat4::from_translation(display.translation)
-            * Mat4::from_quat(Quat::from_euler(EulerRot::XYZ, radians.x, radians.y, radians.z))
+            * Mat4::from_quat(Quat::from_euler(
+                EulerRot::XYZ,
+                radians.x,
+                radians.y,
+                radians.z,
+            ))
             * Mat4::from_scale(display.scale)
             * centre
     };
@@ -423,7 +450,12 @@ pub fn light_factor(normal: Vec3, lights: [Vec3; 2]) -> f32 {
     (diffuse * 0.6 + 0.4).min(1.0)
 }
 
-fn gui_vertices(model: &BakedItemModel, local: Mat4, tints: &[u32], gui_light: GuiLight) -> Vec<GuiVertex> {
+fn gui_vertices(
+    model: &BakedItemModel,
+    local: Mat4,
+    tints: &[u32],
+    gui_light: GuiLight,
+) -> Vec<GuiVertex> {
     let matrix = gui_matrix(model, local);
     let normals = Mat3::from_mat4(matrix).inverse().transpose();
     let lights = light_directions(gui_light);
@@ -446,7 +478,11 @@ fn gui_vertices(model: &BakedItemModel, local: Mat4, tints: &[u32], gui_light: G
         // The vertex shader flips y into clip space, which mirrors the winding: a front face
         // must be clockwise here to come out counter-clockwise for the pipeline's cull.
         let winding = (positions[1] - positions[0]).cross(positions[2] - positions[0]);
-        let order: [usize; 4] = if winding.dot(normal) > 0.0 { [3, 2, 1, 0] } else { [0, 1, 2, 3] };
+        let order: [usize; 4] = if winding.dot(normal) > 0.0 {
+            [3, 2, 1, 0]
+        } else {
+            [0, 1, 2, 3]
+        };
         vertices.extend(order.map(|i| GuiVertex {
             pos: positions[i].to_array(),
             uv: quad.uvs[i],
@@ -469,8 +505,9 @@ mod tests {
     use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
     use mcrs_minecraft_item::{DirtyStacks, SlotTable, load_item_definitions, mutate};
     use mcrs_minecraft_protocol::item::{
-        BundleContents, ChargedProjectiles, ComponentPatch, Damage, Enchantments, FireworkExplosion,
-        FireworkShape, ItemComponentKind, ItemStackValue, MaxStackSize, RgbInt, Template,
+        BundleContents, ChargedProjectiles, ComponentPatch, Damage, Enchantments,
+        FireworkExplosion, FireworkShape, ItemComponentKind, ItemStackValue, MaxStackSize, RgbInt,
+        Template,
     };
 
     use super::*;
@@ -490,7 +527,9 @@ mod tests {
             });
             let assets = app.world().resource::<AssetServer>().clone();
             let (blocks, _) = load_block_definitions(&assets).expect("the block corpus loads");
-            Items(Arc::new(load_item_definitions(&assets, &blocks).expect("the item corpus loads")))
+            Items(Arc::new(
+                load_item_definitions(&assets, &blocks).expect("the item corpus loads"),
+            ))
         })
     }
 
@@ -523,7 +562,9 @@ mod tests {
     }
 
     fn resolved(world: &World, stack: Entity) -> ItemRenderLayers {
-        resolve(world.entity(stack), items(), models(), &|child| world.get_entity(child).ok())
+        resolve(world.entity(stack), items(), models(), &|child| {
+            world.get_entity(child).ok()
+        })
     }
 
     fn patch(f: impl FnOnce(&mut ComponentPatch)) -> ComponentPatch {
@@ -543,7 +584,12 @@ mod tests {
     #[test]
     fn damage_and_count_ranges_follow_the_stack() {
         let mut world = World::new();
-        let pick = spawn(&mut world, "diamond_pickaxe", 1, patch(|p| p.set(Damage(Bounded(100)))));
+        let pick = spawn(
+            &mut world,
+            "diamond_pickaxe",
+            1,
+            patch(|p| p.set(Damage(Bounded(100)))),
+        );
         let e = eval(&world, pick);
         assert!((e.range(&RangeProperty::Damage { normalize: true }) - 0.0640615).abs() < 1e-6);
         assert_eq!(e.range(&RangeProperty::Damage { normalize: false }), 100.0);
@@ -563,7 +609,11 @@ mod tests {
     #[test]
     fn bundle_fullness_weighs_children_and_nested_bundles() {
         let mut world = World::new();
-        let inner = value("bundle", 1, patch(|p| p.set(BundleContents(vec![template("arrow", 16)]))));
+        let inner = value(
+            "bundle",
+            1,
+            patch(|p| p.set(BundleContents(vec![template("arrow", 16)]))),
+        );
         let bundle = spawn(
             &mut world,
             "bundle",
@@ -589,7 +639,12 @@ mod tests {
         let mut world = World::new();
         let charged = |projectile: Option<&str>| {
             patch(|p| {
-                p.set(ChargedProjectiles::new(projectile.map(|p| template(p, 1)).into_iter().collect()).unwrap())
+                p.set(
+                    ChargedProjectiles::new(
+                        projectile.map(|p| template(p, 1)).into_iter().collect(),
+                    )
+                    .unwrap(),
+                )
             })
         };
         let empty = spawn(&mut world, "crossbow", 1, charged(None));
@@ -656,14 +711,37 @@ mod tests {
             default: RgbInt(-7697782),
         };
         let potion = spawn(&mut world, "potion", 1, ComponentPatch::EMPTY);
-        let dyed = spawn(&mut world, "leather_chestplate", 1, patch(|p| p.set(DyedColor(RgbInt(0x123456)))));
+        let dyed = spawn(
+            &mut world,
+            "leather_chestplate",
+            1,
+            patch(|p| p.set(DyedColor(RgbInt(0x123456)))),
+        );
         assert_eq!(eval(&world, star).tint(&firework), 0xFF44_5566);
         assert_eq!(eval(&world, plain).tint(&firework), (-7697782i32) as u32);
-        assert_eq!(eval(&world, dyed).tint(&TintSource::Dye { default: RgbInt(0) }), 0xFF12_3456);
+        assert_eq!(
+            eval(&world, dyed).tint(&TintSource::Dye { default: RgbInt(0) }),
+            0xFF12_3456
+        );
         let e = eval(&world, potion);
-        assert_eq!(e.tint(&TintSource::Potion { default: RgbInt(-13083194) }), (-13083194i32) as u32);
-        assert_eq!(e.tint(&TintSource::Constant { value: RgbInt(0xFF0000) }), 0xFFFF_0000);
-        assert_eq!(e.tint(&TintSource::Dye { default: RgbInt(0x123456) }), 0x0012_3456);
+        assert_eq!(
+            e.tint(&TintSource::Potion {
+                default: RgbInt(-13083194)
+            }),
+            (-13083194i32) as u32
+        );
+        assert_eq!(
+            e.tint(&TintSource::Constant {
+                value: RgbInt(0xFF0000)
+            }),
+            0xFFFF_0000
+        );
+        assert_eq!(
+            e.tint(&TintSource::Dye {
+                default: RgbInt(0x123456)
+            }),
+            0x0012_3456
+        );
         let grass = e.tint(&TintSource::Grass {
             temperature: 0.5,
             downfall: 1.0,
@@ -699,7 +777,10 @@ mod tests {
         let layer = &layers.layers[0];
         assert_eq!(layer.vertices.len(), 24);
         assert_eq!(layer.foil, Foil::None);
-        let facing: Vec<Vec3> = quads(layer).filter(|(_, n)| n.z > 0.0).map(|(_, n)| n).collect();
+        let facing: Vec<Vec3> = quads(layer)
+            .filter(|(_, n)| n.z > 0.0)
+            .map(|(_, n)| n)
+            .collect();
         assert_eq!(facing.len(), 3, "{facing:?}");
         for (normal, brightness) in [
             ([0.0, -0.8660254, 0.5], 255),
@@ -709,10 +790,15 @@ mod tests {
             let (quad, _) = quads(layer)
                 .find(|(_, n)| near(*n, normal))
                 .unwrap_or_else(|| panic!("no face with normal {normal:?}"));
-            assert!(quad.iter().all(|v| v.color == [brightness; 3].into_iter().chain([255]).collect::<Vec<_>>()[..]));
+            assert!(quad.iter().all(
+                |v| v.color == [brightness; 3].into_iter().chain([255]).collect::<Vec<_>>()[..]
+            ));
         }
         let all: Vec<Vec3> = layer.vertices.iter().map(|v| Vec3::from(v.pos)).collect();
-        assert!(all.iter().any(|p| near(*p, [15.071068, 3.6698732, 2.5])), "{all:?}");
+        assert!(
+            all.iter().any(|p| near(*p, [15.071068, 3.6698732, 2.5])),
+            "{all:?}"
+        );
         assert!(all.iter().any(|p| near(*p, [0.9289322, 3.6698723, 2.5])));
     }
 
@@ -723,9 +809,15 @@ mod tests {
         let layers = resolved(&world, stick);
         assert_eq!(layers.gui_light, GuiLight::Front);
         let layer = &layers.layers[0];
-        let (front, _) = quads(layer).find(|(_, n)| near(*n, [0.0, 0.0, 1.0])).expect("a front face");
+        let (front, _) = quads(layer)
+            .find(|(_, n)| near(*n, [0.0, 0.0, 1.0]))
+            .expect("a front face");
         assert!(front.iter().all(|v| v.color == [255; 4]));
-        assert!(front.iter().all(|v| (0.0..=16.0).contains(&v.pos[0]) && (0.0..=16.0).contains(&v.pos[1])));
+        assert!(
+            front
+                .iter()
+                .all(|v| (0.0..=16.0).contains(&v.pos[0]) && (0.0..=16.0).contains(&v.pos[1]))
+        );
         assert!(quads(layer).all(|(quad, _)| quad.iter().all(|v| v.sprite == front[0].sprite)));
 
         let sharp = spawn(
@@ -739,7 +831,12 @@ mod tests {
                 )]))
             }),
         );
-        assert!(resolved(&world, sharp).layers.iter().all(|layer| layer.foil == Foil::Standard));
+        assert!(
+            resolved(&world, sharp)
+                .layers
+                .iter()
+                .all(|layer| layer.foil == Foil::Standard)
+        );
     }
 
     #[test]
@@ -759,18 +856,36 @@ mod tests {
         mutate::move_stack(world, held, holder, 0).unwrap();
         let loose = spawn(world, "stick", 1, ComponentPatch::EMPTY);
         app.update();
-        assert_eq!(app.world().get::<ItemRenderLayers>(held).unwrap().gui_light, GuiLight::Front);
+        assert_eq!(
+            app.world().get::<ItemRenderLayers>(held).unwrap().gui_light,
+            GuiLight::Front
+        );
         assert!(app.world().get::<ItemRenderLayers>(loose).is_none());
 
         let world = app.world_mut();
-        let before = world.entity(held).get_ref::<ItemRenderLayers>().unwrap().last_changed();
+        let before = world
+            .entity(held)
+            .get_ref::<ItemRenderLayers>()
+            .unwrap()
+            .last_changed();
         app.update();
-        assert_eq!(app.world().entity(held).get_ref::<ItemRenderLayers>().unwrap().last_changed(), before);
+        assert_eq!(
+            app.world()
+                .entity(held)
+                .get_ref::<ItemRenderLayers>()
+                .unwrap()
+                .last_changed(),
+            before
+        );
 
         let world = app.world_mut();
         mutate::set(world, held, ItemModel(ResourceLocation::minecraft("stone")));
         app.update();
-        let after = app.world().entity(held).get_ref::<ItemRenderLayers>().unwrap();
+        let after = app
+            .world()
+            .entity(held)
+            .get_ref::<ItemRenderLayers>()
+            .unwrap();
         assert_eq!(after.gui_light, GuiLight::Side);
         assert_ne!(after.last_changed(), before);
     }

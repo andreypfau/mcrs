@@ -35,7 +35,12 @@ pub enum MoveError {
 }
 
 pub fn set<K: ItemDataComponent + Component>(world: &mut World, stack: Entity, value: K) {
-    const { assert!(!value::is_child_kind(K::KIND), "child kinds are derived from child stacks") }
+    const {
+        assert!(
+            !value::is_child_kind(K::KIND),
+            "child kinds are derived from child stacks"
+        )
+    }
     let Ok(mut entity) = world.get_entity_mut(stack) else {
         return;
     };
@@ -47,7 +52,12 @@ pub fn set<K: ItemDataComponent + Component>(world: &mut World, stack: Entity, v
 }
 
 pub fn remove<K: ItemDataComponent + Component>(world: &mut World, stack: Entity) {
-    const { assert!(!value::is_child_kind(K::KIND), "child kinds are derived from child stacks") }
+    const {
+        assert!(
+            !value::is_child_kind(K::KIND),
+            "child kinds are derived from child stacks"
+        )
+    }
     let Ok(mut entity) = world.get_entity_mut(stack) else {
         return;
     };
@@ -71,7 +81,12 @@ pub fn set_count(world: &mut World, stack: Entity, count: u8) {
     bump(world, stack);
 }
 
-pub fn move_stack(world: &mut World, stack: Entity, holder: Entity, index: u16) -> Result<(), MoveError> {
+pub fn move_stack(
+    world: &mut World,
+    stack: Entity,
+    holder: Entity,
+    index: u16,
+) -> Result<(), MoveError> {
     let Ok(entity) = world.get_entity(stack) else {
         return Err(MoveError::NotAStack(stack));
     };
@@ -171,7 +186,10 @@ pub(crate) fn bump(world: &mut World, stack: Entity) {
     match world.get::<Held>(stack).copied() {
         Some(held) => bump_holder(world, held.holder, held.index),
         None if world.get::<DroppedItem>(stack).is_some() => {
-            world.get_resource_or_init::<DirtyStacks>().roots.push(stack);
+            world
+                .get_resource_or_init::<DirtyStacks>()
+                .roots
+                .push(stack);
         }
         None => {}
     }

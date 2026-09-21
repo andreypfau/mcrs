@@ -95,11 +95,13 @@ impl ItemDefinitions {
                     file: path,
                 });
             }
-            let id = ItemId(u16::try_from(found).map_err(|_| ItemCorpusError::ProtocolIds {
-                expected,
-                found,
-                file: path.clone(),
-            })?);
+            let id = ItemId(
+                u16::try_from(found).map_err(|_| ItemCorpusError::ProtocolIds {
+                    expected,
+                    found,
+                    file: path.clone(),
+                })?,
+            );
             let placed = item
                 .block_placer
                 .map(|block| {

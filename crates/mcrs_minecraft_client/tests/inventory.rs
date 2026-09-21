@@ -29,8 +29,9 @@ use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
 use mcrs_minecraft_registry::{RegistryLookup, StaticRegistryTable};
 
-const GOLDEN: &str =
-    include_str!("../../mcrs_minecraft_protocol/tests/fixtures/inventory_packets_26_3_snapshot_10.txt");
+const GOLDEN: &str = include_str!(
+    "../../mcrs_minecraft_protocol/tests/fixtures/inventory_packets_26_3_snapshot_10.txt"
+);
 
 fn golden() -> &'static HashMap<&'static str, Vec<u8>> {
     static PACKETS: OnceLock<HashMap<&'static str, Vec<u8>>> = OnceLock::new();
@@ -131,9 +132,16 @@ impl Client {
     fn raw(&self, path: &str, count: i32) -> RawStack {
         let table = self.app.world().resource::<StaticRegistryTable>();
         let id = table
-            .id("item", &mcrs_minecraft_core::ResourceLocation::minecraft(path))
+            .id(
+                "item",
+                &mcrs_minecraft_core::ResourceLocation::minecraft(path),
+            )
             .unwrap();
-        let slot = ProtoStack::new(mcrs_minecraft_registry::ItemId(id as u16), count, ComponentPatch::EMPTY);
+        let slot = ProtoStack::new(
+            mcrs_minecraft_registry::ItemId(id as u16),
+            count,
+            ComponentPatch::EMPTY,
+        );
         RawStack::from_stack(&slot, table).unwrap()
     }
 
@@ -142,14 +150,24 @@ impl Client {
     }
 
     fn stack(&mut self, holder: Entity, cell: u16) -> (String, u8) {
-        let entity = self.cell(holder, cell).unwrap_or_else(|| panic!("cell {cell} is empty"));
+        let entity = self
+            .cell(holder, cell)
+            .unwrap_or_else(|| panic!("cell {cell} is empty"));
         let stack = *self.world().get::<ItemStack>(entity).unwrap();
-        let name = items().get(stack.item()).unwrap().identifier.path().to_owned();
+        let name = items()
+            .get(stack.item())
+            .unwrap()
+            .identifier
+            .path()
+            .to_owned();
         (name, stack.count())
     }
 
     fn stacks(&mut self) -> usize {
-        self.world().query::<&ItemStack>().iter(self.app.world()).count()
+        self.world()
+            .query::<&ItemStack>()
+            .iter(self.app.world())
+            .count()
     }
 
     fn revision(&mut self, entity: Entity) -> u32 {
@@ -175,7 +193,10 @@ impl Client {
     fn open_menu(&mut self, menu_type: &'static str, container_id: i32) -> Entity {
         let table = self.app.world().resource::<StaticRegistryTable>();
         let id = table
-            .id("menu", &mcrs_minecraft_core::ResourceLocation::minecraft(menu_type))
+            .id(
+                "menu",
+                &mcrs_minecraft_core::ResourceLocation::minecraft(menu_type),
+            )
             .unwrap();
         self.receive(&ClientboundOpenScreen {
             container_id: VarInt(container_id),
@@ -201,7 +222,12 @@ fn registry_report_ids_agree_with_the_item_corpus() {
     let client = Client::new();
     let table = client.app.world().resource::<StaticRegistryTable>();
     for entry in items().iter() {
-        assert_eq!(table.id("item", &entry.identifier), Some(u32::from(entry.id.0)), "{}", entry.identifier);
+        assert_eq!(
+            table.id("item", &entry.identifier),
+            Some(u32::from(entry.id.0)),
+            "{}",
+            entry.identifier
+        );
     }
     assert_eq!(table.registry("item").unwrap().len(), items().len());
 }
@@ -219,9 +245,18 @@ fn set_content_fills_the_player_and_the_cursor() {
     let sword = client.cell(player, 36).unwrap();
     let apple = client.cell(player, 9).unwrap();
     let world = client.world();
-    assert_eq!(world.get::<Held>(sword), Some(&Held { holder: player, index: 36 }));
+    assert_eq!(
+        world.get::<Held>(sword),
+        Some(&Held {
+            holder: player,
+            index: 36
+        })
+    );
     assert_eq!(world.get::<Damage>(sword), Some(&Damage(Bounded(7))));
-    assert_eq!(world.get::<CustomName>(sword), Some(&CustomName(Text::text("named"))));
+    assert_eq!(
+        world.get::<CustomName>(sword),
+        Some(&CustomName(Text::text("named")))
+    );
     assert_eq!(world.get::<Unbreakable>(sword), Some(&Unbreakable));
     assert_eq!(world.get::<Damage>(apple), None);
 }
@@ -343,11 +378,20 @@ fn set_held_slot_accepts_only_the_hotbar() {
     let mut client = Client::new();
     let player = client.player;
     client.receive_golden::<ClientboundSetHeldSlot>("set_held_slot");
-    assert_eq!(client.world().get::<SelectedHotbarSlot>(player), Some(&SelectedHotbarSlot(4)));
+    assert_eq!(
+        client.world().get::<SelectedHotbarSlot>(player),
+        Some(&SelectedHotbarSlot(4))
+    );
     client.receive(&ClientboundSetHeldSlot { slot: VarInt(9) });
-    assert_eq!(client.world().get::<SelectedHotbarSlot>(player), Some(&SelectedHotbarSlot(4)));
+    assert_eq!(
+        client.world().get::<SelectedHotbarSlot>(player),
+        Some(&SelectedHotbarSlot(4))
+    );
     client.receive(&ClientboundSetHeldSlot { slot: VarInt(-1) });
-    assert_eq!(client.world().get::<SelectedHotbarSlot>(player), Some(&SelectedHotbarSlot(4)));
+    assert_eq!(
+        client.world().get::<SelectedHotbarSlot>(player),
+        Some(&SelectedHotbarSlot(4))
+    );
 }
 
 #[test]
@@ -376,7 +420,11 @@ fn a_chest_lays_out_over_the_menu_and_the_player() {
     assert_eq!(client.stack(player, 9), ("apple".into(), 2));
     assert_eq!(client.stack(player, 44), ("stone".into(), 1));
     assert_eq!(client.cell(player, 36), None, "menu index 54 arrived empty");
-    assert_eq!(client.stack(player, slots::OFFHAND), ("stone".into(), 16), "outside the layout");
+    assert_eq!(
+        client.stack(player, slots::OFFHAND),
+        ("stone".into(), 16),
+        "outside the layout"
+    );
     assert_eq!(client.cell(player, slots::CARRIED), None);
     assert_eq!(client.seqno(menu), 2);
     assert_eq!(client.seqno(player), 5);
@@ -418,7 +466,11 @@ fn closing_a_container_despawns_the_menu_and_keeps_the_player() {
     assert_eq!(client.stack(player, 44), ("stone".into(), 1));
 
     client.receive_golden::<ClientboundContainerSetContent>("container_set_content_chest");
-    assert_eq!(client.stacks(), 3, "a closed container's content is ignored");
+    assert_eq!(
+        client.stacks(),
+        3,
+        "a closed container's content is ignored"
+    );
 }
 
 #[test]
@@ -429,7 +481,11 @@ fn opening_a_second_screen_replaces_the_first() {
     let second = client.open_chest();
     assert_ne!(first, second);
     assert!(client.world().get_entity(first).is_err());
-    assert_eq!(client.stacks(), 2, "the player's stacks survive, the chest's do not");
+    assert_eq!(
+        client.stacks(),
+        2,
+        "the player's stacks survive, the chest's do not"
+    );
 }
 
 #[test]
@@ -445,7 +501,10 @@ fn a_menu_with_own_slots_first_offsets_the_player_slots() {
         slot: 35,
         item: raw,
     });
-    assert_eq!(client.stack(player, slots::HOTBAR.start + 5), ("stone".into(), 3));
+    assert_eq!(
+        client.stack(player, slots::HOTBAR.start + 5),
+        ("stone".into(), 3)
+    );
     let raw = client.raw("iron_ingot", 2);
     client.receive(&ClientboundContainerSetSlot {
         container_id: VarInt(4),
@@ -475,5 +534,8 @@ fn the_crafter_result_slot_follows_the_player_slots() {
 fn the_lectern_has_no_player_slots() {
     let mut client = Client::new();
     let menu = client.open_menu("lectern", 6);
-    assert_eq!(client.world().get::<MenuLayout>(menu).unwrap().0, vec![(menu, 0)]);
+    assert_eq!(
+        client.world().get::<MenuLayout>(menu).unwrap().0,
+        vec![(menu, 0)]
+    );
 }

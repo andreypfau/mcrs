@@ -1,7 +1,9 @@
 mod common;
 
 use mcrs_minecraft_item::held::SlotTable;
-use mcrs_minecraft_item::{mutate, same_item_same_components, stack_to_slot, stack_to_value, Held, ItemStack};
+use mcrs_minecraft_item::{
+    Held, ItemStack, mutate, same_item_same_components, stack_to_slot, stack_to_value,
+};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
 
 use common::{items, world};
@@ -25,7 +27,8 @@ const SHULKER: &str = r#"{"id": "minecraft:shulker_box", "count": 1, "components
             {"id": "minecraft:apple", "count": 7}, "minecraft:stick"]}}}]}}"#;
 const BUNDLE: &str = r#"{"id": "minecraft:bundle", "components": {"minecraft:bundle_contents": [
     {"id": "minecraft:apple", "count": 7}, {"id": "minecraft:stick", "count": 2}]}}"#;
-const NO_LORE: &str = r#"{"id": "minecraft:stone", "count": 9, "components": {"!minecraft:lore": {}}}"#;
+const NO_LORE: &str =
+    r#"{"id": "minecraft:stone", "count": 9, "components": {"!minecraft:lore": {}}}"#;
 
 #[test]
 fn spawn_then_read_is_the_identity() {
@@ -37,7 +40,10 @@ fn spawn_then_read_is_the_identity() {
         let slot = stack_to_slot(&world, stack, items());
         assert_eq!(slot.count, value.count.0);
         assert_eq!(slot.components, value.components);
-        assert_eq!(items().get(slot.id).unwrap().identifier, *value.item.location());
+        assert_eq!(
+            items().get(slot.id).unwrap().identifier,
+            *value.item.location()
+        );
     }
 }
 
@@ -48,14 +54,20 @@ fn prototype_values_and_absent_removals_normalise_away() {
         r#"{"id": "minecraft:stone", "components": {"minecraft:max_stack_size": 64, "!minecraft:food": {}}}"#,
     );
     let stack = mutate::spawn_stack(&mut world, &value, items()).unwrap();
-    assert_eq!(stack_to_value(&world, stack, items()).components, ComponentPatch::EMPTY);
+    assert_eq!(
+        stack_to_value(&world, stack, items()).components,
+        ComponentPatch::EMPTY
+    );
     let shulker = mutate::spawn_stack(
         &mut world,
         &parse(r#"{"id": "minecraft:shulker_box", "components": {"minecraft:container": []}}"#),
         items(),
     )
     .unwrap();
-    assert_eq!(stack_to_value(&world, shulker, items()).components, ComponentPatch::EMPTY);
+    assert_eq!(
+        stack_to_value(&world, shulker, items()).components,
+        ComponentPatch::EMPTY
+    );
 }
 
 #[test]
@@ -67,11 +79,23 @@ fn nested_stacks_are_child_entities() {
     let cells: Vec<u16> = table.iter().map(|(index, _)| index).collect();
     assert_eq!(cells, [0, 5, 26]);
     let bundle = table.get(26).unwrap();
-    assert_eq!(world.get::<Held>(bundle), Some(&Held { holder: shulker, index: 26 }));
+    assert_eq!(
+        world.get::<Held>(bundle),
+        Some(&Held {
+            holder: shulker,
+            index: 26
+        })
+    );
     let inner = world.get::<SlotTable>(bundle).unwrap();
     assert!(inner.is_growable());
     assert_eq!(inner.len(), 2);
-    assert_eq!(world.get::<ItemStack>(inner.get(0).unwrap()).unwrap().count(), 7);
+    assert_eq!(
+        world
+            .get::<ItemStack>(inner.get(0).unwrap())
+            .unwrap()
+            .count(),
+        7
+    );
     assert_eq!(world.query::<&ItemStack>().iter(&world).count(), 6);
 }
 
@@ -92,10 +116,16 @@ fn apply_value_reconciles_an_existing_subtree() {
         .map(|i| world.get::<SlotTable>(shulker).unwrap().get(i))
         .collect();
     assert_eq!(after[0], before[0], "the kept child keeps its entity");
-    assert_eq!(world.get::<ItemStack>(after[0].unwrap()).unwrap().count(), 3);
+    assert_eq!(
+        world.get::<ItemStack>(after[0].unwrap()).unwrap().count(),
+        3
+    );
     assert_ne!(after[5], before[5], "a different item replaces the child");
     assert!(world.get_entity(before[5].unwrap()).is_err());
-    assert!(world.get_entity(before[26].unwrap()).is_err(), "the removed bundle and its children despawn");
+    assert!(
+        world.get_entity(before[26].unwrap()).is_err(),
+        "the removed bundle and its children despawn"
+    );
     assert_eq!(after[26], None);
     assert_eq!(stack_to_value(&world, shulker, items()), next);
     assert_eq!(world.query::<&ItemStack>().iter(&world).count(), 3);
@@ -113,8 +143,14 @@ fn same_item_same_components_compares_subtrees() {
     let other = mutate::spawn_stack(&mut world, &parse(BUNDLE), items()).unwrap();
     assert!(!same_item_same_components(&world, a, other, items()));
     let plain = mutate::spawn_stack(&mut world, &parse(NO_LORE), items()).unwrap();
-    let with_lore = mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
-    assert!(!same_item_same_components(&world, plain, with_lore, items()));
+    let with_lore =
+        mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
+    assert!(!same_item_same_components(
+        &world,
+        plain,
+        with_lore,
+        items()
+    ));
     mutate::remove::<mcrs_minecraft_protocol::item::Lore>(&mut world, with_lore);
     assert!(same_item_same_components(&world, plain, with_lore, items()));
 }
@@ -122,11 +158,16 @@ fn same_item_same_components_compares_subtrees() {
 #[test]
 fn a_child_kind_on_an_item_without_one_is_refused() {
     let mut world = world();
-    let value = parse(r#"{"id": "minecraft:stone", "components": {"minecraft:bundle_contents": ["minecraft:stick"]}}"#);
+    let value = parse(
+        r#"{"id": "minecraft:stone", "components": {"minecraft:bundle_contents": ["minecraft:stick"]}}"#,
+    );
     let error = mutate::spawn_stack(&mut world, &value, items()).unwrap_err();
     assert!(matches!(
         error,
-        mcrs_minecraft_item::StackError::UnsupportedChildKind { kind: ItemComponentKind::BundleContents, .. }
+        mcrs_minecraft_item::StackError::UnsupportedChildKind {
+            kind: ItemComponentKind::BundleContents,
+            ..
+        }
     ));
 }
 
@@ -137,7 +178,8 @@ fn a_refused_value_leaves_the_world_untouched() {
     let shulker = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
     mutate::move_stack(&mut world, shulker, chest, 0).unwrap();
     let before = stack_to_value(&world, shulker, items());
-    let stacks = |world: &mut bevy_ecs::world::World| world.query::<&ItemStack>().iter(world).count();
+    let stacks =
+        |world: &mut bevy_ecs::world::World| world.query::<&ItemStack>().iter(world).count();
     assert_eq!(stacks(&mut world), 6);
     for (json, expected) in [
         (
@@ -179,7 +221,9 @@ fn child_kind_tombstones_and_empty_foreign_kinds_survive() {
         assert_eq!(stack_to_value(&world, stack, items()), value, "{json}");
     }
     let shulker = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
-    let emptied = parse(r#"{"id": "minecraft:shulker_box", "count": 1, "components": {"!minecraft:container": {}}}"#);
+    let emptied = parse(
+        r#"{"id": "minecraft:shulker_box", "count": 1, "components": {"!minecraft:container": {}}}"#,
+    );
     mutate::apply_value(&mut world, shulker, &emptied, items()).unwrap();
     assert_eq!(stack_to_value(&world, shulker, items()), emptied);
     assert_eq!(world.query::<&ItemStack>().iter(&world).count(), 3);
@@ -190,9 +234,11 @@ fn child_kind_tombstones_and_empty_foreign_kinds_survive() {
 #[test]
 fn a_tombstoned_child_kind_has_no_cells() {
     let mut world = world();
-    let emptied = parse(r#"{"id": "minecraft:shulker_box", "components": {"!minecraft:container": {}}}"#);
+    let emptied =
+        parse(r#"{"id": "minecraft:shulker_box", "components": {"!minecraft:container": {}}}"#);
     let shulker = mutate::spawn_stack(&mut world, &emptied, items()).unwrap();
-    let stone = mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
+    let stone =
+        mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
     assert!(world.get::<SlotTable>(shulker).is_none());
     assert!(matches!(
         mutate::move_stack(&mut world, stone, shulker, 0),
@@ -210,7 +256,12 @@ fn a_tombstoned_child_kind_has_no_cells() {
 #[test]
 fn a_count_outside_the_byte_is_refused() {
     let mut world = world();
-    let stone = mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone", "count": 2}"#), items()).unwrap();
+    let stone = mutate::spawn_stack(
+        &mut world,
+        &parse(r#"{"id": "minecraft:stone", "count": 2}"#),
+        items(),
+    )
+    .unwrap();
     for count in [0, -1, 256] {
         let mut value = parse(r#"{"id": "minecraft:stone"}"#);
         value.count = mcrs_minecraft_core::codec::Bounded(count);
@@ -230,8 +281,14 @@ fn a_count_outside_the_byte_is_refused() {
 #[test]
 fn a_crossbow_refuses_a_projectile_past_the_codec_bound() {
     let mut world = world();
-    let crossbow = mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:crossbow"}"#), items()).unwrap();
-    let arrow = mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:arrow"}"#), items()).unwrap();
+    let crossbow = mutate::spawn_stack(
+        &mut world,
+        &parse(r#"{"id": "minecraft:crossbow"}"#),
+        items(),
+    )
+    .unwrap();
+    let arrow =
+        mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:arrow"}"#), items()).unwrap();
     let bound = mcrs_minecraft_protocol::item::MAX_CHARGED_PROJECTILES as u16;
     assert!(matches!(
         mutate::move_stack(&mut world, arrow, crossbow, bound),
@@ -249,18 +306,32 @@ fn reapplying_a_value_queues_its_cell_once() {
     let shulker = mutate::spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
     mutate::move_stack(&mut world, shulker, chest, 0).unwrap();
     std::mem::take(&mut *world.resource_mut::<mcrs_minecraft_item::DirtyStacks>());
-    let revision = world.get::<mcrs_minecraft_item::StackRevision>(shulker).unwrap().0;
+    let revision = world
+        .get::<mcrs_minecraft_item::StackRevision>(shulker)
+        .unwrap()
+        .0;
     mutate::apply_value(&mut world, shulker, &parse(SHULKER), items()).unwrap();
     let dirty = std::mem::take(&mut *world.resource_mut::<mcrs_minecraft_item::DirtyStacks>());
     assert_eq!(dirty.cells, [(chest, 0)]);
     assert!(dirty.roots.is_empty());
-    assert_eq!(world.get::<mcrs_minecraft_item::StackRevision>(shulker).unwrap().0, revision + 1);
+    assert_eq!(
+        world
+            .get::<mcrs_minecraft_item::StackRevision>(shulker)
+            .unwrap()
+            .0,
+        revision + 1
+    );
 }
 
 #[test]
 fn a_campfire_table_is_bounded_but_not_allocated() {
     let mut world = world();
-    let campfire = mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:campfire"}"#), items()).unwrap();
+    let campfire = mutate::spawn_stack(
+        &mut world,
+        &parse(r#"{"id": "minecraft:campfire"}"#),
+        items(),
+    )
+    .unwrap();
     let table = world.get::<SlotTable>(campfire).unwrap();
     assert_eq!(table.len(), 256);
     assert!(!table.is_empty());

@@ -1,8 +1,8 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::EntityRef;
 use mcrs_minecraft_protocol::item::{
-    Bees, Damage, EnchantmentGlintOverride, Enchantments, ItemComponentKind,
-    ItemComponentValue, LodestoneTracker, MaxDamage, MaxStackSize, Unbreakable,
+    Bees, Damage, EnchantmentGlintOverride, Enchantments, ItemComponentKind, ItemComponentValue,
+    LodestoneTracker, MaxDamage, MaxStackSize, Unbreakable,
 };
 
 use crate::definition::Items;
@@ -20,7 +20,9 @@ pub fn max_stack_size(entity: EntityRef) -> u8 {
 }
 
 pub fn is_damageable(entity: EntityRef) -> bool {
-    entity.contains::<MaxDamage>() && entity.contains::<Damage>() && !entity.contains::<Unbreakable>()
+    entity.contains::<MaxDamage>()
+        && entity.contains::<Damage>()
+        && !entity.contains::<Unbreakable>()
 }
 
 pub fn is_stackable(entity: EntityRef) -> bool {
@@ -42,7 +44,10 @@ pub fn has_component(entity: EntityRef, items: &Items, kind: ItemComponentKind) 
 /// Vanilla's `hasNonDefault`: the stack's value for `kind` is not the
 /// prototype's, a tombstone included.
 pub fn has_non_default(entity: EntityRef, items: &Items, kind: ItemComponentKind) -> bool {
-    let Some(entry) = entity.get::<ItemStack>().and_then(|stack| items.get(stack.item)) else {
+    let Some(entry) = entity
+        .get::<ItemStack>()
+        .and_then(|stack| items.get(stack.item))
+    else {
         return false;
     };
     if Some(kind) == child_kind(entry) {
@@ -99,7 +104,12 @@ pub fn children<'a>(
 ) -> Vec<EntityRef<'a>> {
     entity
         .get::<SlotTable>()
-        .map(|table| table.iter().filter_map(|(_, child)| lookup(child)).collect())
+        .map(|table| {
+            table
+                .iter()
+                .filter_map(|(_, child)| lookup(child))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
