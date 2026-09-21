@@ -67,6 +67,7 @@ pub enum ClientNetworkSystems {
 pub struct ClientNetworkPlugin {
     pub server: ServerAddress,
     pub username: String,
+    pub profile_id: Option<Uuid>,
     pub view_distance: u8,
 }
 
@@ -210,10 +211,11 @@ impl Plugin for ClientNetworkPlugin {
         let (send, recv) = channel(1);
         let server = self.server.clone();
         let username = self.username.clone();
+        let profile_id = self.profile_id.unwrap_or_else(|| offline_player_uuid(&username));
         let view_distance = self.view_distance;
 
         let joining = async move {
-            let outcome = connect_and_log_in(server, username)
+            let outcome = connect_and_log_in(server, username, profile_id)
                 .await
                 .map_err(|e| format!("{e:#}"));
             let _ = send.send(outcome).await;
@@ -278,11 +280,12 @@ pub fn offline_player_uuid(username: &str) -> Uuid {
 async fn connect_and_log_in(
     server: ServerAddress,
     username: String,
+    profile_id: Uuid,
 ) -> anyhow::Result<(RawConnection, ServerProfile)> {
     #[cfg(not(target_family = "wasm"))]
     {
         let io = PacketIo::connect(server).await?;
-        log_in(io, server, server.ip().to_string(), server.port(), username).await
+        log_in(io, server, server.ip().to_string(), server.port(), username, profile_id).await
     }
     #[cfg(target_family = "wasm")]
     {
@@ -291,7 +294,7 @@ async fn connect_and_log_in(
         let peer = SocketAddr::from(([0, 0, 0, 0], 0));
         let (host, port) = server.host_and_port();
         let io = PacketIo::new(crate::browser::connect(&server).await?);
-        log_in(io, peer, host, port, username).await
+        log_in(io, peer, host, port, username, profile_id).await
     }
 }
 
@@ -305,6 +308,7 @@ async fn log_in<S: ByteStream>(
     host: String,
     port: u16,
     username: String,
+    profile_id: Uuid,
 ) -> anyhow::Result<(RawConnection, ServerProfile)> {
     io.send_packet(&ServerboundHandshake {
         protocol_version: VarInt(PROTOCOL_VERSION),
@@ -315,7 +319,7 @@ async fn log_in<S: ByteStream>(
     .await?;
     io.send_packet(&ServerboundHello {
         username: Bounded(username.as_str()),
-        profile_id: offline_player_uuid(&username),
+        profile_id,
     })
     .await?;
 

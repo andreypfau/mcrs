@@ -26,6 +26,8 @@ use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClock, WorldCloc
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::save::{self, SaveError};
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::uuid::Uuid;
 
 use mcrs_minecraft_client::config::TerrainLimits;
 use mcrs_minecraft_client::render::TerrainPlugin;
@@ -205,6 +207,7 @@ fn main() {
     app.add_plugins(ClientNetworkPlugin {
         server,
         username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
+        profile_id: save_data.player_uuid,
         view_distance: config::view_distance(),
     });
     app.add_plugins(mcrs_minecraft_client::columns::ColumnCachePlugin);
@@ -384,6 +387,7 @@ fn world_folder() -> Option<PathBuf> {
 #[cfg(not(target_family = "wasm"))]
 struct SaveData {
     world_clocks: save::WorldClockStates,
+    player_uuid: Option<Uuid>,
     dimension: String,
     advance_time: bool,
     weather: Weather,
@@ -397,6 +401,7 @@ impl Default for SaveData {
     fn default() -> Self {
         Self {
             world_clocks: save::WorldClockStates::default(),
+            player_uuid: None,
             dimension: "minecraft:overworld".to_owned(),
             advance_time: true,
             weather: Weather::default(),
@@ -430,6 +435,7 @@ fn load_save(world: &Path) -> SaveData {
 
     SaveData {
         world_clocks,
+        player_uuid: level.singleplayer_uuid,
         dimension,
         advance_time: game_rules.advance_time,
         weather: Weather {

@@ -3,6 +3,8 @@ use crate::disconnect::despawn_from_dims;
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::PlayerTransferSnapshot;
+use crate::WorldSave;
+use mcrs_minecraft_world::save::read_player_dat;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
@@ -643,6 +645,7 @@ pub fn emit_initial_player_spawn(
     live_dims: Query<Entity, With<DimSubAppHandle>>,
     dim_channels: Res<DimChannelsResource>,
     world_preset: Option<Res<LoadedWorldPreset>>,
+    save: Option<Res<WorldSave>>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
     let dim_label = match live_dims.iter().next() {
@@ -673,11 +676,18 @@ pub fn emit_initial_player_spawn(
         if placement.place() != Place::Unplaced {
             continue;
         }
+        let saved = save
+            .as_ref()
+            .and_then(|save| read_player_dat(&save.0, profile.id).ok().flatten());
         let snapshot = PlayerTransferSnapshot {
             uuid: profile.id,
             username: profile.username.clone(),
-            position: DVec3::new(0.0, 128.0, 0.0),
-            rotation: Vec2::ZERO,
+            position: saved
+                .as_ref()
+                .map_or(DVec3::new(0.0, 128.0, 0.0), |dat| DVec3::from_array(dat.pos)),
+            rotation: saved
+                .as_ref()
+                .map_or(Vec2::ZERO, |dat| Vec2::from_array(dat.rotation)),
             view_distance: info
                 .map(|info| info.view_distance)
                 .unwrap_or(VIEW_DISTANCE_FALLBACK),

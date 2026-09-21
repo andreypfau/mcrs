@@ -155,6 +155,7 @@ pub fn run() {
             app.add_plugins(ClientNetworkPlugin {
                 server,
                 username: query("username").unwrap_or_else(|| "Player".to_owned()),
+                profile_id: None,
                 view_distance: config::view_distance(),
             });
             app.add_plugins(crate::columns::ColumnCachePlugin);
