@@ -11,7 +11,10 @@ use mcrs_minecraft_level::entity::physics::{
 };
 use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed};
 
+use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
+
 use crate::camera::FovFilter;
+use crate::gui::scene::{no_screen, toggle_inventory};
 use crate::local_player::{LastSentMovement, Sprint};
 use crate::options::SENSITIVITY;
 
@@ -40,9 +43,10 @@ impl Plugin for PlayerPlugin {
         app.add_systems(
             Update,
             (
-                release_cursor_on_escape,
+                release_cursor_on_escape.run_if(no_screen),
                 apply_mouse_look,
-                grab_cursor_on_click,
+                grab_cursor_on_click.run_if(no_screen),
+                toggle_inventory,
             )
                 .chain(),
         );
@@ -62,6 +66,8 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
             FlyingSpeed::default(),
             Sprint::default(),
             LastSentMovement::default(),
+            SlotTable::fixed(slots::COUNT),
+            SelectedHotbarSlot::default(),
             Transform::from_translation(position.as_vec3()),
             // The camera hangs off the player, and visibility only reaches a child through a
             // parent that takes part in it.

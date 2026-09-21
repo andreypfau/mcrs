@@ -759,6 +759,13 @@ impl Stream {
 }
 
 impl BlockCatalog {
+    pub fn pack(&self) -> Option<&Arc<Pack>> {
+        match &self.pack {
+            PackLoad::Ready(pack) => Some(pack),
+            _ => None,
+        }
+    }
+
     fn new() -> Self {
         Self {
             pack: PackLoad::Pending,
