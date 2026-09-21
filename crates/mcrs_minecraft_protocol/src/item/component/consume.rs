@@ -1,11 +1,8 @@
 use std::cmp::Ordering;
-use std::io::Write;
 
-use anyhow::bail;
 use mcrs_minecraft_core::codec::{default_true, float_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::nbt_flag;
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::Error as _;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -14,9 +11,7 @@ use crate::item::component::common::{
     Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance, MobEffectReg,
 };
 use crate::item::component::sound::SoundEvent;
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
-use crate::{Decode, Encode, VarInt};
 
 /// Java's `Float.toString` for the values an error message can carry.
 fn java_float(value: f32) -> String {
@@ -120,7 +115,7 @@ impl ConsumeEffectType {
         }
     }
 
-    fn from_wire_id(id: i32) -> Option<Self> {
+    pub(crate) fn from_wire_id(id: i32) -> Option<Self> {
         usize::try_from(id)
             .ok()
             .and_then(|id| Self::ALL.get(id))
@@ -201,57 +196,6 @@ impl Serialize for ConsumeEffect {
     }
 }
 
-impl EncodeCtx for ConsumeEffect {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.kind() as i32).encode(&mut w)?;
-        match self {
-            Self::ApplyEffects {
-                effects,
-                probability,
-            } => {
-                effects.encode_ctx(ctx, &mut w)?;
-                probability.encode(w)
-            }
-            Self::RemoveEffects { effects } => effects.encode_ctx(ctx, w),
-            Self::ClearAllEffects => Ok(()),
-            Self::TeleportRandomly {
-                diameter,
-                directional_particles,
-            } => {
-                diameter.encode(&mut w)?;
-                directional_particles.encode(w)
-            }
-            Self::PlaySound { sound } => sound.encode_ctx(ctx, w),
-        }
-    }
-}
-
-impl DecodeCtx<'_> for ConsumeEffect {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        let Some(kind) = ConsumeEffectType::from_wire_id(id) else {
-            bail!("unknown consume effect type {id}");
-        };
-        Ok(match kind {
-            ConsumeEffectType::ApplyEffects => Self::ApplyEffects {
-                effects: Vec::decode_ctx(ctx, r)?,
-                probability: f32::decode(r)?,
-            },
-            ConsumeEffectType::RemoveEffects => Self::RemoveEffects {
-                effects: HolderSet::decode_ctx(ctx, r)?,
-            },
-            ConsumeEffectType::ClearAllEffects => Self::ClearAllEffects,
-            ConsumeEffectType::TeleportRandomly => Self::TeleportRandomly {
-                diameter: f32::decode(r)?,
-                directional_particles: bool::decode(r)?,
-            },
-            ConsumeEffectType::PlaySound => Self::PlaySound {
-                sound: Holder::decode_ctx(ctx, r)?,
-            },
-        })
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Consumable {
@@ -299,47 +243,11 @@ impl Default for Consumable {
     }
 }
 
-impl EncodeCtx for Consumable {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.consume_seconds.encode(&mut w)?;
-        self.animation.encode(&mut w)?;
-        self.sound.encode_ctx(ctx, &mut w)?;
-        self.has_consume_particles.encode(&mut w)?;
-        self.on_consume_effects.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for Consumable {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Consumable {
-            consume_seconds: f32::decode(r)?,
-            animation: ItemUseAnimation::decode(r)?,
-            sound: Holder::decode_ctx(ctx, r)?,
-            has_consume_particles: bool::decode(r)?,
-            on_consume_effects: Vec::decode_ctx(ctx, r)?,
-        })
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeathProtection {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub death_effects: Vec<ConsumeEffect>,
-}
-
-impl EncodeCtx for DeathProtection {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.death_effects.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for DeathProtection {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(DeathProtection {
-            death_effects: Vec::decode_ctx(ctx, r)?,
-        })
-    }
 }
 
 pub(crate) fn every_consume_effect() -> Vec<ConsumeEffect> {

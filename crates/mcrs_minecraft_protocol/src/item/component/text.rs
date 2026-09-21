@@ -1,20 +1,16 @@
-use std::io::Write;
-
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::Bounded;
 use crate::entity::DyeColor;
 use crate::item::component::common::lenient;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
 use crate::item::harness::Sample;
 use crate::text::{IntoText, Text};
-use crate::{Bounded, Decode, Encode};
 
 macro_rules! text_newtype {
     ($($ty:ident),* $(,)?) => {$(
-        #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
+        #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $ty(pub Text);
 
@@ -47,15 +43,12 @@ macro_rules! text_newtype {
 }
 
 text_newtype!(CustomName, ItemName);
-ctx_free!(CustomName, ItemName);
-
 pub const MAX_LORE_LINES: usize = 256;
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Encode, Decode)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct Lore {
-    lines: Bounded<Vec<Text>, MAX_LORE_LINES>,
+    pub(crate) lines: Bounded<Vec<Text>, MAX_LORE_LINES>,
 }
 
 impl Lore {
@@ -83,8 +76,6 @@ impl<'de> Deserialize<'de> for Lore {
     }
 }
 
-ctx_free!(Lore);
-
 impl Sample for Lore {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         vec![("", mcrs_minecraft_nbt::LIST_ID)]
@@ -101,7 +92,7 @@ impl Sample for Lore {
 
 macro_rules! location_newtype {
     ($($ty:ident),* $(,)?) => {$(
-        #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
+        #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $ty(pub ResourceLocation);
 
@@ -121,8 +112,6 @@ macro_rules! location_newtype {
 }
 
 location_newtype!(ItemModel, TooltipStyle, NoteBlockSound);
-ctx_free!(ItemModel, TooltipStyle, NoteBlockSound);
-
 fn black() -> DyeColor {
     DyeColor::Black
 }
@@ -184,26 +173,6 @@ impl Default for SignText {
     }
 }
 
-impl EncodeCtx for SignText {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.messages.encode_ctx(ctx, &mut w)?;
-        self.filtered_messages.encode_ctx(ctx, &mut w)?;
-        self.color.encode(&mut w)?;
-        self.has_glowing_text.encode(w)
-    }
-}
-
-impl DecodeCtx<'_> for SignText {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(SignText::new(
-            <[Text; 4]>::decode_ctx(ctx, r)?,
-            Option::decode_ctx(ctx, r)?,
-            DyeColor::decode(r)?,
-            bool::decode(r)?,
-        ))
-    }
-}
-
 impl Sample for SignText {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
@@ -239,18 +208,6 @@ macro_rules! sign_newtype {
         #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $ty(pub SignText);
-
-        impl EncodeCtx for $ty {
-            fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-                self.0.encode_ctx(ctx, w)
-            }
-        }
-
-        impl DecodeCtx<'_> for $ty {
-            fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-                SignText::decode_ctx(ctx, r).map($ty)
-            }
-        }
 
         impl Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {

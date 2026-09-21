@@ -1,16 +1,12 @@
 use std::fmt;
-use std::io::Write;
 
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, STRING_ID};
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::common::RegistryName;
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
-use crate::{Decode, Encode};
 
 pub enum NumberProviderReg {}
 
@@ -75,30 +71,6 @@ impl<'de> Deserialize<'de> for ResolvableNumber {
     }
 }
 
-impl EncodeCtx for ResolvableNumber {
-    fn encode_ctx(&self, _: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        match self {
-            ResolvableNumber::Constant(value) => {
-                true.encode(&mut w)?;
-                value.encode(w)
-            }
-            ResolvableNumber::Reference(key) => {
-                false.encode(&mut w)?;
-                key.location().encode(w)
-            }
-        }
-    }
-}
-
-impl DecodeCtx<'_> for ResolvableNumber {
-    fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(match bool::decode(r)? {
-            true => ResolvableNumber::Constant(f32::decode(r)?),
-            false => ResolvableNumber::reference(ResourceLocation::decode(r)?),
-        })
-    }
-}
-
 fn tag_of(number: &ResolvableNumber) -> u8 {
     match number {
         ResolvableNumber::Constant(_) => FLOAT_ID,
@@ -112,21 +84,6 @@ macro_rules! fuel {
         #[serde(deny_unknown_fields)]
         pub struct $ty {
             $(pub $field: ResolvableNumber,)+
-        }
-
-        impl EncodeCtx for $ty {
-            fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-                $(self.$field.encode_ctx(ctx, &mut w)?;)+
-                Ok(())
-            }
-        }
-
-        impl DecodeCtx<'_> for $ty {
-            fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-                Ok($ty {
-                    $($field: ResolvableNumber::decode_ctx(ctx, r)?,)+
-                })
-            }
         }
 
         impl Sample for $ty {
