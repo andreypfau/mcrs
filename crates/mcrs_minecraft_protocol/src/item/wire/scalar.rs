@@ -7,7 +7,13 @@ use crate::item::component::scalar::*;
 use crate::item::wire::{bounded_var_int_wire, newtype_wire, var_int_wire};
 use crate::{Decode, Encode, VarInt};
 
-bounded_var_int_wire!(MaxStackSize, MaxDamage, Damage, RepairCost, OminousBottleAmplifier);
+bounded_var_int_wire!(
+    MaxStackSize,
+    MaxDamage,
+    Damage,
+    RepairCost,
+    OminousBottleAmplifier
+);
 var_int_wire!(MapId, AdditionalTradeCost);
 newtype_wire!(
     EnchantmentGlintOverride,

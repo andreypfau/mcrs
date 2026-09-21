@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, STRING_ID};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -7,9 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::entity::DyeColor;
 use crate::item::component::common::ordinal_enum;
 use crate::item::component::scalar::record_codec;
-use crate::item::ctx::ctx_free;
 use crate::item::harness::Sample;
-use crate::{Decode, Encode, VarInt};
 
 macro_rules! enum_samples {
     ($($ty:ident),* $(,)?) => {$(
@@ -25,7 +21,6 @@ macro_rules! enum_samples {
     )*};
 }
 
-/// The wire id is the ordinal; an out-of-range id is clamped or wrapped.
 macro_rules! continuous_enum {
     ($name:ident [$strategy:ident] { $($variant:ident),* $(,)? }) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -38,28 +33,11 @@ macro_rules! continuous_enum {
             pub const ALL: &'static [Self] = &[$(Self::$variant),*];
         }
 
-        impl Encode for $name {
-            fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-                VarInt(*self as i32).encode(w)
-            }
-        }
-
-        impl Decode<'_> for $name {
-            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-                let id = VarInt::decode(r)?.0;
-                let len = Self::ALL.len() as i32;
-                Ok(Self::ALL[continuous_enum!(@$strategy id, len) as usize])
-            }
-        }
-
-        ctx_free!($name);
         enum_samples!($name);
     };
-    (@clamp $id:expr, $len:expr) => { $id.clamp(0, $len - 1) };
-    (@wrap $id:expr, $len:expr) => { $id.rem_euclid($len) };
 }
 
-/// Explicit wire ids; an unknown one reads as the first variant.
+/// Explicit wire ids.
 macro_rules! sparse_enum {
     ($name:ident { $($variant:ident = $id:literal),* $(,)? }) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -78,24 +56,6 @@ macro_rules! sparse_enum {
             }
         }
 
-        impl Encode for $name {
-            fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-                VarInt(self.id()).encode(w)
-            }
-        }
-
-        impl Decode<'_> for $name {
-            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-                let id = VarInt::decode(r)?.0;
-                Ok(Self::ALL
-                    .iter()
-                    .copied()
-                    .find(|variant| variant.id() == id)
-                    .unwrap_or(Self::ALL[0]))
-            }
-        }
-
-        ctx_free!($name);
         enum_samples!($name);
     };
 }
@@ -194,22 +154,6 @@ pub struct SwingAnimation {
 
 record_codec!(SwingAnimation);
 
-impl Encode for SwingAnimation {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.kind.encode(&mut w)?;
-        VarInt(self.duration.0).encode(w)
-    }
-}
-
-impl Decode<'_> for SwingAnimation {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(SwingAnimation {
-            kind: SwingAnimationKind::decode(r)?,
-            duration: Bounded(VarInt::decode(r)?.0),
-        })
-    }
-}
-
 impl Sample for SwingAnimation {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
@@ -239,11 +183,9 @@ impl Sample for SwingAnimation {
 
 macro_rules! transparent_newtype {
     ($($ty:ident($inner:ident)),* $(,)?) => {$(
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $ty(pub $inner);
-
-        ctx_free!($ty);
 
         impl Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {

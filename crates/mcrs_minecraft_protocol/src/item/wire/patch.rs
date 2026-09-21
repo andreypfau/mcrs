@@ -13,7 +13,11 @@ fn encode_with(
     patch: &ComponentPatch,
     ctx: &dyn RegistryLookup,
     mut w: impl Write,
-    mut value: impl FnMut(&ItemComponentValue, &dyn RegistryLookup, &mut dyn Write) -> anyhow::Result<()>,
+    mut value: impl FnMut(
+        &ItemComponentValue,
+        &dyn RegistryLookup,
+        &mut dyn Write,
+    ) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     VarInt(patch.added.len() as i32).encode(&mut w)?;
     VarInt(patch.removed.len() as i32).encode(&mut w)?;
@@ -66,7 +70,10 @@ pub fn encode_delimited_patch(
 
 /// The bytes a value leaves unread inside its length prefix are skipped:
 /// the declared size is advanced unconditionally.
-pub fn decode_delimited_patch(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<ComponentPatch> {
+pub fn decode_delimited_patch(
+    ctx: &dyn RegistryLookup,
+    r: &mut &[u8],
+) -> anyhow::Result<ComponentPatch> {
     decode_with(ctx, r, |kind, ctx, r| {
         let len = VarInt::decode(r)?.0;
         ensure!(len >= 0, "negative component length");

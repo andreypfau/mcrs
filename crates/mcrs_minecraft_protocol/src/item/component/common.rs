@@ -12,7 +12,6 @@ use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-
 pub use crate::text::optional_flag;
 
 pub use mcrs_minecraft_registry::holder::*;
@@ -140,7 +139,6 @@ macro_rules! resolvable {
                 d.deserialize_any(V(human_readable))
             }
         }
-
     };
 }
 

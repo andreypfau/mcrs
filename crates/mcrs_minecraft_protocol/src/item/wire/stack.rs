@@ -32,7 +32,6 @@ impl<'a> DecodeCtx<'a> for Template {
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ProtoStack {
     pub id: ItemId,
@@ -131,7 +130,11 @@ impl ProtoStack {
             count,
             components: patch(ctx, r)?,
         };
-        Ok(if stack.is_empty() { ProtoStack::EMPTY } else { stack })
+        Ok(if stack.is_empty() {
+            ProtoStack::EMPTY
+        } else {
+            stack
+        })
     }
 
     pub fn encode_delimited_ctx(
@@ -139,7 +142,9 @@ impl ProtoStack {
         ctx: &dyn RegistryLookup,
         w: impl Write,
     ) -> anyhow::Result<()> {
-        self.encode_with(ctx, w, |patch, ctx, w| encode_delimited_patch(patch, ctx, w))
+        self.encode_with(ctx, w, |patch, ctx, w| {
+            encode_delimited_patch(patch, ctx, w)
+        })
     }
 
     pub fn decode_delimited_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
@@ -234,7 +239,10 @@ impl RawDelimitedStack {
         Ok(stack)
     }
 
-    pub fn from_stack(stack: &ProtoStack, ctx: &dyn RegistryLookup) -> anyhow::Result<RawDelimitedStack> {
+    pub fn from_stack(
+        stack: &ProtoStack,
+        ctx: &dyn RegistryLookup,
+    ) -> anyhow::Result<RawDelimitedStack> {
         let mut bytes = Vec::new();
         stack.encode_delimited_ctx(ctx, &mut bytes)?;
         Ok(RawDelimitedStack(bytes.into()))
@@ -277,7 +285,9 @@ impl HashedStack {
     }
 
     pub fn matches(&self, stack: &ProtoStack) -> bool {
-        self.count == stack.count && self.id == stack.id && self.components.matches(&stack.components)
+        self.count == stack.count
+            && self.id == stack.id
+            && self.components.matches(&stack.components)
     }
 }
 
@@ -298,7 +308,6 @@ impl Decode<'_> for HashedStack {
         })
     }
 }
-
 
 impl Encode for HashedPatchMap {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
@@ -350,4 +359,3 @@ impl Decode<'_> for HashedPatchMap {
         Ok(map)
     }
 }
-
