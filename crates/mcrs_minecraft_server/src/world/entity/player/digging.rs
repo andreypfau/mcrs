@@ -50,10 +50,8 @@ impl Plugin for DiggingPlugin {
         app.add_systems(
             Update,
             (
-                (player_start_destroy_block, handle_player_will_destroy_block).run_if(
-                    resource_exists::<DynTagRegistry<VanillaBlock>>
-                        .and_then(resource_exists::<Items>),
-                ),
+                (player_start_destroy_block, handle_player_will_destroy_block)
+                    .run_if(resource_exists::<DynTagRegistry<VanillaBlock>>),
                 player_abort_destroy_block,
                 player_stop_destroy_block,
             ),

@@ -11,12 +11,12 @@ use bytes::Bytes;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::{RegistrySnapshotErased, snapshot::RegistrySnapshot};
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ColumnPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
-use mcrs_minecraft_item::{DroppedItem, ItemStack, Items, SlotTable, slots, stack_to_slot};
+use mcrs_minecraft_item::{DroppedItem, Items, slots, stack_to_slot};
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
@@ -25,8 +25,7 @@ use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSl
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, ContainerInput, Damage, HashedStack, ItemStackValue, ItemStackWithSlot,
-    ProtoStack, RawDelimitedStack, RawStack,
+    ContainerInput, Damage, HashedStack, ItemStackWithSlot, ProtoStack, RawDelimitedStack, RawStack,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClick, ServerboundSetCreativeModeSlot,
@@ -48,7 +47,8 @@ use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 
 use crate::host_app;
-use crate::inventory_sync::corpus;
+use crate::inventory_sync::{self, value};
+use crate::support::standalone_corpus;
 
 const SPAWN: DVec3 = DVec3::new(8.5, 64.0, 8.5);
 
@@ -62,14 +62,13 @@ struct Server {
 
 impl Server {
     fn start() -> Self {
-        let (_, items) = corpus();
+        let (_, items) = standalone_corpus();
         let save = std::env::temp_dir().join(format!("mcrs-inventory-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&save).unwrap();
         let mut app = host_app::make_host_app();
         app.init_resource::<PlayerSessionCounter>();
         app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
         app.add_message::<InboundPlayerSpawn>();
-        app.insert_resource(items.clone());
         app.insert_resource(WorldSave(save.clone()));
         app.world_mut()
             .resource_mut::<RegistryAccess>()
@@ -227,11 +226,7 @@ impl Server {
     }
 
     fn place(&mut self, stack: Entity, holder: Entity, cell: u16) {
-        Transaction(vec![Op::Place {
-            stack,
-            to: Slot::new(holder, cell),
-        }])
-        .apply(self.world());
+        inventory_sync::place(self.world(), stack, holder, cell);
     }
 
     fn give(&mut self, item: &str, count: u8, cell: u16) -> Entity {
@@ -243,8 +238,7 @@ impl Server {
 
     fn cell(&mut self, cell: u16) -> Option<(Entity, u8)> {
         let player = self.player();
-        let stack = self.world().get::<SlotTable>(player).unwrap().get(cell)?;
-        Some((stack, self.world().get::<ItemStack>(stack).unwrap().count()))
+        inventory_sync::cell(self.world(), player, cell)
     }
 
     /// The client holds the player's own column, so entities standing in it pair with it.
@@ -287,14 +281,6 @@ impl Server {
 impl Drop for Server {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.save);
-    }
-}
-
-fn value(item: &str, count: u8) -> ItemStackValue {
-    ItemStackValue {
-        item: ResourceKey::from_location(ResourceLocation::minecraft(item)),
-        count: Bounded(i32::from(count)),
-        components: ComponentPatch::EMPTY,
     }
 }
 

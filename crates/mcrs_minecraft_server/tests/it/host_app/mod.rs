@@ -22,7 +22,7 @@ use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::Block;
-use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
@@ -71,7 +71,7 @@ pub fn make_host_app() -> App {
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
-    app.insert_resource(shared_corpus(&app));
+    crate::support::insert_corpus(&mut app);
 
     app
 }
@@ -81,20 +81,6 @@ pub fn make_host_app() -> App {
 pub fn enable_lighting(app: &mut App) {
     let blocks = app.world().resource::<Blocks>().clone();
     app.insert_resource(BlockLightRegistry(block_light_registry(&blocks)));
-}
-
-/// The real corpus, loaded once per test binary. A stub would let a sub-app
-/// reach worldgen with no block to place.
-fn shared_corpus(app: &App) -> Blocks {
-    static CORPUS: std::sync::OnceLock<Blocks> = std::sync::OnceLock::new();
-    CORPUS
-        .get_or_init(|| {
-            let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
-            let (definitions, _) =
-                load_block_definitions(&asset_server).expect("the block definition corpus loads");
-            Blocks(std::sync::Arc::new(definitions))
-        })
-        .clone()
 }
 
 /// Transition the host app into `AppState::Playing` and run one update so the

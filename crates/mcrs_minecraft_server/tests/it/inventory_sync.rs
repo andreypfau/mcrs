@@ -1,20 +1,13 @@
-use std::sync::{Arc, OnceLock};
-
-use bevy_app::{App, TaskPoolPlugin};
-use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::{RegistryAccess, RegistrySnapshotErased};
-use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
-use mcrs_minecraft_item::{
-    Items, SelectedHotbarSlot, SlotTable, load_item_definitions, slots, stack_to_value,
-};
+use mcrs_minecraft_item::{ItemStack, SelectedHotbarSlot, SlotTable, slots, stack_to_value};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
@@ -24,24 +17,10 @@ use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::item::menu::open_menus;
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
 
-pub(crate) fn corpus() -> &'static (Blocks, Items) {
-    static CORPUS: OnceLock<(Blocks, Items)> = OnceLock::new();
-    CORPUS.get_or_init(|| {
-        let mut app = App::new();
-        app.add_plugins(TaskPoolPlugin::default());
-        app.add_plugins(AssetPlugin {
-            watch_for_changes_override: Some(false),
-            ..Default::default()
-        });
-        let asset_server = app.world().resource::<AssetServer>().clone();
-        let (blocks, _) = load_block_definitions(&asset_server).expect("the block corpus loads");
-        let items = load_item_definitions(&asset_server, &blocks).expect("the item corpus loads");
-        (Blocks(Arc::new(blocks)), Items(Arc::new(items)))
-    })
-}
+use crate::support::standalone_corpus;
 
 pub(crate) fn world() -> (World, Entity, Entity) {
-    let (blocks, items) = corpus();
+    let (blocks, items) = standalone_corpus();
     let mut registry = RegistryAccess::default();
     registry.register(Box::new(RegistrySnapshotErased::from_entries(
         "minecraft:item",
@@ -74,13 +53,21 @@ pub(crate) fn drain(world: &mut World) -> Vec<OutboundPlayerPacket> {
         .collect()
 }
 
-pub(crate) fn stone(world: &mut World) -> Entity {
-    let value = ItemStackValue {
-        item: ResourceKey::from_location(ResourceLocation::minecraft("stone")),
-        count: Bounded(7),
+pub(crate) fn value(item: &str, count: u8) -> ItemStackValue {
+    ItemStackValue {
+        item: ResourceKey::from_location(ResourceLocation::minecraft(item)),
+        count: Bounded(i32::from(count)),
         components: ComponentPatch::EMPTY,
-    };
-    spawn_stack(world, &value, &corpus().1).unwrap()
+    }
+}
+
+pub(crate) fn stone(world: &mut World, count: u8) -> Entity {
+    spawn_stack(world, &value("stone", count), &standalone_corpus().1).unwrap()
+}
+
+pub(crate) fn cell(world: &World, player: Entity, index: u16) -> Option<(Entity, u8)> {
+    let stack = world.get::<SlotTable>(player).unwrap().get(index)?;
+    Some((stack, world.get::<ItemStack>(stack).unwrap().count()))
 }
 
 pub(crate) fn place(world: &mut World, stack: Entity, holder: Entity, index: u16) {
@@ -95,7 +82,7 @@ pub(crate) fn set_count(world: &mut World, stack: Entity, count: u8) {
     let op = match count {
         0 => Op::Despawn { stack },
         count => {
-            let mut value = stack_to_value(world, stack, &corpus().1);
+            let mut value = stack_to_value(world, stack, &standalone_corpus().1);
             value.count = Bounded(i32::from(count));
             Op::Apply { stack, value }
         }
@@ -146,7 +133,7 @@ fn dirty_cells_become_set_slot_and_cursor_packets() {
     sync_stack_slots(&mut world);
     drain(&mut world);
 
-    let stack = stone(&mut world);
+    let stack = stone(&mut world, 7);
     place(&mut world, stack, player, slots::HOTBAR.start);
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);

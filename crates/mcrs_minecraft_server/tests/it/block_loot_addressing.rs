@@ -5,7 +5,7 @@ use bevy_asset::AssetPlugin;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 
 fn corpus() -> &'static BlockDefinitions {
-    support::standalone_corpus()
+    &support::standalone_corpus().0.0
 }
 
 fn table_of(blocks: &BlockDefinitions, block: &str) -> Option<String> {
@@ -102,7 +102,7 @@ fn block_loot_tables_is_keyed_by_loot_id() {
         watch_for_changes_override: Some(false),
         ..Default::default()
     });
-    app.insert_resource(support::corpus(&app));
+    support::insert_corpus(&mut app);
     app.add_plugins(mcrs_minecraft_server::world::loot::LootPlugin);
 
     let blocks = app

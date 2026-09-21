@@ -19,7 +19,6 @@ use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol::item::{ProtoStack, RawStack};
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
 use rustc_hash::FxHashSet;
-use smallvec::SmallVec;
 
 const DROPPED_ITEM_STACK_INDEX: u8 = 8;
 
@@ -48,9 +47,7 @@ fn dirty_holders(world: &mut World) -> FxHashSet<Entity> {
 /// Sends every open menu the cells its viewer does not hold yet, and every
 /// tracked dropped item its stack when that changed.
 pub fn sync_stack_slots(world: &mut World) {
-    let Some(items) = world.get_resource::<Items>().cloned() else {
-        return;
-    };
+    let items = world.resource::<Items>().clone();
     let registry = world.resource::<RegistryAccess>().clone();
     let blocks = world.resource::<Blocks>().clone();
     let lookups: [&dyn RegistryLookup; 2] = [&registry, &*blocks.0];
@@ -158,16 +155,7 @@ pub fn sync_stack_slots(world: &mut World) {
         {
             continue;
         }
-        let targets: SmallVec<[Entity; 8]> = world
-            .get::<TrackedBy>(root)
-            .map(|tracked| {
-                tracked
-                    .0
-                    .iter()
-                    .filter_map(|&player| world.get::<HostAnchor>(player).map(|anchor| anchor.0))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let targets = TrackedBy::anchors(world, root);
         world.entity_mut(root).insert(WireStack(encoded.clone()));
         out.push(OutboundPlayerPacket {
             target: PacketTarget::PlayerSet(targets),

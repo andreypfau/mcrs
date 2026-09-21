@@ -5,7 +5,7 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::inventory::slots;
 use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, stack_to_value};
-use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::{DimensionId, InDimension};
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -115,7 +115,6 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
         .get::<Transform>(player)
         .copied()
         .unwrap_or(Transform::IDENTITY);
-    let rotation: Rotation = transform.rotation;
     let dimension = world
         .get::<InDimension>(player)
         .and_then(|dim| world.get::<DimensionId>(dim.0))
@@ -124,7 +123,7 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
     PlayerDat {
         data_version: WORLD_VERSION,
         pos: transform.translation.to_array(),
-        rotation: [rotation.yaw(), rotation.pitch()],
+        rotation: [transform.rotation.yaw(), transform.rotation.pitch()],
         dimension,
         inventory,
         selected_item_slot: world

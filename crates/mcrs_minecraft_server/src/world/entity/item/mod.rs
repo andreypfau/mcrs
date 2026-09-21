@@ -111,14 +111,6 @@ pub fn throw_velocity(yaw: f32, pitch: f32, rng: &mut impl Rng) -> DVec3 {
     )
 }
 
-pub fn block_drop_velocity(rng: &mut impl Rng) -> DVec3 {
-    DVec3::new(
-        rng.random::<f64>() * 0.2 - 0.1,
-        0.2,
-        rng.random::<f64>() * 0.2 - 0.1,
-    )
-}
-
 /// A stack a transaction threw has no place yet: it starts in front of its
 /// thrower, or is lost with a thrower that has no position.
 pub fn launch_thrown_items(world: &mut World) {
@@ -169,7 +161,11 @@ pub fn spawn_block_drops(world: &mut World) {
             f64::from(drop.pos.y) + 0.5 + scatter() - ITEM_HEIGHT / 2.0,
             f64::from(drop.pos.z) + 0.5 + scatter(),
         );
-        let velocity = block_drop_velocity(&mut rng);
+        let velocity = DVec3::new(
+            rng.random::<f64>() * 0.2 - 0.1,
+            0.2,
+            rng.random::<f64>() * 0.2 - 0.1,
+        );
         let item = spawn_dropped(
             world,
             value,
