@@ -1,6 +1,3 @@
-use std::io::Write;
-
-use anyhow::ensure;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, PositiveInt, float_value, int_value};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, INT_ID};
 use serde::de::Error as _;
@@ -8,9 +5,7 @@ use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::common::RgbInt;
-use crate::item::ctx::ctx_free;
 use crate::item::harness::Sample;
-use crate::{Decode, Encode, VarInt};
 
 macro_rules! var_int_newtype {
     ($($(#[$meta:meta])* $ty:ident($inner:ty)),* $(,)?) => {$(
@@ -18,25 +13,10 @@ macro_rules! var_int_newtype {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $ty(pub $inner);
-
-        impl Encode for $ty {
-            fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-                VarInt(self.0.0).encode(w)
-            }
-        }
-
-        impl Decode<'_> for $ty {
-            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-                Ok($ty(codec::Bounded(VarInt::decode(r)?.0)))
-            }
-        }
-
-        ctx_free!($ty);
     )*};
 }
 
 var_int_newtype! {
-    #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
     MaxStackSize(codec::Bounded<1, 99, 64>),
     MaxDamage(PositiveInt),
     Damage(NonNegativeInt),
@@ -87,7 +67,7 @@ macro_rules! record_codec {
 pub(crate) use record_codec;
 
 macro_rules! var_int_record {
-    ($($ty:ident { $field:ident: $inner:ty } $(=> $guard:expr)?),* $(,)?) => {$(
+    ($($ty:ident { $field:ident: $inner:ty }),* $(,)?) => {$(
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[serde(remote = "Self", deny_unknown_fields)]
         pub struct $ty {
@@ -95,22 +75,6 @@ macro_rules! var_int_record {
         }
 
         record_codec!($ty);
-
-        impl Encode for $ty {
-            fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-                VarInt(self.$field.0).encode(w)
-            }
-        }
-
-        impl Decode<'_> for $ty {
-            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-                let $field = VarInt::decode(r)?.0;
-                $($guard;)?
-                Ok($ty { $field: codec::Bounded($field) })
-            }
-        }
-
-        ctx_free!($ty);
 
         impl Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -129,8 +93,7 @@ macro_rules! var_int_record {
 }
 
 var_int_record! {
-    Enchantable { value: PositiveInt }
-        => ensure!(value > 0, "Enchantment value must be positive, but was {value}"),
+    Enchantable { value: PositiveInt },
     VillagerFood { nutrition: PositiveInt },
 }
 
@@ -138,53 +101,17 @@ var_int_record! {
 #[serde(transparent)]
 pub struct MapId(#[serde(deserialize_with = "int_value")] pub i32);
 
-impl Encode for MapId {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.0).encode(w)
-    }
-}
-
-impl Decode<'_> for MapId {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(MapId(VarInt::decode(r)?.0))
-    }
-}
-
-ctx_free!(MapId);
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AdditionalTradeCost(pub i32);
 
-impl Encode for AdditionalTradeCost {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.0).encode(w)
-    }
-}
-
-impl Decode<'_> for AdditionalTradeCost {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(AdditionalTradeCost(VarInt::decode(r)?.0))
-    }
-}
-
-ctx_free!(AdditionalTradeCost);
-
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, Encode, Decode,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct EnchantmentGlintOverride(pub bool);
 
-ctx_free!(EnchantmentGlintOverride);
-
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, Encode, Decode,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DyedColor(pub RgbInt);
-
-ctx_free!(DyedColor);
 
 /// Bounds order `-0.0` below `0.0` and `NaN` above everything, unlike
 /// `PartialOrd`.
@@ -203,7 +130,7 @@ fn float_in_range(
 macro_rules! float_newtype {
     ($($(#[$meta:meta])* $ty:ident [$min:expr, $max:expr] $message:expr),* $(,)?) => {$(
         $(#[$meta])*
-        #[derive(Clone, Copy, Debug, PartialEq, Default, Encode, Decode)]
+        #[derive(Clone, Copy, Debug, PartialEq, Default)]
         pub struct $ty(pub f32);
 
         impl Serialize for $ty {
@@ -221,8 +148,6 @@ macro_rules! float_newtype {
                     .map_err(D::Error::custom)
             }
         }
-
-        ctx_free!($ty);
 
         impl Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
