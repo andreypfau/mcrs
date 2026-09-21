@@ -1,12 +1,12 @@
-use crate::inventory_sync::{corpus, drain, place, set_count, stone, world};
+use crate::inventory_sync::{drain, place, set_count, stone, value, world};
+use crate::support::standalone_corpus;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, SectionPos};
+use mcrs_minecraft_core::{BlockPos, ResourceLocation, SectionPos};
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{MenuContainer, Op, Slot};
 use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, WireStack, slots};
@@ -20,7 +20,7 @@ use mcrs_minecraft_level::world::lifecycle::ticket::{
 };
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
-use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue, ItemStackWithSlot, RawStack};
+use mcrs_minecraft_protocol::item::{ItemStackWithSlot, RawStack};
 use mcrs_minecraft_server::world::block_entity::{BlockEntity, spawn_block_entities};
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::item::pickup::pickup_items;
@@ -38,7 +38,7 @@ const FLOOR_TOP: f64 = 1.0;
 
 /// A dimension whose only section is ticking and has a stone floor at y = 0.
 fn dimension(world: &mut World) -> Entity {
-    let (blocks, _) = corpus();
+    let (blocks, _) = standalone_corpus();
     let stone = VoxelId(blocks.default_state("minecraft:stone").0);
     let mut tickets = SectionTickets::default();
     tickets.add(SectionPos::new(0, 0, 0), Ticket::player_simulation(1));
@@ -68,18 +68,10 @@ fn standing(world: &mut World, player: Entity, dim: Entity) {
         .insert((InDimension(dim), Transform::from_xyz(8.5, FLOOR_TOP, 8.5)));
 }
 
-fn stone_value(count: u8) -> ItemStackValue {
-    ItemStackValue {
-        item: ResourceKey::from_location(ResourceLocation::minecraft("stone")),
-        count: Bounded(i32::from(count)),
-        components: ComponentPatch::EMPTY,
-    }
-}
-
 fn resting_item(world: &mut World, dim: Entity, count: u8) -> Entity {
     spawn_dropped(
         world,
-        stone_value(count),
+        value("stone", count),
         dim,
         DVec3::new(8.5, FLOOR_TOP, 8.5),
         DVec3::ZERO,
@@ -99,7 +91,7 @@ fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
     let (mut world, player, _) = world();
     let dim = dimension(&mut world);
     standing(&mut world, player, dim);
-    let stack = stone(&mut world);
+    let stack = stone(&mut world, 7);
     place(&mut world, stack, player, slots::HOTBAR.start);
     commit(
         &mut world,
@@ -129,7 +121,7 @@ fn an_item_falls_onto_the_floor_and_ages() {
     let dim = dimension(&mut world);
     let stack = spawn_dropped(
         &mut world,
-        stone_value(7),
+        value("stone", 7),
         dim,
         DVec3::new(8.5, 4.0, 8.5),
         DVec3::ZERO,
@@ -168,9 +160,8 @@ fn pickup_fills_the_held_slot_first_and_announces_the_take_before_the_stack_move
     let dim = dimension(&mut world);
     standing(&mut world, player, dim);
     for index in slots::HOTBAR.chain(slots::MAIN) {
-        let filler = stone(&mut world);
         let count = if index == slots::held(3) { 60 } else { 64 };
-        set_count(&mut world, filler, count);
+        let filler = stone(&mut world, count);
         place(&mut world, filler, player, index);
     }
     let item = resting_item(&mut world, dim, 7);
@@ -246,7 +237,7 @@ fn chest(world: &mut World, dim: Entity) -> Entity {
             SlotTable::fixed(27),
         ))
         .id();
-    let stack = stone(world);
+    let stack = stone(world, 7);
     place(world, stack, chest, 3);
     chest
 }
@@ -327,11 +318,7 @@ fn a_loaded_chest_holds_its_saved_items_as_stacks() {
     let dim = dimension(&mut world);
     let entry = |slot: u8| ItemStackWithSlot {
         slot,
-        stack: ItemStackValue {
-            item: ResourceKey::from_location(ResourceLocation::minecraft("stone")),
-            count: Bounded(5),
-            components: ComponentPatch::EMPTY,
-        },
+        stack: value("stone", 5),
     };
     let data = ContainerData {
         x: 2,

@@ -1,4 +1,5 @@
-use crate::inventory_sync::{corpus, drain, place, set_count, stone, world};
+use crate::inventory_sync::{cell, drain, place, stone, world};
+use crate::support::standalone_corpus;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
@@ -6,7 +7,7 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_inventory::{
     ContainerClickRequest, CurrentMenu, Menu, Remote, RemoteSlots, handle_container_clicks,
 };
-use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, Thrower, slots, stack_to_slot};
+use mcrs_minecraft_item::{DroppedItem, Thrower, slots, stack_to_slot};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack, RawStack};
 use mcrs_minecraft_server::world::bus::PacketPayload;
@@ -41,6 +42,18 @@ fn click_claiming(
             .unwrap()
             .state_id,
     );
+    click_at(world, player, state_id, input, slot, button, changed);
+}
+
+fn click_at(
+    world: &mut World,
+    player: Entity,
+    state_id: i32,
+    input: ContainerInput,
+    slot: i16,
+    button: u8,
+    changed: Vec<(u16, Option<HashedStack>)>,
+) {
     world
         .resource_mut::<Messages<ContainerClickRequest>>()
         .write(ContainerClickRequest {
@@ -66,15 +79,10 @@ fn handle_clicks(world: &mut World) {
         .clear();
 }
 
-fn cell(world: &World, player: Entity, index: u16) -> Option<(Entity, u8)> {
-    let stack = world.get::<SlotTable>(player).unwrap().get(index)?;
-    Some((stack, world.get::<ItemStack>(stack).unwrap().count()))
-}
-
 #[test]
 fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
     let (mut world, player) = opened();
-    let stack = stone(&mut world);
+    let stack = stone(&mut world, 7);
     place(&mut world, stack, player, slots::HOTBAR.start);
 
     click(
@@ -101,7 +109,7 @@ fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
 #[test]
 fn right_click_takes_half_then_places_one() {
     let (mut world, player) = opened();
-    let stack = stone(&mut world);
+    let stack = stone(&mut world, 7);
     place(&mut world, stack, player, slots::HOTBAR.start);
 
     click(
@@ -131,7 +139,7 @@ fn right_click_takes_half_then_places_one() {
 #[test]
 fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
     let (mut world, player) = opened();
-    let stack = stone(&mut world);
+    let stack = stone(&mut world, 7);
     place(&mut world, stack, player, slots::HOTBAR.start);
 
     click(
@@ -157,7 +165,7 @@ fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
 #[test]
 fn throw_turns_the_stack_into_a_dropped_item() {
     let (mut world, player) = opened();
-    let stack = stone(&mut world);
+    let stack = stone(&mut world, 7);
     place(&mut world, stack, player, slots::HOTBAR.start);
 
     click(
@@ -175,12 +183,13 @@ fn throw_turns_the_stack_into_a_dropped_item() {
 #[test]
 fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
     let (mut world, player) = opened();
-    let stack = stone(&mut world);
+    let stack = stone(&mut world, 7);
     place(&mut world, stack, player, slots::HOTBAR.start);
     sync_stack_slots(&mut world);
     drain(&mut world);
 
-    let claimed = HashedStack::create(&stack_to_slot(&world, stack, &corpus().1)).unwrap();
+    let claimed =
+        HashedStack::create(&stack_to_slot(&world, stack, &standalone_corpus().1)).unwrap();
     let untouched = slots::MAIN.start + 3;
     click_claiming(
         &mut world,
@@ -203,20 +212,15 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
         PacketPayload::ContainerSetSlot { slot, item, .. } if *slot == untouched as i16 && *item == RawStack::EMPTY
     ));
 
-    world
-        .resource_mut::<Messages<ContainerClickRequest>>()
-        .write(ContainerClickRequest {
-            player,
-            game_mode: GameMode::Survival,
-            container_id: 0,
-            state_id: 0,
-            slot: -1,
-            button: 0,
-            input: ContainerInput::Pickup,
-            changed: Vec::new(),
-            carried: None,
-        });
-    handle_clicks(&mut world);
+    click_at(
+        &mut world,
+        player,
+        0,
+        ContainerInput::Pickup,
+        -1,
+        0,
+        Vec::new(),
+    );
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
     assert_eq!(packets.len(), 1, "{packets:?}");
@@ -231,14 +235,11 @@ fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
     let (mut world, player) = opened();
     world.init_resource::<Messages<CloseContainerRequest>>();
     let held_cell = slots::held(3);
-    let held = stone(&mut world);
-    set_count(&mut world, held, 30);
+    let held = stone(&mut world, 30);
     place(&mut world, held, player, held_cell);
-    let first = stone(&mut world);
-    set_count(&mut world, first, 50);
+    let first = stone(&mut world, 50);
     place(&mut world, first, player, slots::HOTBAR.start);
-    let carried = stone(&mut world);
-    set_count(&mut world, carried, 10);
+    let carried = stone(&mut world, 10);
     place(&mut world, carried, player, slots::CARRIED);
 
     world.write_message(CloseContainerRequest {

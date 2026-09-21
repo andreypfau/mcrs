@@ -93,7 +93,7 @@ pub fn spawn_generated_entities(
     dim: InDimension,
     sections: &[(Entity, SectionPos)],
     registry: Option<&RegistryAccess>,
-    items: Option<&Items>,
+    items: &Items,
     entities: Vec<GeneratedEntity>,
 ) {
     for entity in entities {
@@ -114,7 +114,7 @@ fn spawn_one(
     dim: InDimension,
     section: Entity,
     registry: Option<&RegistryAccess>,
-    items: Option<&Items>,
+    items: &Items,
     entity: GeneratedEntity,
     vehicle: Option<Entity>,
 ) {
@@ -347,16 +347,15 @@ fn registered<T: DeserializeOwned + Default>(name: &str) -> T {
 }
 
 /// A stack the corpus cannot name is carried as nothing.
-fn stack(items: Option<&Items>, stack: GeneratedStack) -> Option<ItemStack> {
+fn stack(items: &Items, stack: GeneratedStack) -> Option<ItemStack> {
     let name = serde_json::to_value(stack.id).ok()?;
-    let id = items?.id_of(name.as_str()?);
-    if id.is_none() {
-        tracing::warn!(item = %name, "a spawned entity carries an item the corpus lacks");
-    }
-    Some(ItemStack::new(id?, stack.count as u8))
+    Some(ItemStack::new(
+        items.id_of(name.as_str()?)?,
+        stack.count as u8,
+    ))
 }
 
-fn carried(items: Option<&Items>, equipment: GeneratedEquipment) -> Equipment {
+fn carried(items: &Items, equipment: GeneratedEquipment) -> Equipment {
     Equipment {
         mainhand: equipment
             .mainhand
@@ -743,7 +742,7 @@ mod tests {
             InDimension(dim),
             &[(section, SectionPos::new(0, 4, 0))],
             None,
-            None,
+            &Items(std::sync::Arc::default()),
             vec![witch],
         );
         app.world_mut().flush();

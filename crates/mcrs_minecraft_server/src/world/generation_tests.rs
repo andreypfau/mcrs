@@ -12,6 +12,7 @@ use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_item::Items;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_protocol::ColumnPos;
@@ -163,6 +164,7 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
 
     let mut app = App::new();
     dim.install(&mut app);
+    app.insert_resource(Items(Arc::default()));
     app.add_message::<SectionStageChanged>();
     let dimension_entity = app.world_mut().spawn_empty().id();
     app.init_resource::<PendingColumnHeightmaps>();
@@ -717,6 +719,7 @@ fn a_dead_first_section_does_not_take_the_column_s_block_entities_with_it() {
     app.add_message::<SectionStageChanged>();
     app.init_resource::<PendingColumnHeightmaps>();
     app.insert_resource(ColumnScheduler::default());
+    app.insert_resource(Items(Arc::default()));
 
     let dim = app.world_mut().spawn_empty().id();
     let dead = app.world_mut().spawn(InDimension(dim)).id();

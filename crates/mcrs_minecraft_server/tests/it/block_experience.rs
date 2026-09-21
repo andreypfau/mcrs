@@ -3,15 +3,16 @@ use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_item::enchantment::{EnchantmentData, register_all_enchantments};
 use mcrs_minecraft_level::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
-use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, ItemStackValue};
+use mcrs_minecraft_protocol::item::Enchantments;
 use mcrs_minecraft_registry::StaticRegistry;
+
+use crate::inventory_sync::value;
 
 fn harness() -> App {
     let mut app = App::new();
@@ -25,9 +26,7 @@ fn harness() -> App {
     register_all_enchantments(&mut enchantments, &asset_server);
     enchantments.freeze();
     app.insert_resource(enchantments);
-    let (blocks, items) = crate::inventory_sync::corpus();
-    app.insert_resource(blocks.clone());
-    app.insert_resource(items.clone());
+    crate::support::insert_corpus(&mut app);
     app.add_plugins(ExperiencePlugin);
     app.add_systems(Update, collect_awards);
     app.init_resource::<Awarded>();
@@ -46,30 +45,13 @@ fn collect_awards(mut reader: MessageReader<AwardExperience>, mut awarded: ResMu
 /// A diamond pickaxe stack whose only patch is the enchantment, the shape a
 /// held tool actually has.
 fn enchanted_pickaxe(app: &mut App, enchantment: &str, level: i32) -> Entity {
-    app.world()
-        .resource::<StaticRegistry<EnchantmentData>>()
-        .id_of(enchantment)
-        .unwrap_or_else(|| panic!("{enchantment} is registered"));
     let items = app.world().resource::<Items>().clone();
-    let pickaxe = ItemStackValue {
-        item: ResourceKey::from_location(ResourceLocation::minecraft("diamond_pickaxe")),
-        count: Bounded(1),
-        components: ComponentPatch::EMPTY,
-    };
-    let tool =
-        mcrs_minecraft_inventory::value::spawn_stack(app.world_mut(), &pickaxe, &items).unwrap();
-    let enchantments = Enchantments(vec![(
+    let mut pickaxe = value("diamond_pickaxe", 1);
+    pickaxe.components.set(Enchantments(vec![(
         ResourceKey::from_location(ResourceLocation::parse(enchantment).unwrap()),
         level,
-    )]);
-    bevy_ecs::system::Command::apply(
-        mcrs_minecraft_inventory::Transaction(vec![mcrs_minecraft_inventory::Op::Insert {
-            stack: tool,
-            component: enchantments.into(),
-        }]),
-        app.world_mut(),
-    );
-    tool
+    )]));
+    mcrs_minecraft_inventory::value::spawn_stack(app.world_mut(), &pickaxe, &items).unwrap()
 }
 
 fn break_coal_ore(app: &mut App, tool: Option<Entity>, breaks: usize) -> Vec<i32> {

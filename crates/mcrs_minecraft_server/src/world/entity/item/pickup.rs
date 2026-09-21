@@ -19,7 +19,6 @@ use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_protocol::GameMode;
 use rustc_hash::FxHashMap;
-use smallvec::SmallVec;
 
 const PLAYER_HALF_WIDTH: f64 = 0.3;
 const PLAYER_HEIGHT: f64 = 1.8;
@@ -58,7 +57,7 @@ pub fn pickup_items(world: &mut World) {
     for (player, player_dim, at, creative) in players {
         let mut ops = Vec::new();
         for &(item, item_dim, item_at) in &ready {
-            if item_dim != player_dim || !touching(at, item_at) || world.get_entity(item).is_err() {
+            if item_dim != player_dim || !touching(at, item_at) {
                 continue;
             }
             let Some(view) = StackView::of(world, item, &items) else {
@@ -72,15 +71,8 @@ pub fn pickup_items(world: &mut World) {
             if room == 0 && !creative {
                 continue;
             }
-            let mut targets: SmallVec<[Entity; 8]> = std::iter::once(player)
-                .chain(
-                    world
-                        .get::<TrackedBy>(item)
-                        .into_iter()
-                        .flat_map(|tracked| tracked.0.iter().copied()),
-                )
-                .filter_map(|viewer| world.get::<HostAnchor>(viewer).map(|anchor| anchor.0))
-                .collect();
+            let mut targets = TrackedBy::anchors(world, item);
+            targets.extend(world.get::<HostAnchor>(player).map(|anchor| anchor.0));
             targets.sort_unstable();
             targets.dedup();
             world

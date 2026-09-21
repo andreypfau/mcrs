@@ -28,7 +28,7 @@ fn handle_use_item_on(
     event: On<ReceivedPacketEvent>,
     players: Query<(&InDimension, &Reposition, &SlotTable, &SelectedHotbarSlot)>,
     stacks: Query<&ItemStack>,
-    items: Option<Res<Items>>,
+    items: Res<Items>,
     containers: Query<(Entity, &BlockEntityPos, &InDimension), With<SlotTable>>,
     mut writer: MessageWriter<BlockSetRequest>,
     mut open: MessageWriter<OpenContainerRequest>,
@@ -36,7 +36,7 @@ fn handle_use_item_on(
     let Some(pkt) = event.decode::<ServerboundUseItemOn>() else {
         return;
     };
-    let (Ok((dim, rep, table, selected)), Some(items)) = (players.get(event.entity), items) else {
+    let Ok((dim, rep, table, selected)) = players.get(event.entity) else {
         return;
     };
     let clicked = rep.unconvert_block_pos(pkt.block_pos);

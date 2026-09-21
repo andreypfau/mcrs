@@ -55,7 +55,7 @@ fn build_app() -> App {
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
-    app.insert_resource(support::corpus(&app));
+    support::insert_corpus(&mut app);
 
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
