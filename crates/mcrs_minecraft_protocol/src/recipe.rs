@@ -19,14 +19,6 @@ validated!(Ingredient);
 #[serde(remote = "Self", transparent)]
 pub struct Ingredient(pub HolderSet<ResourceKey<ItemReg>>);
 
-impl Ingredient {
-    pub fn new(values: HolderSet<ResourceKey<ItemReg>>) -> Result<Self, String> {
-        let ingredient = Ingredient(values);
-        ingredient.validate()?;
-        Ok(ingredient)
-    }
-}
-
 impl Validate for Ingredient {
     fn validate(&self) -> Result<(), String> {
         if matches!(self.0, HolderSet::Tag(_)) {
@@ -52,7 +44,9 @@ impl EncodeCtx for Ingredient {
 
 impl DecodeCtx<'_> for Ingredient {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ingredient::new(HolderSet::decode_ctx(ctx, r)?).map_err(anyhow::Error::msg)
+        let ingredient = Ingredient(HolderSet::decode_ctx(ctx, r)?);
+        ingredient.validate().map_err(anyhow::Error::msg)?;
+        Ok(ingredient)
     }
 }
 

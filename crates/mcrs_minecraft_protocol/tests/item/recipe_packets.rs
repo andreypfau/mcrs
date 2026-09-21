@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_core::codec::{Bounded, Validate};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
@@ -362,7 +362,7 @@ fn ingredient_rejects_what_vanilla_refuses_to_construct() {
     let raw = Raw::<SelectableRecipe>::decode(&mut &air_stonecutter[..]).unwrap();
     let error = raw.resolve(&lookup).unwrap_err();
     assert_eq!(error.to_string(), "Ingredient can't contain air");
-    let error = Ingredient::new(HolderSet::List(vec![])).unwrap_err();
+    let error = Ingredient(HolderSet::List(vec![])).validate().unwrap_err();
     assert_eq!(error, "Ingredients can't be empty");
     let error = serde_json::from_str::<Ingredient>(r#"["minecraft:air"]"#).unwrap_err();
     assert!(
