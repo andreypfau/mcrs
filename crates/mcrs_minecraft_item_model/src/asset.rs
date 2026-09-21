@@ -5,17 +5,16 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_core::codec::default_true;
-use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_protocol::entity::DyeColor;
-use mcrs_minecraft_protocol::item::{
-    ComponentPredicate, ComponentPredicateType, DimensionReg, EntityTypeReg, ItemComponentKind,
-    ItemComponentValue, RgbInt, TrimMaterialReg,
+use mcrs_minecraft_item_component::{
+    ComponentPredicate, ComponentPredicateType, DimensionReg, DyeColor, EntityTypeReg,
+    ItemComponentKind, ItemComponentValue, RgbInt, TrimMaterialReg,
 };
+use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::transform::Transformation;
+use crate::transform::Transformation;
 
 fn one() -> f32 {
     1.0
@@ -123,7 +122,10 @@ pub enum UnbakedItemModel {
         transformation: Option<Transformation>,
         model: SpecialModel,
     },
-    #[serde(rename = "minecraft:bundle/selected_item", alias = "bundle/selected_item")]
+    #[serde(
+        rename = "minecraft:bundle/selected_item",
+        alias = "bundle/selected_item"
+    )]
     BundleSelectedItem,
 }
 
@@ -237,7 +239,10 @@ pub enum ConditionProperty {
     ViewEntity,
     #[serde(rename = "minecraft:fishing_rod/cast", alias = "fishing_rod/cast")]
     FishingRodCast,
-    #[serde(rename = "minecraft:bundle/has_selected_item", alias = "bundle/has_selected_item")]
+    #[serde(
+        rename = "minecraft:bundle/has_selected_item",
+        alias = "bundle/has_selected_item"
+    )]
     BundleHasSelectedItem,
 }
 
@@ -501,7 +506,10 @@ pub enum SelectSwitch {
         time_zone: Option<String>,
         cases: Vec<Case<String>>,
     },
-    #[serde(rename = "minecraft:context_entity_type", alias = "context_entity_type")]
+    #[serde(
+        rename = "minecraft:context_entity_type",
+        alias = "context_entity_type"
+    )]
     ContextEntityType {
         cases: Vec<Case<ResourceKey<EntityTypeReg>>>,
     },
@@ -564,7 +572,10 @@ fn validate_cases<T: PartialEq + fmt::Debug>(cases: &[Case<T>]) -> Result<(), St
     if duplicates.is_empty() {
         Ok(())
     } else {
-        Err(format!("Duplicate case conditions: {}", duplicates.join(", ")))
+        Err(format!(
+            "Duplicate case conditions: {}",
+            duplicates.join(", ")
+        ))
     }
 }
 
@@ -666,7 +677,8 @@ impl<'de> DeserializeSeed<'de> for CasesSeed {
             }
         }
 
-        d.deserialize_seq(Cases(self.0)).map(|cases| (self.0, cases))
+        d.deserialize_seq(Cases(self.0))
+            .map(|cases| (self.0, cases))
     }
 }
 
@@ -802,7 +814,10 @@ pub enum SpecialModel {
         #[serde(default, skip_serializing_if = "is_default")]
         chest_type: ChestType,
     },
-    #[serde(rename = "minecraft:copper_golem_statue", alias = "copper_golem_statue")]
+    #[serde(
+        rename = "minecraft:copper_golem_statue",
+        alias = "copper_golem_statue"
+    )]
     CopperGolemStatue {
         texture: ResourceLocation,
         pose: StatuePose,
@@ -963,7 +978,21 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::model::Pack;
+
+    fn corpus() -> Vec<(String, Vec<u8>)> {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/minecraft/items");
+        let mut files: Vec<(String, Vec<u8>)> = std::fs::read_dir(root)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|e| e == "json"))
+            .map(|path| {
+                let id = format!("minecraft:{}", path.file_stem().unwrap().to_string_lossy());
+                (id, std::fs::read(&path).unwrap())
+            })
+            .collect();
+        files.sort();
+        files
+    }
 
     /// Equal up to number spelling: the assets are read as `f32`, so `0.58`
     /// written back is compared as the float it became.
@@ -977,8 +1006,7 @@ mod tests {
             }
             (Value::Object(a), Value::Object(b)) => {
                 a.len() == b.len()
-                    && a
-                        .iter()
+                    && a.iter()
                         .all(|(k, v)| b.get(k).is_some_and(|w| structurally_equal(v, w)))
             }
             _ => a == b,
@@ -999,10 +1027,7 @@ mod tests {
         let mut properties: BTreeMap<String, usize> = BTreeMap::new();
         let mut tints: BTreeMap<&str, usize> = BTreeMap::new();
         let mut swap_scales = 0;
-        for (id, bytes) in Pack::corpus().entries("items", "json") {
-            if !id.starts_with("minecraft:") {
-                continue;
-            }
+        for (id, bytes) in &corpus() {
             files += 1;
             let item = ClientItem::parse(bytes).unwrap_or_else(|error| panic!("{id}: {error}"));
             let original: Value = serde_json::from_slice(bytes).unwrap();
@@ -1137,7 +1162,7 @@ mod tests {
 
     #[test]
     fn the_component_switch_reads_its_cases_with_the_components_codec() {
-        use mcrs_minecraft_protocol::item::DyedColor;
+        use mcrs_minecraft_item_component::DyedColor;
 
         let item = model(&format!(
             r#"{{"type": "minecraft:select", "property": "minecraft:component", "component": "minecraft:dyed_color", "cases": [{{"when": [255, [1.0, 0.0, 0.0]], "model": {LEAF}}}]}}"#

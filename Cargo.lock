@@ -3565,6 +3565,7 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_inventory",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_model",
  "mcrs_minecraft_level",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_nbt",
@@ -3702,6 +3703,18 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "uuid",
+]
+
+[[package]]
+name = "mcrs_minecraft_item_model"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item_component",
+ "mcrs_minecraft_nbt",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

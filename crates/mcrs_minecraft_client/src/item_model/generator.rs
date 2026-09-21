@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-
 use super::bake::ItemQuad;
 use crate::bake::{Dir, VariantRotation, face_geometry};
 use crate::model::{Element, Face};
@@ -49,8 +48,22 @@ pub fn extrude(
     layer: u32,
 ) -> Result<Vec<ItemQuad>, String> {
     let mut quads = vec![
-        quad([0.0, 0.0, MIN_Z], [16.0, 16.0, MAX_Z], [0.0, 0.0, 16.0, 16.0], Dir::South, sprite, layer)?,
-        quad([0.0, 0.0, MIN_Z], [16.0, 16.0, MAX_Z], [16.0, 0.0, 0.0, 16.0], Dir::North, sprite, layer)?,
+        quad(
+            [0.0, 0.0, MIN_Z],
+            [16.0, 16.0, MAX_Z],
+            [0.0, 0.0, 16.0, 16.0],
+            Dir::South,
+            sprite,
+            layer,
+        )?,
+        quad(
+            [0.0, 0.0, MIN_Z],
+            [16.0, 16.0, MAX_Z],
+            [16.0, 0.0, 0.0, 16.0],
+            Dir::North,
+            sprite,
+            layer,
+        )?,
     ];
     let scale = 16.0 / side as f32;
     for (facing, x, y) in side_faces(side, frames) {
@@ -165,7 +178,11 @@ mod tests {
         let pixels = pixel_sprite(16, |x, y| x == 2 && y == 5);
         let quads = extrude(sprite, 16, &[&pixels], 1).unwrap();
         assert_eq!(quads.len(), 6);
-        assert!(quads.iter().all(|q| q.tint == Some(1) && q.sprite == sprite));
+        assert!(
+            quads
+                .iter()
+                .all(|q| q.tint == Some(1) && q.sprite == sprite)
+        );
         assert_eq!(quads[0].dir, Dir::South);
         assert_eq!(quads[1].dir, Dir::North);
         let dirs: Vec<Dir> = quads[2..].iter().map(|q| q.dir).collect();
@@ -178,8 +195,14 @@ mod tests {
         assert_eq!(min, Vec3::new(2.0 / 16.0, 11.0 / 16.0, 7.5 / 16.0));
         assert_eq!(max, Vec3::new(3.0 / 16.0, 11.0 / 16.0, 8.5 / 16.0));
         for uv in up.uvs {
-            assert!(uv[0] >= 2.1 / 16.0 - 1e-6 && uv[0] <= 2.9 / 16.0 + 1e-6, "{uv:?}");
-            assert!(uv[1] >= 5.1 / 16.0 - 1e-6 && uv[1] <= 5.9 / 16.0 + 1e-6, "{uv:?}");
+            assert!(
+                uv[0] >= 2.1 / 16.0 - 1e-6 && uv[0] <= 2.9 / 16.0 + 1e-6,
+                "{uv:?}"
+            );
+            assert!(
+                uv[1] >= 5.1 / 16.0 - 1e-6 && uv[1] <= 5.9 / 16.0 + 1e-6,
+                "{uv:?}"
+            );
         }
     }
 

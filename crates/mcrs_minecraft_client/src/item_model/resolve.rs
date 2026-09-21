@@ -9,20 +9,17 @@ use bevy::prelude::{
     SystemCondition, With, resource_exists,
 };
 use bytemuck::{Pod, Zeroable};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::{
-    Held, ItemStack, Items, StackRevision, bundle_weight, children, component_value, damage_value,
-    has_component, has_foil, has_non_default, is_damaged, max_damage, max_stack_size,
-    next_damage_will_break,
+    Held, ItemStack, Items, StackRevision, children, component_value, has_component,
+    has_non_default,
 };
+use mcrs_minecraft_item_model::asset::DisplayContext;
+use mcrs_minecraft_item_model::eval::has_foil;
+use mcrs_minecraft_item_model::{Evaluator, StackView};
 use mcrs_minecraft_network::client::ClientNetworkSystems;
-use mcrs_minecraft_protocol::item::{
-    BlockState, CustomModelData, DyedColor, FireworkExplosion, Holder, ItemDataComponent,
-    ItemModel, PotionContents, Trim,
-};
+use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemComponentValue, ItemModel};
 
-use super::asset::{
-    Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
-};
 use super::bake::{BakedItemModel, BakedNode, ItemModels};
 use crate::blocks::sample_colormap;
 use crate::model::{GuiLight, ItemTransform};
@@ -115,22 +112,28 @@ pub fn resolve<'a>(
         Some(ItemModel(id)) => models.get(id.as_str()),
         None => &models.missing,
     };
-    let evaluator = Evaluator {
-        stack,
+    let stack = EntityStack {
+        entity: stack,
         items,
-        models,
         lookup,
     };
-    let mut layers = Vec::new();
-    evaluator.collect(&item.root, &mut layers);
-    let gui_light = layers
-        .first()
-        .map_or(GuiLight::Front, |layer| layer.model.gui_light);
-    let foil = if has_foil(stack, items) {
+    let foil = if has_foil(&stack) {
         Foil::Standard
     } else {
         Foil::None
     };
+    let grass = |temperature, downfall| {
+        sample_colormap(models.grass_colormap.as_deref(), temperature, downfall)
+    };
+    let evaluator = Evaluator {
+        stack,
+        grass: &grass,
+    };
+    let mut layers = Vec::new();
+    collect(&evaluator, &item.root, &mut layers);
+    let gui_light = layers
+        .first()
+        .map_or(GuiLight::Front, |layer| layer.model.gui_light);
     ItemRenderLayers {
         animated: layers.iter().any(|layer| layer.model.animated),
         layers: layers
@@ -145,261 +148,124 @@ pub fn resolve<'a>(
     }
 }
 
+/// A stack entity and the corpus that names its item.
+pub struct EntityStack<'w, 'l, L> {
+    pub entity: EntityRef<'w>,
+    pub items: &'l Items,
+    pub lookup: L,
+}
+
+impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> StackView for EntityStack<'w, '_, L> {
+    fn item(&self) -> &ResourceLocation {
+        static AIR: std::sync::LazyLock<ResourceLocation> =
+            std::sync::LazyLock::new(|| ResourceLocation::minecraft("air"));
+        self.entity
+            .get::<ItemStack>()
+            .and_then(|stack| self.items.get(stack.item))
+            .map_or(&AIR, |entry| &entry.identifier)
+    }
+
+    fn count(&self) -> u8 {
+        self.entity
+            .get::<ItemStack>()
+            .map_or(0, |stack| stack.count)
+    }
+
+    fn value(&self, kind: ItemComponentKind) -> Option<ItemComponentValue> {
+        component_value(self.entity, kind)
+    }
+
+    fn has(&self, kind: ItemComponentKind) -> bool {
+        has_component(self.entity, self.items, kind)
+    }
+
+    fn has_non_default(&self, kind: ItemComponentKind) -> bool {
+        has_non_default(self.entity, self.items, kind)
+    }
+
+    fn children(&self) -> Vec<Self> {
+        children(self.entity, &self.lookup)
+            .into_iter()
+            .map(|entity| EntityStack {
+                entity,
+                items: self.items,
+                lookup: self.lookup,
+            })
+            .collect()
+    }
+}
+
 struct Layer<'m> {
     model: &'m Arc<BakedItemModel>,
     transform: Mat4,
     tints: Vec<u32>,
 }
 
-struct Evaluator<'a, 'l, L> {
-    stack: EntityRef<'a>,
-    items: &'l Items,
-    models: &'l ItemModels,
-    lookup: L,
-}
-
-fn opaque(color: i32) -> u32 {
-    color as u32 | 0xFF00_0000
-}
-
-impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
-    fn collect<'m>(&self, node: &'m BakedNode, out: &mut Vec<Layer<'m>>) {
-        match node {
-            BakedNode::Empty | BakedNode::BundleSelectedItem => {}
-            BakedNode::Model {
-                model,
-                tints,
-                transform,
-            } => out.push(Layer {
-                model,
-                transform: *transform,
-                tints: tints.iter().map(|tint| self.tint(tint)).collect(),
-            }),
-            // ponytail: a special model contributes its lighting and an empty layer;
-            // chests, banners, heads and the like draw nothing until they get renderers.
-            BakedNode::Special {
-                properties,
-                transform,
-                ..
-            } => out.push(Layer {
-                model: properties,
-                transform: *transform,
-                tints: Vec::new(),
-            }),
-            BakedNode::Composite(children) => {
-                for child in children {
-                    self.collect(child, out);
-                }
-            }
-            BakedNode::Condition {
-                property,
-                on_true,
-                on_false,
-            } => self.collect(
-                if self.condition(property) {
-                    on_true
-                } else {
-                    on_false
-                },
-                out,
-            ),
-            BakedNode::Select {
-                switch,
-                cases,
-                fallback,
-            } => self.collect(self.select(switch).map_or(&**fallback, |i| &cases[i]), out),
-            BakedNode::RangeDispatch {
-                property,
-                scale,
-                thresholds,
-                models,
-                fallback,
-            } => {
-                let value = self.range(property) * scale;
-                let chosen =
-                    BakedNode::range_index(thresholds, value).map_or(&**fallback, |i| &models[i]);
-                self.collect(chosen, out);
+fn collect<'m, S: StackView>(
+    evaluator: &Evaluator<'_, S>,
+    node: &'m BakedNode,
+    out: &mut Vec<Layer<'m>>,
+) {
+    match node {
+        BakedNode::Empty | BakedNode::BundleSelectedItem => {}
+        BakedNode::Model {
+            model,
+            tints,
+            transform,
+        } => out.push(Layer {
+            model,
+            transform: *transform,
+            tints: tints.iter().map(|tint| evaluator.tint(tint)).collect(),
+        }),
+        // ponytail: a special model contributes its lighting and an empty layer;
+        // chests, banners, heads and the like draw nothing until they get renderers.
+        BakedNode::Special {
+            properties,
+            transform,
+            ..
+        } => out.push(Layer {
+            model: properties,
+            transform: *transform,
+            tints: Vec::new(),
+        }),
+        BakedNode::Composite(children) => {
+            for child in children {
+                collect(evaluator, child, out);
             }
         }
-    }
-
-    fn get<K: ItemDataComponent + Component>(&self) -> Option<&K> {
-        self.stack.get::<K>()
-    }
-
-    fn custom_model_data(&self) -> Option<&CustomModelData> {
-        self.get::<CustomModelData>()
-    }
-
-    fn condition(&self, property: &ConditionProperty) -> bool {
-        match property {
-            ConditionProperty::Damaged => is_damaged(self.stack),
-            ConditionProperty::Broken => next_damage_will_break(self.stack),
-            ConditionProperty::HasComponent {
-                component,
-                ignore_default,
-            } => {
-                if *ignore_default {
-                    has_non_default(self.stack, self.items, component.0)
-                } else {
-                    has_component(self.stack, self.items, component.0)
-                }
-            }
-            ConditionProperty::CustomModelData { index } => {
-                self.custom_model_data()
-                    .and_then(|data| data.flags.get(*index as usize))
-                    == Some(&true)
-            }
-            ConditionProperty::Component(_)
-            | ConditionProperty::UsingItem
-            | ConditionProperty::Selected
-            | ConditionProperty::Carried
-            | ConditionProperty::ExtendedView
-            | ConditionProperty::KeybindDown { .. }
-            | ConditionProperty::ViewEntity
-            | ConditionProperty::FishingRodCast
-            | ConditionProperty::BundleHasSelectedItem => false,
-        }
-    }
-
-    fn select(&self, switch: &SelectSwitch) -> Option<usize> {
-        fn find<T: PartialEq>(cases: &[Case<T>], value: &T) -> Option<usize> {
-            cases.iter().position(|case| case.when.contains(value))
-        }
-        match switch {
-            SelectSwitch::TrimMaterial { cases } => match &self.get::<Trim>()?.material {
-                Holder::Reference(key) => find(cases, key),
-                Holder::Direct(_) => None,
+        BakedNode::Condition {
+            property,
+            on_true,
+            on_false,
+        } => collect(
+            evaluator,
+            if evaluator.condition(property) {
+                on_true
+            } else {
+                on_false
             },
-            SelectSwitch::DisplayContext { cases } => find(cases, &DisplayContext::Gui),
-            SelectSwitch::BlockState {
-                block_state_property,
-                cases,
-            } => find(
-                cases,
-                self.get::<BlockState>()?.0.get(block_state_property)?,
-            ),
-            SelectSwitch::ChargeType { cases } => find(cases, &self.charge_type()),
-            SelectSwitch::CustomModelData { index, cases } => find(
-                cases,
-                self.custom_model_data()?.strings.get(*index as usize)?,
-            ),
-            SelectSwitch::Component(switch) => {
-                let value = component_value(self.stack, switch.component)?;
-                switch
-                    .cases
-                    .iter()
-                    .position(|case| case.when.iter().any(|when| when.0 == value))
-            }
-            SelectSwitch::MainHand { .. }
-            | SelectSwitch::LocalTime { .. }
-            | SelectSwitch::ContextEntityType { .. }
-            | SelectSwitch::ContextDimension { .. } => None,
-        }
-    }
-
-    fn charge_type(&self) -> ChargeType {
-        let projectiles = children(self.stack, &self.lookup);
-        if projectiles.is_empty() {
-            return ChargeType::None;
-        }
-        let rocket = projectiles.iter().any(|child| {
-            child
-                .get::<ItemStack>()
-                .and_then(|stack| self.items.get(stack.item()))
-                .is_some_and(|entry| entry.identifier.as_str() == "minecraft:firework_rocket")
-        });
-        if rocket {
-            ChargeType::Rocket
-        } else {
-            ChargeType::Arrow
-        }
-    }
-
-    fn range(&self, property: &RangeProperty) -> f32 {
-        match property {
-            RangeProperty::Damage { normalize } => {
-                let damage = damage_value(self.stack) as f32;
-                let max = max_damage(self.stack) as f32;
-                if *normalize {
-                    (damage / max).clamp(0.0, 1.0)
-                } else {
-                    damage.clamp(0.0, max)
-                }
-            }
-            RangeProperty::Count { normalize } => {
-                let count = self.stack.get::<ItemStack>().map_or(0, ItemStack::count) as f32;
-                let max = max_stack_size(self.stack) as f32;
-                if *normalize {
-                    (count / max).clamp(0.0, 1.0)
-                } else {
-                    count.clamp(0.0, max)
-                }
-            }
-            RangeProperty::CustomModelData { index } => self
-                .custom_model_data()
-                .and_then(|data| data.floats.get(*index as usize))
-                .copied()
-                .unwrap_or(0.0),
-            RangeProperty::BundleFullness => bundle_weight(self.stack, self.items, &self.lookup),
-            RangeProperty::Cooldown
-            | RangeProperty::CrossbowPull
-            | RangeProperty::UseDuration { .. }
-            | RangeProperty::UseCycle { .. }
-            | RangeProperty::Time { .. }
-            | RangeProperty::Compass { .. } => 0.0,
-        }
-    }
-
-    fn tint(&self, source: &TintSource) -> u32 {
-        match source {
-            TintSource::Constant { value } => opaque(value.0),
-            TintSource::Dye { default } => self
-                .get::<DyedColor>()
-                .map_or(default.0 as u32, |DyedColor(rgb)| opaque(rgb.0)),
-            // ponytail: without the custom colour a potion shows the base colour;
-            // averaging effect colours needs the potion and mob_effect tables in the corpus.
-            TintSource::Potion { default } => opaque(
-                self.get::<PotionContents>()
-                    .and_then(|contents| contents.custom_color)
-                    .unwrap_or(default.0),
-            ),
-            TintSource::Firework { default } => {
-                match self
-                    .get::<FireworkExplosion>()
-                    .map_or(&[][..], |e| &e.colors[..])
-                {
-                    [] => default.0 as u32,
-                    [only] => opaque(*only),
-                    colors => {
-                        let channel = |shift: u32| {
-                            let sum: i32 = colors.iter().map(|c| (c >> shift) & 0xFF).sum();
-                            (sum / colors.len() as i32) as u32
-                        };
-                        0xFF00_0000 | channel(16) << 16 | channel(8) << 8 | channel(0)
-                    }
-                }
-            }
-            TintSource::Grass {
-                temperature,
-                downfall,
-            } => sample_colormap(
-                self.models.grass_colormap.as_deref(),
-                *temperature,
-                *downfall,
-            )
-            .map_or(0xFFFF_00FF, |[r, g, b, _]| {
-                0xFF00_0000
-                    | ((r * 255.0) as u32) << 16
-                    | ((g * 255.0) as u32) << 8
-                    | (b * 255.0) as u32
-            }),
-            TintSource::CustomModelData { index, default } => opaque(
-                self.custom_model_data()
-                    .and_then(|data| data.colors.get(*index as usize))
-                    .map_or(default.0, |color| color.0),
-            ),
-            TintSource::Team { default } => opaque(default.0),
+            out,
+        ),
+        BakedNode::Select {
+            switch,
+            cases,
+            fallback,
+        } => collect(
+            evaluator,
+            evaluator.select(switch).map_or(&**fallback, |i| &cases[i]),
+            out,
+        ),
+        BakedNode::RangeDispatch {
+            property,
+            scale,
+            thresholds,
+            models,
+            fallback,
+        } => {
+            let value = evaluator.range(property) * scale;
+            let chosen =
+                BakedNode::range_index(thresholds, value).map_or(&**fallback, |i| &models[i]);
+            collect(evaluator, chosen, out);
         }
     }
 }
@@ -507,13 +373,15 @@ mod tests {
     use mcrs_minecraft_inventory::{Op, Slot, Transaction};
     use mcrs_minecraft_item::{SlotTable, load_item_definitions};
     use mcrs_minecraft_protocol::item::{
-        BundleContents, ChargedProjectiles, ComponentPatch, Damage, Enchantments,
+        BundleContents, ChargedProjectiles, ComponentPatch, Damage, DyedColor, Enchantments,
         FireworkExplosion, FireworkShape, ItemComponentKind, ItemStackValue, RgbInt, Template,
     };
 
     use super::*;
     use crate::atlas::SpriteRegistry;
-    use crate::item_model::asset::ComponentKindId;
+    use crate::item_model::asset::{
+        ChargeType, ComponentKindId, ConditionProperty, RangeProperty, TintSource,
+    };
     use crate::item_model::bake::bake_all;
     use crate::model::Pack;
 
@@ -574,14 +442,22 @@ mod tests {
         .apply(world);
     }
 
-    type Lookup<'w> = Box<dyn Fn(Entity) -> Option<EntityRef<'w>> + 'w>;
+    fn grass(temperature: f32, downfall: f32) -> Option<[f32; 4]> {
+        sample_colormap(models().grass_colormap.as_deref(), temperature, downfall)
+    }
 
-    fn eval<'w>(world: &'w World, stack: Entity) -> Evaluator<'w, 'static, Lookup<'w>> {
+    fn eval<'w>(
+        world: &'w World,
+        stack: Entity,
+    ) -> Evaluator<'static, EntityStack<'w, 'static, impl Copy + Fn(Entity) -> Option<EntityRef<'w>>>>
+    {
         Evaluator {
-            stack: world.entity(stack),
-            items: items(),
-            models: models(),
-            lookup: Box::new(move |child| world.get_entity(child).ok()),
+            stack: EntityStack {
+                entity: world.entity(stack),
+                items: items(),
+                lookup: move |child| world.get_entity(child).ok(),
+            },
+            grass: &grass,
         }
     }
 

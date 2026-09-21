@@ -5,16 +5,16 @@ use bevy::math::{Mat4, Vec3};
 use bevy::prelude::Resource;
 use mcrs_minecraft_core::ResourceLocation;
 
-use super::asset::{
+use super::generator;
+use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
+use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
+use crate::blocks::load_colormap;
+use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
+use mcrs_minecraft_item_model::asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,
     UnbakedItemModel,
 };
-use super::generator;
-use super::transform::compose;
-use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
-use crate::blocks::load_colormap;
-use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
-use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
+use mcrs_minecraft_item_model::transform::compose;
 
 #[derive(Debug, Clone)]
 pub struct ItemQuad {
@@ -377,14 +377,20 @@ mod tests {
     #[test]
     fn every_item_of_the_corpus_bakes() {
         let models = baked();
-        assert_eq!(models.by_id.len(), Pack::corpus().entries("items", "json").count());
+        assert_eq!(
+            models.by_id.len(),
+            Pack::corpus().entries("items", "json").count()
+        );
         assert!(models.by_id.len() > 1600);
     }
 
     #[test]
     fn a_generated_item_is_extruded_and_front_lit() {
         let models = baked();
-        let BakedNode::Model { model, transform, .. } = &models.get("minecraft:stick").root else {
+        let BakedNode::Model {
+            model, transform, ..
+        } = &models.get("minecraft:stick").root
+        else {
             panic!("stick is a plain model");
         };
         assert_eq!(*transform, Mat4::IDENTITY);
@@ -424,7 +430,12 @@ mod tests {
         let BakedNode::Condition { on_true, .. } = &models.get("minecraft:bow").root else {
             panic!("bow switches on using_item");
         };
-        let BakedNode::RangeDispatch { thresholds, models: entries, .. } = on_true.as_ref() else {
+        let BakedNode::RangeDispatch {
+            thresholds,
+            models: entries,
+            ..
+        } = on_true.as_ref()
+        else {
             panic!("a used bow dispatches on pull");
         };
         assert!(thresholds.windows(2).all(|w| w[0] <= w[1]));

@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_item_model"
+description = "Item model definitions and their evaluation against a stack"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_math.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_item_component.workspace = true
+mcrs_minecraft_nbt.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[dev-dependencies]
