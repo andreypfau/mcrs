@@ -420,14 +420,14 @@ fn load_save(world: &Path) -> SaveData {
     let game_rules = save::read_game_rules(world).unwrap_or_else(|err| fatal(err));
 
     let (position, yaw, pitch, dimension) = match level.singleplayer_uuid {
-        Some(uuid) => match save::read_player(world, uuid) {
-            Ok(player) => (
+        Some(uuid) => match save::read_player_dat(world, uuid) {
+            Ok(Some(player)) => (
                 DVec3::from_array(player.pos),
-                player.yaw,
-                player.pitch,
+                player.rotation[0],
+                player.rotation[1],
                 player.dimension,
             ),
-            Err(SaveError::Missing { .. }) => spawn_fallback(&level.spawn),
+            Ok(None) => spawn_fallback(&level.spawn),
             Err(err) => fatal(err),
         },
         None => spawn_fallback(&level.spawn),

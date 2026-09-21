@@ -5,6 +5,7 @@ use crate::world::item::click::return_carried;
 use crate::world::item::sync::to;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, Messages};
+use bevy_ecs::relationship::RelationshipTarget;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_inventory::{
@@ -30,9 +31,7 @@ pub struct OpenContainerRequest {
 fn inventory_menu(world: &World, player: Entity) -> Option<Entity> {
     world
         .get::<MenusOf>(player)?
-        .entities()
         .iter()
-        .copied()
         .find(|&menu| {
             world
                 .get::<Menu>(menu)

@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_item::{
-    Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
+    ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value,
 };
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
@@ -18,12 +18,6 @@ pub struct Slot {
 impl Slot {
     pub const fn new(holder: Entity, index: u16) -> Self {
         Slot { holder, index }
-    }
-}
-
-impl From<Held> for Slot {
-    fn from(held: Held) -> Self {
-        Slot::new(held.holder, held.index)
     }
 }
 

@@ -33,12 +33,6 @@ pub struct MenuViewer(pub Entity);
 #[relationship_target(relationship = MenuViewer, linked_spawn)]
 pub struct MenusOf(Vec<Entity>);
 
-impl MenusOf {
-    pub fn entities(&self) -> &[Entity] {
-        &self.0
-    }
-}
-
 #[derive(Component, Debug)]
 pub struct CurrentMenu(pub Entity);
 
