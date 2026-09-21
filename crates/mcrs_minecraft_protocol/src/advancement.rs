@@ -117,39 +117,19 @@ record_ctx_wire!(Advancement {
 });
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct AdvancementHolder {
-    pub id: ResourceLocation,
-    pub value: Advancement,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct PositionedAdvancement {
-    pub holder: AdvancementHolder,
+    pub id: ResourceLocation,
+    pub advancement: Advancement,
     pub x: f32,
     pub y: f32,
 }
 
-impl EncodeCtx for PositionedAdvancement {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.holder.id.encode(&mut w)?;
-        self.holder.value.encode_ctx(ctx, &mut w)?;
-        self.x.encode(&mut w)?;
-        self.y.encode(w)
-    }
-}
-
-impl DecodeCtx<'_> for PositionedAdvancement {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(PositionedAdvancement {
-            holder: AdvancementHolder {
-                id: ResourceLocation::decode(r)?,
-                value: Advancement::decode_ctx(ctx, r)?,
-            },
-            x: f32::decode(r)?,
-            y: f32::decode(r)?,
-        })
-    }
-}
+record_ctx_wire!(PositionedAdvancement {
+    id,
+    advancement,
+    x,
+    y
+});
 
 pub type RawAdvancement = Raw<PositionedAdvancement>;
 

@@ -290,7 +290,7 @@ fn level_particles_packet_matches_vanilla() {
             dist: [0.5, 0.75, 1.0],
             max_speed: 0.1,
             count: 25,
-            particle: RawParticle(hex(golden("dust.wire")).into()),
+            particle: RawParticle::from(hex(golden("dust.wire"))),
         }
     );
     assert_eq!(packet.particle.resolve(&lookup()).unwrap(), check("dust"));

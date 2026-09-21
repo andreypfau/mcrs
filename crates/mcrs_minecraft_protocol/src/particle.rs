@@ -2,8 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Write;
 
-use anyhow::{Context, ensure};
-use bytes::Bytes;
+use anyhow::Context;
 use mcrs_minecraft_core::codec::{self, PositiveInt, float_value, int_value};
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_registry::RegistryLookup;
@@ -12,7 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::Template;
 use crate::item::component::{ArgbInt, BlockReg, RgbInt};
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, ctx_free};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw, ctx_free};
 use crate::item::wire::record_ctx_wire;
 use crate::{Decode, Encode, VarInt};
 
@@ -667,41 +666,13 @@ impl Decode<'_> for TrailParticle {
 
 ctx_free!(VibrationParticle, TrailParticle);
 
-/// The exact wire bytes of one particle, kept so a packet can carry it
-/// without the registries.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RawParticle(pub Bytes);
+pub type RawParticle = Raw<ParticleOptions>;
 
 impl RawParticle {
-    pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ParticleOptions> {
-        let mut r = &self.0[..];
-        let particle = ParticleOptions::decode_ctx(ctx, &mut r)?;
-        ensure!(r.is_empty(), "{} trailing bytes after a particle", r.len());
-        Ok(particle)
-    }
-
     pub fn from_options(
         particle: &ParticleOptions,
         ctx: &dyn RegistryLookup,
     ) -> anyhow::Result<RawParticle> {
-        let mut bytes = Vec::new();
-        particle.encode_ctx(ctx, &mut bytes)?;
-        Ok(RawParticle(bytes.into()))
-    }
-}
-
-impl Encode for RawParticle {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        Ok(w.write_all(&self.0)?)
-    }
-}
-
-impl Decode<'_> for RawParticle {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let start = *r;
-        ParticleOptions::decode_ctx(&Opaque, r)?;
-        Ok(RawParticle(Bytes::copy_from_slice(
-            &start[..start.len() - r.len()],
-        )))
+        Raw::from_value(particle, ctx)
     }
 }

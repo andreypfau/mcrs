@@ -362,6 +362,12 @@ impl<T> PartialEq for Raw<T> {
 
 impl<T> Eq for Raw<T> {}
 
+impl<T> From<Vec<u8>> for Raw<T> {
+    fn from(bytes: Vec<u8>) -> Self {
+        Raw(bytes.into(), PhantomData)
+    }
+}
+
 impl<T: EncodeCtx + for<'a> DecodeCtx<'a>> Raw<T> {
     pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<T> {
         let mut r = &self.0[..];

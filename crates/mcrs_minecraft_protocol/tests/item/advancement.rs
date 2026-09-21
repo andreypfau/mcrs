@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_protocol::advancement::{
-    Advancement, AdvancementHolder, AdvancementProgress, AdvancementType, CriterionProgress,
-    DisplayInfo, PositionedAdvancement, RawAdvancement,
+    Advancement, AdvancementProgress, AdvancementType, CriterionProgress, DisplayInfo,
+    PositionedAdvancement, RawAdvancement,
 };
 use mcrs_minecraft_protocol::item::{ComponentPatch, DecodeCtx, EncodeCtx, Template};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAdvancements;
@@ -108,10 +108,8 @@ fn bare() -> Advancement {
 
 fn positioned(name: &str, value: Advancement, x: f32, y: f32) -> PositionedAdvancement {
     PositionedAdvancement {
-        holder: AdvancementHolder {
-            id: id(name),
-            value,
-        },
+        id: id(name),
+        advancement: value,
         x,
         y,
     }
