@@ -1,8 +1,7 @@
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_item::{SlotTable, slots};
 
-use super::item_decorations::WHITE;
-use super::scene::{GuiQuad, GuiSize};
+use super::scene::{GuiQuad, GuiSize, sprite};
 
 pub const IMAGE_WIDTH: i32 = 176;
 pub const IMAGE_HEIGHT: i32 = 166;
@@ -49,14 +48,6 @@ pub fn hovered_slot(size: GuiSize, cursor: IVec2) -> Option<u16> {
     (0..slots::MENU_COUNT as u16).find(|&menu| hovering(slot_position(menu), local))
 }
 
-fn sprite(at: IVec2, w: i32, h: i32, region: &'static str) -> GuiQuad {
-    GuiQuad::Sprite {
-        rect: IRect::from_corners(at, at + IVec2::new(w, h)),
-        region,
-        color: WHITE,
-    }
-}
-
 pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &mut Vec<GuiQuad>) {
     let top_left = origin(size);
     out.push(GuiQuad::FillGradient {
@@ -66,8 +57,7 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
     });
     out.push(sprite(
         top_left,
-        IMAGE_WIDTH,
-        IMAGE_HEIGHT,
+        IVec2::new(IMAGE_WIDTH, IMAGE_HEIGHT),
         "container/inventory",
     ));
     let button = IVec2::new(top_left.x + 104, size.height / 2 - 22);
@@ -75,8 +65,7 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
         && (button.y..button.y + 18).contains(&cursor.y);
     out.push(sprite(
         button,
-        20,
-        18,
+        IVec2::new(20, 18),
         if over_button {
             "recipe_book/button_highlighted"
         } else {
@@ -87,8 +76,7 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
     if let Some(menu) = hovered {
         out.push(sprite(
             top_left + slot_position(menu) - 4,
-            24,
-            24,
+            IVec2::new(24, 24),
             "container/slot_highlight_back",
         ));
     }
@@ -98,7 +86,7 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
             Some(stack) => out.push(GuiQuad::Item { origin: at, stack }),
             None => {
                 if let Some(icon) = empty_icon(menu) {
-                    out.push(sprite(at, 16, 16, icon));
+                    out.push(sprite(at, IVec2::splat(16), icon));
                 }
             }
         }
@@ -106,8 +94,7 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
     if let Some(menu) = hovered {
         out.push(sprite(
             top_left + slot_position(menu) - 4,
-            24,
-            24,
+            IVec2::new(24, 24),
             "container/slot_highlight_front",
         ));
     }
@@ -125,6 +112,7 @@ mod tests {
     use mcrs_minecraft_item::Held;
 
     use super::super::hotbar::hotbar;
+    use super::super::item_decorations::WHITE;
     use super::*;
 
     const SIZE: GuiSize = GuiSize {

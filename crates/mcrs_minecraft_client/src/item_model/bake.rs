@@ -28,9 +28,8 @@ pub struct ItemQuad {
 #[derive(Debug)]
 pub struct BakedItemModel {
     pub quads: Vec<ItemQuad>,
-    pub display: [ItemTransform; 9],
+    pub display: ItemTransform,
     pub gui_light: GuiLight,
-    pub animated: bool,
 }
 
 /// The unbaked tree with every model reference replaced by baked geometry and every
@@ -84,23 +83,15 @@ impl BakedNode {
     }
 }
 
-#[derive(Debug)]
-pub struct BakedClientItem {
-    pub root: BakedNode,
-    pub oversized_in_gui: bool,
-    pub hand_animation_on_swap: bool,
-    pub swap_animation_scale: f32,
-}
-
 #[derive(Resource)]
 pub struct ItemModels {
-    pub by_id: HashMap<ResourceLocation, Arc<BakedClientItem>>,
-    pub missing: Arc<BakedClientItem>,
+    pub by_id: HashMap<ResourceLocation, Arc<BakedNode>>,
+    pub missing: Arc<BakedNode>,
     pub grass_colormap: Option<Vec<u8>>,
 }
 
 impl ItemModels {
-    pub fn get(&self, id: &str) -> &Arc<BakedClientItem> {
+    pub fn get(&self, id: &str) -> &BakedNode {
         self.by_id.get(id).unwrap_or(&self.missing)
     }
 }
@@ -130,31 +121,17 @@ pub fn bake_all(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<ItemModels,
             .node(&item.model, Mat4::IDENTITY)
             .map_err(|error| format!("items/{id}: {error}"))?;
         let location = ResourceLocation::parse(&id).map_err(|error| format!("{id}: {error}"))?;
-        by_id.insert(location, Arc::new(client_item(&item, root)));
+        by_id.insert(location, Arc::new(root));
     }
     Ok(ItemModels {
         by_id,
         grass_colormap: Some(load_colormap(pack, "grass")?),
-        missing: Arc::new(BakedClientItem {
-            root: BakedNode::Model {
-                model: missing,
-                tints: Vec::new(),
-                transform: Mat4::IDENTITY,
-            },
-            oversized_in_gui: false,
-            hand_animation_on_swap: true,
-            swap_animation_scale: 1.0,
+        missing: Arc::new(BakedNode::Model {
+            model: missing,
+            tints: Vec::new(),
+            transform: Mat4::IDENTITY,
         }),
     })
-}
-
-fn client_item(item: &ClientItem, root: BakedNode) -> BakedClientItem {
-    BakedClientItem {
-        root,
-        oversized_in_gui: item.oversized_in_gui,
-        hand_animation_on_swap: item.hand_animation_on_swap,
-        swap_animation_scale: item.swap_animation_scale,
-    }
 }
 
 impl Baker<'_> {
@@ -249,7 +226,6 @@ impl Baker<'_> {
                         quads: Vec::new(),
                         display: baked.display,
                         gui_light: baked.gui_light,
-                        animated: false,
                     }),
                     transform: compose(parent, transformation.as_ref()),
                 }
@@ -289,14 +265,12 @@ fn bake_model(
     model: &ResolvedModel,
 ) -> Result<BakedItemModel, String> {
     let mut quads = Vec::new();
-    let mut animated = false;
     if model.generated {
         for layer in 0..5u32 {
             let Some(texture) = model.textures.get(&format!("layer{layer}")) else {
                 break;
             };
             let sprite = sprites.intern(pack, texture)?;
-            animated |= sprites.is_animated(sprite);
             let side = sprites.arrays()[sprites.sprite(sprite).array as usize].size;
             let frames = sprites.frames(sprite);
             quads.extend(generator::extrude(sprite, side, &frames, layer)?);
@@ -311,7 +285,6 @@ fn bake_model(
                     continue;
                 }
                 let sprite = sprites.intern(pack, model.sprite_of(face)?)?;
-                animated |= sprites.is_animated(sprite);
                 quads.push(item_quad(element, dir, face, sprite)?);
             }
         }
@@ -320,11 +293,15 @@ fn bake_model(
         quads,
         display: model.display,
         gui_light: model.gui_light,
-        animated,
     })
 }
 
-fn item_quad(element: &Element, dir: Dir, face: &Face, sprite: u16) -> Result<ItemQuad, String> {
+pub(super) fn item_quad(
+    element: &Element,
+    dir: Dir,
+    face: &Face,
+    sprite: u16,
+) -> Result<ItemQuad, String> {
     let geometry = face_geometry(element, dir, face, VariantRotation::default(), false)?;
     Ok(ItemQuad {
         positions: geometry.positions,
@@ -358,16 +335,14 @@ fn missing_model(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<BakedItemM
         .collect::<Result<Vec<_>, _>>()?;
     Ok(BakedItemModel {
         quads,
-        display: [ItemTransform::NONE; 9],
+        display: ItemTransform::NONE,
         gui_light: GuiLight::Side,
-        animated: false,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::DISPLAY_CONTEXTS;
 
     fn baked() -> ItemModels {
         let mut sprites = SpriteRegistry::new();
@@ -389,7 +364,7 @@ mod tests {
         let models = baked();
         let BakedNode::Model {
             model, transform, ..
-        } = &models.get("minecraft:stick").root
+        } = models.get("minecraft:stick")
         else {
             panic!("stick is a plain model");
         };
@@ -397,37 +372,35 @@ mod tests {
         assert_eq!(model.gui_light, GuiLight::Front);
         assert!(model.quads.len() > 2);
         assert!(model.quads.iter().all(|q| q.tint == Some(0)));
-        let gui = DISPLAY_CONTEXTS.iter().position(|c| *c == "gui").unwrap();
-        assert_eq!(model.display[gui], ItemTransform::NONE);
+        assert_eq!(model.display, ItemTransform::NONE);
     }
 
     #[test]
     fn a_block_item_keeps_its_cube_and_side_lighting() {
         let models = baked();
-        let BakedNode::Model { model, .. } = &models.get("minecraft:stone").root else {
+        let BakedNode::Model { model, .. } = models.get("minecraft:stone") else {
             panic!("stone is a plain model");
         };
         assert_eq!(model.quads.len(), 6);
         assert_eq!(model.gui_light, GuiLight::Side);
-        let gui = DISPLAY_CONTEXTS.iter().position(|c| *c == "gui").unwrap();
-        assert_eq!(model.display[gui].rotation_deg, Vec3::new(30.0, 225.0, 0.0));
+        assert_eq!(model.display.rotation_deg, Vec3::new(30.0, 225.0, 0.0));
     }
 
     #[test]
     fn an_unknown_id_is_the_missing_cube_without_display_transforms() {
         let models = baked();
-        let BakedNode::Model { model, .. } = &models.get("minecraft:no_such_item").root else {
+        let BakedNode::Model { model, .. } = models.get("minecraft:no_such_item") else {
             panic!("missing is a plain model");
         };
         assert_eq!(model.quads.len(), 6);
-        assert_eq!(model.display, [ItemTransform::NONE; 9]);
+        assert_eq!(model.display, ItemTransform::NONE);
         assert_eq!(model.gui_light, GuiLight::Side);
     }
 
     #[test]
     fn range_entries_are_sorted_and_looked_up_by_last_threshold_at_or_below() {
         let models = baked();
-        let BakedNode::Condition { on_true, .. } = &models.get("minecraft:bow").root else {
+        let BakedNode::Condition { on_true, .. } = models.get("minecraft:bow") else {
             panic!("bow switches on using_item");
         };
         let BakedNode::RangeDispatch {
@@ -450,10 +423,10 @@ mod tests {
     fn a_composite_of_one_collapses_and_a_special_keeps_only_its_display() {
         let models = baked();
         assert!(matches!(
-            models.get("minecraft:shield").root,
+            models.get("minecraft:shield"),
             BakedNode::Condition { .. }
         ));
-        let BakedNode::Special { properties, .. } = &models.get("minecraft:conduit").root else {
+        let BakedNode::Special { properties, .. } = models.get("minecraft:conduit") else {
             panic!("conduit is special");
         };
         assert!(properties.quads.is_empty());

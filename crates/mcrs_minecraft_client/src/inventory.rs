@@ -18,7 +18,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClose, ServerboundSetCarriedItem,
 };
-use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, StaticRegistryTable};
 
@@ -34,8 +33,6 @@ pub struct ContainerSeqno(pub u32);
 #[derive(Component, Debug)]
 pub struct OpenMenu {
     pub container_id: i32,
-    pub menu_type: ResourceLocation,
-    pub title: Text,
 }
 
 #[derive(Resource, Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,9 +42,6 @@ pub enum Screen {
     Inventory,
     Container(Entity),
 }
-
-#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InventoryInput;
 
 pub struct InventoryPlugin;
 
@@ -59,16 +53,12 @@ impl Plugin for InventoryPlugin {
         app.insert_resource(table)
             .init_resource::<Screen>()
             .add_observer(receive_inventory_packets)
-            .configure_sets(
+            .add_systems(
                 Update,
-                InventoryInput
+                (select_hotbar_slot, toggle_inventory)
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush)
                     .after(player::grab_cursor_on_click),
-            )
-            .add_systems(
-                Update,
-                (select_hotbar_slot, toggle_inventory).in_set(InventoryInput),
             );
     }
 
@@ -194,7 +184,7 @@ fn receive_inventory_packets(
             return;
         };
         commands.queue(move |world: &mut World| {
-            open_screen(world, packet.container_id.0, menu_type, packet.title);
+            open_screen(world, packet.container_id.0, menu_type);
         });
     } else if event.decode::<ClientboundContainerClose>().is_some() {
         commands.queue(close_screen);
@@ -309,7 +299,7 @@ fn apply_set_slot(
     set_seqno(world, container, seqno);
 }
 
-fn open_screen(world: &mut World, container_id: i32, menu_type: ResourceLocation, title: Text) {
+fn open_screen(world: &mut World, container_id: i32, menu_type: ResourceLocation) {
     let Some(player) = player(world) else {
         return;
     };
@@ -322,11 +312,7 @@ fn open_screen(world: &mut World, container_id: i32, menu_type: ResourceLocation
     }
     let menu = world.spawn_empty().id();
     world.entity_mut(menu).insert((
-        OpenMenu {
-            container_id,
-            menu_type,
-            title,
-        },
+        OpenMenu { container_id },
         SlotTable::fixed(usize::from(slots.own) + usize::from(slots.trailing_result)),
         ContainerSeqno::default(),
         MenuLayout(container_menu_layout(menu, player, slots)),

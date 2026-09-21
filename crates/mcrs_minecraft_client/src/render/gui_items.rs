@@ -1,10 +1,8 @@
 use std::num::NonZeroU64;
 
 use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
-use bevy::ecs::system::SystemParam;
 use bevy::mesh::VertexBufferLayout;
 use bevy::prelude::*;
-use bevy::render::render_phase::TrackedRenderPass;
 use bevy::render::render_resource::binding_types::{
     sampler, storage_buffer_read_only_sized, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
@@ -16,7 +14,6 @@ use bevy::shader::Shader;
 use super::terrain::Terrain;
 use super::{DEPTH_COMPARE, pipeline_descriptor, uniform_buffer};
 use crate::gui::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch};
-use crate::item_model::resolve::GuiVertex;
 
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
@@ -41,7 +38,6 @@ pub(super) struct GuiPass {
     )>,
     textures: Option<GuiTextures>,
     bind_group: Option<([TextureId; 4], BindGroup)>,
-    draws: usize,
 }
 
 struct GuiTextures {
@@ -82,7 +78,6 @@ pub(super) fn init_gui_pass(
         pipelines: None,
         textures: None,
         bind_group: None,
-        draws: 0,
     });
 }
 
@@ -179,32 +174,15 @@ pub(super) fn prepare_gui_pass(
                 view,
                 Some(BlendState::ALPHA_BLENDING),
             );
-            descriptor.vertex.buffers = vec![VertexBufferLayout {
-                array_stride: size_of::<GuiVertex>() as u64,
-                step_mode: VertexStepMode::Vertex,
-                attributes: vec![
-                    VertexAttribute {
-                        format: VertexFormat::Float32x3,
-                        offset: 0,
-                        shader_location: 0,
-                    },
-                    VertexAttribute {
-                        format: VertexFormat::Float32x2,
-                        offset: 12,
-                        shader_location: 1,
-                    },
-                    VertexAttribute {
-                        format: VertexFormat::Unorm8x4,
-                        offset: 20,
-                        shader_location: 2,
-                    },
-                    VertexAttribute {
-                        format: VertexFormat::Uint32,
-                        offset: 24,
-                        shader_location: 3,
-                    },
+            descriptor.vertex.buffers = vec![VertexBufferLayout::from_vertex_formats(
+                VertexStepMode::Vertex,
+                [
+                    VertexFormat::Float32x3,
+                    VertexFormat::Float32x2,
+                    VertexFormat::Unorm8x4,
+                    VertexFormat::Uint32,
                 ],
-            }];
+            )];
             descriptor.primitive = PrimitiveState {
                 topology: PrimitiveTopology::TriangleList,
                 front_face: FrontFace::Ccw,
@@ -262,19 +240,17 @@ pub(super) fn prepare_gui_pass(
 pub(super) fn write_gui_buffers(
     pass: Option<ResMut<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
-    terrain: Option<Res<Terrain>>,
     views: Query<&ExtractedView>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
-    let (Some(mut pass), Some(batch), Some(_)) = (pass, batch, terrain) else {
+    let (Some(mut pass), Some(batch)) = (pass, batch) else {
         return;
     };
     let Some(view) = views.iter().next() else {
         return;
     };
     let pass = &mut *pass;
-    pass.draws = 0;
     let viewport = view.viewport.zw().as_vec2();
     queue.write_buffer(
         &pass.uniform,
@@ -304,69 +280,17 @@ pub(super) fn write_gui_buffers(
         }));
     }
     queue.write_buffer(pass.vertices.as_ref().expect("sized above"), 0, bytes);
-    pass.draws = batch.draws.len();
-}
-
-#[derive(SystemParam)]
-pub(super) struct GuiDraws<'w> {
-    pass: Option<Res<'w, GuiPass>>,
-    batch: Option<Res<'w, GuiBatch>>,
-    pipeline_cache: Res<'w, PipelineCache>,
-}
-
-impl GuiDraws<'_> {
-    /// Every item element gets its own slice of the depth range, so its own geometry is
-    /// depth-tested against itself and later elements land over earlier ones by draw order.
-    pub fn draw<'pass>(&'pass self, pass: &mut TrackedRenderPass<'pass>, size: Vec2) {
-        let (Some(gui), Some(batch)) = (self.pass.as_deref(), self.batch.as_deref()) else {
-            return;
-        };
-        if gui.draws == 0 {
-            return;
-        }
-        let (Some((_, item_id, flat_id)), Some((_, bind_group)), Some(vertices)) = (
-            gui.pipelines,
-            gui.bind_group.as_ref(),
-            gui.vertices.as_ref(),
-        ) else {
-            return;
-        };
-        let (Some(item), Some(flat)) = (
-            self.pipeline_cache.get_render_pipeline(item_id),
-            self.pipeline_cache.get_render_pipeline(flat_id),
-        ) else {
-            return;
-        };
-        let items = batch.draws.iter().filter(|draw| draw.item).count().max(1) as f32;
-        pass.set_bind_group(0, bind_group, &[]);
-        pass.set_vertex_buffer(0, vertices.slice(..));
-        let mut band = 0;
-        for draw in &batch.draws {
-            if draw.item {
-                pass.set_render_pipeline(item);
-                pass.set_viewport(
-                    0.0,
-                    0.0,
-                    size.x,
-                    size.y,
-                    band as f32 / items,
-                    (band + 1) as f32 / items,
-                );
-                band += 1;
-            } else {
-                pass.set_render_pipeline(flat);
-                pass.set_viewport(0.0, 0.0, size.x, size.y, 0.0, 1.0);
-            }
-            pass.draw(draw.range.clone(), 0..1);
-        }
-    }
 }
 
 /// The world's depth is cleared first: the items' private bands must not be tested
 /// against terrain, and vanilla likewise draws each GUI item into a fresh atlas slot.
+/// Every item element then gets its own slice of the depth range, so its own geometry is
+/// depth-tested against itself and later elements land over earlier ones by draw order.
 pub(super) fn draw_gui(
     view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ExtractedView)>,
-    draws: GuiDraws,
+    gui: Option<Res<GuiPass>>,
+    batch: Option<Res<GuiBatch>>,
+    pipeline_cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
     let (target, depth, extracted) = view.into_inner();
@@ -394,5 +318,46 @@ pub(super) fn draw_gui(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    draws.draw(&mut pass, extracted.viewport.zw().as_vec2());
+    let (Some(gui), Some(batch)) = (gui.as_deref(), batch.as_deref()) else {
+        return;
+    };
+    if batch.draws.is_empty() {
+        return;
+    }
+    let (Some((_, item_id, flat_id)), Some((_, bind_group)), Some(vertices)) = (
+        gui.pipelines,
+        gui.bind_group.as_ref(),
+        gui.vertices.as_ref(),
+    ) else {
+        return;
+    };
+    let (Some(item), Some(flat)) = (
+        pipeline_cache.get_render_pipeline(item_id),
+        pipeline_cache.get_render_pipeline(flat_id),
+    ) else {
+        return;
+    };
+    let size = extracted.viewport.zw().as_vec2();
+    let items = batch.draws.iter().filter(|draw| draw.item).count().max(1) as f32;
+    pass.set_bind_group(0, bind_group, &[]);
+    pass.set_vertex_buffer(0, vertices.slice(..));
+    let mut band = 0;
+    for draw in &batch.draws {
+        if draw.item {
+            pass.set_render_pipeline(item);
+            pass.set_viewport(
+                0.0,
+                0.0,
+                size.x,
+                size.y,
+                band as f32 / items,
+                (band + 1) as f32 / items,
+            );
+            band += 1;
+        } else {
+            pass.set_render_pipeline(flat);
+            pass.set_viewport(0.0, 0.0, size.x, size.y, 0.0, 1.0);
+        }
+        pass.draw(draw.range.clone(), 0..1);
+    }
 }

@@ -404,8 +404,6 @@ fn a_chest_lays_out_over_the_menu_and_the_player() {
         let world = client.world();
         let open = world.get::<OpenMenu>(menu).unwrap();
         assert_eq!(open.container_id, 1);
-        assert_eq!(open.menu_type.as_str(), "minecraft:generic_9x3");
-        assert_eq!(open.title, Text::text("Chest"));
         assert_eq!(world.get::<SlotTable>(menu).unwrap().len(), 27);
         let layout = &world.get::<MenuLayout>(menu).unwrap().0;
         assert_eq!(layout.len(), 63);
