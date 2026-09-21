@@ -1,3 +1,6 @@
+pub mod menu;
+pub mod sync;
+
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_minecraft_item::DirtyStacks;
@@ -16,6 +19,9 @@ pub struct ItemPlugin;
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
         app.configure_sets(FixedUpdate, (StackSet::Mutate, StackSet::Sync).chain())
-            .init_resource::<DirtyStacks>();
+            .init_resource::<DirtyStacks>()
+            .init_resource::<sync::MenuResync>()
+            .add_systems(FixedUpdate, menu::open_menus.in_set(StackSet::Mutate))
+            .add_systems(FixedUpdate, sync::sync_stack_slots.in_set(StackSet::Sync));
     }
 }
