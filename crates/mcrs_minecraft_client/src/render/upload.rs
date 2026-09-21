@@ -13,6 +13,7 @@ use mcrs_minecraft_mesh::{Draw, Group};
 use super::arenas::Arenas;
 use super::stats::FrameCounts;
 use super::terrain::Terrain;
+use super::sprites::ticks;
 use super::texture::write_tint_square;
 use super::{SectionDesc, SpriteUpload};
 
@@ -125,6 +126,7 @@ pub(super) struct UploadParams<'w> {
     queue: Res<'w, RenderQueue>,
     pipeline_cache: Res<'w, PipelineCache>,
     counts: Res<'w, FrameCounts>,
+    time: Res<'w, Time>,
 }
 
 pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEncoder) {
@@ -136,6 +138,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
         queue,
         pipeline_cache,
         counts,
+        time,
     } = params;
     let (Some(terrain), Some(staging)) = (terrain.as_mut(), staging) else {
         return;
@@ -158,7 +161,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
                 Some(Upload::Sprites(upload)) => {
                     let _adding = info_span!("upload sprites").entered();
                     let (spent, rebound) =
-                        terrain.sprites.update(&upload, device, encoder, &mut belt);
+                        terrain.sprites.update(&upload, device, encoder, &mut belt, ticks(time));
                     if rebound {
                         terrain.binds.rebuild_draw(
                             &terrain.arenas,
