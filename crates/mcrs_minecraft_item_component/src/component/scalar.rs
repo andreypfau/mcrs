@@ -8,38 +8,49 @@ use crate::component::common::RgbInt;
 use crate::harness::Sample;
 
 macro_rules! var_int_newtype {
-    ($($(#[$meta:meta])* $ty:ident($inner:ty)),* $(,)?) => {$(
+    ($($(#[$meta:meta])* $ty:ident($(#[$field:meta])* $inner:ty) [$($sample:expr),+ $(,)?]),* $(,)?) => {$(
         $(#[$meta])*
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[serde(transparent)]
-        pub struct $ty(pub $inner);
+        pub struct $ty($(#[$field])* pub $inner);
+
+        impl Sample for $ty {
+            fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+                vec![("", INT_ID)]
+            }
+
+            fn samples() -> Vec<Self> {
+                vec![$($ty($sample)),+]
+            }
+        }
     )*};
 }
 
 var_int_newtype! {
-    MaxStackSize(codec::Bounded<1, 99, 64>),
-    MaxDamage(PositiveInt),
-    Damage(NonNegativeInt),
-    RepairCost(NonNegativeInt),
-    OminousBottleAmplifier(codec::Bounded<0, 4, 0>),
-}
-
-impl Default for MaxStackSize {
-    fn default() -> Self {
-        MaxStackSize(codec::Bounded(64))
-    }
+    #[derive(Default)]
+    MaxStackSize(codec::Bounded<1, 99, 64>) [codec::Bounded(64), codec::Bounded(1), codec::Bounded(99)],
+    MaxDamage(PositiveInt) [codec::Bounded(1), codec::Bounded(1561), codec::Bounded(i32::MAX)],
+    Damage(NonNegativeInt) [codec::Bounded(0), codec::Bounded(300)],
+    RepairCost(NonNegativeInt) [codec::Bounded(0), codec::Bounded(5), codec::Bounded(i32::MAX)],
+    OminousBottleAmplifier(codec::Bounded<0, 4, 0>) [codec::Bounded(0), codec::Bounded(4)],
+    #[derive(Default)]
+    MapId(#[serde(deserialize_with = "int_value")] i32) [0, 12345, -1],
+    #[derive(Default)]
+    DyedColor(RgbInt) [RgbInt(0), RgbInt(0xFF0000), RgbInt(-6265536)],
 }
 
 /// A record codec reads a map and nothing else, where the derived visitor
 /// would also take the fields as a sequence.
 macro_rules! record_codec {
-    ($($ty:ident),* $(,)?) => {$(
-        impl<'de> serde::Deserialize<'de> for $ty {
+    ($($ty:ident $(<$param:ident>)?),* $(,)?) => {$(
+        impl<'de $(, $param: serde::Deserialize<'de>)?> serde::Deserialize<'de> for $ty $(<$param>)? {
             fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-                struct MapOnly;
+                struct MapOnly<T>(std::marker::PhantomData<T>);
 
-                impl<'de> serde::de::Visitor<'de> for MapOnly {
-                    type Value = $ty;
+                impl<'de $(, $param: serde::Deserialize<'de>)?> serde::de::Visitor<'de>
+                    for MapOnly<$ty $(<$param>)?>
+                {
+                    type Value = $ty $(<$param>)?;
 
                     fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                         f.write_str("a map")
@@ -48,18 +59,18 @@ macro_rules! record_codec {
                     fn visit_map<A: serde::de::MapAccess<'de>>(
                         self,
                         map: A,
-                    ) -> Result<$ty, A::Error> {
-                        $ty::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+                    ) -> Result<Self::Value, A::Error> {
+                        <$ty $(<$param>)?>::deserialize(serde::de::value::MapAccessDeserializer::new(map))
                     }
                 }
 
-                d.deserialize_map(MapOnly)
+                d.deserialize_map(MapOnly(std::marker::PhantomData))
             }
         }
 
-        impl serde::Serialize for $ty {
+        impl $(<$param: serde::Serialize>)? serde::Serialize for $ty $(<$param>)? {
             fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-                $ty::serialize(self, s)
+                <$ty $(<$param>)?>::serialize(self, s)
             }
         }
     )*};
@@ -99,19 +110,11 @@ var_int_record! {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct MapId(#[serde(deserialize_with = "int_value")] pub i32);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(transparent)]
 pub struct AdditionalTradeCost(pub i32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct EnchantmentGlintOverride(pub bool);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct DyedColor(pub RgbInt);
 
 /// Bounds order `-0.0` below `0.0` and `NaN` above everything, unlike
 /// `PartialOrd`.
@@ -166,81 +169,6 @@ float_newtype! {
     PotionDurationScale [0.0, f32::MAX] |n| format!("Value must be non-negative: {n:?}"),
 }
 
-impl Sample for MaxStackSize {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        vec![("", INT_ID)]
-    }
-
-    fn samples() -> Vec<Self> {
-        vec![
-            MaxStackSize::default(),
-            MaxStackSize(codec::Bounded(1)),
-            MaxStackSize(codec::Bounded(99)),
-        ]
-    }
-}
-
-impl Sample for MaxDamage {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        vec![("", INT_ID)]
-    }
-
-    fn samples() -> Vec<Self> {
-        vec![
-            MaxDamage(codec::Bounded(1)),
-            MaxDamage(codec::Bounded(1561)),
-            MaxDamage(codec::Bounded(i32::MAX)),
-        ]
-    }
-}
-
-impl Sample for Damage {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        vec![("", INT_ID)]
-    }
-
-    fn samples() -> Vec<Self> {
-        vec![Damage(codec::Bounded(0)), Damage(codec::Bounded(300))]
-    }
-}
-
-impl Sample for RepairCost {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        vec![("", INT_ID)]
-    }
-
-    fn samples() -> Vec<Self> {
-        vec![
-            RepairCost(codec::Bounded(0)),
-            RepairCost(codec::Bounded(5)),
-            RepairCost(codec::Bounded(i32::MAX)),
-        ]
-    }
-}
-
-impl Sample for OminousBottleAmplifier {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        vec![("", INT_ID)]
-    }
-
-    fn samples() -> Vec<Self> {
-        vec![
-            OminousBottleAmplifier(codec::Bounded(0)),
-            OminousBottleAmplifier(codec::Bounded(4)),
-        ]
-    }
-}
-
-impl Sample for MapId {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        vec![("", INT_ID)]
-    }
-
-    fn samples() -> Vec<Self> {
-        vec![MapId(0), MapId(12345), MapId(-1)]
-    }
-}
-
 impl Sample for AdditionalTradeCost {
     fn samples() -> Vec<Self> {
         vec![
@@ -260,20 +188,6 @@ impl Sample for EnchantmentGlintOverride {
         vec![
             EnchantmentGlintOverride(true),
             EnchantmentGlintOverride(false),
-        ]
-    }
-}
-
-impl Sample for DyedColor {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        vec![("", INT_ID)]
-    }
-
-    fn samples() -> Vec<Self> {
-        vec![
-            DyedColor(RgbInt(0)),
-            DyedColor(RgbInt(0xFF0000)),
-            DyedColor(RgbInt(-6265536)),
         ]
     }
 }

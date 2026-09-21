@@ -1,8 +1,9 @@
+use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::LIST_ID;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{AttributeReg, EquipmentSlotGroup, ordinal_enum};
+use crate::component::common::{AttributeReg, EquipmentSlotGroup, key, ordinal_enum};
 use crate::component::registry_ref::null_as_default;
 use crate::harness::Sample;
 use mcrs_minecraft_text::IntoText;
@@ -29,7 +30,7 @@ pub struct AttributeEntry {
     #[serde(
         default,
         deserialize_with = "display_or_default",
-        skip_serializing_if = "is_default_display"
+        skip_serializing_if = "is_default"
     )]
     pub display: AttributeDisplay,
 }
@@ -45,10 +46,6 @@ fn any_slot() -> EquipmentSlotGroup {
 
 fn is_any(slot: &EquipmentSlotGroup) -> bool {
     *slot == EquipmentSlotGroup::Any
-}
-
-fn is_default_display(display: &AttributeDisplay) -> bool {
-    *display == AttributeDisplay::Default
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -90,9 +87,8 @@ impl Sample for AttributeModifiers {
     }
 
     fn samples() -> Vec<Self> {
-        let attribute = |path: &str| ResourceKey::from_location(ResourceLocation::minecraft(path));
         let entry = |path: &str, id: &str, amount: f64, operation, slot, display| AttributeEntry {
-            attribute: attribute(path),
+            attribute: key(path),
             modifier: AttributeModifierValue {
                 id: ResourceLocation::new("mcrs", id),
                 amount,

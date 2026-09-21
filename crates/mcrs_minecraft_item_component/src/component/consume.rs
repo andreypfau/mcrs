@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 use mcrs_minecraft_core::codec::{default_true, float_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::nbt_flag;
@@ -26,38 +24,41 @@ fn java_float(value: f32) -> String {
 }
 
 /// `-0.0` and NaN are out of range.
-pub fn positive_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+fn checked_float<'de, D: Deserializer<'de>>(
+    d: D,
+    ok: fn(f32) -> bool,
+    message: fn(String) -> String,
+) -> Result<f32, D::Error> {
     let value = float_value(d)?;
-    if value.total_cmp(&0.0) != Ordering::Greater || value.total_cmp(&f32::MAX) == Ordering::Greater
-    {
-        return Err(D::Error::custom(format_args!(
-            "Value must be positive: {}",
-            java_float(value)
-        )));
+    if ok(value) {
+        Ok(value)
+    } else {
+        Err(D::Error::custom(message(java_float(value))))
     }
-    Ok(value)
+}
+
+pub fn positive_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+    checked_float(
+        d,
+        |v| v.total_cmp(&0.0).is_gt() && v.total_cmp(&f32::MAX).is_le(),
+        |v| format!("Value must be positive: {v}"),
+    )
 }
 
 pub fn non_negative_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
-    let value = float_value(d)?;
-    if value.total_cmp(&0.0) == Ordering::Less || value.total_cmp(&f32::MAX) == Ordering::Greater {
-        return Err(D::Error::custom(format_args!(
-            "Value must be non-negative: {}",
-            java_float(value)
-        )));
-    }
-    Ok(value)
+    checked_float(
+        d,
+        |v| v.total_cmp(&0.0).is_ge() && v.total_cmp(&f32::MAX).is_le(),
+        |v| format!("Value must be non-negative: {v}"),
+    )
 }
 
 fn unit_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
-    let value = float_value(d)?;
-    if value.total_cmp(&0.0) == Ordering::Less || value.total_cmp(&1.0) == Ordering::Greater {
-        return Err(D::Error::custom(format_args!(
-            "Value {} outside of range [0.0:1.0]",
-            java_float(value)
-        )));
-    }
-    Ok(value)
+    checked_float(
+        d,
+        |v| v.total_cmp(&0.0).is_ge() && v.total_cmp(&1.0).is_le(),
+        |v| format!("Value {v} outside of range [0.0:1.0]"),
+    )
 }
 
 /// The default is compared by bits, so `-0.0` is still written.

@@ -1,15 +1,15 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
-use crate::component::common::{EntityTypeReg, Holder};
+use crate::component::common::{EntityTypeReg, Holder, key};
 use crate::component::registry_ref::null_as_default;
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 #[repr(u8)]
 pub enum EquipmentSlot {
     MainHand,
@@ -68,34 +68,6 @@ impl EquipmentSlot {
             7 => Self::Saddle,
             _ => Self::MainHand,
         }
-    }
-}
-
-const SLOT_NAMES: [(&str, EquipmentSlot); 8] = [
-    ("mainhand", EquipmentSlot::MainHand),
-    ("offhand", EquipmentSlot::OffHand),
-    ("feet", EquipmentSlot::Feet),
-    ("legs", EquipmentSlot::Legs),
-    ("chest", EquipmentSlot::Chest),
-    ("head", EquipmentSlot::Head),
-    ("body", EquipmentSlot::Body),
-    ("saddle", EquipmentSlot::Saddle),
-];
-
-impl Serialize for EquipmentSlot {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(SLOT_NAMES[*self as usize].0)
-    }
-}
-
-impl<'de> Deserialize<'de> for EquipmentSlot {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let name = <std::borrow::Cow<'de, str>>::deserialize(d)?;
-        SLOT_NAMES
-            .iter()
-            .find(|(n, _)| *n == name)
-            .map(|(_, slot)| *slot)
-            .ok_or_else(|| D::Error::custom(format_args!("Unknown element name:{name}")))
     }
 }
 
@@ -160,11 +132,8 @@ null_as_default! {
     false_or_default: bool = false;
 }
 
-pub const EQUIP_GENERIC_SOUND: &str = "item.armor.equip_generic";
-pub const SHEARS_SNIP_SOUND: &str = "item.shears.snip";
-
 fn equip_generic() -> Holder<SoundEvent> {
-    Holder::reference(ResourceLocation::minecraft(EQUIP_GENERIC_SOUND))
+    Holder::reference(ResourceLocation::minecraft("item.armor.equip_generic"))
 }
 
 fn is_equip_generic(sound: &Holder<SoundEvent>) -> bool {
@@ -172,7 +141,7 @@ fn is_equip_generic(sound: &Holder<SoundEvent>) -> bool {
 }
 
 fn shears_snip() -> Holder<SoundEvent> {
-    Holder::reference(ResourceLocation::minecraft(SHEARS_SNIP_SOUND))
+    Holder::reference(ResourceLocation::minecraft("item.shears.snip"))
 }
 
 fn is_shears_snip(sound: &Holder<SoundEvent>) -> bool {
@@ -225,7 +194,6 @@ impl Sample for Equippable {
     }
 
     fn samples() -> Vec<Self> {
-        let key = |path: &str| ResourceKey::from_location(ResourceLocation::minecraft(path));
         vec![
             Equippable::new(EquipmentSlot::Head),
             Equippable {

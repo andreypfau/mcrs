@@ -10,8 +10,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::{
     BannerPatternReg, BlockReg, BlockTransformerReg, DamageTypeReg, EnchantmentReg, EntityTypeReg,
-    ItemReg, MobEffectReg,
+    ItemReg, MobEffectReg, is_one, one,
 };
+use crate::component::simple::checked_float;
 use crate::harness::Sample;
 
 /// An id string, one raw VarInt on the wire, never inline.
@@ -205,7 +206,7 @@ impl Sample for DamageResistant {
     fn samples() -> Vec<Self> {
         vec![
             DamageResistant {
-                types: HolderSet::Tag(mcrs_minecraft_core::ResourceLocation::minecraft("is_fire")),
+                types: HolderSet::Tag(ResourceLocation::minecraft("is_fire")),
             },
             DamageResistant {
                 types: HolderSet::One(minecraft("lava")),
@@ -253,14 +254,6 @@ fn default_mining_speed() -> f32 {
 
 fn is_default_mining_speed(speed: &f32) -> bool {
     speed.to_bits() == 1.0f32.to_bits()
-}
-
-fn one() -> NonNegativeInt {
-    Bounded(1)
-}
-
-fn is_one(value: &NonNegativeInt) -> bool {
-    value.0 == 1
 }
 
 impl Default for Tool {
@@ -321,9 +314,7 @@ impl Sample for Tool {
             Tool {
                 rules: vec![
                     ToolRule {
-                        blocks: HolderSet::Tag(mcrs_minecraft_core::ResourceLocation::minecraft(
-                            "mineable/pickaxe",
-                        )),
+                        blocks: HolderSet::Tag(ResourceLocation::minecraft("mineable/pickaxe")),
                         speed: Some(8.0),
                         correct_for_drops: Some(true),
                     },
@@ -360,7 +351,7 @@ impl Sample for Repairable {
     fn samples() -> Vec<Self> {
         vec![
             Repairable {
-                items: HolderSet::Tag(mcrs_minecraft_core::ResourceLocation::minecraft("planks")),
+                items: HolderSet::Tag(ResourceLocation::minecraft("planks")),
             },
             Repairable {
                 items: HolderSet::One(minecraft("diamond_sword")),
@@ -378,19 +369,12 @@ pub const MAX_MOB_VISIBILITY: f32 = 10.0;
 #[serde(deny_unknown_fields)]
 pub struct MobVisibility {
     pub targeting_entity_types: HolderSet<ResourceKey<EntityTypeReg>>,
-    #[serde(deserialize_with = "visibility_range")]
+    #[serde(deserialize_with = "visibility")]
     pub visibility: f32,
 }
 
-fn visibility_range<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
-    let visibility = float_value(d)?;
-    if visibility.total_cmp(&0.0).is_ge() && visibility.total_cmp(&MAX_MOB_VISIBILITY).is_le() {
-        Ok(visibility)
-    } else {
-        Err(D::Error::custom(format_args!(
-            "Value must be within range [0.0;{MAX_MOB_VISIBILITY:?}]: {visibility:?}"
-        )))
-    }
+checked_float! {
+    visibility: v in 0.0 is_ge MAX_MOB_VISIBILITY => "Value must be within range [0.0;10.0]: {v:?}",
 }
 
 impl Sample for MobVisibility {
@@ -408,9 +392,7 @@ impl Sample for MobVisibility {
     fn samples() -> Vec<Self> {
         vec![
             MobVisibility {
-                targeting_entity_types: HolderSet::Tag(
-                    mcrs_minecraft_core::ResourceLocation::minecraft("skeletons"),
-                ),
+                targeting_entity_types: HolderSet::Tag(ResourceLocation::minecraft("skeletons")),
                 visibility: 0.0,
             },
             MobVisibility {
@@ -439,9 +421,9 @@ impl Sample for ProvidesBannerPatterns {
 
     fn samples() -> Vec<Self> {
         vec![
-            ProvidesBannerPatterns(HolderSet::Tag(
-                mcrs_minecraft_core::ResourceLocation::minecraft("pattern_item/globe"),
-            )),
+            ProvidesBannerPatterns(HolderSet::Tag(ResourceLocation::minecraft(
+                "pattern_item/globe",
+            ))),
             ProvidesBannerPatterns(HolderSet::One(minecraft("globe"))),
             ProvidesBannerPatterns(HolderSet::List(vec![
                 minecraft("globe"),
@@ -561,7 +543,7 @@ impl Sample for SuspiciousStewEffects {
 }
 
 fn minecraft<R>(path: &str) -> ResourceKey<R> {
-    ResourceKey::from_location(mcrs_minecraft_core::ResourceLocation::minecraft(path))
+    ResourceKey::from_location(ResourceLocation::minecraft(path))
 }
 
 fn holder_set_tag<T>(set: &HolderSet<T>) -> u8 {

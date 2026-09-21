@@ -6,9 +6,10 @@ use mcrs_minecraft_registry::ItemReg;
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::component::common::map_only;
 use crate::hash_ops;
 use crate::kind::ItemComponentKind;
-use crate::patch::{ComponentPatch, PersistentValue};
+use crate::patch::ComponentPatch;
 
 validated!(ItemStackValue);
 
@@ -50,57 +51,40 @@ pub mod optional_stack {
     pub fn deserialize<'de, D: Deserializer<'de>>(
         d: D,
     ) -> Result<Option<ItemStackValue>, D::Error> {
-        struct OptionalVisitor;
-
-        impl<'de> Visitor<'de> for OptionalVisitor {
-            type Value = Option<ItemStackValue>;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("an item stack or an empty map")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                let Some(first) = map.next_key::<String>()? else {
-                    return Ok(None);
-                };
-                ItemStackValue::deserialize(value::MapAccessDeserializer::new(Prefixed {
-                    first: Some(first),
-                    rest: map,
-                }))
-                .map(Some)
-            }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Repr {
+            #[serde(default, deserialize_with = "present")]
+            id: Option<ResourceKey<ItemReg>>,
+            #[serde(default, deserialize_with = "present")]
+            count: Option<codec::Bounded<1, 99, 1>>,
+            #[serde(default, deserialize_with = "present")]
+            components: Option<ComponentPatch>,
         }
 
-        d.deserialize_map(OptionalVisitor)
+        let repr: Repr = map_only(d)?;
+        let item = match repr {
+            Repr {
+                id: None,
+                count: None,
+                components: None,
+            } => return Ok(None),
+            Repr { id: Some(id), .. } => id,
+            Repr { id: None, .. } => return Err(D::Error::missing_field("id")),
+        };
+        let stack = ItemStackValue {
+            item,
+            count: repr.count.unwrap_or_default(),
+            components: repr.components.unwrap_or_default(),
+        };
+        stack.validate().map_err(D::Error::custom)?;
+        Ok(Some(stack))
     }
+}
 
-    struct Prefixed<A> {
-        first: Option<String>,
-        rest: A,
-    }
-
-    impl<'de, A: MapAccess<'de>> MapAccess<'de> for Prefixed<A> {
-        type Error = A::Error;
-
-        fn next_key_seed<K: serde::de::DeserializeSeed<'de>>(
-            &mut self,
-            seed: K,
-        ) -> Result<Option<K::Value>, A::Error> {
-            match self.first.take() {
-                Some(first) => seed
-                    .deserialize(value::StringDeserializer::<A::Error>::new(first))
-                    .map(Some),
-                None => self.rest.next_key_seed(seed),
-            }
-        }
-
-        fn next_value_seed<V: serde::de::DeserializeSeed<'de>>(
-            &mut self,
-            seed: V,
-        ) -> Result<V::Value, A::Error> {
-            self.rest.next_value_seed(seed)
-        }
-    }
+/// A field that is present reads as itself, `null` included.
+fn present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Option<T>, D::Error> {
+    T::deserialize(d).map(Some)
 }
 
 /// A stack written as a map, or as the bare item id when it is one plain item.
@@ -188,7 +172,7 @@ impl HashedPatchMap {
         let added = patch
             .added
             .iter()
-            .map(|value| Ok((value.kind(), hash_ops::hash(&PersistentValue(value))?)))
+            .map(|value| Ok((value.kind(), hash_ops::hash(value)?)))
             .collect::<Result<_, hash_ops::HashError>>()?;
         Ok(HashedPatchMap {
             added,
@@ -210,7 +194,7 @@ impl HashedPatchMap {
             else {
                 return false;
             };
-            hash_ops::hash(&PersistentValue(value)).is_ok_and(|actual| actual == *expected)
+            hash_ops::hash(value).is_ok_and(|actual| actual == *expected)
         })
     }
 }
@@ -237,66 +221,30 @@ impl Serialize for ItemStackWithSlot {
     }
 }
 
-/// Written field by field: `flatten` would buffer the map and lose the NBT
-/// tag types inside `components`.
-impl<'de> Deserialize<'de> for ItemStackWithSlot {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct SlotVisitor;
-
-        impl<'de> Visitor<'de> for SlotVisitor {
-            type Value = ItemStackWithSlot;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("an item stack with a Slot")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                const FIELDS: [&str; 4] = ["Slot", "id", "count", "components"];
-                let mut slot = None;
-                let mut item = None;
-                let mut count = None;
-                let mut components = None;
-                while let Some(key) = map.next_key::<String>()? {
-                    let taken = match key.as_str() {
-                        "Slot" => slot.is_some(),
-                        "id" => item.is_some(),
-                        "count" => count.is_some(),
-                        "components" => components.is_some(),
-                        other => return Err(A::Error::unknown_field(other, &FIELDS)),
-                    };
-                    if taken {
-                        return Err(A::Error::custom(format_args!("Duplicate key '{key}'")));
-                    }
-                    match key.as_str() {
-                        "Slot" => slot = Some((map.next_value_seed(IntSeed)? & 0xFF) as u8),
-                        "id" => item = Some(map.next_value()?),
-                        "count" => count = Some(map.next_value()?),
-                        _ => components = Some(map.next_value()?),
-                    }
-                }
-                let stack = ItemStackValue {
-                    item: item.ok_or_else(|| A::Error::missing_field("id"))?,
-                    count: count.unwrap_or_default(),
-                    components: components.unwrap_or_default(),
-                };
-                stack.validate().map_err(A::Error::custom)?;
-                Ok(ItemStackWithSlot {
-                    slot: slot.unwrap_or(0),
-                    stack,
-                })
-            }
-        }
-
-        d.deserialize_map(SlotVisitor)
-    }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SlotRepr {
+    #[serde(rename = "Slot", default, deserialize_with = "codec::int_value")]
+    slot: i32,
+    id: ResourceKey<ItemReg>,
+    #[serde(default)]
+    count: codec::Bounded<1, 99, 1>,
+    #[serde(default)]
+    components: ComponentPatch,
 }
 
-struct IntSeed;
-
-impl<'de> serde::de::DeserializeSeed<'de> for IntSeed {
-    type Value = i32;
-
-    fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<i32, D::Error> {
-        codec::int_value(d)
+impl<'de> Deserialize<'de> for ItemStackWithSlot {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let repr: SlotRepr = map_only(d)?;
+        let stack = ItemStackValue {
+            item: repr.id,
+            count: repr.count,
+            components: repr.components,
+        };
+        stack.validate().map_err(D::Error::custom)?;
+        Ok(ItemStackWithSlot {
+            slot: (repr.slot & 0xFF) as u8,
+            stack,
+        })
     }
 }

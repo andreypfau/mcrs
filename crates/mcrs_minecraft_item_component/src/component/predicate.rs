@@ -9,9 +9,10 @@ use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
     AttributeReg, BlockReg, CompactList, EnchantmentReg, EquipmentSlotGroup, ItemReg,
     JukeboxSongReg, MinMaxBounds, MobEffectReg, NbtPredicate, PotionReg, TrimMaterialReg,
-    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, serialize_unit,
+    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, key, map_only, serialize_unit,
 };
 use crate::component::fireworks::FireworkShape;
+use crate::component::scalar::record_codec;
 use crate::harness::Sample;
 use crate::kind::ItemComponentKind;
 use crate::patch::ComponentMap;
@@ -75,8 +76,6 @@ pub struct BlockPredicate {
     pub matchers: DataComponentMatchers,
 }
 
-const BLOCK_PREDICATE_FIELDS: &[&str] = &["blocks", "state", "nbt", "components", "predicates"];
-
 impl Serialize for BlockPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(None)?;
@@ -96,32 +95,31 @@ impl Serialize for BlockPredicate {
 
 impl<'de> Deserialize<'de> for BlockPredicate {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct PredicateVisitor;
-
-        impl<'de> Visitor<'de> for PredicateVisitor {
-            type Value = BlockPredicate;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a block predicate")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                let mut predicate = BlockPredicate::default();
-                let mut matchers = MatcherFields::default();
-                while let Some(key) = map.next_key::<String>()? {
-                    match key.as_str() {
-                        "blocks" => set_once(&mut predicate.blocks, "blocks", &mut map)?,
-                        "state" => set_once(&mut predicate.state, "state", &mut map)?,
-                        "nbt" => set_once(&mut predicate.nbt, "nbt", &mut map)?,
-                        _ => matchers.read(&key, &mut map, BLOCK_PREDICATE_FIELDS)?,
-                    }
-                }
-                predicate.matchers = matchers.finish();
-                Ok(predicate)
-            }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Repr {
+            #[serde(default)]
+            blocks: Option<HolderSet<ResourceKey<BlockReg>>>,
+            #[serde(default)]
+            state: Option<StatePropertiesPredicate>,
+            #[serde(default)]
+            nbt: Option<NbtPredicate>,
+            #[serde(default)]
+            components: Option<ComponentMap>,
+            #[serde(default)]
+            predicates: Option<ComponentPredicates>,
         }
 
-        d.deserialize_map(PredicateVisitor)
+        let repr: Repr = map_only(d)?;
+        Ok(BlockPredicate {
+            blocks: repr.blocks,
+            state: repr.state,
+            nbt: repr.nbt,
+            matchers: DataComponentMatchers {
+                components: repr.components.unwrap_or_default(),
+                predicates: repr.predicates.unwrap_or_default(),
+            },
+        })
     }
 }
 
@@ -132,8 +130,6 @@ pub struct ItemPredicate {
     pub count: MinMaxBounds<i32>,
     pub matchers: DataComponentMatchers,
 }
-
-const ITEM_PREDICATE_FIELDS: &[&str] = &["items", "count", "components", "predicates"];
 
 impl Serialize for ItemPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -151,46 +147,29 @@ impl Serialize for ItemPredicate {
 
 impl<'de> Deserialize<'de> for ItemPredicate {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct PredicateVisitor;
-
-        impl<'de> Visitor<'de> for PredicateVisitor {
-            type Value = ItemPredicate;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("an item predicate")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                let mut predicate = ItemPredicate::default();
-                let mut count = None;
-                let mut matchers = MatcherFields::default();
-                while let Some(key) = map.next_key::<String>()? {
-                    match key.as_str() {
-                        "items" => set_once(&mut predicate.items, "items", &mut map)?,
-                        "count" => set_once(&mut count, "count", &mut map)?,
-                        _ => matchers.read(&key, &mut map, ITEM_PREDICATE_FIELDS)?,
-                    }
-                }
-                predicate.count = count.unwrap_or(MinMaxBounds::ANY);
-                predicate.matchers = matchers.finish();
-                Ok(predicate)
-            }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Repr {
+            #[serde(default)]
+            items: Option<HolderSet<ResourceKey<ItemReg>>>,
+            #[serde(default)]
+            count: Option<MinMaxBounds<i32>>,
+            #[serde(default)]
+            components: Option<ComponentMap>,
+            #[serde(default)]
+            predicates: Option<ComponentPredicates>,
         }
 
-        d.deserialize_map(PredicateVisitor)
+        let repr: Repr = map_only(d)?;
+        Ok(ItemPredicate {
+            items: repr.items,
+            count: repr.count.unwrap_or(MinMaxBounds::ANY),
+            matchers: DataComponentMatchers {
+                components: repr.components.unwrap_or_default(),
+                predicates: repr.predicates.unwrap_or_default(),
+            },
+        })
     }
-}
-
-fn set_once<'de, A: MapAccess<'de>, T: Deserialize<'de>>(
-    slot: &mut Option<T>,
-    field: &'static str,
-    map: &mut A,
-) -> Result<(), A::Error> {
-    if slot.is_some() {
-        return Err(A::Error::duplicate_field(field));
-    }
-    *slot = Some(map.next_value()?);
-    Ok(())
 }
 
 /// Property name to matcher, in the order read.
@@ -272,34 +251,6 @@ impl DataComponentMatchers {
             map.serialize_entry("predicates", &self.predicates)?;
         }
         Ok(())
-    }
-}
-
-#[derive(Default)]
-struct MatcherFields {
-    components: Option<ComponentMap>,
-    predicates: Option<ComponentPredicates>,
-}
-
-impl MatcherFields {
-    fn read<'de, A: MapAccess<'de>>(
-        &mut self,
-        key: &str,
-        map: &mut A,
-        fields: &'static [&'static str],
-    ) -> Result<(), A::Error> {
-        match key {
-            "components" => set_once(&mut self.components, "components", map),
-            "predicates" => set_once(&mut self.predicates, "predicates", map),
-            _ => Err(A::Error::unknown_field(key, fields)),
-        }
-    }
-
-    fn finish(self) -> DataComponentMatchers {
-        DataComponentMatchers {
-            components: self.components.unwrap_or_default(),
-            predicates: self.predicates.unwrap_or_default(),
-        }
     }
 }
 
@@ -498,40 +449,7 @@ predicate_types! {
     14 "villager/variant"      : VillagerVariant(HolderSet<ResourceKey<VillagerTypeReg>>),
 }
 
-/// A derived record also reads a positional sequence, where vanilla reads
-/// only a map. The derive is kept inherent through `remote = "Self"` and
-/// reached only from a map.
-macro_rules! record {
-    ($($name:ident $(<$param:ident>)?),* $(,)?) => {$(
-        impl<'de $(, $param: Deserialize<'de>)?> Deserialize<'de> for $name $(<$param>)? {
-            fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-                struct MapOnly<T>(std::marker::PhantomData<T>);
-
-                impl<'de $(, $param: Deserialize<'de>)?> Visitor<'de> for MapOnly<$name $(<$param>)?> {
-                    type Value = $name $(<$param>)?;
-
-                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                        f.write_str("a map")
-                    }
-
-                    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-                        <$name $(<$param>)?>::deserialize(serde::de::value::MapAccessDeserializer::new(map))
-                    }
-                }
-
-                d.deserialize_map(MapOnly(std::marker::PhantomData))
-            }
-        }
-
-        impl $(<$param: Serialize>)? Serialize for $name $(<$param>)? {
-            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-                <$name $(<$param>)?>::serialize(self, s)
-            }
-        }
-    )*};
-}
-
-record! {
+record_codec! {
     DamagePredicate,
     EnchantmentPredicate,
     PotionsPredicate,
@@ -771,11 +689,11 @@ impl Sample for AdventureModePredicate {
         vec![
             AdventureModePredicate::default(),
             AdventureModePredicate(CompactList(vec![BlockPredicate {
-                blocks: Some(HolderSet::One(block("stone"))),
+                blocks: Some(HolderSet::One(key("stone"))),
                 ..Default::default()
             }])),
             AdventureModePredicate(CompactList(vec![BlockPredicate {
-                blocks: Some(HolderSet::List(vec![block("stone"), block("dirt")])),
+                blocks: Some(HolderSet::List(vec![key("stone"), key("dirt")])),
                 state: Some(StatePropertiesPredicate(vec![
                     ("lit".into(), ValueMatcher::Exact("true".into())),
                     (
@@ -850,7 +768,7 @@ impl Sample for ItemPredicate {
         vec![
             ItemPredicate::default(),
             ItemPredicate {
-                items: Some(HolderSet::One(item("diamond_sword"))),
+                items: Some(HolderSet::One(key("diamond_sword"))),
                 count: MinMaxBounds {
                     min: Some(3),
                     max: Some(3),
@@ -858,7 +776,7 @@ impl Sample for ItemPredicate {
                 ..Default::default()
             },
             ItemPredicate {
-                items: Some(HolderSet::List(vec![item("stone"), item("apple")])),
+                items: Some(HolderSet::List(vec![key("stone"), key("apple")])),
                 count: MinMaxBounds {
                     min: Some(2),
                     max: Some(5),
@@ -875,18 +793,6 @@ impl Sample for ItemPredicate {
             },
         ]
     }
-}
-
-fn key<R>(path: &str) -> ResourceKey<R> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path))
-}
-
-fn block(path: &str) -> ResourceKey<BlockReg> {
-    key(path)
-}
-
-fn item(path: &str) -> ResourceKey<ItemReg> {
-    key(path)
 }
 
 fn sample_compound() -> mcrs_minecraft_nbt::compound::NbtCompound {
@@ -1055,7 +961,7 @@ fn sample_matchers() -> DataComponentMatchers {
                 ComponentPredicate::Container(ContainerPredicate {
                     items: Some(CollectionPredicate {
                         contains: Some(vec![ItemPredicate {
-                            items: Some(HolderSet::One(item("apple"))),
+                            items: Some(HolderSet::One(key("apple"))),
                             count: at_least(2),
                             ..Default::default()
                         }]),
