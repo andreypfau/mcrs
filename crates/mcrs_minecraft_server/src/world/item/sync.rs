@@ -66,6 +66,7 @@ pub fn sync_stack_slots(world: &mut World) {
         }
     }
 
+    let resent = resync.menus_full.clone();
     for menu in resync.menus_full {
         let Some((layout, viewer)) = world
             .get::<MenuLayout>(menu)
@@ -105,6 +106,7 @@ pub fn sync_stack_slots(world: &mut World) {
         }
         let hits: Vec<(Entity, Entity, i16)> = menus
             .iter(world)
+            .filter(|(menu, _, _)| !resent.contains(menu))
             .filter_map(|(menu, layout, viewer)| {
                 let slot = layout.0.iter().position(|cell| *cell == (holder, index))?;
                 Some((menu, viewer.0, slot as i16))

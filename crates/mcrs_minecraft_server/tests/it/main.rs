@@ -35,6 +35,7 @@ mod epoch_round_trip;
 mod harness;
 mod host_app;
 mod host_subapp_handoff;
+mod inventory;
 mod inventory_click;
 mod inventory_sync;
 mod light_engine_e2e;
