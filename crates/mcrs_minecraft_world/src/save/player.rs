@@ -168,5 +168,10 @@ pub fn write_player_dat(world: &Path, player: Uuid, dat: &PlayerDat) -> Result<(
     })?;
     let tmp = path.with_extension("dat.tmp");
     fs::write(&tmp, bytes).map_err(io)?;
+    match fs::rename(&path, path.with_extension("dat_old")) {
+        Ok(()) => {}
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {}
+        Err(source) => return Err(io(source)),
+    }
     fs::rename(&tmp, &path).map_err(io)
 }

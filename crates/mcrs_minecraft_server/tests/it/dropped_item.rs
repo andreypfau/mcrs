@@ -295,13 +295,14 @@ fn opening_a_chest_swaps_the_menu_and_sends_its_contents() {
     open_containers(&mut world);
     drain(&mut world);
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert_eq!(world.get::<Menu>(menu).unwrap().container_id, 2);
     world.despawn(chest);
     close_dead_menus(&mut world);
     assert_eq!(world.get::<CurrentMenu>(player).unwrap().0, inventory_menu);
     assert!(world.get_entity(menu).is_err());
     let packets = drain(&mut world);
     assert!(
-        matches!(packets[0].data, PacketPayload::ContainerClose(1)),
+        matches!(packets[0].data, PacketPayload::ContainerClose(2)),
         "{packets:?}"
     );
 }

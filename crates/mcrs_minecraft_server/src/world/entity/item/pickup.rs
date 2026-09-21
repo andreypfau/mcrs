@@ -27,10 +27,13 @@ const REACH_Y: f64 = 0.5;
 /// animates a take for an entity it still has.
 pub fn pickup_items(world: &mut World) {
     let mut players = world.query_filtered::<(Entity, &InDimension, &Transform, Option<&PlayerGameMode>), With<Player>>();
-    let players: Vec<(Entity, Entity, DVec3)> = players
+    let players: Vec<(Entity, Entity, DVec3, bool)> = players
         .iter(world)
         .filter(|(_, _, _, mode)| mode.is_none_or(|mode| mode.0 != GameMode::Spectator))
-        .map(|(player, dim, transform, _)| (player, dim.0, transform.translation))
+        .map(|(player, dim, transform, mode)| {
+            let creative = mode.is_some_and(|mode| mode.0 == GameMode::Creative);
+            (player, dim.0, transform.translation, creative)
+        })
         .collect();
     if players.is_empty() {
         return;
@@ -45,7 +48,7 @@ pub fn pickup_items(world: &mut World) {
         return;
     }
     let items = world.resource::<Items>().clone();
-    for (player, player_dim, at) in players {
+    for (player, player_dim, at, creative) in players {
         for &(item, item_dim, item_at) in &ready {
             if item_dim != player_dim || !touching(at, item_at) || world.get_entity(item).is_err() {
                 continue;
@@ -54,7 +57,7 @@ pub fn pickup_items(world: &mut World) {
                 continue;
             };
             let room = room_for(world, player, item, &items);
-            if room == 0 {
+            if room == 0 && !creative {
                 continue;
             }
             let targets: SmallVec<[Entity; 8]> = std::iter::once(player)
@@ -82,6 +85,10 @@ pub fn pickup_items(world: &mut World) {
                     session: PlayerSession(0),
                     epoch: 0,
                 });
+            if room == 0 {
+                world.despawn(item);
+                continue;
+            }
             let taking = u8::try_from(room).map_or(count, |room| room.min(count));
             let Some(taken) = mutate::split(world, item, taking, &items) else {
                 continue;

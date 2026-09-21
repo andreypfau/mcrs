@@ -41,7 +41,12 @@ pub struct DiggingPlugin;
 
 impl Plugin for DiggingPlugin {
     fn build(&self, app: &mut bevy_app::App) {
-        app.add_systems(FixedUpdate, tick_digging.in_set(StackSet::Mutate));
+        app.add_systems(
+            FixedUpdate,
+            tick_digging
+                .in_set(StackSet::Mutate)
+                .before(crate::world::entity::item::spawn_block_drops),
+        );
         app.add_systems(
             Update,
             (

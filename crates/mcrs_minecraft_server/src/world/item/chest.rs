@@ -1,4 +1,6 @@
 use crate::world::bus::PacketPayload;
+use crate::world::entity::item::EYE_HEIGHT;
+use crate::world::inventory::NextContainerId;
 use crate::world::item::click::{PLAYER_MENU_CELLS, insert_or_drop};
 use crate::world::item::menu::{CurrentMenu, Menu, MenuLayout, MenuViewer, MenusOf};
 use crate::world::item::sync::{MenuResync, to};
@@ -6,7 +8,10 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::world::World;
+use bevy_math::DVec3;
 use mcrs_minecraft_item::{Items, SlotTable, slots};
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_protocol::Text;
 
 /// ponytail: no menu registry is loaded, so the generic 9x3 id is the
@@ -87,13 +92,13 @@ pub fn open_containers(world: &mut World) {
             tracing::debug!(container = ?req.container, cells = table.len(), "a container without a chest menu");
             continue;
         }
-        let Some(previous_id) = world.get::<Menu>(current).map(|menu| menu.container_id) else {
-            continue;
-        };
         if world.get::<MenuContainer>(current).is_some() {
             close_container_menu(world, req.player, current, true);
         }
-        let container_id = previous_id % 100 + 1;
+        let mut player = world.entity_mut(req.player);
+        let mut next = player.entry::<NextContainerId>().or_default();
+        next.get_mut().0 = next.get().0 % 100 + 1;
+        let container_id = next.get().0;
         let layout: Vec<(Entity, u16)> = (0..(CHEST_ROWS * 9) as u16)
             .map(|index| (req.container, index))
             .chain((slots::MAIN.start..slots::HOTBAR.end).map(|index| (req.player, index)))
@@ -127,13 +132,32 @@ pub fn open_containers(world: &mut World) {
     }
 }
 
-/// A container menu whose block entity left with its section closes on the
-/// client too.
+/// ponytail: the block interaction range attribute is not modelled, so the
+/// vanilla default stands in. Upgrade: read the player's attribute.
+const BLOCK_INTERACTION_RANGE: f64 = 4.5;
+const STILL_VALID_BUFFER: f64 = 4.0;
+
+fn within_reach(world: &World, player: Entity, container: Entity) -> bool {
+    let Some((transform, pos)) = world
+        .get::<Transform>(player)
+        .zip(world.get::<BlockEntityPos>(container))
+    else {
+        return false;
+    };
+    let eye = transform.translation + DVec3::new(0.0, EYE_HEIGHT, 0.0);
+    let min = pos.0.as_ivec3().as_dvec3();
+    let gap = (min - eye).max(eye - (min + DVec3::ONE)).max(DVec3::ZERO);
+    let range = BLOCK_INTERACTION_RANGE + STILL_VALID_BUFFER;
+    gap.length_squared() < range * range
+}
+
+/// A container menu whose block entity left with its section, or whose
+/// viewer walked out of reach, closes on the client too.
 pub fn close_dead_menus(world: &mut World) {
     let dead: Vec<(Entity, Entity)> = world
         .query::<(Entity, &MenuContainer, &MenuViewer)>()
         .iter(world)
-        .filter(|(_, container, _)| world.get_entity(container.0).is_err())
+        .filter(|(_, container, viewer)| !within_reach(world, viewer.0, container.0))
         .map(|(menu, _, viewer)| (menu, viewer.0))
         .collect();
     for (menu, player) in dead {

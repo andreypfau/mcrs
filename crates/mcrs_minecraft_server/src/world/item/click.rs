@@ -478,19 +478,15 @@ fn quick_move(
     move_to(world, stack, &cells, items)
 }
 
-/// Puts a stack back into the player's hotbar and main inventory, dropping
-/// what does not fit.
+/// Puts a stack back into the player's inventory the way a pickup does,
+/// dropping what does not fit.
 pub fn insert_or_drop(
     world: &mut World,
     player: Entity,
     stack: Entity,
     items: &Items,
 ) -> Result<(), MoveError> {
-    let cells: Vec<(Entity, u16)> = slots::HOTBAR
-        .chain(slots::MAIN)
-        .map(|index| (player, index))
-        .collect();
-    move_to(world, stack, &cells, items)?;
+    insert_stack(world, player, stack, items)?;
     if world.get::<ItemStack>(stack).is_some() {
         drop_stack(world, player, stack);
     }
@@ -784,6 +780,12 @@ pub fn handle_drop_actions(world: &mut World, mut cursor: Local<MessageCursor<Pl
     }
     let items = world.resource::<Items>().clone();
     for (player, kind) in actions {
+        if world
+            .get::<PlayerGameMode>(player)
+            .is_some_and(|mode| mode.0 == GameMode::Spectator)
+        {
+            continue;
+        }
         let Some((table, selected)) = world
             .get::<SlotTable>(player)
             .zip(world.get::<SelectedHotbarSlot>(player))

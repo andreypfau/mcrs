@@ -7,7 +7,9 @@ use mcrs_minecraft_item::{
 };
 use mcrs_minecraft_protocol::item::{ContainerInput, HashedSlot, RawStack};
 use mcrs_minecraft_server::world::bus::PacketPayload;
-use mcrs_minecraft_server::world::item::click::{ContainerClickRequest, handle_container_clicks};
+use mcrs_minecraft_server::world::item::click::{
+    CloseContainerRequest, ContainerClickRequest, close_menus, handle_container_clicks,
+};
 use mcrs_minecraft_server::world::item::menu::{CurrentMenu, Menu, open_menus};
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
 
@@ -211,4 +213,29 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
         &packets[0].data,
         PacketPayload::ContainerSetContent { .. }
     ));
+}
+
+#[test]
+fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
+    let (mut world, player) = opened();
+    world.init_resource::<Messages<CloseContainerRequest>>();
+    let held_cell = slots::held(3);
+    let held = stone(&mut world);
+    mutate::set_count(&mut world, held, 30);
+    mutate::move_stack(&mut world, held, player, held_cell).unwrap();
+    let first = stone(&mut world);
+    mutate::set_count(&mut world, first, 50);
+    mutate::move_stack(&mut world, first, player, slots::HOTBAR.start).unwrap();
+    let carried = stone(&mut world);
+    mutate::set_count(&mut world, carried, 10);
+    mutate::move_stack(&mut world, carried, player, slots::CARRIED).unwrap();
+
+    world.write_message(CloseContainerRequest {
+        player,
+        container_id: 0,
+    });
+    close_menus(&mut world);
+    assert_eq!(cell(&world, player, slots::CARRIED), None);
+    assert_eq!(cell(&world, player, held_cell), Some((held, 40)));
+    assert_eq!(cell(&world, player, slots::HOTBAR.start), Some((first, 50)));
 }

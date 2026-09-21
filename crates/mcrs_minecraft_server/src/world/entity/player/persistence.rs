@@ -21,6 +21,11 @@ pub const AUTOSAVE_INTERVAL: u32 = 6000;
 #[derive(Component, Default, Debug, Clone)]
 pub struct LoadedPlayerDat(pub NbtCompound);
 
+/// The file on disk could not be parsed; saving would replace it with the
+/// empty inventory the player joined with.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct UnreadablePlayerDat;
+
 const EQUIPMENT: [(&str, u16); 5] = [
     ("feet", slots::ARMOR_FEET),
     ("legs", slots::ARMOR_LEGS),
@@ -42,7 +47,8 @@ pub fn load_player(world: &mut World, player: Entity) {
         Ok(Some(dat)) => dat,
         Ok(None) => return,
         Err(err) => {
-            error!(%uuid, "player data unreadable, joining empty: {err}");
+            error!(%uuid, "player data unreadable, joining empty and never saved: {err}");
+            world.entity_mut(player).insert(UnreadablePlayerDat);
             return;
         }
     };
@@ -141,6 +147,9 @@ pub fn write_player(world: &World, player: Entity) {
     let Some(uuid) = world.get::<GameProfile>(player).map(|profile| profile.id) else {
         return;
     };
+    if world.get::<UnreadablePlayerDat>(player).is_some() {
+        return;
+    }
     if let Err(err) = write_player_dat(&save.0, uuid, &save_player(world, player)) {
         error!(%uuid, "player data not saved: {err}");
     }
