@@ -1,8 +1,6 @@
-use mcrs_minecraft_core::codec::{default_true, float_value};
+use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::nbt_flag;
-use mcrs_minecraft_nbt::snbt::java_float;
-use serde::de::Error as _;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -12,42 +10,27 @@ use crate::component::common::{
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
 
-/// `-0.0` and NaN are out of range.
-fn checked_float<'de, D: Deserializer<'de>>(
-    d: D,
-    ok: fn(f32) -> bool,
-    message: fn(String) -> String,
-) -> Result<f32, D::Error> {
-    let value = float_value(d)?;
-    if ok(value) {
-        Ok(value)
-    } else {
-        Err(D::Error::custom(message(java_float(value))))
-    }
+/// A ranged float field with vanilla's error wording; the bounds order `-0.0`
+/// below `0.0` and NaN outside every range.
+macro_rules! checked_float {
+    ($($vis:vis $name:ident: $value:ident in $min:literal $op:tt $max:expr => $message:literal),* $(,)?) => {$(
+        $vis fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+            let $value = ::mcrs_minecraft_core::codec::float_value(d)?;
+            if $value.total_cmp(&$min).$op() && $value.total_cmp(&$max).is_le() {
+                Ok($value)
+            } else {
+                let $value = ::mcrs_minecraft_nbt::snbt::java_float($value);
+                Err(<D::Error as ::serde::de::Error>::custom(format_args!($message)))
+            }
+        }
+    )*};
 }
+pub(crate) use checked_float;
 
-pub fn positive_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
-    checked_float(
-        d,
-        |v| v.total_cmp(&0.0).is_gt() && v.total_cmp(&f32::MAX).is_le(),
-        |v| format!("Value must be positive: {v}"),
-    )
-}
-
-pub fn non_negative_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
-    checked_float(
-        d,
-        |v| v.total_cmp(&0.0).is_ge() && v.total_cmp(&f32::MAX).is_le(),
-        |v| format!("Value must be non-negative: {v}"),
-    )
-}
-
-fn unit_float<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
-    checked_float(
-        d,
-        |v| v.total_cmp(&0.0).is_ge() && v.total_cmp(&1.0).is_le(),
-        |v| format!("Value {v} outside of range [0.0:1.0]"),
-    )
+checked_float! {
+    pub positive_float: v in 0.0 is_gt f32::MAX => "Value must be positive: {v}",
+    pub non_negative_float: v in 0.0 is_ge f32::MAX => "Value must be non-negative: {v}",
+    pub unit_float: v in 0.0 is_ge 1.0 => "Value {v} outside of range [0.0:1.0]",
 }
 
 /// The default is compared by bits, so `-0.0` is still written.

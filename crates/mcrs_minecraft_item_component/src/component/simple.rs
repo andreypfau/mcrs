@@ -2,59 +2,30 @@ use std::collections::BTreeMap;
 use std::ops::Not;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, float_value};
+use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::{self, RgbInt};
+use crate::component::consume::{
+    checked_float, float_default, is_one, is_zero, non_negative_float, one, positive_float,
+    unit_float, zero,
+};
 use crate::harness::Sample;
 use crate::kind::ItemComponentKind;
 
-macro_rules! float_default {
-    ($($value:literal $default:ident $is:ident),* $(,)?) => {$(
-        fn $default() -> f32 {
-            $value
-        }
-
-        fn $is(value: &f32) -> bool {
-            value.to_bits() == $value.to_bits()
-        }
-    )*};
-}
-
 float_default! {
-    0.2f32 speed_multiplier is_speed_multiplier,
-    0.0f32 zero is_zero,
-    3.0f32 three is_three,
-    5.0f32 five is_five,
-    0.3f32 hitbox_margin is_hitbox_margin,
-    1.0f32 one is_one,
+    speed_multiplier / is_speed_multiplier = 0.2f32,
+    three / is_three = 3.0f32,
+    five / is_five = 5.0f32,
+    hitbox_margin / is_hitbox_margin = 0.3f32,
 }
-
-/// A ranged float field with vanilla's error wording; the bounds order -0.0
-/// below 0.0.
-macro_rules! checked_float {
-    ($($name:ident: $value:ident in $min:literal $op:tt $max:expr => $message:literal),* $(,)?) => {$(
-        fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
-            let $value = float_value(d)?;
-            if $value.total_cmp(&$min).$op() && $value.total_cmp(&$max).is_le() {
-                Ok($value)
-            } else {
-                Err(D::Error::custom(format_args!($message)))
-            }
-        }
-    )*};
-}
-pub(crate) use checked_float;
 
 checked_float! {
-    unit_fraction: v in 0.0 is_ge 1.0 => "Value {v:?} outside of range [0.0:1.0]",
-    mob_factor: v in 0.0 is_ge 2.0 => "Value {v:?} outside of range [0.0:2.0]",
-    reach: v in 0.0 is_ge 64.0 => "Value must be within range [0.0;64.0]: {v:?}",
-    margin: v in 0.0 is_ge 1.0 => "Value must be within range [0.0;1.0]: {v:?}",
-    positive: v in 0.0 is_gt f32::MAX => "Value must be positive: {v:?}",
-    non_negative: v in 0.0 is_ge f32::MAX => "Value must be non-negative: {v:?}",
+    mob_factor: v in 0.0 is_ge 2.0 => "Value {v} outside of range [0.0:2.0]",
+    reach: v in 0.0 is_ge 64.0 => "Value must be within range [0.0;64.0]: {v}",
+    margin: v in 0.0 is_ge 1.0 => "Value must be within range [0.0;1.0]: {v}",
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -66,7 +37,7 @@ pub struct UseEffects {
     pub interact_vibrations: bool,
     #[serde(
         default = "speed_multiplier",
-        deserialize_with = "unit_fraction",
+        deserialize_with = "unit_float",
         skip_serializing_if = "is_speed_multiplier"
     )]
     pub speed_multiplier: f32,
@@ -261,7 +232,7 @@ impl Sample for Food {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UseCooldown {
-    #[serde(deserialize_with = "positive")]
+    #[serde(deserialize_with = "positive_float")]
     pub seconds: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cooldown_group: Option<ResourceLocation>,
@@ -297,7 +268,7 @@ pub struct Weapon {
     pub item_damage_per_attack: NonNegativeInt,
     #[serde(
         default = "zero",
-        deserialize_with = "non_negative",
+        deserialize_with = "non_negative_float",
         skip_serializing_if = "is_zero"
     )]
     pub disable_blocking_for_seconds: f32,

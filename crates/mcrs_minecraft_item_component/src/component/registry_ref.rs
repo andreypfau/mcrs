@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, float_value, int_value};
+use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, validated};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
@@ -12,7 +12,7 @@ use crate::component::common::{
     BannerPatternReg, BlockReg, BlockTransformerReg, DamageTypeReg, EnchantmentReg, EntityTypeReg,
     ItemReg, MobEffectReg, is_one, one,
 };
-use crate::component::simple::checked_float;
+use crate::component::consume::checked_float;
 use crate::harness::Sample;
 
 /// An id string, one raw VarInt on the wire, never inline.
@@ -374,7 +374,7 @@ pub struct MobVisibility {
 }
 
 checked_float! {
-    visibility: v in 0.0 is_ge MAX_MOB_VISIBILITY => "Value must be within range [0.0;10.0]: {v:?}",
+    visibility: v in 0.0 is_ge MAX_MOB_VISIBILITY => "Value must be within range [0.0;10.0]: {v}",
 }
 
 impl Sample for MobVisibility {

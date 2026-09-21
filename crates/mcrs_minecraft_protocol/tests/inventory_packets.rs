@@ -1,6 +1,9 @@
 //! Bytes written by the vanilla 26.3-snapshot-10 packet stream codecs; `id`
 //! lines are the registry ids the capture session had.
 
+#[allow(dead_code)]
+mod common;
+
 use std::collections::HashMap;
 
 use mcrs_minecraft_core::codec::Bounded as Range;
@@ -51,11 +54,7 @@ fn fixture() -> Fixture {
                 ResourceLocation::parse(name).unwrap(),
             );
         } else if let Some((name, hex)) = line.split_once(' ') {
-            let bytes = (0..hex.len())
-                .step_by(2)
-                .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
-                .collect();
-            fixture.packets.insert(name.into(), bytes);
+            fixture.packets.insert(name.into(), common::hex(hex));
         }
     }
     fixture
