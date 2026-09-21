@@ -1,18 +1,14 @@
 use std::fmt;
-use std::io::Write;
 
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::component::common::{MobEffectDetails, MobEffectInstance, PotionReg};
 use crate::item::component::registry_ref::null_as_default;
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
-use crate::{Decode, Encode};
 
 /// The full map, or on read a bare potion id. Custom effects never carry a
 /// hidden effect: vanilla hands out copies that leave it behind, so no encoder
@@ -41,14 +37,14 @@ impl PotionContents {
         }
     }
 
-    fn visible_effects(&self) -> Vec<MobEffectInstance> {
+    pub(crate) fn visible_effects(&self) -> Vec<MobEffectInstance> {
         let mut effects = self.custom_effects.clone();
         strip_hidden(&mut effects);
         effects
     }
 }
 
-fn strip_hidden(effects: &mut [MobEffectInstance]) {
+pub(crate) fn strip_hidden(effects: &mut [MobEffectInstance]) {
     for effect in effects {
         effect.details.hidden_effect = None;
     }
@@ -122,30 +118,6 @@ impl<'de> Deserialize<'de> for PotionContents {
         }
 
         d.deserialize_any(ContentsVisitor)
-    }
-}
-
-impl EncodeCtx for PotionContents {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.potion.encode_ctx(ctx, &mut w)?;
-        self.custom_color.encode(&mut w)?;
-        self.visible_effects().encode_ctx(ctx, &mut w)?;
-        self.custom_name.encode(w)
-    }
-}
-
-impl DecodeCtx<'_> for PotionContents {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let potion = Option::decode_ctx(ctx, r)?;
-        let custom_color = Option::decode(r)?;
-        let mut custom_effects: Vec<MobEffectInstance> = Vec::decode_ctx(ctx, r)?;
-        strip_hidden(&mut custom_effects);
-        Ok(PotionContents {
-            potion,
-            custom_color,
-            custom_effects,
-            custom_name: Option::decode(r)?,
-        })
     }
 }
 

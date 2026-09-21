@@ -1,23 +1,18 @@
-use std::io::Write;
 use std::ops::Not;
 
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::Bounded;
 use crate::item::component::book::size_limited;
 use crate::item::component::common::{ordinal_enum, unsigned_byte};
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
 use crate::item::harness::Sample;
-use crate::{Bounded, Decode, Encode, VarInt};
 
 ordinal_enum! {
     FireworkShape { SmallBall, LargeBall, Star, Creeper, Burst }
 }
-
-crate::item::wire::ordinal_enum_wire!(FireworkShape);
 
 fn int_list<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<i32>, D::Error> {
     struct Element(i32);
@@ -34,7 +29,7 @@ fn int_list<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<i32>, D::Error> {
         .collect())
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FireworkExplosion {
     pub shape: FireworkShape,
@@ -67,8 +62,6 @@ impl Default for FireworkExplosion {
         }
     }
 }
-
-ctx_free!(FireworkExplosion);
 
 impl Sample for FireworkExplosion {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -132,7 +125,7 @@ pub struct Fireworks {
         serialize_with = "unsigned_byte_tag",
         skip_serializing_if = "is_zero"
     )]
-    flight_duration: i32,
+    pub(crate) flight_duration: i32,
     #[serde(
         default,
         deserialize_with = "size_limited",
@@ -156,22 +149,6 @@ impl Fireworks {
 
     pub fn flight_duration(&self) -> i32 {
         self.flight_duration
-    }
-}
-
-impl EncodeCtx for Fireworks {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.flight_duration).encode(&mut w)?;
-        self.explosions.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for Fireworks {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Fireworks {
-            flight_duration: VarInt::decode(r)?.0,
-            explosions: Bounded::decode_ctx(ctx, r)?,
-        })
     }
 }
 

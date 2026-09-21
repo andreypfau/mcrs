@@ -1,16 +1,11 @@
-use std::io::Write;
-
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Serialize};
 
 use crate::item::component::common::{BlockEntityTypeReg, EntityTypeReg, TypedEntityData};
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
-use crate::{Decode, Encode, VarInt};
 
 // ponytail: `TypedEntityData<R>` derives `Clone`/`PartialEq`, which demands
 // them of the uninhabited registry marker too; until that derive is replaced
@@ -41,18 +36,6 @@ macro_rules! typed_entity_component {
         impl PartialEq for $ty {
             fn eq(&self, other: &Self) -> bool {
                 typed_eq(&self.0, &other.0)
-            }
-        }
-
-        impl EncodeCtx for $ty {
-            fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-                self.0.encode_ctx(ctx, w)
-            }
-        }
-
-        impl DecodeCtx<'_> for $ty {
-            fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-                TypedEntityData::decode_ctx(ctx, r).map($ty)
             }
         }
 
@@ -105,36 +88,6 @@ impl PartialEq for BeeOccupant {
         typed_eq(&self.entity_data, &other.entity_data)
             && self.ticks_in_hive == other.ticks_in_hive
             && self.min_ticks_in_hive == other.min_ticks_in_hive
-    }
-}
-
-impl EncodeCtx for BeeOccupant {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.entity_data.encode_ctx(ctx, &mut w)?;
-        VarInt(self.ticks_in_hive).encode(&mut w)?;
-        VarInt(self.min_ticks_in_hive).encode(w)
-    }
-}
-
-impl DecodeCtx<'_> for BeeOccupant {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(BeeOccupant {
-            entity_data: TypedEntityData::decode_ctx(ctx, r)?,
-            ticks_in_hive: VarInt::decode(r)?.0,
-            min_ticks_in_hive: VarInt::decode(r)?.0,
-        })
-    }
-}
-
-impl EncodeCtx for Bees {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for Bees {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Vec::decode_ctx(ctx, r).map(Bees)
     }
 }
 

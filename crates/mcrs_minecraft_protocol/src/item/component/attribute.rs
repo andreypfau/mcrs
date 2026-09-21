@@ -1,16 +1,11 @@
-use std::io::Write;
-
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::LIST_ID;
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Serialize};
 
 use crate::item::component::common::{AttributeReg, EquipmentSlotGroup, ordinal_enum};
 use crate::item::component::registry_ref::null_as_default;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
 use crate::item::harness::Sample;
 use crate::text::{IntoText, Text};
-use crate::{Decode, Encode, VarInt};
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -54,7 +49,7 @@ fn is_default_display(display: &AttributeDisplay) -> bool {
     *display == AttributeDisplay::Default
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeModifierValue {
     pub id: ResourceLocation,
@@ -62,13 +57,9 @@ pub struct AttributeModifierValue {
     pub operation: AttributeOperation,
 }
 
-ctx_free!(AttributeModifierValue);
-
 ordinal_enum! {
     AttributeOperation { AddValue, AddMultipliedBase, AddMultipliedTotal }
 }
-
-crate::item::wire::ordinal_enum_wire!(AttributeOperation);
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
@@ -82,67 +73,12 @@ pub enum AttributeDisplay {
 }
 
 impl AttributeDisplay {
-    fn type_id(&self) -> i32 {
+    pub(crate) fn type_id(&self) -> i32 {
         match self {
             AttributeDisplay::Default => 0,
             AttributeDisplay::Hidden => 1,
             AttributeDisplay::Override { .. } => 2,
         }
-    }
-}
-
-impl EncodeCtx for AttributeDisplay {
-    fn encode_ctx(&self, _: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.type_id()).encode(&mut w)?;
-        match self {
-            AttributeDisplay::Override { value } => value.encode(w),
-            _ => Ok(()),
-        }
-    }
-}
-
-/// An unknown type id reads as `Default`.
-impl DecodeCtx<'_> for AttributeDisplay {
-    fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(match VarInt::decode(r)?.0 {
-            1 => AttributeDisplay::Hidden,
-            2 => AttributeDisplay::Override {
-                value: Text::decode(r)?,
-            },
-            _ => AttributeDisplay::Default,
-        })
-    }
-}
-
-impl EncodeCtx for AttributeEntry {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.attribute.encode_ctx(ctx, &mut w)?;
-        self.modifier.encode(&mut w)?;
-        self.slot.encode(&mut w)?;
-        self.display.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for AttributeEntry {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(AttributeEntry {
-            attribute: ResourceKey::decode_ctx(ctx, r)?,
-            modifier: AttributeModifierValue::decode(r)?,
-            slot: EquipmentSlotGroup::decode(r)?,
-            display: AttributeDisplay::decode_ctx(ctx, r)?,
-        })
-    }
-}
-
-impl EncodeCtx for AttributeModifiers {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for AttributeModifiers {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Vec::decode_ctx(ctx, r).map(AttributeModifiers)
     }
 }
 

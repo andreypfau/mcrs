@@ -1,39 +1,20 @@
 use std::fmt;
-use std::io::Write;
 
 use anyhow::ensure;
 use mcrs_minecraft_core::codec::{self, int_value};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::{Error as _, IgnoredAny, SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::Bounded;
 use crate::item::component::{CustomName, Damage, ItemReg, MaxStackSize, Unbreakable};
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
 use crate::item::kind::ItemComponentKind;
 use crate::item::patch::ComponentPatch;
 use crate::item::stack::Template;
 use crate::text::Text;
-use crate::{Bounded, Encode};
-
-macro_rules! delegating_ctx {
-    ($($ty:ident),* $(,)?) => {$(
-        impl EncodeCtx for $ty {
-            fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-                self.0.encode_ctx(ctx, w)
-            }
-        }
-
-        impl<'a> DecodeCtx<'a> for $ty {
-            fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-                DecodeCtx::decode_ctx(ctx, r).map($ty)
-            }
-        }
-    )*};
-}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -47,14 +28,12 @@ pub struct SulfurCubeContent(pub Template);
 #[serde(transparent)]
 pub struct BundleContents(pub Vec<Template>);
 
-delegating_ctx!(UseRemainder, SulfurCubeContent, BundleContents);
-
 pub const MAX_CHARGED_PROJECTILES: usize = 1024;
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]
 #[serde(transparent)]
 pub struct ChargedProjectiles {
-    items: Bounded<Vec<Template>, MAX_CHARGED_PROJECTILES>,
+    pub(crate) items: Bounded<Vec<Template>, MAX_CHARGED_PROJECTILES>,
 }
 
 impl ChargedProjectiles {
@@ -89,20 +68,6 @@ impl<'de> Deserialize<'de> for ChargedProjectiles {
     }
 }
 
-impl EncodeCtx for ChargedProjectiles {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.items.encode_ctx(ctx, w)
-    }
-}
-
-impl<'a> DecodeCtx<'a> for ChargedProjectiles {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Ok(Self {
-            items: Bounded::decode_ctx(ctx, r)?,
-        })
-    }
-}
-
 /// Sides are boxed so a rare four-template value does not size every
 /// `ItemComponentValue`.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
@@ -124,40 +89,13 @@ impl PotDecorations {
     }
 }
 
-impl EncodeCtx for PotDecorations {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        for side in self.sides() {
-            match side {
-                Some(template) => {
-                    true.encode(&mut w)?;
-                    template.encode_ctx(ctx, &mut w)?;
-                }
-                None => false.encode(&mut w)?,
-            }
-        }
-        Ok(())
-    }
-}
-
-impl<'a> DecodeCtx<'a> for PotDecorations {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let mut side = || Option::<Template>::decode_ctx(ctx, r).map(|t| t.map(Box::new));
-        Ok(PotDecorations {
-            back: side()?,
-            left: side()?,
-            right: side()?,
-            front: side()?,
-        })
-    }
-}
-
 pub const MAX_CONTAINER_SLOTS: usize = 256;
 
 /// Dense by slot index; the persistent form lists only the occupied slots, so
 /// trailing empty slots do not survive a save.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Container {
-    slots: Bounded<Vec<Option<Template>>, MAX_CONTAINER_SLOTS>,
+    pub(crate) slots: Bounded<Vec<Option<Template>>, MAX_CONTAINER_SLOTS>,
 }
 
 impl Container {
@@ -261,20 +199,6 @@ impl<'de> Deserialize<'de> for Container {
         }
 
         d.deserialize_seq(SlotsVisitor)
-    }
-}
-
-impl EncodeCtx for Container {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.slots.encode_ctx(ctx, w)
-    }
-}
-
-impl<'a> DecodeCtx<'a> for Container {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Ok(Self {
-            slots: Bounded::decode_ctx(ctx, r)?,
-        })
     }
 }
 

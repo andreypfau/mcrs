@@ -1,25 +1,20 @@
 use std::collections::BTreeMap;
 use std::fmt;
-use std::io::Write;
 
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::item::component::common::{
     BlockReg, LootTableReg, MapDecorationTypeReg, RecipeReg, compound_or_snbt,
 };
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free, decode_nbt_wire, encode_nbt_wire};
 use crate::item::harness::Sample;
-use crate::{Decode, Encode};
 
 /// The compound as is; an SNBT string reads as one too.
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Encode, Decode)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
+#[derive(Clone, Debug, PartialEq, Default, Serialize)]
 #[serde(transparent)]
 pub struct CustomData(pub NbtCompound);
 
@@ -28,8 +23,6 @@ impl<'de> Deserialize<'de> for CustomData {
         compound_or_snbt(d).map(CustomData)
     }
 }
-
-ctx_free!(CustomData);
 
 impl Sample for CustomData {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -65,30 +58,9 @@ impl Sample for CustomData {
     }
 }
 
-/// A kind whose wire form is its persistent form as one network NBT tag.
-macro_rules! nbt_wire {
-    ($($ty:ident),* $(,)?) => {$(
-        impl EncodeCtx for $ty {
-            fn encode_ctx(&self, _: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-                encode_nbt_wire(self, w)
-            }
-        }
-
-        impl DecodeCtx<'_> for $ty {
-            fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-                decode_nbt_wire(r)
-            }
-        }
-    )*};
-}
-
-nbt_wire!(MapDecorations, DebugStickState, Recipes, ContainerLoot);
-
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct BucketEntityData(pub CustomData);
-
-ctx_free!(BucketEntityData);
 
 impl Sample for BucketEntityData {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
