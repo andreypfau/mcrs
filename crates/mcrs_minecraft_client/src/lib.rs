@@ -20,6 +20,7 @@ pub mod config;
 pub mod gui;
 pub mod input;
 pub mod inventory;
+pub mod item_model;
 pub mod light_guard;
 pub mod local_player;
 pub mod model;

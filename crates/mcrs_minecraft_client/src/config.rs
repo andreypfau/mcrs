@@ -405,6 +405,46 @@ pub fn frozen_time() -> Option<i64> {
     }
 }
 
+/// `GUI_SCALE=<n>` pins the GUI scale; `0` or unset picks the largest scale
+/// that keeps 320x240 GUI units on screen, as vanilla's auto setting does.
+pub fn gui_scale() -> u32 {
+    let Some(spec) = knob("GUI_SCALE") else {
+        return 0;
+    };
+    match spec.trim().parse() {
+        Ok(scale) => Some(scale),
+        Err(error) => reject("GUI_SCALE", spec.trim(), error),
+    }
+    .unwrap_or(0)
+}
+
+/// `SCREEN=inventory` opens that screen at start, so a capture is deterministic.
+pub fn initial_screen() -> crate::inventory::Screen {
+    use crate::inventory::Screen;
+    match knob("SCREEN").as_deref() {
+        None | Some("none") => Screen::None,
+        Some("inventory") => Screen::Inventory,
+        Some(other) => {
+            reject("SCREEN", other, "expected none or inventory").unwrap_or(Screen::None)
+        }
+    }
+}
+
+/// `CURSOR=<x>,<y>` pins the cursor in GUI units for the screens, in place of the pointer.
+pub fn gui_cursor() -> Option<bevy::math::IVec2> {
+    let spec = knob("CURSOR")?;
+    let at = spec.split_once(',').and_then(|(x, y)| {
+        Some(bevy::math::IVec2::new(
+            x.trim().parse().ok()?,
+            y.trim().parse().ok()?,
+        ))
+    });
+    match at {
+        Some(at) => Some(at),
+        None => reject("CURSOR", &spec, "expected <x>,<y> in GUI units"),
+    }
+}
+
 pub struct TerrainLimits {
     pub arena_scale: usize,
     pub groups: usize,

@@ -2,6 +2,7 @@ mod arenas;
 mod binds;
 mod draws;
 mod frame;
+mod gui_items;
 mod heat;
 mod hiz;
 mod layer;
@@ -152,6 +153,7 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/heat.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/hiz.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/gui_items.wgsl");
 }
 
 pub struct TerrainPlugin(pub Arc<Budget>, pub Uploads);
@@ -194,6 +196,7 @@ impl Plugin for TerrainPlugin {
                 (
                     terrain::init_terrain,
                     heat::init_heat.after(terrain::init_terrain),
+                    gui_items::init_gui_pass,
                     probe::init,
                     probe::log_system_counts,
                 ),
@@ -217,6 +220,9 @@ impl Plugin for TerrainPlugin {
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
                     sprites::write_animation_frames.in_set(RenderSystems::Prepare),
                     frame::write_camera.in_set(RenderSystems::Prepare),
+                    (gui_items::prepare_gui_pass, gui_items::write_gui_buffers)
+                        .chain()
+                        .in_set(RenderSystems::Prepare),
                     stats::read_draw_args.in_set(RenderSystems::Cleanup),
                     probe::read.in_set(RenderSystems::Cleanup),
                     upload::recall_staging.in_set(RenderSystems::Cleanup),
@@ -224,9 +230,12 @@ impl Plugin for TerrainPlugin {
             )
             .add_systems(
                 Core3d,
-                pass::draw_frame
-                    .in_set(Core3dSystems::MainPass)
-                    .after(main_opaque_pass_3d),
+                (
+                    pass::draw_frame.after(main_opaque_pass_3d),
+                    gui_items::draw_gui,
+                )
+                    .chain()
+                    .in_set(Core3dSystems::MainPass),
             );
     }
 }

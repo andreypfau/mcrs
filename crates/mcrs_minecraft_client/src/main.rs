@@ -169,6 +169,8 @@ fn main() {
     .add_plugins(gui::light_levels::LightLevelsPlugin)
     .add_plugins(mcrs_minecraft_client::light_guard::LightGuardPlugin)
     .add_plugins(mcrs_minecraft_client::chunk_guard::ChunkGuardPlugin)
+    .add_plugins(mcrs_minecraft_client::item_model::resolve::ItemRenderPlugin)
+    .add_plugins(gui::scene::GuiPlugin)
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_plugins(sky::SkyPlugin)
     .add_plugins(screenshot::ScreenshotPlugin)

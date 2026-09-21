@@ -17,7 +17,11 @@ pub mod value;
 
 pub use definition::{ItemDefinitions, ItemEntry, Items, load_item_definitions};
 pub use dropped::{DroppedItem, Thrower, WireStack};
-pub use effective::{StackComponent, effective, is_damageable, is_stackable, max_stack_size};
+pub use effective::{
+    StackComponent, bundle_weight, children, damage_value, effective, effective_value, has_foil,
+    is_damageable, is_damaged, is_enchanted, is_stackable, max_damage, max_stack_size,
+    next_damage_will_break, patched_value,
+};
 pub use held::{Held, Holds, SlotTable};
 pub use inventory::{SelectedHotbarSlot, slots};
 pub use mutate::{MoveError, StackCommands};

@@ -441,6 +441,7 @@ fn toggle_inventory(
     keys: Res<ButtonInput<KeyCode>>,
     mut screen: ResMut<Screen>,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
+    mut window: Single<&mut Window, With<PrimaryWindow>>,
     connection: Option<Single<&mut ClientConnection>>,
     menus: Query<&OpenMenu>,
     mut commands: Commands,
@@ -452,6 +453,11 @@ fn toggle_inventory(
             if toggle && cursor.grab_mode != CursorGrabMode::None {
                 *screen = Screen::Inventory;
                 grab(&mut cursor, false);
+                let center = Vec2::new(
+                    window.physical_width() as f32,
+                    window.physical_height() as f32,
+                ) / 2.0;
+                window.set_physical_cursor_position(Some(center.as_dvec2()));
             }
             return;
         }
