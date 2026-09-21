@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::fmt;
-use std::io::Write;
 use std::marker::PhantomData;
 
 use anyhow::ensure;
@@ -9,29 +8,14 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, nbt_flag, nbt_int_array};
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
-use crate::{Bounded, Decode, Encode, VarInt};
 
 pub use crate::text::optional_flag;
 
 pub use mcrs_minecraft_registry::holder::*;
-
-impl<T: Registered + EncodeCtx> EncodeCtx for HolderWireOnly<T> {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl<'a, T: Registered + DecodeCtx<'a>> DecodeCtx<'a> for HolderWireOnly<T> {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Holder::decode_ctx(ctx, r).map(HolderWireOnly)
-    }
-}
 
 /// `{raw, filtered?}`, read leniently from a bare value.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -99,22 +83,6 @@ impl<'de, T: DeserializeOwned> Deserialize<'de> for Filterable<T> {
     }
 }
 
-impl<T: EncodeCtx> EncodeCtx for Filterable<T> {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.raw.encode_ctx(ctx, &mut w)?;
-        self.filtered.encode_ctx(ctx, w)
-    }
-}
-
-impl<'a, T: DecodeCtx<'a>> DecodeCtx<'a> for Filterable<T> {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Ok(Filterable {
-            raw: T::decode_ctx(ctx, r)?,
-            filtered: Option::decode_ctx(ctx, r)?,
-        })
-    }
-}
-
 macro_rules! resolvable {
     ($name:ident, $scalar:ty, $registry:ident, $expecting:literal, $number:ident) => {
         #[derive(Clone, Debug, PartialEq)]
@@ -173,31 +141,6 @@ macro_rules! resolvable {
             }
         }
 
-        impl EncodeCtx for $name {
-            fn encode_ctx(&self, _: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-                match self {
-                    Self::Constant(value) => {
-                        true.encode(&mut w)?;
-                        value.encode(w)
-                    }
-                    Self::Reference(key) => {
-                        false.encode(&mut w)?;
-                        key.location().encode(w)
-                    }
-                }
-            }
-        }
-
-        impl DecodeCtx<'_> for $name {
-            fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-                Ok(match bool::decode(r)? {
-                    true => Self::Constant(Decode::decode(r)?),
-                    false => {
-                        Self::Reference(ResourceKey::from_location(ResourceLocation::decode(r)?))
-                    }
-                })
-            }
-        }
     };
 }
 
@@ -404,62 +347,6 @@ fn is_zero_i32(value: &i32) -> bool {
     *value == 0
 }
 
-impl EncodeCtx for MobEffectInstance {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.id.encode_ctx(ctx, &mut w)?;
-        self.details.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for MobEffectInstance {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(MobEffectInstance {
-            id: ResourceKey::decode_ctx(ctx, r)?,
-            details: MobEffectDetails::decode_ctx(ctx, r)?,
-        })
-    }
-}
-
-impl EncodeCtx for MobEffectDetails {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.amplifier() as i32).encode(&mut w)?;
-        VarInt(self.duration).encode(&mut w)?;
-        self.ambient.encode(&mut w)?;
-        self.show_particles.encode(&mut w)?;
-        self.show_icon.encode(&mut w)?;
-        match &self.hidden_effect {
-            Some(hidden) => {
-                true.encode(&mut w)?;
-                hidden.encode_ctx(ctx, w)
-            }
-            None => false.encode(w),
-        }
-    }
-}
-
-impl DecodeCtx<'_> for MobEffectDetails {
-    #[allow(clippy::only_used_in_recursion)]
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let amplifier = VarInt::decode(r)?.0.clamp(0, 255);
-        let duration = VarInt::decode(r)?.0;
-        let ambient = bool::decode(r)?;
-        let show_particles = bool::decode(r)?;
-        let show_icon = bool::decode(r)?;
-        let hidden_effect = match bool::decode(r)? {
-            true => Some(Box::new(MobEffectDetails::decode_ctx(ctx, r)?)),
-            false => None,
-        };
-        Ok(MobEffectDetails {
-            amplifier: amplifier as i8,
-            duration,
-            ambient,
-            show_particles,
-            show_icon,
-            hidden_effect,
-        })
-    }
-}
-
 /// A compound whose `id` names the type, read from a compound or an SNBT
 /// string; the `id` is lifted out and written back first.
 #[derive(Clone, PartialEq)]
@@ -508,27 +395,6 @@ impl<'de, R> Deserialize<'de> for TypedEntityData<R> {
     }
 }
 
-impl<R: RegistryName> EncodeCtx for TypedEntityData<R> {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.id.encode_ctx(ctx, &mut w)?;
-        self.tag.encode(w)
-    }
-}
-
-impl<R: RegistryName> DecodeCtx<'_> for TypedEntityData<R> {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = ResourceKey::decode_ctx(ctx, r)?;
-        ensure!(
-            r.first() == Some(&mcrs_minecraft_nbt::COMPOUND_ID),
-            "expected a compound tag"
-        );
-        Ok(TypedEntityData {
-            id,
-            tag: NbtCompound::decode(r)?,
-        })
-    }
-}
-
 /// A compound, or on read an SNBT string that parses to one.
 pub fn compound_or_snbt<'de, D: Deserializer<'de>>(d: D) -> Result<NbtCompound, D::Error> {
     struct CompoundVisitor;
@@ -565,25 +431,6 @@ macro_rules! ordinal_enum {
             pub const ALL: &'static [Self] = &[$(Self::$variant),*];
         }
 
-        impl Encode for $name {
-            fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-                VarInt(*self as i32).encode(w)
-            }
-        }
-
-        /// Out-of-range ids read as the first variant.
-        impl Decode<'_> for $name {
-            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-                let id = VarInt::decode(r)?.0;
-                Ok(usize::try_from(id)
-                    .ok()
-                    .and_then(|id| Self::ALL.get(id))
-                    .copied()
-                    .unwrap_or(Self::ALL[0]))
-            }
-        }
-
-        ctx_free!($name);
     };
 }
 #[allow(unused_imports)]
@@ -608,7 +455,7 @@ fn argb_from_floats(a: f32, r: f32, g: f32, b: f32) -> i32 {
 macro_rules! color_int {
     ($(#[$meta:meta])* $name:ident, $channels:literal, $from:expr) => {
         $(#[$meta])*
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Encode, Decode)]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
         pub struct $name(pub i32);
 
         impl Serialize for $name {
@@ -658,8 +505,6 @@ macro_rules! color_int {
                 d.deserialize_any(ColorVisitor(human_readable))
             }
         }
-
-        ctx_free!($name);
     };
 }
 
@@ -702,32 +547,6 @@ impl<const MAX_CHARS: usize> Serialize for BoundedString<MAX_CHARS> {
 impl<'de, const MAX_CHARS: usize> Deserialize<'de> for BoundedString<MAX_CHARS> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         BoundedString::new(String::deserialize(d)?).map_err(D::Error::custom)
-    }
-}
-
-impl<const MAX_CHARS: usize> Encode for BoundedString<MAX_CHARS> {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        Bounded::<&str, MAX_CHARS>(&self.0).encode(w)
-    }
-}
-
-impl<const MAX_CHARS: usize> Decode<'_> for BoundedString<MAX_CHARS> {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(BoundedString(
-            Bounded::<&str, MAX_CHARS>::decode(r)?.0.into(),
-        ))
-    }
-}
-
-impl<const MAX_CHARS: usize> EncodeCtx for BoundedString<MAX_CHARS> {
-    fn encode_ctx(&self, _: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.encode(w)
-    }
-}
-
-impl<const MAX_CHARS: usize> DecodeCtx<'_> for BoundedString<MAX_CHARS> {
-    fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Self::decode(r)
     }
 }
 
@@ -789,18 +608,6 @@ impl<'de, T: DeserializeOwned> Deserialize<'de> for CompactList<T> {
     }
 }
 
-impl<T: EncodeCtx> EncodeCtx for CompactList<T> {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl<'a, T: DecodeCtx<'a>> DecodeCtx<'a> for CompactList<T> {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Vec::decode_ctx(ctx, r).map(CompactList)
-    }
-}
-
 /// A fixed-length int array: a plain array in JSON, a `TAG_Int_Array` in NBT
 /// and in the hash.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -854,34 +661,6 @@ pub enum ValueMatcher {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         max: Option<String>,
     },
-}
-
-impl EncodeCtx for ValueMatcher {
-    fn encode_ctx(&self, _: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        match self {
-            ValueMatcher::Exact(value) => {
-                true.encode(&mut w)?;
-                value.encode(w)
-            }
-            ValueMatcher::Ranged { min, max } => {
-                false.encode(&mut w)?;
-                min.encode(&mut w)?;
-                max.encode(w)
-            }
-        }
-    }
-}
-
-impl DecodeCtx<'_> for ValueMatcher {
-    fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(match bool::decode(r)? {
-            true => ValueMatcher::Exact(String::decode(r)?),
-            false => ValueMatcher::Ranged {
-                min: Option::decode(r)?,
-                max: Option::decode(r)?,
-            },
-        })
-    }
 }
 
 /// A bare number when both bounds agree, else `{min, max}`.
@@ -1070,20 +849,6 @@ impl<'de> Deserialize<'de> for NbtPredicate {
     }
 }
 
-ctx_free!(NbtPredicate);
-
-impl Encode for NbtPredicate {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode(w)
-    }
-}
-
-impl Decode<'_> for NbtPredicate {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        NbtCompound::decode(r).map(NbtPredicate)
-    }
-}
-
 /// Writes `{}` and reads any map, ignoring its fields.
 pub fn serialize_unit<S: Serializer>(s: S) -> Result<S::Ok, S::Error> {
     s.serialize_map(Some(0))?.end()
@@ -1124,25 +889,6 @@ macro_rules! unit_component {
         impl<'de> serde::Deserialize<'de> for $ty {
             fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
                 $crate::item::component::deserialize_unit(d).map(|()| $ty)
-            }
-        }
-
-        impl $crate::item::ctx::EncodeCtx for $ty {
-            fn encode_ctx(
-                &self,
-                _: &dyn mcrs_minecraft_registry::RegistryLookup,
-                _: impl std::io::Write,
-            ) -> anyhow::Result<()> {
-                Ok(())
-            }
-        }
-
-        impl $crate::item::ctx::DecodeCtx<'_> for $ty {
-            fn decode_ctx(
-                _: &dyn mcrs_minecraft_registry::RegistryLookup,
-                _: &mut &[u8],
-            ) -> anyhow::Result<Self> {
-                Ok($ty)
             }
         }
 

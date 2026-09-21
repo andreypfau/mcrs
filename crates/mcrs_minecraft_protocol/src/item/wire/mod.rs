@@ -1,7 +1,10 @@
 //! Wire forms of the data component types. The types themselves carry only
 //! serde; every `Encode`/`Decode`/`EncodeCtx`/`DecodeCtx` impl lives here.
 
+mod common;
+mod enums;
 mod scalar;
+mod unit;
 
 /// A newtype over an `Encode + Decode` inner value.
 macro_rules! newtype_wire {
@@ -62,3 +65,54 @@ macro_rules! bounded_var_int_wire {
     )*};
 }
 pub(crate) use bounded_var_int_wire;
+
+/// A field-less enum, its ordinal as one VarInt; out-of-range ids read as the
+/// first variant.
+macro_rules! ordinal_enum_wire {
+    ($($ty:ident),* $(,)?) => {$(
+        impl $crate::Encode for $ty {
+            fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+                $crate::VarInt(*self as i32).encode(w)
+            }
+        }
+
+        impl $crate::Decode<'_> for $ty {
+            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+                let id = $crate::VarInt::decode(r)?.0;
+                Ok(usize::try_from(id)
+                    .ok()
+                    .and_then(|id| Self::ALL.get(id))
+                    .copied()
+                    .unwrap_or(Self::ALL[0]))
+            }
+        }
+
+        $crate::item::ctx::ctx_free!($ty);
+    )*};
+}
+pub(crate) use ordinal_enum_wire;
+
+/// A value with no fields: nothing on the wire.
+macro_rules! unit_wire {
+    ($($ty:ident),* $(,)?) => {$(
+        impl $crate::item::ctx::EncodeCtx for $ty {
+            fn encode_ctx(
+                &self,
+                _: &dyn mcrs_minecraft_registry::RegistryLookup,
+                _: impl std::io::Write,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+        }
+
+        impl $crate::item::ctx::DecodeCtx<'_> for $ty {
+            fn decode_ctx(
+                _: &dyn mcrs_minecraft_registry::RegistryLookup,
+                _: &mut &[u8],
+            ) -> anyhow::Result<Self> {
+                Ok($ty)
+            }
+        }
+    )*};
+}
+pub(crate) use unit_wire;

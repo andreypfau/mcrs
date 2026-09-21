@@ -9,13 +9,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::item::Template;
 use crate::item::component::common::ordinal_enum;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, ctx_free};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque};
 use crate::text::Text;
-use crate::{Decode, Encode, VarInt};
+use crate::{Decode, Encode};
 
 ordinal_enum! {
     AdvancementType { Task, Challenge, Goal }
 }
+
+crate::item::wire::ordinal_enum_wire!(AdvancementType);
 
 fn task() -> AdvancementType {
     AdvancementType::Task

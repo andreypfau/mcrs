@@ -17,6 +17,8 @@ ordinal_enum! {
     FireworkShape { SmallBall, LargeBall, Star, Creeper, Burst }
 }
 
+crate::item::wire::ordinal_enum_wire!(FireworkShape);
+
 fn int_list<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<i32>, D::Error> {
     struct Element(i32);
 

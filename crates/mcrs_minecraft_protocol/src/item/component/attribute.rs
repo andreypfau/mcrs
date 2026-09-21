@@ -68,6 +68,8 @@ ordinal_enum! {
     AttributeOperation { AddValue, AddMultipliedBase, AddMultipliedTotal }
 }
 
+crate::item::wire::ordinal_enum_wire!(AttributeOperation);
+
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AttributeDisplay {

@@ -7,7 +7,7 @@ pub mod kind;
 pub mod patch;
 pub mod stack;
 pub mod trade;
-mod wire;
+pub(crate) mod wire;
 
 pub use component::*;
 pub use ctx::{DecodeCtx, EncodeCtx, Raw};
