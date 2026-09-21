@@ -1,8 +1,8 @@
 mod common;
 
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_item::{Held, ItemStack, MoveError, Patch, StackRevision, mutate};
-use mcrs_minecraft_protocol::item::{Damage, Lore, MaxStackSize, Unbreakable};
+use mcrs_minecraft_item::{Held, ItemStack, MoveError, StackRevision, mutate, stack_to_value};
+use mcrs_minecraft_protocol::item::{ComponentPatch, Damage, ItemComponentKind, Lore, MaxStackSize, Unbreakable};
 
 use common::{drain, holder, items, spawn, world};
 
@@ -11,16 +11,26 @@ fn revision(world: &bevy_ecs::world::World, stack: bevy_ecs::entity::Entity) -> 
 }
 
 #[test]
-fn set_equal_to_the_prototype_clears_the_patch() {
+fn a_stack_carries_its_effective_components() {
     let mut world = world();
     let stone = spawn(&mut world, "stone", 1);
-    mutate::set(&mut world, stone, MaxStackSize(Bounded(16)), items());
-    assert_eq!(
-        world.get::<Patch<MaxStackSize>>(stone),
-        Some(&Patch(Some(MaxStackSize(Bounded(16)))))
-    );
-    mutate::set(&mut world, stone, MaxStackSize(Bounded(64)), items());
-    assert_eq!(world.get::<Patch<MaxStackSize>>(stone), None);
+    assert_eq!(world.get::<MaxStackSize>(stone), Some(&MaxStackSize(Bounded(64))));
+    assert_eq!(world.get::<Lore>(stone), Some(&Lore::default()));
+    assert_eq!(world.get::<Damage>(stone), None);
+    assert_eq!(stack_to_value(&world, stone, items()).components, ComponentPatch::EMPTY);
+}
+
+#[test]
+fn set_equal_to_the_prototype_leaves_no_patch() {
+    let mut world = world();
+    let stone = spawn(&mut world, "stone", 1);
+    mutate::set(&mut world, stone, MaxStackSize(Bounded(16)));
+    assert_eq!(world.get::<MaxStackSize>(stone), Some(&MaxStackSize(Bounded(16))));
+    let patch = stack_to_value(&world, stone, items()).components;
+    assert_eq!(patch.added, [MaxStackSize(Bounded(16)).into()]);
+    assert!(patch.removed.is_empty());
+    mutate::set(&mut world, stone, MaxStackSize(Bounded(64)));
+    assert_eq!(stack_to_value(&world, stone, items()).components, ComponentPatch::EMPTY);
     assert_eq!(revision(&world, stone), 3);
 }
 
@@ -28,12 +38,17 @@ fn set_equal_to_the_prototype_clears_the_patch() {
 fn remove_tombstones_a_prototype_value_and_clears_the_rest() {
     let mut world = world();
     let stone = spawn(&mut world, "stone", 1);
-    mutate::remove::<Lore>(&mut world, stone, items());
-    assert_eq!(world.get::<Patch<Lore>>(stone), Some(&Patch(None)));
-    mutate::set(&mut world, stone, Unbreakable, items());
-    assert!(world.get::<Patch<Unbreakable>>(stone).is_some());
-    mutate::remove::<Unbreakable>(&mut world, stone, items());
-    assert_eq!(world.get::<Patch<Unbreakable>>(stone), None);
+    mutate::remove::<Lore>(&mut world, stone);
+    assert_eq!(world.get::<Lore>(stone), None);
+    let patch = stack_to_value(&world, stone, items()).components;
+    assert!(patch.added.is_empty());
+    assert_eq!(patch.removed, [ItemComponentKind::Lore]);
+    mutate::set(&mut world, stone, Unbreakable);
+    assert_eq!(world.get::<Unbreakable>(stone), Some(&Unbreakable));
+    assert_eq!(stack_to_value(&world, stone, items()).components.added, [Unbreakable.into()]);
+    mutate::remove::<Unbreakable>(&mut world, stone);
+    assert_eq!(world.get::<Unbreakable>(stone), None);
+    assert_eq!(stack_to_value(&world, stone, items()).components.removed, [ItemComponentKind::Lore]);
 }
 
 #[test]
@@ -74,7 +89,7 @@ fn a_change_deep_in_a_chest_bumps_the_chain_and_queues_the_cell() {
     let (chest, shulker, pickaxe) = chest_of_shulker(&mut world, 7);
     drain(&mut world);
     let (before_pickaxe, before_shulker) = (revision(&world, pickaxe), revision(&world, shulker));
-    mutate::set(&mut world, pickaxe, Damage(Bounded(1)), items());
+    mutate::set(&mut world, pickaxe, Damage(Bounded(1)));
     assert_eq!(revision(&world, pickaxe), before_pickaxe + 1);
     assert_eq!(revision(&world, shulker), before_shulker + 1);
     let dirty = drain(&mut world);
@@ -142,7 +157,7 @@ fn split_and_merge_move_counts() {
     let mut world = world();
     let chest = holder(&mut world, 2);
     let stone = spawn(&mut world, "stone", 40);
-    mutate::set(&mut world, stone, Lore::default(), items());
+    mutate::set(&mut world, stone, Lore::default());
     mutate::move_stack(&mut world, stone, chest, 0).unwrap();
     let half = mutate::split(&mut world, stone, 15, items()).unwrap();
     assert_eq!(world.get::<ItemStack>(half).unwrap().count(), 15);
@@ -169,9 +184,6 @@ fn only_mutate_writes_stack_truth() {
         let allowed = |writer: &str| name.ends_with(writer) || name.ends_with("value.rs");
         if !allowed("mutate.rs") && text.contains(".count = ") {
             offenders.push(format!("{name}: assigns a count"));
-        }
-        if !allowed("mutate.rs") && !name.ends_with("patch.rs") && text.contains("Patch(") {
-            offenders.push(format!("{name}: builds a Patch"));
         }
         if !name.ends_with("mutate.rs") && !name.ends_with("held.rs") && text.contains("Held {") {
             offenders.push(format!("{name}: builds a Held"));

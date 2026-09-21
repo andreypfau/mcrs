@@ -13,7 +13,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ColumnPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::{
-    DroppedItem, ItemStack, Items, Patch, SlotTable, mutate, slots, stack_to_slot,
+    DroppedItem, ItemStack, Items, SlotTable, mutate, slots, stack_to_slot,
 };
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::player::Player;
@@ -437,7 +437,7 @@ fn damaging_a_pickaxe_inside_a_shulker_resends_the_shulker_cell() {
     let before: Vec<_> = set_slots(&server.ticks(2)).map(|(slot, _)| slot).collect();
     assert_eq!(before, vec![cell as i16]);
 
-    mutate::set(server.world(), pickaxe, Damage(Bounded(3)), &items);
+    mutate::set(server.world(), pickaxe, Damage(Bounded(3)));
     let packets = server.ticks(2);
     let resent: Vec<_> = set_slots(&packets).collect();
     assert_eq!(resent.len(), 1, "{packets:?}");
@@ -445,10 +445,7 @@ fn damaging_a_pickaxe_inside_a_shulker_resends_the_shulker_cell() {
     let registry = server.world().resource::<RegistryAccess>().clone();
     let sent = resent[0].1.resolve(&registry).unwrap();
     assert_eq!(sent, stack_to_slot(server.world(), shulker, &items));
-    assert_eq!(
-        server.world().get::<Patch<Damage>>(pickaxe),
-        Some(&Patch(Some(Damage(Bounded(3)))))
-    );
+    assert_eq!(server.world().get::<Damage>(pickaxe), Some(&Damage(Bounded(3))));
 }
 
 #[test]

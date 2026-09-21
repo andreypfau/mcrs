@@ -7,7 +7,6 @@ pub mod enchantment;
 pub mod held;
 pub mod inventory;
 pub mod mutate;
-pub mod patch;
 pub mod stack;
 pub mod sync;
 pub mod tags;
@@ -18,14 +17,14 @@ pub mod value;
 pub use definition::{ItemDefinitions, ItemEntry, Items, load_item_definitions};
 pub use dropped::{DroppedItem, Thrower, WireStack};
 pub use effective::{
-    StackComponent, bundle_weight, children, damage_value, effective, effective_value, has_foil,
+    bundle_weight, children, component_value, damage_value, has_component, has_foil,
+    has_non_default,
     is_damageable, is_damaged, is_enchanted, is_stackable, max_damage, max_stack_size,
-    next_damage_will_break, patched_value,
+    next_damage_will_break,
 };
 pub use held::{Held, Holds, SlotTable};
 pub use inventory::{SelectedHotbarSlot, slots};
 pub use mutate::{MoveError, StackCommands};
-pub use patch::Patch;
 pub use stack::{ItemStack, StackRevision};
 pub use sync::DirtyStacks;
 pub use value::{StackError, same_item_same_components, stack_to_slot, stack_to_value};

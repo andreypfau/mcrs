@@ -8,7 +8,7 @@ edition.workspace = true
 doctest = false
 
 [features]
-bevy = ["dep:bevy_ecs"]
+bevy = ["dep:bevy_ecs", "mcrs_minecraft_profile/bevy"]
 
 [dependencies]
 mcrs_minecraft_core.workspace = true

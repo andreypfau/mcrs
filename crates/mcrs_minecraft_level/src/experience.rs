@@ -3,7 +3,7 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_item::{Items, StackComponent};
+use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_protocol::item::Enchantments;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
@@ -113,8 +113,7 @@ fn award_block_experience(
     mut award: MessageWriter<AwardExperience>,
     blocks: Res<Blocks>,
     registry: Res<StaticRegistry<EnchantmentData>>,
-    items: Option<Res<Items>>,
-    tools: Query<StackComponent<Enchantments>>,
+    tools: Query<Option<&Enchantments>, With<ItemStack>>,
     mut random: ResMut<DimensionRandom>,
 ) {
     for event in destroyed.read() {
@@ -125,11 +124,7 @@ fn award_block_experience(
             continue;
         };
         let sampled = blocks.experience_drop(id).sample(&mut random.0);
-        let tool = event.tool.and_then(|tool| tools.get(tool).ok());
-        let enchantments = tool
-            .as_ref()
-            .zip(items.as_deref())
-            .and_then(|(tool, items)| tool.get(items));
+        let enchantments = event.tool.and_then(|tool| tools.get(tool).ok()).flatten();
         let amount = process_block_experience(sampled, enchantments, &registry, &mut random.0);
         if amount > 0 {
             award.write(AwardExperience {

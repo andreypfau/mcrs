@@ -16,7 +16,7 @@ use bevy_time::{Fixed, Time};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_item::tool::{is_correct_for_drops, mining_speed};
-use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, StackComponent};
+use mcrs_minecraft_item::{ItemStack, Items, SelectedHotbarSlot, SlotTable};
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::reposition::Reposition;
@@ -139,7 +139,7 @@ fn player_start_destroy_block(
         &SlotTable,
         &SelectedHotbarSlot,
     )>,
-    tools: Query<StackComponent<Tool>>,
+    tools: Query<(&ItemStack, Option<&Tool>)>,
     items: Res<Items>,
     tag_registry: Res<DynTagRegistry<VanillaBlock>>,
     blocks: Res<Blocks>,
@@ -321,7 +321,7 @@ fn get_destroy_speed(
     state: BlockStateId,
     blocks: &BlockDefinitions,
     held: Option<Entity>,
-    tools: &Query<StackComponent<Tool>>,
+    tools: &Query<(&ItemStack, Option<&Tool>)>,
     items: &Items,
     mining_efficiency: &MiningEfficiency,
     block_break_speed: &BlockBreakSpeed,
@@ -345,7 +345,7 @@ pub fn extract_tool_data(
     state: BlockStateId,
     blocks: &BlockDefinitions,
     held: Option<Entity>,
-    tools: &Query<StackComponent<Tool>>,
+    tools: &Query<(&ItemStack, Option<&Tool>)>,
     items: &Items,
     tag_registry: &DynTagRegistry<VanillaBlock>,
 ) -> (bool, f32) {
@@ -358,14 +358,14 @@ pub fn extract_tool_data(
         debug!(block, "no selected slot");
         return (!requires_correct_tool, 1.0);
     };
-    let Ok(held) = tools.get(slot) else {
+    let Ok((stack, tool)) = tools.get(slot) else {
         debug!(block, "slot entity missing ItemStack");
         return (!requires_correct_tool, 1.0);
     };
     let item = items
-        .get(held.stack.item())
+        .get(stack.item())
         .map_or("?", |entry| entry.identifier.as_str());
-    let Some(tool) = held.get(items) else {
+    let Some(tool) = tool else {
         debug!(block, item, "no tool component");
         return (!requires_correct_tool, 1.0);
     };
@@ -392,8 +392,7 @@ fn handle_player_will_destroy_block(
     mut writer: MessageWriter<BlockSetRequest>,
     mut destroyed: MessageWriter<BlockDestroyed>,
     players: Query<(&InDimension, &SlotTable, &SelectedHotbarSlot)>,
-    tools: Query<(StackComponent<Tool>, StackComponent<Enchantments>)>,
-    items: Res<Items>,
+    tools: Query<(Option<&Tool>, Option<&Enchantments>), With<ItemStack>>,
     tag_registry: Res<DynTagRegistry<VanillaBlock>>,
     blocks: Res<Blocks>,
     mut loot_tables: ResMut<BlockLootTables>,
@@ -417,17 +416,14 @@ fn handle_player_will_destroy_block(
             .contains(BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS)
         {
             held_tool
-                .as_ref()
-                .and_then(|(tool, _)| tool.get(&items))
+                .and_then(|(tool, _)| tool)
                 .is_some_and(|tool| is_correct_for_drops(tool, block_id, &blocks, &tag_registry))
         } else {
             true
         };
 
         if has_correct_tool {
-            let tool_enchantments = held_tool
-                .as_ref()
-                .and_then(|(_, enchantments)| enchantments.get(&items));
+            let tool_enchantments = held_tool.and_then(|(_, enchantments)| enchantments);
 
             if let Some(loot) = state.loot {
                 match loot_tables.tables.get(&loot) {

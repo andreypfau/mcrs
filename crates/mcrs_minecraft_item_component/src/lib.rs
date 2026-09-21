@@ -21,12 +21,16 @@ mod bevy {
     use crate::component::*;
 
     macro_rules! impl_component {
-        ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {$(
+        ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {
+            $(impl_component!(@one $ty);)*
+        };
+        (@one Profile) => {};
+        (@one $ty:ident) => {
             impl Component for $ty {
                 const STORAGE_TYPE: StorageType = StorageType::Table;
                 type Mutability = Mutable;
             }
-        )*};
+        };
     }
 
     crate::for_each_data_component!(impl_component);

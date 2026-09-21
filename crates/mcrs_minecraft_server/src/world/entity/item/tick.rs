@@ -122,7 +122,7 @@ pub fn tick_dropped_items(world: &mut World) {
     }
 }
 
-fn is_mergeable(world: &World, items: &Items, entity: Entity) -> bool {
+fn is_mergeable(world: &World, entity: Entity) -> bool {
     let Some((item, stack)) = world
         .get::<DroppedItem>(entity)
         .zip(world.get::<ItemStack>(entity))
@@ -132,7 +132,7 @@ fn is_mergeable(world: &World, items: &Items, entity: Entity) -> bool {
     item.pickup_delay != INFINITE_PICKUP_DELAY
         && item.age != INFINITE_LIFETIME
         && item.age < LIFETIME
-        && stack.count() < max_stack_size(world.entity(entity), items)
+        && stack.count() < max_stack_size(world.entity(entity))
 }
 
 fn merge_with_neighbours(
@@ -143,7 +143,7 @@ fn merge_with_neighbours(
     dim: Entity,
     pos: DVec3,
 ) {
-    if !is_mergeable(world, items, entity) {
+    if !is_mergeable(world, entity) {
         return;
     }
     let reach_xz = ITEM_WIDTH + 0.5;
@@ -161,7 +161,7 @@ fn merge_with_neighbours(
             && (other_pos.z - pos.z).abs() < reach_xz
             && other_pos.y < pos.y + ITEM_HEIGHT
             && other_pos.y + ITEM_HEIGHT > pos.y;
-        if !touching || !is_mergeable(world, items, other.entity) {
+        if !touching || !is_mergeable(world, other.entity) {
             continue;
         }
         try_merge(world, items, entity, other.entity);
@@ -173,7 +173,7 @@ fn merge_with_neighbours(
 
 fn try_merge(world: &mut World, items: &Items, this: Entity, other: Entity) {
     let (this_count, other_count) = (count(world, this), count(world, other));
-    let max = max_stack_size(world.entity(other), items);
+    let max = max_stack_size(world.entity(other));
     if usize::from(this_count) + usize::from(other_count) > usize::from(max)
         || !same_item_same_components(world, this, other, items)
     {

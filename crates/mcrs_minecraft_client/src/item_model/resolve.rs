@@ -10,9 +10,9 @@ use bevy::prelude::{
 use bevy::ecs::world::EntityRef;
 use bytemuck::{Pod, Zeroable};
 use mcrs_minecraft_item::{
-    Held, ItemStack, Items, StackRevision, bundle_weight, children, damage_value, effective,
-    effective_value, has_foil, is_damaged, max_damage, max_stack_size, next_damage_will_break,
-    patched_value,
+    Held, ItemStack, Items, StackRevision, bundle_weight, children, component_value, damage_value,
+    has_component, has_foil, has_non_default, is_damaged, max_damage, max_stack_size,
+    next_damage_will_break,
 };
 use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_protocol::item::{
@@ -111,7 +111,7 @@ pub fn resolve<'a>(
     models: &ItemModels,
     lookup: &impl Fn(Entity) -> Option<EntityRef<'a>>,
 ) -> ItemRenderLayers {
-    let item = match effective::<ItemModel>(stack, items) {
+    let item = match stack.get::<ItemModel>() {
         Some(ItemModel(id)) => models.get(id.as_str()),
         None => &models.missing,
     };
@@ -213,8 +213,8 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
         }
     }
 
-    fn get<K: ItemDataComponent>(&self) -> Option<&K> {
-        effective::<K>(self.stack, self.items)
+    fn get<K: ItemDataComponent + Component>(&self) -> Option<&K> {
+        self.stack.get::<K>()
     }
 
     fn custom_model_data(&self) -> Option<&CustomModelData> {
@@ -223,16 +223,16 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
 
     fn condition(&self, property: &ConditionProperty) -> bool {
         match property {
-            ConditionProperty::Damaged => is_damaged(self.stack, self.items),
-            ConditionProperty::Broken => next_damage_will_break(self.stack, self.items),
+            ConditionProperty::Damaged => is_damaged(self.stack),
+            ConditionProperty::Broken => next_damage_will_break(self.stack),
             ConditionProperty::HasComponent {
                 component,
                 ignore_default,
             } => {
                 if *ignore_default {
-                    patched_value(self.stack, component.0).is_some()
+                    has_non_default(self.stack, self.items, component.0)
                 } else {
-                    effective_value(self.stack, self.items, component.0).is_some()
+                    has_component(self.stack, self.items, component.0)
                 }
             }
             ConditionProperty::CustomModelData { index } => self
@@ -270,11 +270,11 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
                 find(cases, self.custom_model_data()?.strings.get(*index as usize)?)
             }
             SelectSwitch::Component(switch) => {
-                let value = effective_value(self.stack, self.items, switch.component)?;
+                let value = component_value(self.stack, switch.component)?;
                 switch
                     .cases
                     .iter()
-                    .position(|case| case.when.iter().any(|when| when.0 == *value))
+                    .position(|case| case.when.iter().any(|when| when.0 == value))
             }
             SelectSwitch::MainHand { .. }
             | SelectSwitch::LocalTime { .. }
@@ -304,8 +304,8 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
     fn range(&self, property: &RangeProperty) -> f32 {
         match property {
             RangeProperty::Damage { normalize } => {
-                let damage = damage_value(self.stack, self.items) as f32;
-                let max = max_damage(self.stack, self.items) as f32;
+                let damage = damage_value(self.stack) as f32;
+                let max = max_damage(self.stack) as f32;
                 if *normalize {
                     (damage / max).clamp(0.0, 1.0)
                 } else {
@@ -314,7 +314,7 @@ impl<'a, L: Fn(Entity) -> Option<EntityRef<'a>>> Evaluator<'a, '_, L> {
             }
             RangeProperty::Count { normalize } => {
                 let count = self.stack.get::<ItemStack>().map_or(0, ItemStack::count) as f32;
-                let max = max_stack_size(self.stack, self.items) as f32;
+                let max = max_stack_size(self.stack) as f32;
                 if *normalize {
                     (count / max).clamp(0.0, 1.0)
                 } else {
@@ -550,7 +550,7 @@ mod tests {
         assert!(e.condition(&ConditionProperty::Damaged));
         assert!(!e.condition(&ConditionProperty::Broken));
         drop(e);
-        mutate::set(&mut world, pick, Damage(Bounded(1560)), items());
+        mutate::set(&mut world, pick, Damage(Bounded(1560)));
         let e = eval(&world, pick);
         assert!(e.condition(&ConditionProperty::Broken));
         drop(e);
@@ -625,8 +625,8 @@ mod tests {
         assert!(!e.condition(&max_stack(true)));
         assert!(!e.condition(&dyed(false)));
         drop(e);
-        mutate::set(&mut world, stone, DyedColor(RgbInt(0xFF0000)), items());
-        mutate::remove::<MaxStackSize>(&mut world, stone, items());
+        mutate::set(&mut world, stone, DyedColor(RgbInt(0xFF0000)));
+        mutate::remove::<MaxStackSize>(&mut world, stone);
         let e = eval(&world, stone);
         assert!(e.condition(&dyed(false)));
         assert!(e.condition(&dyed(true)));
@@ -768,7 +768,7 @@ mod tests {
         assert_eq!(app.world().entity(held).get_ref::<ItemRenderLayers>().unwrap().last_changed(), before);
 
         let world = app.world_mut();
-        mutate::set(world, held, ItemModel(ResourceLocation::minecraft("stone")), items());
+        mutate::set(world, held, ItemModel(ResourceLocation::minecraft("stone")));
         app.update();
         let after = app.world().entity(held).get_ref::<ItemRenderLayers>().unwrap();
         assert_eq!(after.gui_light, GuiLight::Side);

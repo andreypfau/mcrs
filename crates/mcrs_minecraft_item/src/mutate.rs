@@ -1,13 +1,13 @@
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::EntityCommands;
 use bevy_ecs::world::{EntityWorldMut, World};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_protocol::item::ItemDataComponent;
 
-use crate::definition::{ItemEntry, Items};
+use crate::definition::Items;
 use crate::dropped::DroppedItem;
 use crate::held::{Held, SlotTable};
-use crate::patch::Patch;
 use crate::stack::{ItemStack, StackRevision};
 use crate::sync::DirtyStacks;
 use crate::value::{self, stack_to_value};
@@ -34,35 +34,27 @@ pub enum MoveError {
     Cycle(Entity),
 }
 
-fn entry<'a>(world: &World, stack: Entity, items: &'a Items) -> Option<&'a ItemEntry> {
-    items.get(value::item_of(world, stack)?)
-}
-
-pub fn set<K: ItemDataComponent>(world: &mut World, stack: Entity, value: K, items: &Items) {
+pub fn set<K: ItemDataComponent + Component>(world: &mut World, stack: Entity, value: K) {
     const { assert!(!value::is_child_kind(K::KIND), "child kinds are derived from child stacks") }
-    let Some(equal) = entry(world, stack, items).map(|entry| entry.prototype.get::<K>() == Some(&value)) else {
+    let Ok(mut entity) = world.get_entity_mut(stack) else {
         return;
     };
-    let mut entity = world.entity_mut(stack);
-    if equal {
-        entity.remove::<Patch<K>>();
-    } else {
-        entity.insert(Patch(Some(value)));
+    if !entity.contains::<ItemStack>() {
+        return;
     }
+    entity.insert(value);
     bump(world, stack);
 }
 
-pub fn remove<K: ItemDataComponent>(world: &mut World, stack: Entity, items: &Items) {
+pub fn remove<K: ItemDataComponent + Component>(world: &mut World, stack: Entity) {
     const { assert!(!value::is_child_kind(K::KIND), "child kinds are derived from child stacks") }
-    let Some(has) = entry(world, stack, items).map(|entry| entry.prototype.get::<K>().is_some()) else {
+    let Ok(mut entity) = world.get_entity_mut(stack) else {
         return;
     };
-    let mut entity = world.entity_mut(stack);
-    if has {
-        entity.insert(Patch::<K>(None));
-    } else {
-        entity.remove::<Patch<K>>();
+    if !entity.contains::<ItemStack>() {
+        return;
     }
+    entity.remove::<K>();
     bump(world, stack);
 }
 
@@ -197,29 +189,23 @@ fn bump_holder(world: &mut World, holder: Entity, index: u16) {
 }
 
 pub trait StackCommands {
-    fn set_component<K: ItemDataComponent>(&mut self, value: K);
-    fn remove_component<K: ItemDataComponent>(&mut self);
+    fn set_component<K: ItemDataComponent + Component>(&mut self, value: K);
+    fn remove_component<K: ItemDataComponent + Component>(&mut self);
     fn set_count(&mut self, count: u8);
 }
 
 impl StackCommands for EntityCommands<'_> {
-    fn set_component<K: ItemDataComponent>(&mut self, value: K) {
+    fn set_component<K: ItemDataComponent + Component>(&mut self, value: K) {
         self.queue(move |mut entity: EntityWorldMut| {
             let id = entity.id();
-            entity.world_scope(|world| {
-                let items = world.resource::<Items>().clone();
-                set(world, id, value, &items);
-            });
+            entity.world_scope(|world| set(world, id, value));
         });
     }
 
-    fn remove_component<K: ItemDataComponent>(&mut self) {
+    fn remove_component<K: ItemDataComponent + Component>(&mut self) {
         self.queue(|mut entity: EntityWorldMut| {
             let id = entity.id();
-            entity.world_scope(|world| {
-                let items = world.resource::<Items>().clone();
-                remove::<K>(world, id, &items);
-            });
+            entity.world_scope(|world| remove::<K>(world, id));
         });
     }
 

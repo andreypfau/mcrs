@@ -11,7 +11,7 @@ use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::mutate::{self, MoveError};
 use mcrs_minecraft_item::{
-    DirtyStacks, ItemStack, Items, SelectedHotbarSlot, SlotTable, effective, is_stackable,
+    DirtyStacks, ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable,
     max_stack_size, same_item_same_components, slots, stack_to_slot, stack_to_value,
 };
 use mcrs_minecraft_level::entity::player::Player;
@@ -200,8 +200,8 @@ fn count(world: &World, stack: Entity) -> u8 {
         .map_or(0, |stack| stack.count())
 }
 
-fn armour_cell(world: &World, stack: Entity, items: &Items) -> Option<u16> {
-    match effective::<Equippable>(world.entity(stack), items)?.slot {
+fn armour_cell(world: &World, stack: Entity) -> Option<u16> {
+    match world.get::<Equippable>(stack)?.slot {
         EquipmentSlot::Head => Some(slots::ARMOR_HEAD),
         EquipmentSlot::Chest => Some(slots::ARMOR_CHEST),
         EquipmentSlot::Legs => Some(slots::ARMOR_LEGS),
@@ -210,28 +210,24 @@ fn armour_cell(world: &World, stack: Entity, items: &Items) -> Option<u16> {
     }
 }
 
-fn is_offhand_item(world: &World, stack: Entity, items: &Items) -> bool {
-    effective::<Equippable>(world.entity(stack), items)
+fn is_offhand_item(world: &World, stack: Entity) -> bool {
+    world
+        .get::<Equippable>(stack)
         .is_some_and(|equippable| equippable.slot == EquipmentSlot::OffHand)
 }
 
 /// How many of `stack` the cell may hold, `None` when it may not hold it at all.
 /// ponytail: the only cell rules are the player's result and armour cells;
 /// a container with its own limit (a chest's 64) caps here when it exists.
-fn cell_max(
-    world: &World,
-    (holder, index): (Entity, u16),
-    stack: Entity,
-    items: &Items,
-) -> Option<u8> {
-    let max = max_stack_size(world.entity(stack), items);
+fn cell_max(world: &World, (holder, index): (Entity, u16), stack: Entity) -> Option<u8> {
+    let max = max_stack_size(world.entity(stack));
     if world.get::<Player>(holder).is_none() {
         return Some(max);
     }
     match index {
         slots::RESULT => None,
         slots::ARMOR_HEAD..=slots::ARMOR_FEET => {
-            (armour_cell(world, stack, items) == Some(index)).then_some(1)
+            (armour_cell(world, stack) == Some(index)).then_some(1)
         }
         _ => Some(max),
     }
@@ -259,7 +255,7 @@ fn safe_insert(
     amount: u8,
     items: &Items,
 ) -> Result<(), MoveError> {
-    let Some(max) = cell_max(world, cell, stack, items) else {
+    let Some(max) = cell_max(world, cell, stack) else {
         return Ok(());
     };
     match stack_in(world, cell) {
@@ -308,7 +304,7 @@ fn merge_same(
     items: &Items,
 ) -> Result<bool, MoveError> {
     let mut moved = false;
-    if !is_stackable(world.entity(stack), items) {
+    if !is_stackable(world.entity(stack)) {
         return Ok(false);
     }
     for &cell in cells {
@@ -318,7 +314,7 @@ fn merge_same(
         if !same_item_same_components(world, stack, target, items) {
             continue;
         }
-        let Some(max) = cell_max(world, cell, stack, items) else {
+        let Some(max) = cell_max(world, cell, stack) else {
             continue;
         };
         moved |= mutate::merge_into(world, stack, target, max) > 0;
@@ -339,7 +335,7 @@ fn fill_empty(
         if stack_in(world, cell).is_some() {
             continue;
         }
-        let Some(max) = cell_max(world, cell, stack, items) else {
+        let Some(max) = cell_max(world, cell, stack) else {
             continue;
         };
         let Some(moving) = take(world, stack, max, items) else {
@@ -379,9 +375,9 @@ fn pickup_empty_cells(player: Entity) -> Vec<(Entity, u16)> {
 
 /// How many of `stack` the player's inventory can still take.
 pub fn room_for(world: &World, player: Entity, stack: Entity, items: &Items) -> u32 {
-    let max = max_stack_size(world.entity(stack), items);
+    let max = max_stack_size(world.entity(stack));
     let mut room = 0u32;
-    if is_stackable(world.entity(stack), items) {
+    if is_stackable(world.entity(stack)) {
         for cell in pickup_merge_cells(world, player) {
             if let Some(target) = stack_in(world, cell)
                 && same_item_same_components(world, stack, target, items)
@@ -452,10 +448,10 @@ fn quick_move(
     } else if slot < slots::MAIN.start {
         layout_range(layout, main_and_hotbar, false)
     } else if let Some(armour) =
-        armour_cell(world, stack, items).filter(|cell| stack_in(world, (player, *cell)).is_none())
+        armour_cell(world, stack).filter(|cell| stack_in(world, (player, *cell)).is_none())
     {
         vec![(player, armour)]
-    } else if is_offhand_item(world, stack, items)
+    } else if is_offhand_item(world, stack)
         && stack_in(world, (player, slots::OFFHAND)).is_none()
     {
         vec![(player, slots::OFFHAND)]
@@ -549,7 +545,7 @@ fn apply(
                 }
                 (Some(clicked), Some(carried)) => {
                     let same = same_item_same_components(world, clicked, carried, items);
-                    match cell_max(world, cell, carried, items) {
+                    match cell_max(world, cell, carried) {
                         Some(_) if same => {
                             let amount = if primary { count(world, carried) } else { 1 };
                             safe_insert(world, carried, cell, amount, items)?;
@@ -561,7 +557,7 @@ fn apply(
                         }
                         Some(_) => {}
                         None if same => {
-                            let max = max_stack_size(world.entity(carried), items);
+                            let max = max_stack_size(world.entity(carried));
                             if max - count(world, carried) >= count(world, clicked) {
                                 mutate::merge_into(world, clicked, carried, max);
                             }
@@ -580,14 +576,14 @@ fn apply(
                 (None, None) => {}
                 (None, Some(target)) => place(world, target, source_cell)?,
                 (Some(source), None) => {
-                    if let Some(max) = cell_max(world, cell, source, items)
+                    if let Some(max) = cell_max(world, cell, source)
                         && let Some(moving) = take(world, source, max, items)
                     {
                         place(world, moving, cell)?;
                     }
                 }
                 (Some(source), Some(target)) => {
-                    let Some(max) = cell_max(world, cell, source, items) else {
+                    let Some(max) = cell_max(world, cell, source) else {
                         return Ok(());
                     };
                     mutate::detach(world, target);
@@ -614,7 +610,7 @@ fn apply(
                 return Ok(());
             }
             let mut value = stack_to_value(world, clicked, items);
-            value.count.0 = i32::from(max_stack_size(world.entity(clicked), items));
+            value.count.0 = i32::from(max_stack_size(world.entity(clicked)));
             let clone = mutate::spawn_stack(world, &value, items).expect("a live stack re-spawns");
             place(world, clone, carried_cell)?;
         }
@@ -692,7 +688,7 @@ pub fn handle_creative_slots(world: &mut World) {
             existing.filter(|existing| stack_to_value(world, *existing, &items).item == value.item)
         {
             let over_max =
-                value.count.0 > i32::from(max_stack_size(world.entity(existing), &items));
+                value.count.0 > i32::from(max_stack_size(world.entity(existing)));
             if !over_max && let Err(error) = mutate::apply_value(world, existing, &value, &items) {
                 tracing::warn!(%error, player = ?req.player, "a creative stack was rejected");
             }
@@ -705,7 +701,7 @@ pub fn handle_creative_slots(world: &mut World) {
                 continue;
             }
         };
-        if value.count.0 > i32::from(max_stack_size(world.entity(stack), &items)) {
+        if value.count.0 > i32::from(max_stack_size(world.entity(stack))) {
             world.despawn(stack);
             continue;
         }

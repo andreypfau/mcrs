@@ -13,7 +13,7 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::time::Real;
 use bevy::window::PrimaryWindow;
 use mcrs_minecraft_item::{
-    ItemStack, Items, SelectedHotbarSlot, SlotTable, damage_value, is_damaged, max_damage,
+    ItemStack, SelectedHotbarSlot, SlotTable, damage_value, is_damaged, max_damage,
 };
 
 use super::hotbar::hotbar;
@@ -407,7 +407,6 @@ fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
 fn build_gui_batch(
     scene: Res<GuiScene>,
     atlas: Option<Res<GuiAtlas>>,
-    items: Option<Res<Items>>,
     layers: Query<&ItemRenderLayers>,
     stacks: Query<EntityRef, (With<ItemStack>, Without<IsResource>)>,
     time: Res<Time<Real>>,
@@ -432,13 +431,12 @@ fn build_gui_batch(
         match *quad {
             GuiQuad::Item { origin, stack } => {
                 expanded.push(*quad);
-                let (Ok(stack), Some(items)) = (stacks.get(stack), items.as_deref()) else {
+                let Ok(stack) = stacks.get(stack) else {
                     continue;
                 };
                 let decorated = Decorated {
                     count: stack.get::<ItemStack>().map_or(1, ItemStack::count),
-                    damage: is_damaged(stack, items)
-                        .then(|| (damage_value(stack, items), max_damage(stack, items))),
+                    damage: is_damaged(stack).then(|| (damage_value(stack), max_damage(stack))),
                     cooldown: 0.0,
                 };
                 decorations(origin, &decorated, &atlas.digit_widths, &mut expanded);

@@ -1,3 +1,4 @@
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_core::ResourceKey;
@@ -9,7 +10,6 @@ use mcrs_minecraft_registry::ItemId;
 use crate::definition::{ItemEntry, Items};
 use crate::held::SlotTable;
 use crate::mutate;
-use crate::patch::Patch;
 use crate::stack::{ItemStack, StackRevision};
 
 pub const CHILD_KINDS: [ItemComponentKind; 3] = [
@@ -57,40 +57,48 @@ pub enum StackError {
 }
 
 pub(crate) struct KindOps {
-    pub read: fn(EntityRef) -> Option<Option<ItemComponentValue>>,
-    pub write: fn(&mut EntityWorldMut, Option<ItemComponentValue>),
-    pub clear: fn(&mut EntityWorldMut),
+    pub read: fn(EntityRef) -> Option<ItemComponentValue>,
+    pub insert: fn(&mut EntityWorldMut, &ItemComponentValue),
+    pub remove: fn(&mut EntityWorldMut),
+    pub contains: fn(EntityRef) -> bool,
+    pub differs: fn(EntityRef, Option<&ItemComponentValue>) -> bool,
 }
 
 impl KindOps {
-    const fn plain<K: ItemDataComponent>() -> Self {
+    const fn plain<K: ItemDataComponent + Component>() -> Self {
         KindOps {
             read: read_plain::<K>,
-            write: write_plain::<K>,
-            clear: clear_plain::<K>,
+            insert: insert_plain::<K>,
+            remove: remove_plain::<K>,
+            contains: contains_plain::<K>,
+            differs: differs_plain::<K>,
         }
     }
 }
 
-fn read_plain<K: ItemDataComponent>(entity: EntityRef) -> Option<Option<ItemComponentValue>> {
-    entity
-        .get::<Patch<K>>()
-        .map(|patch| patch.0.clone().map(K::into_value))
+fn read_plain<K: ItemDataComponent + Component>(entity: EntityRef) -> Option<ItemComponentValue> {
+    entity.get::<K>().cloned().map(K::into_value)
 }
 
-fn write_plain<K: ItemDataComponent>(entity: &mut EntityWorldMut, value: Option<ItemComponentValue>) {
-    let value = value.map(|value| {
-        K::from_value(&value)
-            .unwrap_or_else(|| panic!("{} written as {:?}", K::KIND, value.kind()))
-            .clone()
-    });
-    entity.insert(Patch::<K>(value));
+fn insert_plain<K: ItemDataComponent + Component>(entity: &mut EntityWorldMut, value: &ItemComponentValue) {
+    let value = K::from_value(value)
+        .unwrap_or_else(|| panic!("{} written as {:?}", K::KIND, value.kind()))
+        .clone();
+    entity.insert(value);
 }
 
-fn clear_plain<K: ItemDataComponent>(entity: &mut EntityWorldMut) {
-    if entity.contains::<Patch<K>>() {
-        entity.remove::<Patch<K>>();
+fn remove_plain<K: ItemDataComponent + Component>(entity: &mut EntityWorldMut) {
+    if entity.contains::<K>() {
+        entity.remove::<K>();
     }
+}
+
+fn contains_plain<K: ItemDataComponent + Component>(entity: EntityRef) -> bool {
+    entity.contains::<K>()
+}
+
+fn differs_plain<K: ItemDataComponent + Component>(entity: EntityRef, prototype: Option<&ItemComponentValue>) -> bool {
+    entity.get::<K>() != prototype.and_then(K::from_value)
 }
 
 macro_rules! kind_ops {
@@ -120,7 +128,7 @@ fn named_entry<'a>(items: &'a Items, value: &ItemStackValue) -> Result<&'a ItemE
         .ok_or_else(|| StackError::UnknownItem(value.item.as_str().to_owned()))
 }
 
-fn child_kind(entry: &ItemEntry) -> Option<ItemComponentKind> {
+pub(crate) fn child_kind(entry: &ItemEntry) -> Option<ItemComponentKind> {
     CHILD_KINDS
         .into_iter()
         .find(|kind| entry.prototype.get_value(*kind).is_some())
@@ -185,16 +193,24 @@ pub fn stack_to_value(world: &World, stack: Entity, items: &Items) -> ItemStackV
     let own_child_kind = child_kind(entry);
     let mut components = ComponentPatch::EMPTY;
     for kind in ItemComponentKind::ALL {
-        match (ops(kind).read)(entity) {
-            Some(Some(value)) => components.added.push(value),
-            Some(None) => components.removed.push(kind),
-            None if Some(kind) == own_child_kind => {
-                let derived = child_value(world, stack, kind, items);
-                if entry.prototype.get_value(kind) != Some(&derived) {
-                    components.added.push(derived);
-                }
+        let prototype = entry.prototype.get_value(kind);
+        if Some(kind) == own_child_kind {
+            if !entity.contains::<SlotTable>() {
+                components.removed.push(kind);
+                continue;
             }
-            None => {}
+            let derived = child_value(world, stack, kind, items);
+            if prototype != Some(&derived) {
+                components.added.push(derived);
+            }
+            continue;
+        }
+        if !(ops(kind).differs)(entity, prototype) {
+            continue;
+        }
+        match (ops(kind).read)(entity) {
+            Some(value) => components.added.push(value),
+            None => components.removed.push(kind),
         }
     }
     if own_child_kind.is_none() && !children(world, stack).is_empty() {
@@ -302,17 +318,15 @@ fn spawn_checked(world: &mut World, entry: &ItemEntry, value: &ItemStackValue, i
 
 fn write_value(world: &mut World, stack: Entity, entry: &ItemEntry, value: &ItemStackValue, items: &Items) {
     let own_child_kind = child_kind(entry);
+    let effective = entry.prototype.apply(&value.components);
     let mut entity = world.entity_mut(stack);
     for kind in ItemComponentKind::ALL {
-        let ops = ops(kind);
-        let prototype = entry.prototype.get_value(kind);
-        match value.components.get_value(kind) {
-            Some(given) if Some(kind) == own_child_kind || prototype == Some(given) => (ops.clear)(&mut entity),
-            Some(given) => (ops.write)(&mut entity, Some(given.clone())),
-            None if value.components.is_removed(kind) && prototype.is_some() => {
-                (ops.write)(&mut entity, None)
-            }
-            None => (ops.clear)(&mut entity),
+        if Some(kind) == own_child_kind {
+            continue;
+        }
+        match effective.get_value(kind) {
+            Some(given) => (ops(kind).insert)(&mut entity, given),
+            None => (ops(kind).remove)(&mut entity),
         }
     }
     if let Some(kind) = own_child_kind {

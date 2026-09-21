@@ -62,7 +62,7 @@ fn enchanted_pickaxe(app: &mut App, enchantment: &str, level: i32) -> Entity {
         ResourceKey::from_location(ResourceLocation::parse(enchantment).unwrap()),
         level,
     )]);
-    mutate::set(app.world_mut(), tool, enchantments, &items);
+    mutate::set(app.world_mut(), tool, enchantments);
     tool
 }
 

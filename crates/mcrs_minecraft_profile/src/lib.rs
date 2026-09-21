@@ -134,6 +134,12 @@ pub struct Profile {
     pub skin: SkinPatch,
 }
 
+#[cfg(feature = "bevy")]
+impl bevy_ecs::component::Component for Profile {
+    const STORAGE_TYPE: bevy_ecs::component::StorageType = bevy_ecs::component::StorageType::Table;
+    type Mutability = bevy_ecs::component::Mutable;
+}
+
 impl Profile {
     pub fn named(name: &str) -> anyhow::Result<Self> {
         Ok(Profile {

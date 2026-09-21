@@ -115,7 +115,7 @@ fn same_item_same_components_compares_subtrees() {
     let plain = mutate::spawn_stack(&mut world, &parse(NO_LORE), items()).unwrap();
     let with_lore = mutate::spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
     assert!(!same_item_same_components(&world, plain, with_lore, items()));
-    mutate::remove::<mcrs_minecraft_protocol::item::Lore>(&mut world, with_lore, items());
+    mutate::remove::<mcrs_minecraft_protocol::item::Lore>(&mut world, with_lore);
     assert!(same_item_same_components(&world, plain, with_lore, items()));
 }
 

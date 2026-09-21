@@ -3658,6 +3658,7 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_item_component",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registry",
  "rustc-hash 2.1.1",
@@ -3782,6 +3783,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64",
+ "bevy_ecs",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "serde",

@@ -12,7 +12,6 @@ use mcrs_minecraft_client::inventory::{
 };
 use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_item::effective::effective;
 use mcrs_minecraft_item::{
     Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, load_item_definitions,
     slots,
@@ -221,11 +220,10 @@ fn set_content_fills_the_player_and_the_cursor() {
     let apple = client.cell(player, 9).unwrap();
     let world = client.world();
     assert_eq!(world.get::<Held>(sword), Some(&Held { holder: player, index: 36 }));
-    let entity = world.entity(sword);
-    assert_eq!(effective::<Damage>(entity, items()), Some(&Damage(Bounded(7))));
-    assert_eq!(effective::<CustomName>(entity, items()), Some(&CustomName(Text::text("named"))));
-    assert_eq!(effective::<Unbreakable>(entity, items()), Some(&Unbreakable));
-    assert_eq!(effective::<Damage>(world.entity(apple), items()), None);
+    assert_eq!(world.get::<Damage>(sword), Some(&Damage(Bounded(7))));
+    assert_eq!(world.get::<CustomName>(sword), Some(&CustomName(Text::text("named"))));
+    assert_eq!(world.get::<Unbreakable>(sword), Some(&Unbreakable));
+    assert_eq!(world.get::<Damage>(apple), None);
 }
 
 #[test]
