@@ -113,7 +113,7 @@ fn award_block_experience(
     mut award: MessageWriter<AwardExperience>,
     blocks: Res<Blocks>,
     registry: Res<StaticRegistry<EnchantmentData>>,
-    items: Res<Items>,
+    items: Option<Res<Items>>,
     tools: Query<StackComponent<Enchantments>>,
     mut random: ResMut<DimensionRandom>,
 ) {
@@ -126,7 +126,10 @@ fn award_block_experience(
         };
         let sampled = blocks.experience_drop(id).sample(&mut random.0);
         let tool = event.tool.and_then(|tool| tools.get(tool).ok());
-        let enchantments = tool.as_ref().and_then(|tool| tool.get(&items));
+        let enchantments = tool
+            .as_ref()
+            .zip(items.as_deref())
+            .and_then(|(tool, items)| tool.get(items));
         let amount = process_block_experience(sampled, enchantments, &registry, &mut random.0);
         if amount > 0 {
             award.write(AwardExperience {
