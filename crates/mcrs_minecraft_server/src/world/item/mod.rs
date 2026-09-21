@@ -1,3 +1,4 @@
+pub mod chest;
 pub mod click;
 pub mod menu;
 pub mod sync;
@@ -25,6 +26,7 @@ impl Plugin for ItemPlugin {
             .add_message::<click::ContainerClickRequest>()
             .add_message::<click::CreativeSlotRequest>()
             .add_message::<click::CloseContainerRequest>()
+            .add_message::<chest::OpenContainerRequest>()
             .add_observer(click::decode_container_click)
             .add_observer(click::decode_creative_slot)
             .add_observer(click::decode_container_close)
@@ -32,6 +34,8 @@ impl Plugin for ItemPlugin {
                 FixedUpdate,
                 (
                     menu::open_menus,
+                    chest::close_dead_menus,
+                    chest::open_containers,
                     click::handle_container_clicks,
                     click::handle_creative_slots,
                     click::close_menus,

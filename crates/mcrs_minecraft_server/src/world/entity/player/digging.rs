@@ -1,4 +1,5 @@
 use crate::world::entity::attribute::Attribute;
+use crate::world::entity::item::BlockDrop;
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency};
 use crate::world::entity::player::player_action::{
@@ -45,7 +46,8 @@ impl Plugin for DiggingPlugin {
             Update,
             (
                 (player_start_destroy_block, handle_player_will_destroy_block).run_if(
-                    resource_exists::<DynTagRegistry<VanillaBlock>>.and_then(resource_exists::<Items>),
+                    resource_exists::<DynTagRegistry<VanillaBlock>>
+                        .and_then(resource_exists::<Items>),
                 ),
                 player_abort_destroy_block,
                 player_stop_destroy_block,
@@ -391,6 +393,7 @@ fn handle_player_will_destroy_block(
     blocks: Res<Blocks>,
     mut loot_tables: ResMut<BlockLootTables>,
     asset_server: Res<AssetServer>,
+    mut drops: MessageWriter<BlockDrop>,
 ) {
     reader.read().for_each(|event| {
         // TODO: spawn destroy particles
@@ -426,12 +429,12 @@ fn handle_player_will_destroy_block(
                     Some(table) => {
                         let ctx = BlockBreakContext { tool_enchantments };
                         for drop in table.evaluate(&ctx) {
-                            debug!(
-                                block = %block_id,
-                                item = %drop.item_name,
-                                count = drop.count,
-                                "loot drop"
-                            );
+                            drops.write(BlockDrop {
+                                dim: dim.entity(),
+                                pos: event.block_pos,
+                                item: drop.item_name,
+                                count: drop.count,
+                            });
                         }
                     }
                     None => {

@@ -1,6 +1,7 @@
 use crate::world::entity::player::ability::PlayerGameMode;
 use crate::world::entity::player::player_action::{PlayerAction, PlayerActionKind};
 use crate::world::inventory::held_stack;
+use crate::world::item::chest::{MenuContainer, close_container_menu};
 use crate::world::item::menu::{CurrentMenu, Menu, MenuLayout};
 use crate::world::item::sync::MenuResync;
 use bevy_ecs::entity::Entity;
@@ -9,7 +10,6 @@ use bevy_ecs::prelude::{Local, MessageWriter, On};
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_item::dropped::spawn_dropped;
 use mcrs_minecraft_item::mutate::{self, MoveError};
 use mcrs_minecraft_item::{
     DirtyStacks, ItemStack, Items, SelectedHotbarSlot, SlotTable, effective, is_stackable,
@@ -28,7 +28,8 @@ use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
 
 const SLOT_CLICKED_OUTSIDE: i16 = -999;
 const SWAP_OFFHAND_BUTTON: u8 = 40;
-const THROWN_PICKUP_DELAY: i16 = 40;
+/// The main inventory and hotbar cells every container menu ends with.
+pub const PLAYER_MENU_CELLS: usize = (slots::HOTBAR.end - slots::MAIN.start) as usize;
 
 #[derive(Message, Debug)]
 pub struct ContainerClickRequest {
@@ -294,24 +295,47 @@ fn move_to(
     cells: &[(Entity, u16)],
     items: &Items,
 ) -> Result<bool, MoveError> {
+    let merged = merge_same(world, stack, cells, items)?;
+    if world.get::<ItemStack>(stack).is_none() {
+        return Ok(true);
+    }
+    Ok(fill_empty(world, stack, cells, items)? || merged)
+}
+
+fn merge_same(
+    world: &mut World,
+    stack: Entity,
+    cells: &[(Entity, u16)],
+    items: &Items,
+) -> Result<bool, MoveError> {
     let mut moved = false;
-    if is_stackable(world.entity(stack), items) {
-        for &cell in cells {
-            let Some(target) = stack_in(world, cell) else {
-                continue;
-            };
-            if !same_item_same_components(world, stack, target, items) {
-                continue;
-            }
-            let Some(max) = cell_max(world, cell, stack, items) else {
-                continue;
-            };
-            moved |= mutate::merge_into(world, stack, target, max) > 0;
-            if world.get::<ItemStack>(stack).is_none() {
-                return Ok(true);
-            }
+    if !is_stackable(world.entity(stack), items) {
+        return Ok(false);
+    }
+    for &cell in cells {
+        let Some(target) = stack_in(world, cell) else {
+            continue;
+        };
+        if !same_item_same_components(world, stack, target, items) {
+            continue;
+        }
+        let Some(max) = cell_max(world, cell, stack, items) else {
+            continue;
+        };
+        moved |= mutate::merge_into(world, stack, target, max) > 0;
+        if world.get::<ItemStack>(stack).is_none() {
+            return Ok(true);
         }
     }
+    Ok(moved)
+}
+
+fn fill_empty(
+    world: &mut World,
+    stack: Entity,
+    cells: &[(Entity, u16)],
+    items: &Items,
+) -> Result<bool, MoveError> {
     for &cell in cells {
         if stack_in(world, cell).is_some() {
             continue;
@@ -325,7 +349,69 @@ fn move_to(
         place(world, moving, cell)?;
         return Ok(true);
     }
-    Ok(moved)
+    Ok(false)
+}
+
+/// The cells a picked-up stack merges into, in vanilla's order: the held
+/// slot, the offhand, then the hotbar and main inventory.
+fn pickup_merge_cells(world: &World, player: Entity) -> Vec<(Entity, u16)> {
+    let held = slots::held(
+        world
+            .get::<SelectedHotbarSlot>(player)
+            .map_or(0, |selected| selected.0),
+    );
+    [held, slots::OFFHAND]
+        .into_iter()
+        .chain(
+            slots::HOTBAR
+                .chain(slots::MAIN)
+                .filter(|index| *index != held),
+        )
+        .map(|index| (player, index))
+        .collect()
+}
+
+fn pickup_empty_cells(player: Entity) -> Vec<(Entity, u16)> {
+    slots::HOTBAR
+        .chain(slots::MAIN)
+        .map(|index| (player, index))
+        .collect()
+}
+
+/// How many of `stack` the player's inventory can still take.
+pub fn room_for(world: &World, player: Entity, stack: Entity, items: &Items) -> u32 {
+    let max = max_stack_size(world.entity(stack), items);
+    let mut room = 0u32;
+    if is_stackable(world.entity(stack), items) {
+        for cell in pickup_merge_cells(world, player) {
+            if let Some(target) = stack_in(world, cell)
+                && same_item_same_components(world, stack, target, items)
+            {
+                room += u32::from(max.saturating_sub(count(world, target)));
+            }
+        }
+    }
+    for cell in pickup_empty_cells(player) {
+        if stack_in(world, cell).is_none() {
+            room += u32::from(max);
+        }
+    }
+    room
+}
+
+/// Stores an unheld stack the way a pickup does; what does not fit stays
+/// in `stack`.
+pub fn insert_stack(
+    world: &mut World,
+    player: Entity,
+    stack: Entity,
+    items: &Items,
+) -> Result<bool, MoveError> {
+    let merged = merge_same(world, stack, &pickup_merge_cells(world, player), items)?;
+    if world.get::<ItemStack>(stack).is_none() {
+        return Ok(true);
+    }
+    Ok(fill_empty(world, stack, &pickup_empty_cells(player), items)? || merged)
 }
 
 fn layout_range(
@@ -341,8 +427,6 @@ fn layout_range(
     }
 }
 
-/// ponytail: the inventory menu's shift-click targets; a chest menu adds its
-/// own routing (chest → player, player → chest) when it exists.
 fn quick_move(
     world: &mut World,
     player: Entity,
@@ -353,6 +437,15 @@ fn quick_move(
     let Some(stack) = stack_in(world, layout[slot]) else {
         return Ok(false);
     };
+    if layout.len() != slots::MENU_COUNT {
+        let container = layout.len() - PLAYER_MENU_CELLS;
+        let cells = if slot < container {
+            layout_range(layout, container..layout.len(), true)
+        } else {
+            layout_range(layout, 0..container, false)
+        };
+        return move_to(world, stack, &cells, items);
+    }
     let slot = slot as u16;
     let main_and_hotbar = slots::MAIN.start as usize..slots::HOTBAR.end as usize;
     let cells = if slot == slots::RESULT {
@@ -404,10 +497,8 @@ pub fn insert_or_drop(
     Ok(())
 }
 
-/// ponytail: the dropped item has no position or motion yet; the dimension
-/// side adds them here once dropped items exist in the world.
 pub fn drop_stack(world: &mut World, player: Entity, stack: Entity) {
-    spawn_dropped(world, stack, THROWN_PICKUP_DELAY, Some(player));
+    crate::world::entity::item::throw(world, player, stack);
 }
 
 fn apply(
@@ -657,6 +748,10 @@ pub fn close_menus(world: &mut World) {
             .get::<Menu>(menu)
             .is_none_or(|menu| i32::from(menu.container_id) != req.container_id)
         {
+            continue;
+        }
+        if world.get::<MenuContainer>(menu).is_some() {
+            close_container_menu(world, req.player, menu, false);
             continue;
         }
         let returning: Vec<Entity> = std::iter::once(slots::CARRIED)

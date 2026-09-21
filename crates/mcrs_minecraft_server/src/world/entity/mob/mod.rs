@@ -12,8 +12,9 @@ use bevy_ecs::schedule::{ScheduleConfigs, SystemSet};
 use bevy_ecs::system::ScheduleSystem;
 use bevy_math::DVec3;
 use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
-use mcrs_minecraft_item::{ItemStack, Items};
+use mcrs_minecraft_item::{ItemStack, Items, WireStack};
 use mcrs_minecraft_level::aoi::{EntityTracker, PlayerObservers, TickInterval};
 use mcrs_minecraft_level::entity::mob::{
     Baby, CatVariant, ChickenVariant, EntityInSection, EntityKind, EntityUuid, Equipment, Health,
@@ -22,7 +23,6 @@ use mcrs_minecraft_level::entity::mob::{
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::reposition::Reposition;
-use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
@@ -358,8 +358,12 @@ fn stack(items: Option<&Items>, stack: GeneratedStack) -> Option<ItemStack> {
 
 fn carried(items: Option<&Items>, equipment: GeneratedEquipment) -> Equipment {
     Equipment {
-        mainhand: equipment.mainhand.and_then(|stack| self::stack(items, stack)),
-        offhand: equipment.offhand.and_then(|stack| self::stack(items, stack)),
+        mainhand: equipment
+            .mainhand
+            .and_then(|stack| self::stack(items, stack)),
+        offhand: equipment
+            .offhand
+            .and_then(|stack| self::stack(items, stack)),
     }
 }
 
@@ -377,6 +381,7 @@ const VILLAGER_DATA: u8 = 19;
 const ZOMBIE_VILLAGER_DATA: u8 = 20;
 const HANGING_DIRECTION: u8 = 8;
 const FRAME_ITEM: u8 = 9;
+const DROPPED_ITEM_STACK: u8 = 8;
 
 #[derive(QueryData)]
 pub struct Pairing {
@@ -395,6 +400,7 @@ pub struct Pairing {
     equipment: Option<&'static Equipment>,
     ridden_by: Option<&'static RiddenBy>,
     riding: Option<&'static Riding>,
+    wire: Option<&'static WireStack>,
 }
 
 fn wire_id(entity: Entity) -> i32 {
@@ -404,7 +410,11 @@ fn wire_id(entity: Entity) -> i32 {
 /// A stack the registries cannot encode is dropped from the packet rather
 /// than sent malformed.
 fn wire_stack(stack: ItemStack, lookup: &dyn RegistryLookup) -> Option<RawStack> {
-    let slot = Slot::new(stack.item(), i32::from(stack.count()), ComponentPatch::default());
+    let slot = Slot::new(
+        stack.item(),
+        i32::from(stack.count()),
+        ComponentPatch::default(),
+    );
     RawStack::from_slot(&slot, lookup)
         .inspect_err(|error| tracing::warn!(%error, "a mob's stack could not be encoded"))
         .ok()
@@ -491,6 +501,9 @@ impl PairingItem<'_, '_> {
             if let Some(item) = frame.item.and_then(|item| wire_stack(item, lookup)) {
                 put(FRAME_ITEM, MetaDataValue::Slot(item));
             }
+        }
+        if let Some(wire) = self.wire {
+            put(DROPPED_ITEM_STACK, MetaDataValue::Slot(wire.0.clone()));
         }
         if let Some(health) = self.health
             && health.current != 1.0

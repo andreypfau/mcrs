@@ -29,6 +29,7 @@ mod common;
 mod confirmed_move_protocol;
 mod confirmed_move_roundtrip;
 mod cross_player_isolation;
+mod dropped_item;
 mod entity_sync_look_angle;
 mod epoch_round_trip;
 mod harness;

@@ -176,7 +176,7 @@ fn raw_stack(world: &World, stack: Entity, items: &Items, lookup: &dyn RegistryL
         .unwrap_or(RawStack::EMPTY)
 }
 
-fn to(world: &World, player: Entity, data: PacketPayload) -> OutboundPlayerPacket {
+pub(crate) fn to(world: &World, player: Entity, data: PacketPayload) -> OutboundPlayerPacket {
     let anchor = world
         .get::<HostAnchor>(player)
         .map_or(Entity::PLACEHOLDER, |anchor| anchor.0);
