@@ -3,7 +3,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
-use mcrs_minecraft_inventory::{ContainerClickRequest, CurrentMenu, Menu, Remote, RemoteSlots, handle_container_clicks};
+use mcrs_minecraft_inventory::{
+    ContainerClickRequest, CurrentMenu, Menu, Remote, RemoteSlots, handle_container_clicks,
+};
 use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, Thrower, slots, stack_to_slot};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack, RawStack};
@@ -59,7 +61,9 @@ fn click_claiming(
 /// requests are cleared once handled, as a frame's message update would.
 fn handle_clicks(world: &mut World) {
     world.run_system_once(handle_container_clicks).unwrap();
-    world.resource_mut::<Messages<ContainerClickRequest>>().clear();
+    world
+        .resource_mut::<Messages<ContainerClickRequest>>()
+        .clear();
 }
 
 fn cell(world: &World, player: Entity, index: u16) -> Option<(Entity, u8)> {

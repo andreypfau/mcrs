@@ -7,6 +7,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, SectionPos};
+use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{MenuContainer, Op, Slot};
 use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, WireStack, slots};
 use mcrs_minecraft_level::entity::mob::EntityKind;
@@ -25,10 +26,11 @@ use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::item::pickup::pickup_items;
 use mcrs_minecraft_server::world::entity::item::tick::tick_dropped_items;
 use mcrs_minecraft_server::world::entity::item::{BlockDrop, spawn_dropped};
-use mcrs_minecraft_server::world::item::chest::{OpenContainerRequest, close_dead_menus, open_containers};
+use mcrs_minecraft_server::world::item::chest::{
+    OpenContainerRequest, close_dead_menus, open_containers,
+};
 use mcrs_minecraft_server::world::item::click::{CloseContainerRequest, close_menus, commit};
 use mcrs_minecraft_server::world::item::menu::open_menus;
-use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
 use mcrs_minecraft_worldgen_feature_place::block_entity::{ContainerData, GeneratedBlockEntity};
 

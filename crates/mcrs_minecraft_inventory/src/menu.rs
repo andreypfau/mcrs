@@ -144,7 +144,9 @@ pub fn menu_slots(menu_type: &str) -> Option<MenuSlots> {
 
 /// The container's own cells, then the player's main and hotbar rows.
 pub fn container_menu_layout(container: Entity, player: Entity, menu: MenuSlots) -> Vec<Slot> {
-    let mut layout: Vec<Slot> = (0..menu.own).map(|cell| Slot::new(container, cell)).collect();
+    let mut layout: Vec<Slot> = (0..menu.own)
+        .map(|cell| Slot::new(container, cell))
+        .collect();
     if menu.player_slots {
         layout.extend(
             slots::MAIN

@@ -45,7 +45,10 @@ pub fn handle_container_clicks(
     let mut plans: FxHashMap<Entity, (MenuSnapshot, Vec<Op>)> = FxHashMap::default();
     let mut menus: FxHashMap<Entity, MenuFold> = FxHashMap::default();
     for req in requests.read() {
-        let Some(menu) = world.get::<CurrentMenu>(req.player).map(|current| current.0) else {
+        let Some(menu) = world
+            .get::<CurrentMenu>(req.player)
+            .map(|current| current.0)
+        else {
             continue;
         };
         let Some((container_id, state_id)) = world
@@ -73,10 +76,16 @@ pub fn handle_container_clicks(
             continue;
         }
         fold.full |= req.state_id != i32::from(state_id)
-            || matches!(req.input, ContainerInput::QuickCraft | ContainerInput::PickupAll);
-        let (snapshot, ops) = plans
-            .entry(req.player)
-            .or_insert_with(|| (MenuSnapshot::new(world, items, req.player, layout.0.clone()), Vec::new()));
+            || matches!(
+                req.input,
+                ContainerInput::QuickCraft | ContainerInput::PickupAll
+            );
+        let (snapshot, ops) = plans.entry(req.player).or_insert_with(|| {
+            (
+                MenuSnapshot::new(world, items, req.player, layout.0.clone()),
+                Vec::new(),
+            )
+        });
         let mut planner = Planner::new(snapshot);
         planner.click(Click {
             slot: req.slot,
@@ -100,17 +109,19 @@ pub fn handle_container_clicks(
         }
     }
     for (menu, fold) in menus {
-        commands.entity(menu).queue(move |mut entity: EntityWorldMut| {
-            let Some(mut remote) = entity.get_mut::<RemoteSlots>() else {
-                return;
-            };
-            for (index, hashed) in fold.claims {
-                remote.claim(index, hashed);
-            }
-            if let Some(carried) = fold.carried {
-                remote.carried = Remote::Claimed(carried);
-            }
-            remote.full |= fold.full;
-        });
+        commands
+            .entity(menu)
+            .queue(move |mut entity: EntityWorldMut| {
+                let Some(mut remote) = entity.get_mut::<RemoteSlots>() else {
+                    return;
+                };
+                for (index, hashed) in fold.claims {
+                    remote.claim(index, hashed);
+                }
+                if let Some(carried) = fold.carried {
+                    remote.carried = Remote::Claimed(carried);
+                }
+                remote.full |= fold.full;
+            });
     }
 }

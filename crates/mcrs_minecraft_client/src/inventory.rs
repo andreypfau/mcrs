@@ -1,8 +1,10 @@
+use bevy::ecs::system::Command;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_core::ResourceLocation;
-use bevy::ecs::system::Command;
-use mcrs_minecraft_inventory::{MenuLayout, Op, Slot, Transaction, container_menu_layout, menu_slots, stack_in};
+use mcrs_minecraft_inventory::{
+    MenuLayout, Op, Slot, Transaction, container_menu_layout, menu_slots, stack_in,
+};
 use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, item_of, slots};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, ReceivedRegistries};
@@ -87,7 +89,9 @@ impl Plugin for InventoryPlugin {
 }
 
 pub fn inventory_index_to_cell(index: i32) -> Option<u16> {
-    u8::try_from(index).ok().and_then(slots::from_inventory_index)
+    u8::try_from(index)
+        .ok()
+        .and_then(slots::from_inventory_index)
 }
 
 fn resolve(raw: &RawStack, lookup: &dyn RegistryLookup) -> anyhow::Result<Option<ItemStackValue>> {
@@ -110,22 +114,43 @@ fn receive_inventory_packets(
     };
     let lookup = ChainLookup(&[&*table as &dyn RegistryLookup, received]);
     if let Some(packet) = event.decode::<ClientboundContainerSetContent>() {
-        let slots: anyhow::Result<Vec<_>> =
-            packet.slot_data.iter().map(|raw| resolve(raw, &lookup)).collect();
+        let slots: anyhow::Result<Vec<_>> = packet
+            .slot_data
+            .iter()
+            .map(|raw| resolve(raw, &lookup))
+            .collect();
         let (Ok(slots), Ok(carried)) = (slots, resolve(&packet.carried_item, &lookup)) else {
-            warn!("container_set_content {}: a stack failed to decode", packet.container_id.0);
+            warn!(
+                "container_set_content {}: a stack failed to decode",
+                packet.container_id.0
+            );
             return;
         };
         commands.queue(move |world: &mut World| {
-            apply_set_content(world, packet.container_id.0, packet.state_seqno.0, slots, carried);
+            apply_set_content(
+                world,
+                packet.container_id.0,
+                packet.state_seqno.0,
+                slots,
+                carried,
+            );
         });
     } else if let Some(packet) = event.decode::<ClientboundContainerSetSlot>() {
         let Ok(item) = resolve(&packet.item, &lookup) else {
-            warn!("container_set_slot {}/{}: the stack failed to decode", packet.container_id.0, packet.slot);
+            warn!(
+                "container_set_slot {}/{}: the stack failed to decode",
+                packet.container_id.0, packet.slot
+            );
             return;
         };
         commands.queue(move |world: &mut World| {
-            apply_set_slot(world, packet.container_id.0, packet.state_seqno.0, packet.slot, item);
+            apply_set_slot(
+                world,
+                packet.container_id.0,
+                packet.state_seqno.0,
+                packet.slot,
+                item,
+            );
         });
     } else if let Some(packet) = event.decode::<ClientboundSetCursorItem>() {
         let Ok(item) = resolve(&packet.contents, &lookup) else {
@@ -139,7 +164,10 @@ fn receive_inventory_packets(
         });
     } else if let Some(packet) = event.decode::<ClientboundSetPlayerInventory>() {
         let Ok(item) = resolve(&packet.contents, &lookup) else {
-            warn!("set_player_inventory {}: the stack failed to decode", packet.slot.0);
+            warn!(
+                "set_player_inventory {}: the stack failed to decode",
+                packet.slot.0
+            );
             return;
         };
         // ponytail: body and saddle (41, 42) are dropped until the player holds those cells.
@@ -174,7 +202,10 @@ fn receive_inventory_packets(
 }
 
 fn player(world: &mut World) -> Option<Entity> {
-    world.query_filtered::<Entity, With<Player>>().iter(world).next()
+    world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
 }
 
 fn open_menu(world: &World) -> Option<(Entity, i32)> {
@@ -190,7 +221,9 @@ fn container(world: &mut World, container_id: i32) -> Option<Entity> {
     if container_id == 0 {
         return player(world);
     }
-    open_menu(world).filter(|(_, id)| *id == container_id).map(|(menu, _)| menu)
+    open_menu(world)
+        .filter(|(_, id)| *id == container_id)
+        .map(|(menu, _)| menu)
 }
 
 fn holder_cell(world: &World, container: Entity, index: usize) -> Option<Slot> {
@@ -213,7 +246,9 @@ fn set_cell(world: &mut World, cell: Slot, value: Option<ItemStackValue>) {
     let ops = match (current, value) {
         (None, None) => Vec::new(),
         (Some(stack), None) => vec![Op::Despawn { stack }],
-        (Some(stack), Some(value)) if same_item(world, stack, &value) => vec![Op::Apply { stack, value }],
+        (Some(stack), Some(value)) if same_item(world, stack, &value) => {
+            vec![Op::Apply { stack, value }]
+        }
         (current, Some(value)) => current
             .map(|stack| Op::Despawn { stack })
             .into_iter()
@@ -254,7 +289,13 @@ fn apply_set_content(
     set_seqno(world, container, seqno);
 }
 
-fn apply_set_slot(world: &mut World, container_id: i32, seqno: i32, slot: i16, item: Option<ItemStackValue>) {
+fn apply_set_slot(
+    world: &mut World,
+    container_id: i32,
+    seqno: i32,
+    slot: i16,
+    item: Option<ItemStackValue>,
+) {
     let Some(container) = container(world, container_id) else {
         return;
     };

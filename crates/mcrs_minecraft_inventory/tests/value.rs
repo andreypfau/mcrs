@@ -5,7 +5,9 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, TransactionError};
 use mcrs_minecraft_item::held::SlotTable;
-use mcrs_minecraft_item::{Held, ItemStack, StackError, same_item_same_components, stack_to_slot, stack_to_value};
+use mcrs_minecraft_item::{
+    Held, ItemStack, StackError, same_item_same_components, stack_to_slot, stack_to_value,
+};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
 
 use common::{apply, items, place, set_count, world};
@@ -257,8 +259,7 @@ fn a_tombstoned_child_kind_has_no_cells() {
     let emptied =
         parse(r#"{"id": "minecraft:shulker_box", "components": {"!minecraft:container": {}}}"#);
     let shulker = spawn_stack(&mut world, &emptied, items()).unwrap();
-    let stone =
-        spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
+    let stone = spawn_stack(&mut world, &parse(r#"{"id": "minecraft:stone"}"#), items()).unwrap();
     assert!(world.get::<SlotTable>(shulker).is_none());
     assert!(matches!(
         place(&mut world, stone, shulker, 0),
@@ -307,8 +308,7 @@ fn a_crossbow_refuses_a_projectile_past_the_codec_bound() {
         items(),
     )
     .unwrap();
-    let arrow =
-        spawn_stack(&mut world, &parse(r#"{"id": "minecraft:arrow"}"#), items()).unwrap();
+    let arrow = spawn_stack(&mut world, &parse(r#"{"id": "minecraft:arrow"}"#), items()).unwrap();
     let bound = mcrs_minecraft_protocol::item::MAX_CHARGED_PROJECTILES as u16;
     assert!(matches!(
         place(&mut world, arrow, crossbow, bound),

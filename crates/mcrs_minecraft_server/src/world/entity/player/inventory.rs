@@ -14,7 +14,10 @@ impl Plugin for PlayerInventoryPlugin {
     }
 }
 
-fn update_carried_item(event: On<ReceivedPacketEvent>, mut selected: Query<&mut SelectedHotbarSlot>) {
+fn update_carried_item(
+    event: On<ReceivedPacketEvent>,
+    mut selected: Query<&mut SelectedHotbarSlot>,
+) {
     let Ok(mut selected) = selected.get_mut(event.entity) else {
         return;
     };

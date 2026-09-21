@@ -120,7 +120,11 @@ pub fn ops(kind: ItemComponentKind) -> &'static KindOps {
     &OPS[kind as usize]
 }
 
-pub fn entry<'a>(world: &World, stack: Entity, items: &'a Items) -> Result<&'a ItemEntry, StackError> {
+pub fn entry<'a>(
+    world: &World,
+    stack: Entity,
+    items: &'a Items,
+) -> Result<&'a ItemEntry, StackError> {
     let item = world
         .get::<ItemStack>(stack)
         .ok_or(StackError::NotAStack(stack))?
@@ -130,7 +134,10 @@ pub fn entry<'a>(world: &World, stack: Entity, items: &'a Items) -> Result<&'a I
         .ok_or_else(|| StackError::UnknownItem(format!("#{}", item.0)))
 }
 
-pub fn named_entry<'a>(items: &'a Items, value: &ItemStackValue) -> Result<&'a ItemEntry, StackError> {
+pub fn named_entry<'a>(
+    items: &'a Items,
+    value: &ItemStackValue,
+) -> Result<&'a ItemEntry, StackError> {
     items
         .id_of(value.item.as_str())
         .and_then(|id| items.get(id))

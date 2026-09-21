@@ -4,6 +4,7 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::With;
+use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
@@ -12,8 +13,8 @@ use mcrs_minecraft_assets::{RegistrySnapshotErased, snapshot::RegistrySnapshot};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ColumnPos, ResourceKey, ResourceLocation};
-use bevy_ecs::system::Command;
 use mcrs_minecraft_inventory::value::spawn_stack;
+use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::{DroppedItem, ItemStack, Items, SlotTable, slots, stack_to_slot};
 use mcrs_minecraft_level::aoi::PlayerObservers;
@@ -41,7 +42,6 @@ use mcrs_minecraft_server::world::bus::{
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_server::world::entity::item::spawn_dropped;
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
-use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_server::world::item::click::commit;
 use mcrs_minecraft_server::world::session::SessionBundle;
 use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
@@ -525,7 +525,15 @@ fn a_pickup_announces_the_full_take_then_fills_the_held_stack_and_a_free_cell() 
         .get::<mcrs_minecraft_level::world::dimension::InDimension>(player)
         .unwrap()
         .0;
-    let item = spawn_dropped(server.world(), value("stone", 7), dim, SPAWN, DVec3::ZERO, 0, None);
+    let item = spawn_dropped(
+        server.world(),
+        value("stone", 7),
+        dim,
+        SPAWN,
+        DVec3::ZERO,
+        0,
+        None,
+    );
 
     let packets = server.ticks(2);
     let take = packets

@@ -133,12 +133,20 @@ pub fn launch_thrown_items(world: &mut World) {
             .zip(world.get::<Transform>(thrower))
             .map(|(dim, transform)| (dim.0, *transform))
         else {
-            tracing::warn!(?thrower, ?item, "a stack thrown by a player with no position is lost");
+            tracing::warn!(
+                ?thrower,
+                ?item,
+                "a stack thrown by a player with no position is lost"
+            );
             world.despawn(item);
             continue;
         };
         let pos = transform.translation + DVec3::new(0.0, EYE_HEIGHT - 0.3, 0.0);
-        let velocity = throw_velocity(transform.rotation.yaw(), transform.rotation.pitch(), &mut rng());
+        let velocity = throw_velocity(
+            transform.rotation.yaw(),
+            transform.rotation.pitch(),
+            &mut rng(),
+        );
         place_dropped(world, item, dim, pos, velocity);
     }
 }
@@ -162,7 +170,15 @@ pub fn spawn_block_drops(world: &mut World) {
             f64::from(drop.pos.z) + 0.5 + scatter(),
         );
         let velocity = block_drop_velocity(&mut rng);
-        let item = spawn_dropped(world, value, drop.dim, pos, velocity, BLOCK_DROP_PICKUP_DELAY, None);
+        let item = spawn_dropped(
+            world,
+            value,
+            drop.dim,
+            pos,
+            velocity,
+            BLOCK_DROP_PICKUP_DELAY,
+            None,
+        );
         if world.get::<DroppedItem>(item).is_none() {
             world.despawn(item);
         }

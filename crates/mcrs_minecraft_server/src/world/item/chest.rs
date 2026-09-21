@@ -8,7 +8,8 @@ use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_inventory::{
-    CurrentMenu, Menu, MenuContainer, MenuLayout, MenuSlots, MenuViewer, MenusOf, RemoteSlots, container_menu_layout,
+    CurrentMenu, Menu, MenuContainer, MenuLayout, MenuSlots, MenuViewer, MenusOf, RemoteSlots,
+    container_menu_layout,
 };
 use mcrs_minecraft_item::SlotTable;
 use mcrs_minecraft_level::entity::physics::Transform;

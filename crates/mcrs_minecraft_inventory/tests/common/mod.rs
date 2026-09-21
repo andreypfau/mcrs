@@ -66,7 +66,12 @@ pub fn apply(world: &mut World, ops: Vec<Op>) -> Result<(), TransactionError> {
     Transaction(ops).try_apply(world)
 }
 
-pub fn place(world: &mut World, stack: Entity, holder: Entity, index: u16) -> Result<(), TransactionError> {
+pub fn place(
+    world: &mut World,
+    stack: Entity,
+    holder: Entity,
+    index: u16,
+) -> Result<(), TransactionError> {
     apply(
         world,
         vec![Op::Place {

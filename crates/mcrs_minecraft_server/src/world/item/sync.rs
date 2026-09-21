@@ -8,8 +8,12 @@ use bevy_ecs::prelude::{Changed, Ref, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_inventory::{CurrentMenu, Menu, MenuLayout, MenuViewer, Remote, RemoteSlots, Slot, stack_in};
-use mcrs_minecraft_item::{DroppedItem, Held, Items, StackRevision, WireStack, SlotTable, slots, stack_to_slot};
+use mcrs_minecraft_inventory::{
+    CurrentMenu, Menu, MenuLayout, MenuViewer, Remote, RemoteSlots, Slot, stack_in,
+};
+use mcrs_minecraft_item::{
+    DroppedItem, Held, Items, SlotTable, StackRevision, WireStack, slots, stack_to_slot,
+};
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol::item::{ProtoStack, RawStack};
@@ -53,7 +57,9 @@ pub fn sync_stack_slots(world: &mut World) {
     let lookup = ChainLookup(&lookups);
     let dirty = dirty_holders(world);
     let proto = |world: &World, slot: Slot| -> ProtoStack {
-        stack_in(world, slot).map_or(ProtoStack::EMPTY, |stack| stack_to_slot(world, stack, &items))
+        stack_in(world, slot).map_or(ProtoStack::EMPTY, |stack| {
+            stack_to_slot(world, stack, &items)
+        })
     };
     let raw = |proto: &ProtoStack| -> RawStack {
         RawStack::from_stack(proto, &lookup)
@@ -188,7 +194,11 @@ pub fn sync_stack_slots(world: &mut World) {
 /// The remote entry to keep when the client already holds `current`: a known
 /// copy that encodes the same, or a claim that hashes the same and is now
 /// pinned to the encoding.
-fn agree(remote: &Remote, current: &ProtoStack, raw: impl Fn(&ProtoStack) -> RawStack) -> Option<Remote> {
+fn agree(
+    remote: &Remote,
+    current: &ProtoStack,
+    raw: impl Fn(&ProtoStack) -> RawStack,
+) -> Option<Remote> {
     match remote {
         Remote::Unknown => None,
         Remote::Known(known) => (*known == raw(current)).then(|| remote.clone()),

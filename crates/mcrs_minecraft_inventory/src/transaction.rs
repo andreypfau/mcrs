@@ -5,8 +5,8 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::dropped::{DEFAULT_HEALTH, THROWN_PICKUP_DELAY};
 use mcrs_minecraft_item::value::{is_child_kind, ops};
 use mcrs_minecraft_item::{
-    DroppedItem, Held, ItemStack, Items, SlotTable, StackError, StackRevision, Thrower, max_stack_size,
-    same_item_same_components, stack_to_value,
+    DroppedItem, Held, ItemStack, Items, SlotTable, StackError, StackRevision, Thrower,
+    max_stack_size, same_item_same_components, stack_to_value,
 };
 use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemComponentValue, ItemStackValue};
 
@@ -20,13 +20,30 @@ use crate::value::{apply_value, spawn_stack, spawn_stack_into};
 pub enum Op {
     /// Moves `count` of the stack in `from` into `to`, which is empty or holds
     /// the same item with the same components.
-    Transfer { from: Slot, to: Slot, count: u8 },
-    Swap { a: Slot, b: Slot },
+    Transfer {
+        from: Slot,
+        to: Slot,
+        count: u8,
+    },
+    Swap {
+        a: Slot,
+        b: Slot,
+    },
     /// Spawns a full stack of the item in `from` into the empty `to`.
-    Clone { from: Slot, to: Slot },
+    Clone {
+        from: Slot,
+        to: Slot,
+    },
     /// Takes `count` of the stack in `from` out of its holder and throws it.
-    Drop { from: Slot, count: u8, thrower: Entity },
-    Spawn { value: ItemStackValue, to: Slot },
+    Drop {
+        from: Slot,
+        count: u8,
+        thrower: Entity,
+    },
+    Spawn {
+        value: ItemStackValue,
+        to: Slot,
+    },
     /// Turns a prepared entity into a dropped stack.
     SpawnDropped {
         entity: Entity,
@@ -35,20 +52,44 @@ pub enum Op {
         thrower: Option<Entity>,
     },
     /// Moves a stack the caller holds into the empty `to`.
-    Place { stack: Entity, to: Slot },
+    Place {
+        stack: Entity,
+        to: Slot,
+    },
     /// Rewrites the stack in place; the item must stay the same.
-    Apply { stack: Entity, value: ItemStackValue },
-    Insert { stack: Entity, component: ItemComponentValue },
-    Remove { stack: Entity, kind: ItemComponentKind },
+    Apply {
+        stack: Entity,
+        value: ItemStackValue,
+    },
+    Insert {
+        stack: Entity,
+        component: ItemComponentValue,
+    },
+    Remove {
+        stack: Entity,
+        kind: ItemComponentKind,
+    },
     /// A count of zero despawns the stack and everything it holds.
-    SetCount { stack: Entity, count: u8 },
-    Despawn { stack: Entity },
+    SetCount {
+        stack: Entity,
+        count: u8,
+    },
+    Despawn {
+        stack: Entity,
+    },
     /// Takes `count` off a dropped item into `to`, which is empty or holds the
     /// same item; the item entity despawns once it is emptied.
-    Pickup { item: Entity, to: Slot, count: u8 },
+    Pickup {
+        item: Entity,
+        to: Slot,
+        count: u8,
+    },
     /// Folds one dropped item into another; the survivor keeps the longer
     /// pickup delay and the younger age.
-    MergeDropped { from: Entity, into: Entity },
+    MergeDropped {
+        from: Entity,
+        into: Entity,
+    },
 }
 
 /// The only writer of stack truth. Ops apply in order with immediate
@@ -97,7 +138,11 @@ pub enum TransactionError {
     #[error("holder {0:?} is gone")]
     HolderMissing(Entity),
     #[error("cell {index} of {holder:?} is occupied by {by:?}")]
-    Occupied { holder: Entity, index: u16, by: Entity },
+    Occupied {
+        holder: Entity,
+        index: u16,
+        by: Entity,
+    },
     #[error("cell {index} is outside {holder:?}")]
     OutOfRange { holder: Entity, index: u16 },
     #[error("{0:?} would hold itself")]
@@ -138,7 +183,11 @@ fn apply_op(world: &mut World, items: &Items, op: &Op) -> Result<(), Transaction
             let clone = spawn_stack(world, &value, items)?;
             place_or_despawn(world, clone, to)
         }
-        Op::Drop { from, count, thrower } => {
+        Op::Drop {
+            from,
+            count,
+            thrower,
+        } => {
             let source = stack_in(world, from).ok_or(TransactionError::Empty(from))?;
             let Some(thrown) = take(world, items, source, count) else {
                 return Ok(());
@@ -163,7 +212,10 @@ fn apply_op(world: &mut World, items: &Items, op: &Op) -> Result<(), Transaction
         }
         Op::Place { stack, to } => move_stack(world, stack, to),
         Op::Apply { stack, ref value } => Ok(apply_value(world, stack, value, items)?),
-        Op::Insert { stack, ref component } => {
+        Op::Insert {
+            stack,
+            ref component,
+        } => {
             let kind = component.kind();
             if is_child_kind(kind) {
                 return Err(TransactionError::ChildKind(kind));
@@ -224,7 +276,8 @@ fn apply_op(world: &mut World, items: &Items, op: &Op) -> Result<(), Transaction
                 return Err(TransactionError::NotDropped(from));
             };
             let max = max_stack_size(world.entity(into));
-            if usize::from(count_of(world, from)) + usize::from(count_of(world, into)) > usize::from(max)
+            if usize::from(count_of(world, from)) + usize::from(count_of(world, into))
+                > usize::from(max)
                 || !same_item_same_components(world, from, into, items)
             {
                 return Ok(());
@@ -238,7 +291,10 @@ fn apply_op(world: &mut World, items: &Items, op: &Op) -> Result<(), Transaction
     }
 }
 
-fn stack_entity(world: &mut World, stack: Entity) -> Result<bevy_ecs::world::EntityWorldMut<'_>, TransactionError> {
+fn stack_entity(
+    world: &mut World,
+    stack: Entity,
+) -> Result<bevy_ecs::world::EntityWorldMut<'_>, TransactionError> {
     match world.get_entity_mut(stack) {
         Ok(entity) if entity.contains::<ItemStack>() => Ok(entity),
         _ => Err(TransactionError::NotAStack(stack)),
@@ -258,7 +314,13 @@ fn take(world: &mut World, items: &Items, stack: Entity, count: u8) -> Option<En
     }
 }
 
-fn transfer(world: &mut World, items: &Items, source: Entity, to: Slot, count: u8) -> Result<(), TransactionError> {
+fn transfer(
+    world: &mut World,
+    items: &Items,
+    source: Entity,
+    to: Slot,
+    count: u8,
+) -> Result<(), TransactionError> {
     match stack_in(world, to) {
         None => {
             let moving = take(world, items, source, count).expect("a positive count splits");
@@ -269,7 +331,12 @@ fn transfer(world: &mut World, items: &Items, source: Entity, to: Slot, count: u
             if !same_item_same_components(world, source, target, items) {
                 return Err(TransactionError::Different(to));
             }
-            merge_into(world, source, target, count_of(world, target).saturating_add(count));
+            merge_into(
+                world,
+                source,
+                target,
+                count_of(world, target).saturating_add(count),
+            );
             Ok(())
         }
     }

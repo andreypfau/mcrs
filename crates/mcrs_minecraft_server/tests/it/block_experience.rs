@@ -5,8 +5,8 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_item::enchantment::{EnchantmentData, register_all_enchantments};
 use mcrs_minecraft_item::Items;
+use mcrs_minecraft_item::enchantment::{EnchantmentData, register_all_enchantments};
 use mcrs_minecraft_level::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
@@ -56,7 +56,8 @@ fn enchanted_pickaxe(app: &mut App, enchantment: &str, level: i32) -> Entity {
         count: Bounded(1),
         components: ComponentPatch::EMPTY,
     };
-    let tool = mcrs_minecraft_inventory::value::spawn_stack(app.world_mut(), &pickaxe, &items).unwrap();
+    let tool =
+        mcrs_minecraft_inventory::value::spawn_stack(app.world_mut(), &pickaxe, &items).unwrap();
     let enchantments = Enchantments(vec![(
         ResourceKey::from_location(ResourceLocation::parse(enchantment).unwrap()),
         level,

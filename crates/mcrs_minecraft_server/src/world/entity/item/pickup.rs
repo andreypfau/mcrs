@@ -9,14 +9,16 @@ use bevy_ecs::prelude::With;
 use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_inventory::{MenuSnapshot, Planner, Source, StackView, Transaction, player_menu_layout};
+use mcrs_minecraft_inventory::{
+    MenuSnapshot, Planner, Source, StackView, Transaction, player_menu_layout,
+};
 use mcrs_minecraft_item::{DroppedItem, Items};
-use rustc_hash::FxHashMap;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_protocol::GameMode;
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
 const PLAYER_HALF_WIDTH: f64 = 0.3;
@@ -62,9 +64,9 @@ pub fn pickup_items(world: &mut World) {
             let Some(view) = StackView::of(world, item, &items) else {
                 continue;
             };
-            let snapshot = snapshots
-                .entry(player)
-                .or_insert_with(|| MenuSnapshot::new(world, &items, player, player_menu_layout(player)));
+            let snapshot = snapshots.entry(player).or_insert_with(|| {
+                MenuSnapshot::new(world, &items, player, player_menu_layout(player))
+            });
             let mut planner = Planner::new(snapshot);
             let room = planner.room_for(&view);
             if room == 0 && !creative {

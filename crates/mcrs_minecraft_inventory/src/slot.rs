@@ -1,7 +1,8 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_item::{
-    Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots, stack_to_value,
+    Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
+    stack_to_value,
 };
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Equippable};
@@ -108,13 +109,17 @@ impl MenuSnapshot {
         let mut cells = FxHashMap::default();
         let player_cells = (0..slots::COUNT as u16).map(|index| Slot::new(player, index));
         for slot in player_cells.chain(layout.iter().copied()) {
-            if let Some(view) = stack_in(world, slot).and_then(|stack| StackView::of(world, stack, items)) {
+            if let Some(view) =
+                stack_in(world, slot).and_then(|stack| StackView::of(world, stack, items))
+            {
                 cells.insert(Source::Slot(slot), view);
             }
         }
         MenuSnapshot {
             player,
-            selected: world.get::<SelectedHotbarSlot>(player).map_or(0, |selected| selected.0),
+            selected: world
+                .get::<SelectedHotbarSlot>(player)
+                .map_or(0, |selected| selected.0),
             layout,
             cells,
         }

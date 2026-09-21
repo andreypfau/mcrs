@@ -10,8 +10,8 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_inventory::{
-    ContainerClickRequest, CurrentMenu, Menu, MenuContainer, MenuSnapshot, Op, Planner, Slot, Transaction,
-    player_menu_layout, stack_in,
+    ContainerClickRequest, CurrentMenu, Menu, MenuContainer, MenuSnapshot, Op, Planner, Slot,
+    Transaction, player_menu_layout, stack_in,
 };
 use mcrs_minecraft_item::dropped::THROWN_PICKUP_DELAY;
 use mcrs_minecraft_item::{ItemEntry, Items, SlotTable, item_of, slots};
@@ -46,7 +46,9 @@ pub fn decode_container_click(
     };
     out.write(ContainerClickRequest {
         player: event.entity,
-        game_mode: modes.get(event.entity).map_or(GameMode::Survival, |mode| mode.0),
+        game_mode: modes
+            .get(event.entity)
+            .map_or(GameMode::Survival, |mode| mode.0),
         container_id: pkt.container_id.0,
         state_id: pkt.state_seqno.0,
         slot: pkt.slot_index,
@@ -85,7 +87,12 @@ pub fn decode_container_close(
 }
 
 fn snapshot(world: &World, player: Entity) -> MenuSnapshot {
-    MenuSnapshot::new(world, world.resource::<Items>(), player, player_menu_layout(player))
+    MenuSnapshot::new(
+        world,
+        world.resource::<Items>(),
+        player,
+        player_menu_layout(player),
+    )
 }
 
 /// Applies a player's planned ops at once and puts what they threw into the world.
@@ -152,15 +159,26 @@ pub fn handle_creative_slots(world: &mut World) {
             }
             continue;
         };
-        let Some(entry) = items.id_of(value.item.as_str()).and_then(|id| items.get(id)) else {
+        let Some(entry) = items
+            .id_of(value.item.as_str())
+            .and_then(|id| items.get(id))
+        else {
             tracing::warn!(item = %value.item, player = ?req.player, "a creative stack names no item");
             continue;
         };
         if value.count.0 > i32::from(max_stack_size_of(&value, entry)) {
             continue;
         }
-        if let Some(existing) = existing.filter(|existing| item_of(world, *existing) == Some(entry.id)) {
-            commit(world, vec![Op::Apply { stack: existing, value }]);
+        if let Some(existing) =
+            existing.filter(|existing| item_of(world, *existing) == Some(entry.id))
+        {
+            commit(
+                world,
+                vec![Op::Apply {
+                    stack: existing,
+                    value,
+                }],
+            );
             continue;
         }
         if !valid_slot {
@@ -230,7 +248,13 @@ pub fn handle_drop_actions(world: &mut World, mut cursor: Local<MessageCursor<Pl
                     | PlayerActionKind::SwapItemWithOffhand
             )
         })
-        .map(|action| (action.player, action.kind.clone(), action.selected_hotbar_slot))
+        .map(|action| {
+            (
+                action.player,
+                action.kind.clone(),
+                action.selected_hotbar_slot,
+            )
+        })
         .collect();
     for (player, kind, selected) in actions {
         if world

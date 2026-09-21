@@ -1,9 +1,9 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Component, With};
-use bevy_ecs::world::World;
-use mcrs_minecraft_item::inventory::slots;
 use bevy_ecs::system::Command;
+use bevy_ecs::world::World;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
+use mcrs_minecraft_item::inventory::slots;
 use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, stack_to_value};
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::Player;
@@ -82,7 +82,12 @@ pub fn load_player(world: &mut World, player: Entity) {
         .insert((SelectedHotbarSlot(selected), LoadedPlayerDat(dat.rest)));
 }
 
-fn place(world: &mut World, player: Entity, cell: u16, stack: &mcrs_minecraft_protocol::item::ItemStackValue) {
+fn place(
+    world: &mut World,
+    player: Entity,
+    cell: u16,
+    stack: &mcrs_minecraft_protocol::item::ItemStackValue,
+) {
     Transaction(vec![Op::Spawn {
         value: stack.clone(),
         to: Slot::new(player, cell),

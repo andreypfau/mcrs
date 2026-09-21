@@ -1,8 +1,8 @@
 use bevy_ecs::prelude::{Commands, Component};
+use bevy_ecs::system::Command;
 use bevy_ecs::world::EntityWorldMut;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
-use bevy_ecs::system::Command;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::{Items, SlotTable};
 use mcrs_minecraft_level::world::dimension::InDimension;
@@ -63,7 +63,9 @@ fn fill_container(mut entity: EntityWorldMut) {
         else {
             return;
         };
-        world.entity_mut(holder).insert(SlotTable::fixed(usize::from(slot_count)));
+        world
+            .entity_mut(holder)
+            .insert(SlotTable::fixed(usize::from(slot_count)));
         if world.get_resource::<Items>().is_none() {
             return;
         }

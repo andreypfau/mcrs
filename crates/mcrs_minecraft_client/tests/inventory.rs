@@ -10,9 +10,9 @@ use mcrs_minecraft_block::definition::load_block_definitions;
 use mcrs_minecraft_client::inventory::{
     ContainerSeqno, InventoryPlugin, OpenMenu, Screen, inventory_index_to_cell,
 };
-use mcrs_minecraft_inventory::{MenuLayout, Slot};
 use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_inventory::{MenuLayout, Slot};
 use mcrs_minecraft_item::{
     Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, load_item_definitions,
     slots,

@@ -1,5 +1,7 @@
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_inventory::{Click, MenuSnapshot, Op, Planner, Slot, Source, StackKey, StackView, player_menu_layout};
+use mcrs_minecraft_inventory::{
+    Click, MenuSnapshot, Op, Planner, Slot, Source, StackKey, StackView, player_menu_layout,
+};
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput};
 use mcrs_minecraft_registry::ItemId;
@@ -80,7 +82,13 @@ fn left_click_lifts_the_stack_and_right_click_takes_half_then_places_one() {
             count: 1
         }]
     );
-    assert_eq!((snapshot.count(cell(9)), snapshot.count(cell(slots::CARRIED))), (1, 6));
+    assert_eq!(
+        (
+            snapshot.count(cell(9)),
+            snapshot.count(cell(slots::CARRIED))
+        ),
+        (1, 6)
+    );
 
     let ops = click(&mut snapshot, ContainerInput::Pickup, 9, 0);
     assert_eq!(
@@ -94,7 +102,13 @@ fn left_click_lifts_the_stack_and_right_click_takes_half_then_places_one() {
     let mut snapshot = fresh();
     snapshot.set(cell(36), Some(stone(7)));
     click(&mut snapshot, ContainerInput::Pickup, 36, 1);
-    assert_eq!((snapshot.count(cell(36)), snapshot.count(cell(slots::CARRIED))), (3, 4));
+    assert_eq!(
+        (
+            snapshot.count(cell(36)),
+            snapshot.count(cell(slots::CARRIED))
+        ),
+        (3, 4)
+    );
 }
 
 #[test]
@@ -145,7 +159,12 @@ fn placing_a_stack_on_a_different_one_swaps_and_the_result_cell_refuses() {
         }]
     );
     assert_eq!(snapshot.get(cell(10)), Some(&stone(5)));
-    let ops = click(&mut snapshot, ContainerInput::Pickup, slots::RESULT as i16, 0);
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::Pickup,
+        slots::RESULT as i16,
+        0,
+    );
     assert!(ops.is_empty(), "{ops:?}");
 }
 
@@ -158,7 +177,12 @@ fn a_stack_of_pumpkins_swapped_onto_a_helmet_splits_one_and_stores_the_helmet() 
     let mut snapshot = fresh();
     snapshot.set(cell(slots::held(0)), Some(pumpkins));
     snapshot.set(cell(slots::ARMOR_HEAD), Some(helmet()));
-    let ops = click(&mut snapshot, ContainerInput::Swap, slots::ARMOR_HEAD as i16, 0);
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::Swap,
+        slots::ARMOR_HEAD as i16,
+        0,
+    );
     assert_eq!(
         ops,
         [

@@ -109,8 +109,19 @@ fn merging_dropped_items_keeps_the_longer_delay_and_the_younger_age() {
     assert_eq!((merged.pickup_delay, merged.age), (30, 20));
     assert_eq!(world.get::<ItemStack>(b).unwrap().count, 10);
     let full = drop(&mut world, 60, 0, 0);
-    apply(&mut world, vec![Op::MergeDropped { from: b, into: full }]).unwrap();
-    assert_eq!(world.get::<ItemStack>(b).unwrap().count, 10, "a merge past the max is refused");
+    apply(
+        &mut world,
+        vec![Op::MergeDropped {
+            from: b,
+            into: full,
+        }],
+    )
+    .unwrap();
+    assert_eq!(
+        world.get::<ItemStack>(b).unwrap().count,
+        10,
+        "a merge past the max is refused"
+    );
 }
 
 #[test]

@@ -1,14 +1,19 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_item::value::{
-    CHILD_KINDS, child_kind, child_targets, children, container_slots, entry, item_of, named_entry, ops,
+    CHILD_KINDS, child_kind, child_targets, children, container_slots, entry, item_of, named_entry,
+    ops,
 };
 use mcrs_minecraft_item::{ItemEntry, ItemStack, Items, SlotTable, StackError, StackRevision};
 use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemStackValue, MAX_CHARGED_PROJECTILES};
 
 use crate::transaction::{attach, bump, touch};
 
-pub fn spawn_stack(world: &mut World, value: &ItemStackValue, items: &Items) -> Result<Entity, StackError> {
+pub fn spawn_stack(
+    world: &mut World,
+    value: &ItemStackValue,
+    items: &Items,
+) -> Result<Entity, StackError> {
     let entry = named_entry(items, value)?;
     check(entry, value, items)?;
     let stack = spawn_checked(world, None, entry, value, items);
@@ -34,7 +39,12 @@ pub fn spawn_stack_into(
 /// a removal of a kind the prototype lacks is dropped, and child stacks are
 /// reconciled in place. The value is checked in full before anything is
 /// written, so an error leaves the world untouched.
-pub fn apply_value(world: &mut World, stack: Entity, value: &ItemStackValue, items: &Items) -> Result<(), StackError> {
+pub fn apply_value(
+    world: &mut World,
+    stack: Entity,
+    value: &ItemStackValue,
+    items: &Items,
+) -> Result<(), StackError> {
     let entry = entry(world, stack, items)?;
     if entry.identifier != *value.item.location() {
         return Err(StackError::ItemMismatch {
@@ -112,7 +122,13 @@ fn spawn_checked(
     stack
 }
 
-fn write_value(world: &mut World, stack: Entity, entry: &ItemEntry, value: &ItemStackValue, items: &Items) {
+fn write_value(
+    world: &mut World,
+    stack: Entity,
+    entry: &ItemEntry,
+    value: &ItemStackValue,
+    items: &Items,
+) {
     let own_child_kind = child_kind(entry);
     let effective = entry.prototype.apply(&value.components);
     let mut entity = world.entity_mut(stack);
@@ -166,7 +182,8 @@ fn reconcile_children(
         .take(existing.len().max(targets.len()))
         .enumerate()
     {
-        let target_entry = target.map(|target| named_entry(items, target).expect("checked before the write"));
+        let target_entry =
+            target.map(|target| named_entry(items, target).expect("checked before the write"));
         let kept = match (child, target_entry) {
             (Some(child), Some(target_entry)) => item_of(world, child) == Some(target_entry.id),
             (None, None) => true,

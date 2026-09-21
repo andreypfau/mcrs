@@ -34,9 +34,21 @@ fn place_move_and_swap_keep_the_table_exact() {
     )
     .unwrap();
     assert_eq!(cells(&world, chest), [(1, a), (3, b)]);
-    assert_eq!(world.get::<Held>(a), Some(&Held { holder: chest, index: 1 }));
-    assert_eq!(world.get::<SlotTable>(chest).unwrap().first_free(0..4), Some(0));
-    assert_eq!(world.get::<SlotTable>(chest).unwrap().first_free(1..2), None);
+    assert_eq!(
+        world.get::<Held>(a),
+        Some(&Held {
+            holder: chest,
+            index: 1
+        })
+    );
+    assert_eq!(
+        world.get::<SlotTable>(chest).unwrap().first_free(0..4),
+        Some(0)
+    );
+    assert_eq!(
+        world.get::<SlotTable>(chest).unwrap().first_free(1..2),
+        None
+    );
 }
 
 #[test]
@@ -47,7 +59,10 @@ fn despawning_a_stack_clears_its_cell() {
     place(&mut world, a, chest, 1).unwrap();
     world.despawn(a);
     assert!(cells(&world, chest).is_empty());
-    assert!(world.get::<Holds>(chest).is_none(), "an empty Holds is removed");
+    assert!(
+        world.get::<Holds>(chest).is_none(),
+        "an empty Holds is removed"
+    );
 }
 
 #[test]
@@ -66,7 +81,13 @@ fn despawning_a_holder_cascades_through_nested_stacks() {
     for entity in [chest, shulker, pickaxe, bundle, apple] {
         assert!(world.get_entity(entity).is_err(), "{entity:?} survived");
     }
-    assert_eq!(world.query::<&mcrs_minecraft_item::ItemStack>().iter(&world).count(), 0);
+    assert_eq!(
+        world
+            .query::<&mcrs_minecraft_item::ItemStack>()
+            .iter(&world)
+            .count(),
+        0
+    );
 }
 
 #[test]

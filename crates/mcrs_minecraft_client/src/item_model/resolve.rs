@@ -499,17 +499,16 @@ mod tests {
 
     use bevy::app::{App, TaskPoolPlugin};
     use bevy::asset::{AssetPlugin, AssetServer};
+    use bevy::ecs::system::Command;
     use bevy::ecs::world::World;
     use mcrs_minecraft_block::definition::load_block_definitions;
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-    use bevy::ecs::system::Command;
     use mcrs_minecraft_inventory::{Op, Slot, Transaction};
     use mcrs_minecraft_item::{SlotTable, load_item_definitions};
     use mcrs_minecraft_protocol::item::{
         BundleContents, ChargedProjectiles, ComponentPatch, Damage, Enchantments,
-        FireworkExplosion, FireworkShape, ItemComponentKind, ItemStackValue, RgbInt,
-        Template,
+        FireworkExplosion, FireworkShape, ItemComponentKind, ItemStackValue, RgbInt, Template,
     };
 
     use super::*;
@@ -555,10 +554,19 @@ mod tests {
     }
 
     fn spawn(world: &mut World, path: &str, count: i32, components: ComponentPatch) -> Entity {
-        mcrs_minecraft_inventory::value::spawn_stack(world, &value(path, count, components), items()).unwrap()
+        mcrs_minecraft_inventory::value::spawn_stack(
+            world,
+            &value(path, count, components),
+            items(),
+        )
+        .unwrap()
     }
 
-    fn set<K: mcrs_minecraft_protocol::item::ItemDataComponent>(world: &mut World, stack: Entity, value: K) {
+    fn set<K: mcrs_minecraft_protocol::item::ItemDataComponent>(
+        world: &mut World,
+        stack: Entity,
+        value: K,
+    ) {
         Transaction(vec![Op::Insert {
             stack,
             component: value.into_value(),

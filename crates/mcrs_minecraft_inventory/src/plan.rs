@@ -176,7 +176,11 @@ impl<'a> Planner<'a> {
         let held = slots::held(self.snapshot.selected);
         [held, slots::OFFHAND]
             .into_iter()
-            .chain(slots::HOTBAR.chain(slots::MAIN).filter(|index| *index != held))
+            .chain(
+                slots::HOTBAR
+                    .chain(slots::MAIN)
+                    .filter(|index| *index != held),
+            )
             .map(|index| Slot::new(player, index))
             .collect()
     }
@@ -262,10 +266,18 @@ impl<'a> Planner<'a> {
             .filter(|cell| self.snapshot.get(Slot::new(player, *cell)).is_none())
         {
             vec![Slot::new(player, armour)]
-        } else if stack.offhand && self.snapshot.get(Slot::new(player, slots::OFFHAND)).is_none() {
+        } else if stack.offhand
+            && self
+                .snapshot
+                .get(Slot::new(player, slots::OFFHAND))
+                .is_none()
+        {
             vec![Slot::new(player, slots::OFFHAND)]
         } else if slots::MAIN.contains(&slot) {
-            self.layout_range(slots::HOTBAR.start as usize..slots::HOTBAR.end as usize, false)
+            self.layout_range(
+                slots::HOTBAR.start as usize..slots::HOTBAR.end as usize,
+                false,
+            )
         } else if slots::HOTBAR.contains(&slot) {
             self.layout_range(slots::MAIN.start as usize..slots::MAIN.end as usize, false)
         } else {
@@ -288,7 +300,9 @@ impl<'a> Planner<'a> {
             .and_then(|slot| self.snapshot.layout.get(slot).copied());
         match click.input {
             ContainerInput::Pickup | ContainerInput::QuickMove if click.button > 1 => {}
-            ContainerInput::Pickup | ContainerInput::QuickMove if click.slot == SLOT_CLICKED_OUTSIDE => {
+            ContainerInput::Pickup | ContainerInput::QuickMove
+                if click.slot == SLOT_CLICKED_OUTSIDE =>
+            {
                 if let Some(carried) = carried {
                     let amount = if primary { carried.count } else { 1 };
                     self.drop(carried_cell, amount);
@@ -300,7 +314,9 @@ impl<'a> Planner<'a> {
                 };
                 let from = self.snapshot.layout[slot];
                 let item = self.snapshot.get(from).map(|stack| stack.key.item);
-                while self.quick_move(slot) && self.snapshot.get(from).map(|stack| stack.key.item) == item {}
+                while self.quick_move(slot)
+                    && self.snapshot.get(from).map(|stack| stack.key.item) == item
+                {}
             }
             ContainerInput::Pickup => {
                 let Some(cell) = clicked_cell else {
@@ -338,10 +354,15 @@ impl<'a> Planner<'a> {
                 }
             }
             ContainerInput::Swap => {
-                let (Some(cell), Some(source_cell)) = (clicked_cell, swap_source(player, click.button)) else {
+                let (Some(cell), Some(source_cell)) =
+                    (clicked_cell, swap_source(player, click.button))
+                else {
                     return;
                 };
-                match (self.snapshot.get(source_cell).cloned(), self.snapshot.get(cell).cloned()) {
+                match (
+                    self.snapshot.get(source_cell).cloned(),
+                    self.snapshot.get(cell).cloned(),
+                ) {
                     (None, None) => {}
                     (None, Some(_)) => {
                         self.transfer(Source::Slot(cell), source_cell, u8::MAX);
@@ -365,13 +386,17 @@ impl<'a> Planner<'a> {
                 }
             }
             ContainerInput::Clone => {
-                let Some(cell) = clicked_cell.filter(|cell| self.snapshot.get(*cell).is_some()) else {
+                let Some(cell) = clicked_cell.filter(|cell| self.snapshot.get(*cell).is_some())
+                else {
                     return;
                 };
                 if !click.creative || carried.is_some() {
                     return;
                 }
-                let full = self.snapshot.get(cell).map(|clicked| clicked.with_count(clicked.max));
+                let full = self
+                    .snapshot
+                    .get(cell)
+                    .map(|clicked| clicked.with_count(clicked.max));
                 self.snapshot.set(carried_cell, full);
                 self.ops.push(Op::Clone {
                     from: cell,
@@ -379,7 +404,8 @@ impl<'a> Planner<'a> {
                 });
             }
             ContainerInput::Throw => {
-                let Some(cell) = clicked_cell.filter(|cell| self.snapshot.get(*cell).is_some()) else {
+                let Some(cell) = clicked_cell.filter(|cell| self.snapshot.get(*cell).is_some())
+                else {
                     return;
                 };
                 if carried.is_some() {
