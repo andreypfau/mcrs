@@ -1,6 +1,6 @@
 use std::ops::Not;
 
-use mcrs_minecraft_core::codec::int_value;
+use mcrs_minecraft_core::codec::{self, is_default};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -15,18 +15,12 @@ ordinal_enum! {
 }
 
 fn int_list<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<i32>, D::Error> {
-    struct Element(i32);
-
-    impl<'de> Deserialize<'de> for Element {
-        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-            int_value(d).map(Element)
-        }
-    }
-
-    Ok(Vec::<Element>::deserialize(d)?
-        .into_iter()
-        .map(|Element(v)| v)
-        .collect())
+    Ok(
+        Vec::<codec::Bounded<{ i32::MIN }, { i32::MAX }>>::deserialize(d)?
+            .into_iter()
+            .map(|v| v.0)
+            .collect(),
+    )
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -93,10 +87,6 @@ impl Sample for FireworkExplosion {
 
 pub const MAX_EXPLOSIONS: usize = 256;
 
-fn is_zero(value: &i32) -> bool {
-    *value == 0
-}
-
 fn flight_duration<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
     unsigned_byte(d).map(|b| b as u8 as i32)
 }
@@ -123,7 +113,7 @@ pub struct Fireworks {
         default,
         deserialize_with = "flight_duration",
         serialize_with = "unsigned_byte_tag",
-        skip_serializing_if = "is_zero"
+        skip_serializing_if = "is_default"
     )]
     pub flight_duration: i32,
     #[serde(
@@ -135,18 +125,6 @@ pub struct Fireworks {
 }
 
 impl Fireworks {
-    pub fn new(flight_duration: u8, explosions: Vec<FireworkExplosion>) -> anyhow::Result<Self> {
-        anyhow::ensure!(
-            explosions.len() <= MAX_EXPLOSIONS,
-            "Got {} explosions, but maximum is {MAX_EXPLOSIONS}",
-            explosions.len()
-        );
-        Ok(Fireworks {
-            flight_duration: flight_duration.into(),
-            explosions: Bounded(explosions),
-        })
-    }
-
     pub fn flight_duration(&self) -> i32 {
         self.flight_duration
     }
@@ -164,15 +142,14 @@ impl Sample for Fireworks {
     fn samples() -> Vec<Self> {
         vec![
             Fireworks::default(),
-            Fireworks::new(
-                200,
-                vec![FireworkExplosion {
+            Fireworks {
+                flight_duration: 200,
+                explosions: Bounded(vec![FireworkExplosion {
                     shape: FireworkShape::Burst,
                     colors: vec![1],
                     ..Default::default()
-                }],
-            )
-            .unwrap(),
+                }]),
+            },
         ]
     }
 }

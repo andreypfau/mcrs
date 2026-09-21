@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -170,10 +171,6 @@ impl Sample for Recipes {
     }
 }
 
-fn is_zero(seed: &i64) -> bool {
-    *seed == 0
-}
-
 /// Any number reads as a long: a fraction is dropped; a value beyond the long
 /// range wraps from JSON and saturates from NBT. Vanilla wraps the exact
 /// decimal text, while serde hands over the parsed double, so a text no double
@@ -222,7 +219,7 @@ pub struct ContainerLoot {
     #[serde(
         default,
         deserialize_with = "long_value",
-        skip_serializing_if = "is_zero"
+        skip_serializing_if = "is_default"
     )]
     pub seed: i64,
 }

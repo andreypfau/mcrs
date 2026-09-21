@@ -1,7 +1,7 @@
 use std::fmt;
 
 use mcrs_minecraft_core::ResourceLocation;
-use serde::de::Error as _;
+use serde::de::{DeserializeSeed, Error as _};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -142,26 +142,14 @@ macro_rules! for_each_data_component {
     };
 }
 
+#[allow(non_upper_case_globals)]
 mod flag {
-    pub(super) const PERSISTENT: u8 = 1;
-    pub(super) const TRANSIENT: u8 = 2;
-    pub(super) const UNIT: u8 = 4;
-    pub(super) const IGNORE_SWAP_ANIMATION: u8 = 8;
-    pub(super) const NESTED: u8 = 16;
-    pub(super) const NBT_WIRE: u8 = 32;
-
-    #[allow(non_upper_case_globals)]
-    pub(super) const persistent: u8 = PERSISTENT;
-    #[allow(non_upper_case_globals)]
-    pub(super) const transient: u8 = TRANSIENT;
-    #[allow(non_upper_case_globals)]
-    pub(super) const unit: u8 = UNIT;
-    #[allow(non_upper_case_globals)]
-    pub(super) const ignore_swap_animation: u8 = IGNORE_SWAP_ANIMATION;
-    #[allow(non_upper_case_globals)]
-    pub(super) const nested: u8 = NESTED;
-    #[allow(non_upper_case_globals)]
-    pub(super) const nbt_wire: u8 = NBT_WIRE;
+    pub(super) const persistent: u8 = 1;
+    pub(super) const transient: u8 = 2;
+    pub(super) const unit: u8 = 4;
+    pub(super) const ignore_swap_animation: u8 = 8;
+    pub(super) const nested: u8 = 16;
+    pub(super) const nbt_wire: u8 = 32;
 }
 
 macro_rules! data_components {
@@ -182,8 +170,8 @@ macro_rules! data_components {
                 assert!($id == position, "a data component's wire id must be its position");
                 let flags = FLAGS[position];
                 assert!(
-                    (flags & (flag::PERSISTENT | flag::TRANSIENT)) == flag::PERSISTENT
-                        || (flags & (flag::PERSISTENT | flag::TRANSIENT)) == flag::TRANSIENT,
+                    (flags & (flag::persistent | flag::transient)) == flag::persistent
+                        || (flags & (flag::persistent | flag::transient)) == flag::transient,
                     "a data component is either persistent or transient"
                 );
                 position += 1;
@@ -235,6 +223,20 @@ macro_rules! data_components {
                 match kind {
                     $(ItemComponentKind::$ty => <$ty as Deserialize<'de>>::deserialize(d).map(Self::$ty)),*
                 }
+            }
+        }
+
+        impl Serialize for ItemComponentValue {
+            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                self.serialize_value(s)
+            }
+        }
+
+        impl<'de> DeserializeSeed<'de> for ItemComponentKind {
+            type Value = ItemComponentValue;
+
+            fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
+                ItemComponentValue::deserialize_value(self, d)
             }
         }
 
@@ -293,23 +295,23 @@ impl ItemComponentKind {
     }
 
     pub const fn is_persistent(self) -> bool {
-        self.flags() & flag::PERSISTENT != 0
+        self.flags() & flag::persistent != 0
     }
 
     pub const fn is_unit(self) -> bool {
-        self.flags() & flag::UNIT != 0
+        self.flags() & flag::unit != 0
     }
 
     pub const fn ignores_swap_animation(self) -> bool {
-        self.flags() & flag::IGNORE_SWAP_ANIMATION != 0
+        self.flags() & flag::ignore_swap_animation != 0
     }
 
     pub const fn is_nested(self) -> bool {
-        self.flags() & flag::NESTED != 0
+        self.flags() & flag::nested != 0
     }
 
     pub const fn is_nbt_wire(self) -> bool {
-        self.flags() & flag::NBT_WIRE != 0
+        self.flags() & flag::nbt_wire != 0
     }
 
     /// Vanilla names the parsed identifier, so a bare path is reported with

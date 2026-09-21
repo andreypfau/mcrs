@@ -2,7 +2,7 @@ use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default}
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{DamageTypeReg, Holder};
+use crate::component::common::{DamageTypeReg, Holder, key};
 use crate::component::consume::{
     float_default, is_one, is_true, is_zero, non_negative_float, one, positive_float, zero,
 };
@@ -66,7 +66,13 @@ fn default_reductions() -> Vec<DamageReduction> {
 }
 
 fn is_default_reductions(reductions: &[DamageReduction]) -> bool {
-    matches!(reductions, [only] if only.same_bits(&DamageReduction::default()))
+    matches!(
+        reductions,
+        [only] if is_ninety(&only.horizontal_blocking_angle)
+            && only.types.is_none()
+            && is_zero(&only.base)
+            && is_one(&only.factor)
+    )
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -95,15 +101,6 @@ impl Default for DamageReduction {
     }
 }
 
-impl DamageReduction {
-    fn same_bits(&self, other: &Self) -> bool {
-        self.horizontal_blocking_angle.to_bits() == other.horizontal_blocking_angle.to_bits()
-            && self.types == other.types
-            && self.base.to_bits() == other.base.to_bits()
-            && self.factor.to_bits() == other.factor.to_bits()
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ItemDamageFunction {
@@ -125,10 +122,7 @@ impl Default for ItemDamageFunction {
 
 impl ItemDamageFunction {
     fn is_default(&self) -> bool {
-        let default = Self::default();
-        self.threshold.to_bits() == default.threshold.to_bits()
-            && self.base.to_bits() == default.base.to_bits()
-            && self.factor.to_bits() == default.factor.to_bits()
+        is_one(&self.threshold) && is_zero(&self.base) && is_one(&self.factor)
     }
 }
 
@@ -217,10 +211,6 @@ fn item_break() -> Holder<SoundEvent> {
     Holder::reference(ResourceLocation::minecraft("entity.item.break"))
 }
 
-fn damage_type(path: &str) -> ResourceKey<DamageTypeReg> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path))
-}
-
 impl Sample for BlocksAttacks {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, LIST_ID, STRING_ID};
@@ -259,14 +249,11 @@ impl Sample for BlocksAttacks {
                         factor: 0.5,
                     },
                     DamageReduction {
-                        types: Some(HolderSet::List(vec![
-                            damage_type("in_fire"),
-                            damage_type("lava"),
-                        ])),
+                        types: Some(HolderSet::List(vec![key("in_fire"), key("lava")])),
                         ..Default::default()
                     },
                     DamageReduction {
-                        types: Some(HolderSet::One(damage_type("lava"))),
+                        types: Some(HolderSet::One(key("lava"))),
                         base: 2.0,
                         factor: 0.0,
                         ..Default::default()
@@ -277,7 +264,7 @@ impl Sample for BlocksAttacks {
                     base: 1.0,
                     factor: 0.25,
                 },
-                bypassed_by: Some(HolderSet::One(damage_type("in_fire"))),
+                bypassed_by: Some(HolderSet::One(key("in_fire"))),
                 block_sound: Some(item_break()),
                 disable_sound: Some(Holder::Direct(SoundEvent {
                     sound_id: ResourceLocation::new("mcrs", "off"),

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
@@ -71,24 +72,6 @@ impl ComponentPatch {
     }
 }
 
-pub struct PersistentValue<'a>(pub &'a ItemComponentValue);
-
-impl Serialize for PersistentValue<'_> {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize_value(s)
-    }
-}
-
-struct ValueSeed(ItemComponentKind);
-
-impl<'de> DeserializeSeed<'de> for ValueSeed {
-    type Value = ItemComponentValue;
-
-    fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
-        ItemComponentValue::deserialize_value(self.0, d)
-    }
-}
-
 struct EmptyMapSeed;
 
 impl<'de> DeserializeSeed<'de> for EmptyMapSeed {
@@ -116,23 +99,15 @@ impl Serialize for ComponentPatch {
         let mut map = s.serialize_map(None)?;
         for added in &self.added {
             if added.kind().is_persistent() {
-                map.serialize_entry(added.kind().id().as_str(), &PersistentValue(added))?;
+                map.serialize_entry(added.kind().id().as_str(), added)?;
             }
         }
         for removed in &self.removed {
             if removed.is_persistent() {
-                map.serialize_entry(&format!("!{}", removed.id()), &EmptyMap)?;
+                map.serialize_entry(&format!("!{}", removed.id()), &BTreeMap::<&str, ()>::new())?;
             }
         }
         map.end()
-    }
-}
-
-struct EmptyMap;
-
-impl Serialize for EmptyMap {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_map(Some(0))?.end()
     }
 }
 
@@ -166,7 +141,7 @@ impl<'de> Deserialize<'de> for ComponentPatch {
                         map.next_value_seed(EmptyMapSeed)?;
                         patch.remove(kind);
                     } else {
-                        patch.set_value(map.next_value_seed(ValueSeed(kind))?);
+                        patch.set_value(map.next_value_seed(kind)?);
                     }
                 }
                 Ok(patch)
@@ -228,7 +203,7 @@ impl Serialize for ComponentMap {
         let mut map = s.serialize_map(None)?;
         for value in &self.0 {
             if value.kind().is_persistent() {
-                map.serialize_entry(value.kind().id().as_str(), &PersistentValue(value))?;
+                map.serialize_entry(value.kind().id().as_str(), value)?;
             }
         }
         map.end()
@@ -253,7 +228,7 @@ impl<'de> Deserialize<'de> for ComponentMap {
                     if values.get_value(kind).is_some() {
                         return Err(A::Error::custom(format_args!("Duplicate key '{key}'")));
                     }
-                    values.0.push(map.next_value_seed(ValueSeed(kind))?);
+                    values.0.push(map.next_value_seed(kind)?);
                 }
                 Ok(values)
             }

@@ -2,7 +2,9 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::marker::PhantomData;
 
-use mcrs_minecraft_core::codec::{default_true, float_value, int_value};
+use mcrs_minecraft_core::codec::{
+    Bounded, NonNegativeInt, default_true, float_value, int_value, is_default,
+};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -143,6 +145,7 @@ macro_rules! resolvable {
         }
     };
 }
+pub(crate) use resolvable;
 
 resolvable!(
     ResolvableInt,
@@ -172,9 +175,9 @@ pub struct MobEffectInstance {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(from = "MobEffectDetailsRepr")]
 pub struct MobEffectDetails {
-    #[serde(skip_serializing_if = "is_zero_i8")]
+    #[serde(skip_serializing_if = "is_default")]
     pub amplifier: i8,
-    #[serde(skip_serializing_if = "is_zero_i32")]
+    #[serde(skip_serializing_if = "is_default")]
     pub duration: i32,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub ambient: bool,
@@ -233,20 +236,60 @@ impl MobEffectDetails {
     }
 }
 
-fn is_zero_i8(value: &i8) -> bool {
-    *value == 0
+pub(crate) fn one() -> NonNegativeInt {
+    Bounded(1)
 }
 
-fn is_zero_i32(value: &i32) -> bool {
-    *value == 0
+pub(crate) fn is_one(value: &NonNegativeInt) -> bool {
+    value.0 == 1
+}
+
+pub(crate) fn key<R>(path: &str) -> ResourceKey<R> {
+    ResourceKey::from_location(ResourceLocation::minecraft(path))
+}
+
+/// A record reads a map and nothing else, where the derived visitor would
+/// also take the fields as a sequence.
+pub(crate) fn map_only<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
+    d: D,
+) -> Result<T, D::Error> {
+    struct MapOnly<T>(PhantomData<T>);
+
+    impl<'de, T: Deserialize<'de>> Visitor<'de> for MapOnly<T> {
+        type Value = T;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a map")
+        }
+
+        fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<T, A::Error> {
+            T::deserialize(value::MapAccessDeserializer::new(map))
+        }
+    }
+
+    d.deserialize_map(MapOnly(PhantomData))
 }
 
 /// A compound whose `id` names the type, read from a compound or an SNBT
 /// string; the `id` is lifted out and written back first.
-#[derive(Clone, PartialEq)]
 pub struct TypedEntityData<R> {
     pub id: ResourceKey<R>,
     pub tag: NbtCompound,
+}
+
+impl<R> Clone for TypedEntityData<R> {
+    fn clone(&self) -> Self {
+        TypedEntityData {
+            id: self.id.clone(),
+            tag: self.tag.clone(),
+        }
+    }
+}
+
+impl<R> PartialEq for TypedEntityData<R> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.tag == other.tag
+    }
 }
 
 impl<R> fmt::Debug for TypedEntityData<R> {
@@ -290,8 +333,7 @@ impl<'de, R> Deserialize<'de> for TypedEntityData<R> {
 }
 
 macro_rules! ordinal_enum {
-    ($(#[$meta:meta])* $name:ident { $($variant:ident),* $(,)? }) => {
-        $(#[$meta])*
+    ($name:ident { $($variant:ident),* $(,)? }) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[serde(rename_all = "snake_case")]
         pub enum $name {

@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
 use crc32c::{crc32c, crc32c_append};
-use serde::ser::{self, Impossible, Serialize};
+use mcrs_minecraft_nbt::tag::NbtTag;
+use serde::ser::{self, Error as _, Impossible, Serialize};
 
 const EMPTY: u8 = 1;
 const MAP_START: u8 = 2;
@@ -24,9 +25,6 @@ const LONG_ARRAY_START: u8 = 18;
 const LONG_ARRAY_END: u8 = 19;
 
 const NBT_ARRAY_TAG: &str = "__nbt_array";
-const NBT_INT_ARRAY_TAG: &str = "__nbt_int_array";
-const NBT_LONG_ARRAY_TAG: &str = "__nbt_long_array";
-const NBT_BYTE_ARRAY_TAG: &str = "__nbt_byte_array";
 
 #[derive(Debug, thiserror::Error)]
 pub enum HashError {
@@ -173,19 +171,28 @@ impl ser::Serializer for HashSerializer {
         if name != NBT_ARRAY_TAG {
             return Err(HashError::Unsupported("newtype variant"));
         }
-        let (element, start, end) = match variant {
-            NBT_BYTE_ARRAY_TAG => (BYTE, BYTE_ARRAY_START, BYTE_ARRAY_END),
-            NBT_INT_ARRAY_TAG => (INT, INT_ARRAY_START, INT_ARRAY_END),
-            NBT_LONG_ARRAY_TAG => (LONG, LONG_ARRAY_START, LONG_ARRAY_END),
+        let tag = mcrs_minecraft_nbt::tag_serializer::TagSerializer
+            .serialize_newtype_variant(name, 0, variant, value)
+            .map_err(HashError::custom)?;
+        let (start, end, payload) = match tag {
+            NbtTag::ByteArray(bytes) => (BYTE_ARRAY_START, BYTE_ARRAY_END, bytes.to_vec()),
+            NbtTag::IntArray(ints) => (
+                INT_ARRAY_START,
+                INT_ARRAY_END,
+                ints.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            ),
+            NbtTag::LongArray(longs) => (
+                LONG_ARRAY_START,
+                LONG_ARRAY_END,
+                longs.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            ),
             _ => return Err(HashError::Unsupported("array marker")),
         };
-        let mut array = ArrayHasher {
-            element,
-            bytes: vec![start],
-        };
-        value.serialize(&mut array)?;
-        array.bytes.push(end);
-        Ok(Some(crc32c(&array.bytes)))
+        let mut bytes = Vec::with_capacity(payload.len() + 2);
+        bytes.push(start);
+        bytes.extend_from_slice(&payload);
+        bytes.push(end);
+        Ok(Some(crc32c(&bytes)))
     }
 
     fn serialize_seq(self, _: Option<usize>) -> Result<ListHasher> {
@@ -335,202 +342,6 @@ impl ser::SerializeStruct for MapHasher {
     }
 }
 
-struct ArrayHasher {
-    element: u8,
-    bytes: Vec<u8>,
-}
-
-impl ArrayHasher {
-    fn push(&mut self, element: u8, payload: &[u8]) -> Result<()> {
-        if element != self.element {
-            return Err(HashError::Unsupported("array element of another width"));
-        }
-        self.bytes.extend_from_slice(payload);
-        Ok(())
-    }
-}
-
-const NOT_AN_ARRAY: HashError = HashError::Unsupported("array marker on a non-integer value");
-
-impl ser::Serializer for &mut ArrayHasher {
-    type Ok = ();
-    type Error = HashError;
-    type SerializeSeq = Self;
-    type SerializeTuple = Self;
-    type SerializeTupleStruct = Impossible<(), HashError>;
-    type SerializeTupleVariant = Impossible<(), HashError>;
-    type SerializeMap = Impossible<(), HashError>;
-    type SerializeStruct = Impossible<(), HashError>;
-    type SerializeStructVariant = Impossible<(), HashError>;
-
-    fn is_human_readable(&self) -> bool {
-        false
-    }
-
-    fn serialize_bool(self, _: bool) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_i8(self, v: i8) -> Result<()> {
-        self.push(BYTE, &v.to_le_bytes())
-    }
-
-    fn serialize_i16(self, _: i16) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_i32(self, v: i32) -> Result<()> {
-        self.push(INT, &v.to_le_bytes())
-    }
-
-    fn serialize_i64(self, v: i64) -> Result<()> {
-        self.push(LONG, &v.to_le_bytes())
-    }
-
-    fn serialize_u8(self, v: u8) -> Result<()> {
-        self.push(BYTE, &[v])
-    }
-
-    fn serialize_u16(self, _: u16) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_u32(self, _: u32) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_u64(self, _: u64) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_f32(self, _: f32) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_f64(self, _: f64) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_char(self, _: char) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_str(self, _: &str) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_bytes(self, v: &[u8]) -> Result<()> {
-        for byte in v {
-            self.push(BYTE, &[*byte])?;
-        }
-        Ok(())
-    }
-
-    fn serialize_none(self) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_some<T: ?Sized + Serialize>(self, value: &T) -> Result<()> {
-        value.serialize(self)
-    }
-
-    fn serialize_unit(self) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_unit_struct(self, _: &'static str) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_unit_variant(self, _: &'static str, _: u32, _: &'static str) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_newtype_struct<T: ?Sized + Serialize>(self, _: &'static str, _: &T) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_newtype_variant<T: ?Sized + Serialize>(
-        self,
-        _: &'static str,
-        _: u32,
-        _: &'static str,
-        _: &T,
-    ) -> Result<()> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_seq(self, _: Option<usize>) -> Result<Self> {
-        Ok(self)
-    }
-
-    fn serialize_tuple(self, _: usize) -> Result<Self> {
-        Ok(self)
-    }
-
-    fn serialize_tuple_struct(
-        self,
-        _: &'static str,
-        _: usize,
-    ) -> Result<Self::SerializeTupleStruct> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_tuple_variant(
-        self,
-        _: &'static str,
-        _: u32,
-        _: &'static str,
-        _: usize,
-    ) -> Result<Self::SerializeTupleVariant> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_map(self, _: Option<usize>) -> Result<Self::SerializeMap> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_struct(self, _: &'static str, _: usize) -> Result<Self::SerializeStruct> {
-        Err(NOT_AN_ARRAY)
-    }
-
-    fn serialize_struct_variant(
-        self,
-        _: &'static str,
-        _: u32,
-        _: &'static str,
-        _: usize,
-    ) -> Result<Self::SerializeStructVariant> {
-        Err(NOT_AN_ARRAY)
-    }
-}
-
-impl ser::SerializeSeq for &mut ArrayHasher {
-    type Ok = ();
-    type Error = HashError;
-
-    fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
-        value.serialize(&mut **self)
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
-}
-
-impl ser::SerializeTuple for &mut ArrayHasher {
-    type Ok = ();
-    type Error = HashError;
-
-    fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
-        value.serialize(&mut **self)
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -612,29 +423,23 @@ mod tests {
 
     #[test]
     fn arrays_match_vanilla() {
-        #[derive(Serialize)]
-        struct Ints(#[serde(serialize_with = "mcrs_minecraft_nbt::nbt_int_array")] Vec<i32>);
-        #[derive(Serialize)]
-        struct Longs(#[serde(serialize_with = "mcrs_minecraft_nbt::nbt_long_array")] [i64; 2]);
-        #[derive(Serialize)]
-        struct Bytes(#[serde(serialize_with = "mcrs_minecraft_nbt::nbt_byte_array")] Vec<i8>);
-        let ints = Ints(vec![7, -8, 9]);
-        let longs = Longs([1 << 40, -1]);
-        let bytes = Bytes(vec![1, 2, -3]);
+        let ints = vec![7, -8, 9];
+        let longs = [1i64 << 40, -1];
+        let bytes = vec![1i8, 2, -3];
         assert_eq!(
-            mcrs_minecraft_nbt::nbt_int_array(&ints.0, HashSerializer)
+            mcrs_minecraft_nbt::nbt_int_array(&ints, HashSerializer)
                 .unwrap()
                 .unwrap() as i32,
             INT_ARRAY
         );
         assert_eq!(
-            mcrs_minecraft_nbt::nbt_long_array(longs.0, HashSerializer)
+            mcrs_minecraft_nbt::nbt_long_array(longs, HashSerializer)
                 .unwrap()
                 .unwrap() as i32,
             LONG_ARRAY
         );
         assert_eq!(
-            mcrs_minecraft_nbt::nbt_byte_array(&bytes.0, HashSerializer)
+            mcrs_minecraft_nbt::nbt_byte_array(&bytes, HashSerializer)
                 .unwrap()
                 .unwrap() as i32,
             BYTE_ARRAY

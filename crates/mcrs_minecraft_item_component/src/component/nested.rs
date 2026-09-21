@@ -2,14 +2,14 @@ use std::fmt;
 
 use anyhow::ensure;
 use mcrs_minecraft_core::codec::{self, int_value};
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
-use serde::de::{Error as _, IgnoredAny, SeqAccess, Visitor};
-use serde::ser::SerializeSeq;
+use serde::de::{Error as _, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::Text;
-use crate::component::{CustomName, Damage, ItemReg, MaxStackSize, Unbreakable};
+use crate::component::book::size_limited;
+use crate::component::common::key;
+use crate::component::{CustomName, Damage, MaxStackSize, Unbreakable};
 use crate::harness::Sample;
 use crate::kind::ItemComponentKind;
 use crate::patch::ComponentPatch;
@@ -55,16 +55,7 @@ impl ChargedProjectiles {
 
 impl<'de> Deserialize<'de> for ChargedProjectiles {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let items = Vec::<Template>::deserialize(d)?;
-        if items.len() > MAX_CHARGED_PROJECTILES {
-            return Err(D::Error::custom(format_args!(
-                "List is too long: {}, expected range [0-{MAX_CHARGED_PROJECTILES}]",
-                items.len()
-            )));
-        }
-        Ok(Self {
-            items: Bounded(items),
-        })
+        size_limited(d).map(|items| Self { items })
     }
 }
 
@@ -129,10 +120,13 @@ struct SlotEntry {
     item: Template,
 }
 
+/// The NBT writer needs the length first, so the occupied slots are counted
+/// before they are written.
 impl Serialize for Container {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let occupied: Vec<SlotEntryRef> = self
-            .slots()
+            .slots
+            .0
             .iter()
             .enumerate()
             .filter_map(|(slot, item)| {
@@ -142,11 +136,7 @@ impl Serialize for Container {
                 })
             })
             .collect();
-        let mut seq = s.serialize_seq(Some(occupied.len()))?;
-        for entry in &occupied {
-            seq.serialize_element(entry)?;
-        }
-        seq.end()
+        s.collect_seq(occupied)
     }
 }
 
@@ -161,22 +151,10 @@ impl<'de> Deserialize<'de> for Container {
                 f.write_str("a list of {slot, item} entries")
             }
 
-            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Container, A::Error> {
-                let mut entries: Vec<SlotEntry> = Vec::new();
-                while let Some(entry) = seq.next_element()? {
-                    entries.push(entry);
-                    if entries.len() == MAX_CONTAINER_SLOTS {
-                        let mut total = entries.len();
-                        while seq.next_element::<IgnoredAny>()?.is_some() {
-                            total += 1;
-                        }
-                        if total > MAX_CONTAINER_SLOTS {
-                            return Err(A::Error::custom(format_args!(
-                                "List is too long: {total}, expected range [0-{MAX_CONTAINER_SLOTS}]"
-                            )));
-                        }
-                    }
-                }
+            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Container, A::Error> {
+                let Bounded(entries) = size_limited::<_, SlotEntry, MAX_CONTAINER_SLOTS>(
+                    value::SeqAccessDeserializer::new(seq),
+                )?;
                 let mut slots = Vec::new();
                 for entry in entries {
                     let slot = usize::try_from(entry.slot)
@@ -202,12 +180,8 @@ impl<'de> Deserialize<'de> for Container {
     }
 }
 
-fn item(path: &str) -> ResourceKey<ItemReg> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path))
-}
-
 fn plain(path: &str, count: i32) -> Template {
-    Template::new(item(path), count, ComponentPatch::EMPTY).unwrap()
+    Template::new(key(path), count, ComponentPatch::EMPTY).unwrap()
 }
 
 fn patched_sword() -> Template {
@@ -217,7 +191,7 @@ fn patched_sword() -> Template {
     patch.set(CustomName(Text::text("named")));
     patch.set(Unbreakable);
     patch.remove(ItemComponentKind::RepairCost);
-    Template::new(item("diamond_sword"), 3, patch).unwrap()
+    Template::new(key("diamond_sword"), 3, patch).unwrap()
 }
 
 fn template_tags(template: &Template) -> Vec<(&'static str, u8)> {
@@ -277,7 +251,7 @@ impl Sample for BundleContents {
     fn samples() -> Vec<Self> {
         let mut inner = ComponentPatch::EMPTY;
         inner.set(BundleContents(vec![plain("stone", 1)]));
-        let nested = Template::new(item("bundle"), 1, inner).unwrap();
+        let nested = Template::new(key("bundle"), 1, inner).unwrap();
         vec![
             BundleContents::default(),
             BundleContents(vec![plain("stone", 64), nested, plain("apple", 99)]),

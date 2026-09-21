@@ -7,7 +7,7 @@ use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::component::common::RgbInt;
+use crate::component::common::{self, RgbInt};
 use crate::harness::Sample;
 use crate::kind::ItemComponentKind;
 
@@ -46,6 +46,7 @@ macro_rules! checked_float {
         }
     )*};
 }
+pub(crate) use checked_float;
 
 checked_float! {
     unit_fraction: v in 0.0 is_ge 1.0 => "Value {v:?} outside of range [0.0:1.0]",
@@ -289,18 +290,10 @@ impl Sample for UseCooldown {
     }
 }
 
-fn one_damage() -> NonNegativeInt {
-    Bounded(1)
-}
-
-fn is_one_damage(value: &NonNegativeInt) -> bool {
-    value.0 == 1
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Weapon {
-    #[serde(default = "one_damage", skip_serializing_if = "is_one_damage")]
+    #[serde(default = "common::one", skip_serializing_if = "common::is_one")]
     pub item_damage_per_attack: NonNegativeInt,
     #[serde(
         default = "zero",
@@ -313,7 +306,7 @@ pub struct Weapon {
 impl Default for Weapon {
     fn default() -> Self {
         Weapon {
-            item_damage_per_attack: one_damage(),
+            item_damage_per_attack: common::one(),
             disable_blocking_for_seconds: 0.0,
         }
     }

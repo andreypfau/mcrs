@@ -20,22 +20,6 @@ macro_rules! enum_samples {
     )*};
 }
 
-macro_rules! continuous_enum {
-    ($name:ident [$strategy:ident] { $($variant:ident),* $(,)? }) => {
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-        #[serde(rename_all = "snake_case")]
-        pub enum $name {
-            $($variant),*
-        }
-
-        impl $name {
-            pub const ALL: &'static [Self] = &[$(Self::$variant),*];
-        }
-
-        enum_samples!($name);
-    };
-}
-
 /// Explicit wire ids.
 macro_rules! sparse_enum {
     ($name:ident { $($variant:ident = $id:literal),* $(,)? }) => {
@@ -79,19 +63,46 @@ ordinal_enum! {
     AxolotlVariant { Lucy, Wild, Gold, Cyan, Blue }
 }
 
+ordinal_enum! {
+    SalmonSize { Small, Medium, Large }
+}
+
+ordinal_enum! {
+    ParrotVariant { RedBlue, Blue, Green, YellowBlue, Gray }
+}
+
+ordinal_enum! {
+    MooshroomVariant { Red, Brown }
+}
+
+ordinal_enum! {
+    LlamaVariant { Creamy, White, Brown, Gray }
+}
+
+ordinal_enum! {
+    HorseVariant { White, Creamy, Chestnut, Brown, Black, Gray, DarkBrown }
+}
+
+ordinal_enum! {
+    DyeColor {
+        White, Orange, Magenta, LightBlue, Yellow, Lime, Pink, Gray,
+        LightGray, Cyan, Purple, Blue, Brown, Green, Red, Black,
+    }
+}
+
 enum_samples!(
     Rarity,
     MapPostProcessing,
     SwingAnimationKind,
     FoxVariant,
-    AxolotlVariant
+    AxolotlVariant,
+    SalmonSize,
+    ParrotVariant,
+    MooshroomVariant,
+    LlamaVariant,
+    HorseVariant,
+    DyeColor
 );
-
-continuous_enum!(SalmonSize[clamp] { Small, Medium, Large });
-continuous_enum!(ParrotVariant[clamp] { RedBlue, Blue, Green, YellowBlue, Gray });
-continuous_enum!(MooshroomVariant[clamp] { Red, Brown });
-continuous_enum!(LlamaVariant[clamp] { Creamy, White, Brown, Gray });
-continuous_enum!(HorseVariant[wrap] { White, Creamy, Chestnut, Brown, Black, Gray, DarkBrown });
 
 sparse_enum!(RabbitVariant {
     Brown = 0,
@@ -210,56 +221,4 @@ transparent_newtype! {
     SheepColor(DyeColor),
     ShulkerColor(DyeColor),
     CushionColor(DyeColor),
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DyeColor {
-    White,
-    Orange,
-    Magenta,
-    LightBlue,
-    Yellow,
-    Lime,
-    Pink,
-    Gray,
-    LightGray,
-    Cyan,
-    Purple,
-    Blue,
-    Brown,
-    Green,
-    Red,
-    Black,
-}
-
-impl DyeColor {
-    pub const ALL: [Self; 16] = [
-        Self::White,
-        Self::Orange,
-        Self::Magenta,
-        Self::LightBlue,
-        Self::Yellow,
-        Self::Lime,
-        Self::Pink,
-        Self::Gray,
-        Self::LightGray,
-        Self::Cyan,
-        Self::Purple,
-        Self::Blue,
-        Self::Brown,
-        Self::Green,
-        Self::Red,
-        Self::Black,
-    ];
-}
-
-impl Sample for DyeColor {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        vec![("", STRING_ID)]
-    }
-
-    fn samples() -> Vec<Self> {
-        Self::ALL.to_vec()
-    }
 }

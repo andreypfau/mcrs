@@ -13,17 +13,17 @@ use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStack
 use common::{apply, items, place, set_count, world};
 
 fn apply_value(world: &mut World, stack: Entity, value: &ItemStackValue) -> Result<(), StackError> {
-    match apply(
+    apply(
         world,
         vec![Op::Apply {
             stack,
             value: value.clone(),
         }],
-    ) {
-        Ok(()) => Ok(()),
-        Err(TransactionError::Stack(error)) => Err(error),
-        Err(other) => panic!("{other}"),
-    }
+    )
+    .map_err(|e| match e {
+        TransactionError::Stack(e) => e,
+        e => panic!("{e}"),
+    })
 }
 
 fn remove(world: &mut World, stack: Entity, kind: ItemComponentKind) {
