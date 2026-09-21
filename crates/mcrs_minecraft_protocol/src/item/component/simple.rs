@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::io::Write;
 use std::ops::Not;
 
 use mcrs_minecraft_core::ResourceLocation;
@@ -9,10 +8,8 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::item::component::common::RgbInt;
-use crate::item::ctx::ctx_free;
 use crate::item::harness::Sample;
 use crate::item::kind::ItemComponentKind;
-use crate::{Decode, Encode, VarInt};
 
 macro_rules! float_default {
     ($($value:literal $default:ident $is:ident),* $(,)?) => {$(
@@ -59,7 +56,7 @@ checked_float! {
     non_negative: v in 0.0 is_ge f32::MAX => "Value must be non-negative: {v:?}",
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UseEffects {
     #[serde(default, skip_serializing_if = "Not::not")]
@@ -83,8 +80,6 @@ impl Default for UseEffects {
         }
     }
 }
-
-ctx_free!(UseEffects);
 
 impl Sample for UseEffects {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -111,7 +106,7 @@ impl Sample for UseEffects {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CustomModelData {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -123,8 +118,6 @@ pub struct CustomModelData {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub colors: Vec<RgbInt>,
 }
-
-ctx_free!(CustomModelData);
 
 impl Sample for CustomModelData {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -202,21 +195,6 @@ impl TooltipDisplay {
     }
 }
 
-impl Encode for TooltipDisplay {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.hide_tooltip.encode(&mut w)?;
-        self.hidden_components.encode(w)
-    }
-}
-
-impl Decode<'_> for TooltipDisplay {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(TooltipDisplay::new(bool::decode(r)?, Vec::decode(r)?))
-    }
-}
-
-ctx_free!(TooltipDisplay);
-
 impl Sample for TooltipDisplay {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
@@ -250,26 +228,6 @@ pub struct Food {
     pub can_always_eat: bool,
 }
 
-impl Encode for Food {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.nutrition.0).encode(&mut w)?;
-        self.saturation.encode(&mut w)?;
-        self.can_always_eat.encode(w)
-    }
-}
-
-impl Decode<'_> for Food {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Food {
-            nutrition: Bounded(VarInt::decode(r)?.0),
-            saturation: f32::decode(r)?,
-            can_always_eat: bool::decode(r)?,
-        })
-    }
-}
-
-ctx_free!(Food);
-
 impl Sample for Food {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![
@@ -299,7 +257,7 @@ impl Sample for Food {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UseCooldown {
     #[serde(deserialize_with = "positive")]
@@ -307,8 +265,6 @@ pub struct UseCooldown {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cooldown_group: Option<ResourceLocation>,
 }
-
-ctx_free!(UseCooldown);
 
 impl Sample for UseCooldown {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -363,24 +319,6 @@ impl Default for Weapon {
     }
 }
 
-impl Encode for Weapon {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.item_damage_per_attack.0).encode(&mut w)?;
-        self.disable_blocking_for_seconds.encode(w)
-    }
-}
-
-impl Decode<'_> for Weapon {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Weapon {
-            item_damage_per_attack: Bounded(VarInt::decode(r)?.0),
-            disable_blocking_for_seconds: f32::decode(r)?,
-        })
-    }
-}
-
-ctx_free!(Weapon);
-
 impl Sample for Weapon {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
@@ -404,7 +342,7 @@ impl Sample for Weapon {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AttackRange {
     #[serde(
@@ -458,8 +396,6 @@ impl Default for AttackRange {
     }
 }
 
-ctx_free!(AttackRange);
-
 impl Sample for AttackRange {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
@@ -491,11 +427,9 @@ impl Sample for AttackRange {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct BlockState(pub BTreeMap<String, String>);
-
-ctx_free!(BlockState);
 
 impl Sample for BlockState {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
