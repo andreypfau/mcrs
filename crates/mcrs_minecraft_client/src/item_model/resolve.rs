@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use bevy::app::{App, Plugin, Update};
-use bevy::ecs::schedule::SystemSet;
 use bevy::ecs::world::EntityRef;
 use bevy::math::{EulerRot, Mat3, Mat4, Quat, Vec3};
 use bevy::prelude::{
@@ -14,7 +13,6 @@ use mcrs_minecraft_item::{
     Held, ItemStack, Items, StackRevision, children, component_value, has_component,
     has_non_default,
 };
-use mcrs_minecraft_item_model::asset::DisplayContext;
 use mcrs_minecraft_item_model::eval::has_foil;
 use mcrs_minecraft_item_model::{Evaluator, StackView};
 use mcrs_minecraft_network::client::ClientNetworkSystems;
@@ -36,17 +34,10 @@ pub struct GuiVertex {
     pub sprite: u32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Foil {
-    None,
-    Standard,
-    Special,
-}
-
 #[derive(Debug)]
 pub struct RenderLayer {
     pub vertices: Vec<GuiVertex>,
-    pub foil: Foil,
+    pub foil: bool,
 }
 
 /// The GUI projection of one held stack, recomputed when its revision changes.
@@ -54,27 +45,16 @@ pub struct RenderLayer {
 pub struct ItemRenderLayers {
     pub layers: Vec<RenderLayer>,
     pub gui_light: GuiLight,
-    pub oversized_in_gui: bool,
-    pub animated: bool,
-}
-
-#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ItemRenderSet {
-    Resolve,
 }
 
 pub struct ItemRenderPlugin;
 
 impl Plugin for ItemRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.configure_sets(
-            Update,
-            ItemRenderSet::Resolve.after(ClientNetworkSystems::Receive),
-        )
-        .add_systems(
+        app.add_systems(
             Update,
             resolve_item_layers
-                .in_set(ItemRenderSet::Resolve)
+                .after(ClientNetworkSystems::Receive)
                 .run_if(resource_exists::<Items>.and_then(resource_exists::<ItemModels>)),
         );
     }
@@ -117,11 +97,7 @@ pub fn resolve<'a>(
         items,
         lookup,
     };
-    let foil = if has_foil(&stack) {
-        Foil::Standard
-    } else {
-        Foil::None
-    };
+    let foil = has_foil(&stack);
     let grass = |temperature, downfall| {
         sample_colormap(models.grass_colormap.as_deref(), temperature, downfall)
     };
@@ -130,12 +106,11 @@ pub fn resolve<'a>(
         grass: &grass,
     };
     let mut layers = Vec::new();
-    collect(&evaluator, &item.root, &mut layers);
+    collect(&evaluator, item, &mut layers);
     let gui_light = layers
         .first()
         .map_or(GuiLight::Front, |layer| layer.model.gui_light);
     ItemRenderLayers {
-        animated: layers.iter().any(|layer| layer.model.animated),
         layers: layers
             .into_iter()
             .map(|layer| RenderLayer {
@@ -144,7 +119,6 @@ pub fn resolve<'a>(
             })
             .collect(),
         gui_light,
-        oversized_in_gui: item.oversized_in_gui,
     }
 }
 
@@ -270,10 +244,8 @@ fn collect<'m, S: StackView>(
     }
 }
 
-const GUI: usize = DisplayContext::Gui as usize - 1;
-
 fn gui_matrix(model: &BakedItemModel, local: Mat4) -> Mat4 {
-    let display = model.display[GUI];
+    let display = model.display;
     let centre = Mat4::from_translation(Vec3::splat(-0.5));
     let posed = if display == ItemTransform::NONE {
         centre
@@ -379,9 +351,7 @@ mod tests {
 
     use super::*;
     use crate::atlas::SpriteRegistry;
-    use crate::item_model::asset::{
-        ChargeType, ComponentKindId, ConditionProperty, RangeProperty, TintSource,
-    };
+    use crate::item_model::asset::{ChargeType, ConditionProperty, RangeProperty, TintSource};
     use crate::item_model::bake::bake_all;
     use crate::model::Pack;
 
@@ -556,7 +526,7 @@ mod tests {
         assert_eq!(e.charge_type(), ChargeType::Arrow);
         let e = eval(&world, rocket);
         assert_eq!(e.charge_type(), ChargeType::Rocket);
-        let BakedNode::Select { switch, .. } = &models().get("minecraft:crossbow").root else {
+        let BakedNode::Select { switch, .. } = models().get("minecraft:crossbow") else {
             panic!("the crossbow selects on charge type");
         };
         let e = eval(&world, rocket);
@@ -568,11 +538,11 @@ mod tests {
         let mut world = world();
         let stone = spawn(&mut world, "stone", 1, ComponentPatch::EMPTY);
         let max_stack = |ignore_default| ConditionProperty::HasComponent {
-            component: ComponentKindId(ItemComponentKind::MaxStackSize),
+            component: ItemComponentKind::MaxStackSize,
             ignore_default,
         };
         let dyed = |ignore_default| ConditionProperty::HasComponent {
-            component: ComponentKindId(ItemComponentKind::DyedColor),
+            component: ItemComponentKind::DyedColor,
             ignore_default,
         };
         let e = eval(&world, stone);
@@ -677,10 +647,9 @@ mod tests {
         let layers = resolved(&world, stone);
         assert_eq!(layers.gui_light, GuiLight::Side);
         assert_eq!(layers.layers.len(), 1);
-        assert!(!layers.oversized_in_gui && !layers.animated);
         let layer = &layers.layers[0];
         assert_eq!(layer.vertices.len(), 24);
-        assert_eq!(layer.foil, Foil::None);
+        assert!(!layer.foil);
         let facing: Vec<Vec3> = quads(layer)
             .filter(|(_, n)| n.z > 0.0)
             .map(|(_, n)| n)
@@ -739,7 +708,7 @@ mod tests {
             resolved(&world, sharp)
                 .layers
                 .iter()
-                .all(|layer| layer.foil == Foil::Standard)
+                .all(|layer| layer.foil)
         );
     }
 

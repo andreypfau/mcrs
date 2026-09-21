@@ -40,8 +40,6 @@ pub struct SpriteArray {
     pub size: u32,
     layers: Vec<Opacity>,
     pixels: Vec<u8>,
-    sprites: usize,
-    animated: usize,
 }
 
 /// The base texture a permuted sprite copies and the palette swap it applies.
@@ -91,10 +89,6 @@ impl SpriteRegistry {
 
     pub fn sprite(&self, id: u16) -> Sprite {
         self.table[id as usize]
-    }
-
-    pub fn is_animated(&self, id: u16) -> bool {
-        self.sprite(id).animation.is_some()
     }
 
     pub fn opacity(&self, id: u16) -> Opacity {
@@ -225,21 +219,17 @@ impl SpriteRegistry {
                     size: side,
                     layers: Vec::new(),
                     pixels: Vec::new(),
-                    sprites: 0,
-                    animated: 0,
                 });
                 self.arrays.len() - 1
             }
         };
         let array = &mut self.arrays[index];
         let layer = array.layers.len() as u16;
-        array.sprites += 1;
         array
             .layers
             .extend(std::iter::repeat_n(opacity, frames.len()));
         array.pixels.extend_from_slice(&pixels);
         let animation = (!sequence.frames.is_empty()).then(|| {
-            array.animated += 1;
             self.animations.push(Animation {
                 array: index as u8,
                 first_layer: layer,
@@ -260,7 +250,7 @@ impl SpriteRegistry {
     }
 }
 
-fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), String> {
+pub(crate) fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), String> {
     let image = Image::from_buffer(
         bytes,
         ImageType::Extension("png"),
@@ -281,25 +271,22 @@ fn argb(rgba: &[u8; 4]) -> u32 {
     u32::from_be_bytes([rgba[3], rgba[0], rgba[1], rgba[2]])
 }
 
-fn rgba(argb: u32) -> [u8; 4] {
+pub(crate) fn rgba(argb: u32) -> [u8; 4] {
     let [a, r, g, b] = argb.to_be_bytes();
     [r, g, b, a]
 }
 
 /// The 16x16 magenta and black checker vanilla generates for a texture it cannot find.
 fn missing_image() -> Vec<u8> {
-    let mut data = Vec::with_capacity(16 * 16 * 4);
-    for y in 0..16 {
-        for x in 0..16 {
-            let magenta = (x < 8) == (y < 8);
-            data.extend_from_slice(&if magenta {
+    (0..256)
+        .flat_map(|i| {
+            if (i % 16 < 8) == (i / 16 < 8) {
                 [0xF8, 0x00, 0xF8, 0xFF]
             } else {
                 [0x00, 0x00, 0x00, 0xFF]
-            });
-        }
-    }
-    data
+            }
+        })
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -310,27 +297,7 @@ struct AtlasSources {
 
 #[derive(Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
-#[allow(dead_code)]
 enum AtlasSource {
-    #[serde(rename = "minecraft:directory", alias = "directory")]
-    Directory { source: String, prefix: String },
-    #[serde(rename = "minecraft:single", alias = "single")]
-    Single {
-        resource: String,
-        #[serde(default)]
-        sprite: Option<String>,
-    },
-    #[serde(rename = "minecraft:filter", alias = "filter")]
-    Filter { pattern: IdentifierPattern },
-    #[serde(rename = "minecraft:unstitch", alias = "unstitch")]
-    Unstitch {
-        resource: String,
-        #[serde(default = "one")]
-        divisor_x: f64,
-        #[serde(default = "one")]
-        divisor_y: f64,
-        regions: Vec<UnstitchRegion>,
-    },
     #[serde(
         rename = "minecraft:paletted_permutations",
         alias = "paletted_permutations"
@@ -342,35 +309,12 @@ enum AtlasSource {
         #[serde(default = "underscore")]
         separator: String,
     },
-}
-
-fn one() -> f64 {
-    1.0
+    #[serde(other)]
+    Other,
 }
 
 fn underscore() -> String {
     "_".to_string()
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-#[allow(dead_code)]
-struct IdentifierPattern {
-    #[serde(default)]
-    namespace: Option<String>,
-    #[serde(default)]
-    path: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-#[allow(dead_code)]
-struct UnstitchRegion {
-    sprite: String,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
 }
 
 impl AtlasSources {
@@ -481,14 +425,6 @@ fn opacity_of(pixels: &[u8]) -> Opacity {
 impl SpriteArray {
     pub fn layers(&self) -> u32 {
         self.layers.len() as u32
-    }
-
-    pub fn sprites(&self) -> usize {
-        self.sprites
-    }
-
-    pub fn animated(&self) -> usize {
-        self.animated
     }
 
     fn layer(&self, layer: usize) -> &[u8] {
@@ -619,8 +555,6 @@ mod tests {
             size: size as u32,
             layers: vec![opacity],
             pixels,
-            sprites: 1,
-            animated: 0,
         }
     }
 
@@ -726,7 +660,15 @@ mod tests {
 
         let sizes: Vec<u32> = registry.arrays().iter().map(|array| array.size).collect();
         assert_eq!(sizes, [16, 32]);
-        let counts: Vec<usize> = registry.arrays().iter().map(SpriteArray::sprites).collect();
+        let counts: Vec<usize> = (0..registry.arrays().len())
+            .map(|array| {
+                registry
+                    .table()
+                    .iter()
+                    .filter(|s| s.array as usize == array)
+                    .count()
+            })
+            .collect();
         assert_eq!(counts, [2, 1]);
         for array in registry.arrays() {
             let expected = (array.size * array.size * 4) as usize * array.layers() as usize;
@@ -744,8 +686,8 @@ mod tests {
             .intern(Pack::corpus(), "minecraft:block/kelp")
             .unwrap();
         let array = &registry.arrays()[0];
-        assert_eq!(array.sprites(), 2);
-        assert_eq!(array.animated(), 1);
+        assert_eq!(registry.len(), 2);
+        assert_eq!(registry.animations().len(), 1);
         assert_eq!(array.layers(), 21);
         let texels = (array.size * array.size * 4) as usize;
         assert_eq!(array.pixels.len(), texels * 21);

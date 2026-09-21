@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use super::bake::ItemQuad;
-use crate::bake::{Dir, VariantRotation, face_geometry};
+use super::bake::{ItemQuad, item_quad};
+use crate::bake::Dir;
 use crate::model::{Element, Face};
 
 const MIN_Z: f32 = 7.5;
@@ -145,14 +145,7 @@ fn quad(
         rotation: 0,
         tint_index: Some(layer),
     };
-    let geometry = face_geometry(&element, dir, &face, VariantRotation::default(), false)?;
-    Ok(ItemQuad {
-        positions: geometry.positions,
-        uvs: geometry.uvs,
-        dir: geometry.facing,
-        sprite,
-        tint: Some(layer),
-    })
+    item_quad(&element, dir, &face, sprite)
 }
 
 #[cfg(test)]

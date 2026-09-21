@@ -14,5 +14,3 @@ mcrs_minecraft_item_component.workspace = true
 mcrs_minecraft_nbt.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-
-[dev-dependencies]

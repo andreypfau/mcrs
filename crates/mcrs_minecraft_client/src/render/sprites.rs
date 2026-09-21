@@ -21,6 +21,13 @@ struct AnimationFrame {
     _pad: u32,
 }
 
+const UNWRITTEN: AnimationFrame = AnimationFrame {
+    layer: u32::MAX,
+    next: u32::MAX,
+    blend: 0.0,
+    _pad: 0,
+};
+
 impl Animation {
     fn at(&self, ticks: f64) -> AnimationFrame {
         let count = self.count.max(1);
@@ -85,7 +92,6 @@ impl Sprites {
         device: &RenderDevice,
         encoder: &mut CommandEncoder,
         belt: &mut wgpu::util::StagingBelt,
-        ticks: f64,
     ) -> (usize, bool) {
         let mut writer = AtlasWriter {
             device,
@@ -125,27 +131,12 @@ impl Sprites {
             "added sprites"
         );
         self.animations = animations.to_vec();
-        self.written = animations.iter().map(|a| a.at(ticks)).collect();
-        if !self.written.is_empty() {
-            let bytes: &[u8] = bytemuck::cast_slice(&self.written);
-            belt.write_buffer(
-                encoder,
-                &self.frames,
-                0,
-                BufferSize::new(bytes.len() as u64).expect("at least one frame"),
-            )
-            .copy_from_slice(bytes);
-            spent += bytes.len();
-        }
+        self.written = vec![UNWRITTEN; animations.len()];
         (spent, rebound)
     }
 }
 
 const FIRST_STAGING_BYTES: u64 = 1 << 20;
-
-pub(super) fn ticks(time: &Time) -> f64 {
-    time.elapsed_secs_f64() * TICKS_PER_SECOND
-}
 
 /// Steps every animation on the CPU once a frame, so a fragment reads its two layers and a
 /// blend instead of dividing and taking modulos of the clock.
@@ -158,7 +149,7 @@ pub(super) fn write_animation_frames(
         return;
     };
     let sprites = &mut terrain.sprites;
-    let ticks = ticks(&time);
+    let ticks = time.elapsed_secs_f64() * TICKS_PER_SECOND;
     let mut changed = false;
     for (animation, written) in sprites.animations.iter().zip(&mut sprites.written) {
         let frame = animation.at(ticks);

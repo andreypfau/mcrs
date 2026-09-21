@@ -46,14 +46,7 @@ impl Transformation {
                     * Mat4::from_scale(Vec3::from(*scale))
                     * Mat4::from_quat(right_rotation.quat())
             }
-            Self::Matrix(rows) => {
-                let mut columns = [0.0; 16];
-                for (i, value) in rows.iter().enumerate() {
-                    let (row, column) = (i >> 2, i & 3);
-                    columns[column * 4 + row] = *value;
-                }
-                Mat4::from_cols_array(&columns)
-            }
+            Self::Matrix(rows) => Mat4::from_cols_array(rows).transpose(),
         }
     }
 }

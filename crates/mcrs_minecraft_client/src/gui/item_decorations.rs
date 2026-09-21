@@ -1,28 +1,10 @@
+use bevy::color::{ColorToPacked, Hsva, Srgba};
 use bevy::math::{IRect, IVec2};
 
 use super::scene::GuiQuad;
 
 pub const WHITE: u32 = 0xFFFF_FFFF;
 const BAR_BACK: u32 = 0xFF00_0000;
-const COOLDOWN: u32 = 0x7FFF_FFFF;
-
-pub fn hsv_to_rgb(hue: f32, saturation: f32, value: f32) -> u32 {
-    let sector = ((hue * 6.0) as i32) % 6;
-    let f = hue * 6.0 - sector as f32;
-    let p = value * (1.0 - saturation);
-    let q = value * (1.0 - f * saturation);
-    let t = value * (1.0 - (1.0 - f) * saturation);
-    let (r, g, b) = match sector {
-        0 => (value, t, p),
-        1 => (q, value, p),
-        2 => (p, value, t),
-        3 => (p, q, value),
-        4 => (t, p, value),
-        _ => (value, p, q),
-    };
-    let channel = |c: f32| ((c * 255.0) as i32).clamp(0, 255) as u32;
-    channel(r) << 16 | channel(g) << 8 | channel(b)
-}
 
 pub fn bar_width(damage: i32, max_damage: i32) -> i32 {
     let width = 13.0 - damage as f32 * 13.0 / max_damage as f32;
@@ -31,16 +13,8 @@ pub fn bar_width(damage: i32, max_damage: i32) -> i32 {
 
 pub fn bar_color(damage: i32, max_damage: i32) -> u32 {
     let health = ((max_damage - damage) as f32 / max_damage as f32).max(0.0);
-    hsv_to_rgb(health / 3.0, 1.0, 1.0)
-}
-
-pub fn cooldown_rect(origin: IVec2, fraction: f32) -> Option<IRect> {
-    if fraction <= 0.0 {
-        return None;
-    }
-    let top = origin.y + (16.0 * (1.0 - fraction)).floor() as i32;
-    let bottom = top + (16.0 * fraction).ceil() as i32;
-    Some(IRect::new(origin.x, top, origin.x + 16, bottom))
+    let [r, g, b, _] = Srgba::from(Hsva::hsv(health / 3.0 * 360.0, 1.0, 1.0)).to_u8_array();
+    u32::from_be_bytes([0, r, g, b])
 }
 
 pub fn text_width(text: &str, digit_widths: &[u8; 10]) -> i32 {
@@ -80,7 +54,6 @@ pub fn glyphs(
 pub struct Decorated {
     pub count: u8,
     pub damage: Option<(i32, i32)>,
-    pub cooldown: f32,
 }
 
 pub fn decorations(
@@ -98,12 +71,6 @@ pub fn decorations(
         out.push(GuiQuad::Fill {
             rect: IRect::new(left, top, left + bar_width(damage, max_damage), top + 1),
             color: 0xFF00_0000 | bar_color(damage, max_damage),
-        });
-    }
-    if let Some(rect) = cooldown_rect(origin, stack.cooldown) {
-        out.push(GuiQuad::Fill {
-            rect,
-            color: COOLDOWN,
         });
     }
     if stack.count != 1 {
@@ -142,7 +109,6 @@ mod tests {
         let stack = Decorated {
             count: 1,
             damage: None,
-            cooldown: 0.0,
         };
         decorations(IVec2::ZERO, &stack, &VANILLA_DIGITS, &mut out);
         assert!(out.is_empty());
@@ -154,7 +120,6 @@ mod tests {
         let stack = Decorated {
             count: 1,
             damage: Some((50, 100)),
-            cooldown: 0.0,
         };
         decorations(IVec2::new(10, 20), &stack, &VANILLA_DIGITS, &mut out);
         assert_eq!(
@@ -173,21 +138,11 @@ mod tests {
     }
 
     #[test]
-    fn cooldown_covers_the_slot_from_the_bottom() {
-        assert_eq!(
-            cooldown_rect(IVec2::new(4, 4), 0.3),
-            Some(IRect::new(4, 4 + 11, 20, 4 + 11 + 5))
-        );
-        assert_eq!(cooldown_rect(IVec2::ZERO, 0.0), None);
-    }
-
-    #[test]
     fn counts_are_right_aligned_with_a_shadow() {
         let mut out = Vec::new();
         let stack = Decorated {
             count: 64,
             damage: None,
-            cooldown: 0.0,
         };
         decorations(IVec2::ZERO, &stack, &VANILLA_DIGITS, &mut out);
         assert_eq!(
@@ -219,7 +174,6 @@ mod tests {
         let seven = Decorated {
             count: 7,
             damage: None,
-            cooldown: 0.0,
         };
         decorations(IVec2::ZERO, &seven, &VANILLA_DIGITS, &mut out);
         assert_eq!(out.len(), 2);

@@ -2,11 +2,8 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 
-use bevy::asset::RenderAssetUsages;
 use bevy::ecs::resource::IsResource;
-use bevy::ecs::schedule::SystemSet;
 use bevy::ecs::world::EntityRef;
-use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::math::{IRect, IVec2, UVec2};
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
@@ -18,9 +15,10 @@ use mcrs_minecraft_item::{
 
 use super::hotbar::hotbar;
 use super::inventory_screen::inventory_screen;
-use super::item_decorations::{Decorated, decorations};
+use super::item_decorations::{Decorated, WHITE, decorations};
+use crate::atlas::{decode_png, rgba};
 use crate::inventory::Screen;
-use crate::item_model::resolve::{Foil, GuiVertex, ItemRenderLayers};
+use crate::item_model::resolve::{GuiVertex, ItemRenderLayers};
 use crate::model::Pack;
 use crate::player::Player;
 use crate::stream::BlockCatalog;
@@ -102,69 +100,31 @@ const DIGIT_ROW: i32 = 3;
 const ATLAS_WIDTH: u32 = 512;
 const BLANK: &str = "blank";
 
-const GUI_TEXTURES: [(&str, &str); 16] = [
-    (
-        "hud/hotbar",
-        "minecraft/textures/gui/sprites/hud/hotbar.png",
-    ),
-    (
-        "hud/hotbar_selection",
-        "minecraft/textures/gui/sprites/hud/hotbar_selection.png",
-    ),
-    (
-        "hud/hotbar_offhand_left",
-        "minecraft/textures/gui/sprites/hud/hotbar_offhand_left.png",
-    ),
-    (
-        "hud/hotbar_offhand_right",
-        "minecraft/textures/gui/sprites/hud/hotbar_offhand_right.png",
-    ),
-    (
-        "container/slot_highlight_back",
-        "minecraft/textures/gui/sprites/container/slot_highlight_back.png",
-    ),
-    (
-        "container/slot_highlight_front",
-        "minecraft/textures/gui/sprites/container/slot_highlight_front.png",
-    ),
-    (
-        "container/slot/helmet",
-        "minecraft/textures/gui/sprites/container/slot/helmet.png",
-    ),
-    (
-        "container/slot/chestplate",
-        "minecraft/textures/gui/sprites/container/slot/chestplate.png",
-    ),
-    (
-        "container/slot/leggings",
-        "minecraft/textures/gui/sprites/container/slot/leggings.png",
-    ),
-    (
-        "container/slot/boots",
-        "minecraft/textures/gui/sprites/container/slot/boots.png",
-    ),
-    (
-        "container/slot/shield",
-        "minecraft/textures/gui/sprites/container/slot/shield.png",
-    ),
-    (
-        "recipe_book/button",
-        "minecraft/textures/gui/sprites/recipe_book/button.png",
-    ),
-    (
-        "recipe_book/button_highlighted",
-        "minecraft/textures/gui/sprites/recipe_book/button_highlighted.png",
-    ),
-    (
-        "container/inventory",
-        "minecraft/textures/gui/container/inventory.png",
-    ),
-    ("font/ascii", "minecraft/textures/font/ascii.png"),
-    (
-        "misc/enchanted_glint_item",
-        "minecraft/textures/misc/enchanted_glint_item.png",
-    ),
+const GUI_TEXTURES: [&str; 15] = [
+    "hud/hotbar",
+    "hud/hotbar_selection",
+    "hud/hotbar_offhand_left",
+    "container/slot_highlight_back",
+    "container/slot_highlight_front",
+    "container/slot/helmet",
+    "container/slot/chestplate",
+    "container/slot/leggings",
+    "container/slot/boots",
+    "container/slot/shield",
+    "recipe_book/button",
+    "recipe_book/button_highlighted",
+    "container/inventory",
+    "font/ascii",
+    "misc/enchanted_glint_item",
 ];
+
+fn texture_path(name: &str) -> String {
+    match name {
+        "container/inventory" => format!("minecraft/textures/gui/{name}.png"),
+        "font/ascii" | "misc/enchanted_glint_item" => format!("minecraft/textures/{name}.png"),
+        _ => format!("minecraft/textures/gui/sprites/{name}.png"),
+    }
+}
 
 pub struct GuiAtlasData {
     pub width: u32,
@@ -177,23 +137,6 @@ pub struct GuiAtlasData {
 
 #[derive(Resource, Clone, ExtractResource)]
 pub struct GuiAtlas(pub Arc<GuiAtlasData>);
-
-fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), String> {
-    let image = Image::from_buffer(
-        bytes,
-        ImageType::Extension("png"),
-        CompressedImageFormats::NONE,
-        true,
-        ImageSampler::nearest(),
-        RenderAssetUsages::default(),
-    )
-    .map_err(|error| format!("cannot decode {path}: {error}"))?;
-    let (width, height) = (image.width(), image.height());
-    let data = image
-        .data
-        .ok_or_else(|| format!("{path} decoded without pixel data"))?;
-    Ok((data, width, height))
-}
 
 fn digit_widths(ascii: &[u8], width: u32) -> [u8; 10] {
     let mut widths = [0u8; 10];
@@ -216,8 +159,9 @@ impl GuiAtlasData {
         let mut images = Vec::new();
         let mut glint = None;
         let mut digits = None;
-        for (name, path) in GUI_TEXTURES {
-            let (pixels, width, height) = decode_png(pack.read(path)?, path)?;
+        for name in GUI_TEXTURES {
+            let path = texture_path(name);
+            let (pixels, width, height) = decode_png(pack.read(&path)?, &path)?;
             match name {
                 "misc/enchanted_glint_item" => glint = Some((width, height, pixels)),
                 "container/inventory" => {
@@ -325,9 +269,12 @@ pub fn glint_offset(millis: i64) -> [f32; 2] {
     ]
 }
 
-fn rgba(argb: u32) -> [u8; 4] {
-    let [a, r, g, b] = argb.to_be_bytes();
-    [r, g, b, a]
+pub(super) fn sprite(at: IVec2, size: IVec2, region: &'static str) -> GuiQuad {
+    GuiQuad::Sprite {
+        rect: IRect::from_corners(at, at + size),
+        region,
+        color: WHITE,
+    }
 }
 
 fn push_quad(
@@ -350,13 +297,6 @@ fn push_quad(
         sprite,
     });
     vertices.extend([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]]);
-}
-
-#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GuiSet {
-    Begin,
-    Screens,
-    Build,
 }
 
 fn begin_gui_frame(
@@ -437,7 +377,6 @@ fn build_gui_batch(
                 let decorated = Decorated {
                     count: stack.get::<ItemStack>().map_or(1, ItemStack::count),
                     damage: is_damaged(stack).then(|| (damage_value(stack), max_damage(stack))),
-                    cooldown: 0.0,
                 };
                 decorations(origin, &decorated, &atlas.digit_widths, &mut expanded);
             }
@@ -465,11 +404,7 @@ fn build_gui_batch(
                     continue;
                 };
                 for layer in &layers.layers {
-                    let glint = if layer.foil == Foil::None {
-                        0
-                    } else {
-                        GLINT_BIT
-                    };
+                    let glint = if layer.foil { GLINT_BIT } else { 0 };
                     for quad in layer.vertices.as_chunks::<4>().0 {
                         let shifted = |v: &GuiVertex| GuiVertex {
                             pos: [
@@ -557,21 +492,13 @@ impl Plugin for GuiPlugin {
             .init_resource::<GuiBatch>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
-            .configure_sets(
-                PostUpdate,
-                (GuiSet::Begin, GuiSet::Screens, GuiSet::Build).chain(),
-            )
             .add_systems(
                 Update,
                 load_gui_atlas.run_if(not(resource_exists::<GuiAtlas>)),
             )
             .add_systems(
                 PostUpdate,
-                (
-                    begin_gui_frame.in_set(GuiSet::Begin),
-                    draw_screens.in_set(GuiSet::Screens),
-                    build_gui_batch.in_set(GuiSet::Build),
-                ),
+                (begin_gui_frame, draw_screens, build_gui_batch).chain(),
             );
     }
 }
@@ -599,9 +526,9 @@ mod tests {
     #[test]
     fn the_gui_atlas_holds_every_region_and_the_digit_widths() {
         let atlas = GuiAtlasData::load(Pack::corpus()).unwrap();
-        for (name, _) in GUI_TEXTURES
+        for name in GUI_TEXTURES
             .iter()
-            .filter(|(n, _)| *n != "misc/enchanted_glint_item")
+            .filter(|n| **n != "misc/enchanted_glint_item")
         {
             assert!(atlas.regions.contains_key(name), "{name}");
         }

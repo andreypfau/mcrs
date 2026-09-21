@@ -430,34 +430,6 @@ impl ItemTransform {
     }
 }
 
-/// The nine display contexts after `none`, in `DisplayContext` order.
-pub const DISPLAY_CONTEXTS: [&str; 9] = [
-    "thirdperson_lefthand",
-    "thirdperson_righthand",
-    "firstperson_lefthand",
-    "firstperson_righthand",
-    "head",
-    "gui",
-    "ground",
-    "fixed",
-    "on_shelf",
-];
-
-/// One file's declared transforms; an absent context stays `None` so a parent
-/// can supply it, and a left hand absent from the file copies the right hand.
-fn declared_display(raw: &Option<HashMap<String, RawItemTransform>>) -> [Option<ItemTransform>; 9] {
-    let Some(raw) = raw else {
-        return [None; 9];
-    };
-    let mut out = DISPLAY_CONTEXTS.map(|name| raw.get(name).map(ItemTransform::from_raw));
-    for (left, right) in [(0, 1), (2, 3)] {
-        if out[left].is_none() {
-            out[left] = out[right];
-        }
-    }
-    out
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum GuiLight {
@@ -472,7 +444,7 @@ pub struct ResolvedModel {
     pub elements: Vec<Element>,
     pub textures: HashMap<String, String>,
     pub ambient_occlusion: bool,
-    pub display: [ItemTransform; 9],
+    pub display: ItemTransform,
     pub gui_light: GuiLight,
     /// The parent chain ends at `builtin/generated`: the geometry is extruded from the layers.
     pub generated: bool,
@@ -524,14 +496,10 @@ pub fn resolve_model(pack: &Pack, id: &str) -> Result<ResolvedModel, String> {
     } else {
         GuiLight::Side
     });
-    let declared: Vec<[Option<ItemTransform>; 9]> =
-        chain.iter().map(|m| declared_display(&m.display)).collect();
-    let display = std::array::from_fn(|context| {
-        declared
-            .iter()
-            .find_map(|file| file[context])
-            .unwrap_or(ItemTransform::NONE)
-    });
+    let display = chain
+        .iter()
+        .find_map(|m| m.display.as_ref()?.get("gui"))
+        .map_or(ItemTransform::NONE, ItemTransform::from_raw);
 
     // `textures` does merge, child over parent, and only then are `#refs` resolved: `cube_column`
     // points `down` at `#end` but leaves `end` to its child, so per-level resolution would fail.
@@ -628,27 +596,12 @@ mod tests {
         ]));
     }
 
-    fn context(name: &str) -> usize {
-        DISPLAY_CONTEXTS.iter().position(|c| *c == name).unwrap()
-    }
-
     #[test]
-    fn a_generated_item_is_front_lit_and_copies_its_right_hand_to_the_left() {
+    fn a_generated_item_is_front_lit_with_no_gui_transform() {
         let model = resolve_model(Pack::corpus(), "minecraft:item/generated").unwrap();
         assert!(model.generated);
         assert_eq!(model.gui_light, GuiLight::Front);
-        assert_eq!(model.display[context("gui")], ItemTransform::NONE);
-        for name in ["ground", "head", "thirdperson_righthand", "firstperson_righthand", "fixed"] {
-            assert_ne!(model.display[context(name)], ItemTransform::NONE, "{name}");
-        }
-        assert_eq!(
-            model.display[context("thirdperson_lefthand")],
-            model.display[context("thirdperson_righthand")]
-        );
-        assert_eq!(
-            model.display[context("firstperson_lefthand")],
-            model.display[context("firstperson_righthand")]
-        );
+        assert_eq!(model.display, ItemTransform::NONE);
         let stick = resolve_model(Pack::corpus(), "minecraft:item/stick").unwrap();
         assert!(stick.generated);
         assert_eq!(stick.textures["layer0"], "minecraft:item/stick");
@@ -659,14 +612,14 @@ mod tests {
         let model = resolve_model(Pack::corpus(), "minecraft:block/stone").unwrap();
         assert!(!model.generated);
         assert_eq!(model.gui_light, GuiLight::Side);
-        let gui = model.display[context("gui")];
+        let gui = model.display;
         assert_eq!(gui.rotation_deg, Vec3::new(30.0, 225.0, 0.0));
         assert_eq!(gui.scale, Vec3::splat(0.625));
         assert_eq!(gui.translation, Vec3::ZERO);
     }
 
     #[test]
-    fn each_display_context_is_inherited_on_its_own_and_a_declared_one_wins_over_a_parent() {
+    fn a_declared_gui_transform_wins_over_the_parents() {
         let mut pack = Pack::default();
         let put = |pack: &mut Pack, id: &str, json: &str| {
             pack.files
@@ -688,12 +641,10 @@ mod tests {
             r#"{"parent": "block/parent", "display": {"gui": {}}}"#,
         );
         let child = resolve_model(&pack, "minecraft:block/child").unwrap();
-        assert_eq!(child.display[context("gui")].translation, Vec3::new(1.0, 0.0, 0.0));
-        assert_eq!(child.display[context("gui")].rotation_deg, Vec3::ZERO);
-        assert_eq!(child.display[context("ground")].scale, Vec3::splat(0.5));
+        assert_eq!(child.display.translation, Vec3::new(1.0, 0.0, 0.0));
+        assert_eq!(child.display.rotation_deg, Vec3::ZERO);
         let blank = resolve_model(&pack, "minecraft:block/blank").unwrap();
-        assert_eq!(blank.display[context("gui")], ItemTransform::NONE);
-        assert_eq!(blank.display[context("ground")].scale, Vec3::splat(0.5));
+        assert_eq!(blank.display, ItemTransform::NONE);
     }
 
     #[test]
