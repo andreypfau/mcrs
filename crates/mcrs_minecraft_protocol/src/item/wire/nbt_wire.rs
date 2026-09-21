@@ -25,4 +25,6 @@ macro_rules! nbt_wire {
     )*};
 }
 
+pub(crate) use nbt_wire;
+
 nbt_wire!(MapDecorations, DebugStickState, Recipes, ContainerLoot);

@@ -4,27 +4,22 @@ use anyhow::{bail, ensure};
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::DeserializeSeed;
 
-use crate::item::component::common::CompactList;
 use crate::item::component::predicate::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
 use crate::item::kind::ItemComponentKind;
 use crate::item::patch::ComponentMap;
+use crate::item::wire::nbt_wire::nbt_wire;
 use crate::item::wire::newtype_ctx_wire;
 use crate::{Decode, Encode, VarInt};
 
-newtype_ctx_wire!(CanPlaceOn, CanBreak, Lock);
-
-impl EncodeCtx for AdventureModePredicate {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for AdventureModePredicate {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        CompactList::decode_ctx(ctx, r).map(AdventureModePredicate)
-    }
-}
+newtype_ctx_wire!(
+    CanPlaceOn,
+    CanBreak,
+    Lock,
+    AdventureModePredicate,
+    StatePropertiesPredicate,
+);
+nbt_wire!(ItemPredicate);
 
 impl EncodeCtx for BlockPredicate {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
@@ -43,30 +38,6 @@ impl DecodeCtx<'_> for BlockPredicate {
             nbt: Option::decode_ctx(ctx, r)?,
             matchers: DataComponentMatchers::decode_ctx(ctx, r)?,
         })
-    }
-}
-
-impl EncodeCtx for ItemPredicate {
-    fn encode_ctx(&self, _: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        encode_nbt_wire(self, w)
-    }
-}
-
-impl DecodeCtx<'_> for ItemPredicate {
-    fn decode_ctx(_: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        decode_nbt_wire(r)
-    }
-}
-
-impl EncodeCtx for StatePropertiesPredicate {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for StatePropertiesPredicate {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Vec::decode_ctx(ctx, r).map(StatePropertiesPredicate)
     }
 }
 

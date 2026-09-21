@@ -8,6 +8,7 @@ use crate::{Decode, Encode, VarInt};
 
 ordinal_enum_wire!(
     Rarity,
+    DyeColor,
     MapPostProcessing,
     SwingAnimationKind,
     FoxVariant,
@@ -99,23 +100,3 @@ impl Decode<'_> for SwingAnimation {
         })
     }
 }
-
-impl Encode for DyeColor {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        VarInt(*self as i32).encode(w)
-    }
-}
-
-/// The id, out of range reading as white.
-impl Decode<'_> for DyeColor {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        Ok(usize::try_from(id)
-            .ok()
-            .and_then(|id| Self::ALL.get(id))
-            .copied()
-            .unwrap_or(Self::White))
-    }
-}
-
-crate::item::ctx::ctx_free!(DyeColor);

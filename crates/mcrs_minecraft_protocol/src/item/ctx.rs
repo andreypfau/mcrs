@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::fmt;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::sync::{Arc, LazyLock};
@@ -339,8 +340,27 @@ impl RegistryLookup for Opaque {
 /// The exact bytes of one registry-dependent value, kept so a packet can
 /// carry it without the registries; the value walks the layout to find its
 /// length and is resolved on demand.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Raw<T>(pub bytes::Bytes, PhantomData<T>);
+pub struct Raw<T>(pub bytes::Bytes, pub(crate) PhantomData<T>);
+
+impl<T> Clone for Raw<T> {
+    fn clone(&self) -> Self {
+        Raw(self.0.clone(), PhantomData)
+    }
+}
+
+impl<T> fmt::Debug for Raw<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Raw").field(&self.0).finish()
+    }
+}
+
+impl<T> PartialEq for Raw<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T> Eq for Raw<T> {}
 
 impl<T: EncodeCtx + for<'a> DecodeCtx<'a>> Raw<T> {
     pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<T> {

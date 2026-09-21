@@ -7,12 +7,13 @@ use bytes::Bytes;
 use mcrs_minecraft_core::codec::{self, PositiveInt, float_value, int_value};
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_registry::RegistryLookup;
-use serde::de::{Error as _, MapAccess, Visitor, value};
+use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::Template;
 use crate::item::component::{ArgbInt, BlockReg, RgbInt};
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, ctx_free};
+use crate::item::wire::record_ctx_wire;
 use crate::{Decode, Encode, VarInt};
 
 /// Every particle type in vanilla registration order, which is the wire id.
@@ -300,18 +301,22 @@ pub struct BlockStateValue {
 }
 
 #[derive(Serialize, Deserialize)]
-struct BlockStateRepr {
-    id: ResourceKey<BlockReg>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    properties: BTreeMap<String, String>,
+#[serde(untagged)]
+enum BlockStateRepr {
+    Id(ResourceKey<BlockReg>),
+    State {
+        id: ResourceKey<BlockReg>,
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        properties: BTreeMap<String, String>,
+    },
 }
 
 impl Serialize for BlockStateValue {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         if self.properties.is_empty() {
-            return self.block.serialize(s);
+            return BlockStateRepr::Id(self.block.clone()).serialize(s);
         }
-        BlockStateRepr {
+        BlockStateRepr::State {
             id: self.block.clone(),
             properties: self.properties.clone(),
         }
@@ -321,32 +326,16 @@ impl Serialize for BlockStateValue {
 
 impl<'de> Deserialize<'de> for BlockStateValue {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct BlockStateVisitor;
-
-        impl<'de> Visitor<'de> for BlockStateVisitor {
-            type Value = BlockStateValue;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a block id or a block state")
-            }
-
-            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<BlockStateValue, E> {
-                Ok(BlockStateValue {
-                    block: ResourceKey::deserialize(value::StrDeserializer::<E>::new(id))?,
-                    properties: BTreeMap::new(),
-                })
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<BlockStateValue, A::Error> {
-                let repr = BlockStateRepr::deserialize(value::MapAccessDeserializer::new(map))?;
-                Ok(BlockStateValue {
-                    block: repr.id,
-                    properties: repr.properties,
-                })
-            }
-        }
-
-        d.deserialize_any(BlockStateVisitor)
+        Ok(match BlockStateRepr::deserialize(d)? {
+            BlockStateRepr::Id(block) => BlockStateValue {
+                block,
+                properties: BTreeMap::new(),
+            },
+            BlockStateRepr::State { id, properties } => BlockStateValue {
+                block: id,
+                properties,
+            },
+        })
     }
 }
 
@@ -384,19 +373,7 @@ pub struct BlockParticle {
     pub block_state: BlockStateValue,
 }
 
-impl EncodeCtx for BlockParticle {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.block_state.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for BlockParticle {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(BlockParticle {
-            block_state: BlockStateValue::decode_ctx(ctx, r)?,
-        })
-    }
-}
+record_ctx_wire!(BlockParticle { block_state });
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -585,19 +562,7 @@ pub struct ItemParticle {
     pub item: Template,
 }
 
-impl EncodeCtx for ItemParticle {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.item.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for ItemParticle {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(ItemParticle {
-            item: Template::decode_ctx(ctx, r)?,
-        })
-    }
-}
+record_ctx_wire!(ItemParticle { item });
 
 /// `PositionSource`, dispatched on the `position_source_type` registry. An
 /// entity source names the entity by network id, which no datapack can

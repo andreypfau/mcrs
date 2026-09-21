@@ -1,20 +1,20 @@
 use std::io::Write;
 
-use anyhow::ensure;
-use bytes::Bytes;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::codec::default_true;
+use mcrs_minecraft_core::codec;
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Serialize};
 
 use crate::item::Template;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw};
+use crate::item::wire::record_ctx_wire;
 use crate::text::Text;
 use crate::{Decode, Encode};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AdvancementType {
+    #[default]
     Task,
     Challenge,
     Goal,
@@ -26,22 +26,6 @@ impl AdvancementType {
 
 crate::item::wire::ordinal_enum_wire!(AdvancementType);
 
-fn task() -> AdvancementType {
-    AdvancementType::Task
-}
-
-fn is_task(frame: &AdvancementType) -> bool {
-    *frame == AdvancementType::Task
-}
-
-fn is_true(value: &bool) -> bool {
-    *value
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
-}
-
 /// The wire carries only `background`, `show_toast` and `hidden` as flag bits,
 /// so `announce_to_chat` reads back as `false`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -52,13 +36,13 @@ pub struct DisplayInfo {
     pub description: Text,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<ResourceLocation>,
-    #[serde(default = "task", skip_serializing_if = "is_task")]
+    #[serde(default, skip_serializing_if = "codec::is_default")]
     pub frame: AdvancementType,
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    #[serde(default = "codec::default_true", skip_serializing_if = "Clone::clone")]
     pub show_toast: bool,
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    #[serde(default = "codec::default_true", skip_serializing_if = "Clone::clone")]
     pub announce_to_chat: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hidden: bool,
 }
 
@@ -125,25 +109,12 @@ pub struct Advancement {
     pub sends_telemetry_event: bool,
 }
 
-impl EncodeCtx for Advancement {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.parent.encode(&mut w)?;
-        self.display.encode_ctx(ctx, &mut w)?;
-        self.requirements.encode(&mut w)?;
-        self.sends_telemetry_event.encode(w)
-    }
-}
-
-impl DecodeCtx<'_> for Advancement {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Advancement {
-            parent: Option::decode(r)?,
-            display: Option::decode_ctx(ctx, r)?,
-            requirements: Vec::decode(r)?,
-            sends_telemetry_event: bool::decode(r)?,
-        })
-    }
-}
+record_ctx_wire!(Advancement {
+    parent,
+    display,
+    requirements,
+    sends_telemetry_event
+});
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AdvancementHolder {
@@ -180,46 +151,14 @@ impl DecodeCtx<'_> for PositionedAdvancement {
     }
 }
 
-/// The exact bytes of one positioned advancement, kept so the packet can
-/// carry advancements without the registries the icons need.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RawAdvancement(pub Bytes);
+pub type RawAdvancement = Raw<PositionedAdvancement>;
 
 impl RawAdvancement {
-    pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<PositionedAdvancement> {
-        let mut r = &self.0[..];
-        let advancement = PositionedAdvancement::decode_ctx(ctx, &mut r)?;
-        ensure!(
-            r.is_empty(),
-            "{} trailing bytes after an advancement",
-            r.len()
-        );
-        Ok(advancement)
-    }
-
     pub fn from_positioned(
         advancement: &PositionedAdvancement,
         ctx: &dyn RegistryLookup,
     ) -> anyhow::Result<RawAdvancement> {
-        let mut bytes = Vec::new();
-        advancement.encode_ctx(ctx, &mut bytes)?;
-        Ok(RawAdvancement(bytes.into()))
-    }
-}
-
-impl Encode for RawAdvancement {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        Ok(w.write_all(&self.0)?)
-    }
-}
-
-impl Decode<'_> for RawAdvancement {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let start = *r;
-        PositionedAdvancement::decode_ctx(&Opaque, r)?;
-        Ok(RawAdvancement(Bytes::copy_from_slice(
-            &start[..start.len() - r.len()],
-        )))
+        Raw::from_value(advancement, ctx)
     }
 }
 

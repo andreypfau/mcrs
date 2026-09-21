@@ -172,3 +172,31 @@ macro_rules! newtype_ctx_wire {
     )*};
 }
 pub(crate) use newtype_ctx_wire;
+
+/// A record whose fields follow each other on the wire in the listed order.
+macro_rules! record_ctx_wire {
+    ($($ty:ident { $($field:ident),+ $(,)? }),* $(,)?) => {$(
+        impl $crate::item::ctx::EncodeCtx for $ty {
+            fn encode_ctx(
+                &self,
+                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
+                mut w: impl std::io::Write,
+            ) -> anyhow::Result<()> {
+                $($crate::item::ctx::EncodeCtx::encode_ctx(&self.$field, ctx, &mut w)?;)+
+                Ok(())
+            }
+        }
+
+        impl<'a> $crate::item::ctx::DecodeCtx<'a> for $ty {
+            fn decode_ctx(
+                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
+                r: &mut &'a [u8],
+            ) -> anyhow::Result<Self> {
+                Ok($ty {
+                    $($field: $crate::item::ctx::DecodeCtx::decode_ctx(ctx, r)?,)+
+                })
+            }
+        }
+    )*};
+}
+pub(crate) use record_ctx_wire;

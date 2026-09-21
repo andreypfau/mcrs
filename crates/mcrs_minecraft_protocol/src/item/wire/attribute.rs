@@ -1,16 +1,22 @@
 use std::io::Write;
 
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::attribute::*;
-use crate::item::component::common::EquipmentSlotGroup;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
-use crate::item::wire::ordinal_enum_wire;
+use crate::item::wire::{newtype_ctx_wire, ordinal_enum_wire, record_ctx_wire};
 use crate::text::Text;
 use crate::{Decode, Encode, VarInt};
 
 ordinal_enum_wire!(AttributeOperation);
+newtype_ctx_wire!(AttributeModifiers);
+record_ctx_wire!(AttributeEntry {
+    attribute,
+    modifier,
+    slot,
+    display
+});
 
 impl Encode for AttributeModifierValue {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
@@ -52,37 +58,5 @@ impl DecodeCtx<'_> for AttributeDisplay {
             },
             _ => AttributeDisplay::Default,
         })
-    }
-}
-
-impl EncodeCtx for AttributeEntry {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.attribute.encode_ctx(ctx, &mut w)?;
-        self.modifier.encode(&mut w)?;
-        self.slot.encode(&mut w)?;
-        self.display.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for AttributeEntry {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(AttributeEntry {
-            attribute: ResourceKey::decode_ctx(ctx, r)?,
-            modifier: AttributeModifierValue::decode(r)?,
-            slot: EquipmentSlotGroup::decode(r)?,
-            display: AttributeDisplay::decode_ctx(ctx, r)?,
-        })
-    }
-}
-
-impl EncodeCtx for AttributeModifiers {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for AttributeModifiers {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Vec::decode_ctx(ctx, r).map(AttributeModifiers)
     }
 }

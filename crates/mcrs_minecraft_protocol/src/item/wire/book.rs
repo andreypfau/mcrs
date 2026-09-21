@@ -7,21 +7,10 @@ use mcrs_minecraft_registry::RegistryLookup;
 use crate::item::component::book::*;
 use crate::item::component::common::Filterable;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
-use crate::{Bounded, Decode, Encode, VarInt};
+use crate::item::wire::record_ctx_wire;
+use crate::{Decode, Encode, VarInt};
 
-impl EncodeCtx for WritableBookContent {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.pages.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for WritableBookContent {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(WritableBookContent {
-            pages: Bounded::decode_ctx(ctx, r)?,
-        })
-    }
-}
+record_ctx_wire!(WritableBookContent { pages });
 
 impl EncodeCtx for WrittenBookContent {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {

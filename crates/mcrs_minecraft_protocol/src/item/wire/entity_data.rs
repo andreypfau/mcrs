@@ -8,7 +8,7 @@ use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::wire::newtype_ctx_wire;
 use crate::{Decode, Encode, VarInt};
 
-newtype_ctx_wire!(EntityData, BlockEntityData);
+newtype_ctx_wire!(EntityData, BlockEntityData, Bees);
 
 impl EncodeCtx for BeeOccupant {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
@@ -25,17 +25,5 @@ impl DecodeCtx<'_> for BeeOccupant {
             ticks_in_hive: VarInt::decode(r)?.0,
             min_ticks_in_hive: VarInt::decode(r)?.0,
         })
-    }
-}
-
-impl EncodeCtx for Bees {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for Bees {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Vec::decode_ctx(ctx, r).map(Bees)
     }
 }

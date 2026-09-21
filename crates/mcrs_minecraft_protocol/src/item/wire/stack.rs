@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::marker::PhantomData;
 
 use anyhow::{Context, ensure};
 use bytes::Bytes;
@@ -6,7 +7,7 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::{self, Validate};
 use mcrs_minecraft_registry::{ItemId, ItemReg, RegistryLookup, RegistryName};
 
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, nested};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, Raw, nested};
 use crate::item::kind::ItemComponentKind;
 use crate::item::patch::ComponentPatch;
 use crate::item::stack::{HashedPatchMap, ItemStackValue, MAX_HASHED_COMPONENTS, Template};
@@ -53,18 +54,6 @@ impl ProtoStack {
             count,
             components,
         }
-    }
-
-    #[must_use]
-    pub const fn with_count(mut self, count: i32) -> Self {
-        self.count = count;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_item(mut self, item: ItemId) -> Self {
-        self.id = item;
-        self
     }
 
     /// No items, or the air item.
@@ -164,13 +153,9 @@ impl<'a> DecodeCtx<'a> for ProtoStack {
     }
 }
 
-/// The exact bytes of one wire stack, kept so packets can
-/// carry stacks without the registries; the value walks the layout to find
-/// its length and is resolved on demand.
 // ponytail: every stack is parsed twice, once to measure and once to resolve; fine at inventory
 // sizes, replace with a macro-generated skip when it shows up in a profile.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RawStack(pub Bytes);
+pub type RawStack = Raw<ProtoStack>;
 
 impl Default for RawStack {
     fn default() -> Self {
@@ -179,35 +164,10 @@ impl Default for RawStack {
 }
 
 impl RawStack {
-    pub const EMPTY: RawStack = RawStack(Bytes::from_static(&[0]));
-
-    pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ProtoStack> {
-        let mut r = &self.0[..];
-        let stack = ProtoStack::decode_ctx(ctx, &mut r)?;
-        ensure!(r.is_empty(), "{} trailing bytes after a stack", r.len());
-        Ok(stack)
-    }
+    pub const EMPTY: RawStack = Raw(Bytes::from_static(&[0]), PhantomData);
 
     pub fn from_stack(stack: &ProtoStack, ctx: &dyn RegistryLookup) -> anyhow::Result<RawStack> {
-        let mut bytes = Vec::new();
-        stack.encode_ctx(ctx, &mut bytes)?;
-        Ok(RawStack(bytes.into()))
-    }
-}
-
-impl Encode for RawStack {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        Ok(w.write_all(&self.0)?)
-    }
-}
-
-impl Decode<'_> for RawStack {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let start = *r;
-        ProtoStack::decode_ctx(&Opaque, r)?;
-        Ok(RawStack(Bytes::copy_from_slice(
-            &start[..start.len() - r.len()],
-        )))
+        Raw::from_value(stack, ctx)
     }
 }
 

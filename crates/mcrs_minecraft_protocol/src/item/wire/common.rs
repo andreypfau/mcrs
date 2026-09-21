@@ -7,7 +7,7 @@ use mcrs_minecraft_registry::{Holder, HolderWireOnly, Registered, RegistryLookup
 
 use crate::item::component::common::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
-use crate::item::wire::{newtype_wire, ordinal_enum_wire};
+use crate::item::wire::{newtype_wire, ordinal_enum_wire, record_ctx_wire};
 use crate::{Bounded, Decode, Encode, VarInt};
 
 newtype_wire!(RgbInt, ArgbInt, NbtPredicate);
@@ -71,23 +71,11 @@ macro_rules! resolvable_wire {
     )*};
 }
 
+pub(crate) use resolvable_wire;
+
 resolvable_wire!(ResolvableInt, ResolvableFloat);
 
-impl EncodeCtx for MobEffectInstance {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.id.encode_ctx(ctx, &mut w)?;
-        self.details.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for MobEffectInstance {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(MobEffectInstance {
-            id: ResourceKey::decode_ctx(ctx, r)?,
-            details: MobEffectDetails::decode_ctx(ctx, r)?,
-        })
-    }
-}
+record_ctx_wire!(MobEffectInstance { id, details });
 
 impl EncodeCtx for MobEffectDetails {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {

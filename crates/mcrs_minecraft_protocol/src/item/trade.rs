@@ -1,12 +1,11 @@
 use std::io::Write;
 
 use anyhow::ensure;
-use bytes::Bytes;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::ItemReg;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw};
 use crate::item::patch::ComponentMap;
 use crate::item::wire::ProtoStack;
 use crate::{Decode, Encode, VarInt};
@@ -97,37 +96,10 @@ impl<'a> DecodeCtx<'a> for MerchantOffer {
     }
 }
 
-/// The exact bytes of one offer, carried the way `RawStack` carries a stack.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RawMerchantOffer(pub Bytes);
+pub type RawMerchantOffer = Raw<MerchantOffer>;
 
 impl RawMerchantOffer {
-    pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<MerchantOffer> {
-        let mut r = &self.0[..];
-        let offer = MerchantOffer::decode_ctx(ctx, &mut r)?;
-        ensure!(r.is_empty(), "{} trailing bytes after an offer", r.len());
-        Ok(offer)
-    }
-
     pub fn from_offer(offer: &MerchantOffer, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
-        let mut bytes = Vec::new();
-        offer.encode_ctx(ctx, &mut bytes)?;
-        Ok(RawMerchantOffer(bytes.into()))
-    }
-}
-
-impl Encode for RawMerchantOffer {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        Ok(w.write_all(&self.0)?)
-    }
-}
-
-impl Decode<'_> for RawMerchantOffer {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let start = *r;
-        MerchantOffer::decode_ctx(&Opaque, r)?;
-        Ok(RawMerchantOffer(Bytes::copy_from_slice(
-            &start[..start.len() - r.len()],
-        )))
+        Raw::from_value(offer, ctx)
     }
 }
