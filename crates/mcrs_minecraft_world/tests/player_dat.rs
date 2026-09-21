@@ -1,7 +1,6 @@
-//! A player file the vanilla 26.3-snapshot-10 codecs wrote (`ItemStackWithSlot.CODEC`,
-//! `EntityEquipment.CODEC`, DataVersion 5015) reads, re-writes, and comes back
-//! structurally equal, with every unmodelled root key intact. Compound key
-//! order is not compared: vanilla's own compound is a hash map.
+//! A player file written by vanilla 26.3-snapshot-10 (DataVersion 5015) reads,
+//! re-writes, and comes back structurally equal, with every unmodelled root key
+//! intact. Compound key order is not compared: vanilla's own compound is a hash map.
 
 use std::path::Path;
 
