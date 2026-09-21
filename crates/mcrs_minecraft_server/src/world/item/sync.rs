@@ -12,10 +12,10 @@ use mcrs_minecraft_item::{
     DirtyStacks, DroppedItem, Items, SelectedHotbarSlot, SlotTable, WireStack, slots, stack_to_slot,
 };
 use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol::item::RawStack;
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
-use mcrs_minecraft_level::session::PlayerSession;
 use smallvec::SmallVec;
 
 const DROPPED_ITEM_STACK_INDEX: u8 = 8;
@@ -96,7 +96,11 @@ pub fn sync_stack_slots(world: &mut World) {
     let mut menus = world.query::<(Entity, &MenuLayout, &MenuViewer)>();
     for (holder, index) in dirty.cells {
         if index == slots::CARRIED && world.get::<Player>(holder).is_some() {
-            out.push(to(world, holder, PacketPayload::SetCursorItem(encode(world, holder, index))));
+            out.push(to(
+                world,
+                holder,
+                PacketPayload::SetCursorItem(encode(world, holder, index)),
+            ));
             continue;
         }
         let hits: Vec<(Entity, Entity, i16)> = menus
@@ -128,7 +132,10 @@ pub fn sync_stack_slots(world: &mut World) {
             continue;
         }
         let raw = raw_stack(world, root, &items, &lookup);
-        if world.get::<WireStack>(root).is_some_and(|wire| wire.0 == raw) {
+        if world
+            .get::<WireStack>(root)
+            .is_some_and(|wire| wire.0 == raw)
+        {
             continue;
         }
         let targets: SmallVec<[Entity; 8]> = world
@@ -157,7 +164,9 @@ pub fn sync_stack_slots(world: &mut World) {
         });
     }
 
-    world.resource_mut::<Messages<OutboundPlayerPacket>>().write_batch(out);
+    world
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .write_batch(out);
 }
 
 fn raw_stack(world: &World, stack: Entity, items: &Items, lookup: &dyn RegistryLookup) -> RawStack {
@@ -168,7 +177,9 @@ fn raw_stack(world: &World, stack: Entity, items: &Items, lookup: &dyn RegistryL
 }
 
 fn to(world: &World, player: Entity, data: PacketPayload) -> OutboundPlayerPacket {
-    let anchor = world.get::<HostAnchor>(player).map_or(Entity::PLACEHOLDER, |anchor| anchor.0);
+    let anchor = world
+        .get::<HostAnchor>(player)
+        .map_or(Entity::PLACEHOLDER, |anchor| anchor.0);
     OutboundPlayerPacket {
         target: PacketTarget::SinglePlayer(anchor),
         priority: PacketPriority::Normal,

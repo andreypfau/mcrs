@@ -1,3 +1,4 @@
+pub mod click;
 pub mod menu;
 pub mod sync;
 
@@ -21,7 +22,24 @@ impl Plugin for ItemPlugin {
         app.configure_sets(FixedUpdate, (StackSet::Mutate, StackSet::Sync).chain())
             .init_resource::<DirtyStacks>()
             .init_resource::<sync::MenuResync>()
-            .add_systems(FixedUpdate, menu::open_menus.in_set(StackSet::Mutate))
+            .add_message::<click::ContainerClickRequest>()
+            .add_message::<click::CreativeSlotRequest>()
+            .add_message::<click::CloseContainerRequest>()
+            .add_observer(click::decode_container_click)
+            .add_observer(click::decode_creative_slot)
+            .add_observer(click::decode_container_close)
+            .add_systems(
+                FixedUpdate,
+                (
+                    menu::open_menus,
+                    click::handle_container_clicks,
+                    click::handle_creative_slots,
+                    click::close_menus,
+                    click::handle_drop_actions,
+                )
+                    .chain()
+                    .in_set(StackSet::Mutate),
+            )
             .add_systems(FixedUpdate, sync::sync_stack_slots.in_set(StackSet::Sync));
     }
 }

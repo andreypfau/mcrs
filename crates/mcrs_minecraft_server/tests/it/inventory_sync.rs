@@ -19,7 +19,7 @@ use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::item::menu::open_menus;
 use mcrs_minecraft_server::world::item::sync::{MenuResync, sync_stack_slots};
 
-fn corpus() -> &'static (Blocks, Items) {
+pub(crate) fn corpus() -> &'static (Blocks, Items) {
     static CORPUS: OnceLock<(Blocks, Items)> = OnceLock::new();
     CORPUS.get_or_init(|| {
         let mut app = App::new();
@@ -35,7 +35,7 @@ fn corpus() -> &'static (Blocks, Items) {
     })
 }
 
-fn world() -> (World, Entity, Entity) {
+pub(crate) fn world() -> (World, Entity, Entity) {
     let (blocks, items) = corpus();
     let mut registry = RegistryAccess::default();
     registry.register(Box::new(RegistrySnapshotErased::from_entries(
@@ -62,14 +62,14 @@ fn world() -> (World, Entity, Entity) {
     (world, player, anchor)
 }
 
-fn drain(world: &mut World) -> Vec<OutboundPlayerPacket> {
+pub(crate) fn drain(world: &mut World) -> Vec<OutboundPlayerPacket> {
     world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .drain()
         .collect()
 }
 
-fn stone(world: &mut World) -> Entity {
+pub(crate) fn stone(world: &mut World) -> Entity {
     let value = ItemStackValue {
         item: ResourceKey::from_location(ResourceLocation::minecraft("stone")),
         count: Bounded(7),
@@ -96,7 +96,10 @@ fn join_sends_held_slot_then_full_inventory() {
             slots,
             carried,
         } => {
-            assert_eq!((*container_id, *state_id, slots.len()), (0, 1, slots::MENU_COUNT));
+            assert_eq!(
+                (*container_id, *state_id, slots.len()),
+                (0, 1, slots::MENU_COUNT)
+            );
             assert!(slots.iter().all(|slot| *slot == RawStack::EMPTY));
             assert_eq!(*carried, RawStack::EMPTY);
         }
@@ -105,7 +108,10 @@ fn join_sends_held_slot_then_full_inventory() {
 
     open_menus(&mut world);
     sync_stack_slots(&mut world);
-    assert!(drain(&mut world).is_empty(), "the inventory menu opens once");
+    assert!(
+        drain(&mut world).is_empty(),
+        "the inventory menu opens once"
+    );
 }
 
 #[test]
@@ -129,7 +135,10 @@ fn dirty_cells_become_set_slot_and_cursor_packets() {
     else {
         panic!("{packets:?}");
     };
-    assert_eq!((*container_id, *state_id, *slot), (0, 2, slots::HOTBAR.start as i16));
+    assert_eq!(
+        (*container_id, *state_id, *slot),
+        (0, 2, slots::HOTBAR.start as i16)
+    );
     assert_ne!(*item, RawStack::EMPTY);
 
     mutate::move_stack(&mut world, stack, player, slots::CARRIED).unwrap();
@@ -141,7 +150,9 @@ fn dirty_cells_become_set_slot_and_cursor_packets() {
         PacketPayload::ContainerSetSlot { state_id: 3, slot, item, .. }
             if *slot == slots::HOTBAR.start as i16 && *item == RawStack::EMPTY
     ));
-    assert!(matches!(&packets[1].data, PacketPayload::SetCursorItem(item) if *item != RawStack::EMPTY));
+    assert!(
+        matches!(&packets[1].data, PacketPayload::SetCursorItem(item) if *item != RawStack::EMPTY)
+    );
 
     sync_stack_slots(&mut world);
     assert!(drain(&mut world).is_empty());
