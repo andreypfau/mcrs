@@ -3,6 +3,8 @@
 
 mod common;
 mod enums;
+mod registry_ref;
+mod variants;
 mod scalar;
 mod unit;
 
@@ -116,3 +118,28 @@ macro_rules! unit_wire {
     )*};
 }
 pub(crate) use unit_wire;
+
+/// A newtype over an `EncodeCtx + DecodeCtx` inner value.
+macro_rules! newtype_ctx_wire {
+    ($($ty:ident),* $(,)?) => {$(
+        impl $crate::item::ctx::EncodeCtx for $ty {
+            fn encode_ctx(
+                &self,
+                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
+                w: impl std::io::Write,
+            ) -> anyhow::Result<()> {
+                $crate::item::ctx::EncodeCtx::encode_ctx(&self.0, ctx, w)
+            }
+        }
+
+        impl<'a> $crate::item::ctx::DecodeCtx<'a> for $ty {
+            fn decode_ctx(
+                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
+                r: &mut &'a [u8],
+            ) -> anyhow::Result<Self> {
+                $crate::item::ctx::DecodeCtx::decode_ctx(ctx, r).map($ty)
+            }
+        }
+    )*};
+}
+pub(crate) use newtype_ctx_wire;

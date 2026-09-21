@@ -1,12 +1,9 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::io::Write;
 
-use anyhow::ensure;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, float_value, int_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, validated};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -15,9 +12,7 @@ use crate::item::component::common::{
     BannerPatternReg, BlockReg, BlockTransformerReg, DamageTypeReg, EnchantmentReg, EntityTypeReg,
     ItemReg, MobEffectReg,
 };
-use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::harness::Sample;
-use crate::{Decode, Encode, VarInt};
 
 /// An id string, one raw VarInt on the wire, never inline.
 macro_rules! registry_key_component {
@@ -31,26 +26,6 @@ macro_rules! registry_key_component {
                 $ty(mcrs_minecraft_core::ResourceKey::from_location(
                     mcrs_minecraft_core::ResourceLocation::minecraft(path),
                 ))
-            }
-        }
-
-        impl $crate::item::ctx::EncodeCtx for $ty {
-            fn encode_ctx(
-                &self,
-                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
-                w: impl std::io::Write,
-            ) -> anyhow::Result<()> {
-                $crate::item::ctx::EncodeCtx::encode_ctx(&self.0, ctx, w)
-            }
-        }
-
-        impl $crate::item::ctx::DecodeCtx<'_> for $ty {
-            fn decode_ctx(
-                ctx: &dyn mcrs_minecraft_registry::RegistryLookup,
-                r: &mut &[u8],
-            ) -> anyhow::Result<Self> {
-                <mcrs_minecraft_core::ResourceKey<$registry> as $crate::item::ctx::DecodeCtx>::decode_ctx(ctx, r)
-                    .map($ty)
             }
         }
 
@@ -85,7 +60,6 @@ pub(crate) use null_as_default;
 /// Enchantment id to level in 1..=255, kept in read order because vanilla's
 /// own order is hash order.
 #[derive(Clone, Debug, Eq, Default)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Enchantments(pub Vec<(ResourceKey<EnchantmentReg>, i32)>);
 
 impl Enchantments {
@@ -179,39 +153,6 @@ impl<'de> Deserialize<'de> for Enchantments {
     }
 }
 
-impl EncodeCtx for Enchantments {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.0.len() as i32).encode(&mut w)?;
-        for (enchantment, level) in &self.0 {
-            enchantment.encode_ctx(ctx, &mut w)?;
-            VarInt(*level).encode(&mut w)?;
-        }
-        Ok(())
-    }
-}
-
-impl DecodeCtx<'_> for Enchantments {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let len = VarInt::decode(r)?.0;
-        ensure!(len >= 0, "attempt to decode a map with negative length");
-        let mut entries: Vec<(ResourceKey<EnchantmentReg>, i32)> =
-            Vec::with_capacity((len as usize).min(r.len()));
-        for _ in 0..len {
-            let enchantment = ResourceKey::decode_ctx(ctx, r)?;
-            let level = VarInt::decode(r)?.0;
-            ensure!(
-                (0..=MAX_ENCHANTMENT_LEVEL).contains(&level),
-                "Enchantment {enchantment} has invalid level {level}"
-            );
-            match entries.iter_mut().find(|(k, _)| *k == enchantment) {
-                Some(entry) => entry.1 = level,
-                None => entries.push((enchantment, level)),
-            }
-        }
-        Ok(Enchantments(entries))
-    }
-}
-
 impl Sample for Enchantments {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
@@ -237,18 +178,6 @@ impl Sample for Enchantments {
 #[serde(transparent)]
 pub struct StoredEnchantments(pub Enchantments);
 
-impl EncodeCtx for StoredEnchantments {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for StoredEnchantments {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Enchantments::decode_ctx(ctx, r).map(StoredEnchantments)
-    }
-}
-
 impl Sample for StoredEnchantments {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         self.0.nbt_tags()
@@ -266,20 +195,6 @@ impl Sample for StoredEnchantments {
 #[serde(deny_unknown_fields)]
 pub struct DamageResistant {
     pub types: HolderSet<ResourceKey<DamageTypeReg>>,
-}
-
-impl EncodeCtx for DamageResistant {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.types.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for DamageResistant {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(DamageResistant {
-            types: HolderSet::decode_ctx(ctx, r)?,
-        })
-    }
 }
 
 impl Sample for DamageResistant {
@@ -303,7 +218,6 @@ impl Sample for DamageResistant {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 #[serde(deny_unknown_fields)]
 pub struct Tool {
     pub rules: Vec<ToolRule>,
@@ -383,44 +297,6 @@ impl Validate for ToolRule {
     }
 }
 
-impl EncodeCtx for ToolRule {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.blocks.encode_ctx(ctx, &mut w)?;
-        self.speed.encode(&mut w)?;
-        self.correct_for_drops.encode(w)
-    }
-}
-
-impl DecodeCtx<'_> for ToolRule {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(ToolRule {
-            blocks: HolderSet::decode_ctx(ctx, r)?,
-            speed: Option::decode(r)?,
-            correct_for_drops: Option::decode(r)?,
-        })
-    }
-}
-
-impl EncodeCtx for Tool {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.rules.encode_ctx(ctx, &mut w)?;
-        self.default_mining_speed.encode(&mut w)?;
-        VarInt(self.damage_per_block.0).encode(&mut w)?;
-        self.can_destroy_blocks_in_creative.encode(w)
-    }
-}
-
-impl DecodeCtx<'_> for Tool {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Tool {
-            rules: Vec::decode_ctx(ctx, r)?,
-            default_mining_speed: f32::decode(r)?,
-            damage_per_block: Bounded(VarInt::decode(r)?.0),
-            can_destroy_blocks_in_creative: bool::decode(r)?,
-        })
-    }
-}
-
 impl Sample for Tool {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID), ("rules", LIST_ID)];
@@ -476,20 +352,6 @@ pub struct Repairable {
     pub items: HolderSet<ResourceKey<ItemReg>>,
 }
 
-impl EncodeCtx for Repairable {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.items.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for Repairable {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Repairable {
-            items: HolderSet::decode_ctx(ctx, r)?,
-        })
-    }
-}
-
 impl Sample for Repairable {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         vec![("", COMPOUND_ID), ("items", holder_set_tag(&self.items))]
@@ -531,22 +393,6 @@ fn visibility_range<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
     }
 }
 
-impl EncodeCtx for MobVisibility {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.targeting_entity_types.encode_ctx(ctx, &mut w)?;
-        self.visibility.encode(w)
-    }
-}
-
-impl DecodeCtx<'_> for MobVisibility {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(MobVisibility {
-            targeting_entity_types: HolderSet::decode_ctx(ctx, r)?,
-            visibility: f32::decode(r)?,
-        })
-    }
-}
-
 impl Sample for MobVisibility {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         vec![
@@ -585,18 +431,6 @@ impl Sample for MobVisibility {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProvidesBannerPatterns(pub HolderSet<ResourceKey<BannerPatternReg>>);
-
-impl EncodeCtx for ProvidesBannerPatterns {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for ProvidesBannerPatterns {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        HolderSet::decode_ctx(ctx, r).map(ProvidesBannerPatterns)
-    }
-}
 
 impl Sample for ProvidesBannerPatterns {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -698,34 +532,6 @@ fn lenient_duration<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
 
     let human_readable = d.is_human_readable();
     d.deserialize_any(LenientDuration { human_readable })
-}
-
-impl EncodeCtx for StewEntry {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        self.id.encode_ctx(ctx, &mut w)?;
-        VarInt(self.duration).encode(w)
-    }
-}
-
-impl DecodeCtx<'_> for StewEntry {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(StewEntry {
-            id: ResourceKey::decode_ctx(ctx, r)?,
-            duration: VarInt::decode(r)?.0,
-        })
-    }
-}
-
-impl EncodeCtx for SuspiciousStewEffects {
-    fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-        self.0.encode_ctx(ctx, w)
-    }
-}
-
-impl DecodeCtx<'_> for SuspiciousStewEffects {
-    fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        Vec::decode_ctx(ctx, r).map(SuspiciousStewEffects)
-    }
 }
 
 impl Sample for SuspiciousStewEffects {
