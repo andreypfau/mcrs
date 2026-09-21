@@ -114,9 +114,8 @@ pub fn floor_mod(a: i32, b: i32) -> i32 {
 #[inline]
 pub fn fast_inv_sqrt(x: f64) -> f64 {
     let half = 0.5 * x;
-    let guess = f64::from_bits(
-        6910469410427058090_i64.wrapping_sub((x.to_bits() as i64) >> 1) as u64,
-    );
+    let guess =
+        f64::from_bits(6910469410427058090_i64.wrapping_sub((x.to_bits() as i64) >> 1) as u64);
     guess * (1.5 - half * guess * guess)
 }
 

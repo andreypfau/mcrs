@@ -16,9 +16,10 @@ use uuid::Uuid;
 
 use crate::item::Template;
 use crate::item::component::Profile;
-use crate::item::component::common::{ArgbInt, DialogReg, EntityTypeReg, IntArray, lenient};
 use crate::item::ctx::{decode_nbt_wire, encode_nbt_wire};
 use crate::{Decode, Encode};
+use mcrs_minecraft_core::codec::{ArgbInt, IntArray, lenient, optional_flag};
+use mcrs_minecraft_registry::{DialogReg, EntityTypeReg};
 
 /// What a `show_item` hover carries; `()` for a consumer with no item model.
 pub trait HoverItem:
@@ -86,49 +87,6 @@ impl<I: HoverItem> Serialize for TextComponent<I> {
             None => self.0.serialize(s),
         }
     }
-}
-
-/// NBT stores a boolean as a byte, and serde's buffered `untagged` and
-/// `flatten` paths lose the deserializer's own coercion, so accept both.
-pub fn optional_flag<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<bool>, D::Error> {
-    struct FlagVisitor;
-
-    impl<'de> Visitor<'de> for FlagVisitor {
-        type Value = Option<bool>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            write!(formatter, "a boolean or the byte NBT stores one as")
-        }
-
-        fn visit_bool<E: de::Error>(self, v: bool) -> Result<Self::Value, E> {
-            Ok(Some(v))
-        }
-
-        fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
-            Ok(Some(v != 0))
-        }
-
-        fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
-            Ok(Some(v != 0))
-        }
-
-        fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
-            Ok(None)
-        }
-
-        fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
-            Ok(None)
-        }
-
-        fn visit_some<D: Deserializer<'de>>(
-            self,
-            deserializer: D,
-        ) -> Result<Self::Value, D::Error> {
-            deserializer.deserialize_any(FlagVisitor)
-        }
-    }
-
-    deserializer.deserialize_any(FlagVisitor)
 }
 
 /// Text data and formatting.

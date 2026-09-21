@@ -391,6 +391,9 @@ mod tests {
         );
         assert!(read(r#""..:x""#).is_err());
         assert!(read(r#""a:b:c""#).is_err());
-        assert_eq!(read(r#""a.b-c_1:d/e.f-g_2""#).unwrap().as_str(), "a.b-c_1:d/e.f-g_2");
+        assert_eq!(
+            read(r#""a.b-c_1:d/e.f-g_2""#).unwrap().as_str(),
+            "a.b-c_1:d/e.f-g_2"
+        );
     }
 }
