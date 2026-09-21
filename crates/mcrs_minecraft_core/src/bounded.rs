@@ -4,17 +4,15 @@ use std::fmt::Display;
 use derive_more::{AsRef, Deref, DerefMut, From};
 use serde::{Deserialize, Serialize};
 
-/// A newtype wrapper for `T` which modifies the [`Encode`](crate::Encode) and
-/// [`Decode`](crate::Decode) impls to be bounded by some upper limit `MAX`.
-/// Implementations are expected to error eagerly if the limit is exceeded.
+/// A newtype wrapper for `T` whose wire encoding is bounded by some upper
+/// limit `MAX`; the wire impls are expected to error eagerly if the limit is
+/// exceeded.
 ///
 /// What exactly `MAX` represents depends on the type `T`. Here are some
 /// instances:
 /// - **arrays/slices**: The maximum number of elements.
 /// - **strings**: The maximum number of utf16 code units.
-/// - **[`RawBytes`]**: The maximum number of bytes.
-///
-/// [`RawBytes`]: crate::RawBytes
+/// - **raw bytes**: The maximum number of bytes.
 #[derive(
     Copy,
     Clone,

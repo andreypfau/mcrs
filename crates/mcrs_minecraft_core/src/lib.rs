@@ -3,6 +3,7 @@
 pub const VERSION_NAME: &str = "26.3-snapshot-9";
 
 pub mod block_pos;
+pub mod bounded;
 pub mod bounding_box;
 pub mod codec;
 pub mod column_pos;
@@ -22,6 +23,7 @@ pub mod value_provider;
 pub mod voxel_shape;
 
 pub use block_pos::BlockPos;
+pub use bounded::Bounded;
 pub use bounding_box::BoundingBox;
 pub use column_pos::ColumnPos;
 pub use direction::{Axis, Direction, DirectionSet, dist_manhattan};

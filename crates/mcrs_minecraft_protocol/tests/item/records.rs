@@ -96,9 +96,7 @@ fn check_read_as(label: &str, value: ItemComponentValue, read: ItemComponentValu
 
     let vanilla_wire = hex(row["wire"]);
     let mut wire = Vec::new();
-    value
-        .encode_ctx(&TestLookup::new(), &mut wire)
-        .unwrap();
+    value.encode_ctx(&TestLookup::new(), &mut wire).unwrap();
     if kind.is_nbt_wire() {
         assert_eq!(nbt_tree(&wire), nbt_tree(&vanilla_wire), "{label}: wire");
     } else {
@@ -313,13 +311,9 @@ fn text_bearing_records_match_vanilla() {
         ("015400026d65ffffffff0f0000", -1),
     ] {
         let mut r = &hex(wire)[..];
-        let err = decode_component_value(
-            WrittenBookContent::KIND,
-            &TestLookup::new(),
-            &mut r,
-        )
-        .err()
-        .unwrap();
+        let err = decode_component_value(WrittenBookContent::KIND, &TestLookup::new(), &mut r)
+            .err()
+            .unwrap();
         assert_eq!(
             err.to_string(),
             format!("Generation was {generation}, but must be between 0 and 3")
@@ -492,17 +486,14 @@ fn lodestone_and_fireworks_match_vanilla() {
     assert_eq!(wrapped.flight_duration(), 44);
     check("fireworks_big", wrapped);
     let mut r = &hex("ac0200")[..];
-    let from_wire =
-        decode_component_value(Fireworks::KIND, &TestLookup::new(), &mut r).unwrap();
+    let from_wire = decode_component_value(Fireworks::KIND, &TestLookup::new(), &mut r).unwrap();
     assert!(r.is_empty());
     assert_eq!(
         Fireworks::from_value(&from_wire).unwrap().flight_duration(),
         300
     );
     let mut wire = Vec::new();
-    from_wire
-        .encode_ctx(&TestLookup::new(), &mut wire)
-        .unwrap();
+    from_wire.encode_ctx(&TestLookup::new(), &mut wire).unwrap();
     assert_eq!(wire, hex("ac0200"));
     assert_eq!(
         json_error(from_wire),

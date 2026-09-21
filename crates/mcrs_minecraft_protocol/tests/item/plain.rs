@@ -1,6 +1,6 @@
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
     AdditionalTradeCost, CreativeSlotLock, ItemComponentKind, ItemComponentValue,
     MapPostProcessing, MinimumAttackCharge, PotionDurationScale, hash_ops,
@@ -66,9 +66,7 @@ fn hex(text: &str) -> Vec<u8> {
 
 fn wire(value: &ItemComponentValue) -> Vec<u8> {
     let mut out = Vec::new();
-    value
-        .encode_ctx(&TestLookup::new(), &mut out)
-        .unwrap();
+    value.encode_ctx(&TestLookup::new(), &mut out).unwrap();
     out
 }
 

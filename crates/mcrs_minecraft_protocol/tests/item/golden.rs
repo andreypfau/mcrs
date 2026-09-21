@@ -1,10 +1,10 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_protocol::item::{decode_delimited_patch, encode_delimited_patch,
+use mcrs_minecraft_protocol::item::{
     ComponentPatch, CreativeSlotLock, CustomData, CustomName, Damage, DecodeCtx, EncodeCtx,
     HashedPatchMap, ItemComponentKind, ItemComponentValue, Lore, MaxStackSize, Template,
-    Unbreakable, hash_ops,
+    Unbreakable, decode_delimited_patch, encode_delimited_patch, hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode};

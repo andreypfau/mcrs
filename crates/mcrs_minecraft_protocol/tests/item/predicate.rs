@@ -260,8 +260,7 @@ fn malformed_predicate_values_are_refused_on_the_wire() {
         let bytes = hex(wire);
         let mut r = &bytes[..];
         let error =
-            decode_component_value(ItemComponentKind::CanBreak, &lookup(), &mut r)
-                .unwrap_err();
+            decode_component_value(ItemComponentKind::CanBreak, &lookup(), &mut r).unwrap_err();
         assert!(error.to_string().contains(expected), "{wire}: {error}");
     }
 }
@@ -271,9 +270,7 @@ fn the_partial_predicate_list_is_capped_on_the_wire() {
     let mut wire = vec![0x01, 0x00, 0x00, 0x00, 0x00, 65];
     wire.extend(std::iter::repeat_n([0x00, 0x01, 0x0A, 0x00], 65).flatten());
     let mut r = &wire[..];
-    let error =
-        decode_component_value(ItemComponentKind::CanBreak, &lookup(), &mut r)
-            .unwrap_err();
+    let error = decode_component_value(ItemComponentKind::CanBreak, &lookup(), &mut r).unwrap_err();
     assert!(
         error
             .to_string()

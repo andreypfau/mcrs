@@ -4,7 +4,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
     HashedPatchMap, HashedStack, ItemComponentKind, ItemComponentValue, ItemStackValue, Lore,
-    MaxStackSize, RawDelimitedStack, RawStack, ProtoStack, Template, Unbreakable, hash_ops,
+    MaxStackSize, ProtoStack, RawDelimitedStack, RawStack, Template, Unbreakable, hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
@@ -161,7 +161,10 @@ fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
     ProtoStack::EMPTY.encode_ctx(&lookup, &mut empty).unwrap();
     assert_eq!(empty, [0]);
     assert_eq!(RawStack::EMPTY.0, empty);
-    assert_eq!(RawStack::EMPTY.resolve(&NoRegistries).unwrap(), ProtoStack::EMPTY);
+    assert_eq!(
+        RawStack::EMPTY.resolve(&NoRegistries).unwrap(),
+        ProtoStack::EMPTY
+    );
 
     let mut trailing = wire.clone();
     trailing.push(7);
@@ -507,7 +510,10 @@ fn an_air_stack_is_empty_whatever_its_count() {
     assert_eq!(wire, [0]);
     assert_eq!(HashedStack::create(&air).unwrap(), None);
     let mut r: &[u8] = &[1, 0, 0, 0];
-    assert_eq!(ProtoStack::decode_ctx(&lookup, &mut r).unwrap(), ProtoStack::EMPTY);
+    assert_eq!(
+        ProtoStack::decode_ctx(&lookup, &mut r).unwrap(),
+        ProtoStack::EMPTY
+    );
     assert!(r.is_empty());
 }
 

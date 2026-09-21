@@ -251,12 +251,8 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
     head.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(wire[0], 4);
     wire[0] = 9;
-    let decoded = decode_component_value(
-        ItemComponentKind::Equippable,
-        &lookup,
-        &mut &wire[..],
-    )
-    .unwrap();
+    let decoded =
+        decode_component_value(ItemComponentKind::Equippable, &lookup, &mut &wire[..]).unwrap();
     let ItemComponentValue::Equippable(Equippable { slot, .. }) = decoded else {
         unreachable!()
     };
@@ -297,7 +293,9 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
 #[test]
 fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
     use mcrs_minecraft_protocol::Decode;
-    use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, EncodeCtx, RawStack, ProtoStack};
+    use mcrs_minecraft_protocol::item::{
+        ComponentPatch, Enchantments, EncodeCtx, ProtoStack, RawStack,
+    };
     use mcrs_minecraft_registry::ItemId;
 
     let lookup = TestLookup::new();
@@ -478,12 +476,8 @@ fn nbt_floats_keep_vanillas_number_semantics() {
 fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
     let (lookup, _) = parse_fixture();
     let wire = [0x02, 0x9a, 0x01, 0x80, 0x00, 0x00, 0x00];
-    let value = decode_component_value(
-        ItemComponentKind::MobVisibility,
-        &lookup,
-        &mut &wire[..],
-    )
-    .unwrap();
+    let value =
+        decode_component_value(ItemComponentKind::MobVisibility, &lookup, &mut &wire[..]).unwrap();
     assert!(persistent_json(&value).ends_with(r#""visibility":-0.0}"#));
     let mut nbt = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut nbt).unwrap();
@@ -579,12 +573,9 @@ fn a_one_entry_list_is_the_bare_entry() {
     assert_eq!(bare, list);
     let mut wire = Vec::new();
     bare.encode_ctx(&lookup, &mut wire).unwrap();
-    let decoded = decode_component_value(
-        ItemComponentKind::DamageResistant,
-        &lookup,
-        &mut &wire[..],
-    )
-    .unwrap();
+    let decoded =
+        decode_component_value(ItemComponentKind::DamageResistant, &lookup, &mut &wire[..])
+            .unwrap();
     assert_eq!(decoded, bare);
     let ItemComponentValue::DamageResistant(DamageResistant { types }) = decoded else {
         unreachable!()

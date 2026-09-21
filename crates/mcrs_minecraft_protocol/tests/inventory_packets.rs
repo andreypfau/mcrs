@@ -46,9 +46,10 @@ fn fixture() -> Fixture {
             };
             let id: u32 = id.parse().unwrap();
             fixture.ids.insert((registry.into(), name.into()), id);
-            fixture
-                .names
-                .insert((registry.into(), id), ResourceLocation::parse(name).unwrap());
+            fixture.names.insert(
+                (registry.into(), id),
+                ResourceLocation::parse(name).unwrap(),
+            );
         } else if let Some((name, hex)) = line.split_once(' ') {
             let bytes = (0..hex.len())
                 .step_by(2)
@@ -61,7 +62,11 @@ fn fixture() -> Fixture {
 }
 
 fn item(fixture: &Fixture, path: &str) -> ItemId {
-    ItemId(fixture.id("item", &ResourceLocation::minecraft(path)).unwrap() as u16)
+    ItemId(
+        fixture
+            .id("item", &ResourceLocation::minecraft(path))
+            .unwrap() as u16,
+    )
 }
 
 fn decode<'a, P: Decode<'a>>(fixture: &'a Fixture, name: &str) -> (P, &'a [u8]) {
@@ -127,7 +132,10 @@ fn clientbound_container_packets() {
         f,
         "set_cursor_item",
         ClientboundSetCursorItem {
-            contents: raw(f, ProtoStack::new(item(f, "stone"), 64, ComponentPatch::EMPTY)),
+            contents: raw(
+                f,
+                ProtoStack::new(item(f, "stone"), 64, ComponentPatch::EMPTY),
+            ),
         },
     );
     check(
@@ -135,7 +143,10 @@ fn clientbound_container_packets() {
         "set_player_inventory",
         ClientboundSetPlayerInventory {
             slot: VarInt(36),
-            contents: raw(f, ProtoStack::new(item(f, "apple"), 3, ComponentPatch::EMPTY)),
+            contents: raw(
+                f,
+                ProtoStack::new(item(f, "apple"), 3, ComponentPatch::EMPTY),
+            ),
         },
     );
     check(
@@ -143,7 +154,10 @@ fn clientbound_container_packets() {
         "open_screen",
         ClientboundOpenScreen {
             container_id: VarInt(1),
-            menu_type: VarInt(f.id("menu", &ResourceLocation::minecraft("generic_9x3")).unwrap() as i32),
+            menu_type: VarInt(
+                f.id("menu", &ResourceLocation::minecraft("generic_9x3"))
+                    .unwrap() as i32,
+            ),
             title: Text::text("Chest"),
         },
     );
@@ -163,7 +177,11 @@ fn clientbound_container_packets() {
             value: 300,
         },
     );
-    check(f, "set_held_slot", ClientboundSetHeldSlot { slot: VarInt(4) });
+    check(
+        f,
+        "set_held_slot",
+        ClientboundSetHeldSlot { slot: VarInt(4) },
+    );
     check(
         f,
         "take_item_entity",
@@ -227,9 +245,15 @@ fn offers(f: &Fixture) -> Vec<MerchantOffer> {
 fn clientbound_container_set_content() {
     let f = &fixture();
     let mut player = vec![RawStack::EMPTY; 46];
-    player[9] = raw(f, ProtoStack::new(item(f, "apple"), 3, ComponentPatch::EMPTY));
+    player[9] = raw(
+        f,
+        ProtoStack::new(item(f, "apple"), 3, ComponentPatch::EMPTY),
+    );
     player[36] = raw(f, sword(f));
-    player[45] = raw(f, ProtoStack::new(item(f, "stone"), 16, ComponentPatch::EMPTY));
+    player[45] = raw(
+        f,
+        ProtoStack::new(item(f, "stone"), 16, ComponentPatch::EMPTY),
+    );
     check(
         f,
         "container_set_content",
@@ -237,14 +261,29 @@ fn clientbound_container_set_content() {
             container_id: VarInt(0),
             state_seqno: VarInt(5),
             slot_data: player,
-            carried_item: raw(f, ProtoStack::new(item(f, "stone"), 64, ComponentPatch::EMPTY)),
+            carried_item: raw(
+                f,
+                ProtoStack::new(item(f, "stone"), 64, ComponentPatch::EMPTY),
+            ),
         },
     );
     let mut chest = vec![RawStack::EMPTY; 63];
-    chest[0] = raw(f, ProtoStack::new(item(f, "diamond"), 5, ComponentPatch::EMPTY));
-    chest[26] = raw(f, ProtoStack::new(item(f, "emerald"), 1, ComponentPatch::EMPTY));
-    chest[27] = raw(f, ProtoStack::new(item(f, "apple"), 2, ComponentPatch::EMPTY));
-    chest[62] = raw(f, ProtoStack::new(item(f, "stone"), 1, ComponentPatch::EMPTY));
+    chest[0] = raw(
+        f,
+        ProtoStack::new(item(f, "diamond"), 5, ComponentPatch::EMPTY),
+    );
+    chest[26] = raw(
+        f,
+        ProtoStack::new(item(f, "emerald"), 1, ComponentPatch::EMPTY),
+    );
+    chest[27] = raw(
+        f,
+        ProtoStack::new(item(f, "apple"), 2, ComponentPatch::EMPTY),
+    );
+    chest[62] = raw(
+        f,
+        ProtoStack::new(item(f, "stone"), 1, ComponentPatch::EMPTY),
+    );
     check(
         f,
         "container_set_content_chest",
@@ -360,8 +399,16 @@ fn serverbound_container_packets() {
             new_state: true,
         },
     );
-    check(f, "rename_item", ServerboundRenameItem { name: "Excalibur" });
-    check(f, "select_trade", ServerboundSelectTrade { item: VarInt(1) });
+    check(
+        f,
+        "rename_item",
+        ServerboundRenameItem { name: "Excalibur" },
+    );
+    check(
+        f,
+        "select_trade",
+        ServerboundSelectTrade { item: VarInt(1) },
+    );
     check(
         f,
         "edit_book",
@@ -433,7 +480,9 @@ fn container_click_bounds_the_changed_slots() {
     packet.slot_index.encode(&mut bytes).unwrap();
     packet.button.encode(&mut bytes).unwrap();
     packet.container_input.encode(&mut bytes).unwrap();
-    VarInt(MAX_CHANGED_SLOTS as i32 + 1).encode(&mut bytes).unwrap();
+    VarInt(MAX_CHANGED_SLOTS as i32 + 1)
+        .encode(&mut bytes)
+        .unwrap();
     for _ in 0..=MAX_CHANGED_SLOTS {
         (0u16, None::<HashedStack>).encode(&mut bytes).unwrap();
     }

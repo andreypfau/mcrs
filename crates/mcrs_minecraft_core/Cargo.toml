@@ -16,6 +16,7 @@ tracing.workspace = true
 mcrs_minecraft_core_macros.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_nbt.workspace = true
+derive_more = { workspace = true, features = ["from", "deref", "deref_mut", "as_ref"] }
 
 [dev-dependencies]
 serde_json.workspace = true

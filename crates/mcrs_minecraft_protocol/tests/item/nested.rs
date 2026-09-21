@@ -151,9 +151,7 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     assert_eq!(persistent_json(&sparse.clone().into()), case.json);
 
     let mut r = &hex("02010101000000")[..];
-    let trailing =
-        decode_component_value(ItemComponentKind::Container, &lookup, &mut r)
-            .unwrap();
+    let trailing = decode_component_value(ItemComponentKind::Container, &lookup, &mut r).unwrap();
     let ItemComponentValue::Container(trailing) = trailing else {
         panic!("not a container");
     };

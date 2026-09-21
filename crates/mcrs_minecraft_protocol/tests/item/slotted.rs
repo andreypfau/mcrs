@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, EnchantmentGlintOverride, ItemStackValue, ItemStackWithSlot,

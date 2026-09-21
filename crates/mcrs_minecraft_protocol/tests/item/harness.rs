@@ -249,8 +249,7 @@ pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>()
             .encode_ctx(&lookup, &mut wire)
             .expect("encode_ctx_value");
         let mut r = &wire[..];
-        let back =
-            decode_component_value(kind, &lookup, &mut r).expect("decode_ctx_value");
+        let back = decode_component_value(kind, &lookup, &mut r).expect("decode_ctx_value");
         assert!(r.is_empty(), "{} trailing bytes after {kind}", r.len());
         assert_eq!(back, value, "wire round trip of {kind}");
         if kind.is_unit() {

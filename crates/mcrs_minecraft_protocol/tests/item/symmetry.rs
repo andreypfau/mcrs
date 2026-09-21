@@ -1,11 +1,11 @@
-use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_protocol::for_each_data_component;
+use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
     BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container, DecodeCtx,
     EncodeCtx, Holder, ItemComponentKind, ItemComponentValue, ItemStackValue, PotDecorations,
-    RawStack, ProtoStack, SulfurCubeContent, Template, UseRemainder,
+    ProtoStack, RawStack, SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registry::ItemId;
