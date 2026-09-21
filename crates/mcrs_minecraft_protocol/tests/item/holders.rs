@@ -13,34 +13,9 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::text::Text;
 
-use crate::harness::{PersistentValue, TestLookup, from_json, persistent_json};
+use crate::harness::{PersistentValue, TestLookup, from_json, hex, nbt_tree, persistent_json};
 
 const GOLDEN: &str = include_str!("../fixtures/item/holders_golden.txt");
-
-const KINDS: &[(&str, ItemComponentKind)] = &[
-    ("break_sound", ItemComponentKind::BreakSound),
-    ("consumable", ItemComponentKind::Consumable),
-    ("death_protection", ItemComponentKind::DeathProtection),
-    ("blocks_attacks", ItemComponentKind::BlocksAttacks),
-    ("piercing_weapon", ItemComponentKind::PiercingWeapon),
-    ("kinetic_weapon", ItemComponentKind::KineticWeapon),
-    ("trim", ItemComponentKind::Trim),
-    (
-        "provides_trim_material",
-        ItemComponentKind::ProvidesTrimMaterial,
-    ),
-    ("instrument", ItemComponentKind::Instrument),
-    ("jukebox_playable", ItemComponentKind::JukeboxPlayable),
-    ("banner_patterns", ItemComponentKind::BannerPatterns),
-    ("painting_variant", ItemComponentKind::PaintingVariant),
-];
-
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
 
 struct Golden {
     lookup: TestLookup,
@@ -48,67 +23,32 @@ struct Golden {
 }
 
 fn golden() -> Golden {
-    let mut lookup = TestLookup::new();
-    let mut ids: BTreeMap<&str, Vec<(&str, u32)>> = BTreeMap::new();
     let mut samples: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
-    for line in GOLDEN.lines() {
+    for line in GOLDEN.lines().filter(|line| !line.starts_with("id ")) {
         let mut parts = line.splitn(3, ' ');
         let (label, key, value) = (
             parts.next().unwrap(),
             parts.next().unwrap(),
             parts.next().unwrap_or(""),
         );
-        if label == "id" {
-            let (name, id) = value.split_once(' ').unwrap();
-            let path = name.strip_prefix("minecraft:").unwrap();
-            ids.entry(key)
-                .or_default()
-                .push((path, id.parse().unwrap()));
-        } else {
-            samples
-                .entry(label.into())
-                .or_default()
-                .insert(key.into(), value.into());
-        }
+        samples
+            .entry(label.into())
+            .or_default()
+            .insert(key.into(), value.into());
     }
-    for (registry, entries) in ids {
-        let registry: &'static str = Box::leak(registry.to_string().into_boxed_str());
-        lookup.registry_with_ids(registry, &entries);
+    Golden {
+        lookup: TestLookup::with_id_lines(GOLDEN),
+        samples,
     }
-    Golden { lookup, samples }
 }
 
 fn kind_of(label: &str) -> ItemComponentKind {
-    KINDS
-        .iter()
-        .filter(|(prefix, _)| label.starts_with(prefix))
-        .max_by_key(|(prefix, _)| prefix.len())
-        .map(|(_, kind)| *kind)
+    std::iter::successors(Some(label), |l| l.rsplit_once('_').map(|(head, _)| head))
+        .find_map(|l| {
+            ItemComponentKind::from_id(l)
+                .or_else(|| ItemComponentKind::from_id(&l.replace('_', "/")))
+        })
         .unwrap_or_else(|| panic!("no kind for {label}"))
-}
-
-/// Vanilla's compound is a hash map, so its NBT bytes carry no reproducible
-/// order; the trees are compared with every compound sorted.
-fn sorted(tag: NbtTag) -> NbtTag {
-    match tag {
-        NbtTag::Compound(compound) => {
-            let mut sorted_compound = NbtCompound::new();
-            let mut entries: Vec<(String, NbtTag)> = compound.child_tags.into_iter().collect();
-            entries.sort_by(|a, b| a.0.cmp(&b.0));
-            for (key, value) in entries {
-                sorted_compound.child_tags.push((key, sorted(value)));
-            }
-            NbtTag::Compound(sorted_compound)
-        }
-        NbtTag::List(items) => NbtTag::List(items.into_iter().map(sorted).collect()),
-        other => other,
-    }
-}
-
-fn nbt_tree(bytes: &[u8]) -> String {
-    let tag: NbtTag =
-        mcrs_minecraft_nbt::from_bytes_unnamed(&mut std::io::Cursor::new(bytes)).expect("nbt");
-    sorted(tag).to_string()
 }
 
 #[test]

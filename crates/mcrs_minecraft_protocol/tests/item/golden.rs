@@ -1,35 +1,20 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, CreativeSlotLock, CustomData, CustomName, Damage, DecodeCtx, EncodeCtx,
-    HashedPatchMap, ItemComponentKind, ItemComponentValue, Lore, MaxStackSize, Template,
-    Unbreakable, decode_delimited_patch, encode_delimited_patch, hash_ops,
+    ComponentPatch, CreativeSlotLock, CustomName, Damage, DecodeCtx, EncodeCtx, HashedPatchMap,
+    ItemComponentKind, ItemComponentValue, Lore, MaxStackSize, Template, Unbreakable,
+    decode_delimited_patch, encode_delimited_patch, hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode};
 
-use crate::harness::TestLookup;
+use crate::harness::{TestLookup, custom_data, hex};
 
 const PATCH_WIRE: &str = "07020110000a03000178000186a00800046e616d6500046d637273000b010800046c696e65060800056e616d656403070414130d";
 const PATCH_DELIMITED_WIRE: &str = "070201011000170a03000178000186a00800046e616d6500046d637273000b08010800046c696e6506080800056e616d656403010704001400130d";
 const HASHED_WIRE: &str = "060be39a13ec04c574b4c8016971cc99039915c56e06d2ee6d5e0044739cf202130d";
 const TEMPLATE_WIRE: &str = "9a080306020110000a03000178000186a00800046e616d6500046d637273000b010800046c696e65060800056e616d6564030704130d";
 const PARSED_PATCH_WIRE: &str = "02010110000a03000178000186a00800046e616d6500046d6372730003";
-
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
-
-fn custom_data() -> CustomData {
-    let mut tag = NbtCompound::new();
-    tag.put_int("x", 100000);
-    tag.put_string("name", "mcrs".into());
-    CustomData(tag)
-}
 
 fn patch(with_transient: bool) -> ComponentPatch {
     let mut patch = ComponentPatch::EMPTY;

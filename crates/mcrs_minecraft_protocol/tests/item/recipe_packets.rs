@@ -26,44 +26,26 @@ use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::harness::TestLookup;
+use crate::harness::{TestLookup, hex};
 
 const GOLDEN: &str = include_str!("../fixtures/recipe_packets_golden.txt");
 
-fn hex(text: &str) -> Vec<u8> {
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
-        .collect()
-}
-
 fn golden() -> (TestLookup, BTreeMap<String, Vec<u8>>) {
-    let mut lookup = TestLookup::new();
-    let mut ids: BTreeMap<&str, Vec<(&str, u32)>> = BTreeMap::new();
-    let mut wires = BTreeMap::new();
-    for line in GOLDEN.lines() {
-        let mut parts = line.splitn(3, ' ');
-        let (label, key, value) = (
-            parts.next().unwrap(),
-            parts.next().unwrap(),
-            parts.next().unwrap(),
-        );
-        if label == "id" {
-            let (name, id) = value.split_once(' ').unwrap();
-            let path = name.strip_prefix("minecraft:").unwrap();
-            ids.entry(key)
-                .or_default()
-                .push((path, id.parse().unwrap()));
-        } else {
+    let wires = GOLDEN
+        .lines()
+        .filter(|line| !line.starts_with("id "))
+        .map(|line| {
+            let mut parts = line.splitn(3, ' ');
+            let (label, key, value) = (
+                parts.next().unwrap(),
+                parts.next().unwrap(),
+                parts.next().unwrap(),
+            );
             assert_eq!(key, "wire");
-            wires.insert(label.to_string(), hex(value));
-        }
-    }
-    for (registry, entries) in ids {
-        let registry: &'static str = Box::leak(registry.to_string().into_boxed_str());
-        lookup.registry_with_ids(registry, &entries);
-    }
-    (lookup, wires)
+            (label.to_string(), hex(value))
+        })
+        .collect();
+    (TestLookup::with_id_lines(GOLDEN), wires)
 }
 
 fn key(path: &str) -> ResourceKey<ItemReg> {
@@ -72,10 +54,6 @@ fn key(path: &str) -> ResourceKey<ItemReg> {
 
 fn item(path: &str) -> SlotDisplay {
     SlotDisplay::Item { item: key(path) }
-}
-
-fn nested(display: SlotDisplay) -> Box<SlotDisplay> {
-    Box::new(display)
 }
 
 fn planks() -> HolderSet<ResourceKey<ItemReg>> {
@@ -121,8 +99,8 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
                 height: 1,
                 ingredients: vec![SlotDisplay::Empty, SlotDisplay::AnyFuel],
                 result: SlotDisplay::WithRemainder {
-                    input: nested(item("water_bucket")),
-                    remainder: nested(item("bucket")),
+                    input: Box::new(item("water_bucket")),
+                    remainder: Box::new(item("bucket")),
                 },
                 crafting_station: SlotDisplay::Composite {
                     contents: vec![item("crafting_table"), item("stone")],
@@ -137,11 +115,11 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
             id: VarInt(2),
             display: RecipeDisplay::Furnace {
                 ingredient: SlotDisplay::WithAnyPotion {
-                    contents: nested(item("potion")),
+                    contents: Box::new(item("potion")),
                 },
                 fuel: SlotDisplay::AnyFuel,
                 result: SlotDisplay::OnlyWithComponent {
-                    contents: nested(item("diamond_sword")),
+                    contents: Box::new(item("diamond_sword")),
                     component: ItemComponentKind::Damage,
                 },
                 crafting_station: item("furnace"),
@@ -157,12 +135,12 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
             id: VarInt(300),
             display: RecipeDisplay::Stonecutter {
                 input: SlotDisplay::Dyed {
-                    dye: nested(item("red_dye")),
-                    target: nested(item("leather_helmet")),
+                    dye: Box::new(item("red_dye")),
+                    target: Box::new(item("leather_helmet")),
                 },
                 result: SlotDisplay::SmithingTrim {
-                    base: nested(item("iron_chestplate")),
-                    material: nested(item("stone")),
+                    base: Box::new(item("iron_chestplate")),
+                    material: Box::new(item("stone")),
                     pattern: Holder::reference(ResourceLocation::minecraft("coast")),
                 },
                 crafting_station: SlotDisplay::Empty,
@@ -179,8 +157,8 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
                 base: item("iron_chestplate"),
                 addition: item("netherite_ingot"),
                 result: SlotDisplay::SmithingTrim {
-                    base: nested(item("iron_chestplate")),
-                    material: nested(item("netherite_ingot")),
+                    base: Box::new(item("iron_chestplate")),
+                    material: Box::new(item("netherite_ingot")),
                     pattern: Holder::Direct(TrimPattern {
                         asset_id: ResourceLocation::new("mcrs", "wave"),
                         description: Text::text("Wave"),

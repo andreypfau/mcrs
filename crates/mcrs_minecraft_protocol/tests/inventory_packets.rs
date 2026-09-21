@@ -105,6 +105,10 @@ fn raw(fixture: &Fixture, slot: ProtoStack) -> RawStack {
     RawStack::from_stack(&slot, fixture).unwrap()
 }
 
+fn plain(f: &Fixture, path: &str, n: i32) -> RawStack {
+    raw(f, ProtoStack::new(item(f, path), n, ComponentPatch::EMPTY))
+}
+
 #[test]
 fn clientbound_container_packets() {
     let f = &fixture();
@@ -132,10 +136,7 @@ fn clientbound_container_packets() {
         f,
         "set_cursor_item",
         ClientboundSetCursorItem {
-            contents: raw(
-                f,
-                ProtoStack::new(item(f, "stone"), 64, ComponentPatch::EMPTY),
-            ),
+            contents: plain(f, "stone", 64),
         },
     );
     check(
@@ -143,10 +144,7 @@ fn clientbound_container_packets() {
         "set_player_inventory",
         ClientboundSetPlayerInventory {
             slot: VarInt(36),
-            contents: raw(
-                f,
-                ProtoStack::new(item(f, "apple"), 3, ComponentPatch::EMPTY),
-            ),
+            contents: plain(f, "apple", 3),
         },
     );
     check(
@@ -245,15 +243,9 @@ fn offers(f: &Fixture) -> Vec<MerchantOffer> {
 fn clientbound_container_set_content() {
     let f = &fixture();
     let mut player = vec![RawStack::EMPTY; 46];
-    player[9] = raw(
-        f,
-        ProtoStack::new(item(f, "apple"), 3, ComponentPatch::EMPTY),
-    );
+    player[9] = plain(f, "apple", 3);
     player[36] = raw(f, sword(f));
-    player[45] = raw(
-        f,
-        ProtoStack::new(item(f, "stone"), 16, ComponentPatch::EMPTY),
-    );
+    player[45] = plain(f, "stone", 16);
     check(
         f,
         "container_set_content",
@@ -261,29 +253,14 @@ fn clientbound_container_set_content() {
             container_id: VarInt(0),
             state_seqno: VarInt(5),
             slot_data: player,
-            carried_item: raw(
-                f,
-                ProtoStack::new(item(f, "stone"), 64, ComponentPatch::EMPTY),
-            ),
+            carried_item: plain(f, "stone", 64),
         },
     );
     let mut chest = vec![RawStack::EMPTY; 63];
-    chest[0] = raw(
-        f,
-        ProtoStack::new(item(f, "diamond"), 5, ComponentPatch::EMPTY),
-    );
-    chest[26] = raw(
-        f,
-        ProtoStack::new(item(f, "emerald"), 1, ComponentPatch::EMPTY),
-    );
-    chest[27] = raw(
-        f,
-        ProtoStack::new(item(f, "apple"), 2, ComponentPatch::EMPTY),
-    );
-    chest[62] = raw(
-        f,
-        ProtoStack::new(item(f, "stone"), 1, ComponentPatch::EMPTY),
-    );
+    chest[0] = plain(f, "diamond", 5);
+    chest[26] = plain(f, "emerald", 1);
+    chest[27] = plain(f, "apple", 2);
+    chest[62] = plain(f, "stone", 1);
     check(
         f,
         "container_set_content_chest",

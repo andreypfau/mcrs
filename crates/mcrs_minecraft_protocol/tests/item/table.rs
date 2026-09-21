@@ -1,6 +1,5 @@
-use std::collections::BTreeMap;
-
 use mcrs_minecraft_protocol::item::ItemComponentKind;
+use mcrs_minecraft_registry::StaticRegistryTable;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -16,16 +15,6 @@ struct Kind {
     unit: bool,
     ignore_swap_animation: bool,
     nested_stacks: bool,
-}
-
-#[derive(Deserialize)]
-struct Report {
-    entries: BTreeMap<String, Entry>,
-}
-
-#[derive(Deserialize)]
-struct Entry {
-    protocol_id: u16,
 }
 
 #[test]
@@ -56,14 +45,15 @@ fn the_kind_table_matches_kinds_json() {
 
 #[test]
 fn wire_ids_are_the_data_component_type_protocol_ids() {
-    let report: BTreeMap<String, Report> = serde_json::from_str(include_str!(
+    let report = StaticRegistryTable::from_json(include_bytes!(
         "../../../../assets/mcrs/reports/registries.json"
     ))
     .unwrap();
-    let types = &report["minecraft:data_component_type"].entries;
+    let types = report.registry("data_component_type").unwrap();
     assert_eq!(types.len(), 122);
-    for (id, entry) in types {
-        let kind = ItemComponentKind::from_id(id).unwrap_or_else(|| panic!("{id} is not a kind"));
-        assert_eq!(kind.wire_id(), entry.protocol_id, "{id}");
+    for (protocol_id, id) in types.names().iter().enumerate() {
+        let kind =
+            ItemComponentKind::from_id(id.as_str()).unwrap_or_else(|| panic!("{id} is not a kind"));
+        assert_eq!(kind.wire_id() as usize, protocol_id, "{id}");
     }
 }

@@ -1,5 +1,4 @@
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
@@ -13,7 +12,9 @@ use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};
 
-use crate::harness::{PersistentValue, TestLookup, from_json, persistent_json};
+use crate::harness::{
+    PersistentValue, TestLookup, decode, from_json, from_nbt, persistent_json, wire,
+};
 
 const ITERATIONS: usize = 256;
 const ITEMS: [(&str, u16); 4] = [
@@ -150,23 +151,6 @@ impl Gen {
     }
 }
 
-fn wire_round_trip(lookup: &TestLookup, value: &ItemComponentValue) {
-    let kind = value.kind();
-    let mut wire = Vec::new();
-    value
-        .encode_ctx(lookup, &mut wire)
-        .unwrap_or_else(|e| panic!("{kind}: encode {value:?}: {e}"));
-    let mut r = &wire[..];
-    let back = decode_component_value(kind, lookup, &mut r)
-        .unwrap_or_else(|e| panic!("{kind}: decode {wire:02x?} of {value:?}: {e}"));
-    assert!(
-        r.is_empty(),
-        "{kind}: {} trailing bytes after {value:?}",
-        r.len()
-    );
-    assert_eq!(&back, value, "{kind}: wire round trip");
-}
-
 fn persistent_round_trips(value: &ItemComponentValue) {
     let kind = value.kind();
     let json = persistent_json(value);
@@ -179,16 +163,7 @@ fn persistent_round_trips(value: &ItemComponentValue) {
     let mut nbt = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(value), &mut nbt)
         .unwrap_or_else(|e| panic!("{kind}: to NBT {value:?}: {e}"));
-    let mut cursor = std::io::Cursor::new(&nbt);
-    let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
-    let back = ItemComponentValue::deserialize_value(kind, &mut d)
-        .unwrap_or_else(|e| panic!("{kind}: from NBT {nbt:02x?} of {value:?}: {e}"));
-    assert_eq!(
-        cursor.position() as usize,
-        nbt.len(),
-        "{kind}: NBT fully read"
-    );
-    assert_eq!(&back, value, "{kind}: NBT round trip");
+    assert_eq!(&from_nbt(kind, &nbt), value, "{kind}: NBT round trip");
 }
 
 fn raw_stack_round_trip(lookup: &TestLookup, slot: &ProtoStack) {
@@ -214,7 +189,11 @@ fn check_kind(kind: ItemComponentKind) {
     let mut generator = Gen::new(kind.wire_id() as u64);
     for _ in 0..ITERATIONS {
         let value = generator.value(kind, 2);
-        wire_round_trip(&lookup, &value);
+        assert_eq!(
+            decode(&lookup, kind, &wire(&lookup, &value)),
+            value,
+            "{kind}: wire round trip"
+        );
         if kind.is_persistent() {
             persistent_round_trips(&value);
         }

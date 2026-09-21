@@ -80,10 +80,6 @@ fn run(name: &str, visit: impl Fn(&mut Family, &Path, &Value)) {
     family.finish(name);
 }
 
-const PREDICATE_FIELDS: [&str; 3] = ["item", "rod", "fired_from_weapon"];
-const PREDICATE_LISTS: [&str; 2] = ["items", "ingredients"];
-const EQUIPMENT_LIKE: [&str; 2] = ["minecraft:equipment", "minecraft:slots"];
-
 fn walk(family: &mut Family, file: &Path, at: &str, value: &Value) {
     let map = match value {
         Value::Object(map) => map,
@@ -116,13 +112,13 @@ fn walk(family: &mut Family, file: &Path, at: &str, value: &Value) {
     if map.contains_key("trigger")
         && let Some(Value::Object(conditions)) = map.get("conditions")
     {
-        for field in PREDICATE_FIELDS {
+        for field in ["item", "rod", "fired_from_weapon"] {
             if let Some(predicate) = conditions.get(field) {
                 let at = format!("{at}.conditions.{field}");
                 family.check::<ItemPredicate>(file, &at, predicate);
             }
         }
-        for field in PREDICATE_LISTS {
+        for field in ["items", "ingredients"] {
             if let Some(Value::Array(predicates)) = conditions.get(field) {
                 for (i, predicate) in predicates.iter().enumerate() {
                     let at = format!("{at}.conditions.{field}[{i}]");
@@ -131,7 +127,7 @@ fn walk(family: &mut Family, file: &Path, at: &str, value: &Value) {
             }
         }
     }
-    for field in EQUIPMENT_LIKE {
+    for field in ["minecraft:equipment", "minecraft:slots"] {
         if let Some(Value::Object(slots)) = map.get(field) {
             for (slot, predicate) in slots {
                 let at = format!("{at}.{field}.{slot}");
