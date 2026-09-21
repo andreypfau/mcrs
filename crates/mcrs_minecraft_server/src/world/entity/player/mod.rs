@@ -11,9 +11,10 @@ use crate::world::entity::player::digging::DiggingPlugin;
 use crate::world::entity::player::game_mode::GameModePlugin;
 use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
+use crate::world::entity::player::placing::PlacingPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
-use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle};
+use crate::world::inventory::PlayerInventoryBundle;
 use crate::world::sub_app_builder::DimTypeIndex;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_ecs::bundle::Bundle;
@@ -44,6 +45,7 @@ pub mod digging;
 mod game_mode;
 mod inventory;
 pub mod movement;
+mod placing;
 pub mod player_action;
 
 /// Game mode given to joining players, read once from `MCRS_DEFAULT_GAMEMODE`
@@ -91,6 +93,7 @@ impl Plugin for DimPlayerPlugin {
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
         app.add_plugins(PlayerInventoryPlugin);
+        app.add_plugins(PlacingPlugin);
         app.add_plugins(ChatPlugin);
         app.add_plugins(GameModePlugin);
         app.add_systems(Update, consume_inbound_player_spawn);
@@ -113,7 +116,6 @@ pub struct PlayerBundle {
     pub abilities: ability::PlayerAbilitiesBundle,
     pub attributes: attribute::PlayerAttributesBundle,
     pub inventory: PlayerInventoryBundle,
-    pub container_seqno: ContainerSeqno,
     pub game_mode: PlayerGameMode,
     pub op_level: PlayerOpLevel,
     pub tracked_by: crate::world::aoi::TrackedBy,

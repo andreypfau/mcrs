@@ -1,7 +1,7 @@
-use crate::world::inventory::PlayerHotbarSlots;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::On;
 use bevy_ecs::system::Query;
+use mcrs_minecraft_item::SelectedHotbarSlot;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundSetCarriedItem;
 use tracing::warn;
@@ -14,8 +14,8 @@ impl Plugin for PlayerInventoryPlugin {
     }
 }
 
-fn update_carried_item(event: On<ReceivedPacketEvent>, mut hotbar: Query<&mut PlayerHotbarSlots>) {
-    let Ok(mut hotbar) = hotbar.get_mut(event.entity) else {
+fn update_carried_item(event: On<ReceivedPacketEvent>, mut selected: Query<&mut SelectedHotbarSlot>) {
+    let Ok(mut selected) = selected.get_mut(event.entity) else {
         return;
     };
     let Some(pkt) = event.decode::<ServerboundSetCarriedItem>() else {
@@ -25,5 +25,5 @@ fn update_carried_item(event: On<ReceivedPacketEvent>, mut hotbar: Query<&mut Pl
         warn!("Invalid carried item slot: {}", pkt.slot);
         return;
     }
-    hotbar.selected = pkt.slot as u8
+    selected.0 = pkt.slot as u8;
 }
