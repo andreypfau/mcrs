@@ -233,6 +233,31 @@ pub enum PacketPayload {
     GameEvent {
         game_event: GameEventKind,
     },
+    ContainerSetContent {
+        container_id: u8,
+        state_id: u16,
+        slots: Vec<RawStack>,
+        carried: RawStack,
+    },
+    ContainerSetSlot {
+        container_id: u8,
+        state_id: u16,
+        slot: i16,
+        item: RawStack,
+    },
+    SetCursorItem(RawStack),
+    SetHeldSlot(u8),
+    OpenScreen {
+        container_id: u8,
+        menu_type: i32,
+        title: Text,
+    },
+    ContainerClose(u8),
+    TakeItemEntity {
+        item_id: i32,
+        player_id: i32,
+        amount: i32,
+    },
 }
 
 /// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.
