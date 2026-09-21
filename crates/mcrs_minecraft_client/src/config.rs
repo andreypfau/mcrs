@@ -13,13 +13,13 @@ const QUAD_MB_PER_FILE: usize = 192;
 #[cfg(not(target_family = "wasm"))]
 const MODEL_MB_PER_FILE: usize = 640;
 #[cfg(not(target_family = "wasm"))]
-const FACE_MB_PER_FILE: usize = 256;
+const FACE_MB_PER_FILE: usize = 512;
 #[cfg(target_family = "wasm")]
 const QUAD_MB_PER_FILE: usize = 32;
 #[cfg(target_family = "wasm")]
 const MODEL_MB_PER_FILE: usize = 208;
 #[cfg(target_family = "wasm")]
-const FACE_MB_PER_FILE: usize = 40;
+const FACE_MB_PER_FILE: usize = 80;
 
 const UPLOAD_MB: usize = 4;
 
