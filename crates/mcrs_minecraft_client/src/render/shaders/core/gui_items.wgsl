@@ -30,6 +30,10 @@ const GLINT_BIT: u32 = 0x40000000u;
 const ALPHA_CUTOUT: f32 = 0.1;
 const GLINT_ROTATION: f32 = 0.17453292;
 const GLINT_SCALE: f32 = 8.0;
+// ponytail: vanilla projects the glint from stitched-atlas UVs, so a 16px sprite spans
+// 16/atlas_px of it; the atlas width stands in as a constant and the sprite's
+// position in the atlas (a per-item phase offset) is not modelled.
+const GLINT_ATLAS_PX: f32 = 2048.0;
 
 struct VertexIn {
     @location(0) pos: vec3<f32>,
@@ -62,6 +66,15 @@ fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32) -> vec4<f32> {
         case 2u: { return textureSampleLevel(atlas2, atlas_sampler, uv, layer, 0.0); }
         case 3u: { return textureSampleLevel(atlas3, atlas_sampler, uv, layer, 0.0); }
         default: { return textureSampleLevel(atlas0, atlas_sampler, uv, layer, 0.0); }
+    }
+}
+
+fn sprite_px(array: u32) -> vec2<f32> {
+    switch array {
+        case 1u: { return vec2<f32>(textureDimensions(atlas1)); }
+        case 2u: { return vec2<f32>(textureDimensions(atlas2)); }
+        case 3u: { return vec2<f32>(textureDimensions(atlas3)); }
+        default: { return vec2<f32>(textureDimensions(atlas0)); }
     }
 }
 
@@ -102,7 +115,7 @@ fn fs_gui(in: VertexOut) -> @location(0) vec4<f32> {
         discard;
     }
     if (in.sprite & GLINT_BIT) != 0u {
-        let scaled = in.uv * GLINT_SCALE;
+        let scaled = in.uv * sprite_px(array) / GLINT_ATLAS_PX * GLINT_SCALE;
         let rotated = vec2<f32>(
             scaled.x * cos(GLINT_ROTATION) - scaled.y * sin(GLINT_ROTATION),
             scaled.x * sin(GLINT_ROTATION) + scaled.y * cos(GLINT_ROTATION),

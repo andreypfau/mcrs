@@ -278,19 +278,21 @@ fn hotbar_and_inventory_match_vanilla() {
     let _ = child.wait();
     let png = png.expect("the client wrote a screenshot");
     let shot = Rgba::load(&png);
-    assert_eq!(
-        (shot.width, shot.height),
-        (WIDTH, HEIGHT),
-        "the window is {WIDTH}x{HEIGHT} physical pixels"
+    // A HiDPI window can come out a pixel or two off the requested size; the GUI is
+    // centred on the real size, so the crops follow it.
+    let (width, height) = (shot.width, shot.height);
+    assert!(
+        width.abs_diff(WIDTH) <= 2 && height.abs_diff(HEIGHT) <= 2,
+        "the window is {width}x{height} physical pixels, wanted {WIDTH}x{HEIGHT}"
     );
-    check(&shot, "hotbar", hotbar_rect(WIDTH, HEIGHT, SCALE), &[]);
+    check(&shot, "hotbar", hotbar_rect(width, height, SCALE), &[]);
     check(
         &shot,
         "inventory",
-        inventory_rect(WIDTH, HEIGHT, SCALE),
+        inventory_rect(width, height, SCALE),
         &[
-            title_mask(WIDTH, HEIGHT, SCALE),
-            player_preview_mask(WIDTH, HEIGHT, SCALE),
+            title_mask(width, height, SCALE),
+            player_preview_mask(width, height, SCALE),
         ],
     );
 }

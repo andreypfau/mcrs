@@ -443,8 +443,10 @@ fn gui_vertices(model: &BakedItemModel, local: Mat4, tints: &[u32], gui_light: G
         ];
         let sprite = (quad.sprite.array as u32) << 16 | quad.sprite.layer as u32;
         let positions = quad.positions.map(|p| matrix.transform_point3(p));
+        // The vertex shader flips y into clip space, which mirrors the winding: a front face
+        // must be clockwise here to come out counter-clockwise for the pipeline's cull.
         let winding = (positions[1] - positions[0]).cross(positions[2] - positions[0]);
-        let order: [usize; 4] = if winding.dot(normal) < 0.0 { [3, 2, 1, 0] } else { [0, 1, 2, 3] };
+        let order: [usize; 4] = if winding.dot(normal) > 0.0 { [3, 2, 1, 0] } else { [0, 1, 2, 3] };
         vertices.extend(order.map(|i| GuiVertex {
             pos: positions[i].to_array(),
             uv: quad.uvs[i],
@@ -682,7 +684,7 @@ mod tests {
     fn quads(layer: &RenderLayer) -> impl Iterator<Item = (&[GuiVertex], Vec3)> {
         layer.vertices.chunks(4).map(|quad| {
             let p = |i: usize| Vec3::from(quad[i].pos);
-            (quad, (p(1) - p(0)).cross(p(2) - p(0)).normalize())
+            (quad, (p(2) - p(0)).cross(p(1) - p(0)).normalize())
         })
     }
 
