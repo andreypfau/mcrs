@@ -1,8 +1,7 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item_component::{
-    Bees, BlockState, BundleContents, ComponentMap, ComponentPatch, CustomModelData, Damage,
-    DyedColor, EnchantmentGlintOverride, Enchantments, FireworkExplosion, Holder,
-    ItemComponentKind, ItemComponentValue, ItemDataComponent, ItemStackValue, MaxDamage,
+    Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
+    FireworkExplosion, Holder, ItemComponentKind, ItemComponentValue, ItemDataComponent, MaxDamage,
     MaxStackSize, PotionContents, Trim,
 };
 
@@ -276,79 +275,5 @@ impl<S: StackView> Evaluator<'_, S> {
             ),
             TintSource::Team { default } => opaque(default.0),
         }
-    }
-}
-
-/// A stack described by its persistent value, resolved against the item's
-/// prototype; child stacks come from the value's own child component.
-#[derive(Clone)]
-pub struct ValueStack<'v, 'p> {
-    item: ResourceLocation,
-    count: u8,
-    patch: &'v ComponentPatch,
-    effective: ComponentMap,
-    prototypes: &'p dyn Fn(&ResourceLocation) -> Option<&'p ComponentMap>,
-}
-
-impl<'v, 'p> ValueStack<'v, 'p> {
-    pub fn new(
-        value: &'v ItemStackValue,
-        prototypes: &'p dyn Fn(&ResourceLocation) -> Option<&'p ComponentMap>,
-    ) -> Option<Self> {
-        let item = value.item.location().clone();
-        let prototype = prototypes(&item)?;
-        Some(ValueStack {
-            item,
-            count: u8::try_from(value.count.0).unwrap_or(u8::MAX),
-            patch: &value.components,
-            effective: prototype.apply(&value.components),
-            prototypes,
-        })
-    }
-}
-
-impl<'v, 'p> StackView for ValueStack<'v, 'p> {
-    fn item(&self) -> &ResourceLocation {
-        &self.item
-    }
-
-    fn count(&self) -> u8 {
-        self.count
-    }
-
-    fn value(&self, kind: ItemComponentKind) -> Option<ItemComponentValue> {
-        self.effective.get_value(kind).cloned()
-    }
-
-    fn has(&self, kind: ItemComponentKind) -> bool {
-        self.effective.get_value(kind).is_some()
-    }
-
-    fn has_non_default(&self, kind: ItemComponentKind) -> bool {
-        self.patch.get_value(kind).is_some() || self.patch.is_removed(kind)
-    }
-
-    fn children(&self) -> Vec<Self> {
-        let values: Vec<&'v ItemStackValue> = match self.patch.get::<BundleContents>() {
-            Some(contents) => contents.0.iter().map(|template| &template.0).collect(),
-            None => match self.patch.get_value(ItemComponentKind::Container) {
-                Some(ItemComponentValue::Container(container)) => container
-                    .slots()
-                    .iter()
-                    .flatten()
-                    .map(|template| &template.0)
-                    .collect(),
-                _ => match self.patch.get_value(ItemComponentKind::ChargedProjectiles) {
-                    Some(ItemComponentValue::ChargedProjectiles(list)) => {
-                        list.items().iter().map(|template| &template.0).collect()
-                    }
-                    _ => Vec::new(),
-                },
-            },
-        };
-        values
-            .into_iter()
-            .filter_map(|value| ValueStack::new(value, self.prototypes))
-            .collect()
     }
 }

@@ -12,7 +12,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction, TransactionError};
-use mcrs_minecraft_item::{Items, SlotTable, StackRevision, load_item_definitions};
+use mcrs_minecraft_item::{Items, SlotTable, StackRevision, load_item_definitions, stack_to_value};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue, Template};
 
 pub fn corpus() -> &'static (Blocks, Items) {
@@ -82,7 +82,15 @@ pub fn place(
 }
 
 pub fn set_count(world: &mut World, stack: Entity, count: u8) {
-    apply(world, vec![Op::SetCount { stack, count }]).unwrap();
+    let op = match count {
+        0 => Op::Despawn { stack },
+        count => {
+            let mut value = stack_to_value(world, stack, items());
+            value.count = Bounded(i32::from(count));
+            Op::Apply { stack, value }
+        }
+    };
+    apply(world, vec![op]).unwrap();
 }
 
 pub fn revision(world: &World, stack: Entity) -> u32 {

@@ -12,7 +12,9 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
-use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, load_item_definitions, slots};
+use mcrs_minecraft_item::{
+    Items, SelectedHotbarSlot, SlotTable, load_item_definitions, slots, stack_to_value,
+};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
@@ -90,7 +92,15 @@ pub(crate) fn place(world: &mut World, stack: Entity, holder: Entity, index: u16
 }
 
 pub(crate) fn set_count(world: &mut World, stack: Entity, count: u8) {
-    Transaction(vec![Op::SetCount { stack, count }]).apply(world);
+    let op = match count {
+        0 => Op::Despawn { stack },
+        count => {
+            let mut value = stack_to_value(world, stack, &corpus().1);
+            value.count = Bounded(i32::from(count));
+            Op::Apply { stack, value }
+        }
+    };
+    Transaction(vec![op]).apply(world);
 }
 
 #[test]

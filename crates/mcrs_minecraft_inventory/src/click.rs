@@ -103,7 +103,7 @@ pub fn handle_container_clicks(
         }
         fold.carried = Some(req.carried.clone());
     }
-    for (_, (_, ops)) in plans {
+    for (_, ops) in plans.into_values() {
         if !ops.is_empty() {
             commands.queue(Transaction(ops));
         }

@@ -32,10 +32,6 @@ impl<'a> Planner<'a> {
         }
     }
 
-    fn player(&self) -> Entity {
-        self.snapshot.player
-    }
-
     fn count(&self, source: impl Into<Source>) -> u8 {
         self.snapshot.count(source)
     }
@@ -97,7 +93,7 @@ impl<'a> Planner<'a> {
         self.ops.push(Op::Drop {
             from,
             count: thrown,
-            thrower: self.player(),
+            thrower: self.snapshot.player,
         });
     }
 
@@ -114,14 +110,14 @@ impl<'a> Planner<'a> {
         self.transfer(Source::Slot(from), cell, amount.min(room));
     }
 
-    /// Merges into same-item cells, then fills the first empty one; `cells`
+    /// Merges into same-item cells, then fills the first empty one; the cells
     /// come in the order they are tried. Returns whether anything moved.
-    fn move_to(&mut self, from: Source, cells: &[Slot]) -> bool {
-        let merged = self.merge_same(from, cells);
+    fn move_to(&mut self, from: Source, merge: &[Slot], empty: &[Slot]) -> bool {
+        let merged = self.merge_same(from, merge);
         if self.snapshot.get(from).is_none() {
             return true;
         }
-        self.fill_empty(from, cells) || merged
+        self.fill_empty(from, empty) || merged
     }
 
     fn merge_same(&mut self, from: Source, cells: &[Slot]) -> bool {
@@ -172,7 +168,7 @@ impl<'a> Planner<'a> {
     /// The cells a picked-up stack merges into, in vanilla's order: the held
     /// slot, the offhand, then the hotbar and main inventory.
     fn pickup_merge_cells(&self) -> Vec<Slot> {
-        let player = self.player();
+        let player = self.snapshot.player;
         let held = slots::held(self.snapshot.selected);
         [held, slots::OFFHAND]
             .into_iter()
@@ -186,7 +182,7 @@ impl<'a> Planner<'a> {
     }
 
     fn pickup_empty_cells(&self) -> Vec<Slot> {
-        let player = self.player();
+        let player = self.snapshot.player;
         slots::HOTBAR
             .chain(slots::MAIN)
             .map(|index| Slot::new(player, index))
@@ -215,11 +211,7 @@ impl<'a> Planner<'a> {
 
     /// Stores a stack the way a pickup does; what does not fit stays in `from`.
     pub fn insert_stack(&mut self, from: Source) -> bool {
-        let merged = self.merge_same(from, &self.pickup_merge_cells());
-        if self.snapshot.get(from).is_none() {
-            return true;
-        }
-        self.fill_empty(from, &self.pickup_empty_cells()) || merged
+        self.move_to(from, &self.pickup_merge_cells(), &self.pickup_empty_cells())
     }
 
     /// Puts a stack back into the player's inventory the way a pickup does,
@@ -252,9 +244,9 @@ impl<'a> Planner<'a> {
             } else {
                 self.layout_range(0..container, false)
             };
-            return self.move_to(Source::Slot(from), &cells);
+            return self.move_to(Source::Slot(from), &cells, &cells);
         }
-        let player = self.player();
+        let player = self.snapshot.player;
         let slot = slot as u16;
         let main_and_hotbar = slots::MAIN.start as usize..slots::HOTBAR.end as usize;
         let cells = if slot == slots::RESULT {
@@ -283,7 +275,7 @@ impl<'a> Planner<'a> {
         } else {
             self.layout_range(main_and_hotbar, false)
         };
-        self.move_to(Source::Slot(from), &cells)
+        self.move_to(Source::Slot(from), &cells, &cells)
     }
 
     /// A click on the open menu, validated against the layout by the caller.
@@ -291,7 +283,7 @@ impl<'a> Planner<'a> {
     /// the client's prediction back. Upgrade: the drag header state machine
     /// and the two-pass gather over the layout.
     pub fn click(&mut self, click: Click) {
-        let player = self.player();
+        let player = self.snapshot.player;
         let carried_cell = self.snapshot.carried();
         let carried = self.snapshot.get(carried_cell).cloned();
         let primary = click.button == 0;
@@ -420,7 +412,7 @@ impl<'a> Planner<'a> {
 
     /// The stacks a closing menu hands back: the cursor and the crafting grid.
     pub fn close(&mut self) {
-        let player = self.player();
+        let player = self.snapshot.player;
         for index in std::iter::once(slots::CARRIED).chain(slots::CRAFT) {
             let cell = Slot::new(player, index);
             if self.snapshot.get(cell).is_some() {
@@ -430,13 +422,13 @@ impl<'a> Planner<'a> {
     }
 
     pub fn drop_held(&mut self, all: bool) {
-        let held = Slot::new(self.player(), slots::held(self.snapshot.selected));
+        let held = Slot::new(self.snapshot.player, slots::held(self.snapshot.selected));
         let amount = if all { self.count(held) } else { 1 };
         self.drop(held, amount);
     }
 
     pub fn swap_offhand(&mut self) {
-        let player = self.player();
+        let player = self.snapshot.player;
         let held = Slot::new(player, slots::held(self.snapshot.selected));
         let offhand = Slot::new(player, slots::OFFHAND);
         if self.snapshot.get(held).is_some() || self.snapshot.get(offhand).is_some() {

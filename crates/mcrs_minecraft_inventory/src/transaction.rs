@@ -69,11 +69,6 @@ pub enum Op {
         stack: Entity,
         kind: ItemComponentKind,
     },
-    /// A count of zero despawns the stack and everything it holds.
-    SetCount {
-        stack: Entity,
-        count: u8,
-    },
     Despawn {
         stack: Entity,
     },
@@ -98,10 +93,6 @@ pub enum Op {
 pub struct Transaction(pub Vec<Op>);
 
 impl Transaction {
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
     /// Applies the ops until one fails; the ops before it stay applied.
     pub fn try_apply(self, world: &mut World) -> Result<(), TransactionError> {
         let items = world.resource::<Items>().clone();
@@ -232,11 +223,6 @@ fn apply_op(world: &mut World, items: &Items, op: &Op) -> Result<(), Transaction
             let mut entity = stack_entity(world, stack)?;
             (ops(kind).remove)(&mut entity);
             bump(world, stack);
-            Ok(())
-        }
-        Op::SetCount { stack, count } => {
-            stack_entity(world, stack)?;
-            set_count(world, stack, count);
             Ok(())
         }
         Op::Despawn { stack } => {

@@ -1,8 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::EntityRef;
 use mcrs_minecraft_protocol::item::{
-    Bees, Damage, EnchantmentGlintOverride, Enchantments, ItemComponentKind, ItemComponentValue,
-    LodestoneTracker, MaxDamage, MaxStackSize, Unbreakable,
+    Damage, ItemComponentKind, ItemComponentValue, MaxDamage, MaxStackSize, Unbreakable,
 };
 
 use crate::definition::Items;
@@ -71,32 +70,6 @@ pub fn is_damaged(entity: EntityRef) -> bool {
     is_damageable(entity) && damage_value(entity) > 0
 }
 
-pub fn next_damage_will_break(entity: EntityRef) -> bool {
-    is_damageable(entity) && damage_value(entity) >= max_damage(entity) - 1
-}
-
-pub fn is_enchanted(entity: EntityRef) -> bool {
-    entity
-        .get::<Enchantments>()
-        .is_some_and(|enchantments| !enchantments.0.is_empty())
-}
-
-pub fn has_foil(entity: EntityRef, items: &Items) -> bool {
-    if let Some(EnchantmentGlintOverride(foil)) = entity.get::<EnchantmentGlintOverride>() {
-        return *foil;
-    }
-    // ponytail: the only vanilla override is the compass with a lodestone
-    // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
-    let compass = entity
-        .get::<ItemStack>()
-        .and_then(|stack| items.get(stack.item))
-        .is_some_and(|entry| entry.identifier.as_str() == "minecraft:compass");
-    if compass && entity.contains::<LodestoneTracker>() {
-        return true;
-    }
-    is_enchanted(entity)
-}
-
 /// The child stacks of a container, bundle or crossbow, in cell order.
 pub fn children<'a>(
     entity: EntityRef<'a>,
@@ -111,27 +84,4 @@ pub fn children<'a>(
                 .collect()
         })
         .unwrap_or_default()
-}
-
-/// A bundle's fill fraction: each child weighs `count / max_stack_size`, a
-/// nested bundle its own weight plus 1/16, and a hive with bees a full slot.
-pub fn bundle_weight<'a>(
-    entity: EntityRef<'a>,
-    items: &Items,
-    lookup: &impl Fn(Entity) -> Option<EntityRef<'a>>,
-) -> f32 {
-    children(entity, lookup)
-        .into_iter()
-        .map(|child| {
-            let count = child.get::<ItemStack>().map_or(0, |stack| stack.count) as f32;
-            let weight = if has_component(child, items, ItemComponentKind::BundleContents) {
-                bundle_weight(child, items, lookup) + 1.0 / 16.0
-            } else if child.get::<Bees>().is_some_and(|bees| !bees.0.is_empty()) {
-                1.0
-            } else {
-                1.0 / max_stack_size(child) as f32
-            };
-            count * weight
-        })
-        .sum()
 }

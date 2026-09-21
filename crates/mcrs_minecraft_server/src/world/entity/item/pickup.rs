@@ -72,7 +72,7 @@ pub fn pickup_items(world: &mut World) {
             if room == 0 && !creative {
                 continue;
             }
-            let targets: SmallVec<[Entity; 8]> = std::iter::once(player)
+            let mut targets: SmallVec<[Entity; 8]> = std::iter::once(player)
                 .chain(
                     world
                         .get::<TrackedBy>(item)
@@ -80,8 +80,7 @@ pub fn pickup_items(world: &mut World) {
                         .flat_map(|tracked| tracked.0.iter().copied()),
                 )
                 .filter_map(|viewer| world.get::<HostAnchor>(viewer).map(|anchor| anchor.0))
-                .collect::<SmallVec<[Entity; 8]>>();
-            let mut targets = targets;
+                .collect();
             targets.sort_unstable();
             targets.dedup();
             world

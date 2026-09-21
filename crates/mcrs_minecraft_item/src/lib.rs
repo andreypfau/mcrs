@@ -15,9 +15,8 @@ pub mod value;
 pub use definition::{ItemDefinitions, ItemEntry, Items, load_item_definitions};
 pub use dropped::{DroppedItem, Thrower, WireStack};
 pub use effective::{
-    bundle_weight, children, component_value, damage_value, has_component, has_foil,
-    has_non_default, is_damageable, is_damaged, is_enchanted, is_stackable, max_damage,
-    max_stack_size, next_damage_will_break,
+    children, component_value, damage_value, has_component, has_non_default, is_damageable,
+    is_damaged, is_stackable, max_damage, max_stack_size,
 };
 pub use held::{Held, Holds, SlotTable};
 pub use inventory::{SelectedHotbarSlot, slots};

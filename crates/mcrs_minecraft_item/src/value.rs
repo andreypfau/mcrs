@@ -17,15 +17,8 @@ pub const CHILD_KINDS: [ItemComponentKind; 3] = [
     ItemComponentKind::ChargedProjectiles,
 ];
 
-pub const fn is_child_kind(kind: ItemComponentKind) -> bool {
-    let mut i = 0;
-    while i < CHILD_KINDS.len() {
-        if CHILD_KINDS[i] as u16 == kind as u16 {
-            return true;
-        }
-        i += 1;
-    }
-    false
+pub fn is_child_kind(kind: ItemComponentKind) -> bool {
+    CHILD_KINDS.contains(&kind)
 }
 
 #[derive(Debug, thiserror::Error)]

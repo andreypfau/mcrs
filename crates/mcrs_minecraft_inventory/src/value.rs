@@ -14,11 +14,12 @@ pub fn spawn_stack(
     value: &ItemStackValue,
     items: &Items,
 ) -> Result<Entity, StackError> {
-    let entry = named_entry(items, value)?;
-    check(entry, value, items)?;
-    let stack = spawn_checked(world, None, entry, value, items);
-    bump(world, stack);
-    Ok(stack)
+    let stack = world.spawn_empty().id();
+    spawn_stack_into(world, stack, value, items)
+        .map(|()| stack)
+        .inspect_err(|_| {
+            world.despawn(stack);
+        })
 }
 
 /// Turns an existing entity into the stack; it must carry no stack yet.
