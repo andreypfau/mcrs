@@ -10,6 +10,7 @@ mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block.workspace = true
+mcrs_minecraft_item.workspace = true
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_assets.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
@@ -72,6 +73,9 @@ dynamic_linking = ["bevy/dynamic_linking"]
 # trails the profiler GUI by a protocol version or two. Installing the layer
 # ourselves through `LogPlugin::custom_layer` lets this pick its own.
 telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/telemetry-tracy"]
+
+[dev-dependencies]
+bytes.workspace = true
 
 [build-dependencies]
 flate2.workspace = true

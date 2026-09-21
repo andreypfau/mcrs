@@ -69,7 +69,7 @@ pub mod clientbound {
         pub container_id: VarInt,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
     #[packet(id=0x12, state=Game)]
     pub struct ClientboundContainerSetContent {
         pub container_id: VarInt,

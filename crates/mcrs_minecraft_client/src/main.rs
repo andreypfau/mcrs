@@ -206,6 +206,7 @@ fn main() {
         view_distance: config::view_distance(),
     });
     app.add_plugins(mcrs_minecraft_client::columns::ColumnCachePlugin);
+    app.add_plugins(mcrs_minecraft_client::inventory::InventoryPlugin);
     app.insert_resource(ExitOnDisconnect);
 
     // Inserted after `add_plugins`: `WorldClockPlugin` calls

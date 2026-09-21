@@ -224,6 +224,40 @@ fn offers(f: &Fixture) -> Vec<MerchantOffer> {
 }
 
 #[test]
+fn clientbound_container_set_content() {
+    let f = &fixture();
+    let mut player = vec![RawStack::EMPTY; 46];
+    player[9] = raw(f, Slot::new(item(f, "apple"), 3, ComponentPatch::EMPTY));
+    player[36] = raw(f, sword(f));
+    player[45] = raw(f, Slot::new(item(f, "stone"), 16, ComponentPatch::EMPTY));
+    check(
+        f,
+        "container_set_content",
+        ClientboundContainerSetContent {
+            container_id: VarInt(0),
+            state_seqno: VarInt(5),
+            slot_data: player,
+            carried_item: raw(f, Slot::new(item(f, "stone"), 64, ComponentPatch::EMPTY)),
+        },
+    );
+    let mut chest = vec![RawStack::EMPTY; 63];
+    chest[0] = raw(f, Slot::new(item(f, "diamond"), 5, ComponentPatch::EMPTY));
+    chest[26] = raw(f, Slot::new(item(f, "emerald"), 1, ComponentPatch::EMPTY));
+    chest[27] = raw(f, Slot::new(item(f, "apple"), 2, ComponentPatch::EMPTY));
+    chest[62] = raw(f, Slot::new(item(f, "stone"), 1, ComponentPatch::EMPTY));
+    check(
+        f,
+        "container_set_content_chest",
+        ClientboundContainerSetContent {
+            container_id: VarInt(1),
+            state_seqno: VarInt(2),
+            slot_data: chest,
+            carried_item: RawStack::EMPTY,
+        },
+    );
+}
+
+#[test]
 fn merchant_offers() {
     let f = &fixture();
     let offers = offers(f);

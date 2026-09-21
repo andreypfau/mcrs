@@ -9,9 +9,11 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_level::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
+use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
 use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed};
 
 use crate::camera::FovFilter;
+use crate::inventory::{ContainerSeqno, Screen};
 use crate::local_player::{LastSentMovement, Sprint};
 use crate::options::SENSITIVITY;
 
@@ -62,6 +64,9 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
             FlyingSpeed::default(),
             Sprint::default(),
             LastSentMovement::default(),
+            SlotTable::fixed(slots::COUNT),
+            SelectedHotbarSlot::default(),
+            ContainerSeqno::default(),
             Transform::from_translation(position.as_vec3()),
             // The camera hangs off the player, and visibility only reaches a child through a
             // parent that takes part in it.
@@ -97,24 +102,31 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
 /// Grabbing after the look has been applied drops the motion the pointer made
 /// while it was still free, which would otherwise land as a jump on the frame
 /// the player clicks.
-fn grab_cursor_on_click(
+pub(crate) fn grab_cursor_on_click(
     buttons: Res<ButtonInput<MouseButton>>,
+    screen: Option<Res<Screen>>,
     mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if buttons.just_pressed(MouseButton::Left) {
+    if buttons.just_pressed(MouseButton::Left) && screen_is_none(screen) {
         window.grab_mode = CursorGrabMode::Locked;
         window.visible = false;
     }
 }
 
+/// With a screen open, Escape closes the screen instead.
 fn release_cursor_on_escape(
     keys: Res<ButtonInput<KeyCode>>,
+    screen: Option<Res<Screen>>,
     mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if keys.just_pressed(KeyCode::Escape) {
+    if keys.just_pressed(KeyCode::Escape) && screen_is_none(screen) {
         window.grab_mode = CursorGrabMode::None;
         window.visible = true;
     }
+}
+
+fn screen_is_none(screen: Option<Res<Screen>>) -> bool {
+    screen.is_none_or(|screen| *screen == Screen::None)
 }
 
 pub(crate) fn apply_mouse_look(
