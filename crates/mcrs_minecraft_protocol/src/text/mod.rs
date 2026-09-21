@@ -14,8 +14,8 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use uuid::Uuid;
 
 use crate::item::Template;
-use crate::item::component::Profile;
 use mcrs_minecraft_core::codec::{ArgbInt, IntArray, lenient, optional_flag};
+use mcrs_minecraft_profile::Profile;
 use mcrs_minecraft_registry::{DialogReg, EntityTypeReg};
 
 /// What a `show_item` hover carries; `()` for a consumer with no item model.

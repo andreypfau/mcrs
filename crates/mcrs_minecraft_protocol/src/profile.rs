@@ -1,7 +1,7 @@
-pub use crate::item::component::profile::{PlayerTextures, Property};
 use crate::text::Text;
 use crate::{Bounded, Decode, Encode, GameMode};
 use bitfield_struct::bitfield;
+pub use mcrs_minecraft_profile::{PlayerTextures, Property};
 use std::borrow::Cow;
 use uuid::Uuid;
 

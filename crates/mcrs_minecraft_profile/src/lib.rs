@@ -2,15 +2,13 @@ use std::fmt;
 
 use base64::prelude::*;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::{Error as _, SerializeMap};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use url::Url;
 use uuid::Uuid;
 
-use crate::item::component::common::{BoundedString, IntArray};
-use crate::item::harness::Sample;
+use mcrs_minecraft_core::codec::{BoundedString, IntArray};
 
 /// A property from the game profile.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -82,7 +80,7 @@ fn player_name(text: &str) -> Result<PlayerName, String> {
 }
 
 /// Four ints, most significant first.
-fn uuid_ints(id: Uuid) -> IntArray<4> {
+pub fn uuid_ints(id: Uuid) -> IntArray<4> {
     let (msb, lsb) = id.as_u64_pair();
     IntArray([
         (msb >> 32) as i32,
@@ -92,7 +90,7 @@ fn uuid_ints(id: Uuid) -> IntArray<4> {
     ])
 }
 
-fn ints_uuid(IntArray([a, b, c, d]): IntArray<4>) -> Uuid {
+pub fn ints_uuid(IntArray([a, b, c, d]): IntArray<4>) -> Uuid {
     let half = |high: i32, low: i32| ((high as u32 as u64) << 32) | low as u32 as u64;
     Uuid::from_u64_pair(half(a, b), half(c, d))
 }
@@ -274,7 +272,7 @@ impl<'de> Deserialize<'de> for Profile {
 
 /// A list multimap: a value sits under its name, and the names keep the order
 /// they first appeared in.
-pub(crate) fn grouped_by_name(properties: Vec<Property>) -> Vec<Property> {
+pub fn grouped_by_name(properties: Vec<Property>) -> Vec<Property> {
     let mut grouped: Vec<Property> = Vec::with_capacity(properties.len());
     for property in properties {
         let end = grouped
@@ -345,85 +343,4 @@ fn properties<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Property>, D::Error
     }
 
     d.deserialize_any(PropertiesVisitor)
-}
-
-impl Sample for Profile {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        let mut tags = vec![("", COMPOUND_ID)];
-        let properties = match &self.profile {
-            ProfileIdentity::Full(profile) => {
-                tags.extend([("id", INT_ARRAY_ID), ("name", STRING_ID)]);
-                &profile.properties
-            }
-            ProfileIdentity::Partial {
-                name,
-                id,
-                properties,
-            } => {
-                if name.is_some() {
-                    tags.push(("name", STRING_ID));
-                }
-                if id.is_some() {
-                    tags.push(("id", INT_ARRAY_ID));
-                }
-                properties
-            }
-        };
-        if !properties.is_empty() {
-            tags.push(("properties", LIST_ID));
-        }
-        if self.skin.model.is_some() {
-            tags.push(("model", STRING_ID));
-        }
-        tags
-    }
-
-    fn samples() -> Vec<Self> {
-        let property = |name: &str, value: &str, signature: Option<&str>| Property {
-            name: name.into(),
-            value: value.into(),
-            signature: signature.map(Into::into),
-        };
-        vec![
-            Profile::named("Notch").unwrap(),
-            Profile {
-                profile: ProfileIdentity::Full(GameProfileValue {
-                    id: ints_uuid(IntArray([-1, 2, -3, 4])),
-                    name: PlayerName::new("Steve").unwrap(),
-                    properties: vec![
-                        property("textures", "v", Some("s")),
-                        property("x", "y", None),
-                    ],
-                }),
-                skin: SkinPatch {
-                    texture: Some(ResourceLocation::minecraft("skin")),
-                    cape: Some(ResourceLocation::minecraft("cape")),
-                    elytra: Some(ResourceLocation::minecraft("elytra")),
-                    model: Some(PlayerModelType::Slim),
-                },
-            },
-            Profile {
-                profile: ProfileIdentity::Partial {
-                    name: None,
-                    id: Some(ints_uuid(IntArray([1, 2, 3, 4]))),
-                    properties: Vec::new(),
-                },
-                skin: SkinPatch::default(),
-            },
-            Profile {
-                profile: ProfileIdentity::Partial {
-                    name: Some(PlayerName::new("Steve").unwrap()),
-                    id: None,
-                    properties: vec![
-                        property("textures", "v1", None),
-                        property("textures", "v2", None),
-                    ],
-                },
-                skin: SkinPatch {
-                    model: Some(PlayerModelType::Wide),
-                    ..Default::default()
-                },
-            },
-        ]
-    }
 }

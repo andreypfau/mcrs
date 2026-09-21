@@ -4,8 +4,8 @@ use anyhow::ensure;
 use mcrs_minecraft_registry::RegistryLookup;
 use uuid::Uuid;
 
-use crate::item::component::profile::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
+use mcrs_minecraft_profile::*;
 
 use crate::{Bounded, Decode, Encode};
 

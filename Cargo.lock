@@ -3587,7 +3587,9 @@ version = "0.1.0"
 dependencies = [
  "bevy_ecs",
  "bevy_math",
+ "derive_more",
  "mcrs_minecraft_core_macros",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
  "serde",
  "serde_json",
@@ -3757,6 +3759,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_profile"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "serde",
+ "serde_json",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "mcrs_minecraft_protocol"
 version = "0.1.0"
 dependencies = [
@@ -3775,6 +3791,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol_macros",
  "mcrs_minecraft_registry",
  "rand 0.10.0",
