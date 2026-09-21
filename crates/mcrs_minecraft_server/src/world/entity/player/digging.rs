@@ -363,7 +363,7 @@ pub fn extract_tool_data(
         return (!requires_correct_tool, 1.0);
     };
     let item = items
-        .get(stack.item())
+        .get(stack.item)
         .map_or("?", |entry| entry.identifier.as_str());
     let Some(tool) = tool else {
         debug!(block, item, "no tool component");

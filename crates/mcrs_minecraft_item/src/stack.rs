@@ -13,14 +13,6 @@ impl ItemStack {
     pub fn new(item: ItemId, count: u8) -> Self {
         Self { item, count }
     }
-
-    pub fn item(&self) -> ItemId {
-        self.item
-    }
-
-    pub fn count(&self) -> u8 {
-        self.count
-    }
 }
 
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq, Eq)]

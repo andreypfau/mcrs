@@ -244,7 +244,7 @@ impl Server {
     fn cell(&mut self, cell: u16) -> Option<(Entity, u8)> {
         let player = self.player();
         let stack = self.world().get::<SlotTable>(player).unwrap().get(cell)?;
-        Some((stack, self.world().get::<ItemStack>(stack).unwrap().count()))
+        Some((stack, self.world().get::<ItemStack>(stack).unwrap().count))
     }
 
     /// The client holds the player's own column, so entities standing in it pair with it.

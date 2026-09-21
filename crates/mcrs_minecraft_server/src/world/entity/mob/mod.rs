@@ -411,8 +411,8 @@ fn wire_id(entity: Entity) -> i32 {
 /// than sent malformed.
 fn wire_stack(stack: ItemStack, lookup: &dyn RegistryLookup) -> Option<RawStack> {
     let slot = ProtoStack::new(
-        stack.item(),
-        i32::from(stack.count()),
+        stack.item,
+        i32::from(stack.count),
         ComponentPatch::default(),
     );
     RawStack::from_stack(&slot, lookup)

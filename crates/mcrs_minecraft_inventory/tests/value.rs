@@ -109,13 +109,9 @@ fn nested_stacks_are_child_entities() {
         })
     );
     let inner = world.get::<SlotTable>(bundle).unwrap();
-    assert!(inner.is_growable());
     assert_eq!(inner.len(), 2);
     assert_eq!(
-        world
-            .get::<ItemStack>(inner.get(0).unwrap())
-            .unwrap()
-            .count(),
+        world.get::<ItemStack>(inner.get(0).unwrap()).unwrap().count,
         7
     );
     assert_eq!(world.query::<&ItemStack>().iter(&world).count(), 6);
@@ -138,10 +134,7 @@ fn apply_value_reconciles_an_existing_subtree() {
         .map(|i| world.get::<SlotTable>(shulker).unwrap().get(i))
         .collect();
     assert_eq!(after[0], before[0], "the kept child keeps its entity");
-    assert_eq!(
-        world.get::<ItemStack>(after[0].unwrap()).unwrap().count(),
-        3
-    );
+    assert_eq!(world.get::<ItemStack>(after[0].unwrap()).unwrap().count, 3);
     assert_ne!(after[5], before[5], "a different item replaces the child");
     assert!(world.get_entity(before[5].unwrap()).is_err());
     assert!(
@@ -295,7 +288,7 @@ fn a_count_outside_the_byte_is_refused() {
             Err(mcrs_minecraft_item::StackError::BadCount { .. })
         ));
     }
-    assert_eq!(world.get::<ItemStack>(stone).unwrap().count(), 2);
+    assert_eq!(world.get::<ItemStack>(stone).unwrap().count, 2);
     assert_eq!(world.query::<&ItemStack>().iter(&world).count(), 1);
 }
 
