@@ -1,5 +1,5 @@
 use crate::block::{BlockInfo, FACE_AXES, Pass};
-use crate::pack::{FACE_NONE, QUAD_WORDS};
+use crate::pack::{FACE_NONE, FACE_WORDS, QUAD_WORDS};
 use crate::{BlockView, SECTION_SIZE, SECTION_VOLUME};
 
 use super::fluid::{COVER_SEE_THROUGH, FLUID_LAVA, Sloped, fluid_kind};
@@ -30,10 +30,10 @@ pub struct Scratch {
     pub(super) sloped: Vec<Sloped>,
     pub(super) faces: Box<[u32; GRID]>,
     pub(super) passes: Box<[u8; GRID]>,
-    pub(super) attrs: Box<[u32; GRID]>,
+    pub(super) attrs: Box<[[u32; FACE_WORDS]; GRID]>,
     pub(super) used: Box<[bool; GRID]>,
     pub(super) simple_by_pass: [Vec<[u32; QUAD_WORDS]>; Pass::COUNT],
-    pub(super) section_faces: Vec<u32>,
+    pub(super) section_faces: Vec<[u32; FACE_WORDS]>,
     pub(super) complex_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
 }
 
@@ -60,7 +60,7 @@ impl Scratch {
             sloped: Vec::new(),
             faces: Box::new([0; GRID]),
             passes: Box::new([0; GRID]),
-            attrs: Box::new([0; GRID]),
+            attrs: Box::new([[0; FACE_WORDS]; GRID]),
             used: Box::new([false; GRID]),
             simple_by_pass: Default::default(),
             section_faces: Vec::new(),

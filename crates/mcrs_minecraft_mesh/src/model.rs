@@ -1,9 +1,8 @@
 use crate::SECTION_SIZE;
-use crate::block::SpriteRef;
 use crate::block::{BlockInfo, Pass};
 use crate::pack::{
-    FACE_NONE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SHADE,
-    MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
+    FACE_NONE, MODEL_BLOCK_LIGHT, MODEL_OVERHANG, MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_SPRITE,
+    MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
 };
 
 use super::Sink;
@@ -25,7 +24,7 @@ pub(super) struct Quad {
     pub shade: [u32; 4],
     pub light: (u32, u32),
     pub tint: u32,
-    pub sprite: SpriteRef,
+    pub sprite: u16,
 }
 
 pub(super) fn push(out: &mut Vec<u32>, quad: &Quad) {
@@ -47,8 +46,7 @@ pub(super) fn push(out: &mut Vec<u32>, quad: &Quad) {
         MODEL_BLOCK_LIGHT.set(&mut words, quad.light.0 as u64);
         MODEL_SKY_LIGHT.set(&mut words, quad.light.1 as u64);
         MODEL_SHADE.set(&mut words, quad.shade[corner] as u64);
-        MODEL_ARRAY.set(&mut words, quad.sprite.array as u64);
-        MODEL_LAYER.set(&mut words, quad.sprite.layer as u64);
+        MODEL_SPRITE.set(&mut words, quad.sprite as u64);
         out.extend_from_slice(&words);
     }
 }
@@ -148,7 +146,6 @@ pub(super) fn fixed(value: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::{BUCKET_SHADES, fixed, shade_bucket};
-    use crate::block::SpriteRef;
     use crate::block::{BlockInfo, ModelQuad, Pass};
     use crate::pack::{MODEL_OVERHANG, MODEL_STEPS};
     use crate::{SECTION_SIZE, SECTION_VOLUME};
@@ -166,7 +163,7 @@ mod tests {
             uvs: [[0.0; 2]; 4],
             cull: None,
             face: None,
-            sprite: SpriteRef::default(),
+            sprite: 0,
             pass: Pass::Solid,
             shade: [255; 4],
             tinted: false,

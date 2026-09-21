@@ -1,9 +1,8 @@
 use crate::SECTION_SIZE;
-use crate::block::SpriteRef;
 use crate::block::{BlockInfo, Fluid, Pass, TintKind};
 use crate::pack::{
-    FACE_AO, FACE_ARRAY, FACE_BLOCK_LIGHT, FACE_FLUID, FACE_LAYER, FACE_NONE, FACE_SKY_LIGHT,
-    FACE_TINT, FLUID_INSET, MODEL_STEPS,
+    FACE_AO, FACE_BLOCK_LIGHT, FACE_FLUID, FACE_NONE, FACE_SKY_LIGHT, FACE_SPRITE, FACE_TINT,
+    FACE_WORDS, FLUID_INSET, MODEL_STEPS,
 };
 
 use super::model::{self, SHADE_DOWN, SHADE_EAST_WEST, SHADE_NORTH_SOUTH, SHADE_UP, UNGROUPED};
@@ -242,7 +241,7 @@ fn face_attr(
     scratch: &Scratch,
     local: [i32; 3],
     face: usize,
-) -> Option<(u8, u32)> {
+) -> Option<(u8, [u32; FACE_WORDS])> {
     let here = border_index(local[0], local[1], local[2]);
     let state = scratch.states[here] as usize;
     let fluid = catalog[state].fluid?;
@@ -281,9 +280,8 @@ fn face_attr(
         side_sprite(fluid, front_cover)
     };
 
-    let mut words = [0u32; 1];
-    FACE_LAYER.set(&mut words, sprite.layer as u64);
-    FACE_ARRAY.set(&mut words, sprite.array as u64);
+    let mut words = [0u32; FACE_WORDS];
+    FACE_SPRITE.set(&mut words, sprite as u64);
     if !fluid.lava {
         FACE_TINT.set(&mut words, TintKind::Water as u64 + 1);
     }
@@ -299,11 +297,11 @@ fn face_attr(
     } else {
         Pass::Translucent
     };
-    Some((pass as u8 | drop << PASS_KEY_BITS | FLUID_KEY, words[0]))
+    Some((pass as u8 | drop << PASS_KEY_BITS | FLUID_KEY, words))
 }
 
 #[inline]
-fn side_sprite(fluid: Fluid, front_cover: u8) -> SpriteRef {
+fn side_sprite(fluid: Fluid, front_cover: u8) -> u16 {
     match fluid.overlay {
         Some(overlay) if front_cover & COVER_SEE_THROUGH != 0 => overlay,
         _ => fluid.flow,
@@ -461,11 +459,10 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
 mod tests {
     use super::{FLUID_FULL, SIDE_CORNERS, drop_steps, side_corner_xz};
     use crate::SECTION_SIZE;
-    use crate::block::SpriteRef;
     use crate::block::{BlockInfo, CubeFace, Fluid, Pass};
     use crate::model::fixed;
     use crate::pack::FLUID_INSET;
-    use crate::pack::{FACE_LAYER, MODEL_STEPS, QUAD_DROP, QUAD_FACE, QUAD_H, QUAD_W};
+    use crate::pack::{FACE_SPRITE, MODEL_STEPS, QUAD_DROP, QUAD_FACE, QUAD_H, QUAD_W};
     use crate::{Scratch, mesh_world, one_section_world};
     use mcrs_minecraft_core::Direction as Dir;
 
@@ -473,8 +470,8 @@ mod tests {
         Fluid {
             lava: false,
             amount,
-            still: SpriteRef::default(),
-            flow: SpriteRef::default(),
+            still: 0,
+            flow: 0,
             overlay: None,
         }
     }
@@ -580,17 +577,16 @@ mod tests {
     fn water_against_glass_takes_the_overlay_texture() {
         let world = one_section_world(|x, _, _| if x < 8 { WATER } else { GLASS });
 
-        let sprite = |layer: u16| SpriteRef { array: 0, layer };
         let mut blocks = catalog();
         blocks[WATER as usize].fluid = Some(Fluid {
-            still: sprite(2),
-            flow: sprite(3),
-            overlay: Some(sprite(4)),
+            still: 2,
+            flow: 3,
+            overlay: Some(4),
             ..water(8)
         });
         blocks[GLASS as usize].cube = Some(
             [CubeFace {
-                sprite: sprite(1),
+                sprite: 1,
                 pass: Pass::Translucent as u8,
                 tinted: false,
             }; 6],
@@ -599,7 +595,7 @@ mod tests {
         let mut scratch = Scratch::new();
         let mut sprites = [0usize; 5];
         for attr in &mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch).faces {
-            sprites[FACE_LAYER.get(*attr as u64) as usize] += 1;
+            sprites[FACE_SPRITE.read(attr) as usize] += 1;
         }
 
         assert_eq!(

@@ -9,7 +9,7 @@ mod scratch;
 mod sweep;
 
 use crate::block::{BlockInfo, FACE_AXES, Pass};
-use crate::pack::QUAD_WORDS;
+use crate::pack::{FACE_WORDS, QUAD_WORDS};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
 pub use scratch::Scratch;
@@ -70,7 +70,7 @@ pub struct Draw {
 pub struct SectionMesh {
     pub section: [i32; 3],
     pub simple: Vec<[u32; QUAD_WORDS]>,
-    pub faces: Vec<u32>,
+    pub faces: Vec<[u32; FACE_WORDS]>,
     pub complex: Vec<u32>,
     pub groups: Vec<Group>,
     pub spans: [StreamSpan; STREAMS],
@@ -242,7 +242,7 @@ impl BlockView for OneSection {
 #[cfg(test)]
 pub struct Batch {
     pub simple: Vec<[u32; QUAD_WORDS]>,
-    pub faces: Vec<u32>,
+    pub faces: Vec<[u32; FACE_WORDS]>,
     pub face_base: Vec<u32>,
     pub quad_section: Vec<u32>,
     pub complex: Vec<u32>,
@@ -285,7 +285,6 @@ pub fn mesh_world(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block::SpriteRef;
     use crate::block::{CubeFace, ModelQuad};
     use bevy_math::Vec3;
 
@@ -296,7 +295,7 @@ mod tests {
         let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
         catalog[STONE as usize].cube = Some(
             [CubeFace {
-                sprite: SpriteRef { array: 0, layer: 1 },
+                sprite: 1,
                 pass: Pass::Solid as u8,
                 tinted: false,
             }; 6],
@@ -307,7 +306,7 @@ mod tests {
             uvs: [[0.0; 2]; 4],
             cull: None,
             face: None,
-            sprite: SpriteRef::default(),
+            sprite: 0,
             pass: Pass::Cutout,
             shade: [255; 4],
             tinted: false,
@@ -342,7 +341,7 @@ mod tests {
         let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
         catalog[STONE as usize].cube = Some(
             [CubeFace {
-                sprite: SpriteRef { array: 0, layer: 1 },
+                sprite: 1,
                 pass: Pass::Solid as u8,
                 tinted: false,
             }; 6],
@@ -353,7 +352,7 @@ mod tests {
             uvs: [[0.0; 2]; 4],
             cull: None,
             face: None,
-            sprite: SpriteRef::default(),
+            sprite: 0,
             pass: Pass::Cutout,
             shade: [255; 4],
             tinted: false,

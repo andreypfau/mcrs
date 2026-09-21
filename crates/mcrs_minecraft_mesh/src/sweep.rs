@@ -1,8 +1,8 @@
 use crate::SECTION_SIZE;
 use crate::block::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{
-    QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y,
-    QUAD_Z,
+    FACE_WORDS, QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS,
+    QUAD_X, QUAD_Y, QUAD_Z,
 };
 
 use super::Sink;
@@ -12,7 +12,8 @@ pub(super) const PASS_KEY_BITS: u8 = 2;
 pub(super) const PASS_KEY: u8 = (1 << PASS_KEY_BITS) - 1;
 pub(super) const FLUID_KEY: u8 = 1 << 7;
 
-pub(super) type FaceAttr = fn(&[BlockInfo], &Scratch, [i32; 3], usize) -> Option<(u8, u32)>;
+pub(super) type FaceAttr =
+    fn(&[BlockInfo], &Scratch, [i32; 3], usize) -> Option<(u8, [u32; FACE_WORDS])>;
 
 pub(super) fn sweep(
     catalog: &[BlockInfo],
@@ -182,10 +183,9 @@ fn pack_quad(
 #[cfg(test)]
 mod tests {
     use super::{pack_quad, quad_anchor};
-    use crate::block::SpriteRef;
     use crate::block::{BlockInfo, CubeFace, Pass};
     use crate::pack::{
-        FACE_ARRAY, FACE_LAYER, QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
+        FACE_SPRITE, QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
     };
     use crate::{Scratch, mesh_world, one_section_world};
 
@@ -196,7 +196,7 @@ mod tests {
         let mut blocks: Vec<BlockInfo> = (0..=TEST_BLOCK).map(|_| BlockInfo::default()).collect();
         blocks[TEST_BLOCK as usize].cube = Some(
             [CubeFace {
-                sprite: SpriteRef { array: 1, layer: 7 },
+                sprite: 263,
                 pass: Pass::Solid as u8,
                 tinted: false,
             }; 6],
@@ -232,8 +232,7 @@ mod tests {
             "the runs leave the buffer uncovered"
         );
         for attr in &batch.faces {
-            assert_eq!(FACE_LAYER.get(*attr as u64), 7, "sprite layer");
-            assert_eq!(FACE_ARRAY.get(*attr as u64), 1, "sprite array");
+            assert_eq!(FACE_SPRITE.read(attr), 263, "sprite");
         }
         let quads = batch.simple.len();
         assert_eq!(

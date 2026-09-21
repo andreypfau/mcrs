@@ -54,13 +54,14 @@ const _: () = assert!(
     "a section can hold more faces than a quad can name a place among"
 );
 
-pub const FACE_LAYER: Field = Field::new(0, 0, 10);
-pub const FACE_ARRAY: Field = Field::new(0, 10, 2);
-pub const FACE_TINT: Field = Field::new(0, 12, 2);
-pub const FACE_BLOCK_LIGHT: Field = Field::new(0, 14, 4);
-pub const FACE_SKY_LIGHT: Field = Field::new(0, 18, 4);
-pub const FACE_AO: Field = Field::new(0, 22, 8);
-pub const FACE_FLUID: Field = Field::new(0, 30, 1);
+pub const FACE_TINT: Field = Field::new(0, 0, 2);
+pub const FACE_BLOCK_LIGHT: Field = Field::new(0, 2, 4);
+pub const FACE_SKY_LIGHT: Field = Field::new(0, 6, 4);
+pub const FACE_AO: Field = Field::new(0, 10, 8);
+pub const FACE_FLUID: Field = Field::new(0, 18, 1);
+pub const FACE_SPRITE: Field = Field::new(1, 0, 16);
+
+pub const FACE_WORDS: usize = 2;
 
 pub const MODEL_X: Field = Field::new(0, 0, 10);
 pub const MODEL_Y: Field = Field::new(0, 10, 10);
@@ -71,8 +72,7 @@ pub const MODEL_TINT: Field = Field::new(1, 20, 2);
 pub const MODEL_BLOCK_LIGHT: Field = Field::new(1, 22, 4);
 pub const MODEL_SHADE: Field = Field::new(1, 26, 2);
 pub const MODEL_SKY_LIGHT: Field = Field::new(1, 28, 4);
-pub const MODEL_ARRAY: Field = Field::new(2, 0, FACE_ARRAY.bits);
-pub const MODEL_LAYER: Field = Field::new(2, FACE_ARRAY.bits, FACE_LAYER.bits);
+pub const MODEL_SPRITE: Field = Field::new(2, 0, FACE_SPRITE.bits);
 
 pub const MODEL_OVERHANG: f32 = 2.0;
 
@@ -82,9 +82,9 @@ pub const FLUID_INSET: f32 = 0.001;
 
 pub const FACE_NONE: u32 = 10;
 
-pub const MAX_SPRITES: usize = 1 << FACE_LAYER.bits;
+pub const MAX_SPRITES: usize = 1 << FACE_SPRITE.bits;
 
-pub const MAX_SPRITE_ARRAYS: usize = 1 << FACE_ARRAY.bits;
+pub const MAX_SPRITE_ARRAYS: usize = 4;
 
 #[cfg(test)]
 const QUAD_FIELDS: &[(&str, Field)] = &[
@@ -101,13 +101,12 @@ const QUAD_FIELDS: &[(&str, Field)] = &[
 
 #[cfg(test)]
 const FACE_FIELDS: &[(&str, Field)] = &[
-    ("FACE_LAYER", FACE_LAYER),
-    ("FACE_ARRAY", FACE_ARRAY),
     ("FACE_TINT", FACE_TINT),
     ("FACE_BLOCK_LIGHT", FACE_BLOCK_LIGHT),
     ("FACE_SKY_LIGHT", FACE_SKY_LIGHT),
     ("FACE_AO", FACE_AO),
     ("FACE_FLUID", FACE_FLUID),
+    ("FACE_SPRITE", FACE_SPRITE),
 ];
 
 #[cfg(test)]
@@ -121,8 +120,7 @@ const MODEL_FIELDS: &[(&str, Field)] = &[
     ("MODEL_BLOCK_LIGHT", MODEL_BLOCK_LIGHT),
     ("MODEL_SKY_LIGHT", MODEL_SKY_LIGHT),
     ("MODEL_SHADE", MODEL_SHADE),
-    ("MODEL_ARRAY", MODEL_ARRAY),
-    ("MODEL_LAYER", MODEL_LAYER),
+    ("MODEL_SPRITE", MODEL_SPRITE),
 ];
 
 #[cfg(test)]
@@ -141,7 +139,11 @@ const FLOATS: &[(&str, f32)] = &[
 ];
 
 #[cfg(test)]
-const COUNTS: &[(&str, u32)] = &[("QUAD_WORDS", QUAD_WORDS as u32), ("FACE_NONE", FACE_NONE)];
+const COUNTS: &[(&str, u32)] = &[
+    ("QUAD_WORDS", QUAD_WORDS as u32),
+    ("FACE_WORDS", FACE_WORDS as u32),
+    ("FACE_NONE", FACE_NONE),
+];
 
 #[cfg(test)]
 fn wgsl_fields() -> String {
@@ -231,6 +233,15 @@ mod tests {
             QUAD_FIELDS
                 .iter()
                 .all(|(_, field)| (field.word as usize) < QUAD_WORDS)
+        );
+    }
+
+    #[test]
+    fn no_word_of_a_face_is_overfull() {
+        assert!(
+            FACE_FIELDS
+                .iter()
+                .all(|(_, field)| (field.word as usize) < FACE_WORDS)
         );
     }
 

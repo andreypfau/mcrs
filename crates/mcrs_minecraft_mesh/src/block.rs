@@ -1,19 +1,13 @@
 use bevy_math::Vec3;
 use mcrs_minecraft_core::Direction;
 
-#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
-pub struct SpriteRef {
-    pub array: u8,
-    pub layer: u16,
-}
-
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Fluid {
     pub lava: bool,
     pub amount: u8,
-    pub still: SpriteRef,
-    pub flow: SpriteRef,
-    pub overlay: Option<SpriteRef>,
+    pub still: u16,
+    pub flow: u16,
+    pub overlay: Option<u16>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -64,7 +58,7 @@ pub const TINT_KINDS: usize = 3;
 
 #[derive(Copy, Clone, Default)]
 pub struct CubeFace {
-    pub sprite: SpriteRef,
+    pub sprite: u16,
     pub pass: u8,
     pub tinted: bool,
 }
@@ -75,7 +69,7 @@ pub struct ModelQuad {
     pub uvs: [[f32; 2]; 4],
     pub cull: Option<Direction>,
     pub face: Option<u8>,
-    pub sprite: SpriteRef,
+    pub sprite: u16,
     pub pass: Pass,
     pub shade: [u8; 4],
     pub tinted: bool,

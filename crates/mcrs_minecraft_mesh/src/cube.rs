@@ -1,6 +1,6 @@
 use crate::SECTION_SIZE;
 use crate::block::{BlockInfo, CORNER_UV, FACE_AXES};
-use crate::pack::{FACE_AO, FACE_ARRAY, FACE_BLOCK_LIGHT, FACE_LAYER, FACE_SKY_LIGHT, FACE_TINT};
+use crate::pack::{FACE_AO, FACE_BLOCK_LIGHT, FACE_SKY_LIGHT, FACE_SPRITE, FACE_TINT, FACE_WORDS};
 
 use super::scratch::{Columns, Scratch, border_index};
 use super::sweep::sweep;
@@ -25,7 +25,7 @@ fn face_attr(
     scratch: &Scratch,
     local: [i32; 3],
     face: usize,
-) -> Option<(u8, u32)> {
+) -> Option<(u8, [u32; FACE_WORDS])> {
     let here = scratch.states[border_index(local[0], local[1], local[2])];
     let info = &catalog[here as usize];
     let cube = info.cube.as_ref()?;
@@ -66,16 +66,15 @@ fn face_attr(
     }
 
     let raw = scratch.light[front_index] as u32;
-    let mut words = [0u32; 1];
-    FACE_LAYER.set(&mut words, cube.sprite.layer as u64);
-    FACE_ARRAY.set(&mut words, cube.sprite.array as u64);
+    let mut words = [0u32; FACE_WORDS];
+    FACE_SPRITE.set(&mut words, cube.sprite as u64);
     if cube.tinted {
         FACE_TINT.set(&mut words, info.tint_kind as u64 + 1);
     }
     FACE_BLOCK_LIGHT.set(&mut words, (raw >> 4).max(info.emission as u32) as u64);
     FACE_SKY_LIGHT.set(&mut words, (raw & 0xf) as u64);
     FACE_AO.set(&mut words, ao as u64);
-    Some((cube.pass, words[0]))
+    Some((cube.pass, words))
 }
 
 #[inline]
