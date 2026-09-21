@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, Predicate, WorldGenVolume};
 
 use crate::holds;
@@ -55,7 +55,7 @@ fn on_shell(grid: &[bool], x: usize, z: usize, y: usize) -> bool {
 pub fn place_lake<W: WorldGenVolume>(
     config: &CompiledLake,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> bool {
     if origin.y <= volume.extent().min_y + 4 {
@@ -147,7 +147,7 @@ pub fn place_lake<W: WorldGenVolume>(
 
 /// Four to seven ellipsoids unioned into the 16×8×16 grid, each drawn as three
 /// sizes then three centres.
-fn carve_blobs(rng: &mut XoroshiroRandom) -> Vec<bool> {
+fn carve_blobs(rng: &mut WorldgenRandom) -> Vec<bool> {
     let mut grid = vec![false; WIDTH * WIDTH * DEPTH];
     let spots = rng.next_i32_bound(4) + 4;
     for _ in 0..spots {
@@ -180,7 +180,7 @@ mod tests {
     use std::sync::Arc;
 
     use fixedbitset::FixedBitSet;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn a_lake_too_close_to_the_bottom_draws_nothing() {
         let mut volume = solid_rock();
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
         let before = rng.clone();
         assert!(!place_lake(
             &config(LAVA),
@@ -240,7 +240,7 @@ mod tests {
     #[test]
     fn lake_draw_count_anchor() {
         let mut volume = solid_rock();
-        let mut rng = XoroshiroRandom::new(0x1a4e);
+        let mut rng = WorldgenRandom::new(0x1a4e);
         let mut replay = rng.clone();
         assert!(place_lake(&config(LAVA), &mut volume, &mut rng, ORIGIN));
 
@@ -248,7 +248,7 @@ mod tests {
         for _ in 0..spots * 6 {
             replay.next_f64();
         }
-        let upper_shell = upper_shell_cells(&mut XoroshiroRandom::new(0x1a4e));
+        let upper_shell = upper_shell_cells(&mut WorldgenRandom::new(0x1a4e));
         for _ in 0..upper_shell {
             replay.next_i32_bound(2);
         }
@@ -257,7 +257,7 @@ mod tests {
 
     /// The shell cells at or above the water line, which is where the barrier
     /// pass spends its one draw each.
-    fn upper_shell_cells(rng: &mut XoroshiroRandom) -> usize {
+    fn upper_shell_cells(rng: &mut WorldgenRandom) -> usize {
         let grid = carve_blobs(rng);
         let mut count = 0;
         for x in 0..WIDTH {
@@ -275,7 +275,7 @@ mod tests {
     #[test]
     fn the_blob_is_fluid_below_the_line_and_air_above() {
         let mut volume = solid_rock();
-        let mut rng = XoroshiroRandom::new(0x1a4e);
+        let mut rng = WorldgenRandom::new(0x1a4e);
         assert!(place_lake(&config(LAVA), &mut volume, &mut rng, ORIGIN));
         let below = volume
             .writes
@@ -301,7 +301,7 @@ mod tests {
                 }
             }
         }
-        let mut rng = XoroshiroRandom::new(0x1a4e);
+        let mut rng = WorldgenRandom::new(0x1a4e);
         assert!(!place_lake(&config(LAVA), &mut volume, &mut rng, ORIGIN));
         assert!(volume.writes.is_empty());
     }
@@ -314,7 +314,7 @@ mod tests {
         let mut volume = solid_rock();
         let corner = BlockPos::new(ORIGIN.x - 8, ORIGIN.y, ORIGIN.z - 8);
         volume.blocks.insert((corner.x, corner.y, corner.z), WATER);
-        let mut rng = XoroshiroRandom::new(0x1a4e);
+        let mut rng = WorldgenRandom::new(0x1a4e);
         assert!(place_lake(&config(WATER), &mut volume, &mut rng, ORIGIN));
         assert_eq!(volume.get(corner), ICE);
     }
@@ -324,7 +324,7 @@ mod tests {
         let mut volume = solid_rock();
         let corner = BlockPos::new(ORIGIN.x - 8, ORIGIN.y, ORIGIN.z - 8);
         volume.blocks.insert((corner.x, corner.y, corner.z), WATER);
-        let mut rng = XoroshiroRandom::new(0x1a4e);
+        let mut rng = WorldgenRandom::new(0x1a4e);
         assert!(place_lake(&config(LAVA), &mut volume, &mut rng, ORIGIN));
         assert!(!volume.writes.iter().any(|(_, state)| *state == ICE));
     }

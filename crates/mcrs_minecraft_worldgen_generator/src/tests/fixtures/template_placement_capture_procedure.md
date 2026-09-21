@@ -122,7 +122,8 @@ Floors: `0` is dirt for `y <= 63`, air above; `1` is stone for `y <= 60`,
 source water for `61..=63`, air above; `2` (portal cases only) is stone for
 `y <= 60`, source lava for `61..=63`, air above, so `lava_submerged_block`
 sees lava under the piece. Every placement gets a fresh
-`StubLevel` and a fresh `XoroshiroRandomSource(seed)`; the level's own random
+`StubLevel` and a fresh `WorldgenRandom(XoroshiroRandomSource(seed))`, the
+source a real server hands the piece; the level's own random
 (`getRandom()`) is a `XoroshiroRandomSource(0)` that nothing in placement
 draws from.
 
@@ -215,11 +216,6 @@ are pinned only by their own unit tests.
 
 ## What the fixture cannot pin
 
-- **`WorldgenRandom` semantics.** The placement random here is a raw
-  `XoroshiroRandomSource`, as in every other fixture. A real server hands the
-  piece a `WorldgenRandom`, whose `nextInt`/`nextLong` route through
-  `next(bits)`; that is a project-wide convention, not something this fixture
-  decides.
 - **Reads outside the column.** `protected_blocks` and a rule's
   `location_predicate` read the level at the target position. The stub is a
   flat floor, so those reads see either the floor or a block this same

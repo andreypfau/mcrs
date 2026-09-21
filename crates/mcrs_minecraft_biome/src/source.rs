@@ -65,13 +65,7 @@ pub fn beta_get_biome(temp: f32, rain: f32) -> BetaLandBiome {
 }
 
 pub fn build_beta_lookup_table() -> [[BetaLandBiome; 64]; 64] {
-    let mut table = [[BetaLandBiome::IceDesert; 64]; 64];
-    for i in 0..64usize {
-        for j in 0..64usize {
-            table[i][j] = beta_get_biome(i as f32 / 63.0, j as f32 / 63.0);
-        }
-    }
-    table
+    std::array::from_fn(|i| std::array::from_fn(|j| beta_get_biome(i as f32 / 63.0, j as f32 / 63.0)))
 }
 
 /// Resolve a land biome via the precomputed 64x64 quantized lookup, mirroring
@@ -91,6 +85,7 @@ pub fn beta_biome_from_climate(
 // ===========================================================================
 
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum BiomeSource {
     MultiNoise(MultiNoiseBiomeSource),
     TheEnd,

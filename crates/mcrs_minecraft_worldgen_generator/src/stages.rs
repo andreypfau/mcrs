@@ -16,7 +16,7 @@ use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
@@ -780,18 +780,10 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
 }
 
 /// `setDecorationSeed`: the unit seed every object of one column is offset from.
-/// The two scales are `WorldgenRandom.nextLong` over a Xoroshiro source, which
-/// routes each 32-bit half through `next(32)`: the top half of one Xoroshiro
-/// long each, sign-extended and summed as `java.util.Random` does.
 pub(crate) fn decoration_seed(world_seed: i64, origin_x: i32, origin_z: i32) -> i64 {
-    let mut rng = XoroshiroRandom::new(world_seed as u64);
-    let mut wrapped_long = || {
-        let upper = (Random::next_i64(&mut rng) >> 32) as i32 as i64;
-        let lower = (Random::next_i64(&mut rng) >> 32) as i32 as i64;
-        (upper << 32).wrapping_add(lower)
-    };
-    let a = wrapped_long() | 1;
-    let b = wrapped_long() | 1;
+    let mut rng = WorldgenRandom::new(world_seed as u64);
+    let a = rng.next_java_long() | 1;
+    let b = rng.next_java_long() | 1;
     (origin_x as i64)
         .wrapping_mul(a)
         .wrapping_add((origin_z as i64).wrapping_mul(b))
@@ -1023,7 +1015,7 @@ mod tests {
         column.unpack(&snapshots[4].sections);
         let ctx = bare_fill_context(build_beta_router());
         let mut region = ColumnRegion::new(&snapshots, &column, &ctx);
-        let mut rng = XoroshiroRandom::new(3);
+        let mut rng = WorldgenRandom::new(3);
         let own = witch(
             BlockPos::new(center.x * 16 + 3, 20, center.z * 16 + 4),
             &mut rng,

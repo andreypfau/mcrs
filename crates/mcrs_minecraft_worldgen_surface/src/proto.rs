@@ -28,6 +28,7 @@ pub enum MaterialConditionHolder {
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[serde(deny_unknown_fields)]
+#[allow(clippy::large_enum_variant)]
 pub enum MaterialRule {
     #[serde(rename = "minecraft:block")]
     Block { result_state: BlockState },

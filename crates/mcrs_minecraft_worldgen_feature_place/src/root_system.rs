@@ -1,7 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, StateMask, WorldGenVolume};
 
@@ -45,9 +45,9 @@ pub struct CompiledRootSystem {
 pub fn place_root_system<W>(
     config: &CompiledRootSystem,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_tree: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
+    place_tree: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -64,9 +64,9 @@ where
 fn place_dirt_and_tree<W>(
     config: &CompiledRootSystem,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_tree: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
+    place_tree: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -129,7 +129,7 @@ fn space_for_tree<W: WorldGenVolume>(
 fn place_dirt<W: WorldGenVolume>(
     config: &CompiledRootSystem,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
     target_height: i32,
 ) {
@@ -151,7 +151,7 @@ fn place_dirt<W: WorldGenVolume>(
 fn place_hanging_roots<W: WorldGenVolume>(
     config: &CompiledRootSystem,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) {
     for _ in 0..config.hanging_root_placement_attempts {
@@ -181,7 +181,7 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};
@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn a_root_system_plants_its_tree_and_fills_the_column_under_it() {
         let (config, mut volume) = fixture();
-        let mut rng = XoroshiroRandom::new(4242);
+        let mut rng = WorldgenRandom::new(4242);
         let mut planted = None;
         assert!(place_root_system(
             &config,
@@ -257,7 +257,7 @@ mod tests {
         );
 
         let rows = SURFACE - ORIGIN.y;
-        let mut replay = XoroshiroRandom::new(4242);
+        let mut replay = WorldgenRandom::new(4242);
         for _ in 0..rows * config.root_placement_attempts {
             for _ in 0..4 {
                 replay.next_i32_bound(config.root_radius);
@@ -298,7 +298,7 @@ mod tests {
     fn an_origin_that_is_not_air_places_nothing() {
         let (config, mut volume) = fixture();
         volume.blocks.insert((ORIGIN.x, ORIGIN.y, ORIGIN.z), DIRT);
-        let mut rng = XoroshiroRandom::new(4242);
+        let mut rng = WorldgenRandom::new(4242);
         let before = rng.clone();
         assert!(!place_root_system(
             &config,
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn a_refused_tree_leaves_the_column_untouched() {
         let (config, mut volume) = fixture();
-        let mut rng = XoroshiroRandom::new(4242);
+        let mut rng = WorldgenRandom::new(4242);
         let mut attempts = 0;
         assert!(place_root_system(
             &config,

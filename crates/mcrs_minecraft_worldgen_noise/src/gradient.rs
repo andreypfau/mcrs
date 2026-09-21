@@ -136,10 +136,7 @@ impl GradientNoise {
         let offset_x = random.next_f64() * offset_scale;
         let offset_y = random.next_f64() * offset_scale;
         let offset_z = random.next_f64() * offset_scale;
-        let mut perms = [0u8; 256];
-        for i in 0..256 {
-            perms[i] = i as u8;
-        }
+        let mut perms: [u8; 256] = std::array::from_fn(|i| i as u8);
         for i in 0..256 {
             let j = random.next_u32_bound(256 - i);
             perms.swap(i as usize, (i + j) as usize);
@@ -255,7 +252,7 @@ pub fn wrap(value: f64) -> f64 {
     // coordinate short of the far lands; the check is cheaper than the divide,
     // floor and multiply it skips.
     const HALF: f64 = 1.6777216E7;
-    if value >= -HALF && value < HALF {
+    if (-HALF..HALF).contains(&value) {
         value
     } else {
         value - (value / FACTOR + 0.5).floor() * FACTOR

@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
@@ -44,7 +44,7 @@ pub struct CompiledBonusChest {
 pub fn place_monster_room<W: WorldGenVolume>(
     config: &CompiledMonsterRoom,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     entities: &mut Vec<GeneratedBlockEntity>,
     origin: BlockPos,
 ) -> bool {
@@ -188,7 +188,7 @@ pub fn reorient<W: WorldGenVolume>(
 }
 
 /// `Util.toShuffledList(IntStream.rangeClosed(min, max), random)`.
-fn shuffled_range(rng: &mut XoroshiroRandom, min: i32, max: i32) -> Vec<i32> {
+fn shuffled_range(rng: &mut WorldgenRandom, min: i32, max: i32) -> Vec<i32> {
     let mut values: Vec<i32> = (min..=max).collect();
     mcrs_minecraft_random::shuffle(&mut values, rng);
     values
@@ -199,7 +199,7 @@ fn shuffled_range(rng: &mut XoroshiroRandom, min: i32, max: i32) -> Vec<i32> {
 pub fn place_bonus_chest<W: WorldGenVolume>(
     config: &CompiledBonusChest,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     entities: &mut Vec<GeneratedBlockEntity>,
     origin: BlockPos,
 ) -> bool {
@@ -243,7 +243,7 @@ mod tests {
     use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};
@@ -312,7 +312,7 @@ mod tests {
             }
         }
         let mut entities = Vec::new();
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
         assert!(!place_monster_room(
             &room(),
             &mut volume,
@@ -329,7 +329,7 @@ mod tests {
     fn a_rejected_room_spends_two_draws() {
         let mut volume = cave();
         let mut entities = Vec::new();
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
         let mut replay = rng.clone();
         place_monster_room(&room(), &mut volume, &mut rng, &mut entities, ORIGIN);
         replay.next_i32_bound(2);
@@ -341,7 +341,7 @@ mod tests {
     fn a_room_leaves_a_spawner_and_its_mob() {
         let mut volume = stone_with_one_hole();
         let mut entities = Vec::new();
-        let mut rng = XoroshiroRandom::new(0x5eed_2024);
+        let mut rng = WorldgenRandom::new(0x5eed_2024);
         assert!(place_monster_room(
             &room(),
             &mut volume,
@@ -363,7 +363,7 @@ mod tests {
     fn the_room_is_carved_and_walled() {
         let mut volume = stone_with_one_hole();
         let mut entities = Vec::new();
-        let mut rng = XoroshiroRandom::new(0x5eed_2024);
+        let mut rng = WorldgenRandom::new(0x5eed_2024);
         place_monster_room(&room(), &mut volume, &mut rng, &mut entities, ORIGIN);
         assert_eq!(volume.get(BlockPos::new(0, ORIGIN.y + 1, 0)), CAVE_AIR);
         let floor = volume.get(BlockPos::new(0, ORIGIN.y - 1, 0));
@@ -380,7 +380,7 @@ mod tests {
     fn room_draw_count_anchor() {
         let mut volume = stone_with_one_hole();
         let mut entities = Vec::new();
-        let mut rng = XoroshiroRandom::new(0x5eed_2024);
+        let mut rng = WorldgenRandom::new(0x5eed_2024);
         let mut replay = rng.clone();
         place_monster_room(&room(), &mut volume, &mut rng, &mut entities, ORIGIN);
 
@@ -390,7 +390,7 @@ mod tests {
         assert_eq!(rng.next_java_long(), ROOM_PIN);
     }
 
-    const ROOM_PIN: i64 = -5825020126323992744;
+    const ROOM_PIN: i64 = 5307551557076359088;
 
     fn bonus() -> CompiledBonusChest {
         CompiledBonusChest {
@@ -409,7 +409,7 @@ mod tests {
             }
         }
         let mut entities = Vec::new();
-        let mut rng = XoroshiroRandom::new(99);
+        let mut rng = WorldgenRandom::new(99);
         let mut replay = rng.clone();
         assert!(place_bonus_chest(
             &bonus(),
@@ -444,7 +444,7 @@ mod tests {
             }
         }
         let mut entities = Vec::new();
-        let mut rng = XoroshiroRandom::new(99);
+        let mut rng = WorldgenRandom::new(99);
         assert!(!place_bonus_chest(
             &bonus(),
             &mut volume,

@@ -1,7 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, Mirror};
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
@@ -52,7 +52,7 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
     reference: IVec3,
     clip: BoundingBox,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
@@ -118,7 +118,7 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
 
 /// `RandomizableContainer.setBlockEntityLootTable`: the seed is drawn only
 /// when a container stands there.
-fn seed_loot(entities: &mut [GeneratedBlockEntity], at: BlockPos, rng: &mut XoroshiroRandom) {
+fn seed_loot(entities: &mut [GeneratedBlockEntity], at: BlockPos, rng: &mut WorldgenRandom) {
     let container = entities.iter_mut().rev().find_map(|entity| match entity {
         GeneratedBlockEntity::Chest(container)
         | GeneratedBlockEntity::TrappedChest(container)
@@ -132,6 +132,6 @@ fn seed_loot(entities: &mut [GeneratedBlockEntity], at: BlockPos, rng: &mut Xoro
     });
     if let Some(container) = container {
         container.loot_table = Some(END_CITY_TREASURE_LOOT.to_owned());
-        container.loot_table_seed = rng.next_i64();
+        container.loot_table_seed = rng.next_java_long();
     }
 }

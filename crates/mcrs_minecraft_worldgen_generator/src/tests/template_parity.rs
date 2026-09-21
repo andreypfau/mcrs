@@ -16,7 +16,7 @@ use mcrs_minecraft_nbt::{Nbt, to_nbt_compound};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::block_pos_seed;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
@@ -683,7 +683,7 @@ fn every_pool_element_places_as_the_reference_does() {
                 placement.floor,
             );
             let mut run = program.run(RunScratch::default());
-            let mut rng = XoroshiroRandom::new(placement.seed as u64);
+            let mut rng = WorldgenRandom::new(placement.seed as u64);
             let placed = place_element(
                 program,
                 &mut run,
@@ -701,7 +701,7 @@ fn every_pool_element_places_as_the_reference_does() {
                 placed,
                 writes: region.writes,
                 entities,
-                rng: [rng.next_i64(), rng.next_i64()],
+                rng: [rng.next_java_long(), rng.next_java_long()],
             };
             faults.extend(compare(&label, placement, &outcome));
         }
@@ -782,7 +782,7 @@ fn a_fossil_with_too_many_empty_corners_places_nothing() {
     let generator = program.generator_at(0, 0).expect("a fossil compiles");
     let mut region = region(BlockPos::new(-16, 60, -16), BlockPos::new(31, 99, 31), 0);
     let mut run = program.run(RunScratch::default());
-    let mut rng = XoroshiroRandom::new(7);
+    let mut rng = WorldgenRandom::new(7);
     let placed = generator.place(
         &mut run,
         &mut region,
@@ -792,7 +792,7 @@ fn a_fossil_with_too_many_empty_corners_places_nothing() {
     );
     assert!(!placed);
     assert!(region.writes.is_empty());
-    let mut expected = XoroshiroRandom::new(7);
+    let mut expected = WorldgenRandom::new(7);
     for bound in [4, 8, 10] {
         expected.next_i32_bound(bound);
     }
@@ -843,7 +843,7 @@ fn every_template_feature_places_as_the_reference_does() {
                 placement.floor,
             );
             let mut run = program.run(RunScratch::default());
-            let mut rng = XoroshiroRandom::new(placement.seed as u64);
+            let mut rng = WorldgenRandom::new(placement.seed as u64);
             let placed = generator.place(
                 &mut run,
                 &mut region,
@@ -856,7 +856,7 @@ fn every_template_feature_places_as_the_reference_does() {
                 placed,
                 writes: region.writes,
                 entities,
-                rng: [rng.next_i64(), rng.next_i64()],
+                rng: [rng.next_java_long(), rng.next_java_long()],
             };
             faults.extend(compare(&label, placement, &outcome));
         }
@@ -975,7 +975,7 @@ fn every_ruined_portal_chain_places_as_the_reference_does() {
                 BlockPos::new(63, 319, 63),
                 placement.floor,
             );
-            let mut rng = XoroshiroRandom::new(placement.seed as u64);
+            let mut rng = WorldgenRandom::new(placement.seed as u64);
             let mut entities = Vec::new();
             let placed = place_template(
                 &Placement {
@@ -1002,7 +1002,7 @@ fn every_ruined_portal_chain_places_as_the_reference_does() {
                 placed,
                 writes: region.writes,
                 entities,
-                rng: [rng.next_i64(), rng.next_i64()],
+                rng: [rng.next_java_long(), rng.next_java_long()],
             };
             faults.extend(compare(&label, placement, &outcome));
         }

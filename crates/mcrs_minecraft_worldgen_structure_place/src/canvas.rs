@@ -24,7 +24,12 @@ impl ChestStates {
     pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
         let facing = |name| state(blocks, "minecraft:chest", &[("facing", name)]);
         Ok(ChestStates {
-            facing: [facing("north")?, facing("east")?, facing("south")?, facing("west")?],
+            facing: [
+                facing("north")?,
+                facing("east")?,
+                facing("south")?,
+                facing("west")?,
+            ],
             states: block_mask(blocks, &["minecraft:chest"])?,
         })
     }
@@ -189,7 +194,13 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
     }
 
     /// `generateUpperHalfSphere`.
-    pub fn upper_half_sphere(&mut self, min: [i32; 3], max: [i32; 3], fill: &Oriented, skip_air: bool) {
+    pub fn upper_half_sphere(
+        &mut self,
+        min: [i32; 3],
+        max: [i32; 3],
+        fill: &Oriented,
+        skip_air: bool,
+    ) {
         let [x0, y0, z0] = min;
         let [x1, y1, z1] = max;
         let diag_x = (x1 - x0 + 1) as f32;
@@ -241,7 +252,10 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
     pub fn is_interior(&self, x: i32, y: i32, z: i32) -> bool {
         let pos = self.world_pos(x, y + 1, z);
         self.clip.is_inside(pos)
-            && pos.y < self.volume.height(HeightmapName::OceanFloorWg, pos.x, pos.z)
+            && pos.y
+                < self
+                    .volume
+                    .height(HeightmapName::OceanFloorWg, pos.x, pos.z)
     }
 
     /// `createChest`: whether one was placed, which is when its loot seed is drawn.
@@ -285,16 +299,17 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
             return false;
         }
         self.place(dispenser, x, y, z);
-        self.entities.push(GeneratedBlockEntity::Dispenser(ContainerData {
-            x: pos.x,
-            y: pos.y,
-            z: pos.z,
-            loot_table: Some(loot_table.to_owned()),
-            loot_table_seed: rng.next_java_long(),
-            items: Vec::new(),
-            custom_name: None,
-            components: None,
-        }));
+        self.entities
+            .push(GeneratedBlockEntity::Dispenser(ContainerData {
+                x: pos.x,
+                y: pos.y,
+                z: pos.z,
+                loot_table: Some(loot_table.to_owned()),
+                loot_table_seed: rng.next_java_long(),
+                items: Vec::new(),
+                custom_name: None,
+                components: None,
+            }));
         true
     }
 }
@@ -348,7 +363,10 @@ mod tests {
         let mut east = canvas(&mut region, &mut entities, &mut spawns, Orientation::East);
         east.generate_box([0, 0, 0], [3, 0, 3], &brick, &brick, false);
         let writes = region.writes.len();
-        assert_eq!(writes, 16, "the east box lands in x 8..=11, inside the clip");
+        assert_eq!(
+            writes, 16,
+            "the east box lands in x 8..=11, inside the clip"
+        );
         let mut north = canvas(&mut region, &mut entities, &mut spawns, Orientation::North);
         north.generate_box([10, 0, 0], [13, 0, 3], &brick, &brick, false);
         assert_eq!(region.writes.len(), writes, "x 18..=21 is past the clip");
@@ -372,7 +390,10 @@ mod tests {
         let mut spawns = Vec::new();
         let brick = Oriented([BRICK; 4]);
         let mut canvas = canvas(&mut region, &mut entities, &mut spawns, Orientation::North);
-        assert!(!canvas.is_interior(0, 0, 0), "y 11 is above the height of 10");
+        assert!(
+            !canvas.is_interior(0, 0, 0),
+            "y 11 is above the height of 10"
+        );
         assert!(canvas.is_interior(0, -3, 0));
         canvas.upper_half_sphere([0, 0, 0], [4, 4, 4], &brick, false);
         assert_eq!(region.writes.len(), 76);
@@ -387,11 +408,23 @@ mod tests {
         let mut replay = rng.clone();
         let mut spawns = Vec::new();
         let mut canvas = canvas(&mut region, &mut entities, &mut spawns, Orientation::South);
-        canvas.generate_maybe_box(&mut rng, 0.5, [0, 0, 0], [2, 1, 2], &brick, &brick, false, true);
+        canvas.generate_maybe_box(
+            &mut rng,
+            0.5,
+            [0, 0, 0],
+            [2, 1, 2],
+            &brick,
+            &brick,
+            false,
+            true,
+        );
         for _ in 0..18 {
             replay.next_f32();
         }
         assert_eq!(rng, replay);
-        assert!(region.writes.is_empty(), "nothing above the height is interior");
+        assert!(
+            region.writes.is_empty(),
+            "nothing above the height is interior"
+        );
     }
 }

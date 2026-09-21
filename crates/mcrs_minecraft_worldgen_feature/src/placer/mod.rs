@@ -5,7 +5,7 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_chunk::{BlocksMut, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
 use super::placement::HeightmapName;
 use mcrs_minecraft_core::value_provider::HeightContext;
@@ -119,7 +119,7 @@ pub fn place<W: WorldGenVolume, R: Random>(
 pub type Generate<'a, W> = &'a mut dyn FnMut(
     (usize, usize),
     &mut W,
-    &mut XoroshiroRandom,
+    &mut WorldgenRandom,
     BlockPos,
     &dyn Fn(u32) -> bool,
 ) -> bool;
@@ -155,7 +155,7 @@ pub fn decorate<'a, W: WorldGenVolume>(
             let seed = decoration_seed
                 .wrapping_add(index as i64)
                 .wrapping_add(10_000 * step as i64);
-            let mut rng = XoroshiroRandom::new(seed as u64);
+            let mut rng = WorldgenRandom::new(seed as u64);
             let carry = |biome: u32| carries(biome, step, index);
             place(
                 chain(step, index),
@@ -198,14 +198,10 @@ mod tests {
 
     /// Runs a chain from `origin` and reports where the generator fired and what
     /// the shared source looked like afterwards.
-    fn run(
-        modifiers: &[Modifier],
-        origin: BlockPos,
-        seed: u64,
-    ) -> (Vec<BlockPos>, XoroshiroRandom) {
+    fn run(modifiers: &[Modifier], origin: BlockPos, seed: u64) -> (Vec<BlockPos>, WorldgenRandom) {
         let mut volume = stub();
         let mut scratch = PlacerScratch::default();
-        let mut rng = XoroshiroRandom::new(seed);
+        let mut rng = WorldgenRandom::new(seed);
         let mut hits = Vec::new();
         place(
             modifiers,
@@ -228,7 +224,7 @@ mod tests {
     fn an_empty_chain_runs_the_generator_at_the_origin() {
         let (hits, rng) = run(&[], ORIGIN, 1);
         assert_eq!(hits, vec![ORIGIN]);
-        assert_eq!(rng, XoroshiroRandom::new(1), "an empty chain draws nothing");
+        assert_eq!(rng, WorldgenRandom::new(1), "an empty chain draws nothing");
     }
 
     /// `count` emits three copies and `offset` consumes them one at a time. A
@@ -249,7 +245,7 @@ mod tests {
         ];
         let (hits, rng) = run(&modifiers, ORIGIN, 42);
 
-        let mut replay = XoroshiroRandom::new(42);
+        let mut replay = WorldgenRandom::new(42);
         let expected: Vec<BlockPos> = (0..3)
             .map(|_| {
                 BlockPos::new(
@@ -282,7 +278,7 @@ mod tests {
         ];
         let (hits, rng) = run(&modifiers, ORIGIN, 9);
 
-        let mut replay = XoroshiroRandom::new(9);
+        let mut replay = WorldgenRandom::new(9);
         let mut expected = Vec::new();
         for _ in 0..2 {
             if replay.next_f32() < 0.5 {
@@ -297,7 +293,7 @@ mod tests {
     #[test]
     fn in_square_draws_two_bounded_ints() {
         let (hits, rng) = run(&[Modifier::InSquare {}], ORIGIN, 7);
-        let mut replay = XoroshiroRandom::new(7);
+        let mut replay = WorldgenRandom::new(7);
         let x = replay.next_i32_bound(16) + ORIGIN.x;
         let z = replay.next_i32_bound(16) + ORIGIN.z;
         assert_eq!(rng, replay);
@@ -313,7 +309,7 @@ mod tests {
             ORIGIN,
             3,
         );
-        assert_eq!(rng, XoroshiroRandom::new(3));
+        assert_eq!(rng, WorldgenRandom::new(3));
         assert_eq!(hits, vec![BlockPos::new(16, 65, 32)]);
     }
 
@@ -331,7 +327,7 @@ mod tests {
             },
         ];
         let (hits, rng) = run(&modifiers, ORIGIN, 5);
-        assert_eq!(rng, XoroshiroRandom::new(5));
+        assert_eq!(rng, WorldgenRandom::new(5));
         assert_eq!(hits, vec![BlockPos::new(16, 65, 32)]);
     }
 
@@ -345,7 +341,7 @@ mod tests {
         }];
         let (hits, rng) = run(&modifiers, ORIGIN, 11);
 
-        let mut replay = XoroshiroRandom::new(11);
+        let mut replay = WorldgenRandom::new(11);
         let height = IntProvider::uniform(1, 3).sample(&mut replay);
         let width = IntProvider::uniform(1, 3).sample(&mut replay);
         let length = IntProvider::uniform(1, 3).sample(&mut replay);
@@ -385,7 +381,7 @@ mod tests {
         }];
         let (hits, rng) = run(&modifiers, ORIGIN, 21);
 
-        let mut replay = XoroshiroRandom::new(21);
+        let mut replay = WorldgenRandom::new(21);
         let expected = match replay.next_i32_bound(2) {
             0 => {
                 let x = replay.next_i32_bound(16) + ORIGIN.x;
@@ -407,7 +403,7 @@ mod tests {
             },
         ] {
             let (_, rng) = run(&[modifier], ORIGIN, 1);
-            let mut replay = XoroshiroRandom::new(1);
+            let mut replay = WorldgenRandom::new(1);
             replay.next_f32();
             assert_eq!(rng, replay);
         }
@@ -425,7 +421,7 @@ mod tests {
             max_steps: Bounded(32),
         }];
         let (hits, rng) = run(&modifiers, BlockPos::new(0, 70, 0), 4);
-        assert_eq!(rng, XoroshiroRandom::new(4));
+        assert_eq!(rng, WorldgenRandom::new(4));
         assert_eq!(hits, vec![BlockPos::new(0, 64, 0)]);
     }
 
@@ -451,7 +447,7 @@ mod tests {
     fn the_biome_filter_asks_the_window_and_draws_nothing() {
         let mut volume = stub();
         let mut scratch = PlacerScratch::default();
-        let mut rng = XoroshiroRandom::new(0);
+        let mut rng = WorldgenRandom::new(0);
         let mut hits = 0;
         let refuse = |biome: u32| biome != 7;
         place(
@@ -467,7 +463,7 @@ mod tests {
             },
         );
         assert_eq!(hits, 0);
-        assert_eq!(rng, XoroshiroRandom::new(0));
+        assert_eq!(rng, WorldgenRandom::new(0));
     }
 
     #[test]
@@ -476,7 +472,7 @@ mod tests {
             positions: vec![[20, 5, 35], [-3, 5, 35]],
         }];
         let (hits, rng) = run(&modifiers, ORIGIN, 6);
-        assert_eq!(rng, XoroshiroRandom::new(6));
+        assert_eq!(rng, WorldgenRandom::new(6));
         assert_eq!(hits, vec![BlockPos::new(20, 5, 35)]);
     }
 
@@ -487,7 +483,7 @@ mod tests {
             ORIGIN,
             8,
         );
-        assert_eq!(rng, XoroshiroRandom::new(8));
+        assert_eq!(rng, WorldgenRandom::new(8));
         assert_eq!(hits, vec![ORIGIN], "the stub's two maps are equal");
     }
 
@@ -500,7 +496,7 @@ mod tests {
         }];
         let (hits, rng) = run(&modifiers, ORIGIN, 12);
 
-        let mut replay = XoroshiroRandom::new(12);
+        let mut replay = WorldgenRandom::new(12);
         let x = replay.next_i32_bound(16) + ORIGIN.x;
         let z = replay.next_i32_bound(16) + ORIGIN.z;
         replay.next_i32_bound(16);
@@ -518,11 +514,11 @@ mod tests {
             states: mask_of([STONE.0]),
             probability: 1.0,
         };
-        let mut rng = XoroshiroRandom::new(2);
+        let mut rng = WorldgenRandom::new(2);
         assert!(!rule.test(AIR, 0, &mut rng));
-        assert_eq!(rng, XoroshiroRandom::new(2), "no draw on a failed identity");
+        assert_eq!(rng, WorldgenRandom::new(2), "no draw on a failed identity");
         assert!(rule.test(STONE, 0, &mut rng));
-        let mut replay = XoroshiroRandom::new(2);
+        let mut replay = WorldgenRandom::new(2);
         replay.next_f32();
         assert_eq!(rng, replay);
     }
@@ -537,7 +533,7 @@ mod tests {
         ];
         let mut volume = stub();
         let mut scratch = PlacerScratch::default();
-        let mut rng = XoroshiroRandom::new(13);
+        let mut rng = WorldgenRandom::new(13);
         for _ in 0..8 {
             place(
                 &modifiers,
@@ -601,7 +597,7 @@ mod tests {
         };
 
         let expect = |seed: i64| {
-            let mut rng = XoroshiroRandom::new(seed as u64);
+            let mut rng = WorldgenRandom::new(seed as u64);
             let x = rng.next_i32_bound(16) + ORIGIN.x;
             let z = rng.next_i32_bound(16) + ORIGIN.z;
             BlockPos::new(x, 0, z)

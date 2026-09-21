@@ -14,6 +14,7 @@ use mcrs_minecraft_biome::source::{BiomeSource, ProtoBiomeSource};
 // ===========================================================================
 
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum ChunkGenerator {
     Noise(NoiseChunkGenerator),
     Flat(FlatChunkGenerator),

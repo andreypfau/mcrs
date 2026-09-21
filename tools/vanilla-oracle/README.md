@@ -258,7 +258,8 @@ The cases, what each one pins, and the provenance map of the lifted code are
 beside the fixture in
 `crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/capture_procedure.md`.
 
-The random source is `new XoroshiroRandomSource(seed)`. `rng_after_lo` and
+The random source is `new WorldgenRandom(new XoroshiroRandomSource(seed))`, the
+source `applyBiomeDecoration` hands a feature. `rng_after_lo` and
 `rng_after_hi` are two `nextLong()` values taken immediately after `place`
 returns; comparing them is what pins the draw count.
 
@@ -613,7 +614,8 @@ repeated case_count times:
     floor          u8    0: dirt for y <= 63; 1: stone for y <= 60, water
                          source 61..=63; 2: stone for y <= 60, lava source
                          61..=63; air above any
-    seed           i64   XoroshiroRandomSource(seed) is the placement random;
+    seed           i64   WorldgenRandom over XoroshiroRandomSource(seed) is
+                         the placement random;
                          kind 0 and 2: the case index; kind 1: 0, 1, 2 (a
                          fossil: 0 to 7)
     template_drawn str   kind 0 and 2: template_key; kind 1: the entry the

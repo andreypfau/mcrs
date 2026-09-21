@@ -3,7 +3,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
@@ -33,7 +33,7 @@ pub struct MangroveRoots {
 impl MangroveRoots {
     /// `RootPlacer.getTrunkOrigin`, drawn where the reference draws it: after
     /// the crown's radius and before the height bounds are checked.
-    pub fn trunk_origin(&self, rng: &mut XoroshiroRandom, origin: BlockPos) -> BlockPos {
+    pub fn trunk_origin(&self, rng: &mut WorldgenRandom, origin: BlockPos) -> BlockPos {
         origin + IVec3::Y * self.trunk_offset_y.sample(rng)
     }
 
@@ -41,7 +41,7 @@ impl MangroveRoots {
     pub fn place_roots<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         origin: BlockPos,
         trunk_origin: BlockPos,
     ) -> Option<Vec<BlockPos>> {
@@ -78,7 +78,7 @@ impl MangroveRoots {
     fn simulate_roots<W: WorldGenVolume>(
         &self,
         cx: &TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         pos: BlockPos,
         direction: Direction,
         root_origin: BlockPos,
@@ -107,7 +107,7 @@ impl MangroveRoots {
     /// roll, and past it a coin that decides between going out and going down.
     fn potential_root_positions(
         &self,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         pos: BlockPos,
         direction: Direction,
         root_origin: BlockPos,
@@ -135,7 +135,7 @@ impl MangroveRoots {
     fn place_root<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         pos: BlockPos,
         written: &mut Vec<BlockPos>,
     ) {
@@ -181,7 +181,7 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
     use mcrs_minecraft_core::value_provider::IntProvider;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};
@@ -254,7 +254,7 @@ mod tests {
         let provider = StateProvider::Simple(AIR);
         let mut cx = TreeContext::new(&mut volume, &states, &provider, &provider, &provider);
 
-        let mut rng = XoroshiroRandom::new(99);
+        let mut rng = WorldgenRandom::new(99);
         let trunk_origin = placer.trunk_origin(&mut rng, ORIGIN);
         assert_eq!(trunk_origin, BlockPos::new(0, 66, 0));
 
@@ -283,7 +283,9 @@ mod tests {
             "a branch reached the mud: {roots:?}"
         );
         assert!(
-            roots.iter().all(|pos| pos.y <= 66),
+            roots
+                .iter()
+                .all(|pos| pos.y <= 66 || volume.get(*pos) == MOSS),
             "nothing is written above the trunk's own cell but moss: {roots:?}"
         );
     }
@@ -299,7 +301,7 @@ mod tests {
         let provider = StateProvider::Simple(AIR);
         let mut cx = TreeContext::new(&mut volume, &states, &provider, &provider, &provider);
 
-        let mut rng = XoroshiroRandom::new(99);
+        let mut rng = WorldgenRandom::new(99);
         let before = rng.clone();
         assert!(
             placer

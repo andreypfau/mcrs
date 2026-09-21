@@ -55,6 +55,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.feature.Feature;
 import net.minecraft.world.level.levelgen.feature.FossilFeature;
@@ -479,7 +480,7 @@ public final class TemplatePlacementOracle {
         Bin.i32(out, clip.maxZ());
         Bin.i32(out, 2);
         for (int floor = 0; floor < 2; floor++) {
-            RandomSource random = new XoroshiroRandomSource(index);
+            RandomSource random = new WorldgenRandom(new XoroshiroRandomSource(index));
             StubLevel level = this.level(floor);
             boolean placed = c.element().place(
                 this.templates, level, null, null, PIECE_POSITION, reference, rotation, clip, random, liquid, false
@@ -505,11 +506,11 @@ public final class TemplatePlacementOracle {
         Bin.i32(out, 2 * seeds);
         for (int seed = 0; seed < seeds; seed++) {
             for (int floor = 0; floor < 2; floor++) {
-                RandomSource random = new XoroshiroRandomSource(seed);
+                RandomSource random = new WorldgenRandom(new XoroshiroRandomSource(seed));
                 if (c.feature() instanceof FossilFeature fossil) {
                     StubLevel level = this.serverLevel(floor);
                     boolean placed = fossil.place(level, null, random, FEATURE_ORIGIN);
-                    RandomSource replay = new XoroshiroRandomSource(seed);
+                    RandomSource replay = new WorldgenRandom(new XoroshiroRandomSource(seed));
                     Rotation rotation = Rotation.getRandom(replay);
                     Identifier drawn = fossil.fossilStructures().get(replay.nextInt(fossil.fossilStructures().size()));
                     this.writePlacement(
@@ -567,7 +568,7 @@ public final class TemplatePlacementOracle {
         out.write(0);
         Bin.i32(out, 3);
         for (int floor = 0; floor < 3; floor++) {
-            RandomSource random = new XoroshiroRandomSource(index);
+            RandomSource random = new WorldgenRandom(new XoroshiroRandomSource(index));
             StubLevel level = this.level(floor);
             boolean placed = template.placeInWorld(level, PIECE_POSITION, reference, settings, random, 2);
             this.writePlacement(

@@ -6,6 +6,7 @@ use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, Mirror, ResourceLocati
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 pub use mcrs_minecraft_worldgen_feature::spawn_condition::{
     Condition, IdSet, SpawnContext, VariantTable, VariantTables,
@@ -249,7 +250,7 @@ impl GeneratedEntity {
         rotation: Rotation,
         pivot: IVec3,
         position: IVec3,
-        rng: &XoroshiroRandom,
+        rng: &WorldgenRandom,
     ) -> Option<Self> {
         let kind = match &entity.kind {
             EntityKind::Villager { data } => GeneratedKind::Villager { data: data.clone() },
@@ -284,8 +285,8 @@ impl GeneratedEntity {
 /// The values an entity draws from its own random, which the reference seeds
 /// from the clock: a fork of the placement stream by kind and position, so a
 /// regenerated column spawns the same entity without moving the stream.
-fn own_random(rng: &XoroshiroRandom, id: &str, pos: DVec3) -> XoroshiroRandom {
-    rng.clone().fork_hash(id).fork_at(IVec3::new(
+fn own_random(rng: &WorldgenRandom, id: &str, pos: DVec3) -> XoroshiroRandom {
+    rng.source().clone().fork_hash(id).fork_at(IVec3::new(
         pos.x.floor() as i32,
         pos.y.floor() as i32,
         pos.z.floor() as i32,
@@ -308,7 +309,7 @@ fn placed(
     pos: DVec3,
     rotation: [f32; 2],
     kind: GeneratedKind,
-    rng: &XoroshiroRandom,
+    rng: &WorldgenRandom,
 ) -> GeneratedEntity {
     let mut own = own_random(rng, kind.id(), pos);
     GeneratedEntity {
@@ -331,7 +332,7 @@ fn bottom_centre(at: BlockPos) -> DVec3 {
 
 /// `Mob.finalizeSpawn`: the follow-range bonus, which nothing static reads,
 /// and the left hand.
-fn mob(rng: &mut XoroshiroRandom) -> bool {
+fn mob(rng: &mut WorldgenRandom) -> bool {
     rng.next_f64();
     rng.next_f64();
     rng.next_f32() < 0.05
@@ -339,11 +340,11 @@ fn mob(rng: &mut XoroshiroRandom) -> bool {
 
 /// `enchantSpawnedEquipment` on a held item: one draw that never passes at
 /// special multiplier zero.
-fn enchant_held(rng: &mut XoroshiroRandom) {
+fn enchant_held(rng: &mut WorldgenRandom) {
     rng.next_f32();
 }
 
-pub fn witch(at: BlockPos, rng: &mut XoroshiroRandom) -> GeneratedEntity {
+pub fn witch(at: BlockPos, rng: &mut WorldgenRandom) -> GeneratedEntity {
     let left_handed = mob(rng);
     placed(
         bottom_centre(at),
@@ -353,7 +354,7 @@ pub fn witch(at: BlockPos, rng: &mut XoroshiroRandom) -> GeneratedEntity {
     )
 }
 
-pub fn elder_guardian(at: BlockPos, rng: &mut XoroshiroRandom) -> GeneratedEntity {
+pub fn elder_guardian(at: BlockPos, rng: &mut WorldgenRandom) -> GeneratedEntity {
     let left_handed = mob(rng);
     placed(
         bottom_centre(at),
@@ -363,7 +364,7 @@ pub fn elder_guardian(at: BlockPos, rng: &mut XoroshiroRandom) -> GeneratedEntit
     )
 }
 
-pub fn evoker(at: BlockPos, rng: &mut XoroshiroRandom) -> GeneratedEntity {
+pub fn evoker(at: BlockPos, rng: &mut WorldgenRandom) -> GeneratedEntity {
     let left_handed = mob(rng);
     placed(
         bottom_centre(at),
@@ -373,7 +374,7 @@ pub fn evoker(at: BlockPos, rng: &mut XoroshiroRandom) -> GeneratedEntity {
     )
 }
 
-pub fn vindicator(at: BlockPos, rng: &mut XoroshiroRandom) -> GeneratedEntity {
+pub fn vindicator(at: BlockPos, rng: &mut WorldgenRandom) -> GeneratedEntity {
     let left_handed = mob(rng);
     let equipment = Equipment {
         mainhand: Some(ItemStack::one(Item::IronAxe)),
@@ -393,7 +394,7 @@ pub fn vindicator(at: BlockPos, rng: &mut XoroshiroRandom) -> GeneratedEntity {
 
 /// The mansion's "Group of Allays" marker: one to three, counted on the
 /// placement stream.
-pub fn allays(at: BlockPos, rng: &mut XoroshiroRandom) -> Vec<GeneratedEntity> {
+pub fn allays(at: BlockPos, rng: &mut WorldgenRandom) -> Vec<GeneratedEntity> {
     let count = rng.next_i32_bound(3) + 1;
     (0..count)
         .map(|_| {
@@ -410,7 +411,7 @@ pub fn allays(at: BlockPos, rng: &mut XoroshiroRandom) -> Vec<GeneratedEntity> {
 
 /// An end city sentry: nothing is drawn, and the yaw is the one every living
 /// entity rolls at construction, which no heading overrides here.
-pub fn shulker(at: BlockPos, rng: &XoroshiroRandom) -> GeneratedEntity {
+pub fn shulker(at: BlockPos, rng: &WorldgenRandom) -> GeneratedEntity {
     let pos = bottom_centre(at);
     let kind = GeneratedKind::Shulker { left_handed: false };
     let mut own = own_random(rng, kind.id(), pos);
@@ -427,7 +428,7 @@ pub fn shulker(at: BlockPos, rng: &XoroshiroRandom) -> GeneratedEntity {
 
 /// `new ItemFrame(level, pos, facing)` holding an elytra: the frame hangs at
 /// the block's centre pulled back to the wall behind it.
-pub fn elytra_frame(at: BlockPos, facing: Direction, rng: &XoroshiroRandom) -> GeneratedEntity {
+pub fn elytra_frame(at: BlockPos, facing: Direction, rng: &WorldgenRandom) -> GeneratedEntity {
     const SHIFT_TO_BLOCK_WALL: f64 = 0.46875;
     let pos = DVec3::new(
         f64::from(at.x) + 0.5,
@@ -457,14 +458,14 @@ pub fn elytra_frame(at: BlockPos, facing: Direction, rng: &XoroshiroRandom) -> G
 pub fn chest_minecart(
     at: BlockPos,
     loot_table: String,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) -> GeneratedEntity {
     let pos = DVec3::new(
         f64::from(at.x) + 0.5,
         f64::from(at.y) + 0.5,
         f64::from(at.z) + 0.5,
     );
-    let loot_table_seed = rng.next_i64();
+    let loot_table_seed = rng.next_java_long();
     placed(
         pos,
         [0.0; 2],
@@ -477,7 +478,7 @@ pub fn chest_minecart(
 }
 
 /// `Registry.getRandom` over a registry in its order.
-fn pick_sound(sounds: &[ResourceLocation], rng: &mut XoroshiroRandom) -> ResourceLocation {
+fn pick_sound(sounds: &[ResourceLocation], rng: &mut WorldgenRandom) -> ResourceLocation {
     sounds[rng.next_i32_bound(sounds.len() as i32) as usize].clone()
 }
 
@@ -485,7 +486,7 @@ pub fn cat(
     at: BlockPos,
     ctx: &SpawnContext,
     tables: &VariantTables,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) -> GeneratedEntity {
     let left_handed = mob(rng);
     let variant = tables
@@ -510,7 +511,7 @@ fn chicken_jockey(
     pos: DVec3,
     ctx: &SpawnContext,
     tables: &VariantTables,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) -> GeneratedEntity {
     let variant = tables
         .chickens
@@ -536,7 +537,7 @@ fn zombie_nautilus(
     pos: DVec3,
     ctx: &SpawnContext,
     tables: &VariantTables,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) -> GeneratedEntity {
     let variant = tables
         .zombie_nautiluses
@@ -567,7 +568,7 @@ pub fn drowned(
     ctx: &SpawnContext,
     tables: &VariantTables,
     frequent_drowned: bool,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) -> GeneratedEntity {
     let pos = bottom_centre(at);
     let left_handed = mob(rng);
@@ -634,17 +635,17 @@ mod tests {
 
     const AT: BlockPos = BlockPos::new(10, 64, -20);
 
-    fn rng() -> XoroshiroRandom {
-        XoroshiroRandom::new(12345)
+    fn rng() -> WorldgenRandom {
+        WorldgenRandom::new(12345)
     }
 
-    fn draws(before: &XoroshiroRandom, after: &XoroshiroRandom) -> usize {
+    fn draws(before: &WorldgenRandom, after: &WorldgenRandom) -> usize {
         let mut probe = before.clone();
         for count in 0..64 {
             if probe == *after {
                 return count;
             }
-            probe.next_i64();
+            probe.next_i32();
         }
         panic!("more than 64 draws");
     }
@@ -757,13 +758,13 @@ mod tests {
 
     #[test]
     fn a_mob_draws_the_follow_range_bonus_then_its_hand() {
-        let spawns: [fn(BlockPos, &mut XoroshiroRandom) -> GeneratedEntity; 3] =
+        let spawns: [fn(BlockPos, &mut WorldgenRandom) -> GeneratedEntity; 3] =
             [witch, elder_guardian, evoker];
         for spawn in spawns {
             let before = rng();
             let mut r = before.clone();
             let entity = spawn(AT, &mut r);
-            assert_eq!(draws(&before, &r), 3);
+            assert_eq!(draws(&before, &r), 5);
             assert_eq!(entity.pos, [10.5, 64.0, -19.5]);
             assert_eq!(entity.rotation, [0.0, 0.0]);
         }
@@ -784,7 +785,7 @@ mod tests {
         for _ in 0..300 {
             let before = r.clone();
             let group = allays(AT, &mut r);
-            assert_eq!(draws(&before, &r), 1 + 3 * group.len());
+            assert_eq!(draws(&before, &r), 1 + 5 * group.len());
             counts[group.len()] += 1;
         }
         assert_eq!(counts[0], 0);
@@ -796,7 +797,7 @@ mod tests {
         let before = rng();
         let mut r = before.clone();
         let entity = vindicator(AT, &mut r);
-        assert_eq!(draws(&before, &r), 4);
+        assert_eq!(draws(&before, &r), 6);
         let GeneratedKind::Vindicator { equipment, .. } = entity.kind else {
             panic!()
         };
@@ -810,7 +811,7 @@ mod tests {
         let before = rng();
         let mut r = before.clone();
         let entity = cat(AT, &ctx(Some(7), 0), &tables, &mut r);
-        assert_eq!(draws(&before, &r), 5);
+        assert_eq!(draws(&before, &r), 7);
         let GeneratedKind::Cat {
             variant,
             sound_variant,
@@ -844,7 +845,7 @@ mod tests {
         assert!(!seen.contains("all_black"));
     }
 
-    fn drowned_after(r: &mut XoroshiroRandom, frequent: bool) -> (GeneratedEntity, usize) {
+    fn drowned_after(r: &mut WorldgenRandom, frequent: bool) -> (GeneratedEntity, usize) {
         let before = r.clone();
         let entity = drowned(AT, &ctx(None, 3), &tables(), frequent, r);
         (entity, draws(&before, r))
@@ -867,7 +868,7 @@ mod tests {
                 break;
             }
         }
-        assert_eq!(bare, Some(8), "mob 3, pickup, baby, doors, gear, shell");
+        assert_eq!(bare, Some(10), "mob 5, pickup, baby, doors, gear, shell");
     }
 
     #[test]
@@ -961,13 +962,13 @@ mod tests {
             "minecraft:chests/abandoned_mineshaft".to_owned(),
             &mut r,
         );
-        assert_eq!(draws(&before, &r), 1);
+        assert_eq!(draws(&before, &r), 2);
         let mut probe = before.clone();
         assert_eq!(
             cart.kind,
             GeneratedKind::ChestMinecart {
                 loot_table: "minecraft:chests/abandoned_mineshaft".to_owned(),
-                loot_table_seed: probe.next_i64(),
+                loot_table_seed: probe.next_java_long(),
             }
         );
     }

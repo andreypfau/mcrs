@@ -248,7 +248,7 @@ fn on_ground_y<W: WorldGenVolume>(
     let mut current_layer = 0;
     let mut current = volume.get(BlockPos::new(x, y_start, z));
     let mut y = y_start;
-    while y >= min_y + 1 {
+    while y > min_y {
         let below = volume.get(BlockPos::new(x, y - 1, z));
         if !is_empty(below) && is_empty(current) && !bedrock.contains(below.0 as usize) {
             if current_layer == layer_to_place_on {

@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, WorldGenVolume};
 
 use crate::tree::provider::StateProvider;
@@ -25,7 +25,7 @@ pub struct CompiledProjectedPatchySquare {
 pub fn place_projected_random_patchy_square<W>(
     config: &CompiledProjectedPatchySquare,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> bool
 where
@@ -59,7 +59,7 @@ where
 mod tests {
 
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::placer::single_state;
 
     use super::*;
@@ -87,7 +87,7 @@ mod tests {
     fn every_cell_of_the_square_costs_one_draw() {
         let config = config(3, 0);
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(31);
+        let mut rng = WorldgenRandom::new(31);
 
         assert!(place_projected_random_patchy_square(
             &config,
@@ -96,7 +96,7 @@ mod tests {
             AT
         ));
 
-        let mut replay = XoroshiroRandom::new(31);
+        let mut replay = WorldgenRandom::new(31);
         for _ in 0..49 {
             replay.next_i32_bound(10);
         }
@@ -112,7 +112,7 @@ mod tests {
     fn a_square_of_one_cell_writes_the_origin() {
         let config = config(0, 3);
         let mut volume = FakeVolume::with([((AT.x, AT.y - 1, AT.z), STONE)]);
-        let mut rng = XoroshiroRandom::new(8);
+        let mut rng = WorldgenRandom::new(8);
 
         assert!(place_projected_random_patchy_square(
             &config,
@@ -130,7 +130,7 @@ mod tests {
         for (allowance, expected) in [(1, AT.y - 1), (3, AT.y - 3), (9, AT.y - 5)] {
             let config = config(0, allowance);
             let mut volume = FakeVolume::with([((AT.x, AT.y - 6, AT.z), STONE)]);
-            let mut rng = XoroshiroRandom::new(8);
+            let mut rng = WorldgenRandom::new(8);
 
             assert!(place_projected_random_patchy_square(
                 &config,

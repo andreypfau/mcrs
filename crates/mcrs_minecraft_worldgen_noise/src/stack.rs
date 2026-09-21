@@ -183,6 +183,7 @@ impl<N: Noise> NoiseStack<N> {
 
     /// One column of `volume`, in the volume association: each layer receives
     /// `scale * frequency` *before* the block multiply.
+    #[allow(clippy::too_many_arguments)]
     pub fn fill_column_at(
         &self,
         out: &mut [f32],

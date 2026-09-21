@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, WorldGenVolume};
 
@@ -28,7 +28,7 @@ pub struct CompiledBlockColumn {
 pub fn place_block_column<W: WorldGenVolume>(
     cfg: &CompiledBlockColumn,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let mut heights: Vec<i32> = cfg
@@ -87,7 +87,7 @@ mod tests {
 
     use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_core::value_provider::DispatchedIntProvider;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::placer::single_state;
 
     use super::*;
@@ -128,11 +128,11 @@ mod tests {
     fn the_layer_heights_are_drawn_first_and_the_column_writes_bottom_up() {
         let cfg = config(true);
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(9);
+        let mut rng = WorldgenRandom::new(9);
 
         assert!(place_block_column(&cfg, &mut volume, &mut rng, AT));
 
-        let mut replay = XoroshiroRandom::new(9);
+        let mut replay = WorldgenRandom::new(9);
         let stem = replay.next_int_between_inclusive(2, 4);
         assert_eq!(
             rng, replay,
@@ -155,7 +155,7 @@ mod tests {
             let mut cfg = config(prioritize_tip);
             cfg.layers[0].height = IntProvider::Constant(3);
             let mut volume = FakeVolume::with([((AT.x, AT.y + 2, AT.z), STONE)]);
-            let mut rng = XoroshiroRandom::new(3);
+            let mut rng = WorldgenRandom::new(3);
 
             assert!(place_block_column(&cfg, &mut volume, &mut rng, AT));
             let written: Vec<VoxelId> = volume.writes.iter().map(|(_, state)| *state).collect();
@@ -173,7 +173,7 @@ mod tests {
             provider: StateProvider::Simple(STEM),
         }];
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
 
         assert!(!place_block_column(&cfg, &mut volume, &mut rng, AT));
         assert!(volume.writes.is_empty());
@@ -186,7 +186,7 @@ mod tests {
         cfg.direction = Direction::Down;
         cfg.layers[0].height = IntProvider::Constant(2);
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(2);
+        let mut rng = WorldgenRandom::new(2);
 
         assert!(place_block_column(&cfg, &mut volume, &mut rng, AT));
         assert_eq!(

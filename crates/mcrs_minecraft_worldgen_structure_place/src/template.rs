@@ -3,7 +3,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, ResourceLocation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
@@ -132,7 +132,7 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
     region: &mut W,
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     let position = piece.position.with_y(piece.floor_y);
     let template = &frozen.templates[piece.template.0 as usize];
@@ -196,7 +196,7 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
                 entities.push(GeneratedBlockEntity::chest(
                     pos,
                     loot.to_owned(),
-                    rng.next_i64(),
+                    rng.next_java_long(),
                 ));
             }
             "drowned" => {

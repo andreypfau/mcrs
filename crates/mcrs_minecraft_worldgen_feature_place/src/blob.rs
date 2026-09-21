@@ -4,7 +4,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, StateMask, WorldGenVolume};
 
@@ -44,7 +44,7 @@ pub struct CompiledBlockBlob {
 pub fn place_block_blob<W: WorldGenVolume>(
     cfg: &CompiledBlockBlob,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let floor = volume.extent().min_y + 3;
@@ -98,7 +98,7 @@ pub struct CompiledReplaceBlobs {
 pub fn place_replace_blobs<W: WorldGenVolume>(
     cfg: &CompiledReplaceBlobs,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let extent = volume.extent();
@@ -148,7 +148,7 @@ pub struct CompiledDelta {
 pub fn place_delta<W: WorldGenVolume>(
     cfg: &CompiledDelta,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let spawn_rim = rng.next_f64() < 0.9;
@@ -206,7 +206,7 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
     use mcrs_minecraft_core::value_provider::IntProvider;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -219,8 +219,8 @@ mod tests {
     const MAGMA: VoxelId = VoxelId(6);
     const BEDROCK: VoxelId = VoxelId(7);
 
-    fn seeded() -> XoroshiroRandom {
-        XoroshiroRandom::new(0x0b10b)
+    fn seeded() -> WorldgenRandom {
+        WorldgenRandom::new(0x0b10b)
     }
 
     fn solid_below(top: i32, state: VoxelId) -> FakeVolume {

@@ -4,7 +4,7 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::value_provider::{FloatProvider, IntProvider};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::BlockResolver;
@@ -100,7 +100,7 @@ pub struct CompiledSpeleothemCluster {
 pub fn place_speleothem_cluster<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> bool {
     if !volume.world().is_empty_or_water(volume.get(origin)) {
@@ -143,7 +143,7 @@ pub fn place_speleothem_cluster<W: WorldGenVolume>(
 fn place_cluster_column<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     pos: BlockPos,
     dx: i32,
     dz: i32,
@@ -277,7 +277,7 @@ fn place_cluster_column<W: WorldGenVolume>(
 
 fn cluster_speleothem_height(
     config: &CompiledSpeleothemCluster,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     dx: i32,
     dz: i32,
     density: f32,
@@ -443,7 +443,7 @@ impl Dripstone {
 pub fn place_large_dripstone<W: WorldGenVolume>(
     config: &CompiledLargeDripstone,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> bool {
     if !volume.world().is_empty_or_water(volume.get(origin)) {
@@ -563,7 +563,7 @@ fn place_dripstone<W: WorldGenVolume>(
     config: &CompiledLargeDripstone,
     dripstone: &Dripstone,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     wind: Option<Wind>,
 ) {
     let step = if dripstone.pointing_up { 1 } else { -1 };
@@ -609,7 +609,7 @@ pub(crate) mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
     use mcrs_minecraft_core::value_provider::DispatchedFloatProvider;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -716,7 +716,7 @@ pub(crate) mod tests {
     #[test]
     fn a_cluster_outside_a_cave_places_nothing_and_draws_nothing() {
         let mut volume = cave(10, 20);
-        let mut rng = XoroshiroRandom::new(5);
+        let mut rng = WorldgenRandom::new(5);
         let before = rng.clone();
         assert!(!place_speleothem_cluster(
             &cluster(),
@@ -737,7 +737,7 @@ pub(crate) mod tests {
     #[test]
     fn cluster_draw_count_anchor() {
         let mut volume = cave(10, 20);
-        let mut rng = XoroshiroRandom::new(0x005e_ed77);
+        let mut rng = WorldgenRandom::new(0x005e_ed77);
         assert!(place_speleothem_cluster(
             &cluster(),
             &mut volume,
@@ -747,12 +747,12 @@ pub(crate) mod tests {
         assert_eq!(rng.next_java_long(), CLUSTER_PIN);
     }
 
-    const CLUSTER_PIN: i64 = 750865196011729067;
+    const CLUSTER_PIN: i64 = 3120301191049866738;
 
     #[test]
     fn a_cluster_grows_pointed_blocks_at_both_ends() {
         let mut volume = cave(10, 20);
-        let mut rng = XoroshiroRandom::new(0x005e_ed77);
+        let mut rng = WorldgenRandom::new(0x005e_ed77);
         place_speleothem_cluster(&cluster(), &mut volume, &mut rng, BlockPos::new(0, 15, 0));
         let grown = volume
             .writes
@@ -799,7 +799,7 @@ pub(crate) mod tests {
     #[test]
     fn a_cave_shorter_than_four_is_refused_before_any_draw() {
         let mut volume = cave(10, 13);
-        let mut rng = XoroshiroRandom::new(3);
+        let mut rng = WorldgenRandom::new(3);
         let before = rng.clone();
         assert!(!place_large_dripstone(
             &dripstone(),
@@ -815,7 +815,7 @@ pub(crate) mod tests {
     #[test]
     fn large_dripstone_header_is_five_or_seven_draws() {
         let mut volume = cave(0, 40);
-        let mut rng = XoroshiroRandom::new(0x1234_5678);
+        let mut rng = WorldgenRandom::new(0x1234_5678);
         let before = rng.clone();
         assert!(place_large_dripstone(
             &dripstone(),
@@ -838,7 +838,7 @@ pub(crate) mod tests {
     #[test]
     fn a_wide_cave_grows_dripstone_blocks() {
         let mut volume = cave(0, 40);
-        let mut rng = XoroshiroRandom::new(0x1234_5678);
+        let mut rng = WorldgenRandom::new(0x1234_5678);
         place_large_dripstone(&dripstone(), &mut volume, &mut rng, BlockPos::new(0, 20, 0));
         assert!(
             volume.writes.iter().any(|(_, state)| *state == DRIPSTONE),

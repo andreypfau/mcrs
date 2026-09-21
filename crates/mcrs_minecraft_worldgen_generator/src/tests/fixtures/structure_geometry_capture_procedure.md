@@ -69,7 +69,7 @@ start.placeInChunk(level, level.structureManager(), generator, random, writableA
 
 with `writableArea = (minBlockX, minY + 1, minBlockZ, maxBlockX, maxY, maxBlockZ)`,
 the box `ChunkGenerator.getWritableArea` hands a piece. The random of each
-chunk is a fresh `XoroshiroRandomSource(streamSeed)` where
+chunk is a fresh `WorldgenRandom(XoroshiroRandomSource(streamSeed))` where
 
 ```java
 decorationSeed = new WorldgenRandom(new XoroshiroRandomSource(0)).setDecorationSeed(WORLD_SEED, minBlockX, minBlockZ)
@@ -80,15 +80,15 @@ is the reference's arithmetic (`WorldgenRandom.setDecorationSeed`,
 `setFeatureSeed`), `step` the structure's `GenerationStep.Decoration` ordinal
 and `index` its position among the structures of that step in registry order,
 as `applyBiomeDecoration` counts them. The stream seed is written per chunk so
-the consumer seeds the same raw Xoroshiro source; as in every other fixture the
-`WorldgenRandom` wrapper's `next(bits)` routing is not reproduced, which is a
-project-wide convention rather than something this fixture decides. One stub
-level holds the whole start, so a chunk sees what earlier chunks wrote, as the
-region does.
+the consumer seeds the same source, `WorldgenRandom` routing included: its
+`nextInt`, `nextBoolean`, `nextDouble` and `nextLong` are assembled from the
+top bits of one Xoroshiro long each through `next(bits)`, not read natively.
+One stub level holds the whole start, so a chunk sees what earlier chunks
+wrote, as the region does.
 
 **The stub level's random is the placement stream.** `level.getRandom()`, on
 the `WorldGenLevel` and on the `ServerLevel` the entities are built in, is the
-same `XoroshiroRandomSource` `placeInChunk` receives, reseated per chunk. The
+same `WorldgenRandom` `placeInChunk` receives, reseated per chunk. The
 reference draws a desert pyramid's cellar, a mansion's allay count and every
 `finalizeSpawn` from the region's random, which is the server's and is seeded
 from the clock; here those draws come from the stream, so they are

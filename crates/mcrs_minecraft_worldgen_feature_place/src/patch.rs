@@ -5,7 +5,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
 
@@ -48,9 +48,9 @@ pub struct CompiledVegetationPatch {
 pub fn place_vegetation_patch<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_vegetation: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
+    place_vegetation: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -79,7 +79,7 @@ fn inwards(surface: CaveSurface) -> IVec3 {
 fn place_ground_patch<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
     x_radius: i32,
     z_radius: i32,
@@ -150,7 +150,7 @@ where
 fn place_ground<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     start: BlockPos,
     depth: i32,
 ) -> bool
@@ -193,9 +193,9 @@ fn exposed<W: WorldGenVolume>(volume: &W, pos: BlockPos) -> bool {
 fn grow<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     position: BlockPos,
-    place_vegetation: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
+    place_vegetation: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) where
     W: WorldGenVolume,
 {
@@ -218,7 +218,7 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
     use mcrs_minecraft_chunk::BlocksMut;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -265,7 +265,7 @@ mod tests {
         volume
     }
 
-    fn radii(rng: &mut XoroshiroRandom, config: &CompiledVegetationPatch) -> (i32, i32) {
+    fn radii(rng: &mut WorldgenRandom, config: &CompiledVegetationPatch) -> (i32, i32) {
         (
             config.xz_radius.sample(rng) + 1,
             config.xz_radius.sample(rng) + 1,
@@ -280,7 +280,7 @@ mod tests {
     fn a_floor_patch_lays_moss_over_the_interior_and_seeds_it() {
         let config = config();
         let mut volume = flat_world();
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
         let mut seeded: Vec<BlockPos> = Vec::new();
 
         assert!(place_vegetation_patch(
@@ -294,7 +294,7 @@ mod tests {
             }
         ));
 
-        let mut replay = XoroshiroRandom::new(SEED);
+        let mut replay = WorldgenRandom::new(SEED);
         let (x_radius, z_radius) = radii(&mut replay, &config);
         let interior = ((2 * x_radius - 1) * (2 * z_radius - 1)) as usize;
         for _ in 0..interior {
@@ -338,7 +338,7 @@ mod tests {
         config.extra_edge_column_chance = 0.35;
         config.vegetation_chance = 0.0;
         let mut volume = flat_world();
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
         assert!(place_vegetation_patch(
             &config,
             &mut volume,
@@ -347,7 +347,7 @@ mod tests {
             &mut |_, _, _| true
         ));
 
-        let mut replay = XoroshiroRandom::new(SEED);
+        let mut replay = WorldgenRandom::new(SEED);
         let (x_radius, z_radius) = radii(&mut replay, &config);
         let mut accepted = 0;
         for dx in -x_radius..=x_radius {
@@ -382,7 +382,7 @@ mod tests {
         let mut config = config();
         config.replaceable = StateMask::default();
         let mut volume = flat_world();
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
 
         assert!(!place_vegetation_patch(
             &config,
@@ -392,7 +392,7 @@ mod tests {
             &mut |_, _, _| panic!("nothing was seeded")
         ));
 
-        let mut replay = XoroshiroRandom::new(SEED);
+        let mut replay = WorldgenRandom::new(SEED);
         let (x_radius, z_radius) = radii(&mut replay, &config);
         for _ in 0..(2 * x_radius - 1) * (2 * z_radius - 1) {
             config.depth.sample(&mut replay);
@@ -413,7 +413,7 @@ mod tests {
                 volume.blocks.insert((x, FLOOR_TOP, z), MOSS);
             }
         }
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
         assert!(place_vegetation_patch(
             &config,
             &mut volume,
@@ -443,14 +443,14 @@ mod tests {
         });
 
         let mut volume = flat_world();
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
         let mut seeded: Vec<BlockPos> = Vec::new();
         assert!(place_vegetation_patch(
             &config,
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |volume: &mut FakeVolume, _: &mut XoroshiroRandom, at: BlockPos| {
+            &mut |volume: &mut FakeVolume, _: &mut WorldgenRandom, at: BlockPos| {
                 seeded.push(at);
                 volume.set(at, DRY);
                 true
@@ -500,7 +500,7 @@ mod tests {
                 }
             }
         }
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
         assert!(place_vegetation_patch(
             &config,
             &mut volume,

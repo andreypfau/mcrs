@@ -2,7 +2,7 @@ use crate::holds;
 use bevy_math::IVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
 use crate::tree::provider::StateProvider;
@@ -25,7 +25,7 @@ const MIN_HEIGHT_ABOVE_BOTTOM: i32 = 5;
 pub fn place_block_pile<W: WorldGenVolume>(
     cfg: &CompiledBlockPile,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     if at.y < volume.extent().min_y + MIN_HEIGHT_ABOVE_BOTTOM {
@@ -54,7 +54,7 @@ pub fn place_block_pile<W: WorldGenVolume>(
 fn try_place<W: WorldGenVolume>(
     cfg: &CompiledBlockPile,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     pos: BlockPos,
 ) {
     if !volume.is_air(pos) {
@@ -79,7 +79,7 @@ fn try_place<W: WorldGenVolume>(
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -114,11 +114,11 @@ mod tests {
     fn every_cell_of_the_box_spends_its_floats_in_the_references_order() {
         let cfg = config();
         let mut volume = ground(DIRT);
-        let mut rng = XoroshiroRandom::new(4242);
+        let mut rng = WorldgenRandom::new(4242);
 
         assert!(place_block_pile(&cfg, &mut volume, &mut rng, AT));
 
-        let mut replay = XoroshiroRandom::new(4242);
+        let mut replay = WorldgenRandom::new(4242);
         let x_radius = 2 + replay.next_i32_bound(2);
         let z_radius = 2 + replay.next_i32_bound(2);
         let mut expected = Vec::new();
@@ -154,8 +154,8 @@ mod tests {
         let cfg = config();
         let mut plain = ground(DIRT);
         let mut paths = ground(PATH);
-        let mut plain_rng = XoroshiroRandom::new(11);
-        let mut path_rng = XoroshiroRandom::new(11);
+        let mut plain_rng = WorldgenRandom::new(11);
+        let mut path_rng = WorldgenRandom::new(11);
 
         place_block_pile(&cfg, &mut plain, &mut plain_rng, AT);
         place_block_pile(&cfg, &mut paths, &mut path_rng, AT);
@@ -169,7 +169,7 @@ mod tests {
     fn a_pile_too_close_to_the_bottom_of_the_world_draws_nothing() {
         let cfg = config();
         let mut volume = ground(DIRT);
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
         let before = rng.clone();
 
         assert!(!place_block_pile(

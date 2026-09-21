@@ -2,11 +2,12 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature_place::template::{Placement, SettingsRandom, place_template};
 use mcrs_minecraft_worldgen_structure::LiquidSettings;
+use mcrs_minecraft_worldgen_structure::hardcoded::mineshaft::decorates_first;
 
 use crate::feature_program::{CompiledElement, CompiledStructure, FeatureProgram, Run};
 use crate::stages::decoration_seed;
@@ -17,17 +18,17 @@ use mcrs_minecraft_worldgen_structure::piece::{DesertPyramidPiece, Piece, Start}
 use mcrs_minecraft_worldgen_structure_place::after_place;
 use mcrs_minecraft_worldgen_structure_place::buried_treasure::paint_buried_treasure;
 use mcrs_minecraft_worldgen_structure_place::canvas::PieceCanvas;
+use mcrs_minecraft_worldgen_structure_place::end_city::place_end_city_piece;
 use mcrs_minecraft_worldgen_structure_place::fortress::paint_fortress;
 use mcrs_minecraft_worldgen_structure_place::jungle_temple::paint_jungle_temple;
 use mcrs_minecraft_worldgen_structure_place::mineshaft::paint_mineshaft;
-use mcrs_minecraft_worldgen_structure_place::portal::place_ruined_portal;
-use mcrs_minecraft_worldgen_structure_place::ocean_monument::paint_ocean_monument;
 use mcrs_minecraft_worldgen_structure_place::nether_fossil::paint_nether_fossil;
+use mcrs_minecraft_worldgen_structure_place::ocean_monument::paint_ocean_monument;
+use mcrs_minecraft_worldgen_structure_place::portal::place_ruined_portal;
 use mcrs_minecraft_worldgen_structure_place::scattered::{paint_desert_pyramid, paint_swamp_hut};
 use mcrs_minecraft_worldgen_structure_place::stronghold::paint_stronghold;
 use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{paint_igloo, paint_shipwreck};
-use mcrs_minecraft_worldgen_structure_place::end_city::place_end_city_piece;
 use mcrs_minecraft_worldgen_structure_place::woodland_mansion::place_woodland_mansion_piece;
 
 /// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
@@ -70,23 +71,31 @@ pub fn place_structures<W: WorldGenVolume>(
         let seed = decoration_seed
             .wrapping_add(structure.step_index as i64)
             .wrapping_add(10_000 * step as i64);
-        let mut rng = XoroshiroRandom::new(seed as u64);
-        for (chunk, start) in group {
-            place_start(
-                frozen, program, run, region, start, *chunk, clip, &mut rng, liquid,
-            );
+        let mut rng = WorldgenRandom::new(seed as u64);
+        for (_, start) in group {
+            place_start(frozen, program, run, region, start, clip, &mut rng, liquid);
         }
     }
 }
 
 /// The reference sinks a desert pyramid by `nextInt(3)` of whichever column
-/// decorates it first and every later column only spends the draw; here the
-/// value is the start chunk's own, so the columns agree whichever runs first.
-fn desert_pyramid_sink(world_seed: i64, chunk: ColumnPos, structure: &FrozenStructure) -> i32 {
-    let seed = decoration_seed(world_seed, chunk.x * 16, chunk.z * 16)
+/// decorates it first and every later column only spends the draw. The column
+/// nearest the origin among those the box meets stands in for that chunk, as
+/// it does for a mineshaft's spawner, so the columns agree whichever runs first.
+fn desert_pyramid_sink(
+    world_seed: i64,
+    piece: &DesertPyramidPiece,
+    structure: &FrozenStructure,
+) -> i32 {
+    let BoundingBox { min, max } = piece.bounds;
+    let host = (min.x >> 4..=max.x >> 4)
+        .flat_map(|x| (min.z >> 4..=max.z >> 4).map(move |z| ColumnPos::new(x, z)))
+        .min_by(|a, b| decorates_first(*a, *b))
+        .expect("a box meets at least one column");
+    let seed = decoration_seed(world_seed, host.x * 16, host.z * 16)
         .wrapping_add(structure.step_index as i64)
         .wrapping_add(10_000 * structure.step as i64);
-    XoroshiroRandom::new(seed as u64).next_i32_bound(3)
+    WorldgenRandom::new(seed as u64).next_i32_bound(3)
 }
 
 fn sunk_bounds(piece: &DesertPyramidPiece, sink: i32) -> BoundingBox {
@@ -107,9 +116,8 @@ pub fn place_start<W: WorldGenVolume>(
     run: &mut Run,
     region: &mut W,
     start: &Start,
-    chunk: ColumnPos,
     clip: BoundingBox,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     liquid: LiquidSettings,
 ) {
     let structure = &frozen.structures[start.structure.0 as usize];
@@ -141,7 +149,7 @@ pub fn place_start<W: WorldGenVolume>(
                 else {
                     continue;
                 };
-                let sink = desert_pyramid_sink(blocks.world_seed, chunk, structure);
+                let sink = desert_pyramid_sink(blocks.world_seed, piece, structure);
                 let mut canvas = PieceCanvas {
                     volume: region,
                     entities: &mut run.entities,
@@ -413,7 +421,7 @@ pub fn place_start<W: WorldGenVolume>(
                 let Piece::DesertPyramid(piece) = piece else {
                     continue;
                 };
-                let sink = desert_pyramid_sink(blocks.world_seed, chunk, structure);
+                let sink = desert_pyramid_sink(blocks.world_seed, piece, structure);
                 after_place::desert_pyramid(
                     blocks,
                     region,
@@ -443,7 +451,7 @@ pub fn place_element<W: WorldGenVolume>(
     reference: IVec3,
     rotation: Rotation,
     clip: Option<BoundingBox>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     liquid: LiquidSettings,
 ) -> bool {
     match program.element(element) {

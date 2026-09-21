@@ -3,7 +3,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
 #[derive(Clone, Debug)]
@@ -41,7 +41,7 @@ struct Iceberg {
 pub fn place_iceberg<W: WorldGenVolume>(
     cfg: &CompiledIceberg,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let origin = BlockPos::new(at.x, volume.extent().sea_level, at.z);
@@ -124,7 +124,7 @@ pub fn place_iceberg<W: WorldGenVolume>(
 fn generate_cut_out<W: WorldGenVolume>(
     cfg: &CompiledIceberg,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     berg: &Iceberg,
 ) {
     let Iceberg {
@@ -213,7 +213,7 @@ fn carve<W: WorldGenVolume>(
 fn generate_block<W: WorldGenVolume>(
     cfg: &CompiledIceberg,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     berg: &Iceberg,
     height: i32,
     local: IVec3,
@@ -263,7 +263,7 @@ fn generate_block<W: WorldGenVolume>(
 fn set_iceberg_block<W: WorldGenVolume>(
     cfg: &CompiledIceberg,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     berg: &Iceberg,
     pos: BlockPos,
     depth: i32,
@@ -342,7 +342,7 @@ fn ellipse_c_at(y_off: i32, height: i32, ellipse_c: i32) -> i32 {
     }
 }
 
-fn signed_distance_circle(rng: &mut XoroshiroRandom, xo: i32, zo: i32, radius: i32) -> f64 {
+fn signed_distance_circle(rng: &mut WorldgenRandom, xo: i32, zo: i32, radius: i32) -> f64 {
     let offset = 10.0 * rng.next_f32().clamp(0.2, 0.8) / radius as f32;
     offset as f64 + (xo * xo) as f64 + (zo * zo) as f64 - (radius as f64).powi(2)
 }
@@ -355,7 +355,7 @@ fn signed_distance_ellipse(xo: i32, zo: i32, origin: IVec3, a: i32, c: i32, angl
         - 1.0
 }
 
-fn radius_round(rng: &mut XoroshiroRandom, y_off: i32, height: i32, width: i32) -> i32 {
+fn radius_round(rng: &mut WorldgenRandom, y_off: i32, height: i32, width: i32) -> i32 {
     let k = 3.5 - rng.next_f32();
     let mut scale = (1.0 - (y_off * y_off) as f32 / (height as f32 * k)) * width as f32;
     if height > 15 + rng.next_i32_bound(5) {
@@ -374,7 +374,7 @@ fn radius_ellipse(y_off: i32, height: i32, width: i32) -> i32 {
     (scale / 2.0).ceil() as i32
 }
 
-fn radius_steep(rng: &mut XoroshiroRandom, y_off: i32, height: i32, width: i32) -> i32 {
+fn radius_steep(rng: &mut WorldgenRandom, y_off: i32, height: i32, width: i32) -> i32 {
     let k = 1.0 + rng.next_f32() / 2.0;
     let scale = (1.0 - y_off as f32 / (height as f32 * k)) * width as f32;
     (scale / 2.0).ceil() as i32
@@ -384,7 +384,7 @@ fn radius_steep(rng: &mut XoroshiroRandom, y_off: i32, height: i32, width: i32) 
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -427,7 +427,7 @@ mod tests {
     /// The prelude, in the reference's order. A test replays it to learn the
     /// shape the loops will then draw for.
     fn prelude(seed: u64) -> (bool, bool, i32, i32) {
-        let mut rng = XoroshiroRandom::new(seed);
+        let mut rng = WorldgenRandom::new(seed);
         let snow_on_top = rng.next_f64() > 0.7;
         rng.next_f64();
         rng.next_i32_bound(5);
@@ -454,7 +454,7 @@ mod tests {
         for seed in 0..24u64 {
             let (_, _, over_water, under_water) = prelude(seed);
             let mut volume = ocean();
-            let mut rng = XoroshiroRandom::new(seed);
+            let mut rng = WorldgenRandom::new(seed);
             assert!(place_iceberg(&cfg, &mut volume, &mut rng, ORIGIN));
             for ((x, y, z), _) in &volume.writes {
                 assert!(
@@ -488,7 +488,7 @@ mod tests {
             })
             .expect("a round iceberg without snow");
         let mut volume = ocean();
-        let mut rng = XoroshiroRandom::new(seed);
+        let mut rng = WorldgenRandom::new(seed);
         place_iceberg(&cfg, &mut volume, &mut rng, ORIGIN);
         assert_eq!(
             (seed, rng.next_i64()),
@@ -496,6 +496,6 @@ mod tests {
         );
     }
 
-    const PINNED_ROUND_SEED: u64 = 0;
-    const PINNED_ROUND_TAIL: i64 = 7_294_196_349_415_726_598;
+    const PINNED_ROUND_SEED: u64 = 2;
+    const PINNED_ROUND_TAIL: i64 = -4_740_996_625_246_655_224;
 }

@@ -1,7 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, StateMask, WorldGenVolume};
 
 use crate::tree::provider::StateProvider;
@@ -30,7 +30,7 @@ pub struct CompiledSteppedColumnCluster {
 pub fn place_stepped_column_cluster<W>(
     config: &CompiledSteppedColumnCluster,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> bool
 where
@@ -62,7 +62,7 @@ where
 fn place_column<W>(
     config: &CompiledSteppedColumnCluster,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     center: BlockPos,
     column_height: i32,
     reach: i32,
@@ -159,7 +159,7 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};
@@ -209,7 +209,7 @@ mod tests {
             IntProvider::Constant(5),
         );
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(6);
+        let mut rng = WorldgenRandom::new(6);
         let before = rng.clone();
 
         assert!(!place_stepped_column_cluster(
@@ -232,7 +232,7 @@ mod tests {
             IntProvider::Constant(5),
         );
         let mut volume = FakeVolume::with([((AT.x, AT.y - 1, AT.z), BLACKSTONE)]);
-        let mut rng = XoroshiroRandom::new(6);
+        let mut rng = WorldgenRandom::new(6);
 
         assert!(!place_stepped_column_cluster(
             &config,
@@ -254,7 +254,7 @@ mod tests {
             IntProvider::Constant(5),
         );
         let mut volume = floor();
-        let mut rng = XoroshiroRandom::new(19);
+        let mut rng = WorldgenRandom::new(19);
 
         assert!(place_stepped_column_cluster(
             &config,
@@ -263,7 +263,7 @@ mod tests {
             AT
         ));
 
-        let mut replay = XoroshiroRandom::new(19);
+        let mut replay = WorldgenRandom::new(19);
         for _ in 0..4 {
             let x = AT.x - 2 + replay.next_i32_bound(5);
             let y = AT.y + replay.next_i32_bound(1);
@@ -286,7 +286,7 @@ mod tests {
             IntProvider::Constant(5),
         );
         let mut volume = floor();
-        let mut rng = XoroshiroRandom::new(19);
+        let mut rng = WorldgenRandom::new(19);
 
         assert!(!place_stepped_column_cluster(
             &config,
@@ -309,7 +309,7 @@ mod tests {
             IntProvider::Constant(3),
         );
         let mut volume = floor();
-        let mut rng = XoroshiroRandom::new(19);
+        let mut rng = WorldgenRandom::new(19);
 
         assert!(place_stepped_column_cluster(
             &config,

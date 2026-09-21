@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::tree::{FoliagePlacer, UnitFloat};
@@ -34,7 +34,7 @@ impl Foliage {
         }
     }
 
-    pub fn foliage_height(&self, rng: &mut XoroshiroRandom, tree_height: i32) -> i32 {
+    pub fn foliage_height(&self, rng: &mut WorldgenRandom, tree_height: i32) -> i32 {
         match &self.0 {
             FoliagePlacer::Blob { height, .. }
             | FoliagePlacer::Bush { height, .. }
@@ -54,7 +54,7 @@ impl Foliage {
         }
     }
 
-    pub fn foliage_radius(&self, rng: &mut XoroshiroRandom, trunk_height: i32) -> i32 {
+    pub fn foliage_radius(&self, rng: &mut WorldgenRandom, trunk_height: i32) -> i32 {
         let radius = self.base().0.sample(rng);
         match &self.0 {
             FoliagePlacer::Pine { .. } => radius + rng.next_i32_bound((trunk_height + 1).max(1)),
@@ -65,7 +65,7 @@ impl Foliage {
     pub fn create_foliage<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         attachment: FoliageAttachment,
         foliage_height: i32,
         leaf_radius: i32,
@@ -368,7 +368,7 @@ impl Foliage {
     fn place_leaves_row<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         origin: BlockPos,
         current_radius: i32,
         y: i32,
@@ -388,7 +388,7 @@ impl Foliage {
     fn place_leaves_row_with_hanging_leaves_below<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         origin: BlockPos,
         current_radius: i32,
         y: i32,
@@ -433,7 +433,7 @@ impl Foliage {
 
     fn should_skip_location_signed(
         &self,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         dx: i32,
         y: i32,
         dz: i32,
@@ -458,7 +458,7 @@ impl Foliage {
 
     fn should_skip_location(
         &self,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         dx: i32,
         y: i32,
         dz: i32,
@@ -530,7 +530,7 @@ impl Foliage {
     fn try_place_leaf<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         at: BlockPos,
     ) -> bool {
         if cx.is_persistent(at) || !cx.is_valid_tree_pos(at) {
@@ -545,7 +545,7 @@ impl Foliage {
     fn try_place_extension<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         chance: f32,
         log_pos: BlockPos,
         at: BlockPos,
@@ -565,7 +565,7 @@ impl Foliage {
     fn poplar_row<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         side_hole_chance: &UnitFloat,
         origin: BlockPos,
         current_radius: i32,
@@ -614,7 +614,7 @@ impl Foliage {
     fn replace_leaves_with_log<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         origin: BlockPos,
         current_radius: i32,
         y: i32,
@@ -696,7 +696,7 @@ fn is_within_rhombus_shape(
 mod tests {
     use super::super::trunk::harness::*;
     use super::*;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     fn foliage(placer: &str, radius: i32, offset: i32, rest: &str) -> Foliage {
         let json = format!(
@@ -837,7 +837,7 @@ mod tests {
     #[test]
     fn the_skip_predicate_draws_on_the_cells_it_skips() {
         let placer = foliage("blob", 1, 0, r#","height":0"#);
-        let mut rng = XoroshiroRandom::new(5);
+        let mut rng = WorldgenRandom::new(5);
         let mut drew = |dx: i32, dz: i32| {
             let before = rng.clone().next_i64();
             let skip = placer.should_skip_location_signed(&mut rng, dx, 1, dz, 1, false);
@@ -865,7 +865,7 @@ mod tests {
     #[test]
     fn dark_oak_keeps_its_double_trunk_corners() {
         let placer = foliage("dark_oak", 0, 0, "");
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
         assert!(placer.should_skip_location_signed(&mut rng, -2, 0, -2, 2, true));
         assert!(placer.should_skip_location_signed(&mut rng, 3, 0, 3, 2, true));
         assert!(!placer.should_skip_location_signed(&mut rng, 0, 0, 0, 2, true));
@@ -874,87 +874,87 @@ mod tests {
     const FOLIAGE_PINS: &[(&str, usize, u64, i64, i64)] = &[
         (
             "blob",
-            60,
-            0xfbea357879acb37f,
-            -3066404182989085885,
-            745457546272312399,
+            56,
+            0xd5ea54b92996290d,
+            -3066404184412101200,
+            -1441244675890220626,
         ),
         (
             "bush",
-            157,
-            0xb3c9bf63146fd866,
-            -3066404182989085885,
-            745457546272312399,
+            154,
+            0x76ba5ca145c5c627,
+            -3066404184412101200,
+            -1441244675890220626,
         ),
         (
             "fancy",
             73,
             0xf5e63a77d813a3b0,
-            -4695948378737616609,
-            7341713790291473579,
+            -4695948378802814517,
+            -7542733517267348717,
         ),
         (
             "spruce",
-            111,
-            0x98f419d8e1b3333e,
-            -7542733514721318211,
-            4888889476139319686,
+            90,
+            0xa8e0833efcb3f17c,
+            -7542733517267348717,
+            8419651034261488620,
         ),
         (
             "pine",
-            32,
-            0xa8e40b3184493065,
-            -7542733514721318211,
-            4888889476139319686,
+            93,
+            0x8f2a658dd28347b5,
+            -7542733517267348717,
+            8419651034261488620,
         ),
         (
             "acacia",
             30,
             0x382cb66bed781e2,
-            -4695948378737616609,
-            7341713790291473579,
+            -4695948378802814517,
+            -7542733517267348717,
         ),
         (
             "dark_oak",
             119,
             0x5e07e34e943710a0,
-            7341713790291473579,
-            -7542733514721318211,
+            7341713791472817108,
+            4888889476028865537,
         ),
         (
             "mega_jungle",
             208,
             0x17b9d7f337b89b65,
-            -4695948378737616609,
-            7341713790291473579,
+            -4695948378802814517,
+            -7542733517267348717,
         ),
         (
             "mega_pine",
-            112,
-            0x9dbf0e3ece82c095,
-            7341713790291473579,
-            -7542733514721318211,
+            88,
+            0x4d16700e160f1ef5,
+            7341713791472817108,
+            4888889476028865537,
         ),
         (
             "random_spread",
-            34,
-            0x2b00ed3eb25def67,
-            8416111302833757510,
-            -5134745859768971629,
+            35,
+            0xa81104ad1e83fbc2,
+            8416111302920746968,
+            -1293537079469493768,
         ),
         (
             "cherry",
-            294,
-            0x68673acb05e939f6,
-            -9161065153311613817,
-            -760078507025830770,
+            254,
+            0xf31098e5996d1eda,
+            6337583165278224144,
+            -9161065152627103585,
         ),
         (
             "poplar",
-            129,
-            0x99327487510fa011,
-            -3254201749868996534,
-            -9191476076367467042,
+            98,
+            0x68cddc8b5a8e36ae,
+            -6486173809609364591,
+            -3077089662192771546,
         ),
     ];
 }

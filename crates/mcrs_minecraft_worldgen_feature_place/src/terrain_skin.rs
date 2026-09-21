@@ -6,7 +6,7 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{
@@ -36,7 +36,7 @@ pub struct CompiledDisk {
 pub fn place_disk<W: WorldGenVolume>(
     cfg: &CompiledDisk,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let top = at.y + cfg.half_height;
@@ -79,7 +79,7 @@ pub struct CompiledBlueIce {
 pub fn place_blue_ice<W: WorldGenVolume>(
     cfg: &CompiledBlueIce,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     if at.y > volume.extent().sea_level - 1 {
@@ -148,7 +148,7 @@ pub struct CompiledUnderwaterMagma {
 pub fn place_underwater_magma<W: WorldGenVolume>(
     cfg: &CompiledUnderwaterMagma,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let Some(floor) = water_floor(cfg, volume, at) else {
@@ -385,7 +385,7 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
     use mcrs_minecraft_core::value_provider::{DispatchedIntProvider, IntProvider};
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -402,8 +402,8 @@ mod tests {
     const GRASS: VoxelId = VoxelId(10);
     const SNOWY_GRASS: VoxelId = VoxelId(11);
 
-    fn seeded() -> XoroshiroRandom {
-        XoroshiroRandom::new(0x5ca1e)
+    fn seeded() -> WorldgenRandom {
+        WorldgenRandom::new(0x5ca1e)
     }
 
     /// Water is the one fluid; stone and dirt occlude; grass, stone and dirt

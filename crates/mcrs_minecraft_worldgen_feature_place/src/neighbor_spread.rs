@@ -1,7 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, StateMask, WorldGenVolume};
 
@@ -28,7 +28,7 @@ pub struct CompiledNeighborSpread {
 pub fn place_random_neighbor_spread<W: WorldGenVolume>(
     cfg: &CompiledNeighborSpread,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let state = cfg.block.state(volume, rng, at);
@@ -70,7 +70,7 @@ mod tests {
 
     use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_core::value_provider::DispatchedIntProvider;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};
@@ -104,7 +104,7 @@ mod tests {
     fn every_attempt_draws_its_three_offsets_in_order() {
         let cfg = config(12);
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(2024);
+        let mut rng = WorldgenRandom::new(2024);
 
         assert!(place_random_neighbor_spread(
             &cfg,
@@ -113,7 +113,7 @@ mod tests {
             AT
         ));
 
-        let mut replay = XoroshiroRandom::new(2024);
+        let mut replay = WorldgenRandom::new(2024);
         for _ in 0..12 {
             replay.next_int_between_inclusive(-2, 2);
             replay.next_int_between_inclusive(-2, 0);
@@ -137,7 +137,7 @@ mod tests {
         cfg.xz_offset = IntProvider::Constant(0);
         cfg.y_offset = IntProvider::Constant(1);
         let mut volume = FakeVolume::with([((AT.x, AT.y + 2, AT.z), GLOWSTONE)]);
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
 
         place_random_neighbor_spread(&cfg, &mut volume, &mut rng, AT);
 

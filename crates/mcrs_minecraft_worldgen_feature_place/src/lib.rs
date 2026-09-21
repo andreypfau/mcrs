@@ -42,7 +42,7 @@ pub mod vines;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 
 pub fn holds(mask: &FixedBitSet, state: VoxelId) -> bool {
@@ -50,7 +50,7 @@ pub fn holds(mask: &FixedBitSet, state: VoxelId) -> bool {
 }
 
 /// `Direction.getRandom`, over the declaration order `values()` hands back.
-pub fn random_direction(rng: &mut XoroshiroRandom) -> Direction {
+pub fn random_direction(rng: &mut WorldgenRandom) -> Direction {
     Direction::all()[rng.next_i32_bound(6) as usize]
 }
 

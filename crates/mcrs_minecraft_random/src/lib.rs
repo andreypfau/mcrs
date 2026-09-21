@@ -1,4 +1,6 @@
+mod bits;
 pub mod legacy;
+pub mod worldgen;
 pub mod xoroshiro;
 
 use crate::legacy::LegacyRandom;

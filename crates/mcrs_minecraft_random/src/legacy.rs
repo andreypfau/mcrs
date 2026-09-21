@@ -1,3 +1,4 @@
+use crate::bits::BitSource;
 use crate::{GaussianBank, Random, block_pos_seed};
 use bevy_math::IVec3;
 use rand_xoshiro::rand_core::{Rng, TryRng};
@@ -7,8 +8,6 @@ const MODULUS_BITS: usize = 48;
 const MODULUS_MASK: u64 = 281474976710655;
 const MULTIPLIER: u64 = 25214903917;
 const INCREMENT: u64 = 11;
-const F32_MULTIPLIER: f32 = 1.0 / (1u64 << 24) as f32;
-const F64_MULTIPLIER: f64 = 1.0 / (1u64 << 53) as f64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegacyRandom {
@@ -27,11 +26,6 @@ impl LegacyRandom {
     #[inline]
     fn advance(&mut self) {
         self.seed = self.seed.wrapping_mul(MULTIPLIER).wrapping_add(INCREMENT) & MODULUS_MASK;
-    }
-
-    fn next_bits(&mut self, bits: usize) -> u64 {
-        self.advance();
-        self.seed >> (MODULUS_BITS - bits)
     }
 
     /// `WorldgenRandom.setLargeFeatureSeed`.
@@ -58,15 +52,20 @@ impl LegacyRandom {
         LegacyRandom::new(seed as u64)
     }
 
-    /// Java-accurate `nextLong()`: both 32-bit halves are sign-extended before combining.
-    /// Java's `nextLong` computes `((long)(int)upper << 32) + (long)(int)lower`, so when
-    /// the lower half has its high bit set the result is reduced by 2^32 relative to the
-    /// unsigned interpretation used by `try_next_u64`.
     #[inline]
     pub fn next_java_long(&mut self) -> i64 {
-        let hi = self.next_bits(32) as i32 as i64;
-        let lo = self.next_bits(32) as i32 as i64;
-        (hi << 32).wrapping_add(lo)
+        self.bits_java_long()
+    }
+}
+
+impl BitSource for LegacyRandom {
+    fn next_bits(&mut self, bits: usize) -> u64 {
+        self.advance();
+        self.seed >> (MODULUS_BITS - bits)
+    }
+
+    fn gaussian_bank(&mut self) -> &mut GaussianBank {
+        &mut self.banked_gaussian
     }
 }
 
@@ -78,7 +77,7 @@ impl TryRng for LegacyRandom {
     }
 
     fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        Ok((self.next_bits(32) << 32) + self.next_bits(32))
+        Ok(self.bits_u64())
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
@@ -108,42 +107,23 @@ impl Random for LegacyRandom {
     }
 
     fn next_bool(&mut self) -> bool {
-        self.next_bits(1) != 0
+        self.bits_bool()
     }
 
     fn next_u32_bound(&mut self, bound: u32) -> u32 {
-        if (bound & (bound - 1)) == 0 {
-            let n = self.next_bits(31);
-            return ((bound as u64).wrapping_mul(n) >> 31) as u32;
-        }
-        let bound = bound as i32;
-        loop {
-            let sample = self.next_bits(31) as i32;
-            let modulo = sample % bound;
-            if sample.wrapping_sub(modulo).wrapping_add(bound - 1) >= 0 {
-                return modulo as u32;
-            }
-        }
+        self.bits_u32_bound(bound)
     }
 
     fn next_f32(&mut self) -> f32 {
-        self.next_bits(24) as f32 * F32_MULTIPLIER
+        self.bits_f32()
     }
 
-    /// `BitRandomSource.DOUBLE_MULTIPLIER` is declared from the float literal
-    /// `1.110223E-16F`, which rounds exactly onto `2^-53`, so the modern source and
-    /// `java.util.Random` agree bit for bit here.
     fn next_f64(&mut self) -> f64 {
-        let hi = self.next_bits(26);
-        let lo = self.next_bits(27);
-        ((hi << 27) + lo) as f64 * F64_MULTIPLIER
+        self.bits_f64()
     }
 
     fn next_gaussian(&mut self) -> f64 {
-        let mut bank = self.banked_gaussian;
-        let value = bank.next(|| self.next_f64());
-        self.banked_gaussian = bank;
-        value
+        self.bits_gaussian()
     }
 
     fn fork(&mut self) -> Self {

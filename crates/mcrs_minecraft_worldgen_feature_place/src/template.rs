@@ -8,7 +8,7 @@ use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{
@@ -680,7 +680,7 @@ fn run_processor<W: WorldGenVolume>(
     volume: &W,
     p: &Placement<'_>,
     b: &mut Processed,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) -> bool {
     match p.random {
         SettingsRandom::Positional => {
@@ -818,7 +818,7 @@ impl CompiledProcessor {
         volume: &W,
         p: &Placement<'_>,
         processed: &mut [Processed],
-        stream: &mut XoroshiroRandom,
+        stream: &mut WorldgenRandom,
     ) {
         let CompiledProcessor::Capped {
             delegate,
@@ -890,7 +890,7 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
 pub fn place_template<W: WorldGenVolume>(
     p: &Placement<'_>,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) -> bool {
@@ -950,7 +950,7 @@ pub fn place_template<W: WorldGenVolume>(
         volume.set(pos, state);
         let holds_entity = volume.world().has_block_entity.contains(state.0 as usize);
         if let Some(nbt) = b.nbt.as_ref().filter(|_| holds_entity) {
-            let seed = GeneratedBlockEntity::wants_loot_seed(nbt).then(|| rng.next_i64());
+            let seed = GeneratedBlockEntity::wants_loot_seed(nbt).then(|| rng.next_java_long());
             match GeneratedBlockEntity::from_template(nbt, pos, seed) {
                 Ok(Some(entity)) => entities.push(entity),
                 Ok(None) => {}
@@ -1192,9 +1192,9 @@ mod tests {
         }
     }
 
-    fn place(p: &Placement<'_>) -> (BoxRegion, Vec<GeneratedBlockEntity>, XoroshiroRandom, bool) {
+    fn place(p: &Placement<'_>) -> (BoxRegion, Vec<GeneratedBlockEntity>, WorldgenRandom, bool) {
         let mut region = new_region();
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
         let mut entities = Vec::new();
         let placed = place_template(p, &mut region, &mut rng, &mut entities, &mut Vec::new());
         (region, entities, rng, placed)
@@ -1288,7 +1288,7 @@ mod tests {
         }];
         let clip = BoundingBox::from_corners(BlockPos::new(0, 0, 0), BlockPos::new(15, 12, 15));
         let mut region = new_region().with_height(|_, _, _, _| 30);
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
         let mut entities = Vec::new();
         assert!(place_template(
             &placement(&template, &chain, Rotation::None, Some(clip)),
@@ -1373,8 +1373,8 @@ mod tests {
         let template = template();
         let chain = vec![];
         let (_, entities, mut rng, _) = place(&placement(&template, &chain, Rotation::None, None));
-        let mut replay = XoroshiroRandom::new(7);
-        let seed = replay.next_i64();
+        let mut replay = WorldgenRandom::new(7);
+        let seed = replay.next_java_long();
         assert_eq!(rng.next_i64(), replay.next_i64(), "one draw was spent");
         assert_eq!(
             entities,
@@ -1388,7 +1388,7 @@ mod tests {
         let mut bare = template.clone();
         bare.palettes[0] = vec![with_nbt([2, 1, 2], STONE, "minecraft:chest")].into_boxed_slice();
         let (_, entities, mut rng, _) = place(&placement(&bare, &chain, Rotation::None, None));
-        let mut replay = XoroshiroRandom::new(7);
+        let mut replay = WorldgenRandom::new(7);
         replay.next_i64();
         assert_eq!(rng.next_i64(), replay.next_i64(), "drawn but not stored");
         let compound = mcrs_minecraft_nbt::to_nbt_compound(&entities[0]).unwrap();
@@ -1483,7 +1483,7 @@ mod tests {
         p.waterlog = true;
         let mut region = new_region();
         region.blocks.set(BlockPos::new(4, 5, 4), WATER);
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
         let mut entities = Vec::new();
         place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
         let wet = with(fence, &[("waterlogged", "true")]);
@@ -1532,7 +1532,7 @@ mod tests {
         p.waterlog = true;
         let mut region = new_region();
         region.blocks.set(BlockPos::new(7, 5, 4), WATER);
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
         let mut entities = Vec::new();
         place_template(&p, &mut region, &mut rng, &mut entities, &mut Vec::new());
         assert_eq!(
@@ -1559,7 +1559,7 @@ mod tests {
         p.waterlog = true;
         let mut region = new_region();
         region.blocks.set(BlockPos::new(4, 5, 4), WATER);
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
         place_template(&p, &mut region, &mut rng, &mut Vec::new(), &mut Vec::new());
         assert_eq!(region.get(BlockPos::new(4, 5, 4)), slab);
     }
@@ -1599,7 +1599,7 @@ mod tests {
         let mut p = placement(&template, &chain, Rotation::None, None);
         p.random = SettingsRandom::Stream;
         let (region, _, mut rng, _) = place(&p);
-        let mut replay = XoroshiroRandom::new(7);
+        let mut replay = WorldgenRandom::new(7);
         let expected = (0..9).filter(|_| replay.next_f32() <= integrity).count();
         replay.next_i64();
         assert_eq!(
@@ -1647,7 +1647,7 @@ mod tests {
         let chain = vec![CompiledProcessor::ProtectedBlocks(mask_of([STONE.0]))];
         let mut region = new_region();
         region.blocks.set(BlockPos::new(4, 5, 4), STONE);
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
         place_template(
             &placement(&template, &chain, Rotation::None, None),
             &mut region,
@@ -1728,7 +1728,7 @@ mod tests {
         for clip in columns {
             p.clip = Some(clip);
             let mut region = new_region();
-            let mut rng = XoroshiroRandom::new(7);
+            let mut rng = WorldgenRandom::new(7);
             place_template(&p, &mut region, &mut rng, &mut Vec::new(), &mut spawns);
         }
         let [villager] = spawns.as_slice() else {

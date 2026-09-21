@@ -3,7 +3,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::mth::{lerp, sin_modern};
 use mcrs_minecraft_core::{BlockPos, Direction};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{Rule, WorldGenVolume};
 
@@ -38,7 +38,7 @@ pub struct OreScratch {
 pub fn place_modern_ore<W: WorldGenVolume>(
     cfg: &CompiledOre,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
     scratch: &mut OreScratch,
 ) -> bool {
@@ -85,7 +85,7 @@ pub fn place_modern_ore<W: WorldGenVolume>(
 fn do_place<W: WorldGenVolume>(
     cfg: &CompiledOre,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     [x0, x1, z0, z1, y0, y1]: [f64; 6],
     [x_start, y_start, z_start]: [i32; 3],
     size_xz: i32,
@@ -196,7 +196,7 @@ fn bit_set_capacity(size_xz: i32, size_y: i32) -> usize {
 pub(crate) fn can_place_ore<W: WorldGenVolume>(
     cfg: &CompiledOre,
     volume: &W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     target: &OreReplacement,
     state: VoxelId,
     pos: BlockPos,
@@ -210,7 +210,7 @@ pub(crate) fn can_place_ore<W: WorldGenVolume>(
     !is_adjacent_to_air(volume, pos)
 }
 
-fn should_skip_air_check(rng: &mut XoroshiroRandom, discard_chance_on_air_exposure: f32) -> bool {
+fn should_skip_air_check(rng: &mut WorldgenRandom, discard_chance_on_air_exposure: f32) -> bool {
     if discard_chance_on_air_exposure <= 0.0 {
         true
     } else if discard_chance_on_air_exposure >= 1.0 {

@@ -162,6 +162,7 @@ where
     /// the column can select, which must include the border ring of the grid the
     /// zoom reads: a set narrower than the zoom's reach folds a condition that
     /// should have matched to `never` and writes the wrong block.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         router: &'a NoiseRouter,
         program: &'a MaterialProgram,

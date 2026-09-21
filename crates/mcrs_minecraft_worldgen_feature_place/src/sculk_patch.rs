@@ -2,7 +2,7 @@ use crate::{face_bit, holds};
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
@@ -96,7 +96,7 @@ impl CompiledSculkPatch {
 pub fn place_sculk_patch<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> bool {
     if !can_spread_from(config, volume, origin) {
@@ -157,7 +157,7 @@ fn add_cursors(cursors: &mut Vec<Cursor>, pos: BlockPos, mut charge: i32) {
 fn update_cursors<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     cursors: &mut Vec<Cursor>,
     origin: BlockPos,
     spread_veins: bool,
@@ -174,7 +174,7 @@ fn update_cursors<W: WorldGenVolume>(
 fn update_cursor<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     cursor: &mut Cursor,
     origin: BlockPos,
     spread_veins: bool,
@@ -389,7 +389,7 @@ fn can_spread_into<W: WorldGenVolume>(
 fn attempt_use_charge<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     cursor: &Cursor,
     behaviour: Behaviour,
     origin: BlockPos,
@@ -422,7 +422,7 @@ fn attempt_use_charge<W: WorldGenVolume>(
 fn attempt_place_sculk<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     pos: BlockPos,
 ) -> bool {
     let state = volume.get(pos);
@@ -464,7 +464,7 @@ fn attempt_place_sculk<W: WorldGenVolume>(
 fn sculk_use_charge<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     cursor: &Cursor,
     origin: BlockPos,
 ) -> i32 {
@@ -503,7 +503,7 @@ fn decay_penalty(distance_sq: f64, charge: i32) -> i32 {
 fn random_growth_state<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     pos: BlockPos,
 ) -> VoxelId {
     let family = if rng.next_i32_bound(SHRIEKER_PLACEMENT_RATE) == 0 {
@@ -592,7 +592,7 @@ const NON_CORNER_NEIGHBOURS: [IVec3; 18] = [
     IVec3::new(0, 1, 1),
 ];
 
-fn shuffled_neighbours(rng: &mut XoroshiroRandom) -> [IVec3; 18] {
+fn shuffled_neighbours(rng: &mut WorldgenRandom) -> [IVec3; 18] {
     let mut offsets = NON_CORNER_NEIGHBOURS;
     mcrs_minecraft_random::shuffle(&mut offsets, rng);
     offsets
@@ -604,7 +604,7 @@ fn shuffled_neighbours(rng: &mut XoroshiroRandom) -> [IVec3; 18] {
 fn valid_movement_pos<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     pos: BlockPos,
     origin: BlockPos,
 ) -> Option<BlockPos> {
@@ -664,7 +664,7 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use rustc_hash::FxHashMap as HashMap;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};
@@ -731,7 +731,7 @@ mod tests {
     #[test]
     fn a_patch_with_no_support_places_nothing_and_draws_nothing() {
         let mut volume = cave(FakeVolume::default());
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
         let before = rng.clone();
 
         assert!(!place_sculk_patch(&config(), &mut volume, &mut rng, AT));
@@ -745,7 +745,7 @@ mod tests {
     fn a_patch_over_a_floor_veins_the_origin_and_sculks_what_it_hangs_on() {
         let config = config();
         let mut volume = floor();
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
 
         assert!(place_sculk_patch(&config, &mut volume, &mut rng, AT));
 

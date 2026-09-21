@@ -201,6 +201,7 @@ pub struct PlacedFeature {
 /// `config` wrapper.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
+#[allow(clippy::large_enum_variant)]
 pub enum Feature {
     #[serde(rename = "minecraft:bamboo")]
     Bamboo { probability: UnitFloat },

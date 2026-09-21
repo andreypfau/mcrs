@@ -3,7 +3,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
@@ -43,7 +43,7 @@ pub fn connection_index(
 pub fn place_chorus_plant<W: WorldGenVolume>(
     cfg: &CompiledChorusPlant,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     if !volume.is_air(at) || !volume.holds(&cfg.supports, at - IVec3::Y) {
@@ -57,7 +57,7 @@ pub fn place_chorus_plant<W: WorldGenVolume>(
 fn grow<W: WorldGenVolume>(
     cfg: &CompiledChorusPlant,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     current: BlockPos,
     start: BlockPos,
     depth: i32,
@@ -135,7 +135,7 @@ fn connect<W: WorldGenVolume>(cfg: &CompiledChorusPlant, volume: &mut W, pos: Bl
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -178,14 +178,14 @@ mod tests {
         volume
             .blocks
             .insert((ORIGIN.x, ORIGIN.y, ORIGIN.z), END_STONE);
-        let mut rng = XoroshiroRandom::new(3);
+        let mut rng = WorldgenRandom::new(3);
         let before = rng.clone();
         assert!(!place_chorus_plant(&cfg, &mut volume, &mut rng, ORIGIN));
         assert_eq!(rng, before);
         assert!(volume.writes.is_empty());
 
         let mut bare = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(3);
+        let mut rng = WorldgenRandom::new(3);
         assert!(!place_chorus_plant(&cfg, &mut bare, &mut rng, ORIGIN));
         assert_eq!(rng, before);
     }
@@ -200,10 +200,10 @@ mod tests {
         volume
             .blocks
             .insert((ORIGIN.x + 1, ORIGIN.y + 1, ORIGIN.z), END_STONE);
-        let mut rng = XoroshiroRandom::new(0x00c0_ffee);
+        let mut rng = WorldgenRandom::new(0x00c0_ffee);
         assert!(place_chorus_plant(&cfg, &mut volume, &mut rng, ORIGIN));
 
-        let mut replay = XoroshiroRandom::new(0x00c0_ffee);
+        let mut replay = WorldgenRandom::new(0x00c0_ffee);
         replay.next_i32_bound(4);
         assert_eq!(
             rng, replay,
@@ -228,7 +228,7 @@ mod tests {
         let cfg = config();
         for seed in 0..64u64 {
             let mut volume = island();
-            let mut rng = XoroshiroRandom::new(seed);
+            let mut rng = WorldgenRandom::new(seed);
             assert!(place_chorus_plant(&cfg, &mut volume, &mut rng, ORIGIN));
             assert!(
                 volume.writes.iter().any(|(_, state)| *state == FLOWER),

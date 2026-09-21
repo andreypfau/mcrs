@@ -7,7 +7,7 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::value_provider::{IntProvider, pick_weighted_by};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume};
 use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
@@ -203,7 +203,7 @@ impl StateProvider {
     pub fn state<W: WorldGenVolume>(
         &self,
         volume: &W,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         pos: BlockPos,
     ) -> VoxelId {
         self.optional_state(volume, rng, pos)
@@ -213,7 +213,7 @@ impl StateProvider {
     pub fn optional_state<W: WorldGenVolume>(
         &self,
         volume: &W,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         pos: BlockPos,
     ) -> Option<VoxelId> {
         match self {
@@ -467,7 +467,7 @@ mod tests {
     use mcrs_minecraft_chunk::BlocksMut;
     use mcrs_minecraft_core::value_provider::{DispatchedIntProvider, IntProvider};
     use mcrs_minecraft_random::legacy::LegacyRandom;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::placer::PropertyLayout;
     use mcrs_minecraft_worldgen_noise::normal;
 
@@ -479,8 +479,8 @@ mod tests {
     const C: VoxelId = VoxelId(33);
     const ORIGIN: BlockPos = BlockPos::new(4, 70, -9);
 
-    fn rng() -> XoroshiroRandom {
-        XoroshiroRandom::new(0x5eed_1234)
+    fn rng() -> WorldgenRandom {
+        WorldgenRandom::new(0x5eed_1234)
     }
 
     /// The provider under test, then the draw sequence it is claimed to spend,
@@ -488,7 +488,7 @@ mod tests {
     fn assert_draws(
         provider: &StateProvider,
         volume: &FakeVolume,
-        expected: impl Fn(&mut XoroshiroRandom),
+        expected: impl Fn(&mut WorldgenRandom),
     ) -> VoxelId {
         let mut actual = rng();
         let state = provider.state(volume, &mut actual, ORIGIN);

@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 
@@ -33,7 +33,7 @@ pub struct CompiledFallenTree {
 pub fn place_fallen_tree<W: WorldGenVolume>(
     tree: &CompiledFallenTree,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     sink: &mut dyn TreeSink<W>,
     origin: BlockPos,
 ) -> bool {
@@ -69,7 +69,7 @@ pub fn place_fallen_tree<W: WorldGenVolume>(
 fn place_log<W: WorldGenVolume>(
     tree: &CompiledFallenTree,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     pos: BlockPos,
     sideways: Option<Direction>,
 ) -> BlockPos {
@@ -127,7 +127,7 @@ fn decorate<W: WorldGenVolume>(
     tree: &CompiledFallenTree,
     decorators: &[CompiledTreeDecorator],
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     sink: &mut dyn TreeSink<W>,
     logs: &[BlockPos],
 ) {
@@ -149,7 +149,7 @@ mod tests {
 
     use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_core::value_provider::DispatchedIntProvider;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::decorator::TreePalette;
@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn a_fallen_tree_lays_a_stump_and_a_log_and_spends_the_draws_in_that_order() {
         let (tree, mut volume) = fixture();
-        let mut rng = XoroshiroRandom::new(1234);
+        let mut rng = WorldgenRandom::new(1234);
         let mut entities = EntitiesOnly::default();
         assert!(place_fallen_tree(
             &tree,
@@ -232,7 +232,7 @@ mod tests {
             ORIGIN
         ));
 
-        let mut replay = XoroshiroRandom::new(1234);
+        let mut replay = WorldgenRandom::new(1234);
         replay.next_i32_bound(1);
         let direction = Direction::HORIZONTAL[replay.next_i32_bound(4) as usize];
         let log_length = 4 + replay.next_i32_bound(4) - 2;
@@ -264,7 +264,7 @@ mod tests {
         volume.blocks.clear();
         volume.blocks.insert((0, 63, 0), DIRT);
 
-        let mut rng = XoroshiroRandom::new(1234);
+        let mut rng = WorldgenRandom::new(1234);
         let mut entities = EntitiesOnly::default();
         assert!(place_fallen_tree(
             &tree,

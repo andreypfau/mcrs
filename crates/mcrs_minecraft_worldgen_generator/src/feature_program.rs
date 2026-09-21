@@ -24,7 +24,7 @@ use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
@@ -135,19 +135,19 @@ use mcrs_minecraft_worldgen_structure::frozen::{
 };
 use mcrs_minecraft_worldgen_structure::{DecorationStep, LiquidSettings};
 use mcrs_minecraft_worldgen_structure_place::buried_treasure::BuriedTreasureBlocks;
+use mcrs_minecraft_worldgen_structure_place::end_city::EndCityChains;
 use mcrs_minecraft_worldgen_structure_place::fortress::FortressBlocks;
 use mcrs_minecraft_worldgen_structure_place::jungle_temple::JungleTempleBlocks;
-use mcrs_minecraft_worldgen_structure_place::portal::RuinedPortalBlocks;
-use mcrs_minecraft_worldgen_structure_place::ocean_monument::OceanMonumentBlocks;
 use mcrs_minecraft_worldgen_structure_place::mineshaft::MineshaftBlocks;
 use mcrs_minecraft_worldgen_structure_place::nether_fossil::NetherFossilBlocks;
+use mcrs_minecraft_worldgen_structure_place::ocean_monument::OceanMonumentBlocks;
+use mcrs_minecraft_worldgen_structure_place::portal::RuinedPortalBlocks;
 use mcrs_minecraft_worldgen_structure_place::scattered::{DesertPyramidBlocks, SwampHutBlocks};
 use mcrs_minecraft_worldgen_structure_place::stronghold::StrongholdBlocks;
 use mcrs_minecraft_worldgen_structure_place::template::OceanRuinBlocks;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{
     IglooBlocks, ignore_structure_and_air,
 };
-use mcrs_minecraft_worldgen_structure_place::end_city::EndCityChains;
 use mcrs_minecraft_worldgen_structure_place::woodland_mansion::WoodlandMansionBlocks;
 use rustc_hash::FxHashMap;
 use std::ops::Range;
@@ -648,7 +648,7 @@ impl<W: WorldGenVolume> TreeSink<W> for TreeRun<'_, '_, '_> {
         self.run.entities.push(entity);
     }
 
-    fn moss_patch(&mut self, region: &mut W, rng: &mut XoroshiroRandom, at: BlockPos) {
+    fn moss_patch(&mut self, region: &mut W, rng: &mut WorldgenRandom, at: BlockPos) {
         // A tree that decorates with moss made the build resolve the patch, so
         // nothing to run here is a bug in the compile.
         if let Some(generator) = self.run.moss_patch {
@@ -674,7 +674,7 @@ impl Nested {
         &self,
         run: &mut Run,
         region: &mut W,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         at: BlockPos,
         carries: &dyn Fn(u32) -> bool,
     ) -> bool {
@@ -736,7 +736,7 @@ impl Generator {
         &self,
         run: &mut Run,
         region: &mut W,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         at: BlockPos,
         carries: &dyn Fn(u32) -> bool,
     ) -> bool {
@@ -922,7 +922,7 @@ impl Generator {
 fn place_fossil<W: WorldGenVolume>(
     config: &CompiledFossil,
     region: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,

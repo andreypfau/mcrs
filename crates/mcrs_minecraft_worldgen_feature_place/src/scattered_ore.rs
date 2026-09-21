@@ -1,7 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
 use crate::ore_modern::{CompiledOre, can_place_ore};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
@@ -17,7 +17,7 @@ const MAX_DIST_FROM_ORIGIN: i32 = 7;
 pub fn place_scattered_ore<W: WorldGenVolume>(
     config: &CompiledOre,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> bool {
     let tries = rng.next_i32_bound(config.size + 1);
@@ -42,7 +42,7 @@ pub fn place_scattered_ore<W: WorldGenVolume>(
 
 /// `Math.round(float)` is `floor(x + 0.5)` over the exact value, which a `f32`
 /// addition does not always give; the widening does.
-fn axis_offset(rng: &mut XoroshiroRandom, max: i32) -> i32 {
+fn axis_offset(rng: &mut WorldgenRandom, max: i32) -> i32 {
     let drift = (rng.next_f32() - rng.next_f32()) * max as f32;
     (drift as f64 + 0.5).floor() as i32
 }
@@ -50,7 +50,7 @@ fn axis_offset(rng: &mut XoroshiroRandom, max: i32) -> i32 {
 #[cfg(test)]
 mod tests {
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::ore_modern::OreReplacement;
@@ -82,10 +82,10 @@ mod tests {
     fn every_try_costs_six_floats_and_lands_within_its_own_radius() {
         let config = config(1.0);
         let mut volume = rock();
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
         assert!(place_scattered_ore(&config, &mut volume, &mut rng, ORIGIN));
 
-        let mut replay = XoroshiroRandom::new(SEED);
+        let mut replay = WorldgenRandom::new(SEED);
         let tries = replay.next_i32_bound(config.size + 1);
         for try_index in 0..tries {
             let spread = try_index.min(MAX_DIST_FROM_ORIGIN);
@@ -105,7 +105,7 @@ mod tests {
     fn the_first_try_sits_on_the_origin() {
         let config = config(1.0);
         let mut volume = rock();
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
         place_scattered_ore(&config, &mut volume, &mut rng, ORIGIN);
         assert_eq!(volume.writes.first().map(|(at, _)| *at), Some(ORIGIN));
     }
@@ -116,10 +116,10 @@ mod tests {
     fn a_fractional_discard_chance_draws_once_per_candidate() {
         let config = config(0.5);
         let mut volume = rock();
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
         place_scattered_ore(&config, &mut volume, &mut rng, ORIGIN);
 
-        let mut replay = XoroshiroRandom::new(SEED);
+        let mut replay = WorldgenRandom::new(SEED);
         let tries = replay.next_i32_bound(config.size + 1);
         for _ in 0..tries {
             for _ in 0..6 {
@@ -136,10 +136,10 @@ mod tests {
         let mut config = config(1.0);
         config.size = 0;
         let mut volume = rock();
-        let mut rng = XoroshiroRandom::new(SEED);
+        let mut rng = WorldgenRandom::new(SEED);
         assert!(place_scattered_ore(&config, &mut volume, &mut rng, ORIGIN));
 
-        let mut replay = XoroshiroRandom::new(SEED);
+        let mut replay = WorldgenRandom::new(SEED);
         replay.next_i32_bound(1);
         assert_eq!(rng, replay);
         assert!(volume.writes.is_empty());

@@ -12,7 +12,7 @@ use std::sync::Arc;
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::tree::FeatureSize;
@@ -99,7 +99,7 @@ const MAX_LEAF_DISTANCE: usize = 7;
 pub fn place_tree<W: WorldGenVolume>(
     tree: &CompiledTree,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     sink: &mut dyn TreeSink<W>,
     origin: BlockPos,
 ) -> bool {
@@ -153,7 +153,7 @@ pub fn place_tree<W: WorldGenVolume>(
 fn do_place<W: WorldGenVolume>(
     tree: &CompiledTree,
     cx: &mut TreeContext<'_, W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> Option<Vec<BlockPos>> {
     let tree_height = tree.trunk.tree_height(rng);
@@ -286,7 +286,7 @@ mod tests {
     use mcrs_minecraft_chunk::{Blocks, BlocksMut};
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_random::Random;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
     use mcrs_minecraft_worldgen_feature::tree::TreeDecorator;
@@ -415,14 +415,14 @@ mod tests {
     const ORIGIN: BlockPos = BlockPos::new(8, 64, 8);
 
     fn height_of(seed: u64) -> i32 {
-        let mut replay = XoroshiroRandom::new(seed);
+        let mut replay = WorldgenRandom::new(seed);
         5 + replay.next_i32_bound(3) + replay.next_i32_bound(1)
     }
 
     #[test]
     fn a_tree_writes_its_trunk_and_crown_and_spends_the_draws_its_placers_ask_for() {
         let mut volume = flat();
-        let mut rng = XoroshiroRandom::new(1234);
+        let mut rng = WorldgenRandom::new(1234);
         let mut entities = EntitiesOnly::default();
         assert!(place_tree(
             &tree(None, Vec::new()),
@@ -432,7 +432,7 @@ mod tests {
             ORIGIN
         ));
 
-        let mut replay = XoroshiroRandom::new(1234);
+        let mut replay = WorldgenRandom::new(1234);
         let height = 5 + replay.next_i32_bound(3) + replay.next_i32_bound(1);
         for _ in 0..4 {
             replay.next_i32_bound(2);
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn the_leaf_pass_lowers_a_distance_per_step_from_the_trunk() {
         let mut volume = flat();
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
         let mut entities = EntitiesOnly::default();
         assert!(place_tree(
             &tree(None, Vec::new()),
@@ -482,7 +482,7 @@ mod tests {
         let mut entities = EntitiesOnly::default();
 
         let mut volume = blocked_at(flat(), blocked);
-        let mut rng = XoroshiroRandom::new(99);
+        let mut rng = WorldgenRandom::new(99);
         assert!(!place_tree(
             &tree(None, Vec::new()),
             &mut volume,
@@ -493,7 +493,7 @@ mod tests {
         assert!(volume.writes.is_empty(), "a refused tree writes nothing");
 
         let mut volume = blocked_at(flat(), blocked);
-        let mut rng = XoroshiroRandom::new(99);
+        let mut rng = WorldgenRandom::new(99);
         assert!(place_tree(
             &tree(Some(1), Vec::new()),
             &mut volume,
@@ -522,7 +522,7 @@ mod tests {
                 .unwrap(),
         );
         let mut volume = flat();
-        let mut rng = XoroshiroRandom::new(5);
+        let mut rng = WorldgenRandom::new(5);
         let mut entities = EntitiesOnly::default();
         assert!(place_tree(
             &tree(None, vec![decorator]),
@@ -549,7 +549,7 @@ mod tests {
             let mut volume = flat();
             volume.blocks.set(under_edge, existing);
 
-            let mut rng = XoroshiroRandom::new(3);
+            let mut rng = WorldgenRandom::new(3);
             let mut entities = EntitiesOnly::default();
             assert!(place_tree(
                 &tree(None, Vec::new()),

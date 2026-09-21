@@ -5,7 +5,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_feature::tree::{TrunkPlacer, UniformIntRange, UnitFloat};
@@ -15,14 +15,14 @@ use super::provider::StateProvider;
 use mcrs_minecraft_core::BlockPos;
 pub use mcrs_minecraft_core::{Axis, dist_manhattan};
 
-pub fn random_horizontal(rng: &mut XoroshiroRandom) -> Direction {
+pub fn random_horizontal(rng: &mut WorldgenRandom) -> Direction {
     Direction::HORIZONTAL[rng.next_i32_bound(Direction::HORIZONTAL.len() as i32) as usize]
 }
 
 /// `Direction.allShuffled`, which is `Util.shuffle` over all six: a descending
 /// Fisher-Yates spending `n - 1` draws, a slot swapped with itself as readily
 /// as with any other.
-pub fn all_shuffled(rng: &mut XoroshiroRandom) -> [Direction; 6] {
+pub fn all_shuffled(rng: &mut WorldgenRandom) -> [Direction; 6] {
     let mut faces = Direction::all();
     mcrs_minecraft_random::shuffle(&mut faces, rng);
     faces
@@ -149,7 +149,7 @@ impl<'a, W: WorldGenVolume> TreeContext<'a, W> {
 
     /// `TrunkPlacer.placeBelowTrunkBlock`, the only user of a provider's
     /// optional form: nothing matching writes nothing at all.
-    pub fn place_below_trunk_block(&mut self, rng: &mut XoroshiroRandom, pos: BlockPos) {
+    pub fn place_below_trunk_block(&mut self, rng: &mut WorldgenRandom, pos: BlockPos) {
         if let Some(state) = self
             .below_trunk_provider
             .optional_state(self.volume, rng, pos)
@@ -254,7 +254,7 @@ impl Trunk {
         }
     }
 
-    pub fn tree_height(&self, rng: &mut XoroshiroRandom) -> i32 {
+    pub fn tree_height(&self, rng: &mut WorldgenRandom) -> i32 {
         let (base_height, height_rand_a, height_rand_b) = self.base();
         base_height + rng.next_i32_bound(height_rand_a + 1) + rng.next_i32_bound(height_rand_b + 1)
     }
@@ -280,7 +280,7 @@ impl Trunk {
     fn place_log<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         pos: BlockPos,
         axis: Option<Axis>,
     ) -> bool {
@@ -298,7 +298,7 @@ impl Trunk {
     fn place_log_if_free<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         pos: BlockPos,
     ) {
         if self.is_free(cx, pos) {
@@ -309,7 +309,7 @@ impl Trunk {
     pub fn place_trunk<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
@@ -392,7 +392,7 @@ impl Trunk {
     fn place_forking<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
@@ -454,7 +454,7 @@ impl Trunk {
     fn place_giant<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
@@ -483,7 +483,7 @@ impl Trunk {
     fn place_mega_jungle<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
@@ -516,7 +516,7 @@ impl Trunk {
     fn place_dark_oak<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
@@ -583,7 +583,7 @@ impl Trunk {
     fn place_fancy<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
@@ -650,7 +650,7 @@ impl Trunk {
     fn make_limb<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         start: BlockPos,
         end: BlockPos,
         do_place: bool,
@@ -684,7 +684,7 @@ impl Trunk {
     fn place_bending<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
         min_height_for_leaves: &Bounded<1, { i32::MAX }, 1>,
@@ -725,7 +725,7 @@ impl Trunk {
     fn place_upwards_branching<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
         extra_branch_steps: &IntProvider,
@@ -774,7 +774,7 @@ impl Trunk {
     fn place_branch<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         attachments: &mut Vec<FoliageAttachment>,
         log_pos: BlockPos,
@@ -816,7 +816,7 @@ impl Trunk {
     fn place_cherry<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
         branch_count: &IntProvider,
@@ -895,7 +895,7 @@ impl Trunk {
     fn generate_branch<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
         branch: CherryBranch<'_>,
@@ -953,7 +953,7 @@ impl Trunk {
     fn place_poplar<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
         tree_height: i32,
         origin: BlockPos,
         trunk_height_above_branches: &IntProvider,
@@ -989,7 +989,7 @@ impl Trunk {
 
 /// `Direction.allShuffled` and *then* a filter, so the two vertical faces spend
 /// their draws before being thrown away.
-fn shuffled_branch_directions(rng: &mut XoroshiroRandom) -> Vec<Direction> {
+fn shuffled_branch_directions(rng: &mut WorldgenRandom) -> Vec<Direction> {
     all_shuffled(rng)
         .into_iter()
         .filter(|direction| !direction.is_vertical())
@@ -1036,7 +1036,7 @@ pub(crate) mod harness {
     use fixedbitset::FixedBitSet;
     use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_random::Random;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::placer::StateMask;
 
     use super::super::provider::StateProvider;
@@ -1105,14 +1105,14 @@ pub(crate) mod harness {
 
     pub fn run<F>(seed: u64, body: F) -> Pin
     where
-        F: FnOnce(&mut TreeContext<'_, FakeVolume>, &mut XoroshiroRandom),
+        F: FnOnce(&mut TreeContext<'_, FakeVolume>, &mut WorldgenRandom),
     {
         let states = states();
         let trunk = StateProvider::Simple(LOG);
         let foliage = StateProvider::Simple(LEAF);
         let below = StateProvider::Simple(DIRT);
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(seed);
+        let mut rng = WorldgenRandom::new(seed);
         let writes = {
             let mut cx = TreeContext::new(&mut volume, &states, &trunk, &foliage, &below);
             body(&mut cx, &mut rng);
@@ -1130,7 +1130,7 @@ pub(crate) mod harness {
 mod tests {
     use super::harness::*;
     use super::*;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     fn placer(kind: &str, rest: &str) -> Trunk {
         placer_through(kind, rest, mask(&[]))
@@ -1259,10 +1259,10 @@ mod tests {
     /// a slot as likely to swap with itself as with any other.
     #[test]
     fn all_shuffled_spends_five_draws_over_six_faces() {
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
         let shuffled = all_shuffled(&mut rng);
 
-        let mut replay = XoroshiroRandom::new(7);
+        let mut replay = WorldgenRandom::new(7);
         for size in (2..=6).rev() {
             replay.next_i32_bound(size);
         }
@@ -1277,11 +1277,11 @@ mod tests {
     /// wants horizontals still pays for the two vertical faces.
     #[test]
     fn poplar_branch_directions_burn_the_vertical_draws() {
-        let mut rng = XoroshiroRandom::new(3);
+        let mut rng = WorldgenRandom::new(3);
         let directions = shuffled_branch_directions(&mut rng);
         assert_eq!(directions.len(), 4);
 
-        let mut replay = XoroshiroRandom::new(3);
+        let mut replay = WorldgenRandom::new(3);
         assert_eq!(all_shuffled(&mut replay).len(), 6);
         assert_eq!(rng.next_i64(), replay.next_i64());
     }
@@ -1290,10 +1290,10 @@ mod tests {
     #[test]
     fn tree_height_draws_a_then_b() {
         let placer = placer("straight", &base(4, 2, 3));
-        let mut rng = XoroshiroRandom::new(11);
+        let mut rng = WorldgenRandom::new(11);
         let height = placer.tree_height(&mut rng);
 
-        let mut replay = XoroshiroRandom::new(11);
+        let mut replay = WorldgenRandom::new(11);
         let expected = 4 + replay.next_i32_bound(3) + replay.next_i32_bound(4);
         assert_eq!(height, expected);
         assert_eq!(rng.next_i64(), replay.next_i64());
@@ -1325,73 +1325,73 @@ mod tests {
     const TRUNK_PINS: &[(&str, usize, u64, i64, i64)] = &[
         (
             "straight",
-            6,
-            0x5bd5b5920ba70571,
-            -7542733514721318211,
-            4888889476139319686,
+            5,
+            0xe1e676b22b37128c,
+            -7542733517267348717,
+            8419651034261488620,
         ),
         (
             "forking",
-            9,
-            0x322993003ba0a4be,
-            -9216016236493209689,
-            -8459460178172966819,
+            6,
+            0x1e7ceb74913b9542,
+            8279452172130654682,
+            -9216016237315099191,
         ),
         (
             "giant",
             65,
             0xce21451beb34137b,
-            -7542733514721318211,
-            4888889476139319686,
+            -7542733517267348717,
+            8419651034261488620,
         ),
         (
             "mega_jungle",
-            69,
-            0xd96691a9ea8d81d1,
-            -6491934549477179079,
-            8279452174680803839,
+            70,
+            0x36cf09bfda91835f,
+            6246239634428928527,
+            -8459460179258084900,
         ),
         (
             "dark_oak",
-            40,
-            0x5adbd297cd15f0e5,
-            -3782256110256217100,
-            8111380311640346563,
+            50,
+            0xd87e273705310f97,
+            2822226322599572119,
+            6941004565637124823,
         ),
         (
             "fancy",
-            9,
-            0xe2762a599351c746,
-            8279452174680803839,
-            6246239634032559210,
+            13,
+            0xa712ddd318dc8ba1,
+            -9216016237315099191,
+            9206045780119831739,
         ),
         (
             "bending",
-            12,
-            0x4516a4d1bc0d361d,
-            9206045781291848097,
-            9081162010021283615,
+            10,
+            0x5a03249eed705aa2,
+            -8459460179258084900,
+            9081162006476405355,
         ),
         (
             "upwards_branching",
-            9,
-            0x60e3bab9d7952246,
-            6291911111440803531,
-            -3066404182989085885,
+            5,
+            0x2641e17d6b37e5a7,
+            -8459460179258084900,
+            9081162006476405355,
         ),
         (
             "cherry",
-            16,
-            0x20e0c269ea15e7e3,
-            -1441244676496472421,
-            8296740669997502935,
+            14,
+            0xc0dac50b7b53c888,
+            6291911111200600484,
+            745457548877867930,
         ),
         (
             "poplar",
-            15,
-            0x7da769804674a1dd,
-            -6172206221005592769,
-            -8132412617383598691,
+            13,
+            0xf3a2ac606b2964ad,
+            -7510485065780809262,
+            -8755759951304656740,
         ),
     ];
 }

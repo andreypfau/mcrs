@@ -3,7 +3,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::BlockResolver;
@@ -92,7 +92,7 @@ fn inv_sqrt(value: f64) -> f64 {
 pub fn place_geode<W: WorldGenVolume>(
     config: &CompiledGeode,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> bool {
     let point_count = config.distribution_points.sample(rng);
@@ -227,7 +227,7 @@ mod tests {
     use std::sync::Arc;
 
     use mcrs_minecraft_random::legacy::LegacyRandom;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_noise::normal;
 
     use super::*;
@@ -300,7 +300,7 @@ mod tests {
     fn an_invalid_point_ends_the_run_before_its_offset() {
         let mut volume = FakeVolume::default();
         let config = amethyst_geode();
-        let mut rng = XoroshiroRandom::new(11);
+        let mut rng = WorldgenRandom::new(11);
         let mut replay = rng.clone();
         assert!(!place_geode(&config, &mut volume, &mut rng, ORIGIN));
 
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn a_geode_in_rock_lays_all_four_layers() {
         let mut volume = solid_rock();
-        let mut rng = XoroshiroRandom::new(0x0009_e0de);
+        let mut rng = WorldgenRandom::new(0x0009_e0de);
         assert!(place_geode(
             &amethyst_geode(),
             &mut volume,
@@ -344,7 +344,7 @@ mod tests {
         let mut config = amethyst_geode();
         config.use_alternate_layer0_chance = 0.0;
         config.placements_require_layer0_alternate = true;
-        let mut rng = XoroshiroRandom::new(0x0009_e0de);
+        let mut rng = WorldgenRandom::new(0x0009_e0de);
         place_geode(&config, &mut volume, &mut rng, ORIGIN);
         assert!(
             !volume.writes.iter().any(|(_, state)| *state == CLUSTER),
@@ -357,10 +357,10 @@ mod tests {
     #[test]
     fn geode_draw_count_anchor() {
         let mut volume = solid_rock();
-        let mut rng = XoroshiroRandom::new(0x0009_e0de);
+        let mut rng = WorldgenRandom::new(0x0009_e0de);
         place_geode(&amethyst_geode(), &mut volume, &mut rng, ORIGIN);
         assert_eq!(rng.next_java_long(), GEODE_PIN);
     }
 
-    const GEODE_PIN: i64 = 5359407492119935935;
+    const GEODE_PIN: i64 = -6771440785615059169;
 }

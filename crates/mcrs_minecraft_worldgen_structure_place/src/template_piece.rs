@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, HolderSet, Mirror, ResourceLocation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, states_of,
@@ -52,7 +52,7 @@ pub fn seed_container_loot(
     entities: &mut [GeneratedBlockEntity],
     pos: BlockPos,
     loot_table: &str,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     let container = entities
         .iter_mut()
@@ -67,7 +67,7 @@ pub fn seed_container_loot(
         });
     if let Some(container) = container {
         container.loot_table = Some(loot_table.to_owned());
-        container.loot_table_seed = rng.next_i64();
+        container.loot_table_seed = rng.next_java_long();
     }
 }
 
@@ -92,7 +92,7 @@ pub fn paint_shipwreck<W: WorldGenVolume>(
     reference: IVec3,
     clip: BoundingBox,
     region: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
@@ -177,7 +177,7 @@ pub fn paint_igloo<W: WorldGenVolume>(
     reference: IVec3,
     clip: BoundingBox,
     region: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {

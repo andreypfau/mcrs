@@ -141,7 +141,7 @@ fn the_unported_type_census_is_pinned() {
 
 #[test]
 fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnContext;
 
     let frozen = frozen();
@@ -163,7 +163,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
         biome: biome_index().get("minecraft:swamp").unwrap(),
         moon_brightness: 1.0,
     };
-    let mut rng = XoroshiroRandom::new(1);
+    let mut rng = WorldgenRandom::new(1);
     for _ in 0..20 {
         assert_eq!(
             variants.cats.pick(&in_hut, &mut rng),

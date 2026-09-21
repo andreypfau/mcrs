@@ -18,7 +18,7 @@ use mcrs_minecraft_chunk::Blocks as _;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{
     BoxRegion, Predicate, StateMask, WorldStates, mask_of,
@@ -373,7 +373,7 @@ fn every_covered_tree_matches_the_reference_block_for_block() {
         let origin = case.origin;
         let mut world = flat_world(&blocks, origin);
         let mut entities = EntitiesOnly::default();
-        let mut rng = XoroshiroRandom::new(case.seed as u64);
+        let mut rng = WorldgenRandom::new(case.seed as u64);
         let result = place_tree(&tree, &mut world, &mut rng, &mut entities, origin);
 
         let label = format!("{}@{}", case.feature, case.seed);
@@ -401,7 +401,7 @@ fn every_covered_tree_matches_the_reference_block_for_block() {
         let (got, want) = (blind_distance(&got), blind_distance(&case.blocks));
         if got != want {
             let index = got.iter().zip(want.iter()).position(|(a, b)| a != b);
-            let after = [rng.next_i64(), rng.next_i64()];
+            let after = [rng.next_java_long(), rng.next_java_long()];
             failures.push(format!(
                 "{label}: {} writes against the reference's {}, draw count {} — first difference at {index:?}: got {:?} want {:?}",
                 got.len(),
@@ -413,7 +413,7 @@ fn every_covered_tree_matches_the_reference_block_for_block() {
             continue;
         }
 
-        let after = [rng.next_i64(), rng.next_i64()];
+        let after = [rng.next_java_long(), rng.next_java_long()];
         if after != case.state_after {
             failures.push(format!(
                 "{label}: random state after the tree is {after:?}, reference {:?} — the draw count diverged",

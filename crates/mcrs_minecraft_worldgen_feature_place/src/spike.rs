@@ -3,7 +3,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, WorldGenVolume};
 
 #[derive(Clone, Debug)]
@@ -22,7 +22,7 @@ const ROOT_FLOOR: i32 = 50;
 pub fn place_spike<W: WorldGenVolume>(
     cfg: &CompiledSpike,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let floor = volume.extent().min_y + 2;
@@ -109,7 +109,7 @@ fn replace<W: WorldGenVolume>(cfg: &CompiledSpike, volume: &mut W, pos: BlockPos
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -152,7 +152,7 @@ mod tests {
     /// is a closed form.
     fn grounded_seed() -> u64 {
         for seed in 0..10_000u64 {
-            let mut rng = XoroshiroRandom::new(seed);
+            let mut rng = WorldgenRandom::new(seed);
             if rng.next_i32_bound(4) != 0 {
                 continue;
             }
@@ -174,10 +174,10 @@ mod tests {
         let cfg = config();
         let seed = grounded_seed();
         let mut volume = snowfield();
-        let mut rng = XoroshiroRandom::new(seed);
+        let mut rng = WorldgenRandom::new(seed);
         assert!(place_spike(&cfg, &mut volume, &mut rng, ORIGIN));
 
-        let mut replay = XoroshiroRandom::new(seed);
+        let mut replay = WorldgenRandom::new(seed);
         assert_eq!(replay.next_i32_bound(4), 0);
         let height = replay.next_i32_bound(4) + 7;
         let width = height / 4 + replay.next_i32_bound(2);
@@ -226,7 +226,7 @@ mod tests {
                 }
             }
         }
-        let mut rng = XoroshiroRandom::new(11);
+        let mut rng = WorldgenRandom::new(11);
         let before = rng.clone();
         assert!(!place_spike(&cfg, &mut volume, &mut rng, ORIGIN));
         assert_eq!(rng, before);
@@ -240,7 +240,7 @@ mod tests {
         let cfg = config();
         for seed in 0..48u64 {
             let mut volume = snowfield();
-            let mut rng = XoroshiroRandom::new(seed);
+            let mut rng = WorldgenRandom::new(seed);
             place_spike(&cfg, &mut volume, &mut rng, ORIGIN);
             for ((x, _, z), _) in &volume.writes {
                 assert!(

@@ -1,13 +1,13 @@
 pub mod after_place;
 pub mod buried_treasure;
 pub mod canvas;
+pub mod end_city;
 pub mod fortress;
 pub mod jungle_temple;
-pub mod portal;
-pub mod ocean_monument;
 pub mod mineshaft;
 pub mod nether_fossil;
-pub mod end_city;
+pub mod ocean_monument;
+pub mod portal;
 pub mod scattered;
 pub mod stronghold;
 pub mod template;

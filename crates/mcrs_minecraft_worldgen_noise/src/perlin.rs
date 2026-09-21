@@ -294,6 +294,7 @@ impl Lane {
 
 impl GradientNoise {
     #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn sample_and_lerp(
         &self,
         section_x: i32,

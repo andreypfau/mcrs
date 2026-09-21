@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::entity::elder_guardian;
@@ -164,13 +164,7 @@ impl<W: WorldGenVolume> Room<'_, '_, W> {
             && clip.min.z <= a.z.max(b.z)
     }
 
-    fn spawn_elder(
-        &mut self,
-        rng: &mut XoroshiroRandom,
-        x: i32,
-        y: i32,
-        z: i32,
-    ) {
+    fn spawn_elder(&mut self, rng: &mut WorldgenRandom, x: i32, y: i32, z: i32) {
         let pos = self.c.world_pos(x, y, z);
         if self.c.clip.is_inside(pos) {
             self.c.spawns.push(elder_guardian(pos, rng));
@@ -183,7 +177,7 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
     b: &OceanMonumentBlocks,
     piece: &OceanMonumentPiece,
     c: &mut PieceCanvas<'_, W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     let clip = c.clip;
     let orientation = c.orientation;
@@ -1004,10 +998,7 @@ fn entry_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, room: u8) {
     }
 }
 
-fn penthouse<W: WorldGenVolume>(
-    r: &mut Room<'_, '_, W>,
-    rng: &mut XoroshiroRandom,
-) {
+fn penthouse<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, rng: &mut WorldgenRandom) {
     let (gray, light, black, lamp) = (r.b.gray, r.b.light, r.b.black, r.b.lamp);
     r.solid(&light, [2, -1, 2], [11, -1, 11]);
     r.solid(&gray, [0, -1, 0], [1, -1, 11]);
@@ -1047,7 +1038,7 @@ fn penthouse<W: WorldGenVolume>(
 
 fn simple_room<W: WorldGenVolume>(
     r: &mut Room<'_, '_, W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     room: u8,
     main_design: i32,
 ) {
@@ -1200,11 +1191,7 @@ fn simple_room<W: WorldGenVolume>(
     }
 }
 
-fn simple_top_room<W: WorldGenVolume>(
-    r: &mut Room<'_, '_, W>,
-    rng: &mut XoroshiroRandom,
-    room: u8,
-) {
+fn simple_top_room<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, rng: &mut WorldgenRandom, room: u8) {
     let (gray, light, black, wet_sponge) = (r.b.gray, r.b.light, r.b.black, r.b.wet_sponge);
     if r.above_ground_floor(room) {
         r.default_floor(0, 0, r.open(room, DOWN));
@@ -1243,7 +1230,7 @@ fn simple_top_room<W: WorldGenVolume>(
 
 fn wing_room<W: WorldGenVolume>(
     r: &mut Room<'_, '_, W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     main_design: i32,
 ) {
     let (light, black, lamp) = (r.b.light, r.b.black, r.b.lamp);

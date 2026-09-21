@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnContext, VariantTables};
@@ -89,7 +89,13 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
     const D: i32 = DesertPyramidPiece::DEPTH;
     rng.next_i32_bound(3);
 
-    c.generate_box([0, -4, 0], [W - 1, 0, D - 1], &b.sandstone, &b.sandstone, false);
+    c.generate_box(
+        [0, -4, 0],
+        [W - 1, 0, D - 1],
+        &b.sandstone,
+        &b.sandstone,
+        false,
+    );
     for i in 1..=9 {
         c.generate_box(
             [i, i, i],
@@ -120,7 +126,13 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
     c.place(&b.stairs_east, 0, 10, 2);
     c.place(&b.stairs_west, 4, 10, 2);
     c.generate_box([W - 5, 0, 0], [W - 1, 9, 4], &b.sandstone, &b.air, false);
-    c.generate_box([W - 4, 10, 1], [W - 2, 10, 3], &b.sandstone, &b.sandstone, false);
+    c.generate_box(
+        [W - 4, 10, 1],
+        [W - 2, 10, 3],
+        &b.sandstone,
+        &b.sandstone,
+        false,
+    );
     c.place(&b.stairs_north, W - 3, 10, 0);
     c.place(&b.stairs_south, W - 3, 10, 4);
     c.place(&b.stairs_east, W - 5, 10, 2);
@@ -138,18 +150,72 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
     c.generate_box([4, 1, 2], [8, 2, 2], &b.air, &b.air, false);
     c.generate_box([12, 1, 1], [16, 3, 3], &b.sandstone, &b.air, false);
     c.generate_box([12, 1, 2], [16, 2, 2], &b.air, &b.air, false);
-    c.generate_box([5, 4, 5], [W - 6, 4, D - 6], &b.sandstone, &b.sandstone, false);
+    c.generate_box(
+        [5, 4, 5],
+        [W - 6, 4, D - 6],
+        &b.sandstone,
+        &b.sandstone,
+        false,
+    );
     c.generate_box([9, 4, 9], [11, 4, 11], &b.air, &b.air, false);
-    c.generate_box([8, 1, 8], [8, 3, 8], &b.cut_sandstone, &b.cut_sandstone, false);
-    c.generate_box([12, 1, 8], [12, 3, 8], &b.cut_sandstone, &b.cut_sandstone, false);
-    c.generate_box([8, 1, 12], [8, 3, 12], &b.cut_sandstone, &b.cut_sandstone, false);
-    c.generate_box([12, 1, 12], [12, 3, 12], &b.cut_sandstone, &b.cut_sandstone, false);
+    c.generate_box(
+        [8, 1, 8],
+        [8, 3, 8],
+        &b.cut_sandstone,
+        &b.cut_sandstone,
+        false,
+    );
+    c.generate_box(
+        [12, 1, 8],
+        [12, 3, 8],
+        &b.cut_sandstone,
+        &b.cut_sandstone,
+        false,
+    );
+    c.generate_box(
+        [8, 1, 12],
+        [8, 3, 12],
+        &b.cut_sandstone,
+        &b.cut_sandstone,
+        false,
+    );
+    c.generate_box(
+        [12, 1, 12],
+        [12, 3, 12],
+        &b.cut_sandstone,
+        &b.cut_sandstone,
+        false,
+    );
     c.generate_box([1, 1, 5], [4, 4, 11], &b.sandstone, &b.sandstone, false);
-    c.generate_box([W - 5, 1, 5], [W - 2, 4, 11], &b.sandstone, &b.sandstone, false);
+    c.generate_box(
+        [W - 5, 1, 5],
+        [W - 2, 4, 11],
+        &b.sandstone,
+        &b.sandstone,
+        false,
+    );
     c.generate_box([6, 7, 9], [6, 7, 11], &b.sandstone, &b.sandstone, false);
-    c.generate_box([W - 7, 7, 9], [W - 7, 7, 11], &b.sandstone, &b.sandstone, false);
-    c.generate_box([5, 5, 9], [5, 7, 11], &b.cut_sandstone, &b.cut_sandstone, false);
-    c.generate_box([W - 6, 5, 9], [W - 6, 7, 11], &b.cut_sandstone, &b.cut_sandstone, false);
+    c.generate_box(
+        [W - 7, 7, 9],
+        [W - 7, 7, 11],
+        &b.sandstone,
+        &b.sandstone,
+        false,
+    );
+    c.generate_box(
+        [5, 5, 9],
+        [5, 7, 11],
+        &b.cut_sandstone,
+        &b.cut_sandstone,
+        false,
+    );
+    c.generate_box(
+        [W - 6, 5, 9],
+        [W - 6, 7, 11],
+        &b.cut_sandstone,
+        &b.cut_sandstone,
+        false,
+    );
     c.place(&b.air, 5, 5, 10);
     c.place(&b.air, 5, 6, 10);
     c.place(&b.air, 6, 6, 10);
@@ -163,7 +229,13 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
     c.place(&b.stairs_north, W - 3, 4, 5);
     c.place(&b.stairs_north, W - 3, 3, 4);
     c.generate_box([1, 1, 3], [2, 2, 3], &b.sandstone, &b.sandstone, false);
-    c.generate_box([W - 3, 1, 3], [W - 2, 2, 3], &b.sandstone, &b.sandstone, false);
+    c.generate_box(
+        [W - 3, 1, 3],
+        [W - 2, 2, 3],
+        &b.sandstone,
+        &b.sandstone,
+        false,
+    );
     c.place(&b.sandstone, 1, 1, 2);
     c.place(&b.sandstone, W - 2, 1, 2);
     c.place(&b.sandstone_slab, 1, 2, 2);
@@ -171,7 +243,13 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
     c.place(&b.stairs_west, 2, 1, 2);
     c.place(&b.stairs_east, W - 3, 1, 2);
     c.generate_box([4, 3, 5], [4, 3, 17], &b.sandstone, &b.sandstone, false);
-    c.generate_box([W - 5, 3, 5], [W - 5, 3, 17], &b.sandstone, &b.sandstone, false);
+    c.generate_box(
+        [W - 5, 3, 5],
+        [W - 5, 3, 17],
+        &b.sandstone,
+        &b.sandstone,
+        false,
+    );
     c.generate_box([3, 1, 5], [4, 2, 16], &b.air, &b.air, false);
     c.generate_box([W - 6, 1, 5], [W - 5, 2, 16], &b.air, &b.air, false);
     for z in (5..=17).step_by(2) {
@@ -243,13 +321,25 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
         c.place(&b.cut_sandstone, x + 1, 8, 0);
     }
 
-    c.generate_box([8, 4, 0], [12, 6, 0], &b.cut_sandstone, &b.cut_sandstone, false);
+    c.generate_box(
+        [8, 4, 0],
+        [12, 6, 0],
+        &b.cut_sandstone,
+        &b.cut_sandstone,
+        false,
+    );
     c.place(&b.air, 8, 6, 0);
     c.place(&b.air, 12, 6, 0);
     c.place(&b.orange_terracotta, 9, 5, 0);
     c.place(&b.chiseled_sandstone, 10, 5, 0);
     c.place(&b.orange_terracotta, 11, 5, 0);
-    c.generate_box([8, -14, 8], [12, -11, 12], &b.cut_sandstone, &b.cut_sandstone, false);
+    c.generate_box(
+        [8, -14, 8],
+        [12, -11, 12],
+        &b.cut_sandstone,
+        &b.cut_sandstone,
+        false,
+    );
     c.generate_box(
         [8, -10, 8],
         [12, -10, 12],
@@ -257,7 +347,13 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
         &b.chiseled_sandstone,
         false,
     );
-    c.generate_box([8, -9, 8], [12, -9, 12], &b.cut_sandstone, &b.cut_sandstone, false);
+    c.generate_box(
+        [8, -9, 8],
+        [12, -9, 12],
+        &b.cut_sandstone,
+        &b.cut_sandstone,
+        false,
+    );
     c.generate_box([8, -8, 8], [12, -1, 12], &b.sandstone, &b.sandstone, false);
     c.generate_box([9, -11, 9], [11, -1, 11], &b.air, &b.air, false);
     c.place(&b.stone_pressure_plate, 10, -11, 10);
@@ -310,8 +406,18 @@ fn add_cellar_stairs<W: WorldGenVolume, R: Random>(
     c.place(&b.sand, x - 1, y + 4, z + 4);
     c.place(&b.sand, x, y + 4, z + 4);
     c.place(&b.sand, x - 2, y + 3, z + 4);
-    c.place(if variant { &b.sand } else { &b.sandstone }, x - 1, y + 3, z + 4);
-    c.place(if variant { &b.sandstone } else { &b.sand }, x, y + 3, z + 4);
+    c.place(
+        if variant { &b.sand } else { &b.sandstone },
+        x - 1,
+        y + 3,
+        z + 4,
+    );
+    c.place(
+        if variant { &b.sandstone } else { &b.sand },
+        x,
+        y + 3,
+        z + 4,
+    );
     c.place(&b.sand, x - 1, y + 2, z + 4);
     c.place(&b.sandstone, x, y + 2, z + 4);
     c.place(&b.sand, x, y + 1, z + 4);
@@ -329,10 +435,34 @@ fn add_cellar_room<W: WorldGenVolume, R: Random>(
     c.generate_box([x + 3, y + 1, z - 3], [x + 3, y + 1, z + 2], cut, cut, true);
     c.generate_box([x - 3, y + 1, z - 3], [x + 3, y + 1, z - 2], cut, cut, true);
     c.generate_box([x - 3, y + 1, z + 3], [x + 3, y + 1, z + 3], cut, cut, true);
-    c.generate_box([x - 3, y + 2, z - 3], [x - 3, y + 2, z + 2], chiseled, chiseled, true);
-    c.generate_box([x + 3, y + 2, z - 3], [x + 3, y + 2, z + 2], chiseled, chiseled, true);
-    c.generate_box([x - 3, y + 2, z - 3], [x + 3, y + 2, z - 2], chiseled, chiseled, true);
-    c.generate_box([x - 3, y + 2, z + 3], [x + 3, y + 2, z + 3], chiseled, chiseled, true);
+    c.generate_box(
+        [x - 3, y + 2, z - 3],
+        [x - 3, y + 2, z + 2],
+        chiseled,
+        chiseled,
+        true,
+    );
+    c.generate_box(
+        [x + 3, y + 2, z - 3],
+        [x + 3, y + 2, z + 2],
+        chiseled,
+        chiseled,
+        true,
+    );
+    c.generate_box(
+        [x - 3, y + 2, z - 3],
+        [x + 3, y + 2, z - 2],
+        chiseled,
+        chiseled,
+        true,
+    );
+    c.generate_box(
+        [x - 3, y + 2, z + 3],
+        [x + 3, y + 2, z + 3],
+        chiseled,
+        chiseled,
+        true,
+    );
     c.generate_box([x - 3, -1, z - 3], [x - 3, -1, z + 2], cut, cut, true);
     c.generate_box([x + 3, -1, z - 3], [x + 3, -1, z + 2], cut, cut, true);
     c.generate_box([x - 3, -1, z - 3], [x + 3, -1, z - 2], cut, cut, true);
@@ -379,8 +509,8 @@ pub fn collapsed_roof_pos(
     let IVec3 { x, y, z } = CELLAR_CENTRE;
     let (x0, y0, z0, x1, z1) = (x - 2, y + 4, z - 2, x + 2, z + 2);
     let corner = world_pos(Some(orientation), bounds, IVec3::new(x0, y0, z0));
-    let mut rng = mcrs_minecraft_random::legacy::LegacyRandom::new(world_seed as u64)
-        .fork_at(*corner);
+    let mut rng =
+        mcrs_minecraft_random::legacy::LegacyRandom::new(world_seed as u64).fork_at(*corner);
     let roof_x = rng.next_int_between_inclusive(x0, x1);
     let roof_z = rng.next_int_between_inclusive(z0, z1);
     world_pos(Some(orientation), bounds, IVec3::new(roof_x, y0, roof_z))
@@ -394,8 +524,9 @@ pub fn potential_suspicious_sand(
     orientation: Orientation,
 ) -> impl Iterator<Item = BlockPos> {
     let IVec3 { x, y, z } = CELLAR_CENTRE;
-    let sand_box = (y + 1..=y + 3)
-        .flat_map(move |y| (x - 2..=x + 2).flat_map(move |x| (z - 2..=z + 2).map(move |z| (x, y, z))));
+    let sand_box = (y + 1..=y + 3).flat_map(move |y| {
+        (x - 2..=x + 2).flat_map(move |x| (z - 2..=z + 2).map(move |z| (x, y, z)))
+    });
     let doorways = [
         (x + 3, y + 1, z),
         (x + 3, y + 2, z),
@@ -474,7 +605,7 @@ impl SwampHutBlocks {
 pub fn paint_swamp_hut<W: WorldGenVolume>(
     b: &SwampHutBlocks,
     c: &mut PieceCanvas<'_, W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     structure: u32,
     variants: &VariantTables,
 ) {

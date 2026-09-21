@@ -300,9 +300,10 @@ fn plains_forest_and_taiga_decorate_within_their_measured_band() {
             let region = decorate_region(biome, placed, seed, ColumnPos::new(0, 0), RADIUS);
             let trunks: usize = region.values().map(|census| census.trunks).sum();
             let leaves: usize = region.values().map(|census| census.leaves).sum();
-            assert_eq!(
-                trunks > 0,
-                leaves > 0,
+            // A crown from a halo column can reach in without its trunk, so
+            // leaves alone prove nothing; a trunk without leaves is a broken tree.
+            assert!(
+                trunks == 0 || leaves > 0,
                 "{biome} at seed {seed}: {trunks} trunks beside {leaves} leaves"
             );
             assert!(

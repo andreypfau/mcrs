@@ -3,7 +3,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
@@ -29,7 +29,7 @@ pub struct CompiledSpeleothem {
 pub fn place_speleothem<W: WorldGenVolume>(
     config: &CompiledSpeleothem,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
 ) -> bool {
     let above = volume.holds(&config.base_or_replaceable, origin + IVec3::Y);
@@ -62,7 +62,7 @@ pub fn place_speleothem<W: WorldGenVolume>(
 fn place_patch_of_base_blocks<W: WorldGenVolume>(
     config: &CompiledSpeleothem,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     root: BlockPos,
 ) {
     place_base_block_if_possible(config, volume, root);
@@ -99,7 +99,7 @@ fn place_base_block_if_possible<W: WorldGenVolume>(
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::speleothem::{FRUSTUM, TIP};
@@ -133,7 +133,7 @@ mod tests {
     fn a_speleothem_with_no_base_either_side_draws_nothing() {
         let config = config();
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(4);
+        let mut rng = WorldgenRandom::new(4);
         let before = rng.clone();
 
         assert!(!place_speleothem(&config, &mut volume, &mut rng, AT));
@@ -154,8 +154,8 @@ mod tests {
         let config = config();
 
         for (mut volume, boolean) in [(ceiling, false), (floor, false), (both, true)] {
-            let mut rng = XoroshiroRandom::new(11);
-            let mut replay = XoroshiroRandom::new(11);
+            let mut rng = WorldgenRandom::new(11);
+            let mut replay = WorldgenRandom::new(11);
 
             assert!(place_speleothem(&config, &mut volume, &mut rng, AT));
 
@@ -170,7 +170,7 @@ mod tests {
 
     /// `createPatchOfBaseBlocks` walks the four horizontals in plane order and
     /// spends a float per ring, plus a whole-direction draw per ring it takes.
-    fn replay_patch(config: &CompiledSpeleothem, rng: &mut XoroshiroRandom) {
+    fn replay_patch(config: &CompiledSpeleothem, rng: &mut WorldgenRandom) {
         for _ in 0..Direction::HORIZONTAL.len() {
             if rng.next_f32() > config.chance_of_directional_spread {
                 continue;
@@ -194,7 +194,7 @@ mod tests {
         config.chance_of_taller_generation = 1.0;
         config.chance_of_directional_spread = 0.0;
         let mut volume = FakeVolume::with([((AT.x, AT.y + 1, AT.z), STONE)]);
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
 
         assert!(place_speleothem(&config, &mut volume, &mut rng, AT));
 
@@ -220,7 +220,7 @@ mod tests {
             FakeVolume::with([((AT.x, AT.y - 1, AT.z), STONE), ((AT.x, AT.y, AT.z), WATER)]);
         volume.world.water_states = mask_of([WATER]);
         volume.world.water_fluid = mask_of([WATER]);
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
 
         assert!(place_speleothem(&config, &mut volume, &mut rng, AT));
 
@@ -247,7 +247,7 @@ mod tests {
             (AT.x, AT.y + 1, AT.z - 1),
         ];
         let mut volume = FakeVolume::with(stone.map(|at| (at, STONE)));
-        let mut rng = XoroshiroRandom::new(21);
+        let mut rng = WorldgenRandom::new(21);
 
         assert!(place_speleothem(&config, &mut volume, &mut rng, AT));
 

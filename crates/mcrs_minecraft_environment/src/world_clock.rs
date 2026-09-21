@@ -267,9 +267,9 @@ pub enum TimeMarkerError {
 /// `timeline` registry that makes them addressable, and it is rebuilt from
 /// that registry rather than accumulated.
 #[derive(Resource, Debug, Clone, Default)]
-pub struct ClockTimeMarkers(
-    HashMap<ResourceLocation<Arc<str>>, BTreeMap<ResourceLocation<Arc<str>>, ClockTimeMarker>>,
-);
+pub struct ClockTimeMarkers(HashMap<ResourceLocation<Arc<str>>, MarkersOfClock>);
+
+type MarkersOfClock = BTreeMap<ResourceLocation<Arc<str>>, ClockTimeMarker>;
 
 impl ClockTimeMarkers {
     pub fn get(&self, clock: &str, marker: &str) -> Option<&ClockTimeMarker> {

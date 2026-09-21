@@ -4,11 +4,11 @@
 
 use bevy_math::IVec3;
 use bytes::{Buf, Bytes};
-use mcrs_minecraft_worldgen_noise::SampleGrid;
-use mcrs_minecraft_worldgen::beard::{Beard, JunctionPoint, KERNEL, KERNEL_LEN, Rigid};
-use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
-use mcrs_minecraft_worldgen_structure::TerrainAdaptation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_worldgen::beard::{Beard, JunctionPoint, KERNEL, KERNEL_LEN, Rigid};
+use mcrs_minecraft_worldgen_noise::SampleGrid;
+use mcrs_minecraft_worldgen_structure::TerrainAdaptation;
+use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::path::PathBuf;
 
 const MAGIC: &[u8; 8] = b"MCBEARD0";
@@ -42,8 +42,7 @@ fn adaptation(tag: u8) -> TerrainAdaptation {
 }
 
 fn read_dump() -> (Vec<f32>, Vec<Case>) {
-    let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/vanilla/beard.bin");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/vanilla/beard.bin");
     let mut r = open_dump(&path, MAGIC);
 
     let kernel_len = r.get_u32_le() as usize;
@@ -68,7 +67,10 @@ fn read_dump() -> (Vec<f32>, Vec<Case>) {
                     let (x, ground_y, z) = (r.get_i32_le(), r.get_i32_le(), r.get_i32_le());
                     let _delta_y = r.get_i32_le();
                     let projection = r.get_u8();
-                    assert!(projection <= 1, "{name}: unknown projection tag {projection}");
+                    assert!(
+                        projection <= 1,
+                        "{name}: unknown projection tag {projection}"
+                    );
                     JunctionPoint { x, ground_y, z }
                 })
                 .collect();
@@ -137,7 +139,10 @@ fn sample_and_fill_match_the_reference_bit_for_bit() {
         case.beard.fill(&grid, &mut filled);
 
         for (label, produce) in [
-            ("sample", &(|x, y, z| case.beard.sample(x, y, z)) as &dyn Fn(i32, i32, i32) -> f32),
+            (
+                "sample",
+                &(|x, y, z| case.beard.sample(x, y, z)) as &dyn Fn(i32, i32, i32) -> f32,
+            ),
             ("fill", &|x, y, z| {
                 let index = grid
                     .index_of_block(x, y, z)

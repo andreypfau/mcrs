@@ -6,7 +6,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, StateMask, WorldGenVolume};
 
 use crate::holds;
@@ -90,7 +90,7 @@ pub struct CompiledHugeMushroom {
 pub fn place_huge_mushroom<W: WorldGenVolume>(
     cfg: &CompiledHugeMushroom,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let mut height = rng.next_i32_bound(3) + 4;
@@ -162,7 +162,7 @@ fn valid_position<W: WorldGenVolume>(
 fn brown_cap<W: WorldGenVolume>(
     cfg: &CompiledHugeMushroom,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
     height: i32,
 ) {
@@ -193,7 +193,7 @@ fn brown_cap<W: WorldGenVolume>(
 fn red_cap<W: WorldGenVolume>(
     cfg: &CompiledHugeMushroom,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
     height: i32,
 ) {
@@ -243,7 +243,7 @@ mod tests {
     use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -296,7 +296,7 @@ mod tests {
     }
 
     fn height_of(seed: u64) -> i32 {
-        let mut rng = XoroshiroRandom::new(seed);
+        let mut rng = WorldgenRandom::new(seed);
         let mut height = rng.next_i32_bound(3) + 4;
         if rng.next_i32_bound(12) == 0 {
             height *= 2;
@@ -311,10 +311,10 @@ mod tests {
     fn a_brown_cap_is_a_cornerless_plate_over_its_stem() {
         let cfg = config(MushroomCap::Brown, 3);
         let mut volume = clearing();
-        let mut rng = XoroshiroRandom::new(0x00b2_0117);
+        let mut rng = WorldgenRandom::new(0x00b2_0117);
         assert!(place_huge_mushroom(&cfg, &mut volume, &mut rng, ORIGIN));
 
-        let mut replay = XoroshiroRandom::new(0x00b2_0117);
+        let mut replay = WorldgenRandom::new(0x00b2_0117);
         replay.next_i32_bound(3);
         replay.next_i32_bound(12);
         assert_eq!(rng, replay, "only the two height draws");
@@ -342,7 +342,7 @@ mod tests {
     fn a_red_cap_is_three_rims_under_a_plate() {
         let cfg = config(MushroomCap::Red, 2);
         let mut volume = clearing();
-        let mut rng = XoroshiroRandom::new(0x02ed_ca95);
+        let mut rng = WorldgenRandom::new(0x02ed_ca95);
         assert!(place_huge_mushroom(&cfg, &mut volume, &mut rng, ORIGIN));
         let height = height_of(0x02ed_ca95);
 
@@ -371,10 +371,10 @@ mod tests {
         volume
             .blocks
             .insert((ORIGIN.x, ORIGIN.y - 1, ORIGIN.z), STONE);
-        let mut rng = XoroshiroRandom::new(5);
+        let mut rng = WorldgenRandom::new(5);
         assert!(!place_huge_mushroom(&cfg, &mut volume, &mut rng, ORIGIN));
 
-        let mut replay = XoroshiroRandom::new(5);
+        let mut replay = WorldgenRandom::new(5);
         replay.next_i32_bound(3);
         replay.next_i32_bound(12);
         assert_eq!(rng, replay);
@@ -390,7 +390,7 @@ mod tests {
         volume
             .blocks
             .insert((ORIGIN.x + 2, ORIGIN.y + height, ORIGIN.z), STONE);
-        let mut rng = XoroshiroRandom::new(5);
+        let mut rng = WorldgenRandom::new(5);
         assert!(!place_huge_mushroom(&cfg, &mut volume, &mut rng, ORIGIN));
         assert!(volume.writes.is_empty());
     }

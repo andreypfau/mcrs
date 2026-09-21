@@ -5,7 +5,7 @@ use bytes::Buf;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, Rule, WorldStates, single_state};
 use mcrs_minecraft_worldgen_feature_place::ore_modern::{
     CompiledOre, OreReplacement, OreScratch, place_modern_ore,
@@ -155,7 +155,7 @@ fn every_dumped_vein_matches_block_for_block() {
             discard_chance_on_air_exposure: case.discard_chance,
         };
         let mut world = stone_world(case.origin, stone, air, MAX_Y);
-        let mut rng = XoroshiroRandom::new(case.seed as u64);
+        let mut rng = WorldgenRandom::new(case.seed as u64);
         let result = place_modern_ore(
             &cfg,
             &mut world,
@@ -172,7 +172,7 @@ fn every_dumped_vein_matches_block_for_block() {
             .collect();
         assert_eq!(world.writes, expected, "{}: writes in order", case.name);
         assert_eq!(
-            [rng.next_i64(), rng.next_i64()],
+            [rng.next_java_long(), rng.next_java_long()],
             case.state_after,
             "{}: random state after the vein — the draw count diverged",
             case.name
@@ -200,7 +200,7 @@ fn the_probe_box_is_the_reference_box() {
         place_modern_ore(
             &cfg,
             &mut world,
-            &mut XoroshiroRandom::new(42),
+            &mut WorldgenRandom::new(42),
             BlockPos::new(0, 64, 0),
             &mut OreScratch::default(),
         )
@@ -225,7 +225,7 @@ fn a_failed_probe_still_costs_the_segment_draws() {
         discard_chance_on_air_exposure: 0.0,
     };
     let mut world = stone_world([0, 200, 0], VoxelId(1), VoxelId(0), MIN_Y);
-    let mut rng = XoroshiroRandom::new(42);
+    let mut rng = WorldgenRandom::new(42);
     assert!(!place_modern_ore(
         &cfg,
         &mut world,
@@ -235,7 +235,7 @@ fn a_failed_probe_still_costs_the_segment_draws() {
     ));
     assert!(world.writes.is_empty());
 
-    let mut replay = XoroshiroRandom::new(42);
+    let mut replay = WorldgenRandom::new(42);
     replay.next_f32();
     replay.next_i32_bound(3);
     replay.next_i32_bound(3);

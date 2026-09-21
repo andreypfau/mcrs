@@ -6,7 +6,7 @@ use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, ResourceLocation};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, states_of,
 };
@@ -189,7 +189,7 @@ pub fn paint_mineshaft<W: WorldGenVolume>(
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
     clip: BoundingBox,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     if in_invalid_location(b, region, piece.bounds, clip) {
         return;
@@ -387,7 +387,7 @@ fn is_air<W: WorldGenVolume>(c: &Canvas<'_, W>, x: i32, y: i32, z: i32) -> bool 
 fn corridor<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut Canvas<'_, W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     has_rails: bool,
     spider_corridor: bool,
     num_sections: i32,
@@ -475,7 +475,7 @@ fn corridor<W: WorldGenVolume>(
 fn place_support<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut Canvas<'_, W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     z: i32,
 ) {
     if (0..=2).any(|x| is_air(c, x, 3, z)) {
@@ -496,7 +496,7 @@ fn place_support<W: WorldGenVolume>(
 fn maybe_cobweb<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut Canvas<'_, W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     probability: f32,
     x: i32,
     y: i32,
@@ -540,7 +540,7 @@ fn sturdy_neighbours<W: WorldGenVolume>(
 fn create_minecart<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut Canvas<'_, W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     x: i32,
     y: i32,
     z: i32,

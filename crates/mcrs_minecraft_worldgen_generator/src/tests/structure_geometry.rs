@@ -10,7 +10,7 @@ use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, BoxRegion, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -601,14 +601,13 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
         for chunk in &expected.chunks {
             region.writes.clear();
             let mut run = program.run(RunScratch::default());
-            let mut rng = XoroshiroRandom::new(chunk.stream_seed as u64);
+            let mut rng = WorldgenRandom::new(chunk.stream_seed as u64);
             place_start(
                 frozen,
                 program,
                 &mut run,
                 &mut region,
                 &start,
-                case.chunk,
                 column_clip(chunk.chunk, &y_sections),
                 &mut rng,
                 liquid,
@@ -620,7 +619,7 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
                 &region.writes,
                 &by_position(&block_entities),
                 &spawns,
-                [rng.next_i64(), rng.next_i64()],
+                [rng.next_java_long(), rng.next_java_long()],
             ));
             chunks += 1;
         }

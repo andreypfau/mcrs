@@ -5,7 +5,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 pub use mcrs_minecraft_core::value_provider::Weighted;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
@@ -177,7 +177,7 @@ pub trait TreeSink<W> {
 
     /// `pale_moss` runs a whole feature on the tree's source, and that feature
     /// lives outside this crate.
-    fn moss_patch(&mut self, volume: &mut W, rng: &mut XoroshiroRandom, at: BlockPos);
+    fn moss_patch(&mut self, volume: &mut W, rng: &mut WorldgenRandom, at: BlockPos);
 }
 
 /// A sink with no patch to run: it keeps the block entities and drops the moss.
@@ -192,14 +192,14 @@ impl<W> TreeSink<W> for EntitiesOnly {
         self.0.push(entity);
     }
 
-    fn moss_patch(&mut self, _window: &mut W, _rng: &mut XoroshiroRandom, _at: BlockPos) {}
+    fn moss_patch(&mut self, _window: &mut W, _rng: &mut WorldgenRandom, _at: BlockPos) {}
 }
 
 impl CompiledTreeDecorator {
     pub fn place<W: WorldGenVolume>(
         &self,
         ctx: &mut DecoratorContext<W>,
-        rng: &mut XoroshiroRandom,
+        rng: &mut WorldgenRandom,
     ) {
         match &self.0 {
             TreeDecorator::TrunkVine {} => {
@@ -451,7 +451,7 @@ fn hang_vine<W: WorldGenVolume>(ctx: &mut DecoratorContext<W>, pos: BlockPos, si
 fn hang_moss<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
     pos: BlockPos,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     let mut cursor = pos;
     while ctx.is_air(cursor + IVec3::NEG_Y) && rng.next_f32() >= 0.5 {
@@ -464,7 +464,7 @@ fn hang_moss<W: WorldGenVolume>(
 fn place_circle<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
     provider: &StateProvider,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     centre: BlockPos,
 ) {
     for x in -2..=2i32 {
@@ -489,7 +489,7 @@ fn place_circle<W: WorldGenVolume>(
 
 fn place_beehive<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     probability: f32,
 ) {
     if ctx.logs.is_empty() || rng.next_f32() >= probability {
@@ -531,7 +531,7 @@ fn place_beehive<W: WorldGenVolume>(
 
 fn place_mushrooms_on_standing_tree<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     let first = random_horizontal(rng);
     let sides = [first, first.clockwise()];
@@ -559,7 +559,7 @@ fn place_mushrooms_on_standing_tree<W: WorldGenVolume>(
 
 fn place_mushrooms_on_fallen_log<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     let last = ctx.logs[ctx.logs.len() - 1];
     let sides = if ctx.logs[0].x != last.x {
@@ -601,7 +601,7 @@ fn place_shelf_mushroom<W: WorldGenVolume>(
     ctx: &mut DecoratorContext<W>,
     pos: BlockPos,
     facing: Direction,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     let age = rng.next_i32_bound(2) as usize;
     ctx.set(
@@ -653,7 +653,7 @@ mod tests {
         );
     }
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::super::provider::fake::{AIR, FakeVolume};
     use super::super::trunk::TreeStates;
@@ -689,8 +689,8 @@ mod tests {
         }
     }
 
-    fn rng() -> XoroshiroRandom {
-        XoroshiroRandom::new(0x7bee_5eed)
+    fn rng() -> WorldgenRandom {
+        WorldgenRandom::new(0x7bee_5eed)
     }
 
     fn trunk(from: i32, to: i32) -> Vec<BlockPos> {
@@ -700,7 +700,7 @@ mod tests {
     struct Placed {
         volume: FakeVolume,
         block_entities: Vec<GeneratedBlockEntity>,
-        rng: XoroshiroRandom,
+        rng: WorldgenRandom,
     }
 
     /// Runs a decorator over a bare column of logs and leaves, then checks the
@@ -720,7 +720,7 @@ mod tests {
         logs: Vec<BlockPos>,
         leaves: Vec<BlockPos>,
         world: impl IntoIterator<Item = ((i32, i32, i32), VoxelId)>,
-        mut expected: impl FnMut(&mut XoroshiroRandom),
+        mut expected: impl FnMut(&mut WorldgenRandom),
     ) -> Placed {
         let tables = TreeTables {
             states: TreeStates {

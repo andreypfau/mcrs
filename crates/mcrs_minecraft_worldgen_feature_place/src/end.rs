@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 pub use mcrs_minecraft_worldgen_feature::proto::EndSpike;
@@ -203,7 +203,7 @@ pub struct CompiledEndIsland {
 pub fn place_end_island<W: WorldGenVolume>(
     config: &CompiledEndIsland,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let mut size = rng.next_i32_bound(3) as f32 + 4.0;
@@ -268,7 +268,7 @@ pub fn seed_spikes(world_seed: i64) -> Vec<EndSpike> {
 pub fn place_end_spike<W: WorldGenVolume>(
     config: &CompiledEndSpikes,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     for spike in &config.spikes {
@@ -283,7 +283,7 @@ fn place_spike<W: WorldGenVolume>(
     config: &CompiledEndSpikes,
     spike: &EndSpike,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     let radius = spike.radius;
     let min_y = volume.extent().min_y.min(spike.height + 10);
@@ -351,7 +351,7 @@ mod tests {
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};
     use mcrs_minecraft_chunk::Blocks;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     const OBSIDIAN: VoxelId = VoxelId(1);
     const BEDROCK: VoxelId = VoxelId(2);
@@ -597,7 +597,7 @@ mod tests {
             end_stone: END_STONE,
         };
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(4242);
+        let mut rng = WorldgenRandom::new(4242);
         assert!(place_end_island(
             &config,
             &mut volume,
@@ -605,7 +605,7 @@ mod tests {
             BlockPos::new(0, 60, 0)
         ));
 
-        let mut replay = XoroshiroRandom::new(4242);
+        let mut replay = WorldgenRandom::new(4242);
         let mut size = replay.next_i32_bound(3) as f32 + 4.0;
         let mut layers = 0;
         while size > 0.5 {
@@ -689,7 +689,7 @@ mod tests {
         };
         let config = spikes_config(vec![spike]);
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(4242);
+        let mut rng = WorldgenRandom::new(4242);
         assert!(place_end_spike(
             &config,
             &mut volume,
@@ -697,7 +697,7 @@ mod tests {
             BlockPos::new(0, 0, 0)
         ));
 
-        let mut replay = XoroshiroRandom::new(4242);
+        let mut replay = WorldgenRandom::new(4242);
         replay.next_f32();
         assert_eq!(rng, replay, "one float, for the crystal's yaw");
 
@@ -741,7 +741,7 @@ mod tests {
             guarded: false,
         }]);
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(4242);
+        let mut rng = WorldgenRandom::new(4242);
         let before = rng.clone();
         assert!(place_end_spike(
             &config,
@@ -753,7 +753,7 @@ mod tests {
         assert_eq!(rng, before);
 
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(4242);
+        let mut rng = WorldgenRandom::new(4242);
         place_end_spike(&config, &mut volume, &mut rng, BlockPos::new(32, 0, 0));
         assert_ne!(rng, before, "the spike in this chunk draws its yaw");
         assert!(

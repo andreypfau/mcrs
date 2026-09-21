@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, StateMask, WorldGenVolume};
 
 const HUGE_PROBABILITY: f32 = 0.06;
@@ -30,7 +30,7 @@ pub struct CompiledHugeFungus {
 pub fn place_huge_fungus<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     if !volume.holds(&cfg.valid_base, at - IVec3::Y) {
@@ -58,7 +58,7 @@ pub fn place_huge_fungus<W: WorldGenVolume>(
 fn place_stem<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
     total_height: i32,
     huge: bool,
@@ -90,7 +90,7 @@ fn place_stem<W: WorldGenVolume>(
 fn place_hat<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
     total_height: i32,
     huge: bool,
@@ -146,7 +146,7 @@ fn place_hat<W: WorldGenVolume>(
 fn place_hat_block<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     pos: BlockPos,
     decor_probability: f32,
     hat_probability: f32,
@@ -167,7 +167,7 @@ fn place_hat_block<W: WorldGenVolume>(
 fn place_skirt_block<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     pos: BlockPos,
 ) {
     if volume.holds(&cfg.hat_block, pos - IVec3::Y) {
@@ -183,7 +183,7 @@ fn place_skirt_block<W: WorldGenVolume>(
 fn hang_vines<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     hat: BlockPos,
 ) {
     let mut pos = hat - IVec3::Y;
@@ -232,7 +232,7 @@ mod tests {
     use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};
@@ -292,7 +292,7 @@ mod tests {
     }
 
     fn shape(seed: u64) -> (i32, bool, i32) {
-        let mut rng = XoroshiroRandom::new(seed);
+        let mut rng = WorldgenRandom::new(seed);
         let mut total_height = rng.next_i32_bound(10) + 4;
         if rng.next_i32_bound(12) == 0 {
             total_height *= 2;
@@ -313,10 +313,10 @@ mod tests {
         assert!(!huge, "this seed must take the ordinary stem");
 
         let mut volume = shaft();
-        let mut rng = XoroshiroRandom::new(seed);
+        let mut rng = WorldgenRandom::new(seed);
         assert!(place_huge_fungus(&cfg, &mut volume, &mut rng, ORIGIN));
 
-        let mut replay = XoroshiroRandom::new(seed);
+        let mut replay = WorldgenRandom::new(seed);
         replay.next_i32_bound(10);
         replay.next_i32_bound(12);
         replay.next_f32();
@@ -355,7 +355,7 @@ mod tests {
         volume
             .blocks
             .insert((ORIGIN.x, ORIGIN.y - 1, ORIGIN.z), STONE);
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
         let before = rng.clone();
         assert!(!place_huge_fungus(&cfg, &mut volume, &mut rng, ORIGIN));
         assert_eq!(rng, before);
@@ -370,10 +370,10 @@ mod tests {
         let mut volume = open_air();
         let high = BlockPos::new(0, 380, 0);
         volume.blocks.insert((high.x, high.y - 1, high.z), NYLIUM);
-        let mut rng = XoroshiroRandom::new(4);
+        let mut rng = WorldgenRandom::new(4);
         assert!(!place_huge_fungus(&cfg, &mut volume, &mut rng, high));
 
-        let mut replay = XoroshiroRandom::new(4);
+        let mut replay = WorldgenRandom::new(4);
         replay.next_i32_bound(10);
         replay.next_i32_bound(12);
         assert_eq!(rng, replay, "the huge roll is never reached");
@@ -391,7 +391,7 @@ mod tests {
             volume
                 .blocks
                 .insert((ORIGIN.x, ORIGIN.y - 1, ORIGIN.z), NYLIUM);
-            let mut rng = XoroshiroRandom::new(seed);
+            let mut rng = WorldgenRandom::new(seed);
             place_huge_fungus(&cfg, &mut volume, &mut rng, ORIGIN);
             for ((x, _, z), _) in &volume.writes {
                 assert!(

@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, WorldGenVolume};
 
@@ -25,9 +25,9 @@ pub struct CompiledSingleBlockPillar {
 pub fn place_single_block_pillar<W>(
     config: &CompiledSingleBlockPillar,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_cap: &mut dyn FnMut(&mut W, &mut XoroshiroRandom, BlockPos) -> bool,
+    place_cap: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -49,7 +49,7 @@ where
 mod tests {
 
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::placer::single_state;
 
     use bevy_math::IVec3;
@@ -79,7 +79,7 @@ mod tests {
     fn a_certain_column_runs_to_the_floor_and_caps_its_last_cell() {
         let config = config(1.0);
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(13);
+        let mut rng = WorldgenRandom::new(13);
         let mut capped = Vec::new();
 
         assert!(place_single_block_pillar(
@@ -98,7 +98,7 @@ mod tests {
         assert_eq!(written, (floor..=AT.y).rev().collect::<Vec<_>>());
         assert_eq!(capped, vec![BlockPos::from(AT.with_y(floor))]);
 
-        let mut replay = XoroshiroRandom::new(13);
+        let mut replay = WorldgenRandom::new(13);
         for _ in 0..=(AT.y - floor) {
             replay.next_f32();
         }
@@ -115,7 +115,7 @@ mod tests {
     fn a_blocked_origin_still_caps_one_cell_behind_it() {
         let config = config(1.0);
         let mut volume = FakeVolume::with([((AT.x, AT.y, AT.z), STONE)]);
-        let mut rng = XoroshiroRandom::new(1);
+        let mut rng = WorldgenRandom::new(1);
         let before = rng.clone();
         let mut capped = Vec::new();
 
@@ -141,7 +141,7 @@ mod tests {
     fn a_chance_of_zero_spends_one_draw_and_writes_nothing() {
         let config = config(0.0);
         let mut volume = FakeVolume::default();
-        let mut rng = XoroshiroRandom::new(2);
+        let mut rng = WorldgenRandom::new(2);
         let mut capped = Vec::new();
 
         assert!(place_single_block_pillar(
@@ -155,7 +155,7 @@ mod tests {
             }
         ));
 
-        let mut replay = XoroshiroRandom::new(2);
+        let mut replay = WorldgenRandom::new(2);
         replay.next_f32();
         assert_eq!(rng, replay);
         assert!(volume.writes.is_empty());

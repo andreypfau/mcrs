@@ -2,7 +2,7 @@ use crate::holds;
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
 /// `west`, `east`, `north`, `south`, `below` — the order both counts walk.
@@ -28,7 +28,7 @@ pub struct CompiledSpring {
 pub fn place_spring<W: WorldGenVolume>(
     config: &CompiledSpring,
     volume: &mut W,
-    _rng: &mut XoroshiroRandom,
+    _rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     if !volume.holds(&config.valid_blocks, at + IVec3::Y) {
@@ -62,7 +62,7 @@ mod tests {
     use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -100,7 +100,7 @@ mod tests {
         assert!(place_spring(
             &config(5, 0),
             &mut volume,
-            &mut XoroshiroRandom::new(1),
+            &mut WorldgenRandom::new(1),
             ORIGIN
         ));
         assert_eq!(volume.get(ORIGIN), LAVA);
@@ -114,13 +114,13 @@ mod tests {
         assert!(!place_spring(
             &config(5, 0),
             &mut volume,
-            &mut XoroshiroRandom::new(1),
+            &mut WorldgenRandom::new(1),
             ORIGIN
         ));
         assert!(place_spring(
             &config(4, 1),
             &mut volume,
-            &mut XoroshiroRandom::new(1),
+            &mut WorldgenRandom::new(1),
             ORIGIN
         ));
     }
@@ -135,7 +135,7 @@ mod tests {
         assert!(place_spring(
             &config(4, 0),
             &mut volume,
-            &mut XoroshiroRandom::new(1),
+            &mut WorldgenRandom::new(1),
             ORIGIN
         ));
     }
@@ -148,7 +148,7 @@ mod tests {
         assert!(!place_spring(
             &config(4, 1),
             &mut volume,
-            &mut XoroshiroRandom::new(1),
+            &mut WorldgenRandom::new(1),
             ORIGIN
         ));
         let mut open = config(4, 1);
@@ -156,7 +156,7 @@ mod tests {
         assert!(place_spring(
             &open,
             &mut volume,
-            &mut XoroshiroRandom::new(1),
+            &mut WorldgenRandom::new(1),
             ORIGIN
         ));
     }
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn draws_nothing() {
         let mut volume = encased();
-        let mut rng = XoroshiroRandom::new(0x5eed);
+        let mut rng = WorldgenRandom::new(0x5eed);
         let before = rng.clone();
         place_spring(&config(5, 0), &mut volume, &mut rng, ORIGIN);
         assert_eq!(rng, before, "a spring spends no draw");

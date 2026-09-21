@@ -3,7 +3,7 @@ use std::sync::Arc;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::{HolderSet, ResourceLocation};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use serde::{Deserialize, Serialize};
 
 /// One `spawn_conditions` entry of a variant asset: a priority, and a
@@ -169,7 +169,7 @@ impl VariantTable {
     /// `VariantUtils.selectVariantToSpawn`: the candidates of the highest
     /// priority that passes, one drawn even when it is the only one. `None`
     /// leaves the kind's default variant, as an empty registry would.
-    pub fn pick(&self, ctx: &SpawnContext, rng: &mut XoroshiroRandom) -> Option<&ResourceLocation> {
+    pub fn pick(&self, ctx: &SpawnContext, rng: &mut WorldgenRandom) -> Option<&ResourceLocation> {
         let mut highest = i32::MIN;
         let mut candidates = Vec::new();
         for selector in &self.selectors {

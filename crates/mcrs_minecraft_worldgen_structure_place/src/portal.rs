@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, HolderSet, ResourceLocation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{
@@ -195,7 +195,7 @@ pub fn place_ruined_portal<W: WorldGenVolume>(
     spawns: &mut Vec<GeneratedEntity>,
     reference: IVec3,
     clip: BoundingBox,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
 ) {
     let bounds = piece.bounds;
     if !clip.is_inside(centre(bounds).into()) {
@@ -261,7 +261,7 @@ struct Portal<'a, W: WorldGenVolume> {
     b: &'a RuinedPortalBlocks,
     piece: &'a RuinedPortalPiece,
     volume: &'a mut W,
-    rng: &'a mut XoroshiroRandom,
+    rng: &'a mut WorldgenRandom,
 }
 
 impl<W: WorldGenVolume> Portal<'_, W> {

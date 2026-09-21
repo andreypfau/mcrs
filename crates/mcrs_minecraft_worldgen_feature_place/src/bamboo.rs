@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
@@ -27,7 +27,7 @@ pub struct CompiledBamboo {
 pub fn place_bamboo<W: WorldGenVolume>(
     cfg: &CompiledBamboo,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     if !volume.is_air(at) {
@@ -78,7 +78,7 @@ mod tests {
     use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -123,10 +123,10 @@ mod tests {
     fn a_stalk_grows_to_its_height_and_the_disc_costs_one_more_draw() {
         let cfg = config(1.0);
         let mut volume = ground();
-        let mut rng = XoroshiroRandom::new(0x2b00_b1e5);
+        let mut rng = WorldgenRandom::new(0x2b00_b1e5);
         assert!(place_bamboo(&cfg, &mut volume, &mut rng, ORIGIN));
 
-        let mut replay = XoroshiroRandom::new(0x2b00_b1e5);
+        let mut replay = WorldgenRandom::new(0x2b00_b1e5);
         let height = replay.next_i32_bound(12) + 5;
         assert!(replay.next_f32() < 1.0);
         replay.next_i32_bound(4);
@@ -162,10 +162,10 @@ mod tests {
     fn without_podzol_the_radius_is_never_drawn() {
         let cfg = config(0.0);
         let mut volume = ground();
-        let mut rng = XoroshiroRandom::new(99);
+        let mut rng = WorldgenRandom::new(99);
         assert!(place_bamboo(&cfg, &mut volume, &mut rng, ORIGIN));
 
-        let mut replay = XoroshiroRandom::new(99);
+        let mut replay = WorldgenRandom::new(99);
         replay.next_i32_bound(12);
         replay.next_f32();
         assert_eq!(rng, replay, "height and the roll, no radius");
@@ -184,7 +184,7 @@ mod tests {
         volume
             .blocks
             .insert((ORIGIN.x, ORIGIN.y - 1, ORIGIN.z), STONE);
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
         let before = rng.clone();
         assert!(place_bamboo(&cfg, &mut volume, &mut rng, ORIGIN));
         assert_eq!(rng, before);
@@ -197,7 +197,7 @@ mod tests {
         let cfg = config(1.0);
         let mut volume = ground();
         volume.blocks.insert((ORIGIN.x, ORIGIN.y, ORIGIN.z), STONE);
-        let mut rng = XoroshiroRandom::new(7);
+        let mut rng = WorldgenRandom::new(7);
         let before = rng.clone();
         assert!(!place_bamboo(&cfg, &mut volume, &mut rng, ORIGIN));
         assert_eq!(rng, before);
@@ -213,7 +213,7 @@ mod tests {
         volume
             .blocks
             .insert((ORIGIN.x, ORIGIN.y + 2, ORIGIN.z), STONE);
-        let mut rng = XoroshiroRandom::new(5150);
+        let mut rng = WorldgenRandom::new(5150);
         assert!(place_bamboo(&cfg, &mut volume, &mut rng, ORIGIN));
         assert!(
             volume

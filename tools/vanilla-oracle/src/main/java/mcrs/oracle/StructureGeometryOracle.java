@@ -346,7 +346,7 @@ public final class StructureGeometryOracle {
             long decorationSeed = new WorldgenRandom(new XoroshiroRandomSource(0L))
                 .setDecorationSeed(WORLD_SEED, chunk.getMinBlockX(), chunk.getMinBlockZ());
             long streamSeed = decorationSeed + c.index() + 10000L * step;
-            RandomSource random = new XoroshiroRandomSource(streamSeed);
+            RandomSource random = new WorldgenRandom(new XoroshiroRandomSource(streamSeed));
             level.random(random);
             int writeMark = level.writes().size();
             int blockEntityMark = level.blockEntities().size();

@@ -2,7 +2,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use rustc_hash::FxHashMap as HashMap;
@@ -194,7 +194,7 @@ pub fn place_mossy_carpet<W: WorldGenVolume>(
     let placed = updated(states, volume, base, at, true);
     volume.set(at, states.state(placed));
 
-    let mut rng = XoroshiroRandom::new((states.world_seed ^ position_seed(at)) as u64);
+    let mut rng = WorldgenRandom::new((states.world_seed ^ position_seed(at)) as u64);
     let Some(topper) = topper(states, volume, at, || rng.next_bool()) else {
         return;
     };

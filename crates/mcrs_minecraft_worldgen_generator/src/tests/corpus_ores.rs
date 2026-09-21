@@ -207,6 +207,8 @@ const UNITS: [ColumnPos; 9] = [
 /// The overworld block band was re-recorded once, three blocks down: the
 /// region here used to be built without the program, so `isAir` answered from
 /// an empty mask and `discard_chance_on_air_exposure` never discarded anything.
+/// Both bands were re-recorded when the placement stream became the
+/// reference's `WorldgenRandom` rather than a native Xoroshiro source.
 #[test]
 fn the_corpus_ore_counts_stay_in_the_band_the_first_run_set() {
     let (tables, named) = ore_tables();

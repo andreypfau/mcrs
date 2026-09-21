@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap as HashMap;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
@@ -92,7 +92,7 @@ pub fn valid_directions(ceiling: bool, floor: bool, wall: bool) -> Vec<Direction
 pub fn place_multiface_growth<W: WorldGenVolume>(
     cfg: &CompiledMultifaceGrowth,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     at: BlockPos,
 ) -> bool {
     let origin_state = volume.get(at);
@@ -134,7 +134,7 @@ fn is_air_or_water<W: WorldGenVolume>(volume: &W, state: VoxelId) -> bool {
 fn place_growth_if_possible<W: WorldGenVolume>(
     cfg: &CompiledMultifaceGrowth,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     pos: BlockPos,
     old_state: VoxelId,
     placement_directions: &[Direction],
@@ -165,7 +165,7 @@ fn place_growth_if_possible<W: WorldGenVolume>(
 fn spread_from_face<W: WorldGenVolume>(
     cfg: &CompiledMultifaceGrowth,
     volume: &mut W,
-    rng: &mut XoroshiroRandom,
+    rng: &mut WorldgenRandom,
     state: VoxelId,
     pos: BlockPos,
     from_face: Direction,
@@ -231,7 +231,7 @@ fn spread_toward<W: WorldGenVolume>(
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
+    use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -302,11 +302,11 @@ mod tests {
     fn a_growth_on_a_ceiling_shuffles_its_faces_then_spends_the_spread_draws() {
         let cfg = config();
         let mut volume = cave(FakeVolume::with([((AT.x, AT.y + 1, AT.z), STONE)]));
-        let mut rng = XoroshiroRandom::new(31);
+        let mut rng = WorldgenRandom::new(31);
 
         assert!(place_multiface_growth(&cfg, &mut volume, &mut rng, AT));
 
-        let mut replay = XoroshiroRandom::new(31);
+        let mut replay = WorldgenRandom::new(31);
         for size in (2..=5).rev() {
             replay.next_i32_bound(size);
         }
@@ -331,15 +331,15 @@ mod tests {
     fn a_growth_with_no_neighbour_writes_nothing_and_spends_the_shuffles() {
         let cfg = config();
         let mut volume = cave(FakeVolume::default());
-        let mut rng = XoroshiroRandom::new(5);
+        let mut rng = WorldgenRandom::new(5);
 
         assert!(!place_multiface_growth(&cfg, &mut volume, &mut rng, AT));
 
-        let mut replay = XoroshiroRandom::new(5);
+        let mut replay = WorldgenRandom::new(5);
         for size in (2..=5).rev() {
             replay.next_i32_bound(size);
         }
-        let order = shuffled(&cfg.valid_directions, &mut XoroshiroRandom::new(5));
+        let order = shuffled(&cfg.valid_directions, &mut WorldgenRandom::new(5));
         for search in &order {
             let kept = cfg
                 .valid_directions
@@ -363,7 +363,7 @@ mod tests {
             ((AT.x, AT.y, AT.z), WATER),
             ((AT.x, AT.y + 1, AT.z), STONE),
         ]));
-        let mut rng = XoroshiroRandom::new(31);
+        let mut rng = WorldgenRandom::new(31);
 
         assert!(place_multiface_growth(&cfg, &mut volume, &mut rng, AT));
         assert_eq!(
