@@ -44,7 +44,6 @@ use mcrs_minecraft_protocol::{
 use md5::{Digest, Md5};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::OnceLock;
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{Receiver, channel};
@@ -99,7 +98,7 @@ pub struct ReceivedRegistry {
 /// these and the on-disk assets wins for game data is a separate question;
 /// as the `RegistryLookup` for stacks they are the only authority.
 #[derive(Component, Default, Debug)]
-pub struct ReceivedRegistries(pub Vec<ReceivedRegistry>, OnceLock<LookupIndex>);
+pub struct ReceivedRegistries(pub Vec<ReceivedRegistry>, LookupIndex);
 
 /// Name and network id of every entry, keyed by the registry's bare path so
 /// the key form matches the item component registry markers.
@@ -110,37 +109,32 @@ pub struct LookupIndex {
 }
 
 impl ReceivedRegistries {
-    fn index(&self) -> &LookupIndex {
-        self.1.get_or_init(|| {
-            let mut index = LookupIndex::default();
-            for registry in &self.0 {
-                let key: Box<str> = registry
-                    .registry
-                    .split_once(':')
-                    .map_or(registry.registry.as_str(), |(_, path)| path)
-                    .into();
-                let by_id = index.by_id.entry(key.clone()).or_default();
-                let by_name = index.by_name.entry(key).or_default();
-                for (id, entry) in registry.entries.iter().enumerate() {
-                    let location = ResourceLocation::parse(&entry.id).ok();
-                    if let Some(location) = &location {
-                        by_name.insert(location.clone(), id as u32);
-                    }
-                    by_id.push(location);
-                }
+    pub fn push(&mut self, registry: ReceivedRegistry) {
+        let key: Box<str> = registry
+            .registry
+            .split_once(':')
+            .map_or(registry.registry.as_str(), |(_, path)| path)
+            .into();
+        let by_id = self.1.by_id.entry(key.clone()).or_default();
+        let by_name = self.1.by_name.entry(key).or_default();
+        for (id, entry) in registry.entries.iter().enumerate() {
+            let location = ResourceLocation::parse(&entry.id).ok();
+            if let Some(location) = &location {
+                by_name.insert(location.clone(), id as u32);
             }
-            index
-        })
+            by_id.push(location);
+        }
+        self.0.push(registry);
     }
 }
 
 impl RegistryLookup for ReceivedRegistries {
     fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
-        self.index().by_name.get(registry)?.get(name).copied()
+        self.1.by_name.get(registry)?.get(name).copied()
     }
 
     fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
-        self.index().by_id.get(registry)?.get(id as usize)?.as_ref()
+        self.1.by_id.get(registry)?.get(id as usize)?.as_ref()
     }
 }
 
@@ -456,8 +450,7 @@ fn handle_configuration_packet(
             known_packs: Vec::new(),
         });
     } else if let Some(data) = event.decode::<ClientboundRegistryData>() {
-        registries.1.take();
-        registries.0.push(ReceivedRegistry {
+        registries.push(ReceivedRegistry {
             registry: data.registry.to_string(),
             entries: data
                 .entries
@@ -644,7 +637,7 @@ mod lookup_tests {
             id: id.to_owned(),
             data: None,
         };
-        registries.0.push(ReceivedRegistry {
+        registries.push(ReceivedRegistry {
             registry: "minecraft:enchantment".to_owned(),
             entries: vec![entry("minecraft:sharpness"), entry("minecraft:unbreaking")],
         });
@@ -654,8 +647,7 @@ mod lookup_tests {
         assert_eq!(registries.name("enchantment", 2), None);
         assert_eq!(registries.id("item", &unbreaking), None);
 
-        registries.1.take();
-        registries.0.push(ReceivedRegistry {
+        registries.push(ReceivedRegistry {
             registry: "minecraft:damage_type".to_owned(),
             entries: vec![entry("minecraft:lava")],
         });

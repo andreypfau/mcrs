@@ -84,19 +84,11 @@ impl StaticRegistryTable {
     pub fn registry(&self, registry: &str) -> Option<&StaticRegistryEntries> {
         self.registries.get(registry)
     }
-
-    pub fn registries(&self) -> impl Iterator<Item = (&str, &StaticRegistryEntries)> {
-        self.registries.iter().map(|(k, v)| (&**k, v))
-    }
 }
 
 impl StaticRegistryEntries {
     pub fn len(&self) -> usize {
         self.by_id.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.by_id.is_empty()
     }
 
     pub fn names(&self) -> &[ResourceLocation] {
