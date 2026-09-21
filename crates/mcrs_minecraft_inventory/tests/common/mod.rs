@@ -13,7 +13,7 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction, TransactionError};
 use mcrs_minecraft_item::{Items, SlotTable, StackRevision, load_item_definitions, stack_to_value};
-use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue, Template};
+use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 
 pub fn corpus() -> &'static (Blocks, Items) {
     static CORPUS: OnceLock<(Blocks, Items)> = OnceLock::new();
@@ -47,10 +47,6 @@ pub fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackVal
         count: Bounded(count),
         components,
     }
-}
-
-pub fn template(path: &str, count: i32, components: ComponentPatch) -> Template {
-    Template(value(path, count, components))
 }
 
 /// A stack in no holder.

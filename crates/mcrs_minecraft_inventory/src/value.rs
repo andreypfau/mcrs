@@ -31,7 +31,7 @@ pub fn spawn_stack_into(
 ) -> Result<(), StackError> {
     let entry = named_entry(items, value)?;
     check(entry, value, items)?;
-    spawn_checked(world, Some(entity), entry, value, items);
+    spawn_checked(world, entity, entry, value, items);
     bump(world, entity);
     Ok(())
 }
@@ -103,24 +103,19 @@ fn check(entry: &ItemEntry, value: &ItemStackValue, items: &Items) -> Result<(),
 
 fn spawn_checked(
     world: &mut World,
-    entity: Option<Entity>,
+    stack: Entity,
     entry: &ItemEntry,
     value: &ItemStackValue,
     items: &Items,
-) -> Entity {
-    let bundle = (
+) {
+    world.entity_mut(stack).insert((
         ItemStack {
             item: entry.id,
             count: value.count.0 as u8,
         },
         StackRevision::default(),
-    );
-    let stack = match entity {
-        Some(entity) => world.entity_mut(entity).insert(bundle).id(),
-        None => world.spawn(bundle).id(),
-    };
+    ));
     write_value(world, stack, entry, value, items);
-    stack
 }
 
 fn write_value(
@@ -201,7 +196,8 @@ fn reconcile_children(
             world.despawn(child);
         }
         if let (Some(target), Some(target_entry)) = (target, target_entry) {
-            let child = spawn_checked(world, None, target_entry, target, items);
+            let child = world.spawn_empty().id();
+            spawn_checked(world, child, target_entry, target, items);
             attach(world, child, stack, index as u16);
         }
     }

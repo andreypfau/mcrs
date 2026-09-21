@@ -359,13 +359,7 @@ fn set_count(world: &mut World, stack: Entity, count: u8) {
 
 fn move_stack(world: &mut World, stack: Entity, to: Slot) -> Result<(), TransactionError> {
     let Slot { holder, index } = to;
-    let Ok(entity) = world.get_entity(stack) else {
-        return Err(TransactionError::NotAStack(stack));
-    };
-    if !entity.contains::<ItemStack>() {
-        return Err(TransactionError::NotAStack(stack));
-    }
-    if entity.contains::<DroppedItem>() {
+    if stack_entity(world, stack)?.contains::<DroppedItem>() {
         return Err(TransactionError::Dropped(stack));
     }
     let mut ancestor = holder;

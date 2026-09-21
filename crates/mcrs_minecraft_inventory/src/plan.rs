@@ -32,10 +32,6 @@ impl<'a> Planner<'a> {
         }
     }
 
-    fn count(&self, source: impl Into<Source>) -> u8 {
-        self.snapshot.count(source)
-    }
-
     /// Moves up to `amount` from `from` into `to`, which is empty or holds the
     /// same item; the caller has checked the cell accepts it.
     fn transfer(&mut self, from: Source, to: Slot, amount: u8) -> u8 {
@@ -106,7 +102,7 @@ impl<'a> Planner<'a> {
         let Some(max) = self.snapshot.cell_max(cell, &source) else {
             return;
         };
-        let room = max.saturating_sub(self.count(cell));
+        let room = max.saturating_sub(self.snapshot.count(cell));
         self.transfer(Source::Slot(from), cell, amount.min(room));
     }
 
@@ -218,17 +214,16 @@ impl<'a> Planner<'a> {
     /// dropping what does not fit.
     pub fn insert_or_drop(&mut self, from: Slot) {
         self.insert_stack(Source::Slot(from));
-        let left = self.count(from);
+        let left = self.snapshot.count(from);
         self.drop(from, left);
     }
 
     fn layout_range(&self, range: std::ops::Range<usize>, backwards: bool) -> Vec<Slot> {
-        let cells = &self.snapshot.layout[range];
+        let mut cells = self.snapshot.layout[range].to_vec();
         if backwards {
-            cells.iter().rev().copied().collect()
-        } else {
-            cells.to_vec()
+            cells.reverse();
         }
+        cells
     }
 
     fn quick_move(&mut self, slot: usize) -> bool {
@@ -403,7 +398,11 @@ impl<'a> Planner<'a> {
                 if carried.is_some() {
                     return;
                 }
-                let amount = if primary { 1 } else { self.count(cell) };
+                let amount = if primary {
+                    1
+                } else {
+                    self.snapshot.count(cell)
+                };
                 self.drop(cell, amount);
             }
             ContainerInput::QuickCraft | ContainerInput::PickupAll => {}
@@ -423,7 +422,7 @@ impl<'a> Planner<'a> {
 
     pub fn drop_held(&mut self, all: bool) {
         let held = Slot::new(self.snapshot.player, slots::held(self.snapshot.selected));
-        let amount = if all { self.count(held) } else { 1 };
+        let amount = if all { self.snapshot.count(held) } else { 1 };
         self.drop(held, amount);
     }
 
