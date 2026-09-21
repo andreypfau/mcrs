@@ -180,41 +180,29 @@ impl<'de, I: HoverItem> Deserialize<'de> for TextInner<I> {
                 let mut inner = TextInner::default();
                 let mut content = NbtCompound::new();
                 let mut with: Option<Vec<TranslateArg<I>>> = None;
-                let mut seen: Vec<&'static str> = Vec::new();
                 macro_rules! style {
-                    ($key:expr, $field:ident, $ty:ty, $get:expr) => {{
-                        if seen.contains(&$key) {
-                            return Err(de::Error::duplicate_field($key));
-                        }
-                        seen.push($key);
+                    ($field:ident, $ty:ty, $get:expr) => {{
                         let value: $ty = map.next_value()?;
                         inner.$field = $get(value);
                     }};
                 }
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
-                        "extra" => style!("extra", extra, Siblings<I>, |v: Siblings<I>| v.0),
-                        "color" => style!("color", color, Color, Some),
-                        "shadow_color" => style!("shadow_color", shadow_color, ArgbInt, Some),
-                        "bold" => style!("bold", bold, Flag, |v: Flag| v.0),
-                        "italic" => style!("italic", italic, Flag, |v: Flag| v.0),
-                        "underlined" => style!("underlined", underlined, Flag, |v: Flag| v.0),
+                        "extra" => style!(extra, Siblings<I>, |v: Siblings<I>| v.0),
+                        "color" => style!(color, Color, Some),
+                        "shadow_color" => style!(shadow_color, ArgbInt, Some),
+                        "bold" => style!(bold, Flag, |v: Flag| v.0),
+                        "italic" => style!(italic, Flag, |v: Flag| v.0),
+                        "underlined" => style!(underlined, Flag, |v: Flag| v.0),
                         "strikethrough" => {
-                            style!("strikethrough", strikethrough, Flag, |v: Flag| v.0)
+                            style!(strikethrough, Flag, |v: Flag| v.0)
                         }
-                        "obfuscated" => style!("obfuscated", obfuscated, Flag, |v: Flag| v.0),
-                        "click_event" => style!("click_event", click_event, ClickEvent, Some),
-                        "hover_event" => style!("hover_event", hover_event, HoverEvent<I>, Some),
-                        "insertion" => style!("insertion", insertion, String, |v: String| Some(
-                            Cow::Owned(v)
-                        )),
-                        "font" => style!("font", font, ResourceLocation, Some),
-                        "with" => {
-                            if with.is_some() {
-                                return Err(de::Error::duplicate_field("with"));
-                            }
-                            with = Some(map.next_value()?);
-                        }
+                        "obfuscated" => style!(obfuscated, Flag, |v: Flag| v.0),
+                        "click_event" => style!(click_event, ClickEvent, Some),
+                        "hover_event" => style!(hover_event, HoverEvent<I>, Some),
+                        "insertion" => style!(insertion, String, |v: String| Some(Cow::Owned(v))),
+                        "font" => style!(font, ResourceLocation, Some),
+                        "with" => with = Some(map.next_value()?),
                         _ => content.child_tags.push((key, map.next_value::<NbtTag>()?)),
                     }
                 }
@@ -385,17 +373,11 @@ fn non_empty<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Vec
 #[serde(untagged)]
 pub enum TextContent<I: HoverItem> {
     /// Normal text
-    Text {
-        #[serde(skip)]
-        typed: (),
-        text: Cow<'static, str>,
-    },
+    Text { text: Cow<'static, str> },
     /// A piece of text that will be translated on the client based on the
     /// client language. If no corresponding translation can be found, the
     /// identifier itself is used as the translated text.
     Translate {
-        #[serde(skip)]
-        typed: (),
         /// A translation identifier, corresponding to the identifiers found in
         /// loaded language files.
         translate: Cow<'static, str>,
@@ -409,8 +391,6 @@ pub enum TextContent<I: HoverItem> {
     /// Displays the name of the button that is currently bound to a certain
     /// configurable control on the client.
     Keybind {
-        #[serde(skip)]
-        typed: (),
         /// A [`keybind identifier`], to be displayed as the name of the button
         /// that is currently bound to that action.
         ///
@@ -418,17 +398,11 @@ pub enum TextContent<I: HoverItem> {
         keybind: Cow<'static, str>,
     },
     /// Displays a score holder's current score in an objective.
-    ScoreboardValue {
-        #[serde(skip)]
-        typed: (),
-        score: ScoreboardValueContent,
-    },
+    ScoreboardValue { score: ScoreboardValueContent },
     /// Displays the name of one or more entities found by a [`selector`].
     ///
     /// [`selector`]: https://minecraft.fandom.com/wiki/Target_selectors
     EntityNames {
-        #[serde(skip)]
-        typed: (),
         /// A string containing a [`selector`].
         ///
         /// [`selector`]: https://minecraft.fandom.com/wiki/Target_selectors
@@ -441,8 +415,6 @@ pub enum TextContent<I: HoverItem> {
     /// Displays NBT values read from a block entity, an entity or command
     /// storage.
     Nbt {
-        #[serde(skip)]
-        typed: (),
         nbt: Cow<'static, str>,
         #[serde(skip_serializing_if = "std::ops::Not::not")]
         interpret: bool,
@@ -455,8 +427,6 @@ pub enum TextContent<I: HoverItem> {
     },
     /// Displays a sprite in place of text.
     Object {
-        #[serde(skip)]
-        typed: (),
         #[serde(flatten)]
         object: ObjectInfo,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -542,10 +512,7 @@ impl<'de, I: HoverItem> Deserialize<'de> for TextContent<I> {
             let content = match name {
                 "text" => {
                     let TextRepr { text } = from_tag(tag()).map_err(E::custom)?;
-                    TextContent::Text {
-                        typed: (),
-                        text: text.into(),
-                    }
+                    TextContent::Text { text: text.into() }
                 }
                 "translatable" => {
                     let TranslateRepr::<I> {
@@ -554,7 +521,6 @@ impl<'de, I: HoverItem> Deserialize<'de> for TextContent<I> {
                         with,
                     } = from_tag(tag()).map_err(E::custom)?;
                     TextContent::Translate {
-                        typed: (),
                         translate: translate.into(),
                         fallback: fallback.map(Cow::Owned),
                         with,
@@ -563,13 +529,12 @@ impl<'de, I: HoverItem> Deserialize<'de> for TextContent<I> {
                 "keybind" => {
                     let KeybindRepr { keybind } = from_tag(tag()).map_err(E::custom)?;
                     TextContent::Keybind {
-                        typed: (),
                         keybind: keybind.into(),
                     }
                 }
                 "score" => {
                     let ScoreRepr { score } = from_tag(tag()).map_err(E::custom)?;
-                    TextContent::ScoreboardValue { typed: (), score }
+                    TextContent::ScoreboardValue { score }
                 }
                 "selector" => {
                     let SelectorRepr::<I> {
@@ -577,7 +542,6 @@ impl<'de, I: HoverItem> Deserialize<'de> for TextContent<I> {
                         separator,
                     } = from_tag(tag()).map_err(E::custom)?;
                     TextContent::EntityNames {
-                        typed: (),
                         selector: selector.into(),
                         separator,
                     }
@@ -594,7 +558,6 @@ impl<'de, I: HoverItem> Deserialize<'de> for TextContent<I> {
                         return Err(E::custom("'interpret' and 'plain' flags can't be both on"));
                     }
                     TextContent::Nbt {
-                        typed: (),
                         nbt: nbt.into(),
                         interpret,
                         plain,
@@ -605,11 +568,7 @@ impl<'de, I: HoverItem> Deserialize<'de> for TextContent<I> {
                 "object" => {
                     let ObjectRepr::<I> { object, fallback } =
                         from_tag(tag()).map_err(E::custom)?;
-                    TextContent::Object {
-                        typed: (),
-                        object,
-                        fallback,
-                    }
+                    TextContent::Object { object, fallback }
                 }
                 other => {
                     return Err(E::custom(format_args!("Unknown element id: {other}")));
@@ -1172,10 +1131,7 @@ impl<I: HoverItem> Text<I> {
     /// Constructs a new plain text object.
     pub fn text(plain: impl Into<Cow<'static, str>>) -> Self {
         Self(Box::new(TextInner {
-            content: TextContent::Text {
-                typed: (),
-                text: plain.into(),
-            },
+            content: TextContent::Text { text: plain.into() },
             ..Default::default()
         }))
     }
@@ -1185,7 +1141,6 @@ impl<I: HoverItem> Text<I> {
     pub fn translate(key: impl Into<Cow<'static, str>>, with: impl Into<Vec<Text<I>>>) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::Translate {
-                typed: (),
                 translate: key.into(),
                 fallback: None,
                 with: with.into().into_iter().map(TranslateArg::Text).collect(),
@@ -1201,7 +1156,6 @@ impl<I: HoverItem> Text<I> {
     ) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::ScoreboardValue {
-                typed: (),
                 score: ScoreboardValueContent {
                     name: name.into(),
                     objective: objective.into(),
@@ -1216,7 +1170,6 @@ impl<I: HoverItem> Text<I> {
     pub fn selector(selector: impl Into<Cow<'static, str>>, separator: Option<Text<I>>) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::EntityNames {
-                typed: (),
                 selector: selector.into(),
                 separator,
             },
@@ -1231,7 +1184,6 @@ impl<I: HoverItem> Text<I> {
     pub fn keybind(keybind: impl Into<Cow<'static, str>>) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::Keybind {
-                typed: (),
                 keybind: keybind.into(),
             },
             ..Default::default()
@@ -1247,7 +1199,6 @@ impl<I: HoverItem> Text<I> {
     ) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::Nbt {
-                typed: (),
                 nbt: nbt.into(),
                 interpret,
                 plain: false,
@@ -1472,10 +1423,7 @@ impl<I: HoverItem> fmt::Display for Text<I> {
 
 impl<I: HoverItem> Default for TextContent<I> {
     fn default() -> Self {
-        Self::Text {
-            typed: (),
-            text: "".into(),
-        }
+        Self::Text { text: "".into() }
     }
 }
 
@@ -1520,11 +1468,5 @@ impl<'de, I: HoverItem> Deserialize<'de> for Text<I> {
         }
 
         deserializer.deserialize_any(TextVisitor(PhantomData))
-    }
-}
-
-impl<I: HoverItem> From<TextInner<I>> for Text<I> {
-    fn from(inner: TextInner<I>) -> Self {
-        Self(Box::new(inner))
     }
 }
