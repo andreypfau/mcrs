@@ -24,6 +24,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 
 pub mod attribute;
 pub mod explosive;
+pub mod item;
 mod meta;
 pub mod mob;
 pub mod player;
@@ -44,6 +45,7 @@ impl Plugin for MinecraftEntityPlugin {
         app.add_plugins(DimPlayerPlugin);
         app.add_plugins(PrimedTntPlugin);
         app.add_plugins(MobTrackerPlugin);
+        app.add_plugins(item::DroppedItemPlugin);
         app.add_observer(entity_pos_sync);
         app.add_systems(FixedPreUpdate, dispatch_inbound_to_dim);
     }

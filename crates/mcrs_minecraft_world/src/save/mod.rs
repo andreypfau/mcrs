@@ -10,8 +10,12 @@ use uuid::Uuid;
 
 use mcrs_minecraft_environment::world_clock::ClockState;
 
-/// 26.3 Pre-Release 2; the oldest accepted is snapshot 10, the first with this layout.
-pub const WORLD_VERSION: i32 = 5021;
+pub mod player;
+
+pub use player::{PlayerDat, read_player_dat, write_player_dat};
+
+/// The 26.3 release; the oldest accepted is snapshot 10, the first with this layout.
+pub const WORLD_VERSION: i32 = 5023;
 pub const OLDEST_WORLD_VERSION: i32 = 5015;
 
 #[derive(Debug, thiserror::Error)]
@@ -142,10 +146,18 @@ pub fn read_game_rules(world: &Path) -> Result<GameRules, SaveError> {
 }
 
 pub fn read_player(world: &Path, player: Uuid) -> Result<PlayerData, SaveError> {
-    let path = world
-        .join("players/data")
-        .join(format!("{}.dat", player.hyphenated()));
+    let path = player::player_dat_path(world, player);
     parse_player(&read_bytes(&path)?, &path)
+}
+
+fn parse_player(bytes: &[u8], path: &Path) -> Result<PlayerData, SaveError> {
+    let dat = player::parse_player_dat(bytes, path)?;
+    Ok(PlayerData {
+        pos: dat.pos,
+        yaw: dat.rotation[0],
+        pitch: dat.rotation[1],
+        dimension: dat.dimension,
+    })
 }
 
 fn saved_data_path(world: &Path, name: &str) -> PathBuf {
@@ -247,18 +259,6 @@ struct SavedDataFile<T> {
     data_version: i32,
 }
 
-#[derive(Deserialize)]
-struct RawPlayerData {
-    #[serde(rename = "DataVersion")]
-    data_version: i32,
-    #[serde(rename = "Pos")]
-    pos: Vec<f64>,
-    #[serde(rename = "Rotation")]
-    rotation: Vec<f32>,
-    #[serde(rename = "Dimension")]
-    dimension: String,
-}
-
 fn parse_level_dat(bytes: &[u8], path: &Path) -> Result<LevelDat, SaveError> {
     let raw: LevelDatFile = decode(bytes, path)?;
     let raw = raw.data;
@@ -319,18 +319,6 @@ fn parse_game_rules(bytes: &[u8], path: &Path) -> Result<GameRules, SaveError> {
     let file: SavedDataFile<GameRules> = decode(bytes, path)?;
     check_data_version(file.data_version, path)?;
     Ok(file.data)
-}
-
-fn parse_player(bytes: &[u8], path: &Path) -> Result<PlayerData, SaveError> {
-    let raw: RawPlayerData = decode(bytes, path)?;
-    check_data_version(raw.data_version, path)?;
-    let [yaw, pitch]: [f32; 2] = fixed(&raw.rotation, "Rotation", path)?;
-    Ok(PlayerData {
-        pos: fixed(&raw.pos, "Pos", path)?,
-        yaw,
-        pitch,
-        dimension: raw.dimension,
-    })
 }
 
 fn uuid_from_int_array(ints: &[i32], path: &Path) -> Result<Uuid, SaveError> {

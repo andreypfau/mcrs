@@ -34,12 +34,14 @@ use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
     ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundChunkCacheRadius,
+    ClientboundContainerClose, ClientboundContainerSetContent, ClientboundContainerSetSlot,
     ClientboundDisconnect, ClientboundEntityEvent, ClientboundEntityPositionSync,
     ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelChunkWithLight,
-    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerInfoUpdate,
+    ClientboundLightUpdate, ClientboundLogin, ClientboundOpenScreen, ClientboundPlayerInfoUpdate,
     ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
-    ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
-    ClientboundSystemChatPacket, ClientboundUpdateAttributes, PositionPath,
+    ClientboundSetCursorItem, ClientboundSetEntityData, ClientboundSetEquipment,
+    ClientboundSetHeldSlot, ClientboundSetPassengers, ClientboundSystemChatPacket,
+    ClientboundTakeItemEntity, ClientboundUpdateAttributes, PositionPath,
 };
 use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, LpVec3, PositionFlag, Text, VarInt};
@@ -616,6 +618,81 @@ pub fn dispatch_encode(
                         );
                         conn.raw
                             .append(&ClientboundSystemChatPacket { content, overlay })
+                            .ok();
+                    }
+                    PacketPayload::ContainerSetContent {
+                        container_id,
+                        state_id,
+                        slots,
+                        carried,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundContainerSetContent {
+                                container_id: VarInt(i32::from(container_id)),
+                                state_seqno: VarInt(i32::from(state_id)),
+                                slot_data: slots,
+                                carried_item: carried,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::ContainerSetSlot {
+                        container_id,
+                        state_id,
+                        slot,
+                        item,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundContainerSetSlot {
+                                container_id: VarInt(i32::from(container_id)),
+                                state_seqno: VarInt(i32::from(state_id)),
+                                slot,
+                                item,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetCursorItem(contents) => {
+                        conn.raw
+                            .append(&ClientboundSetCursorItem { contents })
+                            .ok();
+                    }
+                    PacketPayload::SetHeldSlot(slot) => {
+                        conn.raw
+                            .append(&ClientboundSetHeldSlot {
+                                slot: VarInt(i32::from(slot)),
+                            })
+                            .ok();
+                    }
+                    PacketPayload::OpenScreen {
+                        container_id,
+                        menu_type,
+                        title,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundOpenScreen {
+                                container_id: VarInt(i32::from(container_id)),
+                                menu_type: VarInt(menu_type),
+                                title,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::ContainerClose(container_id) => {
+                        conn.raw
+                            .append(&ClientboundContainerClose {
+                                container_id: VarInt(i32::from(container_id)),
+                            })
+                            .ok();
+                    }
+                    PacketPayload::TakeItemEntity {
+                        item_id,
+                        player_id,
+                        amount,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundTakeItemEntity {
+                                item_id: VarInt(item_id),
+                                player_id: VarInt(player_id),
+                                amount: VarInt(amount),
+                            })
                             .ok();
                     }
                     PacketPayload::Test(_) => {

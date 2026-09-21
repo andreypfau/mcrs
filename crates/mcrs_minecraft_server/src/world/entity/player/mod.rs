@@ -11,9 +11,11 @@ use crate::world::entity::player::digging::DiggingPlugin;
 use crate::world::entity::player::game_mode::GameModePlugin;
 use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
+use crate::world::entity::player::placing::PlacingPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
-use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle};
+use crate::world::inventory::PlayerInventoryBundle;
+use crate::world::item::StackSet;
 use crate::world::sub_app_builder::DimTypeIndex;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_ecs::bundle::Bundle;
@@ -23,7 +25,11 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::world::World;
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_item::{SlotTable, slots};
+use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
@@ -44,6 +50,8 @@ pub mod digging;
 mod game_mode;
 mod inventory;
 pub mod movement;
+pub mod persistence;
+mod placing;
 pub mod player_action;
 
 /// Game mode given to joining players, read once from `MCRS_DEFAULT_GAMEMODE`
@@ -91,11 +99,18 @@ impl Plugin for DimPlayerPlugin {
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
         app.add_plugins(PlayerInventoryPlugin);
+        app.add_plugins(PlacingPlugin);
         app.add_plugins(ChatPlugin);
         app.add_plugins(GameModePlugin);
         app.add_systems(Update, consume_inbound_player_spawn);
         app.add_systems(Update, despawn_inbound_player);
         app.add_systems(FixedUpdate, (despawn_on_confirm, unhide_on_rollback));
+        app.add_systems(
+            FixedUpdate,
+            persistence::autosave_players
+                .after(StackSet::Sync)
+                .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
+        );
         app.add_observer(network_add);
         app.add_observer(player_joined);
     }
@@ -113,7 +128,6 @@ pub struct PlayerBundle {
     pub abilities: ability::PlayerAbilitiesBundle,
     pub attributes: attribute::PlayerAttributesBundle,
     pub inventory: PlayerInventoryBundle,
-    pub container_seqno: ContainerSeqno,
     pub game_mode: PlayerGameMode,
     pub op_level: PlayerOpLevel,
     pub tracked_by: crate::world::aoi::TrackedBy,
@@ -168,6 +182,7 @@ fn consume_inbound_player_spawn(
                 },
             ))
             .id();
+        commands.queue(move |world: &mut World| persistence::load_player(world, new_entity));
         dim_index.0.insert(spawn.session, new_entity);
 
         let host = spawn.host_anchor;
@@ -295,7 +310,22 @@ pub fn despawn_inbound_player(
         dim_index.0.remove(&msg.session);
         for (entity, anchor) in players.iter() {
             if anchor.0 == msg.host_anchor {
-                commands.entity(entity).despawn();
+                commands.queue(move |world: &mut World| {
+                    let unsaved: Vec<Entity> = world
+                        .get::<SlotTable>(entity)
+                        .map(|table| {
+                            std::iter::once(slots::CARRIED)
+                                .chain(slots::CRAFT)
+                                .filter_map(|index| table.get(index))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    for stack in unsaved {
+                        crate::world::entity::item::throw(world, entity, stack);
+                    }
+                    persistence::write_player(world, entity);
+                    world.despawn(entity);
+                });
             }
         }
     }

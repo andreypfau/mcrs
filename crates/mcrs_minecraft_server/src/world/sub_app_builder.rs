@@ -480,6 +480,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(PlayerTrackerPlugin);
     sub_app.add_plugins(BlockUpdatePlugin::default());
     sub_app.add_plugins(BlockUpdateWirePlugin);
+    sub_app.add_plugins(crate::world::item::ItemPlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(LootPlugin);
     sub_app.add_plugins(mcrs_minecraft_level::experience::ExperiencePlugin);
@@ -522,6 +523,9 @@ pub fn spawn_dim_subapp(
     }
     sub_app.insert_resource(registries.biome_registry.clone());
     sub_app.insert_resource(registries.structures.clone());
+    if let Some(save) = &registries.world_save {
+        sub_app.insert_resource(save.clone());
+    }
 
     // Seed the time resources so an inspector that reads `Res<Time<…>>` on a
     // sub-app that has never been pumped gets a valid default. The extract

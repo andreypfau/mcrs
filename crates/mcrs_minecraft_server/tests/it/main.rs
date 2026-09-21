@@ -29,11 +29,15 @@ mod common;
 mod confirmed_move_protocol;
 mod confirmed_move_roundtrip;
 mod cross_player_isolation;
+mod dropped_item;
 mod entity_sync_look_angle;
 mod epoch_round_trip;
 mod harness;
 mod host_app;
 mod host_subapp_handoff;
+mod inventory;
+mod inventory_click;
+mod inventory_sync;
 mod light_engine_e2e;
 mod login_handshake_e2e;
 #[path = "common/mock_connection.rs"]
