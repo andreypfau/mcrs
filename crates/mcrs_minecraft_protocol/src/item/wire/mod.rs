@@ -3,6 +3,7 @@
 
 pub use kind::decode_component_value;
 pub use patch::{decode_delimited_patch, encode_delimited_patch};
+pub use stack::{HashedStack, ProtoStack, RawDelimitedStack, RawStack};
 
 mod attribute;
 mod banner;
@@ -29,6 +30,7 @@ mod registry_ref;
 mod scalar;
 mod simple;
 mod sound;
+mod stack;
 mod text;
 mod trim;
 mod unit;

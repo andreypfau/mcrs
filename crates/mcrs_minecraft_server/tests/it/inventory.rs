@@ -23,8 +23,8 @@ use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSl
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, ContainerInput, Damage, HashedSlot, ItemStackValue, ItemStackWithSlot,
-    RawDelimitedStack, RawStack, Slot,
+    ComponentPatch, ContainerInput, Damage, HashedStack, ItemStackValue, ItemStackWithSlot,
+    RawDelimitedStack, RawStack, ProtoStack,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClick, ServerboundSetCreativeModeSlot,
@@ -208,7 +208,7 @@ impl Server {
         i32::from(self.world().get::<Menu>(menu).unwrap().state_id)
     }
 
-    fn click(&self, state_id: i32, changed: Vec<(u16, Option<HashedSlot>)>) {
+    fn click(&self, state_id: i32, changed: Vec<(u16, Option<HashedStack>)>) {
         self.send(&ServerboundContainerClick {
             container_id: mcrs_minecraft_protocol::VarInt(0),
             state_seqno: mcrs_minecraft_protocol::VarInt(state_id),
@@ -357,11 +357,11 @@ fn a_creative_slot_is_answered_with_one_set_slot() {
     server.join();
     let items = server.items();
     let registry = server.world().resource::<RegistryAccess>().clone();
-    let slot = Slot::from_value(&value("diamond_pickaxe", 1), &registry as &dyn RegistryLookup).unwrap();
+    let slot = ProtoStack::from_value(&value("diamond_pickaxe", 1), &registry as &dyn RegistryLookup).unwrap();
     let cell = slots::held(0);
     server.send(&ServerboundSetCreativeModeSlot {
         slot: cell as i16,
-        item: RawDelimitedStack::from_slot(&slot, &registry).unwrap(),
+        item: RawDelimitedStack::from_stack(&slot, &registry).unwrap(),
     });
     let packets = server.ticks(3);
     let inventory = inventory_packets(&packets);
@@ -391,7 +391,7 @@ fn a_click_whose_claim_disagrees_gets_that_cell_resent() {
     let items = server.items();
     let stone = server.give("stone", 7, slots::HOTBAR.start);
     server.ticks(2);
-    let claimed = HashedSlot::create(&stack_to_slot(server.world(), stone, &items)).unwrap();
+    let claimed = HashedStack::create(&stack_to_slot(server.world(), stone, &items)).unwrap();
     let untouched = slots::MAIN.start + 3;
     let state_id = server.state_id();
     server.click(state_id, vec![(untouched, claimed)]);

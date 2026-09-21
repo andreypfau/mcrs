@@ -5,7 +5,7 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_item::{
     DirtyStacks, DroppedItem, ItemStack, SlotTable, Thrower, mutate, slots, stack_to_slot,
 };
-use mcrs_minecraft_protocol::item::{ContainerInput, HashedSlot, RawStack};
+use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack, RawStack};
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::item::click::{
     CloseContainerRequest, ContainerClickRequest, close_menus, handle_container_clicks,
@@ -32,7 +32,7 @@ fn click_claiming(
     input: ContainerInput,
     slot: i16,
     button: u8,
-    changed: Vec<(u16, Option<HashedSlot>)>,
+    changed: Vec<(u16, Option<HashedStack>)>,
 ) {
     let state_id = i32::from(
         world
@@ -169,7 +169,7 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
     sync_stack_slots(&mut world);
     drain(&mut world);
 
-    let claimed = HashedSlot::create(&stack_to_slot(&world, stack, &corpus().1)).unwrap();
+    let claimed = HashedStack::create(&stack_to_slot(&world, stack, &corpus().1)).unwrap();
     let untouched = slots::MAIN.start + 3;
     click_claiming(
         &mut world,

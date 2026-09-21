@@ -19,7 +19,7 @@ use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::component::Equippable;
-use mcrs_minecraft_protocol::item::{ContainerInput, HashedSlot, RawDelimitedStack, Slot};
+use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack, RawDelimitedStack, ProtoStack};
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClick, ServerboundContainerClose, ServerboundSetCreativeModeSlot,
 };
@@ -38,8 +38,8 @@ pub struct ContainerClickRequest {
     pub slot: i16,
     pub button: u8,
     pub input: ContainerInput,
-    pub changed: Vec<(u16, Option<HashedSlot>)>,
-    pub carried: Option<HashedSlot>,
+    pub changed: Vec<(u16, Option<HashedStack>)>,
+    pub carried: Option<HashedStack>,
 }
 
 #[derive(Message, Debug)]
@@ -182,11 +182,11 @@ pub fn handle_container_clicks(world: &mut World) {
 fn client_matches(
     world: &World,
     cell: (Entity, u16),
-    hashed: Option<&HashedSlot>,
+    hashed: Option<&HashedStack>,
     items: &Items,
 ) -> bool {
     let server =
-        stack_in(world, cell).map_or(Slot::EMPTY, |stack| stack_to_slot(world, stack, items));
+        stack_in(world, cell).map_or(ProtoStack::EMPTY, |stack| stack_to_slot(world, stack, items));
     hashed.map_or(server.is_empty(), |hashed| hashed.matches(&server))
 }
 

@@ -27,7 +27,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundSetPlayerInventory,
 };
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::{Encode, Packet, Slot, VarInt};
+use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
 use mcrs_minecraft_registry::{RegistryLookup, StaticRegistryTable};
 
 const GOLDEN: &str =
@@ -134,8 +134,8 @@ impl Client {
         let id = table
             .id("item", &mcrs_minecraft_core::ResourceLocation::minecraft(path))
             .unwrap();
-        let slot = Slot::new(mcrs_minecraft_registry::ItemId(id as u16), count, ComponentPatch::EMPTY);
-        RawStack::from_slot(&slot, table).unwrap()
+        let slot = ProtoStack::new(mcrs_minecraft_registry::ItemId(id as u16), count, ComponentPatch::EMPTY);
+        RawStack::from_stack(&slot, table).unwrap()
     }
 
     fn cell(&mut self, holder: Entity, cell: u16) -> Option<Entity> {

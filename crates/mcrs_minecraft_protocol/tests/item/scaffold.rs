@@ -3,8 +3,8 @@ use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
-    HashedPatchMap, HashedSlot, ItemComponentKind, ItemComponentValue, ItemStackValue, Lore,
-    MaxStackSize, RawDelimitedStack, RawStack, Slot, Template, Unbreakable, hash_ops,
+    HashedPatchMap, HashedStack, ItemComponentKind, ItemComponentValue, ItemStackValue, Lore,
+    MaxStackSize, RawDelimitedStack, RawStack, ProtoStack, Template, Unbreakable, hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
@@ -148,20 +148,20 @@ fn the_wire_patch_counts_then_lists() {
 #[test]
 fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
     let lookup = TestLookup::new();
-    let slot = Slot::new(ItemId(300), 200, patch());
+    let slot = ProtoStack::new(ItemId(300), 200, patch());
     let mut wire = Vec::new();
     slot.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(&wire[..4], [0xC8, 0x01, 0xAC, 0x02]);
     let raw = RawStack::decode(&mut &wire[..]).unwrap();
     assert_eq!(raw.0, wire);
     assert_eq!(raw.resolve(&lookup).unwrap(), slot);
-    assert_eq!(RawStack::from_slot(&slot, &lookup).unwrap(), raw);
+    assert_eq!(RawStack::from_stack(&slot, &lookup).unwrap(), raw);
 
     let mut empty = Vec::new();
-    Slot::EMPTY.encode_ctx(&lookup, &mut empty).unwrap();
+    ProtoStack::EMPTY.encode_ctx(&lookup, &mut empty).unwrap();
     assert_eq!(empty, [0]);
     assert_eq!(RawStack::EMPTY.0, empty);
-    assert_eq!(RawStack::EMPTY.resolve(&NoRegistries).unwrap(), Slot::EMPTY);
+    assert_eq!(RawStack::EMPTY.resolve(&NoRegistries).unwrap(), ProtoStack::EMPTY);
 
     let mut trailing = wire.clone();
     trailing.push(7);
@@ -173,8 +173,8 @@ fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
 #[test]
 fn a_delimited_stack_skips_what_a_value_leaves_unread() {
     let lookup = TestLookup::new();
-    let slot = Slot::new(ItemId(1), 1, patch());
-    let raw = RawDelimitedStack::from_slot(&slot, &lookup).unwrap();
+    let slot = ProtoStack::new(ItemId(1), 1, patch());
+    let raw = RawDelimitedStack::from_stack(&slot, &lookup).unwrap();
     assert_eq!(raw.resolve(&lookup).unwrap(), slot);
     assert_eq!(RawDelimitedStack::decode(&mut &raw.0[..]).unwrap(), raw);
 
@@ -190,7 +190,7 @@ fn a_delimited_stack_skips_what_a_value_leaves_unread() {
     assert!(RawDelimitedStack::decode(&mut &padded[..]).is_ok());
 
     let air = RawDelimitedStack(vec![1, 0, 0, 0].into());
-    assert_eq!(air.resolve(&lookup).unwrap(), Slot::EMPTY);
+    assert_eq!(air.resolve(&lookup).unwrap(), ProtoStack::EMPTY);
     let too_many = RawDelimitedStack(vec![100, 1, 0, 0].into());
     assert!(
         too_many
@@ -220,7 +220,7 @@ fn a_delimited_stack_skips_what_a_value_leaves_unread() {
 
 #[test]
 fn a_hashed_slot_writes_the_map_then_the_set() {
-    let hashed = HashedSlot {
+    let hashed = HashedStack {
         id: ItemId(1),
         count: 3,
         components: HashedPatchMap {
@@ -232,13 +232,13 @@ fn a_hashed_slot_writes_the_map_then_the_set() {
     Some(hashed.clone()).encode(&mut wire).unwrap();
     assert_eq!(wire, [1, 1, 3, 1, 1, 1, 2, 3, 4, 1, 3]);
     assert_eq!(
-        Option::<HashedSlot>::decode(&mut &wire[..]).unwrap(),
+        Option::<HashedStack>::decode(&mut &wire[..]).unwrap(),
         Some(hashed)
     );
 
     let mut oversized = vec![1, 3, 0x81, 0x02];
     oversized.extend(std::iter::repeat_n([0, 0, 0, 0, 0], 257).flatten());
-    assert!(HashedSlot::decode(&mut &oversized[..]).is_err());
+    assert!(HashedStack::decode(&mut &oversized[..]).is_err());
 }
 
 #[test]
@@ -277,7 +277,7 @@ fn a_hashed_patch_matches_through_hash_ops() {
     transient.set(CreativeSlotLock);
     assert!(HashedPatchMap::create(&transient).is_err());
     assert!(!HashedPatchMap::default().matches(&transient));
-    assert_eq!(HashedSlot::create(&Slot::EMPTY).unwrap(), None);
+    assert_eq!(HashedStack::create(&ProtoStack::EMPTY).unwrap(), None);
 }
 
 fn stone() -> ResourceKey<mcrs_minecraft_protocol::item::ItemReg> {
@@ -305,10 +305,10 @@ fn a_stack_value_always_writes_its_count_and_rejects_air() {
     );
 
     let lookup = TestLookup::new();
-    let slot = Slot::from_value(&value, &lookup).unwrap();
-    assert_eq!(slot, Slot::new(ItemId(1), 1, ComponentPatch::EMPTY));
+    let slot = ProtoStack::from_value(&value, &lookup).unwrap();
+    assert_eq!(slot, ProtoStack::new(ItemId(1), 1, ComponentPatch::EMPTY));
     assert_eq!(slot.to_value(&lookup).unwrap(), value);
-    assert!(Slot::EMPTY.to_value(&lookup).is_err());
+    assert!(ProtoStack::EMPTY.to_value(&lookup).is_err());
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -500,14 +500,14 @@ fn a_wire_amplifier_clamps_to_a_byte() {
 #[test]
 fn an_air_stack_is_empty_whatever_its_count() {
     let lookup = TestLookup::new();
-    let air = Slot::new(ItemId(0), 5, patch());
+    let air = ProtoStack::new(ItemId(0), 5, patch());
     assert!(air.is_empty());
     let mut wire = Vec::new();
     air.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(wire, [0]);
-    assert_eq!(HashedSlot::create(&air).unwrap(), None);
+    assert_eq!(HashedStack::create(&air).unwrap(), None);
     let mut r: &[u8] = &[1, 0, 0, 0];
-    assert_eq!(Slot::decode_ctx(&lookup, &mut r).unwrap(), Slot::EMPTY);
+    assert_eq!(ProtoStack::decode_ctx(&lookup, &mut r).unwrap(), ProtoStack::EMPTY);
     assert!(r.is_empty());
 }
 

@@ -5,7 +5,7 @@ use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
     BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container, DecodeCtx,
     EncodeCtx, Holder, ItemComponentKind, ItemComponentValue, ItemStackValue, PotDecorations,
-    RawStack, Slot, SulfurCubeContent, Template, UseRemainder,
+    RawStack, ProtoStack, SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registry::ItemId;
@@ -144,9 +144,9 @@ impl Gen {
         patch
     }
 
-    fn slot(&mut self, depth: u8) -> Slot {
+    fn slot(&mut self, depth: u8) -> ProtoStack {
         let (_, id) = self.item();
-        Slot::new(id, self.rng.random_range(1..=99), self.patch(depth, false))
+        ProtoStack::new(id, self.rng.random_range(1..=99), self.patch(depth, false))
     }
 }
 
@@ -191,7 +191,7 @@ fn persistent_round_trips(value: &ItemComponentValue) {
     assert_eq!(&back, value, "{kind}: NBT round trip");
 }
 
-fn raw_stack_round_trip(lookup: &TestLookup, slot: &Slot) {
+fn raw_stack_round_trip(lookup: &TestLookup, slot: &ProtoStack) {
     let mut wire = Vec::new();
     slot.encode_ctx(lookup, &mut wire)
         .unwrap_or_else(|e| panic!("encode {slot:?}: {e}"));

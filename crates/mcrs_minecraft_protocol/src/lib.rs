@@ -89,7 +89,7 @@ pub use game_event::GameEventKind;
 pub use game_mode::GameMode;
 pub use global_pos::GlobalPos;
 pub use hand::Hand;
-pub use item::Slot;
+pub use item::ProtoStack;
 pub use lp_vec3::LpVec3;
 pub use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 pub use pos::Look;

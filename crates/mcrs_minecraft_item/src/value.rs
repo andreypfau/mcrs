@@ -207,10 +207,10 @@ pub fn stack_to_value(world: &World, stack: Entity, items: &Items) -> ItemStackV
     }
 }
 
-pub fn stack_to_slot(world: &World, stack: Entity, items: &Items) -> Slot {
+pub fn stack_to_slot(world: &World, stack: Entity, items: &Items) -> ProtoStack {
     let value = stack_to_value(world, stack, items);
     let item = world.get::<ItemStack>(stack).unwrap().item;
-    Slot::new(item, value.count.0, value.components)
+    ProtoStack::new(item, value.count.0, value.components)
 }
 
 pub fn spawn_stack(world: &mut World, value: &ItemStackValue, items: &Items) -> Result<Entity, StackError> {

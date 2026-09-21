@@ -297,7 +297,7 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
 #[test]
 fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
     use mcrs_minecraft_protocol::Decode;
-    use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, EncodeCtx, RawStack, Slot};
+    use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, EncodeCtx, RawStack, ProtoStack};
     use mcrs_minecraft_registry::ItemId;
 
     let lookup = TestLookup::new();
@@ -306,7 +306,7 @@ fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
         r#"{"minecraft:sharpness":5,"minecraft:unbreaking":3}"#,
     )
     .unwrap();
-    let slot = Slot::new(
+    let slot = ProtoStack::new(
         ItemId(2),
         1,
         ComponentPatch {

@@ -8,7 +8,7 @@ use mcrs_minecraft_registry::RegistryLookup;
 use crate::item::component::ItemReg;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque};
 use crate::item::patch::ComponentMap;
-use crate::item::stack::Slot;
+use crate::item::wire::ProtoStack;
 use crate::{Decode, Encode, VarInt};
 
 /// An item a trade takes, matched by exact component values.
@@ -42,7 +42,7 @@ impl<'a> DecodeCtx<'a> for ItemCost {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MerchantOffer {
     pub cost_a: ItemCost,
-    pub result: Slot,
+    pub result: ProtoStack,
     pub cost_b: Option<ItemCost>,
     pub uses: i32,
     pub max_uses: i32,
@@ -77,7 +77,7 @@ impl EncodeCtx for MerchantOffer {
 impl<'a> DecodeCtx<'a> for MerchantOffer {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let cost_a = ItemCost::decode_ctx(ctx, r)?;
-        let result = Slot::decode_ctx(ctx, r)?;
+        let result = ProtoStack::decode_ctx(ctx, r)?;
         ensure!(!result.is_empty(), "Empty ItemStack not allowed");
         let cost_b = Option::decode_ctx(ctx, r)?;
         let out_of_stock = bool::decode(r)?;

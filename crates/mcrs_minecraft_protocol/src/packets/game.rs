@@ -658,7 +658,7 @@ pub mod clientbound {
 
 pub mod serverbound {
     use crate::entity::player::{CommandArgumentSignature, MessageSignature, PlayerAction};
-    use crate::item::{ContainerInput, HashedSlot, RawDelimitedStack};
+    use crate::item::{ContainerInput, HashedStack, RawDelimitedStack};
     use crate::packets::common::serverbound::{ClientInformation, KeepAlive};
     use crate::pos::MoveFlags;
     use crate::recipe::RecipeBookType;
@@ -772,8 +772,8 @@ pub mod serverbound {
         pub slot_index: i16,
         pub button: u8,
         pub container_input: ContainerInput,
-        pub changed_slots: Bounded<Vec<(u16, Option<HashedSlot>)>, MAX_CHANGED_SLOTS>,
-        pub carried_item: Option<HashedSlot>,
+        pub changed_slots: Bounded<Vec<(u16, Option<HashedStack>)>, MAX_CHANGED_SLOTS>,
+        pub carried_item: Option<HashedStack>,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]

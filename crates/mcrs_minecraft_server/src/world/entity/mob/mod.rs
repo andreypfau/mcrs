@@ -30,7 +30,7 @@ use mcrs_minecraft_protocol::entity::{EquipmentSlot, MetaDataValue, Metadata, Me
 use mcrs_minecraft_protocol::item::{ComponentPatch, RawStack};
 use mcrs_minecraft_protocol::packets::game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{Slot, VarInt};
+use mcrs_minecraft_protocol::{ProtoStack, VarInt};
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
 use mcrs_minecraft_world::entity::attribute::MAX_HEALTH;
 use mcrs_minecraft_world::entity::minecraft as entity_types;
@@ -410,12 +410,12 @@ fn wire_id(entity: Entity) -> i32 {
 /// A stack the registries cannot encode is dropped from the packet rather
 /// than sent malformed.
 fn wire_stack(stack: ItemStack, lookup: &dyn RegistryLookup) -> Option<RawStack> {
-    let slot = Slot::new(
+    let slot = ProtoStack::new(
         stack.item(),
         i32::from(stack.count()),
         ComponentPatch::default(),
     );
-    RawStack::from_slot(&slot, lookup)
+    RawStack::from_stack(&slot, lookup)
         .inspect_err(|error| tracing::warn!(%error, "a mob's stack could not be encoded"))
         .ok()
 }

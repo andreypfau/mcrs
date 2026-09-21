@@ -178,7 +178,7 @@ pub fn sync_stack_slots(world: &mut World) {
 
 fn raw_stack(world: &World, stack: Entity, items: &Items, lookup: &dyn RegistryLookup) -> RawStack {
     let slot = stack_to_slot(world, stack, items);
-    RawStack::from_slot(&slot, lookup)
+    RawStack::from_stack(&slot, lookup)
         .inspect_err(|error| tracing::warn!(%error, ?stack, "a stack could not be encoded"))
         .unwrap_or(RawStack::EMPTY)
 }

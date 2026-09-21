@@ -6,13 +6,13 @@ use std::collections::HashMap;
 use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_protocol::item::{
-    ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, HashedSlot, ItemCost,
+    ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, HashedStack, ItemCost,
     MaxStackSize, MerchantOffer, RawDelimitedStack, RawMerchantOffer, RawStack, Unbreakable,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::{Bounded, Decode, Encode, Slot, VarInt};
+use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, VarInt};
 use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 
 const GOLDEN: &str = include_str!("fixtures/inventory_packets_26_3_snapshot_10.txt");
@@ -88,16 +88,16 @@ fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
     assert_eq!(encoded(&expected), bytes, "{name}");
 }
 
-fn sword(fixture: &Fixture) -> Slot {
+fn sword(fixture: &Fixture) -> ProtoStack {
     let mut patch = ComponentPatch::EMPTY;
     patch.set(Damage(Range(7)));
     patch.set(CustomName(Text::text("named")));
     patch.set(Unbreakable);
-    Slot::new(item(fixture, "diamond_sword"), 1, patch)
+    ProtoStack::new(item(fixture, "diamond_sword"), 1, patch)
 }
 
-fn raw(fixture: &Fixture, slot: Slot) -> RawStack {
-    RawStack::from_slot(&slot, fixture).unwrap()
+fn raw(fixture: &Fixture, slot: ProtoStack) -> RawStack {
+    RawStack::from_stack(&slot, fixture).unwrap()
 }
 
 #[test]
@@ -127,7 +127,7 @@ fn clientbound_container_packets() {
         f,
         "set_cursor_item",
         ClientboundSetCursorItem {
-            contents: raw(f, Slot::new(item(f, "stone"), 64, ComponentPatch::EMPTY)),
+            contents: raw(f, ProtoStack::new(item(f, "stone"), 64, ComponentPatch::EMPTY)),
         },
     );
     check(
@@ -135,7 +135,7 @@ fn clientbound_container_packets() {
         "set_player_inventory",
         ClientboundSetPlayerInventory {
             slot: VarInt(36),
-            contents: raw(f, Slot::new(item(f, "apple"), 3, ComponentPatch::EMPTY)),
+            contents: raw(f, ProtoStack::new(item(f, "apple"), 3, ComponentPatch::EMPTY)),
         },
     );
     check(
@@ -189,7 +189,7 @@ fn offers(f: &Fixture) -> Vec<MerchantOffer> {
                 count: 3,
                 components: ComponentMap::default(),
             },
-            result: Slot::new(item(f, "apple"), 2, ComponentPatch::EMPTY),
+            result: ProtoStack::new(item(f, "apple"), 2, ComponentPatch::EMPTY),
             cost_b: None,
             uses: 1,
             max_uses: 12,
@@ -207,7 +207,7 @@ fn offers(f: &Fixture) -> Vec<MerchantOffer> {
                     CustomName(Text::text("x")).into(),
                 ]),
             },
-            result: Slot::new(item(f, "diamond_sword"), 1, sell_patch),
+            result: ProtoStack::new(item(f, "diamond_sword"), 1, sell_patch),
             cost_b: Some(ItemCost {
                 item: key("stone"),
                 count: 4,
@@ -227,9 +227,9 @@ fn offers(f: &Fixture) -> Vec<MerchantOffer> {
 fn clientbound_container_set_content() {
     let f = &fixture();
     let mut player = vec![RawStack::EMPTY; 46];
-    player[9] = raw(f, Slot::new(item(f, "apple"), 3, ComponentPatch::EMPTY));
+    player[9] = raw(f, ProtoStack::new(item(f, "apple"), 3, ComponentPatch::EMPTY));
     player[36] = raw(f, sword(f));
-    player[45] = raw(f, Slot::new(item(f, "stone"), 16, ComponentPatch::EMPTY));
+    player[45] = raw(f, ProtoStack::new(item(f, "stone"), 16, ComponentPatch::EMPTY));
     check(
         f,
         "container_set_content",
@@ -237,14 +237,14 @@ fn clientbound_container_set_content() {
             container_id: VarInt(0),
             state_seqno: VarInt(5),
             slot_data: player,
-            carried_item: raw(f, Slot::new(item(f, "stone"), 64, ComponentPatch::EMPTY)),
+            carried_item: raw(f, ProtoStack::new(item(f, "stone"), 64, ComponentPatch::EMPTY)),
         },
     );
     let mut chest = vec![RawStack::EMPTY; 63];
-    chest[0] = raw(f, Slot::new(item(f, "diamond"), 5, ComponentPatch::EMPTY));
-    chest[26] = raw(f, Slot::new(item(f, "emerald"), 1, ComponentPatch::EMPTY));
-    chest[27] = raw(f, Slot::new(item(f, "apple"), 2, ComponentPatch::EMPTY));
-    chest[62] = raw(f, Slot::new(item(f, "stone"), 1, ComponentPatch::EMPTY));
+    chest[0] = raw(f, ProtoStack::new(item(f, "diamond"), 5, ComponentPatch::EMPTY));
+    chest[26] = raw(f, ProtoStack::new(item(f, "emerald"), 1, ComponentPatch::EMPTY));
+    chest[27] = raw(f, ProtoStack::new(item(f, "apple"), 2, ComponentPatch::EMPTY));
+    chest[62] = raw(f, ProtoStack::new(item(f, "stone"), 1, ComponentPatch::EMPTY));
     check(
         f,
         "container_set_content_chest",
@@ -303,7 +303,7 @@ fn merchant_offers() {
 fn an_offer_never_sells_an_empty_stack() {
     let f = &fixture();
     let mut offer = offers(f).remove(0);
-    offer.result = Slot::EMPTY;
+    offer.result = ProtoStack::EMPTY;
     let error = RawMerchantOffer::from_offer(&offer, f).unwrap_err();
     assert!(error.to_string().contains("Empty ItemStack not allowed"));
     let mut bytes = f.packets["merchant_offers"].clone();
@@ -323,7 +323,7 @@ fn serverbound_container_packets() {
         "set_creative_mode_slot",
         ServerboundSetCreativeModeSlot {
             slot: 36,
-            item: RawDelimitedStack::from_slot(&sword(f), f).unwrap(),
+            item: RawDelimitedStack::from_stack(&sword(f), f).unwrap(),
         },
     );
     let (packet, _) = decode::<ServerboundSetCreativeModeSlot>(f, "set_creative_mode_slot");
@@ -416,7 +416,7 @@ fn container_click_carries_hashed_slots() {
     assert!(changed.matches(&sword(f)));
     assert_eq!(
         packet.carried_item,
-        HashedSlot::create(&Slot::new(item(f, "apple"), 1, ComponentPatch::EMPTY)).unwrap()
+        HashedStack::create(&ProtoStack::new(item(f, "apple"), 1, ComponentPatch::EMPTY)).unwrap()
     );
 }
 
@@ -435,7 +435,7 @@ fn container_click_bounds_the_changed_slots() {
     packet.container_input.encode(&mut bytes).unwrap();
     VarInt(MAX_CHANGED_SLOTS as i32 + 1).encode(&mut bytes).unwrap();
     for _ in 0..=MAX_CHANGED_SLOTS {
-        (0u16, None::<HashedSlot>).encode(&mut bytes).unwrap();
+        (0u16, None::<HashedStack>).encode(&mut bytes).unwrap();
     }
     packet.carried_item.encode(&mut bytes).unwrap();
     assert!(ServerboundContainerClick::decode(&mut &bytes[..]).is_err());

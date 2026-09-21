@@ -10,12 +10,12 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
     ClientboundUpdateAttributes,
 };
-use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, Slot, VarInt};
+use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, VarInt};
 use mcrs_minecraft_registry::{BlockStateId, ItemId, NoRegistries};
 use uuid::Uuid;
 
-fn raw(slot: Slot) -> RawStack {
-    RawStack::from_slot(&slot, &NoRegistries).unwrap()
+fn raw(slot: ProtoStack) -> RawStack {
+    RawStack::from_stack(&slot, &NoRegistries).unwrap()
 }
 
 fn round_trip<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
@@ -59,7 +59,7 @@ fn entity_data_uses_the_serializer_ids_of_26_3() {
         (4, MetaDataValue::OptionalText(None), 6),
         (
             5,
-            MetaDataValue::Slot(raw(Slot::new(ItemId(974), 1, Default::default()))),
+            MetaDataValue::Slot(raw(ProtoStack::new(ItemId(974), 1, Default::default()))),
             7,
         ),
         (6, MetaDataValue::Boolean(true), 8),
@@ -153,12 +153,12 @@ fn equipment_chains_slots_with_the_continuation_bit() {
         slots: vec![
             (
                 EquipmentSlot::MainHand,
-                raw(Slot::new(ItemId(1483), 1, Default::default())),
+                raw(ProtoStack::new(ItemId(1483), 1, Default::default())),
             ),
             (EquipmentSlot::OffHand, RawStack::EMPTY),
             (
                 EquipmentSlot::Head,
-                raw(Slot::new(ItemId(1), 3, Default::default())),
+                raw(ProtoStack::new(ItemId(1), 3, Default::default())),
             ),
         ],
     };
