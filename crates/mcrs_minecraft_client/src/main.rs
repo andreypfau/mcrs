@@ -25,9 +25,9 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_world::save::{self, SaveError};
-#[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_world::save::{self, SaveError};
 
 use mcrs_minecraft_client::config::TerrainLimits;
 use mcrs_minecraft_client::render::TerrainPlugin;

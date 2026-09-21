@@ -22,7 +22,7 @@ fn insert<K: mcrs_minecraft_protocol::item::ItemDataComponent>(
         world,
         vec![Op::Insert {
             stack,
-            component: value.into_value(),
+            component: value.into(),
         }],
     )
     .unwrap();

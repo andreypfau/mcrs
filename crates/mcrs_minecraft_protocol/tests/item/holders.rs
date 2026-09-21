@@ -13,7 +13,7 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::text::Text;
 
-use crate::harness::{PersistentValue, TestLookup, from_json, hex, nbt_tree, persistent_json};
+use crate::harness::{TestLookup, from_json, hex, nbt_tree, persistent_json};
 
 const GOLDEN: &str = include_str!("../fixtures/item/holders_golden.txt");
 
@@ -65,7 +65,7 @@ fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
         assert_eq!(from_json(kind, &fields["json"]), value, "{label} reparse");
 
         let mut nbt = Vec::new();
-        mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut nbt).unwrap();
+        mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
         assert_eq!(
             nbt_tree(&nbt),
             nbt_tree(&hex(&fields["nbt"])),
@@ -73,11 +73,7 @@ fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
         );
 
         let hash: i32 = fields["hash"].parse().unwrap();
-        assert_eq!(
-            hash_ops::hash(&PersistentValue(&value)).unwrap(),
-            hash,
-            "{label} hash"
-        );
+        assert_eq!(hash_ops::hash(&value).unwrap(), hash, "{label} hash");
 
         let wire = hex(&fields["wire"]);
         let mut out = Vec::new();

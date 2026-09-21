@@ -12,9 +12,7 @@ use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};
 
-use crate::harness::{
-    PersistentValue, TestLookup, decode, from_json, from_nbt, persistent_json, wire,
-};
+use crate::harness::{TestLookup, decode, from_json, from_nbt, persistent_json, wire};
 
 const ITERATIONS: usize = 256;
 const ITEMS: [(&str, u16); 4] = [
@@ -161,7 +159,7 @@ fn persistent_round_trips(value: &ItemComponentValue) {
     );
 
     let mut nbt = Vec::new();
-    mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(value), &mut nbt)
+    mcrs_minecraft_nbt::to_bytes_unnamed(value, &mut nbt)
         .unwrap_or_else(|e| panic!("{kind}: to NBT {value:?}: {e}"));
     assert_eq!(&from_nbt(kind, &nbt), value, "{kind}: NBT round trip");
 }

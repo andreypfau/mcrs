@@ -12,7 +12,7 @@ pub mod tool;
 pub mod trim;
 pub mod value;
 
-pub use definition::{ItemDefinitions, ItemEntry, Items, load_item_definitions};
+pub use definition::{ItemDefinitions, ItemEntry, Items, load_item_definitions, test_corpus};
 pub use dropped::{DroppedItem, Thrower, WireStack};
 pub use effective::{
     children, component_value, damage_value, has_component, has_non_default, is_damageable,

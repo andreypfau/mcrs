@@ -491,11 +491,14 @@ pub fn resolve_model(pack: &Pack, id: &str) -> Result<ResolvedModel, String> {
         .iter()
         .find_map(|m| m.ambient_occlusion)
         .unwrap_or(true);
-    let gui_light = chain.iter().find_map(|m| m.gui_light).unwrap_or(if generated {
-        GuiLight::Front
-    } else {
-        GuiLight::Side
-    });
+    let gui_light = chain
+        .iter()
+        .find_map(|m| m.gui_light)
+        .unwrap_or(if generated {
+            GuiLight::Front
+        } else {
+            GuiLight::Side
+        });
     let display = chain
         .iter()
         .find_map(|m| m.display.as_ref()?.get("gui"))
@@ -622,8 +625,10 @@ mod tests {
     fn a_declared_gui_transform_wins_over_the_parents() {
         let mut pack = Pack::default();
         let put = |pack: &mut Pack, id: &str, json: &str| {
-            pack.files
-                .insert(resource_path(id, "models", "json"), json.as_bytes().to_vec());
+            pack.files.insert(
+                resource_path(id, "models", "json"),
+                json.as_bytes().to_vec(),
+            );
         };
         put(
             &mut pack,

@@ -52,7 +52,7 @@ impl ComponentPatch {
     }
 
     pub fn set<T: ItemDataComponent>(&mut self, value: T) {
-        self.set_value(value.into_value());
+        self.set_value(value.into());
     }
 
     pub fn set_value(&mut self, value: ItemComponentValue) {

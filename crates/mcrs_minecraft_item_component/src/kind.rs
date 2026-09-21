@@ -244,10 +244,6 @@ macro_rules! data_components {
             impl ItemDataComponent for $ty {
                 const KIND: ItemComponentKind = ItemComponentKind::$ty;
 
-                fn into_value(self) -> ItemComponentValue {
-                    ItemComponentValue::$ty(self)
-                }
-
                 fn from_value(value: &ItemComponentValue) -> Option<&Self> {
                     match value {
                         ItemComponentValue::$ty(value) => Some(value),
@@ -267,9 +263,10 @@ macro_rules! data_components {
 
 for_each_data_component!(data_components);
 
-pub trait ItemDataComponent: Clone + PartialEq + fmt::Debug + Send + Sync + 'static {
+pub trait ItemDataComponent:
+    Clone + PartialEq + fmt::Debug + Into<ItemComponentValue> + Send + Sync + 'static
+{
     const KIND: ItemComponentKind;
-    fn into_value(self) -> ItemComponentValue;
     fn from_value(value: &ItemComponentValue) -> Option<&Self>;
 }
 

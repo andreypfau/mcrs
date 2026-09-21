@@ -7,8 +7,7 @@ use mcrs_minecraft_protocol::item::{
 use serde::Deserialize;
 
 use crate::harness::{
-    PersistentValue, TestLookup, decode, from_json, hex, json_value, nbt_tree, persistent_json,
-    wire,
+    TestLookup, decode, from_json, hex, json_value, nbt_tree, persistent_json, wire,
 };
 
 #[derive(Deserialize)]
@@ -88,14 +87,14 @@ fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
         assert_eq!(from_json(kind, &json), value, "{kind} rereads {json}");
 
         let mut nbt = Vec::new();
-        mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut nbt).unwrap();
+        mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
         assert_eq!(
             nbt_tree(&nbt),
             nbt_tree(&hex(row.nbt.as_ref().unwrap())),
             "{kind} nbt of {input}"
         );
         assert_eq!(
-            hash_ops::hash(&PersistentValue(&value)).unwrap(),
+            hash_ops::hash(&value).unwrap(),
             row.hash.unwrap(),
             "{kind} hash of {input}"
         );

@@ -15,9 +15,7 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::profile::Property;
 
-use crate::harness::{
-    PersistentValue, TestLookup, from_json, from_nbt, hex, nbt_tree, persistent_json,
-};
+use crate::harness::{TestLookup, from_json, from_nbt, hex, nbt_tree, persistent_json};
 
 type Row = HashMap<&'static str, &'static str>;
 
@@ -33,7 +31,7 @@ static GOLDEN: LazyLock<HashMap<&'static str, Row>> = LazyLock::new(|| {
 
 fn our_nbt(value: &ItemComponentValue) -> Vec<u8> {
     let mut out = Vec::new();
-    mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(value), &mut out).unwrap();
+    mcrs_minecraft_nbt::to_bytes_unnamed(value, &mut out).unwrap();
     out
 }
 
@@ -73,7 +71,7 @@ fn check_read_as(label: &str, value: ItemComponentValue, read: ItemComponentValu
     assert_eq!(back, value, "{label}: from wire");
 
     assert_eq!(
-        hash_ops::hash(&PersistentValue(&value)).unwrap(),
+        hash_ops::hash(&value).unwrap(),
         row["hash"].parse::<i32>().unwrap(),
         "{label}: hash"
     );
@@ -423,13 +421,13 @@ fn lodestone_and_fireworks_match_vanilla() {
     check("fireworks_empty", sample::<Fireworks>(0));
     check("fireworks_full", sample::<Fireworks>(1));
     let wrapped = parse::<Fireworks>(r#"{"flight_duration":300}"#);
-    assert_eq!(wrapped.flight_duration(), 44);
+    assert_eq!(wrapped.flight_duration, 44);
     check("fireworks_big", wrapped);
     let mut r = &hex("ac0200")[..];
     let from_wire = decode_component_value(Fireworks::KIND, &TestLookup::new(), &mut r).unwrap();
     assert!(r.is_empty());
     assert_eq!(
-        Fireworks::from_value(&from_wire).unwrap().flight_duration(),
+        Fireworks::from_value(&from_wire).unwrap().flight_duration,
         300
     );
     let mut wire = Vec::new();

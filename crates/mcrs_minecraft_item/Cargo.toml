@@ -8,6 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_ecs.workspace = true
 bevy_reflect.workspace = true
@@ -22,6 +23,3 @@ rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-
-[dev-dependencies]
-bevy_app.workspace = true

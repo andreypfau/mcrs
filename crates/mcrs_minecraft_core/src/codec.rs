@@ -6,46 +6,55 @@ use mcrs_minecraft_nbt::{from_tag, nbt_int_array};
 use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
-/// `Codec.INT`: any number's `intValue()`. An integer keeps its low 32 bits;
-/// a fraction is dropped, and a value beyond the int range keeps its low 32
-/// bits from JSON (`BigDecimal.intValue`) but saturates from NBT
-/// (`Double.intValue`).
-pub fn int_value<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
-    struct IntValue {
-        wrap_floats: bool,
-    }
-
-    impl Visitor<'_> for IntValue {
-        type Value = i32;
-
-        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            f.write_str("a number")
-        }
-
-        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<i32, E> {
-            Ok(v as i32)
-        }
-
-        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<i32, E> {
-            Ok(v as i32)
-        }
-
-        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<i32, E> {
-            if !self.wrap_floats {
-                return Ok(v as i32);
+/// `Codec.INT` / `Codec.LONG`: any number's `intValue()` / `longValue()`. An
+/// integer keeps its low bits; a fraction is dropped, and a value beyond the
+/// range keeps its low bits from JSON (`BigDecimal.intValue`) but saturates
+/// from NBT (`Double.intValue`). Vanilla wraps the exact decimal text, while
+/// serde hands over the parsed double, so a text no double holds exactly
+/// (`1e40`) wraps to a different value.
+macro_rules! java_integer_value {
+    ($name:ident, $ty:ty) => {
+        pub fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<$ty, D::Error> {
+            struct Value {
+                wrap_floats: bool,
             }
-            let truncated = v.trunc();
-            Ok(if truncated.abs() >= 2f64.powi(127) {
-                0
-            } else {
-                truncated as i128 as i32
-            })
-        }
-    }
 
-    let wrap_floats = d.is_human_readable();
-    d.deserialize_any(IntValue { wrap_floats })
+            impl Visitor<'_> for Value {
+                type Value = $ty;
+
+                fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    f.write_str("a number")
+                }
+
+                fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<$ty, E> {
+                    Ok(v as $ty)
+                }
+
+                fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<$ty, E> {
+                    Ok(v as $ty)
+                }
+
+                fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<$ty, E> {
+                    if !self.wrap_floats {
+                        return Ok(v as $ty);
+                    }
+                    let truncated = v.trunc();
+                    Ok(if truncated.abs() >= 2f64.powi(127) {
+                        0
+                    } else {
+                        truncated as i128 as $ty
+                    })
+                }
+            }
+
+            let wrap_floats = d.is_human_readable();
+            d.deserialize_any(Value { wrap_floats })
+        }
+    };
 }
+
+java_integer_value!(int_value, i32);
+java_integer_value!(long_value, i64);
 
 /// `Codec.FLOAT`: any number's `floatValue()`.
 pub fn float_value<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {

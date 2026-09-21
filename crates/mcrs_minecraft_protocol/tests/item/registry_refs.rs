@@ -5,9 +5,7 @@ use std::collections::BTreeMap;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemComponentValue, hash_ops};
 
-use crate::harness::{
-    PersistentValue, TestLookup, from_nbt, hex, json_value, nbt_tree, persistent_json,
-};
+use crate::harness::{TestLookup, from_nbt, hex, json_value, nbt_tree, persistent_json};
 
 const GOLDEN: &str = include_str!("../fixtures/item/registry_refs_golden.txt");
 
@@ -121,8 +119,7 @@ fn every_golden_sample_matches_vanilla() {
                 );
 
                 let mut our_nbt = Vec::new();
-                mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut our_nbt)
-                    .unwrap();
+                mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut our_nbt).unwrap();
                 assert_eq!(nbt_tree(&our_nbt), nbt_tree(nbt), "{kind} {input}: NBT");
 
                 let mut our_wire = Vec::new();
@@ -138,7 +135,7 @@ fn every_golden_sample_matches_vanilla() {
                 );
 
                 assert_eq!(
-                    hash_ops::hash(&PersistentValue(&value)).unwrap(),
+                    hash_ops::hash(&value).unwrap(),
                     *hash,
                     "{kind} {input}: hash"
                 );
@@ -427,7 +424,7 @@ fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
         decode_component_value(ItemComponentKind::MobVisibility, &lookup, &mut &wire[..]).unwrap();
     assert!(persistent_json(&value).ends_with(r#""visibility":-0.0}"#));
     let mut nbt = Vec::new();
-    mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut nbt).unwrap();
+    mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
     assert!(nbt.ends_with(&[0x00, 0x00, 0x00, 0x00, 0x00]));
     let reloaded = from_nbt(ItemComponentKind::MobVisibility, &nbt);
     assert!(persistent_json(&reloaded).ends_with(r#""visibility":0.0}"#));
@@ -458,13 +455,11 @@ fn non_finite_floats_cross_the_wire() {
     }
     let mut nbt = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(
-        &PersistentValue(
-            &from_json(
-                ItemComponentKind::Tool,
-                r#"{"rules":[],"default_mining_speed":1e40}"#,
-            )
-            .unwrap(),
-        ),
+        &from_json(
+            ItemComponentKind::Tool,
+            r#"{"rules":[],"default_mining_speed":1e40}"#,
+        )
+        .unwrap(),
         &mut nbt,
     )
     .unwrap();

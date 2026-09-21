@@ -2,6 +2,7 @@ mod common;
 
 use std::collections::BTreeSet;
 
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
@@ -11,7 +12,6 @@ use mcrs_minecraft_protocol::item::{
     InteractAnimation, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation,
     TooltipDisplay, UseEffects,
 };
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::ItemId;
 
 use common::{corpus, items};
@@ -48,7 +48,10 @@ fn every_file_deserialises_and_re_serialises_identically() {
         let source: serde_json::Value = serde_json::from_slice(bytes).unwrap();
         let expected = &source["minecraft:item"]["components"];
         let actual = serde_json::to_value(&file.item.components).unwrap();
-        assert!(same_shape(&actual, expected), "{path}\n{actual:#}\n{expected:#}");
+        assert!(
+            same_shape(&actual, expected),
+            "{path}\n{actual:#}\n{expected:#}"
+        );
     }
 }
 
@@ -59,9 +62,13 @@ fn same_shape(a: &serde_json::Value, b: &serde_json::Value) -> bool {
         (Number(x), Number(y)) if x.is_f64() || y.is_f64() => {
             x.as_f64().unwrap() as f32 == y.as_f64().unwrap() as f32
         }
-        (Array(x), Array(y)) => x.len() == y.len() && x.iter().zip(y).all(|(a, b)| same_shape(a, b)),
+        (Array(x), Array(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(a, b)| same_shape(a, b))
+        }
         (Object(x), Object(y)) => {
-            x.len() == y.len() && x.iter().all(|(k, a)| y.get(k).is_some_and(|b| same_shape(a, b)))
+            x.len() == y.len()
+                && x.iter()
+                    .all(|(k, a)| y.get(k).is_some_and(|b| same_shape(a, b)))
         }
         _ => a == b,
     }
@@ -85,8 +92,18 @@ fn every_prototype_kind_is_round_tripped_by_the_protocol() {
     let kinds = round_tripped_kinds();
     for entry in items().iter() {
         for value in &entry.prototype.0 {
-            assert!(kinds.contains(&value.kind()), "{}: {}", entry.identifier, value.kind());
-            assert!(value.kind().is_persistent(), "{}: {}", entry.identifier, value.kind());
+            assert!(
+                kinds.contains(&value.kind()),
+                "{}: {}",
+                entry.identifier,
+                value.kind()
+            );
+            assert!(
+                value.kind().is_persistent(),
+                "{}: {}",
+                entry.identifier,
+                value.kind()
+            );
         }
     }
 }
@@ -94,15 +111,24 @@ fn every_prototype_kind_is_round_tripped_by_the_protocol() {
 #[test]
 fn block_placers_and_remainders_resolve() {
     let (blocks, items) = corpus();
-    let shulker = items.get(items.id_of("minecraft:shulker_box").unwrap()).unwrap();
+    let shulker = items
+        .get(items.id_of("minecraft:shulker_box").unwrap())
+        .unwrap();
     assert_eq!(
         shulker.block_placer,
-        Some(blocks.block("minecraft:shulker_box").unwrap().default_state_id)
+        Some(
+            blocks
+                .block("minecraft:shulker_box")
+                .unwrap()
+                .default_state_id
+        )
     );
     assert_eq!(shulker.container_slots, Some(27));
     let hopper = items.get(items.id_of("minecraft:hopper").unwrap()).unwrap();
     assert_eq!(hopper.container_slots, Some(5));
-    let bucket = items.get(items.id_of("minecraft:water_bucket").unwrap()).unwrap();
+    let bucket = items
+        .get(items.id_of("minecraft:water_bucket").unwrap())
+        .unwrap();
     assert_eq!(bucket.block_placer, None);
     assert_eq!(
         bucket.crafting_remainder.as_ref().unwrap().0.item.as_str(),
@@ -114,9 +140,12 @@ fn block_placers_and_remainders_resolve() {
 #[test]
 fn the_plainest_item_carries_the_common_components() {
     let items = items();
-    let map = &items.get(items.id_of("minecraft:stick").unwrap()).unwrap().prototype;
+    let map = &items
+        .get(items.id_of("minecraft:stick").unwrap())
+        .unwrap()
+        .prototype;
     assert_eq!(map.get::<MaxStackSize>(), Some(&MaxStackSize(Bounded(64))));
-    assert_eq!(map.get::<Lore>().unwrap().lines(), &Vec::new());
+    assert_eq!(map.get::<Lore>().unwrap().lines.0, Vec::new());
     assert_eq!(map.get::<Enchantments>(), Some(&Enchantments(vec![])));
     assert_eq!(map.get::<RepairCost>(), Some(&RepairCost(Bounded(0))));
     assert_eq!(
@@ -157,14 +186,20 @@ fn the_plainest_item_carries_the_common_components() {
 fn a_repeated_identifier_fails_to_load() {
     let (blocks, _) = corpus();
     let mut files = files();
-    let stick = files.iter().position(|(path, _)| path.ends_with("/stick.json")).unwrap();
+    let stick = files
+        .iter()
+        .position(|(path, _)| path.ends_with("/stick.json"))
+        .unwrap();
     let last = files.len() - 1;
     let stick_json: serde_json::Value = serde_json::from_slice(&files[stick].1).unwrap();
     let last_json: serde_json::Value = serde_json::from_slice(&files[last].1).unwrap();
     let mut forged = stick_json;
     forged["minecraft:item"]["description"]["protocol_id"] =
         last_json["minecraft:item"]["description"]["protocol_id"].clone();
-    files[last] = ("forged/stick.json".to_owned(), serde_json::to_vec(&forged).unwrap());
+    files[last] = (
+        "forged/stick.json".to_owned(),
+        serde_json::to_vec(&forged).unwrap(),
+    );
     let error = mcrs_minecraft_item::ItemDefinitions::from_files(files, blocks).unwrap_err();
     assert!(
         matches!(

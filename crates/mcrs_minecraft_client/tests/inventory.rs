@@ -1,12 +1,9 @@
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
-use bevy::app::TaskPoolPlugin;
-use bevy::asset::{AssetPlugin, AssetServer};
 use bevy::input::ButtonInput;
 use bevy::prelude::*;
 use bytes::Bytes;
-use mcrs_minecraft_block::definition::load_block_definitions;
 use mcrs_minecraft_client::inventory::{
     ContainerSeqno, InventoryPlugin, OpenMenu, Screen, inventory_index_to_cell,
 };
@@ -14,8 +11,7 @@ use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::{MenuLayout, Slot};
 use mcrs_minecraft_item::{
-    Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, load_item_definitions,
-    slots,
+    Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, slots, test_corpus,
 };
 use mcrs_minecraft_network::client::ReceivedRegistries;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -53,21 +49,7 @@ fn golden() -> &'static HashMap<&'static str, Vec<u8>> {
 }
 
 fn items() -> &'static Items {
-    static ITEMS: OnceLock<Items> = OnceLock::new();
-    ITEMS.get_or_init(|| {
-        let mut app = App::new();
-        app.add_plugins((
-            TaskPoolPlugin::default(),
-            AssetPlugin {
-                watch_for_changes_override: Some(false),
-                ..default()
-            },
-        ));
-        let asset_server = app.world().resource::<AssetServer>().clone();
-        let (blocks, _) = load_block_definitions(&asset_server).expect("the block corpus loads");
-        let items = load_item_definitions(&asset_server, &blocks).expect("the item corpus loads");
-        Items(Arc::new(items))
-    })
+    &test_corpus().1
 }
 
 struct Client {

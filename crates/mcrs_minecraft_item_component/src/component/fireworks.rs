@@ -124,12 +124,6 @@ pub struct Fireworks {
     pub explosions: Bounded<Vec<FireworkExplosion>, MAX_EXPLOSIONS>,
 }
 
-impl Fireworks {
-    pub fn flight_duration(&self) -> i32 {
-        self.flight_duration
-    }
-}
-
 impl Sample for Fireworks {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];

@@ -262,8 +262,7 @@ pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>()
             assert_eq!(persistent_json(&back), json, "JSON is stable for {kind}");
 
             let mut nbt = Vec::new();
-            mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut nbt)
-                .expect("to nbt");
+            mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).expect("to nbt");
             let back = from_nbt(kind, &nbt);
             assert_eq!(back, value, "NBT round trip of {kind}");
             check_tag_widths(kind, &nbt, &sample.nbt_tags());
@@ -305,14 +304,6 @@ pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>()
             };
             assert_eq!(bytes, expected, "unit wire form of {kind}");
         }
-    }
-}
-
-pub struct PersistentValue<'a>(pub &'a ItemComponentValue);
-
-impl serde::Serialize for PersistentValue<'_> {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize_value(s)
     }
 }
 

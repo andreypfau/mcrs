@@ -407,7 +407,7 @@ mod tests {
     ) {
         Transaction(vec![Op::Insert {
             stack,
-            component: value.into_value(),
+            component: value.into(),
         }])
         .apply(world);
     }

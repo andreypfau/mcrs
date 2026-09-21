@@ -172,7 +172,7 @@ impl<S: StackView> Evaluator<'_, S> {
                 switch
                     .cases
                     .iter()
-                    .position(|case| case.when.iter().any(|when| when.0 == value))
+                    .position(|case| case.when.iter().any(|when| *when == value))
             }
             SelectSwitch::MainHand { .. }
             | SelectSwitch::LocalTime { .. }

@@ -1,10 +1,9 @@
+use crate::WorldSave;
 use crate::client_info::ClientInfo;
 use crate::disconnect::despawn_from_dims;
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::PlayerTransferSnapshot;
-use crate::WorldSave;
-use mcrs_minecraft_world::save::read_player_dat;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
@@ -49,6 +48,7 @@ use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::entity::EntityType as VanillaEntityType;
+use mcrs_minecraft_world::save::read_player_dat;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
@@ -682,9 +682,9 @@ pub fn emit_initial_player_spawn(
         let snapshot = PlayerTransferSnapshot {
             uuid: profile.id,
             username: profile.username.clone(),
-            position: saved
-                .as_ref()
-                .map_or(DVec3::new(0.0, 128.0, 0.0), |dat| DVec3::from_array(dat.pos)),
+            position: saved.as_ref().map_or(DVec3::new(0.0, 128.0, 0.0), |dat| {
+                DVec3::from_array(dat.pos)
+            }),
             rotation: saved
                 .as_ref()
                 .map_or(Vec2::ZERO, |dat| Vec2::from_array(dat.rotation)),

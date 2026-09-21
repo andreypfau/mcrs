@@ -12,7 +12,6 @@ use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::serverbound::{ClientInformation, KeepAlive};
@@ -41,6 +40,7 @@ use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Look, PROTOCOL_VERSION, Packet, VarInt,
     WritePacket, uuid::Uuid,
 };
+use mcrs_minecraft_registry::RegistryLookup;
 use md5::{Digest, Md5};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -205,7 +205,9 @@ impl Plugin for ClientNetworkPlugin {
         let (send, recv) = channel(1);
         let server = self.server.clone();
         let username = self.username.clone();
-        let profile_id = self.profile_id.unwrap_or_else(|| offline_player_uuid(&username));
+        let profile_id = self
+            .profile_id
+            .unwrap_or_else(|| offline_player_uuid(&username));
         let view_distance = self.view_distance;
 
         let joining = async move {
@@ -279,7 +281,15 @@ async fn connect_and_log_in(
     #[cfg(not(target_family = "wasm"))]
     {
         let io = PacketIo::connect(server).await?;
-        log_in(io, server, server.ip().to_string(), server.port(), username, profile_id).await
+        log_in(
+            io,
+            server,
+            server.ip().to_string(),
+            server.port(),
+            username,
+            profile_id,
+        )
+        .await
     }
     #[cfg(target_family = "wasm")]
     {
@@ -651,6 +661,9 @@ mod lookup_tests {
             registry: "minecraft:damage_type".to_owned(),
             entries: vec![entry("minecraft:lava")],
         });
-        assert_eq!(registries.name("damage_type", 0), Some(&ResourceLocation::minecraft("lava")));
+        assert_eq!(
+            registries.name("damage_type", 0),
+            Some(&ResourceLocation::minecraft("lava"))
+        );
     }
 }

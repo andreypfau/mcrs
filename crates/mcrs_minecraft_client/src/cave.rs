@@ -2,8 +2,8 @@ use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
-use mcrs_minecraft_mesh::{along, Connectivity, OPEN, SEALED};
 use crate::columns::SECTION_SIZE;
+use mcrs_minecraft_mesh::{Connectivity, OPEN, SEALED, along};
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
     mcrs_minecraft_mesh::face_normal(0),

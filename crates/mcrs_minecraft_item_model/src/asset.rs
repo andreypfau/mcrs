@@ -539,17 +539,7 @@ impl Validate for SelectSwitch {
 #[derive(Debug, Clone)]
 pub struct ComponentSwitch {
     pub component: ItemComponentKind,
-    pub cases: Vec<Case<ComponentCaseValue>>,
-}
-
-/// A component value written through its persistent codec.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ComponentCaseValue(pub ItemComponentValue);
-
-impl Serialize for ComponentCaseValue {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize_value(s)
-    }
+    pub cases: Vec<Case<ItemComponentValue>>,
 }
 
 impl Serialize for ComponentSwitch {
@@ -580,27 +570,16 @@ impl<'de> Deserialize<'de> for ComponentSwitch {
     }
 }
 
-#[derive(Clone, Copy)]
-struct KindSeed(ItemComponentKind);
-
-impl<'de> DeserializeSeed<'de> for KindSeed {
-    type Value = ComponentCaseValue;
-
-    fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
-        ItemComponentValue::deserialize_value(self.0, d).map(ComponentCaseValue)
-    }
-}
-
 struct CasesSeed(ItemComponentKind);
 
 impl<'de> DeserializeSeed<'de> for CasesSeed {
-    type Value = (ItemComponentKind, Vec<Case<ComponentCaseValue>>);
+    type Value = (ItemComponentKind, Vec<Case<ItemComponentValue>>);
 
     fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
         struct Cases(ItemComponentKind);
 
         impl<'de> Visitor<'de> for Cases {
-            type Value = Vec<Case<ComponentCaseValue>>;
+            type Value = Vec<Case<ItemComponentValue>>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a list of cases")
@@ -608,7 +587,7 @@ impl<'de> DeserializeSeed<'de> for CasesSeed {
 
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
                 let mut out = Vec::new();
-                while let Some(case) = seq.next_element_seed(CaseSeed(KindSeed(self.0)))? {
+                while let Some(case) = seq.next_element_seed(CaseSeed(self.0))? {
                     out.push(case);
                 }
                 Ok(out)
@@ -1063,8 +1042,8 @@ mod tests {
         assert_eq!(
             switch.cases[0].when,
             [
-                ComponentCaseValue(ItemComponentValue::DyedColor(DyedColor(RgbInt(255)))),
-                ComponentCaseValue(ItemComponentValue::DyedColor(DyedColor(RgbInt(-65536)))),
+                ItemComponentValue::DyedColor(DyedColor(RgbInt(255))),
+                ItemComponentValue::DyedColor(DyedColor(RgbInt(-65536))),
             ]
         );
     }

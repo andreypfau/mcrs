@@ -59,10 +59,6 @@ impl Lore {
             lines: Bounded(lines),
         }
     }
-
-    pub fn lines(&self) -> &Vec<Text> {
-        &self.lines.0
-    }
 }
 
 impl<'de> Deserialize<'de> for Lore {

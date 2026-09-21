@@ -47,10 +47,6 @@ impl ChargedProjectiles {
             items: Bounded(items),
         })
     }
-
-    pub fn items(&self) -> &Vec<Template> {
-        &self.items.0
-    }
 }
 
 impl<'de> Deserialize<'de> for ChargedProjectiles {
@@ -99,10 +95,6 @@ impl Container {
         Ok(Self {
             slots: Bounded(slots),
         })
-    }
-
-    pub fn slots(&self) -> &[Option<Template>] {
-        &self.slots.0
     }
 }
 

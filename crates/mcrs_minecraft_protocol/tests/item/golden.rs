@@ -77,7 +77,7 @@ fn a_parsed_patch_matches_vanilla_in_json_and_on_the_wire() {
 
 fn hash(value: impl Into<ItemComponentValue>) -> i32 {
     let value = value.into();
-    hash_ops::hash(&crate::harness::PersistentValue(&value)).unwrap()
+    hash_ops::hash(&value).unwrap()
 }
 
 #[test]

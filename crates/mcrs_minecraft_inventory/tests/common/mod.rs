@@ -1,34 +1,18 @@
 #![allow(dead_code)]
 
-use std::sync::{Arc, OnceLock};
-
-use bevy_app::{App, TaskPoolPlugin};
-use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction, TransactionError};
-use mcrs_minecraft_item::{Items, SlotTable, StackRevision, load_item_definitions, stack_to_value};
+use mcrs_minecraft_item::{Items, SlotTable, StackRevision, stack_to_value, test_corpus};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 
 pub fn corpus() -> &'static (Blocks, Items) {
-    static CORPUS: OnceLock<(Blocks, Items)> = OnceLock::new();
-    CORPUS.get_or_init(|| {
-        let mut app = App::new();
-        app.add_plugins(TaskPoolPlugin::default());
-        app.add_plugins(AssetPlugin {
-            watch_for_changes_override: Some(false),
-            ..Default::default()
-        });
-        let asset_server = app.world().resource::<AssetServer>().clone();
-        let (blocks, _) = load_block_definitions(&asset_server).expect("the block corpus loads");
-        let items = load_item_definitions(&asset_server, &blocks).expect("the item corpus loads");
-        (Blocks(Arc::new(blocks)), Items(Arc::new(items)))
-    })
+    test_corpus()
 }
 
 pub fn items() -> &'static Items {

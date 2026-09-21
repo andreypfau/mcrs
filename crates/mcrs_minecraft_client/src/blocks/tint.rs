@@ -134,7 +134,11 @@ pub(crate) fn load_colormap(pack: &Pack, name: &str) -> Result<Vec<u8>, String> 
         .ok_or_else(|| format!("{path} decoded without pixel data"))
 }
 
-pub(crate) fn sample_colormap(map: Option<&[u8]>, temperature: f32, downfall: f32) -> Option<[f32; 4]> {
+pub(crate) fn sample_colormap(
+    map: Option<&[u8]>,
+    temperature: f32,
+    downfall: f32,
+) -> Option<[f32; 4]> {
     let map = map?;
     let t = temperature.clamp(0.0, 1.0);
     let d = downfall.clamp(0.0, 1.0) * t;

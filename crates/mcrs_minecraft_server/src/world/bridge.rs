@@ -651,9 +651,7 @@ pub fn dispatch_encode(
                             .ok();
                     }
                     PacketPayload::SetCursorItem(contents) => {
-                        conn.raw
-                            .append(&ClientboundSetCursorItem { contents })
-                            .ok();
+                        conn.raw.append(&ClientboundSetCursorItem { contents }).ok();
                     }
                     PacketPayload::SetHeldSlot(slot) => {
                         conn.raw

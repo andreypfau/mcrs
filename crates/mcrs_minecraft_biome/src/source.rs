@@ -65,7 +65,9 @@ pub fn beta_get_biome(temp: f32, rain: f32) -> BetaLandBiome {
 }
 
 pub fn build_beta_lookup_table() -> [[BetaLandBiome; 64]; 64] {
-    std::array::from_fn(|i| std::array::from_fn(|j| beta_get_biome(i as f32 / 63.0, j as f32 / 63.0)))
+    std::array::from_fn(|i| {
+        std::array::from_fn(|j| beta_get_biome(i as f32 / 63.0, j as f32 / 63.0))
+    })
 }
 
 /// Resolve a land biome via the precomputed 64x64 quantized lookup, mirroring

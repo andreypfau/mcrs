@@ -29,14 +29,11 @@ pub struct OpenContainerRequest {
 }
 
 fn inventory_menu(world: &World, player: Entity) -> Option<Entity> {
-    world
-        .get::<MenusOf>(player)?
-        .iter()
-        .find(|&menu| {
-            world
-                .get::<Menu>(menu)
-                .is_some_and(|menu| menu.container_id == 0)
-        })
+    world.get::<MenusOf>(player)?.iter().find(|&menu| {
+        world
+            .get::<Menu>(menu)
+            .is_some_and(|menu| menu.container_id == 0)
+    })
 }
 
 /// Returns the player to their inventory menu; the client is told when it
@@ -107,7 +104,10 @@ pub fn open_containers(world: &mut World) {
                 MenuLayout(layout),
                 MenuViewer(req.player),
                 MenuContainer(req.container),
-                RemoteSlots::fresh(),
+                RemoteSlots {
+                    full: true,
+                    ..Default::default()
+                },
             ))
             .id();
         world.entity_mut(req.player).insert(CurrentMenu(menu));

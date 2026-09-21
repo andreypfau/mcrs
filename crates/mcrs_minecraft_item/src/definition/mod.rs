@@ -1,13 +1,14 @@
 pub mod schema;
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
-use bevy_asset::AssetServer;
+use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::AssetSourceId;
+use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_assets::tag::registry::TagSource;
-use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_definitions};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::item::{ComponentMap, Template};
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
@@ -181,6 +182,26 @@ pub enum ItemCorpusError {
     UnknownBlock { item: String, block: String },
     #[error("`{file}` redefines `{item}`")]
     DuplicateIdentifier { item: String, file: String },
+}
+
+/// The whole vanilla corpus, loaded once per process; for tests and tools
+/// that have no app to hand it an asset server from.
+pub fn test_corpus() -> &'static (Blocks, Items) {
+    static CORPUS: OnceLock<(Blocks, Items)> = OnceLock::new();
+    CORPUS.get_or_init(|| {
+        let mut app = App::new();
+        app.add_plugins((
+            TaskPoolPlugin::default(),
+            AssetPlugin {
+                watch_for_changes_override: Some(false),
+                ..Default::default()
+            },
+        ));
+        let asset_server = app.world().resource::<AssetServer>().clone();
+        let (blocks, _) = load_block_definitions(&asset_server).expect("the block corpus loads");
+        let items = load_item_definitions(&asset_server, &blocks).expect("the item corpus loads");
+        (Blocks(Arc::new(blocks)), Items(Arc::new(items)))
+    })
 }
 
 pub fn load_item_definitions(

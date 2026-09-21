@@ -24,7 +24,10 @@ pub fn open_menus(world: &mut World) {
                 },
                 MenuLayout(player_menu_layout(player)),
                 MenuViewer(player),
-                RemoteSlots::fresh(),
+                RemoteSlots {
+                    full: true,
+                    ..Default::default()
+                },
             ))
             .id();
         world.entity_mut(player).insert(CurrentMenu(menu));

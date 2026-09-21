@@ -110,7 +110,10 @@ fn items_carry_their_registry_index() {
         .expect("the block corpus loads");
     let items = mcrs_minecraft_item::load_item_definitions(&asset_server, &blocks)
         .expect("the item corpus loads");
-    let actual: Vec<String> = items.iter().map(|item| item.identifier.to_string()).collect();
+    let actual: Vec<String> = items
+        .iter()
+        .map(|item| item.identifier.to_string())
+        .collect();
     assert_eq!(actual, *expected);
     for (index, item) in items.iter().enumerate() {
         assert_eq!(item.id.0 as usize, index, "{}", item.identifier);

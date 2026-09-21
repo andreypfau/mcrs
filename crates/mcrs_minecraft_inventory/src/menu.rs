@@ -61,13 +61,6 @@ pub struct RemoteSlots {
 }
 
 impl RemoteSlots {
-    pub fn fresh() -> Self {
-        RemoteSlots {
-            full: true,
-            ..Default::default()
-        }
-    }
-
     pub fn claim(&mut self, index: usize, hashed: Option<HashedStack>) {
         if self.cells.len() <= index {
             self.cells.resize(index + 1, Remote::Unknown);

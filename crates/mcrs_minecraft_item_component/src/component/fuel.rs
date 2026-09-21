@@ -6,14 +6,8 @@ use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, STRING_ID};
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{RegistryName, resolvable};
+use crate::component::common::{NumberProviderReg, resolvable};
 use crate::harness::Sample;
-
-pub enum NumberProviderReg {}
-
-impl RegistryName for NumberProviderReg {
-    const NAME: &'static str = "number_provider";
-}
 
 resolvable!(
     ResolvableNumber,

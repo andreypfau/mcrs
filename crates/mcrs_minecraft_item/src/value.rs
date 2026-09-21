@@ -70,7 +70,7 @@ impl KindOps {
 }
 
 fn read_plain<K: ItemDataComponent + Component>(entity: EntityRef) -> Option<ItemComponentValue> {
-    entity.get::<K>().cloned().map(K::into_value)
+    entity.get::<K>().cloned().map(K::into)
 }
 
 fn insert_plain<K: ItemDataComponent + Component>(
@@ -195,7 +195,8 @@ fn child_value(
 pub fn child_targets(value: &ItemComponentValue) -> Vec<Option<&ItemStackValue>> {
     match value {
         ItemComponentValue::Container(container) => container
-            .slots()
+            .slots
+            .0
             .iter()
             .map(|slot| slot.as_ref().map(|template| &template.0))
             .collect(),
@@ -203,7 +204,8 @@ pub fn child_targets(value: &ItemComponentValue) -> Vec<Option<&ItemStackValue>>
             list.0.iter().map(|template| Some(&template.0)).collect()
         }
         ItemComponentValue::ChargedProjectiles(list) => list
-            .items()
+            .items
+            .0
             .iter()
             .map(|template| Some(&template.0))
             .collect(),

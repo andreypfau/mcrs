@@ -1,6 +1,7 @@
 use mcrs_minecraft_core::codec::{default_true, float_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::nbt_flag;
+use mcrs_minecraft_nbt::snbt::java_float;
 use serde::de::Error as _;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -10,18 +11,6 @@ use crate::component::common::{
 };
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
-
-/// Java's `Float.toString` for the values an error message can carry.
-fn java_float(value: f32) -> String {
-    if value.is_infinite() {
-        return if value > 0.0 { "Infinity" } else { "-Infinity" }.into();
-    }
-    if value.fract() == 0.0 && value.abs() < 1e7 {
-        format!("{value:.1}")
-    } else {
-        value.to_string()
-    }
-}
 
 /// `-0.0` and NaN are out of range.
 fn checked_float<'de, D: Deserializer<'de>>(

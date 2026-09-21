@@ -1,12 +1,10 @@
 use std::collections::BTreeMap;
-use std::fmt;
 
-use mcrs_minecraft_core::codec::is_default;
+use mcrs_minecraft_core::codec::{is_default, long_value};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
-use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::{
@@ -169,47 +167,6 @@ impl Sample for Recipes {
             ]),
         ]
     }
-}
-
-/// Any number reads as a long: a fraction is dropped; a value beyond the long
-/// range wraps from JSON and saturates from NBT. Vanilla wraps the exact
-/// decimal text, while serde hands over the parsed double, so a text no double
-/// holds exactly (`1e40`) wraps to a different value.
-fn long_value<'de, D: Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
-    struct LongValue {
-        wrap_floats: bool,
-    }
-
-    impl Visitor<'_> for LongValue {
-        type Value = i64;
-
-        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            f.write_str("a number")
-        }
-
-        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<i64, E> {
-            Ok(v)
-        }
-
-        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<i64, E> {
-            Ok(v as i64)
-        }
-
-        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<i64, E> {
-            if !self.wrap_floats {
-                return Ok(v as i64);
-            }
-            let truncated = v.trunc();
-            Ok(if truncated.abs() >= 2f64.powi(127) {
-                0
-            } else {
-                truncated as i128 as i64
-            })
-        }
-    }
-
-    let wrap_floats = d.is_human_readable();
-    d.deserialize_any(LongValue { wrap_floats })
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

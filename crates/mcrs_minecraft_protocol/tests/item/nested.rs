@@ -11,7 +11,7 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::Deserialize;
 
-use crate::harness::{PersistentValue, TestLookup, from_json, hex, nbt_tree, persistent_json};
+use crate::harness::{TestLookup, from_json, hex, nbt_tree, persistent_json};
 
 #[derive(Deserialize)]
 struct Golden {
@@ -48,7 +48,7 @@ fn nested_kinds_match_vanilla_in_every_form() {
         let from_vanilla_nbt = ItemComponentValue::deserialize_value(kind, &mut d).unwrap();
         assert_eq!(from_vanilla_nbt, value, "{} from vanilla nbt", case.name);
         let mut nbt = Vec::new();
-        mcrs_minecraft_nbt::to_bytes_unnamed(&PersistentValue(&value), &mut nbt).unwrap();
+        mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
         assert_eq!(
             nbt_tree(&nbt),
             nbt_tree(&vanilla_nbt),
@@ -65,7 +65,7 @@ fn nested_kinds_match_vanilla_in_every_form() {
         assert_eq!(decoded, value, "{} wire round trip", case.name);
 
         assert_eq!(
-            hash_ops::hash(&PersistentValue(&value)).unwrap(),
+            hash_ops::hash(&value).unwrap(),
             case.hash,
             "{} hash",
             case.name
@@ -97,10 +97,10 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
         r#"[{"slot":3,"item":"minecraft:apple"},{"slot":0,"item":{"id":"minecraft:stone","count":64}},{"slot":3,"item":{"id":"minecraft:diamond_sword","count":3,"components":{"max_stack_size":16,"damage":7,"custom_name":"named","unbreakable":{},"!repair_cost":{}}}}]"#,
     )
     .unwrap();
-    assert_eq!(sparse.slots().len(), 4);
-    assert!(sparse.slots()[1].is_none() && sparse.slots()[2].is_none());
+    assert_eq!(sparse.slots.0.len(), 4);
+    assert!(sparse.slots.0[1].is_none() && sparse.slots.0[2].is_none());
     assert_eq!(
-        sparse.slots()[3].as_ref().map(|t| t.0.item.as_str()),
+        sparse.slots.0[3].as_ref().map(|t| t.0.item.as_str()),
         Some("minecraft:diamond_sword")
     );
     let case = golden
@@ -115,8 +115,8 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     let ItemComponentValue::Container(trailing) = trailing else {
         panic!("not a container");
     };
-    assert_eq!(trailing.slots().len(), 2);
-    assert!(trailing.slots()[1].is_none());
+    assert_eq!(trailing.slots.0.len(), 2);
+    assert!(trailing.slots.0[1].is_none());
     assert_eq!(
         serde_json::to_string(&trailing).unwrap(),
         r#"[{"slot":0,"item":{"id":"minecraft:stone"}}]"#
