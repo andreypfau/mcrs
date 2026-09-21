@@ -148,10 +148,10 @@ fn resting_items_merge_into_the_larger_stack_every_forty_ticks() {
     let small = resting_item(&mut world, dim, 3);
     let large = resting_item(&mut world, dim, 7);
     tick(&mut world, 39);
-    assert_eq!(world.get::<ItemStack>(small).unwrap().count(), 3);
+    assert_eq!(world.get::<ItemStack>(small).unwrap().count, 3);
     tick(&mut world, 1);
     assert!(world.get_entity(small).is_err());
-    assert_eq!(world.get::<ItemStack>(large).unwrap().count(), 10);
+    assert_eq!(world.get::<ItemStack>(large).unwrap().count, 10);
 }
 
 #[test]
@@ -183,8 +183,8 @@ fn pickup_fills_the_held_slot_first_and_announces_the_take_before_the_stack_move
         .unwrap()
         .get(slots::held(3))
         .unwrap();
-    assert_eq!(world.get::<ItemStack>(held).unwrap().count(), 64);
-    assert_eq!(world.get::<ItemStack>(item).unwrap().count(), 3);
+    assert_eq!(world.get::<ItemStack>(held).unwrap().count, 64);
+    assert_eq!(world.get::<ItemStack>(item).unwrap().count, 3);
 
     let free = world
         .get::<SlotTable>(player)
@@ -199,7 +199,7 @@ fn pickup_fills_the_held_slot_first_and_announces_the_take_before_the_stack_move
         .unwrap()
         .get(slots::MAIN.start)
         .unwrap();
-    assert_eq!(world.get::<ItemStack>(main).unwrap().count(), 3);
+    assert_eq!(world.get::<ItemStack>(main).unwrap().count, 3);
 }
 
 #[test]
@@ -225,7 +225,7 @@ fn a_block_drop_scatters_inside_the_broken_block() {
     );
     assert!((at.y - 1.375).abs() <= 0.25, "{at:?}");
     assert_eq!(item.pickup_delay, 10);
-    assert_eq!(stack.count(), 2);
+    assert_eq!(stack.count, 2);
 }
 
 fn chest(world: &mut World, dim: Entity) -> Entity {
@@ -348,5 +348,5 @@ fn a_loaded_chest_holds_its_saved_items_as_stacks() {
     assert_eq!(table.len(), 27);
     assert_eq!(table.iter().count(), 1);
     let stack = table.get(4).unwrap();
-    assert_eq!(world.get::<ItemStack>(stack).unwrap().count(), 5);
+    assert_eq!(world.get::<ItemStack>(stack).unwrap().count, 5);
 }

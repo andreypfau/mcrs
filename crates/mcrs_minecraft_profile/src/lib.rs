@@ -1,11 +1,9 @@
 use std::fmt;
 
-use base64::prelude::*;
 use mcrs_minecraft_core::ResourceLocation;
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::{Error as _, SerializeMap};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use url::Url;
 use uuid::Uuid;
 
 use mcrs_minecraft_core::codec::{BoundedString, IntArray};
@@ -17,51 +15,6 @@ pub struct Property<S = String> {
     pub value: S,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<S>,
-}
-
-/// Contains URLs to the skin and cape of a player.
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct PlayerTextures {
-    /// URL to the player's skin texture.
-    pub skin: Url,
-    /// URL to the player's cape texture. May be absent if the player does not
-    /// have a cape.
-    pub cape: Option<Url>,
-}
-
-impl PlayerTextures {
-    /// Constructs player textures from the "textures" property of the game
-    /// profile.
-    ///
-    /// "textures" is a base64 string of JSON data.
-    pub fn try_from_textures(textures: &str) -> anyhow::Result<Self> {
-        #[derive(Debug, Deserialize)]
-        struct Textures {
-            textures: PlayerTexturesPayload,
-        }
-
-        #[derive(Debug, Deserialize)]
-        #[serde(rename_all = "UPPERCASE")]
-        struct PlayerTexturesPayload {
-            skin: TextureUrl,
-            #[serde(default)]
-            cape: Option<TextureUrl>,
-        }
-
-        #[derive(Debug, Deserialize)]
-        struct TextureUrl {
-            url: Url,
-        }
-
-        let decoded = BASE64_STANDARD.decode(textures.as_bytes())?;
-
-        let Textures { textures } = serde_json::from_slice(&decoded)?;
-
-        Ok(Self {
-            skin: textures.skin.url,
-            cape: textures.cape.map(|t| t.url),
-        })
-    }
 }
 
 pub const MAX_PROPERTIES: usize = 16;
@@ -129,15 +82,10 @@ pub enum ProfileIdentity {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Profile {
     pub profile: ProfileIdentity,
     pub skin: SkinPatch,
-}
-
-#[cfg(feature = "bevy")]
-impl bevy_ecs::component::Component for Profile {
-    const STORAGE_TYPE: bevy_ecs::component::StorageType = bevy_ecs::component::StorageType::Table;
-    type Mutability = bevy_ecs::component::Mutable;
 }
 
 impl Profile {

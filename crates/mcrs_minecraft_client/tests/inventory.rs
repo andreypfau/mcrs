@@ -156,12 +156,12 @@ impl Client {
             .unwrap_or_else(|| panic!("cell {cell} is empty"));
         let stack = *self.world().get::<ItemStack>(entity).unwrap();
         let name = items()
-            .get(stack.item())
+            .get(stack.item)
             .unwrap()
             .identifier
             .path()
             .to_owned();
-        (name, stack.count())
+        (name, stack.count)
     }
 
     fn stacks(&mut self) -> usize {

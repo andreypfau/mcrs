@@ -1,5 +1,7 @@
 use std::fmt::Write;
 
+use serde::Deserialize;
+
 use crate::Error;
 use crate::compound::NbtCompound;
 use crate::tag::NbtTag;
@@ -132,30 +134,18 @@ fn quote_and_escape(input: &str, out: &mut String) {
                 }
                 out.push(c);
             }
-            _ => match control_escape(c) {
-                Some(escaped) => {
-                    out.push('\\');
-                    out.push_str(&escaped);
-                }
-                None => out.push(c),
-            },
+            '\u{8}' => out.push_str("\\b"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\u{c}' => out.push_str("\\f"),
+            '\r' => out.push_str("\\r"),
+            c if c < ' ' => write!(out, "\\x{:02X}", c as u32).unwrap(),
+            _ => out.push(c),
         }
     }
     let quote = quote.unwrap_or('"');
     out.replace_range(mark..mark + 1, quote.encode_utf8(&mut [0; 4]));
     out.push(quote);
-}
-
-fn control_escape(c: char) -> Option<String> {
-    Some(match c {
-        '\u{8}' => "b".to_string(),
-        '\t' => "t".to_string(),
-        '\n' => "n".to_string(),
-        '\u{c}' => "f".to_string(),
-        '\r' => "r".to_string(),
-        c if c < ' ' => format!("x{:02X}", c as u32),
-        _ => return None,
-    })
 }
 
 /// Java's `Double.toString`: the shortest digits that round-trip but never
@@ -165,7 +155,7 @@ pub fn java_double(v: f64) -> String {
     java_number(v, format!("{v:e}"), two_digits.parse() == Ok(v), two_digits)
 }
 
-fn java_float(v: f32) -> String {
+pub fn java_float(v: f32) -> String {
     let two_digits = format!("{v:.1e}");
     java_number(
         v as f64,
@@ -277,10 +267,7 @@ fn is_unquoted_char(c: char) -> bool {
 
 impl<'a> Parser<'a> {
     fn err<T>(&self, message: impl Into<String>) -> Result<T> {
-        Err(Error::Snbt {
-            position: self.pos,
-            message: message.into(),
-        })
+        Err(self.error(message.into()))
     }
 
     fn peek(&self) -> Option<char> {
@@ -430,10 +417,7 @@ impl<'a> Parser<'a> {
     }
 
     fn sign(&mut self) -> bool {
-        match self.eat_if(|c| c == '+' || c == '-') {
-            Some(c) => c == '-',
-            None => false,
-        }
+        self.eat_if(|c| c == '+' || c == '-') == Some('-')
     }
 
     /// `None` when there is no run or an underscore sits at either end, which
@@ -511,8 +495,7 @@ impl<'a> Parser<'a> {
 
     fn peek_float_suffix(&mut self) -> bool {
         self.skip_ws();
-        self.peek()
-            .is_some_and(|c| matches!(c, 'f' | 'F' | 'd' | 'D'))
+        matches!(self.peek(), Some('f' | 'F' | 'd' | 'D'))
     }
 
     fn error(&self, message: String) -> Error {
@@ -617,34 +600,23 @@ impl<'a> Parser<'a> {
         if literal.negative {
             digits.insert(0, '-');
         }
-        let radix = literal.radix;
         let out_of_range = || self.error(format!("number out of range: {digits}"));
-        Ok(match (signed, ty) {
-            (true, IntType::Byte) => {
-                i8::from_str_radix(&digits, radix).map_err(|_| out_of_range())? as i64
-            }
-            (true, IntType::Short) => {
-                i16::from_str_radix(&digits, radix).map_err(|_| out_of_range())? as i64
-            }
-            (true, IntType::Int) => {
-                i32::from_str_radix(&digits, radix).map_err(|_| out_of_range())? as i64
-            }
-            (true, IntType::Long) => {
-                i64::from_str_radix(&digits, radix).map_err(|_| out_of_range())?
-            }
-            (false, IntType::Byte) => {
-                u8::from_str_radix(&digits, radix).map_err(|_| out_of_range())? as i8 as i64
-            }
-            (false, IntType::Short) => {
-                u16::from_str_radix(&digits, radix).map_err(|_| out_of_range())? as i16 as i64
-            }
-            (false, IntType::Int) => {
-                u32::from_str_radix(&digits, radix).map_err(|_| out_of_range())? as i32 as i64
-            }
-            (false, IntType::Long) => {
-                u64::from_str_radix(&digits, radix).map_err(|_| out_of_range())? as i64
-            }
-        })
+        let value = i128::from_str_radix(&digits, literal.radix).map_err(|_| out_of_range())?;
+        let bits = match ty {
+            IntType::Byte => 8,
+            IntType::Short => 16,
+            IntType::Int => 32,
+            IntType::Long => 64,
+        };
+        let (lo, hi) = if signed {
+            (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
+        } else {
+            (0, (1i128 << bits) - 1)
+        };
+        (lo..=hi)
+            .contains(&value)
+            .then(|| ((value as i64) << (64 - bits)) >> (64 - bits))
+            .ok_or_else(out_of_range)
     }
 
     fn quoted_string(&mut self) -> Result<String> {
@@ -736,18 +708,9 @@ impl<'a> Parser<'a> {
 
     fn builtin(&self, name: &str, arguments: Vec<NbtTag>) -> Result<NbtTag> {
         match (name, arguments.as_slice()) {
-            ("bool", [argument]) => {
-                let truthy = match argument {
-                    NbtTag::Byte(v) => *v != 0,
-                    NbtTag::Short(v) => *v != 0,
-                    NbtTag::Int(v) => *v != 0,
-                    NbtTag::Long(v) => *v != 0,
-                    NbtTag::Float(v) => *v != 0.0,
-                    NbtTag::Double(v) => *v != 0.0,
-                    _ => return self.err("expected a number or a boolean"),
-                };
-                Ok(NbtTag::Byte(truthy as i8))
-            }
+            ("bool", [argument]) => bool::deserialize(argument.clone())
+                .map(|truthy| NbtTag::Byte(truthy as i8))
+                .map_err(|_| self.error("expected a number or a boolean".to_string())),
             ("uuid", [NbtTag::String(text)]) => parse_uuid(text)
                 .map(|(most, least)| {
                     NbtTag::IntArray(vec![

@@ -3483,6 +3483,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_reflect",
  "bevy_state",
+ "bevy_tasks",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registry",
@@ -3521,7 +3522,6 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_platform",
- "bevy_tasks",
  "bitflags 2.10.0",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_chunk",
@@ -3814,13 +3814,10 @@ name = "mcrs_minecraft_profile"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64",
  "bevy_ecs",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "serde",
- "serde_json",
- "url",
  "uuid",
 ]
 

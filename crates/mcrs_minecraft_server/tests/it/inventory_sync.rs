@@ -67,7 +67,7 @@ pub(crate) fn stone(world: &mut World, count: u8) -> Entity {
 
 pub(crate) fn cell(world: &World, player: Entity, index: u16) -> Option<(Entity, u8)> {
     let stack = world.get::<SlotTable>(player).unwrap().get(index)?;
-    Some((stack, world.get::<ItemStack>(stack).unwrap().count()))
+    Some((stack, world.get::<ItemStack>(stack).unwrap().count))
 }
 
 pub(crate) fn place(world: &mut World, stack: Entity, holder: Entity, index: u16) {

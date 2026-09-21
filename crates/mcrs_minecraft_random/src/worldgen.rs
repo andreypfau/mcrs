@@ -59,11 +59,7 @@ impl TryRng for WorldgenRandom {
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
-        for chunk in dest.chunks_mut(8) {
-            let bytes = self.bits_u64().to_le_bytes();
-            chunk.copy_from_slice(&bytes[..chunk.len()]);
-        }
-        Ok(())
+        rand_xoshiro::rand_core::utils::fill_bytes_via_next_word(dest, || self.try_next_u64())
     }
 }
 

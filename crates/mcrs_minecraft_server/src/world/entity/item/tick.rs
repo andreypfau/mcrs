@@ -134,7 +134,7 @@ fn is_mergeable(world: &World, entity: Entity) -> bool {
     item.pickup_delay != INFINITE_PICKUP_DELAY
         && item.age != INFINITE_LIFETIME
         && item.age < LIFETIME
-        && stack.count() < max_stack_size(world.entity(entity))
+        && stack.count < max_stack_size(world.entity(entity))
 }
 
 fn merge_with_neighbours(
@@ -190,9 +190,7 @@ fn try_merge(world: &mut World, items: &Items, this: Entity, other: Entity) {
 }
 
 fn count(world: &World, stack: Entity) -> u8 {
-    world
-        .get::<ItemStack>(stack)
-        .map_or(0, |stack| stack.count())
+    world.get::<ItemStack>(stack).map_or(0, |stack| stack.count)
 }
 
 fn state_at(world: &World, dim: Entity, pos: BlockPos) -> BlockStateId {

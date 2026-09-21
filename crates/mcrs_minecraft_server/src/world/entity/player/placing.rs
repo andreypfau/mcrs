@@ -53,7 +53,7 @@ fn handle_use_item_on(
     let Some(stack) = held_stack(table, selected).and_then(|held| stacks.get(held).ok()) else {
         return;
     };
-    let Some(state) = items.get(stack.item()).and_then(|entry| entry.block_placer) else {
+    let Some(state) = items.get(stack.item).and_then(|entry| entry.block_placer) else {
         return;
     };
     writer.write(BlockSetRequest {

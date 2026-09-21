@@ -49,29 +49,7 @@ pub fn int_value<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
 
 /// `Codec.FLOAT`: any number's `floatValue()`.
 pub fn float_value<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
-    struct FloatValue;
-
-    impl Visitor<'_> for FloatValue {
-        type Value = f32;
-
-        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            f.write_str("a number")
-        }
-
-        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<f32, E> {
-            Ok(v as f32)
-        }
-
-        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<f32, E> {
-            Ok(v as f32)
-        }
-
-        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<f32, E> {
-            Ok(v as f32)
-        }
-    }
-
-    d.deserialize_any(FloatValue)
+    f32::deserialize(d)
 }
 
 /// A `Codec.intRange(MIN, MAX)` payload, with the value `optionalFieldOf`

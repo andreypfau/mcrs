@@ -13,6 +13,7 @@ bevy_asset.workspace = true
 bevy_ecs.workspace = true
 bevy_reflect.workspace = true
 bevy_state.workspace = true
+bevy_tasks.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }

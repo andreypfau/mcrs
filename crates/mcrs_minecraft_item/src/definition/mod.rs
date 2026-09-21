@@ -1,14 +1,11 @@
 pub mod schema;
 
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bevy_asset::AssetServer;
-use bevy_asset::io::{AssetReaderError, AssetSourceId};
+use bevy_asset::io::AssetSourceId;
 use bevy_ecs::resource::Resource;
-use bevy_tasks::block_on;
-use bevy_tasks::futures_lite::StreamExt;
-use mcrs_minecraft_assets::asset::read_whole;
+use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_assets::tag::registry::TagSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_core::ResourceLocation;
@@ -163,16 +160,8 @@ impl TagSource for Items {
 pub enum ItemCorpusError {
     #[error("no default asset source")]
     NoAssetSource,
-    #[error("cannot list `{directory}`: {source}")]
-    ListDirectory {
-        directory: String,
-        source: AssetReaderError,
-    },
-    #[error("cannot read `{path}`: {source}")]
-    Read {
-        path: String,
-        source: AssetReaderError,
-    },
+    #[error(transparent)]
+    Corpus(#[from] CorpusReadError),
     #[error("`{path}` read as zero bytes")]
     Empty { path: String },
     #[error("failed to parse `{path}`: {source}")]
@@ -201,40 +190,6 @@ pub fn load_item_definitions(
     let source = asset_server
         .get_source(AssetSourceId::Default)
         .map_err(|_| ItemCorpusError::NoAssetSource)?;
-    let reader = source.reader();
-
-    let mut paths = block_on(async {
-        let mut stream = reader
-            .read_directory(Path::new(CORPUS_DIRECTORY))
-            .await
-            .map_err(|source| ItemCorpusError::ListDirectory {
-                directory: CORPUS_DIRECTORY.into(),
-                source,
-            })?;
-        let mut paths = Vec::new();
-        while let Some(path) = stream.next().await {
-            if path.extension().is_some_and(|e| e == "json") {
-                paths.push(path);
-            }
-        }
-        Ok::<Vec<PathBuf>, ItemCorpusError>(paths)
-    })?;
-    paths.sort();
-
-    let files = block_on(async {
-        let mut files = Vec::with_capacity(paths.len());
-        for path in &paths {
-            let display = path.display().to_string();
-            let bytes = read_whole(reader, path)
-                .await
-                .map_err(|source| ItemCorpusError::Read {
-                    path: display.clone(),
-                    source,
-                })?;
-            files.push((display, bytes));
-        }
-        Ok::<Vec<(String, Vec<u8>)>, ItemCorpusError>(files)
-    })?;
-
+    let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
     ItemDefinitions::from_files(files, blocks)
 }

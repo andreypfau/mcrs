@@ -349,21 +349,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         self.read_root()?;
         let tag = self.tag_to_deserialize_stack.unwrap();
-        let value = match NbtTag::deserialize_data(&mut self.input, tag)? {
-            NbtTag::Byte(v) => v != 0,
-            NbtTag::Short(v) => v != 0,
-            NbtTag::Int(v) => v != 0,
-            NbtTag::Long(v) => v != 0,
-            NbtTag::Float(v) => v != 0.0,
-            NbtTag::Double(v) => v != 0.0,
-            other => {
-                return Err(Error::SerdeError(format!(
-                    "invalid type: {}, expected a boolean",
-                    other.get_type_id()
-                )));
-            }
-        };
-        visitor.visit_bool(value)
+        NbtTag::deserialize_data(&mut self.input, tag)?.deserialize_bool(visitor)
     }
 
     fn deserialize_enum<V: Visitor<'de>>(

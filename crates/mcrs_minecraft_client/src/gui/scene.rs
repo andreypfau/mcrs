@@ -375,7 +375,7 @@ fn build_gui_batch(
                     continue;
                 };
                 let decorated = Decorated {
-                    count: stack.get::<ItemStack>().map_or(1, ItemStack::count),
+                    count: stack.get::<ItemStack>().map_or(1, |stack| stack.count),
                     damage: is_damaged(stack).then(|| (damage_value(stack), max_damage(stack))),
                 };
                 decorations(origin, &decorated, &atlas.digit_widths, &mut expanded);

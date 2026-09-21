@@ -110,10 +110,6 @@ impl SlotTable {
         }
     }
 
-    pub fn is_growable(&self) -> bool {
-        self.bound.is_none()
-    }
-
     pub fn get(&self, index: u16) -> Option<Entity> {
         self.cells.get(index as usize).copied().flatten()
     }
