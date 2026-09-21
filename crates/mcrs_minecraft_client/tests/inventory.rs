@@ -172,6 +172,22 @@ impl Client {
         };
         menu
     }
+
+    fn open_menu(&mut self, menu_type: &'static str, container_id: i32) -> Entity {
+        let table = self.app.world().resource::<StaticRegistryTable>();
+        let id = table
+            .id("menu", &mcrs_minecraft_core::ResourceLocation::minecraft(menu_type))
+            .unwrap();
+        self.receive(&ClientboundOpenScreen {
+            container_id: VarInt(container_id),
+            menu_type: VarInt(id as i32),
+            title: Text::text(menu_type),
+        });
+        let Screen::Container(menu) = self.screen() else {
+            panic!("open_screen opened no {menu_type}");
+        };
+        menu
+    }
 }
 
 fn empty_player_content(count: usize) -> Client {
@@ -419,22 +435,11 @@ fn opening_a_second_screen_replaces_the_first() {
 }
 
 #[test]
-fn an_unknown_menu_type_keeps_only_the_player_slots() {
+fn a_menu_with_own_slots_first_offsets_the_player_slots() {
     let mut client = Client::new();
     let player = client.player;
-    let table = client.app.world().resource::<StaticRegistryTable>();
-    let anvil = table
-        .id("menu", &mcrs_minecraft_core::ResourceLocation::minecraft("anvil"))
-        .unwrap();
-    client.receive(&ClientboundOpenScreen {
-        container_id: VarInt(4),
-        menu_type: VarInt(anvil as i32),
-        title: Text::text("Anvil"),
-    });
-    let Screen::Container(menu) = client.screen() else {
-        panic!("no menu");
-    };
-    assert_eq!(client.world().get::<MenuLayout>(menu).unwrap().0.len(), 36);
+    let menu = client.open_menu("anvil", 4);
+    assert_eq!(client.world().get::<MenuLayout>(menu).unwrap().0.len(), 39);
     let raw = client.raw("stone", 3);
     client.receive(&ClientboundContainerSetSlot {
         container_id: VarInt(4),
@@ -442,5 +447,35 @@ fn an_unknown_menu_type_keeps_only_the_player_slots() {
         slot: 35,
         item: raw,
     });
-    assert_eq!(client.stack(player, slots::HOTBAR.end - 1), ("stone".into(), 3));
+    assert_eq!(client.stack(player, slots::HOTBAR.start + 5), ("stone".into(), 3));
+    let raw = client.raw("iron_ingot", 2);
+    client.receive(&ClientboundContainerSetSlot {
+        container_id: VarInt(4),
+        state_seqno: VarInt(2),
+        slot: 2,
+        item: raw,
+    });
+    assert_eq!(client.stack(menu, 2), ("iron_ingot".into(), 2));
+}
+
+#[test]
+fn the_crafter_result_slot_follows_the_player_slots() {
+    let mut client = Client::new();
+    let menu = client.open_menu("crafter_3x3", 5);
+    assert_eq!(client.world().get::<MenuLayout>(menu).unwrap().0.len(), 46);
+    let raw = client.raw("stone", 1);
+    client.receive(&ClientboundContainerSetSlot {
+        container_id: VarInt(5),
+        state_seqno: VarInt(1),
+        slot: 45,
+        item: raw,
+    });
+    assert_eq!(client.stack(menu, 9), ("stone".into(), 1));
+}
+
+#[test]
+fn the_lectern_has_no_player_slots() {
+    let mut client = Client::new();
+    let menu = client.open_menu("lectern", 6);
+    assert_eq!(client.world().get::<MenuLayout>(menu).unwrap().0, vec![(menu, 0)]);
 }

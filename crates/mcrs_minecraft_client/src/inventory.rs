@@ -97,29 +97,67 @@ pub fn inventory_index_to_cell(index: i32) -> Option<u16> {
     u8::try_from(index).ok().and_then(slots::from_inventory_index)
 }
 
-/// The menu's own cell count and whether a non-interactive result slot
-/// follows the player's slots, as the vanilla menu constructors lay them out.
-pub fn own_cells(menu_type: &str) -> Option<(u16, bool)> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MenuSlots {
+    pub own: u16,
+    pub player_slots: bool,
+    pub trailing_result: bool,
+}
+
+/// Vanilla menus add their own slots first, then the player's main and hotbar
+/// rows; the lectern adds none of the player's and the crafter appends a
+/// non-interactive result slot after them.
+pub fn menu_slots(menu_type: &str) -> Option<MenuSlots> {
+    let own = |own| MenuSlots {
+        own,
+        player_slots: true,
+        trailing_result: false,
+    };
     Some(match menu_type {
-        "minecraft:generic_9x1" => (9, false),
-        "minecraft:generic_9x2" => (18, false),
-        "minecraft:generic_9x3" => (27, false),
-        "minecraft:generic_9x4" => (36, false),
-        "minecraft:generic_9x5" => (45, false),
-        "minecraft:generic_9x6" => (54, false),
-        "minecraft:generic_3x3" => (9, false),
-        "minecraft:crafter_3x3" => (9, true),
-        "minecraft:hopper" => (5, false),
-        "minecraft:shulker_box" => (27, false),
+        "minecraft:generic_9x1" => own(9),
+        "minecraft:generic_9x2" => own(18),
+        "minecraft:generic_9x3" => own(27),
+        "minecraft:generic_9x4" => own(36),
+        "minecraft:generic_9x5" => own(45),
+        "minecraft:generic_9x6" => own(54),
+        "minecraft:generic_3x3" => own(9),
+        "minecraft:crafter_3x3" => MenuSlots {
+            own: 9,
+            player_slots: true,
+            trailing_result: true,
+        },
+        "minecraft:anvil" => own(3),
+        "minecraft:beacon" => own(1),
+        "minecraft:blast_furnace" => own(3),
+        "minecraft:brewing_stand" => own(5),
+        "minecraft:crafting" => own(10),
+        "minecraft:enchantment" => own(2),
+        "minecraft:furnace" => own(3),
+        "minecraft:grindstone" => own(3),
+        "minecraft:hopper" => own(5),
+        "minecraft:lectern" => MenuSlots {
+            own: 1,
+            player_slots: false,
+            trailing_result: false,
+        },
+        "minecraft:loom" => own(4),
+        "minecraft:merchant" => own(3),
+        "minecraft:shulker_box" => own(27),
+        "minecraft:smithing" => own(4),
+        "minecraft:smoker" => own(3),
+        "minecraft:cartography_table" => own(3),
+        "minecraft:stonecutter" => own(2),
         _ => return None,
     })
 }
 
-pub fn menu_layout(menu: Entity, player: Entity, own: u16, trailing_result: bool) -> Vec<(Entity, u16)> {
-    let mut layout: Vec<(Entity, u16)> = (0..own).map(|cell| (menu, cell)).collect();
-    layout.extend(slots::MAIN.chain(slots::HOTBAR).map(|cell| (player, cell)));
-    if trailing_result {
-        layout.push((menu, own));
+pub fn menu_layout(menu: Entity, player: Entity, slots: MenuSlots) -> Vec<(Entity, u16)> {
+    let mut layout: Vec<(Entity, u16)> = (0..slots.own).map(|cell| (menu, cell)).collect();
+    if slots.player_slots {
+        layout.extend(slots::MAIN.chain(slots::HOTBAR).map(|cell| (player, cell)));
+    }
+    if slots.trailing_result {
+        layout.push((menu, slots.own));
     }
     layout
 }
@@ -319,15 +357,13 @@ fn open_screen(world: &mut World, container_id: i32, menu_type: ResourceLocation
     let Some(player) = player(world) else {
         return;
     };
+    let Some(slots) = menu_slots(menu_type.as_str()) else {
+        warn!("open_screen: {menu_type} has no slot layout, the screen stays closed");
+        return;
+    };
     if let Some((menu, _)) = open_menu(world) {
         world.despawn(menu);
     }
-    // ponytail: menus without a slot table here get zero own cells, so their
-    // own stacks are dropped with a warning until each screen is added.
-    let (own, trailing_result) = own_cells(menu_type.as_str()).unwrap_or_else(|| {
-        warn!("open_screen: {menu_type} has no layout, only the player's slots are received");
-        (0, false)
-    });
     let menu = world.spawn_empty().id();
     world.entity_mut(menu).insert((
         OpenMenu {
@@ -335,9 +371,9 @@ fn open_screen(world: &mut World, container_id: i32, menu_type: ResourceLocation
             menu_type,
             title,
         },
-        SlotTable::fixed(own as usize),
+        SlotTable::fixed(usize::from(slots.own) + usize::from(slots.trailing_result)),
         ContainerSeqno::default(),
-        MenuLayout(menu_layout(menu, player, own, trailing_result)),
+        MenuLayout(menu_layout(menu, player, slots)),
     ));
     *world.resource_mut::<Screen>() = Screen::Container(menu);
     set_cursor_grabbed(world, false);
@@ -420,7 +456,7 @@ fn toggle_inventory(
             return;
         }
         Screen::Inventory if escape || toggle => 0,
-        Screen::Container(menu) if escape => {
+        Screen::Container(menu) if escape || toggle => {
             let id = menus.get(menu).map_or(0, |menu| menu.container_id);
             commands.entity(menu).despawn();
             id
