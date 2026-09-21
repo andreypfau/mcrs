@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
-use mcrs_minecraft_protocol::for_each_data_component;
+use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::{
     AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments, Holder,
     InteractAnimation, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation,

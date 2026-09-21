@@ -2,7 +2,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_protocol::for_each_data_component;
+use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::*;
 use mcrs_minecraft_registry::ItemId;
 

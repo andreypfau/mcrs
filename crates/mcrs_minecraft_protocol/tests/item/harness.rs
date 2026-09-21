@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_protocol::for_each_data_component;
+use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, ItemComponentKind, ItemComponentValue, ItemDataComponent,

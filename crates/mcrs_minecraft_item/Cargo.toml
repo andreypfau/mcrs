@@ -15,7 +15,7 @@ bevy_tasks.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 rustc-hash.workspace = true
 serde.workspace = true

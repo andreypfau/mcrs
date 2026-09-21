@@ -7,8 +7,7 @@ edition.workspace = true
 
 
 [features]
-default = ["bevy"]
-bevy = ["mcrs_minecraft_registry/bevy", "dep:bevy_ecs"]
+default = []
 encryption = ["dep:aes", "dep:cfb8"]
 compression = ["dep:flate2"]
 
@@ -16,9 +15,9 @@ compression = ["dep:flate2"]
 mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_text.workspace = true
+mcrs_minecraft_item_component.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true
-bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol_macros.workspace = true

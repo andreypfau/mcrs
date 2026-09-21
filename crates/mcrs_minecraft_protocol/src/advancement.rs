@@ -8,13 +8,20 @@ use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Serialize};
 
 use crate::item::Template;
-use crate::item::component::common::ordinal_enum;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque};
 use crate::text::Text;
 use crate::{Decode, Encode};
 
-ordinal_enum! {
-    AdvancementType { Task, Challenge, Goal }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AdvancementType {
+    Task,
+    Challenge,
+    Goal,
+}
+
+impl AdvancementType {
+    pub const ALL: &'static [Self] = &[Self::Task, Self::Challenge, Self::Goal];
 }
 
 crate::item::wire::ordinal_enum_wire!(AdvancementType);

@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_protocol::for_each_data_component;
 use mcrs_minecraft_protocol::item::decode_component_value;
+use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
     BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container, DecodeCtx,
@@ -237,7 +237,7 @@ mod kinds {
         )*};
     }
 
-    mcrs_minecraft_protocol::for_each_data_component!(kind_tests);
+    mcrs_minecraft_protocol::item::for_each_data_component!(kind_tests);
 }
 
 #[test]

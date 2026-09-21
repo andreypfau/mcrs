@@ -3667,6 +3667,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_item_component"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy_ecs",
+ "crc32c",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_profile",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "mcrs_minecraft_level"
 version = "0.1.0"
 dependencies = [
@@ -3779,7 +3797,6 @@ dependencies = [
  "aes",
  "anyhow",
  "base64",
- "bevy_ecs",
  "bevy_math",
  "bitfield-struct",
  "byteorder",
@@ -3790,6 +3807,7 @@ dependencies = [
  "flate2",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_item_component",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol_macros",

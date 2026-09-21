@@ -1,0 +1,25 @@
+[package]
+name = "mcrs_minecraft_item_component"
+description = "Item data components, the component patch and the persistent item stack"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+bevy = ["dep:bevy_ecs"]
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_profile.workspace = true
+mcrs_minecraft_registry.workspace = true
+mcrs_minecraft_text.workspace = true
+bevy_ecs = { workspace = true, optional = true }
+anyhow.workspace = true
+crc32c.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+uuid = { workspace = true, features = ["serde"] }

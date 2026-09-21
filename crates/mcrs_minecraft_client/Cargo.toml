@@ -42,7 +42,7 @@ serde_json.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_protocol = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_world.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_level.workspace = true

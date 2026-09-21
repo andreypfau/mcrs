@@ -181,4 +181,3 @@ impl<'de, T: Registered> Deserialize<'de> for HolderWireOnly<T> {
         ResourceKey::deserialize(d).map(|key| HolderWireOnly(Holder::Reference(key)))
     }
 }
-

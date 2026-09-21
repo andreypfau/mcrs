@@ -18,6 +18,8 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChat, ServerboundChatCommand,
 };
 use mcrs_minecraft_protocol::setting::ChatMode;
+
+use crate::client_info::ClientInfo;
 use mcrs_minecraft_protocol::text::{Color, IntoText};
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use tracing::info;
@@ -212,13 +214,13 @@ fn locate_structure(fill: Option<&FillContext>, origin: IVec3, id: &str) -> Text
 
 fn handle_chat(
     event: On<ReceivedPacketEvent>,
-    sender_query: Query<(&GameProfile, Option<&ChatMode>, &HostAnchor)>,
+    sender_query: Query<(&GameProfile, Option<&ClientInfo>, &HostAnchor)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let Some(pkt) = event.decode::<ServerboundChat>() else {
         return;
     };
-    let Ok((profile, chat_mode, host_anchor)) = sender_query.get(event.entity) else {
+    let Ok((profile, info, host_anchor)) = sender_query.get(event.entity) else {
         return;
     };
     let msg = pkt.message;
@@ -230,10 +232,7 @@ fn handle_chat(
         return;
     }
 
-    // ChatMode is never inserted today, so absence means "shown". Only an
-    // explicit Hidden suppresses broadcast and echoes the disabled notice
-    // back to the sender's own host connection.
-    if chat_mode.copied() == Some(ChatMode::Hidden) {
+    if info.is_some_and(|info| info.chat_mode == ChatMode::Hidden) {
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host_anchor.0),
             priority: PacketPriority::Normal,

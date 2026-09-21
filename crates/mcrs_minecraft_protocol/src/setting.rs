@@ -2,7 +2,6 @@ use bitfield_struct::bitfield;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
 
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug, Encode, Decode)]
-#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub enum ChatMode {
     Enabled,
     CommandsOnly,
