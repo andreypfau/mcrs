@@ -3836,7 +3836,6 @@ dependencies = [
  "byteorder",
  "bytes",
  "cfb8",
- "crc32c",
  "derive_more",
  "flate2",
  "mcrs_minecraft_chunk",

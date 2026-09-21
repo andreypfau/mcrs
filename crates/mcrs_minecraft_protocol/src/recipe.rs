@@ -72,38 +72,6 @@ pub enum SlotDisplayType {
     Composite,
 }
 
-impl SlotDisplayType {
-    pub const ALL: [Self; 11] = [
-        Self::Empty,
-        Self::AnyFuel,
-        Self::WithAnyPotion,
-        Self::OnlyWithComponent,
-        Self::Item,
-        Self::ItemStack,
-        Self::Tag,
-        Self::Dyed,
-        Self::SmithingTrim,
-        Self::WithRemainder,
-        Self::Composite,
-    ];
-
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::Empty => "minecraft:empty",
-            Self::AnyFuel => "minecraft:any_fuel",
-            Self::WithAnyPotion => "minecraft:with_any_potion",
-            Self::OnlyWithComponent => "minecraft:only_with_component",
-            Self::Item => "minecraft:item",
-            Self::ItemStack => "minecraft:item_stack",
-            Self::Tag => "minecraft:tag",
-            Self::Dyed => "minecraft:dyed",
-            Self::SmithingTrim => "minecraft:smithing_trim",
-            Self::WithRemainder => "minecraft:with_remainder",
-            Self::Composite => "minecraft:composite",
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 pub enum SlotDisplay {
@@ -258,26 +226,6 @@ pub enum RecipeDisplayType {
     Furnace,
     Stonecutter,
     Smithing,
-}
-
-impl RecipeDisplayType {
-    pub const ALL: [Self; 5] = [
-        Self::CraftingShapeless,
-        Self::CraftingShaped,
-        Self::Furnace,
-        Self::Stonecutter,
-        Self::Smithing,
-    ];
-
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::CraftingShapeless => "minecraft:crafting_shapeless",
-            Self::CraftingShaped => "minecraft:crafting_shaped",
-            Self::Furnace => "minecraft:furnace",
-            Self::Stonecutter => "minecraft:stonecutter",
-            Self::Smithing => "minecraft:smithing",
-        }
-    }
 }
 
 validated!(RecipeDisplay);
@@ -478,42 +426,6 @@ pub enum RecipeBookCategory {
     Stonecutter,
     Smithing,
     Campfire,
-}
-
-impl RecipeBookCategory {
-    pub const ALL: [Self; 13] = [
-        Self::CraftingBuildingBlocks,
-        Self::CraftingRedstone,
-        Self::CraftingEquipment,
-        Self::CraftingMisc,
-        Self::FurnaceFood,
-        Self::FurnaceBlocks,
-        Self::FurnaceMisc,
-        Self::BlastFurnaceBlocks,
-        Self::BlastFurnaceMisc,
-        Self::SmokerFood,
-        Self::Stonecutter,
-        Self::Smithing,
-        Self::Campfire,
-    ];
-
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::CraftingBuildingBlocks => "minecraft:crafting_building_blocks",
-            Self::CraftingRedstone => "minecraft:crafting_redstone",
-            Self::CraftingEquipment => "minecraft:crafting_equipment",
-            Self::CraftingMisc => "minecraft:crafting_misc",
-            Self::FurnaceFood => "minecraft:furnace_food",
-            Self::FurnaceBlocks => "minecraft:furnace_blocks",
-            Self::FurnaceMisc => "minecraft:furnace_misc",
-            Self::BlastFurnaceBlocks => "minecraft:blast_furnace_blocks",
-            Self::BlastFurnaceMisc => "minecraft:blast_furnace_misc",
-            Self::SmokerFood => "minecraft:smoker_food",
-            Self::Stonecutter => "minecraft:stonecutter",
-            Self::Smithing => "minecraft:smithing",
-            Self::Campfire => "minecraft:campfire",
-        }
-    }
 }
 
 /// One recipe as the client's recipe book shows it; `group` is the index of

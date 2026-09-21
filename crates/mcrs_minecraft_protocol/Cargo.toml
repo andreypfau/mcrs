@@ -25,7 +25,6 @@ anyhow.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 byteorder.workspace = true
-crc32c.workspace = true
 uuid = { workspace = true, features = ["serde"] }
 base64.workspace = true
 url.workspace = true

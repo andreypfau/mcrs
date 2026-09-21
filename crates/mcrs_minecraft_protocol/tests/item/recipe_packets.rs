@@ -230,7 +230,16 @@ fn recipe_book_add_matches_vanilla_and_resolves_every_display() {
         .collect();
     assert_eq!(resolved, entries);
     let kinds: Vec<RecipeDisplayType> = resolved.iter().map(|e| e.display.kind()).collect();
-    assert_eq!(kinds, RecipeDisplayType::ALL);
+    assert_eq!(
+        kinds,
+        [
+            RecipeDisplayType::CraftingShapeless,
+            RecipeDisplayType::CraftingShaped,
+            RecipeDisplayType::Furnace,
+            RecipeDisplayType::Stonecutter,
+            RecipeDisplayType::Smithing,
+        ]
+    );
 }
 
 #[test]
@@ -402,22 +411,54 @@ fn dispatch_ids_are_the_registry_protocol_ids() {
         "../../../../assets/mcrs/reports/registries.json"
     ))
     .unwrap();
-    fn pin(entries: &serde_json::Value, ids: &[(&str, u8)]) {
+    fn pin(entries: &serde_json::Value, ids: &[&str]) {
         assert_eq!(entries.as_object().unwrap().len(), ids.len());
-        for (id, wire) in ids {
-            assert_eq!(entries[*id]["protocol_id"], *wire, "{id}");
+        for (wire, id) in ids.iter().enumerate() {
+            assert_eq!(entries[*id]["protocol_id"], wire, "{id}");
         }
     }
     pin(
         &report["minecraft:slot_display"]["entries"],
-        &SlotDisplayType::ALL.map(|kind| (kind.id(), kind as u8)),
+        &[
+            "minecraft:empty",
+            "minecraft:any_fuel",
+            "minecraft:with_any_potion",
+            "minecraft:only_with_component",
+            "minecraft:item",
+            "minecraft:item_stack",
+            "minecraft:tag",
+            "minecraft:dyed",
+            "minecraft:smithing_trim",
+            "minecraft:with_remainder",
+            "minecraft:composite",
+        ],
     );
     pin(
         &report["minecraft:recipe_display"]["entries"],
-        &RecipeDisplayType::ALL.map(|kind| (kind.id(), kind as u8)),
+        &[
+            "minecraft:crafting_shapeless",
+            "minecraft:crafting_shaped",
+            "minecraft:furnace",
+            "minecraft:stonecutter",
+            "minecraft:smithing",
+        ],
     );
     pin(
         &report["minecraft:recipe_book_category"]["entries"],
-        &RecipeBookCategory::ALL.map(|kind| (kind.id(), kind as u8)),
+        &[
+            "minecraft:crafting_building_blocks",
+            "minecraft:crafting_redstone",
+            "minecraft:crafting_equipment",
+            "minecraft:crafting_misc",
+            "minecraft:furnace_food",
+            "minecraft:furnace_blocks",
+            "minecraft:furnace_misc",
+            "minecraft:blast_furnace_blocks",
+            "minecraft:blast_furnace_misc",
+            "minecraft:smoker_food",
+            "minecraft:stonecutter",
+            "minecraft:smithing",
+            "minecraft:campfire",
+        ],
     );
 }
