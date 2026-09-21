@@ -40,7 +40,7 @@ const _: () = assert!(matches!(CORE_3D_DEPTH_FORMAT, TextureFormat::Depth32Float
 
 pub const QUAD_BYTES: usize = mcrs_minecraft_mesh::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
-pub const FACE_BYTES: usize = 4;
+pub const FACE_BYTES: usize = mcrs_minecraft_mesh::pack::FACE_WORDS * 4;
 pub const SECTION_BYTES: usize = size_of::<SectionDesc>();
 const VISIBLE_BYTES: usize = 8;
 
@@ -65,27 +65,42 @@ pub struct SectionDesc {
     pub face_base: u32,
 }
 
-/// The layers one array gained since the last update: stills from `first_still` up to `stills`,
-/// frame layers from `first_frame` up to `frames`, each as a full mip chain with level zero
-/// first. What was sent before stays where it is on the GPU.
+/// The layers one array gained since the last update, from `first` up to `layers`, as a full
+/// mip chain with level zero first. What was sent before stays where it is on the GPU.
 pub struct AtlasUpdate {
     pub size: u32,
-    pub stills: u32,
-    pub frames: u32,
-    pub first_still: u32,
-    pub first_frame: u32,
-    pub still_mips: Vec<Vec<u8>>,
-    pub frame_mips: Vec<Vec<u8>>,
+    pub layers: u32,
+    pub first: u32,
+    pub mips: Vec<Vec<u8>>,
 }
 
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Animation {
-    pub array: u32,
-    pub frame_base: u32,
+    pub first_layer: u32,
     pub count: u32,
     pub frametime: u32,
     pub interpolate: u32,
+}
+
+pub const STILL: u32 = u32::MAX;
+
+/// What one bake added: layers per atlas, the sprite table from `table_from` on, and every
+/// animation as the registry now lists them.
+pub struct SpriteUpload {
+    pub atlases: Vec<AtlasUpdate>,
+    pub table_from: u32,
+    pub table: Vec<SpriteEntry>,
+    pub animations: Vec<Animation>,
+}
+
+/// One row of the GPU sprite table: the array in the high half-word and the layer in the low,
+/// and the animation index or `STILL`.
+#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct SpriteEntry {
+    pub array_layer: u32,
+    pub animation: u32,
 }
 
 #[derive(Resource, Clone, Copy, ExtractResource)]

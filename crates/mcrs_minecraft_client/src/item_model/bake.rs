@@ -4,7 +4,6 @@ use std::sync::Arc;
 use bevy::math::{Mat4, Vec3};
 use bevy::prelude::Resource;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_mesh::block::SpriteRef;
 
 use super::asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,
@@ -22,7 +21,7 @@ pub struct ItemQuad {
     pub positions: [Vec3; 4],
     pub uvs: [[f32; 2]; 4],
     pub dir: Dir,
-    pub sprite: SpriteRef,
+    pub sprite: u16,
     pub tint: Option<u32>,
 }
 
@@ -298,7 +297,7 @@ fn bake_model(
             };
             let sprite = sprites.intern(pack, texture)?;
             animated |= sprites.is_animated(sprite);
-            let side = sprites.arrays()[sprite.array as usize].size;
+            let side = sprites.arrays()[sprites.sprite(sprite).array as usize].size;
             let frames = sprites.frames(sprite);
             quads.extend(generator::extrude(sprite, side, &frames, layer)?);
         }
@@ -325,7 +324,7 @@ fn bake_model(
     })
 }
 
-fn item_quad(element: &Element, dir: Dir, face: &Face, sprite: SpriteRef) -> Result<ItemQuad, String> {
+fn item_quad(element: &Element, dir: Dir, face: &Face, sprite: u16) -> Result<ItemQuad, String> {
     let geometry = face_geometry(element, dir, face, VariantRotation::default(), false)?;
     Ok(ItemQuad {
         positions: geometry.positions,

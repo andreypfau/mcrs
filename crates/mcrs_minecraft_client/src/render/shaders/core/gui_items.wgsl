@@ -1,10 +1,8 @@
 struct GuiUniform {
     framebuffer: vec2<f32>,
-    scale: f32,
-    animated_from: u32,
     glint_offset: vec2<f32>,
+    scale: f32,
     glint_alpha: f32,
-    _pad: f32,
 }
 
 struct AnimationFrame {
@@ -14,6 +12,13 @@ struct AnimationFrame {
     _pad: u32,
 }
 
+struct SpriteEntry {
+    array_layer: u32,
+    animation: u32,
+}
+
+const STILL: u32 = 0xFFFFFFFFu;
+
 @group(0) @binding(0) var<uniform> gui: GuiUniform;
 @group(0) @binding(1) var atlas0: texture_2d_array<f32>;
 @group(0) @binding(2) var atlas1: texture_2d_array<f32>;
@@ -21,9 +26,10 @@ struct AnimationFrame {
 @group(0) @binding(4) var atlas3: texture_2d_array<f32>;
 @group(0) @binding(5) var atlas_sampler: sampler;
 @group(0) @binding(6) var<storage, read> animations: array<AnimationFrame>;
-@group(0) @binding(7) var gui_atlas: texture_2d<f32>;
-@group(0) @binding(8) var glint: texture_2d<f32>;
-@group(0) @binding(9) var glint_sampler: sampler;
+@group(0) @binding(7) var<storage, read> sprites: array<SpriteEntry>;
+@group(0) @binding(8) var gui_atlas: texture_2d<f32>;
+@group(0) @binding(9) var glint: texture_2d<f32>;
+@group(0) @binding(10) var glint_sampler: sampler;
 
 const GUI_ATLAS_BIT: u32 = 0x80000000u;
 const GLINT_BIT: u32 = 0x40000000u;
@@ -78,11 +84,12 @@ fn sprite_px(array: u32) -> vec2<f32> {
     }
 }
 
-fn sample_sprite(array: u32, uv: vec2<f32>, layer: u32) -> vec4<f32> {
-    if layer < gui.animated_from {
-        return sample_atlas(array, uv, layer);
+fn sample_sprite(entry: SpriteEntry, uv: vec2<f32>) -> vec4<f32> {
+    let array = entry.array_layer >> 16u;
+    if entry.animation == STILL {
+        return sample_atlas(array, uv, entry.array_layer & 0xFFFFu);
     }
-    let frame = animations[layer - gui.animated_from];
+    let frame = animations[entry.animation];
     let color = sample_atlas(array, uv, frame.layer);
     if frame.blend == 0.0 {
         return color;
@@ -107,9 +114,9 @@ fn fs_gui(in: VertexOut) -> @location(0) vec4<f32> {
         let color = vec4<f32>(to_srgb(texel.rgb), texel.a) * in.color;
         return vec4<f32>(to_linear(color.rgb), color.a);
     }
-    let array = (in.sprite >> 16u) & 0xFu;
-    let layer = in.sprite & 0xFFFFu;
-    let texel = sample_sprite(array, in.uv, layer);
+    let entry = sprites[in.sprite & 0xFFFFu];
+    let array = entry.array_layer >> 16u;
+    let texel = sample_sprite(entry, in.uv);
     var color = vec4<f32>(to_srgb(texel.rgb), texel.a) * in.color;
     if color.a < ALPHA_CUTOUT {
         discard;

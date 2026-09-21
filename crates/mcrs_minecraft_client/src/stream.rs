@@ -12,11 +12,15 @@ use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceSink, TraceEvent};
 use mcrs_minecraft_network::client::{ClientConnection, JoinedGame, ReceivedRegistries};
 
+use crate::atlas::SpriteArray;
 use crate::blocks::{self, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::item_model::bake::{ItemModels, bake_all as bake_items};
 use crate::model::Pack;
-use crate::render::{Animation, AtlasUpdate, Budget, Placement, SectionDesc, Upload, Uploads};
+use crate::render::{
+    Animation, AtlasUpdate, Budget, FACE_BYTES, Placement, STILL, SectionDesc, SpriteEntry,
+    SpriteUpload, Upload, Uploads,
+};
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
@@ -107,7 +111,7 @@ pub struct BlockCatalog {
     failures: usize,
     biomes: Vec<String>,
     sprites: usize,
-    sent: Vec<(u32, u32)>,
+    sent: Vec<u32>,
     items_baked: bool,
 }
 
@@ -568,7 +572,7 @@ impl Loader {
         Ok(Placement {
             quads: ((quads.offset * QUAD_WORDS * 4) as u64, mesh.simple),
             vertices: ((models.offset * 4 * 3 * 4) as u64, mesh.complex),
-            faces: ((faces.offset * 4) as u64, mesh.faces),
+            faces: ((faces.offset * FACE_BYTES) as u64, mesh.faces),
             sections: match slot {
                 NO_SLOT => (0, Vec::new()),
                 slot => (
@@ -865,38 +869,40 @@ impl BlockCatalog {
             let blocks = catalog.blocks.clone();
             let sprites = (catalog.sprites.len() != known).then(|| {
                 let sprites = &catalog.sprites;
-                Upload::Sprites {
+                Upload::Sprites(SpriteUpload {
                     atlases: sprites
                         .arrays()
                         .iter()
                         .enumerate()
                         .map(|(index, array)| {
-                            let (first_still, first_frame) =
-                                sent.get(index).copied().unwrap_or((0, 0));
+                            let first = sent.get(index).copied().unwrap_or(0);
                             AtlasUpdate {
                                 size: array.size,
-                                stills: array.stills() as u32,
-                                frames: array.frame_layers() as u32,
-                                first_still,
-                                first_frame,
-                                still_mips: array.still_mips(first_still as usize),
-                                frame_mips: array.frame_mips(first_frame as usize),
+                                layers: array.layers(),
+                                first,
+                                mips: array.mips(first as usize),
                             }
+                        })
+                        .collect(),
+                    table_from: known as u32,
+                    table: sprites.table()[known..]
+                        .iter()
+                        .map(|sprite| SpriteEntry {
+                            array_layer: u32::from(sprite.array) << 16 | u32::from(sprite.layer),
+                            animation: sprite.animation.map_or(STILL, u32::from),
                         })
                         .collect(),
                     animations: sprites
                         .animations()
                         .iter()
                         .map(|animation| Animation {
-                            array: u32::from(animation.array),
-                            frame_base: animation.frame_base,
+                            first_layer: u32::from(animation.first_layer),
                             count: animation.count,
                             frametime: animation.frametime,
                             interpolate: u32::from(animation.interpolate),
                         })
                         .collect(),
-                    animated_from: sprites.animated_from(),
-                }
+                })
             });
             Baked {
                 catalog,
@@ -910,7 +916,13 @@ impl BlockCatalog {
     fn publish(&mut self, baked: Baked, uploads: &Uploads) -> Option<ItemModels> {
         if let Some(sprites) = baked.sprites {
             self.sprites = baked.catalog.sprites.len();
-            self.sent = baked.catalog.sprites.counts();
+            self.sent = baked
+                .catalog
+                .sprites
+                .arrays()
+                .iter()
+                .map(SpriteArray::layers)
+                .collect();
             uploads.push(sprites);
         }
         for failure in &baked.catalog.failures[self.failures..] {
@@ -1476,7 +1488,7 @@ mod tests {
         SectionMesh {
             section,
             simple: vec![[0; QUAD_WORDS]; quads as usize],
-            faces: vec![0; 4],
+            faces: vec![[0; 2]; 4],
             complex: Vec::new(),
             groups: vec![Group {
                 quad_base: 0,
@@ -1612,7 +1624,7 @@ mod tests {
         SectionMesh {
             section,
             simple: vec![[0; QUAD_WORDS]; total as usize],
-            faces: vec![0; 4],
+            faces: vec![[0; 2]; 4],
             complex: Vec::new(),
             groups: (0..total)
                 .map(|quad| Group {

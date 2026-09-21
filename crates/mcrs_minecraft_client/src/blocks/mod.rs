@@ -120,21 +120,14 @@ pub fn extend(
     }
     assert!(
         catalog.sprites.arrays().len() <= MAX_SPRITE_ARRAYS,
-        "the pack uses {} sprite resolutions, but a packed quad can address only \
-         {MAX_SPRITE_ARRAYS} arrays",
+        "the pack fills {} texture arrays, but the shaders bind only {MAX_SPRITE_ARRAYS}",
         catalog.sprites.arrays().len(),
     );
-    for array in catalog.sprites.arrays() {
-        assert!(
-            array.stills() + catalog.sprites.animations().len() <= MAX_SPRITES,
-            "{} still sprites are {}x{} and {} animations sit above them, but a quad can name \
-             only {MAX_SPRITES} layers",
-            array.stills(),
-            array.size,
-            array.size,
-            catalog.sprites.animations().len(),
-        );
-    }
+    assert!(
+        catalog.sprites.len() <= MAX_SPRITES,
+        "the pack has {} sprites, but a face can name only {MAX_SPRITES}",
+        catalog.sprites.len(),
+    );
 
     extend_tints(pack, catalog, biomes);
 }

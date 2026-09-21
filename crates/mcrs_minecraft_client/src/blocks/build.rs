@@ -6,7 +6,7 @@ use crate::model::Pack;
 use bevy::math::{IVec3, Vec3};
 use mcrs_minecraft_block::definition::BlockStateData;
 use mcrs_minecraft_mesh::block::{
-    BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Fluid, ModelQuad, Pass, SpriteRef, TintKind,
+    BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Fluid, ModelQuad, Pass, TintKind,
 };
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
@@ -85,7 +85,7 @@ pub(super) fn build_one(
         });
     }
 
-    let mut layers: Vec<SpriteRef> = Vec::with_capacity(baked.sprites.len());
+    let mut layers: Vec<u16> = Vec::with_capacity(baked.sprites.len());
     for sprite in &baked.sprites {
         layers.push(sprites.intern(pack, sprite)?);
     }
@@ -145,7 +145,7 @@ pub(super) fn build_one(
 
 const FACE_GRID: usize = 16;
 
-fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[SpriteRef], sprites: &SpriteRegistry) -> u8 {
+fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[u16], sprites: &SpriteRegistry) -> u8 {
     let mut sides = [[0u16; FACE_GRID]; Dir::all().len()];
     for quad in quads {
         let Some(dir) = quad.cull else { continue };

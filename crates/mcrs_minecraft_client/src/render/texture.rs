@@ -11,15 +11,14 @@ const TINT_LAYERS: u32 = TINT_KINDS as u32;
 
 const LIGHT_LEVELS: u32 = 16;
 
-/// One texture array per sprite size, holding stills from layer zero up and animation frames
-/// from the top layer down, so a layer written once never moves; only a regrow copies.
+/// One texture array, filled from layer zero up, so a layer written once never moves; only a
+/// regrow copies.
 pub(super) struct AtlasSlot {
     pub texture: Texture,
     pub view: TextureView,
     pub size: u32,
     pub capacity: u32,
-    pub stills: u32,
-    pub frames: u32,
+    pub layers: u32,
 }
 
 const FIRST_CAPACITY: u32 = 64;
@@ -51,8 +50,7 @@ pub(super) fn blank_atlas(index: usize, device: &RenderDevice) -> AtlasSlot {
         texture,
         size: 1,
         capacity: 1,
-        stills: 0,
-        frames: 0,
+        layers: 0,
     }
 }
 
@@ -93,7 +91,7 @@ impl AtlasWriter<'_> {
     /// Grows the slot to fit, carrying what it already holds, and writes the new layers. Returns
     /// whether the view changed, which is when the bind groups have to follow.
     pub fn apply(&mut self, index: usize, slot: &mut AtlasSlot, update: &AtlasUpdate) -> bool {
-        let needed = update.stills + update.frames;
+        let needed = update.layers;
         let mut rebound = false;
         if slot.size != update.size || needed > slot.capacity {
             let limit = self.device.limits().max_texture_array_layers;
@@ -105,10 +103,9 @@ impl AtlasWriter<'_> {
             let capacity = needed.max(FIRST_CAPACITY).next_power_of_two().min(limit);
             let texture = atlas_texture(index, update.size, capacity, self.device);
             if slot.size == update.size {
-                self.carry(slot, &texture, capacity);
+                self.carry(slot, &texture);
             } else {
-                slot.stills = 0;
-                slot.frames = 0;
+                slot.layers = 0;
             }
             slot.view = array_view(&texture);
             slot.texture = texture;
@@ -116,73 +113,49 @@ impl AtlasWriter<'_> {
             slot.size = update.size;
             rebound = true;
         }
-        debug_assert!(update.first_still <= slot.stills && update.first_frame <= slot.frames);
-        if update.stills > update.first_still {
-            let layers = update.stills - update.first_still;
-            self.write(slot, &update.still_mips, update.first_still, layers, false);
+        debug_assert!(update.first <= slot.layers);
+        if update.layers > update.first {
+            self.write(
+                slot,
+                &update.mips,
+                update.first,
+                update.layers - update.first,
+            );
         }
-        if update.frames > update.first_frame {
-            let layers = update.frames - update.first_frame;
-            let lowest = slot.capacity - update.frames;
-            self.write(slot, &update.frame_mips, lowest, layers, true);
-        }
-        slot.stills = update.stills;
-        slot.frames = update.frames;
+        slot.layers = update.layers;
         rebound
     }
 
-    fn carry(&mut self, slot: &AtlasSlot, texture: &Texture, capacity: u32) {
+    fn carry(&mut self, slot: &AtlasSlot, texture: &Texture) {
+        if slot.layers == 0 {
+            return;
+        }
         let levels = slot.size.trailing_zeros() + 1;
         for level in 0..levels {
             let side = (slot.size >> level).max(1);
-            for (from, to, count) in [
-                (0, 0, slot.stills),
-                (
-                    slot.capacity - slot.frames,
-                    capacity - slot.frames,
-                    slot.frames,
-                ),
-            ] {
-                if count == 0 {
-                    continue;
-                }
-                self.encoder.copy_texture_to_texture(
-                    TexelCopyTextureInfo {
-                        texture: &slot.texture,
-                        mip_level: level,
-                        origin: Origin3d {
-                            x: 0,
-                            y: 0,
-                            z: from,
-                        },
-                        aspect: TextureAspect::All,
-                    },
-                    TexelCopyTextureInfo {
-                        texture,
-                        mip_level: level,
-                        origin: Origin3d { x: 0, y: 0, z: to },
-                        aspect: TextureAspect::All,
-                    },
-                    Extent3d {
-                        width: side,
-                        height: side,
-                        depth_or_array_layers: count,
-                    },
-                );
-            }
+            self.encoder.copy_texture_to_texture(
+                TexelCopyTextureInfo {
+                    texture: &slot.texture,
+                    mip_level: level,
+                    origin: Origin3d::ZERO,
+                    aspect: TextureAspect::All,
+                },
+                TexelCopyTextureInfo {
+                    texture,
+                    mip_level: level,
+                    origin: Origin3d::ZERO,
+                    aspect: TextureAspect::All,
+                },
+                Extent3d {
+                    width: side,
+                    height: side,
+                    depth_or_array_layers: slot.layers,
+                },
+            );
         }
     }
 
-    /// Frames are given lowest source index first but live highest layer first, so their block
-    /// is written back to front.
-    fn write(
-        &mut self,
-        slot: &AtlasSlot,
-        mips: &[Vec<u8>],
-        first_layer: u32,
-        layers: u32,
-        reversed: bool,
-    ) {
+    fn write(&mut self, slot: &AtlasSlot, mips: &[Vec<u8>], first_layer: u32, layers: u32) {
         let bytes = staged_bytes(slot.size, mips.len(), layers);
         if self.used + bytes > self.staging.size() {
             *self.staging = atlas_staging((self.used + bytes).next_power_of_two(), self.device);
@@ -202,12 +175,7 @@ impl AtlasWriter<'_> {
                 BufferSize::new(size).expect("at least one layer"),
             );
             for layer in 0..layers as usize {
-                let source = if reversed {
-                    layers as usize - 1 - layer
-                } else {
-                    layer
-                };
-                let src = &data[source * row * side as usize..][..row * side as usize];
+                let src = &data[layer * row * side as usize..][..row * side as usize];
                 for y in 0..side as usize {
                     let at = layer * image + y * pitch as usize;
                     view.slice(at..at + row)

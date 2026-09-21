@@ -22,11 +22,10 @@ use crate::item_model::resolve::GuiVertex;
 #[repr(C)]
 struct GuiUniform {
     framebuffer: [f32; 2],
-    scale: f32,
-    animated_from: u32,
     glint_offset: [f32; 2],
+    scale: f32,
     glint_alpha: f32,
-    _pad: f32,
+    _pad: [f32; 2],
 }
 
 #[derive(Resource)]
@@ -68,6 +67,7 @@ pub(super) fn init_gui_pass(
                     texture_2d_array(TextureSampleType::Float { filterable: true }),
                     texture_2d_array(TextureSampleType::Float { filterable: true }),
                     sampler(SamplerBindingType::Filtering),
+                    storage_buffer_read_only_sized(false, None),
                     storage_buffer_read_only_sized(false, None),
                     texture_2d(TextureSampleType::Float { filterable: true }),
                     texture_2d(TextureSampleType::Float { filterable: true }),
@@ -249,6 +249,7 @@ pub(super) fn prepare_gui_pass(
                 &sprites.atlases[3].view,
                 &sprites.atlas_sampler,
                 sprites.frames.as_entire_buffer_binding(),
+                sprites.table.as_entire_buffer_binding(),
                 &textures.atlas_view,
                 &textures.glint_view,
                 &textures.glint_sampler,
@@ -266,7 +267,7 @@ pub(super) fn write_gui_buffers(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
-    let (Some(mut pass), Some(batch), Some(terrain)) = (pass, batch, terrain) else {
+    let (Some(mut pass), Some(batch), Some(_)) = (pass, batch, terrain) else {
         return;
     };
     let Some(view) = views.iter().next() else {
@@ -274,18 +275,16 @@ pub(super) fn write_gui_buffers(
     };
     let pass = &mut *pass;
     pass.draws = 0;
-    let sprites = &terrain.sprites;
     let viewport = view.viewport.zw().as_vec2();
     queue.write_buffer(
         &pass.uniform,
         0,
         bytemuck::bytes_of(&GuiUniform {
             framebuffer: viewport.to_array(),
-            scale: batch.scale as f32,
-            animated_from: sprites.animated_from,
             glint_offset: batch.glint_offset,
+            scale: batch.scale as f32,
             glint_alpha: GLINT_ALPHA,
-            _pad: 0.0,
+            _pad: [0.0; 2],
         }),
     );
     if batch.vertices.is_empty() {

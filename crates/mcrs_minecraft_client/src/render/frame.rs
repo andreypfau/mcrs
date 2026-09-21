@@ -9,8 +9,8 @@ use super::draws::PARAMS_STRIDE;
 use super::stats::args_reset;
 use super::terrain::Terrain;
 use crate::camera::CameraOrigin;
-use mcrs_minecraft_mesh::STREAMS;
 use crate::columns::SECTION_SIZE;
+use mcrs_minecraft_mesh::STREAMS;
 
 use super::Budget;
 
@@ -27,9 +27,8 @@ pub(super) struct CameraUniform {
     _pad_offset: f32,
     tint_origin: [f32; 2],
     tint_scale: [f32; 2],
-    animated_from: u32,
     hiz_levels: u32,
-    _pad: [u32; 2],
+    _pad: [u32; 3],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
@@ -137,7 +136,6 @@ pub(super) fn write_camera(
                 1.0 / terrain.budget.tint_size[0] as f32,
                 1.0 / terrain.budget.tint_size[1] as f32,
             ],
-            animated_from: terrain.sprites.animated_from,
             hiz_levels: if occlusion.0 { terrain.hiz.levels() } else { 0 },
             ..default()
         }),

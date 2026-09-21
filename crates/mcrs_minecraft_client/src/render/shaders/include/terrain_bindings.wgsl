@@ -17,6 +17,13 @@ struct AnimationFrame {
     pad: u32,
 };
 
+struct SpriteEntry {
+    array_layer: u32,
+    animation: u32,
+};
+
+const STILL: u32 = 0xFFFFFFFFu;
+
 @group(1) @binding(0) var<storage, read> quads: array<u32>;
 @group(1) @binding(1) var<storage, read> vertices: array<u32>;
 @group(1) @binding(2) var<storage, read> visible: array<vec2<u32>>;
@@ -28,10 +35,11 @@ struct AnimationFrame {
 @group(1) @binding(8) var tints: texture_2d_array<f32>;
 @group(1) @binding(9) var tint_sampler: sampler;
 @group(1) @binding(10) var<storage, read> animations: array<AnimationFrame>;
-@group(1) @binding(11) var<storage, read> faces: array<u32>;
-@group(1) @binding(12) var<storage, read> sections: array<SectionDesc>;
-@group(1) @binding(13) var lightmap_levels: texture_2d<f32>;
-@group(1) @binding(14) var<storage, read> args: array<DrawArgs>;
+@group(1) @binding(11) var<storage, read> sprites: array<SpriteEntry>;
+@group(1) @binding(12) var<storage, read> faces: array<u32>;
+@group(1) @binding(13) var<storage, read> sections: array<SectionDesc>;
+@group(1) @binding(14) var lightmap_levels: texture_2d<f32>;
+@group(1) @binding(15) var<storage, read> args: array<DrawArgs>;
 
 fn visible_slot(quad: u32) -> u32 {
     return params.visible_base + quad;
@@ -43,4 +51,8 @@ fn quad_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
 
 fn model_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
     return extractBits(vertices[base + word], shift, bits);
+}
+
+fn face_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
+    return extractBits(faces[base + word], shift, bits);
 }

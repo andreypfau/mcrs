@@ -1,11 +1,10 @@
 
 #import mcrs_minecraft_client::fields::{
-    MODEL_ARRAY_WORD, MODEL_ARRAY_SHIFT, MODEL_ARRAY_BITS,
     MODEL_BLOCK_LIGHT_WORD, MODEL_BLOCK_LIGHT_SHIFT, MODEL_BLOCK_LIGHT_BITS,
-    MODEL_LAYER_WORD, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS,
     MODEL_OVERHANG,
     MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS,
     MODEL_SKY_LIGHT_WORD, MODEL_SKY_LIGHT_SHIFT, MODEL_SKY_LIGHT_BITS,
+    MODEL_SPRITE_WORD, MODEL_SPRITE_SHIFT, MODEL_SPRITE_BITS,
     MODEL_STEPS,
     MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS,
     MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS,
@@ -30,10 +29,9 @@ struct ModelOut {
     @location(0) uv: vec2<f32>,
     @location(1) world_xz: vec2<f32>,
     @location(2) shade: vec3<f32>,
-    @location(3) @interpolate(flat) layer: u32,
-    @location(4) @interpolate(flat) array: u32,
-    @location(5) @interpolate(flat) tint_kind: u32,
-    @location(6) quad_uv: vec2<f32>,
+    @location(3) @interpolate(flat) sprite: u32,
+    @location(4) @interpolate(flat) tint_kind: u32,
+    @location(5) quad_uv: vec2<f32>,
 };
 
 fn shade_bucket(bucket: u32) -> f32 {
@@ -74,8 +72,7 @@ fn vertex_model(@builtin(vertex_index) vertex: u32) -> ModelOut {
 
     out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
     out.uv = vec2<f32>(u, v);
-    out.layer = model_field(base, MODEL_LAYER_WORD, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS);
-    out.array = model_field(base, MODEL_ARRAY_WORD, MODEL_ARRAY_SHIFT, MODEL_ARRAY_BITS);
+    out.sprite = model_field(base, MODEL_SPRITE_WORD, MODEL_SPRITE_SHIFT, MODEL_SPRITE_BITS);
     out.shade = lightmap(block_light, sky_light) * shade;
     out.world_xz = world.xz;
     out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS);
@@ -85,8 +82,7 @@ fn vertex_model(@builtin(vertex_index) vertex: u32) -> ModelOut {
 
 fn model_surface(in: ModelOut) -> Surface {
     var s: Surface;
-    s.layer = in.layer;
-    s.array = in.array;
+    s.sprite = in.sprite;
     s.tint_kind = in.tint_kind;
     s.shade = in.shade;
     s.uv = in.uv;

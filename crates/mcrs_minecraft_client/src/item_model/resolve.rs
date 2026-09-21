@@ -28,7 +28,7 @@ use crate::blocks::sample_colormap;
 use crate::model::{GuiLight, ItemTransform};
 
 /// A slot-local GUI vertex: `pos` in pixels from the slot's top-left, `y` down and
-/// `z` out of the screen; `sprite` is `array << 16 | layer`. The four vertices of a
+/// `z` out of the screen; `sprite` is the sprite id under the flag bits. The four vertices of a
 /// quad wind so that `(p1 - p0) × (p2 - p0)` points along the face's own direction.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
@@ -441,7 +441,7 @@ fn gui_vertices(model: &BakedItemModel, local: Mat4, tints: &[u32], gui_light: G
             ((tint & 0xFF) as f32 * factor).round() as u8,
             (tint >> 24) as u8,
         ];
-        let sprite = (quad.sprite.array as u32) << 16 | quad.sprite.layer as u32;
+        let sprite = u32::from(quad.sprite);
         let positions = quad.positions.map(|p| matrix.transform_point3(p));
         // The vertex shader flips y into clip space, which mirrors the winding: a front face
         // must be clockwise here to come out counter-clockwise for the pipeline's cull.

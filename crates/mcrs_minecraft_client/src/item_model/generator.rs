@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use mcrs_minecraft_mesh::block::SpriteRef;
 
 use super::bake::ItemQuad;
 use crate::bake::{Dir, VariantRotation, face_geometry};
@@ -44,7 +43,7 @@ impl Side {
 /// Extrudes one `layerN` sprite of a `builtin/generated` item: a front and back quad plus a
 /// one-pixel side quad wherever an opaque texel of any frame borders a transparent one.
 pub fn extrude(
-    sprite: SpriteRef,
+    sprite: u16,
     side: u32,
     frames: &[&[u8]],
     layer: u32,
@@ -116,7 +115,7 @@ fn quad(
     to: [f32; 3],
     uv: [f32; 4],
     dir: Dir,
-    sprite: SpriteRef,
+    sprite: u16,
     layer: u32,
 ) -> Result<ItemQuad, String> {
     let element = Element {
@@ -162,7 +161,7 @@ mod tests {
 
     #[test]
     fn a_single_opaque_texel_extrudes_four_sides_around_the_two_faces() {
-        let sprite = SpriteRef { array: 0, layer: 3 };
+        let sprite = 3;
         let pixels = pixel_sprite(16, |x, y| x == 2 && y == 5);
         let quads = extrude(sprite, 16, &[&pixels], 1).unwrap();
         assert_eq!(quads.len(), 6);
@@ -186,7 +185,7 @@ mod tests {
 
     #[test]
     fn every_frame_contributes_and_shared_edges_are_emitted_once() {
-        let sprite = SpriteRef { array: 0, layer: 0 };
+        let sprite = 0;
         let a = pixel_sprite(4, |x, y| x == 0 && y == 0);
         let b = pixel_sprite(4, |x, y| x <= 1 && y == 0);
         let quads = extrude(sprite, 4, &[&a, &b], 0).unwrap();
@@ -201,7 +200,7 @@ mod tests {
 
     #[test]
     fn side_faces_sit_on_the_silhouette_edges_not_between_opaque_texels() {
-        let sprite = SpriteRef { array: 0, layer: 0 };
+        let sprite = 0;
         let column = pixel_sprite(2, |x, _| x == 0);
         let quads = extrude(sprite, 2, &[&column], 0).unwrap();
         let edge = |dir: Dir, axis: fn(&Vec3) -> f32| -> Vec<f32> {

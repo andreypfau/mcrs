@@ -3,13 +3,16 @@ use crate::model::{self, Pack};
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
-use mcrs_minecraft_mesh::block::{Pass, SpriteRef};
-use mcrs_minecraft_mesh::pack::MAX_SPRITES;
+use mcrs_minecraft_mesh::block::Pass;
+use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
 
 pub const MISSING_SPRITE: &str = "minecraft:missingno";
+
+/// Metal binds at most this many layers in one texture array.
+pub const ARRAY_LAYERS: usize = 2048;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Opacity {
@@ -18,22 +21,27 @@ pub enum Opacity {
     Translucent,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct Sprite {
+    pub array: u8,
+    pub layer: u16,
+    pub animation: Option<u16>,
+}
+
 pub struct Animation {
     pub array: u8,
-    pub frame_base: u32,
+    pub first_layer: u16,
     pub count: u32,
     pub frametime: u32,
     pub interpolate: bool,
-    opacity: Opacity,
 }
 
 pub struct SpriteArray {
     pub size: u32,
-    stills: Vec<Opacity>,
-    frames: Vec<Opacity>,
+    layers: Vec<Opacity>,
+    pixels: Vec<u8>,
+    sprites: usize,
     animated: usize,
-    still_pixels: Vec<u8>,
-    frame_pixels: Vec<u8>,
 }
 
 /// The base texture a permuted sprite copies and the palette swap it applies.
@@ -41,7 +49,8 @@ type Permutation = (String, PaletteMapping);
 
 pub struct SpriteRegistry {
     arrays: Vec<SpriteArray>,
-    index: HashMap<String, SpriteRef>,
+    index: HashMap<String, u16>,
+    table: Vec<Sprite>,
     animations: Vec<Animation>,
     permutations: HashMap<String, Permutation>,
 }
@@ -58,13 +67,14 @@ impl SpriteRegistry {
         Self {
             arrays: Vec::new(),
             index: HashMap::new(),
+            table: Vec::new(),
             animations: Vec::new(),
             permutations: HashMap::new(),
         }
     }
 
     pub fn len(&self) -> usize {
-        self.arrays.iter().map(SpriteArray::sprites).sum()
+        self.table.len()
     }
 
     pub fn arrays(&self) -> &[SpriteArray] {
@@ -75,36 +85,21 @@ impl SpriteRegistry {
         &self.animations
     }
 
-    pub fn animated_from(&self) -> u32 {
-        (MAX_SPRITES - self.animations.len()) as u32
+    pub fn table(&self) -> &[Sprite] {
+        &self.table
     }
 
-    pub fn base_layer(&self, animation: &Animation) -> u32 {
-        self.arrays[animation.array as usize].stills.len() as u32 + animation.frame_base
+    pub fn sprite(&self, id: u16) -> Sprite {
+        self.table[id as usize]
     }
 
-    /// How many stills and how many frame layers each array holds, in array order.
-    pub fn counts(&self) -> Vec<(u32, u32)> {
-        self.arrays
-            .iter()
-            .map(|array| (array.stills.len() as u32, array.frames.len() as u32))
-            .collect()
+    pub fn is_animated(&self, id: u16) -> bool {
+        self.sprite(id).animation.is_some()
     }
 
-    fn animation(&self, layer: u16) -> Option<&Animation> {
-        let index = (MAX_SPRITES - 1).checked_sub(layer as usize)?;
-        self.animations.get(index)
-    }
-
-    pub fn is_animated(&self, sprite: SpriteRef) -> bool {
-        self.animation(sprite.layer).is_some()
-    }
-
-    pub fn opacity(&self, sprite: SpriteRef) -> Opacity {
-        match self.animation(sprite.layer) {
-            Some(animation) => animation.opacity,
-            None => self.arrays[sprite.array as usize].stills[sprite.layer as usize],
-        }
+    pub fn opacity(&self, id: u16) -> Opacity {
+        let sprite = self.sprite(id);
+        self.arrays[sprite.array as usize].layers[sprite.layer as usize]
     }
 
     /// Registers the paletted permutations every `atlases/*.json` declares, so
@@ -155,26 +150,25 @@ impl SpriteRegistry {
     }
 
     /// The pixels of every frame the sprite holds, level zero, row-major RGBA.
-    pub fn frames(&self, sprite: SpriteRef) -> Vec<&[u8]> {
+    pub fn frames(&self, id: u16) -> Vec<&[u8]> {
+        let sprite = self.sprite(id);
         let array = &self.arrays[sprite.array as usize];
-        let stride = (array.size * array.size * 4) as usize;
-        match self.animation(sprite.layer) {
-            Some(animation) => (0..animation.count as usize)
-                .map(|step| {
-                    let layer = animation.frame_base as usize + step;
-                    &array.frame_pixels[layer * stride..(layer + 1) * stride]
-                })
-                .collect(),
-            None => {
-                let layer = sprite.layer as usize;
-                vec![&array.still_pixels[layer * stride..(layer + 1) * stride]]
-            }
-        }
+        let count = sprite
+            .animation
+            .map_or(1, |index| self.animations[index as usize].count as usize);
+        (0..count)
+            .map(|step| array.layer(sprite.layer as usize + step))
+            .collect()
     }
 
-    pub fn intern(&mut self, pack: &Pack, id: &str) -> Result<SpriteRef, String> {
+    pub fn intern(&mut self, pack: &Pack, id: &str) -> Result<u16, String> {
         if let Some(&sprite) = self.index.get(id) {
             return Ok(sprite);
+        }
+        if self.table.len() >= MAX_SPRITES {
+            return Err(format!(
+                "{id} would be sprite {MAX_SPRITES}, past what a face can name"
+            ));
         }
         let path = model::resource_path(id, "textures", "png");
         let Source {
@@ -215,50 +209,52 @@ impl SpriteRegistry {
         }
         let opacity = opacity_of(&pixels);
 
-        let index = match self.arrays.iter().position(|array| array.size == side) {
+        let fits = |array: &SpriteArray| {
+            array.size == side && array.layers.len() + frames.len() <= ARRAY_LAYERS
+        };
+        let index = match self.arrays.iter().position(fits) {
             Some(index) => index,
             None => {
+                if self.arrays.len() >= MAX_SPRITE_ARRAYS {
+                    return Err(format!(
+                        "{id} needs a {}th texture array, but the shaders bind {MAX_SPRITE_ARRAYS}",
+                        self.arrays.len() + 1
+                    ));
+                }
                 self.arrays.push(SpriteArray {
                     size: side,
-                    stills: Vec::new(),
-                    frames: Vec::new(),
+                    layers: Vec::new(),
+                    pixels: Vec::new(),
+                    sprites: 0,
                     animated: 0,
-                    still_pixels: Vec::new(),
-                    frame_pixels: Vec::new(),
                 });
                 self.arrays.len() - 1
             }
         };
         let array = &mut self.arrays[index];
-        let sprite = if sequence.frames.is_empty() {
-            let sprite = SpriteRef {
+        let layer = array.layers.len() as u16;
+        array.sprites += 1;
+        array
+            .layers
+            .extend(std::iter::repeat_n(opacity, frames.len()));
+        array.pixels.extend_from_slice(&pixels);
+        let animation = (!sequence.frames.is_empty()).then(|| {
+            array.animated += 1;
+            self.animations.push(Animation {
                 array: index as u8,
-                layer: array.stills.len() as u16,
-            };
-            array.stills.push(opacity);
-            array.still_pixels.extend_from_slice(&pixels);
-            sprite
-        } else {
-            let animation = Animation {
-                array: index as u8,
-                frame_base: array.frames.len() as u32,
+                first_layer: layer,
                 count: frames.len() as u32,
                 frametime: sequence.frametime,
                 interpolate: animation.is_some_and(|a| a.interpolate),
-                opacity,
-            };
-            array.animated += 1;
-            array
-                .frames
-                .extend(std::iter::repeat_n(opacity, frames.len()));
-            array.frame_pixels.extend_from_slice(&pixels);
-            let sprite = SpriteRef {
-                array: index as u8,
-                layer: (MAX_SPRITES - 1 - self.animations.len()) as u16,
-            };
-            self.animations.push(animation);
-            sprite
-        };
+            });
+            (self.animations.len() - 1) as u16
+        });
+        let sprite = self.table.len() as u16;
+        self.table.push(Sprite {
+            array: index as u8,
+            layer,
+            animation,
+        });
         self.index.insert(id.to_string(), sprite);
         Ok(sprite)
     }
@@ -335,7 +331,10 @@ enum AtlasSource {
         divisor_y: f64,
         regions: Vec<UnstitchRegion>,
     },
-    #[serde(rename = "minecraft:paletted_permutations", alias = "paletted_permutations")]
+    #[serde(
+        rename = "minecraft:paletted_permutations",
+        alias = "paletted_permutations"
+    )]
     PalettedPermutations {
         textures: Vec<String>,
         palette_key: String,
@@ -378,10 +377,7 @@ impl AtlasSources {
     /// Every permuted sprite id with the base texture it copies and the palette swap it applies.
     /// Only paletted permutations create sprites here; the other sources name files that
     /// intern on demand.
-    fn permutations(
-        &self,
-        pack: &Pack,
-    ) -> Result<Vec<(String, Permutation)>, String> {
+    fn permutations(&self, pack: &Pack) -> Result<Vec<(String, Permutation)>, String> {
         let mut out = Vec::new();
         for source in &self.sources {
             let AtlasSource::PalettedPermutations {
@@ -484,49 +480,28 @@ fn opacity_of(pixels: &[u8]) -> Opacity {
 
 impl SpriteArray {
     pub fn layers(&self) -> u32 {
-        (self.stills.len() + self.frames.len()).max(1) as u32
+        self.layers.len() as u32
     }
 
     pub fn sprites(&self) -> usize {
-        self.stills.len() + self.animated
+        self.sprites
     }
 
     pub fn animated(&self) -> usize {
         self.animated
     }
 
-    pub fn stills(&self) -> usize {
-        self.stills.len()
+    fn layer(&self, layer: usize) -> &[u8] {
+        let stride = (self.size * self.size * 4) as usize;
+        &self.pixels[layer * stride..(layer + 1) * stride]
     }
 
-    pub fn frame_layers(&self) -> usize {
-        self.frames.len()
-    }
-
-    pub fn mip_chain(&self) -> Vec<Vec<u8>> {
-        let opacities: Vec<Opacity> = self.stills.iter().chain(&self.frames).copied().collect();
-        let pixels = [&self.still_pixels[..], &self.frame_pixels[..]].concat();
-        if opacities.is_empty() {
-            return mip_levels(&[0; 4], &[Opacity::Solid], 1);
-        }
-        mip_levels(&pixels, &opacities, self.size as usize)
-    }
-
-    /// The mip chain of the stills from `from` on, in the layout the whole chain uses.
-    pub fn still_mips(&self, from: usize) -> Vec<Vec<u8>> {
+    /// The mip chain of the layers from `from` on, in the layout the whole chain uses.
+    pub fn mips(&self, from: usize) -> Vec<Vec<u8>> {
         let stride = (self.size * self.size * 4) as usize;
         mip_levels(
-            &self.still_pixels[from * stride..],
-            &self.stills[from..],
-            self.size as usize,
-        )
-    }
-
-    pub fn frame_mips(&self, from: usize) -> Vec<Vec<u8>> {
-        let stride = (self.size * self.size * 4) as usize;
-        mip_levels(
-            &self.frame_pixels[from * stride..],
-            &self.frames[from..],
+            &self.pixels[from * stride..],
+            &self.layers[from..],
             self.size as usize,
         )
     }
@@ -642,11 +617,10 @@ mod tests {
     fn one_sprite(size: usize, opacity: Opacity, pixels: Vec<u8>) -> SpriteArray {
         SpriteArray {
             size: size as u32,
-            stills: vec![opacity],
-            frames: Vec::new(),
+            layers: vec![opacity],
+            pixels,
+            sprites: 1,
             animated: 0,
-            still_pixels: pixels,
-            frame_pixels: Vec::new(),
         }
     }
 
@@ -676,7 +650,7 @@ mod tests {
     fn an_alpha_tested_sprite_keeps_its_coverage_in_every_mip() {
         let size = 16;
         let pixels = stencil(size, |x, y| if (x + y) % 2 == 0 { 255 } else { 0 });
-        let levels = one_sprite(size, Opacity::Cutout, pixels).mip_chain();
+        let levels = one_sprite(size, Opacity::Cutout, pixels).mips(0);
         assert_eq!(levels.len(), 5);
         for (level, data) in levels.iter().enumerate() {
             let kept = level_coverage(data);
@@ -687,7 +661,7 @@ mod tests {
     #[test]
     fn a_translucent_sprite_keeps_its_alpha_as_it_is() {
         let size = 16;
-        let levels = one_sprite(size, Opacity::Translucent, stencil(size, |_, _| 100)).mip_chain();
+        let levels = one_sprite(size, Opacity::Translucent, stencil(size, |_, _| 100)).mips(0);
         for (level, data) in levels.iter().enumerate() {
             let alpha: Vec<u8> = data.iter().skip(3).step_by(4).copied().collect();
             assert!(
@@ -708,15 +682,14 @@ mod tests {
             registry.intern(Pack::corpus(), id).unwrap();
         }
         let array = &registry.arrays()[0];
-        let whole = array.mip_chain();
-        let tail = array.still_mips(1);
+        let whole = array.mips(0);
+        let tail = array.mips(1);
         assert_eq!(tail.len(), whole.len());
         for (level, (all, some)) in whole.iter().zip(&tail).enumerate() {
             let size = (array.size as usize >> level).max(1);
             let stride = size * size * 4;
             assert_eq!(&all[stride..], &some[..], "level {level}");
         }
-        assert!(array.frame_mips(0).is_empty() || array.frames.is_empty());
     }
 
     #[test]
@@ -731,6 +704,16 @@ mod tests {
         let also_small = registry
             .intern(Pack::corpus(), "minecraft:block/dirt")
             .unwrap();
+        assert_eq!(
+            (small, large, also_small),
+            (0, 1, 2),
+            "ids count up as interned"
+        );
+        let (small, large, also_small) = (
+            registry.sprite(small),
+            registry.sprite(large),
+            registry.sprite(also_small),
+        );
         assert_ne!(small.array, large.array, "16x16 and 32x32 share an array");
         assert_eq!(small.array, also_small.array);
         assert_eq!(
@@ -738,7 +721,8 @@ mod tests {
             (0, 1),
             "layers restart per array"
         );
-        assert_eq!(large.layer as u32, registry.animated_from());
+        assert_eq!(large.layer, 0);
+        assert_eq!(large.animation, Some(0));
 
         let sizes: Vec<u32> = registry.arrays().iter().map(|array| array.size).collect();
         assert_eq!(sizes, [16, 32]);
@@ -746,10 +730,7 @@ mod tests {
         assert_eq!(counts, [2, 1]);
         for array in registry.arrays() {
             let expected = (array.size * array.size * 4) as usize * array.layers() as usize;
-            assert_eq!(
-                array.still_pixels.len() + array.frame_pixels.len(),
-                expected
-            );
+            assert_eq!(array.pixels.len(), expected);
         }
     }
 
@@ -767,13 +748,11 @@ mod tests {
         assert_eq!(array.animated(), 1);
         assert_eq!(array.layers(), 21);
         let texels = (array.size * array.size * 4) as usize;
-        assert_eq!(array.still_pixels.len(), texels);
-        assert_eq!(array.frame_pixels.len(), texels * 20);
+        assert_eq!(array.pixels.len(), texels * 21);
     }
 
     fn layer(array: &SpriteArray, layer: usize) -> &[u8] {
-        let stride = (array.size * array.size * 4) as usize;
-        &array.frame_pixels[layer * stride..(layer + 1) * stride]
+        array.layer(layer)
     }
 
     #[test]
@@ -870,26 +849,25 @@ mod tests {
             .unwrap();
 
         let array = &registry.arrays()[0];
-        let stride = (array.size * array.size * 4) as usize;
-        let resident = [&array.still_pixels[..], &array.frame_pixels[..]].concat();
-        let layer = |index: usize| &resident[index * stride..(index + 1) * stride];
+        let layer = |index: usize| array.layer(index);
 
         assert_eq!(
-            (stone.layer, dirt.layer),
-            (0, 1),
-            "stills keep the low layers"
+            (registry.sprite(stone).layer, registry.sprite(dirt).layer),
+            (0, 21),
+            "a still takes the layer after whatever came before it"
         );
         assert_eq!(layer(0), &source_frames("minecraft:block/stone")[0][..]);
-        assert_eq!(layer(1), &source_frames("minecraft:block/dirt")[0][..]);
+        assert_eq!(layer(21), &source_frames("minecraft:block/dirt")[0][..]);
 
         for (id, sprite) in [
             ("minecraft:block/kelp", kelp),
             ("minecraft:block/seagrass", seagrass),
         ] {
-            let animation = registry
-                .animation(sprite.layer)
-                .expect("the sprite animates");
-            let base = registry.base_layer(animation) as usize;
+            let sprite = registry.sprite(sprite);
+            let animation =
+                &registry.animations()[sprite.animation.expect("the sprite animates") as usize];
+            let base = animation.first_layer as usize;
+            assert_eq!(base, sprite.layer as usize);
             let frames = source_frames(id);
             assert_eq!(animation.count as usize, frames.len());
             for step in 0..animation.count as usize {
@@ -982,7 +960,11 @@ mod tests {
         {
             assert_eq!(q[3] == 0, b[3] == 0);
         }
-        assert!(registry.intern(pack, "minecraft:trims/items/chestplate_trim_nope").is_err());
+        assert!(
+            registry
+                .intern(pack, "minecraft:trims/items/chestplate_trim_nope")
+                .is_err()
+        );
     }
 
     #[test]
@@ -1007,9 +989,7 @@ mod tests {
         assert_eq!(mapping.apply(0x8011_2233), 0x4044_5566);
         assert_eq!(mapping.apply(0x00AA_BBCC), 0x00AA_BBCC);
         assert_eq!(mapping.apply(0xFFAA_BBCC), 0xFFAA_BBCC);
-        assert!(
-            PaletteMapping::create(&Palette(vec![1]), &Palette(vec![1, 2])).is_err()
-        );
+        assert!(PaletteMapping::create(&Palette(vec![1]), &Palette(vec![1, 2])).is_err());
     }
 }
 

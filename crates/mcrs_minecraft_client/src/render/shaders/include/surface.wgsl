@@ -1,14 +1,13 @@
 #define_import_path mcrs_minecraft_client::surface
 
-#import mcrs_minecraft_client::fields::{FACE_LAYER_BITS}
 #import mcrs_minecraft_client::frame::camera
 #import mcrs_minecraft_client::terrain_bindings::{
-    animations, atlas0, atlas1, atlas2, atlas3, atlas_sampler, tint_sampler, tints,
+    STILL, animations, atlas0, atlas1, atlas2, atlas3, atlas_sampler, sprites, tint_sampler,
+    tints,
 }
 
 struct Surface {
-    layer: u32,
-    array: u32,
+    sprite: u32,
     tint_kind: u32,
     shade: vec3<f32>,
     uv: vec2<f32>,
@@ -28,13 +27,13 @@ fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
     }
 }
 
-/// Animated sprites are numbered down from the top of the layer range, so a layer at or above
-/// `animated_from` names an animation rather than a still frame.
-fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
-    if (layer < camera.animated_from) {
-        return sample_atlas(array, uv, layer, ddx, ddy);
+fn sprite_color(sprite: u32, uv: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
+    let entry = sprites[sprite];
+    let array = entry.array_layer >> 16u;
+    if (entry.animation == STILL) {
+        return sample_atlas(array, uv, entry.array_layer & 0xFFFFu, ddx, ddy);
     }
-    let frame = animations[(1u << FACE_LAYER_BITS) - 1u - layer];
+    let frame = animations[entry.animation];
     let color = sample_atlas(array, uv, frame.layer, ddx, ddy);
     if (frame.blend == 0.0) {
         return color;
@@ -43,7 +42,7 @@ fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
 }
 
 fn shade_surface(s: Surface) -> vec4<f32> {
-    let color = sprite_color(s.array, s.uv, s.layer, s.ddx, s.ddy);
+    let color = sprite_color(s.sprite, s.uv, s.ddx, s.ddy);
     var factor = vec3<f32>(1.0);
     if (s.tint_kind != 0u) {
         factor = textureSampleLevel(

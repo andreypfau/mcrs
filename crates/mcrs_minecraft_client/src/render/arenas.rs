@@ -57,7 +57,7 @@ impl Arenas {
                 "terrain vertices",
                 (budget.models * super::MODEL_BYTES) as u64,
             ),
-            faces: arena("terrain faces", (budget.faces * 4) as u64),
+            faces: arena("terrain faces", (budget.faces * super::FACE_BYTES) as u64),
             groups: arena(
                 "terrain groups",
                 (budget.groups * size_of::<Group>()) as u64,
