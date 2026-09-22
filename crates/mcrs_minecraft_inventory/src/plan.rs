@@ -1,7 +1,8 @@
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_item::slots;
-use mcrs_minecraft_protocol::item::ContainerInput;
+use mcrs_minecraft_protocol::item::{ContainerInput, QuickCraftKind};
 
+use crate::drag::quick_craft_counts;
 use crate::menu::PLAYER_MENU_SLOTS;
 use crate::slot::{MenuSnapshot, Slot, Source, StackView};
 use crate::transaction::Op;
@@ -274,9 +275,6 @@ impl<'a> Planner<'a> {
     }
 
     /// A click on the open menu, validated against the layout by the caller.
-    /// ponytail: drag and double-click are not applied; the full resend rolls
-    /// the client's prediction back. Upgrade: the drag header state machine
-    /// and the two-pass gather over the layout.
     pub fn click(&mut self, click: Click) {
         let player = self.snapshot.player;
         let carried_slot = self.snapshot.carried();
@@ -405,7 +403,29 @@ impl<'a> Planner<'a> {
                 };
                 self.drop(slot, amount);
             }
-            ContainerInput::QuickCraft | ContainerInput::PickupAll => {}
+            ContainerInput::QuickCraft => {}
+            ContainerInput::PickupAll => {}
+        }
+    }
+
+    /// Applies a completed quick-craft drag: a single admitted slot is a
+    /// plain pickup click, else each slot takes the vanilla place count.
+    pub fn quick_craft(&mut self, kind: QuickCraftKind, indices: &[usize]) {
+        if let [index] = *indices {
+            self.click(Click {
+                slot: index as i16,
+                button: kind as u8,
+                input: ContainerInput::Pickup,
+                creative: false,
+            });
+            return;
+        }
+        let carried_slot = self.snapshot.carried();
+        let (placed, _) = quick_craft_counts(kind, indices, self.snapshot);
+        for (index, new_count) in placed {
+            let to = self.snapshot.layout[index];
+            let had = self.snapshot.count(to);
+            self.transfer(Source::Slot(carried_slot), to, new_count - had);
         }
     }
 

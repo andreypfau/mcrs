@@ -7,6 +7,7 @@ use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack};
 use rustc_hash::FxHashMap;
 
+use crate::drag::{Drag, Feed};
 use crate::menu::{CurrentMenu, Menu, MenuLayout, Remote, RemoteSlots};
 use crate::plan::{Click, Planner, SLOT_CLICKED_OUTSIDE};
 use crate::slot::MenuSnapshot;
@@ -30,6 +31,7 @@ struct MenuFold {
     claims: Vec<(usize, Option<HashedStack>)>,
     carried: Option<Option<HashedStack>>,
     full: bool,
+    drag: Option<Drag>,
 }
 
 /// Every click of a tick folds through one snapshot per player, so a later
@@ -51,16 +53,18 @@ pub fn handle_container_clicks(
         else {
             continue;
         };
-        let Some((container_id, state_id)) = world
+        let Some((container_id, state_id, menu_drag)) = world
             .get::<Menu>(menu)
-            .map(|menu| (menu.container_id, menu.state_id))
+            .map(|menu| (menu.container_id, menu.state_id, menu.drag.clone()))
         else {
             continue;
         };
         if i32::from(container_id) != req.container_id {
             continue;
         }
-        let fold = menus.entry(menu).or_default();
+        let fold = menus
+            .entry(menu)
+            .or_insert_with(|| MenuFold { drag: menu_drag, ..Default::default() });
         if req.game_mode == GameMode::Spectator {
             fold.full = true;
             continue;
@@ -75,11 +79,7 @@ pub fn handle_container_clicks(
             tracing::debug!(player = ?req.player, slot = req.slot, "click on an invalid slot");
             continue;
         }
-        fold.full |= req.state_id != i32::from(state_id)
-            || matches!(
-                req.input,
-                ContainerInput::QuickCraft | ContainerInput::PickupAll
-            );
+        fold.full |= req.state_id != i32::from(state_id);
         let (snapshot, ops) = plans.entry(req.player).or_insert_with(|| {
             (
                 MenuSnapshot::new(world, items, req.player, layout.0.clone()),
@@ -87,12 +87,20 @@ pub fn handle_container_clicks(
             )
         });
         let mut planner = Planner::new(snapshot);
-        planner.click(Click {
+        let click = Click {
             slot: req.slot,
             button: req.button,
             input: req.input,
             creative: req.game_mode == GameMode::Creative,
-        });
+        };
+        if req.input == ContainerInput::QuickCraft {
+            match Drag::feed(&mut fold.drag, click, planner.snapshot) {
+                Feed::Complete(drag) => planner.quick_craft(drag.kind, &drag.indices),
+                Feed::Pending | Feed::Reset => {}
+            }
+        } else {
+            planner.click(click);
+        }
         ops.extend(planner.ops);
         for (slot, hashed) in &req.changed {
             if usize::from(*slot) < layout.0.len() {
@@ -112,16 +120,25 @@ pub fn handle_container_clicks(
         commands
             .entity(menu)
             .queue(move |mut entity: EntityWorldMut| {
+                let MenuFold {
+                    claims,
+                    carried,
+                    full,
+                    drag,
+                } = fold;
+                if let Some(mut menu) = entity.get_mut::<Menu>() {
+                    menu.drag = drag;
+                }
                 let Some(mut remote) = entity.get_mut::<RemoteSlots>() else {
                     return;
                 };
-                for (index, hashed) in fold.claims {
+                for (index, hashed) in claims {
                     remote.claim(index, hashed);
                 }
-                if let Some(carried) = fold.carried {
+                if let Some(carried) = carried {
                     remote.carried = Remote::Claimed(carried);
                 }
-                remote.full |= fold.full;
+                remote.full |= full;
             });
     }
 }

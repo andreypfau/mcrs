@@ -100,6 +100,7 @@ pub fn open_containers(world: &mut World) {
                 Menu {
                     container_id,
                     state_id: 0,
+                    drag: None,
                 },
                 MenuLayout(layout),
                 MenuViewer(req.player),

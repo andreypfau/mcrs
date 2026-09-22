@@ -21,6 +21,7 @@ pub fn open_menus(world: &mut World) {
                 Menu {
                     container_id: 0,
                     state_id: 0,
+                    drag: None,
                 },
                 MenuLayout(player_menu_layout(player)),
                 MenuViewer(player),

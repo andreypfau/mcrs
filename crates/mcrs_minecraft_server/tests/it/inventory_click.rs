@@ -5,11 +5,14 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_inventory::{
-    ContainerClickRequest, CurrentMenu, Menu, Remote, RemoteSlots, handle_container_clicks,
+    ContainerClickRequest, CurrentMenu, Menu, Remote, RemoteSlots, SLOT_CLICKED_OUTSIDE,
+    handle_container_clicks,
 };
 use mcrs_minecraft_item::{DroppedItem, Thrower, slots, stack_to_slot};
 use mcrs_minecraft_protocol::GameMode;
-use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack, RawStack};
+use mcrs_minecraft_protocol::item::{
+    ContainerInput, HashedStack, QuickCraftButton, QuickCraftKind, QuickCraftStage, RawStack,
+};
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::item::click::{CloseContainerRequest, close_menus};
 use mcrs_minecraft_server::world::item::menu::open_menus;
@@ -231,6 +234,75 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
         &packets[0].data,
         PacketPayload::ContainerSetContent { .. }
     ));
+}
+
+#[test]
+fn left_drag_splits_the_cursor_evenly_and_syncs_per_slot() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    for offset in 0..5 {
+        click(
+            &mut world,
+            player,
+            ContainerInput::QuickCraft,
+            slots::MAIN.start as i16 + offset,
+            u8::from(QuickCraftButton {
+                kind: QuickCraftKind::Split,
+                stage: QuickCraftStage::Slot,
+            }),
+            Vec::new(),
+        );
+    }
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+
+    for offset in 0..5 {
+        assert_eq!(
+            stack_at(&world, player, slots::MAIN.start + offset).map(|s| s.1),
+            Some(12)
+        );
+    }
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(4));
+
+    sync_stack_slots(&mut world);
+    let packets = drain(&mut world);
+    assert!(!packets.is_empty());
+    for packet in &packets {
+        assert!(
+            matches!(
+                &packet.data,
+                PacketPayload::ContainerSetSlot { .. } | PacketPayload::SetCursorItem(_)
+            ),
+            "{packets:?}"
+        );
+    }
+
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
 
 #[test]

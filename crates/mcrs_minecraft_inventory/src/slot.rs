@@ -170,6 +170,17 @@ impl MenuSnapshot {
             _ => Some(view.max),
         }
     }
+
+    pub fn may_place(&self, slot: Slot, view: &StackView) -> bool {
+        self.slot_max(slot, view).is_some()
+    }
+
+    pub fn can_quick_replace(&self, slot: Slot, view: &StackView) -> bool {
+        match self.get(slot) {
+            None => true,
+            Some(occupant) => occupant.same(view) && occupant.count <= view.max,
+        }
+    }
 }
 
 impl From<Slot> for Source {

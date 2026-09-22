@@ -3,6 +3,7 @@ use bevy_ecs::entity::Entity;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{HashedStack, RawStack};
 
+use crate::drag::Drag;
 use crate::slot::Slot;
 
 /// The main inventory and hotbar slots every container menu ends with.
@@ -12,6 +13,7 @@ pub const PLAYER_MENU_SLOTS: usize = (slots::HOTBAR.end - slots::MAIN.start) as 
 pub struct Menu {
     pub container_id: u8,
     pub state_id: u16,
+    pub drag: Option<Drag>,
 }
 
 impl Menu {
