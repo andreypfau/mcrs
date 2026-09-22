@@ -10,7 +10,8 @@ use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, HashedStack, ItemCost,
-    MaxStackSize, MerchantOffer, RawDelimitedStack, RawMerchantOffer, RawStack, Unbreakable,
+    MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
+    RawDelimitedStack, RawMerchantOffer, RawStack, Unbreakable,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
@@ -489,4 +490,33 @@ fn edit_book_bounds_pages_and_title() {
         title: Some(Bounded(title.as_str())),
     };
     assert!(packet.encode(&mut out).is_err());
+}
+
+#[test]
+fn quick_craft_button_round_trips_every_valid_mask() {
+    let valid = [
+        (0, QuickCraftKind::Split, QuickCraftStage::Header),
+        (1, QuickCraftKind::Split, QuickCraftStage::Slot),
+        (2, QuickCraftKind::Split, QuickCraftStage::End),
+        (4, QuickCraftKind::Single, QuickCraftStage::Header),
+        (5, QuickCraftKind::Single, QuickCraftStage::Slot),
+        (6, QuickCraftKind::Single, QuickCraftStage::End),
+        (8, QuickCraftKind::Full, QuickCraftStage::Header),
+        (9, QuickCraftKind::Full, QuickCraftStage::Slot),
+        (10, QuickCraftKind::Full, QuickCraftStage::End),
+    ];
+    for (byte, kind, stage) in valid {
+        let button = QuickCraftButton::try_from(byte).unwrap();
+        assert_eq!(button.kind, kind, "{byte}");
+        assert_eq!(button.stage, stage, "{byte}");
+        assert_eq!(u8::from(button), byte);
+    }
+
+    for byte in [3, 7, 12, 15] {
+        assert_eq!(QuickCraftButton::try_from(byte), Err(byte));
+    }
+
+    let button = QuickCraftButton::try_from(0b0001_0110).unwrap();
+    assert_eq!(button.kind, QuickCraftKind::Single);
+    assert_eq!(button.stage, QuickCraftStage::End);
 }
