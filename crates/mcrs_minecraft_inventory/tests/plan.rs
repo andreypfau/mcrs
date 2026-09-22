@@ -772,6 +772,116 @@ fn a_middle_drag_outside_creative_moves_nothing() {
 }
 
 #[test]
+fn pickup_all_takes_partial_stacks_before_full_ones_going_forwards() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(5)));
+    snapshot.set(slot(9), Some(stone(64)));
+    snapshot.set(slot(10), Some(stone(10)));
+    snapshot.set(slot(36), Some(stone(20)));
+    let ops = click(&mut snapshot, ContainerInput::PickupAll, 12, 0);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(10),
+                to: slot(slots::CARRIED),
+                count: 10
+            },
+            Op::Transfer {
+                from: slot(36),
+                to: slot(slots::CARRIED),
+                count: 20
+            },
+            Op::Transfer {
+                from: slot(9),
+                to: slot(slots::CARRIED),
+                count: 29
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 64);
+    assert_eq!(snapshot.count(slot(9)), 35);
+    assert_eq!(snapshot.get(slot(10)), None);
+    assert_eq!(snapshot.get(slot(36)), None);
+}
+
+#[test]
+fn pickup_all_goes_backwards_for_button_1() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(5)));
+    snapshot.set(slot(9), Some(stone(10)));
+    snapshot.set(slot(36), Some(stone(20)));
+    let ops = click(&mut snapshot, ContainerInput::PickupAll, 12, 1);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(36),
+                to: slot(slots::CARRIED),
+                count: 20
+            },
+            Op::Transfer {
+                from: slot(9),
+                to: slot(slots::CARRIED),
+                count: 10
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 35);
+}
+
+#[test]
+fn pickup_all_stops_when_the_cursor_is_full() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(60)));
+    snapshot.set(slot(9), Some(stone(10)));
+    snapshot.set(slot(10), Some(stone(10)));
+    let ops = click(&mut snapshot, ContainerInput::PickupAll, 12, 0);
+    assert_eq!(
+        ops,
+        [Op::Transfer {
+            from: slot(9),
+            to: slot(slots::CARRIED),
+            count: 4
+        }]
+    );
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 64);
+    assert_eq!(snapshot.count(slot(10)), 10);
+}
+
+#[test]
+fn pickup_all_needs_a_carried_stack_and_an_empty_or_unpickable_clicked_slot() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(9), Some(stone(10)));
+    let ops = click(&mut snapshot, ContainerInput::PickupAll, 12, 0);
+    assert!(ops.is_empty(), "{ops:?}");
+
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(5)));
+    snapshot.set(slot(9), Some(stone(10)));
+    let ops = click(&mut snapshot, ContainerInput::PickupAll, 9, 0);
+    assert!(ops.is_empty(), "{ops:?}");
+}
+
+#[test]
+fn pickup_all_leaves_other_items_alone() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(5)));
+    snapshot.set(slot(9), Some(stone(10)));
+    snapshot.set(slot(36), Some(helmet()));
+    let ops = click(&mut snapshot, ContainerInput::PickupAll, 12, 0);
+    assert_eq!(
+        ops,
+        [Op::Transfer {
+            from: slot(9),
+            to: slot(slots::CARRIED),
+            count: 10
+        }]
+    );
+    assert_eq!(snapshot.get(slot(36)), Some(&helmet()));
+}
+
+#[test]
 fn a_pickup_fills_the_held_slot_first_then_a_free_slot() {
     let mut snapshot = fresh();
     for index in slots::HOTBAR.chain(slots::MAIN) {

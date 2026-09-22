@@ -406,7 +406,37 @@ impl<'a> Planner<'a> {
                 self.drop(slot, amount);
             }
             ContainerInput::QuickCraft => {}
-            ContainerInput::PickupAll => {}
+            ContainerInput::PickupAll => {
+                let (Some(clicked), Some(carried)) = (clicked_slot, carried) else {
+                    return;
+                };
+                if self.snapshot.get(clicked).is_some() && self.snapshot.may_pickup(clicked) {
+                    return;
+                }
+                let backwards = click.button != 0;
+                let order = self.layout_range(0..self.snapshot.layout.len(), backwards);
+                for pass in 0..2 {
+                    for &target in &order {
+                        if self.snapshot.count(carried_slot) >= carried.max {
+                            break;
+                        }
+                        let Some(view) = self.snapshot.get(target).cloned() else {
+                            continue;
+                        };
+                        if !(self.snapshot.can_quick_replace(target, &carried)
+                            && self.snapshot.may_pickup(target)
+                            && self.snapshot.can_take_for_pick_all(target))
+                        {
+                            continue;
+                        }
+                        if pass == 0 && view.count == view.max {
+                            continue;
+                        }
+                        let room = carried.max - self.snapshot.count(carried_slot);
+                        self.transfer(Source::Slot(target), carried_slot, room);
+                    }
+                }
+            }
         }
     }
 

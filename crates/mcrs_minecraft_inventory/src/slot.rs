@@ -181,6 +181,16 @@ impl MenuSnapshot {
             Some(occupant) => occupant.same(view) && occupant.count <= view.max,
         }
     }
+
+    /// ponytail: every slot may be picked up today; a binding-curse armour
+    /// rule caps here when one exists.
+    pub fn may_pickup(&self, _slot: Slot) -> bool {
+        true
+    }
+
+    pub fn can_take_for_pick_all(&self, slot: Slot) -> bool {
+        !(slot.holder == self.player && slot.index == slots::RESULT)
+    }
 }
 
 impl From<Slot> for Source {
