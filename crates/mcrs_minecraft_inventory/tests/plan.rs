@@ -1,9 +1,12 @@
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_inventory::{
-    Click, MenuSnapshot, Op, Planner, Slot, Source, StackKey, StackView, player_menu_layout,
+    Click, Drag, Feed, MenuSnapshot, Op, Planner, SLOT_CLICKED_OUTSIDE, Slot, Source, StackKey,
+    StackView, player_menu_layout, quick_craft_counts,
 };
 use mcrs_minecraft_item::slots;
-use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput};
+use mcrs_minecraft_protocol::item::{
+    ComponentPatch, ContainerInput, QuickCraftButton, QuickCraftKind, QuickCraftStage,
+};
 use mcrs_minecraft_registry::ItemId;
 
 fn stone(count: u8) -> StackView {
@@ -55,6 +58,44 @@ fn click(snapshot: &mut MenuSnapshot, input: ContainerInput, slot: i16, button: 
         creative: false,
     });
     planner.ops
+}
+
+fn drag(snapshot: &mut MenuSnapshot, kind: QuickCraftKind, indices: &[i16], creative: bool) -> Vec<Op> {
+    let mut current: Option<Drag> = None;
+    let feed = |current: &mut Option<Drag>, slot, stage, snapshot: &MenuSnapshot| {
+        Drag::feed(
+            current,
+            Click {
+                slot,
+                button: u8::from(QuickCraftButton { kind, stage }),
+                input: ContainerInput::QuickCraft,
+                creative,
+            },
+            snapshot,
+        )
+    };
+    feed(
+        &mut current,
+        SLOT_CLICKED_OUTSIDE,
+        QuickCraftStage::Header,
+        snapshot,
+    );
+    for &index in indices {
+        feed(&mut current, index, QuickCraftStage::Slot, snapshot);
+    }
+    match feed(
+        &mut current,
+        SLOT_CLICKED_OUTSIDE,
+        QuickCraftStage::End,
+        snapshot,
+    ) {
+        Feed::Complete(drag) => {
+            let mut planner = Planner::new(snapshot);
+            planner.quick_craft(drag.kind, &drag.indices);
+            planner.ops
+        }
+        Feed::Pending | Feed::Reset => Vec::new(),
+    }
 }
 
 #[test]
@@ -252,6 +293,245 @@ fn a_full_inventory_drops_what_it_cannot_take() {
             thrower: player()
         }]
     );
+}
+
+#[test]
+fn left_drag_splits_64_over_five_empty_slots_into_12_each_and_leaves_4() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(64)));
+    let indices: Vec<usize> = (9..14).collect();
+    let (counts, remaining) = quick_craft_counts(QuickCraftKind::Split, &indices, &snapshot);
+    assert_eq!(
+        counts,
+        [(9, 12), (10, 12), (11, 12), (12, 12), (13, 12)]
+    );
+    assert_eq!(remaining, 4);
+
+    let ops = drag(&mut snapshot, QuickCraftKind::Split, &[9, 10, 11, 12, 13], false);
+    assert_eq!(
+        ops,
+        (9..14)
+            .map(|index| Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(index),
+                count: 12
+            })
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 4);
+}
+
+#[test]
+fn left_drag_tops_up_a_partial_stack_and_caps_at_the_stack_size() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(64)));
+    snapshot.set(slot(9), Some(stone(60)));
+    let ops = drag(&mut snapshot, QuickCraftKind::Split, &[9, 10], false);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 4
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(10),
+                count: 32
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 28);
+}
+
+#[test]
+fn left_drag_of_a_16_max_item_caps_each_slot_at_16() {
+    let capped = StackView { max: 16, ..stone(16) };
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(capped.clone()));
+    snapshot.set(slot(9), Some(capped.with_count(14)));
+    let ops = drag(&mut snapshot, QuickCraftKind::Split, &[9, 10, 11], false);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 2
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(10),
+                count: 5
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(11),
+                count: 5
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 4);
+}
+
+#[test]
+fn a_five_stack_over_six_slots_admits_only_five_and_empties_the_cursor() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(5)));
+    let ops = drag(
+        &mut snapshot,
+        QuickCraftKind::Split,
+        &[9, 10, 11, 12, 13, 14],
+        false,
+    );
+    assert_eq!(
+        ops,
+        (9..14)
+            .map(|index| Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(index),
+                count: 1
+            })
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(snapshot.get(slot(slots::CARRIED)), None);
+}
+
+#[test]
+fn a_drag_that_ends_on_one_slot_is_a_plain_click() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(7)));
+    let mut expected = fresh();
+    expected.set(slot(slots::CARRIED), Some(stone(7)));
+    let expected_ops = click(&mut expected, ContainerInput::Pickup, 9, 0);
+
+    let ops = drag(&mut snapshot, QuickCraftKind::Split, &[9], false);
+    assert_eq!(ops, expected_ops);
+    assert_eq!(
+        ops,
+        [Op::Transfer {
+            from: slot(slots::CARRIED),
+            to: slot(9),
+            count: 7
+        }]
+    );
+}
+
+#[test]
+fn duplicate_slot_packets_and_packet_order_do_not_change_the_result() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(64)));
+    let ops = drag(&mut snapshot, QuickCraftKind::Split, &[9, 9, 10], false);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 32
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(10),
+                count: 32
+            },
+        ]
+    );
+
+    let mut reordered = fresh();
+    reordered.set(slot(slots::CARRIED), Some(stone(64)));
+    let ops = drag(&mut reordered, QuickCraftKind::Split, &[10, 9], false);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(10),
+                count: 32
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 32
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(9)), reordered.count(slot(9)));
+    assert_eq!(snapshot.count(slot(10)), reordered.count(slot(10)));
+}
+
+#[test]
+fn a_header_on_an_empty_cursor_and_an_end_with_no_slots_move_nothing() {
+    let mut snapshot = fresh();
+    let mut current: Option<Drag> = None;
+    let feed = Drag::feed(
+        &mut current,
+        Click {
+            slot: SLOT_CLICKED_OUTSIDE,
+            button: u8::from(QuickCraftButton {
+                kind: QuickCraftKind::Split,
+                stage: QuickCraftStage::Header,
+            }),
+            input: ContainerInput::QuickCraft,
+            creative: false,
+        },
+        &snapshot,
+    );
+    assert_eq!(feed, Feed::Reset);
+    assert_eq!(current, None);
+
+    snapshot.set(slot(slots::CARRIED), Some(stone(8)));
+    let mut current: Option<Drag> = None;
+    Drag::feed(
+        &mut current,
+        Click {
+            slot: SLOT_CLICKED_OUTSIDE,
+            button: u8::from(QuickCraftButton {
+                kind: QuickCraftKind::Split,
+                stage: QuickCraftStage::Header,
+            }),
+            input: ContainerInput::QuickCraft,
+            creative: false,
+        },
+        &snapshot,
+    );
+    let feed = Drag::feed(
+        &mut current,
+        Click {
+            slot: SLOT_CLICKED_OUTSIDE,
+            button: u8::from(QuickCraftButton {
+                kind: QuickCraftKind::Split,
+                stage: QuickCraftStage::End,
+            }),
+            input: ContainerInput::QuickCraft,
+            creative: false,
+        },
+        &snapshot,
+    );
+    assert_eq!(feed, Feed::Reset);
+}
+
+#[test]
+fn a_full_kind_header_outside_creative_resets() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(8)));
+    let mut current: Option<Drag> = None;
+    let feed = Drag::feed(
+        &mut current,
+        Click {
+            slot: SLOT_CLICKED_OUTSIDE,
+            button: u8::from(QuickCraftButton {
+                kind: QuickCraftKind::Full,
+                stage: QuickCraftStage::Header,
+            }),
+            input: ContainerInput::QuickCraft,
+            creative: false,
+        },
+        &snapshot,
+    );
+    assert_eq!(feed, Feed::Reset);
+    assert_eq!(current, None);
 }
 
 #[test]
