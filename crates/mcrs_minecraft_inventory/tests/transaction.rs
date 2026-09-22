@@ -304,6 +304,56 @@ fn transfer_splits_merges_and_moves_counts() {
 }
 
 #[test]
+fn clone_grows_a_slot_that_already_holds_the_item_to_its_max() {
+    let mut world = world();
+    let chest = holder(&mut world, 3);
+    let source = spawn(&mut world, "stone", 3);
+    let target = spawn(&mut world, "stone", 10);
+    let self_target = spawn(&mut world, "stone", 10);
+    place(&mut world, source, chest, 0).unwrap();
+    place(&mut world, target, chest, 1).unwrap();
+    place(&mut world, self_target, chest, 2).unwrap();
+
+    apply(
+        &mut world,
+        vec![Op::Clone {
+            from: Slot::new(chest, 0),
+            to: Slot::new(chest, 1),
+        }],
+    )
+    .unwrap();
+    assert_eq!(count(&world, source), 3);
+    assert_eq!(count(&world, target), 64);
+    assert_eq!(
+        world.get::<Held>(target),
+        Some(&Held {
+            holder: chest,
+            index: 1
+        })
+    );
+
+    apply(
+        &mut world,
+        vec![Op::Clone {
+            from: Slot::new(chest, 2),
+            to: Slot::new(chest, 2),
+        }],
+    )
+    .unwrap();
+    assert_eq!(count(&world, self_target), 64);
+
+    let chest2 = holder(&mut world, 2);
+    let stone = spawn(&mut world, "stone", 5);
+    let dirt = spawn(&mut world, "dirt", 1);
+    place(&mut world, stone, chest2, 0).unwrap();
+    place(&mut world, dirt, chest2, 1).unwrap();
+    assert!(matches!(
+        apply(&mut world, vec![Op::Clone { from: Slot::new(chest2, 0), to: Slot::new(chest2, 1) }]),
+        Err(TransactionError::Different(slot)) if slot == Slot::new(chest2, 1)
+    ));
+}
+
+#[test]
 fn swap_exchanges_two_slots_either_of_which_may_be_empty() {
     let mut world = world();
     let chest = holder(&mut world, 3);

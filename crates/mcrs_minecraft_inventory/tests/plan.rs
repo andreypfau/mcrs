@@ -535,6 +535,243 @@ fn a_full_kind_header_outside_creative_resets() {
 }
 
 #[test]
+fn right_drag_places_one_in_each_slot() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(10)));
+    snapshot.set(slot(10), Some(stone(3)));
+    let indices: Vec<usize> = [9, 10, 11].to_vec();
+    assert_eq!(
+        quick_craft_counts(QuickCraftKind::Single, &indices, &snapshot),
+        (vec![(9, 1), (10, 4), (11, 1)], 7)
+    );
+    let ops = drag(&mut snapshot, QuickCraftKind::Single, &[9, 10, 11], false);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 1
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(10),
+                count: 1
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(11),
+                count: 1
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(9)), 1);
+    assert_eq!(snapshot.count(slot(10)), 4);
+    assert_eq!(snapshot.count(slot(11)), 1);
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 7);
+}
+
+#[test]
+fn right_drag_with_exactly_as_many_items_as_slots_empties_the_cursor() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(3)));
+    let ops = drag(&mut snapshot, QuickCraftKind::Single, &[9, 10, 11], false);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 1
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(10),
+                count: 1
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(11),
+                count: 1
+            },
+        ]
+    );
+    assert_eq!(snapshot.get(slot(slots::CARRIED)), None);
+}
+
+#[test]
+fn right_drag_ignores_a_repeated_slot() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(10)));
+    let ops = drag(&mut snapshot, QuickCraftKind::Single, &[9, 9, 10], false);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 1
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(10),
+                count: 1
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 8);
+}
+
+#[test]
+fn creative_middle_drag_fills_every_slot_and_empties_the_cursor() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(10)));
+    let indices: Vec<usize> = [9, 10, 11].to_vec();
+    assert_eq!(
+        quick_craft_counts(QuickCraftKind::Full, &indices, &snapshot),
+        (vec![(9, 64), (10, 64), (11, 64)], 0)
+    );
+    let ops = drag(&mut snapshot, QuickCraftKind::Full, &[9, 10, 11], true);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 10
+            },
+            Op::Clone {
+                from: slot(9),
+                to: slot(9)
+            },
+            Op::Clone {
+                from: slot(9),
+                to: slot(10)
+            },
+            Op::Clone {
+                from: slot(9),
+                to: slot(11)
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(9)), 64);
+    assert_eq!(snapshot.count(slot(10)), 64);
+    assert_eq!(snapshot.count(slot(11)), 64);
+    assert_eq!(snapshot.get(slot(slots::CARRIED)), None);
+}
+
+#[test]
+fn creative_middle_drag_tops_up_partial_stacks_from_the_cursor_first() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(64)));
+    snapshot.set(slot(9), Some(stone(60)));
+    snapshot.set(slot(10), Some(stone(60)));
+    let indices: Vec<usize> = [9, 10].to_vec();
+    assert_eq!(
+        quick_craft_counts(QuickCraftKind::Full, &indices, &snapshot),
+        (vec![(9, 64), (10, 64)], 56)
+    );
+    let ops = drag(&mut snapshot, QuickCraftKind::Full, &[9, 10], true);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 4
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(10),
+                count: 4
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(9)), 64);
+    assert_eq!(snapshot.count(slot(10)), 64);
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 56);
+}
+
+#[test]
+fn creative_middle_drag_whose_placed_sum_equals_the_cursor_ends_exactly_empty() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(64)));
+    snapshot.set(slot(9), Some(stone(60)));
+    snapshot.set(slot(10), Some(stone(4)));
+    let indices: Vec<usize> = [9, 10].to_vec();
+    assert_eq!(
+        quick_craft_counts(QuickCraftKind::Full, &indices, &snapshot).1,
+        0
+    );
+    let ops = drag(&mut snapshot, QuickCraftKind::Full, &[9, 10], true);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 4
+            },
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(10),
+                count: 60
+            },
+        ]
+    );
+    assert_eq!(snapshot.get(slot(slots::CARRIED)), None);
+}
+
+#[test]
+fn creative_middle_drag_of_one_item_conjures_the_rest() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(1)));
+    let indices: Vec<usize> = [9, 10, 11].to_vec();
+    assert_eq!(
+        quick_craft_counts(QuickCraftKind::Full, &indices, &snapshot).1,
+        0
+    );
+    let ops = drag(&mut snapshot, QuickCraftKind::Full, &[9, 10, 11], true);
+    assert_eq!(
+        ops,
+        [
+            Op::Transfer {
+                from: slot(slots::CARRIED),
+                to: slot(9),
+                count: 1
+            },
+            Op::Clone {
+                from: slot(9),
+                to: slot(9)
+            },
+            Op::Clone {
+                from: slot(9),
+                to: slot(10)
+            },
+            Op::Clone {
+                from: slot(9),
+                to: slot(11)
+            },
+        ]
+    );
+    assert_eq!(snapshot.count(slot(9)), 64);
+    assert_eq!(snapshot.count(slot(10)), 64);
+    assert_eq!(snapshot.count(slot(11)), 64);
+    assert_eq!(snapshot.get(slot(slots::CARRIED)), None);
+}
+
+#[test]
+fn a_middle_drag_outside_creative_moves_nothing() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(10)));
+    let ops = drag(&mut snapshot, QuickCraftKind::Full, &[9, 10], false);
+    assert!(ops.is_empty(), "{ops:?}");
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 10);
+    assert_eq!(snapshot.get(slot(9)), None);
+    assert_eq!(snapshot.get(slot(10)), None);
+}
+
+#[test]
 fn a_pickup_fills_the_held_slot_first_then_a_free_slot() {
     let mut snapshot = fresh();
     for index in slots::HOTBAR.chain(slots::MAIN) {

@@ -69,6 +69,16 @@ impl<'a> Planner<'a> {
         moving
     }
 
+    /// Grows `to` to a full stack of the item in `from`, spawning it when
+    /// `to` is empty and topping it up when it already holds the same item.
+    fn fill(&mut self, from: Slot, to: Slot) {
+        let Some(view) = self.snapshot.get(from).cloned() else {
+            return;
+        };
+        self.snapshot.set(to, Some(view.with_count(view.max)));
+        self.ops.push(Op::Clone { from, to });
+    }
+
     fn swap(&mut self, a: Slot, b: Slot) {
         let (view_a, view_b) = (self.snapshot.take(a), self.snapshot.take(b));
         self.snapshot.set(a, view_b);
@@ -378,15 +388,7 @@ impl<'a> Planner<'a> {
                 if !click.creative || carried.is_some() {
                     return;
                 }
-                let full = self
-                    .snapshot
-                    .get(slot)
-                    .map(|clicked| clicked.with_count(clicked.max));
-                self.snapshot.set(carried_slot, full);
-                self.ops.push(Op::Clone {
-                    from: slot,
-                    to: carried_slot,
-                });
+                self.fill(slot, carried_slot);
             }
             ContainerInput::Throw => {
                 let Some(slot) = clicked_slot.filter(|slot| self.snapshot.get(*slot).is_some())
@@ -422,10 +424,18 @@ impl<'a> Planner<'a> {
         }
         let carried_slot = self.snapshot.carried();
         let (placed, _) = quick_craft_counts(kind, indices, self.snapshot);
-        for (index, new_count) in placed {
+        for &(index, new_count) in &placed {
             let to = self.snapshot.layout[index];
             let had = self.snapshot.count(to);
             self.transfer(Source::Slot(carried_slot), to, new_count - had);
+            if kind == QuickCraftKind::Full && self.snapshot.count(to) < new_count {
+                let source = if self.snapshot.get(carried_slot).is_some() {
+                    carried_slot
+                } else {
+                    self.snapshot.layout[placed[0].0]
+                };
+                self.fill(source, to);
+            }
         }
     }
 

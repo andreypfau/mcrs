@@ -29,7 +29,8 @@ pub enum Op {
         a: Slot,
         b: Slot,
     },
-    /// Spawns a full stack of the item in `from` into the empty `to`.
+    /// `to` becomes a full stack of the item in `from`: spawned when empty,
+    /// grown to its max when it already holds the same item.
     Clone {
         from: Slot,
         to: Slot,
@@ -169,10 +170,21 @@ fn apply_op(world: &mut World, items: &Items, op: &Op) -> Result<(), Transaction
         }
         Op::Clone { from, to } => {
             let source = stack_in(world, from).ok_or(TransactionError::Empty(from))?;
-            let mut value = stack_to_value(world, source, items);
-            value.count = Bounded(i32::from(max_stack_size(world.entity(source))));
-            let clone = spawn_stack(world, &value, items)?;
-            place_or_despawn(world, clone, to)
+            let max = max_stack_size(world.entity(source));
+            match stack_in(world, to) {
+                None => {
+                    let mut value = stack_to_value(world, source, items);
+                    value.count = Bounded(i32::from(max));
+                    let clone = spawn_stack(world, &value, items)?;
+                    place_or_despawn(world, clone, to)
+                }
+                Some(target) if same_item_same_components(world, source, target, items) => {
+                    let mut value = stack_to_value(world, target, items);
+                    value.count = Bounded(i32::from(max));
+                    Ok(apply_value(world, target, &value, items)?)
+                }
+                Some(_) => Err(TransactionError::Different(to)),
+            }
         }
         Op::Drop {
             from,
