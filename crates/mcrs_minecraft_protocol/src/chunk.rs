@@ -117,7 +117,7 @@ impl<'a> DecodeTrait<'a> for LightChunk {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct LightData<'a> {
     pub sky_light_mask: Cow<'a, [u64]>,
     pub block_light_mask: Cow<'a, [u64]>,
@@ -125,6 +125,54 @@ pub struct LightData<'a> {
     pub empty_block_light_mask: Cow<'a, [u64]>,
     pub sky_light_arrays: Cow<'a, [LightChunk]>,
     pub block_light_arrays: Cow<'a, [LightChunk]>,
+}
+
+/// Vanilla's `ByteBufCodecs.BIT_SET` is `BitSet.toByteArray()`: the words as
+/// little-endian bytes with trailing zero bytes dropped, behind a VarInt length.
+fn encode_bit_set(words: &[u64], mut w: impl Write) -> anyhow::Result<()> {
+    let mut bytes: Vec<u8> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
+    while bytes.last() == Some(&0) {
+        bytes.pop();
+    }
+    bytes.as_slice().encode(&mut w)
+}
+
+fn decode_bit_set<'a>(r: &mut &'a [u8]) -> anyhow::Result<Cow<'a, [u64]>> {
+    let bytes = <&[u8]>::decode(r)?;
+    Ok(Cow::Owned(
+        bytes
+            .chunks(8)
+            .map(|chunk| {
+                let mut word = [0u8; 8];
+                word[..chunk.len()].copy_from_slice(chunk);
+                u64::from_le_bytes(word)
+            })
+            .collect(),
+    ))
+}
+
+impl EncodeTrait for LightData<'_> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        encode_bit_set(&self.sky_light_mask, &mut w)?;
+        encode_bit_set(&self.block_light_mask, &mut w)?;
+        encode_bit_set(&self.empty_sky_light_mask, &mut w)?;
+        encode_bit_set(&self.empty_block_light_mask, &mut w)?;
+        self.sky_light_arrays.encode(&mut w)?;
+        self.block_light_arrays.encode(&mut w)
+    }
+}
+
+impl<'a> DecodeTrait<'a> for LightData<'a> {
+    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        Ok(Self {
+            sky_light_mask: decode_bit_set(r)?,
+            block_light_mask: decode_bit_set(r)?,
+            empty_sky_light_mask: decode_bit_set(r)?,
+            empty_block_light_mask: decode_bit_set(r)?,
+            sky_light_arrays: DecodeTrait::decode(r)?,
+            block_light_arrays: DecodeTrait::decode(r)?,
+        })
+    }
 }
 
 impl<'a> Default for LightData<'a> {
