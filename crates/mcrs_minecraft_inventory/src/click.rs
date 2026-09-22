@@ -96,8 +96,20 @@ pub fn handle_container_clicks(
         if req.input == ContainerInput::QuickCraft {
             match Drag::feed(&mut fold.drag, click, planner.snapshot) {
                 Feed::Complete(drag) => planner.quick_craft(drag.kind, &drag.indices),
-                Feed::Pending | Feed::Reset => {}
+                Feed::Reset => tracing::debug!(
+                    player = ?req.player,
+                    slot = req.slot,
+                    button = req.button,
+                    "quick-craft sequence reset"
+                ),
+                Feed::Pending => {}
             }
+        } else if fold.drag.take().is_some() {
+            tracing::debug!(
+                player = ?req.player,
+                input = ?req.input,
+                "a click during a quick-craft resets it"
+            );
         } else {
             planner.click(click);
         }

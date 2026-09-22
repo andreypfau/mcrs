@@ -306,6 +306,398 @@ fn left_drag_splits_the_cursor_evenly_and_syncs_per_slot() {
 }
 
 #[test]
+fn a_click_during_a_drag_resets_it_and_is_swallowed() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        9,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        10,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(&mut world, player, ContainerInput::Pickup, 20, 0, Vec::new());
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        11,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+
+    for slot in [9u16, 10, 11, 20] {
+        assert_eq!(stack_at(&world, player, slot), None);
+    }
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    for slot in [9i16, 10, 11] {
+        click(
+            &mut world,
+            player,
+            ContainerInput::QuickCraft,
+            slot,
+            u8::from(QuickCraftButton {
+                kind: QuickCraftKind::Split,
+                stage: QuickCraftStage::Slot,
+            }),
+            Vec::new(),
+        );
+    }
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+
+    for slot in [9u16, 10, 11] {
+        assert_eq!(stack_at(&world, player, slot).map(|s| s.1), Some(21));
+    }
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(1));
+}
+
+#[test]
+fn a_slot_or_end_packet_without_a_header_moves_nothing() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        9,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+
+    assert_eq!(stack_at(&world, player, 9), None);
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+}
+
+#[test]
+fn a_second_header_mid_drag_resets_the_drag() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        9,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        10,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+
+    assert_eq!(stack_at(&world, player, 9), None);
+    assert_eq!(stack_at(&world, player, 10), None);
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+}
+
+#[test]
+fn a_header_on_an_empty_cursor_resets() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 7);
+    place(&mut world, stack, player, 9);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        9,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+
+    assert_eq!(stack_at(&world, player, 9), Some((stack, 7)));
+    assert_eq!(stack_at(&world, player, slots::CARRIED), None);
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+}
+
+#[test]
+fn an_end_right_after_a_header_or_before_a_slot_moves_nothing() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        9,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+
+    assert_eq!(stack_at(&world, player, 9), None);
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+}
+
+#[test]
+fn a_full_kind_header_from_a_survival_player_resets() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Full,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        9,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Full,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Full,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+
+    assert_eq!(stack_at(&world, player, 9), None);
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+}
+
+#[test]
 fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
     let (mut world, player) = opened();
     world.init_resource::<Messages<CloseContainerRequest>>();
