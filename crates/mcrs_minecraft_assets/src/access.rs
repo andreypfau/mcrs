@@ -109,7 +109,9 @@ impl RegistrySnapshotErased {
             .map(|e| ErasedOwnedEntry {
                 location: e.location.clone(),
                 nbt: Some(e.nbt.clone()),
-                pack_source: pack_source.clone(),
+                pack_source: pack_source
+                    .clone()
+                    .filter(|_| !is_local_addition(&e.location)),
             })
             .collect();
         Self {
@@ -117,6 +119,18 @@ impl RegistrySnapshotErased {
             entries,
         }
     }
+}
+
+// A client that knows the vanilla core pack loads such entries from its own jar, so
+// only files the jar actually ships may claim it. The corpus is the vanilla jar plus
+// the beta worldgen set, and nothing else.
+// ponytail: name prefix stands in for a manifest of the jar's data files.
+fn is_local_addition(location: &ResourceLocation<Arc<str>>) -> bool {
+    location
+        .path()
+        .rsplit('/')
+        .next()
+        .is_some_and(|name| name.starts_with("beta"))
 }
 
 impl ErasedRegistrySnapshot for RegistrySnapshotErased {

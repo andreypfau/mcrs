@@ -17,7 +17,6 @@ pub mod disconnect;
 mod keep_alive;
 pub mod login;
 mod tag;
-mod version;
 pub mod world;
 pub mod world_options;
 

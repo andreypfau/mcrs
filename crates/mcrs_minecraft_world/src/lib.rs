@@ -12,6 +12,8 @@ pub mod dialog;
 pub mod dimension;
 pub mod entity;
 pub mod instrument;
+pub mod block_transformer;
+pub mod decorated_pot_pattern;
 pub mod jukebox_song;
 pub mod painting_variant;
 // The save on disk is native-only; the browser receives world state over the network.
@@ -126,6 +128,10 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(banner_pattern::BannerPatternLoader);
         app.init_asset::<jukebox_song::JukeboxSong>();
         app.register_asset_loader(jukebox_song::JukeboxSongLoader);
+        app.init_asset::<block_transformer::BlockTransformer>();
+        app.register_asset_loader(block_transformer::BlockTransformerLoader);
+        app.init_asset::<decorated_pot_pattern::DecoratedPotPattern>();
+        app.register_asset_loader(decorated_pot_pattern::DecoratedPotPatternLoader);
         app.init_asset::<instrument::Instrument>();
         app.register_asset_loader(instrument::InstrumentLoader);
         app.init_asset::<chat_type::ChatType>();
@@ -323,6 +329,18 @@ impl Plugin for MinecraftWorldPlugin {
                     jukebox_song::JukeboxSong,
                     "minecraft:jukebox_song",
                     |v: &jukebox_song::JukeboxSong| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
+                ),
+                (
+                    block_transformer::BlockTransformer,
+                    "minecraft:block_transformer",
+                    |v: &block_transformer::BlockTransformer| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
+                ),
+                (
+                    decorated_pot_pattern::DecoratedPotPattern,
+                    "minecraft:decorated_pot_pattern",
+                    |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_compound(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (

@@ -1,6 +1,7 @@
 use crate::{
-    LoadedRegistryAssets, banner_pattern, chat_type, damage_type, dialog, entity, instrument,
-    jukebox_song, painting_variant, sound, test_types, variant,
+    LoadedRegistryAssets, banner_pattern, block_transformer, chat_type, damage_type,
+    decorated_pot_pattern, dialog, entity, instrument, jukebox_song, painting_variant, sound,
+    test_types, variant,
 };
 use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetServer, Assets};
@@ -295,6 +296,20 @@ pub(crate) fn request_data_pack_assets(
         FOLDER_JUKEBOX_SONG,
         "json",
         FILES_JUKEBOX_SONG,
+    );
+    request_registry::<block_transformer::BlockTransformer>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_BLOCK_TRANSFORMER,
+        "json",
+        FILES_BLOCK_TRANSFORMER,
+    );
+    request_registry::<decorated_pot_pattern::DecoratedPotPattern>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_DECORATED_POT_PATTERN,
+        "json",
+        FILES_DECORATED_POT_PATTERN,
     );
     request_registry::<instrument::Instrument>(
         &asset_server,

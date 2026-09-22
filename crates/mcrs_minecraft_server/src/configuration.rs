@@ -2,7 +2,7 @@ use crate::WorldSave;
 use crate::client_info::ClientInfo;
 use crate::disconnect::despawn_from_dims;
 use crate::login::GameProfile;
-use crate::version::VERSION_ID;
+use mcrs_minecraft_protocol::MINECRAFT_VERSION;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::HostAnchorRef;
@@ -62,7 +62,7 @@ use crate::world_options::{
 /// Canonical list of registries that the server synchronizes via
 /// `ClientboundRegistryData` during the Configuration phase.
 ///
-/// 28 registries are protocol-synced (see `synced_registries_count`). The
+/// 30 registries are protocol-synced (see `synced_registries_count`). The
 /// non-synced static registries — block, item, sound_event, entity_type —
 /// remain in `RegistryAccess` for internal lookups but must not be sent as
 /// `ClientboundRegistryData`. Enchantment is the only static registry that
@@ -72,6 +72,7 @@ use crate::world_options::{
 /// deterministic and reproducible across restarts.
 const SYNCED_REGISTRIES: &[&str] = &[
     "minecraft:banner_pattern",
+    "minecraft:block_transformer",
     "minecraft:cat_sound_variant",
     "minecraft:cat_variant",
     "minecraft:chat_type",
@@ -80,6 +81,7 @@ const SYNCED_REGISTRIES: &[&str] = &[
     "minecraft:cow_sound_variant",
     "minecraft:cow_variant",
     "minecraft:damage_type",
+    "minecraft:decorated_pot_pattern",
     "minecraft:dialog",
     "minecraft:dimension_type",
     "minecraft:enchantment",
@@ -361,7 +363,7 @@ fn on_configuration_enter(
             known_packs: vec![KnownPack {
                 namespace: "minecraft",
                 id: "core",
-                version: VERSION_ID,
+                version: MINECRAFT_VERSION,
             }],
         });
         commands.entity(entity).insert(AwaitingKnownPacks);
@@ -370,7 +372,7 @@ fn on_configuration_enter(
 
 /// Step 2 of the Configuration handshake: triggered by
 /// `ServerboundSelectKnownPacks`. Sends `ClientboundRegistryData` for the
-/// 28 synced registries (alphabetical order), the `environment_attribute`
+/// 30 synced registries (alphabetical order), the `environment_attribute`
 /// special case, `ClientboundUpdateTags` for the 7 tag-capable registries,
 /// and finally `ClientboundFinishConfiguration`. Removes the
 /// `AwaitingKnownPacks` marker so the connection is eligible for future
@@ -407,7 +409,7 @@ fn on_known_packs_response(
         "Received KnownPacks response"
     );
 
-    // RegistryData: filter to the 28 protocol-synced registries and send
+    // RegistryData: filter to the 30 protocol-synced registries and send
     // them in alphabetical order by registry key for deterministic output.
     let mut registries: Vec<&dyn ErasedRegistrySnapshot> = access
         .iter()
@@ -799,7 +801,7 @@ mod tests {
 
     #[test]
     fn synced_registries_count() {
-        assert_eq!(SYNCED_REGISTRIES.len(), 28);
+        assert_eq!(SYNCED_REGISTRIES.len(), 30);
     }
 
     #[test]
