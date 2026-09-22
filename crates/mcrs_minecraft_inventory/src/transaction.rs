@@ -13,7 +13,7 @@ use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemComponentValue, ItemS
 use crate::slot::{Slot, stack_in};
 use crate::value::{apply_value, spawn_stack, spawn_stack_into};
 
-/// One step of a stack transaction. Slots address cells so that a planner
+/// One step of a stack transaction. Slots address positions so that a planner
 /// can refer to a stack it has split off before the entity exists; entities
 /// address stacks the caller already holds.
 #[derive(Clone, Debug, PartialEq)]
@@ -128,13 +128,13 @@ pub enum TransactionError {
     Different(Slot),
     #[error("holder {0:?} is gone")]
     HolderMissing(Entity),
-    #[error("cell {index} of {holder:?} is occupied by {by:?}")]
+    #[error("slot {index} of {holder:?} is occupied by {by:?}")]
     Occupied {
         holder: Entity,
         index: u16,
         by: Entity,
     },
-    #[error("cell {index} is outside {holder:?}")]
+    #[error("slot {index} is outside {holder:?}")]
     OutOfRange { holder: Entity, index: u16 },
     #[error("{0:?} would hold itself")]
     Cycle(Entity),
@@ -243,7 +243,7 @@ fn apply_op(world: &mut World, items: &Items, op: &Op) -> Result<(), Transaction
                 return Ok(());
             };
             if let Err(error) = transfer(world, items, taken, to, count) {
-                // The item stays whole when its cell was taken meanwhile.
+                // The item stays whole when its slot was taken meanwhile.
                 if world.get_entity(item).is_ok() {
                     merge_into(world, taken, item, u8::MAX);
                 }
@@ -445,7 +445,7 @@ pub(crate) fn touch(world: &mut World, stack: Entity) {
 }
 
 /// Touches the stack and every stack above it, so a change deep inside a
-/// container surfaces as a revision on the top-level cell's stack.
+/// container surfaces as a revision on the top-level slot's stack.
 pub(crate) fn bump(world: &mut World, stack: Entity) {
     touch(world, stack);
     if let Some(held) = world.get::<Held>(stack).copied() {

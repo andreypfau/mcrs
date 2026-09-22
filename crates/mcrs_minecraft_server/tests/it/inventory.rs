@@ -238,7 +238,7 @@ impl Server {
 
     fn cell(&mut self, cell: u16) -> Option<(Entity, u8)> {
         let player = self.player();
-        inventory_sync::cell(self.world(), player, cell)
+        inventory_sync::stack_at(self.world(), player, cell)
     }
 
     /// The client holds the player's own column, so entities standing in it pair with it.

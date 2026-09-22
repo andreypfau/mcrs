@@ -7,7 +7,7 @@ use mcrs_minecraft_item::{Held, Holds, SlotTable};
 
 use common::{apply, holder, place, spawn, world};
 
-fn cells(world: &World, holder: Entity) -> Vec<(u16, Entity)> {
+fn slots_of(world: &World, holder: Entity) -> Vec<(u16, Entity)> {
     world.get::<SlotTable>(holder).unwrap().iter().collect()
 }
 
@@ -19,11 +19,11 @@ fn place_move_and_swap_keep_the_table_exact() {
     let b = spawn(&mut world, "dirt", 1);
     place(&mut world, a, chest, 0).unwrap();
     place(&mut world, b, chest, 1).unwrap();
-    assert_eq!(cells(&world, chest), [(0, a), (1, b)]);
+    assert_eq!(slots_of(&world, chest), [(0, a), (1, b)]);
     assert_eq!(world.get::<Holds>(chest).unwrap().entities(), [a, b]);
 
     place(&mut world, a, chest, 3).unwrap();
-    assert_eq!(cells(&world, chest), [(1, b), (3, a)]);
+    assert_eq!(slots_of(&world, chest), [(1, b), (3, a)]);
 
     apply(
         &mut world,
@@ -33,7 +33,7 @@ fn place_move_and_swap_keep_the_table_exact() {
         }],
     )
     .unwrap();
-    assert_eq!(cells(&world, chest), [(1, a), (3, b)]);
+    assert_eq!(slots_of(&world, chest), [(1, a), (3, b)]);
     assert_eq!(
         world.get::<Held>(a),
         Some(&Held {
@@ -52,13 +52,13 @@ fn place_move_and_swap_keep_the_table_exact() {
 }
 
 #[test]
-fn despawning_a_stack_clears_its_cell() {
+fn despawning_a_stack_clears_its_slot() {
     let mut world = world();
     let chest = holder(&mut world, 2);
     let a = spawn(&mut world, "stone", 1);
     place(&mut world, a, chest, 1).unwrap();
     world.despawn(a);
-    assert!(cells(&world, chest).is_empty());
+    assert!(slots_of(&world, chest).is_empty());
     assert!(
         world.get::<Holds>(chest).is_none(),
         "an empty Holds is removed"
@@ -122,7 +122,7 @@ fn a_replaced_table_is_rebuilt_from_held() {
     let a = spawn(&mut world, "stone", 1);
     place(&mut world, a, chest, 1).unwrap();
     world.entity_mut(chest).insert(SlotTable::fixed(3));
-    assert_eq!(cells(&world, chest), [(1, a)]);
+    assert_eq!(slots_of(&world, chest), [(1, a)]);
     let b = spawn(&mut world, "dirt", 1);
     assert!(matches!(
         place(&mut world, b, chest, 1),

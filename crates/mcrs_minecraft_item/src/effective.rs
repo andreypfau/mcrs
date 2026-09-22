@@ -70,7 +70,7 @@ pub fn is_damaged(entity: EntityRef) -> bool {
     is_damageable(entity) && damage_value(entity) > 0
 }
 
-/// The child stacks of a container, bundle or crossbow, in cell order.
+/// The child stacks of a container, bundle or crossbow, in slot order.
 pub fn children<'a>(
     entity: EntityRef<'a>,
     lookup: &impl Fn(Entity) -> Option<EntityRef<'a>>,

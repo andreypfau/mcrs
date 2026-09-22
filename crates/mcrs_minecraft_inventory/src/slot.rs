@@ -88,25 +88,25 @@ pub enum Source {
     Item(Entity),
 }
 
-/// The planners' overlay: every player cell plus the open menu's cells, with
+/// The planners' overlay: every player slot plus the open menu's slots, with
 /// the planned moves applied as they are recorded.
 #[derive(Debug)]
 pub struct MenuSnapshot {
     pub player: Entity,
     pub selected: u8,
     pub layout: Vec<Slot>,
-    cells: FxHashMap<Source, StackView>,
+    stacks: FxHashMap<Source, StackView>,
 }
 
 impl MenuSnapshot {
     pub fn new(world: &World, items: &Items, player: Entity, layout: Vec<Slot>) -> Self {
-        let mut cells = FxHashMap::default();
-        let player_cells = (0..slots::COUNT as u16).map(|index| Slot::new(player, index));
-        for slot in player_cells.chain(layout.iter().copied()) {
+        let mut stacks = FxHashMap::default();
+        let player_slots = (0..slots::COUNT as u16).map(|index| Slot::new(player, index));
+        for slot in player_slots.chain(layout.iter().copied()) {
             if let Some(view) =
                 stack_in(world, slot).and_then(|stack| StackView::of(world, stack, items))
             {
-                cells.insert(Source::Slot(slot), view);
+                stacks.insert(Source::Slot(slot), view);
             }
         }
         MenuSnapshot {
@@ -115,22 +115,22 @@ impl MenuSnapshot {
                 .get::<SelectedHotbarSlot>(player)
                 .map_or(0, |selected| selected.0),
             layout,
-            cells,
+            stacks,
         }
     }
 
-    /// A snapshot with nothing in it, for planning against hand-made cells.
+    /// A snapshot with nothing in it, for planning against hand-made slots.
     pub fn empty(player: Entity, selected: u8, layout: Vec<Slot>) -> Self {
         MenuSnapshot {
             player,
             selected,
             layout,
-            cells: FxHashMap::default(),
+            stacks: FxHashMap::default(),
         }
     }
 
     pub fn add_item(&mut self, item: Entity, view: StackView) {
-        self.cells.insert(Source::Item(item), view);
+        self.stacks.insert(Source::Item(item), view);
     }
 
     pub fn carried(&self) -> Slot {
@@ -138,7 +138,7 @@ impl MenuSnapshot {
     }
 
     pub fn get(&self, source: impl Into<Source>) -> Option<&StackView> {
-        self.cells.get(&source.into())
+        self.stacks.get(&source.into())
     }
 
     pub fn count(&self, source: impl Into<Source>) -> u8 {
@@ -147,20 +147,20 @@ impl MenuSnapshot {
 
     pub fn set(&mut self, source: impl Into<Source>, view: Option<StackView>) {
         match view {
-            Some(view) => self.cells.insert(source.into(), view),
-            None => self.cells.remove(&source.into()),
+            Some(view) => self.stacks.insert(source.into(), view),
+            None => self.stacks.remove(&source.into()),
         };
     }
 
     pub fn take(&mut self, source: impl Into<Source>) -> Option<StackView> {
-        self.cells.remove(&source.into())
+        self.stacks.remove(&source.into())
     }
 
-    /// How many of the stack the cell may hold, `None` when it may not hold
+    /// How many of the stack the slot may hold, `None` when it may not hold
     /// it at all.
-    /// ponytail: the only cell rules are the player's result and armour cells;
+    /// ponytail: the only slot rules are the player's result and armour slots;
     /// a container with its own limit (a chest's 64) caps here when it exists.
-    pub fn cell_max(&self, slot: Slot, view: &StackView) -> Option<u8> {
+    pub fn slot_max(&self, slot: Slot, view: &StackView) -> Option<u8> {
         if slot.holder != self.player {
             return Some(view.max);
         }

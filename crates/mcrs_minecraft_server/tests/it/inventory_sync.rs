@@ -65,7 +65,7 @@ pub(crate) fn stone(world: &mut World, count: u8) -> Entity {
     spawn_stack(world, &value("stone", count), &standalone_corpus().1).unwrap()
 }
 
-pub(crate) fn cell(world: &World, player: Entity, index: u16) -> Option<(Entity, u8)> {
+pub(crate) fn stack_at(world: &World, player: Entity, index: u16) -> Option<(Entity, u8)> {
     let stack = world.get::<SlotTable>(player).unwrap().get(index)?;
     Some((stack, world.get::<ItemStack>(stack).unwrap().count))
 }
@@ -127,7 +127,7 @@ fn join_sends_held_slot_then_full_inventory() {
 }
 
 #[test]
-fn dirty_cells_become_set_slot_and_cursor_packets() {
+fn dirty_slots_become_set_slot_and_cursor_packets() {
     let (mut world, player, _anchor) = world();
     open_menus(&mut world);
     sync_stack_slots(&mut world);

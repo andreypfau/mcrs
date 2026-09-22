@@ -22,9 +22,9 @@ use rustc_hash::FxHashSet;
 
 const DROPPED_ITEM_STACK_INDEX: u8 = 8;
 
-/// Holders whose cells may read differently since the last run: those whose
+/// Holders whose slots may read differently since the last run: those whose
 /// table changed, and the top-level holder of every stack whose revision
-/// moved, so a damaged pickaxe inside a shulker marks the chest cell.
+/// moved, so a damaged pickaxe inside a shulker marks the chest slot.
 fn dirty_holders(world: &mut World) -> FxHashSet<Entity> {
     let mut dirty: FxHashSet<Entity> = world
         .query_filtered::<Entity, Changed<SlotTable>>()
@@ -44,7 +44,7 @@ fn dirty_holders(world: &mut World) -> FxHashSet<Entity> {
     dirty
 }
 
-/// Sends every open menu the cells its viewer does not hold yet, and every
+/// Sends every open menu the slots its viewer does not hold yet, and every
 /// tracked dropped item its stack when that changed.
 pub fn sync_stack_slots(world: &mut World) {
     let items = world.resource::<Items>().clone();
@@ -79,15 +79,15 @@ pub fn sync_stack_slots(world: &mut World) {
         .map(|(menu, layout, viewer, _)| (menu, viewer.0, layout.0.clone()))
         .collect();
     for (menu, viewer, layout) in open {
-        let cells: Vec<ProtoStack> = layout.iter().map(|slot| proto(world, *slot)).collect();
+        let stacks: Vec<ProtoStack> = layout.iter().map(|slot| proto(world, *slot)).collect();
         let carried = proto(world, Slot::new(viewer, slots::CARRIED));
         let container_id = world.get::<Menu>(menu).unwrap().container_id;
         let mut remote = world.get_mut::<RemoteSlots>(menu).unwrap();
-        remote.cells.resize(cells.len(), Remote::Unknown);
+        remote.slots.resize(stacks.len(), Remote::Unknown);
         if remote.full {
-            let slots: Vec<RawStack> = cells.iter().map(raw).collect();
+            let slots: Vec<RawStack> = stacks.iter().map(raw).collect();
             let carried = raw(&carried);
-            remote.cells = slots.iter().cloned().map(Remote::Known).collect();
+            remote.slots = slots.iter().cloned().map(Remote::Known).collect();
             remote.carried = Remote::Known(carried.clone());
             remote.full = false;
             let state_id = world.get_mut::<Menu>(menu).unwrap().next_state_id();
@@ -104,12 +104,12 @@ pub fn sync_stack_slots(world: &mut World) {
             continue;
         }
         let mut stale: Vec<(i16, RawStack)> = Vec::new();
-        for (index, current) in cells.iter().enumerate() {
-            if let Some(known) = agree(&remote.cells[index], current, raw) {
-                remote.cells[index] = known;
+        for (index, current) in stacks.iter().enumerate() {
+            if let Some(known) = agree(&remote.slots[index], current, raw) {
+                remote.slots[index] = known;
             } else {
                 let encoded = raw(current);
-                remote.cells[index] = Remote::Known(encoded.clone());
+                remote.slots[index] = Remote::Known(encoded.clone());
                 stale.push((index as i16, encoded));
             }
         }

@@ -5,8 +5,8 @@ use mcrs_minecraft_protocol::item::{HashedStack, RawStack};
 
 use crate::slot::Slot;
 
-/// The main inventory and hotbar cells every container menu ends with.
-pub const PLAYER_MENU_CELLS: usize = (slots::HOTBAR.end - slots::MAIN.start) as usize;
+/// The main inventory and hotbar slots every container menu ends with.
+pub const PLAYER_MENU_SLOTS: usize = (slots::HOTBAR.end - slots::MAIN.start) as usize;
 
 #[derive(Component, Debug)]
 pub struct Menu {
@@ -21,7 +21,7 @@ impl Menu {
     }
 }
 
-/// Menu index → cell.
+/// Menu index → slot.
 #[derive(Component, Debug)]
 pub struct MenuLayout(pub Vec<Slot>);
 
@@ -40,12 +40,12 @@ pub struct CurrentMenu(pub Entity);
 #[derive(Component, Debug)]
 pub struct MenuContainer(pub Entity);
 
-/// What the viewer's client holds for one cell, as far as the server knows.
+/// What the viewer's client holds for one slot, as far as the server knows.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum Remote {
     #[default]
     Unknown,
-    /// The client acknowledged this in a click; it stands until the cell is
+    /// The client acknowledged this in a click; it stands until the slot is
     /// compared against the server's stack.
     Claimed(Option<HashedStack>),
     Known(RawStack),
@@ -54,7 +54,7 @@ pub enum Remote {
 /// The viewer's copy of the menu; the slot sync sends only what differs.
 #[derive(Component, Debug, Default)]
 pub struct RemoteSlots {
-    pub cells: Vec<Remote>,
+    pub slots: Vec<Remote>,
     pub carried: Remote,
     /// The whole menu goes out as one content packet.
     pub full: bool,
@@ -62,10 +62,10 @@ pub struct RemoteSlots {
 
 impl RemoteSlots {
     pub fn claim(&mut self, index: usize, hashed: Option<HashedStack>) {
-        if self.cells.len() <= index {
-            self.cells.resize(index + 1, Remote::Unknown);
+        if self.slots.len() <= index {
+            self.slots.resize(index + 1, Remote::Unknown);
         }
-        self.cells[index] = Remote::Claimed(hashed);
+        self.slots[index] = Remote::Claimed(hashed);
     }
 }
 
@@ -129,16 +129,16 @@ pub fn menu_slots(menu_type: &str) -> Option<MenuSlots> {
     })
 }
 
-/// The container's own cells, then the player's main and hotbar rows.
+/// The container's own slots, then the player's main and hotbar rows.
 pub fn container_menu_layout(container: Entity, player: Entity, menu: MenuSlots) -> Vec<Slot> {
     let mut layout: Vec<Slot> = (0..menu.own)
-        .map(|cell| Slot::new(container, cell))
+        .map(|index| Slot::new(container, index))
         .collect();
     if menu.player_slots {
         layout.extend(
             slots::MAIN
                 .chain(slots::HOTBAR)
-                .map(|cell| Slot::new(player, cell)),
+                .map(|index| Slot::new(player, index)),
         );
     }
     if menu.trailing_result {

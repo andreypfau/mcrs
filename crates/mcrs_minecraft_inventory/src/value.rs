@@ -145,7 +145,7 @@ fn write_value(
         };
         reconcile_children(world, stack, kind, entry, &targets, items);
         // A bundle or box without its contents component refuses insertion in
-        // vanilla, so the tombstone leaves no cells to move into.
+        // vanilla, so the tombstone leaves no slots to move into.
         if removed {
             world.entity_mut(stack).remove::<SlotTable>();
         }

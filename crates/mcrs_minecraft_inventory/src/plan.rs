@@ -2,7 +2,7 @@ use bevy_ecs::entity::Entity;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::ContainerInput;
 
-use crate::menu::PLAYER_MENU_CELLS;
+use crate::menu::PLAYER_MENU_SLOTS;
 use crate::slot::{MenuSnapshot, Slot, Source, StackView};
 use crate::transaction::Op;
 
@@ -33,7 +33,7 @@ impl<'a> Planner<'a> {
     }
 
     /// Moves up to `amount` from `from` into `to`, which is empty or holds the
-    /// same item; the caller has checked the cell accepts it.
+    /// same item; the caller has checked the slot accepts it.
     fn transfer(&mut self, from: Source, to: Slot, amount: u8) -> u8 {
         let Some(source) = self.snapshot.get(from).cloned() else {
             return 0;
@@ -93,20 +93,20 @@ impl<'a> Planner<'a> {
         });
     }
 
-    /// Inserts up to `amount` of `from` into the cell, which is empty or holds
+    /// Inserts up to `amount` of `from` into the slot, which is empty or holds
     /// the same item; whatever does not fit stays where it was.
-    fn safe_insert(&mut self, from: Slot, cell: Slot, amount: u8) {
+    fn safe_insert(&mut self, from: Slot, to: Slot, amount: u8) {
         let Some(source) = self.snapshot.get(from).cloned() else {
             return;
         };
-        let Some(max) = self.snapshot.cell_max(cell, &source) else {
+        let Some(max) = self.snapshot.slot_max(to, &source) else {
             return;
         };
-        let room = max.saturating_sub(self.snapshot.count(cell));
-        self.transfer(Source::Slot(from), cell, amount.min(room));
+        let room = max.saturating_sub(self.snapshot.count(to));
+        self.transfer(Source::Slot(from), to, amount.min(room));
     }
 
-    /// Merges into same-item cells, then fills the first empty one; the cells
+    /// Merges into same-item slots, then fills the first empty one; the slots
     /// come in the order they are tried. Returns whether anything moved.
     fn move_to(&mut self, from: Source, merge: &[Slot], empty: &[Slot]) -> bool {
         let merged = self.merge_same(from, merge);
@@ -116,7 +116,7 @@ impl<'a> Planner<'a> {
         self.fill_empty(from, empty) || merged
     }
 
-    fn merge_same(&mut self, from: Source, cells: &[Slot]) -> bool {
+    fn merge_same(&mut self, from: Source, slots: &[Slot]) -> bool {
         let mut moved = false;
         let Some(source) = self.snapshot.get(from).cloned() else {
             return false;
@@ -124,18 +124,18 @@ impl<'a> Planner<'a> {
         if !source.stackable {
             return false;
         }
-        for &cell in cells {
-            let Some(target) = self.snapshot.get(cell) else {
+        for &slot in slots {
+            let Some(target) = self.snapshot.get(slot) else {
                 continue;
             };
             if !target.same(&source) {
                 continue;
             }
-            let Some(max) = self.snapshot.cell_max(cell, &source) else {
+            let Some(max) = self.snapshot.slot_max(slot, &source) else {
                 continue;
             };
             let room = max.saturating_sub(target.count);
-            moved |= self.transfer(from, cell, room) > 0;
+            moved |= self.transfer(from, slot, room) > 0;
             if self.snapshot.get(from).is_none() {
                 return true;
             }
@@ -143,27 +143,27 @@ impl<'a> Planner<'a> {
         moved
     }
 
-    fn fill_empty(&mut self, from: Source, cells: &[Slot]) -> bool {
+    fn fill_empty(&mut self, from: Source, slots: &[Slot]) -> bool {
         let Some(source) = self.snapshot.get(from).cloned() else {
             return false;
         };
-        for &cell in cells {
-            if self.snapshot.get(cell).is_some() {
+        for &slot in slots {
+            if self.snapshot.get(slot).is_some() {
                 continue;
             }
-            let Some(max) = self.snapshot.cell_max(cell, &source) else {
+            let Some(max) = self.snapshot.slot_max(slot, &source) else {
                 continue;
             };
-            if self.transfer(from, cell, max) > 0 {
+            if self.transfer(from, slot, max) > 0 {
                 return true;
             }
         }
         false
     }
 
-    /// The cells a picked-up stack merges into, in vanilla's order: the held
+    /// The slots a picked-up stack merges into, in vanilla's order: the held
     /// slot, the offhand, then the hotbar and main inventory.
-    fn pickup_merge_cells(&self) -> Vec<Slot> {
+    fn pickup_merge_slots(&self) -> Vec<Slot> {
         let player = self.snapshot.player;
         let held = slots::held(self.snapshot.selected);
         [held, slots::OFFHAND]
@@ -177,7 +177,7 @@ impl<'a> Planner<'a> {
             .collect()
     }
 
-    fn pickup_empty_cells(&self) -> Vec<Slot> {
+    fn pickup_empty_slots(&self) -> Vec<Slot> {
         let player = self.snapshot.player;
         slots::HOTBAR
             .chain(slots::MAIN)
@@ -189,16 +189,16 @@ impl<'a> Planner<'a> {
     pub fn room_for(&self, source: &StackView) -> u32 {
         let mut room = 0u32;
         if source.stackable {
-            for cell in self.pickup_merge_cells() {
-                if let Some(target) = self.snapshot.get(cell)
+            for slot in self.pickup_merge_slots() {
+                if let Some(target) = self.snapshot.get(slot)
                     && target.same(source)
                 {
                     room += u32::from(source.max.saturating_sub(target.count));
                 }
             }
         }
-        for cell in self.pickup_empty_cells() {
-            if self.snapshot.get(cell).is_none() {
+        for slot in self.pickup_empty_slots() {
+            if self.snapshot.get(slot).is_none() {
                 room += u32::from(source.max);
             }
         }
@@ -207,7 +207,7 @@ impl<'a> Planner<'a> {
 
     /// Stores a stack the way a pickup does; what does not fit stays in `from`.
     pub fn insert_stack(&mut self, from: Source) -> bool {
-        self.move_to(from, &self.pickup_merge_cells(), &self.pickup_empty_cells())
+        self.move_to(from, &self.pickup_merge_slots(), &self.pickup_empty_slots())
     }
 
     /// Puts a stack back into the player's inventory the way a pickup does,
@@ -219,38 +219,38 @@ impl<'a> Planner<'a> {
     }
 
     fn layout_range(&self, range: std::ops::Range<usize>, backwards: bool) -> Vec<Slot> {
-        let mut cells = self.snapshot.layout[range].to_vec();
+        let mut slots = self.snapshot.layout[range].to_vec();
         if backwards {
-            cells.reverse();
+            slots.reverse();
         }
-        cells
+        slots
     }
 
-    fn quick_move(&mut self, slot: usize) -> bool {
+    fn quick_move(&mut self, index: usize) -> bool {
         let layout_len = self.snapshot.layout.len();
-        let from = self.snapshot.layout[slot];
+        let from = self.snapshot.layout[index];
         let Some(stack) = self.snapshot.get(from).cloned() else {
             return false;
         };
         if layout_len != slots::MENU_COUNT {
-            let container = layout_len - PLAYER_MENU_CELLS;
-            let cells = if slot < container {
+            let container = layout_len - PLAYER_MENU_SLOTS;
+            let candidates = if index < container {
                 self.layout_range(container..layout_len, true)
             } else {
                 self.layout_range(0..container, false)
             };
-            return self.move_to(Source::Slot(from), &cells, &cells);
+            return self.move_to(Source::Slot(from), &candidates, &candidates);
         }
         let player = self.snapshot.player;
-        let slot = slot as u16;
+        let index = index as u16;
         let main_and_hotbar = slots::MAIN.start as usize..slots::HOTBAR.end as usize;
-        let cells = if slot == slots::RESULT {
+        let candidates = if index == slots::RESULT {
             self.layout_range(main_and_hotbar, true)
-        } else if slot < slots::MAIN.start {
+        } else if index < slots::MAIN.start {
             self.layout_range(main_and_hotbar, false)
         } else if let Some(armour) = stack
             .armour
-            .filter(|cell| self.snapshot.get(Slot::new(player, *cell)).is_none())
+            .filter(|slot| self.snapshot.get(Slot::new(player, *slot)).is_none())
         {
             vec![Slot::new(player, armour)]
         } else if stack.offhand
@@ -260,17 +260,17 @@ impl<'a> Planner<'a> {
                 .is_none()
         {
             vec![Slot::new(player, slots::OFFHAND)]
-        } else if slots::MAIN.contains(&slot) {
+        } else if slots::MAIN.contains(&index) {
             self.layout_range(
                 slots::HOTBAR.start as usize..slots::HOTBAR.end as usize,
                 false,
             )
-        } else if slots::HOTBAR.contains(&slot) {
+        } else if slots::HOTBAR.contains(&index) {
             self.layout_range(slots::MAIN.start as usize..slots::MAIN.end as usize, false)
         } else {
             self.layout_range(main_and_hotbar, false)
         };
-        self.move_to(Source::Slot(from), &cells, &cells)
+        self.move_to(Source::Slot(from), &candidates, &candidates)
     }
 
     /// A click on the open menu, validated against the layout by the caller.
@@ -279,12 +279,12 @@ impl<'a> Planner<'a> {
     /// and the two-pass gather over the layout.
     pub fn click(&mut self, click: Click) {
         let player = self.snapshot.player;
-        let carried_cell = self.snapshot.carried();
-        let carried = self.snapshot.get(carried_cell).cloned();
+        let carried_slot = self.snapshot.carried();
+        let carried = self.snapshot.get(carried_slot).cloned();
         let primary = click.button == 0;
-        let clicked_cell = usize::try_from(click.slot)
+        let clicked_slot = usize::try_from(click.slot)
             .ok()
-            .and_then(|slot| self.snapshot.layout.get(slot).copied());
+            .and_then(|index| self.snapshot.layout.get(index).copied());
         match click.input {
             ContainerInput::Pickup | ContainerInput::QuickMove if click.button > 1 => {}
             ContainerInput::Pickup | ContainerInput::QuickMove
@@ -292,47 +292,47 @@ impl<'a> Planner<'a> {
             {
                 if let Some(carried) = carried {
                     let amount = if primary { carried.count } else { 1 };
-                    self.drop(carried_cell, amount);
+                    self.drop(carried_slot, amount);
                 }
             }
             ContainerInput::QuickMove => {
-                let Some(slot) = usize::try_from(click.slot).ok() else {
+                let Some(index) = usize::try_from(click.slot).ok() else {
                     return;
                 };
-                let from = self.snapshot.layout[slot];
+                let from = self.snapshot.layout[index];
                 let item = self.snapshot.get(from).map(|stack| stack.key.item);
-                while self.quick_move(slot)
+                while self.quick_move(index)
                     && self.snapshot.get(from).map(|stack| stack.key.item) == item
                 {}
             }
             ContainerInput::Pickup => {
-                let Some(cell) = clicked_cell else {
+                let Some(slot) = clicked_slot else {
                     return;
                 };
-                match (self.snapshot.get(cell).cloned(), carried) {
+                match (self.snapshot.get(slot).cloned(), carried) {
                     (None, None) => {}
                     (None, Some(carried)) => {
                         let amount = if primary { carried.count } else { 1 };
-                        self.safe_insert(carried_cell, cell, amount);
+                        self.safe_insert(carried_slot, slot, amount);
                     }
                     (Some(clicked), None) => {
                         let have = clicked.count;
                         let amount = if primary { have } else { have.div_ceil(2) };
-                        self.transfer(Source::Slot(cell), carried_cell, amount);
+                        self.transfer(Source::Slot(slot), carried_slot, amount);
                     }
                     (Some(clicked), Some(carried)) => {
                         let same = clicked.same(&carried);
-                        match self.snapshot.cell_max(cell, &carried) {
+                        match self.snapshot.slot_max(slot, &carried) {
                             Some(_) if same => {
                                 let amount = if primary { carried.count } else { 1 };
-                                self.safe_insert(carried_cell, cell, amount);
+                                self.safe_insert(carried_slot, slot, amount);
                             }
-                            Some(max) if carried.count <= max => self.swap(cell, carried_cell),
+                            Some(max) if carried.count <= max => self.swap(slot, carried_slot),
                             Some(_) => {}
                             None if same => {
                                 let room = carried.max - carried.count;
                                 if room >= clicked.count {
-                                    self.transfer(Source::Slot(cell), carried_cell, clicked.count);
+                                    self.transfer(Source::Slot(slot), carried_slot, clicked.count);
                                 }
                             }
                             None => {}
@@ -341,39 +341,39 @@ impl<'a> Planner<'a> {
                 }
             }
             ContainerInput::Swap => {
-                let (Some(cell), Some(source_cell)) =
-                    (clicked_cell, swap_source(player, click.button))
+                let (Some(slot), Some(source_slot)) =
+                    (clicked_slot, swap_source(player, click.button))
                 else {
                     return;
                 };
                 match (
-                    self.snapshot.get(source_cell).cloned(),
-                    self.snapshot.get(cell).cloned(),
+                    self.snapshot.get(source_slot).cloned(),
+                    self.snapshot.get(slot).cloned(),
                 ) {
                     (None, None) => {}
                     (None, Some(_)) => {
-                        self.transfer(Source::Slot(cell), source_cell, u8::MAX);
+                        self.transfer(Source::Slot(slot), source_slot, u8::MAX);
                     }
                     (Some(source), None) => {
-                        if let Some(max) = self.snapshot.cell_max(cell, &source) {
-                            self.transfer(Source::Slot(source_cell), cell, max);
+                        if let Some(max) = self.snapshot.slot_max(slot, &source) {
+                            self.transfer(Source::Slot(source_slot), slot, max);
                         }
                     }
                     (Some(source), Some(_)) => {
-                        let Some(max) = self.snapshot.cell_max(cell, &source) else {
+                        let Some(max) = self.snapshot.slot_max(slot, &source) else {
                             return;
                         };
                         if source.count > max {
-                            self.insert_or_drop(cell);
-                            self.transfer(Source::Slot(source_cell), cell, max);
+                            self.insert_or_drop(slot);
+                            self.transfer(Source::Slot(source_slot), slot, max);
                         } else {
-                            self.swap(cell, source_cell);
+                            self.swap(slot, source_slot);
                         }
                     }
                 }
             }
             ContainerInput::Clone => {
-                let Some(cell) = clicked_cell.filter(|cell| self.snapshot.get(*cell).is_some())
+                let Some(slot) = clicked_slot.filter(|slot| self.snapshot.get(*slot).is_some())
                 else {
                     return;
                 };
@@ -382,16 +382,16 @@ impl<'a> Planner<'a> {
                 }
                 let full = self
                     .snapshot
-                    .get(cell)
+                    .get(slot)
                     .map(|clicked| clicked.with_count(clicked.max));
-                self.snapshot.set(carried_cell, full);
+                self.snapshot.set(carried_slot, full);
                 self.ops.push(Op::Clone {
-                    from: cell,
-                    to: carried_cell,
+                    from: slot,
+                    to: carried_slot,
                 });
             }
             ContainerInput::Throw => {
-                let Some(cell) = clicked_cell.filter(|cell| self.snapshot.get(*cell).is_some())
+                let Some(slot) = clicked_slot.filter(|slot| self.snapshot.get(*slot).is_some())
                 else {
                     return;
                 };
@@ -401,9 +401,9 @@ impl<'a> Planner<'a> {
                 let amount = if primary {
                     1
                 } else {
-                    self.snapshot.count(cell)
+                    self.snapshot.count(slot)
                 };
-                self.drop(cell, amount);
+                self.drop(slot, amount);
             }
             ContainerInput::QuickCraft | ContainerInput::PickupAll => {}
         }
@@ -413,9 +413,9 @@ impl<'a> Planner<'a> {
     pub fn close(&mut self) {
         let player = self.snapshot.player;
         for index in std::iter::once(slots::CARRIED).chain(slots::CRAFT) {
-            let cell = Slot::new(player, index);
-            if self.snapshot.get(cell).is_some() {
-                self.insert_or_drop(cell);
+            let slot = Slot::new(player, index);
+            if self.snapshot.get(slot).is_some() {
+                self.insert_or_drop(slot);
             }
         }
     }

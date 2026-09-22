@@ -122,11 +122,11 @@ fn set_count_zero_despawns_the_subtree() {
 }
 
 /// A chest holding a shulker holding a pickaxe; returns (chest, shulker, pickaxe).
-fn chest_of_shulker(world: &mut World, chest_cell: u16) -> (Entity, Entity, Entity) {
+fn chest_of_shulker(world: &mut World, chest_slot: u16) -> (Entity, Entity, Entity) {
     let chest = holder(world, 27);
     let shulker = spawn(world, "shulker_box", 1);
     let pickaxe = spawn(world, "diamond_pickaxe", 1);
-    place(world, shulker, chest, chest_cell).unwrap();
+    place(world, shulker, chest, chest_slot).unwrap();
     place(world, pickaxe, shulker, 4).unwrap();
     (chest, shulker, pickaxe)
 }
@@ -189,7 +189,7 @@ fn move_errors_are_returned_not_panicked() {
     ));
     assert!(
         place(&mut world, a, chest, 0).is_ok(),
-        "re-placing a stack in its own cell is a no-op"
+        "re-placing a stack in its own slot is a no-op"
     );
     let (_, shulker, pickaxe) = chest_of_shulker(&mut world, 1);
     world.entity_mut(pickaxe).insert(SlotTable::fixed(1));
@@ -304,7 +304,7 @@ fn transfer_splits_merges_and_moves_counts() {
 }
 
 #[test]
-fn swap_exchanges_two_cells_either_of_which_may_be_empty() {
+fn swap_exchanges_two_slots_either_of_which_may_be_empty() {
     let mut world = world();
     let chest = holder(&mut world, 3);
     let a = spawn(&mut world, "stone", 1);
@@ -324,7 +324,7 @@ fn swap_exchanges_two_cells_either_of_which_may_be_empty() {
 }
 
 #[test]
-fn drop_takes_a_stack_out_of_its_cell_and_pickup_puts_it_back() {
+fn drop_takes_a_stack_out_of_its_slot_and_pickup_puts_it_back() {
     let mut world = world();
     let player = holder(&mut world, 47);
     let stone = spawn(&mut world, "stone", 20);

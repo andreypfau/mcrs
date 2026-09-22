@@ -33,8 +33,8 @@ pub fn spawn(world: &mut World, path: &str, count: i32) -> Entity {
     spawn_stack(world, &value(path, count, ComponentPatch::EMPTY), items()).unwrap()
 }
 
-pub fn holder(world: &mut World, cells: usize) -> Entity {
-    world.spawn(SlotTable::fixed(cells)).id()
+pub fn holder(world: &mut World, slots: usize) -> Entity {
+    world.spawn(SlotTable::fixed(slots)).id()
 }
 
 pub fn remove(world: &mut World, stack: Entity, kind: ItemComponentKind) {

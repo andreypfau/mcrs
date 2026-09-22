@@ -150,8 +150,8 @@ pub fn handle_creative_slots(world: &mut World) {
         if !valid_slot && req.slot >= 0 {
             continue;
         }
-        let cell = Slot::new(req.player, req.slot as u16);
-        let existing = stack_in(world, cell).filter(|_| valid_slot);
+        let slot = Slot::new(req.player, req.slot as u16);
+        let existing = stack_in(world, slot).filter(|_| valid_slot);
         let Some(value) = value else {
             if let Some(existing) = existing {
                 commit(world, vec![Op::Despawn { stack: existing }]);
@@ -197,7 +197,7 @@ pub fn handle_creative_slots(world: &mut World) {
         if let Some(existing) = existing {
             ops.push(Op::Despawn { stack: existing });
         }
-        ops.push(Op::Spawn { value, to: cell });
+        ops.push(Op::Spawn { value, to: slot });
         commit(world, ops);
     }
 }

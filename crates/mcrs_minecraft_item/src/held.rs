@@ -36,13 +36,13 @@ impl Held {
         let Some(mut table) = world.get_mut::<SlotTable>(held.holder) else {
             return;
         };
-        if let Some(cell) = table.cells.get_mut(held.index as usize)
-            && *cell == Some(ctx.entity)
+        if let Some(slot) = table.slots.get_mut(held.index as usize)
+            && *slot == Some(ctx.entity)
         {
-            *cell = None;
+            *slot = None;
         }
-        while table.cells.last() == Some(&None) {
-            table.cells.pop();
+        while table.slots.last() == Some(&None) {
+            table.slots.pop();
         }
     }
 }
@@ -57,12 +57,12 @@ impl Holds {
     }
 }
 
-/// The cells of a holder, mirrored from `Held` by its hooks; `cells` ends at
+/// The slots of a holder, mirrored from `Held` by its hooks; `slots` ends at
 /// the last occupied one.
 #[derive(Component, Debug, Clone, PartialEq, Eq)]
 #[component(on_insert = SlotTable::mirror_holds)]
 pub struct SlotTable {
-    cells: Vec<Option<Entity>>,
+    slots: Vec<Option<Entity>>,
     bound: Option<usize>,
 }
 
@@ -85,37 +85,37 @@ impl SlotTable {
     fn place(&mut self, index: u16, stack: Entity) {
         assert!(
             self.accepts(index),
-            "cell {index} is outside the table holding {stack:?}"
+            "slot {index} is outside the table holding {stack:?}"
         );
         let index = index as usize;
-        if index >= self.cells.len() {
-            self.cells.resize(index + 1, None);
+        if index >= self.slots.len() {
+            self.slots.resize(index + 1, None);
         }
-        let cell = &mut self.cells[index];
-        debug_assert!(cell.is_none_or(|by| by == stack));
-        *cell = Some(stack);
+        let slot = &mut self.slots[index];
+        debug_assert!(slot.is_none_or(|by| by == stack));
+        *slot = Some(stack);
     }
 
     pub fn fixed(len: usize) -> Self {
         Self {
-            cells: Vec::new(),
+            slots: Vec::new(),
             bound: Some(len),
         }
     }
 
     pub fn list() -> Self {
         Self {
-            cells: Vec::new(),
+            slots: Vec::new(),
             bound: None,
         }
     }
 
     pub fn get(&self, index: u16) -> Option<Entity> {
-        self.cells.get(index as usize).copied().flatten()
+        self.slots.get(index as usize).copied().flatten()
     }
 
     pub fn len(&self) -> usize {
-        self.bound.unwrap_or(self.cells.len())
+        self.bound.unwrap_or(self.slots.len())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -123,10 +123,10 @@ impl SlotTable {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (u16, Entity)> + '_ {
-        self.cells
+        self.slots
             .iter()
             .enumerate()
-            .filter_map(|(index, cell)| cell.map(|entity| (index as u16, entity)))
+            .filter_map(|(index, slot)| slot.map(|entity| (index as u16, entity)))
     }
 
     pub fn first_free(&self, range: Range<u16>) -> Option<u16> {
@@ -139,7 +139,7 @@ impl SlotTable {
         let index = index as usize;
         match self.bound {
             Some(bound) => index < bound,
-            None => index <= self.cells.len(),
+            None => index <= self.slots.len(),
         }
     }
 }

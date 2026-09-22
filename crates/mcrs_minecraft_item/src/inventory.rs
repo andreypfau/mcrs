@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::Component;
 
-/// Cells of a player: the vanilla inventory menu order plus the cursor.
+/// Slots of a player: the vanilla inventory menu order plus the cursor.
 pub mod slots {
     use std::ops::Range;
 
@@ -27,7 +27,7 @@ pub mod slots {
         HOTBAR.start + selected as u16
     }
 
-    /// The vanilla `Inventory` index of a menu cell: hotbar 0..9, main 9..36,
+    /// The vanilla `Inventory` index of a menu slot: hotbar 0..9, main 9..36,
     /// armour feet to head 36..40, offhand 40.
     pub const fn inventory_index(menu: u16) -> Option<u8> {
         match menu {

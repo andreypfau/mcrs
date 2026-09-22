@@ -94,8 +94,8 @@ fn nested_stacks_are_child_entities() {
     let shulker = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
     let table = world.get::<SlotTable>(shulker).unwrap();
     assert_eq!(table.len(), 27);
-    let cells: Vec<u16> = table.iter().map(|(index, _)| index).collect();
-    assert_eq!(cells, [0, 5, 26]);
+    let occupied: Vec<u16> = table.iter().map(|(index, _)| index).collect();
+    assert_eq!(occupied, [0, 5, 26]);
     let bundle = table.get(26).unwrap();
     assert_eq!(
         world.get::<Held>(bundle),
@@ -243,7 +243,7 @@ fn child_kind_tombstones_and_empty_foreign_kinds_survive() {
 }
 
 #[test]
-fn a_tombstoned_child_kind_has_no_cells() {
+fn a_tombstoned_child_kind_has_no_slots() {
     let mut world = world();
     let emptied =
         parse(r#"{"id": "minecraft:shulker_box", "components": {"!minecraft:container": {}}}"#);

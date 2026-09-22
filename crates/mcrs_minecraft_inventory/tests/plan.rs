@@ -42,7 +42,7 @@ fn fresh() -> MenuSnapshot {
     MenuSnapshot::empty(player(), 3, player_menu_layout(player()))
 }
 
-fn cell(index: u16) -> Slot {
+fn slot(index: u16) -> Slot {
     Slot::new(player(), index)
 }
 
@@ -60,32 +60,32 @@ fn click(snapshot: &mut MenuSnapshot, input: ContainerInput, slot: i16, button: 
 #[test]
 fn left_click_lifts_the_stack_and_right_click_takes_half_then_places_one() {
     let mut snapshot = fresh();
-    snapshot.set(cell(36), Some(stone(7)));
+    snapshot.set(slot(36), Some(stone(7)));
     let ops = click(&mut snapshot, ContainerInput::Pickup, 36, 0);
     assert_eq!(
         ops,
         [Op::Transfer {
-            from: cell(36),
-            to: cell(slots::CARRIED),
+            from: slot(36),
+            to: slot(slots::CARRIED),
             count: 7
         }]
     );
-    assert_eq!(snapshot.get(cell(36)), None);
-    assert_eq!(snapshot.count(cell(slots::CARRIED)), 7);
+    assert_eq!(snapshot.get(slot(36)), None);
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 7);
 
     let ops = click(&mut snapshot, ContainerInput::Pickup, 9, 1);
     assert_eq!(
         ops,
         [Op::Transfer {
-            from: cell(slots::CARRIED),
-            to: cell(9),
+            from: slot(slots::CARRIED),
+            to: slot(9),
             count: 1
         }]
     );
     assert_eq!(
         (
-            snapshot.count(cell(9)),
-            snapshot.count(cell(slots::CARRIED))
+            snapshot.count(slot(9)),
+            snapshot.count(slot(slots::CARRIED))
         ),
         (1, 6)
     );
@@ -94,71 +94,71 @@ fn left_click_lifts_the_stack_and_right_click_takes_half_then_places_one() {
     assert_eq!(
         ops,
         [Op::Transfer {
-            from: cell(slots::CARRIED),
-            to: cell(9),
+            from: slot(slots::CARRIED),
+            to: slot(9),
             count: 6
         }]
     );
     let mut snapshot = fresh();
-    snapshot.set(cell(36), Some(stone(7)));
+    snapshot.set(slot(36), Some(stone(7)));
     click(&mut snapshot, ContainerInput::Pickup, 36, 1);
     assert_eq!(
         (
-            snapshot.count(cell(36)),
-            snapshot.count(cell(slots::CARRIED))
+            snapshot.count(slot(36)),
+            snapshot.count(slot(slots::CARRIED))
         ),
         (3, 4)
     );
 }
 
 #[test]
-fn shift_click_merges_then_fills_and_a_helmet_goes_to_its_armour_cell() {
+fn shift_click_merges_then_fills_and_a_helmet_goes_to_its_armour_slot() {
     let mut snapshot = fresh();
-    snapshot.set(cell(36), Some(stone(40)));
-    snapshot.set(cell(9), Some(stone(60)));
+    snapshot.set(slot(36), Some(stone(40)));
+    snapshot.set(slot(9), Some(stone(60)));
     let ops = click(&mut snapshot, ContainerInput::QuickMove, 36, 0);
     assert_eq!(
         ops,
         [
             Op::Transfer {
-                from: cell(36),
-                to: cell(9),
+                from: slot(36),
+                to: slot(9),
                 count: 4
             },
             Op::Transfer {
-                from: cell(36),
-                to: cell(10),
+                from: slot(36),
+                to: slot(10),
                 count: 36
             },
         ]
     );
     let mut snapshot = fresh();
-    snapshot.set(cell(36), Some(helmet()));
+    snapshot.set(slot(36), Some(helmet()));
     let ops = click(&mut snapshot, ContainerInput::QuickMove, 36, 0);
     assert_eq!(
         ops,
         [Op::Transfer {
-            from: cell(36),
-            to: cell(slots::ARMOR_HEAD),
+            from: slot(36),
+            to: slot(slots::ARMOR_HEAD),
             count: 1
         }]
     );
 }
 
 #[test]
-fn placing_a_stack_on_a_different_one_swaps_and_the_result_cell_refuses() {
+fn placing_a_stack_on_a_different_one_swaps_and_the_result_slot_refuses() {
     let mut snapshot = fresh();
-    snapshot.set(cell(slots::CARRIED), Some(stone(5)));
-    snapshot.set(cell(10), Some(helmet()));
+    snapshot.set(slot(slots::CARRIED), Some(stone(5)));
+    snapshot.set(slot(10), Some(helmet()));
     let ops = click(&mut snapshot, ContainerInput::Pickup, 10, 0);
     assert_eq!(
         ops,
         [Op::Swap {
-            a: cell(10),
-            b: cell(slots::CARRIED)
+            a: slot(10),
+            b: slot(slots::CARRIED)
         }]
     );
-    assert_eq!(snapshot.get(cell(10)), Some(&stone(5)));
+    assert_eq!(snapshot.get(slot(10)), Some(&stone(5)));
     let ops = click(
         &mut snapshot,
         ContainerInput::Pickup,
@@ -175,8 +175,8 @@ fn a_stack_of_pumpkins_swapped_onto_a_helmet_splits_one_and_stores_the_helmet() 
         ..stone(5)
     };
     let mut snapshot = fresh();
-    snapshot.set(cell(slots::held(0)), Some(pumpkins));
-    snapshot.set(cell(slots::ARMOR_HEAD), Some(helmet()));
+    snapshot.set(slot(slots::held(0)), Some(pumpkins));
+    snapshot.set(slot(slots::ARMOR_HEAD), Some(helmet()));
     let ops = click(
         &mut snapshot,
         ContainerInput::Swap,
@@ -187,48 +187,48 @@ fn a_stack_of_pumpkins_swapped_onto_a_helmet_splits_one_and_stores_the_helmet() 
         ops,
         [
             Op::Transfer {
-                from: cell(slots::ARMOR_HEAD),
-                to: cell(slots::held(1)),
+                from: slot(slots::ARMOR_HEAD),
+                to: slot(slots::held(1)),
                 count: 1
             },
             Op::Transfer {
-                from: cell(slots::held(0)),
-                to: cell(slots::ARMOR_HEAD),
+                from: slot(slots::held(0)),
+                to: slot(slots::ARMOR_HEAD),
                 count: 1
             },
         ]
     );
-    assert_eq!(snapshot.count(cell(slots::held(0))), 4);
+    assert_eq!(snapshot.count(slot(slots::held(0))), 4);
 }
 
 #[test]
 fn throwing_outside_drops_the_cursor_and_close_returns_it_first_to_the_held_slot() {
     let mut snapshot = fresh();
-    snapshot.set(cell(slots::CARRIED), Some(stone(10)));
+    snapshot.set(slot(slots::CARRIED), Some(stone(10)));
     let ops = click(&mut snapshot, ContainerInput::Pickup, -999, 1);
     assert_eq!(
         ops,
         [Op::Drop {
-            from: cell(slots::CARRIED),
+            from: slot(slots::CARRIED),
             count: 1,
             thrower: player()
         }]
     );
-    snapshot.set(cell(slots::held(3)), Some(stone(60)));
-    snapshot.set(cell(36), Some(stone(50)));
+    snapshot.set(slot(slots::held(3)), Some(stone(60)));
+    snapshot.set(slot(36), Some(stone(50)));
     let mut planner = Planner::new(&mut snapshot);
     planner.close();
     assert_eq!(
         planner.ops,
         [
             Op::Transfer {
-                from: cell(slots::CARRIED),
-                to: cell(slots::held(3)),
+                from: slot(slots::CARRIED),
+                to: slot(slots::held(3)),
                 count: 4
             },
             Op::Transfer {
-                from: cell(slots::CARRIED),
-                to: cell(36),
+                from: slot(slots::CARRIED),
+                to: slot(36),
                 count: 5
             },
         ]
@@ -239,15 +239,15 @@ fn throwing_outside_drops_the_cursor_and_close_returns_it_first_to_the_held_slot
 fn a_full_inventory_drops_what_it_cannot_take() {
     let mut snapshot = fresh();
     for index in slots::HOTBAR.chain(slots::MAIN) {
-        snapshot.set(cell(index), Some(stone(64)));
+        snapshot.set(slot(index), Some(stone(64)));
     }
-    snapshot.set(cell(slots::CARRIED), Some(helmet()));
+    snapshot.set(slot(slots::CARRIED), Some(helmet()));
     let mut planner = Planner::new(&mut snapshot);
     planner.close();
     assert_eq!(
         planner.ops,
         [Op::Drop {
-            from: cell(slots::CARRIED),
+            from: slot(slots::CARRIED),
             count: 1,
             thrower: player()
         }]
@@ -255,13 +255,13 @@ fn a_full_inventory_drops_what_it_cannot_take() {
 }
 
 #[test]
-fn a_pickup_fills_the_held_slot_first_then_a_free_cell() {
+fn a_pickup_fills_the_held_slot_first_then_a_free_slot() {
     let mut snapshot = fresh();
     for index in slots::HOTBAR.chain(slots::MAIN) {
         let count = if index == slots::held(3) { 60 } else { 64 };
-        snapshot.set(cell(index), Some(stone(count)));
+        snapshot.set(slot(index), Some(stone(count)));
     }
-    snapshot.set(cell(slots::MAIN.start), None);
+    snapshot.set(slot(slots::MAIN.start), None);
     let item = Entity::from_raw_u32(99).unwrap();
     snapshot.add_item(item, stone(7));
     let mut planner = Planner::new(&mut snapshot);
@@ -272,12 +272,12 @@ fn a_pickup_fills_the_held_slot_first_then_a_free_cell() {
         [
             Op::Pickup {
                 item,
-                to: cell(slots::held(3)),
+                to: slot(slots::held(3)),
                 count: 4
             },
             Op::Pickup {
                 item,
-                to: cell(slots::MAIN.start),
+                to: slot(slots::MAIN.start),
                 count: 3
             },
         ]

@@ -76,7 +76,7 @@ pub fn open_containers(world: &mut World) {
             continue;
         };
         if table.len() != CHEST_ROWS * 9 {
-            tracing::debug!(container = ?req.container, cells = table.len(), "a container without a chest menu");
+            tracing::debug!(container = ?req.container, slots = table.len(), "a container without a chest menu");
             continue;
         }
         if world.get::<MenuContainer>(current).is_some() {

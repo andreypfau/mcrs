@@ -1,4 +1,4 @@
-use crate::inventory_sync::{cell, drain, place, stone, world};
+use crate::inventory_sync::{drain, place, stack_at, stone, world};
 use crate::support::standalone_corpus;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -89,8 +89,8 @@ fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
         0,
         Vec::new(),
     );
-    assert_eq!(cell(&world, player, slots::HOTBAR.start), None);
-    assert_eq!(cell(&world, player, slots::CARRIED), Some((stack, 7)));
+    assert_eq!(stack_at(&world, player, slots::HOTBAR.start), None);
+    assert_eq!(stack_at(&world, player, slots::CARRIED), Some((stack, 7)));
 
     click(
         &mut world,
@@ -100,8 +100,8 @@ fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
         0,
         Vec::new(),
     );
-    assert_eq!(cell(&world, player, slots::CARRIED), None);
-    assert_eq!(cell(&world, player, slots::MAIN.start), Some((stack, 7)));
+    assert_eq!(stack_at(&world, player, slots::CARRIED), None);
+    assert_eq!(stack_at(&world, player, slots::MAIN.start), Some((stack, 7)));
 }
 
 #[test]
@@ -119,10 +119,10 @@ fn right_click_takes_half_then_places_one() {
         Vec::new(),
     );
     assert_eq!(
-        cell(&world, player, slots::HOTBAR.start).map(|c| c.1),
+        stack_at(&world, player, slots::HOTBAR.start).map(|c| c.1),
         Some(3)
     );
-    assert_eq!(cell(&world, player, slots::CARRIED).map(|c| c.1), Some(4));
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|c| c.1), Some(4));
 
     click(
         &mut world,
@@ -132,8 +132,8 @@ fn right_click_takes_half_then_places_one() {
         1,
         Vec::new(),
     );
-    assert_eq!(cell(&world, player, slots::HOTBAR.start), Some((stack, 4)));
-    assert_eq!(cell(&world, player, slots::CARRIED).map(|c| c.1), Some(3));
+    assert_eq!(stack_at(&world, player, slots::HOTBAR.start), Some((stack, 4)));
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|c| c.1), Some(3));
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
         0,
         Vec::new(),
     );
-    assert_eq!(cell(&world, player, slots::MAIN.start), Some((stack, 7)));
+    assert_eq!(stack_at(&world, player, slots::MAIN.start), Some((stack, 7)));
 
     click(
         &mut world,
@@ -160,8 +160,8 @@ fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
         40,
         Vec::new(),
     );
-    assert_eq!(cell(&world, player, slots::MAIN.start), None);
-    assert_eq!(cell(&world, player, slots::OFFHAND), Some((stack, 7)));
+    assert_eq!(stack_at(&world, player, slots::MAIN.start), None);
+    assert_eq!(stack_at(&world, player, slots::OFFHAND), Some((stack, 7)));
 }
 
 #[test]
@@ -178,7 +178,7 @@ fn throw_turns_the_stack_into_a_dropped_item() {
         1,
         Vec::new(),
     );
-    assert_eq!(cell(&world, player, slots::HOTBAR.start), None);
+    assert_eq!(stack_at(&world, player, slots::HOTBAR.start), None);
     assert!(world.get::<DroppedItem>(stack).is_some());
     assert_eq!(world.get::<Thrower>(stack), Some(&Thrower(player)));
 }
@@ -204,7 +204,7 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
     );
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(matches!(
-        world.get::<RemoteSlots>(menu).unwrap().cells[usize::from(untouched)],
+        world.get::<RemoteSlots>(menu).unwrap().slots[usize::from(untouched)],
         Remote::Claimed(Some(_))
     ));
     sync_stack_slots(&mut world);
@@ -237,9 +237,9 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
 fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
     let (mut world, player) = opened();
     world.init_resource::<Messages<CloseContainerRequest>>();
-    let held_cell = slots::held(3);
+    let held_slot = slots::held(3);
     let held = stone(&mut world, 30);
-    place(&mut world, held, player, held_cell);
+    place(&mut world, held, player, held_slot);
     let first = stone(&mut world, 50);
     place(&mut world, first, player, slots::HOTBAR.start);
     let carried = stone(&mut world, 10);
@@ -250,7 +250,7 @@ fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
         container_id: 0,
     });
     close_menus(&mut world);
-    assert_eq!(cell(&world, player, slots::CARRIED), None);
-    assert_eq!(cell(&world, player, held_cell), Some((held, 40)));
-    assert_eq!(cell(&world, player, slots::HOTBAR.start), Some((first, 50)));
+    assert_eq!(stack_at(&world, player, slots::CARRIED), None);
+    assert_eq!(stack_at(&world, player, held_slot), Some((held, 40)));
+    assert_eq!(stack_at(&world, player, slots::HOTBAR.start), Some((first, 50)));
 }
