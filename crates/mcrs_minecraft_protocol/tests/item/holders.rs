@@ -12,6 +12,7 @@ use mcrs_minecraft_protocol::item::{
     PaintingVariantValue, SoundEvent, hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
+use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::harness::{TestLookup, from_json, hex, nbt_tree, persistent_json};
 
@@ -156,19 +157,19 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
 
 #[test]
 fn consume_effect_ids_are_the_registry_protocol_ids() {
-    let report: BTreeMap<String, serde_json::Value> = serde_json::from_str(include_str!(
+    let table = mcrs_minecraft_registry::StaticRegistryTable::from_json(include_bytes!(
         "../../../../assets/mcrs/reports/registries.json"
     ))
     .unwrap();
-    let entries = &report["minecraft:consume_effect_type"]["entries"];
-    assert_eq!(
-        entries.as_object().unwrap().len(),
-        ConsumeEffectType::ALL.len()
-    );
+    let registry = table.registry("consume_effect_type").unwrap();
+    assert_eq!(registry.len(), ConsumeEffectType::ALL.len());
     for kind in ConsumeEffectType::ALL {
         assert_eq!(
-            entries[kind.id()]["protocol_id"],
-            kind as u8,
+            table.id(
+                "consume_effect_type",
+                &ResourceLocation::read(kind.id()).unwrap()
+            ),
+            Some(kind as u32),
             "{}",
             kind.id()
         );

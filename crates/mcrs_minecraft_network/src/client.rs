@@ -40,9 +40,8 @@ use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Look, PROTOCOL_VERSION, Packet, VarInt,
     WritePacket, uuid::Uuid,
 };
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::{LookupIndex, RegistryLookup};
 use md5::{Digest, Md5};
-use std::collections::HashMap;
 use std::net::SocketAddr;
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
@@ -100,14 +99,6 @@ pub struct ReceivedRegistry {
 #[derive(Component, Default, Debug)]
 pub struct ReceivedRegistries(pub Vec<ReceivedRegistry>, LookupIndex);
 
-/// Name and network id of every entry, keyed by the registry's bare path so
-/// the key form matches the item component registry markers.
-#[derive(Default, Debug)]
-pub struct LookupIndex {
-    by_name: HashMap<Box<str>, HashMap<ResourceLocation, u32>>,
-    by_id: HashMap<Box<str>, Vec<Option<ResourceLocation>>>,
-}
-
 impl ReceivedRegistries {
     pub fn push(&mut self, registry: ReceivedRegistry) {
         let key: Box<str> = registry
@@ -115,14 +106,9 @@ impl ReceivedRegistries {
             .split_once(':')
             .map_or(registry.registry.as_str(), |(_, path)| path)
             .into();
-        let by_id = self.1.by_id.entry(key.clone()).or_default();
-        let by_name = self.1.by_name.entry(key).or_default();
         for (id, entry) in registry.entries.iter().enumerate() {
-            let location = ResourceLocation::parse(&entry.id).ok();
-            if let Some(location) = &location {
-                by_name.insert(location.clone(), id as u32);
-            }
-            by_id.push(location);
+            self.1
+                .insert(&key, id as u32, ResourceLocation::parse(&entry.id).ok());
         }
         self.0.push(registry);
     }
@@ -130,11 +116,11 @@ impl ReceivedRegistries {
 
 impl RegistryLookup for ReceivedRegistries {
     fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
-        self.1.by_name.get(registry)?.get(name).copied()
+        self.1.id(registry, name)
     }
 
     fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
-        self.1.by_id.get(registry)?.get(id as usize)?.as_ref()
+        self.1.name(registry, id)
     }
 }
 

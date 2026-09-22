@@ -106,6 +106,14 @@ pub struct Evaluator<'a, S> {
     pub grass: &'a dyn Fn(f32, f32) -> Option<[f32; 4]>,
 }
 
+fn scaled(normalize: bool, value: f32, max: f32) -> f32 {
+    if normalize {
+        (value / max).clamp(0.0, 1.0)
+    } else {
+        value.clamp(0.0, max)
+    }
+}
+
 impl<S: StackView> Evaluator<'_, S> {
     fn custom_model_data(&self) -> Option<CustomModelData> {
         self.stack.get::<CustomModelData>()
@@ -197,24 +205,16 @@ impl<S: StackView> Evaluator<'_, S> {
 
     pub fn range(&self, property: &RangeProperty) -> f32 {
         match property {
-            RangeProperty::Damage { normalize } => {
-                let damage = damage_value(&self.stack) as f32;
-                let max = max_damage(&self.stack) as f32;
-                if *normalize {
-                    (damage / max).clamp(0.0, 1.0)
-                } else {
-                    damage.clamp(0.0, max)
-                }
-            }
-            RangeProperty::Count { normalize } => {
-                let count = f32::from(self.stack.count());
-                let max = max_stack_size(&self.stack) as f32;
-                if *normalize {
-                    (count / max).clamp(0.0, 1.0)
-                } else {
-                    count.clamp(0.0, max)
-                }
-            }
+            RangeProperty::Damage { normalize } => scaled(
+                *normalize,
+                damage_value(&self.stack) as f32,
+                max_damage(&self.stack) as f32,
+            ),
+            RangeProperty::Count { normalize } => scaled(
+                *normalize,
+                f32::from(self.stack.count()),
+                max_stack_size(&self.stack) as f32,
+            ),
             RangeProperty::CustomModelData { index } => self
                 .custom_model_data()
                 .and_then(|data| data.floats.get(*index as usize).copied())

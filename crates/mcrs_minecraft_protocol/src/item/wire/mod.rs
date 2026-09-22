@@ -173,6 +173,30 @@ macro_rules! newtype_ctx_wire {
 }
 pub(crate) use newtype_ctx_wire;
 
+/// A record whose fields follow each other on the wire in the listed order,
+/// each in its own plain wire form.
+macro_rules! record_wire {
+    ($($ty:ident { $($field:ident),+ $(,)? }),* $(,)?) => {$(
+        impl $crate::Encode for $ty {
+            fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
+                $($crate::Encode::encode(&self.$field, &mut w)?;)+
+                Ok(())
+            }
+        }
+
+        impl<'a> $crate::Decode<'a> for $ty {
+            fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+                Ok($ty {
+                    $($field: $crate::Decode::decode(r)?,)+
+                })
+            }
+        }
+
+        $crate::item::ctx::ctx_free!($ty);
+    )*};
+}
+pub(crate) use record_wire;
+
 /// A record whose fields follow each other on the wire in the listed order.
 macro_rules! record_ctx_wire {
     ($($ty:ident { $($field:ident),+ $(,)? }),* $(,)?) => {$(

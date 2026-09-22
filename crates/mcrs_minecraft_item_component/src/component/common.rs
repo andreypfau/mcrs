@@ -3,7 +3,7 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use mcrs_minecraft_core::codec::{
-    Bounded, NonNegativeInt, default_true, float_value, int_value, is_default,
+    Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub use mcrs_minecraft_core::codec::{
     ArgbInt, BoundedString, IntArray, Number, RgbInt, compound_or_snbt, lenient, lenient_float,
-    optional_flag, unsigned_byte,
+    unsigned_byte,
 };
 
 pub use mcrs_minecraft_registry::holder::*;
@@ -248,6 +248,14 @@ pub(crate) fn key<R>(path: &str) -> ResourceKey<R> {
     ResourceKey::from_location(ResourceLocation::minecraft(path))
 }
 
+/// A map kept in the order read, refusing a repeated key.
+pub(crate) fn serialize_entries<K: Serialize, V: Serialize, S: Serializer>(
+    entries: &[(K, V)],
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    s.collect_map(entries.iter().map(|(key, value)| (key, value)))
+}
+
 /// A record reads a map and nothing else, where the derived visitor would
 /// also take the fields as a sequence.
 pub(crate) fn map_only<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
@@ -272,33 +280,10 @@ pub(crate) fn map_only<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
 
 /// A compound whose `id` names the type, read from a compound or an SNBT
 /// string; the `id` is lifted out and written back first.
+#[derive(Clone, Debug, PartialEq)]
 pub struct TypedEntityData<R> {
     pub id: ResourceKey<R>,
     pub tag: NbtCompound,
-}
-
-impl<R> Clone for TypedEntityData<R> {
-    fn clone(&self) -> Self {
-        TypedEntityData {
-            id: self.id.clone(),
-            tag: self.tag.clone(),
-        }
-    }
-}
-
-impl<R> PartialEq for TypedEntityData<R> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.tag == other.tag
-    }
-}
-
-impl<R> fmt::Debug for TypedEntityData<R> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TypedEntityData")
-            .field("id", &self.id)
-            .field("tag", &self.tag)
-            .finish()
-    }
 }
 
 impl<R> Serialize for TypedEntityData<R> {
@@ -668,3 +653,22 @@ macro_rules! unit_component {
     )*};
 }
 pub(crate) use unit_component;
+
+macro_rules! transparent_newtype {
+    ($($ty:ident($inner:ty) => [$($derive:ident),*]),* $(,)?) => {$(
+        #[derive($($derive,)* Serialize, Deserialize)]
+        #[serde(transparent)]
+        pub struct $ty(pub $inner);
+
+        impl $crate::harness::Sample for $ty {
+            fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
+                self.0.nbt_tags()
+            }
+
+            fn samples() -> Vec<Self> {
+                <$inner>::samples().into_iter().map($ty).collect()
+            }
+        }
+    )*};
+}
+pub(crate) use transparent_newtype;

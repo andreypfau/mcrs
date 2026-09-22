@@ -1,5 +1,5 @@
 use crate::world::aoi::{PlayerTrackerSet, TrackedBy, on_changed_transform};
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::lifecycle::Remove;
@@ -23,7 +23,6 @@ use mcrs_minecraft_level::entity::mob::{
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::reposition::Reposition;
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
 use mcrs_minecraft_protocol::entity::{EquipmentSlot, MetaDataValue, Metadata, MetadataEntry};
@@ -564,16 +563,6 @@ impl PairingItem<'_, '_> {
     }
 }
 
-fn to(anchor: Entity, data: PacketPayload) -> OutboundPlayerPacket {
-    OutboundPlayerPacket {
-        target: PacketTarget::SinglePlayer(anchor),
-        priority: PacketPriority::Normal,
-        data,
-        session: PlayerSession(0),
-        epoch: 0,
-    }
-}
-
 fn remove(entity: Entity) -> PacketPayload {
     PacketPayload::PlayerLeftView {
         entity_ids: smallvec![wire_id(entity)],
@@ -666,6 +655,7 @@ fn remove_untracked(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::world::bus::PacketTarget;
     use bevy_app::App;
     use bevy_ecs::message::Messages;
     use bevy_ecs::schedule::Schedule;

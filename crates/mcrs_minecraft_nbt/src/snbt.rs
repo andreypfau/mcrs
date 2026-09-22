@@ -755,26 +755,17 @@ mod test {
     use std::io::Cursor;
 
     use super::*;
-    use crate::deserializer::NbtReadHelper;
-    use crate::serializer::WriteAdaptor;
     use crate::snbt_golden::*;
+    use crate::test::unhex;
 
     fn hex(tag: &NbtTag) -> String {
         let mut bytes = Vec::new();
-        tag.write_unnamed(&mut WriteAdaptor::new(&mut bytes))
-            .unwrap();
+        crate::to_bytes_unnamed(tag, &mut bytes).unwrap();
         bytes.iter().map(|b| format!("{b:02x}")).collect()
     }
 
-    fn unhex(hex: &str) -> Vec<u8> {
-        (0..hex.len())
-            .step_by(2)
-            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
-            .collect()
-    }
-
     fn read(bytes: &[u8]) -> NbtTag {
-        NbtTag::read_unnamed(&mut NbtReadHelper::new(Cursor::new(bytes))).unwrap()
+        crate::from_bytes_unnamed(Cursor::new(bytes)).unwrap()
     }
 
     /// Vanilla's compound is a hash map, so its bytes carry no key order; the

@@ -10,7 +10,7 @@ use mcrs_minecraft_item::{
 };
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
 
-use common::{apply, items, place, set_count, world};
+use common::{apply, items, place, remove, set_count, world};
 
 fn apply_value(world: &mut World, stack: Entity, value: &ItemStackValue) -> Result<(), StackError> {
     apply(
@@ -24,10 +24,6 @@ fn apply_value(world: &mut World, stack: Entity, value: &ItemStackValue) -> Resu
         TransactionError::Stack(e) => e,
         e => panic!("{e}"),
     })
-}
-
-fn remove(world: &mut World, stack: Entity, kind: ItemComponentKind) {
-    apply(world, vec![Op::Remove { stack, kind }]).unwrap();
 }
 
 fn parse(json: &str) -> ItemStackValue {

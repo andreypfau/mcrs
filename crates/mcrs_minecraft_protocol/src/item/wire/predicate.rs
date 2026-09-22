@@ -5,7 +5,7 @@ use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::DeserializeSeed;
 
 use crate::item::component::predicate::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire, read_nbt_wire};
 use crate::item::kind::ItemComponentKind;
 use crate::item::patch::ComponentMap;
 use crate::item::wire::nbt_wire::nbt_wire;
@@ -130,14 +130,5 @@ fn decode_predicate_wire(
     kind: ComponentPredicateType,
     r: &mut &[u8],
 ) -> anyhow::Result<ComponentPredicate> {
-    match r.first() {
-        None => bail!("empty input for a network NBT tag"),
-        Some(&mcrs_minecraft_nbt::END_ID) => bail!("a network NBT tag must not be TAG_End"),
-        Some(_) => {}
-    }
-    let mut cursor = std::io::Cursor::new(*r);
-    let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
-    let value = kind.deserialize(&mut d)?;
-    *r = &r[cursor.position() as usize..];
-    Ok(value)
+    read_nbt_wire(r, |d| Ok(kind.deserialize(&mut *d)?))
 }

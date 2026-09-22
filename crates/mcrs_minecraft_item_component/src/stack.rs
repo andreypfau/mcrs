@@ -34,59 +34,6 @@ impl Validate for ItemStackValue {
     }
 }
 
-/// `{}` stands for no stack.
-pub mod optional_stack {
-    use super::*;
-
-    pub fn serialize<S: Serializer>(
-        value: &Option<ItemStackValue>,
-        s: S,
-    ) -> Result<S::Ok, S::Error> {
-        match value {
-            Some(stack) => stack.serialize(s),
-            None => serde::ser::SerializeMap::end(s.serialize_map(Some(0))?),
-        }
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(
-        d: D,
-    ) -> Result<Option<ItemStackValue>, D::Error> {
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct Repr {
-            #[serde(default, deserialize_with = "present")]
-            id: Option<ResourceKey<ItemReg>>,
-            #[serde(default, deserialize_with = "present")]
-            count: Option<codec::Bounded<1, 99, 1>>,
-            #[serde(default, deserialize_with = "present")]
-            components: Option<ComponentPatch>,
-        }
-
-        let repr: Repr = map_only(d)?;
-        let item = match repr {
-            Repr {
-                id: None,
-                count: None,
-                components: None,
-            } => return Ok(None),
-            Repr { id: Some(id), .. } => id,
-            Repr { id: None, .. } => return Err(D::Error::missing_field("id")),
-        };
-        let stack = ItemStackValue {
-            item,
-            count: repr.count.unwrap_or_default(),
-            components: repr.components.unwrap_or_default(),
-        };
-        stack.validate().map_err(D::Error::custom)?;
-        Ok(Some(stack))
-    }
-}
-
-/// A field that is present reads as itself, `null` included.
-fn present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Option<T>, D::Error> {
-    T::deserialize(d).map(Some)
-}
-
 /// A stack written as a map, or as the bare item id when it is one plain item.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Template(pub ItemStackValue);

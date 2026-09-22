@@ -9,7 +9,8 @@ use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
     AttributeReg, BlockReg, CompactList, EnchantmentReg, EquipmentSlotGroup, ItemReg,
     JukeboxSongReg, MinMaxBounds, MobEffectReg, NbtPredicate, PotionReg, TrimMaterialReg,
-    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, key, map_only, serialize_unit,
+    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, key, map_only,
+    serialize_entries, serialize_unit, transparent_newtype,
 };
 use crate::component::fireworks::FireworkShape;
 use crate::component::scalar::record_codec;
@@ -22,28 +23,10 @@ use crate::Text;
 
 pub const MAX_PARTIAL_PREDICATES: usize = 64;
 
-macro_rules! predicate_newtype {
-    ($($ty:ident($inner:ty)),* $(,)?) => {$(
-        #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-        #[serde(transparent)]
-        pub struct $ty(pub $inner);
-
-        impl Sample for $ty {
-            fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-                self.0.nbt_tags()
-            }
-
-            fn samples() -> Vec<Self> {
-                <$inner>::samples().into_iter().map($ty).collect()
-            }
-        }
-    )*};
-}
-
-predicate_newtype!(
-    CanPlaceOn(AdventureModePredicate),
-    CanBreak(AdventureModePredicate),
-    Lock(ItemPredicate),
+transparent_newtype!(
+    CanPlaceOn(AdventureModePredicate) => [Clone, Debug, PartialEq, Default],
+    CanBreak(AdventureModePredicate) => [Clone, Debug, PartialEq, Default],
+    Lock(ItemPredicate) => [Clone, Debug, PartialEq, Default],
 );
 
 /// One predicate bare, otherwise a non-empty list; the wire allows an empty
@@ -189,13 +172,6 @@ impl<'de> Deserialize<'de> for StatePropertiesPredicate {
 }
 
 /// A map kept in the order read, refusing a repeated key.
-fn serialize_entries<K: Serialize, V: Serialize, S: Serializer>(
-    entries: &[(K, V)],
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    s.collect_map(entries.iter().map(|(key, value)| (key, value)))
-}
-
 fn deserialize_entries<'de, D, K, V>(d: D) -> Result<Vec<(K, V)>, D::Error>
 where
     D: Deserializer<'de>,

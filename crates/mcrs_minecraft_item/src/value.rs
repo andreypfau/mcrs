@@ -84,9 +84,7 @@ fn insert_plain<K: ItemDataComponent + Component>(
 }
 
 fn remove_plain<K: ItemDataComponent + Component>(entity: &mut EntityWorldMut) {
-    if entity.contains::<K>() {
-        entity.remove::<K>();
-    }
+    entity.remove::<K>();
 }
 
 fn contains_plain<K: ItemDataComponent + Component>(entity: EntityRef) -> bool {

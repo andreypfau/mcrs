@@ -8,7 +8,6 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registry::{ItemId, NoRegistries};
-use serde::{Deserialize, Serialize};
 
 use crate::harness::{TestLookup, custom_data};
 
@@ -304,32 +303,6 @@ fn a_stack_value_always_writes_its_count_and_rejects_air() {
     assert_eq!(slot, ProtoStack::new(ItemId(1), 1, ComponentPatch::EMPTY));
     assert_eq!(slot.to_value(&lookup).unwrap(), value);
     assert!(ProtoStack::EMPTY.to_value(&lookup).is_err());
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-struct Holds {
-    #[serde(with = "mcrs_minecraft_protocol::item::stack::optional_stack")]
-    item: Option<ItemStackValue>,
-}
-
-#[test]
-fn an_optional_stack_is_an_empty_map_when_absent() {
-    let none = Holds { item: None };
-    assert_eq!(serde_json::to_string(&none).unwrap(), r#"{"item":{}}"#);
-    assert_eq!(
-        serde_json::from_str::<Holds>(r#"{"item":{}}"#).unwrap(),
-        none
-    );
-    let some = Holds {
-        item: Some(ItemStackValue {
-            item: stone(),
-            count: Bounded(2),
-            components: ComponentPatch::EMPTY,
-        }),
-    };
-    let json = r#"{"item":{"id":"minecraft:stone","count":2}}"#;
-    assert_eq!(serde_json::to_string(&some).unwrap(), json);
-    assert_eq!(serde_json::from_str::<Holds>(json).unwrap(), some);
 }
 
 #[test]

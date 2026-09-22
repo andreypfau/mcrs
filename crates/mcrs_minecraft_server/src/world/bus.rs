@@ -80,6 +80,16 @@ pub enum PacketPriority {
     Low,
 }
 
+pub(crate) fn to(anchor: Entity, data: PacketPayload) -> OutboundPlayerPacket {
+    OutboundPlayerPacket {
+        target: PacketTarget::SinglePlayer(anchor),
+        priority: PacketPriority::Normal,
+        data,
+        session: PlayerSession(0),
+        epoch: 0,
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum PacketPayload {
     /// Carries all fields ClientboundLightUpdate requires so dispatch_encode

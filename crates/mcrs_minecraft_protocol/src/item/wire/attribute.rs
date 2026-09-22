@@ -1,11 +1,10 @@
 use std::io::Write;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::attribute::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
-use crate::item::wire::{newtype_ctx_wire, ordinal_enum_wire, record_ctx_wire};
+use crate::item::ctx::{DecodeCtx, EncodeCtx};
+use crate::item::wire::{newtype_ctx_wire, ordinal_enum_wire, record_ctx_wire, record_wire};
 use crate::text::Text;
 use crate::{Decode, Encode, VarInt};
 
@@ -17,26 +16,7 @@ record_ctx_wire!(AttributeEntry {
     slot,
     display
 });
-
-impl Encode for AttributeModifierValue {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.id.encode(&mut w)?;
-        self.amount.encode(&mut w)?;
-        self.operation.encode(w)
-    }
-}
-
-impl Decode<'_> for AttributeModifierValue {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(AttributeModifierValue {
-            id: ResourceLocation::decode(r)?,
-            amount: f64::decode(r)?,
-            operation: AttributeOperation::decode(r)?,
-        })
-    }
-}
-
-ctx_free!(AttributeModifierValue);
+record_wire! { AttributeModifierValue { id, amount, operation } }
 
 impl EncodeCtx for AttributeDisplay {
     fn encode_ctx(&self, _: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {

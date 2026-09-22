@@ -2,21 +2,16 @@
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction, TransactionError};
 use mcrs_minecraft_item::{Items, SlotTable, StackRevision, stack_to_value, test_corpus};
-use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
-
-pub fn corpus() -> &'static (Blocks, Items) {
-    test_corpus()
-}
+use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
 
 pub fn items() -> &'static Items {
-    &corpus().1
+    &test_corpus().1
 }
 
 pub fn world() -> World {
@@ -40,6 +35,10 @@ pub fn spawn(world: &mut World, path: &str, count: i32) -> Entity {
 
 pub fn holder(world: &mut World, cells: usize) -> Entity {
     world.spawn(SlotTable::fixed(cells)).id()
+}
+
+pub fn remove(world: &mut World, stack: Entity, kind: ItemComponentKind) {
+    apply(world, vec![Op::Remove { stack, kind }]).unwrap();
 }
 
 pub fn apply(world: &mut World, ops: Vec<Op>) -> Result<(), TransactionError> {

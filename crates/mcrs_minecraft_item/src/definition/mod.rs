@@ -52,10 +52,6 @@ impl ItemDefinitions {
         self.entries.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     pub fn from_files(
         files: impl IntoIterator<Item = (String, Vec<u8>)>,
         blocks: &BlockDefinitions,

@@ -13,7 +13,7 @@ use serde::de::{IntoDeserializer, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, de};
 use uuid::Uuid;
 
-use mcrs_minecraft_core::codec::{ArgbInt, IntArray, lenient, optional_flag};
+use mcrs_minecraft_core::codec::{ArgbInt, IntArray, default_true, lenient, optional_flag};
 use mcrs_minecraft_profile::Profile;
 use mcrs_minecraft_registry::{DialogReg, EntityTypeReg};
 
@@ -652,7 +652,7 @@ pub enum ObjectInfo {
         typed: (),
         player: Profile,
         #[serde(
-            default = "default_hat",
+            default = "default_true",
             deserialize_with = "nbt_flag",
             skip_serializing_if = "Clone::clone"
         )]
@@ -666,10 +666,6 @@ fn default_atlas() -> ResourceLocation {
 
 fn is_default_atlas(atlas: &ResourceLocation) -> bool {
     *atlas == default_atlas()
-}
-
-fn default_hat() -> bool {
-    true
 }
 
 /// Scoreboard value.
@@ -1068,14 +1064,7 @@ mod lenient_uuid {
     use super::*;
 
     pub(super) fn serialize<S: serde::Serializer>(uuid: &Uuid, s: S) -> Result<S::Ok, S::Error> {
-        let v = uuid.as_u128();
-        IntArray([
-            (v >> 96) as i32,
-            (v >> 64) as i32,
-            (v >> 32) as i32,
-            v as i32,
-        ])
-        .serialize(s)
+        mcrs_minecraft_profile::uuid_ints(*uuid).serialize(s)
     }
 
     /// Five hex groups of any length, each masked to its width.
@@ -1111,14 +1100,8 @@ mod lenient_uuid {
             }
 
             fn visit_seq<A: de::SeqAccess<'de>>(self, seq: A) -> Result<Uuid, A::Error> {
-                let IntArray([a, b, c, d]) =
-                    IntArray::<4>::deserialize(de::value::SeqAccessDeserializer::new(seq))?;
-                Ok(Uuid::from_u128(
-                    (a as u32 as u128) << 96
-                        | (b as u32 as u128) << 64
-                        | (c as u32 as u128) << 32
-                        | d as u32 as u128,
-                ))
+                let ints = IntArray::<4>::deserialize(de::value::SeqAccessDeserializer::new(seq))?;
+                Ok(mcrs_minecraft_profile::ints_uuid(ints))
             }
         }
 
@@ -1207,32 +1190,6 @@ impl<I: HoverItem> Text<I> {
             },
             ..Default::default()
         }))
-    }
-
-    /// Returns `true` if the text contains no characters. Returns `false`
-    /// otherwise.
-    pub fn is_empty(&self) -> bool {
-        for extra in &self.0.extra {
-            if !extra.is_empty() {
-                return false;
-            }
-        }
-
-        match &self.0.content {
-            TextContent::Text { text, .. } => text.is_empty(),
-            TextContent::Translate { translate, .. } => translate.is_empty(),
-            TextContent::ScoreboardValue { score, .. } => {
-                let ScoreboardValueContent {
-                    name, objective, ..
-                } = score;
-
-                name.is_empty() || objective.is_empty()
-            }
-            TextContent::EntityNames { selector, .. } => selector.is_empty(),
-            TextContent::Keybind { keybind, .. } => keybind.is_empty(),
-            TextContent::Nbt { nbt, .. } => nbt.is_empty(),
-            TextContent::Object { .. } => false,
-        }
     }
 
     /// Converts the [`Text`] object to a plain string with the [legacy formatting (`§` and format codes)](https://wiki.vg/Chat#Old_system)

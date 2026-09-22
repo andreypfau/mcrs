@@ -11,7 +11,7 @@ use mcrs_minecraft_protocol::item::{
     ComponentPatch, Damage, ItemComponentKind, Lore, MaxStackSize, Unbreakable,
 };
 
-use common::{apply, holder, items, place, revision, set_count, spawn, world};
+use common::{apply, holder, items, place, remove, revision, set_count, spawn, world};
 
 fn insert<K: mcrs_minecraft_protocol::item::ItemDataComponent>(
     world: &mut World,
@@ -26,10 +26,6 @@ fn insert<K: mcrs_minecraft_protocol::item::ItemDataComponent>(
         }],
     )
     .unwrap();
-}
-
-fn remove(world: &mut World, stack: Entity, kind: ItemComponentKind) {
-    apply(world, vec![Op::Remove { stack, kind }]).unwrap();
 }
 
 fn count(world: &World, stack: Entity) -> u8 {

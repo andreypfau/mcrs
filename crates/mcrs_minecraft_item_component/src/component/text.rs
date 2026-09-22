@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::ResourceLocation;
-use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::component::book::size_limited;
 use crate::component::common::lenient;
 use crate::component::enums::DyeColor;
 use crate::harness::Sample;
@@ -63,14 +63,7 @@ impl Lore {
 
 impl<'de> Deserialize<'de> for Lore {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let lines = Vec::<Text>::deserialize(d)?;
-        if lines.len() > MAX_LORE_LINES {
-            return Err(D::Error::custom(format_args!(
-                "List is too long: {}, expected range [0-{MAX_LORE_LINES}]",
-                lines.len()
-            )));
-        }
-        Ok(Lore::new(lines))
+        size_limited(d).map(|lines| Self { lines })
     }
 }
 

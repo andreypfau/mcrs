@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::component::common::{DamageTypeReg, Holder, key};
 use crate::component::consume::{
-    float_default, is_one, is_true, is_zero, non_negative_float, one, positive_float, zero,
+    float_default, is_one, is_zero, non_negative_float, one, positive_float, zero,
 };
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
@@ -129,7 +129,10 @@ impl ItemDamageFunction {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PiercingWeapon {
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    #[serde(
+        default = "default_true",
+        skip_serializing_if = "std::clone::Clone::clone"
+    )]
     pub deals_knockback: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub dismounts: bool,

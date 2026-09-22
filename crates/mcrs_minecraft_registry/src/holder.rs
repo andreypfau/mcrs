@@ -6,12 +6,13 @@ use serde::de::{DeserializeOwned, MapAccess, Visitor, value};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub trait RegistryName {
+pub trait RegistryName: Clone + PartialEq + fmt::Debug {
     const NAME: &'static str;
 }
 
 macro_rules! registries {
     ($($marker:ident = $name:literal),* $(,)?) => {$(
+        #[derive(Clone, Copy, PartialEq, Eq, Debug)]
         pub enum $marker {}
         impl RegistryName for $marker {
             const NAME: &'static str = $name;
@@ -30,7 +31,6 @@ registries! {
     EnchantmentReg = "enchantment",
     DamageTypeReg = "damage_type",
     SoundEventReg = "sound_event",
-    ConsumeEffectTypeReg = "consume_effect_type",
     BlockTransformerReg = "block_transformer",
     BannerPatternReg = "banner_pattern",
     DecoratedPotPatternReg = "decorated_pot_pattern",
@@ -52,8 +52,6 @@ registries! {
     FrogVariantReg = "frog_variant",
     CatVariantReg = "cat_variant",
     CatSoundVariantReg = "cat_sound_variant",
-    DataComponentTypeReg = "data_component_type",
-    DataComponentPredicateTypeReg = "data_component_predicate_type",
     DimensionReg = "dimension",
     LootTableReg = "loot_table",
     RecipeReg = "recipe",
@@ -69,37 +67,10 @@ pub trait Registered: Serialize + DeserializeOwned + Clone + PartialEq + fmt::De
 }
 
 /// A registry id, or the entry itself written inline.
+#[derive(Clone, PartialEq, Debug)]
 pub enum Holder<T: Registered> {
     Reference(ResourceKey<T::Registry>),
     Direct(T),
-}
-
-impl<T: Registered> Clone for Holder<T> {
-    fn clone(&self) -> Self {
-        match self {
-            Holder::Reference(key) => Holder::Reference(key.clone()),
-            Holder::Direct(value) => Holder::Direct(value.clone()),
-        }
-    }
-}
-
-impl<T: Registered> PartialEq for Holder<T> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Holder::Reference(a), Holder::Reference(b)) => a == b,
-            (Holder::Direct(a), Holder::Direct(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl<T: Registered> fmt::Debug for Holder<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Holder::Reference(key) => f.debug_tuple("Reference").field(key).finish(),
-            Holder::Direct(value) => f.debug_tuple("Direct").field(value).finish(),
-        }
-    }
 }
 
 impl<T: Registered> Holder<T> {
@@ -145,25 +116,8 @@ impl<'de, T: Registered> Deserialize<'de> for Holder<T> {
 
 /// A holder whose persistent form is the registry id only; the inline entry
 /// exists on the wire alone.
+#[derive(Clone, PartialEq, Debug)]
 pub struct HolderWireOnly<T: Registered>(pub Holder<T>);
-
-impl<T: Registered> Clone for HolderWireOnly<T> {
-    fn clone(&self) -> Self {
-        HolderWireOnly(self.0.clone())
-    }
-}
-
-impl<T: Registered> PartialEq for HolderWireOnly<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<T: Registered> fmt::Debug for HolderWireOnly<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("HolderWireOnly").field(&self.0).finish()
-    }
-}
 
 impl<T: Registered> Serialize for HolderWireOnly<T> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {

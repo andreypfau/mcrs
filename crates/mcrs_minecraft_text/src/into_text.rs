@@ -33,25 +33,11 @@ pub trait IntoText<'a, I: HoverItem = ()>: Sized {
         value.color = Some(color.into());
         value
     }
-    /// Clears the color of the text. Color of parent [`Text`] object will be
-    /// used.
-    fn clear_color(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.color = None;
-        value
-    }
 
     /// Sets the font of the text.
     fn font(self, font: impl Into<ResourceLocation>) -> Text<I> {
         let mut value = self.into_text();
         value.font = Some(font.into());
-        value
-    }
-    /// Clears the font of the text. Font of parent [`Text`] object will be
-    /// used.
-    fn clear_font(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.font = None;
         value
     }
 
@@ -67,13 +53,6 @@ pub trait IntoText<'a, I: HoverItem = ()>: Sized {
         value.bold = Some(false);
         value
     }
-    /// Clears the `bold` property of the text. Property of the parent [`Text`]
-    /// object will be used.
-    fn clear_bold(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.bold = None;
-        value
-    }
 
     /// Makes the text italic.
     fn italic(self) -> Text<I> {
@@ -85,13 +64,6 @@ pub trait IntoText<'a, I: HoverItem = ()>: Sized {
     fn not_italic(self) -> Text<I> {
         let mut value = self.into_text();
         value.italic = Some(false);
-        value
-    }
-    /// Clears the `italic` property of the text. Property of the parent
-    /// [`Text`] object will be used.
-    fn clear_italic(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.italic = None;
         value
     }
 
@@ -107,13 +79,6 @@ pub trait IntoText<'a, I: HoverItem = ()>: Sized {
         value.underlined = Some(false);
         value
     }
-    /// Clears the `underlined` property of the text. Property of the parent
-    /// [`Text`] object will be used.
-    fn clear_underlined(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.underlined = None;
-        value
-    }
 
     /// Adds a strikethrough effect to the text.
     fn strikethrough(self) -> Text<I> {
@@ -125,13 +90,6 @@ pub trait IntoText<'a, I: HoverItem = ()>: Sized {
     fn not_strikethrough(self) -> Text<I> {
         let mut value = self.into_text();
         value.strikethrough = Some(false);
-        value
-    }
-    /// Clears the `strikethrough` property of the text. Property of the parent
-    /// [`Text`] object will be used.
-    fn clear_strikethrough(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.strikethrough = None;
         value
     }
 
@@ -147,13 +105,6 @@ pub trait IntoText<'a, I: HoverItem = ()>: Sized {
         value.obfuscated = Some(false);
         value
     }
-    /// Clears the `obfuscated` property of the text. Property of the parent
-    /// [`Text`] object will be used.
-    fn clear_obfuscated(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.obfuscated = None;
-        value
-    }
 
     /// Adds an `insertion` property to the text. When shift-clicked, the given
     /// text will be inserted into chat box for the client.
@@ -162,55 +113,13 @@ pub trait IntoText<'a, I: HoverItem = ()>: Sized {
         value.insertion = Some(insertion.into());
         value
     }
-    /// Clears the `insertion` property of the text. Property of the parent
-    /// [`Text`] object will be used.
-    fn clear_insertion(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.insertion = None;
-        value
-    }
 
-    /// On click, opens the given URL. Has to be `http` or `https` protocol.
-    fn on_click_open_url(self, url: impl Into<Cow<'static, str>>) -> Text<I> {
-        let mut value = self.into_text();
-        value.click_event = Some(ClickEvent::OpenUrl { url: url.into() });
-        value
-    }
-    /// On click, sends a command. Doesn't actually have to be a command, can be
-    /// a simple chat message.
-    fn on_click_run_command(self, command: impl Into<Cow<'static, str>>) -> Text<I> {
-        let mut value = self.into_text();
-        value.click_event = Some(ClickEvent::RunCommand {
-            command: command.into(),
-        });
-        value
-    }
     /// On click, copies the given text to the chat box.
     fn on_click_suggest_command(self, command: impl Into<Cow<'static, str>>) -> Text<I> {
         let mut value = self.into_text();
         value.click_event = Some(ClickEvent::SuggestCommand {
             command: command.into(),
         });
-        value
-    }
-    /// On click, turns the page of the opened book to the given number.
-    /// Indexing starts at `1`.
-    fn on_click_change_page(self, page: impl Into<i32>) -> Text<I> {
-        let mut value = self.into_text();
-        value.click_event = Some(ClickEvent::ChangePage { page: page.into() });
-        value
-    }
-    /// On click, copies the given text to clipboard.
-    fn on_click_copy_to_clipboard(self, text: impl Into<Cow<'static, str>>) -> Text<I> {
-        let mut value = self.into_text();
-        value.click_event = Some(ClickEvent::CopyToClipboard { value: text.into() });
-        value
-    }
-    /// Clears the `click_event` property of the text. Property of the parent
-    /// [`Text`] object will be used.
-    fn clear_click_event(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.click_event = None;
         value
     }
 
@@ -220,13 +129,6 @@ pub trait IntoText<'a, I: HoverItem = ()>: Sized {
         value.hover_event = Some(HoverEvent::<I>::ShowText {
             value: text.into_text(),
         });
-        value
-    }
-    /// Clears the `hover_event` property of the text. Property of the parent
-    /// [`Text`] object will be used.
-    fn clear_hover_event(self) -> Text<I> {
-        let mut value = self.into_text();
-        value.hover_event = None;
         value
     }
 
@@ -325,30 +227,6 @@ impl<'a, I: HoverItem> IntoText<'a, I> for &'static str {
 impl<I: HoverItem> From<&'static str> for Text<I> {
     fn from(value: &'static str) -> Self {
         value.into_text()
-    }
-}
-
-impl<'a, 'b, I: HoverItem, T: IntoText<'a, I>, const N: usize> IntoText<'b, I> for [T; N] {
-    fn into_cow_text(self) -> Cow<'b, Text<I>> {
-        let mut txt = Text::text("");
-
-        for child in self {
-            txt = txt.add_child(child.into_cow_text().into_owned());
-        }
-
-        Cow::Owned(txt)
-    }
-}
-
-impl<'a, 'c, I: HoverItem, T: IntoText<'a, I> + Clone, const N: usize> IntoText<'c, I> for &[T; N] {
-    fn into_cow_text(self) -> Cow<'c, Text<I>> {
-        let mut txt = Text::text("");
-
-        for child in self {
-            txt = txt.add_child(child.clone().into_cow_text().into_owned());
-        }
-
-        Cow::Owned(txt)
     }
 }
 

@@ -5,12 +5,11 @@ use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, validated};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
-use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::{
     BannerPatternReg, BlockReg, BlockTransformerReg, DamageTypeReg, EnchantmentReg, EntityTypeReg,
-    ItemReg, MobEffectReg, is_one, one,
+    ItemReg, MobEffectReg, is_one, key, one, serialize_entries, transparent_newtype,
 };
 use crate::component::consume::checked_float;
 use crate::harness::Sample;
@@ -94,11 +93,7 @@ fn check_level(level: i32) -> Result<i32, String> {
 
 impl Serialize for Enchantments {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut map = s.serialize_map(Some(self.0.len()))?;
-        for (enchantment, level) in &self.0 {
-            map.serialize_entry(enchantment, level)?;
-        }
-        map.end()
+        serialize_entries(&self.0, s)
     }
 }
 
@@ -166,31 +161,13 @@ impl Sample for Enchantments {
     fn samples() -> Vec<Self> {
         vec![
             Enchantments::default(),
-            Enchantments(vec![(minecraft("sharpness"), 5)]),
-            Enchantments(vec![
-                (minecraft("sharpness"), 1),
-                (minecraft("unbreaking"), 255),
-            ]),
+            Enchantments(vec![(key("sharpness"), 5)]),
+            Enchantments(vec![(key("sharpness"), 1), (key("unbreaking"), 255)]),
         ]
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct StoredEnchantments(pub Enchantments);
-
-impl Sample for StoredEnchantments {
-    fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-        self.0.nbt_tags()
-    }
-
-    fn samples() -> Vec<Self> {
-        Enchantments::samples()
-            .into_iter()
-            .map(StoredEnchantments)
-            .collect()
-    }
-}
+transparent_newtype!(StoredEnchantments(Enchantments) => [Clone, Debug, PartialEq, Eq, Default]);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -209,10 +186,10 @@ impl Sample for DamageResistant {
                 types: HolderSet::Tag(ResourceLocation::minecraft("is_fire")),
             },
             DamageResistant {
-                types: HolderSet::One(minecraft("lava")),
+                types: HolderSet::One(key("lava")),
             },
             DamageResistant {
-                types: HolderSet::List(vec![minecraft("in_fire"), minecraft("lava")]),
+                types: HolderSet::List(vec![key("in_fire"), key("lava")]),
             },
         ]
     }
@@ -319,12 +296,12 @@ impl Sample for Tool {
                         correct_for_drops: Some(true),
                     },
                     ToolRule {
-                        blocks: HolderSet::List(vec![minecraft("stone"), minecraft("dirt")]),
+                        blocks: HolderSet::List(vec![key("stone"), key("dirt")]),
                         speed: None,
                         correct_for_drops: None,
                     },
                     ToolRule {
-                        blocks: HolderSet::One(minecraft("stone")),
+                        blocks: HolderSet::One(key("stone")),
                         speed: None,
                         correct_for_drops: Some(false),
                     },
@@ -354,10 +331,10 @@ impl Sample for Repairable {
                 items: HolderSet::Tag(ResourceLocation::minecraft("planks")),
             },
             Repairable {
-                items: HolderSet::One(minecraft("diamond_sword")),
+                items: HolderSet::One(key("diamond_sword")),
             },
             Repairable {
-                items: HolderSet::List(vec![minecraft("stone"), minecraft("apple")]),
+                items: HolderSet::List(vec![key("stone"), key("apple")]),
             },
         ]
     }
@@ -396,14 +373,11 @@ impl Sample for MobVisibility {
                 visibility: 0.0,
             },
             MobVisibility {
-                targeting_entity_types: HolderSet::One(minecraft("zombie")),
+                targeting_entity_types: HolderSet::One(key("zombie")),
                 visibility: 0.5,
             },
             MobVisibility {
-                targeting_entity_types: HolderSet::List(vec![
-                    minecraft("zombie"),
-                    minecraft("pig"),
-                ]),
+                targeting_entity_types: HolderSet::List(vec![key("zombie"), key("pig")]),
                 visibility: MAX_MOB_VISIBILITY,
             },
         ]
@@ -424,11 +398,8 @@ impl Sample for ProvidesBannerPatterns {
             ProvidesBannerPatterns(HolderSet::Tag(ResourceLocation::minecraft(
                 "pattern_item/globe",
             ))),
-            ProvidesBannerPatterns(HolderSet::One(minecraft("globe"))),
-            ProvidesBannerPatterns(HolderSet::List(vec![
-                minecraft("globe"),
-                minecraft("creeper"),
-            ])),
+            ProvidesBannerPatterns(HolderSet::One(key("globe"))),
+            ProvidesBannerPatterns(HolderSet::List(vec![key("globe"), key("creeper")])),
         ]
     }
 }
@@ -525,25 +496,21 @@ impl Sample for SuspiciousStewEffects {
         vec![
             SuspiciousStewEffects::default(),
             SuspiciousStewEffects(vec![StewEntry {
-                id: minecraft("speed"),
+                id: key("speed"),
                 duration: DEFAULT_STEW_DURATION,
             }]),
             SuspiciousStewEffects(vec![
                 StewEntry {
-                    id: minecraft("speed"),
+                    id: key("speed"),
                     duration: 1,
                 },
                 StewEntry {
-                    id: minecraft("slowness"),
+                    id: key("slowness"),
                     duration: 200,
                 },
             ]),
         ]
     }
-}
-
-fn minecraft<R>(path: &str) -> ResourceKey<R> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path))
 }
 
 fn holder_set_tag<T>(set: &HolderSet<T>) -> u8 {

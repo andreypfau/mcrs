@@ -289,20 +289,6 @@ impl NbtTag {
         }
     }
 
-    pub fn read_unnamed<R: Read + Seek>(reader: &mut NbtReadHelper<R>) -> Result<NbtTag, Error> {
-        match Self::deserialize(reader)? {
-            NbtTag::End => Err(Error::EndRoot),
-            tag => Ok(tag),
-        }
-    }
-
-    pub fn write_unnamed<W: Write>(&self, w: &mut WriteAdaptor<W>) -> serializer::Result<()> {
-        if matches!(self, NbtTag::End) {
-            return Err(Error::EndRoot);
-        }
-        self.serialize(w)
-    }
-
     pub fn extract_byte(&self) -> Option<i8> {
         match self {
             NbtTag::Byte(byte) => Some(*byte),

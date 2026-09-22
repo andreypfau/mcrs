@@ -17,7 +17,7 @@ use mcrs_minecraft_item::{
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol::item::{ProtoStack, RawStack};
-use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
+use mcrs_minecraft_registry::ChainLookup;
 use rustc_hash::FxHashSet;
 
 const DROPPED_ITEM_STACK_INDEX: u8 = 8;
@@ -50,8 +50,7 @@ pub fn sync_stack_slots(world: &mut World) {
     let items = world.resource::<Items>().clone();
     let registry = world.resource::<RegistryAccess>().clone();
     let blocks = world.resource::<Blocks>().clone();
-    let lookups: [&dyn RegistryLookup; 2] = [&registry, &*blocks.0];
-    let lookup = ChainLookup(&lookups);
+    let lookup = ChainLookup(&[&registry, &*blocks.0]);
     let dirty = dirty_holders(world);
     let proto = |world: &World, slot: Slot| -> ProtoStack {
         stack_in(world, slot).map_or(ProtoStack::EMPTY, |stack| {
@@ -203,11 +202,5 @@ pub(crate) fn to(world: &World, player: Entity, data: PacketPayload) -> Outbound
     let anchor = world
         .get::<HostAnchor>(player)
         .map_or(Entity::PLACEHOLDER, |anchor| anchor.0);
-    OutboundPlayerPacket {
-        target: PacketTarget::SinglePlayer(anchor),
-        priority: PacketPriority::Normal,
-        data,
-        session: PlayerSession(0),
-        epoch: 0,
-    }
+    crate::world::bus::to(anchor, data)
 }

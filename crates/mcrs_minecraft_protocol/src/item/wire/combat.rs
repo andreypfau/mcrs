@@ -4,29 +4,11 @@ use mcrs_minecraft_core::codec;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::combat::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, ctx_free};
-use crate::item::wire::record_ctx_wire;
+use crate::item::ctx::{DecodeCtx, EncodeCtx};
+use crate::item::wire::{record_ctx_wire, record_wire};
 use crate::{Decode, Encode, VarInt};
 
-impl Encode for ItemDamageFunction {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.threshold.encode(&mut w)?;
-        self.base.encode(&mut w)?;
-        self.factor.encode(w)
-    }
-}
-
-impl Decode<'_> for ItemDamageFunction {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(ItemDamageFunction {
-            threshold: f32::decode(r)?,
-            base: f32::decode(r)?,
-            factor: f32::decode(r)?,
-        })
-    }
-}
-
-ctx_free!(ItemDamageFunction);
+record_wire! { ItemDamageFunction { threshold, base, factor } }
 
 record_ctx_wire! {
     BlocksAttacks {

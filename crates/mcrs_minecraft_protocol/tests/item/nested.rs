@@ -11,7 +11,7 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::Deserialize;
 
-use crate::harness::{TestLookup, from_json, hex, nbt_tree, persistent_json};
+use crate::harness::{TestLookup, from_json, from_nbt, hex, nbt_tree, persistent_json};
 
 #[derive(Deserialize)]
 struct Golden {
@@ -43,9 +43,7 @@ fn nested_kinds_match_vanilla_in_every_form() {
         assert_eq!(persistent_json(&value), case.json, "{} json", case.name);
 
         let vanilla_nbt = hex(&case.nbt);
-        let mut cursor = std::io::Cursor::new(&vanilla_nbt[..]);
-        let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
-        let from_vanilla_nbt = ItemComponentValue::deserialize_value(kind, &mut d).unwrap();
+        let from_vanilla_nbt = from_nbt(kind, &vanilla_nbt);
         assert_eq!(from_vanilla_nbt, value, "{} from vanilla nbt", case.name);
         let mut nbt = Vec::new();
         mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();

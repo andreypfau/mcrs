@@ -3,9 +3,9 @@ use bevy_asset::Asset;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_registry::LookupIndex;
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
-use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 #[derive(Debug, Clone)]
@@ -163,48 +163,25 @@ pub struct RegistryAccessInner {
     lookup: OnceLock<LookupIndex>,
 }
 
-/// Name and network id of every entry, keyed by the registry's bare path so
-/// the key form matches the item component registry markers.
-type ByRegistry<T> = HashMap<Box<str>, T>;
-
-#[derive(Default)]
-struct LookupIndex {
-    by_name: ByRegistry<HashMap<ResourceLocation<Arc<str>>, u32>>,
-    by_id: ByRegistry<Vec<Option<ResourceLocation<Arc<str>>>>>,
-}
-
-impl LookupIndex {
-    fn build(registries: &[Box<dyn ErasedRegistrySnapshot>]) -> Self {
-        let mut index = LookupIndex::default();
-        for registry in registries {
-            let key = registry.registry_key();
-            let key: Box<str> = key.split_once(':').map_or(key, |(_, path)| path).into();
-            let by_id = index.by_id.entry(key.clone()).or_default();
-            let by_name = index.by_name.entry(key).or_default();
-            for entry in registry.iter_entries() {
-                let id = entry.network_id as usize;
-                if by_id.len() <= id {
-                    by_id.resize(id + 1, None);
-                }
-                by_id[id] = Some(entry.location.clone());
-                by_name.insert(entry.location.clone(), entry.network_id);
-            }
+fn build_lookup_index(registries: &[Box<dyn ErasedRegistrySnapshot>]) -> LookupIndex {
+    let mut index = LookupIndex::default();
+    for registry in registries {
+        let key = registry.registry_key();
+        let key: Box<str> = key.split_once(':').map_or(key, |(_, path)| path).into();
+        for entry in registry.iter_entries() {
+            index.insert(&key, entry.network_id, Some(entry.location.clone()));
         }
-        index
     }
+    index
 }
 
 impl RegistryLookup for RegistryAccess {
     fn id(&self, registry: &str, name: &ResourceLocation<Arc<str>>) -> Option<u32> {
-        self.lookup().by_name.get(registry)?.get(name).copied()
+        self.lookup().id(registry, name)
     }
 
     fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation<Arc<str>>> {
-        self.lookup()
-            .by_id
-            .get(registry)?
-            .get(id as usize)?
-            .as_ref()
+        self.lookup().name(registry, id)
     }
 }
 
@@ -234,7 +211,7 @@ impl RegistryAccess {
     fn lookup(&self) -> &LookupIndex {
         self.0
             .lookup
-            .get_or_init(|| LookupIndex::build(&self.0.registries))
+            .get_or_init(|| build_lookup_index(&self.0.registries))
     }
 
     pub fn len(&self) -> usize {

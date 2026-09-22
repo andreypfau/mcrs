@@ -20,5 +20,4 @@ tracing.workspace = true
 
 [dev-dependencies]
 bevy_asset.workspace = true
-mcrs_minecraft_block.workspace = true
 serde_json.workspace = true

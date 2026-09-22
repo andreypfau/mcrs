@@ -1,7 +1,6 @@
-use std::borrow::Borrow;
 use std::fmt::Display;
 
-use derive_more::{AsRef, Deref, DerefMut, From};
+use derive_more::{Deref, From};
 use serde::{Deserialize, Serialize};
 
 /// A newtype wrapper for `T` whose wire encoding is bounded by some upper
@@ -24,8 +23,6 @@ use serde::{Deserialize, Serialize};
     Hash,
     Debug,
     Deref,
-    DerefMut,
-    AsRef,
     From,
     Serialize,
     Deserialize,
@@ -34,18 +31,8 @@ use serde::{Deserialize, Serialize};
 pub struct Bounded<T, const MAX: usize>(pub T);
 
 impl<T, const MAX: usize> Bounded<T, MAX> {
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Bounded<U, MAX> {
-        Bounded(f(self.0))
-    }
-
     pub fn map_into<U: From<T>>(self) -> Bounded<U, MAX> {
         Bounded(self.0.into())
-    }
-}
-
-impl<T, const MAX: usize> Borrow<T> for Bounded<T, MAX> {
-    fn borrow(&self) -> &T {
-        &self.0
     }
 }
 

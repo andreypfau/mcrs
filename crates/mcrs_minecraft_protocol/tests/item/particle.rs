@@ -95,23 +95,18 @@ fn check(label: &str) -> ParticleOptions {
 
 #[test]
 fn particle_kinds_match_the_registry_report() {
-    let report: serde_json::Value = serde_json::from_str(include_str!(
+    let table = mcrs_minecraft_registry::StaticRegistryTable::from_json(include_bytes!(
         "../../../../assets/mcrs/reports/registries.json"
     ))
     .unwrap();
-    let entries = report["minecraft:particle_type"]["entries"]
-        .as_object()
-        .unwrap();
-    assert_eq!(entries.len(), ParticleKind::COUNT);
-    for (name, entry) in entries {
-        let kind = ParticleKind::from_id(name).unwrap_or_else(|| panic!("{name} is not modelled"));
-        assert_eq!(
-            kind as i64,
-            entry["protocol_id"].as_i64().unwrap(),
-            "{name}"
-        );
-        assert_eq!(kind.id().as_str(), name);
-        assert_eq!(ParticleKind::from_wire_id(kind as i32), Some(kind));
+    let particles = table.registry("particle_type").unwrap();
+    assert_eq!(particles.len(), ParticleKind::COUNT);
+    for (id, name) in particles.names().iter().enumerate() {
+        let kind = ParticleKind::from_id(name.as_str())
+            .unwrap_or_else(|| panic!("{name} is not modelled"));
+        assert_eq!(kind as usize, id, "{name}");
+        assert_eq!(kind.id().as_str(), name.as_str());
+        assert_eq!(ParticleKind::from_wire_id(id as i32), Some(kind));
     }
     for line in GOLDEN.lines().filter_map(|line| line.strip_prefix("type ")) {
         let mut parts = line.split(' ');
@@ -120,12 +115,10 @@ fn particle_kinds_match_the_registry_report() {
         assert_eq!(ParticleKind::from_wire_id(id).unwrap().id().as_str(), name);
     }
 
-    let sources = report["minecraft:position_source_type"]["entries"]
-        .as_object()
-        .unwrap();
+    let sources = table.registry("position_source_type").unwrap();
     assert_eq!(sources.len(), 2);
-    assert_eq!(sources["minecraft:block"]["protocol_id"], 0);
-    assert_eq!(sources["minecraft:entity"]["protocol_id"], 1);
+    assert_eq!(sources.names()[0].as_str(), "minecraft:block");
+    assert_eq!(sources.names()[1].as_str(), "minecraft:entity");
     let mut out = Vec::new();
     PositionSource::Entity {
         entity_id: mcrs_minecraft_protocol::VarInt(7),
@@ -298,7 +291,7 @@ fn level_particles_packet_matches_vanilla() {
             dist: [0.5, 0.75, 1.0],
             max_speed: 0.1,
             count: 25,
-            particle: RawParticle::from(hex(golden("dust.wire"))),
+            particle: RawParticle::decode(&mut &hex(golden("dust.wire"))[..]).unwrap(),
         }
     );
     assert_eq!(packet.particle.resolve(&lookup()).unwrap(), check("dust"));

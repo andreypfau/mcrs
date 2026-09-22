@@ -377,7 +377,8 @@ color_int!(
 );
 
 /// Bounded in UTF-16 code units.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize)]
+#[serde(transparent)]
 pub struct BoundedString<const MAX_CHARS: usize>(pub String);
 
 impl<const MAX_CHARS: usize> BoundedString<MAX_CHARS> {
@@ -393,12 +394,6 @@ impl<const MAX_CHARS: usize> BoundedString<MAX_CHARS> {
     }
 }
 
-impl<const MAX_CHARS: usize> Serialize for BoundedString<MAX_CHARS> {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&self.0)
-    }
-}
-
 impl<'de, const MAX_CHARS: usize> Deserialize<'de> for BoundedString<MAX_CHARS> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         BoundedString::new(String::deserialize(d)?).map_err(D::Error::custom)
@@ -409,12 +404,6 @@ impl<'de, const MAX_CHARS: usize> Deserialize<'de> for BoundedString<MAX_CHARS> 
 /// and in the hash.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct IntArray<const N: usize>(pub [i32; N]);
-
-impl<const N: usize> Default for IntArray<N> {
-    fn default() -> Self {
-        IntArray([0; N])
-    }
-}
 
 impl<const N: usize> Serialize for IntArray<N> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {

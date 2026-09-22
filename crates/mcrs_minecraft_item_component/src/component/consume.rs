@@ -54,10 +54,6 @@ float_default! {
     consume_seconds_default / is_consume_seconds_default = 1.6f32,
 }
 
-pub fn is_true(value: &bool) -> bool {
-    *value
-}
-
 /// `minecraft:consume_effect_type`, whose ids are the wire dispatch prefix.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -182,7 +178,10 @@ pub struct Consumable {
     pub animation: ItemUseAnimation,
     #[serde(default = "generic_eat", skip_serializing_if = "is_generic_eat")]
     pub sound: Holder<SoundEvent>,
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    #[serde(
+        default = "default_true",
+        skip_serializing_if = "std::clone::Clone::clone"
+    )]
     pub has_consume_particles: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on_consume_effects: Vec<ConsumeEffect>,

@@ -24,11 +24,7 @@ fn opened() -> (World, Entity) {
     (world, player)
 }
 
-fn click(world: &mut World, player: Entity, input: ContainerInput, slot: i16, button: u8) {
-    click_claiming(world, player, input, slot, button, Vec::new());
-}
-
-fn click_claiming(
+fn click(
     world: &mut World,
     player: Entity,
     input: ContainerInput,
@@ -91,6 +87,7 @@ fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
         ContainerInput::Pickup,
         slots::HOTBAR.start as i16,
         0,
+        Vec::new(),
     );
     assert_eq!(cell(&world, player, slots::HOTBAR.start), None);
     assert_eq!(cell(&world, player, slots::CARRIED), Some((stack, 7)));
@@ -101,6 +98,7 @@ fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
         ContainerInput::Pickup,
         slots::MAIN.start as i16,
         0,
+        Vec::new(),
     );
     assert_eq!(cell(&world, player, slots::CARRIED), None);
     assert_eq!(cell(&world, player, slots::MAIN.start), Some((stack, 7)));
@@ -118,6 +116,7 @@ fn right_click_takes_half_then_places_one() {
         ContainerInput::Pickup,
         slots::HOTBAR.start as i16,
         1,
+        Vec::new(),
     );
     assert_eq!(
         cell(&world, player, slots::HOTBAR.start).map(|c| c.1),
@@ -131,6 +130,7 @@ fn right_click_takes_half_then_places_one() {
         ContainerInput::Pickup,
         slots::HOTBAR.start as i16,
         1,
+        Vec::new(),
     );
     assert_eq!(cell(&world, player, slots::HOTBAR.start), Some((stack, 4)));
     assert_eq!(cell(&world, player, slots::CARRIED).map(|c| c.1), Some(3));
@@ -148,6 +148,7 @@ fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
         ContainerInput::QuickMove,
         slots::HOTBAR.start as i16,
         0,
+        Vec::new(),
     );
     assert_eq!(cell(&world, player, slots::MAIN.start), Some((stack, 7)));
 
@@ -157,6 +158,7 @@ fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
         ContainerInput::Swap,
         slots::MAIN.start as i16,
         40,
+        Vec::new(),
     );
     assert_eq!(cell(&world, player, slots::MAIN.start), None);
     assert_eq!(cell(&world, player, slots::OFFHAND), Some((stack, 7)));
@@ -174,6 +176,7 @@ fn throw_turns_the_stack_into_a_dropped_item() {
         ContainerInput::Throw,
         slots::HOTBAR.start as i16,
         1,
+        Vec::new(),
     );
     assert_eq!(cell(&world, player, slots::HOTBAR.start), None);
     assert!(world.get::<DroppedItem>(stack).is_some());
@@ -191,7 +194,7 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
     let claimed =
         HashedStack::create(&stack_to_slot(&world, stack, &standalone_corpus().1)).unwrap();
     let untouched = slots::MAIN.start + 3;
-    click_claiming(
+    click(
         &mut world,
         player,
         ContainerInput::Pickup,

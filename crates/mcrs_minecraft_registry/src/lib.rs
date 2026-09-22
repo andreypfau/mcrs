@@ -10,6 +10,6 @@ pub use bitset::{BitSet, IdBitSet, RawBitSet, TagId};
 pub use dyn_index::DynRegistryIndex;
 pub use holder::*;
 pub use id::{BlockStateId, ItemId};
-pub use lookup::{ChainLookup, NoRegistries, RegistryLookup};
+pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
 pub use static_registry::{StaticId, StaticRegistry};
 pub use static_table::{StaticRegistryEntries, StaticRegistryTable};

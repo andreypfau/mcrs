@@ -32,11 +32,7 @@ pub struct GuiSize {
 
 impl GuiSize {
     pub fn auto_scale(framebuffer: UVec2) -> u32 {
-        let mut scale = 1;
-        while framebuffer.x / (scale + 1) >= 320 && framebuffer.y / (scale + 1) >= 240 {
-            scale += 1;
-        }
-        scale
+        (framebuffer.x / 320).min(framebuffer.y / 240).max(1)
     }
 
     pub fn of(framebuffer: UVec2, scale: u32) -> Self {

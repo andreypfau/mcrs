@@ -333,17 +333,15 @@ fn gui_vertices(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, OnceLock};
+    use std::sync::OnceLock;
 
-    use bevy::app::{App, TaskPoolPlugin};
-    use bevy::asset::{AssetPlugin, AssetServer};
+    use bevy::app::App;
     use bevy::ecs::system::Command;
     use bevy::ecs::world::World;
-    use mcrs_minecraft_block::definition::load_block_definitions;
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
     use mcrs_minecraft_inventory::{Op, Slot, Transaction};
-    use mcrs_minecraft_item::{SlotTable, load_item_definitions};
+    use mcrs_minecraft_item::{SlotTable, test_corpus};
     use mcrs_minecraft_protocol::item::{
         BundleContents, ChargedProjectiles, ComponentPatch, Damage, DyedColor, Enchantments,
         FireworkExplosion, FireworkShape, ItemComponentKind, ItemStackValue, RgbInt, Template,
@@ -356,20 +354,7 @@ mod tests {
     use crate::model::Pack;
 
     fn items() -> &'static Items {
-        static ITEMS: OnceLock<Items> = OnceLock::new();
-        ITEMS.get_or_init(|| {
-            let mut app = App::new();
-            app.add_plugins(TaskPoolPlugin::default());
-            app.add_plugins(AssetPlugin {
-                watch_for_changes_override: Some(false),
-                ..Default::default()
-            });
-            let assets = app.world().resource::<AssetServer>().clone();
-            let (blocks, _) = load_block_definitions(&assets).expect("the block corpus loads");
-            Items(Arc::new(
-                load_item_definitions(&assets, &blocks).expect("the item corpus loads"),
-            ))
-        })
+        &test_corpus().1
     }
 
     fn models() -> &'static ItemModels {

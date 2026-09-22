@@ -161,7 +161,6 @@ fn play_serverbound_ids() {
         0x31 => ServerboundRenameItem<'_>, Serverbound, Game;
         0x34 => ServerboundSelectTrade, Serverbound, Game;
         0x27 => ServerboundPlaceRecipe, Serverbound, Game;
-        0x29 => ServerboundPlayerAction, Serverbound, Game;
         0x2F => ServerboundRecipeBookChangeSettings, Serverbound, Game;
         0x30 => ServerboundRecipeBookSeenRecipe, Serverbound, Game;
         0x33 => ServerboundSeenAdvancements, Serverbound, Game;

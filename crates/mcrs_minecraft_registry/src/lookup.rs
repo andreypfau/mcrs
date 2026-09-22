@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use mcrs_minecraft_core::ResourceLocation;
 
 pub trait RegistryLookup: Sync {
@@ -51,5 +53,37 @@ impl RegistryLookup for NoRegistries {
 
     fn name(&self, _: &str, _: u32) -> Option<&ResourceLocation> {
         None
+    }
+}
+
+/// Name and network id of every entry, keyed by the registry's bare path so
+/// the key form matches the item component registry markers.
+#[derive(Default, Debug)]
+pub struct LookupIndex {
+    by_name: HashMap<Box<str>, HashMap<ResourceLocation, u32>>,
+    by_id: HashMap<Box<str>, Vec<Option<ResourceLocation>>>,
+}
+
+impl LookupIndex {
+    pub fn insert(&mut self, registry: &str, id: u32, location: Option<ResourceLocation>) {
+        let by_id = self.by_id.entry(registry.into()).or_default();
+        let id = id as usize;
+        if by_id.len() <= id {
+            by_id.resize(id + 1, None);
+        }
+        by_id[id] = location.clone();
+        let Some(location) = location else { return };
+        self.by_name
+            .entry(registry.into())
+            .or_default()
+            .insert(location, id as u32);
+    }
+
+    pub fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+        self.by_name.get(registry)?.get(name).copied()
+    }
+
+    pub fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+        self.by_id.get(registry)?.get(id as usize)?.as_ref()
     }
 }

@@ -14,7 +14,6 @@ pub struct StaticRegistryTable {
 #[derive(Debug)]
 pub struct StaticRegistryEntries {
     pub default: Option<ResourceLocation>,
-    pub protocol_id: u32,
     by_name: HashMap<ResourceLocation, u32>,
     by_id: Vec<ResourceLocation>,
 }
@@ -24,6 +23,7 @@ pub struct StaticRegistryEntries {
 struct RegistryReport {
     #[serde(default)]
     default: Option<ResourceLocation>,
+    #[allow(dead_code)]
     protocol_id: u32,
     entries: BTreeMap<ResourceLocation, EntryReport>,
 }
@@ -62,7 +62,6 @@ impl TryFrom<BTreeMap<ResourceLocation, RegistryReport>> for StaticRegistryTable
                 key.path().into(),
                 StaticRegistryEntries {
                     default: registry.default,
-                    protocol_id: registry.protocol_id,
                     by_name,
                     by_id,
                 },

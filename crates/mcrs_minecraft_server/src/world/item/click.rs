@@ -21,7 +21,7 @@ use mcrs_minecraft_protocol::item::{ItemStackValue, MaxStackSize, RawDelimitedSt
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClick, ServerboundContainerClose, ServerboundSetCreativeModeSlot,
 };
-use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
+use mcrs_minecraft_registry::ChainLookup;
 
 #[derive(Message, Debug)]
 pub struct CreativeSlotRequest {
@@ -126,8 +126,7 @@ pub fn handle_creative_slots(world: &mut World) {
     let items = world.resource::<Items>().clone();
     let registry = world.resource::<RegistryAccess>().clone();
     let blocks = world.resource::<Blocks>().clone();
-    let lookups: [&dyn RegistryLookup; 2] = [&registry, &*blocks.0];
-    let lookup = ChainLookup(&lookups);
+    let lookup = ChainLookup(&[&registry, &*blocks.0]);
     for req in requests {
         if !world
             .get::<PlayerGameMode>(req.player)

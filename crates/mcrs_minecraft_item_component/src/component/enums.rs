@@ -1,8 +1,9 @@
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, STRING_ID};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
-use crate::component::common::ordinal_enum;
+use crate::component::common::{ordinal_enum, transparent_newtype};
+use crate::component::registry_ref::null_as_default;
 use crate::component::scalar::record_codec;
 use crate::harness::Sample;
 
@@ -137,11 +138,9 @@ impl Default for SwingAnimationKind {
     }
 }
 
-/// A JSON `null` reads as a missing key.
-fn null_is_absent<'de, D: Deserializer<'de>, T: Deserialize<'de> + Default>(
-    d: D,
-) -> Result<T, D::Error> {
-    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
+null_as_default! {
+    kind_or_default: SwingAnimationKind = Default::default();
+    duration_or_default: Bounded<0, { i32::MAX }, 6> = Default::default();
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
@@ -150,13 +149,13 @@ pub struct SwingAnimation {
     #[serde(
         rename = "type",
         default,
-        deserialize_with = "null_is_absent",
+        deserialize_with = "kind_or_default",
         skip_serializing_if = "is_default"
     )]
     pub kind: SwingAnimationKind,
     #[serde(
         default,
-        deserialize_with = "null_is_absent",
+        deserialize_with = "duration_or_default",
         skip_serializing_if = "is_default"
     )]
     pub duration: Bounded<0, { i32::MAX }, 6>,
@@ -191,34 +190,16 @@ impl Sample for SwingAnimation {
     }
 }
 
-macro_rules! transparent_newtype {
-    ($($ty:ident($inner:ident)),* $(,)?) => {$(
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-        #[serde(transparent)]
-        pub struct $ty(pub $inner);
-
-        impl Sample for $ty {
-            fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
-                self.0.nbt_tags()
-            }
-
-            fn samples() -> Vec<Self> {
-                $inner::samples().into_iter().map($ty).collect()
-            }
-        }
-    )*};
-}
-
 transparent_newtype! {
-    AttackAnimation(SwingAnimation),
-    InteractAnimation(SwingAnimation),
-    Dye(DyeColor),
-    BaseColor(DyeColor),
-    WolfCollar(DyeColor),
-    TropicalFishBaseColor(DyeColor),
-    TropicalFishPatternColor(DyeColor),
-    CatCollar(DyeColor),
-    SheepColor(DyeColor),
-    ShulkerColor(DyeColor),
-    CushionColor(DyeColor),
+    AttackAnimation(SwingAnimation) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    InteractAnimation(SwingAnimation) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    Dye(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    BaseColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    WolfCollar(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    TropicalFishBaseColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    TropicalFishPatternColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    CatCollar(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    SheepColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    ShulkerColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
+    CushionColor(DyeColor) => [Clone, Copy, Debug, PartialEq, Eq, Hash],
 }

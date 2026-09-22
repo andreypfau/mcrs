@@ -1,5 +1,4 @@
 use std::cell::Cell;
-use std::fmt;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::sync::{Arc, LazyLock};
@@ -348,12 +347,6 @@ impl<T> Clone for Raw<T> {
     }
 }
 
-impl<T> fmt::Debug for Raw<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Raw").field(&self.0).finish()
-    }
-}
-
 impl<T> PartialEq for Raw<T> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
@@ -362,9 +355,9 @@ impl<T> PartialEq for Raw<T> {
 
 impl<T> Eq for Raw<T> {}
 
-impl<T> From<Vec<u8>> for Raw<T> {
-    fn from(bytes: Vec<u8>) -> Self {
-        Raw(bytes.into(), PhantomData)
+impl<T> std::fmt::Debug for Raw<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Raw").field(&self.0).finish()
     }
 }
 
@@ -405,14 +398,25 @@ pub(crate) fn encode_nbt_wire<T: serde::Serialize>(value: &T, w: impl Write) -> 
     Ok(())
 }
 
-pub(crate) fn decode_nbt_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> anyhow::Result<T> {
+type NbtWireDeserializer<'x, 'y> =
+    mcrs_minecraft_nbt::deserializer::Deserializer<&'x mut std::io::Cursor<&'y [u8]>>;
+
+pub(crate) fn read_nbt_wire<T>(
+    r: &mut &[u8],
+    read: impl FnOnce(&mut NbtWireDeserializer<'_, '_>) -> anyhow::Result<T>,
+) -> anyhow::Result<T> {
     match r.first() {
         None => bail!("empty input for a network NBT tag"),
         Some(&mcrs_minecraft_nbt::END_ID) => bail!("a network NBT tag must not be TAG_End"),
         Some(_) => {}
     }
     let mut cursor = std::io::Cursor::new(*r);
-    let value = mcrs_minecraft_nbt::from_bytes_unnamed(&mut cursor)?;
+    let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
+    let value = read(&mut d)?;
     *r = &r[cursor.position() as usize..];
     Ok(value)
+}
+
+pub(crate) fn decode_nbt_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> anyhow::Result<T> {
+    read_nbt_wire(r, |d| Ok(T::deserialize(&mut *d)?))
 }
