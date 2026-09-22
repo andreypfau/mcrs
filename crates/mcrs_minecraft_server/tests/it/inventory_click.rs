@@ -41,7 +41,7 @@ fn click(
             .unwrap()
             .state_id,
     );
-    click_at(world, player, state_id, input, slot, button, changed);
+    click_at(world, player, state_id, input, slot, button, changed, None);
 }
 
 fn click_at(
@@ -52,6 +52,7 @@ fn click_at(
     slot: i16,
     button: u8,
     changed: Vec<(u16, Option<HashedStack>)>,
+    carried: Option<HashedStack>,
 ) {
     world
         .resource_mut::<Messages<ContainerClickRequest>>()
@@ -64,9 +65,33 @@ fn click_at(
             button,
             input,
             changed,
-            carried: None,
+            carried,
         });
     handle_clicks(world);
+}
+
+/// Queues a click without running the system, so a caller can batch several
+/// packets of one drag across more than one `handle_clicks`.
+fn write_click(world: &mut World, player: Entity, input: ContainerInput, slot: i16, button: u8) {
+    let state_id = i32::from(
+        world
+            .get::<Menu>(world.get::<CurrentMenu>(player).unwrap().0)
+            .unwrap()
+            .state_id,
+    );
+    world
+        .resource_mut::<Messages<ContainerClickRequest>>()
+        .write(ContainerClickRequest {
+            player,
+            game_mode: GameMode::Survival,
+            container_id: 0,
+            state_id,
+            slot,
+            button,
+            input,
+            changed: Vec::new(),
+            carried: None,
+        });
 }
 
 /// A fresh reader would re-read every click of the world's lifetime, so the
@@ -226,6 +251,7 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
         -1,
         0,
         Vec::new(),
+        None,
     );
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
@@ -695,6 +721,233 @@ fn a_full_kind_header_from_a_survival_player_resets() {
     assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+}
+
+#[test]
+fn a_drag_split_across_two_ticks_still_applies() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    write_click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+    );
+    write_click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        9,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+    );
+    write_click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        10,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+    );
+    handle_clicks(&mut world);
+
+    for slot in [11i16, 12, 13] {
+        write_click(
+            &mut world,
+            player,
+            ContainerInput::QuickCraft,
+            slot,
+            u8::from(QuickCraftButton {
+                kind: QuickCraftKind::Split,
+                stage: QuickCraftStage::Slot,
+            }),
+        );
+    }
+    write_click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+    );
+    handle_clicks(&mut world);
+
+    for slot in 9u16..=13 {
+        assert_eq!(stack_at(&world, player, slot).map(|s| s.1), Some(12));
+    }
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(4));
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+}
+
+#[test]
+fn a_slot_packet_outside_the_layout_is_dropped_and_the_rest_of_the_drag_applies() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        9,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        10,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        999,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        11,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Slot,
+        }),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        Vec::new(),
+    );
+
+    for slot in [9u16, 10, 11] {
+        assert_eq!(stack_at(&world, player, slot).map(|s| s.1), Some(21));
+    }
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(1));
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+}
+
+#[test]
+fn a_drag_whose_claims_match_sends_no_packet() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    for offset in 0i16..5 {
+        click(
+            &mut world,
+            player,
+            ContainerInput::QuickCraft,
+            9 + offset,
+            u8::from(QuickCraftButton {
+                kind: QuickCraftKind::Split,
+                stage: QuickCraftStage::Slot,
+            }),
+            Vec::new(),
+        );
+    }
+
+    let slot_scratch = stone(&mut world, 12);
+    let slot_hash =
+        HashedStack::create(&stack_to_slot(&world, slot_scratch, &standalone_corpus().1)).unwrap();
+    let cursor_scratch = stone(&mut world, 4);
+    let cursor_hash =
+        HashedStack::create(&stack_to_slot(&world, cursor_scratch, &standalone_corpus().1)).unwrap();
+    let changed: Vec<(u16, Option<HashedStack>)> =
+        (9u16..14).map(|slot| (slot, slot_hash.clone())).collect();
+
+    let state_id = i32::from(
+        world
+            .get::<Menu>(world.get::<CurrentMenu>(player).unwrap().0)
+            .unwrap()
+            .state_id,
+    );
+    click_at(
+        &mut world,
+        player,
+        state_id,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::End,
+        }),
+        changed,
+        cursor_hash,
+    );
+
+    for slot in 9u16..14 {
+        assert_eq!(stack_at(&world, player, slot).map(|s| s.1), Some(12));
+    }
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(4));
+
+    sync_stack_slots(&mut world);
+    let packets = drain(&mut world);
+    assert!(packets.is_empty(), "{packets:?}");
 }
 
 #[test]
