@@ -971,3 +971,33 @@ fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
     assert_eq!(stack_at(&world, player, held_slot), Some((held, 40)));
     assert_eq!(stack_at(&world, player, slots::HOTBAR.start), Some((first, 50)));
 }
+
+#[test]
+fn closing_the_menu_forgets_a_pending_drag() {
+    let (mut world, player) = opened();
+    world.init_resource::<Messages<CloseContainerRequest>>();
+    let stack = stone(&mut world, 64);
+    place(&mut world, stack, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        u8::from(QuickCraftButton {
+            kind: QuickCraftKind::Split,
+            stage: QuickCraftStage::Header,
+        }),
+        Vec::new(),
+    );
+    world.write_message(CloseContainerRequest {
+        player,
+        container_id: 0,
+    });
+    close_menus(&mut world);
+
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
+}

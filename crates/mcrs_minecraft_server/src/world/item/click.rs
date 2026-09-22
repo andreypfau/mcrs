@@ -232,6 +232,7 @@ pub fn close_menus(world: &mut World) {
             close_container_menu(world, req.player, menu, false);
             continue;
         }
+        world.get_mut::<Menu>(menu).unwrap().drag = None;
         return_carried(world, req.player);
     }
 }
