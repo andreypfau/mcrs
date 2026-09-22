@@ -37,6 +37,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     client.add_plugins(ClientNetworkPlugin {
         server: address,
         username: "mcrs_test".to_owned(),
+        profile_id: None,
         view_distance: 8,
     });
     client.add_plugins(ColumnCachePlugin);
