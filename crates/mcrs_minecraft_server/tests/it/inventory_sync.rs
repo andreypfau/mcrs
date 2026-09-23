@@ -6,7 +6,7 @@ use mcrs_minecraft_assets::{RegistryAccess, RegistrySnapshotErased};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::value::spawn_stack;
-use mcrs_minecraft_inventory::{Op, Slot, Transaction};
+use mcrs_minecraft_inventory::{CurrentMenu, Op, Slot, Transaction};
 use mcrs_minecraft_item::{ItemStack, SelectedHotbarSlot, SlotTable, slots, stack_to_value};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -14,6 +14,9 @@ use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue, RawStack};
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
+use mcrs_minecraft_server::world::item::chest::{
+    OpenContainerRequest, close_container_menu, open_containers,
+};
 use mcrs_minecraft_server::world::item::menu::open_menus;
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
 
@@ -176,4 +179,54 @@ fn dirty_slots_become_set_slot_and_cursor_packets() {
 
     sync_stack_slots(&mut world);
     assert!(drain(&mut world).is_empty());
+}
+
+/// Runs the sync and starts a new change-detection tick, as the schedule does
+/// between two frames.
+fn sync_tick(world: &mut World) -> Vec<OutboundPlayerPacket> {
+    sync_stack_slots(world);
+    world.clear_trackers();
+    drain(world)
+}
+
+fn open_chest(world: &mut World, player: Entity) -> Entity {
+    world.init_resource::<Messages<OpenContainerRequest>>();
+    let chest = world.spawn(SlotTable::fixed(27)).id();
+    world.write_message(OpenContainerRequest {
+        player,
+        container: chest,
+    });
+    open_containers(world);
+    sync_tick(world);
+    world.get::<CurrentMenu>(player).unwrap().0
+}
+
+#[test]
+fn a_slot_outside_the_chest_layout_that_changed_is_resent_when_the_chest_closes() {
+    let (mut world, player, _anchor) = world();
+    open_menus(&mut world);
+    sync_tick(&mut world);
+    let chest_menu = open_chest(&mut world, player);
+
+    let helmet = item(&mut world, "iron_helmet", 1);
+    place(&mut world, helmet, player, slots::ARMOR_HEAD);
+    let packets = sync_tick(&mut world);
+    assert!(packets.is_empty(), "{packets:?}");
+
+    close_container_menu(&mut world, player, chest_menu, false);
+    let packets = sync_tick(&mut world);
+    assert!(
+        !packets
+            .iter()
+            .any(|packet| matches!(packet.data, PacketPayload::ContainerSetContent { .. })),
+        "{packets:?}"
+    );
+    assert!(
+        packets.iter().any(|packet| matches!(
+            &packet.data,
+            PacketPayload::ContainerSetSlot { container_id: 0, slot, item, .. }
+                if *slot == slots::ARMOR_HEAD as i16 && *item != RawStack::EMPTY
+        )),
+        "{packets:?}"
+    );
 }

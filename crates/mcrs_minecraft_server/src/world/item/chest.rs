@@ -3,6 +3,7 @@ use crate::world::entity::item::EYE_HEIGHT;
 use crate::world::inventory::NextContainerId;
 use crate::world::item::click::return_carried;
 use crate::world::item::sync::to;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::relationship::RelationshipTarget;
@@ -47,6 +48,11 @@ pub fn close_container_menu(world: &mut World, player: Entity, menu: Entity, not
     match inventory_menu(world, player) {
         Some(inventory) => {
             world.entity_mut(player).insert(CurrentMenu(inventory));
+            // ponytail: main and hotbar slots the client already saw through the
+            // closing menu are resent if they moved. Upgrade: copy those remote entries across.
+            if let Some(mut remote) = world.get_mut::<RemoteSlots>(inventory) {
+                remote.set_changed();
+            }
         }
         None => {
             world.entity_mut(player).remove::<CurrentMenu>();
