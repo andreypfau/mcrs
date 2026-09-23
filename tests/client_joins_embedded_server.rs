@@ -65,7 +65,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     );
 
     let registries = world.get::<ReceivedRegistries>(connection).unwrap();
-    assert_eq!(registries.0.len(), 29, "registry packet count");
+    assert_eq!(registries.0.len(), 32, "registry packet count");
     assert!(
         registries
             .0
