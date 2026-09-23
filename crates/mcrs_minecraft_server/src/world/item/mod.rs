@@ -5,7 +5,9 @@ pub mod sync;
 
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use mcrs_minecraft_inventory::{ContainerClickRequest, handle_container_clicks};
+use mcrs_minecraft_inventory::{
+    ContainerClickRequest, handle_container_clicks, tick_drop_throttles,
+};
 
 /// Every stack mutation of a tick runs in `Mutate`; `Sync` then reads what
 /// changed once, so readers outside these sets see a table that is at most
@@ -34,6 +36,7 @@ impl Plugin for ItemPlugin {
                     menu::open_menus,
                     chest::close_dead_menus,
                     chest::open_containers,
+                    tick_drop_throttles,
                     handle_container_clicks,
                     click::handle_creative_slots,
                     click::close_menus,

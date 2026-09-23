@@ -10,8 +10,8 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_inventory::{
-    ContainerClickRequest, CurrentMenu, Menu, MenuContainer, MenuSnapshot, Op, Planner, Slot,
-    Transaction, player_menu_layout, stack_in,
+    ContainerClickRequest, CurrentMenu, DropThrottle, Menu, MenuContainer, MenuSnapshot, Op,
+    Planner, Slot, Transaction, player_menu_layout, stack_in,
 };
 use mcrs_minecraft_item::dropped::THROWN_PICKUP_DELAY;
 use mcrs_minecraft_item::{ItemEntry, Items, SlotTable, item_of, slots};
@@ -113,8 +113,6 @@ pub fn return_carried(world: &mut World, player: Entity) {
     commit(world, planner.ops);
 }
 
-/// ponytail: no drop spam throttle; a per-player counter (20 per drop, -1 per
-/// tick, allowed below 1480) is the upgrade.
 pub fn handle_creative_slots(world: &mut World) {
     let requests: Vec<CreativeSlotRequest> = world
         .resource_mut::<Messages<CreativeSlotRequest>>()
@@ -181,6 +179,15 @@ pub fn handle_creative_slots(world: &mut World) {
             continue;
         }
         if !valid_slot {
+            let mut throttle = world
+                .get::<DropThrottle>(req.player)
+                .copied()
+                .unwrap_or_default();
+            if !throttle.charge() {
+                tracing::debug!(player = ?req.player, "a creative drop over the spam limit is ignored");
+                continue;
+            }
+            world.entity_mut(req.player).insert(throttle);
             let entity = world.spawn_empty().id();
             commit(
                 world,

@@ -241,7 +241,10 @@ fn a_click_for_a_container_the_player_no_longer_has_open_moves_nothing() {
         });
     handle_clicks(&mut world);
 
-    assert_eq!(stack_at(&world, player, slots::HOTBAR.start), Some((stack, 7)));
+    assert_eq!(
+        stack_at(&world, player, slots::HOTBAR.start),
+        Some((stack, 7))
+    );
     assert_eq!(stack_at(&world, player, slots::CARRIED), None);
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     let remote = world.get::<RemoteSlots>(menu).unwrap();
@@ -1105,7 +1108,9 @@ fn closing_the_menu_forgets_a_pending_drag() {
 }
 
 fn drop_throttle(world: &World, player: Entity) -> u32 {
-    world.get::<DropThrottle>(player).map_or(0, |throttle| throttle.0)
+    world
+        .get::<DropThrottle>(player)
+        .map_or(0, |throttle| throttle.0)
 }
 
 fn dropped_items(world: &mut World) -> usize {
@@ -1117,8 +1122,6 @@ fn throwing_and_clicking_outside_each_charge_the_drop_throttle() {
     let (mut world, player) = opened();
     let thrown = stone(&mut world, 7);
     place(&mut world, thrown, player, slots::HOTBAR.start);
-    let carried = stone(&mut world, 5);
-    place(&mut world, carried, player, slots::CARRIED);
 
     click(
         &mut world,
@@ -1129,6 +1132,9 @@ fn throwing_and_clicking_outside_each_charge_the_drop_throttle() {
         Vec::new(),
     );
     assert_eq!(drop_throttle(&world, player), DROP_THROTTLE_STEP);
+
+    let carried = stone(&mut world, 5);
+    place(&mut world, carried, player, slots::CARRIED);
 
     click(
         &mut world,
@@ -1161,7 +1167,10 @@ fn a_throw_at_the_drop_limit_is_ignored_and_the_slot_resent() {
         1,
         vec![(slots::HOTBAR.start, None)],
     );
-    assert_eq!(stack_at(&world, player, slots::HOTBAR.start), Some((stack, 7)));
+    assert_eq!(
+        stack_at(&world, player, slots::HOTBAR.start),
+        Some((stack, 7))
+    );
     assert_eq!(dropped_items(&mut world), 0);
     assert_eq!(drop_throttle(&world, player), DROP_THROTTLE_LIMIT);
 
@@ -1190,7 +1199,13 @@ fn the_drop_throttle_decays_by_one_a_tick() {
         Some(&DropThrottle(DROP_THROTTLE_STEP - 1))
     );
     assert_eq!(world.get::<DropThrottle>(idle), Some(&DropThrottle(0)));
-    assert!(!world.entity(idle).get_ref::<DropThrottle>().unwrap().is_changed());
+    assert!(
+        !world
+            .entity(idle)
+            .get_ref::<DropThrottle>()
+            .unwrap()
+            .is_changed()
+    );
 }
 
 #[test]
@@ -1246,8 +1261,8 @@ fn a_creative_drop_at_the_drop_limit_spawns_nothing() {
         .entity_mut(player)
         .insert(PlayerGameMode(GameMode::Creative));
     let registry = world.resource::<RegistryAccess>().clone();
-    let stone = ProtoStack::from_value(&value("stone", 1), &registry as &dyn RegistryLookup)
-        .unwrap();
+    let stone =
+        ProtoStack::from_value(&value("stone", 1), &registry as &dyn RegistryLookup).unwrap();
     let item = RawDelimitedStack::from_stack(&stone, &registry).unwrap();
 
     world.write_message(CreativeSlotRequest {

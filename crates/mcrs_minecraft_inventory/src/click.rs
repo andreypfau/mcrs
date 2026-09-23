@@ -33,7 +33,31 @@ pub const DROP_THROTTLE_LIMIT: u32 = 1480;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DropThrottle(pub u32);
 
-pub fn tick_drop_throttles(mut throttles: Query<&mut DropThrottle>) {}
+impl DropThrottle {
+    pub fn charge(&mut self) -> bool {
+        if self.0 >= DROP_THROTTLE_LIMIT {
+            return false;
+        }
+        self.0 += DROP_THROTTLE_STEP;
+        true
+    }
+}
+
+pub fn tick_drop_throttles(mut throttles: Query<&mut DropThrottle>) {
+    for mut throttle in &mut throttles {
+        if throttle.0 > 0 {
+            throttle.0 -= 1;
+        }
+    }
+}
+
+fn is_drop(req: &ContainerClickRequest) -> bool {
+    match req.input {
+        ContainerInput::Throw => true,
+        ContainerInput::Pickup | ContainerInput::QuickMove => req.slot == SLOT_CLICKED_OUTSIDE,
+        _ => false,
+    }
+}
 
 #[derive(Default)]
 struct MenuFold {
@@ -55,6 +79,13 @@ pub fn handle_container_clicks(
     };
     let mut plans: FxHashMap<Entity, (MenuSnapshot, Vec<Op>)> = FxHashMap::default();
     let mut menus: FxHashMap<Entity, MenuFold> = FxHashMap::default();
+    let mut throttles: FxHashMap<Entity, DropThrottle> = FxHashMap::default();
+    let throttle_of = |player| {
+        world
+            .get::<DropThrottle>(player)
+            .copied()
+            .unwrap_or_default()
+    };
     for req in requests.read() {
         let Some(menu) = world
             .get::<CurrentMenu>(req.player)
@@ -108,7 +139,20 @@ pub fn handle_container_clicks(
             input: req.input,
             creative: req.game_mode == GameMode::Creative,
         };
-        if req.input == ContainerInput::QuickCraft {
+        // A refused drop still records its claims, so the next sync restores
+        // what the client already predicted away.
+        if is_drop(req)
+            && !throttles
+                .entry(req.player)
+                .or_insert_with(|| throttle_of(req.player))
+                .charge()
+        {
+            tracing::debug!(
+                player = ?req.player,
+                input = ?req.input,
+                "a drop over the spam limit is ignored"
+            );
+        } else if req.input == ContainerInput::QuickCraft {
             match Drag::feed(&mut fold.drag, click, planner.snapshot) {
                 Feed::Complete(drag) => planner.quick_craft(drag.kind, &drag.indices),
                 Feed::Reset => tracing::debug!(
@@ -142,6 +186,9 @@ pub fn handle_container_clicks(
         if !ops.is_empty() {
             commands.queue(Transaction(ops));
         }
+    }
+    for (player, throttle) in throttles {
+        commands.entity(player).try_insert(throttle);
     }
     for (menu, fold) in menus {
         commands
