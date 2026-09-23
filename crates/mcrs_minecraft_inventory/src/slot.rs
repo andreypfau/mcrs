@@ -1,15 +1,16 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
-    ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
-    stack_to_value,
+    Item, ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
+    stack_to_value, tags,
 };
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
 use mcrs_minecraft_registry::{ItemId, StaticRegistry};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Slot {
@@ -46,6 +47,7 @@ pub struct StackView {
     pub armour: Option<u16>,
     pub offhand: bool,
     pub binding_curse: bool,
+    pub fits_inside_container_items: bool,
 }
 
 impl StackView {
@@ -73,6 +75,9 @@ impl StackView {
             },
             offhand: equippable.is_some_and(|equippable| equippable.slot == EquipmentSlot::OffHand),
             binding_curse: prevents_armor_change(world, entity.get::<Enchantments>()),
+            fits_inside_container_items: !world
+                .get_resource::<DynTagRegistry<Item>>()
+                .is_some_and(|tags| tags.contains(&tags::SHULKER_BOXES, u32::from(item.item.0))),
         })
     }
 
@@ -131,6 +136,7 @@ pub struct MenuSnapshot {
     pub selected: u8,
     pub layout: Vec<Slot>,
     stacks: FxHashMap<Source, StackView>,
+    container_items: FxHashSet<Entity>,
 }
 
 impl MenuSnapshot {
@@ -144,6 +150,9 @@ impl MenuSnapshot {
                 stacks.insert(Source::Slot(slot), view);
             }
         }
+        let mut container_items: FxHashSet<Entity> =
+            layout.iter().map(|slot| slot.holder).collect();
+        container_items.retain(|&holder| world.get::<ItemStack>(holder).is_some());
         MenuSnapshot {
             player,
             selected: world
@@ -151,6 +160,7 @@ impl MenuSnapshot {
                 .map_or(0, |selected| selected.0),
             layout,
             stacks,
+            container_items,
         }
     }
 
@@ -161,6 +171,7 @@ impl MenuSnapshot {
             selected,
             layout,
             stacks: FxHashMap::default(),
+            container_items: FxHashSet::default(),
         }
     }
 
@@ -197,6 +208,9 @@ impl MenuSnapshot {
     /// ponytail: a container with its own limit (a chest's 64) caps here when it exists.
     pub fn slot_max(&self, slot: Slot, view: &StackView) -> Option<u8> {
         if slot.holder != self.player {
+            if self.container_items.contains(&slot.holder) && !view.fits_inside_container_items {
+                return None;
+            }
             return Some(view.max);
         }
         match slot.index {

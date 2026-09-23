@@ -5,7 +5,9 @@ use bevy_ecs::world::World;
 use common::{holder, items, place, value, world};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::value::spawn_stack;
-use mcrs_minecraft_inventory::{MenuSnapshot, Slot, player_menu_layout};
+use mcrs_minecraft_inventory::{
+    MenuSnapshot, Slot, StackView, container_menu_layout, menu_slots, player_menu_layout,
+};
 use mcrs_minecraft_item::enchantment::test_enchantments;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments};
@@ -42,4 +44,40 @@ fn only_an_enchantment_preventing_armour_change_marks_the_stack_binding() {
     assert!(binding(slots::ARMOR_CHEST));
     assert!(!binding(slots::MAIN.start));
     assert!(!binding(slots::MAIN.start + 1));
+}
+
+#[test]
+fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
+    let mut world = world();
+    world.insert_resource(common::item_tags());
+    let player = holder(&mut world, slots::COUNT);
+    let chest = holder(&mut world, 27);
+    let open = common::spawn(&mut world, "shulker_box", 1);
+    place(&mut world, open, chest, 0).unwrap();
+    let nested = common::spawn(&mut world, "shulker_box", 1);
+    let bundle = common::spawn(&mut world, "bundle", 1);
+    let nested = StackView::of(&world, nested, items()).unwrap();
+    let bundle = StackView::of(&world, bundle, items()).unwrap();
+
+    assert!(!nested.fits_inside_container_items);
+    assert!(bundle.fits_inside_container_items);
+
+    let menu = menu_slots("minecraft:shulker_box").unwrap();
+    let in_shulker = MenuSnapshot::new(
+        &world,
+        items(),
+        player,
+        container_menu_layout(open, player, menu),
+    );
+    assert_eq!(in_shulker.slot_max(Slot::new(open, 13), &nested), None);
+    assert_eq!(in_shulker.slot_max(Slot::new(open, 13), &bundle), Some(1));
+
+    let in_chest = MenuSnapshot::new(
+        &world,
+        items(),
+        player,
+        container_menu_layout(chest, player, menu),
+    );
+    assert_eq!(in_chest.slot_max(Slot::new(chest, 13), &nested), Some(1));
+    assert_eq!(in_chest.slot_max(Slot::new(chest, 13), &bundle), Some(1));
 }

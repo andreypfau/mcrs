@@ -21,6 +21,7 @@ fn stone(count: u8) -> StackView {
         armour: None,
         offhand: false,
         binding_curse: false,
+        fits_inside_container_items: true,
     }
 }
 
@@ -36,6 +37,7 @@ fn helmet() -> StackView {
         armour: Some(slots::ARMOR_HEAD),
         offhand: false,
         binding_curse: false,
+        fits_inside_container_items: true,
     }
 }
 
@@ -51,6 +53,7 @@ fn leggings() -> StackView {
         armour: Some(slots::ARMOR_LEGS),
         offhand: false,
         binding_curse: false,
+        fits_inside_container_items: true,
     }
 }
 
@@ -66,6 +69,7 @@ fn sword() -> StackView {
         armour: None,
         offhand: false,
         binding_curse: false,
+        fits_inside_container_items: true,
     }
 }
 
@@ -81,6 +85,7 @@ fn chestplate() -> StackView {
         armour: Some(slots::ARMOR_CHEST),
         offhand: false,
         binding_curse: false,
+        fits_inside_container_items: true,
     }
 }
 
@@ -96,6 +101,7 @@ fn cursed_chestplate() -> StackView {
         armour: Some(slots::ARMOR_CHEST),
         offhand: false,
         binding_curse: true,
+        fits_inside_container_items: true,
     }
 }
 
