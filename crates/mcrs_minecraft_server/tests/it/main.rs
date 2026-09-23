@@ -25,6 +25,7 @@ mod bus_field_visibility;
 mod channel_overload;
 mod channel_readiness;
 mod clean_dim_world;
+mod configuration_start;
 mod common;
 mod confirmed_move_protocol;
 mod confirmed_move_roundtrip;

@@ -15,7 +15,9 @@ use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With, With
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_math::{DVec3, Vec2};
-use bevy_state::prelude::OnEnter;
+use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
+use bevy_ecs::system::ScheduleSystem;
+use bevy_state::prelude::{OnEnter, in_state};
 use mcrs_minecraft_assets::access::ErasedRegistrySnapshot;
 use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile, TagFileSettings};
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
@@ -243,7 +245,7 @@ fn flatten_tag_file(
 /// before the rest of the Configuration data is sent.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-struct AwaitingKnownPacks;
+pub struct AwaitingKnownPacks;
 
 /// True iff the entry's NBT body should be omitted from `ClientboundRegistryData`
 /// because the client already has the pack that sourced it.
@@ -277,7 +279,7 @@ impl Plugin for ConfigurationStatePlugin {
             Update,
             (process_loaded_world_preset, sync_dimension_type_changes),
         );
-        app.add_systems(bevy_app::FixedPreUpdate, on_configuration_enter);
+        app.add_systems(bevy_app::FixedPreUpdate, start_configuration());
         app.add_observer(on_known_packs_response);
         app.add_observer(on_configuration_ack);
         app.add_observer(on_game_configuration_ack);
@@ -343,11 +345,18 @@ fn sync_dimension_type_changes(
 /// Runs in `FixedPreUpdate` and reacts to `Changed<ConnectionState>`. The edge
 /// is set by the `handle_login_acknowledged` observer, which fires during
 /// inbound packet processing in `FixedPostUpdate`. `Changed<T>` is evaluated
-/// against this system's own last-run tick, not a single frame's edge, and the
-/// system has no run condition, so it runs every fixed tick. It therefore
+/// against this system's own last-run tick, not a single frame's edge, so it
 /// cannot miss the transition even when several fixed ticks elapse in one
 /// main-loop frame: the change set in one tick's `FixedPostUpdate` is observed
 /// at the next tick's `FixedPreUpdate`.
+///
+/// An embedded client connects before the registries are built, so the
+/// negotiation waits for `AppState::Playing`; a skipped system keeps its
+/// last-run tick, so the earlier transition is still seen as a change.
+pub fn start_configuration() -> ScheduleConfigs<ScheduleSystem> {
+    on_configuration_enter.run_if(in_state(AppState::Playing))
+}
+
 fn on_configuration_enter(
     mut query: Query<
         (Entity, &mut ServerSideConnection, &ConnectionState),
