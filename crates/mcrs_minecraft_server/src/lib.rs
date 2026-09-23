@@ -16,6 +16,7 @@ pub mod configuration;
 pub mod disconnect;
 mod keep_alive;
 pub mod login;
+pub mod ops;
 mod tag;
 pub mod world;
 pub mod world_options;
@@ -53,6 +54,8 @@ pub struct MinecraftServerPlugin {
     /// dimension's column lifecycle from it.
     pub column_traces: Option<ColumnTraceSink>,
     pub lighting: Lighting,
+    /// Operator level of a player who has no entry in `ops.json`.
+    pub default_op_level: u8,
 }
 
 /// Whether dimensions propagate light. Without it the block light table is never built, so
@@ -89,6 +92,7 @@ impl Default for MinecraftServerPlugin {
             world: None,
             column_traces: None,
             lighting: Lighting::from_env(),
+            default_op_level: 0,
         }
     }
 }
@@ -104,6 +108,7 @@ impl MinecraftServerPlugin {
             world: None,
             column_traces: None,
             lighting: Lighting::from_env(),
+            default_op_level: 0,
         }
     }
 
@@ -142,6 +147,12 @@ impl Plugin for MinecraftServerPlugin {
         }
         app.insert_resource(world_seed);
         app.insert_resource(self.lighting);
+        let ops = ops::OpList::read(std::path::Path::new(ops::OPS_FILE))
+            .unwrap_or_else(|err| panic!("{err}"));
+        app.insert_resource(ops);
+        app.insert_resource(ops::DefaultOpLevel(
+            crate::world::entity::player::ability::PlayerOpLevel(self.default_op_level),
+        ));
         if let Some(traces) = &self.column_traces {
             app.insert_resource(traces.clone());
         }

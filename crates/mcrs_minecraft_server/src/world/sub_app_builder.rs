@@ -493,6 +493,12 @@ pub fn spawn_dim_subapp(
         .copied()
         .unwrap_or_default();
     sub_app.insert_resource(lighting);
+    let default_op_level = app
+        .world()
+        .get_resource::<crate::ops::DefaultOpLevel>()
+        .copied()
+        .unwrap_or_default();
+    sub_app.insert_resource(default_op_level);
     if let Some(registry) = &registries.light_registry {
         sub_app.add_plugins(DimLightPlugin {
             registry: std::sync::Arc::clone(registry),
@@ -531,6 +537,7 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
     sub_app.init_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>();
+    sub_app.init_resource::<crate::ops::OpList>();
 
     sub_app.set_extract(move |main_world, sub_world| {
         use crate::world::bus::OutboundPlayerAttached;
@@ -550,6 +557,9 @@ pub fn spawn_dim_subapp(
             sub_world.insert_resource(*time);
         }
         mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
+        if let Some(ops) = main_world.get_resource::<crate::ops::OpList>() {
+            sub_world.insert_resource(ops.clone());
+        }
         if let Some(traces) = &column_traces
             && let Some(mut log) = sub_world.get_resource_mut::<ColumnTraceLog>()
         {
