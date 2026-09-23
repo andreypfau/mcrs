@@ -333,9 +333,11 @@ mod tests {
             value("minecraft:visual/sky_color", 0),
             NbtTag::String("#ffffff".to_owned())
         );
-        // …while `ColorModifier.ArgbModifier` writes a packed int whenever the
-        // argument's alpha is full, and an int tag is not a long tag
-        assert_eq!(value("minecraft:visual/cloud_color", 0), NbtTag::Int(-1));
+        // `ColorModifier.ArgbModifier` decodes a packed int but always encodes hex
+        assert_eq!(
+            value("minecraft:visual/cloud_color", 0),
+            NbtTag::String("#ffffffff".to_owned())
+        );
         assert_eq!(
             value("minecraft:visual/sunrise_sunset_color", 0),
             NbtTag::String("#5fefa333".to_owned())

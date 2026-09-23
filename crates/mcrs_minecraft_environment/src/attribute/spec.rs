@@ -199,8 +199,9 @@ impl AttributeSpec {
             (T::RgbColor | T::ArgbColor, Add | Subtract) | (T::RgbColor, Multiply) => {
                 ArgumentShape::Typed(T::RgbColor)
             }
-            (T::RgbColor | T::ArgbColor, AlphaBlend) => ArgumentShape::Typed(T::ArgbColor),
-            (T::ArgbColor, Multiply) => ArgumentShape::ArgbOrPacked,
+            (T::RgbColor | T::ArgbColor, AlphaBlend) | (T::ArgbColor, Multiply) => {
+                ArgumentShape::Typed(T::ArgbColor)
+            }
             (T::Float | T::AngleDegrees, AlphaBlend) => ArgumentShape::FloatWithAlpha,
             (T::RgbColor | T::ArgbColor, BlendToGray) => ArgumentShape::BlendToGray,
             (T::AmbientParticles, Append) => ArgumentShape::Typed(T::AmbientParticles),
@@ -218,7 +219,6 @@ impl AttributeSpec {
         match self.argument_shape(op)? {
             ArgumentShape::Value => self.parse_value(value),
             ArgumentShape::Typed(ty) => parse_typed(self.id, ty, value),
-            ArgumentShape::ArgbOrPacked => parse_typed(self.id, AttributeType::ArgbColor, value),
             ArgumentShape::FloatWithAlpha => parse_float_with_alpha(self.id, value),
             ArgumentShape::BlendToGray => parse_blend_to_gray(self.id, value),
         }
@@ -227,8 +227,7 @@ impl AttributeSpec {
     /// Write `value` back in the form the argument codec of `op` encodes with.
     ///
     /// Vanilla's codecs are symmetric, so this is what a re-serialized timeline
-    /// or attribute entry has to produce: a colour that has no alpha to carry
-    /// goes out packed, everything else in the one form its codec writes.
+    /// or attribute entry has to produce: the one form its codec writes.
     pub fn serialize_argument<S: Serializer>(
         &self,
         op: Operation,
@@ -241,13 +240,6 @@ impl AttributeSpec {
         let ty = match (shape, value) {
             (ArgumentShape::Value, _) => self.ty,
             (ArgumentShape::Typed(ty), _) => ty,
-            (ArgumentShape::ArgbOrPacked, AttributeValue::Color(packed)) => {
-                return if packed >> 24 == 0xFF {
-                    serializer.serialize_i32(*packed as i32)
-                } else {
-                    serializer.serialize_str(&format!("#{packed:08x}"))
-                };
-            }
             (ArgumentShape::FloatWithAlpha, AttributeValue::FloatWithAlpha { value, alpha }) => {
                 return if *alpha == 1.0 {
                     serializer.serialize_f32(*value)
@@ -282,8 +274,6 @@ enum ArgumentShape {
     /// The attribute's own value codec, validated against its range.
     Value,
     Typed(AttributeType),
-    /// `ColorModifier.ArgbModifier`: hex only while the argument carries alpha.
-    ArgbOrPacked,
     FloatWithAlpha,
     BlendToGray,
 }
