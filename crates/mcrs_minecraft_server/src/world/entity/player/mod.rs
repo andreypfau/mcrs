@@ -1,4 +1,5 @@
 use crate::login::GameProfile;
+use crate::ops::{DefaultOpLevel, OpList};
 use crate::world::bus::{
     InboundConfirmMove, InboundPlayerDespawn, InboundPlayerSpawn, InboundRollbackMove,
     OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
@@ -23,7 +24,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
+use bevy_ecs::prelude::{Changed, Commands, Query, Res, ResMut, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
@@ -103,7 +104,10 @@ impl Plugin for DimPlayerPlugin {
         app.add_plugins(PlacingPlugin);
         app.add_plugins(ChatPlugin);
         app.add_plugins(GameModePlugin);
-        app.add_systems(Update, consume_inbound_player_spawn);
+        app.add_systems(
+            Update,
+            (consume_inbound_player_spawn, send_op_level).chain(),
+        );
         app.add_systems(Update, despawn_inbound_player);
         app.add_systems(FixedUpdate, (despawn_on_confirm, unhide_on_rollback));
         app.add_systems(
@@ -151,6 +155,8 @@ fn consume_inbound_player_spawn(
     mut dim_index: ResMut<DimPlayerIndex>,
     simulation_distance: Res<SimulationDistance>,
     default_game_mode: Res<DefaultGameMode>,
+    ops: Res<OpList>,
+    default_op_level: Res<DefaultOpLevel>,
 ) {
     for spawn in reader.read() {
         let Some((dim, dim_id, dim_type_index)) = dims.iter().next() else {
@@ -169,6 +175,7 @@ fn consume_inbound_player_spawn(
                     .with_transform(Transform::default().with_translation(spawn.snapshot.position)),
                 PlayerBundle {
                     game_mode: PlayerGameMode(default_game_mode.0),
+                    op_level: ops.level_of(&spawn.snapshot.uuid, *default_op_level),
                     teleport_state: TeleportState::after_login(),
                     view_distance,
                     ..Default::default()
@@ -271,17 +278,6 @@ fn consume_inbound_player_spawn(
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
-            data: PacketPayload::PlayerLoginEntityEvent {
-                entity_id: wire_id,
-                entity_status: 24,
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
             data: PacketPayload::PlayerPosition {
                 teleport_id: TeleportState::LOGIN_TELEPORT_ID,
                 position: spawn_pos,
@@ -292,6 +288,24 @@ fn consume_inbound_player_spawn(
 
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
+        });
+    }
+}
+
+fn send_op_level(
+    players: Query<(Entity, &PlayerOpLevel, &HostAnchor), Changed<PlayerOpLevel>>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+) {
+    for (entity, &op_level, &HostAnchor(host)) in &players {
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::OpLevelEntityEvent {
+                entity_id: entity.index_u32() as i32,
+                entity_status: op_level.entity_status(),
+            },
+            session: PlayerSession(0),
+            epoch: 0,
         });
     }
 }

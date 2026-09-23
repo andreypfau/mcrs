@@ -44,6 +44,7 @@ mod login_handshake_e2e;
 mod mock_connection;
 mod move_durability;
 mod movement_clientbound_only;
+mod op_level;
 mod per_dim_simulation_plugin_migration;
 mod play_state_delivery;
 mod run_server_loop_exit;

@@ -195,9 +195,8 @@ pub enum PacketPayload {
     /// Carries the `ClientboundGameEvent { LevelChunksLoadStart }` wire data.
     /// Emitted immediately after `PlayerLogin` during the join sequence.
     LevelChunksLoadStart,
-    /// Carries the entity-event data for the op-level status effect sent
-    /// during the join sequence (ClientboundEntityEvent).
-    PlayerLoginEntityEvent {
+    /// The `ClientboundEntityEvent` that tells a client its own operator level.
+    OpLevelEntityEvent {
         entity_id: i32,
         entity_status: i8,
     },

@@ -219,7 +219,7 @@ fn level_chunks_load_start_encodes() {
     );
 }
 
-/// `PacketPayload::PlayerLoginEntityEvent` encodes to a non-empty blob
+/// `PacketPayload::OpLevelEntityEvent` encodes to a non-empty blob
 /// (the EntityEvent packet).
 #[test]
 fn player_login_entity_event_encodes() {
@@ -230,7 +230,7 @@ fn player_login_entity_event_encodes() {
     push_critical(
         &mut world,
         entity,
-        PacketPayload::PlayerLoginEntityEvent {
+        PacketPayload::OpLevelEntityEvent {
             entity_id: 42,
             entity_status: 24,
         },
@@ -241,13 +241,13 @@ fn player_login_entity_event_encodes() {
     assert_eq!(
         after - before,
         0,
-        "PlayerLoginEntityEvent must not increment unhandled"
+        "OpLevelEntityEvent must not increment unhandled"
     );
 
     let blob = rx.try_recv().expect("blob sent to socket");
     assert!(
         !blob.is_empty(),
-        "PlayerLoginEntityEvent must produce a non-empty blob"
+        "OpLevelEntityEvent must produce a non-empty blob"
     );
 }
 

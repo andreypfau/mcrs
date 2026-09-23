@@ -517,7 +517,7 @@ pub fn dispatch_encode(
                             })
                             .ok();
                     }
-                    PacketPayload::PlayerLoginEntityEvent {
+                    PacketPayload::OpLevelEntityEvent {
                         entity_id,
                         entity_status,
                     } => {
@@ -526,7 +526,7 @@ pub fn dispatch_encode(
                             conn = ?entity,
                             entity_id,
                             entity_status,
-                            "dispatch_encode: PlayerLoginEntityEvent"
+                            "dispatch_encode: OpLevelEntityEvent"
                         );
                         conn.raw
                             .append(&ClientboundEntityEvent {
