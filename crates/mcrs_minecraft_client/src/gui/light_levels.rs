@@ -92,7 +92,7 @@ impl Plugin for LightLevelsPlugin {
 }
 
 fn toggle(keys: Res<ButtonInput<KeyCode>>, mut levels: ResMut<LightLevels>) {
-    if keys.just_pressed(KeyCode::F4) {
+    if keys.just_pressed(KeyCode::F4) && !keys.pressed(KeyCode::F3) {
         *levels = levels.next();
     }
 }

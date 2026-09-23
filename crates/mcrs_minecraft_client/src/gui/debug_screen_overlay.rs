@@ -49,8 +49,19 @@ pub fn spawn(mut commands: Commands) {
     }
 }
 
-pub fn toggle_overlay(keys: Res<ButtonInput<KeyCode>>, mut list: ResMut<DebugScreenEntryList>) {
-    if keys.just_pressed(KeyCode::F3) {
+/// F3 is both the overlay key and the debug modifier, so the overlay toggles
+/// on release, and only when no F3 combination fired while it was held.
+#[derive(Resource, Default)]
+pub struct DebugModifier {
+    pub used: bool,
+}
+
+pub fn toggle_overlay(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut modifier: ResMut<DebugModifier>,
+    mut list: ResMut<DebugScreenEntryList>,
+) {
+    if keys.just_released(KeyCode::F3) && !std::mem::take(&mut modifier.used) {
         list.toggle_overlay();
     }
 }

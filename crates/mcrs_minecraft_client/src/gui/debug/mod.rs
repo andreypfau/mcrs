@@ -290,6 +290,7 @@ impl Plugin for DebugScreenPlugin {
                     .chain()
                     .run_if(|refresh: Res<Refresh>| refresh.active),
             )
+            .init_resource::<debug_screen_overlay::DebugModifier>()
             .add_systems(Startup, debug_screen_overlay::spawn)
             .add_systems(
                 Update,
