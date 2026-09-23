@@ -305,7 +305,7 @@ mod tests {
     }
 
     /// Two draws for the height and nothing else, because a
-    /// `simple_state_provider` draws nothing: the cap is a plate at the top of
+    /// `simple` provider draws nothing: the cap is a plate at the top of
     /// the stem with its corners missing.
     #[test]
     fn a_brown_cap_is_a_cornerless_plate_over_its_stem() {

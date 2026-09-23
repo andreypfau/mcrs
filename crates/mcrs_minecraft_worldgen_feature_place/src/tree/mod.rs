@@ -513,7 +513,7 @@ mod tests {
     #[test]
     fn a_decorator_runs_after_the_crown_and_joins_the_bounding_box() {
         let proto: TreeDecorator = serde_json::from_str(
-            r#"{"type":"minecraft:attached_to_logs","probability":1.0,"block_provider":{"type":"minecraft:simple_state_provider","state":"minecraft:x"},"directions":["north"]}"#,
+            r#"{"type":"minecraft:attached_to_logs","probability":1.0,"block_provider":{"type":"minecraft:simple","state":"minecraft:x"},"directions":["north"]}"#,
         )
         .unwrap();
         let decorator = CompiledTreeDecorator(

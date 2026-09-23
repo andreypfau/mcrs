@@ -877,7 +877,7 @@ mod tests {
         let mut volume_writes = 0;
         let placed = place(
             &decorator(
-                r#"{"type":"minecraft:place_on_ground","tries":8,"radius":1,"height":1,"block_state_provider":{"type":"minecraft:simple_state_provider","state":"minecraft:x"}}"#,
+                r#"{"type":"minecraft:place_on_ground","tries":8,"radius":1,"height":1,"block_state_provider":{"type":"minecraft:simple","state":"minecraft:x"}}"#,
                 Some(StateProvider::Simple(GRASS)),
             ),
             trunk(64, 66),
@@ -934,7 +934,7 @@ mod tests {
     fn attached_to_logs_draws_a_side_then_a_chance_for_every_log() {
         let placed = place(
             &decorator(
-                r#"{"type":"minecraft:attached_to_logs","probability":1.0,"block_provider":{"type":"minecraft:simple_state_provider","state":"minecraft:x"},"directions":["north","south"]}"#,
+                r#"{"type":"minecraft:attached_to_logs","probability":1.0,"block_provider":{"type":"minecraft:simple","state":"minecraft:x"},"directions":["north","south"]}"#,
                 Some(StateProvider::Simple(GRASS)),
             ),
             trunk(64, 66),
@@ -958,7 +958,7 @@ mod tests {
         let leaves: Vec<BlockPos> = (0..3).map(|z| BlockPos::new(0, 70, z)).collect();
         let placed = place(
             &decorator(
-                r#"{"type":"minecraft:attached_to_leaves","probability":1.0,"exclusion_radius_xz":2,"exclusion_radius_y":2,"block_provider":{"type":"minecraft:simple_state_provider","state":"minecraft:x"},"required_empty_blocks":1,"directions":["down"]}"#,
+                r#"{"type":"minecraft:attached_to_leaves","probability":1.0,"exclusion_radius_xz":2,"exclusion_radius_y":2,"block_provider":{"type":"minecraft:simple","state":"minecraft:x"},"required_empty_blocks":1,"directions":["down"]}"#,
                 Some(StateProvider::Simple(GRASS)),
             ),
             Vec::new(),
@@ -1049,7 +1049,7 @@ mod tests {
     fn alter_ground_draws_five_placements_after_its_four_circles() {
         let placed = place(
             &decorator(
-                r#"{"type":"minecraft:alter_ground","provider":{"type":"minecraft:simple_state_provider","state":"minecraft:x"}}"#,
+                r#"{"type":"minecraft:alter_ground","provider":{"type":"minecraft:simple","state":"minecraft:x"}}"#,
                 Some(StateProvider::Simple(DIRT)),
             ),
             trunk(64, 66),
