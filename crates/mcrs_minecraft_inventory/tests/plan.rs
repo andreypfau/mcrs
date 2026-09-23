@@ -69,6 +69,36 @@ fn sword() -> StackView {
     }
 }
 
+fn chestplate() -> StackView {
+    StackView {
+        key: StackKey {
+            item: ItemId(6),
+            components: ComponentPatch::EMPTY,
+        },
+        count: 1,
+        max: 1,
+        stackable: false,
+        armour: Some(slots::ARMOR_CHEST),
+        offhand: false,
+        binding_curse: false,
+    }
+}
+
+fn cursed_chestplate() -> StackView {
+    StackView {
+        key: StackKey {
+            item: ItemId(7),
+            components: ComponentPatch::EMPTY,
+        },
+        count: 1,
+        max: 1,
+        stackable: false,
+        armour: Some(slots::ARMOR_CHEST),
+        offhand: false,
+        binding_curse: true,
+    }
+}
+
 fn player() -> Entity {
     Entity::from_raw_u32(7).unwrap()
 }
@@ -82,12 +112,22 @@ fn slot(index: u16) -> Slot {
 }
 
 fn click(snapshot: &mut MenuSnapshot, input: ContainerInput, slot: i16, button: u8) -> Vec<Op> {
+    click_as(snapshot, input, slot, button, false)
+}
+
+fn click_as(
+    snapshot: &mut MenuSnapshot,
+    input: ContainerInput,
+    slot: i16,
+    button: u8,
+    creative: bool,
+) -> Vec<Op> {
     let mut planner = Planner::new(snapshot);
     planner.click(Click {
         slot,
         button,
         input,
-        creative: false,
+        creative,
     });
     planner.ops
 }
@@ -1040,4 +1080,178 @@ fn armour_the_player_may_not_wear_is_refused_by_its_own_slot() {
         0,
     );
     assert_eq!(ops, []);
+}
+
+const CHEST: i16 = slots::ARMOR_CHEST as i16;
+
+/// The ops of one click on a snapshot wearing the cursed chestplate, in
+/// survival and then in creative.
+fn against_the_curse(
+    setup: fn(&mut MenuSnapshot),
+    input: ContainerInput,
+    index: i16,
+    button: u8,
+) -> [Vec<Op>; 2] {
+    [false, true].map(|creative| {
+        let mut snapshot = fresh();
+        snapshot.set(slot(slots::ARMOR_CHEST), Some(cursed_chestplate()));
+        setup(&mut snapshot);
+        click_as(&mut snapshot, input, index, button, creative)
+    })
+}
+
+#[test]
+fn a_left_click_takes_cursed_armour_only_in_creative() {
+    let [survival, creative] = against_the_curse(|_| {}, ContainerInput::Pickup, CHEST, 0);
+    assert_eq!(survival, []);
+    assert_eq!(
+        creative,
+        [Op::Transfer {
+            from: slot(slots::ARMOR_CHEST),
+            to: slot(slots::CARRIED),
+            count: 1
+        }]
+    );
+}
+
+#[test]
+fn a_right_click_takes_cursed_armour_only_in_creative() {
+    let [survival, creative] = against_the_curse(|_| {}, ContainerInput::Pickup, CHEST, 1);
+    assert_eq!(survival, []);
+    assert_eq!(
+        creative,
+        [Op::Transfer {
+            from: slot(slots::ARMOR_CHEST),
+            to: slot(slots::CARRIED),
+            count: 1
+        }]
+    );
+}
+
+#[test]
+fn armour_on_the_cursor_swaps_with_cursed_armour_only_in_creative() {
+    let [survival, creative] = against_the_curse(
+        |snapshot| snapshot.set(slot(slots::CARRIED), Some(chestplate())),
+        ContainerInput::Pickup,
+        CHEST,
+        0,
+    );
+    assert_eq!(survival, []);
+    assert_eq!(
+        creative,
+        [Op::Swap {
+            a: slot(slots::ARMOR_CHEST),
+            b: slot(slots::CARRIED)
+        }]
+    );
+}
+
+#[test]
+fn a_digit_key_swaps_cursed_armour_with_a_hotbar_stack_only_in_creative() {
+    let [survival, creative] = against_the_curse(
+        |snapshot| snapshot.set(slot(slots::held(0)), Some(chestplate())),
+        ContainerInput::Swap,
+        CHEST,
+        0,
+    );
+    assert_eq!(survival, []);
+    assert_eq!(
+        creative,
+        [Op::Swap {
+            a: slot(slots::ARMOR_CHEST),
+            b: slot(slots::held(0))
+        }]
+    );
+}
+
+#[test]
+fn a_digit_key_takes_cursed_armour_into_an_empty_hotbar_slot_only_in_creative() {
+    let [survival, creative] = against_the_curse(|_| {}, ContainerInput::Swap, CHEST, 0);
+    assert_eq!(survival, []);
+    assert_eq!(
+        creative,
+        [Op::Transfer {
+            from: slot(slots::ARMOR_CHEST),
+            to: slot(slots::held(0)),
+            count: 1
+        }]
+    );
+}
+
+#[test]
+fn throwing_cursed_armour_drops_it_only_in_creative() {
+    for button in [0, 1] {
+        let [survival, creative] = against_the_curse(|_| {}, ContainerInput::Throw, CHEST, button);
+        assert_eq!(survival, [], "button {button}");
+        assert_eq!(
+            creative,
+            [Op::Drop {
+                from: slot(slots::ARMOR_CHEST),
+                count: 1,
+                thrower: player()
+            }],
+            "button {button}"
+        );
+    }
+}
+
+#[test]
+fn a_shift_click_moves_cursed_armour_only_in_creative() {
+    let [survival, creative] = against_the_curse(|_| {}, ContainerInput::QuickMove, CHEST, 0);
+    assert_eq!(survival, []);
+    assert_eq!(
+        creative,
+        [Op::Transfer {
+            from: slot(slots::ARMOR_CHEST),
+            to: slot(slots::MAIN.start),
+            count: 1
+        }]
+    );
+}
+
+#[test]
+fn a_double_click_gathers_cursed_armour_only_in_creative() {
+    let [survival, creative] = against_the_curse(
+        |snapshot| {
+            let stackable = StackView {
+                max: 64,
+                stackable: true,
+                ..cursed_chestplate()
+            };
+            snapshot.set(slot(slots::ARMOR_CHEST), Some(stackable.clone()));
+            snapshot.set(slot(slots::CARRIED), Some(stackable));
+        },
+        ContainerInput::PickupAll,
+        slots::MAIN.start as i16,
+        0,
+    );
+    assert_eq!(survival, []);
+    assert_eq!(
+        creative,
+        [Op::Transfer {
+            from: slot(slots::ARMOR_CHEST),
+            to: slot(slots::CARRIED),
+            count: 1
+        }]
+    );
+}
+
+#[test]
+fn cursed_armour_outside_the_armour_slots_is_taken_in_survival() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::MAIN.start), Some(cursed_chestplate()));
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::Pickup,
+        slots::MAIN.start as i16,
+        0,
+    );
+    assert_eq!(
+        ops,
+        [Op::Transfer {
+            from: slot(slots::MAIN.start),
+            to: slot(slots::CARRIED),
+            count: 1
+        }]
+    );
 }
