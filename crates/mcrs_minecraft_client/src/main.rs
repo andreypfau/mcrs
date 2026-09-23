@@ -213,6 +213,7 @@ fn main() {
     app.add_plugins(mcrs_minecraft_client::columns::ColumnCachePlugin);
     app.add_plugins(mcrs_minecraft_client::inventory::InventoryPlugin);
     app.add_plugins(mcrs_minecraft_client::game_mode::GameModePlugin);
+    app.add_plugins(gui::game_mode_switcher::GameModeSwitcherPlugin);
     app.insert_resource(ExitOnDisconnect);
 
     // Inserted after `add_plugins`: `WorldClockPlugin` calls

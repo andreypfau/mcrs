@@ -1,7 +1,9 @@
 pub mod chunk_map;
 pub mod debug;
+pub mod debug_chat;
 pub mod debug_screen_overlay;
 pub mod font;
+pub mod game_mode_switcher;
 pub mod hotbar;
 pub mod inventory_screen;
 pub mod item_decorations;

@@ -18,7 +18,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClose, ServerboundSetCarriedItem,
 };
-use mcrs_minecraft_protocol::{VarInt, WritePacket};
+use mcrs_minecraft_protocol::{GameMode, VarInt, WritePacket};
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, StaticRegistryTable};
 
 use crate::asset_corpus;
@@ -41,6 +41,7 @@ pub enum Screen {
     None,
     Inventory,
     Container(Entity),
+    GameModeSwitcher(GameMode),
 }
 
 pub struct InventoryPlugin;
@@ -338,7 +339,7 @@ fn set_cursor_grabbed(world: &mut World, grabbed: bool) {
     }
 }
 
-fn grab(cursor: &mut CursorOptions, grabbed: bool) {
+pub(crate) fn grab(cursor: &mut CursorOptions, grabbed: bool) {
     cursor.grab_mode = if grabbed {
         CursorGrabMode::Locked
     } else {

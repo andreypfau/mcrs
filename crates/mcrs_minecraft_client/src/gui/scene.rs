@@ -15,9 +15,9 @@ use mcrs_minecraft_item::{
 
 use super::font::Font;
 use super::hotbar::hotbar;
-use super::language::Language;
 use super::inventory_screen::inventory_screen;
 use super::item_decorations::{Decorated, WHITE, decorations};
+use super::language::Language;
 use crate::atlas::{decode_png, rgba};
 use crate::inventory::Screen;
 use crate::item_model::resolve::{GuiVertex, ItemRenderLayers};
@@ -121,7 +121,9 @@ const GUI_TEXTURES: [&str; 18] = [
 
 fn texture_path(name: &str) -> String {
     match name {
-        "container/inventory" | "container/gamemode_switcher" => format!("minecraft/textures/gui/{name}.png"),
+        "container/inventory" | "container/gamemode_switcher" => {
+            format!("minecraft/textures/gui/{name}.png")
+        }
         "font/ascii" | "misc/enchanted_glint_item" => format!("minecraft/textures/{name}.png"),
         _ => format!("minecraft/textures/gui/sprites/{name}.png"),
     }
@@ -496,7 +498,14 @@ impl Plugin for GuiPlugin {
             )
             .add_systems(
                 PostUpdate,
-                (begin_gui_frame, draw_screens, build_gui_batch).chain(),
+                (
+                    begin_gui_frame,
+                    draw_screens,
+                    super::debug_chat::draw,
+                    super::game_mode_switcher::draw,
+                    build_gui_batch,
+                )
+                    .chain(),
             );
     }
 }
@@ -539,7 +548,10 @@ mod tests {
             atlas.region("container/gamemode_switcher").size(),
             IVec2::new(125, 75)
         );
-        assert_eq!(atlas.region("gamemode_switcher/slot").size(), IVec2::new(26, 26));
+        assert_eq!(
+            atlas.region("gamemode_switcher/slot").size(),
+            IVec2::new(26, 26)
+        );
         assert_eq!(atlas.font.advance('7', false), 6);
         assert_eq!(atlas.glint.0, 128);
         assert!(atlas.height <= 512);
