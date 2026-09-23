@@ -620,10 +620,14 @@ pub(crate) fn register_static_registries_with_access(
         mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
             "minecraft:enchantment",
             &enchantment_registry,
-            |_, data| {
+            |location, data| {
                 use mcrs_minecraft_item::enchantment::data::NetworkEnchantmentData;
                 let network = NetworkEnchantmentData::from(data);
-                mcrs_minecraft_nbt::to_nbt_compound(&network).ok()
+                Some(
+                    mcrs_minecraft_nbt::to_nbt_tag(&network).unwrap_or_else(|e| {
+                        panic!("{} does not encode for the network: {e}", location.as_str())
+                    }),
+                )
             },
             Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
         ),

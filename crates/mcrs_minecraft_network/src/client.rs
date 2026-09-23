@@ -11,7 +11,6 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::serverbound::{ClientInformation, KeepAlive};
@@ -84,7 +83,7 @@ pub struct ServerProfile {
 #[derive(Clone, Debug)]
 pub struct RegistryEntry {
     pub id: String,
-    pub data: Option<NbtCompound>,
+    pub data: Option<mcrs_minecraft_nbt::tag::NbtTag>,
 }
 
 #[derive(Clone, Debug)]

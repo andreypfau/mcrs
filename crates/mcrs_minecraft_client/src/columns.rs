@@ -398,7 +398,8 @@ fn extent_of(registries: &[ReceivedRegistry], dimension_type_id: i32) -> Option<
         .entries
         .get(usize::try_from(dimension_type_id).ok()?)?
         .data
-        .as_ref()?;
+        .as_ref()?
+        .extract_compound()?;
     Some(Extent {
         min_section_y: data.get_int("min_y")? >> SectionPos::BITS,
         sections: usize::try_from(data.get_int("height")?).ok()? / SECTION_SIZE,
@@ -924,7 +925,7 @@ mod tests {
                     },
                     RegistryEntry {
                         id: "minecraft:overworld".to_owned(),
-                        data: Some(overworld),
+                        data: Some(overworld.into()),
                     },
                 ],
             },

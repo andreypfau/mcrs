@@ -48,11 +48,17 @@ fn registry_data_with_entries_round_trips() {
         entries: vec![
             mcrs_minecraft_protocol::registry::Entry {
                 id: ResourceLocation::parse_cow("minecraft:overworld").expect("entry id"),
-                data: Some(std::borrow::Cow::Owned(compound("height", 384))),
+                data: Some(std::borrow::Cow::Owned(compound("height", 384).into())),
             },
             mcrs_minecraft_protocol::registry::Entry {
                 id: ResourceLocation::parse_cow("minecraft:the_nether").expect("entry id"),
-                data: Some(std::borrow::Cow::Owned(compound("height", 256))),
+                data: Some(std::borrow::Cow::Owned(compound("height", 256).into())),
+            },
+            mcrs_minecraft_protocol::registry::Entry {
+                id: ResourceLocation::parse_cow("minecraft:axe").expect("entry id"),
+                data: Some(std::borrow::Cow::Owned(
+                    mcrs_minecraft_nbt::tag::NbtTag::List(vec![compound("weight", 1).into()]),
+                )),
             },
         ],
     };
@@ -62,7 +68,7 @@ fn registry_data_with_entries_round_trips() {
     let decoded = ClientboundRegistryData::decode(&mut r).expect("decode registry data");
     assert!(r.is_empty(), "{} trailing bytes", r.len());
     assert_eq!(encoded(&decoded), buf);
-    assert_eq!(decoded.entries.len(), 2);
+    assert_eq!(decoded.entries.len(), 3);
 }
 
 #[test]

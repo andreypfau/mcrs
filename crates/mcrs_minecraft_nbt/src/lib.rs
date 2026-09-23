@@ -27,7 +27,7 @@ pub use deserializer::{from_bytes, from_bytes_unnamed};
 pub use serializer::{to_bytes, to_bytes_named, to_bytes_unnamed};
 
 pub use tag_deserializer::from_tag;
-pub use tag_serializer::to_nbt_compound;
+pub use tag_serializer::{to_nbt_compound, to_nbt_tag};
 
 thread_local! {
     static BINARY_READS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };

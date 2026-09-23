@@ -160,7 +160,9 @@ fn biome_registry(names: &[String]) -> (RegistrySnapshot<Biome>, bevy_asset::Ass
             )
         })
         .collect();
-    let snapshot = RegistrySnapshot::<Biome>::build(pairs, &assets, |_| Ok(Default::default()));
+    let snapshot = RegistrySnapshot::<Biome>::build(pairs, &assets, |_| {
+        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
+    });
     (snapshot, assets)
 }
 

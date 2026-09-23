@@ -49,7 +49,7 @@ fn generate_column_beta_biome_not_default() {
             .zip(land_ids.iter().copied())
             .collect::<Vec<_>>(),
         &assets,
-        |_| Ok(mcrs_minecraft_nbt::compound::NbtCompound::new()),
+        |_| Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into()),
     );
     assert_eq!(
         snapshot.len(),

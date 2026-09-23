@@ -1,13 +1,14 @@
 use crate::{Decode, Encode, VarInt, nbt};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use std::borrow::Cow;
 use std::io::Write;
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Entry<'a> {
     pub id: ResourceLocation<Cow<'a, str>>,
-    pub data: Option<Cow<'a, NbtCompound>>,
+    pub data: Option<Cow<'a, NbtTag>>,
 }
 
 #[derive(Clone, Debug)]

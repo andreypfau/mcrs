@@ -186,7 +186,7 @@ impl Plugin for MinecraftWorldPlugin {
                 (
                     mcrs_minecraft_biome::Biome,
                     "minecraft:worldgen/biome",
-                    |b: &mcrs_minecraft_biome::Biome| mcrs_minecraft_nbt::to_nbt_compound(
+                    |b: &mcrs_minecraft_biome::Biome| mcrs_minecraft_nbt::to_nbt_tag(
                         &mcrs_minecraft_biome::NetworkBiome::from(b)
                     ),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
@@ -195,7 +195,7 @@ impl Plugin for MinecraftWorldPlugin {
                     mcrs_minecraft_dimension::dimension_type::DimensionType,
                     "minecraft:dimension_type",
                     |d: &mcrs_minecraft_dimension::dimension_type::DimensionType| {
-                        mcrs_minecraft_nbt::to_nbt_compound(
+                        mcrs_minecraft_nbt::to_nbt_tag(
                             &mcrs_minecraft_dimension::dimension_type::NetworkDimensionType::from(
                                 d,
                             ),
@@ -207,7 +207,7 @@ impl Plugin for MinecraftWorldPlugin {
                     mcrs_minecraft_environment::timeline::Timeline,
                     "minecraft:timeline",
                     |t: &mcrs_minecraft_environment::timeline::Timeline| {
-                        mcrs_minecraft_nbt::to_nbt_compound(
+                        mcrs_minecraft_nbt::to_nbt_tag(
                             &mcrs_minecraft_environment::timeline::NetworkTimeline::from(t),
                         )
                     },
@@ -216,14 +216,14 @@ impl Plugin for MinecraftWorldPlugin {
                 (
                     chat_type::ChatType,
                     "minecraft:chat_type",
-                    |v: &chat_type::ChatType| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &chat_type::ChatType| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     mcrs_minecraft_item::trim::TrimPattern,
                     "minecraft:trim_pattern",
                     |v: &mcrs_minecraft_item::trim::TrimPattern| {
-                        mcrs_minecraft_nbt::to_nbt_compound(v)
+                        mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
@@ -231,147 +231,147 @@ impl Plugin for MinecraftWorldPlugin {
                     mcrs_minecraft_item::trim::TrimMaterial,
                     "minecraft:trim_material",
                     |v: &mcrs_minecraft_item::trim::TrimMaterial| {
-                        mcrs_minecraft_nbt::to_nbt_compound(v)
+                        mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::WolfVariant,
                     "minecraft:wolf_variant",
-                    |v: &variant::WolfVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::WolfVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::WolfSoundVariant,
                     "minecraft:wolf_sound_variant",
-                    |v: &variant::WolfSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::WolfSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::PigSoundVariant,
                     "minecraft:pig_sound_variant",
-                    |v: &variant::PigSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::PigSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::CatSoundVariant,
                     "minecraft:cat_sound_variant",
-                    |v: &variant::CatSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::CatSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::CowSoundVariant,
                     "minecraft:cow_sound_variant",
-                    |v: &variant::CowSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::CowSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::ChickenSoundVariant,
                     "minecraft:chicken_sound_variant",
-                    |v: &variant::ChickenSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::ChickenSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::PigVariant,
                     "minecraft:pig_variant",
-                    |v: &variant::PigVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::PigVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::FrogVariant,
                     "minecraft:frog_variant",
-                    |v: &variant::FrogVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::FrogVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::CatVariant,
                     "minecraft:cat_variant",
-                    |v: &variant::CatVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::CatVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::CowVariant,
                     "minecraft:cow_variant",
-                    |v: &variant::CowVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::CowVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::ChickenVariant,
                     "minecraft:chicken_variant",
-                    |v: &variant::ChickenVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::ChickenVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     variant::ZombieNautilusVariant,
                     "minecraft:zombie_nautilus_variant",
-                    |v: &variant::ZombieNautilusVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &variant::ZombieNautilusVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     painting_variant::PaintingVariant,
                     "minecraft:painting_variant",
-                    |v: &painting_variant::PaintingVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &painting_variant::PaintingVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     damage_type::DamageType,
                     "minecraft:damage_type",
-                    |v: &damage_type::DamageType| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &damage_type::DamageType| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     banner_pattern::BannerPattern,
                     "minecraft:banner_pattern",
-                    |v: &banner_pattern::BannerPattern| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &banner_pattern::BannerPattern| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     jukebox_song::JukeboxSong,
                     "minecraft:jukebox_song",
-                    |v: &jukebox_song::JukeboxSong| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &jukebox_song::JukeboxSong| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     block_transformer::BlockTransformer,
                     "minecraft:block_transformer",
-                    |v: &block_transformer::BlockTransformer| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &block_transformer::BlockTransformer| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     decorated_pot_pattern::DecoratedPotPattern,
                     "minecraft:decorated_pot_pattern",
-                    |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     instrument::Instrument,
                     "minecraft:instrument",
-                    |v: &instrument::Instrument| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &instrument::Instrument| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     dialog::Dialog,
                     "minecraft:dialog",
-                    |v: &dialog::Dialog| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &dialog::Dialog| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     test_types::TestEnvironment,
                     "minecraft:test_environment",
-                    |v: &test_types::TestEnvironment| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &test_types::TestEnvironment| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     test_types::TestInstance,
                     "minecraft:test_instance",
-                    |v: &test_types::TestInstance| mcrs_minecraft_nbt::to_nbt_compound(v),
+                    |v: &test_types::TestInstance| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
                     mcrs_minecraft_environment::world_clock::WorldClock,
                     "minecraft:world_clock",
                     |v: &mcrs_minecraft_environment::world_clock::WorldClock| {
-                        mcrs_minecraft_nbt::to_nbt_compound(v)
+                        mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),

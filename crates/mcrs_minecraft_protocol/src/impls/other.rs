@@ -8,6 +8,7 @@ use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use uuid::Uuid;
 
 use crate::{Decode, Encode, VarInt};
@@ -61,6 +62,22 @@ impl Decode<'_> for NbtCompound {
         let nbt = Nbt::read_unnamed(&mut NbtReadHelper::new(&mut cursor))?;
         *r = &r[cursor.position() as usize..];
         Ok(nbt.root_tag)
+    }
+}
+
+impl Encode for NbtTag {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.serialize(&mut WriteAdaptor::new(&mut w))?;
+        Ok(())
+    }
+}
+
+impl Decode<'_> for NbtTag {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let mut cursor = Cursor::new(*r);
+        let tag = NbtTag::deserialize(&mut NbtReadHelper::new(&mut cursor))?;
+        *r = &r[cursor.position() as usize..];
+        Ok(tag)
     }
 }
 

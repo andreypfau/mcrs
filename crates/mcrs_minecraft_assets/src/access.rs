@@ -2,7 +2,7 @@ use crate::snapshot::RegistrySnapshot;
 use bevy_asset::Asset;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::LookupIndex;
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
@@ -30,7 +30,7 @@ impl PackSource {
 pub struct ErasedEntry<'a> {
     pub network_id: u32,
     pub location: &'a ResourceLocation<Arc<str>>,
-    pub data: Option<&'a NbtCompound>,
+    pub data: Option<&'a NbtTag>,
     pub pack_source: Option<&'a PackSource>,
 }
 
@@ -47,7 +47,7 @@ pub trait ErasedRegistrySnapshot: Send + Sync {
 
 struct ErasedOwnedEntry {
     location: ResourceLocation<Arc<str>>,
-    nbt: Option<NbtCompound>,
+    nbt: Option<NbtTag>,
     pack_source: Option<PackSource>,
 }
 
@@ -59,7 +59,7 @@ pub struct RegistrySnapshotErased {
 impl RegistrySnapshotErased {
     pub fn from_entries(
         key: &str,
-        entries: Vec<(ResourceLocation<Arc<str>>, Option<NbtCompound>)>,
+        entries: Vec<(ResourceLocation<Arc<str>>, Option<NbtTag>)>,
         pack_source: Option<PackSource>,
     ) -> Self {
         Self {
@@ -78,7 +78,7 @@ impl RegistrySnapshotErased {
     pub fn from_static<T: 'static>(
         key: &str,
         registry: &StaticRegistry<T>,
-        mut serialize: impl FnMut(&ResourceLocation<Arc<str>>, &'static T) -> Option<NbtCompound>,
+        mut serialize: impl FnMut(&ResourceLocation<Arc<str>>, &'static T) -> Option<NbtTag>,
         pack_source: Option<PackSource>,
     ) -> Self {
         let entries = registry
@@ -252,10 +252,10 @@ mod tests {
         ResourceLocation::new("minecraft", name)
     }
 
-    fn make_nbt(key: &str, value: &str) -> NbtCompound {
-        let mut nbt = NbtCompound::new();
+    fn make_nbt(key: &str, value: &str) -> NbtTag {
+        let mut nbt = mcrs_minecraft_nbt::compound::NbtCompound::new();
         nbt.put_string(key, value.to_string());
-        nbt
+        nbt.into()
     }
 
     #[test]

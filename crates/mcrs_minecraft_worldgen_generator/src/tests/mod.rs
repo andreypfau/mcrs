@@ -212,7 +212,7 @@ pub fn biome_registry(names: &[&str]) -> RegistrySnapshot<Biome> {
             .map(|name| (ResourceLocation::parse(name).unwrap(), handle.id()))
             .collect::<Vec<_>>(),
         &assets,
-        |_| Ok(mcrs_minecraft_nbt::compound::NbtCompound::new()),
+        |_| Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into()),
     )
 }
 

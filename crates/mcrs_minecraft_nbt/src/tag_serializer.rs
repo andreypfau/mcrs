@@ -4,9 +4,12 @@ use crate::{Error, NBT_ARRAY_TAG, NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG, NBT_LON
 use serde::ser::Impossible;
 use serde::{Serialize, ser};
 
+pub fn to_nbt_tag<T: Serialize>(value: &T) -> Result<NbtTag, Error> {
+    value.serialize(TagSerializer)
+}
+
 pub fn to_nbt_compound<T: Serialize>(value: &T) -> Result<NbtCompound, Error> {
-    let tag = value.serialize(TagSerializer)?;
-    match tag {
+    match to_nbt_tag(value)? {
         NbtTag::Compound(c) => Ok(c),
         other => Err(Error::SerdeError(format!(
             "Root must be a compound, got {other:?}"

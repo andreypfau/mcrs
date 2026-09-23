@@ -1,6 +1,6 @@
 use bevy_asset::{Asset, AssetId, Assets};
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 pub struct SnapshotEntry<T: Asset> {
     pub location: ResourceLocation<Arc<str>>,
     pub asset_id: AssetId<T>,
-    pub nbt: NbtCompound,
+    pub nbt: NbtTag,
 }
 
 /// Stable `u32` network IDs assigned to all entries of a single dynamic
@@ -47,7 +47,7 @@ impl<T: Asset> RegistrySnapshot<T> {
     pub fn build<I, F>(pairs: I, assets: &Assets<T>, mut serialize: F) -> Self
     where
         I: IntoIterator<Item = (ResourceLocation<Arc<str>>, AssetId<T>)>,
-        F: FnMut(&T) -> Result<NbtCompound, mcrs_minecraft_nbt::Error>,
+        F: FnMut(&T) -> Result<NbtTag, mcrs_minecraft_nbt::Error>,
     {
         let mut pairs: Vec<_> = pairs.into_iter().collect();
         pairs.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
@@ -63,17 +63,9 @@ impl<T: Asset> RegistrySnapshot<T> {
                 );
                 continue;
             };
-            let nbt = match serialize(value) {
-                Ok(nbt) => nbt,
-                Err(e) => {
-                    tracing::error!(
-                        rl = %location.as_str(),
-                        error = %e,
-                        "RegistrySnapshot::build serializer failed"
-                    );
-                    NbtCompound::new()
-                }
-            };
+            let nbt = serialize(value).unwrap_or_else(|e| {
+                panic!("{} does not encode for the network: {e}", location.as_str())
+            });
             by_asset.insert(asset_id, network_id as u32);
             entries.push(SnapshotEntry {
                 location,
@@ -203,6 +195,7 @@ macro_rules! snapshot_registry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_nbt::compound::NbtCompound;
 
     #[derive(bevy_asset::Asset, bevy_reflect::TypePath)]
     struct TestBiome;
@@ -225,7 +218,7 @@ mod tests {
         let snapshot = RegistrySnapshot::<TestBiome>::build(
             vec![p1.clone(), p2.clone(), p3.clone()],
             &assets,
-            |_| Ok(NbtCompound::new()),
+            |_| Ok(NbtCompound::new().into()),
         );
 
         assert_eq!(snapshot.len(), 3);
@@ -244,10 +237,12 @@ mod tests {
         let pairs_a = vec![p_plains.clone(), p_desert.clone(), p_forest.clone()];
         let pairs_b = vec![p_forest.clone(), p_plains.clone(), p_desert.clone()];
 
-        let snap_a =
-            RegistrySnapshot::<TestBiome>::build(pairs_a, &assets, |_| Ok(NbtCompound::new()));
-        let snap_b =
-            RegistrySnapshot::<TestBiome>::build(pairs_b, &assets, |_| Ok(NbtCompound::new()));
+        let snap_a = RegistrySnapshot::<TestBiome>::build(pairs_a, &assets, |_| {
+            Ok(NbtCompound::new().into())
+        });
+        let snap_b = RegistrySnapshot::<TestBiome>::build(pairs_b, &assets, |_| {
+            Ok(NbtCompound::new().into())
+        });
 
         assert_eq!(snap_a.by_asset_id(p_desert.1).unwrap(), 0);
         assert_eq!(snap_a.by_asset_id(p_forest.1).unwrap(), 1);
@@ -276,7 +271,7 @@ mod tests {
         let snapshot = RegistrySnapshot::<TestBiome>::build(
             vec![p1.clone(), p2.clone(), p3.clone()],
             &assets,
-            |_| Ok(NbtCompound::new()),
+            |_| Ok(NbtCompound::new().into()),
         );
 
         for (rl, aid) in [p1, p2, p3] {
@@ -295,11 +290,14 @@ mod tests {
         let snapshot = RegistrySnapshot::<TestBiome>::build(vec![p1, p2], &assets, |_| {
             let mut nbt = NbtCompound::new();
             nbt.put_string("name", "test_value".to_owned());
-            Ok(nbt)
+            Ok(nbt.into())
         });
 
         for (_, entry) in snapshot.iter() {
-            let name = entry.nbt.get_string("name");
+            let NbtTag::Compound(nbt) = &entry.nbt else {
+                panic!("not a compound")
+            };
+            let name = nbt.get_string("name");
             assert_eq!(
                 name,
                 Some("test_value"),

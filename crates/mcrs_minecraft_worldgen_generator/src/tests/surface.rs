@@ -418,7 +418,7 @@ pub fn overworld_biome_registry() -> (
         })
         .collect();
     let snapshot = mcrs_minecraft_assets::RegistrySnapshot::<Biome>::build(pairs, &assets, |_| {
-        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new())
+        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
     });
     let ids = names
         .iter()
