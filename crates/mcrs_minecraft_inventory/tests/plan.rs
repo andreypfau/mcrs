@@ -37,6 +37,34 @@ fn helmet() -> StackView {
     }
 }
 
+fn leggings() -> StackView {
+    StackView {
+        key: StackKey {
+            item: ItemId(3),
+            components: ComponentPatch::EMPTY,
+        },
+        count: 1,
+        max: 1,
+        stackable: false,
+        armour: Some(slots::ARMOR_LEGS),
+        offhand: false,
+    }
+}
+
+fn sword() -> StackView {
+    StackView {
+        key: StackKey {
+            item: ItemId(4),
+            components: ComponentPatch::EMPTY,
+        },
+        count: 1,
+        max: 1,
+        stackable: false,
+        armour: None,
+        offhand: false,
+    }
+}
+
 fn player() -> Entity {
     Entity::from_raw_u32(7).unwrap()
 }
@@ -909,4 +937,103 @@ fn a_pickup_fills_the_held_slot_first_then_a_free_slot() {
             },
         ]
     );
+}
+
+#[test]
+fn leggings_go_into_the_leggings_slot_and_not_the_head_slot() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(leggings()));
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::Pickup,
+        slots::ARMOR_HEAD as i16,
+        0,
+    );
+    assert_eq!(ops, []);
+
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::Pickup,
+        slots::ARMOR_LEGS as i16,
+        0,
+    );
+    assert_eq!(
+        ops,
+        [Op::Transfer {
+            from: slot(slots::CARRIED),
+            to: slot(slots::ARMOR_LEGS),
+            count: 1
+        }]
+    );
+}
+
+#[test]
+fn a_sword_is_refused_by_every_armour_slot() {
+    for index in slots::ARMOR_HEAD..=slots::ARMOR_FEET {
+        let mut snapshot = fresh();
+        snapshot.set(slot(slots::CARRIED), Some(sword()));
+        let ops = click(&mut snapshot, ContainerInput::Pickup, index as i16, 0);
+        assert_eq!(ops, [], "slot {index}");
+        assert_eq!(snapshot.get(slot(index)), None);
+    }
+}
+
+#[test]
+fn swapping_onto_worn_armour_is_gated_by_the_incoming_stack() {
+    let other_helmet = StackView {
+        key: StackKey {
+            item: ItemId(5),
+            components: ComponentPatch::EMPTY,
+        },
+        ..helmet()
+    };
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::ARMOR_HEAD), Some(helmet()));
+    snapshot.set(slot(slots::CARRIED), Some(other_helmet.clone()));
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::Pickup,
+        slots::ARMOR_HEAD as i16,
+        0,
+    );
+    assert_eq!(
+        ops,
+        [Op::Swap {
+            a: slot(slots::ARMOR_HEAD),
+            b: slot(slots::CARRIED)
+        }]
+    );
+    assert_eq!(snapshot.get(slot(slots::ARMOR_HEAD)), Some(&other_helmet));
+
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::ARMOR_HEAD), Some(helmet()));
+    snapshot.set(slot(slots::CARRIED), Some(sword()));
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::Pickup,
+        slots::ARMOR_HEAD as i16,
+        0,
+    );
+    assert_eq!(ops, []);
+    assert_eq!(snapshot.get(slot(slots::ARMOR_HEAD)), Some(&helmet()));
+    assert_eq!(snapshot.get(slot(slots::CARRIED)), Some(&sword()));
+}
+
+#[test]
+fn armour_the_player_may_not_wear_is_refused_by_its_own_slot() {
+    let mut snapshot = fresh();
+    snapshot.set(
+        slot(slots::CARRIED),
+        Some(StackView {
+            armour: None,
+            ..helmet()
+        }),
+    );
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::Pickup,
+        slots::ARMOR_HEAD as i16,
+        0,
+    );
+    assert_eq!(ops, []);
 }
