@@ -217,10 +217,11 @@ impl MenuSnapshot {
         }
     }
 
-    /// ponytail: every slot may be picked up today; a binding-curse armour
-    /// rule caps here when one exists.
-    pub fn may_pickup(&self, _slot: Slot) -> bool {
-        true
+    pub fn may_pickup(&self, slot: Slot, creative: bool) -> bool {
+        creative
+            || slot.holder != self.player
+            || !(slots::ARMOR_HEAD..=slots::ARMOR_FEET).contains(&slot.index)
+            || !self.get(slot).is_some_and(|view| view.binding_curse)
     }
 
     pub fn can_take_for_pick_all(&self, slot: Slot) -> bool {

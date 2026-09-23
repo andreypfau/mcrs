@@ -308,6 +308,9 @@ impl<'a> Planner<'a> {
                     return;
                 };
                 let from = self.snapshot.layout[index];
+                if !self.snapshot.may_pickup(from, click.creative) {
+                    return;
+                }
                 let item = self.snapshot.get(from).map(|stack| stack.key.item);
                 while self.quick_move(index)
                     && self.snapshot.get(from).map(|stack| stack.key.item) == item
@@ -317,6 +320,9 @@ impl<'a> Planner<'a> {
                 let Some(slot) = clicked_slot else {
                     return;
                 };
+                if !self.snapshot.may_pickup(slot, click.creative) {
+                    return;
+                }
                 match (self.snapshot.get(slot).cloned(), carried) {
                     (None, None) => {}
                     (None, Some(carried)) => {
@@ -360,7 +366,9 @@ impl<'a> Planner<'a> {
                 ) {
                     (None, None) => {}
                     (None, Some(_)) => {
-                        self.transfer(Source::Slot(slot), source_slot, u8::MAX);
+                        if self.snapshot.may_pickup(slot, click.creative) {
+                            self.transfer(Source::Slot(slot), source_slot, u8::MAX);
+                        }
                     }
                     (Some(source), None) => {
                         if let Some(max) = self.snapshot.slot_max(slot, &source) {
@@ -368,6 +376,9 @@ impl<'a> Planner<'a> {
                         }
                     }
                     (Some(source), Some(_)) => {
+                        if !self.snapshot.may_pickup(slot, click.creative) {
+                            return;
+                        }
                         let Some(max) = self.snapshot.slot_max(slot, &source) else {
                             return;
                         };
@@ -395,7 +406,7 @@ impl<'a> Planner<'a> {
                 else {
                     return;
                 };
-                if carried.is_some() {
+                if carried.is_some() || !self.snapshot.may_pickup(slot, click.creative) {
                     return;
                 }
                 let amount = if primary {
@@ -410,7 +421,9 @@ impl<'a> Planner<'a> {
                 let (Some(clicked), Some(carried)) = (clicked_slot, carried) else {
                     return;
                 };
-                if self.snapshot.get(clicked).is_some() && self.snapshot.may_pickup(clicked) {
+                if self.snapshot.get(clicked).is_some()
+                    && self.snapshot.may_pickup(clicked, click.creative)
+                {
                     return;
                 }
                 let backwards = click.button != 0;
@@ -424,7 +437,7 @@ impl<'a> Planner<'a> {
                             continue;
                         };
                         if !(self.snapshot.can_quick_replace(target, &carried)
-                            && self.snapshot.may_pickup(target)
+                            && self.snapshot.may_pickup(target, click.creative)
                             && self.snapshot.can_take_for_pick_all(target))
                         {
                             continue;
