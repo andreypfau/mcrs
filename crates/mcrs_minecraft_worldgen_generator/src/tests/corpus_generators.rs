@@ -373,6 +373,11 @@ fn simple_block_states(to_place: &serde_json::Value, out: &mut BTreeSet<String>)
         serde_json::Value::String(name) => {
             if blocks().0.block(name).is_some() {
                 out.insert(name.clone());
+            } else if let Ok(provider) = ResourceLocation::parse(name)
+                && let Some(provider) =
+                    load_json_dir::<serde_json::Value>("block_state_provider").get(&provider)
+            {
+                simple_block_states(provider, out);
             }
         }
         serde_json::Value::Object(map) => match map.get("Name").or_else(|| map.get("id")) {
