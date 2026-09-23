@@ -350,7 +350,7 @@ mod tests {
 
     use super::{HashSerializer, hash};
 
-    // Golden values printed by the 26.3-snapshot-10 client.
+    // Golden values printed by the 26.3-snapshot-10 client; 26.3 kept `HashOps` unchanged.
     const EMPTY: i32 = -1609117614;
     const EMPTY_MAP: i32 = -982207288;
     const EMPTY_LIST: i32 = -1978007022;

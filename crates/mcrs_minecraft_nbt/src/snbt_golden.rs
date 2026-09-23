@@ -1,5 +1,6 @@
-// Generated from vanilla 26.3-snapshot-10: TagParser + Tag.toString + NbtIo.writeAnyTag,
-// JsonOps.convertTo(NbtOps) and Double/Float.toString.
+// Generated from vanilla 26.3-snapshot-10, whose NBT parser and printer 26.3 kept:
+// TagParser + Tag.toString + NbtIo.writeAnyTag, JsonOps.convertTo(NbtOps) and
+// Double/Float.toString.
 
 pub(crate) const PARSES: &[(&str, &str, &str)] = &[
     ("{}", "0a00", "{}"),

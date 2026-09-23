@@ -1,5 +1,5 @@
-//! The recipe-book packets as the vanilla 26.3-snapshot-10 stream codecs
-//! wrote them, with the registry ids the vanilla buffer resolved against.
+//! The recipe-book packets as the vanilla 26.3-snapshot-10 stream codecs wrote them,
+//! which 26.3 kept, with the registry ids the vanilla buffer resolved against.
 
 use std::collections::BTreeMap;
 

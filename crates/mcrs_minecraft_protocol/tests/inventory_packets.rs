@@ -1,5 +1,6 @@
-//! Bytes written by the vanilla 26.3-snapshot-10 packet stream codecs; `id`
-//! lines are the registry ids the capture session had.
+//! Bytes written by the vanilla packet stream codecs, captured on 26.3-snapshot-10,
+//! whose codecs for these packets 26.3 kept; `id` lines are the registry ids the
+//! capture session had.
 
 #[allow(dead_code)]
 mod common;
