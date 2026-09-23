@@ -6,7 +6,10 @@ pub mod slot;
 pub mod transaction;
 pub mod value;
 
-pub use click::{ContainerClickRequest, handle_container_clicks};
+pub use click::{
+    ContainerClickRequest, DROP_THROTTLE_LIMIT, DROP_THROTTLE_STEP, DropThrottle,
+    handle_container_clicks, tick_drop_throttles,
+};
 pub use drag::{Drag, Feed, quick_craft_counts};
 pub use menu::{
     CurrentMenu, Menu, MenuContainer, MenuLayout, MenuSlots, MenuViewer, MenusOf,

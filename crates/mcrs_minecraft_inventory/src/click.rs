@@ -1,6 +1,7 @@
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader};
-use bevy_ecs::system::Commands;
+use bevy_ecs::system::{Commands, Query};
 use bevy_ecs::world::{EntityWorldMut, World};
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_protocol::GameMode;
@@ -25,6 +26,14 @@ pub struct ContainerClickRequest {
     pub changed: Vec<(u16, Option<HashedStack>)>,
     pub carried: Option<HashedStack>,
 }
+
+pub const DROP_THROTTLE_STEP: u32 = 20;
+pub const DROP_THROTTLE_LIMIT: u32 = 1480;
+
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DropThrottle(pub u32);
+
+pub fn tick_drop_throttles(mut throttles: Query<&mut DropThrottle>) {}
 
 #[derive(Default)]
 struct MenuFold {
