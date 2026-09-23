@@ -97,9 +97,8 @@ pub struct GameModeSwitcherPlugin;
 
 impl Plugin for GameModeSwitcherPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DebugChat>()
-            .add_systems(Startup, spawn_icons)
-            .add_systems(
+        add_icon_spawning(app);
+        app.init_resource::<DebugChat>().add_systems(
                 Update,
                 switch_game_mode
                     .after(ClientNetworkSystems::Receive)
@@ -109,10 +108,19 @@ impl Plugin for GameModeSwitcherPlugin {
     }
 }
 
+/// The item corpus is only known once the client has baked its item models after joining.
+fn add_icon_spawning(app: &mut App) {
+    app.add_systems(
+        Update,
+        spawn_icons.run_if(resource_exists::<Items>.and(not(any_with_component::<GameModeIcons>))),
+    );
+}
+
 fn spawn_icons(world: &mut World) {
-    let Some(items) = world.get_resource::<Items>() else {
-        return;
-    };
+    let holder = world
+        .spawn((GameModeIcons, SlotTable::fixed(ICONS.len())))
+        .id();
+    let items = world.resource::<Items>();
     let known = ICONS.iter().all(|&mode| {
         items
             .iter()
@@ -122,9 +130,6 @@ fn spawn_icons(world: &mut World) {
         warn!("an item the game mode switcher shows is missing from the item corpus");
         return;
     }
-    let holder = world
-        .spawn((GameModeIcons, SlotTable::fixed(ICONS.len())))
-        .id();
     let spawns = ICONS
         .iter()
         .enumerate()
@@ -398,6 +403,24 @@ mod tests {
                 "minecraft:ender_eye"
             ]
         );
+    }
+
+    #[test]
+    fn the_icons_appear_once_the_item_corpus_arrives_after_startup() {
+        let mut app = App::new();
+        add_icon_spawning(&mut app);
+        app.update();
+        let mut holders = app
+            .world_mut()
+            .query_filtered::<&SlotTable, With<GameModeIcons>>();
+        assert_eq!(holders.iter(app.world()).count(), 0);
+
+        app.insert_resource(mcrs_minecraft_item::test_corpus().1.clone());
+        app.update();
+        app.update();
+        let icons: Vec<_> = holders.iter(app.world()).collect();
+        assert_eq!(icons.len(), 1);
+        assert!((0..4).all(|index| icons[0].get(index).is_some()));
     }
 
     #[test]
