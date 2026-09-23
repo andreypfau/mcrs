@@ -6,7 +6,7 @@ use mcrs_minecraft_assets::{RegistryAccess, RegistrySnapshotErased};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::value::spawn_stack;
-use mcrs_minecraft_inventory::{CurrentMenu, Op, Slot, Transaction};
+use mcrs_minecraft_inventory::{CurrentMenu, Menu, Op, Slot, Transaction};
 use mcrs_minecraft_item::{ItemStack, SelectedHotbarSlot, SlotTable, slots, stack_to_value};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -228,5 +228,32 @@ fn a_slot_outside_the_chest_layout_that_changed_is_resent_when_the_chest_closes(
                 if *slot == slots::ARMOR_HEAD as i16 && *item != RawStack::EMPTY
         )),
         "{packets:?}"
+    );
+}
+
+#[test]
+fn a_helmet_equipped_before_a_chest_opens_survives_the_close_without_a_full_resend() {
+    let (mut world, player, _anchor) = world();
+    open_menus(&mut world);
+    sync_tick(&mut world);
+    let helmet = item(&mut world, "iron_helmet", 1);
+    place(&mut world, helmet, player, slots::ARMOR_HEAD);
+    sync_tick(&mut world);
+    let inventory_menu = world.get::<CurrentMenu>(player).unwrap().0;
+    let state_id = world.get::<Menu>(inventory_menu).unwrap().state_id;
+
+    let chest_menu = open_chest(&mut world, player);
+    close_container_menu(&mut world, player, chest_menu, false);
+    let packets = sync_tick(&mut world);
+
+    assert!(packets.is_empty(), "{packets:?}");
+    assert_eq!(world.get::<CurrentMenu>(player).unwrap().0, inventory_menu);
+    assert_eq!(
+        world.get::<Menu>(inventory_menu).unwrap().state_id,
+        state_id
+    );
+    assert_eq!(
+        stack_at(&world, player, slots::ARMOR_HEAD),
+        Some((helmet, 1))
     );
 }
