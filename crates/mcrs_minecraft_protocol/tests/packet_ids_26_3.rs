@@ -1,4 +1,4 @@
-//! Pins every packet id modelled by this crate to its 26.3-snapshot-10 wire value.
+//! Pins every packet id modelled by this crate to its 26.3 wire value.
 //!
 //! Vanilla assigns ids by registration order in the protocol builders, so a wrong
 //! id is self-consistent between our own client and server and only shows up
@@ -89,42 +89,42 @@ fn play_clientbound_ids() {
         0x20 => ClientboundDisconnect, Clientbound, Game;
         0x22 => ClientboundEntityEvent, Clientbound, Game;
         0x23 => ClientboundEntityPositionSync, Clientbound, Game;
-        0x25 => ClientboundForgetLevelChunk, Clientbound, Game;
-        0x26 => ClientboundGameEvent, Clientbound, Game;
-        0x2C => ClientboundKeepAlive, Clientbound, Game;
-        0x2D => ClientboundLevelChunkWithLight<'_>, Clientbound, Game;
-        0x2F => ClientboundLevelParticles, Clientbound, Game;
-        0x30 => ClientboundLightUpdate<'_>, Clientbound, Game;
-        0x31 => ClientboundLogin<'_>, Clientbound, Game;
-        0x34 => ClientboundMerchantOffers, Clientbound, Game;
-        0x35 => ClientboundMoveEntityPos, Clientbound, Game;
-        0x36 => ClientboundMoveEntityPosRot, Clientbound, Game;
-        0x37 => ClientboundMoveMinecartAlongTrack, Clientbound, Game;
-        0x38 => ClientboundMoveEntityRot, Clientbound, Game;
-        0x3B => ClientboundOpenScreen, Clientbound, Game;
-        0x46 => ClientboundPlayerInfoUpdate<'_>, Clientbound, Game;
-        0x48 => ClientboundPlayerPosition, Clientbound, Game;
-        0x4A => ClientboundRecipeBookAdd, Clientbound, Game;
-        0x4B => ClientboundRecipeBookRemove, Clientbound, Game;
-        0x4C => ClientboundRecipeBookSettings, Clientbound, Game;
-        0x4D => ClientboundRemoveEntities, Clientbound, Game;
-        0x53 => ClientboundRespawn<'_>, Clientbound, Game;
-        0x54 => ClientboundRotateHead, Clientbound, Game;
-        0x55 => ClientboundSectionBlocksUpdate<'_>, Clientbound, Game;
-        0x5F => ClientboundSetChunkCacheCenter, Clientbound, Game;
-        0x60 => ClientboundChunkCacheRadius, Clientbound, Game;
-        0x61 => ClientboundSetCursorItem, Clientbound, Game;
-        0x64 => ClientboundSetEntityData<'_>, Clientbound, Game;
-        0x67 => ClientboundSetEquipment, Clientbound, Game;
-        0x6A => ClientboundSetHeldSlot, Clientbound, Game;
-        0x6C => ClientboundSetPassengers, Clientbound, Game;
-        0x6D => ClientboundSetPlayerInventory, Clientbound, Game;
-        0x77 => ClientboundStartConfiguration, Clientbound, Game;
-        0x7B => ClientboundSystemChatPacket, Clientbound, Game;
-        0x7E => ClientboundTakeItemEntity, Clientbound, Game;
-        0x84 => ClientboundUpdateAdvancements, Clientbound, Game;
-        0x85 => ClientboundUpdateAttributes<'_>, Clientbound, Game;
-        0x87 => ClientboundUpdateRecipes, Clientbound, Game;
+        0x26 => ClientboundForgetLevelChunk, Clientbound, Game;
+        0x27 => ClientboundGameEvent, Clientbound, Game;
+        0x2D => ClientboundKeepAlive, Clientbound, Game;
+        0x2E => ClientboundLevelChunkWithLight<'_>, Clientbound, Game;
+        0x30 => ClientboundLevelParticles, Clientbound, Game;
+        0x31 => ClientboundLightUpdate<'_>, Clientbound, Game;
+        0x32 => ClientboundLogin<'_>, Clientbound, Game;
+        0x35 => ClientboundMerchantOffers, Clientbound, Game;
+        0x36 => ClientboundMoveEntityPos, Clientbound, Game;
+        0x37 => ClientboundMoveEntityPosRot, Clientbound, Game;
+        0x38 => ClientboundMoveMinecartAlongTrack, Clientbound, Game;
+        0x39 => ClientboundMoveEntityRot, Clientbound, Game;
+        0x3C => ClientboundOpenScreen, Clientbound, Game;
+        0x47 => ClientboundPlayerInfoUpdate<'_>, Clientbound, Game;
+        0x49 => ClientboundPlayerPosition, Clientbound, Game;
+        0x4B => ClientboundRecipeBookAdd, Clientbound, Game;
+        0x4C => ClientboundRecipeBookRemove, Clientbound, Game;
+        0x4D => ClientboundRecipeBookSettings, Clientbound, Game;
+        0x4E => ClientboundRemoveEntities, Clientbound, Game;
+        0x54 => ClientboundRespawn<'_>, Clientbound, Game;
+        0x55 => ClientboundRotateHead, Clientbound, Game;
+        0x56 => ClientboundSectionBlocksUpdate<'_>, Clientbound, Game;
+        0x60 => ClientboundSetChunkCacheCenter, Clientbound, Game;
+        0x61 => ClientboundChunkCacheRadius, Clientbound, Game;
+        0x62 => ClientboundSetCursorItem, Clientbound, Game;
+        0x65 => ClientboundSetEntityData<'_>, Clientbound, Game;
+        0x68 => ClientboundSetEquipment, Clientbound, Game;
+        0x6B => ClientboundSetHeldSlot, Clientbound, Game;
+        0x6D => ClientboundSetPassengers, Clientbound, Game;
+        0x6E => ClientboundSetPlayerInventory, Clientbound, Game;
+        0x78 => ClientboundStartConfiguration, Clientbound, Game;
+        0x7C => ClientboundSystemChatPacket, Clientbound, Game;
+        0x7F => ClientboundTakeItemEntity, Clientbound, Game;
+        0x85 => ClientboundUpdateAdvancements, Clientbound, Game;
+        0x86 => ClientboundUpdateAttributes<'_>, Clientbound, Game;
+        0x88 => ClientboundUpdateRecipes, Clientbound, Game;
     }
 }
 

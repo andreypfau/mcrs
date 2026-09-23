@@ -130,24 +130,24 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x25, state=Game)]
+    #[packet(id=0x26, state=Game)]
     pub struct ClientboundForgetLevelChunk {
         pub z: i32,
         pub x: i32,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x26, state=Game)]
+    #[packet(id=0x27, state=Game)]
     pub struct ClientboundGameEvent {
         pub game_event: GameEventKind,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x2C, state=Game)]
+    #[packet(id=0x2D, state=Game)]
     pub struct ClientboundKeepAlive(pub KeepAlive);
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x2D, state=Game)]
+    #[packet(id=0x2E, state=Game)]
     pub struct ClientboundLevelChunkWithLight<'a> {
         pub pos: ColumnPos,
         pub chunk_data: crate::chunk::ChunkData<'a>,
@@ -155,7 +155,7 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x2F, state=Game)]
+    #[packet(id=0x30, state=Game)]
     pub struct ClientboundLevelParticles {
         pub override_limiter: bool,
         pub always_show: bool,
@@ -167,7 +167,7 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x30, state=Game)]
+    #[packet(id=0x31, state=Game)]
     pub struct ClientboundLightUpdate<'a> {
         pub x: VarInt,
         pub z: VarInt,
@@ -175,7 +175,7 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x31, state=Game)]
+    #[packet(id=0x32, state=Game)]
     pub struct ClientboundLogin<'a> {
         pub player_id: i32,
         pub hardcore: bool,
@@ -259,7 +259,7 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Packet)]
-    #[packet(id=0x35, state=Game)]
+    #[packet(id=0x36, state=Game)]
     pub struct ClientboundMoveEntityPos {
         pub entity_id: VarInt,
         pub delta: VecDelta,
@@ -287,7 +287,7 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Packet)]
-    #[packet(id=0x36, state=Game)]
+    #[packet(id=0x37, state=Game)]
     pub struct ClientboundMoveEntityPosRot {
         pub entity_id: VarInt,
         pub delta: VecDelta,
@@ -322,7 +322,7 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x34, state=Game)]
+    #[packet(id=0x35, state=Game)]
     pub struct ClientboundMerchantOffers {
         pub container_id: VarInt,
         pub offers: Vec<RawMerchantOffer>,
@@ -333,14 +333,14 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x37, state=Game)]
+    #[packet(id=0x38, state=Game)]
     pub struct ClientboundMoveMinecartAlongTrack {
         pub entity_id: VarInt,
         pub lerp_steps: Vec<MinecartStep>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x38, state=Game)]
+    #[packet(id=0x39, state=Game)]
     pub struct ClientboundMoveEntityRot {
         pub entity_id: VarInt,
         pub y_rot: ByteAngle,
@@ -349,7 +349,7 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x3B, state=Game)]
+    #[packet(id=0x3C, state=Game)]
     pub struct ClientboundOpenScreen {
         pub container_id: VarInt,
         pub menu_type: VarInt,
@@ -357,14 +357,14 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Packet)]
-    #[packet(id=0x46, state=Game)]
+    #[packet(id=0x47, state=Game)]
     pub struct ClientboundPlayerInfoUpdate<'a> {
         pub actions: PlayerListActions,
         pub entries: Cow<'a, [PlayerListEntry<'a>]>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x48, state=Game)]
+    #[packet(id=0x49, state=Game)]
     pub struct ClientboundPlayerPosition {
         pub teleport_id: VarInt,
         pub position: DVec3,
@@ -374,59 +374,59 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x4A, state=Game)]
+    #[packet(id=0x4B, state=Game)]
     pub struct ClientboundRecipeBookAdd {
         pub entries: Vec<Raw<RecipeBookEntry>>,
         pub replace: bool,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x4B, state=Game)]
+    #[packet(id=0x4C, state=Game)]
     pub struct ClientboundRecipeBookRemove {
         pub recipes: Vec<VarInt>,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x4C, state=Game)]
+    #[packet(id=0x4D, state=Game)]
     pub struct ClientboundRecipeBookSettings {
         pub book_settings: RecipeBookSettings,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x4D, state=Game)]
+    #[packet(id=0x4E, state=Game)]
     pub struct ClientboundRemoveEntities {
         pub entity_ids: Vec<VarInt>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x53, state=Game)]
+    #[packet(id=0x54, state=Game)]
     pub struct ClientboundRespawn<'a> {
         pub player_spawn_info: PlayerSpawnInfo<'a>,
         pub data_to_keep: u8,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x54, state=Game)]
+    #[packet(id=0x55, state=Game)]
     pub struct ClientboundRotateHead {
         pub entity_id: VarInt,
         pub y_head_rot: ByteAngle,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x55, state=Game)]
+    #[packet(id=0x56, state=Game)]
     pub struct ClientboundSectionBlocksUpdate<'a> {
         pub chunk_pos: SectionPos,
         pub blocks: Cow<'a, [ChunkBlockUpdateEntry]>,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x61, state=Game)]
+    #[packet(id=0x62, state=Game)]
     pub struct ClientboundSetCursorItem {
         pub contents: RawStack,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x64, state=Game)]
+    #[packet(id=0x65, state=Game)]
     pub struct ClientboundSetEntityData<'a> {
         pub entity_id: VarInt,
         pub metadata: Metadata<'a>,
@@ -435,7 +435,7 @@ pub mod clientbound {
     /// One equipped stack per slot; the wire chains the entries by a
     /// continuation bit on the slot byte, so the list must not be empty.
     #[derive(Clone, Debug, PartialEq, Packet)]
-    #[packet(id=0x67, state=Game)]
+    #[packet(id=0x68, state=Game)]
     pub struct ClientboundSetEquipment {
         pub entity_id: VarInt,
         pub slots: Vec<(EquipmentSlot, RawStack)>,
@@ -470,27 +470,27 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x6A, state=Game)]
+    #[packet(id=0x6B, state=Game)]
     pub struct ClientboundSetHeldSlot {
         pub slot: VarInt,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x6C, state=Game)]
+    #[packet(id=0x6D, state=Game)]
     pub struct ClientboundSetPassengers {
         pub vehicle: VarInt,
         pub passengers: Vec<VarInt>,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x6D, state=Game)]
+    #[packet(id=0x6E, state=Game)]
     pub struct ClientboundSetPlayerInventory {
         pub slot: VarInt,
         pub contents: RawStack,
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x7E, state=Game)]
+    #[packet(id=0x7F, state=Game)]
     pub struct ClientboundTakeItemEntity {
         pub item_id: VarInt,
         pub player_id: VarInt,
@@ -519,7 +519,7 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x84, state=Game)]
+    #[packet(id=0x85, state=Game)]
     pub struct ClientboundUpdateAdvancements {
         pub reset: bool,
         pub added: Vec<RawAdvancement>,
@@ -529,7 +529,7 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x85, state=Game)]
+    #[packet(id=0x86, state=Game)]
     pub struct ClientboundUpdateAttributes<'a> {
         pub entity_id: VarInt,
         pub attributes: Vec<AttributeSnapshot<'a>>,
@@ -538,31 +538,31 @@ pub mod clientbound {
     /// `item_sets` is keyed by `recipe_property_set` id; vanilla writes it
     /// from a hash map, so the order is whatever was received.
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x87, state=Game)]
+    #[packet(id=0x88, state=Game)]
     pub struct ClientboundUpdateRecipes {
         pub item_sets: Vec<(ResourceLocation, Raw<RecipePropertySet>)>,
         pub stonecutter_recipes: Vec<Raw<SelectableRecipe>>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x5F, state=Game)]
+    #[packet(id=0x60, state=Game)]
     pub struct ClientboundSetChunkCacheCenter {
         pub x: VarInt,
         pub z: VarInt,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x60, state=Game)]
+    #[packet(id=0x61, state=Game)]
     pub struct ClientboundChunkCacheRadius {
         pub radius: VarInt,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x77, state=Game)]
+    #[packet(id=0x78, state=Game)]
     pub struct ClientboundStartConfiguration;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x7B, state=Game)]
+    #[packet(id=0x7C, state=Game)]
     pub struct ClientboundSystemChatPacket {
         pub content: Text,
         pub overlay: bool,
