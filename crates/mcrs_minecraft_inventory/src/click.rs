@@ -60,6 +60,12 @@ pub fn handle_container_clicks(
             continue;
         };
         if i32::from(container_id) != req.container_id {
+            tracing::debug!(
+                player = ?req.player,
+                container_id = req.container_id,
+                open = container_id,
+                "click for a container the player does not have open"
+            );
             continue;
         }
         let fold = menus

@@ -212,6 +212,43 @@ fn throw_turns_the_stack_into_a_dropped_item() {
 }
 
 #[test]
+fn a_click_for_a_container_the_player_no_longer_has_open_moves_nothing() {
+    let (mut world, player) = opened();
+    let stack = stone(&mut world, 7);
+    place(&mut world, stack, player, slots::HOTBAR.start);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    world
+        .resource_mut::<Messages<ContainerClickRequest>>()
+        .write(ContainerClickRequest {
+            player,
+            game_mode: GameMode::Survival,
+            container_id: 7,
+            state_id: 0,
+            slot: slots::HOTBAR.start as i16,
+            button: 0,
+            input: ContainerInput::Pickup,
+            changed: vec![(slots::HOTBAR.start, None)],
+            carried: None,
+        });
+    handle_clicks(&mut world);
+
+    assert_eq!(stack_at(&world, player, slots::HOTBAR.start), Some((stack, 7)));
+    assert_eq!(stack_at(&world, player, slots::CARRIED), None);
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    let remote = world.get::<RemoteSlots>(menu).unwrap();
+    assert!(!matches!(
+        remote.slots[usize::from(slots::HOTBAR.start)],
+        Remote::Claimed(_)
+    ));
+    assert!(!matches!(remote.carried, Remote::Claimed(_)));
+    sync_stack_slots(&mut world);
+    let packets = drain(&mut world);
+    assert!(packets.is_empty(), "{packets:?}");
+}
+
+#[test]
 fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 7);
