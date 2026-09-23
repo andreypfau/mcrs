@@ -1,5 +1,6 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
+use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_item::{
     ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value,
@@ -49,7 +50,7 @@ impl StackView {
     pub fn of(world: &World, stack: Entity, items: &Items) -> Option<Self> {
         let entity = world.get_entity(stack).ok()?;
         let item = entity.get::<ItemStack>()?;
-        let equippable = entity.get::<Equippable>().map(|equippable| equippable.slot);
+        let equippable = entity.get::<Equippable>();
         Some(StackView {
             key: StackKey {
                 item: item.item,
@@ -58,14 +59,17 @@ impl StackView {
             count: item.count,
             max: max_stack_size(entity),
             stackable: is_stackable(entity),
-            armour: match equippable {
+            armour: match equippable
+                .filter(|equippable| admits_player(equippable))
+                .map(|equippable| equippable.slot)
+            {
                 Some(EquipmentSlot::Head) => Some(slots::ARMOR_HEAD),
                 Some(EquipmentSlot::Chest) => Some(slots::ARMOR_CHEST),
                 Some(EquipmentSlot::Legs) => Some(slots::ARMOR_LEGS),
                 Some(EquipmentSlot::Feet) => Some(slots::ARMOR_FEET),
                 _ => None,
             },
-            offhand: equippable == Some(EquipmentSlot::OffHand),
+            offhand: equippable.is_some_and(|equippable| equippable.slot == EquipmentSlot::OffHand),
         })
     }
 
@@ -78,6 +82,19 @@ impl StackView {
             count,
             ..self.clone()
         }
+    }
+}
+
+fn admits_player(equippable: &Equippable) -> bool {
+    match &equippable.allowed_entities {
+        None => true,
+        // ponytail: the entity-type tags live outside this crate, so a tag admits
+        // nobody; resolve it against the tag registry once a player-wearable item sets one.
+        Some(HolderSet::Tag(_)) => false,
+        Some(set) => set
+            .entries()
+            .iter()
+            .any(|entity| entity.as_str() == "minecraft:player"),
     }
 }
 
@@ -158,8 +175,8 @@ impl MenuSnapshot {
 
     /// How many of the stack the slot may hold, `None` when it may not hold
     /// it at all.
-    /// ponytail: the only slot rules are the player's result and armour slots;
-    /// a container with its own limit (a chest's 64) caps here when it exists.
+    /// The armour slots hold one stack the player may wear there.
+    /// ponytail: a container with its own limit (a chest's 64) caps here when it exists.
     pub fn slot_max(&self, slot: Slot, view: &StackView) -> Option<u8> {
         if slot.holder != self.player {
             return Some(view.max);

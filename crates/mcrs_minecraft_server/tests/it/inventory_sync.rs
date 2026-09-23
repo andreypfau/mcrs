@@ -24,7 +24,11 @@ pub(crate) fn world() -> (World, Entity, Entity) {
     let mut registry = RegistryAccess::default();
     registry.register(Box::new(RegistrySnapshotErased::from_entries(
         "minecraft:item",
-        vec![(ResourceLocation::minecraft("stone"), None)],
+        items
+            .0
+            .iter()
+            .map(|entry| (entry.identifier.clone(), None))
+            .collect(),
         None,
     )));
     let mut world = World::new();
@@ -61,8 +65,12 @@ pub(crate) fn value(item: &str, count: u8) -> ItemStackValue {
     }
 }
 
+pub(crate) fn item(world: &mut World, path: &str, count: u8) -> Entity {
+    spawn_stack(world, &value(path, count), &standalone_corpus().1).unwrap()
+}
+
 pub(crate) fn stone(world: &mut World, count: u8) -> Entity {
-    spawn_stack(world, &value("stone", count), &standalone_corpus().1).unwrap()
+    item(world, "stone", count)
 }
 
 pub(crate) fn stack_at(world: &World, player: Entity, index: u16) -> Option<(Entity, u8)> {

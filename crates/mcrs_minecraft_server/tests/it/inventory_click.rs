@@ -1,4 +1,4 @@
-use crate::inventory_sync::{drain, place, stack_at, stone, world};
+use crate::inventory_sync::{drain, item, place, stack_at, stone, world};
 use crate::support::standalone_corpus;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -260,6 +260,64 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
         &packets[0].data,
         PacketPayload::ContainerSetContent { .. }
     ));
+}
+
+#[test]
+fn a_sword_in_the_helmet_slot_is_refused_and_the_claim_is_corrected() {
+    let (mut world, player) = opened();
+    let sword = item(&mut world, "iron_sword", 1);
+    place(&mut world, sword, player, slots::CARRIED);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    let claimed =
+        HashedStack::create(&stack_to_slot(&world, sword, &standalone_corpus().1)).unwrap();
+    click(
+        &mut world,
+        player,
+        ContainerInput::Pickup,
+        slots::ARMOR_HEAD as i16,
+        0,
+        vec![(slots::ARMOR_HEAD, claimed)],
+    );
+    assert_eq!(stack_at(&world, player, slots::CARRIED), Some((sword, 1)));
+    assert_eq!(stack_at(&world, player, slots::ARMOR_HEAD), None);
+
+    sync_stack_slots(&mut world);
+    let packets = drain(&mut world);
+    assert!(
+        packets.iter().any(|packet| matches!(
+            &packet.data,
+            PacketPayload::ContainerSetSlot { slot, item, .. }
+                if *slot == slots::ARMOR_HEAD as i16 && *item == RawStack::EMPTY
+        )),
+        "{packets:?}"
+    );
+    assert!(
+        packets.iter().any(|packet| matches!(
+            &packet.data,
+            PacketPayload::SetCursorItem(item) if *item != RawStack::EMPTY
+        )),
+        "{packets:?}"
+    );
+}
+
+#[test]
+fn a_helmet_goes_into_the_helmet_slot() {
+    let (mut world, player) = opened();
+    let helmet = item(&mut world, "iron_helmet", 1);
+    place(&mut world, helmet, player, slots::CARRIED);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::Pickup,
+        slots::ARMOR_HEAD as i16,
+        0,
+        Vec::new(),
+    );
+    assert_eq!(stack_at(&world, player, slots::ARMOR_HEAD), Some((helmet, 1)));
+    assert_eq!(stack_at(&world, player, slots::CARRIED), None);
 }
 
 #[test]
