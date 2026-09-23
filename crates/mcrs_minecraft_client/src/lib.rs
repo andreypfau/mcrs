@@ -17,6 +17,7 @@ pub mod cave;
 pub mod chunk_guard;
 pub mod columns;
 pub mod config;
+pub mod game_mode;
 pub mod gui;
 pub mod input;
 pub mod inventory;
