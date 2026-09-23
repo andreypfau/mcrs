@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_core::{Mirror, Rotation};
 
-pub const TEMPLATE_DATA_VERSION: i32 = 5015;
+pub const TEMPLATE_DATA_VERSION: i32 = 5023;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
