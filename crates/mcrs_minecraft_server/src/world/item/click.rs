@@ -183,10 +183,11 @@ pub fn handle_creative_slots(world: &mut World) {
                 .get::<DropThrottle>(req.player)
                 .copied()
                 .unwrap_or_default();
-            if !throttle.charge() {
+            if throttle.is_spent() {
                 tracing::debug!(player = ?req.player, "a creative drop over the spam limit is ignored");
                 continue;
             }
+            throttle.charge();
             world.entity_mut(req.player).insert(throttle);
             let entity = world.spawn_empty().id();
             commit(

@@ -34,12 +34,12 @@ pub const DROP_THROTTLE_LIMIT: u32 = 1480;
 pub struct DropThrottle(pub u32);
 
 impl DropThrottle {
-    pub fn charge(&mut self) -> bool {
-        if self.0 >= DROP_THROTTLE_LIMIT {
-            return false;
-        }
+    pub fn is_spent(&self) -> bool {
+        self.0 >= DROP_THROTTLE_LIMIT
+    }
+
+    pub fn charge(&mut self) {
         self.0 += DROP_THROTTLE_STEP;
-        true
     }
 }
 
@@ -138,20 +138,7 @@ pub fn handle_container_clicks(
             input: req.input,
             creative: req.game_mode == GameMode::Creative,
         };
-        // A refused drop still records its claims, so the next sync restores
-        // what the client already predicted away.
-        if is_drop(req)
-            && !throttles
-                .entry(req.player)
-                .or_insert_with(|| throttle_of(req.player))
-                .charge()
-        {
-            tracing::debug!(
-                player = ?req.player,
-                input = ?req.input,
-                "a drop over the spam limit is ignored"
-            );
-        } else if req.input == ContainerInput::QuickCraft {
+        if req.input == ContainerInput::QuickCraft {
             match Drag::feed(&mut fold.drag, click, planner.snapshot) {
                 Feed::Complete(drag) => planner.quick_craft(drag.kind, &drag.indices),
                 Feed::Reset => tracing::debug!(
@@ -168,8 +155,28 @@ pub fn handle_container_clicks(
                 input = ?req.input,
                 "a click during a quick-craft resets it"
             );
+        } else if is_drop(req)
+            && throttles
+                .get(&req.player)
+                .copied()
+                .unwrap_or_else(|| throttle_of(req.player))
+                .is_spent()
+        {
+            // A refused drop still records its claims, so the next sync restores
+            // what the client already predicted away.
+            tracing::debug!(
+                player = ?req.player,
+                input = ?req.input,
+                "a drop over the spam limit is ignored"
+            );
         } else {
             planner.click(click);
+            if is_drop(req) && planner.ops.iter().any(|op| matches!(op, Op::Drop { .. })) {
+                throttles
+                    .entry(req.player)
+                    .or_insert_with(|| throttle_of(req.player))
+                    .charge();
+            }
         }
         ops.extend(planner.ops);
         for (slot, hashed) in &req.changed {
