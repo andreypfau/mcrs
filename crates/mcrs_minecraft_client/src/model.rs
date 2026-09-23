@@ -14,13 +14,15 @@ use serde::{Deserialize, Serialize};
 
 /// The folders of the resource pack the renderer draws from. Everything under them is held in
 /// memory, because a block state first seen mid-stream has to bake without an await.
-const PACK_FOLDERS: [&str; 6] = [
+const PACK_FOLDERS: [&str; 8] = [
     "blockstates",
     "models",
     "textures",
     "worldgen/biome",
     "items",
     "atlases",
+    "font",
+    "lang",
 ];
 
 /// The resource pack, read once through the asset system and thereafter immutable.

@@ -13,7 +13,9 @@ use mcrs_minecraft_item::{
     ItemStack, SelectedHotbarSlot, SlotTable, damage_value, is_damaged, max_damage,
 };
 
+use super::font::Font;
 use super::hotbar::hotbar;
+use super::language::Language;
 use super::inventory_screen::inventory_screen;
 use super::item_decorations::{Decorated, WHITE, decorations};
 use crate::atlas::{decode_png, rgba};
@@ -67,7 +69,7 @@ pub enum GuiQuad {
     },
     Glyph {
         origin: IVec2,
-        digit: u8,
+        glyph: char,
         color: u32,
     },
     Item {
@@ -91,12 +93,12 @@ pub struct GuiConfig {
     pub frozen_ticks: Option<i64>,
 }
 
-const GLYPH_CELL: i32 = 8;
-const DIGIT_ROW: i32 = 3;
 const ATLAS_WIDTH: u32 = 512;
+const SWITCHER_WIDTH: u32 = 125;
+const SWITCHER_HEIGHT: u32 = 75;
 const BLANK: &str = "blank";
 
-const GUI_TEXTURES: [&str; 15] = [
+const GUI_TEXTURES: [&str; 18] = [
     "hud/hotbar",
     "hud/hotbar_selection",
     "hud/hotbar_offhand_left",
@@ -110,13 +112,16 @@ const GUI_TEXTURES: [&str; 15] = [
     "recipe_book/button",
     "recipe_book/button_highlighted",
     "container/inventory",
+    "container/gamemode_switcher",
+    "gamemode_switcher/slot",
+    "gamemode_switcher/selection",
     "font/ascii",
     "misc/enchanted_glint_item",
 ];
 
 fn texture_path(name: &str) -> String {
     match name {
-        "container/inventory" => format!("minecraft/textures/gui/{name}.png"),
+        "container/inventory" | "container/gamemode_switcher" => format!("minecraft/textures/gui/{name}.png"),
         "font/ascii" | "misc/enchanted_glint_item" => format!("minecraft/textures/{name}.png"),
         _ => format!("minecraft/textures/gui/sprites/{name}.png"),
     }
@@ -127,26 +132,12 @@ pub struct GuiAtlasData {
     pub height: u32,
     pub pixels: Vec<u8>,
     pub regions: HashMap<&'static str, IRect>,
-    pub digit_widths: [u8; 10],
+    pub font: Font,
     pub glint: (u32, u32, Vec<u8>),
 }
 
 #[derive(Resource, Clone, ExtractResource)]
 pub struct GuiAtlas(pub Arc<GuiAtlasData>);
-
-fn digit_widths(ascii: &[u8], width: u32) -> [u8; 10] {
-    let mut widths = [0u8; 10];
-    for (digit, out) in widths.iter_mut().enumerate() {
-        let cell_x = digit as u32 * GLYPH_CELL as u32;
-        let cell_y = DIGIT_ROW as u32 * GLYPH_CELL as u32;
-        let column = (0..GLYPH_CELL as u32).rev().find(|&x| {
-            (0..GLYPH_CELL as u32)
-                .any(|y| ascii[((cell_y + y) * width + cell_x + x) as usize * 4 + 3] != 0)
-        });
-        *out = column.map_or(0, |x| x as u8 + 1);
-    }
-    widths
-}
 
 impl GuiAtlasData {
     /// Shelf-packs the GUI textures the screens blit, which are not square and so
@@ -154,7 +145,7 @@ impl GuiAtlasData {
     pub fn load(pack: &Pack) -> Result<Self, String> {
         let mut images = Vec::new();
         let mut glint = None;
-        let mut digits = None;
+        let mut font = None;
         for name in GUI_TEXTURES {
             let path = texture_path(name);
             let (pixels, width, height) = decode_png(pack.read(&path)?, &path)?;
@@ -163,9 +154,15 @@ impl GuiAtlasData {
                 "container/inventory" => {
                     images.push((name, crop(&pixels, width, 176, 166), 176, 166))
                 }
+                "container/gamemode_switcher" => images.push((
+                    name,
+                    crop(&pixels, width, SWITCHER_WIDTH, SWITCHER_HEIGHT),
+                    SWITCHER_WIDTH,
+                    SWITCHER_HEIGHT,
+                )),
                 _ => {
                     if name == "font/ascii" {
-                        digits = Some(digit_widths(&pixels, width));
+                        font = Some(Font::load(pack, &pixels, width, height)?);
                     }
                     images.push((name, pixels, width, height));
                 }
@@ -206,7 +203,7 @@ impl GuiAtlasData {
             height: atlas_height,
             pixels,
             regions,
-            digit_widths: digits.expect("font/ascii is listed"),
+            font: font.expect("font/ascii is listed"),
             glint: glint.expect("the glint is listed"),
         })
     }
@@ -336,7 +333,10 @@ fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
     };
     let atlas = GuiAtlasData::load(pack)
         .unwrap_or_else(|reason| panic!("cannot load the GUI textures: {reason}"));
+    let language = Language::load(pack)
+        .unwrap_or_else(|reason| panic!("cannot load the translations: {reason}"));
     commands.insert_resource(GuiAtlas(Arc::new(atlas)));
+    commands.insert_resource(language);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -374,7 +374,7 @@ fn build_gui_batch(
                     count: stack.get::<ItemStack>().map_or(1, |stack| stack.count),
                     damage: is_damaged(stack).then(|| (damage_value(stack), max_damage(stack))),
                 };
-                decorations(origin, &decorated, &atlas.digit_widths, &mut expanded);
+                decorations(origin, &decorated, &atlas.font, &mut expanded);
             }
             other => expanded.push(other),
         }
@@ -454,14 +454,16 @@ fn build_gui_batch(
                     }
                     GuiQuad::Glyph {
                         origin,
-                        digit,
+                        glyph,
                         color,
                     } => {
-                        let ascii = atlas.region("font/ascii");
-                        let cell = IVec2::new(digit as i32 * GLYPH_CELL, DIGIT_ROW * GLYPH_CELL);
-                        let pixel =
-                            IRect::from_corners(ascii.min + cell, ascii.min + cell + GLYPH_CELL);
-                        let rect = IRect::from_corners(origin, origin + GLYPH_CELL);
+                        let Some(glyph) = atlas.font.glyph(glyph) else {
+                            continue;
+                        };
+                        let ascii = atlas.region("font/ascii").min + glyph.cell;
+                        let cell = atlas.font.cell_size;
+                        let pixel = IRect::from_corners(ascii, ascii + cell);
+                        let rect = IRect::from_corners(origin, origin + cell);
                         push_quad(vertices, rect, atlas.uv(pixel), [color; 4], GUI_ATLAS_BIT);
                     }
                     GuiQuad::Item { .. } => unreachable!(),
@@ -533,7 +535,12 @@ mod tests {
             atlas.region("container/inventory").size(),
             IVec2::new(176, 166)
         );
-        assert_eq!(atlas.digit_widths, [5; 10]);
+        assert_eq!(
+            atlas.region("container/gamemode_switcher").size(),
+            IVec2::new(125, 75)
+        );
+        assert_eq!(atlas.region("gamemode_switcher/slot").size(), IVec2::new(26, 26));
+        assert_eq!(atlas.font.advance('7', false), 6);
         assert_eq!(atlas.glint.0, 128);
         assert!(atlas.height <= 512);
         let blank = atlas.region(BLANK);

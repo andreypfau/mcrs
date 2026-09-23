@@ -1,6 +1,7 @@
 use bevy::color::{ColorToPacked, Hsva, Srgba};
 use bevy::math::{IRect, IVec2};
 
+use super::font::{Font, Span, draw_text};
 use super::scene::GuiQuad;
 
 pub const WHITE: u32 = 0xFFFF_FFFF;
@@ -17,51 +18,12 @@ pub fn bar_color(damage: i32, max_damage: i32) -> u32 {
     u32::from_be_bytes([0, r, g, b])
 }
 
-pub fn text_width(text: &str, digit_widths: &[u8; 10]) -> i32 {
-    text.bytes()
-        .map(|b| digit_widths[usize::from(b - b'0')] as i32 + 1)
-        .sum()
-}
-
-pub fn shadow_color(color: u32) -> u32 {
-    (color & 0xFF00_0000) | ((color & 0x00FC_FCFC) >> 2)
-}
-
-/// Digits laid out left to right from `origin`, shadow glyph before each glyph.
-pub fn glyphs(
-    origin: IVec2,
-    text: &str,
-    color: u32,
-    digit_widths: &[u8; 10],
-    out: &mut Vec<GuiQuad>,
-) {
-    let mut x = origin.x;
-    for digit in text.bytes().map(|b| b - b'0') {
-        out.push(GuiQuad::Glyph {
-            origin: IVec2::new(x + 1, origin.y + 1),
-            digit,
-            color: shadow_color(color),
-        });
-        out.push(GuiQuad::Glyph {
-            origin: IVec2::new(x, origin.y),
-            digit,
-            color,
-        });
-        x += digit_widths[usize::from(digit)] as i32 + 1;
-    }
-}
-
 pub struct Decorated {
     pub count: u8,
     pub damage: Option<(i32, i32)>,
 }
 
-pub fn decorations(
-    origin: IVec2,
-    stack: &Decorated,
-    digit_widths: &[u8; 10],
-    out: &mut Vec<GuiQuad>,
-) {
+pub fn decorations(origin: IVec2, stack: &Decorated, font: &Font, out: &mut Vec<GuiQuad>) {
     if let Some((damage, max_damage)) = stack.damage {
         let (left, top) = (origin.x + 2, origin.y + 13);
         out.push(GuiQuad::Fill {
@@ -74,23 +36,16 @@ pub fn decorations(
         });
     }
     if stack.count != 1 {
-        let text = stack.count.to_string();
-        let x = origin.x + 19 - 2 - text_width(&text, digit_widths);
-        glyphs(
-            IVec2::new(x, origin.y + 6 + 3),
-            &text,
-            WHITE,
-            digit_widths,
-            out,
-        );
+        let text = [Span::new(stack.count.to_string(), WHITE)];
+        let x = origin.x + 19 - 2 - font.width(&text);
+        draw_text(font, IVec2::new(x, origin.y + 6 + 3), &text, out);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const VANILLA_DIGITS: [u8; 10] = [5; 10];
+    use crate::gui::font::corpus_font;
 
     #[test]
     fn bar_width_and_hue_follow_the_damage() {
@@ -110,7 +65,7 @@ mod tests {
             count: 1,
             damage: None,
         };
-        decorations(IVec2::ZERO, &stack, &VANILLA_DIGITS, &mut out);
+        decorations(IVec2::ZERO, &stack, corpus_font(), &mut out);
         assert!(out.is_empty());
     }
 
@@ -121,7 +76,7 @@ mod tests {
             count: 1,
             damage: Some((50, 100)),
         };
-        decorations(IVec2::new(10, 20), &stack, &VANILLA_DIGITS, &mut out);
+        decorations(IVec2::new(10, 20), &stack, corpus_font(), &mut out);
         assert_eq!(
             out,
             vec![
@@ -144,28 +99,28 @@ mod tests {
             count: 64,
             damage: None,
         };
-        decorations(IVec2::ZERO, &stack, &VANILLA_DIGITS, &mut out);
+        decorations(IVec2::ZERO, &stack, corpus_font(), &mut out);
         assert_eq!(
             out,
             vec![
                 GuiQuad::Glyph {
                     origin: IVec2::new(6, 10),
-                    digit: 6,
+                    glyph: '6',
                     color: 0xFF3F_3F3F
                 },
                 GuiQuad::Glyph {
                     origin: IVec2::new(5, 9),
-                    digit: 6,
+                    glyph: '6',
                     color: WHITE
                 },
                 GuiQuad::Glyph {
                     origin: IVec2::new(12, 10),
-                    digit: 4,
+                    glyph: '4',
                     color: 0xFF3F_3F3F
                 },
                 GuiQuad::Glyph {
                     origin: IVec2::new(11, 9),
-                    digit: 4,
+                    glyph: '4',
                     color: WHITE
                 },
             ]
@@ -175,10 +130,10 @@ mod tests {
             count: 7,
             damage: None,
         };
-        decorations(IVec2::ZERO, &seven, &VANILLA_DIGITS, &mut out);
+        decorations(IVec2::ZERO, &seven, corpus_font(), &mut out);
         assert_eq!(out.len(), 2);
         assert!(
-            matches!(out[1], GuiQuad::Glyph { origin, digit: 7, .. } if origin == IVec2::new(11, 9))
+            matches!(out[1], GuiQuad::Glyph { origin, glyph: '7', .. } if origin == IVec2::new(11, 9))
         );
     }
 }
