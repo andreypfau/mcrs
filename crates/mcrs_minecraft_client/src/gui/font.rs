@@ -76,10 +76,18 @@ impl Font {
         height: u32,
     ) -> Result<(), String> {
         let columns = rows.first().map_or(0, |row| row.chars().count()) as u32;
-        if columns == 0 || width % columns != 0 || height % rows.len() as u32 != 0 {
-            return Err(format!("{ASCII_FILE} does not divide into its character grid"));
+        if columns == 0
+            || !width.is_multiple_of(columns)
+            || !height.is_multiple_of(rows.len() as u32)
+        {
+            return Err(format!(
+                "{ASCII_FILE} does not divide into its character grid"
+            ));
         }
-        self.cell_size = IVec2::new((width / columns) as i32, (height / rows.len() as u32) as i32);
+        self.cell_size = IVec2::new(
+            (width / columns) as i32,
+            (height / rows.len() as u32) as i32,
+        );
         for (row, line) in rows.iter().enumerate() {
             for (column, ch) in line.chars().enumerate() {
                 if ch == '\0' {
@@ -216,7 +224,10 @@ mod tests {
         draw_text(
             corpus_font(),
             IVec2::ZERO,
-            &[Span::new("a b", 0xFFFF_FFFF), Span::new("c", 0xFFFF_FF55).bold()],
+            &[
+                Span::new("a b", 0xFFFF_FFFF),
+                Span::new("c", 0xFFFF_FF55).bold(),
+            ],
             &mut out,
         );
         let glyphs: Vec<_> = out

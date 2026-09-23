@@ -66,6 +66,7 @@ impl Plugin for GameModePlugin {
 
 /// A login or respawn stands up a fresh local player, whose permissions start
 /// empty until the server sends the level again.
+#[allow(clippy::type_complexity)]
 fn receive_game_mode_packets(
     event: On<ReceivedPacketEvent>,
     connections: Query<(&ConnectionState, Option<&JoinedGame>)>,

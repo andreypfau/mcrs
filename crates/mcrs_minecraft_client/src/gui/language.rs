@@ -92,7 +92,9 @@ mod tests {
     #[test]
     fn positional_and_escaped_placeholders() {
         let mut language = Language::default();
-        language.0.insert("k".into(), "%2$s then %1$s at 100%%".into());
+        language
+            .0
+            .insert("k".into(), "%2$s then %1$s at 100%%".into());
         assert_eq!(
             language.translate(
                 "k",
