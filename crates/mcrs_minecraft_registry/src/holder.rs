@@ -56,7 +56,6 @@ registries! {
     LootTableReg = "loot_table",
     RecipeReg = "recipe",
     MapDecorationTypeReg = "map_decoration_type",
-    NumberProviderReg = "number_provider",
     ContextIntProviderReg = "context_int_provider",
     ContextFloatProviderReg = "context_float_provider",
     DialogReg = "dialog",

@@ -145,7 +145,6 @@ macro_rules! resolvable {
         }
     };
 }
-pub(crate) use resolvable;
 
 resolvable!(
     ResolvableInt,

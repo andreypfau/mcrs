@@ -71,7 +71,6 @@ macro_rules! resolvable_wire {
     )*};
 }
 
-pub(crate) use resolvable_wire;
 
 resolvable_wire!(ResolvableInt, ResolvableFloat);
 

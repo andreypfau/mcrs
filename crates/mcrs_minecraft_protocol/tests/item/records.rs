@@ -10,8 +10,9 @@ use mcrs_minecraft_protocol::item::{
     AttackRange, BlockState, BrewingFuel, BucketEntityData, Compostable, ContainerLoot,
     CookingFuel, CustomData, CustomModelData, DebugStickState, Fireworks, Food, ItemComponentKind,
     ItemComponentValue, ItemDataComponent, ItemModel, LodestoneTracker, MapDecorations,
-    NoteBlockSound, Profile, ProfileIdentity, Recipes, ResolvableNumber, SignText, SignTextBack,
-    SignTextFront, TooltipDisplay, TooltipStyle, UseCooldown, UseEffects, Weapon, hash_ops,
+    NoteBlockSound, Profile, ProfileIdentity, Recipes, ResolvableFloat, ResolvableInt, SignText,
+    SignTextBack, SignTextFront, TooltipDisplay, TooltipStyle, UseCooldown, UseEffects, Weapon,
+    hash_ops,
 };
 use mcrs_minecraft_protocol::profile::Property;
 
@@ -493,40 +494,41 @@ fn nbt_wire_records_match_vanilla() {
 
 #[test]
 fn fuel_matches_vanilla() {
-    let reference = |path: &str| ResolvableNumber::reference(ResourceLocation::minecraft(path));
+    let int = |path: &str| ResolvableInt::reference(ResourceLocation::minecraft(path));
+    let float = |path: &str| ResolvableFloat::reference(ResourceLocation::minecraft(path));
     check("compostable_const", sample::<Compostable>(0));
     check(
         "compostable_ref",
         Compostable {
-            layers: reference("some_provider"),
+            layers: int("some_provider"),
         },
     );
     check(
         "cooking_const",
         CookingFuel {
-            burn_time: ResolvableNumber::Constant(200.0),
-            speed_multiplier: ResolvableNumber::Constant(1.5),
+            burn_time: ResolvableInt::Constant(200),
+            speed_multiplier: ResolvableFloat::Constant(1.5),
         },
     );
     check(
         "cooking_ref",
         CookingFuel {
-            burn_time: reference("i"),
-            speed_multiplier: reference("f"),
+            burn_time: int("i"),
+            speed_multiplier: float("f"),
         },
     );
     check(
         "brewing_const",
         BrewingFuel {
-            uses: ResolvableNumber::Constant(20.0),
-            speed_multiplier: ResolvableNumber::Constant(0.5),
+            uses: ResolvableInt::Constant(20),
+            speed_multiplier: ResolvableFloat::Constant(0.5),
         },
     );
     check(
         "brewing_ref",
         BrewingFuel {
-            uses: reference("i"),
-            speed_multiplier: reference("f"),
+            uses: int("i"),
+            speed_multiplier: float("f"),
         },
     );
     assert_eq!(
