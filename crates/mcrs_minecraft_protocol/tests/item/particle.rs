@@ -7,13 +7,15 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_protocol::item::{
     ArgbInt, ComponentPatch, DecodeCtx, EncodeCtx, RgbInt, Template,
 };
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLevelParticles;
+use mcrs_minecraft_protocol::packets::game::clientbound::{
+    ClientboundLevelParticles, ParticleRandomization,
+};
 use mcrs_minecraft_protocol::particle::{
     BlockParticle, BlockStateValue, ColorParticle, DustParticle, ItemParticle, ParticleKind,
     ParticleOptions, ParticleScale, PositionSource, RawParticle, SpellParticle, TrailParticle,
     VibrationParticle,
 };
-use mcrs_minecraft_protocol::{Decode, Encode};
+use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 
 use crate::harness::{TestLookup, hex};
 
@@ -285,13 +287,14 @@ fn level_particles_packet_matches_vanilla() {
     assert_eq!(
         packet,
         ClientboundLevelParticles {
+            particle: RawParticle::decode(&mut &hex(golden("dust.wire"))[..]).unwrap(),
             override_limiter: true,
             always_show: false,
             pos: DVec3::new(1.5, 64.25, -3.0),
             dist: [0.5, 0.75, 1.0],
-            max_speed: 0.1,
-            count: 25,
-            particle: RawParticle::decode(&mut &hex(golden("dust.wire"))[..]).unwrap(),
+            max_speed: [0.1; 3],
+            count: VarInt(25),
+            randomization: ParticleRandomization::Default,
         }
     );
     assert_eq!(packet.particle.resolve(&lookup()).unwrap(), check("dust"));
@@ -301,7 +304,7 @@ fn level_particles_packet_matches_vanilla() {
 
     let bytes = hex(golden("particles_packet_item.wire"));
     let packet = ClientboundLevelParticles::decode(&mut &bytes[..]).unwrap();
-    assert_eq!(packet.count, 3);
+    assert_eq!(packet.count, VarInt(3));
     assert_eq!(packet.particle.resolve(&lookup()).unwrap(), check("item"));
     let rebuilt = ClientboundLevelParticles {
         particle: RawParticle::from_options(&check("item"), &lookup()).unwrap(),
@@ -310,6 +313,17 @@ fn level_particles_packet_matches_vanilla() {
     let mut out = Vec::new();
     rebuilt.encode(&mut out).unwrap();
     assert_eq!(to_hex(&out), to_hex(&bytes));
+
+    for (id, randomization) in [
+        (1, ParticleRandomization::Alternative),
+        (2, ParticleRandomization::AlternativeWithSpeed),
+        (3, ParticleRandomization::Default),
+    ] {
+        let mut bytes = bytes.clone();
+        *bytes.last_mut().unwrap() = id;
+        let packet = ClientboundLevelParticles::decode(&mut &bytes[..]).unwrap();
+        assert_eq!(packet.randomization, randomization, "id {id}");
+    }
 }
 
 #[test]

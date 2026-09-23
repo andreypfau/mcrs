@@ -157,13 +157,33 @@ pub mod clientbound {
     #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
     #[packet(id=0x30, state=Game)]
     pub struct ClientboundLevelParticles {
+        pub particle: RawParticle,
         pub override_limiter: bool,
         pub always_show: bool,
         pub pos: DVec3,
         pub dist: [f32; 3],
-        pub max_speed: f32,
-        pub count: i32,
-        pub particle: RawParticle,
+        pub max_speed: [f32; 3],
+        pub count: VarInt,
+        pub randomization: ParticleRandomization,
+    }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Encode)]
+    pub enum ParticleRandomization {
+        #[default]
+        Default,
+        Alternative,
+        AlternativeWithSpeed,
+    }
+
+    impl crate::Decode<'_> for ParticleRandomization {
+        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+            // Vanilla maps an unknown id to the first variant instead of rejecting it.
+            Ok(match VarInt::decode(r)?.0 {
+                1 => Self::Alternative,
+                2 => Self::AlternativeWithSpeed,
+                _ => Self::Default,
+            })
+        }
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
