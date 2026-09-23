@@ -152,7 +152,10 @@ fn a_simple_random_selector_compiles_to_equal_weights() {
 /// which of the three shapes each takes.
 #[test]
 fn the_noise_state_providers_resolve_to_a_sampler() {
-    use mcrs_minecraft_worldgen_feature::tree::BlockStateProvider;
+    use mcrs_minecraft_worldgen_feature::proto::Holder;
+    use mcrs_minecraft_worldgen_feature::tree::{
+        DirectBlockStateProvider, TypedBlockStateProvider,
+    };
     use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
 
     let features: BTreeMap<ResourceLocation, Feature> = load_json_dir("feature");
@@ -168,11 +171,18 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
         ("minecraft:flower_meadow", 2),
     ] {
         let proto = resolve(name);
-        let shape = match &proto {
-            BlockStateProvider::Noise { .. } => 0,
-            BlockStateProvider::NoiseThreshold { .. } => 1,
-            BlockStateProvider::DualNoise { .. } => 2,
-            other => panic!("{name} carries {other:?}"),
+        let Holder::Reference(provider) = &proto else {
+            panic!("{name} carries {proto:?}");
+        };
+        let shape = match corpus_features().block_state_providers.get(provider) {
+            Some(DirectBlockStateProvider::Typed(TypedBlockStateProvider::Noise { .. })) => 0,
+            Some(DirectBlockStateProvider::Typed(TypedBlockStateProvider::NoiseThreshold {
+                ..
+            })) => 1,
+            Some(DirectBlockStateProvider::Typed(TypedBlockStateProvider::DualNoise {
+                ..
+            })) => 2,
+            other => panic!("{name} names {provider}, which is {other:?}"),
         };
         assert_eq!(shape, matches, "{name}");
 
@@ -185,6 +195,7 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
                 &biome_registry(&[BIOME]),
                 0,
                 &[],
+                &corpus_features().block_state_providers,
             )
             .expect("the corpus resolves"),
         )

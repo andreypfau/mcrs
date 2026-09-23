@@ -940,6 +940,7 @@ fn every_ruined_portal_chain_places_as_the_reference_does() {
         &biomes,
         WORLD_SEED,
         &[],
+        &super::corpus_features().block_state_providers,
     )
     .expect("the corpus resolves");
     let mut templates: BTreeMap<&str, mcrs_minecraft_worldgen_feature::template::FrozenTemplate> =

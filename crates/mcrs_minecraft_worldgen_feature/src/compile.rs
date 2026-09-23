@@ -15,6 +15,7 @@ use super::proto::{Feature, FeatureStepList, Holder, PlacedFeature, StructurePro
 use super::rule_test::RuleTest;
 use super::sort::build_features_per_step;
 use crate::template::Template;
+use crate::tree::DirectBlockStateProvider;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 
@@ -30,6 +31,8 @@ pub enum FeatureCompileError {
     UnknownTemplate(ResourceLocation),
     #[error("unknown processor list: {0}")]
     UnknownProcessorList(ResourceLocation),
+    #[error("unknown block state provider: {0}")]
+    UnknownBlockStateProvider(ResourceLocation),
     #[error("template {0}")]
     Template(String),
     #[error("feature order cycle through {0}")]
@@ -70,6 +73,7 @@ pub struct LoadedFeatures {
     pub placed_features: BTreeMap<ResourceLocation, PlacedFeature>,
     pub templates: BTreeMap<ResourceLocation, Template>,
     pub processor_lists: BTreeMap<ResourceLocation, StructureProcessorList>,
+    pub block_state_providers: BTreeMap<ResourceLocation, DirectBlockStateProvider>,
 }
 
 /// One vertex of the sorted order: a placed feature and, unless it was written

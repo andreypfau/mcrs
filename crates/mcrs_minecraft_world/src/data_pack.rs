@@ -150,6 +150,13 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_TEMPLATE_POOL,
     );
+    request_registry::<mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_BLOCK_STATE_PROVIDER,
+        "json",
+        FILES_BLOCK_STATE_PROVIDER,
+    );
     request_registry::<mcrs_minecraft_worldgen::bevy::TemplateAsset>(
         &asset_server,
         &mut loaded,

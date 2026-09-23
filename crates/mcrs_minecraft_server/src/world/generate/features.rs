@@ -14,7 +14,8 @@ use mcrs_minecraft_block::Fluid;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::bevy::{
-    FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, TemplateAsset, TemplatePoolAsset,
+    BlockStateProviderAsset, FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, TemplateAsset,
+    TemplatePoolAsset,
 };
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
@@ -80,6 +81,7 @@ fn build_dimension_features(
     pools: Res<Assets<TemplatePoolAsset>>,
     templates: Res<Assets<TemplateAsset>>,
     processor_lists: Res<Assets<ProcessorListAsset>>,
+    block_state_providers: Res<Assets<BlockStateProviderAsset>>,
     structures: Option<Res<DimensionStructures>>,
     asset_server: Res<AssetServer>,
     seed: Res<WorldSeed>,
@@ -120,6 +122,12 @@ fn build_dimension_features(
             &asset_server,
             "worldgen/processor_list",
             |asset| &asset.list,
+        ),
+        block_state_providers: registry_of(
+            &block_state_providers,
+            &asset_server,
+            "worldgen/block_state_provider",
+            |asset| &asset.provider,
         ),
     };
 

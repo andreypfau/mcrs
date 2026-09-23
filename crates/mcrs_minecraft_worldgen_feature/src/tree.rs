@@ -2,12 +2,15 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use super::block_predicate::{BlockPredicate, Direction};
+use super::proto::Holder;
 use mcrs_minecraft_core::HolderSet;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_core::value_provider::{IntProvider, Weighted};
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
+use std::collections::BTreeMap;
 
 super::proto::bounded_float! {
     /// `Codec.floatRange(0.0F, 1.0F)`.
@@ -140,39 +143,69 @@ fn branch_start_offset<'de, D: Deserializer<'de>>(
     Ok(range)
 }
 
+pub type BlockStateProvider = Holder<DirectBlockStateProvider>;
+
+/// `Codec.xor(BlockState.FULL_CODEC, TYPED_CODEC)`: a state object or a typed
+/// provider, never a bare id, which the holder around it reads as a reference.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DirectBlockStateProvider {
+    State(FullBlockState),
+    Typed(TypedBlockStateProvider),
+}
+
+/// `BlockState.FULL_CODEC`. A singleton block writes no `properties`, which
+/// must not come back as an empty map.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FullBlockState {
+    pub id: ResourceLocation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub properties: Option<BTreeMap<String, String>>,
+}
+
+impl FullBlockState {
+    pub fn state(&self) -> BlockState {
+        BlockState {
+            name: self.id.clone(),
+            properties: self.properties.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
-pub enum BlockStateProvider {
-    #[serde(rename = "minecraft:simple_state_provider")]
+pub enum TypedBlockStateProvider {
+    #[serde(rename = "minecraft:simple")]
     Simple { state: BlockState },
-    #[serde(rename = "minecraft:weighted_state_provider")]
+    #[serde(rename = "minecraft:weighted")]
     Weighted {
         #[serde(deserialize_with = "non_empty")]
         entries: Vec<Weighted<BlockState>>,
     },
-    #[serde(rename = "minecraft:rule_based_state_provider")]
+    #[serde(rename = "minecraft:rule_based")]
     RuleBased {
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        fallback: Option<Box<BlockStateProvider>>,
+        fallback: Option<BlockStateProvider>,
         rules: Vec<StateRule>,
     },
-    #[serde(rename = "minecraft:randomized_int_state_provider")]
+    #[serde(rename = "minecraft:randomized_int")]
     RandomizedInt {
-        source: Box<BlockStateProvider>,
+        source: BlockStateProvider,
         property: String,
         values: IntProvider,
     },
-    #[serde(rename = "minecraft:rotated_block_provider")]
+    #[serde(rename = "minecraft:rotated")]
     Rotated {
-        state: Box<BlockStateProvider>,
+        state: BlockStateProvider,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         direction: Option<Direction>,
     },
-    #[serde(rename = "minecraft:random_block_provider")]
+    #[serde(rename = "minecraft:random_block")]
     RandomBlock { blocks: BlockSet },
-    #[serde(rename = "minecraft:copy_properties_provider")]
-    CopyProperties { source: Box<BlockStateProvider> },
-    #[serde(rename = "minecraft:noise_provider")]
+    #[serde(rename = "minecraft:copy_properties")]
+    CopyProperties { source: BlockStateProvider },
+    #[serde(rename = "minecraft:noise")]
     Noise {
         seed: i64,
         noise: NoiseParam,
@@ -180,7 +213,7 @@ pub enum BlockStateProvider {
         #[serde(deserialize_with = "non_empty")]
         states: Vec<BlockState>,
     },
-    #[serde(rename = "minecraft:noise_threshold_provider")]
+    #[serde(rename = "minecraft:noise_threshold")]
     NoiseThreshold {
         seed: i64,
         noise: NoiseParam,
@@ -193,7 +226,7 @@ pub enum BlockStateProvider {
         #[serde(deserialize_with = "non_empty")]
         high_states: Vec<BlockState>,
     },
-    #[serde(rename = "minecraft:dual_noise_provider")]
+    #[serde(rename = "minecraft:dual_noise")]
     DualNoise {
         #[serde(deserialize_with = "variety_range")]
         variety: IntRange,
@@ -593,7 +626,7 @@ mod tests {
     /// Neither shape occurs in the shipped corpus, so nothing else covers them.
     #[test]
     fn a_copied_provider_and_a_clipped_size_round_trip() {
-        let copied = r#"{"type":"minecraft:copy_properties_provider","source":{"type":"minecraft:simple_state_provider","state":"minecraft:oak_log"}}"#;
+        let copied = r#"{"type":"minecraft:copy_properties","source":{"type":"minecraft:simple","state":"minecraft:oak_log"}}"#;
         let provider: BlockStateProvider = serde_json::from_str(copied).unwrap();
         assert_eq!(serde_json::to_string(&provider).unwrap(), copied);
 
@@ -607,5 +640,27 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(error.contains("[0;16]: 17"), "{error}");
+    }
+
+    #[test]
+    fn a_bare_id_names_a_provider_and_a_state_is_an_object() {
+        let reference: BlockStateProvider =
+            serde_json::from_str(r#""minecraft:soil_beneath_tree""#).unwrap();
+        assert_eq!(
+            reference,
+            Holder::Reference(ResourceLocation::minecraft("soil_beneath_tree"))
+        );
+
+        for state in [
+            r#"{"id":"minecraft:clay"}"#,
+            r#"{"id":"minecraft:acacia_log","properties":{"axis":"y"}}"#,
+        ] {
+            let provider: BlockStateProvider = serde_json::from_str(state).unwrap();
+            assert!(matches!(
+                &provider,
+                Holder::Inline(direct) if matches!(**direct, DirectBlockStateProvider::State(_))
+            ));
+            assert_eq!(serde_json::to_string(&provider).unwrap(), state);
+        }
     }
 }

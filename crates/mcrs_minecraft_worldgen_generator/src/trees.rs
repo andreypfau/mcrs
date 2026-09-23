@@ -17,9 +17,10 @@ use mcrs_minecraft_worldgen_feature::compile::{
     FeatureCompileError, StateQuery, compile_predicate,
 };
 use mcrs_minecraft_worldgen_feature::placer::StateMask;
+use mcrs_minecraft_worldgen_feature::proto::Holder;
 use mcrs_minecraft_worldgen_feature::tree::{
-    BlockStateProvider, RootPlacer as ProtoRootPlacer, TreeConfig, TreeDecorator as ProtoDecorator,
-    TrunkPlacer as ProtoTrunk,
+    BlockStateProvider, DirectBlockStateProvider, RootPlacer as ProtoRootPlacer, TreeConfig,
+    TreeDecorator as ProtoDecorator, TrunkPlacer as ProtoTrunk, TypedBlockStateProvider,
 };
 use mcrs_minecraft_worldgen_feature_place::tree::decorator::{CompiledTreeDecorator, TreePalette};
 use mcrs_minecraft_worldgen_feature_place::tree::foliage::Foliage;
@@ -437,15 +438,28 @@ pub(super) fn compile_provider(
     provider: &BlockStateProvider,
     r: &Resolver<'_>,
 ) -> Compiled<StateProvider> {
-    Ok(match provider {
-        BlockStateProvider::Simple { state } => StateProvider::Simple(r.resolve(state)?),
-        BlockStateProvider::Weighted { entries } => StateProvider::Weighted(
+    let direct: &DirectBlockStateProvider = match provider {
+        Holder::Reference(id) => r
+            .block_state_providers
+            .get(id)
+            .ok_or_else(|| FeatureCompileError::UnknownBlockStateProvider(id.clone()))?,
+        Holder::Inline(direct) => direct,
+    };
+    let typed: &TypedBlockStateProvider = match direct {
+        DirectBlockStateProvider::State(state) => {
+            return Ok(StateProvider::Simple(r.resolve(&state.state())?));
+        }
+        DirectBlockStateProvider::Typed(typed) => typed,
+    };
+    Ok(match typed {
+        TypedBlockStateProvider::Simple { state } => StateProvider::Simple(r.resolve(state)?),
+        TypedBlockStateProvider::Weighted { entries } => StateProvider::Weighted(
             entries
                 .iter()
                 .map(|entry| Ok((r.resolve(&entry.data)?, entry.weight.0)))
                 .collect::<Compiled<Vec<_>>>()?,
         ),
-        BlockStateProvider::RuleBased { fallback, rules } => StateProvider::RuleBased {
+        TypedBlockStateProvider::RuleBased { fallback, rules } => StateProvider::RuleBased {
             fallback: fallback
                 .as_ref()
                 .map(|provider| compile_provider(provider, r).map(Box::new))
@@ -460,7 +474,7 @@ pub(super) fn compile_provider(
                 })
                 .collect::<Compiled<Vec<_>>>()?,
         },
-        BlockStateProvider::RandomizedInt {
+        TypedBlockStateProvider::RandomizedInt {
             source,
             property,
             values,
@@ -469,18 +483,18 @@ pub(super) fn compile_provider(
             property: Arc::new(int_property_table(&r.world.layouts, property)),
             values: values.clone(),
         },
-        BlockStateProvider::Rotated { state, direction } => StateProvider::Rotated {
+        TypedBlockStateProvider::Rotated { state, direction } => StateProvider::Rotated {
             source: Box::new(compile_provider(state, r)?),
             direction: *direction,
             rotations: Arc::new(rotation_table(&r.world.layouts)),
         },
-        BlockStateProvider::RandomBlock { blocks } => {
+        TypedBlockStateProvider::RandomBlock { blocks } => {
             StateProvider::RandomBlock(r.block_set_defaults(blocks)?)
         }
-        BlockStateProvider::CopyProperties { source } => {
+        TypedBlockStateProvider::CopyProperties { source } => {
             StateProvider::CopyProperties(Box::new(compile_provider(source, r)?))
         }
-        BlockStateProvider::Noise {
+        TypedBlockStateProvider::Noise {
             seed,
             noise,
             scale,
@@ -490,7 +504,7 @@ pub(super) fn compile_provider(
             scale: scale.0 as f32,
             states: block_states_of(states, r)?,
         },
-        BlockStateProvider::NoiseThreshold {
+        TypedBlockStateProvider::NoiseThreshold {
             seed,
             noise,
             scale,
@@ -508,7 +522,7 @@ pub(super) fn compile_provider(
             low_states: block_states_of(low_states, r)?,
             high_states: block_states_of(high_states, r)?,
         },
-        BlockStateProvider::DualNoise {
+        TypedBlockStateProvider::DualNoise {
             variety,
             slow_noise,
             slow_scale,

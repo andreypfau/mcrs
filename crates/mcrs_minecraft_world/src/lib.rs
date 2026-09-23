@@ -338,6 +338,14 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
+                    mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset,
+                    "minecraft:worldgen/block_state_provider",
+                    |v: &mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset| {
+                        mcrs_minecraft_nbt::to_nbt_tag(v)
+                    },
+                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
+                ),
+                (
                     decorated_pot_pattern::DecoratedPotPattern,
                     "minecraft:decorated_pot_pattern",
                     |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_tag(v),

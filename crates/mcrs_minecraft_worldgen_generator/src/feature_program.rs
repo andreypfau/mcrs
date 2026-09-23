@@ -44,6 +44,7 @@ use mcrs_minecraft_worldgen_feature::proto::{
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, TemplateManifest, bounding_box, zero_position_with_transform,
 };
+use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use mcrs_minecraft_worldgen_feature_place::bamboo::{CompiledBamboo, place_bamboo};
 use mcrs_minecraft_worldgen_feature_place::blob::{
     CompiledBlockBlob, CompiledDelta, CompiledReplaceBlobs, place_block_blob, place_delta,
@@ -150,6 +151,7 @@ use mcrs_minecraft_worldgen_structure_place::template_piece::{
 };
 use mcrs_minecraft_worldgen_structure_place::woodland_mansion::WoodlandMansionBlocks;
 use rustc_hash::FxHashMap;
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -435,7 +437,15 @@ impl FeatureProgram {
                     .ok_or_else(|| FeatureCompileError::UnknownBiomeSet(entry.location.to_string()))
             })
             .collect::<Result<_, _>>()?;
-        let resolver = Resolver::new(blocks, tags, fluid_tags, biomes, world_seed, &climate)?;
+        let resolver = Resolver::new(
+            blocks,
+            tags,
+            fluid_tags,
+            biomes,
+            world_seed,
+            &climate,
+            &corpus.block_state_providers,
+        )?;
         let trees = Arc::new(build_tree_tables(&resolver).map_err(|e| e.within("tree tables"))?);
         let mut steps = Vec::with_capacity(tables.features.steps.len());
 
@@ -2568,9 +2578,11 @@ pub struct Resolver<'a> {
     pub world_seed: i64,
     /// Indexed by the biome id [`WorldGenVolume::biome`] answers with.
     pub climate: &'a [BiomeClimate],
+    pub block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
 }
 
 impl<'a> Resolver<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         blocks: &'a BlockDefinitions,
         tags: Option<&'a DynTagRegistry<VanillaBlock>>,
@@ -2578,8 +2590,10 @@ impl<'a> Resolver<'a> {
         biomes: &'a RegistrySnapshot<Biome>,
         world_seed: i64,
         climate: &'a [BiomeClimate],
+        block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
     ) -> Compiled<Self> {
         let mut resolver = Resolver {
+            block_state_providers,
             blocks,
             world: WorldStates::default(),
             tables: Arc::new(BlockTables::default()),

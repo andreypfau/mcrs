@@ -23,8 +23,10 @@ use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{
     BoxRegion, Predicate, StateMask, WorldStates, mask_of,
 };
-use mcrs_minecraft_worldgen_feature::proto::Feature;
-use mcrs_minecraft_worldgen_feature::tree::BlockStateProvider;
+use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder};
+use mcrs_minecraft_worldgen_feature::tree::{
+    BlockStateProvider, DirectBlockStateProvider, TypedBlockStateProvider,
+};
 use mcrs_minecraft_worldgen_feature_place::tree::decorator::{
     CompiledTreeDecorator, EntitiesOnly, TreePalette,
 };
@@ -289,7 +291,13 @@ fn compiled(feature: &str, b: &Blocks, corpus: &[(String, Feature)]) -> Option<C
         panic!("{feature} is not a tree of the corpus");
     };
     let simple = |provider: &BlockStateProvider| match provider {
-        BlockStateProvider::Simple { state } => state.name.to_string(),
+        Holder::Inline(direct) => match &**direct {
+            DirectBlockStateProvider::State(state) => state.id.to_string(),
+            DirectBlockStateProvider::Typed(TypedBlockStateProvider::Simple { state }) => {
+                state.name.to_string()
+            }
+            other => panic!("{feature}: {other:?} is not a simple provider"),
+        },
         other => panic!("{feature}: {other:?} is not a simple provider"),
     };
     Some(CompiledTree {

@@ -100,6 +100,7 @@ const SYNCED_REGISTRIES: &[&str] = &[
     "minecraft:wolf_variant",
     "minecraft:world_clock",
     "minecraft:worldgen/biome",
+    "minecraft:worldgen/block_state_provider",
     "minecraft:zombie_nautilus_variant",
 ];
 
@@ -801,7 +802,7 @@ mod tests {
 
     #[test]
     fn synced_registries_count() {
-        assert_eq!(SYNCED_REGISTRIES.len(), 30);
+        assert_eq!(SYNCED_REGISTRIES.len(), 31);
     }
 
     #[test]

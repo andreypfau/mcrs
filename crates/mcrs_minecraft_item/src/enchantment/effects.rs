@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 
 use serde::de::{self, MapAccess, Visitor};
@@ -130,11 +131,36 @@ pub struct VelocitySource {
     pub base: Option<FloatProvider>,
 }
 
+/// A bare id names a `worldgen/block_state_provider` entry; an object is a
+/// block state or a typed provider.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum BlockStateProvider {
+    Reference(String),
+    State(FullBlockState),
+    Typed(TypedBlockStateProvider),
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FullBlockState {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub properties: Option<BTreeMap<String, String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum BlockState {
+    Block(String),
+    Full(FullBlockState),
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", deny_unknown_fields)]
-pub enum BlockStateProvider {
-    #[serde(rename = "minecraft:simple_state_provider")]
-    Simple { state: String },
+pub enum TypedBlockStateProvider {
+    #[serde(rename = "minecraft:simple")]
+    Simple { state: BlockState },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

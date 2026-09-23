@@ -329,8 +329,16 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
     use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, StateQuery};
 
     let biomes = biome_registry(&[BIOME]);
-    let resolver = crate::feature_program::Resolver::new(&blocks().0, None, None, &biomes, 0, &[])
-        .expect("the corpus resolves");
+    let resolver = crate::feature_program::Resolver::new(
+        &blocks().0,
+        None,
+        None,
+        &biomes,
+        0,
+        &[],
+        &super::corpus_features().block_state_providers,
+    )
+    .expect("the corpus resolves");
     let set = HolderSet::One(ResourceLocation::parse("minecraft:empty").unwrap());
     let mask = resolver
         .states(StateQuery::Fluids(&set))

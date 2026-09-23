@@ -104,6 +104,7 @@ pub fn corpus_features() -> &'static LoadedFeatures {
             placed_features,
             templates,
             processor_lists: load_json_dir("processor_list"),
+            block_state_providers: load_json_dir("block_state_provider"),
         }
     });
     &CORPUS

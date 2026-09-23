@@ -213,8 +213,16 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
 fn world_states() -> &'static Arc<WorldStates> {
     static STATES: LazyLock<Arc<WorldStates>> = LazyLock::new(|| {
         let biomes = biome_registry(&["minecraft:plains"]);
-        let resolver =
-            Resolver::new(&blocks().0, None, None, &biomes, 0, &[]).expect("the corpus resolves");
+        let resolver = Resolver::new(
+            &blocks().0,
+            None,
+            None,
+            &biomes,
+            0,
+            &[],
+            &super::corpus_features().block_state_providers,
+        )
+        .expect("the corpus resolves");
         Arc::new(resolver.world)
     });
     &STATES

@@ -106,4 +106,17 @@ mod tests {
         }
         assert_eq!(count, 3);
     }
+
+    #[test]
+    fn an_entry_reaches_the_network_as_the_list_it_is() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/minecraft/block_transformer/axe.json");
+        let parsed: BlockTransformer =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let tag = mcrs_minecraft_nbt::to_nbt_tag(&parsed).unwrap();
+        assert!(
+            matches!(&tag, mcrs_minecraft_nbt::tag::NbtTag::List(entries) if !entries.is_empty()),
+            "{tag:?}"
+        );
+    }
 }

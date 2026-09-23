@@ -20,6 +20,7 @@ use mcrs_minecraft_worldgen_feature::proto::{
     Feature, Holder, PlacedFeature, StructureProcessorList,
 };
 use mcrs_minecraft_worldgen_feature::template::{TEMPLATE_DATA_VERSION, Template};
+use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use mcrs_minecraft_worldgen_noise::proto::{NoiseHolder, NoiseParam};
 use mcrs_minecraft_worldgen_structure::{PoolElement, Structure, StructureSet, TemplatePool};
 use mcrs_minecraft_worldgen_surface::compile::SURFACE_NOISE_NAMES;
@@ -53,6 +54,7 @@ impl Plugin for WorldgenAssetsPlugin {
             .init_asset::<StructureAsset>()
             .init_asset::<TemplatePoolAsset>()
             .init_asset::<ProcessorListAsset>()
+            .init_asset::<BlockStateProviderAsset>()
             .init_asset::<TemplateAsset>()
             .register_asset_loader(WorldgenAssetLoader::<DensityFunctionAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<NoiseGeneratorSettingsAsset>::default())
@@ -66,6 +68,7 @@ impl Plugin for WorldgenAssetsPlugin {
             .register_asset_loader(WorldgenAssetLoader::<StructureAsset>::default())
             .register_asset_loader(WorldgenAssetLoader::<TemplatePoolAsset>::default())
             .register_asset_loader(JsonLoader::<ProcessorListAsset>::default())
+            .register_asset_loader(JsonLoader::<BlockStateProviderAsset>::default())
             .register_asset_loader(TemplateLoader);
     }
 }
@@ -359,6 +362,12 @@ impl WorldgenAsset for StructureAsset {
 #[serde(transparent)]
 pub struct ProcessorListAsset {
     pub list: StructureProcessorList,
+}
+
+#[derive(Asset, TypePath, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(transparent)]
+pub struct BlockStateProviderAsset {
+    pub provider: DirectBlockStateProvider,
 }
 
 #[derive(Asset, TypePath, Debug, Clone)]

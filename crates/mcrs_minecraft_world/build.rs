@@ -22,6 +22,11 @@ const REGISTRY_FOLDERS: &[(&str, &str, &str)] = &[
     ("STRUCTURE_SET", "minecraft/worldgen/structure_set", "json"),
     ("STRUCTURE", "minecraft/worldgen/structure", "json"),
     ("TEMPLATE_POOL", "minecraft/worldgen/template_pool", "json"),
+    (
+        "BLOCK_STATE_PROVIDER",
+        "minecraft/worldgen/block_state_provider",
+        "json",
+    ),
     ("CHAT_TYPE", "minecraft/chat_type", "json"),
     ("DIMENSION_TYPE", "minecraft/dimension_type", "json"),
     ("TRIM_PATTERN", "minecraft/trim_pattern", "json"),
