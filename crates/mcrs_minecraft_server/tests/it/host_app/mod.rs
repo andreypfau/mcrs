@@ -24,6 +24,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::light::{BlockLightRegistry, block_light_registry};
+use mcrs_minecraft_item::Item;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -70,6 +71,7 @@ pub fn make_host_app() -> App {
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Item>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
     crate::support::insert_corpus(&mut app);
 

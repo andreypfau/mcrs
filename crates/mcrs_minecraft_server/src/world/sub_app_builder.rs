@@ -128,10 +128,7 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         items: world.resource::<Items>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
-        item_tag_registry: world
-            .get_resource::<DynTagRegistry<VanillaItem>>()
-            .cloned()
-            .unwrap_or_default(),
+        item_tag_registry: world.resource::<DynTagRegistry<VanillaItem>>().clone(),
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
         biome_sources: world
