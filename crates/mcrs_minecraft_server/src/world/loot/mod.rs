@@ -18,11 +18,11 @@ use bevy_ecs::prelude::ResMut;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_reflect::TypePath;
+use mcrs_minecraft_assets::asset::read_all;
+use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, LootId};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::StaticRegistry;
-use mcrs_minecraft_core::asset::read_all;
-use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks, LootId};
-use mcrs_minecraft_world::enchantment::EnchantmentData;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_registry::StaticRegistry;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -44,7 +44,7 @@ pub struct LootTableProto {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LootPoolProto {
-    pub rolls: serde_json::Value,
+    pub rolls: u32,
     #[serde(default)]
     pub bonus_rolls: f32,
     pub entries: Vec<LootEntryProto>,
@@ -103,12 +103,8 @@ impl LootTableProto {
 
 impl LootPoolProto {
     fn resolve(&self, enchantment_registry: &StaticRegistry<EnchantmentData>) -> LootPool {
-        let rolls = match &self.rolls {
-            serde_json::Value::Number(n) => n.as_u64().unwrap_or(1) as u32,
-            _ => 1,
-        };
         LootPool {
-            rolls,
+            rolls: self.rolls,
             entries: self
                 .entries
                 .iter()
@@ -171,10 +167,13 @@ fn resolve_condition(
                 && let Some(first) = enchantments.first()
             {
                 let enchantment_id = &first.enchantments;
-                if let Some(static_id) = enchantment_registry.id_of(enchantment_id.as_str()) {
+                if enchantment_registry
+                    .id_of(enchantment_id.as_str())
+                    .is_some()
+                {
                     let min_level = first.levels.as_ref().and_then(|l| l.min).unwrap_or(1);
                     return LootCondition::MatchToolEnchantment {
-                        enchantment_registry_index: static_id.raw() as u16,
+                        enchantment: enchantment_id.clone(),
                         min_level,
                     };
                 }
@@ -425,5 +424,27 @@ impl Plugin for LootPlugin {
         app.init_resource::<BlockLootTables>();
         app.add_systems(PostStartup, request_loot_tables_for_corpus);
         app.add_systems(Update, process_loaded_loot_tables);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LootTableProto;
+
+    #[test]
+    fn every_shipped_block_loot_table_parses() {
+        let dir = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/loot_table/blocks"
+        );
+        let mut count = 0;
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let bytes = std::fs::read(&path).unwrap();
+            serde_json::from_slice::<LootTableProto>(&bytes)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            count += 1;
+        }
+        assert!(count > 1000, "only {count} block loot tables");
     }
 }

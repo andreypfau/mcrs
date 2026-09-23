@@ -1,12 +1,12 @@
-use crate::configuration::LoadedWorldPreset;
 use crate::world::sub_app_builder::DimSubAppHandle;
+use crate::world_options::LoadedWorldPreset;
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
-use mcrs_minecraft_core::AppState;
-use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
-use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use tracing::{debug, error, info, warn};
 
 pub mod aoi;
@@ -20,15 +20,16 @@ pub mod bus;
 pub mod channel_types;
 pub mod chunk;
 pub mod entity;
-pub mod experience;
-pub mod explosion;
-pub mod format;
 pub mod generate;
+#[cfg(test)]
+mod generation_tests;
 pub mod heightmap;
-mod inventory;
+pub mod inventory;
+pub mod item;
 pub mod light;
+pub mod light_codec;
 pub mod loot;
-pub mod player_index;
+pub mod session;
 pub mod sub_app_builder;
 
 pub struct WorldPlugin;
@@ -39,19 +40,17 @@ impl Plugin for WorldPlugin {
         app.init_resource::<DimDespawnQueue>();
         // Seeded by `MinecraftServerPlugin` before this plugin loads; the
         // default is for harnesses that compose `WorldPlugin` on its own.
-        app.init_resource::<crate::configuration::WorldSeed>();
+        app.init_resource::<crate::world_options::WorldSeed>();
 
-        // Bus + PlayerIndex substrate. Both resources live in the host world.
+        // Bus substrate, in the host world.
         // `add_message::<T>()` must run BEFORE any sub-app extract reads
         // `Messages<T>` (the closure panics on `resource_mut` if the
         // double-buffer was never initialised). Pairing with the per-sub-app
         // registrations in `spawn_dim_subapp` is what keeps the contract.
-        app.init_resource::<crate::world::player_index::PlayerIndex>();
-        app.init_resource::<crate::world::player_index::PendingInboundBuffer>();
-        app.init_resource::<mcrs_voxel_world::session::SessionRegistry>();
-        app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
+        app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
         app.init_resource::<crate::world::channel_types::DimChannelsResource>();
-        app.init_resource::<mcrs_voxel_world::world::in_flight::InFlightMoves>();
+        app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
+        app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
         app.add_message::<crate::world::bus::OutboundPlayerAttached>();
@@ -108,6 +107,7 @@ impl Plugin for WorldPlugin {
             (
                 crate::world::bridge::bridge_inbound_to_channel,
                 crate::world::bridge::bridge_player_attach,
+                crate::world::bridge::forward_pending_inbound,
             )
                 .chain(),
         );
@@ -135,7 +135,8 @@ impl Plugin for WorldPlugin {
         app.add_systems(
             OnEnter(AppState::Playing),
             (
-                crate::world::generate::routers::build_dimension_routers,
+                crate::world::generate::routers::build_dimension_routers
+                    .after(crate::world::generate::structures::build_dimension_structures),
                 enqueue_dim_spawns_from_preset,
             )
                 .chain(),
@@ -155,7 +156,7 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
         bevy_asset::Assets<mcrs_minecraft_world::dimension::level_stem::DimensionDefinition>,
     >,
     dimension_types: Res<
-        bevy_asset::Assets<mcrs_minecraft_world::dimension::dimension_type::DimensionType>,
+        bevy_asset::Assets<mcrs_minecraft_dimension::dimension_type::DimensionType>,
     >,
     mut spawn_queue: ResMut<DimSpawnQueue>,
     mut already_enqueued: Local<bool>,

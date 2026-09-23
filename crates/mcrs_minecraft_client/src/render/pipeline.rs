@@ -4,11 +4,11 @@ use bevy::render::render_resource::*;
 use bevy::render::view::ExtractedView;
 use bevy::shader::ShaderDefVal;
 
-use crate::blocks::Pass;
-use crate::mesh::{STREAMS, stream_pass};
+use mcrs_minecraft_mesh::block::Pass;
+use mcrs_minecraft_mesh::{STREAMS, stream_pass};
 
 use super::binds::Bindings;
-use super::layer::Shape;
+use super::layer::{Shape, blend};
 use super::shaders::Shaders;
 use super::terrain::Terrain;
 
@@ -160,7 +160,7 @@ impl Pipelines {
                 format!("vertex_{}", shape.label()),
                 format!("fragment_{}_{}", shape.label(), layer.label()),
                 view,
-                layer.blend(),
+                blend(layer),
             )
         };
         if wireframe {

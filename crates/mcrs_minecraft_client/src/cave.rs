@@ -2,16 +2,16 @@ use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
-use crate::mesh::{Connectivity, OPEN, SEALED, along};
-use mcrs_minecraft_network::columns::SECTION_SIZE;
+use crate::columns::SECTION_SIZE;
+use mcrs_minecraft_mesh::{Connectivity, OPEN, SEALED, along};
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
-    crate::mesh::face_normal(0),
-    crate::mesh::face_normal(1),
-    crate::mesh::face_normal(2),
-    crate::mesh::face_normal(3),
-    crate::mesh::face_normal(4),
-    crate::mesh::face_normal(5),
+    mcrs_minecraft_mesh::face_normal(0),
+    mcrs_minecraft_mesh::face_normal(1),
+    mcrs_minecraft_mesh::face_normal(2),
+    mcrs_minecraft_mesh::face_normal(3),
+    mcrs_minecraft_mesh::face_normal(4),
+    mcrs_minecraft_mesh::face_normal(5),
 ];
 
 const ENTRY_ANY: u32 = 6;
@@ -51,8 +51,8 @@ const _: () = assert!(QUEUE_DIRS_SHIFT + 6 <= 32);
 const _: () = {
     let mut face = 0;
     while face < 6 {
-        let there = crate::mesh::face_normal(face);
-        let back = crate::mesh::face_normal(face ^ 1);
+        let there = mcrs_minecraft_mesh::face_normal(face);
+        let back = mcrs_minecraft_mesh::face_normal(face ^ 1);
         assert!(there[0] == -back[0] && there[1] == -back[1] && there[2] == -back[2]);
         face += 1;
     }
@@ -481,7 +481,7 @@ pub fn toggle(keys: Res<ButtonInput<KeyCode>>, mut cave: ResMut<CaveCull>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mesh::CONNECT_ALL;
+    use mcrs_minecraft_mesh::CONNECT_ALL;
     use std::collections::HashMap;
 
     /// The walk box is full of open air, so a test builds its topology into solid rock and opens

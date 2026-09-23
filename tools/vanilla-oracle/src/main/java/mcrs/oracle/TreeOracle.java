@@ -32,6 +32,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.feature.Feature;
 import net.minecraft.world.level.levelgen.feature.TreeFeature;
@@ -140,7 +141,7 @@ public final class TreeOracle {
         final long seed,
         final BlockPos origin
     ) {
-        RandomSource random = new XoroshiroRandomSource(seed);
+        RandomSource random = new WorldgenRandom(new XoroshiroRandomSource(seed));
         StubLevel level = new StubLevel(
             access,
             dimensionType,

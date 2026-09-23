@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_core"
-description = "Core types: ResourceLocation, StaticRegistry, TagFile, AppState"
+description = "Positions, directions, Mth, ResourceLocation, ResourceKey and TagKey"
 version.workspace = true
 edition.workspace = true
 
@@ -8,15 +8,19 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-bevy_app.workspace = true
-bevy_ecs.workspace = true
-bevy_asset.workspace = true
+bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
-bevy_reflect.workspace = true
-bevy_state.workspace = true
 serde.workspace = true
-serde_json.workspace = true
-mcrs_minecraft_core_macros.workspace = true
-mcrs_minecraft_nbt.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+mcrs_minecraft_core_macros.workspace = true
+mcrs_minecraft_random.workspace = true
+mcrs_minecraft_nbt.workspace = true
+derive_more = { workspace = true, features = ["from", "deref"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]

@@ -12,6 +12,7 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::RunSystemOnce;
+use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_server::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, PendingDisconnectQueue,
     drain_pending_disconnects, filter_inflight_for_disconnect,
@@ -20,8 +21,7 @@ use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
-use mcrs_minecraft_server::world::player_index::PlayerIndex;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft_server::world::session::SessionBundle;
 
 fn build_app() -> App {
     let mut app = App::new();
@@ -29,11 +29,9 @@ fn build_app() -> App {
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
-    app.init_resource::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>();
+    app.init_resource::<mcrs_minecraft_level::world::sub_app::DimDespawnQueue>();
     app.add_plugins(DisconnectProtocolPlugin);
     app
 }
@@ -43,17 +41,12 @@ fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) {
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
         .next();
-    app.world_mut().resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: Entity::PLACEHOLDER,
-            host_anchor,
-            dim,
-            previous_dim: None,
-            in_dim_entity: Some(Entity::PLACEHOLDER),
-            epoch: 0,
-        },
-    );
+    app.world_mut()
+        .entity_mut(host_anchor)
+        .insert(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::InDim(dim), 0),
+        ));
 }
 
 #[test]

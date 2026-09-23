@@ -1,0 +1,755 @@
+[
+  {
+    "name": "bare_literal",
+    "input": "hello",
+    "json": "hello",
+    "nbt": "08000568656c6c6f",
+    "snbt": "\"hello\""
+  },
+  {
+    "name": "literal_object_collapses",
+    "input": {
+      "text": "hello"
+    },
+    "json": "hello",
+    "nbt": "08000568656c6c6f",
+    "snbt": "\"hello\""
+  },
+  {
+    "name": "empty_literal",
+    "input": {
+      "text": ""
+    },
+    "json": "",
+    "nbt": "080000",
+    "snbt": "\"\""
+  },
+  {
+    "name": "literal_with_style",
+    "input": {
+      "text": "hi",
+      "color": "red",
+      "shadow_color": -16777216,
+      "bold": true,
+      "italic": false,
+      "underlined": true,
+      "strikethrough": false,
+      "obfuscated": true,
+      "insertion": "ins",
+      "font": "minecraft:alt"
+    },
+    "json": {
+      "text": "hi",
+      "color": "red",
+      "shadow_color": -16777216,
+      "bold": true,
+      "italic": false,
+      "underlined": true,
+      "strikethrough": false,
+      "obfuscated": true,
+      "insertion": "ins",
+      "font": "minecraft:alt"
+    },
+    "nbt": "0a080005636f6c6f72000372656403000c736861646f775f636f6c6f72ff00000001000a756e6465726c696e656401080009696e73657274696f6e0003696e730800047465787400026869010004626f6c640101000d737472696b657468726f756768000100066974616c69630001000a6f62667573636174656401080004666f6e74000d6d696e6563726166743a616c7400",
+    "snbt": "{bold:1b,color:\"red\",font:\"minecraft:alt\",insertion:\"ins\",italic:0b,obfuscated:1b,shadow_color:-16777216,strikethrough:0b,text:\"hi\",underlined:1b}"
+  },
+  {
+    "name": "hex_color_and_custom_font",
+    "input": {
+      "text": "hi",
+      "color": "#ff8800",
+      "font": "mcrs:fancy"
+    },
+    "json": {
+      "text": "hi",
+      "color": "#FF8800",
+      "font": "mcrs:fancy"
+    },
+    "nbt": "0a080005636f6c6f720007234646383830300800047465787400026869080004666f6e74000a6d6372733a66616e637900",
+    "snbt": "{color:\"#FF8800\",font:\"mcrs:fancy\",text:\"hi\"}"
+  },
+  {
+    "name": "list_form",
+    "input": [
+      "a",
+      {
+        "text": "b",
+        "bold": true
+      },
+      "c"
+    ],
+    "json": {
+      "text": "a",
+      "extra": [
+        {
+          "text": "b",
+          "bold": true
+        },
+        "c"
+      ]
+    },
+    "nbt": "0a09000565787472610a0000000208000474657874000162010004626f6c640100080000000163000800047465787400016100",
+    "snbt": "{extra:[{bold:1b,text:\"b\"},\"c\"],text:\"a\"}"
+  },
+  {
+    "name": "extra",
+    "input": {
+      "text": "a",
+      "extra": [
+        "b",
+        {
+          "text": "c",
+          "color": "blue"
+        }
+      ]
+    },
+    "json": {
+      "text": "a",
+      "extra": [
+        "b",
+        {
+          "text": "c",
+          "color": "blue"
+        }
+      ]
+    },
+    "nbt": "0a09000565787472610a0000000208000000016200080005636f6c6f720004626c756508000474657874000163000800047465787400016100",
+    "snbt": "{extra:[\"b\",{color:\"blue\",text:\"c\"}],text:\"a\"}"
+  },
+  {
+    "name": "translatable_heterogeneous_args",
+    "input": {
+      "translate": "chat.type.text",
+      "fallback": "<%s> %s",
+      "with": [
+        "sender",
+        {
+          "text": "styled",
+          "bold": true
+        },
+        {
+          "text": "plain"
+        }
+      ]
+    },
+    "json": {
+      "translate": "chat.type.text",
+      "fallback": "<%s> %s",
+      "with": [
+        "sender",
+        {
+          "text": "styled",
+          "bold": true
+        },
+        "plain"
+      ]
+    },
+    "nbt": "0a090004776974680a00000003080000000673656e646572000800047465787400067374796c6564010004626f6c6401000800000005706c61696e0008000866616c6c6261636b00073c25733e2025730800097472616e736c617465000e636861742e747970652e7465787400",
+    "snbt": "{fallback:\"<%s> %s\",translate:\"chat.type.text\",with:[\"sender\",{bold:1b,text:\"styled\"},\"plain\"]}"
+  },
+  {
+    "name": "translatable_no_args",
+    "input": {
+      "translate": "item.minecraft.stone"
+    },
+    "json": {
+      "translate": "item.minecraft.stone"
+    },
+    "nbt": "0a0800097472616e736c61746500146974656d2e6d696e6563726166742e73746f6e6500",
+    "snbt": "{translate:\"item.minecraft.stone\"}"
+  },
+  {
+    "name": "keybind",
+    "input": {
+      "keybind": "key.jump",
+      "italic": true
+    },
+    "json": {
+      "keybind": "key.jump",
+      "italic": true
+    },
+    "nbt": "0a0800076b657962696e6400086b65792e6a756d700100066974616c69630100",
+    "snbt": "{italic:1b,keybind:\"key.jump\"}"
+  },
+  {
+    "name": "score",
+    "input": {
+      "score": {
+        "name": "@s",
+        "objective": "kills"
+      }
+    },
+    "json": {
+      "score": {
+        "name": "@s",
+        "objective": "kills"
+      }
+    },
+    "nbt": "0a0a000573636f72650800046e616d65000240730800096f626a65637469766500056b696c6c730000",
+    "snbt": "{score:{name:\"@s\",objective:\"kills\"}}"
+  },
+  {
+    "name": "selector",
+    "input": {
+      "selector": "@a",
+      "separator": {
+        "text": ", ",
+        "color": "gray"
+      }
+    },
+    "json": {
+      "selector": "@a",
+      "separator": {
+        "text": ", ",
+        "color": "gray"
+      }
+    },
+    "nbt": "0a08000873656c6563746f72000240610a0009736570617261746f72080005636f6c6f720004677261790800047465787400022c200000",
+    "snbt": "{selector:\"@a\",separator:{color:\"gray\",text:\", \"}}"
+  },
+  {
+    "name": "selector_no_separator",
+    "input": {
+      "selector": "@e[type=pig]"
+    },
+    "json": {
+      "selector": "@e[type=pig]"
+    },
+    "nbt": "0a08000873656c6563746f72000c40655b747970653d7069675d00",
+    "snbt": "{selector:\"@e[type=pig]\"}"
+  },
+  {
+    "name": "nbt_entity",
+    "input": {
+      "nbt": "Health",
+      "entity": "@s",
+      "interpret": true,
+      "separator": "; "
+    },
+    "json": {
+      "nbt": "Health",
+      "interpret": true,
+      "separator": "; ",
+      "entity": "@s"
+    },
+    "nbt": "0a0800036e627400064865616c7468010009696e7465727072657401080009736570617261746f7200023b20080006656e746974790002407300",
+    "snbt": "{entity:\"@s\",interpret:1b,nbt:\"Health\",separator:\"; \"}"
+  },
+  {
+    "name": "nbt_block",
+    "input": {
+      "nbt": "Items[0].id",
+      "block": "1 2 3",
+      "plain": true
+    },
+    "json": {
+      "nbt": "Items[0].id",
+      "plain": true,
+      "block": "1 2 3"
+    },
+    "nbt": "0a0800036e6274000b4974656d735b305d2e6964010005706c61696e01080005626c6f636b0005312032203300",
+    "snbt": "{block:\"1 2 3\",nbt:\"Items[0].id\",plain:1b}"
+  },
+  {
+    "name": "nbt_storage",
+    "input": {
+      "nbt": "foo.bar",
+      "storage": "mcrs:store"
+    },
+    "json": {
+      "nbt": "foo.bar",
+      "storage": "mcrs:store"
+    },
+    "nbt": "0a0800036e62740007666f6f2e62617208000773746f72616765000a6d6372733a73746f726500",
+    "snbt": "{nbt:\"foo.bar\",storage:\"mcrs:store\"}"
+  },
+  {
+    "name": "nbt_typed_source",
+    "input": {
+      "nbt": "foo",
+      "source": "storage",
+      "storage": "mcrs:store"
+    },
+    "json": {
+      "nbt": "foo",
+      "storage": "mcrs:store"
+    },
+    "nbt": "0a0800036e62740003666f6f08000773746f72616765000a6d6372733a73746f726500",
+    "snbt": "{nbt:\"foo\",storage:\"mcrs:store\"}"
+  },
+  {
+    "name": "object_atlas",
+    "input": {
+      "object": "atlas",
+      "sprite": "minecraft:block/stone"
+    },
+    "json": {
+      "sprite": "minecraft:block/stone"
+    },
+    "nbt": "0a08000673707269746500156d696e6563726166743a626c6f636b2f73746f6e6500",
+    "snbt": "{sprite:\"minecraft:block/stone\"}"
+  },
+  {
+    "name": "object_atlas_custom",
+    "input": {
+      "atlas": "mcrs:icons",
+      "sprite": "mcrs:skull",
+      "fallback": "[skull]"
+    },
+    "json": {
+      "atlas": "mcrs:icons",
+      "sprite": "mcrs:skull",
+      "fallback": "[skull]"
+    },
+    "nbt": "0a08000561746c6173000a6d6372733a69636f6e73080006737072697465000a6d6372733a736b756c6c08000866616c6c6261636b00075b736b756c6c5d00",
+    "snbt": "{atlas:\"mcrs:icons\",fallback:\"[skull]\",sprite:\"mcrs:skull\"}"
+  },
+  {
+    "name": "typed_text",
+    "input": {
+      "type": "text",
+      "text": "typed"
+    },
+    "json": "typed",
+    "nbt": "0800057479706564",
+    "snbt": "\"typed\""
+  },
+  {
+    "name": "typed_keybind",
+    "input": {
+      "type": "keybind",
+      "keybind": "key.jump",
+      "text": "ignored"
+    },
+    "json": {
+      "keybind": "key.jump"
+    },
+    "nbt": "0a0800076b657962696e6400086b65792e6a756d7000",
+    "snbt": "{keybind:\"key.jump\"}"
+  },
+  {
+    "name": "click_open_url",
+    "input": {
+      "text": "x",
+      "click_event": {
+        "action": "open_url",
+        "url": "https://example.com/a?b=c"
+      }
+    },
+    "json": {
+      "text": "x",
+      "click_event": {
+        "url": "https://example.com/a?b=c",
+        "action": "open_url"
+      }
+    },
+    "nbt": "0a0a000b636c69636b5f6576656e74080006616374696f6e00086f70656e5f75726c08000375726c001968747470733a2f2f6578616d706c652e636f6d2f613f623d63000800047465787400017800",
+    "snbt": "{click_event:{action:\"open_url\",url:\"https://example.com/a?b=c\"},text:\"x\"}"
+  },
+  {
+    "name": "click_run_command",
+    "input": {
+      "text": "x",
+      "click_event": {
+        "action": "run_command",
+        "command": "/say hi"
+      }
+    },
+    "json": {
+      "text": "x",
+      "click_event": {
+        "command": "/say hi",
+        "action": "run_command"
+      }
+    },
+    "nbt": "0a0a000b636c69636b5f6576656e74080006616374696f6e000b72756e5f636f6d6d616e64080007636f6d6d616e6400072f736179206869000800047465787400017800",
+    "snbt": "{click_event:{action:\"run_command\",command:\"/say hi\"},text:\"x\"}"
+  },
+  {
+    "name": "click_suggest_command",
+    "input": {
+      "text": "x",
+      "click_event": {
+        "action": "suggest_command",
+        "command": "/tp "
+      }
+    },
+    "json": {
+      "text": "x",
+      "click_event": {
+        "command": "/tp ",
+        "action": "suggest_command"
+      }
+    },
+    "nbt": "0a0a000b636c69636b5f6576656e74080006616374696f6e000f737567676573745f636f6d6d616e64080007636f6d6d616e6400042f747020000800047465787400017800",
+    "snbt": "{click_event:{action:\"suggest_command\",command:\"/tp \"},text:\"x\"}"
+  },
+  {
+    "name": "click_show_dialog",
+    "input": {
+      "text": "x",
+      "click_event": {
+        "action": "show_dialog",
+        "dialog": "minecraft:test"
+      }
+    },
+    "json": {
+      "text": "x",
+      "click_event": {
+        "dialog": "minecraft:test",
+        "action": "show_dialog"
+      }
+    },
+    "nbt": "0a0a000b636c69636b5f6576656e740800066469616c6f67000e6d696e6563726166743a74657374080006616374696f6e000b73686f775f6469616c6f67000800047465787400017800",
+    "snbt": "{click_event:{action:\"show_dialog\",dialog:\"minecraft:test\"},text:\"x\"}"
+  },
+  {
+    "name": "click_change_page",
+    "input": {
+      "text": "x",
+      "click_event": {
+        "action": "change_page",
+        "page": 3
+      }
+    },
+    "json": {
+      "text": "x",
+      "click_event": {
+        "page": 3,
+        "action": "change_page"
+      }
+    },
+    "nbt": "0a0a000b636c69636b5f6576656e74080006616374696f6e000b6368616e67655f706167650300047061676500000003000800047465787400017800",
+    "snbt": "{click_event:{action:\"change_page\",page:3},text:\"x\"}"
+  },
+  {
+    "name": "click_copy_to_clipboard",
+    "input": {
+      "text": "x",
+      "click_event": {
+        "action": "copy_to_clipboard",
+        "value": "copied"
+      }
+    },
+    "json": {
+      "text": "x",
+      "click_event": {
+        "value": "copied",
+        "action": "copy_to_clipboard"
+      }
+    },
+    "nbt": "0a0a000b636c69636b5f6576656e74080006616374696f6e0011636f70795f746f5f636c6970626f61726408000576616c75650006636f70696564000800047465787400017800",
+    "snbt": "{click_event:{action:\"copy_to_clipboard\",value:\"copied\"},text:\"x\"}"
+  },
+  {
+    "name": "click_custom",
+    "input": {
+      "text": "x",
+      "click_event": {
+        "action": "custom",
+        "id": "mcrs:thing",
+        "payload": {
+          "n": 1,
+          "s": "str"
+        }
+      }
+    },
+    "json": {
+      "text": "x",
+      "click_event": {
+        "id": "mcrs:thing",
+        "payload": {
+          "s": "str",
+          "n": 1
+        },
+        "action": "custom"
+      }
+    },
+    "nbt": "0a0a000b636c69636b5f6576656e740a00077061796c6f61640800017300037374720100016e0100080006616374696f6e0006637573746f6d0800026964000a6d6372733a7468696e67000800047465787400017800",
+    "snbt": "{click_event:{action:\"custom\",id:\"mcrs:thing\",payload:{n:1b,s:\"str\"}},text:\"x\"}"
+  },
+  {
+    "name": "click_custom_no_payload",
+    "input": {
+      "text": "x",
+      "click_event": {
+        "action": "custom",
+        "id": "mcrs:thing"
+      }
+    },
+    "json": {
+      "text": "x",
+      "click_event": {
+        "id": "mcrs:thing",
+        "action": "custom"
+      }
+    },
+    "nbt": "0a0a000b636c69636b5f6576656e74080006616374696f6e0006637573746f6d0800026964000a6d6372733a7468696e67000800047465787400017800",
+    "snbt": "{click_event:{action:\"custom\",id:\"mcrs:thing\"},text:\"x\"}"
+  },
+  {
+    "name": "hover_show_text",
+    "input": {
+      "text": "x",
+      "hover_event": {
+        "action": "show_text",
+        "value": {
+          "text": "tip",
+          "color": "gold"
+        }
+      }
+    },
+    "json": {
+      "text": "x",
+      "hover_event": {
+        "value": {
+          "text": "tip",
+          "color": "gold"
+        },
+        "action": "show_text"
+      }
+    },
+    "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f746578740a000576616c7565080005636f6c6f720004676f6c64080004746578740003746970000000",
+    "snbt": "{hover_event:{action:\"show_text\",value:{color:\"gold\",text:\"tip\"}},text:\"x\"}"
+  },
+  {
+    "name": "hover_show_text_bare",
+    "input": {
+      "text": "x",
+      "hover_event": {
+        "action": "show_text",
+        "value": "tip"
+      }
+    },
+    "json": {
+      "text": "x",
+      "hover_event": {
+        "value": "tip",
+        "action": "show_text"
+      }
+    },
+    "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f7465787408000576616c756500037469700000",
+    "snbt": "{hover_event:{action:\"show_text\",value:\"tip\"},text:\"x\"}"
+  },
+  {
+    "name": "hover_show_entity",
+    "input": {
+      "text": "x",
+      "hover_event": {
+        "action": "show_entity",
+        "id": "minecraft:pig",
+        "uuid": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "name": "Piggy"
+      }
+    },
+    "json": {
+      "text": "x",
+      "hover_event": {
+        "id": "minecraft:pig",
+        "uuid": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "name": "Piggy",
+        "action": "show_entity"
+      }
+    },
+    "nbt": "0a080004746578740001780a000b686f7665725f6576656e740800046e616d6500055069676779080006616374696f6e000b73686f775f656e746974790800026964000d6d696e6563726166743a7069670b00047575696400000004000000010000000200000003000000040000",
+    "snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",name:\"Piggy\",uuid:[I;1,2,3,4]},text:\"x\"}"
+  },
+  {
+    "name": "hover_show_entity_string_uuid",
+    "input": {
+      "text": "x",
+      "hover_event": {
+        "action": "show_entity",
+        "id": "minecraft:zombie",
+        "uuid": "00000001-0002-0003-0004-000000000005"
+      }
+    },
+    "json": {
+      "text": "x",
+      "hover_event": {
+        "id": "minecraft:zombie",
+        "uuid": [
+          1,
+          131075,
+          262144,
+          5
+        ],
+        "action": "show_entity"
+      }
+    },
+    "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000b73686f775f656e74697479080002696400106d696e6563726166743a7a6f6d6269650b00047575696400000004000000010002000300040000000000050000",
+    "snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:zombie\",uuid:[I;1,131075,262144,5]},text:\"x\"}"
+  },
+  {
+    "name": "hover_show_item_bare",
+    "input": {
+      "text": "x",
+      "hover_event": {
+        "action": "show_item",
+        "id": "minecraft:stone"
+      }
+    },
+    "json": {
+      "text": "x",
+      "hover_event": {
+        "id": "minecraft:stone",
+        "action": "show_item"
+      }
+    },
+    "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+    "snbt": "{hover_event:{action:\"show_item\",id:\"minecraft:stone\"},text:\"x\"}"
+  },
+  {
+    "name": "hover_show_item_patch",
+    "input": {
+      "text": "x",
+      "hover_event": {
+        "action": "show_item",
+        "id": "minecraft:diamond_sword",
+        "count": 3,
+        "components": {
+          "minecraft:custom_name": "named",
+          "minecraft:damage": 7,
+          "minecraft:lore": [
+            "line",
+            {
+              "text": "two",
+              "italic": false
+            }
+          ],
+          "!minecraft:repair_cost": {}
+        }
+      }
+    },
+    "json": {
+      "text": "x",
+      "hover_event": {
+        "id": "minecraft:diamond_sword",
+        "count": 3,
+        "components": {
+          "minecraft:custom_name": "named",
+          "minecraft:damage": 7,
+          "minecraft:lore": [
+            "line",
+            {
+              "text": "two",
+              "italic": false
+            }
+          ],
+          "!minecraft:repair_cost": {}
+        },
+        "action": "show_item"
+      }
+    },
+    "nbt": "0a080004746578740001780a000b686f7665725f6576656e740a000a636f6d706f6e656e747309000e6d696e6563726166743a6c6f72650a0000000208000000046c696e650008000474657874000374776f0100066974616c696300000300106d696e6563726166743a64616d616765000000070800156d696e6563726166743a637573746f6d5f6e616d6500056e616d65640a0016216d696e6563726166743a7265706169725f636f73740000030005636f756e7400000003080006616374696f6e000973686f775f6974656d080002696400176d696e6563726166743a6469616d6f6e645f73776f72640000",
+    "snbt": "{hover_event:{action:\"show_item\",components:{\"!minecraft:repair_cost\":{},\"minecraft:custom_name\":\"named\",\"minecraft:damage\":7,\"minecraft:lore\":[\"line\",{italic:0b,text:\"two\"}]},count:3,id:\"minecraft:diamond_sword\"},text:\"x\"}"
+  },
+  {
+    "name": "shadow_color_int",
+    "input": {
+      "text": "x",
+      "shadow_color": 305419896
+    },
+    "json": {
+      "text": "x",
+      "shadow_color": 305419896
+    },
+    "nbt": "0a03000c736861646f775f636f6c6f72123456780800047465787400017800",
+    "snbt": "{shadow_color:305419896,text:\"x\"}"
+  },
+  {
+    "name": "shadow_color_floats",
+    "input": {
+      "text": "x",
+      "shadow_color": [
+        1.0,
+        0.5,
+        0.25,
+        0.75
+      ]
+    },
+    "json": {
+      "text": "x",
+      "shadow_color": -1073774785
+    },
+    "nbt": "0a03000c736861646f775f636f6c6f72bfff7f3f0800047465787400017800",
+    "snbt": "{shadow_color:-1073774785,text:\"x\"}"
+  },
+  {
+    "name": "nested_everything",
+    "input": {
+      "translate": "a",
+      "with": [
+        {
+          "keybind": "k",
+          "hover_event": {
+            "action": "show_text",
+            "value": [
+              "p",
+              {
+                "text": "q",
+                "click_event": {
+                  "action": "change_page",
+                  "page": 1
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "extra": [
+        {
+          "score": {
+            "name": "n",
+            "objective": "o"
+          },
+          "bold": true
+        }
+      ]
+    },
+    "json": {
+      "translate": "a",
+      "with": [
+        {
+          "keybind": "k",
+          "hover_event": {
+            "value": {
+              "text": "p",
+              "extra": [
+                {
+                  "text": "q",
+                  "click_event": {
+                    "page": 1,
+                    "action": "change_page"
+                  }
+                }
+              ]
+            },
+            "action": "show_text"
+          }
+        }
+      ],
+      "extra": [
+        {
+          "score": {
+            "name": "n",
+            "objective": "o"
+          },
+          "bold": true
+        }
+      ]
+    },
+    "nbt": "0a090004776974680a000000010800076b657962696e6400016b0a000b686f7665725f6576656e74080006616374696f6e000973686f775f746578740a000576616c756509000565787472610a000000010a000b636c69636b5f6576656e74080006616374696f6e000b6368616e67655f7061676503000470616765000000010008000474657874000171000800047465787400017000000009000565787472610a000000010a000573636f72650800046e616d6500016e0800096f626a65637469766500016f00010004626f6c6401000800097472616e736c61746500016100",
+    "snbt": "{extra:[{bold:1b,score:{name:\"n\",objective:\"o\"}}],translate:\"a\",with:[{hover_event:{action:\"show_text\",value:{extra:[{click_event:{action:\"change_page\",page:1},text:\"q\"}],text:\"p\"}},keybind:\"k\"}]}"
+  }
+]

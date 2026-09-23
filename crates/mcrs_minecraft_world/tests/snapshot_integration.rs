@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use bevy_asset::Assets;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_biome::{Biome, BiomeEffects, NetworkBiome};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_world::biome::{Biome, BiomeEffects, NetworkBiome};
 
 fn fixture_biome() -> Biome {
     Biome {
@@ -43,7 +43,7 @@ fn snapshot_integration_biome_populated_with_in_memory_fixtures() {
         (desert_rl.clone(), desert_id),
     ];
     let snapshot = RegistrySnapshot::<Biome>::build(pairs, &assets, |b: &Biome| {
-        mcrs_minecraft_nbt::to_nbt_compound(&NetworkBiome::from(b))
+        mcrs_minecraft_nbt::to_nbt_tag(&NetworkBiome::from(b))
     });
 
     // SNAP-01: all three entries present
@@ -66,7 +66,7 @@ fn snapshot_integration_biome_populated_with_in_memory_fixtures() {
     // SNAP-04: NBT was pre-serialized at build time and is non-empty
     let nbt = &snapshot.by_id(0).unwrap().nbt;
     assert!(
-        !nbt.is_empty(),
+        matches!(nbt, mcrs_minecraft_nbt::tag::NbtTag::Compound(c) if !c.is_empty()),
         "SnapshotEntry.nbt must be a populated NbtCompound, got empty"
     );
 
@@ -77,7 +77,7 @@ fn snapshot_integration_biome_populated_with_in_memory_fixtures() {
         (ocean_rl, ocean_id),
     ];
     let snapshot2 = RegistrySnapshot::<Biome>::build(shuffled, &assets, |b: &Biome| {
-        mcrs_minecraft_nbt::to_nbt_compound(&NetworkBiome::from(b))
+        mcrs_minecraft_nbt::to_nbt_tag(&NetworkBiome::from(b))
     });
     for i in 0..3u32 {
         assert_eq!(

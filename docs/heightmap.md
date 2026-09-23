@@ -213,22 +213,25 @@ client should be decided independently of which maps are maintained in memory
 and from what moment.
 
 **Two generations of one map are not the same data.** The reference's `_WG`
-pair is maintained by the fill and the surface stage and is never touched by a
-carver or by a decoration write; the four final maps are primed after carving
-and updated on every decoration write. So `WORLD_SURFACE_WG` at decoration time
-is the column before carving, and `WORLD_SURFACE` is the column after carving
-and after the objects placed so far. Twenty-seven shipped placements read the
-pre-carve pair (`scattering.md` §2). The predicates are identical; the blocks
-they were computed over are not. The rule here is therefore: the pre-carve
-`SURFACE` and `SOLID` maps are a second **generation** of the same two maps,
-built by one descent after the surface stage and before carving, held only
-while the column's window is being decorated, and never persisted — one
-descent recovers them, and nothing after decoration reads them
-(`scattering.md` Wn3, D3).
+pair is maintained by the fill, the surface stage and the carvers — every
+`ProtoChunk.setBlockState` updates it while the chunk's persisted status is
+still `BIOMES`, and `applyCarvingMask` writes through `setBlockState` — and is
+frozen when the terrain step ends; the four final maps are primed after
+carving and updated on every decoration write. So `WORLD_SURFACE_WG` at
+decoration time is the column as the carvers left it, and `WORLD_SURFACE` is
+the same column plus the objects placed so far. Twenty-seven shipped
+placements read the terrain pair (`scattering.md` §2). The predicates are
+identical; the blocks they were computed over are not. The rule here is
+therefore: the terrain `SURFACE` and `SOLID` maps are a second **generation**
+of the same two maps, built by one descent after the carvers and before any
+decoration write, held only while the column's window is being decorated, and
+never persisted — one descent recovers them, and nothing after decoration
+reads them (`scattering.md` Wn3, D3, which call the pair pre-carve; the moment
+it is taken is after the carvers).
 
 A reasonable choice: hold `H_SURFACE` from the first block write, take the
-pre-carve generation of `SURFACE` and `SOLID` before carving, add the four
-final maps once carving completes, keep them live through decoration, and
+terrain generation of `SURFACE` and `SOLID` once carving completes, add the
+four final maps at the same moment, keep them live through decoration, and
 persist and send according to what consumers actually need.
 
 ---

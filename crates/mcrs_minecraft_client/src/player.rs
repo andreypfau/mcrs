@@ -6,12 +6,14 @@ use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed};
-use mcrs_voxel_world::entity::physics::{
+use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
+use mcrs_minecraft_level::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
+use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed};
 
 use crate::camera::FovFilter;
+use crate::inventory::{ContainerSeqno, Screen};
 use crate::local_player::{LastSentMovement, Sprint};
 use crate::options::SENSITIVITY;
 
@@ -37,13 +39,12 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, sync_look_transforms).add_systems(
+        app.add_systems(
             Update,
             (
                 release_cursor_on_escape,
                 apply_mouse_look,
                 grab_cursor_on_click,
-                sync_look_transforms,
             )
                 .chain(),
         );
@@ -63,6 +64,9 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
             FlyingSpeed::default(),
             Sprint::default(),
             LastSentMovement::default(),
+            SlotTable::fixed(slots::COUNT),
+            SelectedHotbarSlot::default(),
+            ContainerSeqno::default(),
             Transform::from_translation(position.as_vec3()),
             // The camera hangs off the player, and visibility only reaches a child through a
             // parent that takes part in it.
@@ -98,27 +102,34 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
 /// Grabbing after the look has been applied drops the motion the pointer made
 /// while it was still free, which would otherwise land as a jump on the frame
 /// the player clicks.
-fn grab_cursor_on_click(
+pub(crate) fn grab_cursor_on_click(
     buttons: Res<ButtonInput<MouseButton>>,
+    screen: Option<Res<Screen>>,
     mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if buttons.just_pressed(MouseButton::Left) {
+    if buttons.just_pressed(MouseButton::Left) && screen_is_none(screen) {
         window.grab_mode = CursorGrabMode::Locked;
         window.visible = false;
     }
 }
 
+/// With a screen open, Escape closes the screen instead.
 fn release_cursor_on_escape(
     keys: Res<ButtonInput<KeyCode>>,
+    screen: Option<Res<Screen>>,
     mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if keys.just_pressed(KeyCode::Escape) {
+    if keys.just_pressed(KeyCode::Escape) && screen_is_none(screen) {
         window.grab_mode = CursorGrabMode::None;
         window.visible = true;
     }
 }
 
-fn apply_mouse_look(
+fn screen_is_none(screen: Option<Res<Screen>>) -> bool {
+    screen.is_none_or(|screen| *screen == Screen::None)
+}
+
+pub(crate) fn apply_mouse_look(
     motion: Res<AccumulatedMouseMotion>,
     window: Single<&CursorOptions, With<PrimaryWindow>>,
     mut transform: Single<&mut PhysicsTransform, With<Player>>,
@@ -134,28 +145,11 @@ fn apply_mouse_look(
 
 /// The half-turn is not decoration: Minecraft measures the look direction off
 /// +Z while Bevy's camera looks down -Z, and the pitch sign flips with it.
-#[allow(clippy::type_complexity)]
-fn sync_look_transforms(
-    player: Single<
-        (&PhysicsTransform, &mut Transform),
-        (
-            With<Player>,
-            Without<PlayerCamera>,
-            Changed<PhysicsTransform>,
-        ),
-    >,
-    mut camera: Single<&mut Transform, (With<PlayerCamera>, Without<Player>)>,
-) {
-    let (physics, mut player_transform) = player.into_inner();
-    player_transform.rotation = yaw_rotation(physics.rotation.yaw());
-    camera.rotation = pitch_rotation(physics.rotation.pitch());
-}
-
-fn yaw_rotation(yaw: f32) -> Quat {
+pub(crate) fn yaw_rotation(yaw: f32) -> Quat {
     Quat::from_rotation_y(std::f32::consts::PI - yaw.to_radians())
 }
 
-fn pitch_rotation(pitch: f32) -> Quat {
+pub(crate) fn pitch_rotation(pitch: f32) -> Quat {
     Quat::from_rotation_x(-pitch.to_radians())
 }
 

@@ -1,8 +1,8 @@
-use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::SectionPos;
 use std::ops::RangeInclusive;
 
-pub const SECTION_WIDTH: i32 = BLOCKS::SIZE as i32;
+pub const SECTION_WIDTH: i32 = SectionPos::SIZE as i32;
 
 /// A vertical block column, identified by its horizontal position.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -14,43 +14,9 @@ pub struct BlockColumn {
 impl BlockColumn {
     pub const fn section_column(self) -> ColumnPos {
         ColumnPos {
-            x: self.x >> BLOCKS::BITS,
-            z: self.z >> BLOCKS::BITS,
+            x: self.x >> SectionPos::BITS,
+            z: self.z >> SectionPos::BITS,
         }
-    }
-}
-
-/// Index of a block inside its own section: `x | z << 4 | y << 8`, twelve bits.
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct LocalPos(u16);
-
-impl LocalPos {
-    pub const fn new(x: u8, y: u8, z: u8) -> Self {
-        Self((x as u16 & 15) | ((z as u16 & 15) << 4) | ((y as u16 & 15) << 8))
-    }
-
-    pub const fn from_index(index: usize) -> Self {
-        Self((index & 0xFFF) as u16)
-    }
-
-    pub const fn index(self) -> usize {
-        self.0 as usize
-    }
-
-    pub const fn x(self) -> u8 {
-        (self.0 & 15) as u8
-    }
-
-    pub const fn z(self) -> u8 {
-        ((self.0 >> 4) & 15) as u8
-    }
-
-    pub const fn y(self) -> u8 {
-        ((self.0 >> 8) & 15) as u8
-    }
-
-    pub fn all() -> impl Iterator<Item = LocalPos> {
-        (0..BLOCKS::VOLUME).map(LocalPos::from_index)
     }
 }
 
@@ -111,7 +77,7 @@ impl LightBounds {
     }
 
     pub const fn from_dimension(min_y: i32, section_count: u32) -> Self {
-        let min_section_y = min_y >> BLOCKS::BITS;
+        let min_section_y = min_y >> SectionPos::BITS;
         Self {
             min_section_y,
             max_section_y: min_section_y + section_count as i32 - 1,
@@ -177,13 +143,6 @@ impl LightBounds {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn local_pos_packs_x_then_z_then_y() {
-        let pos = LocalPos::new(3, 7, 11);
-        assert_eq!(pos.index(), 3 | (11 << 4) | (7 << 8));
-        assert_eq!((pos.x(), pos.y(), pos.z()), (3, 7, 11));
-    }
 
     #[test]
     fn overworld_bounds_span_the_declared_sections() {

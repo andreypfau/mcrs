@@ -28,16 +28,14 @@ pub mod __private {
     pub use crate::{Decode, Encode, Packet};
 }
 
+pub mod advancement;
 mod array;
-mod biome_pos;
 mod bit_set;
 mod block;
 pub mod block_pos;
-mod bounded;
 mod byte_angle;
-mod cell_pos;
 pub mod chunk;
-pub mod chunk_pos;
+pub mod column_pos;
 pub mod decode;
 mod dialog;
 mod difficulty;
@@ -53,11 +51,13 @@ mod impls;
 pub mod item;
 pub mod light_codec;
 mod lp_vec3;
-pub mod packed_chunk_pos;
+pub mod packed_section_pos;
 pub mod packets;
+pub mod particle;
 mod pos;
 pub mod profile;
 mod raw;
+pub mod recipe;
 pub mod registry;
 pub mod resource_pack;
 pub mod section;
@@ -65,7 +65,12 @@ mod serial;
 pub mod setting;
 pub mod sound;
 mod teleport_flags;
-pub mod text;
+/// Text components with the item stack template as the hover item.
+pub mod text {
+    pub use mcrs_minecraft_text::*;
+
+    pub use crate::item::Text;
+}
 pub mod var_int;
 mod var_long;
 
@@ -73,15 +78,11 @@ use std::io::Write;
 
 use anyhow::Context;
 pub use array::FixedArray;
-pub use biome_pos::BiomePos;
 pub use bit_set::FixedBitSet;
-pub use block::BlockStateId;
-pub use bounded::Bounded;
 pub use byte_angle::ByteAngle;
-pub use cell_pos::CellPos;
 pub use chunk::ChunkData;
 pub use chunk::LightData;
-pub use chunk_pos::ColumnPos;
+pub use column_pos::ColumnPos;
 pub use decode::PacketDecoder;
 use derive_more::{From, Into};
 pub use difficulty::Difficulty;
@@ -91,8 +92,9 @@ pub use game_event::GameEventKind;
 pub use game_mode::GameMode;
 pub use global_pos::GlobalPos;
 pub use hand::Hand;
-pub use item::{ItemId, Slot};
+pub use item::ProtoStack;
 pub use lp_vec3::LpVec3;
+pub use mcrs_minecraft_core::Bounded;
 pub use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 pub use pos::Look;
 pub use pos::MoveFlags;
@@ -109,11 +111,11 @@ pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, uuid};
 pub const MAX_PACKET_SIZE: i32 = 2097152;
 
 /// The Minecraft protocol version this library currently targets.
-pub const PROTOCOL_VERSION: i32 = 1073742156;
+pub const PROTOCOL_VERSION: i32 = 777;
 
 /// The stringified name of the Minecraft version this library currently
 /// targets.
-pub const MINECRAFT_VERSION: &str = "26.3-snapshot-10";
+pub const MINECRAFT_VERSION: &str = "26.3";
 
 /// How large a packet should be before it is compressed by the packet encoder.
 ///
@@ -333,8 +335,8 @@ mod tests {
 
     #[test]
     fn protocol_version_matches_target_release() {
-        assert_eq!(PROTOCOL_VERSION, 1073742156);
-        assert_eq!(MINECRAFT_VERSION, "26.3-snapshot-10");
+        assert_eq!(PROTOCOL_VERSION, 777);
+        assert_eq!(MINECRAFT_VERSION, "26.3");
     }
 }
 

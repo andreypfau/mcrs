@@ -15,7 +15,7 @@ use crate::model::{
 
 const BLOCK_MIDDLE: Vec3 = Vec3::splat(0.5);
 
-pub use mcrs_voxel_math::Direction as Dir;
+pub use mcrs_minecraft_core::Direction as Dir;
 
 fn axis(dir: Dir) -> usize {
     match dir {
@@ -187,7 +187,7 @@ fn uvlock_transform(rotation: VariantRotation, dir: Dir) -> Mat4 {
 
 /// A face whose element is flat along that face's own axis is still drawn, but a flat element
 /// drops the two faces that would be edge-on. Vanilla relies on this for `cross`-shaped models.
-fn draws_face(element: &Element, dir: Dir) -> bool {
+pub(crate) fn draws_face(element: &Element, dir: Dir) -> bool {
     let flat: Vec<usize> = (0..3)
         .filter(|&axis| element.from[axis] == element.to[axis])
         .collect();
@@ -420,20 +420,21 @@ struct BakeContext<'a> {
     world: &'a dyn Neighborhood,
 }
 
-fn bake_face(
+/// A face's corners, texture coordinates and orientation before any lighting is applied.
+pub(crate) struct FaceGeometry {
+    pub positions: [Vec3; 4],
+    pub uvs: [[f32; 2]; 4],
+    pub facing: Dir,
+    pub cull: Option<Dir>,
+}
+
+pub(crate) fn face_geometry(
     element: &Element,
     dir: Dir,
     face: &Face,
-    sprite: usize,
-    ctx: &BakeContext<'_>,
-) -> Result<BakedQuad, String> {
-    let BakeContext {
-        rotation,
-        uvlock,
-        smooth,
-        pos,
-        world,
-    } = *ctx;
+    rotation: VariantRotation,
+    uvlock: bool,
+) -> Result<FaceGeometry, String> {
     if face.rotation % 90 != 0 {
         return Err(format!(
             "face rotation {} is not a multiple of 90",
@@ -486,7 +487,34 @@ fn bake_face(
     {
         recalculate_winding(&mut positions, &mut uvs, facing);
     }
-    let facing = facing.unwrap_or(Dir::Up);
+    Ok(FaceGeometry {
+        positions,
+        uvs,
+        facing: facing.unwrap_or(Dir::Up),
+        cull,
+    })
+}
+
+fn bake_face(
+    element: &Element,
+    dir: Dir,
+    face: &Face,
+    sprite: usize,
+    ctx: &BakeContext<'_>,
+) -> Result<BakedQuad, String> {
+    let BakeContext {
+        rotation,
+        uvlock,
+        smooth,
+        pos,
+        world,
+    } = *ctx;
+    let FaceGeometry {
+        positions,
+        uvs,
+        facing,
+        cull,
+    } = face_geometry(element, dir, face, rotation, uvlock)?;
 
     let ao = if smooth {
         ambient_occlusion(&positions, facing, pos, world)

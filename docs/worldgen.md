@@ -758,7 +758,10 @@ size of the generation region.
 
 Biome suitability checks and module layout for composite structures do read the
 world, but they run *after* the index has said "there is a start here" — for
-single cells, not for 289 columns.
+single cells, not for 289 columns. What they read is the climate field and the
+density column *without* the adaptation term below, never a block, so one
+start never depends on another. The index, the layouts, jigsaw assembly and
+materialisation are specified in `structures.md`.
 
 ### Terrain adaptation
 
@@ -1444,6 +1447,8 @@ For checking behaviour against, not for copying. Paths are relative to
 | Topic | Reference | Here | Reason |
 | --- | --- | --- | --- |
 | Structure placement | a pipeline stage, result stored in a column | a sparse index computed on demand | G1: a pure function of the lattice; removes radius 8 from four stages |
+| Piece parameters read at placement | the live world, the first decorating chunk wins | fixed at layout from the density heights | the reference's value was route-dependent (`structures.md` M3, SD3) |
+| Order of the starts of one structure in a column | a hash table's | ascending start chunk | decoration parity is unattainable anyway (`structures.md` M5, SD4) |
 | Scattering stages | sequential executor, order from the player's route; a unit sees whatever neighbours were decorated first | private writes merged in a fixed rank; a unit sees the filled window and its own writes only (`scattering.md` §3, Wn2) | C3 and W1 with no barrier and no chain; the reference's read order was never reproducible |
 | Block updates inside a feature | shape updates at a tree's faces, post-processing marks | none | live-world semantics; under the read rule above the affected set is empty (`scattering.md` D7) |
 | Section storage | fixed array per column | sparse index, absence = air | V2: two thirds of the volume is never allocated |

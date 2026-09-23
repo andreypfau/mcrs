@@ -289,18 +289,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-compression"
-version = "0.4.39"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68650b7df54f0293fd061972a0fb05aaf4fc0879d3b3d21a638a182c5c543b9f"
-dependencies = [
- "compression-codecs",
- "compression-core",
- "pin-project-lite",
- "tokio",
-]
-
-[[package]]
 name = "async-executor"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2032,22 +2020,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "compression-codecs"
-version = "0.4.36"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00828ba6fd27b45a448e57dbfe84f1029d4c9f26b368157e9a448a5f49a2ec2a"
-dependencies = [
- "compression-core",
- "flate2",
-]
-
-[[package]]
-name = "compression-core"
-version = "0.4.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75984efb6ed102a0d42db99afb6c1948f0380d1d91808d5529916e6c08b49d8d"
-
-[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2199,6 +2171,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "crc32c"
+version = "0.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a47af21622d091a8f0fb295b88bc886ac74efcc613efc19f5d0b21de5c89e47"
+dependencies = [
+ "rustc_version",
 ]
 
 [[package]]
@@ -2829,13 +2810,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "139ef39800118c7683f2fd3c98c1b23c09ae076556b435f8e9064ae108aaeeec"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "r-efi",
  "rand_core 0.10.0",
  "wasip2",
  "wasip3",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -3469,11 +3448,14 @@ dependencies = [
  "bevy_ecs",
  "bevy_log",
  "bevy_state",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_client",
  "mcrs_minecraft_core",
  "mcrs_minecraft_network",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_generator",
  "mcrs_telemetry",
  "tokio",
 ]
@@ -3485,10 +3467,49 @@ dependencies = [
  "criterion",
  "flate2",
  "lz4-java-wrc",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol",
- "mcrs_voxel_storage",
  "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_assets"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_reflect",
+ "bevy_state",
+ "bevy_tasks",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registry",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_biome"
+version = "0.1.0"
+dependencies = [
+ "bevy_asset",
+ "bevy_reflect",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_structure",
+ "serde",
+ "serde_json",
+ "sha2",
  "thiserror 2.0.18",
 ]
 
@@ -3497,37 +3518,62 @@ name = "mcrs_minecraft_block"
 version = "0.1.0"
 dependencies = [
  "bevy_app",
+ "bevy_asset",
  "bevy_ecs",
- "bevy_ecs_macros",
+ "bevy_math",
+ "bevy_platform",
  "bitflags 2.10.0",
- "mcrs_minecraft_protocol",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
- "mcrs_voxel_world",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_light",
+ "mcrs_minecraft_registry",
  "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_chunk"
+version = "0.1.0"
+dependencies = [
+ "bevy_ecs",
+ "bevy_math",
+ "mcrs_minecraft_core",
+ "rustc-hash 2.1.1",
 ]
 
 [[package]]
 name = "mcrs_minecraft_client"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bevy",
  "bitflags 2.10.0",
  "bytemuck",
+ "bytes",
  "console_error_panic_hook",
  "flate2",
- "getrandom 0.3.4",
- "getrandom 0.4.1",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_biome",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_inventory",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_item_model",
+ "mcrs_minecraft_level",
+ "mcrs_minecraft_mesh",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registry",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
- "mcrs_voxel_world",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
  "serde",
@@ -3541,14 +3587,12 @@ dependencies = [
 name = "mcrs_minecraft_core"
 version = "0.1.0"
 dependencies = [
- "bevy_app",
- "bevy_asset",
  "bevy_ecs",
  "bevy_math",
- "bevy_reflect",
- "bevy_state",
+ "derive_more",
  "mcrs_minecraft_core_macros",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_random",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3565,20 +3609,143 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_minecraft_decoration"
+name = "mcrs_minecraft_dimension"
 version = "0.1.0"
 dependencies = [
+ "bevy_asset",
+ "bevy_ecs",
  "bevy_math",
- "bytes",
- "fixedbitset",
+ "bevy_reflect",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_environment",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_random",
- "mcrs_minecraft_worldgen",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
+ "mcrs_minecraft_registry",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_environment"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_reflect",
+ "bevy_state",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_worldgen_structure",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_inventory"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registry",
+ "rustc-hash 2.1.1",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_item"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_reflect",
+ "bevy_tasks",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item_component",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registry",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_item_component"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy_ecs",
+ "crc32c",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_profile",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
+name = "mcrs_minecraft_item_model"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item_component",
+ "mcrs_minecraft_nbt",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_level"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_platform",
+ "bevy_time",
+ "bevy_utils",
+ "bitflags 2.10.0",
+ "flume",
+ "indexmap",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_world",
+ "rand 0.10.0",
+ "rustc-hash 2.1.1",
+ "smallvec",
+ "thiserror 2.0.18",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3589,10 +3756,19 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_tasks",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
  "rayon",
  "rustc-hash 2.1.1",
+]
+
+[[package]]
+name = "mcrs_minecraft_mesh"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "bytemuck",
+ "mcrs_minecraft_core",
 ]
 
 [[package]]
@@ -3603,6 +3779,7 @@ dependencies = [
  "cesu8",
  "flate2",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 
@@ -3614,13 +3791,12 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_math",
- "bevy_tasks",
  "bytes",
  "js-sys",
- "log",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
- "mcrs_voxel_storage",
+ "mcrs_minecraft_registry",
  "md-5",
  "serde_json",
  "thiserror 2.0.18",
@@ -3634,14 +3810,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_profile"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy_ecs",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "mcrs_minecraft_protocol"
 version = "0.1.0"
 dependencies = [
  "aes",
  "anyhow",
  "base64",
- "bevy_app",
- "bevy_ecs",
  "bevy_math",
  "bitfield-struct",
  "byteorder",
@@ -3649,15 +3835,15 @@ dependencies = [
  "cfb8",
  "derive_more",
  "flate2",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
- "mcrs_minecraft_light",
+ "mcrs_minecraft_item_component",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol_macros",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
- "mcrs_voxel_world",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_text",
  "rand 0.10.0",
- "rustc-hash 2.1.1",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3686,53 +3872,62 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_registry"
+version = "0.1.0"
+dependencies = [
+ "bevy_ecs",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_server"
 version = "0.1.0"
 dependencies = [
- "aes",
- "arrayvec",
- "async-compression",
- "base64",
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_ecs_macros",
  "bevy_math",
  "bevy_reflect",
  "bevy_state",
  "bevy_tasks",
  "bevy_time",
- "bevy_utils",
- "bitflags 2.10.0",
  "bytes",
- "cfb8",
- "cipher",
  "criterion",
  "derive_more",
  "fixedbitset",
  "flume",
- "indexmap",
  "mcrs_minecraft_anvil",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
- "mcrs_minecraft_decoration",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_inventory",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_level",
  "mcrs_minecraft_light",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
- "mcrs_minecraft_random",
+ "mcrs_minecraft_registry",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
- "mcrs_voxel_math",
- "mcrs_voxel_server",
- "mcrs_voxel_storage",
- "mcrs_voxel_world",
- "num-integer",
- "paste",
+ "mcrs_minecraft_worldgen_carver",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_feature_place",
+ "mcrs_minecraft_worldgen_generator",
+ "mcrs_minecraft_worldgen_structure",
+ "mcrs_minecraft_worldgen_surface",
  "proptest",
  "rand 0.10.0",
  "rand 0.9.2",
- "rand_xoshiro",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -3744,32 +3939,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_text"
+version = "0.1.0"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_profile",
+ "mcrs_minecraft_registry",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "mcrs_minecraft_world"
 version = "0.1.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_ecs_macros",
  "bevy_math",
- "bevy_platform",
  "bevy_reflect",
  "bevy_state",
  "bevy_tasks",
- "bitflags 2.10.0",
- "derive_more",
- "futures-lite",
+ "bytes",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_biome",
+ "mcrs_minecraft_block",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_environment",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen",
- "mcrs_voxel_math",
- "paste",
- "rand 0.10.0",
- "rustc-hash 2.1.1",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_structure",
+ "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
- "sha2",
  "thiserror 2.0.18",
  "tracing",
  "uuid",
@@ -3785,16 +3995,207 @@ dependencies = [
  "bevy_math",
  "bevy_reflect",
  "bytes",
- "fixedbitset",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
- "mcrs_minecraft_random",
- "mcrs_minecraft_worldgen",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_worldgen_carver",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_structure",
+ "mcrs_minecraft_worldgen_surface",
+ "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_carver"
+version = "0.1.0"
+dependencies = [
+ "bevy_reflect",
+ "bytes",
+ "fixedbitset",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_density"
+version = "0.1.0"
+dependencies = [
+ "bevy_asset",
+ "bevy_math",
+ "bevy_reflect",
+ "bytes",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_testing",
+ "serde",
+ "serde_json",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_feature"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "bytes",
+ "fixedbitset",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_surface",
+ "mcrs_minecraft_worldgen_testing",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_feature_place"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "bytes",
+ "fixedbitset",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_surface",
+ "mcrs_minecraft_worldgen_testing",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_generator"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_math",
+ "bitflags 2.10.0",
+ "bytes",
+ "criterion",
+ "fixedbitset",
+ "mcrs_minecraft_anvil",
+ "mcrs_minecraft_assets",
+ "mcrs_minecraft_biome",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_level",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_carver",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_feature_place",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_structure",
+ "mcrs_minecraft_worldgen_structure_place",
+ "mcrs_minecraft_worldgen_surface",
+ "mcrs_minecraft_worldgen_testing",
+ "rand_xoshiro",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_noise"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_structure"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "bytes",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_testing",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_structure_place"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "fixedbitset",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_feature_place",
+ "mcrs_minecraft_worldgen_structure",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_surface"
+version = "0.1.0"
+dependencies = [
+ "bevy_asset",
+ "bevy_math",
+ "bevy_reflect",
+ "bytes",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_testing",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_testing"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "mcrs_minecraft_core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3807,62 +4208,6 @@ dependencies = [
  "bevy_log",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "mcrs_voxel_math"
-version = "0.1.0"
-dependencies = [
- "bevy_derive",
- "bevy_ecs",
- "bevy_math",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "mcrs_voxel_server"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_asset",
- "bevy_ecs",
- "bevy_time",
- "flume",
- "mcrs_voxel_world",
- "rustc-hash 2.1.1",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "mcrs_voxel_storage"
-version = "0.1.0"
-dependencies = [
- "bevy_ecs",
- "bevy_math",
- "mcrs_voxel_math",
- "rustc-hash 2.1.1",
-]
-
-[[package]]
-name = "mcrs_voxel_world"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_derive",
- "bevy_ecs",
- "bevy_ecs_macros",
- "bevy_math",
- "bevy_platform",
- "flume",
- "indexmap",
- "log",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
- "rustc-hash 2.1.1",
- "smallvec",
- "tracing",
 ]
 
 [[package]]
@@ -4554,12 +4899,6 @@ checksum = "19ab9ace3fad1b9ed603ddac5b595e69931fc50263d7e04e4055015b77b02da5"
 dependencies = [
  "icu_properties",
 ]
-
-[[package]]
-name = "paste"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pem"

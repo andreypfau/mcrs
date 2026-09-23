@@ -8,29 +8,32 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_voxel_math.workspace = true
-mcrs_minecraft_core.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
-bevy_platform.workspace = true
 bevy_asset.workspace = true
 bevy_state.workspace = true
 bevy_tasks.workspace = true
-futures-lite = "2"
-paste = "1"
-bitflags = "2"
 tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 bevy_reflect.workspace = true
-bevy_ecs_macros.workspace = true
-rustc-hash.workspace = true
 thiserror.workspace = true
-mcrs_minecraft_worldgen.workspace = true
+mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_structure.workspace = true
 bevy_math.workspace = true
-rand.workspace = true
-derive_more.workspace = true
 uuid.workspace = true
-sha2.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+mcrs_minecraft_worldgen_testing.workspace = true

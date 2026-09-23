@@ -2,6 +2,7 @@ use crate::world::bus::{
     InboundPlayerPacket, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 use crate::world::entity::explosive::primed_tnt::PrimedTntPlugin;
+use crate::world::entity::mob::MobTrackerPlugin;
 use crate::world::entity::player::{DimPlayerPlugin, HostAnchor};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
@@ -13,27 +14,29 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::Query;
 use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
+use mcrs_minecraft_level::entity::physics::{OldTransform, Transform};
+use mcrs_minecraft_level::entity::{EntityNetworkSyncEvent, EntityPlugin};
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{Look, VarInt};
-use mcrs_voxel_world::entity::physics::{OldTransform, Transform};
-use mcrs_voxel_world::entity::{EntityNetworkSyncEvent, EntityPlugin};
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::world::dimension::InDimension;
-use std::sync::atomic::AtomicI32;
-use std::sync::atomic::Ordering::Relaxed;
 
 pub mod attribute;
 pub mod explosive;
+pub mod item;
 mod meta;
+pub mod mob;
 pub mod player;
+
+pub use mcrs_minecraft_level::entity::mob::EntityUuid;
 
 pub struct MinecraftEntityPlugin;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MinecraftEntityType {
-    PrimedTnt = 132,
-    Player = 155,
+    PrimedTnt = 136,
+    Player = 159,
 }
 
 impl Plugin for MinecraftEntityPlugin {
@@ -41,6 +44,8 @@ impl Plugin for MinecraftEntityPlugin {
         app.add_plugins(EntityPlugin);
         app.add_plugins(DimPlayerPlugin);
         app.add_plugins(PrimedTntPlugin);
+        app.add_plugins(MobTrackerPlugin);
+        app.add_plugins(item::DroppedItemPlugin);
         app.add_observer(entity_pos_sync);
         app.add_systems(FixedPreUpdate, dispatch_inbound_to_dim);
     }
@@ -82,36 +87,9 @@ pub struct MinecraftEntity;
 #[derive(Debug, Clone, Copy, Component, Deref, DerefMut)]
 pub struct EntityOwner(pub Entity);
 
-#[derive(Debug, Clone, Copy, Component, Deref)]
-pub struct EntityUuid(Uuid);
-
-impl Default for EntityUuid {
-    fn default() -> Self {
-        EntityUuid(Uuid::new_v4())
-    }
-}
-
 impl ContainsEntity for EntityOwner {
     fn entity(&self) -> Entity {
         self.0
-    }
-}
-
-static ENTITY_ID: AtomicI32 = AtomicI32::new(0);
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Component)]
-pub struct NetworkEntityId(pub VarInt);
-
-impl Default for NetworkEntityId {
-    fn default() -> Self {
-        let id = ENTITY_ID.fetch_add(1, Relaxed);
-        NetworkEntityId(VarInt(id))
-    }
-}
-
-impl From<NetworkEntityId> for i32 {
-    fn from(val: NetworkEntityId) -> Self {
-        val.0.0
     }
 }
 
@@ -185,5 +163,4 @@ pub fn entity_pos_sync(
         session: PlayerSession(0),
         epoch: 0,
     });
-    mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Relaxed);
 }

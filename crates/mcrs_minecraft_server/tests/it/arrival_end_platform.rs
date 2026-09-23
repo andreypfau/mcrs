@@ -3,10 +3,23 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
-use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
-use mcrs_minecraft_block::palette::ChunkBlocks;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::LocalPos;
+use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::session::{DimPlayerIndex, MoveId, PlayerSessionCounter};
+use mcrs_minecraft_level::world::channels::{
+    DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    ToDimReceiver,
+};
+use mcrs_minecraft_level::world::dimension::Dimension;
+use mcrs_minecraft_level::world::in_flight::InFlightMoves;
+use mcrs_minecraft_level::world::storage::section::Section;
+use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::arrival::ArrivalPlugin;
 use mcrs_minecraft_server::world::bus::{
     ArrivalCause, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
@@ -16,19 +29,6 @@ use mcrs_minecraft_server::world::bus::{
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_server::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_world::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
-use mcrs_voxel_world::voxel_update::ChunkVoxelChanges;
-use mcrs_voxel_world::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    ToDimReceiver,
-};
-use mcrs_voxel_world::world::dimension::Dimension;
-use mcrs_voxel_world::world::in_flight::InFlightMoves;
-use mcrs_voxel_world::world::storage::chunk::Chunk;
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
-use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
@@ -131,7 +131,6 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
 
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
     app.init_resource::<DimDespawnQueue>();
@@ -163,7 +162,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
 
     // Pre-load the chunk at the floor position (floor_y = arrival_y - 1 = 63).
     // Block writes go to this chunk; arrival_y=64 maps to a different 16-block section.
-    let floor_chunk_pos = ChunkPos::from(BlockPos::new(
+    let floor_chunk_pos = SectionPos::from(BlockPos::new(
         arrival_pos.x as i32,
         floor_y,
         arrival_pos.z as i32,
@@ -187,19 +186,17 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         // FromDimSender so ArrivalPlugin can send Spawned ack.
         let (from_tx2, _from_rx2) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         sub.insert_resource(FromDimSender::<FromDim>(
-            mcrs_voxel_world::world::channels::DimSender::new(from_tx2),
+            mcrs_minecraft_level::world::channels::DimSender::new(from_tx2),
         ));
         sub.init_resource::<DimPlayerIndex>();
 
         // Pre-insert a loaded chunk at the floor chunk position (y=63).
-        // Include ChunkVoxelChanges so apply_voxel_set_requests can write blocks
-        // without waiting for add_changes_set deferred command to flush.
         let chunk_entity = sub
             .world_mut()
-            .spawn((Chunk, ChunkBlocks::default(), ChunkVoxelChanges::default()))
+            .spawn((Section, ChunkBlocks::default()))
             .id();
         let dim_entity = sub.world_mut().spawn(Dimension).id();
-        let mut chunk_index = ChunkIndex::default();
+        let mut chunk_index = SectionIndex::default();
         chunk_index.insert(floor_chunk_pos, chunk_entity);
         sub.world_mut().entity_mut(dim_entity).insert(chunk_index);
 
@@ -225,7 +222,10 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         entry
             .control_sender
             .try_send(ToDim::SpawnEntity {
-                move_id: MoveId(7),
+                move_id: MoveId {
+                    source: Entity::PLACEHOLDER,
+                    seq: 7,
+                },
                 epoch: 0,
                 cause: ArrivalCause::EndPlatform,
                 payload: MovePayload::Player {
@@ -265,7 +265,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                 .entity(chunk_entity)
                 .get::<ChunkBlocks>()
                 .expect("BlockPalette")
-                .get(pos)
+                .get(LocalPos::from(pos))
                 .into();
             if state != OBSIDIAN_STATE {
                 obsidian_floor_ok = false;
@@ -292,7 +292,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                     .entity(chunk_entity)
                     .get::<ChunkBlocks>()
                     .expect("BlockPalette")
-                    .get(pos)
+                    .get(LocalPos::from(pos))
                     .into();
                 assert_eq!(
                     state,

@@ -7,7 +7,7 @@ use bevy::render::render_resource::binding_types::{
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 
-use crate::pack::MAX_SPRITE_ARRAYS;
+use mcrs_minecraft_mesh::pack::MAX_SPRITE_ARRAYS;
 
 use super::arenas::Arenas;
 use super::draws::PARAMS_SIZE;
@@ -148,6 +148,7 @@ fn draw_layout() -> BindGroupLayoutDescriptor {
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
+                storage_buffer_read_only_sized(false, None),
                 texture_2d(TextureSampleType::Float { filterable: false }),
                 storage_buffer_read_only_sized(false, None),
             ),
@@ -202,6 +203,7 @@ fn draw_bind_group(
             &sprites.tints_view,
             &sprites.tint_sampler,
             sprites.frames.as_entire_buffer_binding(),
+            sprites.table.as_entire_buffer_binding(),
             arenas.faces.as_entire_buffer_binding(),
             arenas.sections.as_entire_buffer_binding(),
             &sprites.lightmap_view,

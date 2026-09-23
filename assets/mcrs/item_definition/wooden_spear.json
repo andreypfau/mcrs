@@ -1,0 +1,94 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:item": {
+    "description": {
+      "identifier": "minecraft:wooden_spear",
+      "protocol_id": 1447
+    },
+    "components": {
+      "minecraft:lore": [],
+      "minecraft:item_model": "minecraft:wooden_spear",
+      "minecraft:max_damage": 59,
+      "minecraft:item_name": {
+        "translate": "item.minecraft.wooden_spear"
+      },
+      "minecraft:weapon": {},
+      "minecraft:piercing_weapon": {
+        "sound": "minecraft:item.spear_wood.attack",
+        "hit_sound": "minecraft:item.spear_wood.hit"
+      },
+      "minecraft:attribute_modifiers": [
+        {
+          "type": "minecraft:attack_damage",
+          "id": "minecraft:base_attack_damage",
+          "amount": 0.0,
+          "operation": "add_value",
+          "slot": "mainhand"
+        },
+        {
+          "type": "minecraft:attack_speed",
+          "id": "minecraft:base_attack_speed",
+          "amount": -2.4615384340286255,
+          "operation": "add_value",
+          "slot": "mainhand"
+        }
+      ],
+      "minecraft:cooking_fuel": {
+        "burn_time": "minecraft:cooking/time_wood_items_large",
+        "speed_multiplier": "minecraft:cooking/speed_default"
+      },
+      "minecraft:tooltip_display": {},
+      "minecraft:attack_animation": {
+        "type": "stab",
+        "duration": 13
+      },
+      "minecraft:rarity": "common",
+      "minecraft:enchantable": {
+        "value": 15
+      },
+      "minecraft:enchantments": {},
+      "minecraft:repair_cost": 0,
+      "minecraft:max_stack_size": 1,
+      "minecraft:attack_range": {
+        "min_reach": 2.0,
+        "max_reach": 4.5,
+        "min_creative_reach": 2.0,
+        "max_creative_reach": 6.5,
+        "hitbox_margin": 0.125,
+        "mob_factor": 0.5
+      },
+      "minecraft:kinetic_weapon": {
+        "delay_ticks": 15,
+        "dismount_conditions": {
+          "max_duration_ticks": 100,
+          "min_speed": 14.0
+        },
+        "knockback_conditions": {
+          "max_duration_ticks": 200,
+          "min_speed": 5.1
+        },
+        "damage_conditions": {
+          "max_duration_ticks": 300,
+          "min_relative_speed": 4.6
+        },
+        "forward_movement": 0.38,
+        "damage_multiplier": 0.7,
+        "sound": "minecraft:item.spear_wood.use",
+        "hit_sound": "minecraft:item.spear_wood.hit"
+      },
+      "minecraft:damage_type": "minecraft:spear",
+      "minecraft:use_effects": {
+        "can_sprint": true,
+        "interact_vibrations": false,
+        "speed_multiplier": 1.0
+      },
+      "minecraft:damage": 0,
+      "minecraft:interact_animation": {},
+      "minecraft:break_sound": "minecraft:entity.item.break",
+      "minecraft:repairable": {
+        "items": "#minecraft:wooden_tool_materials"
+      },
+      "minecraft:minimum_attack_charge": 1.0
+    }
+  }
+}

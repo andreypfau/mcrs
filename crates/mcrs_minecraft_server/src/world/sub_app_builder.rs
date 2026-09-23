@@ -18,8 +18,8 @@ use crate::world::bus::{
 };
 use crate::world::channel_types::{FromDim, ToDim};
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
-use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_voxel_world::world::channels::{
+use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
+use mcrs_minecraft_level::world::channels::{
     DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
 };
@@ -54,43 +54,66 @@ struct DimTick;
 /// again between ticks, so a column read from the save is not held for the next tick.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnDrain;
+
+/// The stages of a [`ColumnDrain`], in the order they run. Every one only acts on what is
+/// pending, which is what lets the drain run between ticks as well as at their end.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ColumnDrainSet {
+    /// Finished generation and saved columns come off the pool into their sections.
+    Collect,
+    /// The column index, block entities and heightmaps catch up with what landed.
+    Reconcile,
+    /// Ticket levels spread, sections spawn, and the columns they need are queued and dispatched.
+    Request,
+    /// A finished light epoch is retired and the next one dispatched.
+    Light,
+    /// Ready columns go out and the outbox is flushed towards the host.
+    Send,
+}
 use crate::WorldSave;
 use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block::MinecraftBlockPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
-use crate::world::explosion::ExplosionPlugin;
-use crate::world::format::anvil::SavedColumns;
 use crate::world::generate::DimensionRouters;
-use crate::world::generate::stages::{FillContext, dimension_y_sections};
-use crate::world::heightmap::{DimHeightmapPlugin, HeightmapPredicates};
+use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
-use mcrs_minecraft_core::RegistrySnapshot;
-use mcrs_minecraft_core::registry::access::RegistryAccess;
-use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::Block;
-use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
-use mcrs_voxel_world::world::sub_app::{
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_item::Item as VanillaItem;
+use mcrs_minecraft_item::Items;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_level::explosion::ExplosionPlugin;
+use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
+use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
+use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
+use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
+use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {
     pub registry_access: RegistryAccess,
     pub light_registry: Option<std::sync::Arc<mcrs_minecraft_light::block::LightRegistry>>,
     pub blocks: Blocks,
+    pub items: Items,
     pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
     pub block_tag_registry: DynTagRegistry<Block>,
+    pub item_tag_registry: DynTagRegistry<VanillaItem>,
     pub heightmap_predicates: Option<HeightmapPredicates>,
     pub biome_registry: RegistrySnapshot<Biome>,
     pub biome_sources: crate::world::generate::routers::DimensionBiomeSources,
     pub modern_carver_biomes: crate::world::generate::modern_carvers::DimensionCarverBiomes,
     pub features: crate::world::generate::features::DimensionFeaturePrograms,
+    pub structures: crate::world::generate::structures::DimensionStructures,
     pub world_save: Option<WorldSave>,
     pub noise_routers: DimensionRouters,
 }
@@ -99,11 +122,13 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
     DimRegistryBundle {
         registry_access: world.resource::<RegistryAccess>().clone(),
         light_registry: world
-            .get_resource::<crate::block_light_table::BlockLightRegistry>()
+            .get_resource::<mcrs_minecraft_block::light::BlockLightRegistry>()
             .map(|registry| registry.0.clone()),
         blocks: world.resource::<Blocks>().clone(),
+        items: world.resource::<Items>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
+        item_tag_registry: world.resource::<DynTagRegistry<VanillaItem>>().clone(),
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
         biome_sources: world
@@ -116,6 +141,10 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
             .unwrap_or_default(),
         features: world
             .get_resource::<crate::world::generate::features::DimensionFeaturePrograms>()
+            .cloned()
+            .unwrap_or_default(),
+        structures: world
+            .get_resource::<crate::world::generate::structures::DimensionStructures>()
             .cloned()
             .unwrap_or_default(),
         world_save: world.get_resource::<WorldSave>().cloned(),
@@ -165,17 +194,20 @@ pub fn spawn_dim_subapp(
         .resource_mut::<DimChannels<ToDim, FromDim>>()
         .insert(
             label_entity,
-            mcrs_voxel_world::world::channels::DimSender::new(to_dim_srv_tx),
-            mcrs_voxel_world::world::channels::DimSender::new(to_dim_ctl_tx),
+            mcrs_minecraft_level::world::channels::DimSender::new(to_dim_srv_tx),
+            mcrs_minecraft_level::world::channels::DimSender::new(to_dim_ctl_tx),
             from_dim_rx,
         );
 
     let asset_root = app
         .world()
-        .get_resource::<mcrs_voxel_server::AssetRoot>()
+        .get_resource::<mcrs_minecraft_level::server_loop::AssetRoot>()
         .cloned()
         .unwrap_or_default()
         .0;
+
+    let column_traces = app.world().get_resource::<ColumnTraceSink>().cloned();
+    let trace_dimension = request.dimension_id.as_str().to_owned();
 
     let mut sub_app = SubApp::new();
 
@@ -184,7 +216,7 @@ pub fn spawn_dim_subapp(
         control: to_dim_ctl_rx,
     });
     sub_app.insert_resource(FromDimSender::<FromDim>(
-        mcrs_voxel_world::world::channels::DimSender::new(from_dim_tx),
+        mcrs_minecraft_level::world::channels::DimSender::new(from_dim_tx),
     ));
 
     // Per-sub-app message registrations. Only types that still flow through
@@ -204,7 +236,7 @@ pub fn spawn_dim_subapp(
     // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_to_dim_inbox`.
     sub_app.add_message::<crate::world::bus::InboundPlayerPacket>();
     // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and
-    // extracted by the host to set `in_dim_entity` on the session entry.
+    // extracted by the host to attach the session.
     sub_app.add_message::<crate::world::bus::OutboundPlayerAttached>();
     // Confirmed-move inbound messages drained from the control channel and read
     // by the arrival systems (SpawnEntity) and source-dim systems (ConfirmMove,
@@ -227,7 +259,14 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockSetRequest>();
     sub_app.add_message::<BlockPlaced>();
 
-    sub_app.init_resource::<mcrs_voxel_world::session::DimPlayerIndex>();
+    sub_app.init_resource::<mcrs_minecraft_level::session::DimPlayerIndex>();
+    sub_app.init_resource::<OutboxTelemetry>();
+    if column_traces.is_some() {
+        sub_app.init_resource::<ColumnTraceLog>();
+    }
+    sub_app.insert_resource(mcrs_minecraft_level::world::in_flight::MoveIds::new(
+        label_entity,
+    ));
 
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
@@ -274,21 +313,44 @@ pub fn spawn_dim_subapp(
 
     sub_app.add_systems(FixedPreUpdate, drain_to_dim_inbox.in_set(DimInboxDrain));
     sub_app.add_schedule(Schedule::new(ColumnDrain));
+    sub_app.configure_sets(
+        ColumnDrain,
+        (
+            ColumnDrainSet::Collect,
+            ColumnDrainSet::Reconcile,
+            ColumnDrainSet::Request,
+            ColumnDrainSet::Light,
+            ColumnDrainSet::Send,
+        )
+            .chain(),
+    );
     sub_app.add_systems(
         ColumnDrain,
         (
-            crate::world::chunk::process_completed_columns,
-            crate::world::chunk::deliver_merged_columns,
+            (
+                crate::world::chunk::process_completed_columns,
+                crate::world::chunk::deliver_merged_columns,
+            )
+                .chain()
+                .in_set(ColumnDrainSet::Collect),
             // The light packet walks the column index, which is rebuilt here rather than left
             // to the tick: a column sent before its sections are in it goes out unlit.
-            mcrs_voxel_world::world::storage::column::reconcile_columns,
-            mcrs_voxel_world::world::storage::block_entity::reconcile_block_entities,
-            crate::world::heightmap::prime_column_heightmaps,
-            crate::world::entity::player::column_view::request_columns,
-            mcrs_voxel_world::world::lifecycle::ticket::spawn_chunks,
-            crate::world::chunk::enqueue_pending_columns,
-            crate::world::chunk::dispatch_column_generation
-                .run_if(bevy_ecs::prelude::resource_exists::<FillContext>),
+            (
+                mcrs_minecraft_level::world::storage::column::reconcile_columns,
+                mcrs_minecraft_level::world::storage::block_entity::reconcile_block_entities,
+                crate::world::heightmap::prime_column_heightmaps,
+            )
+                .chain()
+                .in_set(ColumnDrainSet::Reconcile),
+            (
+                mcrs_minecraft_level::world::lifecycle::ticket::propagate_section_levels,
+                mcrs_minecraft_level::world::lifecycle::ticket::spawn_chunks,
+                crate::world::chunk::enqueue_pending_columns,
+                crate::world::chunk::dispatch_column_generation
+                    .run_if(bevy_ecs::prelude::resource_exists::<FillContext>),
+            )
+                .chain()
+                .in_set(ColumnDrainSet::Request),
             // A finished epoch frees its slot and unblocks its area only when it is
             // retired, so retiring once a tick leaves most of the light engine's
             // concurrency idle while columns arrive many times a tick. Retire and
@@ -301,12 +363,17 @@ pub fn spawn_dim_subapp(
                 .chain()
                 .run_if(
                     bevy_ecs::prelude::resource_exists::<mcrs_minecraft_light::prelude::Lighting>,
-                ),
-            crate::world::entity::player::column_view::project_ready_columns,
-            crate::world::entity::player::column_view::send_column_queue,
-            flush_from_dim_outbox,
-        )
-            .chain(),
+                )
+                .in_set(ColumnDrainSet::Light),
+            (
+                crate::world::entity::player::column_view::project_ready_columns,
+                crate::world::entity::player::column_view::send_column_queue,
+                crate::world::aoi::mirror_held_columns,
+                flush_from_dim_outbox,
+            )
+                .chain()
+                .in_set(ColumnDrainSet::Send),
+        ),
     );
     sub_app.add_systems(FixedLast, |world: &mut World| {
         world.run_schedule(ColumnDrain)
@@ -330,7 +397,7 @@ pub fn spawn_dim_subapp(
     // The worldgen `ChunkPlugin` (ColumnScheduler, the CHUNK_TASK_POOL, and the
     // five FixedPreUpdate worldgen systems) is the per-dim entry-point that
     // turns DimSpawnRequest into populated columns. It is distinct from the
-    // engine-level `storage::chunk::ChunkPlugin` that DimensionPlugin adds
+    // engine-level `storage::section::SectionPlugin` that DimensionPlugin adds
     // (which only contributes TicketPlugin).
     //
     // The router is compiled host-side and arrives here as a read-only
@@ -345,7 +412,8 @@ pub fn spawn_dim_subapp(
     };
     if let Some(dimension) = &dimension {
         match registries.noise_routers.0.get(dimension) {
-            Some(router) => {
+            Some(dimension_router) => {
+                let router = &dimension_router.router;
                 let biome_registry = std::sync::Arc::new(registries.biome_registry.clone());
                 let features = registries
                     .features
@@ -359,6 +427,7 @@ pub fn spawn_dim_subapp(
                 }
                 sub_app.insert_resource(FillContext::build(
                     std::sync::Arc::clone(router),
+                    Some(std::sync::Arc::clone(&dimension_router.material)),
                     registries.blocks.0.clone(),
                     dimension_y_sections(
                         router,
@@ -381,6 +450,7 @@ pub fn spawn_dim_subapp(
                         .map(std::sync::Arc::clone),
                     Some(&registries.block_tag_registry),
                     features,
+                    registries.structures.0.get(dimension).cloned(),
                 ));
             }
             None => {
@@ -411,11 +481,24 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(PlayerTrackerPlugin);
     sub_app.add_plugins(BlockUpdatePlugin::default());
     sub_app.add_plugins(BlockUpdateWirePlugin);
+    sub_app.add_plugins(crate::world::item::ItemPlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(LootPlugin);
-    sub_app.add_plugins(crate::world::experience::ExperiencePlugin);
+    sub_app.add_plugins(mcrs_minecraft_level::experience::ExperiencePlugin);
     sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
     sub_app.add_plugins(DimHeightmapPlugin);
+    let lighting = app
+        .world()
+        .get_resource::<crate::Lighting>()
+        .copied()
+        .unwrap_or_default();
+    sub_app.insert_resource(lighting);
+    let default_op_level = app
+        .world()
+        .get_resource::<crate::ops::DefaultOpLevel>()
+        .copied()
+        .unwrap_or_default();
+    sub_app.insert_resource(default_op_level);
     if let Some(registry) = &registries.light_registry {
         sub_app.add_plugins(DimLightPlugin {
             registry: std::sync::Arc::clone(registry),
@@ -425,7 +508,7 @@ pub fn spawn_dim_subapp(
             ),
             sky: request.has_sky,
         });
-    } else if !crate::lighting_disabled() {
+    } else if lighting == crate::Lighting::Propagated {
         warn!(
             dim = request.dimension_id.as_str(),
             "no block light table; this dimension will publish no light"
@@ -434,12 +517,18 @@ pub fn spawn_dim_subapp(
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.blocks.clone());
+    sub_app.insert_resource(registries.items.clone());
     sub_app.insert_resource(registries.static_enchantment_registry.clone());
     sub_app.insert_resource(registries.block_tag_registry.clone());
+    sub_app.insert_resource(registries.item_tag_registry.clone());
     if let Some(predicates) = &registries.heightmap_predicates {
         sub_app.insert_resource(predicates.clone());
     }
     sub_app.insert_resource(registries.biome_registry.clone());
+    sub_app.insert_resource(registries.structures.clone());
+    if let Some(save) = &registries.world_save {
+        sub_app.insert_resource(save.clone());
+    }
 
     // Seed the time resources so an inspector that reads `Res<Time<…>>` on a
     // sub-app that has never been pumped gets a valid default. The extract
@@ -447,7 +536,8 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Fixed>::default());
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
-    sub_app.init_resource::<mcrs_minecraft_world::world_clock::WorldClocks>();
+    sub_app.init_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>();
+    sub_app.init_resource::<crate::ops::OpList>();
 
     sub_app.set_extract(move |main_world, sub_world| {
         use crate::world::bus::OutboundPlayerAttached;
@@ -466,7 +556,15 @@ pub fn spawn_dim_subapp(
         if let Some(time) = main_world.get_resource::<Time<()>>() {
             sub_world.insert_resource(*time);
         }
-        mcrs_minecraft_world::world_clock::extract_world_clocks(main_world, sub_world);
+        mcrs_minecraft_environment::world_clock::extract_world_clocks(main_world, sub_world);
+        if let Some(ops) = main_world.get_resource::<crate::ops::OpList>() {
+            sub_world.insert_resource(ops.clone());
+        }
+        if let Some(traces) = &column_traces
+            && let Some(mut log) = sub_world.get_resource_mut::<ColumnTraceLog>()
+        {
+            traces.record(&trace_dimension, log.drain());
+        }
 
         // Also extract OutboundPlayerAttached written directly to the sub-app Messages
         // (i.e., before flush_from_dim_outbox drains it). This covers the case where
@@ -622,12 +720,20 @@ fn drain_to_dim_inbox(
 /// recorded as sent the moment it is queued and never offered again, so a lost
 /// packet is a hole in the client's world, and a lost batch-finished packet
 /// costs the acknowledgement the whole column stream is paced by.
+/// Clientbound packets this dimension has handed towards the host since it started.
+#[derive(bevy_ecs::resource::Resource, Debug, Default, Clone, Copy)]
+pub struct OutboxTelemetry {
+    pub emitted: u64,
+}
+
 pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
     sender: Res<FromDimSender<FromDim>>,
+    mut telemetry: ResMut<OutboxTelemetry>,
     mut backlog: Local<VecDeque<FromDim>>,
 ) {
-    use mcrs_voxel_world::session::PlayerSession;
+    use mcrs_minecraft_level::session::PlayerSession;
+    let held = backlog.len();
     backlog.extend(msgs.drain().map(|msg| FromDim::Clientbound {
         target: msg.target,
         priority: msg.priority,
@@ -635,6 +741,7 @@ pub(crate) fn flush_from_dim_outbox(
         session: PlayerSession(0),
         epoch: 0,
     }));
+    telemetry.emitted += (backlog.len() - held) as u64;
     while let Some(outbound) = backlog.pop_front() {
         if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
             backlog.push_front(outbound);
@@ -724,7 +831,7 @@ mod tests {
     use super::*;
     use crate::world::bus::{PacketPayload, PacketPriority, PacketTarget, TestPayload};
     use bevy_ecs::system::{IntoSystem, System};
-    use mcrs_voxel_world::world::channels::DimSender;
+    use mcrs_minecraft_level::world::channels::DimSender;
 
     /// A tick that writes more than the channel holds must not cost a packet: a column is
     /// recorded as sent when it is queued and never offered again.
@@ -735,13 +842,14 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(Messages::<OutboundPlayerPacket>::default());
         world.insert_resource(FromDimSender(DimSender::new(tx)));
+        world.init_resource::<OutboxTelemetry>();
         let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
         for seq in 0..written as u32 {
             msgs.write(OutboundPlayerPacket {
                 target: PacketTarget::SinglePlayer(Entity::PLACEHOLDER),
                 priority: PacketPriority::Critical,
                 data: PacketPayload::Test(TestPayload { seq }),
-                session: mcrs_voxel_world::session::PlayerSession(0),
+                session: mcrs_minecraft_level::session::PlayerSession(0),
                 epoch: 0,
             });
         }
@@ -773,6 +881,11 @@ mod tests {
             arrived,
             (0..written as u32).collect::<Vec<_>>(),
             "every packet arrives, in the order it was written"
+        );
+        assert_eq!(
+            world.resource::<OutboxTelemetry>().emitted,
+            written as u64,
+            "a packet held back is counted once, when it was written"
         );
     }
 }

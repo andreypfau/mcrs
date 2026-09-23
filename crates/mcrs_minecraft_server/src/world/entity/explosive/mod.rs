@@ -1,7 +1,7 @@
 pub mod primed_tnt;
 
-use crate::world::explosion::ExplosionRadius;
 use bevy_ecs::component::Component;
+use mcrs_minecraft_level::explosion::ExplosionRadius;
 
 #[derive(bevy_ecs::bundle::Bundle, Default)]
 pub struct ExplosiveBundle {

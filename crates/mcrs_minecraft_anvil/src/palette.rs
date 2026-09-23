@@ -14,7 +14,7 @@ fn slice(text: &str, span: Span) -> &str {
 /// name and a map per property set. A region holds roughly three quarters of a
 /// million palette entries, so the difference is allocator traffic, not bytes.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Palette {
+pub struct BlockStateList {
     text: String,
     entries: Vec<Entry>,
     props: Vec<(Span, Span)>,
@@ -26,13 +26,9 @@ struct Entry {
     props: Span,
 }
 
-impl Palette {
+impl BlockStateList {
     pub fn len(&self) -> usize {
         self.entries.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
     }
 
     pub fn name(&self, index: usize) -> &str {
@@ -88,13 +84,13 @@ impl<'a> Properties<'a> {
 }
 
 /// Turns a palette entry into a registry id while the decoder still holds the
-/// name as borrowed text. Implemented by whoever owns the block registry; this
-/// crate never sees one.
-pub trait BlockStateLookup {
-    fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<u32>;
+/// name as borrowed text. Implemented by whoever owns the registry; this crate
+/// never sees one.
+pub trait PaletteLookup<V> {
+    fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<V>;
 }
 
-impl<'de> Deserialize<'de> for Palette {
+impl<'de> Deserialize<'de> for BlockStateList {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_seq(PaletteVisitor)
     }
@@ -103,14 +99,14 @@ impl<'de> Deserialize<'de> for Palette {
 struct PaletteVisitor;
 
 impl<'de> Visitor<'de> for PaletteVisitor {
-    type Value = Palette;
+    type Value = BlockStateList;
 
     fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("a palette list")
     }
 
-    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Palette, A::Error> {
-        let mut palette = Palette::default();
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<BlockStateList, A::Error> {
+        let mut palette = BlockStateList::default();
         if let Some(hint) = seq.size_hint() {
             palette.entries.reserve(hint);
         }
@@ -125,7 +121,7 @@ impl<'de> Visitor<'de> for PaletteVisitor {
 }
 
 struct EntrySeed<'p> {
-    palette: &'p mut Palette,
+    palette: &'p mut BlockStateList,
 }
 
 impl<'de> DeserializeSeed<'de> for EntrySeed<'_> {
@@ -139,7 +135,7 @@ impl<'de> DeserializeSeed<'de> for EntrySeed<'_> {
 }
 
 struct EntryVisitor<'p> {
-    palette: &'p mut Palette,
+    palette: &'p mut BlockStateList,
 }
 
 impl<'de> Visitor<'de> for EntryVisitor<'_> {
@@ -170,7 +166,7 @@ impl<'de> Visitor<'de> for EntryVisitor<'_> {
                     name = Some(span);
                 }
                 Field::Properties => {
-                    let Palette { text, props, .. } = &mut *self.palette;
+                    let BlockStateList { text, props, .. } = &mut *self.palette;
                     map.next_value_seed(PropertiesSeed { text, props })?;
                 }
             }

@@ -11,11 +11,27 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub struct NbtReadHelper<R: Read + Seek> {
     reader: R,
+    depth: u32,
 }
 
 impl<R: Read + Seek> NbtReadHelper<R> {
     pub fn new(r: R) -> Self {
-        Self { reader: r }
+        Self {
+            reader: r,
+            depth: 0,
+        }
+    }
+
+    pub fn push_depth(&mut self) -> Result<()> {
+        if self.depth >= crate::MAX_DEPTH {
+            return Err(Error::TooDeep);
+        }
+        self.depth += 1;
+        Ok(())
+    }
+
+    pub fn pop_depth(&mut self) {
+        self.depth -= 1;
     }
 }
 
@@ -49,8 +65,22 @@ impl<R: Read + Seek> NbtReadHelper<R> {
     define_get_number_be!(get_i32_be, i32);
     define_get_number_be!(get_u64_be, u64);
     define_get_number_be!(get_i64_be, i64);
-    define_get_number_be!(get_f32_be, f32);
-    define_get_number_be!(get_f64_be, f64);
+    // Vanilla's float and double tags fold -0.0 into +0.0 as they are read.
+    pub fn get_f32_be(&mut self) -> Result<f32> {
+        let mut buf = [0u8; 4];
+        self.reader
+            .read_exact(&mut buf)
+            .map_err(Error::Incomplete)?;
+        Ok(f32::from_be_bytes(buf) + 0.0)
+    }
+
+    pub fn get_f64_be(&mut self) -> Result<f64> {
+        let mut buf = [0u8; 8];
+        self.reader
+            .read_exact(&mut buf)
+            .map_err(Error::Incomplete)?;
+        Ok(f64::from_be_bytes(buf) + 0.0)
+    }
 
     /// Fills `buf` with `count` bytes, reusing its allocation.
     pub fn read_into(&mut self, buf: &mut Vec<u8>, count: usize) -> Result<()> {
@@ -88,16 +118,18 @@ pub struct Deserializer<R: Read + Seek> {
     in_list: bool,
     is_named: bool,
     scratch: Vec<u8>,
+    _binary: crate::BinaryReadGuard,
 }
 
 impl<R: Read + Seek> Deserializer<R> {
     pub fn new(input: R, is_named: bool) -> Self {
         Deserializer {
-            input: NbtReadHelper { reader: input },
+            input: NbtReadHelper::new(input),
             tag_to_deserialize_stack: None,
             in_list: false,
             is_named,
             scratch: Vec::new(),
+            _binary: crate::BinaryReadGuard::new(),
         }
     }
 
@@ -108,6 +140,36 @@ impl<R: Read + Seek> Deserializer<R> {
         let len = self.input.get_u16_be()? as usize;
         self.input.read_into(&mut self.scratch, len)?;
         cesu8::from_java_cesu8(&self.scratch).map_err(|_| Error::Cesu8DecodingError)
+    }
+
+    /// A named (file) root must be a compound; a network root may be any tag
+    /// but TAG_End.
+    fn read_root(&mut self) -> Result<()> {
+        if self.tag_to_deserialize_stack.is_some() {
+            return Ok(());
+        }
+        let tag = self.input.get_u8_be()?;
+        if tag == END_ID {
+            return Err(Error::EndRoot);
+        }
+        if self.is_named {
+            if tag != COMPOUND_ID {
+                return Err(Error::NoRootCompound(tag));
+            }
+            let length = self.input.get_u16_be()? as i64;
+            self.input.skip_bytes(length)?;
+        }
+        self.tag_to_deserialize_stack = Some(tag);
+        Ok(())
+    }
+}
+
+impl<R: Read + Seek> Deserializer<R> {
+    fn visit_compound<'de, V: Visitor<'de>>(&mut self, visitor: V) -> Result<V::Value> {
+        self.input.push_depth()?;
+        let result = visitor.visit_map(CompoundAccess { de: self });
+        self.input.pop_depth();
+        result
     }
 }
 
@@ -140,12 +202,30 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
 
     forward_to_deserialize_any! {
         char str string unit unit_struct seq tuple tuple_struct
-        newtype_struct
+    }
+
+    fn deserialize_newtype_struct<V: Visitor<'de>>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value> {
+        if name != NBT_ARRAY_TAG {
+            return visitor.visit_newtype_struct(self);
+        }
+        self.read_root()?;
+        let variant = match self.tag_to_deserialize_stack {
+            Some(BYTE_ARRAY_ID) => NBT_BYTE_ARRAY_TAG,
+            Some(INT_ARRAY_ID) => NBT_INT_ARRAY_TAG,
+            Some(LONG_ARRAY_ID) => NBT_LONG_ARRAY_TAG,
+            _ => return self.deserialize_any(visitor),
+        };
+        visitor.visit_enum(ArrayAccess { de: self, variant })
     }
 
     // The whole payload goes to the visitor in one piece; read element-wise it
     // costs a visitor round trip each. A plain list still falls through to `any`.
     fn deserialize_bytes<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        self.read_root()?;
         let width = match self.tag_to_deserialize_stack {
             Some(BYTE_ARRAY_ID) => 1,
             Some(INT_ARRAY_ID) => 4,
@@ -179,21 +259,15 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     define_in_list_number!(deserialize_f64, DOUBLE_ID, get_f64_be, visit_f64);
 
     fn deserialize_ignored_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        let Some(tag) = self.tag_to_deserialize_stack else {
-            return Err(Error::SerdeError("Ignoring nothing!".to_string()));
-        };
-
+        self.read_root()?;
+        let tag = self.tag_to_deserialize_stack.unwrap();
         NbtTag::skip_data(&mut self.input, tag)?;
         visitor.visit_unit()
     }
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        // The root of a document is a compound and nothing else, so a value
-        // whose shape is only known from what it holds — an internally tagged
-        // enum, say — reads the root as the map it is.
-        let Some(tag_to_deserialize) = self.tag_to_deserialize_stack else {
-            return self.deserialize_map(visitor);
-        };
+        self.read_root()?;
+        let tag_to_deserialize = self.tag_to_deserialize_stack.unwrap();
 
         match tag_to_deserialize {
             END_ID => Err(Error::SerdeError(
@@ -213,14 +287,16 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
                     return Err(Error::NegativeLength(remaining_values));
                 }
 
+                self.input.push_depth()?;
                 let result = visitor.visit_seq(ListAccess {
                     de: self,
                     list_type,
                     remaining_values: remaining_values as usize,
-                })?;
-                Ok(result)
+                });
+                self.input.pop_depth();
+                result
             }
-            COMPOUND_ID => visitor.visit_map(CompoundAccess { de: self }),
+            COMPOUND_ID => self.visit_compound(visitor),
             STRING_ID => {
                 let value = self.read_str()?;
                 visitor.visit_str(&value)
@@ -269,14 +345,11 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
         ))
     }
 
+    /// `NbtOps.getBooleanValue`: any numeric tag, true when non-zero.
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        if self.tag_to_deserialize_stack.unwrap() == BYTE_ID {
-            let value = self.input.get_u8_be()?;
-            if value != 0 {
-                return visitor.visit_bool(true);
-            }
-        }
-        visitor.visit_bool(false)
+        self.read_root()?;
+        let tag = self.tag_to_deserialize_stack.unwrap();
+        NbtTag::deserialize_data(&mut self.input, tag)?.deserialize_bool(visitor)
     }
 
     fn deserialize_enum<V: Visitor<'de>>(
@@ -285,6 +358,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value> {
+        self.read_root()?;
         let variant = get_nbt_string(&mut self.input)?;
         visitor.visit_enum(variant.into_deserializer())
     }
@@ -295,26 +369,15 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     }
 
     fn deserialize_map<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        if let Some(tag_id) = self.tag_to_deserialize_stack {
-            if tag_id != COMPOUND_ID {
-                return Err(Error::SerdeError(format!(
-                    "Trying to deserialize a map without a compound ID (id {tag_id})"
-                )));
-            }
-        } else {
-            let next_byte = self.input.get_u8_be()?;
-            if next_byte != COMPOUND_ID {
-                return Err(Error::NoRootCompound(next_byte));
-            }
-
-            if self.is_named {
-                let length = self.input.get_u16_be()? as i64;
-                self.input.skip_bytes(length)?;
-            }
+        self.read_root()?;
+        let tag_id = self.tag_to_deserialize_stack.unwrap();
+        if tag_id != COMPOUND_ID {
+            return Err(Error::SerdeError(format!(
+                "Trying to deserialize a map without a compound ID (id {tag_id})"
+            )));
         }
 
-        let value = visitor.visit_map(CompoundAccess { de: self })?;
-        Ok(value)
+        self.visit_compound(visitor)
     }
 
     fn deserialize_struct<V: Visitor<'de>>(
@@ -327,6 +390,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     }
 
     fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        self.read_root()?;
         let name = self.read_str()?;
         visitor.visit_str(&name)
     }
@@ -356,6 +420,47 @@ impl<'de, R: Read + Seek> MapAccess<'de> for CompoundAccess<'_, R> {
 
     fn next_value_seed<V: DeserializeSeed<'de>>(&mut self, seed: V) -> Result<V::Value> {
         seed.deserialize(&mut *self.de)
+    }
+}
+
+struct ArrayAccess<'a, R: Read + Seek> {
+    de: &'a mut Deserializer<R>,
+    variant: &'static str,
+}
+
+impl<'de, 'a, R: Read + Seek> de::EnumAccess<'de> for ArrayAccess<'a, R> {
+    type Error = Error;
+    type Variant = Self;
+
+    fn variant_seed<V: DeserializeSeed<'de>>(self, seed: V) -> Result<(V::Value, Self)> {
+        let variant = seed.deserialize(self.variant.into_deserializer())?;
+        Ok((variant, self))
+    }
+}
+
+impl<'de, R: Read + Seek> de::VariantAccess<'de> for ArrayAccess<'_, R> {
+    type Error = Error;
+
+    fn unit_variant(self) -> Result<()> {
+        Err(Error::UnsupportedType("array as unit variant".to_string()))
+    }
+
+    fn newtype_variant_seed<T: DeserializeSeed<'de>>(self, seed: T) -> Result<T::Value> {
+        seed.deserialize(&mut *self.de)
+    }
+
+    fn tuple_variant<V: Visitor<'de>>(self, _len: usize, _visitor: V) -> Result<V::Value> {
+        Err(Error::UnsupportedType("array as tuple variant".to_string()))
+    }
+
+    fn struct_variant<V: Visitor<'de>>(
+        self,
+        _fields: &'static [&'static str],
+        _visitor: V,
+    ) -> Result<V::Value> {
+        Err(Error::UnsupportedType(
+            "array as struct variant".to_string(),
+        ))
     }
 }
 

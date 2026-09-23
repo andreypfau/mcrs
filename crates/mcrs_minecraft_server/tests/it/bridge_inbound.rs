@@ -10,21 +10,18 @@ use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
+use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
-use mcrs_minecraft_network::{InGameConnectionState, ReceivedPacket, ServerSideConnection};
+use mcrs_minecraft_network::metrics::BridgeTelemetry;
+use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_server::world::bridge::bridge_inbound;
 use mcrs_minecraft_server::world::bridge_queue::{
     INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_TICKS, InboundRateBucket, OutboundQueue,
 };
 use mcrs_minecraft_server::world::bus::{InboundPlayerPacket, OutboundPlayerPacket};
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
-use mcrs_minecraft_server::world::player_index::{
-    HostAnchorRef, PendingInboundBuffer, PlayerIndex,
-};
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle};
 
-use std::sync::atomic::Ordering;
 use std::time::Instant;
 use tokio::sync::mpsc;
 
@@ -36,15 +33,13 @@ fn build_inbound_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<Messages<InboundPlayerPacket>>();
-    world.init_resource::<PlayerIndex>();
-    world.init_resource::<SessionRegistry>();
     world.init_resource::<PlayerSessionCounter>();
-    world.init_resource::<PendingInboundBuffer>();
     world.init_resource::<DimChannelsResource>();
+    world.init_resource::<BridgeTelemetry>();
     world
 }
 
-/// Spawn a connection entity with InGameConnectionState + InboundRateBucket +
+/// Spawn a connection entity in the game state with InboundRateBucket +
 /// OutboundQueue and a mock RawConnection that we can inject packets into.
 ///
 /// Returns `(socket_entity, inbound_tx)`. Send `ReceivedPacket` values into
@@ -54,7 +49,7 @@ fn spawn_ingame_connection(world: &mut World) -> (Entity, mpsc::Sender<ReceivedP
     let entity = world
         .spawn((
             ServerSideConnection { raw: Box::new(raw) },
-            InGameConnectionState,
+            ConnectionState::Game,
             InboundRateBucket::new(),
             OutboundQueue::default(),
         ))
@@ -62,30 +57,20 @@ fn spawn_ingame_connection(world: &mut World) -> (Entity, mpsc::Sender<ReceivedP
     (entity, inbound_tx)
 }
 
-/// Register a player in SessionRegistry with the given socket, dim, and
-/// in_dim_entity.
-fn register_player(
-    world: &mut World,
-    player: Entity,
-    socket: Entity,
-    dim: Entity,
-    in_dim_entity: Option<Entity>,
-) {
-    if !world.contains_resource::<PlayerSessionCounter>() {
-        world.init_resource::<PlayerSessionCounter>();
-    }
+/// Log a player in, attached to `dim` or, without an in-dim entity yet, still
+/// joining it. Returns the host anchor carrying the session.
+fn register_player(world: &mut World, dim: Entity, in_dim_entity: Option<Entity>) -> Entity {
     let session = world.resource_mut::<PlayerSessionCounter>().next();
-    world.resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: socket,
-            host_anchor: player,
-            dim,
-            previous_dim: None,
-            in_dim_entity,
-            epoch: 0,
-        },
-    );
+    let place = match in_dim_entity {
+        Some(_) => Place::InDim(dim),
+        None => Place::Joining(dim),
+    };
+    world
+        .spawn(SessionBundle::placed(
+            session,
+            SessionPlacement::new(place, 0),
+        ))
+        .id()
 }
 
 /// Attach a `HostAnchorRef` to the given socket entity pointing at `player`.
@@ -141,16 +126,14 @@ fn bridge_inbound_emits_received_packet_event() {
 
     let dim_a = Entity::from_raw_u32(10).expect("nonzero");
     let dim_b = Entity::from_raw_u32(11).expect("nonzero");
-    let player_a = Entity::from_raw_u32(20).expect("nonzero");
-    let player_b = Entity::from_raw_u32(21).expect("nonzero");
     let in_dim_a = Entity::from_raw_u32(30).expect("nonzero");
     let in_dim_b = Entity::from_raw_u32(31).expect("nonzero");
 
-    let (socket_a, tx_a) = spawn_ingame_connection(&mut world);
-    let (socket_b, tx_b) = spawn_ingame_connection(&mut world);
+    let (_socket_a, tx_a) = spawn_ingame_connection(&mut world);
+    let (_socket_b, tx_b) = spawn_ingame_connection(&mut world);
 
-    register_player(&mut world, player_a, socket_a, dim_a, Some(in_dim_a));
-    register_player(&mut world, player_b, socket_b, dim_b, Some(in_dim_b));
+    register_player(&mut world, dim_a, Some(in_dim_a));
+    register_player(&mut world, dim_b, Some(in_dim_b));
 
     // Inject one packet into each connection.
     tx_a.try_send(make_received_packet(1)).unwrap();
@@ -176,7 +159,7 @@ fn bridge_inbound_emits_received_packet_event() {
 // inbound_pending. It emits ReceivedPacketEvent unconditionally (rate-
 // permitting). Buffering for mid-transit players is handled by the consumer
 // observer (e.g. keepalive / movement). This test verifies the event fires
-// even when in_dim_entity is None.
+// while the player is still joining its dimension.
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -191,11 +174,10 @@ fn bridge_inbound_emits_event_regardless_of_transit_state() {
     );
 
     let dim = Entity::from_raw_u32(10).expect("nonzero");
-    let player = Entity::from_raw_u32(20).expect("nonzero");
 
-    let (socket, tx) = spawn_ingame_connection(&mut world);
-    // in_dim_entity = None → player is mid-transit
-    register_player(&mut world, player, socket, dim, None);
+    let (_socket, tx) = spawn_ingame_connection(&mut world);
+    // No in-dim entity yet → player is still joining
+    register_player(&mut world, dim, None);
 
     tx.try_send(make_received_packet(42)).unwrap();
 
@@ -216,25 +198,20 @@ fn bridge_inbound_emits_event_regardless_of_transit_state() {
 
 /// Sustained packet flood exceeding INBOUND_BUCKET_CAP for
 /// INBOUND_KICK_OVERFLOW_TICKS kicks the connection (ServerSideConnection
-/// removed) and increments BRIDGE_KICK_FLOOD_TOTAL.
+/// removed) and increments kick_flood_total.
 /// Packets received within the budget are NOT dropped.
 #[test]
 fn inbound_rate_kick() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_inbound_world();
 
     let dim = Entity::from_raw_u32(10).expect("nonzero");
-    let player = Entity::from_raw_u32(20).expect("nonzero");
     let in_dim = Entity::from_raw_u32(30).expect("nonzero");
 
     let (socket, tx) = spawn_ingame_connection(&mut world);
-    register_player(&mut world, player, socket, dim, Some(in_dim));
+    let player = register_player(&mut world, dim, Some(in_dim));
     attach_anchor(&mut world, socket, player);
 
-    let before = BRIDGE_KICK_FLOOD_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().kick_flood_total;
 
     // Run enough ticks flooding packets to trigger the kick.
     // Each tick sends INBOUND_BUCKET_CAP + 1 packets to ensure bucket empties.
@@ -248,10 +225,10 @@ fn inbound_rate_kick() {
         run_inbound(&mut world);
     }
 
-    let after = BRIDGE_KICK_FLOOD_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().kick_flood_total;
     assert!(
         after > before,
-        "BRIDGE_KICK_FLOOD_TOTAL must increment on flood kick"
+        "kick_flood_total must increment on flood kick"
     );
     assert!(
         world.get::<ServerSideConnection>(socket).is_none(),
@@ -314,48 +291,27 @@ fn no_unattached_outbound_queue_after_fixed_preupdate() {
 // disconnect_clears_pending
 // ---------------------------------------------------------------------------
 
-/// After `process_disconnect` runs, the `SessionRegistry` entry is removed
+/// After `process_disconnect` runs, the session's host anchor is despawned
 /// and `OutboundQueue` is removed from the socket entity. Neither leaks past
 /// the disconnect tick.
 #[test]
 fn disconnect_clears_pending() {
-    use mcrs_minecraft_server::disconnect::process_disconnect;
+    use mcrs_minecraft_server::disconnect::{LeavingSessions, process_disconnect};
 
     let mut world = World::new();
-    world.init_resource::<PlayerIndex>();
-    world.init_resource::<SessionRegistry>();
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimChannelsResource>();
 
     let dim = Entity::from_raw_u32(10).expect("nonzero");
-    let player = Entity::from_raw_u32(20).expect("nonzero");
     let in_dim = Entity::from_raw_u32(30).expect("nonzero");
 
     let (socket, _tx) = spawn_ingame_connection(&mut world);
+    let player = register_player(&mut world, dim, Some(in_dim));
+    attach_anchor(&mut world, socket, player);
 
-    // Register the player in SessionRegistry.
-    {
-        let session = world.resource_mut::<PlayerSessionCounter>().next();
-        world.resource_mut::<SessionRegistry>().insert(
-            session,
-            SessionEntry {
-                connection_entity: socket,
-                host_anchor: player,
-                dim,
-                previous_dim: None,
-                in_dim_entity: Some(in_dim),
-                epoch: 0,
-            },
-        );
-    }
-
-    // Verify SessionRegistry entry exists before disconnect.
     assert!(
-        world
-            .resource::<SessionRegistry>()
-            .get_by_anchor(&player)
-            .is_some(),
-        "SessionRegistry entry should exist before disconnect"
+        world.get::<Session>(player).is_some(),
+        "session should exist before disconnect"
     );
 
     // Verify OutboundQueue exists on socket.
@@ -368,28 +324,22 @@ fn disconnect_clears_pending() {
     world
         .run_system_once(
             move |mut commands: bevy_ecs::prelude::Commands,
-                  mut player_index: bevy_ecs::system::ResMut<PlayerIndex>,
-                  mut session_registry: bevy_ecs::system::ResMut<SessionRegistry>,
-                  dim_channels: bevy_ecs::system::ResMut<DimChannelsResource>| {
+                  mut sessions: LeavingSessions,
+                  dim_channels: bevy_ecs::system::Res<DimChannelsResource>| {
                 process_disconnect(
                     player,
-                    &mut player_index,
-                    &mut session_registry,
+                    &mut sessions,
                     &dim_channels,
-                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },
         )
         .expect("process_disconnect system ran");
 
-    // SessionRegistry entry is gone.
     assert!(
-        world
-            .resource::<SessionRegistry>()
-            .get_by_anchor(&player)
-            .is_none(),
-        "SessionRegistry entry must be removed after disconnect"
+        world.get_entity(player).is_err(),
+        "the session must be gone after disconnect"
     );
 
     // OutboundQueue must be removed from the socket entity.

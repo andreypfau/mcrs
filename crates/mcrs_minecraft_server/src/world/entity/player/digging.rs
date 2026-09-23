@@ -1,11 +1,11 @@
 use crate::world::entity::attribute::Attribute;
+use crate::world::entity::item::BlockDrop;
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency};
 use crate::world::entity::player::player_action::{
     PlayerAction, PlayerActionKind, PlayerWillDestroyBlock,
 };
-use crate::world::experience::BlockDestroyed;
-use crate::world::inventory::PlayerHotbarSlots;
+use crate::world::item::StackSet;
 use crate::world::loot::BlockLootTables;
 use crate::world::loot::context::BlockBreakContext;
 use bevy_app::{FixedUpdate, Plugin, Update};
@@ -13,24 +13,27 @@ use bevy_asset::AssetServer;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
-use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
-use mcrs_minecraft_block::palette::ChunkBlocks;
-use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_minecraft_world::item::component::Enchantments;
-use mcrs_minecraft_world::item::component::Tool;
-use mcrs_minecraft_world::item::{Item, ItemStack};
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::player::reposition::Reposition;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::world::dimension::{DimensionPlayers, InDimension};
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::LocalPos;
+use mcrs_minecraft_item::tool::{is_correct_for_drops, mining_speed};
+use mcrs_minecraft_item::{ItemStack, Items, SelectedHotbarSlot, SlotTable};
+use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::reposition::Reposition;
+use mcrs_minecraft_level::experience::BlockDestroyed;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::world::dimension::{DimensionPlayers, InDimension};
+use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_protocol::item::{Enchantments, Tool};
+use mcrs_minecraft_registry::BlockStateId;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_minecraft_world::block::Block as VanillaBlock;
-use mcrs_minecraft_world::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
+use crate::world::inventory::held_stack;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_block::Block as VanillaBlock;
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use std::time::Duration;
 use tracing::{debug, trace};
 
@@ -38,7 +41,12 @@ pub struct DiggingPlugin;
 
 impl Plugin for DiggingPlugin {
     fn build(&self, app: &mut bevy_app::App) {
-        app.add_systems(FixedUpdate, tick_digging);
+        app.add_systems(
+            FixedUpdate,
+            tick_digging
+                .in_set(StackSet::Mutate)
+                .before(crate::world::entity::item::spawn_block_drops),
+        );
         app.add_systems(
             Update,
             (
@@ -84,7 +92,7 @@ fn tick_digging(
             let Some(chunk) = chunks.get(digging.chunk).ok() else {
                 return;
             };
-            let block_state = BlockStateId::from(chunk.get(digging.block_pos));
+            let block_state = BlockStateId::from(chunk.get(LocalPos::from(digging.block_pos)));
             if block_state == digging.block_state {
                 let progress = digging.progress(time.elapsed());
                 let stage = (progress * 10.0).floor() as i8;
@@ -117,7 +125,7 @@ fn tick_digging(
 
 fn player_start_destroy_block(
     mut reader: MessageReader<PlayerAction>,
-    dimensions: Query<&ChunkIndex>,
+    dimensions: Query<&SectionIndex>,
     chunks: Query<&ChunkBlocks>,
     mut players: Query<(
         &InDimension,
@@ -126,9 +134,11 @@ fn player_start_destroy_block(
         Has<InstantBuild>,
         &MiningEfficiency,
         &BlockBreakSpeed,
-        &PlayerHotbarSlots,
+        &SlotTable,
+        &SelectedHotbarSlot,
     )>,
-    items: Query<(&ItemStack, Option<&Tool>)>,
+    tools: Query<(&ItemStack, Option<&Tool>)>,
+    items: Res<Items>,
     tag_registry: Res<DynTagRegistry<VanillaBlock>>,
     blocks: Res<Blocks>,
     time: Res<Time<Fixed>>,
@@ -137,7 +147,7 @@ fn player_start_destroy_block(
 ) {
     reader.read().for_each(|event| {
         let player = event.player;
-        let (dim, _pos, rep, _instant_build, mining_efficiency, block_break_speed, hotbar) =
+        let (dim, _pos, rep, _instant_build, mining_efficiency, block_break_speed, table, selected) =
             match players.get_mut(player) {
                 Ok(value) => value,
                 Err(_) => return,
@@ -161,7 +171,7 @@ fn player_start_destroy_block(
             return;
         };
 
-        let block_state = BlockStateId::from(block_states.get(block_pos));
+        let block_state = BlockStateId::from(block_states.get(LocalPos::from(block_pos)));
         if blocks
             .state(block_state)
             .flags
@@ -175,7 +185,8 @@ fn player_start_destroy_block(
             damage = get_destroy_speed(
                 block_state,
                 &blocks,
-                hotbar,
+                held_stack(table, selected),
+                &tools,
                 &items,
                 mining_efficiency,
                 block_break_speed,
@@ -307,8 +318,9 @@ impl SendDestroyBlockProgress<'_, '_> {
 fn get_destroy_speed(
     state: BlockStateId,
     blocks: &BlockDefinitions,
-    hotbar: &PlayerHotbarSlots,
-    items: &Query<(&ItemStack, Option<&Tool>)>,
+    held: Option<Entity>,
+    tools: &Query<(&ItemStack, Option<&Tool>)>,
+    items: &Items,
     mining_efficiency: &MiningEfficiency,
     block_break_speed: &BlockBreakSpeed,
     tag_registry: &DynTagRegistry<VanillaBlock>,
@@ -318,7 +330,7 @@ fn get_destroy_speed(
         return 0.0;
     }
     let (has_correct_tool, mut speed) =
-        extract_tool_data(state, blocks, hotbar, items, tag_registry);
+        extract_tool_data(state, blocks, held, tools, items, tag_registry);
     if speed > 1.0 {
         speed += mining_efficiency.value();
     }
@@ -330,8 +342,9 @@ fn get_destroy_speed(
 pub fn extract_tool_data(
     state: BlockStateId,
     blocks: &BlockDefinitions,
-    hotbar: &PlayerHotbarSlots,
-    items: &Query<(&ItemStack, Option<&Tool>)>,
+    held: Option<Entity>,
+    tools: &Query<(&ItemStack, Option<&Tool>)>,
+    items: &Items,
     tag_registry: &DynTagRegistry<VanillaBlock>,
 ) -> (bool, f32) {
     let block = blocks.owner(state).identifier.as_str();
@@ -339,29 +352,30 @@ pub fn extract_tool_data(
         .state(state)
         .flags
         .contains(BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS);
-    let Some(slot) = hotbar.get_selected_slot() else {
+    let Some(slot) = held else {
         debug!(block, "no selected slot");
         return (!requires_correct_tool, 1.0);
     };
-    let Ok((stack, tool)) = items.get(slot) else {
+    let Ok((stack, tool)) = tools.get(slot) else {
         debug!(block, "slot entity missing ItemStack");
         return (!requires_correct_tool, 1.0);
     };
-    let item_id = stack.item_id();
-    let item: &Item = item_id.as_ref();
-    let Some(tool) = tool.or(item.components.tool.as_ref()) else {
-        debug!(block, item = %item.identifier, "no tool component");
+    let item = items
+        .get(stack.item)
+        .map_or("?", |entry| entry.identifier.as_str());
+    let Some(tool) = tool else {
+        debug!(block, item, "no tool component");
         return (!requires_correct_tool, 1.0);
     };
     let has_correct_tool = if requires_correct_tool {
-        tool.is_correct_block_for_drops(block, blocks, tag_registry)
+        is_correct_for_drops(tool, block, blocks, tag_registry)
     } else {
         true
     };
-    let speed = tool.get_mining_speed(block, blocks, tag_registry);
+    let speed = mining_speed(tool, block, blocks, tag_registry);
     debug!(
         block,
-        item = %item.identifier,
+        item,
         requires_correct_tool,
         has_correct_tool,
         speed,
@@ -375,60 +389,51 @@ fn handle_player_will_destroy_block(
     mut reader: MessageReader<PlayerWillDestroyBlock>,
     mut writer: MessageWriter<BlockSetRequest>,
     mut destroyed: MessageWriter<BlockDestroyed>,
-    players: Query<(&InDimension, &PlayerHotbarSlots)>,
-    items: Query<(&ItemStack, Option<&Enchantments>, Option<&Tool>)>,
+    players: Query<(&InDimension, &SlotTable, &SelectedHotbarSlot)>,
+    tools: Query<(Option<&Tool>, Option<&Enchantments>), With<ItemStack>>,
     tag_registry: Res<DynTagRegistry<VanillaBlock>>,
     blocks: Res<Blocks>,
     mut loot_tables: ResMut<BlockLootTables>,
     asset_server: Res<AssetServer>,
+    mut drops: MessageWriter<BlockDrop>,
 ) {
     reader.read().for_each(|event| {
         // TODO: spawn destroy particles
         // TODO: anger piglin if block is guarded by piglins
-        let Ok((dim, hotbar)) = players.get(event.player) else {
+        let Ok((dim, table, selected)) = players.get(event.player) else {
             return;
         };
 
         let state = blocks.state(event.block_state);
         let block_id = blocks.owner(event.block_state).identifier.as_str();
-        let held = hotbar.get_selected_slot();
+        let held = held_stack(table, selected);
+        let held_tool = held.and_then(|slot| tools.get(slot).ok());
 
         let has_correct_tool = if state
             .flags
             .contains(BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS)
         {
-            held.and_then(|slot| items.get(slot).ok())
-                .and_then(|(stack, _, tool)| {
-                    tool.or_else(|| {
-                        AsRef::<Item>::as_ref(&stack.item_id())
-                            .components
-                            .tool
-                            .as_ref()
-                    })
-                })
-                .is_some_and(|tool| {
-                    tool.is_correct_block_for_drops(block_id, &blocks, &tag_registry)
-                })
+            held_tool
+                .and_then(|(tool, _)| tool)
+                .is_some_and(|tool| is_correct_for_drops(tool, block_id, &blocks, &tag_registry))
         } else {
             true
         };
 
         if has_correct_tool {
-            let tool_enchantments = held
-                .and_then(|slot| items.get(slot).ok())
-                .and_then(|(_, enchantments, _)| enchantments);
+            let tool_enchantments = held_tool.and_then(|(_, enchantments)| enchantments);
 
             if let Some(loot) = state.loot {
                 match loot_tables.tables.get(&loot) {
                     Some(table) => {
                         let ctx = BlockBreakContext { tool_enchantments };
                         for drop in table.evaluate(&ctx) {
-                            debug!(
-                                block = %block_id,
-                                item = %drop.item_name,
-                                count = drop.count,
-                                "loot drop"
-                            );
+                            drops.write(BlockDrop {
+                                dim: dim.entity(),
+                                pos: event.block_pos,
+                                item: drop.item_name,
+                                count: drop.count,
+                            });
                         }
                     }
                     None => {

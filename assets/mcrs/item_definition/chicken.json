@@ -1,0 +1,45 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:item": {
+    "description": {
+      "identifier": "minecraft:chicken",
+      "protocol_id": 1262
+    },
+    "components": {
+      "minecraft:lore": [],
+      "minecraft:item_name": {
+        "translate": "item.minecraft.chicken"
+      },
+      "minecraft:attribute_modifiers": [],
+      "minecraft:tooltip_display": {},
+      "minecraft:attack_animation": {},
+      "minecraft:rarity": "common",
+      "minecraft:enchantments": {},
+      "minecraft:repair_cost": 0,
+      "minecraft:max_stack_size": 64,
+      "minecraft:use_effects": {},
+      "minecraft:item_model": "minecraft:chicken",
+      "minecraft:interact_animation": {},
+      "minecraft:break_sound": "minecraft:entity.item.break",
+      "minecraft:food": {
+        "nutrition": 2,
+        "saturation": 1.2
+      },
+      "minecraft:consumable": {
+        "on_consume_effects": [
+          {
+            "effects": [
+              {
+                "id": "minecraft:hunger",
+                "duration": 600,
+                "show_icon": true
+              }
+            ],
+            "probability": 0.3,
+            "type": "minecraft:apply_effects"
+          }
+        ]
+      }
+    }
+  }
+}

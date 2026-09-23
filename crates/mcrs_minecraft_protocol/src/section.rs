@@ -1,6 +1,8 @@
-use crate::{BlockStateId, VarInt};
+use crate::VarInt;
 use anyhow::Context;
-use mcrs_voxel_storage::{SectionKind, ceillog2};
+use mcrs_minecraft_chunk::{SectionKind, VoxelId, ceillog2};
+
+pub use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 
 /// Which of the palette configurations a container of a given size lands in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,11 +63,11 @@ pub trait SectionValue: Copy + Into<VarInt> {
     fn from_registry_id(id: i32) -> anyhow::Result<Self>;
 }
 
-impl SectionValue for BlockStateId {
+impl SectionValue for VoxelId {
     type Section = Blocks;
 
     fn from_registry_id(id: i32) -> anyhow::Result<Self> {
-        Ok(BlockStateId(
+        Ok(VoxelId(
             u16::try_from(id).with_context(|| format!("block state id {id}"))?,
         ))
     }
@@ -77,22 +79,6 @@ impl SectionValue for u8 {
     fn from_registry_id(id: i32) -> anyhow::Result<Self> {
         u8::try_from(id).with_context(|| format!("biome id {id}"))
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Blocks;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Biomes;
-
-impl SectionKind for Blocks {
-    const AXIS_BITS: u32 = 4;
-    const MIN_INDIRECT_BITS: u32 = 4;
-}
-
-impl SectionKind for Biomes {
-    const AXIS_BITS: u32 = 2;
-    const MIN_INDIRECT_BITS: u32 = 1;
 }
 
 impl NetworkSectionKind for Blocks {

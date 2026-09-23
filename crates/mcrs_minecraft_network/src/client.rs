@@ -7,11 +7,11 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, On, Query};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use log::{error, info, warn};
-use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::serverbound::{ClientInformation, KeepAlive};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
@@ -39,11 +39,13 @@ use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Look, PROTOCOL_VERSION, Packet, VarInt,
     WritePacket, uuid::Uuid,
 };
+use mcrs_minecraft_registry::{LookupIndex, RegistryLookup};
 use md5::{Digest, Md5};
 use std::net::SocketAddr;
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{Receiver, channel};
+use tracing::{error, info, warn};
 
 /// The browser has no TCP and the native client has no WebTransport, so what
 /// "the server" is differs by target; everything downstream of the byte stream
@@ -53,9 +55,16 @@ pub type ServerAddress = SocketAddr;
 #[cfg(target_family = "wasm")]
 pub type ServerAddress = crate::browser::WebTransportTarget;
 
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ClientNetworkSystems {
+    Receive,
+    Flush,
+}
+
 pub struct ClientNetworkPlugin {
     pub server: ServerAddress,
     pub username: String,
+    pub profile_id: Option<Uuid>,
     pub view_distance: u8,
 }
 
@@ -74,7 +83,7 @@ pub struct ServerProfile {
 #[derive(Clone, Debug)]
 pub struct RegistryEntry {
     pub id: String,
-    pub data: Option<NbtCompound>,
+    pub data: Option<mcrs_minecraft_nbt::tag::NbtTag>,
 }
 
 #[derive(Clone, Debug)]
@@ -83,10 +92,36 @@ pub struct ReceivedRegistry {
     pub entries: Vec<RegistryEntry>,
 }
 
-/// Registry snapshots as the server sent them. Nothing reads these yet: which
-/// of these and the on-disk assets wins is a separate question.
+/// Registry snapshots as the server sent them, in network id order. Which of
+/// these and the on-disk assets wins for game data is a separate question;
+/// as the `RegistryLookup` for stacks they are the only authority.
 #[derive(Component, Default, Debug)]
-pub struct ReceivedRegistries(pub Vec<ReceivedRegistry>);
+pub struct ReceivedRegistries(pub Vec<ReceivedRegistry>, LookupIndex);
+
+impl ReceivedRegistries {
+    pub fn push(&mut self, registry: ReceivedRegistry) {
+        let key: Box<str> = registry
+            .registry
+            .split_once(':')
+            .map_or(registry.registry.as_str(), |(_, path)| path)
+            .into();
+        for (id, entry) in registry.entries.iter().enumerate() {
+            self.1
+                .insert(&key, id as u32, ResourceLocation::parse(&entry.id).ok());
+        }
+        self.0.push(registry);
+    }
+}
+
+impl RegistryLookup for ReceivedRegistries {
+    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+        self.1.id(registry, name)
+    }
+
+    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+        self.1.name(registry, id)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct ReceivedTagGroup {
@@ -125,10 +160,7 @@ pub struct ServerTeleport {
 pub struct PendingTeleports(pub Vec<ServerTeleport>);
 
 #[derive(Component, Clone, Copy, Debug)]
-pub struct ChunkCacheCenter {
-    pub x: i32,
-    pub z: i32,
-}
+pub struct ChunkCacheCenter(pub ColumnPos);
 
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ChunkCacheRadius(pub i32);
@@ -158,10 +190,13 @@ impl Plugin for ClientNetworkPlugin {
         let (send, recv) = channel(1);
         let server = self.server.clone();
         let username = self.username.clone();
+        let profile_id = self
+            .profile_id
+            .unwrap_or_else(|| offline_player_uuid(&username));
         let view_distance = self.view_distance;
 
         let joining = async move {
-            let outcome = connect_and_log_in(server, username)
+            let outcome = connect_and_log_in(server, username, profile_id)
                 .await
                 .map_err(|e| format!("{e:#}"));
             let _ = send.send(outcome).await;
@@ -176,19 +211,22 @@ impl Plugin for ClientNetworkPlugin {
         #[cfg(target_family = "wasm")]
         wasm_bindgen_futures::spawn_local(joining);
 
+        app.configure_sets(
+            Update,
+            (ClientNetworkSystems::Receive, ClientNetworkSystems::Flush).chain(),
+        );
         app.add_systems(
             Update,
             (
                 spawn_logged_in_connection(recv, view_distance),
                 receive_packets,
-                crate::columns::settle_columns,
-                flush,
             )
-                .chain(),
+                .chain()
+                .in_set(ClientNetworkSystems::Receive),
         );
+        app.add_systems(Update, flush.in_set(ClientNetworkSystems::Flush));
         app.add_observer(handle_configuration_packet);
         app.add_observer(handle_game_packet);
-        crate::columns::build(app);
     }
 }
 
@@ -223,11 +261,20 @@ pub fn offline_player_uuid(username: &str) -> Uuid {
 async fn connect_and_log_in(
     server: ServerAddress,
     username: String,
+    profile_id: Uuid,
 ) -> anyhow::Result<(RawConnection, ServerProfile)> {
     #[cfg(not(target_family = "wasm"))]
     {
         let io = PacketIo::connect(server).await?;
-        log_in(io, server, server.ip().to_string(), server.port(), username).await
+        log_in(
+            io,
+            server,
+            server.ip().to_string(),
+            server.port(),
+            username,
+            profile_id,
+        )
+        .await
     }
     #[cfg(target_family = "wasm")]
     {
@@ -236,7 +283,7 @@ async fn connect_and_log_in(
         let peer = SocketAddr::from(([0, 0, 0, 0], 0));
         let (host, port) = server.host_and_port();
         let io = PacketIo::new(crate::browser::connect(&server).await?);
-        log_in(io, peer, host, port, username).await
+        log_in(io, peer, host, port, username, profile_id).await
     }
 }
 
@@ -250,6 +297,7 @@ async fn log_in<S: ByteStream>(
     host: String,
     port: u16,
     username: String,
+    profile_id: Uuid,
 ) -> anyhow::Result<(RawConnection, ServerProfile)> {
     io.send_packet(&ServerboundHandshake {
         protocol_version: VarInt(PROTOCOL_VERSION),
@@ -260,7 +308,7 @@ async fn log_in<S: ByteStream>(
     .await?;
     io.send_packet(&ServerboundHello {
         username: Bounded(username.as_str()),
-        profile_id: offline_player_uuid(&username),
+        profile_id,
     })
     .await?;
 
@@ -397,7 +445,7 @@ fn handle_configuration_packet(
             known_packs: Vec::new(),
         });
     } else if let Some(data) = event.decode::<ClientboundRegistryData>() {
-        registries.0.push(ReceivedRegistry {
+        registries.push(ReceivedRegistry {
             registry: data.registry.to_string(),
             entries: data
                 .entries
@@ -483,10 +531,9 @@ fn handle_game_packet(
             look: position.look,
         });
     } else if let Some(center) = event.decode::<ClientboundSetChunkCacheCenter>() {
-        commands.entity(event.entity).insert(ChunkCacheCenter {
-            x: center.x.0,
-            z: center.z.0,
-        });
+        commands
+            .entity(event.entity)
+            .insert(ChunkCacheCenter(ColumnPos::new(center.x.0, center.z.0)));
     } else if let Some(radius) = event.decode::<ClientboundChunkCacheRadius>() {
         commands
             .entity(event.entity)
@@ -571,5 +618,37 @@ mod tests {
         drop(inbound);
         app.update();
         assert!(app.should_exit().is_none());
+    }
+}
+
+#[cfg(test)]
+mod lookup_tests {
+    use super::*;
+
+    #[test]
+    fn received_registries_resolve_names_and_network_ids() {
+        let mut registries = ReceivedRegistries::default();
+        let entry = |id: &str| RegistryEntry {
+            id: id.to_owned(),
+            data: None,
+        };
+        registries.push(ReceivedRegistry {
+            registry: "minecraft:enchantment".to_owned(),
+            entries: vec![entry("minecraft:sharpness"), entry("minecraft:unbreaking")],
+        });
+        let unbreaking = ResourceLocation::minecraft("unbreaking");
+        assert_eq!(registries.id("enchantment", &unbreaking), Some(1));
+        assert_eq!(registries.name("enchantment", 1), Some(&unbreaking));
+        assert_eq!(registries.name("enchantment", 2), None);
+        assert_eq!(registries.id("item", &unbreaking), None);
+
+        registries.push(ReceivedRegistry {
+            registry: "minecraft:damage_type".to_owned(),
+            entries: vec![entry("minecraft:lava")],
+        });
+        assert_eq!(
+            registries.name("damage_type", 0),
+            Some(&ResourceLocation::minecraft("lava"))
+        );
     }
 }

@@ -6,11 +6,9 @@ mod common;
 
 use std::sync::Arc;
 
-use bevy_ecs::prelude::Entity;
 use common::{AIR, BOTTOM_SLAB, GLASS, LEAVES, Reference, STONE, TOP_SLAB, filled, registry};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
 
 const SECTIONS_Y: i32 = 5;
 
@@ -43,8 +41,8 @@ fn load(world: &mut LightWorld, sections: &[SectionBlocks]) {
         .iter()
         .enumerate()
         .map(|(y, blocks)| Edit::LoadSection {
-            entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(0, y as i32, 0),
+            entity: 0,
+            pos: SectionPos::new(0, y as i32, 0),
             blocks: Arc::new(blocks.clone()),
         })
         .collect();
@@ -55,8 +53,8 @@ fn load(world: &mut LightWorld, sections: &[SectionBlocks]) {
 /// server's `SurfaceHeightmap` holds.
 fn surface_of(sections: &[SectionBlocks]) -> Arc<ColumnSurface> {
     let mut surface = ColumnSurface::new((SECTIONS_Y * 16) as u32, 0);
-    for z in 0..BLOCKS::SIZE {
-        for x in 0..BLOCKS::SIZE {
+    for z in 0..SectionPos::SIZE {
+        for x in 0..SectionPos::SIZE {
             let mut top = 0;
             for y in (0..SECTIONS_Y * 16).rev() {
                 let blocks = &sections[(y / 16) as usize];
@@ -72,11 +70,11 @@ fn surface_of(sections: &[SectionBlocks]) -> Arc<ColumnSurface> {
 }
 
 fn floors(world: &LightWorld) -> Vec<i32> {
-    (0..BLOCKS::AREA)
+    (0..SectionPos::AREA)
         .map(|cell| {
             world.sky_floor(BlockColumn {
-                x: (cell & BLOCKS::MASK) as i32,
-                z: (cell >> BLOCKS::BITS) as i32,
+                x: (cell & SectionPos::MASK) as i32,
+                z: (cell >> SectionPos::BITS) as i32,
             })
         })
         .collect()
@@ -106,8 +104,8 @@ fn a_surface_bound_never_changes_a_sky_floor() {
     }]);
     // The bound only takes effect on the next scan of the column.
     bounded.update_now(vec![Edit::LoadSection {
-        entity: Entity::PLACEHOLDER,
-        pos: ChunkPos::new(0, 4, 0),
+        entity: 0,
+        pos: SectionPos::new(0, 4, 0),
         blocks: Arc::new(sections[4].clone()),
     }]);
     bounded.update_now(vec![Edit::SetColumnSurface {
@@ -172,8 +170,8 @@ fn a_section_arriving_drops_the_bound() {
         ceiling.set_cell(i as usize, 9 as usize, i as usize, STONE);
     }
     let replacement = Edit::LoadSection {
-        entity: Entity::PLACEHOLDER,
-        pos: ChunkPos::new(0, 3, 0),
+        entity: 0,
+        pos: SectionPos::new(0, 3, 0),
         blocks: Arc::new(ceiling.clone()),
     };
     bounded.update_now(vec![replacement.clone()]);

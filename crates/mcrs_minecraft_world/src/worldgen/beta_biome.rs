@@ -1,7 +1,7 @@
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetApp;
 
-use crate::biome::{Biome, BiomeLoader};
+use mcrs_minecraft_biome::{Biome, BiomeLoader};
 
 pub struct BetaBiomeSourcePlugin;
 

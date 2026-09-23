@@ -6,7 +6,7 @@
 
 use rayon::prelude::*;
 
-use mcrs_voxel_math::Direction;
+use mcrs_minecraft_core::Direction;
 
 use crate::block::LightRegistry;
 use crate::field::{BlockSnapshot, CellIndex, LightField};

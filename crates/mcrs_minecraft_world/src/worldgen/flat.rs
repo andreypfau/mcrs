@@ -3,9 +3,8 @@ use std::sync::Arc;
 use bevy_asset::{Handle, LoadContext, UntypedAssetId};
 use serde::Deserialize;
 
-use super::structure_set::StructureSet;
 use crate::ResourceLocation;
-use crate::biome::Biome;
+use mcrs_minecraft_biome::Biome;
 
 // ===========================================================================
 // Runtime types
@@ -28,15 +27,12 @@ pub struct FlatLevelGeneratorSettings {
     pub features: bool,
     pub lakes: bool,
     pub layers: Vec<FlatLayerInfo>,
-    pub structure_overrides: Vec<Handle<StructureSet>>,
+    pub structure_overrides: Vec<ResourceLocation<Arc<str>>>,
 }
 
 impl FlatLevelGeneratorSettings {
     fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
         visit(self.biome.id().untyped());
-        for s in &self.structure_overrides {
-            visit(s.id().untyped());
-        }
     }
 }
 
@@ -104,11 +100,7 @@ impl ProtoFlatLevelGeneratorSettings {
                     height: l.height,
                 })
                 .collect(),
-            structure_overrides: self
-                .structure_overrides
-                .into_iter()
-                .map(|loc| StructureSet::load(ctx, &loc))
-                .collect(),
+            structure_overrides: self.structure_overrides,
         }
     }
 }

@@ -8,15 +8,16 @@
 
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_minecraft_server::world::aoi::{ChunkSubscriptionSet, TrackedBy};
-use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_voxel_world::world::sub_app::DimAppLabel;
+use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+use mcrs_minecraft_server::world::aoi::TrackedBy;
+use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 
 use crate::host_app;
 
@@ -50,14 +51,14 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     let dim_a_label = label_entities[0];
     let dim_b_label = label_entities[1];
 
-    // Seed dim A with a player + column grid so update_own_pov has
-    // something to mirror into.
+    // Seed dim A with a player holding a column grid, so the observer mirror
+    // has something to list.
     seed_player_and_columns(
         app.sub_app_mut(DimAppLabel(dim_a_label)),
         DVec3::new(0.0, 64.0, 0.0),
     );
 
-    // Pump a few ticks. update_own_pov in dim A populates dim A's
+    // Pump a few ticks. The mirror in dim A populates dim A's
     // PlayerObservers; dim B has neither players nor populated columns,
     // so any non-empty PlayerObservers in dim B's world would be a
     // cross-dim leak.
@@ -97,7 +98,7 @@ fn seed_player_and_columns(sub_app: &mut bevy_app::SubApp, player_pos: DVec3) {
     };
 
     // Seed a 20-radius column grid around the player's position so
-    // update_own_pov has columns to mirror into.
+    // the mirror has columns to list the player on.
     let centre = ColumnPos::from(player_pos);
     let radius = 20i32;
     let positions: Vec<ColumnPos> = (-radius..=radius)
@@ -128,7 +129,7 @@ fn seed_player_and_columns(sub_app: &mut bevy_app::SubApp, player_pos: DVec3) {
         Player,
         Transform::from_translation(player_pos),
         PlayerViewDistance::default(),
-        ChunkSubscriptionSet::default(),
+        ColumnView::holding(crate::harness::columns_in_view(player_pos)),
         TrackedBy::default(),
         InDimension(dim_entity),
     ));

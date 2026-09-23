@@ -1,7 +1,6 @@
 use std::io::Write;
 use std::slice;
 
-use anyhow::ensure;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::{Decode, Encode};
@@ -21,9 +20,7 @@ impl Encode for bool {
 
 impl Decode<'_> for bool {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let n = r.read_u8()?;
-        ensure!(n <= 1, "decoded boolean byte is not 0 or 1 (got {n})");
-        Ok(n == 1)
+        Ok(r.read_u8()? != 0)
     }
 }
 
@@ -159,36 +156,24 @@ impl Decode<'_> for i128 {
 
 impl Encode for f32 {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        ensure!(
-            self.is_finite(),
-            "attempt to encode non-finite f32 ({self})"
-        );
         Ok(w.write_f32::<BigEndian>(*self)?)
     }
 }
 
 impl Decode<'_> for f32 {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let f = r.read_f32::<BigEndian>()?;
-        ensure!(f.is_finite(), "attempt to decode non-finite f32 ({f})");
-        Ok(f)
+        Ok(r.read_f32::<BigEndian>()?)
     }
 }
 
 impl Encode for f64 {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        ensure!(
-            self.is_finite(),
-            "attempt to encode non-finite f64 ({self})"
-        );
         Ok(w.write_f64::<BigEndian>(*self)?)
     }
 }
 
 impl Decode<'_> for f64 {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let f = r.read_f64::<BigEndian>()?;
-        ensure!(f.is_finite(), "attempt to decode non-finite f64 ({f})");
-        Ok(f)
+        Ok(r.read_f64::<BigEndian>()?)
     }
 }

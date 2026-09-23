@@ -4,10 +4,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, TaskPoolPlugin};
-use bevy_ecs::prelude::Entity;
+use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
+use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{ChunkPos, ColumnPos};
-use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
 
 fn filled(block: VoxelId) -> SectionBlocks {
     VoxelPalette(PalettedContainer::Homogeneous(block))
@@ -57,8 +56,8 @@ fn main() {
                     Arc::clone(&air)
                 };
                 edits.push(Edit::LoadSection {
-                    entity: Entity::PLACEHOLDER,
-                    pos: ChunkPos::new(x, y, z),
+                    entity: 0,
+                    pos: SectionPos::new(x, y, z),
                     blocks,
                 });
             }

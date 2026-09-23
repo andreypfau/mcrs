@@ -32,10 +32,10 @@ use tracing::warn;
 
 use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::world::channel_types::{DimChannelsResource, ToDim};
-use crate::world::player_index::{HostAnchorRef, PlayerIndex};
-use mcrs_voxel_server::dim::send_control_or_teardown;
-use mcrs_voxel_world::session::SessionRegistry;
-use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
+use crate::world::session::{HostAnchorRef, SessionConnection};
+use mcrs_minecraft_level::dim::send_control_or_teardown;
+use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
+use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 
 /// Per-tick cleanup budget. The initial 32 caps work at 640 disconnects/sec
 /// under a 20 TPS schedule, draining a 1000-player kick in ~1.5s without
@@ -117,6 +117,16 @@ pub struct DisconnectedThisTick {
 #[derive(Resource, Default)]
 pub struct OverflowCounter(pub u32);
 
+pub type LeavingSessions<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Session,
+        &'static mut SessionPlacement,
+        Option<&'static SessionConnection>,
+    ),
+>;
+
 /// Heartbeat cadence for the overflow-drop warning. Tunable here so a
 /// sustained storm produces at most one warning per `INTERVAL` drops
 /// (plus the always-on first-drop signal). Picked to give roughly one
@@ -133,8 +143,7 @@ pub const OVERFLOW_HEARTBEAT_INTERVAL: u32 = 256;
 pub fn on_player_disconnect(
     trigger: On<Remove, ServerSideConnection>,
     connection_refs: Query<&HostAnchorRef>,
-    mut player_index: ResMut<PlayerIndex>,
-    mut session_registry: ResMut<SessionRegistry>,
+    mut sessions: LeavingSessions,
     mut disconnect_budget: ResMut<DisconnectBudget>,
     mut pending_queue: ResMut<PendingDisconnectQueue>,
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
@@ -153,8 +162,7 @@ pub fn on_player_disconnect(
     if disconnect_budget.consume() {
         process_disconnect(
             host_anchor,
-            &mut player_index,
-            &mut session_registry,
+            &mut sessions,
             &dim_channels,
             &mut despawn_queue,
             &mut commands,
@@ -174,64 +182,64 @@ pub fn on_player_disconnect(
     }
 }
 
-/// Run a single host-anchor's cleanup: resolve the session from
-/// `SessionRegistry`, route an `InboundPlayerDespawn` into both `current_dim`
-/// and `previous_dim` (if set — handles mid-transit disconnects), remove the
-/// `SessionRegistry` entry, remove the `PlayerIndex` username entry, and
-/// despawn the host-anchor entity.
+/// Run a single host-anchor's cleanup: route the despawn into every dimension
+/// that may hold the player (both ends of a transfer) and despawn the host
+/// anchor, which takes the session with it.
 ///
-/// Despawning into a dim that never saw the entity is harmless: the dest
-/// sub-app ignores despawn messages for unknown host-anchors. The dual
-/// emit is the chosen trade-off for sub-case-1 idempotency.
+/// The session is unplaced before its anchor's despawn is applied, so a second
+/// cleanup of the same anchor routes nothing.
 pub fn process_disconnect(
     host_anchor: Entity,
-    _player_index: &mut PlayerIndex,
-    session_registry: &mut SessionRegistry,
+    sessions: &mut LeavingSessions,
     dim_channels: &DimChannelsResource,
     despawn_queue: &mut DimDespawnQueue,
     commands: &mut Commands,
 ) {
-    let (session, current_dim, previous_dim, connection_entity) =
-        match session_registry.get_by_anchor(&host_anchor) {
-            Some((s, e)) => (*s, e.dim, e.previous_dim, e.connection_entity),
-            None => return,
-        };
+    let Ok((session, mut placement, connection)) = sessions.get_mut(host_anchor) else {
+        return;
+    };
 
-    if let Some(chan) = dim_channels.get(current_dim) {
-        send_control_or_teardown(
-            &chan.control_sender,
-            current_dim,
-            ToDim::Despawn {
-                host_anchor,
-                session,
-            },
-            despawn_queue,
-        );
-    }
+    despawn_from_dims(
+        host_anchor,
+        session.0,
+        placement.place(),
+        dim_channels,
+        despawn_queue,
+    );
+    placement.set(Place::Unplaced);
 
-    if let Some(prev) = previous_dim
-        && prev != current_dim
-        && let Some(chan) = dim_channels.get(prev)
+    if let Some(connection) = connection
+        && let Ok(mut socket_entity) = commands.get_entity(connection.entity())
     {
-        send_control_or_teardown(
-            &chan.control_sender,
-            prev,
-            ToDim::Despawn {
-                host_anchor,
-                session,
-            },
-            despawn_queue,
-        );
-    }
-
-    session_registry.remove(&session);
-
-    if let Ok(mut socket_entity) = commands.get_entity(connection_entity) {
         socket_entity.try_remove::<crate::world::bridge_queue::OutboundQueue>();
     }
 
     if let Ok(mut anchor_entity) = commands.get_entity(host_anchor) {
-        anchor_entity.despawn();
+        anchor_entity.try_despawn();
+    }
+}
+
+/// Routes the player's despawn into its current dimension and, mid-transfer,
+/// into the one it is leaving.
+pub fn despawn_from_dims(
+    host_anchor: Entity,
+    session: PlayerSession,
+    place: Place,
+    dim_channels: &DimChannelsResource,
+    despawn_queue: &mut DimDespawnQueue,
+) {
+    for dim in place.holding_dims() {
+        if let Some(chan) = dim_channels.get(dim) {
+            send_control_or_teardown(
+                &chan.control_sender,
+                dim,
+                ToDim::Despawn {
+                    host_anchor,
+                    session,
+                },
+                despawn_queue,
+            );
+        }
     }
 }
 
@@ -246,8 +254,7 @@ pub fn drain_pending_disconnects(
     mut disconnect_budget: ResMut<DisconnectBudget>,
     mut pending_queue: ResMut<PendingDisconnectQueue>,
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
-    mut player_index: ResMut<PlayerIndex>,
-    mut session_registry: ResMut<SessionRegistry>,
+    mut sessions: LeavingSessions,
     dim_channels: ResMut<DimChannelsResource>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
     mut commands: Commands,
@@ -261,8 +268,7 @@ pub fn drain_pending_disconnects(
         disconnected_this_tick.host_anchors.push(host_anchor);
         process_disconnect(
             host_anchor,
-            &mut player_index,
-            &mut session_registry,
+            &mut sessions,
             &dim_channels,
             &mut despawn_queue,
             &mut commands,

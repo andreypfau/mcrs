@@ -7,12 +7,10 @@ mod common;
 
 use std::sync::Arc;
 
-use bevy_ecs::prelude::Entity;
 use common::{AIR, Reference, STONE, registry};
+use mcrs_minecraft_chunk::{PalettedContainer, VoxelPalette};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
-use mcrs_voxel_storage::{PalettedContainer, VoxelPalette};
 
 const SECTIONS_Y: i32 = 6;
 const COLUMNS: i32 = 5;
@@ -28,14 +26,14 @@ fn surface_height(x: i32, z: i32) -> i32 {
     20 + step * 13 + (x.rem_euclid(16) / 8) + (z.rem_euclid(16) / 8)
 }
 
-fn section_blocks(pos: ChunkPos) -> SectionBlocks {
+fn section_blocks(pos: SectionPos) -> SectionBlocks {
     let base_y = pos.y * 16;
     let mut solid = 0;
     let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
-    for local_z in 0..BLOCKS::SIZE {
-        for local_x in 0..BLOCKS::SIZE {
+    for local_z in 0..SectionPos::SIZE {
+        for local_x in 0..SectionPos::SIZE {
             let top = surface_height(pos.x * 16 + local_x as i32, pos.z * 16 + local_z as i32);
-            for local_y in 0..BLOCKS::SIZE {
+            for local_y in 0..SectionPos::SIZE {
                 if base_y + local_y as i32 <= top {
                     blocks.set_cell(local_x, local_y, local_z, STONE);
                     solid += 1;
@@ -51,8 +49,8 @@ fn section_blocks(pos: ChunkPos) -> SectionBlocks {
 
 fn surface_of(column: ColumnPos) -> Arc<ColumnSurface> {
     let mut surface = ColumnSurface::new((SECTIONS_Y * 16) as u32, 0);
-    for z in 0..BLOCKS::SIZE {
-        for x in 0..BLOCKS::SIZE {
+    for z in 0..SectionPos::SIZE {
+        for x in 0..SectionPos::SIZE {
             let top = surface_height(column.x * 16 + x as i32, column.z * 16 + z as i32);
             surface.set(x, z, top + 1);
         }
@@ -63,9 +61,9 @@ fn surface_of(column: ColumnPos) -> Arc<ColumnSurface> {
 fn column_edits(column: ColumnPos) -> Vec<Edit> {
     let mut edits: Vec<Edit> = (0..SECTIONS_Y)
         .map(|y| {
-            let pos = ChunkPos::new(column.x, y, column.z);
+            let pos = SectionPos::new(column.x, y, column.z);
             Edit::LoadSection {
-                entity: Entity::PLACEHOLDER,
+                entity: 0,
                 pos,
                 blocks: Arc::new(section_blocks(pos)),
             }
@@ -84,7 +82,7 @@ fn column_edits(column: ColumnPos) -> Vec<Edit> {
 struct Pump {
     world: LightWorld,
     queue: LightQueue,
-    in_flight: Vec<(BlockBox, LightUpdate)>,
+    in_flight: Vec<(BoundingBox, LightUpdate)>,
     budget_cells: u64,
     epochs: usize,
 }
@@ -108,7 +106,7 @@ impl Pump {
         for (column, influence) in self.world.apply_edits(edits) {
             self.queue.push(column, influence);
         }
-        let occupied: Vec<BlockBox> = self.in_flight.iter().map(|(area, _)| *area).collect();
+        let occupied: Vec<BoundingBox> = self.in_flight.iter().map(|(area, _)| *area).collect();
         let free = self.epochs - self.in_flight.len();
         for batch in self.queue.drain_batches(self.budget_cells, &occupied, free) {
             let Some(job) = self.world.prepare_batch(batch) else {
@@ -222,9 +220,9 @@ fn sections_of_a_column_arriving_across_ticks_are_lit_like_one_pass() {
     let mut pump = Pump::new(8 << 20, 2);
     for column in columns_in_load_order() {
         for y in (0..SECTIONS_Y).rev() {
-            let pos = ChunkPos::new(column.x, y, column.z);
+            let pos = SectionPos::new(column.x, y, column.z);
             pump.tick(vec![Edit::LoadSection {
-                entity: Entity::PLACEHOLDER,
+                entity: 0,
                 pos,
                 blocks: Arc::new(section_blocks(pos)),
             }]);
@@ -257,7 +255,7 @@ fn columns_unloaded_and_revived_are_lit_like_one_pass() {
     for column in &evicted {
         let unloads: Vec<Edit> = (0..SECTIONS_Y)
             .map(|y| Edit::UnloadSection {
-                pos: ChunkPos::new(column.x, y, column.z),
+                pos: SectionPos::new(column.x, y, column.z),
             })
             .collect();
         pump.tick(unloads);
@@ -278,14 +276,14 @@ fn columns_unloaded_and_revived_are_lit_like_one_pass() {
 #[test]
 fn a_roof_lit_across_column_seams_matches_one_pass() {
     let roofed = |x: i32, z: i32| (24..56).contains(&x) && (24..56).contains(&z);
-    let blocks_of = |pos: ChunkPos| {
+    let blocks_of = |pos: SectionPos| {
         let base_y = pos.y * 16;
         let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
         let mut solid = 0;
-        for local_z in 0..BLOCKS::SIZE {
-            for local_x in 0..BLOCKS::SIZE {
+        for local_z in 0..SectionPos::SIZE {
+            for local_x in 0..SectionPos::SIZE {
                 let (x, z) = (pos.x * 16 + local_x as i32, pos.z * 16 + local_z as i32);
-                for local_y in 0..BLOCKS::SIZE {
+                for local_y in 0..SectionPos::SIZE {
                     let y = base_y + local_y as i32;
                     if y <= 20 || (y == 40 && roofed(x, z)) {
                         blocks.set_cell(local_x, local_y, local_z, STONE);
@@ -304,9 +302,9 @@ fn a_roof_lit_across_column_seams_matches_one_pass() {
     for column in columns_in_load_order() {
         let edits: Vec<Edit> = (0..SECTIONS_Y)
             .map(|y| {
-                let pos = ChunkPos::new(column.x, y, column.z);
+                let pos = SectionPos::new(column.x, y, column.z);
                 Edit::LoadSection {
-                    entity: Entity::PLACEHOLDER,
+                    entity: 0,
                     pos,
                     blocks: Arc::new(blocks_of(pos)),
                 }
@@ -341,12 +339,12 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
         in_shaft || in_tunnel
     };
 
-    let blocks_of = |pos: ChunkPos| {
+    let blocks_of = |pos: SectionPos| {
         let mut blocks = VoxelPalette(PalettedContainer::Homogeneous(AIR));
         let mut solid = 0;
-        for local_z in 0..BLOCKS::SIZE {
-            for local_x in 0..BLOCKS::SIZE {
-                for local_y in 0..BLOCKS::SIZE {
+        for local_z in 0..SectionPos::SIZE {
+            for local_x in 0..SectionPos::SIZE {
+                for local_y in 0..SectionPos::SIZE {
                     let (x, y, z) = (
                         pos.x * 16 + local_x as i32,
                         pos.y * 16 + local_y as i32,
@@ -370,9 +368,9 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
         for column in columns_in_load_order() {
             let edits: Vec<Edit> = (0..SECTIONS_Y)
                 .map(|y| {
-                    let pos = ChunkPos::new(column.x, y, column.z);
+                    let pos = SectionPos::new(column.x, y, column.z);
                     Edit::LoadSection {
-                        entity: Entity::PLACEHOLDER,
+                        entity: 0,
                         pos,
                         blocks: Arc::new(blocks_of(pos)),
                     }

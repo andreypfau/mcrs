@@ -199,8 +199,7 @@ where
 
 static CAPTURE_BUFFER: OnceLock<Arc<Mutex<Vec<CapturedSpan>>>> = OnceLock::new();
 
-/// Separate from `TELEMETRY_TEST_LOCK` in mcrs_minecraft_network::metrics so capture
-/// contention does not extend the critical section of convergence-budget tests.
+/// Serialises span capture between tests sharing the process-wide subscriber.
 static CAPTURE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 static SUBSCRIBER_INSTALLED: OnceLock<()> = OnceLock::new();

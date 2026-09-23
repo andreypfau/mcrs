@@ -176,13 +176,12 @@ fn saved_data_wrapped_like_level_dat_is_an_error() {
 
 #[test]
 fn player_data_has_no_wrapper() {
-    let player = parse_player(&player_data(WORLD_VERSION), path()).unwrap();
+    let player = player::parse_player_dat(&player_data(WORLD_VERSION), path()).unwrap();
     assert_eq!(
         player.pos,
         [48.8682436000792, 73.02442408821369, -28.14235365298639]
     );
-    assert_eq!(player.yaw, OBSERVED_YAW);
-    assert_eq!(player.pitch, OBSERVED_PITCH);
+    assert_eq!(player.rotation, [OBSERVED_YAW, OBSERVED_PITCH]);
     assert_eq!(player.dimension, "minecraft:overworld");
 }
 
@@ -391,7 +390,7 @@ fn the_previous_data_version_is_rejected_by_name_on_every_file_kind() {
         parse_world_clocks(&saved_data(stale, world_clocks_payload()), path()).unwrap_err(),
         parse_weather(&saved_data(stale, weather_payload()), path()).unwrap_err(),
         parse_game_rules(&saved_data(stale, game_rules_payload(None)), path()).unwrap_err(),
-        parse_player(&player_data(stale), path()).unwrap_err(),
+        player::parse_player_dat(&player_data(stale), path()).unwrap_err(),
     ];
     for err in errors {
         assert!(

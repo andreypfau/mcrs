@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::Entity;
 use bytes::Bytes;
-use mcrs_voxel_world::session::{MoveId, PlayerSession};
-use mcrs_voxel_world::world::channels::DimChannels;
+use mcrs_minecraft_level::session::{MoveId, PlayerSession};
+use mcrs_minecraft_level::world::channels::DimChannels;
 use std::time::Instant;
 
 use crate::world::bus::{

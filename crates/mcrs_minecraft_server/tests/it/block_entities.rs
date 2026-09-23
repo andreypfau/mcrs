@@ -6,28 +6,29 @@ use std::borrow::Cow;
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_anvil::{DATA_VERSION, parse_chunk};
-use mcrs_minecraft_decoration::block_entity::{BeeOccupant, EndGatewayData, GeneratedBlockEntity};
+use mcrs_minecraft_anvil::{DATA_VERSION, PaletteLookup, Properties, parse_chunk};
+use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
+use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
+use mcrs_minecraft_level::world::lifecycle::ticket::{SectionTickets, TicketPlugin};
+use mcrs_minecraft_level::world::storage::block_entity::{
+    InSection, SectionBlockEntities, reconcile_block_entities,
+};
+use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
-use mcrs_minecraft_server::world::block_entity::{
-    BlockEntity, from_compound, packet_entry, spawn_block_entities,
+use mcrs_minecraft_server::world::block_entity::{BlockEntity, packet_entry, spawn_block_entities};
+use mcrs_minecraft_worldgen_feature_place::block_entity::{
+    BeeOccupant, EndGatewayData, GeneratedBlockEntity,
 };
-use mcrs_minecraft_server::world::format::anvil::saved_block_entities;
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkUnloaded;
-use mcrs_voxel_world::world::lifecycle::ticket::{ChunkTicketsCommands, TicketPlugin};
-use mcrs_voxel_world::world::storage::block_entity::{
-    InSection, SectionBlockEntities, reconcile_block_entities,
-};
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
+use mcrs_minecraft_worldgen_generator::saved::saved_block_entities;
 
-fn section_pos() -> ChunkPos {
-    ChunkPos::new(2, 4, -1)
+fn section_pos() -> SectionPos {
+    SectionPos::new(2, 4, -1)
 }
 
 /// What `BeehiveDecorator` writes: two or three occupants, each with the hive's
@@ -48,7 +49,7 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, i32)> {
         (generated_nest(), 33),
         (
             GeneratedBlockEntity::chest(
-                bevy_math::IVec3::new(33, 64, -3),
+                mcrs_minecraft_core::BlockPos::new(33, 64, -3),
                 "minecraft:chests/simple_dungeon".to_owned(),
                 -8_123_456_789,
             ),
@@ -56,7 +57,7 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, i32)> {
         ),
         (
             GeneratedBlockEntity::mob_spawner(
-                bevy_math::IVec3::new(46, 79, -16),
+                mcrs_minecraft_core::BlockPos::new(46, 79, -16),
                 "minecraft:skeleton",
             ),
             9,
@@ -77,6 +78,15 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, i32)> {
 
 /// A region file the save would hold, carrying these block entity compounds
 /// and nothing else, read back through the reader a loading dimension uses.
+/// The column carries no sections, so no palette entry is ever asked for.
+struct NoPalette;
+
+impl<V> PaletteLookup<V> for NoPalette {
+    fn resolve(&self, _name: &str, _properties: Properties<'_>) -> Option<V> {
+        None
+    }
+}
+
 fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk {
     let mut root = NbtCompound::new();
     root.put_int("DataVersion", DATA_VERSION);
@@ -92,7 +102,7 @@ fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk
             .collect::<Vec<_>>(),
     );
     let bytes = Nbt::new(String::new(), root).write();
-    parse_chunk(&bytes).expect("the saved column parses")
+    parse_chunk(&bytes, &NoPalette, &NoPalette).expect("the saved column parses")
 }
 
 fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlockEntity> {
@@ -104,14 +114,14 @@ fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlo
         .expect("every entry names a kind this build reads")
 }
 
-/// A sign is a kind this build does not read and is dropped; a beehive it does
-/// read but cannot parse is an error, so a generated entity never goes
+/// A jukebox is a kind this build does not read and is dropped; a beehive it
+/// does read but cannot parse is an error, so a generated entity never goes
 /// missing without a word.
 #[test]
 fn an_unknown_kind_is_dropped_and_a_broken_known_kind_is_an_error() {
-    let mut sign = NbtCompound::new();
-    sign.put_string("id", "minecraft:sign".to_string());
-    let read = saved_block_entities(&saved_column(vec![sign])).expect("a sign is skipped");
+    let mut jukebox = NbtCompound::new();
+    jukebox.put_string("id", "minecraft:jukebox".to_string());
+    let read = saved_block_entities(&saved_column(vec![jukebox])).expect("a jukebox is skipped");
     assert!(read.is_empty());
 
     let mut broken = NbtCompound::new();
@@ -135,13 +145,17 @@ fn wire_form(world: &World, entity: Entity) -> GeneratedBlockEntity {
     world.get::<BlockEntity>(entity).expect("a kind").0.clone()
 }
 
-fn app_with_section(section_pos: ChunkPos) -> (App, Entity, Entity) {
+fn app_with_section(section_pos: SectionPos) -> (App, Entity, Entity) {
     let mut app = App::new();
     app.add_plugins(TicketPlugin);
     app.add_systems(FixedUpdate, reconcile_block_entities);
     let dim = app
         .world_mut()
-        .spawn((ChunkIndex::default(), ChunkTicketsCommands::default()))
+        .spawn((
+            SectionIndex::default(),
+            SectionTickets::default(),
+            SectionLevels::default(),
+        ))
         .id();
     let section = app
         .world_mut()
@@ -152,7 +166,7 @@ fn app_with_section(section_pos: ChunkPos) -> (App, Entity, Entity) {
         ))
         .id();
     app.world_mut()
-        .get_mut::<ChunkIndex>(dim)
+        .get_mut::<SectionIndex>(dim)
         .unwrap()
         .insert(section_pos, section);
     (app, dim, section)
@@ -216,7 +230,8 @@ fn every_generated_kind_survives_a_save_load_round_trip_and_reaches_a_client() {
             kind,
             data,
         } = entry;
-        let read = from_compound(data).expect("the client reads the same type back");
+        let read =
+            GeneratedBlockEntity::from_compound(data).expect("the client reads the same type back");
         let (expected, expected_kind) = kinds
             .iter()
             .find(|(candidate, _)| candidate.position() == read.position())
@@ -247,7 +262,16 @@ fn despawning_a_section_leaves_no_orphan_block_entity() {
         .to_vec();
     assert_eq!(held.len(), count);
 
-    app.world_mut().entity_mut(section).insert(ChunkUnloaded);
+    app.world_mut()
+        .entity_mut(section)
+        .insert(SectionStage::Unloading);
+    app.world_mut().write_message(SectionStageChanged {
+        section,
+        pos: section_pos(),
+        dim,
+        from: Some(SectionStage::Loaded),
+        to: SectionStage::Unloading,
+    });
     app.world_mut().run_schedule(FixedUpdate);
 
     assert!(

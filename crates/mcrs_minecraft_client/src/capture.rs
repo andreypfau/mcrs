@@ -13,7 +13,7 @@ const FRAMES: u32 = 10;
 pub fn gputrace(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    loader: Res<stream::Loader>,
+    streaming: stream::Streaming,
     mut settled: Local<u32>,
     mut left: Local<u32>,
 ) {
@@ -29,7 +29,7 @@ pub fn gputrace(
         return;
     }
     let auto = config::gputrace_path();
-    if auto.is_some() && loader.done() {
+    if auto.is_some() && streaming.done() {
         *settled += 1;
     }
     let path = match (&auto, keys.just_pressed(KeyCode::F9)) {

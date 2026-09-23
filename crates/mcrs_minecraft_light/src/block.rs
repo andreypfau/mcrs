@@ -1,6 +1,6 @@
-use mcrs_voxel_math::Direction;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_core::voxel_shape::VoxelShape;
 
 use crate::level::LightLevel;
 

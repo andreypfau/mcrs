@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_worldgen"
-description = "mcrs_minecraft_worldgen"
+description = "The world generator: the worldgen registries, their loaders and the beardifier"
 version.workspace = true
 edition.workspace = true
 
@@ -8,37 +8,40 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_minecraft_core.workspace = true
-mcrs_voxel_storage.workspace = true
-mcrs_voxel_math.workspace = true
-mcrs_minecraft_random.workspace = true
-bevy_math.workspace = true
-fixedbitset.workspace = true
-bytes = { workspace = true, optional = true }
 bevy_app = { workspace = true, optional = true }
 bevy_asset = { workspace = true, optional = true }
-bevy_reflect = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }
+bevy_reflect = { workspace = true, optional = true }
+mcrs_minecraft_assets = { workspace = true, optional = true }
+bevy_math.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_worldgen_noise.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_surface.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_carver.workspace = true
+mcrs_minecraft_worldgen_structure.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tracing = { workspace = true }
 
 [dev-dependencies]
-mcrs_minecraft_worldgen = { path = ".", default-features = false, features = ["corpus", "test-support"] }
+bytes.workspace = true
+mcrs_minecraft_worldgen_testing.workspace = true
 
 [features]
 default = ["bevy", "fast"]
-bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect"]
-# Reading the shipped asset corpus off disk. Only the tests want it; the self
-# dev-dependency below is what turns it on for them.
-corpus = ["dep:bytes"]
-# A window over an owned box, for tests of anything that takes a `WindowAccess`.
-test-support = []
-# The fast precision profile of `docs/worldgen.md` §15: one rounding instead of
-# two wherever a sampler computes `a * b + c`, and a noise sampler's lattice cell
-# collapsed to a line along Y so its eight corner dots become two ends of a
-# segment. Needs an FMA instruction to be a win: `target-cpu=native`, or `+fma`
-# on x86-64. Off is the strict profile, which stays buildable as the oracle:
-# `cargo test -p mcrs_minecraft_worldgen --no-default-features --features bevy`.
-fast = []
+bevy = [
+    "dep:bevy_app",
+    "dep:bevy_ecs",
+    "dep:bevy_asset",
+    "dep:bevy_reflect",
+    "dep:mcrs_minecraft_assets",
+    "mcrs_minecraft_core/bevy",
+    "mcrs_minecraft_worldgen_density/bevy",
+    "mcrs_minecraft_worldgen_surface/bevy",
+    "mcrs_minecraft_worldgen_carver/bevy",
+]
+fast = ["mcrs_minecraft_worldgen_noise/fast", "mcrs_minecraft_worldgen_density/fast", "mcrs_minecraft_worldgen_surface/fast", "mcrs_minecraft_worldgen_feature/fast"]

@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::io::{Cursor, Write};
+use std::sync::Arc;
 
 use anyhow::Context;
 use mcrs_minecraft_core::ResourceLocation;
@@ -7,9 +8,11 @@ use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use uuid::Uuid;
 
-use crate::{Decode, Encode, ItemId, VarInt};
+use crate::{Decode, Encode, VarInt};
+use mcrs_minecraft_registry::ItemId;
 
 impl<T: Encode> Encode for Option<T> {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
@@ -62,6 +65,22 @@ impl Decode<'_> for NbtCompound {
     }
 }
 
+impl Encode for NbtTag {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.serialize(&mut WriteAdaptor::new(&mut w))?;
+        Ok(())
+    }
+}
+
+impl Decode<'_> for NbtTag {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        let mut cursor = Cursor::new(*r);
+        let tag = NbtTag::deserialize(&mut NbtReadHelper::new(&mut cursor))?;
+        *r = &r[cursor.position() as usize..];
+        Ok(tag)
+    }
+}
+
 impl<S: AsRef<str>> Encode for ResourceLocation<S> {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
         self.as_str().encode(w)
@@ -74,6 +93,12 @@ impl<'a> Decode<'a> for ResourceLocation<Cow<'a, str>> {
     }
 }
 
+impl Decode<'_> for ResourceLocation<Arc<str>> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        Ok(ResourceLocation::parse(<&str>::decode(r)?)?)
+    }
+}
+
 impl Encode for ItemId {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
         VarInt(self.0 as i32).encode(w)
@@ -83,8 +108,8 @@ impl Encode for ItemId {
 impl Decode<'_> for ItemId {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = VarInt::decode(r)?.0;
-        let errmsg = "invalid item ID";
-
-        Ok(ItemId(id.try_into().context(errmsg)?))
+        Ok(ItemId(id.try_into().with_context(|| {
+            format!("item id {id} is out of range")
+        })?))
     }
 }

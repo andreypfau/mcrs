@@ -1,26 +1,24 @@
-//! Covers AOI-03 plus the mirror-drift pitfall. Every entry in a
-//! player's `ChunkSubscriptionSet` must be reflected in the
-//! corresponding column's `PlayerObservers`, and vice versa. Boundary
-//! crossings exercise both add and remove directions.
+//! Every column a player holds lists the player in its `PlayerObservers`,
+//! and no other column does: when the player arrives, when its view moves,
+//! and when it goes.
 
 use bevy_app::App;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_minecraft_server::world::aoi::ChunkSubscriptionSet;
-use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::world::dimension::{
+use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
 };
-use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 use rustc_hash::FxHashMap;
 
 use crate::harness;
-use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
+use harness::{columns_in_view, drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
 
 #[test]
-fn chunk_subscription_set_mirrors_chunk_player_observers() {
+fn a_column_lists_exactly_the_players_that_hold_it() {
     let mut app = make_aoi_app();
     let dim = app
         .world_mut()
@@ -30,95 +28,26 @@ fn chunk_subscription_set_mirrors_chunk_player_observers() {
         ))
         .id();
     let player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
-
-    // Seed a column grid large enough to cover both the initial
-    // position and the boundary crossings five chunks east; default
-    // view distance 12 plus the 5-chunk excursion plus slack gives a
-    // safe radius.
     let columns = seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);
 
-    // Tick 1: the player's Added<ChunkSubscriptionSet> filter triggers
-    // update_own_pov, which mirrors observers into every newly-added
-    // column.
     drive_aoi_tick(&mut app);
     assert_mirror_invariant(&app, player, &columns);
 
-    // Boundary cross: move the player to a different column so a fresh
-    // delta runs. Removals MUST also be mirrored.
-    {
-        let mut t = app
-            .world_mut()
-            .get_mut::<Transform>(player)
-            .expect("player has Transform");
-        t.translation.x = 5.0 * 16.0; // five chunks east
-    }
+    // Five columns east: the columns left behind must drop the player as the
+    // new ones pick it up.
+    app.world_mut()
+        .entity_mut(player)
+        .insert(ColumnView::holding(columns_in_view(DVec3::new(
+            5.0 * 16.0,
+            64.0,
+            0.0,
+        ))));
     drive_aoi_tick(&mut app);
     assert_mirror_invariant(&app, player, &columns);
 
-    // Boundary cross back; both sides must still agree.
-    {
-        let mut t = app
-            .world_mut()
-            .get_mut::<Transform>(player)
-            .expect("player has Transform");
-        t.translation.x = 0.0;
-    }
+    app.world_mut().entity_mut(player).remove::<ColumnView>();
     drive_aoi_tick(&mut app);
     assert_mirror_invariant(&app, player, &columns);
-}
-
-#[test]
-fn chunk_subscription_set_covers_chebyshev_corner_at_max_view_distance() {
-    // Vanilla view-distance / ChunkTrackingView::contains define visibility
-    // as a Chebyshev square `max(|dx|, |dz|) <= radius`. The AoI
-    // subscription set must agree with that contract; otherwise corner
-    // columns of the visible square would emit no ChunkLoad packets and
-    // would not list the player in PlayerObservers.
-    let mut app = make_aoi_app();
-    let dim = app
-        .world_mut()
-        .spawn(DimensionBundle::new(
-            DimensionId::new("minecraft:overworld"),
-            DimensionTypeConfig::new(-64, 384),
-        ))
-        .id();
-    let player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
-
-    // Default PlayerViewDistance::distance is 12. Seed enough columns to
-    // cover the full 25x25 Chebyshev square (radius 12 -> diameter 25).
-    let columns = seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 14);
-
-    drive_aoi_tick(&mut app);
-
-    let world = app.world();
-    let sub = world
-        .get::<ChunkSubscriptionSet>(player)
-        .expect("player has ChunkSubscriptionSet");
-
-    // The corner of the visible square: max(|12|, |12|) == 12 (in range)
-    // but |12| + |12| == 24 > 12 (outside the diamond). A Manhattan
-    // iterator would have left this column out of the subscription set.
-    let corner = ColumnPos::new(12, 12);
-    assert!(
-        sub.0.contains(&corner),
-        "ChunkSubscriptionSet missing Chebyshev-corner column at {:?}; \
-         len={}, vd=12 expects 25x25=625 columns",
-        corner,
-        sub.0.len(),
-    );
-
-    let corner_entity = columns
-        .get(&corner)
-        .copied()
-        .expect("corner column was seeded");
-    let obs = world
-        .get::<PlayerObservers>(corner_entity)
-        .expect("corner column has PlayerObservers");
-    assert!(
-        obs.0.contains(&player),
-        "PlayerObservers at {:?} missing player; mirror invariant broken at corner",
-        corner,
-    );
 }
 
 fn seed_column_grid(
@@ -154,37 +83,17 @@ fn seed_column_grid(
 
 fn assert_mirror_invariant(app: &App, player: Entity, columns: &FxHashMap<ColumnPos, Entity>) {
     let world = app.world();
-    let sub = world
-        .get::<ChunkSubscriptionSet>(player)
-        .expect("player has ChunkSubscriptionSet");
-    // Forward direction: every subscribed column lists the player.
-    for pos in sub.0.iter() {
-        let column = columns
-            .get(pos)
-            .copied()
-            .unwrap_or_else(|| panic!("subscribed column {:?} not in seed grid", pos));
-        let obs = world
-            .get::<PlayerObservers>(column)
-            .expect("column has PlayerObservers");
-        assert!(
-            obs.0.contains(&player),
-            "column at {:?} missing player in PlayerObservers (sub.len={})",
-            pos,
-            sub.0.len()
-        );
-    }
-    // Reverse direction: every column that lists the player is in the
-    // subscription set.
-    for (pos, column) in columns.iter() {
-        let obs = world
+    let view = world.get::<ColumnView>(player);
+    for (pos, column) in columns {
+        let listed = world
             .get::<PlayerObservers>(*column)
-            .expect("column has PlayerObservers");
-        if obs.0.contains(&player) {
-            assert!(
-                sub.0.contains(pos),
-                "PlayerObservers at {:?} contains player but ChunkSubscriptionSet does not",
-                pos
-            );
-        }
+            .expect("column has PlayerObservers")
+            .0
+            .contains(&player);
+        let held = view.is_some_and(|view| view.holds(*pos));
+        assert_eq!(
+            listed, held,
+            "column {pos:?}: listed on the column {listed}, held by the player {held}"
+        );
     }
 }

@@ -1,13 +1,18 @@
-use std::collections::HashMap;
-use std::sync::LazyLock;
-
+use crate::anim;
+use crate::model::{self, Pack};
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
+use mcrs_minecraft_mesh::block::Pass;
+use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
+use serde::Deserialize;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::LazyLock;
 
-use crate::anim;
-use crate::model::{self, Pack};
-use crate::pack::MAX_SPRITES;
+pub const MISSING_SPRITE: &str = "minecraft:missingno";
+
+/// Metal binds at most this many layers in one texture array.
+pub const ARRAY_LAYERS: usize = 2048;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Opacity {
@@ -16,34 +21,43 @@ pub enum Opacity {
     Translucent,
 }
 
-#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
-pub struct SpriteRef {
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct Sprite {
     pub array: u8,
     pub layer: u16,
+    pub animation: Option<u16>,
 }
 
 pub struct Animation {
     pub array: u8,
-    pub frame_base: u32,
+    pub first_layer: u16,
     pub count: u32,
     pub frametime: u32,
     pub interpolate: bool,
-    opacity: Opacity,
 }
 
 pub struct SpriteArray {
     pub size: u32,
-    stills: Vec<Opacity>,
-    frames: Vec<Opacity>,
-    animated: usize,
-    still_pixels: Vec<u8>,
-    frame_pixels: Vec<u8>,
+    layers: Vec<Opacity>,
+    pixels: Vec<u8>,
 }
+
+/// The base texture a permuted sprite copies and the palette swap it applies.
+type Permutation = (String, PaletteMapping);
 
 pub struct SpriteRegistry {
     arrays: Vec<SpriteArray>,
-    index: HashMap<String, SpriteRef>,
+    index: HashMap<String, u16>,
+    table: Vec<Sprite>,
     animations: Vec<Animation>,
+    permutations: HashMap<String, Permutation>,
+}
+
+struct Source {
+    data: Vec<u8>,
+    width: u32,
+    height: u32,
+    animation: Option<anim::Animation>,
 }
 
 impl SpriteRegistry {
@@ -51,12 +65,14 @@ impl SpriteRegistry {
         Self {
             arrays: Vec::new(),
             index: HashMap::new(),
+            table: Vec::new(),
             animations: Vec::new(),
+            permutations: HashMap::new(),
         }
     }
 
     pub fn len(&self) -> usize {
-        self.arrays.iter().map(SpriteArray::sprites).sum()
+        self.table.len()
     }
 
     pub fn arrays(&self) -> &[SpriteArray] {
@@ -67,54 +83,98 @@ impl SpriteRegistry {
         &self.animations
     }
 
-    pub fn animated_from(&self) -> u32 {
-        (MAX_SPRITES - self.animations.len()) as u32
+    pub fn table(&self) -> &[Sprite] {
+        &self.table
     }
 
-    pub fn base_layer(&self, animation: &Animation) -> u32 {
-        self.arrays[animation.array as usize].stills.len() as u32 + animation.frame_base
+    pub fn sprite(&self, id: u16) -> Sprite {
+        self.table[id as usize]
     }
 
-    /// How many stills and how many frame layers each array holds, in array order.
-    pub fn counts(&self) -> Vec<(u32, u32)> {
-        self.arrays
-            .iter()
-            .map(|array| (array.stills.len() as u32, array.frames.len() as u32))
+    pub fn opacity(&self, id: u16) -> Opacity {
+        let sprite = self.sprite(id);
+        self.arrays[sprite.array as usize].layers[sprite.layer as usize]
+    }
+
+    /// Registers the paletted permutations every `atlases/*.json` declares, so
+    /// an id such as `minecraft:trims/items/chestplate_trim_quartz` interns
+    /// although no such file exists.
+    pub fn load_atlases(&mut self, pack: &Pack) -> Result<(), String> {
+        for (id, bytes) in pack.entries("atlases", "json") {
+            let sources: AtlasSources = serde_json::from_slice(bytes)
+                .map_err(|error| format!("cannot parse atlas {id}: {error}"))?;
+            self.permutations.extend(sources.permutations(pack)?);
+        }
+        Ok(())
+    }
+
+    fn source(&self, pack: &Pack, id: &str) -> Result<Source, String> {
+        let path = model::resource_path(id, "textures", "png");
+        if let Some(bytes) = pack.get(&path) {
+            let (data, width, height) = decode_png(bytes, &path)?;
+            return Ok(Source {
+                data,
+                width,
+                height,
+                animation: anim::read(pack, &path)?,
+            });
+        }
+        if let Some((base, mapping)) = self.permutations.get(id) {
+            let base_path = model::resource_path(base, "textures", "png");
+            let (mut data, width, height) = decode_png(pack.read(&base_path)?, &base_path)?;
+            for pixel in data.as_chunks_mut::<4>().0 {
+                *pixel = rgba(mapping.apply(argb(pixel)));
+            }
+            return Ok(Source {
+                data,
+                width,
+                height,
+                animation: anim::read(pack, &base_path)?,
+            });
+        }
+        if model::split_id(id) == model::split_id(MISSING_SPRITE) {
+            return Ok(Source {
+                data: missing_image(),
+                width: 16,
+                height: 16,
+                animation: None,
+            });
+        }
+        Err(format!("{path} is not in the resource pack"))
+    }
+
+    /// The pixels of every frame the sprite holds, level zero, row-major RGBA.
+    pub fn frames(&self, id: u16) -> Vec<&[u8]> {
+        let sprite = self.sprite(id);
+        let array = &self.arrays[sprite.array as usize];
+        let count = sprite
+            .animation
+            .map_or(1, |index| self.animations[index as usize].count as usize);
+        (0..count)
+            .map(|step| array.layer(sprite.layer as usize + step))
             .collect()
     }
 
-    fn animation(&self, layer: u16) -> Option<&Animation> {
-        let index = (MAX_SPRITES - 1).checked_sub(layer as usize)?;
-        self.animations.get(index)
-    }
-
-    pub fn opacity(&self, sprite: SpriteRef) -> Opacity {
-        match self.animation(sprite.layer) {
-            Some(animation) => animation.opacity,
-            None => self.arrays[sprite.array as usize].stills[sprite.layer as usize],
-        }
-    }
-
-    pub fn intern(&mut self, pack: &Pack, id: &str) -> Result<SpriteRef, String> {
+    pub fn intern(&mut self, pack: &Pack, id: &str) -> Result<u16, String> {
         if let Some(&sprite) = self.index.get(id) {
             return Ok(sprite);
         }
+        if self.table.len() >= MAX_SPRITES {
+            return Err(format!(
+                "{id} would be sprite {MAX_SPRITES}, past what a face can name"
+            ));
+        }
         let path = model::resource_path(id, "textures", "png");
-        let bytes = pack.read(&path)?;
-        let image = Image::from_buffer(
-            bytes,
-            ImageType::Extension("png"),
-            CompressedImageFormats::NONE,
-            true,
-            ImageSampler::nearest(),
-            RenderAssetUsages::default(),
-        )
-        .map_err(|error| format!("cannot decode {path}: {error}"))?;
-        let animation = anim::read(pack, &path)?;
-        let image_size = (image.width(), image.height());
+        let Source {
+            data,
+            width,
+            height,
+            animation,
+        } = self.source(pack, id)?;
+        let image_size = (width, height);
         let (frame_width, frame_height) = match &animation {
             Some(animation) => animation.frame_size(image_size),
-            None => (image.width(), image.width()),
+            None => (width, width),
         };
         if frame_width != frame_height {
             return Err(format!(
@@ -122,9 +182,6 @@ impl SpriteRegistry {
             ));
         }
         let side = frame_width;
-        let data = image
-            .data
-            .ok_or_else(|| format!("{path} decoded without pixel data"))?;
 
         let sequence = match &animation {
             Some(animation) => animation.unroll(id, image_size),
@@ -146,52 +203,192 @@ impl SpriteRegistry {
         }
         let opacity = opacity_of(&pixels);
 
-        let index = match self.arrays.iter().position(|array| array.size == side) {
+        let fits = |array: &SpriteArray| {
+            array.size == side && array.layers.len() + frames.len() <= ARRAY_LAYERS
+        };
+        let index = match self.arrays.iter().position(fits) {
             Some(index) => index,
             None => {
+                if self.arrays.len() >= MAX_SPRITE_ARRAYS {
+                    return Err(format!(
+                        "{id} needs a {}th texture array, but the shaders bind {MAX_SPRITE_ARRAYS}",
+                        self.arrays.len() + 1
+                    ));
+                }
                 self.arrays.push(SpriteArray {
                     size: side,
-                    stills: Vec::new(),
-                    frames: Vec::new(),
-                    animated: 0,
-                    still_pixels: Vec::new(),
-                    frame_pixels: Vec::new(),
+                    layers: Vec::new(),
+                    pixels: Vec::new(),
                 });
                 self.arrays.len() - 1
             }
         };
         let array = &mut self.arrays[index];
-        let sprite = if sequence.frames.is_empty() {
-            let sprite = SpriteRef {
+        let layer = array.layers.len() as u16;
+        array
+            .layers
+            .extend(std::iter::repeat_n(opacity, frames.len()));
+        array.pixels.extend_from_slice(&pixels);
+        let animation = (!sequence.frames.is_empty()).then(|| {
+            self.animations.push(Animation {
                 array: index as u8,
-                layer: array.stills.len() as u16,
-            };
-            array.stills.push(opacity);
-            array.still_pixels.extend_from_slice(&pixels);
-            sprite
-        } else {
-            let animation = Animation {
-                array: index as u8,
-                frame_base: array.frames.len() as u32,
+                first_layer: layer,
                 count: frames.len() as u32,
                 frametime: sequence.frametime,
                 interpolate: animation.is_some_and(|a| a.interpolate),
-                opacity,
-            };
-            array.animated += 1;
-            array
-                .frames
-                .extend(std::iter::repeat_n(opacity, frames.len()));
-            array.frame_pixels.extend_from_slice(&pixels);
-            let sprite = SpriteRef {
-                array: index as u8,
-                layer: (MAX_SPRITES - 1 - self.animations.len()) as u16,
-            };
-            self.animations.push(animation);
-            sprite
-        };
+            });
+            (self.animations.len() - 1) as u16
+        });
+        let sprite = self.table.len() as u16;
+        self.table.push(Sprite {
+            array: index as u8,
+            layer,
+            animation,
+        });
         self.index.insert(id.to_string(), sprite);
         Ok(sprite)
+    }
+}
+
+pub(crate) fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), String> {
+    let image = Image::from_buffer(
+        bytes,
+        ImageType::Extension("png"),
+        CompressedImageFormats::NONE,
+        true,
+        ImageSampler::nearest(),
+        RenderAssetUsages::default(),
+    )
+    .map_err(|error| format!("cannot decode {path}: {error}"))?;
+    let (width, height) = (image.width(), image.height());
+    let data = image
+        .data
+        .ok_or_else(|| format!("{path} decoded without pixel data"))?;
+    Ok((data, width, height))
+}
+
+fn argb(rgba: &[u8; 4]) -> u32 {
+    u32::from_be_bytes([rgba[3], rgba[0], rgba[1], rgba[2]])
+}
+
+pub(crate) fn rgba(argb: u32) -> [u8; 4] {
+    let [a, r, g, b] = argb.to_be_bytes();
+    [r, g, b, a]
+}
+
+/// The 16x16 magenta and black checker vanilla generates for a texture it cannot find.
+fn missing_image() -> Vec<u8> {
+    (0..256)
+        .flat_map(|i| {
+            if (i % 16 < 8) == (i / 16 < 8) {
+                [0xF8, 0x00, 0xF8, 0xFF]
+            } else {
+                [0x00, 0x00, 0x00, 0xFF]
+            }
+        })
+        .collect()
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AtlasSources {
+    sources: Vec<AtlasSource>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", deny_unknown_fields)]
+enum AtlasSource {
+    #[serde(
+        rename = "minecraft:paletted_permutations",
+        alias = "paletted_permutations"
+    )]
+    PalettedPermutations {
+        textures: Vec<String>,
+        palette_key: String,
+        permutations: BTreeMap<String, String>,
+        #[serde(default = "underscore")]
+        separator: String,
+    },
+    #[serde(other)]
+    Other,
+}
+
+fn underscore() -> String {
+    "_".to_string()
+}
+
+impl AtlasSources {
+    /// Every permuted sprite id with the base texture it copies and the palette swap it applies.
+    /// Only paletted permutations create sprites here; the other sources name files that
+    /// intern on demand.
+    fn permutations(&self, pack: &Pack) -> Result<Vec<(String, Permutation)>, String> {
+        let mut out = Vec::new();
+        for source in &self.sources {
+            let AtlasSource::PalettedPermutations {
+                textures,
+                palette_key,
+                permutations,
+                separator,
+            } = source
+            else {
+                continue;
+            };
+            let base = Palette::load(pack, palette_key)?;
+            for (suffix, palette) in permutations {
+                let mapping = PaletteMapping::create(&base, &Palette::load(pack, palette)?)?;
+                for texture in textures {
+                    out.push((
+                        format!("{texture}{separator}{suffix}"),
+                        (texture.clone(), mapping.clone()),
+                    ));
+                }
+            }
+        }
+        Ok(out)
+    }
+}
+
+struct Palette(Vec<u32>);
+
+impl Palette {
+    fn load(pack: &Pack, id: &str) -> Result<Self, String> {
+        let path = model::resource_path(id, "textures/palettes", "png");
+        let (data, _, _) = decode_png(pack.read(&path)?, &path)?;
+        Ok(Self(data.as_chunks::<4>().0.iter().map(argb).collect()))
+    }
+}
+
+#[derive(Clone)]
+pub struct PaletteMapping(HashMap<u32, u32>);
+
+impl PaletteMapping {
+    fn create(base: &Palette, target: &Palette) -> Result<Self, String> {
+        if base.0.len() != target.0.len() {
+            return Err(format!(
+                "PaletteMapping has different sizes: {} != {}",
+                base.0.len(),
+                target.0.len()
+            ));
+        }
+        Ok(Self(
+            base.0
+                .iter()
+                .zip(&target.0)
+                .filter(|(key, _)| **key >> 24 != 0)
+                .map(|(key, value)| (key | 0xFF00_0000, *value))
+                .collect(),
+        ))
+    }
+
+    fn apply(&self, pixel: u32) -> u32 {
+        let alpha = pixel >> 24;
+        if alpha == 0 {
+            return pixel;
+        }
+        let opaque = pixel | 0xFF00_0000;
+        let target = *self.0.get(&opaque).unwrap_or(&opaque);
+        let target_alpha = target >> 24;
+        (alpha * target_alpha / 255) << 24 | (target & 0x00FF_FFFF)
     }
 }
 
@@ -227,49 +424,20 @@ fn opacity_of(pixels: &[u8]) -> Opacity {
 
 impl SpriteArray {
     pub fn layers(&self) -> u32 {
-        (self.stills.len() + self.frames.len()).max(1) as u32
+        self.layers.len() as u32
     }
 
-    pub fn sprites(&self) -> usize {
-        self.stills.len() + self.animated
+    fn layer(&self, layer: usize) -> &[u8] {
+        let stride = (self.size * self.size * 4) as usize;
+        &self.pixels[layer * stride..(layer + 1) * stride]
     }
 
-    pub fn animated(&self) -> usize {
-        self.animated
-    }
-
-    pub fn stills(&self) -> usize {
-        self.stills.len()
-    }
-
-    pub fn frame_layers(&self) -> usize {
-        self.frames.len()
-    }
-
-    pub fn mip_chain(&self) -> Vec<Vec<u8>> {
-        let opacities: Vec<Opacity> = self.stills.iter().chain(&self.frames).copied().collect();
-        let pixels = [&self.still_pixels[..], &self.frame_pixels[..]].concat();
-        if opacities.is_empty() {
-            return mip_levels(&[0; 4], &[Opacity::Solid], 1);
-        }
-        mip_levels(&pixels, &opacities, self.size as usize)
-    }
-
-    /// The mip chain of the stills from `from` on, in the layout the whole chain uses.
-    pub fn still_mips(&self, from: usize) -> Vec<Vec<u8>> {
+    /// The mip chain of the layers from `from` on, in the layout the whole chain uses.
+    pub fn mips(&self, from: usize) -> Vec<Vec<u8>> {
         let stride = (self.size * self.size * 4) as usize;
         mip_levels(
-            &self.still_pixels[from * stride..],
-            &self.stills[from..],
-            self.size as usize,
-        )
-    }
-
-    pub fn frame_mips(&self, from: usize) -> Vec<Vec<u8>> {
-        let stride = (self.size * self.size * 4) as usize;
-        mip_levels(
-            &self.frame_pixels[from * stride..],
-            &self.frames[from..],
+            &self.pixels[from * stride..],
+            &self.layers[from..],
             self.size as usize,
         )
     }
@@ -385,11 +553,8 @@ mod tests {
     fn one_sprite(size: usize, opacity: Opacity, pixels: Vec<u8>) -> SpriteArray {
         SpriteArray {
             size: size as u32,
-            stills: vec![opacity],
-            frames: Vec::new(),
-            animated: 0,
-            still_pixels: pixels,
-            frame_pixels: Vec::new(),
+            layers: vec![opacity],
+            pixels,
         }
     }
 
@@ -419,7 +584,7 @@ mod tests {
     fn an_alpha_tested_sprite_keeps_its_coverage_in_every_mip() {
         let size = 16;
         let pixels = stencil(size, |x, y| if (x + y) % 2 == 0 { 255 } else { 0 });
-        let levels = one_sprite(size, Opacity::Cutout, pixels).mip_chain();
+        let levels = one_sprite(size, Opacity::Cutout, pixels).mips(0);
         assert_eq!(levels.len(), 5);
         for (level, data) in levels.iter().enumerate() {
             let kept = level_coverage(data);
@@ -430,7 +595,7 @@ mod tests {
     #[test]
     fn a_translucent_sprite_keeps_its_alpha_as_it_is() {
         let size = 16;
-        let levels = one_sprite(size, Opacity::Translucent, stencil(size, |_, _| 100)).mip_chain();
+        let levels = one_sprite(size, Opacity::Translucent, stencil(size, |_, _| 100)).mips(0);
         for (level, data) in levels.iter().enumerate() {
             let alpha: Vec<u8> = data.iter().skip(3).step_by(4).copied().collect();
             assert!(
@@ -451,15 +616,14 @@ mod tests {
             registry.intern(Pack::corpus(), id).unwrap();
         }
         let array = &registry.arrays()[0];
-        let whole = array.mip_chain();
-        let tail = array.still_mips(1);
+        let whole = array.mips(0);
+        let tail = array.mips(1);
         assert_eq!(tail.len(), whole.len());
         for (level, (all, some)) in whole.iter().zip(&tail).enumerate() {
             let size = (array.size as usize >> level).max(1);
             let stride = size * size * 4;
             assert_eq!(&all[stride..], &some[..], "level {level}");
         }
-        assert!(array.frame_mips(0).is_empty() || array.frames.is_empty());
     }
 
     #[test]
@@ -474,6 +638,16 @@ mod tests {
         let also_small = registry
             .intern(Pack::corpus(), "minecraft:block/dirt")
             .unwrap();
+        assert_eq!(
+            (small, large, also_small),
+            (0, 1, 2),
+            "ids count up as interned"
+        );
+        let (small, large, also_small) = (
+            registry.sprite(small),
+            registry.sprite(large),
+            registry.sprite(also_small),
+        );
         assert_ne!(small.array, large.array, "16x16 and 32x32 share an array");
         assert_eq!(small.array, also_small.array);
         assert_eq!(
@@ -481,18 +655,24 @@ mod tests {
             (0, 1),
             "layers restart per array"
         );
-        assert_eq!(large.layer as u32, registry.animated_from());
+        assert_eq!(large.layer, 0);
+        assert_eq!(large.animation, Some(0));
 
         let sizes: Vec<u32> = registry.arrays().iter().map(|array| array.size).collect();
         assert_eq!(sizes, [16, 32]);
-        let counts: Vec<usize> = registry.arrays().iter().map(SpriteArray::sprites).collect();
+        let counts: Vec<usize> = (0..registry.arrays().len())
+            .map(|array| {
+                registry
+                    .table()
+                    .iter()
+                    .filter(|s| s.array as usize == array)
+                    .count()
+            })
+            .collect();
         assert_eq!(counts, [2, 1]);
         for array in registry.arrays() {
             let expected = (array.size * array.size * 4) as usize * array.layers() as usize;
-            assert_eq!(
-                array.still_pixels.len() + array.frame_pixels.len(),
-                expected
-            );
+            assert_eq!(array.pixels.len(), expected);
         }
     }
 
@@ -506,17 +686,15 @@ mod tests {
             .intern(Pack::corpus(), "minecraft:block/kelp")
             .unwrap();
         let array = &registry.arrays()[0];
-        assert_eq!(array.sprites(), 2);
-        assert_eq!(array.animated(), 1);
+        assert_eq!(registry.len(), 2);
+        assert_eq!(registry.animations().len(), 1);
         assert_eq!(array.layers(), 21);
         let texels = (array.size * array.size * 4) as usize;
-        assert_eq!(array.still_pixels.len(), texels);
-        assert_eq!(array.frame_pixels.len(), texels * 20);
+        assert_eq!(array.pixels.len(), texels * 21);
     }
 
     fn layer(array: &SpriteArray, layer: usize) -> &[u8] {
-        let stride = (array.size * array.size * 4) as usize;
-        &array.frame_pixels[layer * stride..(layer + 1) * stride]
+        array.layer(layer)
     }
 
     #[test]
@@ -613,26 +791,25 @@ mod tests {
             .unwrap();
 
         let array = &registry.arrays()[0];
-        let stride = (array.size * array.size * 4) as usize;
-        let resident = [&array.still_pixels[..], &array.frame_pixels[..]].concat();
-        let layer = |index: usize| &resident[index * stride..(index + 1) * stride];
+        let layer = |index: usize| array.layer(index);
 
         assert_eq!(
-            (stone.layer, dirt.layer),
-            (0, 1),
-            "stills keep the low layers"
+            (registry.sprite(stone).layer, registry.sprite(dirt).layer),
+            (0, 21),
+            "a still takes the layer after whatever came before it"
         );
         assert_eq!(layer(0), &source_frames("minecraft:block/stone")[0][..]);
-        assert_eq!(layer(1), &source_frames("minecraft:block/dirt")[0][..]);
+        assert_eq!(layer(21), &source_frames("minecraft:block/dirt")[0][..]);
 
         for (id, sprite) in [
             ("minecraft:block/kelp", kelp),
             ("minecraft:block/seagrass", seagrass),
         ] {
-            let animation = registry
-                .animation(sprite.layer)
-                .expect("the sprite animates");
-            let base = registry.base_layer(animation) as usize;
+            let sprite = registry.sprite(sprite);
+            let animation =
+                &registry.animations()[sprite.animation.expect("the sprite animates") as usize];
+            let base = animation.first_layer as usize;
+            assert_eq!(base, sprite.layer as usize);
             let frames = source_frames(id);
             assert_eq!(animation.count as usize, frames.len());
             for step in 0..animation.count as usize {
@@ -694,5 +871,76 @@ mod tests {
         downsample_2x2(&src, 2, 0, 0, &mut dst);
         assert_eq!(&dst[..3], &[255, 255, 255]);
         assert_eq!(dst[3], 63);
+    }
+
+    #[test]
+    fn every_atlas_parses_and_the_item_trims_permute_into_sprites() {
+        let pack = Pack::corpus();
+        let mut permuted = 0;
+        for (id, bytes) in pack.entries("atlases", "json") {
+            let sources: AtlasSources =
+                serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{id}: {e}"));
+            permuted += sources.permutations(pack).unwrap().len();
+        }
+        assert_eq!(permuted, 64);
+        let mut registry = SpriteRegistry::new();
+        registry.load_atlases(pack).unwrap();
+        let quartz = registry
+            .intern(pack, "minecraft:trims/items/chestplate_trim_quartz")
+            .unwrap();
+        let base = registry
+            .intern(pack, "minecraft:trims/items/chestplate_trim")
+            .unwrap();
+        let quartz_pixels = registry.frames(quartz)[0].to_vec();
+        let base_pixels = registry.frames(base)[0].to_vec();
+        assert_ne!(quartz_pixels, base_pixels);
+        for (q, b) in quartz_pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(base_pixels.as_chunks::<4>().0)
+        {
+            assert_eq!(q[3] == 0, b[3] == 0);
+        }
+        assert!(
+            registry
+                .intern(pack, "minecraft:trims/items/chestplate_trim_nope")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn the_missing_sprite_is_a_generated_checker() {
+        let mut registry = SpriteRegistry::new();
+        let sprite = registry.intern(Pack::corpus(), MISSING_SPRITE).unwrap();
+        let pixels = registry.frames(sprite)[0];
+        assert_eq!(pixels.len(), 16 * 16 * 4);
+        assert_eq!(&pixels[..4], &[0xF8, 0, 0xF8, 0xFF]);
+        assert_eq!(&pixels[8 * 4..8 * 4 + 4], &[0, 0, 0, 0xFF]);
+        assert_eq!(registry.opacity(sprite), Opacity::Solid);
+    }
+
+    #[test]
+    fn a_palette_mapping_scales_alpha_and_leaves_unknown_colours_alone() {
+        let mapping = PaletteMapping::create(
+            &Palette(vec![0xFF11_2233, 0x0000_0000]),
+            &Palette(vec![0x8044_5566, 0xFF00_0000]),
+        )
+        .unwrap();
+        assert_eq!(mapping.apply(0xFF11_2233), 0x8044_5566);
+        assert_eq!(mapping.apply(0x8011_2233), 0x4044_5566);
+        assert_eq!(mapping.apply(0x00AA_BBCC), 0x00AA_BBCC);
+        assert_eq!(mapping.apply(0xFFAA_BBCC), 0xFFAA_BBCC);
+        assert!(PaletteMapping::create(&Palette(vec![1]), &Palette(vec![1, 2])).is_err());
+    }
+}
+
+impl From<Opacity> for Pass {
+    fn from(opacity: Opacity) -> Pass {
+        match opacity {
+            Opacity::Solid => Pass::Solid,
+            Opacity::Cutout => Pass::Cutout,
+            Opacity::Translucent => Pass::Translucent,
+        }
     }
 }

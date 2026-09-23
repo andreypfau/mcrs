@@ -1,0 +1,1469 @@
+[
+ {
+  "name": "with_int",
+  "input": {
+   "translate": "commands.kill.success.multiple",
+   "with": [
+    5
+   ]
+  },
+  "json": {
+   "translate": "commands.kill.success.multiple",
+   "with": [
+    5
+   ]
+  },
+  "nbt": "0a090004776974680100000001050800097472616e736c617465001e636f6d6d616e64732e6b696c6c2e737563636573732e6d756c7469706c6500",
+  "snbt": "{translate:\"commands.kill.success.multiple\",with:[5b]}"
+ },
+ {
+  "name": "with_bool_float_string",
+  "input": {
+   "translate": "k",
+   "with": [
+    true,
+    1.5,
+    "s",
+    2.0
+   ]
+  },
+  "json": {
+   "translate": "k",
+   "with": [
+    true,
+    1.5,
+    "s",
+    2
+   ]
+  },
+  "nbt": "0a090004776974680a0000000401000001000500003fc00000000800000001730001000002000800097472616e736c61746500016b00",
+  "snbt": "{translate:\"k\",with:[1b,1.5f,\"s\",2b]}"
+ },
+ {
+  "name": "with_empty",
+  "input": {
+   "translate": "k",
+   "with": []
+  },
+  "json": {
+   "translate": "k"
+  },
+  "nbt": "0a0800097472616e736c61746500016b00",
+  "snbt": "{translate:\"k\"}"
+ },
+ {
+  "name": "with_nested_list_arg",
+  "input": {
+   "translate": "k",
+   "with": [
+    [
+     "a",
+     "b"
+    ]
+   ]
+  },
+  "json": {
+   "translate": "k",
+   "with": [
+    {
+     "text": "a",
+     "extra": [
+      "b"
+     ]
+    }
+   ]
+  },
+  "nbt": "0a090004776974680a000000010900056578747261080000000100016208000474657874000161000800097472616e736c61746500016b00",
+  "snbt": "{translate:\"k\",with:[{extra:[\"b\"],text:\"a\"}]}"
+ },
+ {
+  "name": "typed_keybind",
+  "input": {
+   "type": "keybind",
+   "keybind": "key.jump",
+   "text": "ignored"
+  },
+  "json": {
+   "keybind": "key.jump"
+  },
+  "nbt": "0a0800076b657962696e6400086b65792e6a756d7000",
+  "snbt": "{keybind:\"key.jump\"}"
+ },
+ {
+  "name": "typed_translatable_with_text",
+  "input": {
+   "type": "translatable",
+   "translate": "t",
+   "text": "ignored"
+  },
+  "json": {
+   "translate": "t"
+  },
+  "nbt": "0a0800097472616e736c61746500017400",
+  "snbt": "{translate:\"t\"}"
+ },
+ {
+  "name": "typed_unknown",
+  "input": {
+   "type": "bogus",
+   "text": "x"
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"type\":\"bogus\",\"text\":\"x\"}; Second: Not a json array: {\"type\":\"bogus\",\"text\":\"x\"}; Second: Unknown element id: bogus"
+ },
+ {
+  "name": "typed_translatable_missing",
+  "input": {
+   "type": "translatable",
+   "text": "x"
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"type\":\"translatable\",\"text\":\"x\"}; Second: Not a json array: {\"type\":\"translatable\",\"text\":\"x\"}; Second: No key translate in MapLike[{\"type\":\"translatable\",\"text\":\"x\"}]"
+ },
+ {
+  "name": "color_reset",
+  "input": {
+   "text": "x",
+   "color": "reset"
+  },
+  "error": "Invalid color name: reset"
+ },
+ {
+  "name": "color_short_hex",
+  "input": {
+   "text": "x",
+   "color": "#f80"
+  },
+  "json": {
+   "text": "x",
+   "color": "#000F80"
+  },
+  "nbt": "0a080005636f6c6f720007233030304638300800047465787400017800",
+  "snbt": "{color:\"#000F80\",text:\"x\"}"
+ },
+ {
+  "name": "color_hex_equals_named",
+  "input": {
+   "text": "x",
+   "color": "#FF5555"
+  },
+  "json": {
+   "text": "x",
+   "color": "#FF5555"
+  },
+  "nbt": "0a080005636f6c6f720007234646353535350800047465787400017800",
+  "snbt": "{color:\"#FF5555\",text:\"x\"}"
+ },
+ {
+  "name": "color_hex_lower",
+  "input": {
+   "text": "x",
+   "color": "#abcdef"
+  },
+  "json": {
+   "text": "x",
+   "color": "#ABCDEF"
+  },
+  "nbt": "0a080005636f6c6f720007234142434445460800047465787400017800",
+  "snbt": "{color:\"#ABCDEF\",text:\"x\"}"
+ },
+ {
+  "name": "color_plus_hex",
+  "input": {
+   "text": "x",
+   "color": "#+ff"
+  },
+  "json": {
+   "text": "x",
+   "color": "#0000FF"
+  },
+  "nbt": "0a080005636f6c6f720007233030303046460800047465787400017800",
+  "snbt": "{color:\"#0000FF\",text:\"x\"}"
+ },
+ {
+  "name": "color_bad",
+  "input": {
+   "text": "x",
+   "color": "RED"
+  },
+  "error": "Invalid color name: RED"
+ },
+ {
+  "name": "shadow_floats_3",
+  "input": {
+   "text": "x",
+   "shadow_color": [
+    1.0,
+    0.5,
+    0.25
+   ]
+  },
+  "error": "Failed to parse either. First: Not a number: [1.0,0.5,0.25]; Second: Input is not a list of 4 elements"
+ },
+ {
+  "name": "shadow_big",
+  "input": {
+   "text": "x",
+   "shadow_color": 4294967295
+  },
+  "json": {
+   "text": "x",
+   "shadow_color": -1
+  },
+  "nbt": "0a03000c736861646f775f636f6c6f72ffffffff0800047465787400017800",
+  "snbt": "{shadow_color:-1,text:\"x\"}"
+ },
+ {
+  "name": "shadow_zero",
+  "input": {
+   "text": "x",
+   "shadow_color": 0
+  },
+  "json": {
+   "text": "x",
+   "shadow_color": 0
+  },
+  "nbt": "0a03000c736861646f775f636f6c6f72000000000800047465787400017800",
+  "snbt": "{shadow_color:0,text:\"x\"}"
+ },
+ {
+  "name": "font_no_ns",
+  "input": {
+   "text": "x",
+   "font": "alt"
+  },
+  "json": {
+   "text": "x",
+   "font": "minecraft:alt"
+  },
+  "nbt": "0a08000474657874000178080004666f6e74000d6d696e6563726166743a616c7400",
+  "snbt": "{font:\"minecraft:alt\",text:\"x\"}"
+ },
+ {
+  "name": "font_default",
+  "input": {
+   "text": "x",
+   "font": "minecraft:default"
+  },
+  "json": {
+   "text": "x",
+   "font": "minecraft:default"
+  },
+  "nbt": "0a08000474657874000178080004666f6e7400116d696e6563726166743a64656661756c7400",
+  "snbt": "{font:\"minecraft:default\",text:\"x\"}"
+ },
+ {
+  "name": "font_bad",
+  "input": {
+   "text": "x",
+   "font": "Bad Font"
+  },
+  "error": "Not a valid resource location: Bad Font Non [a-z0-9/._-] character in path of location: minecraft:Bad Font"
+ },
+ {
+  "name": "bold_int",
+  "input": {
+   "text": "x",
+   "bold": 1
+  },
+  "error": "Not a boolean: 1"
+ },
+ {
+  "name": "bold_string",
+  "input": {
+   "text": "x",
+   "bold": "true"
+  },
+  "error": "Not a boolean: \"true\""
+ },
+ {
+  "name": "extra_empty",
+  "input": {
+   "text": "x",
+   "extra": []
+  },
+  "error": "List must have contents"
+ },
+ {
+  "name": "extra_nested_list",
+  "input": {
+   "text": "x",
+   "extra": [
+    [
+     "a",
+     "b"
+    ]
+   ]
+  },
+  "json": {
+   "text": "x",
+   "extra": [
+    {
+     "text": "a",
+     "extra": [
+      "b"
+     ]
+    }
+   ]
+  },
+  "nbt": "0a09000565787472610a000000010900056578747261080000000100016208000474657874000161000800047465787400017800",
+  "snbt": "{extra:[{extra:[\"b\"],text:\"a\"}],text:\"x\"}"
+ },
+ {
+  "name": "extra_only",
+  "input": {
+   "extra": [
+    "a"
+   ]
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"extra\":[\"a\"]}; Second: Not a json array: {\"extra\":[\"a\"]}; Second: No matching codec found"
+ },
+ {
+  "name": "list_nested",
+  "input": [
+   [
+    "a",
+    "b"
+   ],
+   "c"
+  ],
+  "json": {
+   "text": "a",
+   "extra": [
+    "b",
+    "c"
+   ]
+  },
+  "nbt": "0a090005657874726108000000020001620001630800047465787400016100",
+  "snbt": "{extra:[\"b\",\"c\"],text:\"a\"}"
+ },
+ {
+  "name": "list_single",
+  "input": [
+   "only"
+  ],
+  "json": "only",
+  "nbt": "0800046f6e6c79",
+  "snbt": "\"only\""
+ },
+ {
+  "name": "list_single_styled",
+  "input": [
+   {
+    "text": "only",
+    "bold": true
+   }
+  ],
+  "json": {
+   "text": "only",
+   "bold": true
+  },
+  "nbt": "0a0800047465787400046f6e6c79010004626f6c640100",
+  "snbt": "{bold:1b,text:\"only\"}"
+ },
+ {
+  "name": "list_first_styled",
+  "input": [
+   {
+    "text": "a",
+    "bold": true
+   },
+   "b"
+  ],
+  "json": {
+   "text": "a",
+   "extra": [
+    "b"
+   ],
+   "bold": true
+  },
+  "nbt": "0a0900056578747261080000000100016208000474657874000161010004626f6c640100",
+  "snbt": "{bold:1b,extra:[\"b\"],text:\"a\"}"
+ },
+ {
+  "name": "click_open_url_ftp",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "open_url",
+    "url": "ftp://example.com"
+   }
+  },
+  "error": "Unsupported protocol in URI: ftp://example.com: ftp://example.com"
+ },
+ {
+  "name": "click_open_url_space",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "open_url",
+    "url": "https://example.com/a b"
+   }
+  },
+  "error": "Illegal character in path at index 21: https://example.com/a b"
+ },
+ {
+  "name": "click_open_url_noscheme",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "open_url",
+    "url": "example.com"
+   }
+  },
+  "error": "Missing protocol in URI: example.com: example.com"
+ },
+ {
+  "name": "click_run_command_section",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "run_command",
+    "command": "/say §a"
+   }
+  },
+  "error": "Disallowed chat character: '§'"
+ },
+ {
+  "name": "click_change_page_string",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "change_page",
+    "page": "3"
+   }
+  },
+  "error": "Not a number: \"3\""
+ },
+ {
+  "name": "click_change_page_float",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "change_page",
+    "page": 3.0
+   }
+  },
+  "json": {
+   "text": "x",
+   "click_event": {
+    "page": 3,
+    "action": "change_page"
+   }
+  },
+  "nbt": "0a0a000b636c69636b5f6576656e74080006616374696f6e000b6368616e67655f706167650300047061676500000003000800047465787400017800",
+  "snbt": "{click_event:{action:\"change_page\",page:3},text:\"x\"}"
+ },
+ {
+  "name": "click_change_page_float_frac",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "change_page",
+    "page": 3.5
+   }
+  },
+  "json": {
+   "text": "x",
+   "click_event": {
+    "page": 3,
+    "action": "change_page"
+   }
+  },
+  "nbt": "0a0a000b636c69636b5f6576656e74080006616374696f6e000b6368616e67655f706167650300047061676500000003000800047465787400017800",
+  "snbt": "{click_event:{action:\"change_page\",page:3},text:\"x\"}"
+ },
+ {
+  "name": "click_change_page_big",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "change_page",
+    "page": 2147483648
+   }
+  },
+  "error": "Value must be positive: -2147483648"
+ },
+ {
+  "name": "click_show_dialog_unknown",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "show_dialog",
+    "dialog": "minecraft:nope"
+   }
+  },
+  "error": "Failed to get element minecraft:nope from registry minecraft:dialog"
+ },
+ {
+  "name": "click_show_dialog_inline",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "show_dialog",
+    "dialog": {
+     "type": "minecraft:notice",
+     "title": "t"
+    }
+   }
+  },
+  "json": {
+   "text": "x",
+   "click_event": {
+    "dialog": {
+     "title": "t",
+     "type": "minecraft:notice"
+    },
+    "action": "show_dialog"
+   }
+  },
+  "nbt": "0a0a000b636c69636b5f6576656e740a00066469616c6f670800057469746c650001740800047479706500106d696e6563726166743a6e6f7469636500080006616374696f6e000b73686f775f6469616c6f67000800047465787400017800",
+  "snbt": "{click_event:{action:\"show_dialog\",dialog:{title:\"t\",type:\"minecraft:notice\"}},text:\"x\"}"
+ },
+ {
+  "name": "click_custom_payload_string",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "custom",
+    "id": "a:b",
+    "payload": "str"
+   }
+  },
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": "str",
+    "action": "custom"
+   }
+  },
+  "nbt": "0a0a000b636c69636b5f6576656e740800077061796c6f61640003737472080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:\"str\"},text:\"x\"}"
+ },
+ {
+  "name": "click_custom_payload_list",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "custom",
+    "id": "a:b",
+    "payload": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": [
+     1,
+     2,
+     3
+    ],
+    "action": "custom"
+   }
+  },
+  "nbt": "0a0a000b636c69636b5f6576656e740900077061796c6f61640100000003010203080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:[1b,2b,3b]},text:\"x\"}"
+ },
+ {
+  "name": "click_custom_payload_float",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "custom",
+    "id": "a:b",
+    "payload": 1.5
+   }
+  },
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": 1.5,
+    "action": "custom"
+   }
+  },
+  "nbt": "0a0a000b636c69636b5f6576656e740500077061796c6f61643fc00000080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:1.5f},text:\"x\"}"
+ },
+ {
+  "name": "click_custom_payload_bool",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "custom",
+    "id": "a:b",
+    "payload": true
+   }
+  },
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": 1,
+    "action": "custom"
+   }
+  },
+  "nbt": "0a0a000b636c69636b5f6576656e740100077061796c6f616401080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:1b},text:\"x\"}"
+ },
+ {
+  "name": "click_custom_payload_big",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "custom",
+    "id": "a:b",
+    "payload": {
+     "l": 3000000000,
+     "d": 1.1
+    }
+   }
+  },
+  "json": {
+   "text": "x",
+   "click_event": {
+    "id": "a:b",
+    "payload": {
+     "d": 1.1,
+     "l": 3000000000
+    },
+    "action": "custom"
+   }
+  },
+  "nbt": "0a0a000b636c69636b5f6576656e740a00077061796c6f6164060001643ff199999999999a0400016c00000000b2d05e0000080006616374696f6e0006637573746f6d08000269640003613a62000800047465787400017800",
+  "snbt": "{click_event:{action:\"custom\",id:\"a:b\",payload:{d:1.1d,l:3000000000L}},text:\"x\"}"
+ },
+ {
+  "name": "click_extra_key",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "run_command",
+    "command": "/a",
+    "value": "junk"
+   }
+  },
+  "json": {
+   "text": "x",
+   "click_event": {
+    "command": "/a",
+    "action": "run_command"
+   }
+  },
+  "nbt": "0a0a000b636c69636b5f6576656e74080006616374696f6e000b72756e5f636f6d6d616e64080007636f6d6d616e6400022f61000800047465787400017800",
+  "snbt": "{click_event:{action:\"run_command\",command:\"/a\"},text:\"x\"}"
+ },
+ {
+  "name": "click_legacy_value",
+  "input": {
+   "text": "x",
+   "click_event": {
+    "action": "run_command",
+    "value": "/a"
+   }
+  },
+  "error": "No key command in MapLike[{\"action\":\"run_command\",\"value\":\"/a\"}]"
+ },
+ {
+  "name": "hover_show_text_list",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_text",
+    "value": [
+     "a",
+     "b"
+    ]
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "value": {
+     "text": "a",
+     "extra": [
+      "b"
+     ]
+    },
+    "action": "show_text"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f746578740a000576616c75650900056578747261080000000100016208000474657874000161000000",
+  "snbt": "{hover_event:{action:\"show_text\",value:{extra:[\"b\"],text:\"a\"}},text:\"x\"}"
+ },
+ {
+  "name": "hover_legacy_contents",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_text",
+    "contents": "a"
+   }
+  },
+  "error": "No key value in MapLike[{\"action\":\"show_text\",\"contents\":\"a\"}]"
+ },
+ {
+  "name": "hover_show_item_air",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_item",
+    "id": "minecraft:air"
+   }
+  },
+  "error": "Item must not be minecraft:air"
+ },
+ {
+  "name": "hover_show_item_count0",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_item",
+    "id": "minecraft:stone",
+    "count": 0
+   }
+  },
+  "error": "Value must be within range [1;99]: 0"
+ },
+ {
+  "name": "hover_show_item_count1",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_item",
+    "id": "minecraft:stone",
+    "count": 1
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "action": "show_item"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "snbt": "{hover_event:{action:\"show_item\",id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_item_count100",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_item",
+    "id": "minecraft:stone",
+    "count": 100
+   }
+  },
+  "error": "Value must be within range [1;99]: 100"
+ },
+ {
+  "name": "hover_show_item_no_ns",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_item",
+    "id": "stone"
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "action": "show_item"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "snbt": "{hover_event:{action:\"show_item\",id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_item_unknown",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_item",
+    "id": "minecraft:nope"
+   }
+  },
+  "error": "Unknown registry key in ResourceKey[minecraft:root / minecraft:item]: minecraft:nope"
+ },
+ {
+  "name": "hover_show_item_empty_components",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_item",
+    "id": "minecraft:stone",
+    "components": {}
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "action": "show_item"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "snbt": "{hover_event:{action:\"show_item\",id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_item_extra_key",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_item",
+    "id": "minecraft:stone",
+    "junk": 1
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "action": "show_item"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "snbt": "{hover_event:{action:\"show_item\",id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_item_custom_data",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_item",
+    "id": "minecraft:stone",
+    "components": {
+     "minecraft:custom_data": {
+      "a": 1,
+      "b": true,
+      "c": 1.5,
+      "d": "s"
+     }
+    }
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:stone",
+    "components": {
+     "minecraft:custom_data": {
+      "a": 1,
+      "b": 1,
+      "c": 1.5,
+      "d": "s"
+     }
+    },
+    "action": "show_item"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e740a000a636f6d706f6e656e74730a00156d696e6563726166743a637573746f6d5f6461746101000161010100016201050001633fc00000080001640001730000080006616374696f6e000973686f775f6974656d0800026964000f6d696e6563726166743a73746f6e650000",
+  "snbt": "{hover_event:{action:\"show_item\",components:{\"minecraft:custom_data\":{a:1b,b:1b,c:1.5f,d:\"s\"}},id:\"minecraft:stone\"},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_entity_no_name",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_entity",
+    "id": "pig",
+    "uuid": [
+     -1,
+     -2,
+     -3,
+     -4
+    ]
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:pig",
+    "uuid": [
+     -1,
+     -2,
+     -3,
+     -4
+    ],
+    "action": "show_entity"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000b73686f775f656e746974790800026964000d6d696e6563726166743a7069670b00047575696400000004fffffffffffffffefffffffdfffffffc0000",
+  "snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",uuid:[I;-1,-2,-3,-4]},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_entity_uuid_string_upper",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_entity",
+    "id": "minecraft:pig",
+    "uuid": "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:pig",
+    "uuid": [
+     -1,
+     -1,
+     -1,
+     -1
+    ],
+    "action": "show_entity"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000b73686f775f656e746974790800026964000d6d696e6563726166743a7069670b00047575696400000004ffffffffffffffffffffffffffffffff0000",
+  "snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",uuid:[I;-1,-1,-1,-1]},text:\"x\"}"
+ },
+ {
+  "name": "hover_show_entity_uuid_undashed",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_entity",
+    "id": "minecraft:pig",
+    "uuid": "00000001000200030004000000000005"
+   }
+  },
+  "error": "Failed to parse either. First: Not a json array: \"00000001000200030004000000000005\"; Second: Invalid UUID 00000001000200030004000000000005: Invalid UUID string: 00000001000200030004000000000005"
+ },
+ {
+  "name": "hover_show_entity_uuid_3ints",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_entity",
+    "id": "minecraft:pig",
+    "uuid": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  "error": "Failed to parse either. First: Input is not a list of 4 ints; Second: Not a string: [1,2,3]"
+ },
+ {
+  "name": "hover_show_entity_unknown",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_entity",
+    "id": "minecraft:nope",
+    "uuid": [
+     1,
+     2,
+     3,
+     4
+    ]
+   }
+  },
+  "error": "Unknown registry key in ResourceKey[minecraft:root / minecraft:entity_type]: minecraft:nope"
+ },
+ {
+  "name": "hover_show_entity_name_styled",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_entity",
+    "id": "minecraft:pig",
+    "uuid": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "name": {
+     "text": "n",
+     "bold": true
+    }
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "id": "minecraft:pig",
+    "uuid": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "name": {
+     "text": "n",
+     "bold": true
+    },
+    "action": "show_entity"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e740a00046e616d650800047465787400016e010004626f6c640100080006616374696f6e000b73686f775f656e746974790800026964000d6d696e6563726166743a7069670b00047575696400000004000000010000000200000003000000040000",
+  "snbt": "{hover_event:{action:\"show_entity\",id:\"minecraft:pig\",name:{bold:1b,text:\"n\"},uuid:[I;1,2,3,4]},text:\"x\"}"
+ },
+ {
+  "name": "hover_extra_key",
+  "input": {
+   "text": "x",
+   "hover_event": {
+    "action": "show_text",
+    "value": "a",
+    "junk": 1
+   }
+  },
+  "json": {
+   "text": "x",
+   "hover_event": {
+    "value": "a",
+    "action": "show_text"
+   }
+  },
+  "nbt": "0a080004746578740001780a000b686f7665725f6576656e74080006616374696f6e000973686f775f7465787408000576616c75650001610000",
+  "snbt": "{hover_event:{action:\"show_text\",value:\"a\"},text:\"x\"}"
+ },
+ {
+  "name": "score_selector_multi",
+  "input": {
+   "score": {
+    "name": "@e",
+    "objective": "o"
+   }
+  },
+  "json": {
+   "score": {
+    "name": "@e",
+    "objective": "o"
+   }
+  },
+  "nbt": "0a0a000573636f72650800046e616d65000240650800096f626a65637469766500016f0000",
+  "snbt": "{score:{name:\"@e\",objective:\"o\"}}"
+ },
+ {
+  "name": "score_bad_selector",
+  "input": {
+   "score": {
+    "name": "@zzz",
+    "objective": "o"
+   }
+  },
+  "json": {
+   "score": {
+    "name": "@zzz",
+    "objective": "o"
+   }
+  },
+  "nbt": "0a0a000573636f72650800046e616d650004407a7a7a0800096f626a65637469766500016f0000",
+  "snbt": "{score:{name:\"@zzz\",objective:\"o\"}}"
+ },
+ {
+  "name": "score_extra_value",
+  "input": {
+   "score": {
+    "name": "a",
+    "objective": "o",
+    "value": "v"
+   }
+  },
+  "json": {
+   "score": {
+    "name": "a",
+    "objective": "o"
+   }
+  },
+  "nbt": "0a0a000573636f72650800046e616d650001610800096f626a65637469766500016f0000",
+  "snbt": "{score:{name:\"a\",objective:\"o\"}}"
+ },
+ {
+  "name": "selector_bad",
+  "input": {
+   "selector": "notaselector"
+  },
+  "json": {
+   "selector": "notaselector"
+  },
+  "nbt": "0a08000873656c6563746f72000c6e6f746173656c6563746f7200",
+  "snbt": "{selector:\"notaselector\"}"
+ },
+ {
+  "name": "selector_bad_syntax",
+  "input": {
+   "selector": "@e[type="
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"selector\":\"@e[type=\"}; Second: Not a json array: {\"selector\":\"@e[type=\"}; Second: No matching codec found"
+ },
+ {
+  "name": "nbt_two_sources",
+  "input": {
+   "nbt": "foo",
+   "entity": "@s",
+   "block": "1 2 3"
+  },
+  "json": {
+   "nbt": "foo",
+   "entity": "@s"
+  },
+  "nbt": "0a0800036e62740003666f6f080006656e746974790002407300",
+  "snbt": "{entity:\"@s\",nbt:\"foo\"}"
+ },
+ {
+  "name": "nbt_no_source",
+  "input": {
+   "nbt": "foo"
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"nbt\":\"foo\"}; Second: Not a json array: {\"nbt\":\"foo\"}; Second: No matching codec found"
+ },
+ {
+  "name": "nbt_typed_source_conflict",
+  "input": {
+   "nbt": "foo",
+   "source": "block",
+   "entity": "@s",
+   "block": "1 2 3"
+  },
+  "json": {
+   "nbt": "foo",
+   "block": "1 2 3"
+  },
+  "nbt": "0a0800036e62740003666f6f080005626c6f636b0005312032203300",
+  "snbt": "{block:\"1 2 3\",nbt:\"foo\"}"
+ },
+ {
+  "name": "nbt_bad_path",
+  "input": {
+   "nbt": "[[",
+   "storage": "a:b"
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"nbt\":\"[[\",\"storage\":\"a:b\"}; Second: Not a json array: {\"nbt\":\"[[\",\"storage\":\"a:b\"}; Second: No matching codec found"
+ },
+ {
+  "name": "nbt_interpret_string",
+  "input": {
+   "nbt": "foo",
+   "interpret": "yes",
+   "storage": "a:b"
+  },
+  "json": {
+   "nbt": "foo",
+   "storage": "a:b"
+  },
+  "nbt": "0a0800036e62740003666f6f08000773746f726167650003613a6200",
+  "snbt": "{nbt:\"foo\",storage:\"a:b\"}"
+ },
+ {
+  "name": "nbt_interpret_int",
+  "input": {
+   "nbt": "foo",
+   "interpret": 1,
+   "storage": "a:b"
+  },
+  "json": {
+   "nbt": "foo",
+   "storage": "a:b"
+  },
+  "nbt": "0a0800036e62740003666f6f08000773746f726167650003613a6200",
+  "snbt": "{nbt:\"foo\",storage:\"a:b\"}"
+ },
+ {
+  "name": "nbt_separator_bad",
+  "input": {
+   "nbt": "foo",
+   "separator": 5,
+   "storage": "a:b"
+  },
+  "json": {
+   "nbt": "foo",
+   "storage": "a:b"
+  },
+  "nbt": "0a0800036e62740003666f6f08000773746f726167650003613a6200",
+  "snbt": "{nbt:\"foo\",storage:\"a:b\"}"
+ },
+ {
+  "name": "nbt_storage_bad",
+  "input": {
+   "nbt": "foo",
+   "storage": "Bad Id"
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"nbt\":\"foo\",\"storage\":\"Bad Id\"}; Second: Not a json array: {\"nbt\":\"foo\",\"storage\":\"Bad Id\"}; Second: No matching codec found"
+ },
+ {
+  "name": "nbt_block_bad",
+  "input": {
+   "nbt": "foo",
+   "block": "notcoords"
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"nbt\":\"foo\",\"block\":\"notcoords\"}; Second: Not a json array: {\"nbt\":\"foo\",\"block\":\"notcoords\"}; Second: No matching codec found"
+ },
+ {
+  "name": "translate_fallback_int",
+  "input": {
+   "translate": "k",
+   "fallback": 5
+  },
+  "json": {
+   "translate": "k"
+  },
+  "nbt": "0a0800097472616e736c61746500016b00",
+  "snbt": "{translate:\"k\"}"
+ },
+ {
+  "name": "keybind_and_text",
+  "input": {
+   "keybind": "k",
+   "text": "t"
+  },
+  "json": "t",
+  "nbt": "08000174",
+  "snbt": "\"t\""
+ },
+ {
+  "name": "translate_and_keybind",
+  "input": {
+   "translate": "t",
+   "keybind": "k"
+  },
+  "json": {
+   "translate": "t"
+  },
+  "nbt": "0a0800097472616e736c61746500017400",
+  "snbt": "{translate:\"t\"}"
+ },
+ {
+  "name": "object_player",
+  "input": {
+   "object": "player",
+   "player": {
+    "name": "Steve"
+   }
+  },
+  "json": {
+   "player": {
+    "name": "Steve"
+   }
+  },
+  "nbt": "0a0a0006706c617965720800046e616d65000553746576650000",
+  "snbt": "{player:{name:\"Steve\"}}"
+ },
+ {
+  "name": "object_player_nohat",
+  "input": {
+   "object": "player",
+   "player": {
+    "name": "Steve"
+   },
+   "hat": false
+  },
+  "json": {
+   "player": {
+    "name": "Steve"
+   },
+   "hat": false
+  },
+  "nbt": "0a010003686174000a0006706c617965720800046e616d65000553746576650000",
+  "snbt": "{hat:0b,player:{name:\"Steve\"}}"
+ },
+ {
+  "name": "object_player_bare_name",
+  "input": {
+   "player": "Steve"
+  },
+  "json": {
+   "player": {
+    "name": "Steve"
+   }
+  },
+  "nbt": "0a0a0006706c617965720800046e616d65000553746576650000",
+  "snbt": "{player:{name:\"Steve\"}}"
+ },
+ {
+  "name": "object_player_id",
+  "input": {
+   "player": {
+    "id": [
+     1,
+     2,
+     3,
+     4
+    ]
+   }
+  },
+  "json": {
+   "player": {
+    "id": [
+     1,
+     2,
+     3,
+     4
+    ]
+   }
+  },
+  "nbt": "0a0a0006706c617965720b0002696400000004000000010000000200000003000000040000",
+  "snbt": "{player:{id:[I;1,2,3,4]}}"
+ },
+ {
+  "name": "object_player_and_sprite",
+  "input": {
+   "sprite": "a:b",
+   "player": {
+    "name": "Steve"
+   }
+  },
+  "json": {
+   "sprite": "a:b"
+  },
+  "nbt": "0a0800067370726974650003613a6200",
+  "snbt": "{sprite:\"a:b\"}"
+ },
+ {
+  "name": "object_sprite_no_ns",
+  "input": {
+   "sprite": "block/stone"
+  },
+  "json": {
+   "sprite": "minecraft:block/stone"
+  },
+  "nbt": "0a08000673707269746500156d696e6563726166743a626c6f636b2f73746f6e6500",
+  "snbt": "{sprite:\"minecraft:block/stone\"}"
+ },
+ {
+  "name": "object_atlas_default_explicit",
+  "input": {
+   "atlas": "minecraft:blocks",
+   "sprite": "a:b"
+  },
+  "json": {
+   "sprite": "a:b"
+  },
+  "nbt": "0a0800067370726974650003613a6200",
+  "snbt": "{sprite:\"a:b\"}"
+ },
+ {
+  "name": "object_fallback_styled",
+  "input": {
+   "sprite": "a:b",
+   "fallback": {
+    "text": "f",
+    "bold": true
+   }
+  },
+  "json": {
+   "sprite": "a:b",
+   "fallback": {
+    "text": "f",
+    "bold": true
+   }
+  },
+  "nbt": "0a0800067370726974650003613a620a000866616c6c6261636b08000474657874000166010004626f6c64010000",
+  "snbt": "{fallback:{bold:1b,text:\"f\"},sprite:\"a:b\"}"
+ },
+ {
+  "name": "object_typed_bad",
+  "input": {
+   "object": "bogus",
+   "sprite": "a:b"
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"object\":\"bogus\",\"sprite\":\"a:b\"}; Second: Not a json array: {\"object\":\"bogus\",\"sprite\":\"a:b\"}; Second: No matching codec found"
+ },
+ {
+  "name": "style_only",
+  "input": {
+   "bold": true
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"bold\":true}; Second: Not a json array: {\"bold\":true}; Second: No matching codec found"
+ },
+ {
+  "name": "empty_object",
+  "input": {},
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {}; Second: Not a json array: {}; Second: No matching codec found"
+ },
+ {
+  "name": "text_number",
+  "input": {
+   "text": 5
+  },
+  "error": "Failed to parse either. First: Failed to parse either. First: Not a string: {\"text\":5}; Second: Not a json array: {\"text\":5}; Second: No matching codec found"
+ },
+ {
+  "name": "insertion_and_extra_style_on_string_child",
+  "input": {
+   "text": "a",
+   "insertion": "i",
+   "extra": [
+    {
+     "text": "b",
+     "insertion": "j"
+    }
+   ]
+  },
+  "json": {
+   "text": "a",
+   "extra": [
+    {
+     "text": "b",
+     "insertion": "j"
+    }
+   ],
+   "insertion": "i"
+  },
+  "nbt": "0a09000565787472610a00000001080009696e73657274696f6e00016a0800047465787400016200080009696e73657274696f6e0001690800047465787400016100",
+  "snbt": "{extra:[{insertion:\"j\",text:\"b\"}],insertion:\"i\",text:\"a\"}"
+ },
+ {
+  "name": "unknown_top_key",
+  "input": {
+   "text": "a",
+   "junk": 1
+  },
+  "json": "a",
+  "nbt": "08000161",
+  "snbt": "\"a\""
+ },
+ {
+  "name": "deep_extra_collapse",
+  "input": {
+   "text": "a",
+   "extra": [
+    {
+     "text": "b",
+     "extra": [
+      {
+       "text": "c"
+      }
+     ]
+    }
+   ]
+  },
+  "json": {
+   "text": "a",
+   "extra": [
+    {
+     "text": "b",
+     "extra": [
+      "c"
+     ]
+    }
+   ]
+  },
+  "nbt": "0a09000565787472610a000000010900056578747261080000000100016308000474657874000162000800047465787400016100",
+  "snbt": "{extra:[{extra:[\"c\"],text:\"b\"}],text:\"a\"}"
+ },
+ {
+  "name": "literal_with_empty_extra_style",
+  "input": {
+   "text": "a",
+   "bold": true,
+   "extra": [
+    {
+     "text": "b",
+     "extra": []
+    }
+   ]
+  },
+  "error": "List must have contents"
+ }
+]

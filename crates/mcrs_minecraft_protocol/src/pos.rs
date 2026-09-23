@@ -1,10 +1,9 @@
 use crate::{Decode, Encode};
-use bevy_ecs::component::Component;
 use bevy_math::DVec3;
 use bitfield_struct::bitfield;
 use derive_more::Deref;
 
-#[derive(Component, Clone, Copy, PartialEq, Debug, Default, Deref)]
+#[derive(Clone, Copy, PartialEq, Debug, Default, Deref)]
 pub struct Position(DVec3);
 
 impl Position {
@@ -40,7 +39,7 @@ impl Decode<'_> for Position {
     }
 }
 
-#[derive(Component, Copy, Clone, PartialEq, Default, Debug)]
+#[derive(Copy, Clone, PartialEq, Default, Debug)]
 pub struct Look {
     /// The yaw angle in degrees, where:
     /// - `-90` is looking east (towards positive x).

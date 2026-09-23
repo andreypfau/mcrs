@@ -1,8 +1,8 @@
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 
-use crate::mesh::Group;
-use crate::pack::QUAD_WORDS;
+use mcrs_minecraft_mesh::Group;
+use mcrs_minecraft_mesh::pack::QUAD_WORDS;
 
 use super::upload::Pending;
 use super::{Budget, SECTION_BYTES, VISIBLE_BYTES};
@@ -57,7 +57,7 @@ impl Arenas {
                 "terrain vertices",
                 (budget.models * super::MODEL_BYTES) as u64,
             ),
-            faces: arena("terrain faces", (budget.faces * 4) as u64),
+            faces: arena("terrain faces", (budget.faces * super::FACE_BYTES) as u64),
             groups: arena(
                 "terrain groups",
                 (budget.groups * size_of::<Group>()) as u64,

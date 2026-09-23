@@ -8,13 +8,25 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_voxel_math.workspace = true
-mcrs_voxel_storage.workspace = true
-bevy_ecs.workspace = true
-bevy_app.workspace = true
-bevy_tasks = { workspace = true, features = ["multi_threaded"] }
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_chunk.workspace = true
+bevy_ecs = { workspace = true, optional = true }
+bevy_app = { workspace = true, optional = true }
+bevy_tasks = { workspace = true, features = ["multi_threaded"], optional = true }
 rayon.workspace = true
 rustc-hash.workspace = true
 
+[features]
+default = ["bevy"]
+bevy = ["dep:bevy_ecs", "dep:bevy_app", "dep:bevy_tasks"]
+
 [dev-dependencies]
 bevy_math.workspace = true
+
+[[test]]
+name = "plugin"
+required-features = ["bevy"]
+
+[[example]]
+name = "bulk_load"
+required-features = ["bevy"]

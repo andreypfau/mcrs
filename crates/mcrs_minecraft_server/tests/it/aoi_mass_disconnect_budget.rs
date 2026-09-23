@@ -5,9 +5,13 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
+use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
+use mcrs_minecraft_level::world::channels::{
+    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+};
 use mcrs_minecraft_server::disconnect::{
-    DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, OverflowCounter,
-    PendingDisconnectQueue, QUEUE_HARD_CAP, drain_pending_disconnects,
+    DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, LeavingSessions,
+    OverflowCounter, PendingDisconnectQueue, QUEUE_HARD_CAP, drain_pending_disconnects,
     filter_inflight_for_disconnect, process_disconnect,
 };
 use mcrs_minecraft_server::world::bus::{
@@ -15,19 +19,13 @@ use mcrs_minecraft_server::world::bus::{
 };
 use mcrs_minecraft_server::world::channel_types::FromDim;
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_server::world::player_index::PlayerIndex;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_voxel_world::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-};
+use mcrs_minecraft_server::world::session::SessionBundle;
 
 fn build_app() -> App {
     let mut app = App::new();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
     app.add_plugins(DisconnectProtocolPlugin);
@@ -49,17 +47,19 @@ fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) {
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
         .next();
-    app.world_mut().resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: Entity::PLACEHOLDER,
-            host_anchor,
-            dim,
-            previous_dim: None,
-            in_dim_entity: Some(Entity::PLACEHOLDER),
-            epoch: 0,
-        },
-    );
+    app.world_mut()
+        .entity_mut(host_anchor)
+        .insert(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::InDim(dim), 0),
+        ));
+}
+
+fn session_count(app: &mut App) -> usize {
+    app.world_mut()
+        .query::<&Session>()
+        .iter(app.world())
+        .count()
 }
 
 fn insert_player_mid_transit(
@@ -72,17 +72,19 @@ fn insert_player_mid_transit(
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
         .next();
-    app.world_mut().resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: Entity::PLACEHOLDER,
-            host_anchor,
-            dim: current_dim,
-            previous_dim,
-            in_dim_entity: None,
-            epoch: 0,
+    let place = match previous_dim {
+        Some(from) => Place::Transferring {
+            from,
+            to: current_dim,
         },
-    );
+        None => Place::Joining(current_dim),
+    };
+    app.world_mut()
+        .entity_mut(host_anchor)
+        .insert(SessionBundle::placed(
+            session,
+            SessionPlacement::new(place, 0),
+        ));
 }
 
 fn spawn_anchors(app: &mut App, count: usize, dim: Entity) -> Vec<Entity> {
@@ -104,8 +106,7 @@ fn fire_disconnect(app: &mut App, anchors: &[Entity]) {
     app.world_mut()
         .run_system_once(
             move |mut commands: Commands,
-                  mut player_index: ResMut<PlayerIndex>,
-                  mut session_registry: ResMut<SessionRegistry>,
+                  mut sessions: LeavingSessions,
                   dim_channels: ResMut<DimChannelsResource>,
                   mut budget: ResMut<DisconnectBudget>,
                   mut pending_queue: ResMut<PendingDisconnectQueue>,
@@ -116,10 +117,9 @@ fn fire_disconnect(app: &mut App, anchors: &[Entity]) {
                     if budget.consume() {
                         process_disconnect(
                             host_anchor,
-                            &mut player_index,
-                            &mut session_registry,
+                            &mut sessions,
                             &dim_channels,
-                            &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
+                            &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
                             &mut commands,
                         );
                     } else if !pending_queue.push_back(host_anchor) {
@@ -213,10 +213,7 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
         "queue drained after 4 ticks",
     );
 
-    assert!(
-        app.world().resource::<SessionRegistry>().iter().count() == 0,
-        "every anchor cleared from SessionRegistry",
-    );
+    assert!(session_count(&mut app) == 0, "every session cleared",);
 }
 
 #[test]
@@ -279,10 +276,7 @@ fn e4_3_reconnect_after_disconnect_no_state_overlap() {
     // At this point host_anchor_1 must be gone before any "reconnect"
     // takes effect.
     assert!(
-        app.world()
-            .resource::<SessionRegistry>()
-            .get_by_anchor(&host_anchor_1)
-            .is_none(),
+        app.world().get::<Session>(host_anchor_1).is_none(),
         "anchor_1 evicted before reconnect insert",
     );
 
@@ -291,11 +285,10 @@ fn e4_3_reconnect_after_disconnect_no_state_overlap() {
     let host_anchor_2 = app.world_mut().spawn_empty().id();
     insert_player(&mut app, host_anchor_2, dim);
 
-    let registry = app.world().resource::<SessionRegistry>();
-    assert!(registry.get_by_anchor(&host_anchor_2).is_some());
-    assert!(registry.get_by_anchor(&host_anchor_1).is_none());
+    assert!(app.world().get::<Session>(host_anchor_2).is_some());
+    assert!(app.world().get::<Session>(host_anchor_1).is_none());
     assert_eq!(
-        registry.iter().count(),
+        session_count(&mut app),
         1,
         "no state overlap between sessions"
     );
@@ -309,7 +302,7 @@ fn e4_4_mass_disconnect_interleaved_with_mid_transit_player() {
     let src_ctl_rx = register_dim_channel(&mut app, source_dim);
     let dest_ctl_rx = register_dim_channel(&mut app, dest_dim);
 
-    // Player A — mid-transit. Insert with previous_dim already set so
+    // Player A — mid-transit. Insert mid-transfer from source_dim so
     // process_disconnect routes to BOTH dims when A is disconnected.
     let player_a = app.world_mut().spawn_empty().id();
     insert_player_mid_transit(&mut app, player_a, dest_dim, Some(source_dim));
@@ -348,19 +341,19 @@ fn e4_4_mass_disconnect_interleaved_with_mid_transit_player() {
     }
 
     assert!(
-        app.world().resource::<SessionRegistry>().iter().count() == 0,
+        session_count(&mut app) == 0,
         "all anchors evicted within the budget window",
     );
 
-    // Player A's previous_dim despawn must have landed in source_dim
+    // Player A's despawn must also have landed in the source_dim it is leaving
     // (the dual-dim sub-case-1 path); this is the invariant the mass
     // disconnect must not corrupt.
     assert_eq!(
         total_src, 1,
-        "player A's previous_dim despawn routed regardless of budget contention",
+        "player A's source-dim despawn routed regardless of budget contention",
     );
     assert_eq!(
         total_dest, 51,
-        "all 51 disconnects emit a despawn in dest dim (50 bystanders + A current_dim)",
+        "all 51 disconnects emit a despawn in dest dim (50 bystanders + A's destination)",
     );
 }

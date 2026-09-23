@@ -219,19 +219,6 @@ impl<W: WritePacket> WritePacket for &mut W {
     }
 }
 
-// impl<T: WritePacket> WritePacket for bevy_ecs::world::Mut<'_, T> {
-//     fn write_packet_fallible<P>(&mut self, packet: &P) -> anyhow::Result<()>
-//     where
-//         P: Packet + Encode,
-//     {
-//         self.as_mut().write_packet_fallible(packet)
-//     }
-//
-//     fn write_packet_bytes(&mut self, bytes: &[u8]) {
-//         self.as_mut().write_packet_bytes(bytes)
-//     }
-// }
-
 /// An implementor of [`WritePacket`] backed by a `Vec` mutable reference.
 ///
 /// Packets are written by appending to the contained vec. If an error occurs

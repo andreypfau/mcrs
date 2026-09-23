@@ -1,0 +1,1583 @@
+{
+  "values": [
+    {
+      "kind": "max_stack_size",
+      "input": "64",
+      "json": "64",
+      "nbt": "0300000040",
+      "hash": 733160003,
+      "wire": "40"
+    },
+    {
+      "kind": "max_stack_size",
+      "input": "1",
+      "json": "1",
+      "nbt": "0300000001",
+      "hash": 1565579036,
+      "wire": "01"
+    },
+    {
+      "kind": "max_stack_size",
+      "input": "99",
+      "json": "99",
+      "nbt": "0300000063",
+      "hash": -1632321551,
+      "wire": "63"
+    },
+    {
+      "kind": "max_stack_size",
+      "input": "16.9",
+      "json": "16",
+      "nbt": "0300000010",
+      "hash": 1769065625,
+      "wire": "10"
+    },
+    {
+      "kind": "max_damage",
+      "input": "1",
+      "json": "1",
+      "nbt": "0300000001",
+      "hash": 1565579036,
+      "wire": "01"
+    },
+    {
+      "kind": "max_damage",
+      "input": "1561",
+      "json": "1561",
+      "nbt": "0300000619",
+      "hash": -1816005680,
+      "wire": "990c"
+    },
+    {
+      "kind": "max_damage",
+      "input": "2147483647",
+      "json": "2147483647",
+      "nbt": "037fffffff",
+      "hash": -1250168092,
+      "wire": "ffffffff07"
+    },
+    {
+      "kind": "damage",
+      "input": "0",
+      "json": "0",
+      "nbt": "0300000000",
+      "hash": -2146075228,
+      "wire": "00"
+    },
+    {
+      "kind": "damage",
+      "input": "300",
+      "json": "300",
+      "nbt": "030000012c",
+      "hash": 2132257092,
+      "wire": "ac02"
+    },
+    {
+      "kind": "minimum_attack_charge",
+      "input": "0.0",
+      "json": "0.0",
+      "nbt": "0500000000",
+      "hash": -264789252,
+      "wire": "00000000"
+    },
+    {
+      "kind": "minimum_attack_charge",
+      "input": "0.5",
+      "json": "0.5",
+      "nbt": "053f000000",
+      "hash": -1631070359,
+      "wire": "3f000000"
+    },
+    {
+      "kind": "minimum_attack_charge",
+      "input": "1.0",
+      "json": "1.0",
+      "nbt": "053f800000",
+      "hash": 1694772624,
+      "wire": "3f800000"
+    },
+    {
+      "kind": "minimum_attack_charge",
+      "input": "1",
+      "json": "1.0",
+      "nbt": "053f800000",
+      "hash": 1694772624,
+      "wire": "3f800000"
+    },
+    {
+      "kind": "minimum_attack_charge",
+      "input": "0.25",
+      "json": "0.25",
+      "nbt": "053e800000",
+      "hash": -1754288493,
+      "wire": "3e800000"
+    },
+    {
+      "kind": "repair_cost",
+      "input": "0",
+      "json": "0",
+      "nbt": "0300000000",
+      "hash": -2146075228,
+      "wire": "00"
+    },
+    {
+      "kind": "repair_cost",
+      "input": "5",
+      "json": "5",
+      "nbt": "0300000005",
+      "hash": 645064431,
+      "wire": "05"
+    },
+    {
+      "kind": "enchantment_glint_override",
+      "input": "true",
+      "json": "true",
+      "nbt": "0101",
+      "hash": -1019818302,
+      "wire": "01"
+    },
+    {
+      "kind": "enchantment_glint_override",
+      "input": "false",
+      "json": "false",
+      "nbt": "0100",
+      "hash": 828198337,
+      "wire": "00"
+    },
+    {
+      "kind": "enchantable",
+      "input": "{\"value\":15}",
+      "json": "{\"value\":15}",
+      "nbt": "0a03000576616c75650000000f00",
+      "hash": -199463215,
+      "wire": "0f"
+    },
+    {
+      "kind": "enchantable",
+      "input": "{\"value\":1}",
+      "json": "{\"value\":1}",
+      "nbt": "0a03000576616c75650000000100",
+      "hash": 2133951508,
+      "wire": "01"
+    },
+    {
+      "kind": "villager_food",
+      "input": "{\"nutrition\":4}",
+      "json": "{\"nutrition\":4}",
+      "nbt": "0a0300096e7574726974696f6e0000000400",
+      "hash": -964794316,
+      "wire": "04"
+    },
+    {
+      "kind": "villager_food",
+      "input": "{\"nutrition\":1}",
+      "json": "{\"nutrition\":1}",
+      "nbt": "0a0300096e7574726974696f6e0000000100",
+      "hash": -326140849,
+      "wire": "01"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "16711680",
+      "json": "16711680",
+      "nbt": "0300ff0000",
+      "hash": 603347239,
+      "wire": "00ff0000"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "-6265536",
+      "json": "-6265536",
+      "nbt": "03ffa06540",
+      "hash": 523773248,
+      "wire": "ffa06540"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "0",
+      "json": "0",
+      "nbt": "0300000000",
+      "hash": -2146075228,
+      "wire": "00000000"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "[1.0,0.5,0.0]",
+      "json": "-33024",
+      "nbt": "03ffff7f00",
+      "hash": -1800841571,
+      "wire": "ffff7f00"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "[0.0,0.0,1.0]",
+      "json": "-16776961",
+      "nbt": "03ff0000ff",
+      "hash": 90949303,
+      "wire": "ff0000ff"
+    },
+    {
+      "kind": "map_id",
+      "input": "0",
+      "json": "0",
+      "nbt": "0300000000",
+      "hash": -2146075228,
+      "wire": "00"
+    },
+    {
+      "kind": "map_id",
+      "input": "12345",
+      "json": "12345",
+      "nbt": "0300003039",
+      "hash": 78878674,
+      "wire": "b960"
+    },
+    {
+      "kind": "map_id",
+      "input": "-1",
+      "json": "-1",
+      "nbt": "03ffffffff",
+      "hash": 932039068,
+      "wire": "ffffffff0f"
+    },
+    {
+      "kind": "map_id",
+      "input": "2.7",
+      "json": "2",
+      "nbt": "0300000002",
+      "hash": 1064459813,
+      "wire": "02"
+    },
+    {
+      "kind": "potion_duration_scale",
+      "input": "0.0",
+      "json": "0.0",
+      "nbt": "0500000000",
+      "hash": -264789252,
+      "wire": "00000000"
+    },
+    {
+      "kind": "potion_duration_scale",
+      "input": "1.5",
+      "json": "1.5",
+      "nbt": "053fc00000",
+      "hash": -1709970540,
+      "wire": "3fc00000"
+    },
+    {
+      "kind": "potion_duration_scale",
+      "input": "2",
+      "json": "2.0",
+      "nbt": "0540000000",
+      "hash": -1320370368,
+      "wire": "40000000"
+    },
+    {
+      "kind": "potion_duration_scale",
+      "input": "3.4028235E38",
+      "json": "3.4028235E38",
+      "nbt": "057f7fffff",
+      "hash": 1050335045,
+      "wire": "7f7fffff"
+    },
+    {
+      "kind": "ominous_bottle_amplifier",
+      "input": "0",
+      "json": "0",
+      "nbt": "0300000000",
+      "hash": -2146075228,
+      "wire": "00"
+    },
+    {
+      "kind": "ominous_bottle_amplifier",
+      "input": "4",
+      "json": "4",
+      "nbt": "0300000004",
+      "hash": -80262057,
+      "wire": "04"
+    },
+    {
+      "kind": "ominous_bottle_amplifier",
+      "input": "2",
+      "json": "2",
+      "nbt": "0300000002",
+      "hash": 1064459813,
+      "wire": "02"
+    },
+    {
+      "kind": "unbreakable",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": ""
+    },
+    {
+      "kind": "unbreakable",
+      "input": "{\"x\":1}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": ""
+    },
+    {
+      "kind": "intangible_projectile",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0a00"
+    },
+    {
+      "kind": "glider",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": ""
+    },
+    {
+      "kind": "waxed",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": ""
+    },
+    {
+      "kind": "rarity",
+      "input": "\"common\"",
+      "json": "\"common\"",
+      "nbt": "080006636f6d6d6f6e",
+      "hash": 75150990,
+      "wire": "00"
+    },
+    {
+      "kind": "rarity",
+      "input": "\"uncommon\"",
+      "json": "\"uncommon\"",
+      "nbt": "080008756e636f6d6d6f6e",
+      "hash": -1278428462,
+      "wire": "01"
+    },
+    {
+      "kind": "rarity",
+      "input": "\"rare\"",
+      "json": "\"rare\"",
+      "nbt": "08000472617265",
+      "hash": -1420566726,
+      "wire": "02"
+    },
+    {
+      "kind": "rarity",
+      "input": "\"epic\"",
+      "json": "\"epic\"",
+      "nbt": "08000465706963",
+      "hash": -292715907,
+      "wire": "03"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":\"stab\",\"duration\":10}",
+      "json": "{\"type\":\"stab\",\"duration\":10}",
+      "nbt": "0a0300086475726174696f6e0000000a0800047479706500047374616200",
+      "hash": -2140542379,
+      "wire": "020a"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":\"whack\",\"duration\":6}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":\"none\"}",
+      "json": "{\"type\":\"none\"}",
+      "nbt": "0a0800047479706500046e6f6e6500",
+      "hash": -178357229,
+      "wire": "0006"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"duration\":0}",
+      "json": "{\"duration\":0}",
+      "nbt": "0a0300086475726174696f6e0000000000",
+      "hash": -159825243,
+      "wire": "0100"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":\"stab\",\"duration\":10}",
+      "json": "{\"type\":\"stab\",\"duration\":10}",
+      "nbt": "0a0300086475726174696f6e0000000a0800047479706500047374616200",
+      "hash": -2140542379,
+      "wire": "020a"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":\"whack\",\"duration\":6}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":\"none\"}",
+      "json": "{\"type\":\"none\"}",
+      "nbt": "0a0800047479706500046e6f6e6500",
+      "hash": -178357229,
+      "wire": "0006"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"duration\":0}",
+      "json": "{\"duration\":0}",
+      "nbt": "0a0300086475726174696f6e0000000000",
+      "hash": -159825243,
+      "wire": "0100"
+    },
+    {
+      "kind": "dye",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "dye",
+      "input": "\"light_blue\"",
+      "json": "\"light_blue\"",
+      "nbt": "08000a6c696768745f626c7565",
+      "hash": -2058146727,
+      "wire": "03"
+    },
+    {
+      "kind": "dye",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "0f"
+    },
+    {
+      "kind": "base_color",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "base_color",
+      "input": "\"light_blue\"",
+      "json": "\"light_blue\"",
+      "nbt": "08000a6c696768745f626c7565",
+      "hash": -2058146727,
+      "wire": "03"
+    },
+    {
+      "kind": "base_color",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "0f"
+    },
+    {
+      "kind": "wolf/collar",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "wolf/collar",
+      "input": "\"light_blue\"",
+      "json": "\"light_blue\"",
+      "nbt": "08000a6c696768745f626c7565",
+      "hash": -2058146727,
+      "wire": "03"
+    },
+    {
+      "kind": "wolf/collar",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "0f"
+    },
+    {
+      "kind": "tropical_fish/base_color",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "tropical_fish/base_color",
+      "input": "\"light_blue\"",
+      "json": "\"light_blue\"",
+      "nbt": "08000a6c696768745f626c7565",
+      "hash": -2058146727,
+      "wire": "03"
+    },
+    {
+      "kind": "tropical_fish/base_color",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "0f"
+    },
+    {
+      "kind": "tropical_fish/pattern_color",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "tropical_fish/pattern_color",
+      "input": "\"light_blue\"",
+      "json": "\"light_blue\"",
+      "nbt": "08000a6c696768745f626c7565",
+      "hash": -2058146727,
+      "wire": "03"
+    },
+    {
+      "kind": "tropical_fish/pattern_color",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "0f"
+    },
+    {
+      "kind": "cat/collar",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "cat/collar",
+      "input": "\"light_blue\"",
+      "json": "\"light_blue\"",
+      "nbt": "08000a6c696768745f626c7565",
+      "hash": -2058146727,
+      "wire": "03"
+    },
+    {
+      "kind": "cat/collar",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "0f"
+    },
+    {
+      "kind": "sheep/color",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "sheep/color",
+      "input": "\"light_blue\"",
+      "json": "\"light_blue\"",
+      "nbt": "08000a6c696768745f626c7565",
+      "hash": -2058146727,
+      "wire": "03"
+    },
+    {
+      "kind": "sheep/color",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "0f"
+    },
+    {
+      "kind": "shulker/color",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "shulker/color",
+      "input": "\"light_blue\"",
+      "json": "\"light_blue\"",
+      "nbt": "08000a6c696768745f626c7565",
+      "hash": -2058146727,
+      "wire": "03"
+    },
+    {
+      "kind": "shulker/color",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "0f"
+    },
+    {
+      "kind": "cushion/color",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "cushion/color",
+      "input": "\"light_blue\"",
+      "json": "\"light_blue\"",
+      "nbt": "08000a6c696768745f626c7565",
+      "hash": -2058146727,
+      "wire": "03"
+    },
+    {
+      "kind": "cushion/color",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "0f"
+    },
+    {
+      "kind": "fox/variant",
+      "input": "\"red\"",
+      "json": "\"red\"",
+      "nbt": "080003726564",
+      "hash": -1939582294,
+      "wire": "00"
+    },
+    {
+      "kind": "fox/variant",
+      "input": "\"snow\"",
+      "json": "\"snow\"",
+      "nbt": "080004736e6f77",
+      "hash": -1511535024,
+      "wire": "01"
+    },
+    {
+      "kind": "salmon/size",
+      "input": "\"small\"",
+      "json": "\"small\"",
+      "nbt": "080005736d616c6c",
+      "hash": -159711913,
+      "wire": "00"
+    },
+    {
+      "kind": "salmon/size",
+      "input": "\"medium\"",
+      "json": "\"medium\"",
+      "nbt": "0800066d656469756d",
+      "hash": -705370973,
+      "wire": "01"
+    },
+    {
+      "kind": "salmon/size",
+      "input": "\"large\"",
+      "json": "\"large\"",
+      "nbt": "0800056c61726765",
+      "hash": -886537313,
+      "wire": "02"
+    },
+    {
+      "kind": "parrot/variant",
+      "input": "\"red_blue\"",
+      "json": "\"red_blue\"",
+      "nbt": "0800087265645f626c7565",
+      "hash": 1784290859,
+      "wire": "00"
+    },
+    {
+      "kind": "parrot/variant",
+      "input": "\"blue\"",
+      "json": "\"blue\"",
+      "nbt": "080004626c7565",
+      "hash": 199633461,
+      "wire": "01"
+    },
+    {
+      "kind": "parrot/variant",
+      "input": "\"green\"",
+      "json": "\"green\"",
+      "nbt": "080005677265656e",
+      "hash": -637036447,
+      "wire": "02"
+    },
+    {
+      "kind": "parrot/variant",
+      "input": "\"yellow_blue\"",
+      "json": "\"yellow_blue\"",
+      "nbt": "08000b79656c6c6f775f626c7565",
+      "hash": -983167813,
+      "wire": "03"
+    },
+    {
+      "kind": "parrot/variant",
+      "input": "\"gray\"",
+      "json": "\"gray\"",
+      "nbt": "08000467726179",
+      "hash": -727074367,
+      "wire": "04"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"kob\"",
+      "json": "\"kob\"",
+      "nbt": "0800036b6f62",
+      "hash": -474873657,
+      "wire": "00"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"sunstreak\"",
+      "json": "\"sunstreak\"",
+      "nbt": "08000973756e73747265616b",
+      "hash": 2123295629,
+      "wire": "8002"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"snooper\"",
+      "json": "\"snooper\"",
+      "nbt": "080007736e6f6f706572",
+      "hash": 771489915,
+      "wire": "8004"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"dasher\"",
+      "json": "\"dasher\"",
+      "nbt": "080006646173686572",
+      "hash": -380780659,
+      "wire": "8006"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"brinely\"",
+      "json": "\"brinely\"",
+      "nbt": "0800076272696e656c79",
+      "hash": -1619675906,
+      "wire": "8008"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"spotty\"",
+      "json": "\"spotty\"",
+      "nbt": "08000673706f747479",
+      "hash": 1219429958,
+      "wire": "800a"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"flopper\"",
+      "json": "\"flopper\"",
+      "nbt": "080007666c6f70706572",
+      "hash": 550842251,
+      "wire": "01"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"stripey\"",
+      "json": "\"stripey\"",
+      "nbt": "08000773747269706579",
+      "hash": -510228661,
+      "wire": "8102"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"glitter\"",
+      "json": "\"glitter\"",
+      "nbt": "080007676c6974746572",
+      "hash": 1461140459,
+      "wire": "8104"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"blockfish\"",
+      "json": "\"blockfish\"",
+      "nbt": "080009626c6f636b66697368",
+      "hash": 50225210,
+      "wire": "8106"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"betty\"",
+      "json": "\"betty\"",
+      "nbt": "0800056265747479",
+      "hash": 312926869,
+      "wire": "8108"
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "input": "\"clayfish\"",
+      "json": "\"clayfish\"",
+      "nbt": "080008636c617966697368",
+      "hash": 1395160473,
+      "wire": "810a"
+    },
+    {
+      "kind": "mooshroom/variant",
+      "input": "\"red\"",
+      "json": "\"red\"",
+      "nbt": "080003726564",
+      "hash": -1939582294,
+      "wire": "00"
+    },
+    {
+      "kind": "mooshroom/variant",
+      "input": "\"brown\"",
+      "json": "\"brown\"",
+      "nbt": "08000562726f776e",
+      "hash": -541737949,
+      "wire": "01"
+    },
+    {
+      "kind": "rabbit/variant",
+      "input": "\"brown\"",
+      "json": "\"brown\"",
+      "nbt": "08000562726f776e",
+      "hash": -541737949,
+      "wire": "00"
+    },
+    {
+      "kind": "rabbit/variant",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "01"
+    },
+    {
+      "kind": "rabbit/variant",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "02"
+    },
+    {
+      "kind": "rabbit/variant",
+      "input": "\"white_splotched\"",
+      "json": "\"white_splotched\"",
+      "nbt": "08000f77686974655f73706c6f7463686564",
+      "hash": 839632132,
+      "wire": "03"
+    },
+    {
+      "kind": "rabbit/variant",
+      "input": "\"gold\"",
+      "json": "\"gold\"",
+      "nbt": "080004676f6c64",
+      "hash": -2034434383,
+      "wire": "04"
+    },
+    {
+      "kind": "rabbit/variant",
+      "input": "\"salt\"",
+      "json": "\"salt\"",
+      "nbt": "08000473616c74",
+      "hash": 359467842,
+      "wire": "05"
+    },
+    {
+      "kind": "rabbit/variant",
+      "input": "\"evil\"",
+      "json": "\"evil\"",
+      "nbt": "0800046576696c",
+      "hash": 1619861300,
+      "wire": "63"
+    },
+    {
+      "kind": "horse/variant",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "00"
+    },
+    {
+      "kind": "horse/variant",
+      "input": "\"creamy\"",
+      "json": "\"creamy\"",
+      "nbt": "080006637265616d79",
+      "hash": 1294579017,
+      "wire": "01"
+    },
+    {
+      "kind": "horse/variant",
+      "input": "\"chestnut\"",
+      "json": "\"chestnut\"",
+      "nbt": "08000863686573746e7574",
+      "hash": -1361239355,
+      "wire": "02"
+    },
+    {
+      "kind": "horse/variant",
+      "input": "\"brown\"",
+      "json": "\"brown\"",
+      "nbt": "08000562726f776e",
+      "hash": -541737949,
+      "wire": "03"
+    },
+    {
+      "kind": "horse/variant",
+      "input": "\"black\"",
+      "json": "\"black\"",
+      "nbt": "080005626c61636b",
+      "hash": 1821130656,
+      "wire": "04"
+    },
+    {
+      "kind": "horse/variant",
+      "input": "\"gray\"",
+      "json": "\"gray\"",
+      "nbt": "08000467726179",
+      "hash": -727074367,
+      "wire": "05"
+    },
+    {
+      "kind": "horse/variant",
+      "input": "\"dark_brown\"",
+      "json": "\"dark_brown\"",
+      "nbt": "08000a6461726b5f62726f776e",
+      "hash": -337512376,
+      "wire": "06"
+    },
+    {
+      "kind": "llama/variant",
+      "input": "\"creamy\"",
+      "json": "\"creamy\"",
+      "nbt": "080006637265616d79",
+      "hash": 1294579017,
+      "wire": "00"
+    },
+    {
+      "kind": "llama/variant",
+      "input": "\"white\"",
+      "json": "\"white\"",
+      "nbt": "0800057768697465",
+      "hash": 1286006417,
+      "wire": "01"
+    },
+    {
+      "kind": "llama/variant",
+      "input": "\"brown\"",
+      "json": "\"brown\"",
+      "nbt": "08000562726f776e",
+      "hash": -541737949,
+      "wire": "02"
+    },
+    {
+      "kind": "llama/variant",
+      "input": "\"gray\"",
+      "json": "\"gray\"",
+      "nbt": "08000467726179",
+      "hash": -727074367,
+      "wire": "03"
+    },
+    {
+      "kind": "axolotl/variant",
+      "input": "\"lucy\"",
+      "json": "\"lucy\"",
+      "nbt": "0800046c756379",
+      "hash": 1962468702,
+      "wire": "00"
+    },
+    {
+      "kind": "axolotl/variant",
+      "input": "\"wild\"",
+      "json": "\"wild\"",
+      "nbt": "08000477696c64",
+      "hash": 1806917809,
+      "wire": "01"
+    },
+    {
+      "kind": "axolotl/variant",
+      "input": "\"gold\"",
+      "json": "\"gold\"",
+      "nbt": "080004676f6c64",
+      "hash": -2034434383,
+      "wire": "02"
+    },
+    {
+      "kind": "axolotl/variant",
+      "input": "\"cyan\"",
+      "json": "\"cyan\"",
+      "nbt": "0800046379616e",
+      "hash": -458829651,
+      "wire": "03"
+    },
+    {
+      "kind": "axolotl/variant",
+      "input": "\"blue\"",
+      "json": "\"blue\"",
+      "nbt": "080004626c7565",
+      "hash": 199633461,
+      "wire": "04"
+    },
+    {
+      "kind": "additional_trade_cost",
+      "value": "0",
+      "wire": "00"
+    },
+    {
+      "kind": "additional_trade_cost",
+      "value": "300",
+      "wire": "ac02"
+    },
+    {
+      "kind": "additional_trade_cost",
+      "value": "-1",
+      "wire": "ffffffff0f"
+    },
+    {
+      "kind": "creative_slot_lock",
+      "value": "INSTANCE",
+      "wire": ""
+    },
+    {
+      "kind": "map_post_processing",
+      "value": "LOCK",
+      "wire": "00"
+    },
+    {
+      "kind": "map_post_processing",
+      "value": "SCALE",
+      "wire": "01"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"duration\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":null,\"duration\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":\"stab\",\"duration\":null}",
+      "json": "{\"type\":\"stab\"}",
+      "nbt": "0a0800047479706500047374616200",
+      "hash": -1450690709,
+      "wire": "0206"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":null,\"duration\":3}",
+      "json": "{\"duration\":3}",
+      "nbt": "0a0300086475726174696f6e0000000300",
+      "hash": -271167860,
+      "wire": "0103"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"duration\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":null,\"duration\":null}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0106"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":\"stab\",\"duration\":null}",
+      "json": "{\"type\":\"stab\"}",
+      "nbt": "0a0800047479706500047374616200",
+      "hash": -1450690709,
+      "wire": "0206"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":null,\"duration\":3}",
+      "json": "{\"duration\":3}",
+      "nbt": "0a0300086475726174696f6e0000000300",
+      "hash": -271167860,
+      "wire": "0103"
+    }
+  ],
+  "errors": [
+    {
+      "kind": "max_stack_size",
+      "input": "100",
+      "error": "Value must be within range [1;99]: 100"
+    },
+    {
+      "kind": "max_stack_size",
+      "input": "0",
+      "error": "Value must be within range [1;99]: 0"
+    },
+    {
+      "kind": "max_damage",
+      "input": "0",
+      "error": "Value must be positive: 0"
+    },
+    {
+      "kind": "damage",
+      "input": "-1",
+      "error": "Value must be non-negative: -1"
+    },
+    {
+      "kind": "minimum_attack_charge",
+      "input": "1.5",
+      "error": "Value must be within range [0.0;1.0]: 1.5"
+    },
+    {
+      "kind": "minimum_attack_charge",
+      "input": "-0.0",
+      "error": "Value must be within range [0.0;1.0]: -0.0"
+    },
+    {
+      "kind": "minimum_attack_charge",
+      "input": "-1",
+      "error": "Value must be within range [0.0;1.0]: -1.0"
+    },
+    {
+      "kind": "repair_cost",
+      "input": "-1",
+      "error": "Value must be non-negative: -1"
+    },
+    {
+      "kind": "enchantment_glint_override",
+      "input": "1",
+      "error": "Not a boolean: 1"
+    },
+    {
+      "kind": "enchantable",
+      "input": "{\"value\":0}",
+      "error": "Value must be positive: 0"
+    },
+    {
+      "kind": "enchantable",
+      "input": "{}",
+      "error": "No key value in MapLike[{}]"
+    },
+    {
+      "kind": "enchantable",
+      "input": "[5]",
+      "error": "Not a JSON object: [5]"
+    },
+    {
+      "kind": "enchantable",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "enchantable",
+      "input": "5",
+      "error": "Not a JSON object: 5"
+    },
+    {
+      "kind": "villager_food",
+      "input": "{\"nutrition\":0}",
+      "error": "Value must be positive: 0"
+    },
+    {
+      "kind": "villager_food",
+      "input": "[5]",
+      "error": "Not a JSON object: [5]"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "[1.0,1.0]",
+      "error": "Failed to parse either. First: Not a number: [1.0,1.0]; Second: Input is not a list of 3 elements"
+    },
+    {
+      "kind": "potion_duration_scale",
+      "input": "-1.0",
+      "error": "Value must be non-negative: -1.0"
+    },
+    {
+      "kind": "potion_duration_scale",
+      "input": "-0.0",
+      "error": "Value must be non-negative: -0.0"
+    },
+    {
+      "kind": "ominous_bottle_amplifier",
+      "input": "5",
+      "error": "Value must be within range [0;4]: 5"
+    },
+    {
+      "kind": "ominous_bottle_amplifier",
+      "input": "-1",
+      "error": "Value must be within range [0;4]: -1"
+    },
+    {
+      "kind": "unbreakable",
+      "input": "1",
+      "error": "Not a JSON object: 1"
+    },
+    {
+      "kind": "rarity",
+      "input": "\"legendary\"",
+      "error": "Unknown element name:legendary"
+    },
+    {
+      "kind": "rarity",
+      "input": "0",
+      "error": "Not a string: 0"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"duration\":-1}",
+      "error": "Value must be non-negative: -1"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "{\"type\":\"punch\"}",
+      "error": "Unknown element name:punch"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "[\"stab\",10]",
+      "error": "Not a JSON object: [\"stab\",10]"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "[\"stab\"]",
+      "error": "Not a JSON object: [\"stab\"]"
+    },
+    {
+      "kind": "attack_animation",
+      "input": "\"stab\"",
+      "error": "Not a JSON object: \"stab\""
+    },
+    {
+      "kind": "attack_animation",
+      "input": "6",
+      "error": "Not a JSON object: 6"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"duration\":-1}",
+      "error": "Value must be non-negative: -1"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "{\"type\":\"punch\"}",
+      "error": "Unknown element name:punch"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "[\"stab\",10]",
+      "error": "Not a JSON object: [\"stab\",10]"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "[\"stab\"]",
+      "error": "Not a JSON object: [\"stab\"]"
+    },
+    {
+      "kind": "interact_animation",
+      "input": "\"stab\"",
+      "error": "Not a JSON object: \"stab\""
+    },
+    {
+      "kind": "interact_animation",
+      "input": "6",
+      "error": "Not a JSON object: 6"
+    },
+    {
+      "kind": "dye",
+      "input": "\"pinkish\"",
+      "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "base_color",
+      "input": "\"pinkish\"",
+      "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "wolf/collar",
+      "input": "\"pinkish\"",
+      "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "tropical_fish/base_color",
+      "input": "\"pinkish\"",
+      "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "tropical_fish/pattern_color",
+      "input": "\"pinkish\"",
+      "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "cat/collar",
+      "input": "\"pinkish\"",
+      "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "sheep/color",
+      "input": "\"pinkish\"",
+      "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "shulker/color",
+      "input": "\"pinkish\"",
+      "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "cushion/color",
+      "input": "\"pinkish\"",
+      "error": "Unknown element name:pinkish"
+    },
+    {
+      "kind": "enchantable",
+      "input": "{\"value\":null}",
+      "error": "No key value in MapLike[{\"value\":null}]"
+    },
+    {
+      "kind": "villager_food",
+      "input": "{\"nutrition\":null}",
+      "error": "No key nutrition in MapLike[{\"nutrition\":null}]"
+    }
+  ],
+  "decodes": [
+    {
+      "kind": "rarity",
+      "wire": "07",
+      "json": "\"common\""
+    },
+    {
+      "kind": "rarity",
+      "wire": "ffffffff0f",
+      "json": "\"common\""
+    },
+    {
+      "kind": "map_post_processing",
+      "wire": "02",
+      "json": "LOCK"
+    },
+    {
+      "kind": "map_post_processing",
+      "wire": "ffffffff0f",
+      "json": "LOCK"
+    },
+    {
+      "kind": "dye",
+      "wire": "10",
+      "json": "\"white\""
+    },
+    {
+      "kind": "dye",
+      "wire": "ffffffff0f",
+      "json": "\"white\""
+    },
+    {
+      "kind": "fox/variant",
+      "wire": "02",
+      "json": "\"red\""
+    },
+    {
+      "kind": "fox/variant",
+      "wire": "fdffffff0f",
+      "json": "\"red\""
+    },
+    {
+      "kind": "salmon/size",
+      "wire": "05",
+      "json": "\"large\""
+    },
+    {
+      "kind": "salmon/size",
+      "wire": "ffffffff0f",
+      "json": "\"small\""
+    },
+    {
+      "kind": "parrot/variant",
+      "wire": "09",
+      "json": "\"gray\""
+    },
+    {
+      "kind": "parrot/variant",
+      "wire": "feffffff0f",
+      "json": "\"red_blue\""
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "wire": "03",
+      "json": "\"kob\""
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "wire": "02",
+      "json": "\"kob\""
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "wire": "810a",
+      "json": "\"clayfish\""
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "wire": "820a",
+      "json": "\"kob\""
+    },
+    {
+      "kind": "tropical_fish/pattern",
+      "wire": "8002",
+      "json": "\"sunstreak\""
+    },
+    {
+      "kind": "mooshroom/variant",
+      "wire": "02",
+      "json": "\"brown\""
+    },
+    {
+      "kind": "mooshroom/variant",
+      "wire": "ffffffff0f",
+      "json": "\"red\""
+    },
+    {
+      "kind": "rabbit/variant",
+      "wire": "06",
+      "json": "\"brown\""
+    },
+    {
+      "kind": "rabbit/variant",
+      "wire": "63",
+      "json": "\"evil\""
+    },
+    {
+      "kind": "rabbit/variant",
+      "wire": "64",
+      "json": "\"brown\""
+    },
+    {
+      "kind": "rabbit/variant",
+      "wire": "ffffffff0f",
+      "json": "\"brown\""
+    },
+    {
+      "kind": "horse/variant",
+      "wire": "07",
+      "json": "\"white\""
+    },
+    {
+      "kind": "horse/variant",
+      "wire": "ffffffff0f",
+      "json": "\"dark_brown\""
+    },
+    {
+      "kind": "horse/variant",
+      "wire": "0d",
+      "json": "\"dark_brown\""
+    },
+    {
+      "kind": "horse/variant",
+      "wire": "f8ffffff0f",
+      "json": "\"dark_brown\""
+    },
+    {
+      "kind": "llama/variant",
+      "wire": "04",
+      "json": "\"gray\""
+    },
+    {
+      "kind": "llama/variant",
+      "wire": "ffffffff0f",
+      "json": "\"creamy\""
+    },
+    {
+      "kind": "axolotl/variant",
+      "wire": "05",
+      "json": "\"lucy\""
+    },
+    {
+      "kind": "axolotl/variant",
+      "wire": "ffffffff0f",
+      "json": "\"lucy\""
+    },
+    {
+      "kind": "attack_animation",
+      "wire": "0503",
+      "json": "{\"type\":\"none\",\"duration\":3}"
+    }
+  ],
+  "decode_errors": [
+    {
+      "kind": "enchantable",
+      "wire": "00",
+      "error": "Enchantment value must be positive, but was 0"
+    },
+    {
+      "kind": "enchantable",
+      "wire": "ffffffff0f",
+      "error": "Enchantment value must be positive, but was -1"
+    }
+  ]
+}

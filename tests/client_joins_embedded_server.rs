@@ -1,11 +1,11 @@
 use bevy_app::{App, AppExit, Update};
 use bevy_ecs::message::MessageWriter;
+use mcrs_minecraft_client::columns::{BlockSource, ColumnCachePlugin, ColumnStore};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
     ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, JoinedGame, PendingTeleports,
     ReceivedRegistries, ReceivedTags, ServerProfile, offline_player_uuid,
 };
-use mcrs_minecraft_network::columns::{BlockSource, ColumnStore};
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin, run_server_loop};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -37,8 +37,10 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     client.add_plugins(ClientNetworkPlugin {
         server: address,
         username: "mcrs_test".to_owned(),
+        profile_id: None,
         view_distance: 8,
     });
+    client.add_plugins(ColumnCachePlugin);
 
     let outcome = drive_client_until_joined(&mut client);
 
@@ -63,7 +65,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     );
 
     let registries = world.get::<ReceivedRegistries>(connection).unwrap();
-    assert_eq!(registries.0.len(), 29, "registry packet count");
+    assert_eq!(registries.0.len(), 32, "registry packet count");
     assert!(
         registries
             .0

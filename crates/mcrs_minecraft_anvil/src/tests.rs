@@ -4,11 +4,17 @@ use std::path::{Path, PathBuf};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
+use mcrs_minecraft_core::ColumnPos;
+
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;
+use mcrs_minecraft_chunk::PalettedContainer::Homogeneous;
+use mcrs_minecraft_chunk::section::{Biomes, Blocks};
+use mcrs_minecraft_chunk::{SectionKind, VoxelId};
+use std::cell::Cell;
+
 use crate::{
-    AnvilError, Biomes, BlockStateLookup, BlockStates, DATA_VERSION, ErrorKind,
-    OLDEST_DATA_VERSION, Properties, RegionFile,
+    AnvilError, DATA_VERSION, ErrorKind, OLDEST_DATA_VERSION, PaletteLookup, Properties, RegionFile,
 };
 
 const GZIP: u8 = 1;
@@ -167,13 +173,72 @@ fn single_slot(version: u8, root: &NbtCompound) -> Vec<(i32, i32, u8, Vec<u8>)> 
     vec![(0, 0, version, compress(version, &nbt_bytes(root)))]
 }
 
+/// Stands in for the block and biome registries with ids a test can name.
+#[derive(Default)]
+struct TestRegistry {
+    asked: Cell<usize>,
+}
+
+const AIR: VoxelId = VoxelId(0);
+const STONE: VoxelId = VoxelId(100);
+const OAK_LOG: VoxelId = VoxelId(200);
+const OAK_LOG_Y: VoxelId = VoxelId(201);
+const BEDROCK: VoxelId = VoxelId(300);
+const DEEPSLATE: VoxelId = VoxelId(301);
+const PLAINS: u8 = 1;
+const DESERT: u8 = 2;
+
+fn numbered(index: u16) -> VoxelId {
+    VoxelId(1000 + index)
+}
+
+impl PaletteLookup<VoxelId> for TestRegistry {
+    fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<VoxelId> {
+        self.asked.set(self.asked.get() + 1);
+        match name {
+            "minecraft:air" => Some(AIR),
+            "minecraft:stone" => Some(STONE),
+            "minecraft:oak_log" if properties.get("axis") == Some("y") => Some(OAK_LOG_Y),
+            "minecraft:oak_log" => Some(OAK_LOG),
+            "minecraft:bedrock" => Some(BEDROCK),
+            "minecraft:deepslate" => Some(DEEPSLATE),
+            _ => name
+                .strip_prefix("minecraft:block_")?
+                .parse()
+                .ok()
+                .map(numbered),
+        }
+    }
+}
+
+impl PaletteLookup<u8> for TestRegistry {
+    fn resolve(&self, name: &str, _properties: Properties<'_>) -> Option<u8> {
+        match name {
+            "minecraft:plains" => Some(PLAINS),
+            "minecraft:desert" => Some(DESERT),
+            _ => None,
+        }
+    }
+}
+
 fn read_one(
     fixture: &Fixture,
     version: u8,
     root: &NbtCompound,
 ) -> Result<crate::Chunk, AnvilError> {
+    read_with(fixture, version, root, &TestRegistry::default())
+}
+
+fn read_with(
+    fixture: &Fixture,
+    version: u8,
+    root: &NbtCompound,
+    registry: &TestRegistry,
+) -> Result<crate::Chunk, AnvilError> {
     let path = fixture.region(0, 0, &single_slot(version, root));
-    Ok(RegionFile::open(&path)?.read_chunk(0, 0)?.unwrap())
+    Ok(RegionFile::open(&path)?
+        .read_chunk(ColumnPos::new(0, 0), registry, registry)?
+        .unwrap())
 }
 
 #[test]
@@ -191,13 +256,8 @@ fn every_compression_id_round_trips() {
         let chunk = read_one(&fixture, version, &root).unwrap();
         assert_eq!(chunk.sections.len(), 1, "compression {version}");
         assert_eq!(
-            chunk.sections[0]
-                .block_states
-                .as_ref()
-                .unwrap()
-                .palette
-                .name(0),
-            "minecraft:stone",
+            chunk.sections[0].block_states,
+            Some(Homogeneous(STONE)),
             "compression {version}"
         );
     }
@@ -209,7 +269,11 @@ fn custom_compression_is_a_loud_error() {
     let path = fixture.region(0, 0, &[(0, 0, 127, b"whatever".to_vec())]);
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(
+            ColumnPos::new(0, 0),
+            &TestRegistry::default(),
+            &TestRegistry::default(),
+        )
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::CustomCompression { .. }),
@@ -224,7 +288,11 @@ fn unknown_compression_names_the_id() {
     let path = fixture.region(0, 0, &[(0, 0, 9, b"whatever".to_vec())]);
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(
+            ColumnPos::new(0, 0),
+            &TestRegistry::default(),
+            &TestRegistry::default(),
+        )
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::UnknownCompression { id: 9, .. }),
@@ -247,18 +315,20 @@ fn external_chunks_come_from_the_mcc_file() {
     let path = fixture.region(1, 0, &[(33, 2, ZLIB | EXTERNAL, Vec::new())]);
 
     let region = RegionFile::open(&path).unwrap();
-    assert_eq!(region.present().collect::<Vec<_>>(), vec![(33, 2)]);
-    let chunk = region.read_chunk(33, 2).unwrap().unwrap();
-    assert_eq!(chunk.x, 33);
     assert_eq!(
-        chunk.sections[0]
-            .block_states
-            .as_ref()
-            .unwrap()
-            .palette
-            .name(0),
-        "minecraft:deepslate"
+        region.present().collect::<Vec<_>>(),
+        vec![ColumnPos::new(33, 2)]
     );
+    let chunk = region
+        .read_chunk(
+            ColumnPos::new(33, 2),
+            &TestRegistry::default(),
+            &TestRegistry::default(),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(chunk.pos.x, 33);
+    assert_eq!(chunk.sections[0].block_states, Some(Homogeneous(DEEPSLATE)));
 }
 
 #[test]
@@ -267,7 +337,11 @@ fn a_missing_mcc_file_is_a_loud_error() {
     let path = fixture.region(0, 0, &[(0, 0, ZLIB | EXTERNAL, Vec::new())]);
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(
+            ColumnPos::new(0, 0),
+            &TestRegistry::default(),
+            &TestRegistry::default(),
+        )
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::MissingExternal { .. }),
@@ -282,7 +356,16 @@ fn an_empty_slot_reads_as_absent() {
     let path = fixture.region(0, 0, &single_slot(ZLIB, &chunk_nbt(0, 0, Vec::new())));
     let region = RegionFile::open(&path).unwrap();
     assert_eq!(region.present().count(), 1);
-    assert!(region.read_chunk(1, 0).unwrap().is_none());
+    assert!(
+        region
+            .read_chunk(
+                ColumnPos::new(1, 0),
+                &TestRegistry::default(),
+                &TestRegistry::default()
+            )
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]
@@ -291,7 +374,11 @@ fn a_chunk_outside_the_region_is_a_loud_error() {
     let path = fixture.region(0, 0, &single_slot(ZLIB, &chunk_nbt(0, 0, Vec::new())));
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(32, 0)
+        .read_chunk(
+            ColumnPos::new(32, 0),
+            &TestRegistry::default(),
+            &TestRegistry::default(),
+        )
         .unwrap_err();
     assert!(matches!(err.kind, ErrorKind::WrongRegion { .. }), "{err}");
 }
@@ -308,33 +395,7 @@ fn a_single_value_section_carries_no_data() {
         ))],
     );
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.palette.len(), 1);
-    for (x, y, z) in [(0, 0, 0), (15, 15, 15), (7, 3, 11)] {
-        assert_eq!(blocks.name(x, y, z), "minecraft:bedrock");
-    }
-}
-
-/// A single-entry palette stores no cells, so the container has to answer for
-/// them from somewhere other than its data.
-struct FakeRegistry;
-
-impl BlockStateLookup for FakeRegistry {
-    fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<u32> {
-        let base = match name {
-            "minecraft:air" => 0,
-            "minecraft:stone" => 100,
-            "minecraft:oak_log" => 200,
-            _ => return None,
-        };
-        Some(
-            base + if properties.get("axis") == Some("y") {
-                1
-            } else {
-                0
-            },
-        )
-    }
+    assert_eq!(chunk.sections[0].block_states, Some(Homogeneous(BEDROCK)));
 }
 
 /// The registry sees the name and its properties while both are still borrowed
@@ -342,9 +403,9 @@ impl BlockStateLookup for FakeRegistry {
 #[test]
 fn the_palette_resolves_through_a_registry() {
     let fixture = Fixture::new("resolve");
-    let mut entries = vec![0u16; BlockStates::ENTRY_COUNT];
-    entries[BlockStates::index(1, 0, 0)] = 1;
-    entries[BlockStates::index(0, 0, 1)] = 2;
+    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
+    entries[Blocks::index(1, 0, 0)] = 1;
+    entries[Blocks::index(0, 0, 1)] = 2;
     let root = chunk_nbt(
         0,
         0,
@@ -363,20 +424,18 @@ fn the_palette_resolves_through_a_registry() {
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
 
-    let ids = blocks.resolve_palette(&FakeRegistry).unwrap();
-    assert_eq!(ids, vec![0, 100, 201]);
-    assert_eq!(ids[blocks.palette_index(0, 0, 0)], 0);
-    assert_eq!(ids[blocks.palette_index(1, 0, 0)], 100);
-    assert_eq!(ids[blocks.palette_index(0, 0, 1)], 201);
+    assert_eq!(blocks.get(0, 0, 0), AIR);
+    assert_eq!(blocks.get(1, 0, 0), STONE);
+    assert_eq!(blocks.get(0, 0, 1), OAK_LOG_Y);
 }
 
 #[test]
-fn remapping_writes_one_resolved_id_per_cell() {
+fn every_cell_holds_its_resolved_id() {
     let fixture = Fixture::new("remap");
-    let mut entries = vec![0u16; BlockStates::ENTRY_COUNT];
-    entries[BlockStates::index(1, 0, 0)] = 1;
-    entries[BlockStates::index(0, 0, 1)] = 2;
-    entries[BlockStates::index(15, 15, 15)] = 2;
+    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
+    entries[Blocks::index(1, 0, 0)] = 1;
+    entries[Blocks::index(0, 0, 1)] = 2;
+    entries[Blocks::index(15, 15, 15)] = 2;
     let root = chunk_nbt(
         0,
         0,
@@ -395,25 +454,18 @@ fn remapping_writes_one_resolved_id_per_cell() {
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
 
-    let ids = blocks.resolve_palette(&FakeRegistry).unwrap();
-    let mut cells = vec![u32::MAX; BlockStates::ENTRY_COUNT];
-    blocks.remap_into(&ids, &mut cells);
-
-    assert_eq!(cells[BlockStates::index(0, 0, 0)], 0);
-    assert_eq!(cells[BlockStates::index(1, 0, 0)], 100);
-    assert_eq!(cells[BlockStates::index(0, 0, 1)], 201);
-    assert_eq!(cells[BlockStates::index(15, 15, 15)], 201);
-    assert_eq!(cells.iter().filter(|&&c| c == 201).count(), 2);
-    assert_eq!(cells.iter().filter(|&&c| c == 100).count(), 1);
-
-    let mut indices = vec![u16::MAX; BlockStates::ENTRY_COUNT];
-    blocks.unpack_into(&mut indices);
-    assert_eq!(indices, entries);
+    let ids = [AIR, STONE, OAK_LOG_Y];
+    let mut index = 0;
+    blocks.for_each(|cell| {
+        assert_eq!(cell, ids[entries[index] as usize], "cell {index}");
+        index += 1;
+    });
+    assert_eq!(index, Blocks::ENTRY_COUNT);
 }
 
 /// A single-entry container stores no cells, so it answers from the palette.
 #[test]
-fn a_uniform_container_remaps_every_cell() {
+fn a_uniform_container_holds_its_value_in_every_cell() {
     let fixture = Fixture::new("remap_uniform");
     let root = chunk_nbt(
         0,
@@ -425,10 +477,12 @@ fn a_uniform_container_remaps_every_cell() {
     );
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    let ids = blocks.resolve_palette(&FakeRegistry).unwrap();
-    let mut cells = vec![u32::MAX; BlockStates::ENTRY_COUNT];
-    blocks.remap_into(&ids, &mut cells);
-    assert!(cells.iter().all(|&c| c == 100));
+    let mut cells = 0;
+    blocks.for_each(|cell| {
+        assert_eq!(cell, STONE);
+        cells += 1;
+    });
+    assert_eq!(cells, Blocks::ENTRY_COUNT);
 }
 
 /// The palette entry is read by hand rather than derived, so its rejection of
@@ -462,15 +516,9 @@ fn an_unresolvable_palette_entry_is_a_loud_error() {
             container(vec![NbtTag::Compound(block("modded:widget"))], None),
         ))],
     );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    let err = chunk.sections[0]
-        .block_states
-        .as_ref()
-        .unwrap()
-        .resolve_palette(&FakeRegistry)
-        .unwrap_err();
+    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
     assert!(
-        matches!(&err, ErrorKind::UnknownPaletteEntry { name } if name == "modded:widget"),
+        matches!(&err.kind, ErrorKind::UnknownPaletteEntry { name } if name == "modded:widget"),
         "{err}"
     );
 }
@@ -488,9 +536,12 @@ fn a_single_value_section_still_reports_every_cell() {
     );
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    let mut cells = vec![0xffffu16; BlockStates::ENTRY_COUNT];
-    blocks.unpack_into(&mut cells);
-    assert!(cells.iter().all(|&e| e == 0));
+    let mut cells = 0;
+    blocks.for_each(|cell| {
+        assert_eq!(cell, BEDROCK);
+        cells += 1;
+    });
+    assert_eq!(cells, Blocks::ENTRY_COUNT);
 }
 
 #[test]
@@ -520,12 +571,12 @@ fn a_single_value_section_with_data_is_a_loud_error() {
 #[test]
 fn a_three_entry_block_palette_is_stored_at_four_bits() {
     let fixture = Fixture::new("three_entry");
-    let mut entries = vec![0u16; BlockStates::ENTRY_COUNT];
-    entries[BlockStates::index(0, 0, 0)] = 0;
-    entries[BlockStates::index(1, 0, 0)] = 1;
-    entries[BlockStates::index(0, 0, 1)] = 2;
-    entries[BlockStates::index(15, 15, 15)] = 2;
-    entries[BlockStates::index(5, 9, 13)] = 1;
+    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
+    entries[Blocks::index(0, 0, 0)] = 0;
+    entries[Blocks::index(1, 0, 0)] = 1;
+    entries[Blocks::index(0, 0, 1)] = 2;
+    entries[Blocks::index(15, 15, 15)] = 2;
+    entries[Blocks::index(5, 9, 13)] = 1;
 
     let root = chunk_nbt(
         0,
@@ -544,13 +595,12 @@ fn a_three_entry_block_palette_is_stored_at_four_bits() {
     );
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.name(0, 0, 0), "minecraft:air");
-    assert_eq!(blocks.name(1, 0, 0), "minecraft:stone");
-    assert_eq!(blocks.name(0, 0, 1), "minecraft:oak_log");
-    assert_eq!(blocks.name(15, 15, 15), "minecraft:oak_log");
-    assert_eq!(blocks.name(5, 9, 13), "minecraft:stone");
-    assert_eq!(blocks.name(2, 0, 0), "minecraft:air");
-    assert_eq!(blocks.properties(0, 0, 1).get("axis"), Some("y"));
+    assert_eq!(blocks.get(0, 0, 0), AIR);
+    assert_eq!(blocks.get(1, 0, 0), STONE);
+    assert_eq!(blocks.get(0, 0, 1), OAK_LOG_Y);
+    assert_eq!(blocks.get(15, 15, 15), OAK_LOG_Y);
+    assert_eq!(blocks.get(5, 9, 13), STONE);
+    assert_eq!(blocks.get(2, 0, 0), AIR);
 }
 
 /// A palette above 256 entries leaves the linear/hashmap configurations behind
@@ -562,10 +612,10 @@ fn a_global_palette_section_is_stored_at_its_own_width() {
     let palette: Vec<NbtTag> = (0..300)
         .map(|i| NbtTag::Compound(block(&format!("minecraft:block_{i}"))))
         .collect();
-    let mut entries = vec![0u16; BlockStates::ENTRY_COUNT];
-    entries[BlockStates::index(0, 0, 0)] = 299;
-    entries[BlockStates::index(3, 4, 5)] = 256;
-    entries[BlockStates::index(15, 15, 15)] = 137;
+    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
+    entries[Blocks::index(0, 0, 0)] = 299;
+    entries[Blocks::index(3, 4, 5)] = 256;
+    entries[Blocks::index(15, 15, 15)] = 137;
 
     let root = chunk_nbt(
         0,
@@ -575,13 +625,14 @@ fn a_global_palette_section_is_stored_at_its_own_width() {
             container(palette, Some(pack(&entries, 9))),
         ))],
     );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
+    let registry = TestRegistry::default();
+    let chunk = read_with(&fixture, ZLIB, &root, &registry).unwrap();
+    assert_eq!(registry.asked.get(), 300, "every palette entry is resolved");
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.palette.len(), 300);
-    assert_eq!(blocks.name(0, 0, 0), "minecraft:block_299");
-    assert_eq!(blocks.name(3, 4, 5), "minecraft:block_256");
-    assert_eq!(blocks.name(15, 15, 15), "minecraft:block_137");
-    assert_eq!(blocks.name(1, 0, 0), "minecraft:block_0");
+    assert_eq!(blocks.get(0, 0, 0), numbered(299));
+    assert_eq!(blocks.get(3, 4, 5), numbered(256));
+    assert_eq!(blocks.get(15, 15, 15), numbered(137));
+    assert_eq!(blocks.get(1, 0, 0), numbered(0));
 }
 
 /// Biomes have no four-bit floor: two entries are stored at one bit.
@@ -610,10 +661,10 @@ fn a_two_entry_biome_palette_is_stored_at_one_bit() {
 
     let chunk = read_one(&fixture, ZLIB, &chunk_nbt(0, 0, vec![NbtTag::Compound(s)])).unwrap();
     let biomes = chunk.sections[0].biomes.as_ref().unwrap();
-    assert_eq!(biomes.name(0, 0, 0), "minecraft:desert");
-    assert_eq!(biomes.name(3, 3, 3), "minecraft:desert");
-    assert_eq!(biomes.name(1, 2, 3), "minecraft:plains");
-    assert_eq!(biomes.name(2, 0, 0), "minecraft:plains");
+    assert_eq!(biomes.get(0, 0, 0), DESERT);
+    assert_eq!(biomes.get(3, 3, 3), DESERT);
+    assert_eq!(biomes.get(1, 2, 3), PLAINS);
+    assert_eq!(biomes.get(2, 0, 0), PLAINS);
 }
 
 #[test]
@@ -648,10 +699,10 @@ fn a_256_entry_palette_is_stored_at_eight_bits() {
     let palette: Vec<NbtTag> = (0..256)
         .map(|i| NbtTag::Compound(block(&format!("minecraft:block_{i}"))))
         .collect();
-    let mut entries = vec![0u16; BlockStates::ENTRY_COUNT];
-    entries[BlockStates::index(0, 0, 0)] = 255;
-    entries[BlockStates::index(9, 0, 0)] = 200;
-    entries[BlockStates::index(15, 15, 15)] = 1;
+    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
+    entries[Blocks::index(0, 0, 0)] = 255;
+    entries[Blocks::index(9, 0, 0)] = 200;
+    entries[Blocks::index(15, 15, 15)] = 1;
 
     let root = chunk_nbt(
         0,
@@ -663,10 +714,10 @@ fn a_256_entry_palette_is_stored_at_eight_bits() {
     );
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.name(0, 0, 0), "minecraft:block_255");
-    assert_eq!(blocks.name(9, 0, 0), "minecraft:block_200");
-    assert_eq!(blocks.name(15, 15, 15), "minecraft:block_1");
-    assert_eq!(blocks.name(1, 0, 0), "minecraft:block_0");
+    assert_eq!(blocks.get(0, 0, 0), numbered(255));
+    assert_eq!(blocks.get(9, 0, 0), numbered(200));
+    assert_eq!(blocks.get(15, 15, 15), numbered(1));
+    assert_eq!(blocks.get(1, 0, 0), numbered(0));
 }
 
 /// Above 65536 entries an index no longer fits the decoded entry, so a crafted
@@ -767,8 +818,8 @@ fn a_data_array_of_the_wrong_length_is_an_error() {
 #[test]
 fn a_palette_index_past_the_palette_is_an_error() {
     let fixture = Fixture::new("palette_index");
-    let mut entries = vec![0u16; BlockStates::ENTRY_COUNT];
-    entries[BlockStates::index(2, 0, 0)] = 5;
+    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
+    entries[Blocks::index(2, 0, 0)] = 5;
     let root = chunk_nbt(
         0,
         0,
@@ -963,7 +1014,11 @@ fn a_sector_pointing_into_the_header_is_an_error() {
     std::fs::write(&path, bytes).unwrap();
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(
+            ColumnPos::new(0, 0),
+            &TestRegistry::default(),
+            &TestRegistry::default(),
+        )
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::SectorInHeader { sector: 1, .. }),
@@ -980,7 +1035,11 @@ fn a_sector_past_the_end_of_the_file_is_an_error() {
     std::fs::write(&path, bytes).unwrap();
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(
+            ColumnPos::new(0, 0),
+            &TestRegistry::default(),
+            &TestRegistry::default(),
+        )
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::SectorOutOfBounds { sector: 900, .. }),
@@ -997,7 +1056,11 @@ fn a_payload_longer_than_its_sectors_is_an_error() {
     std::fs::write(&path, bytes).unwrap();
     let err = RegionFile::open(&path)
         .unwrap()
-        .read_chunk(0, 0)
+        .read_chunk(
+            ColumnPos::new(0, 0),
+            &TestRegistry::default(),
+            &TestRegistry::default(),
+        )
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::PayloadLength { length: 99_999, .. }),
@@ -1019,12 +1082,12 @@ fn a_truncated_header_is_rejected_at_open() {
 
 #[test]
 fn the_index_formulas_match_the_reference() {
-    assert_eq!(BlockStates::index(0, 0, 0), 0);
-    assert_eq!(BlockStates::index(1, 0, 0), 1);
-    assert_eq!(BlockStates::index(0, 0, 1), 16);
-    assert_eq!(BlockStates::index(0, 1, 0), 256);
-    assert_eq!(BlockStates::index(15, 15, 15), 4095);
-    assert_eq!(BlockStates::ENTRY_COUNT, 4096);
+    assert_eq!(Blocks::index(0, 0, 0), 0);
+    assert_eq!(Blocks::index(1, 0, 0), 1);
+    assert_eq!(Blocks::index(0, 0, 1), 16);
+    assert_eq!(Blocks::index(0, 1, 0), 256);
+    assert_eq!(Blocks::index(15, 15, 15), 4095);
+    assert_eq!(Blocks::ENTRY_COUNT, 4096);
 
     assert_eq!(Biomes::index(1, 0, 0), 1);
     assert_eq!(Biomes::index(0, 0, 1), 4);
@@ -1038,7 +1101,9 @@ fn timestamps_come_from_the_second_header_sector() {
     let fixture = Fixture::new("timestamp");
     let path = fixture.region(0, 0, &single_slot(ZLIB, &chunk_nbt(0, 0, Vec::new())));
     assert_eq!(
-        RegionFile::open(&path).unwrap().timestamp(0, 0),
+        RegionFile::open(&path)
+            .unwrap()
+            .timestamp(ColumnPos::new(0, 0)),
         1_700_000_000
     );
 }

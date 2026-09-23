@@ -16,10 +16,10 @@ pub mod configuration;
 pub mod disconnect;
 mod keep_alive;
 pub mod login;
+pub mod ops;
 mod tag;
-mod version;
-mod weight;
 pub mod world;
+pub mod world_options;
 
 use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
@@ -28,14 +28,14 @@ use crate::login::LoginPlugin;
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::Resource;
+use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
+use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_network::NetworkPlugin;
-use mcrs_voxel_server::VoxelServerPlugin;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
-use std::sync::LazyLock;
 
+pub use mcrs_minecraft_level::server_loop::spawn_server_thread;
 pub use mcrs_minecraft_network::BoundAddress;
-pub use mcrs_voxel_server::spawn_server_thread;
 
 pub struct MinecraftServerPlugin {
     /// Port 0 asks the OS for a free port; read the result back from
@@ -50,20 +50,33 @@ pub struct MinecraftServerPlugin {
     /// World folder to read saved chunks from. Without one, and for any column
     /// the folder has never saved, the dimension generates its terrain.
     pub world: Option<PathBuf>,
+    /// Shared with a client in the same process, whose debug views read each
+    /// dimension's column lifecycle from it.
+    pub column_traces: Option<ColumnTraceSink>,
+    pub lighting: Lighting,
+    /// Operator level of a player who has no entry in `ops.json`.
+    pub default_op_level: u8,
 }
 
-/// `MCRS_NO_LIGHTING=1` leaves the block light table unbuilt, so no dimension
-/// registers a lighting engine and every column goes to the client at full sky
-/// light. Sunlight, torches and shadows all stop existing; what is left is a
-/// world that loads without the propagation cost.
-pub fn lighting_disabled() -> bool {
-    static DISABLED: LazyLock<bool> = LazyLock::new(|| {
-        matches!(
-            std::env::var("MCRS_NO_LIGHTING").as_deref(),
-            Ok("1" | "true" | "on" | "yes")
-        )
-    });
-    *DISABLED
+/// Whether dimensions propagate light. Without it the block light table is never built, so
+/// no dimension registers a lighting engine and every column goes to the client at full sky
+/// light: sunlight, torches and shadows stop existing, and the world loads without the
+/// propagation cost.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Lighting {
+    #[default]
+    Propagated,
+    FullSky,
+}
+
+impl Lighting {
+    /// `MCRS_NO_LIGHTING=1` turns propagation off.
+    pub fn from_env() -> Self {
+        match std::env::var("MCRS_NO_LIGHTING").as_deref() {
+            Ok("1" | "true" | "on" | "yes") => Self::FullSky,
+            _ => Self::Propagated,
+        }
+    }
 }
 
 /// The world folder the server reads its saved chunks from.
@@ -77,6 +90,9 @@ impl Default for MinecraftServerPlugin {
             owns_task_pools: true,
             asset_path: None,
             world: None,
+            column_traces: None,
+            lighting: Lighting::from_env(),
+            default_op_level: 0,
         }
     }
 }
@@ -90,6 +106,9 @@ impl MinecraftServerPlugin {
             owns_task_pools: false,
             asset_path: None,
             world: None,
+            column_traces: None,
+            lighting: Lighting::from_env(),
+            default_op_level: 0,
         }
     }
 
@@ -103,6 +122,13 @@ impl MinecraftServerPlugin {
     pub fn with_world(self, world: Option<PathBuf>) -> Self {
         Self { world, ..self }
     }
+
+    pub fn with_column_traces(self, traces: ColumnTraceSink) -> Self {
+        Self {
+            column_traces: Some(traces),
+            ..self
+        }
+    }
 }
 
 impl Plugin for MinecraftServerPlugin {
@@ -112,7 +138,7 @@ impl Plugin for MinecraftServerPlugin {
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
         });
-        let mut world_seed = crate::configuration::world_seed_from_env();
+        let mut world_seed = crate::world_options::world_seed_from_env();
         if let Some(world) = &self.world {
             app.insert_resource(WorldSave(world.clone()));
             let settings = mcrs_minecraft_world::save::read_world_gen_settings(world)
@@ -120,7 +146,17 @@ impl Plugin for MinecraftServerPlugin {
             world_seed.0 = settings.seed as u64;
         }
         app.insert_resource(world_seed);
-        app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
+        app.insert_resource(self.lighting);
+        let ops = ops::OpList::read(std::path::Path::new(ops::OPS_FILE))
+            .unwrap_or_else(|err| panic!("{err}"));
+        app.insert_resource(ops);
+        app.insert_resource(ops::DefaultOpLevel(
+            crate::world::entity::player::ability::PlayerOpLevel(self.default_op_level),
+        ));
+        if let Some(traces) = &self.column_traces {
+            app.insert_resource(traces.clone());
+        }
+        app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,
@@ -131,6 +167,7 @@ impl Plugin for MinecraftServerPlugin {
         app.add_plugins(crate::block_light_table::BlockLightTablePlugin);
         app.add_plugins(crate::world::generate::modern_carvers::ModernCarverPlugin);
         app.add_plugins(crate::world::generate::features::FeaturePlugin);
+        app.add_plugins(crate::world::generate::structures::StructurePlugin);
         app.add_plugins(crate::world::heightmap::HeightmapPredicatesPlugin);
         app.add_plugins(WorldPlugin);
         app.add_plugins(ClientInfoPlugin);

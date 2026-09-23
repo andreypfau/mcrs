@@ -1,16 +1,18 @@
-use crate::support;
-
 use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_core::StaticRegistry;
-use mcrs_minecraft_server::world::experience::{
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_item::Items;
+use mcrs_minecraft_item::enchantment::{EnchantmentData, register_all_enchantments};
+use mcrs_minecraft_level::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
-use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_minecraft_world::enchantment::{EnchantmentData, register_all_enchantments};
-use mcrs_minecraft_world::item::component::Enchantments;
-use mcrs_voxel_math::BlockPos;
+use mcrs_minecraft_protocol::item::Enchantments;
+use mcrs_minecraft_registry::StaticRegistry;
+
+use crate::inventory_sync::value;
 
 fn harness() -> App {
     let mut app = App::new();
@@ -24,8 +26,7 @@ fn harness() -> App {
     register_all_enchantments(&mut enchantments, &asset_server);
     enchantments.freeze();
     app.insert_resource(enchantments);
-    let corpus = support::corpus(&app);
-    app.insert_resource(corpus);
+    crate::support::insert_corpus(&mut app);
     app.add_plugins(ExperiencePlugin);
     app.add_systems(Update, collect_awards);
     app.init_resource::<Awarded>();
@@ -41,12 +42,16 @@ fn collect_awards(mut reader: MessageReader<AwardExperience>, mut awarded: ResMu
     }
 }
 
-fn silk_touch_id(app: &App) -> u16 {
-    app.world()
-        .resource::<StaticRegistry<EnchantmentData>>()
-        .id_of("minecraft:silk_touch")
-        .expect("silk touch is registered")
-        .raw() as u16
+/// A diamond pickaxe stack whose only patch is the enchantment, the shape a
+/// held tool actually has.
+fn enchanted_pickaxe(app: &mut App, enchantment: &str, level: i32) -> Entity {
+    let items = app.world().resource::<Items>().clone();
+    let mut pickaxe = value("diamond_pickaxe", 1);
+    pickaxe.components.set(Enchantments(vec![(
+        ResourceKey::from_location(ResourceLocation::parse(enchantment).unwrap()),
+        level,
+    )]));
+    mcrs_minecraft_inventory::value::spawn_stack(app.world_mut(), &pickaxe, &items).unwrap()
 }
 
 fn break_coal_ore(app: &mut App, tool: Option<Entity>, breaks: usize) -> Vec<i32> {
@@ -95,10 +100,7 @@ fn coal_ore_experience_stays_within_its_declared_range() {
 #[test]
 fn silk_touch_suppresses_block_experience() {
     let mut app = harness();
-    let id = silk_touch_id(&app);
-    let mut enchantments = Enchantments::default();
-    enchantments.insert(id, 1);
-    let tool = app.world_mut().spawn(enchantments).id();
+    let tool = enchanted_pickaxe(&mut app, "minecraft:silk_touch", 1);
 
     let awarded = break_coal_ore(&mut app, Some(tool), 200);
     assert!(
@@ -112,15 +114,7 @@ fn silk_touch_suppresses_block_experience() {
 #[test]
 fn an_unrelated_enchantment_leaves_block_experience_alone() {
     let mut app = harness();
-    let efficiency = app
-        .world()
-        .resource::<StaticRegistry<EnchantmentData>>()
-        .id_of("minecraft:efficiency")
-        .expect("efficiency is registered")
-        .raw() as u16;
-    let mut enchantments = Enchantments::default();
-    enchantments.insert(efficiency, 3);
-    let tool = app.world_mut().spawn(enchantments).id();
+    let tool = enchanted_pickaxe(&mut app, "minecraft:efficiency", 3);
 
     let awarded = break_coal_ore(&mut app, Some(tool), 200);
     assert!(!awarded.is_empty(), "efficiency must not suppress payouts");

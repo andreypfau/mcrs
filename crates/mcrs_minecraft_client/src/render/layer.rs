@@ -1,32 +1,12 @@
 use bevy::render::render_resource::BlendState;
 
-use crate::blocks::Pass;
-use crate::mesh::{stream_is_model, stream_pass};
+use mcrs_minecraft_mesh::block::Pass;
+use mcrs_minecraft_mesh::{stream_is_model, stream_pass};
 
-impl Pass {
-    pub const ALL: [Pass; Pass::COUNT] = [Pass::Solid, Pass::Cutout, Pass::Translucent];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Pass::Solid => "solid",
-            Pass::Cutout => "cutout",
-            Pass::Translucent => "translucent",
-        }
-    }
-
-    pub const fn translucent(self) -> bool {
-        matches!(self, Pass::Translucent)
-    }
-
-    pub const fn writes_depth(self) -> bool {
-        !self.translucent()
-    }
-
-    pub const fn blend(self) -> Option<BlendState> {
-        match self {
-            Pass::Translucent => Some(BlendState::ALPHA_BLENDING),
-            _ => None,
-        }
+pub const fn blend(pass: Pass) -> Option<BlendState> {
+    match pass {
+        Pass::Translucent => Some(BlendState::ALPHA_BLENDING),
+        _ => None,
     }
 }
 
@@ -78,7 +58,7 @@ impl Shape {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mesh::{STREAM_NAMES, STREAMS};
+    use mcrs_minecraft_mesh::{STREAM_NAMES, STREAMS};
 
     #[test]
     fn a_stream_is_named_after_the_layer_and_shape_it_stands_for() {

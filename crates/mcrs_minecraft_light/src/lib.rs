@@ -18,6 +18,7 @@ pub mod block;
 pub mod epoch;
 pub mod field;
 pub mod level;
+#[cfg(feature = "bevy")]
 pub mod plugin;
 pub mod queue;
 pub mod region;
@@ -25,20 +26,21 @@ pub mod relax;
 pub mod storage;
 pub mod world;
 
-use bevy_ecs::prelude::Component;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_storage::{VoxelId, VoxelPalette};
+use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
+use mcrs_minecraft_core::SectionPos;
 
 use crate::storage::LightStorage;
 
 pub use relax::relax;
 
-pub type SectionBlocks = VoxelPalette<VoxelId, { BLOCKS::SIZE }>;
+pub type SectionBlocks = VoxelPalette<VoxelId, { SectionPos::SIZE }>;
 
-#[derive(Component, Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct BlockLight(pub LightStorage);
 
-#[derive(Component, Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct SkyLight(pub LightStorage);
 
 pub mod prelude {
@@ -46,13 +48,14 @@ pub mod prelude {
     pub use crate::epoch::{
         EpochStats, EpochTimings, LightJob, LightUpdate, PublishedLight, SectionLight,
     };
-    pub use crate::level::{BlockColumn, LightBounds, LightLevel, LocalPos};
+    pub use crate::level::{BlockColumn, LightBounds, LightLevel};
+    #[cfg(feature = "bevy")]
     pub use crate::plugin::{
         IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightSet, LightStatus, LightWorkQueue,
-        Lighting, PendingEdits, dispatch_epoch, light_has_settled, publish_light,
+        Lighting, PendingEdits, SectionRelit, dispatch_epoch, light_has_settled, publish_light,
     };
     pub use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
-    pub use crate::region::{BlockBox, Influence};
+    pub use crate::region::Influence;
     pub use crate::storage::LightStorage;
     pub use crate::world::{ColumnSurface, Edit, LightWorld, Section};
     pub use crate::{BlockLight, SectionBlocks, SkyLight};

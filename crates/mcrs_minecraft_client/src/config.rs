@@ -2,25 +2,24 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::cave::CaveCull;
-use crate::mesh::STREAMS;
 use crate::render::{
     Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Raster, Streams, Uploads, Wireframe,
 };
 use crate::sky_state::SkyEffects;
-use crate::stream;
+use mcrs_minecraft_mesh::STREAMS;
 
 #[cfg(not(target_family = "wasm"))]
 const QUAD_MB_PER_FILE: usize = 192;
 #[cfg(not(target_family = "wasm"))]
 const MODEL_MB_PER_FILE: usize = 640;
 #[cfg(not(target_family = "wasm"))]
-const FACE_MB_PER_FILE: usize = 256;
+const FACE_MB_PER_FILE: usize = 512;
 #[cfg(target_family = "wasm")]
 const QUAD_MB_PER_FILE: usize = 32;
 #[cfg(target_family = "wasm")]
 const MODEL_MB_PER_FILE: usize = 208;
 #[cfg(target_family = "wasm")]
-const FACE_MB_PER_FILE: usize = 40;
+const FACE_MB_PER_FILE: usize = 80;
 
 const UPLOAD_MB: usize = 4;
 
@@ -53,11 +52,7 @@ const MESH_IN_FLIGHT: usize = 128;
 #[cfg(target_family = "wasm")]
 const MESH_PER_FRAME: usize = 32;
 
-/// The browser keeps vanilla's default; the desktop asks for three times vanilla's maximum.
-#[cfg(not(target_family = "wasm"))]
 const VIEW_DISTANCE: u8 = 96;
-#[cfg(target_family = "wasm")]
-const VIEW_DISTANCE: u8 = 12;
 pub const MAX_VIEW_DISTANCE: u8 = 96;
 
 static KNOBS: OnceLock<HashMap<String, String>> = OnceLock::new();
@@ -410,6 +405,46 @@ pub fn frozen_time() -> Option<i64> {
     }
 }
 
+/// `GUI_SCALE=<n>` pins the GUI scale; `0` or unset picks the largest scale
+/// that keeps 320x240 GUI units on screen, as vanilla's auto setting does.
+pub fn gui_scale() -> u32 {
+    let Some(spec) = knob("GUI_SCALE") else {
+        return 0;
+    };
+    match spec.trim().parse() {
+        Ok(scale) => Some(scale),
+        Err(error) => reject("GUI_SCALE", spec.trim(), error),
+    }
+    .unwrap_or(0)
+}
+
+/// `SCREEN=inventory` opens that screen at start, so a capture is deterministic.
+pub fn initial_screen() -> crate::inventory::Screen {
+    use crate::inventory::Screen;
+    match knob("SCREEN").as_deref() {
+        None | Some("none") => Screen::None,
+        Some("inventory") => Screen::Inventory,
+        Some(other) => {
+            reject("SCREEN", other, "expected none or inventory").unwrap_or(Screen::None)
+        }
+    }
+}
+
+/// `CURSOR=<x>,<y>` pins the cursor in GUI units for the screens, in place of the pointer.
+pub fn gui_cursor() -> Option<bevy::math::IVec2> {
+    let spec = knob("CURSOR")?;
+    let at = spec.split_once(',').and_then(|(x, y)| {
+        Some(bevy::math::IVec2::new(
+            x.trim().parse().ok()?,
+            y.trim().parse().ok()?,
+        ))
+    });
+    match at {
+        Some(at) => Some(at),
+        None => reject("CURSOR", &spec, "expected <x>,<y> in GUI units"),
+    }
+}
+
 pub struct TerrainLimits {
     pub arena_scale: usize,
     pub groups: usize,
@@ -419,7 +454,7 @@ pub struct TerrainLimits {
     pub tint_span: u32,
 }
 
-pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull, stream::Loader) {
+pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull) {
     let (quad_mb, model_mb, face_mb) = arena_budget();
     let budget = Arc::new(Budget {
         quads: quad_mb * limits.arena_scale * 1_000_000 / QUAD_BYTES,
@@ -437,12 +472,6 @@ pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull, stream
         "meshing the columns the server sends"
     );
 
-    let uploads = Uploads::default();
-    let loader = stream::Loader::new(&budget, uploads.clone());
-    (
-        budget.clone(),
-        uploads,
-        CaveCull::new(budget.sections),
-        loader,
-    )
+    let cave = CaveCull::new(budget.sections);
+    (budget, Uploads::default(), cave)
 }

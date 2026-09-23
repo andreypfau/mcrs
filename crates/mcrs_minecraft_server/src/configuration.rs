@@ -1,28 +1,39 @@
-use crate::client_info::ClientViewDistance;
+use crate::WorldSave;
+use crate::client_info::ClientInfo;
+use crate::disconnect::despawn_from_dims;
 use crate::login::GameProfile;
-use crate::version::VERSION_ID;
+use mcrs_minecraft_protocol::MINECRAFT_VERSION;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
-use crate::world::entity::player::column_view::ColumnView;
-use crate::world::player_index::HostAnchorRef;
+use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, Plugin, Update};
 use bevy_asset::{AssetEvent, AssetId, AssetServer, Assets, Handle};
-use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::component::Component;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With, Without};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_math::{DVec3, Vec2};
-use bevy_state::prelude::OnEnter;
-use mcrs_minecraft_core::registry::access::ErasedRegistrySnapshot;
-use mcrs_minecraft_core::tag::file::{TagEntry, TagFile, TagFileSettings};
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_minecraft_core::tag::registry::TagRegistry;
-use mcrs_minecraft_core::{AppState, RegistryAccess, ResourceLocation, rl};
+use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
+use bevy_ecs::system::ScheduleSystem;
+use bevy_state::prelude::{OnEnter, in_state};
+use mcrs_minecraft_assets::access::ErasedRegistrySnapshot;
+use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile, TagFileSettings};
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::tag::registry::TagRegistry;
+use mcrs_minecraft_assets::{AppState, RegistryAccess};
+use mcrs_minecraft_block::Block as VanillaBlock;
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_item::Item as VanillaItem;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_level::dim::send_control_or_teardown;
+use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
+use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
+use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };
@@ -38,35 +49,22 @@ use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_world::LoadedRegistryAssets;
-use mcrs_minecraft_world::block::Block as VanillaBlock;
-use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
-use mcrs_minecraft_world::dimension::level_stem::DimensionDefinition;
-use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_minecraft_world::entity::EntityType as VanillaEntityType;
-use mcrs_minecraft_world::item::Item as VanillaItem;
-use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_world::worldgen::world_preset::{ActiveWorldPreset, WorldPreset};
-use mcrs_voxel_server::dim::send_control_or_teardown;
-use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
-use mcrs_voxel_world::session::SessionRegistry;
-use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
+use mcrs_minecraft_world::save::read_player_dat;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
-use std::env;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
-use crate::world::generate::routers::DimensionBiomeSources;
-
-/// Default world preset name used when MCRS_WORLD_PRESET is not set
-const DEFAULT_WORLD_PRESET: &str = "normal";
+use crate::world_options::{
+    LoadedWorldPreset, process_loaded_world_preset, start_loading_world_preset,
+};
 
 /// Canonical list of registries that the server synchronizes via
 /// `ClientboundRegistryData` during the Configuration phase.
 ///
-/// 28 registries are protocol-synced (see `synced_registries_count`). The
+/// 30 registries are protocol-synced (see `synced_registries_count`). The
 /// non-synced static registries — block, item, sound_event, entity_type —
 /// remain in `RegistryAccess` for internal lookups but must not be sent as
 /// `ClientboundRegistryData`. Enchantment is the only static registry that
@@ -76,6 +74,7 @@ const DEFAULT_WORLD_PRESET: &str = "normal";
 /// deterministic and reproducible across restarts.
 const SYNCED_REGISTRIES: &[&str] = &[
     "minecraft:banner_pattern",
+    "minecraft:block_transformer",
     "minecraft:cat_sound_variant",
     "minecraft:cat_variant",
     "minecraft:chat_type",
@@ -84,6 +83,7 @@ const SYNCED_REGISTRIES: &[&str] = &[
     "minecraft:cow_sound_variant",
     "minecraft:cow_variant",
     "minecraft:damage_type",
+    "minecraft:decorated_pot_pattern",
     "minecraft:dialog",
     "minecraft:dimension_type",
     "minecraft:enchantment",
@@ -102,6 +102,7 @@ const SYNCED_REGISTRIES: &[&str] = &[
     "minecraft:wolf_variant",
     "minecraft:world_clock",
     "minecraft:worldgen/biome",
+    "minecraft:worldgen/block_state_provider",
     "minecraft:zombie_nautilus_variant",
 ];
 
@@ -154,19 +155,20 @@ fn request_dynamic_registry_tags(
     tag_files.per_registry.clear();
     let mut total = 0usize;
     for &(registry_key, tag_dir) in DYNAMIC_TAG_REGISTRIES {
-        let handles: Vec<_> = mcrs_minecraft_world::list_tag_files(&asset_server, tag_dir)
-            .into_iter()
-            .map(|(location, asset_path)| {
-                let handle = asset_server
-                    .load_builder()
-                    .with_settings(move |s: &mut TagFileSettings| {
-                        s.registry_segment = tag_dir.to_string();
-                    })
-                    .load::<TagFile>(asset_path);
-                registry_assets.push(handle.clone().untyped());
-                (location, handle)
-            })
-            .collect();
+        let handles: Vec<_> =
+            mcrs_minecraft_world::data_pack::list_tag_files(&asset_server, tag_dir)
+                .into_iter()
+                .map(|(location, asset_path)| {
+                    let handle = asset_server
+                        .load_builder()
+                        .with_settings(move |s: &mut TagFileSettings| {
+                            s.registry_segment = tag_dir.to_string();
+                        })
+                        .load::<TagFile>(asset_path);
+                    registry_assets.push(handle.clone().untyped());
+                    (location, handle)
+                })
+                .collect();
         total += handles.len();
         tag_files.per_registry.push((registry_key, handles));
     }
@@ -243,7 +245,7 @@ fn flatten_tag_file(
 /// before the rest of the Configuration data is sent.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-struct AwaitingKnownPacks;
+pub struct AwaitingKnownPacks;
 
 /// True iff the entry's NBT body should be omitted from `ClientboundRegistryData`
 /// because the client already has the pack that sourced it.
@@ -277,7 +279,7 @@ impl Plugin for ConfigurationStatePlugin {
             Update,
             (process_loaded_world_preset, sync_dimension_type_changes),
         );
-        app.add_systems(bevy_app::FixedPreUpdate, on_configuration_enter);
+        app.add_systems(bevy_app::FixedPreUpdate, start_configuration());
         app.add_observer(on_known_packs_response);
         app.add_observer(on_configuration_ack);
         app.add_observer(on_game_configuration_ack);
@@ -287,93 +289,18 @@ impl Plugin for ConfigurationStatePlugin {
     }
 }
 
-fn start_loading_world_preset(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut registry_assets: ResMut<LoadedRegistryAssets>,
-    mut loaded_preset: ResMut<LoadedWorldPreset>,
-) {
-    let preset_name = get_world_preset_name();
-    let (namespace, path) = match preset_name.split_once(':') {
-        Some((ns, p)) => (ns, p),
-        None => ("minecraft", preset_name.as_str()),
-    };
-    let asset_path = format!("{namespace}/worldgen/world_preset/{path}.json");
-
-    info!(
-        preset = %preset_name,
-        asset_path = %asset_path,
-        "Starting to load world preset via Bevy asset system"
-    );
-
-    let handle: Handle<WorldPreset> = asset_server.load(asset_path);
-    registry_assets.push(handle.clone().untyped());
-    loaded_preset.preset_name = preset_name;
-    commands.insert_resource(ActiveWorldPreset { handle });
-}
-
-fn process_loaded_world_preset(
-    active: Option<Res<ActiveWorldPreset>>,
-    presets: Res<Assets<WorldPreset>>,
-    dim_defs: Res<Assets<DimensionDefinition>>,
-    mut loaded_preset: ResMut<LoadedWorldPreset>,
-    mut commands: Commands,
-) {
-    if !presets.is_changed() {
-        return;
-    }
-    let Some(active) = active else {
-        return;
-    };
-    let Some(preset) = presets.get(&active.handle) else {
-        return;
-    };
-
-    let mut dimensions: Vec<(ResourceLocation, Handle<DimensionDefinition>)> = preset
-        .dimensions
-        .iter()
-        .map(|(key, handle)| (key.location().clone(), handle.clone()))
-        .collect();
-    dimensions.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
-
-    loaded_preset.dimensions = dimensions;
-    loaded_preset.is_loaded = true;
-
-    commands.insert_resource(dimension_biome_sources(&loaded_preset, &dim_defs));
-
-    debug!(
-        preset = %loaded_preset.preset_name,
-        dimensions = loaded_preset.dimensions.len(),
-        "World preset loaded"
-    );
-}
-
-fn dimension_biome_sources(
-    preset: &LoadedWorldPreset,
-    dim_defs: &Assets<DimensionDefinition>,
-) -> DimensionBiomeSources {
-    let mut sources = DimensionBiomeSources::default();
-    for (dimension, handle) in &preset.dimensions {
-        let Some(definition) = dim_defs.get(handle) else {
-            warn!(%dimension, "the dimension definition missing while the world preset loaded");
-            continue;
-        };
-        let ChunkGenerator::Noise(generator) = &definition.generator else {
-            continue;
-        };
-        sources
-            .0
-            .insert(dimension.clone(), Arc::new(generator.biome_source.clone()));
-    }
-    sources
-}
-
 /// Kicks connected players back into Configuration when a dimension type asset
 /// is hot-reloaded, so they re-receive the registry data on reconnect.
 fn sync_dimension_type_changes(
     mut dim_type_events: MessageReader<AssetEvent<DimensionType>>,
-    mut players: Query<(Entity, &mut ServerSideConnection), With<InGameConnectionState>>,
-    mut commands: Commands,
+    mut players: Query<(
+        &mut ServerSideConnection,
+        &ConnectionState,
+        Option<&HostAnchorRef>,
+    )>,
+    mut sessions: Query<(&Session, &mut SessionPlacement)>,
+    dim_channels: Res<DimChannelsResource>,
+    mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
     if !dim_type_events
         .read()
@@ -382,13 +309,28 @@ fn sync_dimension_type_changes(
         return;
     }
 
-    for (entity, mut con) in players.iter_mut() {
+    for (mut con, state, host_anchor) in players.iter_mut() {
+        if *state != ConnectionState::Game {
+            continue;
+        }
         info!("Sending reconfiguration to connected player");
         con.write_packet(&ClientboundStartConfiguration);
-        commands
-            .entity(entity)
-            .remove::<ColumnView>()
-            .remove::<PlayerChunkObserver>();
+        let Some(host_anchor) = host_anchor.map(|anchor| anchor.0) else {
+            continue;
+        };
+        let Ok((session, mut placement)) = sessions.get_mut(host_anchor) else {
+            continue;
+        };
+        // The client drops its level on reconfiguration, so the player leaves its
+        // dimension now and `emit_initial_player_spawn` joins it again once play resumes.
+        despawn_from_dims(
+            host_anchor,
+            session.0,
+            placement.place(),
+            &dim_channels,
+            &mut despawn_queue,
+        );
+        placement.set(Place::Unplaced);
     }
 }
 
@@ -403,11 +345,18 @@ fn sync_dimension_type_changes(
 /// Runs in `FixedPreUpdate` and reacts to `Changed<ConnectionState>`. The edge
 /// is set by the `handle_login_acknowledged` observer, which fires during
 /// inbound packet processing in `FixedPostUpdate`. `Changed<T>` is evaluated
-/// against this system's own last-run tick, not a single frame's edge, and the
-/// system has no run condition, so it runs every fixed tick. It therefore
+/// against this system's own last-run tick, not a single frame's edge, so it
 /// cannot miss the transition even when several fixed ticks elapse in one
 /// main-loop frame: the change set in one tick's `FixedPostUpdate` is observed
 /// at the next tick's `FixedPreUpdate`.
+///
+/// An embedded client connects before the registries are built, so the
+/// negotiation waits for `AppState::Playing`; a skipped system keeps its
+/// last-run tick, so the earlier transition is still seen as a change.
+pub fn start_configuration() -> ScheduleConfigs<ScheduleSystem> {
+    on_configuration_enter.run_if(in_state(AppState::Playing))
+}
+
 fn on_configuration_enter(
     mut query: Query<
         (Entity, &mut ServerSideConnection, &ConnectionState),
@@ -424,7 +373,7 @@ fn on_configuration_enter(
             known_packs: vec![KnownPack {
                 namespace: "minecraft",
                 id: "core",
-                version: VERSION_ID,
+                version: MINECRAFT_VERSION,
             }],
         });
         commands.entity(entity).insert(AwaitingKnownPacks);
@@ -433,7 +382,7 @@ fn on_configuration_enter(
 
 /// Step 2 of the Configuration handshake: triggered by
 /// `ServerboundSelectKnownPacks`. Sends `ClientboundRegistryData` for the
-/// 28 synced registries (alphabetical order), the `environment_attribute`
+/// 30 synced registries (alphabetical order), the `environment_attribute`
 /// special case, `ClientboundUpdateTags` for the 7 tag-capable registries,
 /// and finally `ClientboundFinishConfiguration`. Removes the
 /// `AwaitingKnownPacks` marker so the connection is eligible for future
@@ -445,7 +394,7 @@ fn on_known_packs_response(
     dimension_types: Res<Assets<DimensionType>>,
     block_tags: Option<Res<DynTagRegistry<VanillaBlock>>>,
     blocks: Res<Blocks>,
-    item_tags: Option<Res<TagRegistry<VanillaItem>>>,
+    item_tags: Option<Res<DynTagRegistry<VanillaItem>>>,
     enchantment_tags: Option<Res<TagRegistry<EnchantmentData>>>,
     entity_type_tags: Option<Res<TagRegistry<VanillaEntityType>>>,
     dynamic_tags: Res<DynamicRegistryTagFiles>,
@@ -470,7 +419,7 @@ fn on_known_packs_response(
         "Received KnownPacks response"
     );
 
-    // RegistryData: filter to the 28 protocol-synced registries and send
+    // RegistryData: filter to the 30 protocol-synced registries and send
     // them in alphabetical order by registry key for deterministic output.
     let mut registries: Vec<&dyn ErasedRegistrySnapshot> = access
         .iter()
@@ -563,7 +512,7 @@ fn on_known_packs_response(
                     .unwrap_or_else(|_| {
                         ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
                     }),
-                entries: bitset.iter().map(|id| VarInt(id.raw() as i32)).collect(),
+                entries: bitset.iter().map(|id| VarInt(id as i32)).collect(),
             })
             .collect();
         tag_registries.push(RegistryTags {
@@ -658,12 +607,8 @@ fn on_known_packs_response(
     commands.entity(entity).remove::<AwaitingKnownPacks>();
 }
 
-fn on_configuration_ack(
-    event: On<ReceivedPacketEvent>,
-    mut query: Query<(Entity, &mut ConnectionState)>,
-    mut commands: Commands,
-) {
-    let Ok((entity, mut state)) = query.get_mut(event.entity) else {
+fn on_configuration_ack(event: On<ReceivedPacketEvent>, mut query: Query<&mut ConnectionState>) {
+    let Ok(mut state) = query.get_mut(event.entity) else {
         return;
     };
     if *state != ConnectionState::Configuration {
@@ -673,7 +618,6 @@ fn on_configuration_ack(
         return;
     };
     *state = ConnectionState::Game;
-    commands.entity(entity).insert(InGameConnectionState);
 }
 
 /// Handles `ServerboundConfigurationAcknowledged` (packet 0x0F) sent during Game state.
@@ -682,7 +626,6 @@ fn on_configuration_ack(
 fn on_game_configuration_ack(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ConnectionState)>,
-    mut commands: Commands,
 ) {
     let Ok((entity, mut state)) = query.get_mut(event.entity) else {
         return;
@@ -695,31 +638,26 @@ fn on_game_configuration_ack(
     };
     info!("Player {:?} acknowledged reconfiguration", entity);
     *state = ConnectionState::Configuration;
-    commands.entity(entity).remove::<InGameConnectionState>();
 }
 
-/// Runs each Update tick. For every connection in `InGameConnectionState` whose
-/// host-anchor still has `current_dim == Entity::PLACEHOLDER` (initial join not yet
-/// emitted), picks the first live `DimSubAppHandle` label entity and sends one
-/// `ToDim::Spawn` into the dimension's control channel, then sets `current_dim`
-/// to that label entity.
-///
-/// `current_dim` is set to the DimSubAppHandle LABEL entity (the key used by
-/// `DimChannelsResource`), NOT a sub-app-internal `Dimension` entity.
-///
-/// If no live label entity exists yet (dims still loading), the emit is deferred:
-/// no spawn is sent and `current_dim` stays `PLACEHOLDER`. The idempotent guard
-/// (`current_dim != PLACEHOLDER`) ensures at most one initial-join spawn per player.
 /// What vanilla's player asks for until its client information arrives.
 const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
+/// Runs each Update tick. For every connection in the game state whose session
+/// is still unplaced, picks the first live `DimSubAppHandle` label entity, sends
+/// one `ToDim::Spawn` into the dimension's control channel and marks the session
+/// as joining that label entity — the key used by `DimChannelsResource`, NOT a
+/// sub-app-internal `Dimension` entity.
+///
+/// If no live label entity exists yet (dims still loading), the session stays
+/// unplaced and the emit is retried next tick.
 pub fn emit_initial_player_spawn(
-    connections: Query<(&HostAnchorRef, Option<&ClientViewDistance>), With<InGameConnectionState>>,
-    mut session_registry: ResMut<SessionRegistry>,
+    connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
+    mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
     live_dims: Query<Entity, With<DimSubAppHandle>>,
-    profiles: Query<&GameProfile>,
     dim_channels: Res<DimChannelsResource>,
     world_preset: Option<Res<LoadedWorldPreset>>,
+    save: Option<Res<WorldSave>>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
     let dim_label = match live_dims.iter().next() {
@@ -740,119 +678,44 @@ pub fn emit_initial_player_spawn(
         _ => vec!["minecraft:overworld".to_string()],
     };
 
-    // Collect anchors first so we can mutably borrow session_registry below.
-    let anchors: Vec<(Entity, Option<ClientViewDistance>)> = connections
-        .iter()
-        .map(|(anchor, view_distance)| (anchor.0, view_distance.copied()))
-        .collect();
-
-    for (host_anchor, view_distance) in anchors {
-        let Some((session, entry)) = session_registry.get_by_anchor_mut(&host_anchor) else {
-            continue;
-        };
-        if entry.dim != Entity::PLACEHOLDER {
+    for (&HostAnchorRef(host_anchor), state, info) in &connections {
+        if *state != ConnectionState::Game {
             continue;
         }
-        let Ok(profile) = profiles.get(host_anchor) else {
+        let Ok((session, mut placement, profile)) = sessions.get_mut(host_anchor) else {
             continue;
         };
+        if placement.place() != Place::Unplaced {
+            continue;
+        }
+        let saved = save
+            .as_ref()
+            .and_then(|save| read_player_dat(&save.0, profile.id).ok().flatten());
         let snapshot = PlayerTransferSnapshot {
             uuid: profile.id,
             username: profile.username.clone(),
-            position: DVec3::new(0.0, 128.0, 0.0),
-            rotation: Vec2::ZERO,
-            view_distance: view_distance.map_or(VIEW_DISTANCE_FALLBACK, |requested| *requested),
+            position: saved.as_ref().map_or(DVec3::new(0.0, 128.0, 0.0), |dat| {
+                DVec3::from_array(dat.pos)
+            }),
+            rotation: saved
+                .as_ref()
+                .map_or(Vec2::ZERO, |dat| Vec2::from_array(dat.rotation)),
+            view_distance: info
+                .map(|info| info.view_distance)
+                .unwrap_or(VIEW_DISTANCE_FALLBACK),
         };
-        entry.dim = dim_label;
+        placement.set(Place::Joining(dim_label));
         send_control_or_teardown(
             &chan.control_sender,
             dim_label,
             ToDim::Spawn {
                 host_anchor,
-                session,
+                session: session.0,
                 snapshot,
                 dimensions: dimensions.clone(),
             },
             &mut despawn_queue,
         );
-    }
-}
-
-/// Resource containing the loaded world preset with ordered dimensions.
-/// The dimensions are sorted alphabetically by dimension key for deterministic ordering.
-#[derive(Resource)]
-pub struct LoadedWorldPreset {
-    pub preset_name: String,
-    pub dimensions: Vec<(ResourceLocation, Handle<DimensionDefinition>)>,
-    pub is_loaded: bool,
-}
-
-impl Default for LoadedWorldPreset {
-    fn default() -> Self {
-        Self {
-            preset_name: DEFAULT_WORLD_PRESET.to_string(),
-            dimensions: Vec::new(),
-            is_loaded: false,
-        }
-    }
-}
-
-/// The seed every dimension's noise router is compiled against. One writer in
-/// the host; the routers carry it into the sub-apps.
-#[derive(Resource, Clone, Copy, Debug, Default)]
-pub struct WorldSeed(pub u64);
-
-/// The seed `MCRS_WORLD_SEED` names. A save overrides it with the one stored in
-/// its level data.
-pub fn world_seed_from_env() -> WorldSeed {
-    let Ok(raw) = env::var("MCRS_WORLD_SEED") else {
-        return WorldSeed(0);
-    };
-    let raw = raw.trim();
-    // A seed is a Java long, so it is written signed; the router hashes the
-    // same bits either way.
-    if let Ok(seed) = raw.parse::<i64>() {
-        return WorldSeed(seed as u64);
-    }
-    match raw.parse::<u64>() {
-        Ok(seed) => WorldSeed(seed),
-        Err(error) => {
-            error!(%error, raw, "MCRS_WORLD_SEED is not a number; generating with seed 0");
-            WorldSeed(0)
-        }
-    }
-}
-
-/// Get the world preset name from the MCRS_WORLD_PRESET environment variable.
-/// Returns the default 'normal' preset if not set or invalid.
-/// Supports both short names ("normal") and namespaced identifiers ("minecraft:normal").
-pub fn get_world_preset_name() -> String {
-    match env::var("MCRS_WORLD_PRESET") {
-        Ok(preset_name) => {
-            let preset_name = preset_name.trim().to_lowercase();
-
-            if preset_name.is_empty() {
-                info!(
-                    default_preset = DEFAULT_WORLD_PRESET,
-                    "MCRS_WORLD_PRESET is empty, using default preset"
-                );
-                return DEFAULT_WORLD_PRESET.to_string();
-            }
-
-            info!(
-                preset = %preset_name,
-                "Loading world preset from MCRS_WORLD_PRESET"
-            );
-
-            preset_name
-        }
-        Err(_) => {
-            info!(
-                default_preset = DEFAULT_WORLD_PRESET,
-                "MCRS_WORLD_PRESET not set, using default preset"
-            );
-            DEFAULT_WORLD_PRESET.to_string()
-        }
     }
 }
 
@@ -877,7 +740,7 @@ mod tests {
             ..Default::default()
         });
         app.init_asset::<TagFile>();
-        app.register_asset_loader(mcrs_minecraft_core::tag::file::TagFileLoader);
+        app.register_asset_loader(mcrs_minecraft_assets::tag::file::TagFileLoader);
         app.init_resource::<LoadedRegistryAssets>();
         app.init_resource::<DynamicRegistryTagFiles>();
         app.add_systems(bevy_app::Startup, request_dynamic_registry_tags);
@@ -948,7 +811,7 @@ mod tests {
 
     #[test]
     fn synced_registries_count() {
-        assert_eq!(SYNCED_REGISTRIES.len(), 28);
+        assert_eq!(SYNCED_REGISTRIES.len(), 31);
     }
 
     #[test]

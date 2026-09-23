@@ -1,0 +1,24 @@
+[package]
+name = "mcrs_minecraft_environment"
+description = "Environment attributes, timelines and world clocks"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_worldgen_structure.workspace = true
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_ecs.workspace = true
+bevy_math.workspace = true
+bevy_reflect.workspace = true
+bevy_state.workspace = true
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_nbt.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

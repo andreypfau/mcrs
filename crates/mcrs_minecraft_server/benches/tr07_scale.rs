@@ -1,9 +1,9 @@
 //! Bot-load benchmarks for the `bridge_outbound` routing path and the
-//! `SessionRegistry` cross-dim + teardown path.
+//! session cross-dim + teardown path.
 //!
 //! The functional invariants each profile must hold — every injected packet
 //! routed, the expected number of cross-dim transfers, no orphan entities, an
-//! empty registry after teardown — are asserted on every measured iteration,
+//! no session left after teardown — are asserted on every measured iteration,
 //! so a regression fails the bench rather than showing up as a timing wobble.
 
 use criterion::{Criterion, criterion_group, criterion_main};

@@ -8,26 +8,26 @@ use rayon::prelude::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use bevy_ecs::prelude::Entity;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block::LightRegistry;
 use crate::field::{BlockSnapshot, CellIndex, FieldLayout, LightField, SectionSource, block_in};
-use crate::level::{BlockColumn, LightLevel, LocalPos};
-use crate::region::{BlockBox, ErasePlan, Influence, Regions, SectionErase};
+use crate::level::{BlockColumn, LightLevel};
+use crate::region::{ErasePlan, Influence, Regions, SectionErase};
 use crate::relax::relax;
 use crate::storage::LightStorage;
 use crate::world::{Edit, LightWorld, Section, SkyFloor};
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_minecraft_core::LocalPos;
 
 /// New light for one section, per layer. A layer the epoch recomputed to the
 /// light it already had is `None`: the world keeps the buffer it holds, and
 /// nothing downstream is woken for an answer that did not move.
 #[derive(Clone, Debug)]
 pub struct SectionLight {
-    pub pos: ChunkPos,
+    pub pos: SectionPos,
     pub block_light: Option<LightStorage>,
     pub sky_light: Option<LightStorage>,
 }
@@ -35,7 +35,7 @@ pub struct SectionLight {
 /// A section whose light moved, and the entity that owns it.
 #[derive(Clone, Debug)]
 pub struct PublishedLight {
-    pub entity: Entity,
+    pub entity: u64,
     pub block_light: Option<LightStorage>,
     pub sky_light: Option<LightStorage>,
 }
@@ -67,10 +67,10 @@ const PARALLEL_SECTION_LIMIT: usize = 1 << 18;
 /// source. Above the terrain that is a thin skin instead of the whole shaft,
 /// which is most of the field.
 struct SkyFrontier {
-    floor: [i32; BLOCKS::AREA],
+    floor: [i32; SectionPos::AREA],
     /// The highest floor among a column's four horizontal neighbours. A source
     /// cell below it faces a non-source and has to be seeded.
-    neighbour_top: [i32; BLOCKS::AREA],
+    neighbour_top: [i32; SectionPos::AREA],
     /// The lowest section base from which a whole section is sky source with no
     /// cell of it on the frontier. Above the terrain that is most of a field, and
     /// there the layer is a constant with nothing to decide cell by cell.
@@ -80,7 +80,7 @@ struct SkyFrontier {
 impl SkyFrontier {
     fn of<'a>(
         floors: &SkyFloor,
-        section_pos: ChunkPos,
+        section_pos: SectionPos,
         neighbour: impl Fn(i32, i32) -> Option<&'a SkyFloor>,
     ) -> Self {
         let sides = [
@@ -89,19 +89,19 @@ impl SkyFrontier {
             (0, -1, neighbour(0, -1)),
             (0, 1, neighbour(0, 1)),
         ];
-        let base_x = section_pos.x << BLOCKS::BITS;
-        let base_z = section_pos.z << BLOCKS::BITS;
-        let mut floor = [0i32; BLOCKS::AREA];
-        let mut neighbour_top = [i32::MIN; BLOCKS::AREA];
-        for index in 0..BLOCKS::AREA {
-            let lx = (index & BLOCKS::MASK) as i32;
-            let lz = (index >> BLOCKS::BITS) as i32;
+        let base_x = section_pos.x << SectionPos::BITS;
+        let base_z = section_pos.z << SectionPos::BITS;
+        let mut floor = [0i32; SectionPos::AREA];
+        let mut neighbour_top = [i32::MIN; SectionPos::AREA];
+        for index in 0..SectionPos::AREA {
+            let lx = (index & SectionPos::MASK) as i32;
+            let lz = (index >> SectionPos::BITS) as i32;
             let (x, z) = (base_x + lx, base_z + lz);
             floor[index] = floors.get(BlockColumn { x, z });
             for (dx, dz, side) in &sides {
                 let (nx, nz) = (lx + dx, lz + dz);
-                let inside = (0..BLOCKS::SIZE as i32).contains(&nx)
-                    && (0..BLOCKS::SIZE as i32).contains(&nz);
+                let inside = (0..SectionPos::SIZE as i32).contains(&nx)
+                    && (0..SectionPos::SIZE as i32).contains(&nz);
                 let across = match (inside, side) {
                     (true, _) => Some(floors),
                     // Off the layout, or a column the world holds no sky scan
@@ -137,7 +137,7 @@ impl SkyFrontier {
     }
 
     fn holds(&self, local: LocalPos, y: i32) -> bool {
-        let index = (local.x() as usize) | ((local.z() as usize) << BLOCKS::BITS);
+        let index = (local.x() as usize) | ((local.z() as usize) << SectionPos::BITS);
         let floor = self.floor[index];
         // Below the floor it is not a source at all: its value came from
         // propagation, and relaxation still has to start from it.
@@ -182,7 +182,7 @@ pub struct LightJob {
 impl LightJob {
     /// The sections this job will publish. Two jobs whose areas are disjoint
     /// neither read nor write a cell the other changes.
-    pub fn area(&self) -> BlockBox {
+    pub fn area(&self) -> BoundingBox {
         self.layout.block_bounds()
     }
 
@@ -257,7 +257,7 @@ impl LightJob {
             let floors = sky_floors[column_index].as_deref();
             let sky_frontier = sky_frontiers[column_index].as_ref();
             let source = blocks.section(section_index);
-            let erase = erase_plan.meets(BlockBox::of_section(section_pos));
+            let erase = erase_plan.meets(BoundingBox::of_section(section_pos));
 
             // Clear of the terrain with no block layer to compute: every cell is
             // a sky source and none of them can raise a neighbour, so the section
@@ -265,7 +265,7 @@ impl LightJob {
             if dark
                 && erase == SectionErase::All
                 && sky_frontier
-                    .is_some_and(|frontier| frontier.clears(section_pos.y << BLOCKS::BITS))
+                    .is_some_and(|frontier| frontier.clears(section_pos.y << SectionPos::BITS))
             {
                 for local in LocalPos::all() {
                     sky_field.set(section_base | local.index() as u32, LightLevel::MAX);
@@ -279,7 +279,7 @@ impl LightJob {
 
             let capacity = match erase {
                 SectionErase::None => 0,
-                _ => BLOCKS::VOLUME / 8,
+                _ => SectionPos::VOLUME / 8,
             };
             block_seeds.reserve(capacity);
             sky_seeds.reserve(capacity);
@@ -446,11 +446,11 @@ impl LightWorld {
                     let section = Section::new(self.registry(), entity, blocks);
                     self.insert_section(pos, section);
                     columns_to_rescan.insert(column);
-                    Some(Influence::new(BlockBox::of_section(pos)))
+                    Some(Influence::new(BoundingBox::of_section(pos)))
                 }
                 Edit::UnloadSection { pos } => self.remove_section(pos).map(|_| {
                     columns_to_rescan.insert(column);
-                    Influence::new(BlockBox::of_section(pos))
+                    Influence::new(BoundingBox::of_section(pos))
                 }),
                 Edit::SetColumnSurface { column, surface } => {
                     self.set_column_surface(column, surface);
@@ -488,7 +488,9 @@ impl LightWorld {
         let influenced = regions.bounds()?;
         // One cell of margin so the calculation is surrounded by values it is
         // not allowed to change.
-        let area = influenced.expand(1).clamp_vertically(self.bounds());
+        let area = influenced
+            .inflated(1)
+            .clamp_y(self.bounds().min_light_y(), self.bounds().max_light_y());
         let layout = FieldLayout::covering(area);
 
         let mut sections: Vec<SectionSource> = Vec::with_capacity(layout.section_count());
@@ -583,11 +585,11 @@ impl LightWorld {
 
     fn edit_block(&mut self, pos: BlockPos, block: VoxelId) -> Option<Influence> {
         let registry = Arc::clone(self.registry());
-        let section = self.section_mut(ChunkPos::from(pos))?;
-        if !registry.light_properties_differ(section.blocks.get(pos), block) {
+        let section = self.section_mut(SectionPos::from(pos))?;
+        if !registry.light_properties_differ(section.blocks.get(LocalPos::from(pos)), block) {
             return None;
         }
-        Arc::make_mut(&mut section.blocks).set(pos, block);
+        Arc::make_mut(&mut section.blocks).set(LocalPos::from(pos), block);
         section.emits |= !registry.emission(block).is_zero();
         // Past the early return above, so a write the scan cannot tell apart
         // from what it replaced keeps the bound: equal light properties give
@@ -608,7 +610,7 @@ impl LightWorld {
             high = high.max(segment_high);
         }
 
-        let core = BlockBox {
+        let core = BoundingBox {
             min: BlockPos::new(pos.x, low, pos.z),
             max: BlockPos::new(pos.x, high, pos.z),
         };

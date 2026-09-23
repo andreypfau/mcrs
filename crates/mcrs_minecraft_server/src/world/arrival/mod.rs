@@ -11,13 +11,13 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Query, Res, ResMut, With};
 use bevy_math::DVec3;
-use mcrs_minecraft_block::block_update::BlockSetRequest;
-use mcrs_minecraft_block::palette::ChunkBlocks;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::session::{DimPlayerIndex, Owner, PlayerSession};
-use mcrs_voxel_world::world::channels::FromDimSender;
-use mcrs_voxel_world::world::dimension::{Dimension, InDimension};
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
+use mcrs_minecraft_level::block_update::BlockSetRequest;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession};
+use mcrs_minecraft_level::world::channels::FromDimSender;
+use mcrs_minecraft_level::world::dimension::{Dimension, InDimension};
+use mcrs_minecraft_level::world::storage::section::SectionIndex;
 
 // Platform at x=8, z=8 ensures the 5×5 floor (6..=10 in each axis) stays
 // within a single 16-block chunk section at these default coordinates.
@@ -36,7 +36,7 @@ fn resolve_arrivals(
     mut block_writer: MessageWriter<BlockSetRequest>,
     sender: Res<FromDimSender<FromDim>>,
     dims: Query<Entity, With<Dimension>>,
-    chunk_index_query: Query<&ChunkIndex>,
+    chunk_index_query: Query<&SectionIndex>,
     palette_query: Query<&ChunkBlocks>,
     mut dim_player_index: ResMut<DimPlayerIndex>,
     mut commands: Commands,
@@ -94,7 +94,7 @@ fn resolve_position(
     dim_entity: Entity,
     cause: &ArrivalCause,
     block_writer: &mut MessageWriter<BlockSetRequest>,
-    chunk_index_query: &Query<&ChunkIndex>,
+    chunk_index_query: &Query<&SectionIndex>,
     palette_query: &Query<&ChunkBlocks>,
 ) -> DVec3 {
     match cause {

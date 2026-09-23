@@ -77,3 +77,67 @@ tasks.register('dumpTrees', JavaExec) {
 	jvmArgs '-Xmx2G'
 	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
 }
+
+tasks.register('dumpTemplates', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.TemplateOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpPlacement', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.PlacementOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpJigsaw', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.JigsawOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpTemplatePlacement', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.TemplatePlacementOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpBeard', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.BeardOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpRegistryCensus', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.RegistryCensusOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpStructurePieces', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.StructurePieceOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpStructureGeometry', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.StructureGeometryOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}

@@ -1,5 +1,6 @@
 use bevy_asset::Asset;
 use bevy_reflect::TypePath;
+use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
@@ -14,7 +15,7 @@ pub struct WolfVariant {
     pub assets: WolfVariantAssets,
     pub baby_assets: WolfVariantAssets,
     #[serde(default, skip_serializing)]
-    pub spawn_conditions: Option<serde_json::Value>,
+    pub spawn_conditions: Vec<SpawnSelector>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
@@ -127,14 +128,14 @@ pub struct PigVariant {
     pub asset_id: String,
     pub baby_asset_id: String,
     #[serde(default, skip_serializing)]
-    pub spawn_conditions: Option<serde_json::Value>,
+    pub spawn_conditions: Vec<SpawnSelector>,
 }
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct FrogVariant {
     pub asset_id: String,
     #[serde(default, skip_serializing)]
-    pub spawn_conditions: Option<serde_json::Value>,
+    pub spawn_conditions: Vec<SpawnSelector>,
 }
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
@@ -142,7 +143,7 @@ pub struct CatVariant {
     pub asset_id: String,
     pub baby_asset_id: String,
     #[serde(default, skip_serializing)]
-    pub spawn_conditions: Option<serde_json::Value>,
+    pub spawn_conditions: Vec<SpawnSelector>,
 }
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
@@ -152,7 +153,7 @@ pub struct CowVariant {
     pub asset_id: String,
     pub baby_asset_id: String,
     #[serde(default, skip_serializing)]
-    pub spawn_conditions: Option<serde_json::Value>,
+    pub spawn_conditions: Vec<SpawnSelector>,
 }
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
@@ -162,7 +163,7 @@ pub struct ChickenVariant {
     pub asset_id: String,
     pub baby_asset_id: String,
     #[serde(default, skip_serializing)]
-    pub spawn_conditions: Option<serde_json::Value>,
+    pub spawn_conditions: Vec<SpawnSelector>,
 }
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
@@ -171,7 +172,7 @@ pub struct ZombieNautilusVariant {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(default, skip_serializing)]
-    pub spawn_conditions: Option<serde_json::Value>,
+    pub spawn_conditions: Vec<SpawnSelector>,
 }
 
 #[cfg(test)]

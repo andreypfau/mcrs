@@ -1,14 +1,12 @@
 #![allow(dead_code)]
 
-use bevy_ecs::prelude::Entity;
-
 use std::sync::{Arc, OnceLock};
 
 use bevy_math::Vec3;
+use mcrs_minecraft_chunk::{PalettedContainer, VoxelId, VoxelPalette};
+use mcrs_minecraft_core::voxel_shape::{Aabb, VoxelShape};
+use mcrs_minecraft_core::{BlockPos, Direction, SectionPos};
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::voxel_shape::{Aabb, VoxelShape};
-use mcrs_voxel_math::{BlockPos, ChunkPos, Direction};
-use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
 
 pub const AIR: VoxelId = VoxelId(0);
 pub const STONE: VoxelId = VoxelId(1);
@@ -91,8 +89,8 @@ impl TestWorld {
             .flat_map(|y| {
                 (0..sections_z).flat_map(move |z| {
                     (0..sections_x).map(move |x| Edit::LoadSection {
-                        entity: Entity::PLACEHOLDER,
-                        pos: ChunkPos::new(x, y, z),
+                        entity: 0,
+                        pos: SectionPos::new(x, y, z),
                         blocks: Arc::new(filled(AIR)),
                     })
                 })

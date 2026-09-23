@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_text"
+description = "Text components: content, style, click and hover events, JSON and NBT codecs"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_profile.workspace = true
+mcrs_minecraft_registry.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+uuid = { workspace = true, features = ["serde"] }

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 
 use super::{DebugScreenDisplayer, entry_position};
 use crate::player::Player;

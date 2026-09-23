@@ -2,13 +2,14 @@
 //! immediately and only the resulting [`Influence`] is deferred. Queuing the
 //! change itself would mean a batched-out edit had not happened yet.
 
+use mcrs_minecraft_core::SectionPos;
 use std::collections::BTreeSet;
 
-use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_minecraft_core::ColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::region::{BlockBox, Influence};
+use crate::region::Influence;
+use mcrs_minecraft_core::BoundingBox;
 
 /// Lower is more urgent, like a vanilla ticket level.
 pub type Priority = u16;
@@ -124,7 +125,7 @@ impl<T> PriorityColumns<T> {
 #[derive(Debug)]
 struct ColumnWork {
     influences: Vec<Influence>,
-    bounds: BlockBox,
+    bounds: BoundingBox,
 }
 
 #[derive(Debug, Default)]
@@ -202,10 +203,10 @@ impl LightQueue {
     pub fn drain_batches(
         &mut self,
         budget_cells: u64,
-        avoid: &[BlockBox],
+        avoid: &[BoundingBox],
         max_batches: usize,
     ) -> Vec<Vec<Influence>> {
-        let mut fields: Vec<BlockBox> = Vec::new();
+        let mut fields: Vec<BoundingBox> = Vec::new();
         let mut chosen: Vec<Vec<ColumnPos>> = Vec::new();
         let mut claimed: FxHashSet<ColumnPos> = FxHashSet::default();
 
@@ -228,7 +229,7 @@ impl LightQueue {
             };
             let mut area = work.bounds;
             // The one cell of margin `prepare_batch` adds is part of the field.
-            let mut field = area.expand(1).section_aligned();
+            let mut field = area.inflated(1).section_aligned();
             if collides(field, avoid, &fields) {
                 continue;
             }
@@ -248,7 +249,7 @@ impl LightQueue {
                         continue;
                     };
                     let grown = area.union(work.bounds);
-                    let candidate = grown.expand(1).section_aligned();
+                    let candidate = grown.inflated(1).section_aligned();
                     if candidate.cells() > budget_cells || collides(candidate, avoid, &fields) {
                         continue;
                     }
@@ -286,9 +287,9 @@ impl LightQueue {
 
 /// How far out from its seed a batch can reach before the box alone spends the
 /// budget, in section columns.
-fn reach(seed_field: BlockBox, budget_cells: u64) -> i32 {
+fn reach(seed_field: BoundingBox, budget_cells: u64) -> i32 {
     let height = (seed_field.max.y - seed_field.min.y + 1).max(1) as u64;
-    let stack = height * (BLOCKS::AREA as u64);
+    let stack = height * (SectionPos::AREA as u64);
     ((budget_cells / stack.max(1)).isqrt() as i32 / 2).max(1)
 }
 
@@ -304,7 +305,7 @@ fn around(centre: ColumnPos, radius: i32) -> impl Iterator<Item = ColumnPos> {
         .map(move |(dx, dz)| ColumnPos::new(centre.x + dx, centre.z + dz))
 }
 
-fn collides(field: BlockBox, avoid: &[BlockBox], fields: &[BlockBox]) -> bool {
+fn collides(field: BoundingBox, avoid: &[BoundingBox], fields: &[BoundingBox]) -> bool {
     avoid
         .iter()
         .chain(fields)

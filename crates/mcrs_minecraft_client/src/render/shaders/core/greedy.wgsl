@@ -1,12 +1,12 @@
 
 #import mcrs_minecraft_client::fields::{
-    FACE_AO_SHIFT, FACE_AO_BITS,
-    FACE_ARRAY_SHIFT, FACE_ARRAY_BITS,
-    FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS,
-    FACE_FLUID_SHIFT, FACE_FLUID_BITS,
-    FACE_LAYER_SHIFT, FACE_LAYER_BITS,
-    FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS,
-    FACE_TINT_SHIFT, FACE_TINT_BITS,
+    FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS,
+    FACE_BLOCK_LIGHT_WORD, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS,
+    FACE_FLUID_WORD, FACE_FLUID_SHIFT, FACE_FLUID_BITS,
+    FACE_SKY_LIGHT_WORD, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS,
+    FACE_SPRITE_WORD, FACE_SPRITE_SHIFT, FACE_SPRITE_BITS,
+    FACE_TINT_WORD, FACE_TINT_SHIFT, FACE_TINT_BITS,
+    FACE_WORDS,
     FLUID_INSET,
     MODEL_STEPS,
     QUAD_DROP_WORD, QUAD_DROP_SHIFT, QUAD_DROP_BITS,
@@ -28,7 +28,7 @@
 }
 #import mcrs_minecraft_client::section::section_origin
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
-#import mcrs_minecraft_client::terrain_bindings::{faces, quad_field, sections, visible, visible_slot}
+#import mcrs_minecraft_client::terrain_bindings::{face_field, quad_field, sections, visible, visible_slot}
 
 struct GreedyOut {
     @builtin(position) clip_position: vec4<f32>,
@@ -89,10 +89,10 @@ fn vertex_greedy(@builtin(vertex_index) vertex: u32) -> GreedyOut {
 fn greedy_surface(in: GreedyOut) -> Surface {
     let uv = in.quad_uv * vec2<f32>(in.face_span);
     let cell = min(vec2<u32>(max(uv, vec2<f32>(0.0))), in.face_span - vec2<u32>(1u));
-    let attr = faces[in.face_base + cell.y * in.face_span.x + cell.x];
-    let block_light = f32(extractBits(attr, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS));
-    let sky_light = f32(extractBits(attr, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS));
-    let ao_bits = extractBits(attr, FACE_AO_SHIFT, FACE_AO_BITS);
+    let attr = (in.face_base + cell.y * in.face_span.x + cell.x) * FACE_WORDS;
+    let block_light = f32(face_field(attr, FACE_BLOCK_LIGHT_WORD, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS));
+    let sky_light = f32(face_field(attr, FACE_SKY_LIGHT_WORD, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS));
+    let ao_bits = face_field(attr, FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS);
     let f = uv - vec2<f32>(cell);
     let ao = mix(
         mix(ao_factor(ao_bits, 0u), ao_factor(ao_bits, 3u), f.x),
@@ -101,13 +101,12 @@ fn greedy_surface(in: GreedyOut) -> Surface {
     );
 
     // A fluid sprite is drawn at half scale and repeats, so its gradients halve with it.
-    let fluid = extractBits(attr, FACE_FLUID_SHIFT, FACE_FLUID_BITS) != 0u;
+    let fluid = face_field(attr, FACE_FLUID_WORD, FACE_FLUID_SHIFT, FACE_FLUID_BITS) != 0u;
     let scale = select(1.0, 0.5, fluid);
 
     var s: Surface;
-    s.layer = extractBits(attr, FACE_LAYER_SHIFT, FACE_LAYER_BITS);
-    s.array = extractBits(attr, FACE_ARRAY_SHIFT, FACE_ARRAY_BITS);
-    s.tint_kind = extractBits(attr, FACE_TINT_SHIFT, FACE_TINT_BITS);
+    s.sprite = face_field(attr, FACE_SPRITE_WORD, FACE_SPRITE_SHIFT, FACE_SPRITE_BITS);
+    s.tint_kind = face_field(attr, FACE_TINT_WORD, FACE_TINT_SHIFT, FACE_TINT_BITS);
     s.shade = lightmap(block_light, sky_light) * (in.directional * ao);
     s.uv = select(uv, fract(uv) * 0.5, fluid);
     s.world_xz = in.world_xz;

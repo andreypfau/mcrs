@@ -7,19 +7,16 @@
 
 use crate::mock_connection;
 
-use std::sync::atomic::Ordering;
-
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
+use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_network::ServerSideConnection;
-use mcrs_minecraft_network::metrics::{
-    BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
-    BRIDGE_KICK_OVERFLOW_TOTAL, TELEMETRY_TEST_LOCK,
-};
+use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -28,9 +25,6 @@ use mcrs_minecraft_server::world::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT
 use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
-use mcrs_minecraft_server::world::player_index::PlayerIndex;
-use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_world::session::PlayerSession;
 use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
@@ -42,7 +36,7 @@ use tokio::sync::mpsc;
 fn build_dispatch_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<PlayerIndex>();
+    world.init_resource::<BridgeTelemetry>();
     world
 }
 
@@ -128,10 +122,6 @@ fn run_dispatch(world: &mut World) {
 /// Critical + High counts are unchanged.
 #[test]
 fn drop_oldest_on_overflow() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
@@ -139,13 +129,13 @@ fn drop_oldest_on_overflow() {
     enqueue_critical(&mut world, socket, 2);
     enqueue_normal(&mut world, socket, DEPTH_LIMIT - 1); // total = DEPTH_LIMIT+1
 
-    let before_normal = BRIDGE_DROP_NORMAL_TOTAL.load(Ordering::Relaxed);
-    let before_low = BRIDGE_DROP_LOW_TOTAL.load(Ordering::Relaxed);
+    let before_normal = world.resource::<BridgeTelemetry>().drop_normal_total;
+    let before_low = world.resource::<BridgeTelemetry>().drop_low_total;
 
     run_dispatch(&mut world);
 
-    let after_normal = BRIDGE_DROP_NORMAL_TOTAL.load(Ordering::Relaxed);
-    let after_low = BRIDGE_DROP_LOW_TOTAL.load(Ordering::Relaxed);
+    let after_normal = world.resource::<BridgeTelemetry>().drop_normal_total;
+    let after_low = world.resource::<BridgeTelemetry>().drop_low_total;
 
     // We had 2 Critical + (DEPTH_LIMIT-1) Normal = DEPTH_LIMIT+1 total.
     // Drops until <= DEPTH_DRAIN_TARGET:
@@ -172,10 +162,6 @@ fn drop_oldest_on_overflow() {
 /// When Normal queue is exhausted, Low is dropped next.
 #[test]
 fn drop_oldest_low_after_normal_exhausted() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
@@ -184,13 +170,13 @@ fn drop_oldest_low_after_normal_exhausted() {
     enqueue_normal(&mut world, socket, 2);
     enqueue_low(&mut world, socket, low_count);
 
-    let before_normal = BRIDGE_DROP_NORMAL_TOTAL.load(Ordering::Relaxed);
-    let before_low = BRIDGE_DROP_LOW_TOTAL.load(Ordering::Relaxed);
+    let before_normal = world.resource::<BridgeTelemetry>().drop_normal_total;
+    let before_low = world.resource::<BridgeTelemetry>().drop_low_total;
 
     run_dispatch(&mut world);
 
-    let after_normal = BRIDGE_DROP_NORMAL_TOTAL.load(Ordering::Relaxed);
-    let after_low = BRIDGE_DROP_LOW_TOTAL.load(Ordering::Relaxed);
+    let after_normal = world.resource::<BridgeTelemetry>().drop_normal_total;
+    let after_low = world.resource::<BridgeTelemetry>().drop_low_total;
 
     // All 2 Normal should be dropped first, then remaining from Low.
     let total_drops = (2 + low_count) - DEPTH_DRAIN_TARGET;
@@ -210,14 +196,10 @@ fn drop_oldest_low_after_normal_exhausted() {
 /// Columns are paced by the client's batch acknowledgements instead.
 #[test]
 fn deep_critical_queue_is_not_kicked() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
-    let before_kick = BRIDGE_KICK_OVERFLOW_TOTAL.load(Ordering::Relaxed);
+    let before_kick = world.resource::<BridgeTelemetry>().kick_overflow_total;
 
     for _ in 0..8 {
         enqueue_critical(&mut world, socket, 512);
@@ -225,7 +207,7 @@ fn deep_critical_queue_is_not_kicked() {
     }
 
     assert_eq!(
-        BRIDGE_KICK_OVERFLOW_TOTAL.load(Ordering::Relaxed),
+        world.resource::<BridgeTelemetry>().kick_overflow_total,
         before_kick,
         "a deep critical queue must not count as an overflow kick"
     );
@@ -243,8 +225,8 @@ fn deep_critical_queue_is_not_kicked() {
 /// socket per tick. The receiver side sees exactly one blob arrive.
 #[test]
 fn coalesce_single_write_per_tick() {
-    use mcrs_minecraft_protocol::BlockStateId;
-    use mcrs_voxel_math::BlockPos;
+    use mcrs_minecraft_core::BlockPos;
+    use mcrs_minecraft_registry::BlockStateId;
 
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);
@@ -284,22 +266,18 @@ fn coalesce_single_write_per_tick() {
 // metrics_delta_on_drop
 // ---------------------------------------------------------------------------
 
-/// snapshot() before/after a drop scenario shows the exact delta (D-03b).
+/// The telemetry before and after a drop scenario differs by the exact drop count.
 #[test]
 fn metrics_delta_on_drop() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
     // Overflow with Normal packets to force drops.
     enqueue_normal(&mut world, socket, DEPTH_LIMIT + 10);
 
-    let snap_before = mcrs_minecraft_network::metrics::snapshot();
+    let snap_before = *world.resource::<BridgeTelemetry>();
     run_dispatch(&mut world);
-    let snap_after = mcrs_minecraft_network::metrics::snapshot();
+    let snap_after = *world.resource::<BridgeTelemetry>();
 
     let expected = ((DEPTH_LIMIT + 10) - DEPTH_DRAIN_TARGET) as u64;
     assert_eq!(
@@ -314,13 +292,9 @@ fn metrics_delta_on_drop() {
 // ---------------------------------------------------------------------------
 
 /// A counted-drop PacketPayload variant (Test) increments
-/// `BRIDGE_ENCODE_UNHANDLED_TOTAL` by the exact count and does not panic.
+/// `encode_unhandled_total` by the exact count and does not panic.
 #[test]
 fn unhandled_variant_counted() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
@@ -340,14 +314,14 @@ fn unhandled_variant_counted() {
         }
     }
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     run_dispatch(&mut world);
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     assert_eq!(
         after - before,
         3,
-        "3 Test packets must increment BRIDGE_ENCODE_UNHANDLED_TOTAL by 3"
+        "3 Test packets must increment encode_unhandled_total by 3"
     );
 }
 
@@ -356,13 +330,9 @@ fn unhandled_variant_counted() {
 // ---------------------------------------------------------------------------
 
 /// LightUpdate encodes to a real ClientboundLightUpdate (non-empty blob) and does
-/// not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+/// not increment encode_unhandled_total.
 #[test]
 fn light_update_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);
 
@@ -382,14 +352,14 @@ fn light_update_encodes() {
         });
     }
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     run_dispatch(&mut world);
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     assert_eq!(
         after - before,
         0,
-        "LightUpdate must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL"
+        "LightUpdate must not increment encode_unhandled_total"
     );
     let blob = rx
         .try_recv()
@@ -398,13 +368,9 @@ fn light_update_encodes() {
 }
 
 /// ChunkLoad encodes to a real ClientboundLevelChunkWithLight (non-empty blob) and
-/// does not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+/// does not increment encode_unhandled_total.
 #[test]
 fn chunk_load_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);
 
@@ -427,14 +393,14 @@ fn chunk_load_encodes() {
         });
     }
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     run_dispatch(&mut world);
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     assert_eq!(
         after - before,
         0,
-        "ChunkLoad must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL"
+        "ChunkLoad must not increment encode_unhandled_total"
     );
     let blob = rx
         .try_recv()
@@ -443,13 +409,9 @@ fn chunk_load_encodes() {
 }
 
 /// EntityPosSync encodes to a real ClientboundEntityPositionSync (non-empty blob)
-/// and does not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+/// and does not increment encode_unhandled_total.
 #[test]
 fn entity_pos_sync_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);
 
@@ -475,14 +437,14 @@ fn entity_pos_sync_encodes() {
         });
     }
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     run_dispatch(&mut world);
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     assert_eq!(
         after - before,
         0,
-        "EntityPosSync must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL"
+        "EntityPosSync must not increment encode_unhandled_total"
     );
     let blob = rx
         .try_recv()
@@ -491,13 +453,9 @@ fn entity_pos_sync_encodes() {
 }
 
 /// PlayerEnteredView encodes to a real ClientboundAddEntity (non-empty blob) and
-/// does not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+/// does not increment encode_unhandled_total.
 #[test]
 fn player_entered_view_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);
 
@@ -515,20 +473,21 @@ fn player_entered_view_encodes() {
                 position: DVec3::new(0.0, 64.0, 0.0),
                 yaw: 90.0,
                 pitch: 0.0,
+                data: 0,
             },
             session: PlayerSession(0),
             epoch: 0,
         });
     }
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     run_dispatch(&mut world);
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     assert_eq!(
         after - before,
         0,
-        "PlayerEnteredView must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL"
+        "PlayerEnteredView must not increment encode_unhandled_total"
     );
     let blob = rx
         .try_recv()
@@ -537,13 +496,9 @@ fn player_entered_view_encodes() {
 }
 
 /// PlayerLeftView encodes to a real ClientboundRemoveEntities (non-empty blob) and
-/// does not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+/// does not increment encode_unhandled_total.
 #[test]
 fn player_left_view_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);
 
@@ -562,14 +517,14 @@ fn player_left_view_encodes() {
         });
     }
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     run_dispatch(&mut world);
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     assert_eq!(
         after - before,
         0,
-        "PlayerLeftView must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL"
+        "PlayerLeftView must not increment encode_unhandled_total"
     );
     let blob = rx
         .try_recv()
@@ -578,13 +533,9 @@ fn player_left_view_encodes() {
 }
 
 /// Only `PacketPayload::Test` remains a counted-drop; the five real variants
-/// contribute zero to `BRIDGE_ENCODE_UNHANDLED_TOTAL`.
+/// contribute zero to `encode_unhandled_total`.
 #[test]
 fn only_test_remains_counted_drop() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
@@ -642,6 +593,7 @@ fn only_test_remains_counted_drop() {
                 position: DVec3::ZERO,
                 yaw: 0.0,
                 pitch: 0.0,
+                data: 0,
             },
             session: PlayerSession(0),
             epoch: 0,
@@ -665,14 +617,14 @@ fn only_test_remains_counted_drop() {
         });
     }
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     run_dispatch(&mut world);
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     assert_eq!(
         after - before,
         1,
-        "only the Test variant must increment BRIDGE_ENCODE_UNHANDLED_TOTAL (by 1); got {}",
+        "only the Test variant must increment encode_unhandled_total (by 1); got {}",
         after - before
     );
 }

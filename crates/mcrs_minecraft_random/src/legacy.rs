@@ -1,3 +1,4 @@
+use crate::bits::BitSource;
 use crate::{GaussianBank, Random, block_pos_seed};
 use bevy_math::IVec3;
 use rand_xoshiro::rand_core::{Rng, TryRng};
@@ -7,8 +8,6 @@ const MODULUS_BITS: usize = 48;
 const MODULUS_MASK: u64 = 281474976710655;
 const MULTIPLIER: u64 = 25214903917;
 const INCREMENT: u64 = 11;
-const F32_MULTIPLIER: f32 = 1.0 / (1u64 << 24) as f32;
-const F64_MULTIPLIER: f64 = 1.0 / (1u64 << 53) as f64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegacyRandom {
@@ -29,20 +28,44 @@ impl LegacyRandom {
         self.seed = self.seed.wrapping_mul(MULTIPLIER).wrapping_add(INCREMENT) & MODULUS_MASK;
     }
 
+    /// `WorldgenRandom.setLargeFeatureSeed`.
+    ///
+    /// Beta's sibling adds odd-forced products where this one exclusive-ors plain
+    /// ones; the two are the same idea and not the same number.
+    pub fn large_feature_seed(world_seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
+        let mut rng = LegacyRandom::new(world_seed as u64);
+        let x_scale = rng.next_java_long();
+        let z_scale = rng.next_java_long();
+        (chunk_x as i64).wrapping_mul(x_scale) ^ (chunk_z as i64).wrapping_mul(z_scale) ^ world_seed
+    }
+
+    pub fn large_feature(world_seed: i64, chunk_x: i32, chunk_z: i32) -> Self {
+        LegacyRandom::new(Self::large_feature_seed(world_seed, chunk_x, chunk_z) as u64)
+    }
+
+    pub fn large_feature_with_salt(world_seed: i64, x: i32, z: i32, salt: i32) -> Self {
+        let seed = (x as i64)
+            .wrapping_mul(341873128712)
+            .wrapping_add((z as i64).wrapping_mul(132897987541))
+            .wrapping_add(world_seed)
+            .wrapping_add(salt as i64);
+        LegacyRandom::new(seed as u64)
+    }
+
+    #[inline]
+    pub fn next_java_long(&mut self) -> i64 {
+        self.bits_java_long()
+    }
+}
+
+impl BitSource for LegacyRandom {
     fn next_bits(&mut self, bits: usize) -> u64 {
         self.advance();
         self.seed >> (MODULUS_BITS - bits)
     }
 
-    /// Java-accurate `nextLong()`: both 32-bit halves are sign-extended before combining.
-    /// Java's `nextLong` computes `((long)(int)upper << 32) + (long)(int)lower`, so when
-    /// the lower half has its high bit set the result is reduced by 2^32 relative to the
-    /// unsigned interpretation used by `try_next_u64`.
-    #[inline]
-    pub fn next_java_long(&mut self) -> i64 {
-        let hi = self.next_bits(32) as i32 as i64;
-        let lo = self.next_bits(32) as i32 as i64;
-        (hi << 32).wrapping_add(lo)
+    fn gaussian_bank(&mut self) -> &mut GaussianBank {
+        &mut self.banked_gaussian
     }
 }
 
@@ -54,7 +77,7 @@ impl TryRng for LegacyRandom {
     }
 
     fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        Ok((self.next_bits(32) << 32) + self.next_bits(32))
+        Ok(self.bits_u64())
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
@@ -84,44 +107,23 @@ impl Random for LegacyRandom {
     }
 
     fn next_bool(&mut self) -> bool {
-        self.next_bits(1) != 0
+        self.bits_bool()
     }
 
     fn next_u32_bound(&mut self, bound: u32) -> u32 {
-        if (bound & (bound - 1)) == 0 {
-            let n = self.next_bits(31);
-            return ((bound as u64).wrapping_mul(n) >> 31) as u32;
-        }
-        let mut a;
-        let mut b;
-        loop {
-            a = self.next_bits(31) as i64;
-            b = a % bound as i64;
-            if a - b + (bound as i64 - 1) >= 0 {
-                break;
-            }
-        }
-        b as u32
+        self.bits_u32_bound(bound)
     }
 
     fn next_f32(&mut self) -> f32 {
-        self.next_bits(24) as f32 * F32_MULTIPLIER
+        self.bits_f32()
     }
 
-    /// `BitRandomSource.DOUBLE_MULTIPLIER` is declared from the float literal
-    /// `1.110223E-16F`, which rounds exactly onto `2^-53`, so the modern source and
-    /// `java.util.Random` agree bit for bit here.
     fn next_f64(&mut self) -> f64 {
-        let hi = self.next_bits(26);
-        let lo = self.next_bits(27);
-        ((hi << 27) + lo) as f64 * F64_MULTIPLIER
+        self.bits_f64()
     }
 
     fn next_gaussian(&mut self) -> f64 {
-        let mut bank = self.banked_gaussian;
-        let value = bank.next(|| self.next_f64());
-        self.banked_gaussian = bank;
-        value
+        self.bits_gaussian()
     }
 
     fn fork(&mut self) -> Self {
@@ -172,11 +174,49 @@ mod test {
     }
 
     #[test]
+    fn large_feature_seed_is_the_reference_formula() {
+        for (seed, cx, cz) in [(12345i64, 0i32, 0i32), (-9, 17, -33), (1, -1, 1)] {
+            let mut rng = LegacyRandom::new(seed as u64);
+            let x_scale = rng.next_java_long();
+            let z_scale = rng.next_java_long();
+            let expected =
+                (cx as i64).wrapping_mul(x_scale) ^ (cz as i64).wrapping_mul(z_scale) ^ seed;
+            assert_eq!(LegacyRandom::large_feature_seed(seed, cx, cz), expected);
+        }
+    }
+
+    #[test]
+    fn large_feature_sources_ignore_the_top_sixteen_seed_bits() {
+        let seed = -6_723_991_117_364_058_231i64;
+        for flipped in [seed ^ (1 << 63), seed ^ (0xFFFF << 48)] {
+            assert_eq!(
+                LegacyRandom::large_feature_with_salt(seed, -7, 12, 10387312),
+                LegacyRandom::large_feature_with_salt(flipped, -7, 12, 10387312)
+            );
+            assert_eq!(
+                LegacyRandom::large_feature(seed, -7, 12),
+                LegacyRandom::large_feature(flipped, -7, 12)
+            );
+        }
+        assert_ne!(
+            LegacyRandom::large_feature_with_salt(seed, -7, 12, 10387312),
+            LegacyRandom::large_feature_with_salt(seed ^ 1, -7, 12, 10387312)
+        );
+    }
+
+    #[test]
     fn next_i32_bound() {
         let mut random = LegacyRandom::new(123);
         assert_eq!(random.next_i32_bound(256), 185);
         assert_eq!(random.next_i32_bound(255), 200);
         assert_eq!(random.next_i32_bound(254), 74);
+    }
+
+    #[test]
+    fn next_i32_bound_rejects_the_partial_top_bucket() {
+        let mut random = LegacyRandom::new(256);
+        let draws: Vec<i32> = (0..4).map(|_| random.next_i32_bound(0x6000_0000)).collect();
+        assert_eq!(draws, [1129860750, 1377133019, 321559793, 615784825]);
     }
 
     #[test]

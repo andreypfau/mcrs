@@ -1,5 +1,4 @@
 use bevy_ecs::schedule::ScheduleLabel;
-use std::sync::atomic::Ordering;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
@@ -28,17 +27,21 @@ pub enum BridgeSet {
 }
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
+use mcrs_minecraft_network::metrics::BridgeTelemetry;
+use mcrs_minecraft_network::{ConnectionState, EngineConnection, ServerSideConnection};
 use mcrs_minecraft_protocol::chunk::ChunkData;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
     ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundChunkCacheRadius,
+    ClientboundContainerClose, ClientboundContainerSetContent, ClientboundContainerSetSlot,
     ClientboundDisconnect, ClientboundEntityEvent, ClientboundEntityPositionSync,
     ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelChunkWithLight,
-    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerInfoUpdate,
+    ClientboundLightUpdate, ClientboundLogin, ClientboundOpenScreen, ClientboundPlayerInfoUpdate,
     ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
-    ClientboundSystemChatPacket, PositionPath,
+    ClientboundSetCursorItem, ClientboundSetEntityData, ClientboundSetEquipment,
+    ClientboundSetHeldSlot, ClientboundSetPassengers, ClientboundSystemChatPacket,
+    ClientboundTakeItemEntity, ClientboundUpdateAttributes, PositionPath,
 };
 use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, LpVec3, PositionFlag, Text, VarInt};
@@ -48,10 +51,11 @@ use tracing::{debug, trace, warn};
 use crate::world::bridge_queue::{
     DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue,
 };
+use crate::world::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::world::bus::{PacketPayload, PacketTarget};
 use crate::world::channel_types::{DimChannelsResource, ToDim};
-use crate::world::player_index::{HostAnchorRef, PendingInboundBuffer};
-use mcrs_voxel_world::session::SessionRegistry;
+use crate::world::session::{HostAnchorRef, PendingInbound, SessionConnection};
+use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 
 /// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
 /// carries `ServerSideConnection` but not yet an `OutboundQueue`.
@@ -64,7 +68,7 @@ use mcrs_voxel_world::session::SessionRegistry;
 ///
 /// Even with this ordering, `bridge_outbound` still treats a resolved target
 /// that lacks `OutboundQueue` as a counted event
-/// (`mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL`) rather than a
+/// (`BridgeTelemetry::outbound_no_queue_total`) rather than a
 /// silent miss. The counter makes any residual race observable so no join
 /// packet is dropped silently.
 pub fn attach_outbound_queue(
@@ -79,7 +83,7 @@ pub fn attach_outbound_queue(
 }
 
 /// Drain `Messages<OutboundPlayerPacket>` once per tick, resolve each
-/// `PacketTarget` against `PlayerIndex`, and push packets onto the addressed
+/// `PacketTarget` against the sessions, and push packets onto the addressed
 /// per-connection `OutboundQueue`.
 ///
 /// Uses `reader.read()` (cursor semantics) so this is the single owning reader
@@ -88,58 +92,39 @@ pub fn attach_outbound_queue(
 /// the reader.
 ///
 /// A target that resolves to an entity with no `OutboundQueue` increments
-/// `BRIDGE_OUTBOUND_NO_QUEUE_TOTAL` and is never silently dropped. This counter
-/// makes any residual spawn→attach race observable without adding per-queue
-/// atomics (no atomics for queue depth per CONVENTIONS §Concurrency).
+/// `BridgeTelemetry::outbound_no_queue_total` and is never silently dropped, so
+/// any residual spawn→attach race stays observable.
 pub fn bridge_outbound(
-    mut reader: MessageReader<crate::world::bus::OutboundPlayerPacket>,
-    session_registry: Res<SessionRegistry>,
+    mut reader: MessageReader<OutboundPlayerPacket>,
+    sessions: Query<(&Session, &SessionPlacement, Option<&SessionConnection>)>,
     mut queues: Query<&mut OutboundQueue>,
+    mut telemetry: ResMut<BridgeTelemetry>,
 ) {
     for msg in reader.read() {
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_CONSUMED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
+        telemetry.outbound_messages_consumed_total += 1;
 
         match &msg.target {
-            PacketTarget::SinglePlayer(_) => {
-                // Session + epoch stamped by the extract closure at the dim boundary.
-                // PlayerSession(0) is never in the registry, so unstamped
-                // packets are dropped here without an explicit check.
-                let Some(entry) = session_registry.get(&msg.session) else {
+            PacketTarget::SinglePlayer(anchor) => {
+                // Session + epoch stamped at the dim boundary. PlayerSession(0) is
+                // no session's id, so unstamped packets are dropped here.
+                let Ok((session, placement, connection)) = sessions.get(*anchor) else {
                     continue;
                 };
-                if msg.epoch != entry.epoch {
+                if session.0 != msg.session || msg.epoch != placement.epoch() {
                     continue;
                 }
-                let target_socket = entry.connection_entity;
-                match queues.get_mut(target_socket) {
-                    Ok(mut q) => q.push(msg.clone()),
-                    Err(_) => {
-                        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-                            .fetch_add(1, Ordering::Relaxed);
-                    }
-                }
+                push_to_connection(&mut queues, &mut telemetry, connection, msg);
             }
             PacketTarget::AllInDim(dim_entity) => {
                 // Broadcasts are generated for whoever is in the dim *now*, so
                 // they are never stale: the per-session epoch stale-drop applies
                 // only to SinglePlayer packets that may be in flight across a
-                // transfer. Dimension isolation is already provided by
-                // iter_in_dim. Epoch-filtering here would wrongly drop every
+                // transfer. Epoch-filtering here would wrongly drop every
                 // recipient whose epoch has advanced past a broadcast's
                 // unstamped epoch.
-                let dim = *dim_entity;
-                let recipients: Vec<Entity> = session_registry
-                    .iter_in_dim(dim)
-                    .map(|(_, entry)| entry.connection_entity)
-                    .collect();
-                for socket in recipients {
-                    match queues.get_mut(socket) {
-                        Ok(mut q) => q.push(msg.clone()),
-                        Err(_) => {
-                            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-                                .fetch_add(1, Ordering::Relaxed);
-                        }
+                for (_, placement, connection) in &sessions {
+                    if placement.place().dim() == Some(*dim_entity) {
+                        push_to_connection(&mut queues, &mut telemetry, connection, msg);
                     }
                 }
             }
@@ -147,43 +132,33 @@ pub fn bridge_outbound(
                 // Not epoch-filtered — see AllInDim above. A fresh global
                 // broadcast must reach every current session regardless of how
                 // many dim transfers each has made.
-                let recipients: Vec<Entity> = session_registry
-                    .iter()
-                    .map(|(_, entry)| entry.connection_entity)
-                    .collect();
-                for socket in recipients {
-                    match queues.get_mut(socket) {
-                        Ok(mut q) => q.push(msg.clone()),
-                        Err(_) => {
-                            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-                                .fetch_add(1, Ordering::Relaxed);
-                        }
-                    }
+                for (_, _, connection) in &sessions {
+                    push_to_connection(&mut queues, &mut telemetry, connection, msg);
                 }
             }
             PacketTarget::PlayerSet(set) => {
                 // Not epoch-filtered — see AllInDim above. The recipient set is
                 // the current observer set computed this tick; each member must
                 // receive it at whatever epoch they currently hold.
-                let recipients: Vec<Entity> = set
-                    .iter()
-                    .filter_map(|e| {
-                        session_registry
-                            .get_by_anchor(e)
-                            .map(|(_, entry)| entry.connection_entity)
-                    })
-                    .collect();
-                for socket in recipients {
-                    match queues.get_mut(socket) {
-                        Ok(mut q) => q.push(msg.clone()),
-                        Err(_) => {
-                            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
-                                .fetch_add(1, Ordering::Relaxed);
-                        }
+                for anchor in set.iter() {
+                    if let Ok((_, _, connection)) = sessions.get(*anchor) {
+                        push_to_connection(&mut queues, &mut telemetry, connection, msg);
                     }
                 }
             }
         }
+    }
+}
+
+fn push_to_connection(
+    queues: &mut Query<&mut OutboundQueue>,
+    telemetry: &mut BridgeTelemetry,
+    connection: Option<&SessionConnection>,
+    msg: &OutboundPlayerPacket,
+) {
+    match connection.map(|connection| queues.get_mut(connection.entity())) {
+        Some(Ok(mut queue)) => queue.push(msg.clone()),
+        _ => telemetry.outbound_no_queue_total += 1,
     }
 }
 
@@ -209,14 +184,11 @@ const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTE
 pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
     mut commands: Commands,
+    mut telemetry: ResMut<BridgeTelemetry>,
 ) {
     use mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
-    use mcrs_minecraft_network::metrics::{
-        BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
-        BRIDGE_KICK_OVERFLOW_TOTAL, BRIDGE_QUEUE_DEPTH_CRITICAL, BRIDGE_QUEUE_DEPTH_HIGH,
-        BRIDGE_QUEUE_DEPTH_LOW, BRIDGE_QUEUE_DEPTH_NORMAL,
-    };
 
+    let mut depth = [0u64; 4];
     for (entity, mut queue, mut conn) in players.iter_mut() {
         // --- (1) Disconnected writer check (AP-06 path) ---
         if conn.raw.disconnected() {
@@ -229,7 +201,7 @@ pub fn dispatch_encode(
             conn.raw.try_send_blob(blob);
             warn!(conn = ?entity, "kick: the writer reported the socket dead");
             commands.entity(entity).remove::<ServerSideConnection>();
-            BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+            telemetry.kick_overflow_total += 1;
             continue;
         }
 
@@ -242,7 +214,7 @@ pub fn dispatch_encode(
                 "kick: the writer has stalled"
             );
             commands.entity(entity).remove::<ServerSideConnection>();
-            BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+            telemetry.kick_overflow_total += 1;
             continue;
         }
 
@@ -253,9 +225,9 @@ pub fn dispatch_encode(
         if queue.total_len() > DEPTH_LIMIT {
             while queue.total_len() > DEPTH_DRAIN_TARGET {
                 if queue.normal.pop_front().is_some() {
-                    BRIDGE_DROP_NORMAL_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    telemetry.drop_normal_total += 1;
                 } else if queue.low.pop_front().is_some() {
-                    BRIDGE_DROP_LOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    telemetry.drop_low_total += 1;
                 } else {
                     // Only Critical/High remain; never drop them.
                     break;
@@ -367,6 +339,7 @@ pub fn dispatch_encode(
                         position,
                         yaw,
                         pitch,
+                        data,
                     } => {
                         debug!(
                             target: "mcrs_minecraft_server::bridge",
@@ -384,7 +357,48 @@ pub fn dispatch_encode(
                                 yaw: ByteAngle::from_degrees(yaw),
                                 pitch: ByteAngle::from_degrees(pitch),
                                 head_yaw: ByteAngle::from_degrees(yaw),
-                                data: VarInt(0),
+                                data: VarInt(data),
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetEntityData {
+                        entity_id,
+                        metadata,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundSetEntityData {
+                                entity_id: VarInt(entity_id),
+                                metadata,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetEquipment { entity_id, slots } => {
+                        conn.raw
+                            .append(&ClientboundSetEquipment {
+                                entity_id: VarInt(entity_id),
+                                slots,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::UpdateAttributes {
+                        entity_id,
+                        attributes,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundUpdateAttributes {
+                                entity_id: VarInt(entity_id),
+                                attributes,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetPassengers {
+                        vehicle,
+                        passengers,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundSetPassengers {
+                                vehicle: VarInt(vehicle),
+                                passengers: passengers.into_iter().map(VarInt).collect(),
                             })
                             .ok();
                     }
@@ -503,7 +517,7 @@ pub fn dispatch_encode(
                             })
                             .ok();
                     }
-                    PacketPayload::PlayerLoginEntityEvent {
+                    PacketPayload::OpLevelEntityEvent {
                         entity_id,
                         entity_status,
                     } => {
@@ -512,7 +526,7 @@ pub fn dispatch_encode(
                             conn = ?entity,
                             entity_id,
                             entity_status,
-                            "dispatch_encode: PlayerLoginEntityEvent"
+                            "dispatch_encode: OpLevelEntityEvent"
                         );
                         conn.raw
                             .append(&ClientboundEntityEvent {
@@ -521,18 +535,17 @@ pub fn dispatch_encode(
                             })
                             .ok();
                     }
-                    PacketPayload::SetChunkCacheCenter { x, z } => {
+                    PacketPayload::SetChunkCacheCenter(center) => {
                         debug!(
                             target: "mcrs_minecraft_server::bridge",
                             conn = ?entity,
-                            x,
-                            z,
+                            ?center,
                             "dispatch_encode: SetChunkCacheCenter"
                         );
                         conn.raw
                             .append(&ClientboundSetChunkCacheCenter {
-                                x: VarInt(x),
-                                z: VarInt(z),
+                                x: VarInt(center.x),
+                                z: VarInt(center.z),
                             })
                             .ok();
                     }
@@ -607,10 +620,83 @@ pub fn dispatch_encode(
                             .append(&ClientboundSystemChatPacket { content, overlay })
                             .ok();
                     }
+                    PacketPayload::ContainerSetContent {
+                        container_id,
+                        state_id,
+                        slots,
+                        carried,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundContainerSetContent {
+                                container_id: VarInt(i32::from(container_id)),
+                                state_seqno: VarInt(i32::from(state_id)),
+                                slot_data: slots,
+                                carried_item: carried,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::ContainerSetSlot {
+                        container_id,
+                        state_id,
+                        slot,
+                        item,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundContainerSetSlot {
+                                container_id: VarInt(i32::from(container_id)),
+                                state_seqno: VarInt(i32::from(state_id)),
+                                slot,
+                                item,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetCursorItem(contents) => {
+                        conn.raw.append(&ClientboundSetCursorItem { contents }).ok();
+                    }
+                    PacketPayload::SetHeldSlot(slot) => {
+                        conn.raw
+                            .append(&ClientboundSetHeldSlot {
+                                slot: VarInt(i32::from(slot)),
+                            })
+                            .ok();
+                    }
+                    PacketPayload::OpenScreen {
+                        container_id,
+                        menu_type,
+                        title,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundOpenScreen {
+                                container_id: VarInt(i32::from(container_id)),
+                                menu_type: VarInt(menu_type),
+                                title,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::ContainerClose(container_id) => {
+                        conn.raw
+                            .append(&ClientboundContainerClose {
+                                container_id: VarInt(i32::from(container_id)),
+                            })
+                            .ok();
+                    }
+                    PacketPayload::TakeItemEntity {
+                        item_id,
+                        player_id,
+                        amount,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundTakeItemEntity {
+                                item_id: VarInt(item_id),
+                                player_id: VarInt(player_id),
+                                amount: VarInt(amount),
+                            })
+                            .ok();
+                    }
                     PacketPayload::Test(_) => {
                         // Test-only payload; no wire packet. Counted-drop so
-                        // test assertions on BRIDGE_ENCODE_UNHANDLED_TOTAL work.
-                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                        // test assertions on encode_unhandled_total work.
+                        telemetry.encode_unhandled_total += 1;
                     }
                 }
             }
@@ -626,114 +712,137 @@ pub fn dispatch_encode(
             conn.raw.try_send_blob(piece);
         }
 
-        // --- (5) Update depth gauges (monotone totals, consistent with metrics.rs) ---
-        BRIDGE_QUEUE_DEPTH_CRITICAL.fetch_add(queue.critical.len() as u64, Ordering::Relaxed);
-        BRIDGE_QUEUE_DEPTH_HIGH.fetch_add(queue.high.len() as u64, Ordering::Relaxed);
-        BRIDGE_QUEUE_DEPTH_NORMAL.fetch_add(queue.normal.len() as u64, Ordering::Relaxed);
-        BRIDGE_QUEUE_DEPTH_LOW.fetch_add(queue.low.len() as u64, Ordering::Relaxed);
+        depth[0] += queue.critical.len() as u64;
+        depth[1] += queue.high.len() as u64;
+        depth[2] += queue.normal.len() as u64;
+        depth[3] += queue.low.len() as u64;
     }
+    telemetry.queue_depth_critical = depth[0];
+    telemetry.queue_depth_high = depth[1];
+    telemetry.queue_depth_normal = depth[2];
+    telemetry.queue_depth_low = depth[3];
 }
 
-/// Routes serverbound packets from the network into the dim channel seam.
+/// Routes serverbound packets written to the bus into the dim channel seam.
 ///
-/// Drains `Messages<OutboundPlayerPacket>` is the outbound side; this system
-/// handles the inbound side: for each `InboundPlayerPacket` written by upstream
-/// callers, resolve the player's dim and `try_send` it as `ToDim::Serverbound`
-/// into the dim's bounded serverbound channel. On `TrySendError::Full`,
-/// disconnect the offending session (D-08b). Pre-attach players whose dim is
-/// still `PLACEHOLDER` are held in `PendingInboundBuffer` until
-/// `bridge_player_attach` drains them.
+/// `bridge_inbound` handles packets read from sockets; this system handles the
+/// ones written by upstream callers. A full serverbound channel disconnects the
+/// offending session.
 pub fn bridge_inbound_to_channel(
-    mut msgs: ResMut<Messages<crate::world::bus::InboundPlayerPacket>>,
-    session_registry: Res<SessionRegistry>,
+    mut msgs: ResMut<Messages<InboundPlayerPacket>>,
+    mut sessions: Query<(
+        &SessionPlacement,
+        &mut PendingInbound,
+        Option<&SessionConnection>,
+    )>,
     dim_channels: Res<DimChannelsResource>,
-    mut inbound_buffer: ResMut<PendingInboundBuffer>,
     mut commands: Commands,
 ) {
-    use flume::TrySendError;
     for msg in msgs.drain() {
-        let Some((_, entry)) = session_registry.get_by_anchor(&msg.player) else {
+        let Ok((placement, mut pending, connection)) = sessions.get_mut(msg.player) else {
             continue;
         };
-        if entry.in_dim_entity.is_some() && entry.dim != Entity::PLACEHOLDER {
-            let Some(chan) = dim_channels.get(entry.dim) else {
-                continue;
-            };
-            match chan.serverbound_sender.try_send(ToDim::Serverbound {
-                player: msg.player,
-                id: msg.id,
-                data: msg.data,
-                timestamp: msg.timestamp,
-            }) {
-                Ok(()) => {}
-                Err(TrySendError::Full(_)) => {
-                    if let Some((_, sess_entry)) = session_registry.get_by_anchor(&msg.player) {
-                        commands
-                            .entity(sess_entry.connection_entity)
-                            .remove::<mcrs_minecraft_network::ServerSideConnection>();
-                    }
-                }
-                Err(TrySendError::Disconnected(_)) => {}
-            }
-        } else {
-            inbound_buffer
-                .buffers
-                .entry(msg.player)
-                .or_default()
-                .push(msg);
+        if !route_serverbound(placement, &mut pending, &dim_channels, msg)
+            && let Some(connection) = connection
+        {
+            commands
+                .entity(connection.entity())
+                .remove::<mcrs_minecraft_network::ServerSideConnection>();
         }
     }
 }
 
+/// Sends a packet to the dimension its session is attached to, or holds it
+/// until the session is attached and everything held before it has gone.
+/// Returns `false` when the dimension's serverbound channel is full.
+fn route_serverbound(
+    placement: &SessionPlacement,
+    pending: &mut PendingInbound,
+    dim_channels: &DimChannelsResource,
+    packet: InboundPlayerPacket,
+) -> bool {
+    let Some(dim) = placement
+        .place()
+        .attached()
+        .filter(|_| pending.0.is_empty())
+    else {
+        pending.0.push(packet);
+        return true;
+    };
+    let Some(chan) = dim_channels.get(dim) else {
+        return true;
+    };
+    !matches!(
+        chan.serverbound_sender.try_send(serverbound(packet)),
+        Err(flume::TrySendError::Full(_))
+    )
+}
+
+fn serverbound(packet: InboundPlayerPacket) -> ToDim {
+    ToDim::Serverbound {
+        player: packet.player,
+        id: packet.id,
+        data: packet.data,
+        timestamp: packet.timestamp,
+    }
+}
+
+/// A dimension that has spawned a player attaches its session.
 pub fn bridge_player_attach(
-    mut attach_msgs: ResMut<Messages<crate::world::bus::OutboundPlayerAttached>>,
-    mut session_registry: ResMut<SessionRegistry>,
-    mut inbound_buffer: ResMut<PendingInboundBuffer>,
-    dim_channels: Res<DimChannelsResource>,
+    mut attach_msgs: ResMut<Messages<OutboundPlayerAttached>>,
+    mut placements: Query<&mut SessionPlacement>,
 ) {
     for msg in attach_msgs.drain() {
-        let Some((_, entry)) = session_registry.get_by_anchor_mut(&msg.host_anchor) else {
+        let Ok(mut placement) = placements.get_mut(msg.host_anchor) else {
             continue;
         };
-        entry.in_dim_entity = Some(msg.new_in_dim_entity);
-        entry.previous_dim = None;
-        let current_dim = entry.dim;
+        if let Place::Joining(dim) | Place::Transferring { to: dim, .. } = placement.place() {
+            placement.set(Place::InDim(dim));
+        }
+    }
+}
 
-        if let Some(buffered) = inbound_buffer.buffers.remove(&msg.host_anchor)
-            && let Some(chan) = dim_channels.get(current_dim)
-        {
-            for packet in buffered {
-                let _ = chan.serverbound_sender.try_send(ToDim::Serverbound {
-                    player: packet.player,
-                    id: packet.id,
-                    data: packet.data,
-                    timestamp: packet.timestamp,
-                });
-            }
+/// Hands an attached session's held packets to its dimension.
+pub fn forward_pending_inbound(
+    mut sessions: Query<(&SessionPlacement, &mut PendingInbound)>,
+    dim_channels: Res<DimChannelsResource>,
+) {
+    for (placement, mut pending) in &mut sessions {
+        if pending.0.is_empty() {
+            continue;
+        }
+        let Some(chan) = placement
+            .place()
+            .attached()
+            .and_then(|dim| dim_channels.get(dim))
+        else {
+            continue;
+        };
+        for packet in pending.0.drain(..) {
+            let _ = chan.serverbound_sender.try_send(serverbound(packet));
         }
     }
 }
 
 pub fn bridge_inbound(
-    mut conns: Query<
-        (
-            Entity,
-            &mut ServerSideConnection,
-            &mut InboundRateBucket,
-            Option<&HostAnchorRef>,
-        ),
-        With<InGameConnectionState>,
-    >,
+    mut conns: Query<(
+        Entity,
+        &mut ServerSideConnection,
+        &mut InboundRateBucket,
+        Option<&HostAnchorRef>,
+        &ConnectionState,
+    )>,
     mut commands: Commands,
-    session_registry: Res<SessionRegistry>,
+    mut sessions: Query<(&SessionPlacement, &mut PendingInbound)>,
     dim_channels: Res<DimChannelsResource>,
-    mut inbound_buffer: ResMut<PendingInboundBuffer>,
+    mut telemetry: ResMut<BridgeTelemetry>,
 ) {
-    use flume::TrySendError;
-    use mcrs_minecraft_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
     use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 
-    for (entity, mut conn, mut bucket, anchor_ref) in conns.iter_mut() {
+    for (entity, mut conn, mut bucket, anchor_ref, state) in conns.iter_mut() {
+        if *state != ConnectionState::Game {
+            continue;
+        }
         bucket.refill();
 
         loop {
@@ -750,7 +859,7 @@ pub fn bridge_inbound(
                         let blob = conn.raw.take_encoded();
                         conn.raw.try_send_blob(blob);
                         commands.entity(entity).remove::<ServerSideConnection>();
-                        BRIDGE_KICK_FLOOD_TOTAL.fetch_add(1, Ordering::Relaxed);
+                        telemetry.kick_flood_total += 1;
                         break;
                     }
 
@@ -761,35 +870,21 @@ pub fn bridge_inbound(
                         timestamp: pkt.timestamp,
                     });
 
-                    if let Some(anchor) = anchor_ref
-                        && let Some((_, entry)) = session_registry.get_by_anchor(&anchor.0)
-                        && entry.dim != Entity::PLACEHOLDER
+                    if let Some(&HostAnchorRef(anchor)) = anchor_ref
+                        && let Ok((placement, mut pending)) = sessions.get_mut(anchor)
+                        && !route_serverbound(
+                            placement,
+                            &mut pending,
+                            &dim_channels,
+                            InboundPlayerPacket {
+                                player: anchor,
+                                id: pkt.id,
+                                data: pkt.payload,
+                                timestamp: pkt.timestamp,
+                            },
+                        )
                     {
-                        if entry.in_dim_entity.is_some() {
-                            if let Some(chan) = dim_channels.get(entry.dim) {
-                                match chan.serverbound_sender.try_send(ToDim::Serverbound {
-                                    player: anchor.0,
-                                    id: pkt.id,
-                                    data: pkt.payload,
-                                    timestamp: pkt.timestamp,
-                                }) {
-                                    Ok(()) => {}
-                                    Err(TrySendError::Full(_)) => {
-                                        commands.entity(entity).remove::<ServerSideConnection>();
-                                    }
-                                    Err(TrySendError::Disconnected(_)) => {}
-                                }
-                            }
-                        } else {
-                            inbound_buffer.buffers.entry(anchor.0).or_default().push(
-                                crate::world::bus::InboundPlayerPacket {
-                                    player: anchor.0,
-                                    id: pkt.id,
-                                    data: pkt.payload,
-                                    timestamp: pkt.timestamp,
-                                },
-                            );
-                        }
+                        commands.entity(entity).remove::<ServerSideConnection>();
                     }
                 }
                 Ok(None) => break,
@@ -809,151 +904,142 @@ mod tests {
     use bevy_ecs::entity::Entity;
     use bevy_ecs::system::{IntoSystem, System};
     use bevy_ecs::world::World;
-    use smallvec::SmallVec;
 
-    use crate::world::bus::InboundPlayerPacket;
     use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
-    use crate::world::player_index::PendingInboundBuffer;
+    use crate::world::session::SessionBundle;
 
     use bytes::Bytes;
-    use mcrs_voxel_world::session::{PlayerSession, SessionEntry, SessionRegistry};
-    use mcrs_voxel_world::world::channels::{
+    use mcrs_minecraft_level::session::PlayerSession;
+    use mcrs_minecraft_level::world::channels::{
         DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
 
-    fn make_session_entry(
-        connection_entity: Entity,
-        host_anchor: Entity,
-        dim: Entity,
-        in_dim_entity: Option<Entity>,
-    ) -> SessionEntry {
-        SessionEntry {
-            connection_entity,
-            host_anchor,
-            dim,
-            previous_dim: None,
-            in_dim_entity,
-            epoch: 0,
-        }
-    }
-
-    fn make_dim_channels(
-        world: &mut World,
-        dim: Entity,
-    ) -> (
-        flume::Receiver<ToDim>,
-        flume::Receiver<ToDim>,
-        flume::Sender<FromDim>,
-    ) {
+    fn make_dim_channels(world: &mut World, dim: Entity) -> flume::Receiver<ToDim> {
         let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
-        let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+        let (ctl_tx, _ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         world.resource_mut::<DimChannelsResource>().insert(
             dim,
             DimSender::new(srv_tx),
             DimSender::new(ctl_tx),
             from_rx,
         );
-        (srv_rx, ctl_rx, from_tx)
+        srv_rx
     }
 
-    fn run_attach(world: &mut World) {
-        let mut sys = IntoSystem::into_system(bridge_player_attach);
+    fn run<M>(world: &mut World, system: impl IntoSystem<(), (), M>) {
+        let mut sys = IntoSystem::into_system(system);
         sys.initialize(world);
         let _ = sys.run((), world);
         sys.apply_deferred(world);
     }
 
-    #[test]
-    fn bridge_player_attach_sets_in_dim_entity_and_sends_buffered_packets() {
+    fn world() -> World {
         let mut world = World::new();
-        world.init_resource::<Messages<crate::world::bus::OutboundPlayerAttached>>();
-        world.init_resource::<SessionRegistry>();
-        world.init_resource::<PendingInboundBuffer>();
+        world.init_resource::<Messages<OutboundPlayerAttached>>();
+        world.init_resource::<Messages<InboundPlayerPacket>>();
         world.init_resource::<DimChannelsResource>();
+        world
+    }
 
-        let host_anchor = Entity::from_raw_u32(42).expect("nonzero");
-        let connection_entity = Entity::from_raw_u32(1).expect("nonzero");
-        let dest_dim = Entity::from_raw_u32(2).expect("nonzero");
-        let new_in_dim = Entity::from_raw_u32(200).expect("nonzero");
-        let session = PlayerSession(3);
-
-        let (dest_srv_rx, _dest_ctl_rx, _dest_from_tx) = make_dim_channels(&mut world, dest_dim);
-
-        world.resource_mut::<SessionRegistry>().insert(
-            session,
-            SessionEntry {
-                connection_entity,
-                host_anchor,
-                dim: dest_dim,
-                previous_dim: None,
-                in_dim_entity: None,
-                epoch: 0,
-            },
-        );
-
-        let mut buffered: SmallVec<[InboundPlayerPacket; 4]> = SmallVec::new();
-        for seq in 0..3u32 {
-            buffered.push(InboundPlayerPacket {
-                player: host_anchor,
-                id: seq as i32,
-                data: Bytes::new(),
-                timestamp: std::time::Instant::now(),
-            });
+    fn packet(player: Entity, id: i32) -> InboundPlayerPacket {
+        InboundPlayerPacket {
+            player,
+            id,
+            data: Bytes::new(),
+            timestamp: std::time::Instant::now(),
         }
+    }
+
+    fn ids(rx: &flume::Receiver<ToDim>) -> Vec<i32> {
+        rx.try_iter()
+            .map(|msg| match msg {
+                ToDim::Serverbound { id, .. } => id,
+                other => panic!("expected Serverbound, got {other:?}"),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn bridge_player_attach_places_the_session_and_sends_held_packets() {
+        let mut world = world();
+        let dest_dim = world.spawn_empty().id();
+        let dest_srv_rx = make_dim_channels(&mut world, dest_dim);
+        let host_anchor = world
+            .spawn(SessionBundle::placed(
+                PlayerSession(3),
+                SessionPlacement::new(Place::Joining(dest_dim), 0),
+            ))
+            .id();
         world
-            .resource_mut::<PendingInboundBuffer>()
-            .buffers
-            .insert(host_anchor, buffered);
+            .get_mut::<PendingInbound>(host_anchor)
+            .unwrap()
+            .0
+            .extend((0..3).map(|seq| packet(host_anchor, seq)));
 
         world
-            .resource_mut::<Messages<crate::world::bus::OutboundPlayerAttached>>()
-            .write(crate::world::bus::OutboundPlayerAttached {
-                host_anchor,
-                new_in_dim_entity: new_in_dim,
-            });
+            .resource_mut::<Messages<OutboundPlayerAttached>>()
+            .write(OutboundPlayerAttached { host_anchor });
+        run(&mut world, bridge_player_attach);
+        run(&mut world, forward_pending_inbound);
 
-        run_attach(&mut world);
-
-        let registry = world.resource::<SessionRegistry>();
-        let (_, entry) = registry.get_by_anchor(&host_anchor).expect("entry present");
-        assert_eq!(entry.in_dim_entity, Some(new_in_dim));
-
-        let buffer = world.resource::<PendingInboundBuffer>();
-        assert!(
-            buffer
-                .buffers
-                .get(&host_anchor)
-                .is_none_or(|v| v.is_empty())
-        );
-
-        let drained: Vec<_> = dest_srv_rx.try_iter().collect();
         assert_eq!(
-            drained.len(),
-            3,
+            world.get::<SessionPlacement>(host_anchor).unwrap().place(),
+            Place::InDim(dest_dim)
+        );
+        assert!(
+            world
+                .get::<PendingInbound>(host_anchor)
+                .unwrap()
+                .0
+                .is_empty()
+        );
+        assert_eq!(
+            ids(&dest_srv_rx),
+            vec![0, 1, 2],
             "3 buffered packets sent to serverbound channel"
         );
     }
 
     #[test]
-    fn bridge_player_attach_idempotent_on_unknown_host_anchor() {
-        let mut world = World::new();
-        world.init_resource::<Messages<crate::world::bus::OutboundPlayerAttached>>();
-        world.init_resource::<SessionRegistry>();
-        world.init_resource::<PendingInboundBuffer>();
-        world.init_resource::<DimChannelsResource>();
-
-        let unknown = Entity::from_raw_u32(999).expect("nonzero");
-        let new_in_dim = Entity::from_raw_u32(1).expect("nonzero");
+    fn a_packet_arriving_behind_held_ones_waits_for_them() {
+        let mut world = world();
+        let dim = world.spawn_empty().id();
+        let srv_rx = make_dim_channels(&mut world, dim);
+        let host_anchor = world
+            .spawn(SessionBundle::placed(
+                PlayerSession(4),
+                SessionPlacement::new(Place::InDim(dim), 0),
+            ))
+            .id();
+        world
+            .get_mut::<PendingInbound>(host_anchor)
+            .unwrap()
+            .0
+            .push(packet(host_anchor, 0));
 
         world
-            .resource_mut::<Messages<crate::world::bus::OutboundPlayerAttached>>()
-            .write(crate::world::bus::OutboundPlayerAttached {
+            .resource_mut::<Messages<InboundPlayerPacket>>()
+            .write(packet(host_anchor, 1));
+        run(&mut world, bridge_inbound_to_channel);
+        assert!(ids(&srv_rx).is_empty(), "nothing overtakes a held packet");
+
+        run(&mut world, forward_pending_inbound);
+        assert_eq!(ids(&srv_rx), vec![0, 1]);
+    }
+
+    #[test]
+    fn bridge_player_attach_idempotent_on_unknown_host_anchor() {
+        let mut world = world();
+        let unknown = Entity::from_raw_u32(999).expect("nonzero");
+
+        world
+            .resource_mut::<Messages<OutboundPlayerAttached>>()
+            .write(OutboundPlayerAttached {
                 host_anchor: unknown,
-                new_in_dim_entity: new_in_dim,
             });
 
-        run_attach(&mut world);
+        run(&mut world, bridge_player_attach);
         // No panic — idempotent on unknown anchor
     }
 }

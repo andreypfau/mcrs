@@ -1,51 +1,44 @@
-use crate::world::format::anvil::SectionData;
-use mcrs_minecraft_block::palette::ChunkBlocks;
-
 use crate::world::block_entity::spawn_block_entities;
-use crate::world::generate::stages::{FillContext, fill_pooled, merge_column, run_region};
-use crate::world::generate::staging::{ColumnDelta, FilledSnapshot, Stage, StagingStore};
+use crate::world::entity::mob::spawn_generated_entities;
+use crate::world::entity::player::column_view::ColumnView;
 use crate::world::heightmap::PendingColumnHeightmaps;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
+use bevy_ecs::prelude::{Local, MessageReader, ParamSet, Query, Resource, With, resource_exists};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::lifecycle::level::FULL_LEVEL;
+use mcrs_minecraft_level::world::lifecycle::stage::{
+    SectionStage, SectionStageChanged, SectionStages,
+};
+use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
+use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_world::worldgen::beta_biome::BetaBiomeSourcePlugin;
-use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkGenerating;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkLoading;
-use mcrs_voxel_world::world::lifecycle::markers::ChunkUnloading;
-use mcrs_voxel_world::world::lifecycle::trace as column_trace;
-use mcrs_voxel_world::world::lifecycle::trace::ColumnStage;
+use mcrs_minecraft_worldgen_generator::saved::SectionData;
+use mcrs_minecraft_worldgen_generator::stages::{
+    FillContext, fill_pooled, merge_column, run_region,
+};
+use mcrs_minecraft_worldgen_generator::staging::{
+    ColumnDelta, FilledSnapshot, Stage, StagingStore,
+};
+use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
 use rustc_hash::FxHashMap;
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, LazyLock, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tracing::{info, trace};
-
-pub(crate) fn try_resolve_state(
-    blocks: &BlockDefinitions,
-    state: &ProtoBlockState,
-) -> Option<mcrs_minecraft_protocol::BlockStateId> {
-    let block = blocks.block(state.name.as_str())?;
-    let mut id = block.default_state_id;
-    for (property, value) in state.properties.iter().flatten() {
-        id = block.with_text(id, property, value)?;
-    }
-    Some(id)
-}
 
 pub struct ChunkPlugin;
 
@@ -72,42 +65,12 @@ impl Plugin for ChunkPlugin {
                 dispatch_column_generation.run_if(resource_exists::<FillContext>),
             )
                 .chain()
-                .after(mcrs_voxel_world::world::lifecycle::ticket::ChunkSpawnSet),
+                .after(mcrs_minecraft_level::world::lifecycle::ticket::ChunkSpawnSet),
         );
     }
 }
 
 pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
-
-/// Token for cooperative cancellation of chunk generation tasks.
-///
-/// The token is cloned and passed to worker tasks. When `cancel()` is called,
-/// tasks check `is_cancelled()` between section generations and can exit early.
-#[derive(Clone)]
-pub struct CancellationToken(Arc<AtomicBool>);
-
-impl CancellationToken {
-    /// Create a new uncancelled token.
-    pub fn new() -> Self {
-        Self(Arc::new(AtomicBool::new(false)))
-    }
-
-    /// Signal cancellation to all clones of this token.
-    pub fn cancel(&self) {
-        self.0.store(true, Ordering::Release);
-    }
-
-    /// Check if cancellation has been signaled.
-    pub fn is_cancelled(&self) -> bool {
-        self.0.load(Ordering::Acquire)
-    }
-}
-
-impl Default for CancellationToken {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// Sort key for the priority queue. Lower distance_sq values are dequeued first.
 /// The column position (col_x, col_z) serves as a tiebreaker for determinism.
@@ -245,42 +208,35 @@ impl ColumnScheduler {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum ColumnSource {
-    Saved,
-    Generated,
+/// A column slower than `threshold` from queue to hand-off gets a line naming the
+/// stage that cost the time. `MCRS_SLOW_CHUNK_MS` moves the bar.
+pub(crate) struct SlowColumns {
+    threshold: Duration,
+    reported: Option<Instant>,
+    unreported: u64,
 }
 
-impl ColumnSource {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Saved => "save",
-            Self::Generated => "worldgen",
+impl Default for SlowColumns {
+    fn default() -> Self {
+        let ms = std::env::var("MCRS_SLOW_CHUNK_MS")
+            .ok()
+            .and_then(|ms| ms.parse().ok())
+            .unwrap_or(250);
+        Self {
+            threshold: Duration::from_millis(ms),
+            reported: None,
+            unreported: 0,
         }
     }
 }
 
-/// A column slower than this from queue to hand-off gets a line naming the
-/// stage that cost the time. `MCRS_SLOW_CHUNK_MS` moves the bar.
-static SLOW_COLUMN: LazyLock<Duration> = LazyLock::new(|| {
-    let ms = std::env::var("MCRS_SLOW_CHUNK_MS")
-        .ok()
-        .and_then(|ms| ms.parse().ok())
-        .unwrap_or(250);
-    Duration::from_millis(ms)
-});
-
-/// When the last slow column was reported, and how many have gone unreported
-/// since.
-static SLOW_COLUMN_SAMPLE: Mutex<(Option<Instant>, u64)> = Mutex::new((None, 0));
-
 /// The sections a delivery owes, copied out of the whole column it generated.
 /// `bottom` is the section the column buffer starts at.
 pub(crate) fn carried_sections(
-    sections_data: &[(Entity, ChunkPos)],
+    sections_data: &[(Entity, SectionPos)],
     column: &[Option<SectionData>],
     bottom: i32,
-) -> Vec<(Entity, ChunkPos, Option<SectionData>)> {
+) -> Vec<(Entity, SectionPos, Option<SectionData>)> {
     sections_data
         .iter()
         .map(|&(entity, pos)| {
@@ -306,37 +262,35 @@ pub(crate) fn min_column_distance(pos: &ColumnPos, players: &[ColumnPos]) -> i32
         .unwrap_or(0)
 }
 
-/// The whole ladder's latency, reported once a second with the count of the
-/// columns the sample stands for.
-fn report_column_timing(col: ColumnPos, queued: Instant, sections: usize, source: ColumnSource) {
-    let total = queued.elapsed();
-    if total < *SLOW_COLUMN {
-        return;
+impl SlowColumns {
+    /// The whole ladder's latency, reported once a second with the count of the
+    /// columns the sample stands for.
+    fn report(&mut self, col: ColumnPos, queued: Instant, sections: usize, source: ColumnSource) {
+        let total = queued.elapsed();
+        if total < self.threshold {
+            return;
+        }
+        // A stall is a property of the whole load, not of one column, and a line per
+        // column drowns out every other log on the server.
+        self.unreported += 1;
+        if self
+            .reported
+            .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
+        {
+            return;
+        }
+        let others = std::mem::replace(&mut self.unreported, 0) - 1;
+        self.reported = Some(Instant::now());
+        info!(
+            x = col.x,
+            z = col.z,
+            source = source.label(),
+            total_ms = total.as_secs_f32() * 1000.0,
+            sections = sections,
+            others = others,
+            "slow chunk column"
+        );
     }
-    // A stall is a property of the whole load, not of one column, and a line per
-    // column drowns out every other log on the server.
-    let mut since = SLOW_COLUMN_SAMPLE
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    since.1 += 1;
-    if since
-        .0
-        .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
-    {
-        return;
-    }
-    let others = std::mem::replace(&mut since.1, 0) - 1;
-    since.0 = Some(Instant::now());
-    drop(since);
-    info!(
-        x = col.x,
-        z = col.z,
-        source = source.label(),
-        total_ms = total.as_secs_f32() * 1000.0,
-        sections = sections,
-        others = others,
-        "slow chunk column"
-    );
 }
 
 /// Poll the stages on the pool and put what they produced into the store.
@@ -347,9 +301,10 @@ fn report_column_timing(col: ColumnPos, queued: Instant, sections: usize, source
 pub(crate) fn process_completed_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     ctx: Option<Res<FillContext>>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut done: Local<Vec<(ColumnPos, Option<StageResult>)>>,
 ) {
     let rungs = ctx.map_or(1, |ctx| ctx.rungs());
-    let mut done: Vec<(ColumnPos, Option<StageResult>)> = Vec::new();
     scheduler
         .in_flight
         .retain_mut(|stage| match block_on(future::poll_once(&mut stage.task)) {
@@ -360,7 +315,7 @@ pub(crate) fn process_completed_columns(
             None => true,
         });
 
-    for (col, result) in done {
+    for (col, result) in done.drain(..) {
         let Some(result) = result else {
             scheduler.store.forget(col);
             continue;
@@ -379,8 +334,8 @@ pub(crate) fn process_completed_columns(
         }
         match result {
             StageResult::Filled(snapshot) => {
-                column_trace::mark(col, ColumnStage::Filled);
-                column_trace::set_source(col, snapshot.source.label());
+                column_trace::mark(&mut traces, col, ColumnStage::Filled);
+                column_trace::set_source(&mut traces, col, snapshot.source.label());
                 let source = snapshot.source;
                 scheduler.store.insert_filled(*snapshot);
                 // A column the save already holds was decorated before it was
@@ -396,14 +351,14 @@ pub(crate) fn process_completed_columns(
                 scheduler.store.set_stage(col, stage);
             }
             StageResult::Ran(rung, deltas) => {
-                column_trace::mark(col, ColumnStage::Ran);
+                column_trace::mark(&mut traces, col, ColumnStage::Ran);
                 for (target, delta) in deltas {
                     scheduler.store.push_delta(col, rung, target, delta);
                 }
                 scheduler.store.set_stage(col, Stage::Ran(rung as u8));
             }
             StageResult::Merged(rung, merged) => {
-                column_trace::mark(col, ColumnStage::Merged);
+                column_trace::mark(&mut traces, col, ColumnStage::Merged);
                 scheduler.store.insert_staged(col, rung, Arc::new(*merged));
                 scheduler.store.set_stage(col, Stage::Merged(rung as u8));
             }
@@ -428,30 +383,31 @@ pub(crate) fn deliver_merged_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     mut pending_heightmaps: ResMut<PendingColumnHeightmaps>,
     section_dimensions: Query<&InDimension>,
+    mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
+    registry: Option<Res<RegistryAccess>>,
+    items: Res<mcrs_minecraft_item::Items>,
     mut commands: Commands,
+    mut slow: Local<SlowColumns>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut ready: Local<Vec<ColumnKey>>,
 ) {
     let done = top_of_ladder(ctx.map_or(1, |ctx| ctx.rungs()));
-    let ready: Vec<ColumnKey> = scheduler
-        .pending
-        .keys()
-        .copied()
-        .filter(|key| {
-            scheduler
-                .store
-                .stage(key.chunk_column_pos)
-                .is_some_and(|at| at >= done)
-        })
-        .collect();
+    ready.extend(scheduler.pending.keys().copied().filter(|key| {
+        scheduler
+            .store
+            .stage(key.chunk_column_pos)
+            .is_some_and(|at| at >= done)
+    }));
 
-    for key in ready {
+    for key in ready.drain(..) {
         let col = key.chunk_column_pos;
         // No merged column means the store was evicted under the request; the
         // column keeps its place in the queue and climbs the ladder again.
-        let mut sections_data: Vec<(Entity, ChunkPos)> = scheduler.pending[&key]
+        let mut sections_data: Vec<(Entity, SectionPos)> = scheduler.pending[&key]
             .sections
             .iter()
-            .map(|(entity, y)| (*entity, ChunkPos::new(col.x, *y, col.z)))
+            .map(|(entity, y)| (*entity, SectionPos::new(col.x, *y, col.z)))
             .collect();
         sections_data.sort_by_key(|(_, pos)| pos.y);
         let Some((carried, maps, source)) = scheduler.store.merged(col).map(|merged| {
@@ -473,6 +429,7 @@ pub(crate) fn deliver_merged_columns(
         scheduler.priority_index.remove(&col);
         scheduler.store.set_stage(col, Stage::Delivered);
         let block_entities = scheduler.store.take_block_entities(col);
+        let entities = scheduler.store.take_entities(col);
         // Any live section of the column answers for the whole column. The
         // first-enqueued one may already have been despawned while the rest of
         // the column still stands, and taking it alone would drop the lot.
@@ -481,16 +438,26 @@ pub(crate) fn deliver_merged_columns(
             .iter()
             .find_map(|(section, _)| section_dimensions.get(*section).ok())
         {
-            Some(dim) => spawn_block_entities(&mut commands, *dim, block_entities),
+            Some(dim) => {
+                spawn_block_entities(&mut commands, *dim, block_entities);
+                spawn_generated_entities(
+                    &mut commands,
+                    *dim,
+                    &sections_data,
+                    registry.as_deref(),
+                    &items,
+                    entities,
+                );
+            }
             None => tracing::debug!(
-                dropped = block_entities.len(),
-                "a column with no live section delivered its block entities nowhere"
+                dropped = block_entities.len() + entities.len(),
+                "a column with no live section delivered its entities nowhere"
             ),
         }
 
-        report_column_timing(col, entry.queued, entry.sections.len(), source);
-        column_trace::mark(col, ColumnStage::Loaded);
-        column_trace::set_source(col, source.label());
+        slow.report(col, entry.queued, entry.sections.len(), source);
+        column_trace::mark(&mut traces, col, ColumnStage::Loaded);
+        column_trace::set_source(&mut traces, col, source.label());
         if let Some(maps) = maps {
             pending_heightmaps.0.insert(col, maps);
         }
@@ -500,15 +467,14 @@ pub(crate) fn deliver_merged_columns(
                 Some((blocks, biomes)) => {
                     commands
                         .entity(entity)
-                        .try_insert((ChunkLoaded, ChunkBlocks::new(blocks), biomes))
-                        .try_remove::<ChunkGenerating>();
+                        .try_insert((ChunkBlocks::new(blocks), biomes));
+                    // One cancelled while it generated keeps the blocks for a ticket that
+                    // takes it back, but stays on its way out.
+                    if stages.get(entity) == Some(SectionStage::Generating) {
+                        stages.set(entity, SectionStage::Loaded);
+                    }
                 }
-                None => {
-                    commands
-                        .entity(entity)
-                        .try_insert(ChunkUnloading)
-                        .try_remove::<ChunkGenerating>();
-                }
+                None => stages.set(entity, SectionStage::Unloading),
             }
         }
     }
@@ -520,38 +486,44 @@ pub(crate) fn deliver_merged_columns(
 /// arrive after its first stage was dispatched merge into the same entry and
 /// reach the same delivery.
 pub(crate) fn enqueue_pending_columns(
-    mut commands: Commands,
+    mut stages: ParamSet<(MessageReader<SectionStageChanged>, SectionStages)>,
+    mut requested: Local<Vec<(Entity, SectionPos)>>,
     mut scheduler: ResMut<ColumnScheduler>,
-    loading_query: Query<(Entity, &ChunkPos), With<ChunkLoading>>,
     players: Query<&Transform, With<Player>>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut columns: Local<HashMap<ColumnPos, Vec<(Entity, i32)>>>,
+    mut player_positions: Local<Vec<ColumnPos>>,
 ) {
-    // Collect player positions for distance calculations
-    let player_positions: Vec<ColumnPos> = players
-        .iter()
-        .map(|t| ColumnPos::from(t.translation))
-        .collect();
-
-    let mut columns: HashMap<ColumnPos, Vec<(Entity, i32)>> = HashMap::new();
-    for (entity, pos) in loading_query.iter() {
+    requested.extend(
+        stages
+            .p0()
+            .read()
+            .filter(|change| change.to == SectionStage::Loading)
+            .map(|change| (change.section, change.pos)),
+    );
+    let mut section_stages = stages.p1();
+    for (section, pos) in requested.drain(..) {
+        if section_stages.get(section) != Some(SectionStage::Loading) {
+            continue;
+        }
         trace!(
             "Requested generation for chunk section at ({}, {}, {})",
             pos.x, pos.y, pos.z
         );
-
+        section_stages.set(section, SectionStage::Generating);
         columns
             .entry(ColumnPos::new(pos.x, pos.z))
             .or_default()
-            .push((entity, pos.y));
+            .push((section, pos.y));
+    }
+    if columns.is_empty() {
+        return;
     }
 
-    for (col, sections) in columns {
-        for &(entity, _) in &sections {
-            commands
-                .entity(entity)
-                .insert(ChunkGenerating)
-                .remove::<ChunkLoading>();
-        }
+    player_positions.clear();
+    player_positions.extend(players.iter().map(|t| ColumnPos::from(t.translation)));
 
+    for (col, sections) in columns.drain() {
         if scheduler.is_pending(col) {
             // Merge new sections into the existing entry so the column is
             // delivered with ALL its sections in a single batch.
@@ -563,7 +535,7 @@ pub(crate) fn enqueue_pending_columns(
             continue;
         }
 
-        column_trace::mark(col, ColumnStage::Queued);
+        column_trace::mark(&mut traces, col, ColumnStage::Queued);
         let distance_sq = min_column_distance(&col, &player_positions);
         let key = ColumnKey::new(distance_sq, col);
         scheduler.pending.insert(key, PendingColumn::new(sections));
@@ -575,21 +547,43 @@ pub(crate) fn enqueue_pending_columns(
 ///
 /// "Wanted" is widened by the halo: a column two away from one a view wants
 /// is still an input to its run, so it is neither cancelled nor evicted.
+#[cfg(test)]
+pub(crate) fn request_section(
+    world: &mut bevy_ecs::world::World,
+    dim: Entity,
+    pos: SectionPos,
+) -> Entity {
+    let section = world
+        .spawn((pos, InDimension(dim), SectionStage::Loading))
+        .id();
+    world.write_message(SectionStageChanged::spawned(
+        section,
+        pos,
+        dim,
+        SectionStage::Loading,
+    ));
+    section
+}
+
 fn cancel_stale_columns(
     mut scheduler: ResMut<ColumnScheduler>,
-    mut commands: Commands,
+    mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
-    players: Query<&PlayerChunkObserver>,
+    views: Query<&ColumnView>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut player_views: Local<Vec<ChunkTrackingView>>,
+    mut stale: Local<Vec<ColumnKey>>,
 ) {
     // Every rung costs two rings: `Delivered(U)` needs the last rung run over
     // the 3×3 of `U`, which needs the one below it merged over the 5×5, and so
     // on down to the fill.
     let halo = 2 * ctx.map_or(1, |ctx| ctx.rungs()) as i32;
+    // A view's loading tickets load as many rings past it as their level takes to fall to
+    // full, and a column that far out is loaded like any other.
+    let rings = (FULL_LEVEL - Ticket::PLAYER_LOADING.level) as i32;
 
-    let player_views: Vec<_> = players
-        .iter()
-        .filter_map(|observer| observer.last_last_chunk_tracking_view)
-        .collect();
+    player_views.clear();
+    player_views.extend(views.iter().filter_map(ColumnView::view));
 
     if player_views.is_empty() {
         return;
@@ -603,35 +597,29 @@ fn cancel_stale_columns(
         })
     };
 
-    let stale: Vec<(ColumnKey, Vec<Entity>)> = scheduler
-        .priority_index
-        .iter()
-        .filter_map(|(col, key)| {
-            if wanted(*col, 0) {
-                return None;
-            }
-            let pending = scheduler.pending.get(key)?;
-            Some((*key, pending.sections.iter().map(|(e, _)| *e).collect()))
-        })
-        .collect();
+    stale.extend(
+        scheduler
+            .priority_index
+            .iter()
+            .filter(|(col, key)| !wanted(**col, rings) && scheduler.pending.contains_key(*key))
+            .map(|(_, key)| *key),
+    );
 
-    for (key, entities) in stale {
+    for key in stale.drain(..) {
         trace!("Canceling stale column {:?}", key);
-        column_trace::forget(key.chunk_column_pos);
+        column_trace::forget(&mut traces, key.chunk_column_pos);
 
-        scheduler.pending.remove(&key);
         scheduler.priority_index.remove(&key.chunk_column_pos);
-
-        for entity in entities {
-            commands
-                .entity(entity)
-                .try_insert(ChunkUnloading)
-                .try_remove::<ChunkGenerating>();
+        let Some(pending) = scheduler.pending.remove(&key) else {
+            continue;
+        };
+        for (entity, _) in pending.sections {
+            stages.set(entity, SectionStage::Unloading);
         }
     }
 
     for stage in &scheduler.in_flight {
-        if !wanted(stage.col, halo) {
+        if !wanted(stage.col, rings + halo) {
             stage.cancel.cancel();
         }
     }
@@ -640,28 +628,26 @@ fn cancel_stale_columns(
     // column must survive the eviction that runs beside its cancellation.
     scheduler
         .store
-        .retain(|col, stage| stage.in_flight() || wanted(col, halo));
+        .retain(|col, stage| stage.in_flight() || wanted(col, rings + halo));
 }
 
 /// Update column priorities when players move.
 fn reprioritize_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     players: Query<&Transform, With<Player>>,
+    mut player_positions: Local<Vec<ColumnPos>>,
+    mut updates: Local<Vec<(ColumnKey, ColumnKey)>>,
 ) {
     if scheduler.pending.is_empty() {
         return;
     }
 
-    let player_positions: Vec<ColumnPos> = players
-        .iter()
-        .map(|t| ColumnPos::from(t.translation))
-        .collect();
+    player_positions.clear();
+    player_positions.extend(players.iter().map(|t| ColumnPos::from(t.translation)));
 
     if player_positions.is_empty() {
         return;
     }
-
-    let mut updates: Vec<(ColumnKey, ColumnKey)> = Vec::new();
 
     for (&col, &old_key) in &scheduler.priority_index {
         let new_distance_sq = min_column_distance(&col, &player_positions);
@@ -670,7 +656,7 @@ fn reprioritize_columns(
         }
     }
 
-    for (old_key, new_key) in updates {
+    for (old_key, new_key) in updates.drain(..) {
         if let Some(pending_column) = scheduler.pending.remove(&old_key) {
             scheduler.pending.insert(new_key, pending_column);
             scheduler
@@ -703,6 +689,8 @@ fn square(centre: ColumnPos, radius: i32) -> impl Iterator<Item = ColumnPos> {
 pub(crate) fn dispatch_column_generation(
     mut scheduler: ResMut<ColumnScheduler>,
     ctx: Res<FillContext>,
+    mut traces: Option<ResMut<ColumnTraceLog>>,
+    mut wanted: Local<Vec<ColumnPos>>,
 ) {
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
 
@@ -717,17 +705,14 @@ pub(crate) fn dispatch_column_generation(
     }
     let ctx = ctx.as_ref();
 
-    let wanted: Vec<ColumnPos> = scheduler
-        .pending
-        .keys()
-        .map(|key| key.chunk_column_pos)
-        .collect();
+    wanted.clear();
+    wanted.extend(scheduler.pending.keys().map(|key| key.chunk_column_pos));
 
     let rungs = ctx.rungs();
     let done = top_of_ladder(rungs);
 
     let mut dispatched = 0usize;
-    'wanted: for u in wanted {
+    'wanted: for &u in wanted.iter() {
         // A column at the top of its ladder derived everything it needed, or it
         // could not have got there; it is leaving the queue at this tick's
         // delivery. On a settled view that is every pending column, and walking
@@ -743,7 +728,7 @@ pub(crate) fn dispatch_column_generation(
             if dispatched == budget {
                 break 'wanted;
             }
-            column_trace::mark(v, ColumnStage::Generating);
+            column_trace::mark(&mut traces, v, ColumnStage::Generating);
             let ctx = ctx.clone();
             scheduler.spawn(task_pool, v, Stage::Filling, |cancel| async move {
                 fill_pooled(&ctx, v, &cancel)
@@ -805,10 +790,18 @@ pub(crate) fn dispatch_column_generation(
                     break 'wanted;
                 }
                 let predicates = ctx.predicates.clone();
+                let program = ctx.program.features.clone();
                 scheduler.spawn(task_pool, v, Stage::Merging(rung as u8), |_| async move {
                     Some(StageResult::Merged(
                         rung,
-                        Box::new(merge_column(&base, &deltas, predicates.as_ref())),
+                        Box::new(merge_column(
+                            &base,
+                            &deltas,
+                            predicates.as_ref(),
+                            program
+                                .as_deref()
+                                .map(|program| &program.world.has_block_entity),
+                        )),
                     ))
                 });
                 dispatched += 1;
@@ -829,10 +822,12 @@ pub(crate) fn dispatch_column_generation(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::generate::tests::blocks as corpus;
     use bevy_app::{App, Update};
-    use mcrs_minecraft_world::block::definition::schema::PropertyValue;
-    use mcrs_voxel_world::entity::player::chunk_view::ChunkTrackingView;
+    use mcrs_minecraft_block::definition::schema::PropertyValue;
+    use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
+    use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
+    use mcrs_minecraft_worldgen_generator::block_state::try_resolve_state;
+    use mcrs_minecraft_worldgen_generator::tests::blocks as corpus;
 
     fn noise_settings_state(field: &str) -> ProtoBlockState {
         let path = concat!(
@@ -877,18 +872,15 @@ mod tests {
         );
     }
 
-    fn spawn_observer_with_view(app: &mut App, center: ChunkPos, distance: u8) -> Entity {
-        let observer = PlayerChunkObserver {
-            last_last_chunk_tracking_view: Some(ChunkTrackingView {
-                center,
-                distance,
-                vert_distance: 8,
-                min_section_y: i32::MIN,
-                max_section_y: i32::MAX,
-            }),
-            ..PlayerChunkObserver::default()
-        };
-        app.world_mut().spawn(observer).id()
+    fn spawn_observer_with_view(app: &mut App, center: SectionPos, distance: u8) -> Entity {
+        let view = ColumnView::looking_at(ChunkTrackingView {
+            center,
+            distance,
+            vert_distance: 8,
+            min_section_y: i32::MIN,
+            max_section_y: i32::MAX,
+        });
+        app.world_mut().spawn(view).id()
     }
 
     /// The ladder must produce the column the fill alone produces: with no
@@ -898,19 +890,21 @@ mod tests {
     /// bug shows up as a column that never arrives.
     #[test]
     fn the_ladder_delivers_the_column_the_fill_produced() {
-        use crate::world::generate::stages::fill_column;
-        use crate::world::generate::tests::build_beta_router;
         use crate::world::heightmap::PendingColumnHeightmaps;
+        use mcrs_minecraft_worldgen_generator::stages::fill_column;
+        use mcrs_minecraft_worldgen_generator::tests::build_beta_router;
 
         CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
 
         let router = Arc::new(build_beta_router());
         let col = ColumnPos::new(1, -2);
-        let ctx = crate::world::generate::tests::bare_fill_context(router);
+        let ctx = mcrs_minecraft_worldgen_generator::tests::bare_fill_context(router);
         let y_sections = ctx.y_sections.clone();
 
         let mut app = App::new();
+        app.add_message::<SectionStageChanged>();
         app.insert_resource(ctx.clone());
+        app.insert_resource(mcrs_minecraft_item::Items(Arc::default()));
         app.init_resource::<PendingColumnHeightmaps>();
         app.insert_resource(ColumnScheduler {
             config: SchedulerConfig {
@@ -931,24 +925,21 @@ mod tests {
                 .chain(),
         );
 
+        let dim = app.world_mut().spawn_empty().id();
         let carried: Vec<i32> = vec![-1, 0, 4];
         let sections: Vec<Entity> = carried
             .iter()
-            .map(|&y| {
-                app.world_mut()
-                    .spawn((ChunkPos::new(col.x, y, col.z), ChunkLoading))
-                    .id()
-            })
+            .map(|&y| request_section(app.world_mut(), dim, SectionPos::new(col.x, y, col.z)))
             .collect();
+        let loaded = |app: &App, section: Entity| {
+            app.world().get::<SectionStage>(section) == Some(&SectionStage::Loaded)
+        };
 
         let mut delivered = false;
         let deadline = Instant::now() + Duration::from_secs(120);
         while Instant::now() < deadline {
             app.update();
-            if sections
-                .iter()
-                .all(|e| app.world().get::<ChunkLoaded>(*e).is_some())
-            {
+            if sections.iter().all(|e| loaded(&app, *e)) {
                 delivered = true;
                 break;
             }
@@ -956,24 +947,21 @@ mod tests {
         }
         assert!(delivered, "the ladder never delivered the column");
 
-        let mut buffer = crate::world::generate::ColumnBlocks::new(&y_sections);
+        let mut buffer = mcrs_minecraft_worldgen_generator::ColumnBlocks::new(&y_sections);
         let alone = fill_column(&ctx, col, &mut buffer, &CancellationToken::new())
             .expect("the fill was not cancelled");
         let bottom = y_sections[0];
 
         // A section ticketed after the column was delivered must be delivered
         // from the same merged blocks, not from the snapshot the neighbours read.
-        let late = app
-            .world_mut()
-            .spawn((ChunkPos::new(col.x, 5, col.z), ChunkLoading))
-            .id();
+        let late = request_section(app.world_mut(), dim, SectionPos::new(col.x, 5, col.z));
         let deadline = Instant::now() + Duration::from_secs(30);
-        while Instant::now() < deadline && app.world().get::<ChunkLoaded>(late).is_none() {
+        while Instant::now() < deadline && !loaded(&app, late) {
             app.update();
             std::thread::sleep(Duration::from_millis(1));
         }
         assert!(
-            app.world().get::<ChunkLoaded>(late).is_some(),
+            loaded(&app, late),
             "a section ticketed after the delivery was never delivered"
         );
 
@@ -989,8 +977,9 @@ mod tests {
                 .world()
                 .get::<ChunkBlocks>(*entity)
                 .expect("a delivered section carries its blocks");
-            for cell in 0..crate::world::generate::ColumnBlocks::SECTION_VOLUME {
-                let (x, ly, z) = (cell & 15, cell >> 8, (cell >> 4) & 15);
+            for cell in 0..mcrs_minecraft_worldgen_generator::ColumnBlocks::SECTION_VOLUME {
+                let local = mcrs_minecraft_core::LocalPos::from_index(cell);
+                let (x, ly, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
                 assert_eq!(
                     got.get_cell(x, ly, z),
                     want.0.get_cell(x, ly, z),
@@ -1003,13 +992,18 @@ mod tests {
     #[test]
     fn cancel_stale_columns_unloads_stale_sections() {
         let mut app = App::new();
+        app.add_message::<SectionStageChanged>();
         app.insert_resource(ColumnScheduler::default());
         app.add_systems(Update, cancel_stale_columns);
 
-        spawn_observer_with_view(&mut app, ChunkPos::new(0, 0, 0), 2);
+        spawn_observer_with_view(&mut app, SectionPos::new(0, 0, 0), 2);
 
-        let stale_pos = ChunkPos::new(100, 0, 100);
-        let stale_section = app.world_mut().spawn((stale_pos, ChunkGenerating)).id();
+        let dim = app.world_mut().spawn_empty().id();
+        let stale_pos = SectionPos::new(100, 0, 100);
+        let stale_section = app
+            .world_mut()
+            .spawn((stale_pos, InDimension(dim), SectionStage::Generating))
+            .id();
 
         let stale_col = ColumnPos::new(stale_pos.x, stale_pos.z);
         let key = ColumnKey::new(0, stale_col);
@@ -1022,13 +1016,10 @@ mod tests {
 
         app.update();
 
-        assert!(
-            app.world().get::<ChunkUnloading>(stale_section).is_some(),
-            "a stale section gets ChunkUnloading"
-        );
-        assert!(
-            app.world().get::<ChunkGenerating>(stale_section).is_none(),
-            "ChunkGenerating removed alongside the unload"
+        assert_eq!(
+            app.world().get::<SectionStage>(stale_section),
+            Some(&SectionStage::Unloading),
+            "a stale section is sent on its way out"
         );
     }
 }

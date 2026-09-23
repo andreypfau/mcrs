@@ -2,20 +2,27 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bevy_asset::Assets;
+use bevy_asset::Handle;
 use bevy_ecs::prelude::{Commands, Res, Resource};
-use mcrs_minecraft_core::{RegistrySnapshot, ResourceLocation};
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::definition::Blocks;
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_world::dimension::level_stem::DimensionDefinition;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
+use mcrs_minecraft_worldgen::beard::BeardifierPlacement;
 use mcrs_minecraft_worldgen::bevy::{
     NoiseGeneratorSettingsAsset, WorldgenAssets, build_dimension_router,
+    dimension_beardifier_placement,
 };
-use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use tracing::{error, info};
 
-use crate::configuration::{LoadedWorldPreset, WorldSeed};
-use crate::world::chunk::try_resolve_state;
+use crate::world::generate::structures::DimensionStructures;
+use crate::world_options::{LoadedWorldPreset, WorldSeed};
+use mcrs_minecraft_worldgen_generator::block_state::try_resolve_state;
+use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
 /// Every dimension's biome source, keyed by the id the world preset gave it.
 ///
@@ -24,7 +31,7 @@ use crate::world::chunk::try_resolve_state;
 /// it is sampled beside.
 #[derive(Resource, Default, Clone)]
 pub struct DimensionBiomeSources(
-    pub BTreeMap<ResourceLocation, Arc<mcrs_minecraft_world::biome::source::BiomeSource>>,
+    pub BTreeMap<ResourceLocation, Arc<mcrs_minecraft_biome::source::BiomeSource>>,
 );
 
 /// Every dimension's compiled router, keyed by the id the world preset gave it.
@@ -33,7 +40,14 @@ pub struct DimensionBiomeSources(
 /// the dimension's sub-app an `Arc` of it. Compiling inside the sub-app instead
 /// would make every dimension re-read the worldgen corpus off disk.
 #[derive(Resource, Default, Clone)]
-pub struct DimensionRouters(pub BTreeMap<ResourceLocation, Arc<NoiseRouter>>);
+pub struct DimensionRouters(pub BTreeMap<ResourceLocation, DimensionRouter>);
+
+/// A router and the material rules compiled into its graph.
+#[derive(Clone)]
+pub struct DimensionRouter {
+    pub router: Arc<NoiseRouter>,
+    pub material: Arc<MaterialProgram>,
+}
 
 /// Compiles one router per noise dimension of the loaded preset.
 ///
@@ -51,6 +65,7 @@ pub(crate) fn build_dimension_routers(
     assets: WorldgenAssets,
     blocks: Res<Blocks>,
     biome_registry: Res<RegistrySnapshot<Biome>>,
+    structures: Option<Res<DimensionStructures>>,
 ) {
     // The material rules take their biome ids from this snapshot, because it is
     // what `MultiNoiseBiomeTable` fills the column's biome grid with.
@@ -76,10 +91,19 @@ pub(crate) fn build_dimension_routers(
             error!(%dimension, "the noise settings named by this dimension did not load");
             continue;
         };
+        if let Some(tables) = structures.as_ref().and_then(|s| s.0.get(dimension)) {
+            refuse_misplaced_beardifier(dimension, &generator.settings, asset, &assets, tables);
+        }
         match build_dimension_router(asset, &assets, seed.0, &block, &biome) {
-            Ok(router) => {
+            Ok((router, material)) => {
                 info!(%dimension, seed = seed.0, "compiled the dimension noise router");
-                routers.0.insert(dimension.clone(), Arc::new(router));
+                routers.0.insert(
+                    dimension.clone(),
+                    DimensionRouter {
+                        router: Arc::new(router),
+                        material: Arc::new(material),
+                    },
+                );
             }
             Err(error) => error!(
                 %dimension, %error,
@@ -88,4 +112,35 @@ pub(crate) fn build_dimension_routers(
         }
     }
     commands.insert_resource(routers);
+}
+
+/// The fill adds the beard to `final_density` once the graph is evaluated,
+/// which is the graph's own value only while the beardifier is the outermost
+/// addend, so any other shape would silently lose the term.
+fn refuse_misplaced_beardifier(
+    dimension: &ResourceLocation,
+    settings: &Handle<NoiseGeneratorSettingsAsset>,
+    asset: &NoiseGeneratorSettingsAsset,
+    assets: &WorldgenAssets<'_>,
+    tables: &DimensionStructureTables,
+) {
+    if tables.live.is_empty() {
+        return;
+    }
+    let settings = settings
+        .path()
+        .map_or_else(|| "the noise settings".to_string(), ToString::to_string);
+    match (
+        dimension_beardifier_placement(asset, assets),
+        tables.adapted().next(),
+    ) {
+        (BeardifierPlacement::RootAddend, _) | (BeardifierPlacement::Absent, None) => {}
+        (BeardifierPlacement::Misplaced, _) => panic!(
+            "{dimension}: {settings} uses minecraft:beardifier other than as an operand of the add at the root of final_density"
+        ),
+        (BeardifierPlacement::Absent, Some(structure)) => panic!(
+            "{dimension}: the final_density of {settings} is not add(_, minecraft:beardifier), so {} cannot adapt the terrain",
+            structure.id
+        ),
+    }
 }

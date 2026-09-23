@@ -7,17 +7,14 @@ mod region;
 #[cfg(test)]
 mod tests;
 
-pub use chunk::{
-    Biomes, BlockStates, Chunk, LIGHT_BYTES, Light, PalettedContainer, Section,
-    parse as parse_chunk,
-};
-pub use palette::{BlockStateLookup, Palette, Properties};
+pub use chunk::{Chunk, LIGHT_BYTES, Light, Section, parse as parse_chunk};
+pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 
 use std::path::PathBuf;
 
-/// 26.3 Pre-Release 2; the oldest accepted is snapshot 10, the first with this layout.
-pub const DATA_VERSION: i32 = 5018;
+/// 26.3; the oldest accepted is snapshot 10, the first with this layout.
+pub const DATA_VERSION: i32 = 5023;
 pub const OLDEST_DATA_VERSION: i32 = 5015;
 
 pub fn accepts_data_version(found: i32) -> bool {

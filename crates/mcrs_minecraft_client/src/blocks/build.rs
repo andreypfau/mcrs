@@ -1,12 +1,13 @@
-use bevy::math::{IVec3, Vec3};
-
 use super::BlockStateKey;
-use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
+use super::cube_corner;
+use crate::atlas::{Opacity, SpriteRegistry};
 use crate::bake::{self, Dir, TinyWorld};
 use crate::model::Pack;
-
-use super::{BlockInfo, CORNER_UV, CubeFace, FACE_AXES, ModelQuad, Pass, TintKind, cube_corner};
-use mcrs_minecraft_world::block::definition::BlockStateData;
+use bevy::math::{IVec3, Vec3};
+use mcrs_minecraft_block::definition::BlockStateData;
+use mcrs_minecraft_mesh::block::{
+    BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Fluid, ModelQuad, Pass, TintKind,
+};
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
     "minecraft:bubble_column",
@@ -15,15 +16,6 @@ const IMPLICITLY_WATERLOGGED: [&str; 5] = [
     "minecraft:seagrass",
     "minecraft:tall_seagrass",
 ];
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct Fluid {
-    pub lava: bool,
-    pub amount: u8,
-    pub still: SpriteRef,
-    pub flow: SpriteRef,
-    pub overlay: Option<SpriteRef>,
-}
 
 fn fluid_of(
     pack: &Pack,
@@ -93,7 +85,7 @@ pub(super) fn build_one(
         });
     }
 
-    let mut layers: Vec<SpriteRef> = Vec::with_capacity(baked.sprites.len());
+    let mut layers: Vec<u16> = Vec::with_capacity(baked.sprites.len());
     for sprite in &baked.sprites {
         layers.push(sprites.intern(pack, sprite)?);
     }
@@ -110,7 +102,7 @@ pub(super) fn build_one(
         for dir in Dir::all() {
             let quad = &baked.quads[faces[dir as usize]];
             let interned = layers[quad.sprite];
-            let pass = Pass::of(sprites.opacity(interned));
+            let pass = Pass::from(sprites.opacity(interned));
             worst = worst.max(pass);
             built[dir as usize] = CubeFace {
                 sprite: interned,
@@ -133,7 +125,7 @@ pub(super) fn build_one(
             cull: quad.cull,
             face: face_group(&quad.positions),
             sprite: interned,
-            pass: Pass::of(sprites.opacity(interned)),
+            pass: Pass::from(sprites.opacity(interned)),
             shade: quad.color,
             tinted: quad.tint.is_some(),
         });
@@ -153,7 +145,7 @@ pub(super) fn build_one(
 
 const FACE_GRID: usize = 16;
 
-fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[SpriteRef], sprites: &SpriteRegistry) -> u8 {
+fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[u16], sprites: &SpriteRegistry) -> u8 {
     let mut sides = [[0u16; FACE_GRID]; Dir::all().len()];
     for quad in quads {
         let Some(dir) = quad.cull else { continue };

@@ -1,0 +1,20 @@
+[package]
+name = "mcrs_minecraft_registry"
+description = "Static registries, registry indices and id bit sets"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bevy_ecs = { workspace = true, optional = true }
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs", "mcrs_minecraft_core/bevy"]

@@ -1,0 +1,37 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+loom {
+	runs {
+		client {
+			property 'mcrs.uat.address', project.findProperty('uatAddress') ?: '127.0.0.1:25565'
+			property 'mcrs.uat.report', project.findProperty('uatReport') ?: "${projectDir}/build/uat-report.json".toString()
+			if (project.findProperty('uatDumpPacket')) {
+				property 'mcrs.uat.dumpPacket', project.findProperty('uatDumpPacket')
+			}
+		}
+	}
+}
+
+processResources {
+	inputs.property 'version', project.version
+	filesMatching('fabric.mod.json') {
+		expand 'version': project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}

@@ -1,4 +1,5 @@
 use crate::login::GameProfile;
+use crate::ops::{DefaultOpLevel, OpList};
 use crate::world::bus::{
     InboundConfirmMove, InboundPlayerDespawn, InboundPlayerSpawn, InboundRollbackMove,
     OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
@@ -6,14 +7,16 @@ use crate::world::bus::{
 };
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
-use crate::world::entity::player::column_view::ColumnViewPlugin;
+use crate::world::entity::player::column_view::{ColumnView, ColumnViewPlugin};
 use crate::world::entity::player::digging::DiggingPlugin;
 use crate::world::entity::player::game_mode::GameModePlugin;
 use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
+use crate::world::entity::player::placing::PlacingPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
-use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle};
+use crate::world::inventory::PlayerInventoryBundle;
+use crate::world::item::StackSet;
 use crate::world::sub_app_builder::DimTypeIndex;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_ecs::bundle::Bundle;
@@ -21,15 +24,23 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Commands, Query, ResMut, With};
+use bevy_ecs::prelude::{Changed, Commands, Query, Res, ResMut, With};
+use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::world::World;
+use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_inventory::{Op, Slot};
+use mcrs_minecraft_item::{SlotTable, slots};
+use mcrs_minecraft_level::aoi::every_n_ticks;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
+use mcrs_minecraft_level::entity::player::reposition::Reposition;
+use mcrs_minecraft_level::entity::{Despawned, EntityNetworkAddEvent, InTransit};
+use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession};
+use mcrs_minecraft_level::world::dimension::{Dimension, DimensionId, InDimension};
+use mcrs_minecraft_level::world::lifecycle::ticket::SimulationDistance;
 use mcrs_minecraft_protocol::GameMode;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
-use mcrs_voxel_world::entity::player::reposition::Reposition;
-use mcrs_voxel_world::entity::{Despawned, EntityNetworkAddEvent, InTransit};
-use mcrs_voxel_world::session::{DimPlayerIndex, Owner, PlayerSession};
-use mcrs_voxel_world::world::dimension::{Dimension, DimensionId, InDimension};
 use movement::TeleportState;
 use tracing::{debug, info};
 
@@ -41,12 +52,17 @@ pub mod digging;
 mod game_mode;
 mod inventory;
 pub mod movement;
+pub mod persistence;
+mod placing;
 pub mod player_action;
 
-/// Default game mode applied to joining players, read from `MCRS_DEFAULT_GAMEMODE`
+/// Game mode given to joining players, read once from `MCRS_DEFAULT_GAMEMODE`
 /// (`survival`, `creative`, `adventure`, or `spectator`). Falls back to creative
 /// when unset or unrecognized.
-fn default_game_mode() -> GameMode {
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct DefaultGameMode(pub GameMode);
+
+fn game_mode_from_env() -> GameMode {
     match std::env::var("MCRS_DEFAULT_GAMEMODE") {
         Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
             "survival" => GameMode::Survival,
@@ -68,7 +84,7 @@ fn default_game_mode() -> GameMode {
 /// Carries the host-anchor entity on the in-dim player entity. Inserted by
 /// the per-dim spawn consumer so that subsequent per-dim systems can build
 /// `PacketTarget::SinglePlayer(host_anchor)` without querying the host's
-/// `PlayerIndex` or `ServerSideConnection`.
+/// sessions or `ServerSideConnection`.
 #[derive(bevy_ecs::component::Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HostAnchor(pub Entity);
 
@@ -79,16 +95,27 @@ pub struct DimPlayerPlugin;
 
 impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut bevy_app::App) {
+        app.insert_resource(DefaultGameMode(game_mode_from_env()));
         app.add_plugins(DiggingPlugin);
         app.add_plugins(PlayerActionPlugin);
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
         app.add_plugins(PlayerInventoryPlugin);
+        app.add_plugins(PlacingPlugin);
         app.add_plugins(ChatPlugin);
         app.add_plugins(GameModePlugin);
-        app.add_systems(Update, consume_inbound_player_spawn);
+        app.add_systems(
+            Update,
+            (consume_inbound_player_spawn, send_op_level).chain(),
+        );
         app.add_systems(Update, despawn_inbound_player);
         app.add_systems(FixedUpdate, (despawn_on_confirm, unhide_on_rollback));
+        app.add_systems(
+            FixedUpdate,
+            persistence::autosave_players
+                .after(StackSet::Sync)
+                .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
+        );
         app.add_observer(network_add);
         app.add_observer(player_joined);
     }
@@ -106,10 +133,8 @@ pub struct PlayerBundle {
     pub abilities: ability::PlayerAbilitiesBundle,
     pub attributes: attribute::PlayerAttributesBundle,
     pub inventory: PlayerInventoryBundle,
-    pub container_seqno: ContainerSeqno,
     pub game_mode: PlayerGameMode,
     pub op_level: PlayerOpLevel,
-    pub chunk_subscription_set: crate::world::aoi::ChunkSubscriptionSet,
     pub tracked_by: crate::world::aoi::TrackedBy,
     pub marker: Player,
 }
@@ -118,9 +143,9 @@ pub struct PlayerBundle {
 /// `InboundPlayerSpawn` shuttled across the host→SubApp bus.
 ///
 /// The connection stays host-resident. This system only creates the
-/// simulation-side entity and signals the host to bind `in_dim_entity`
-/// via `OutboundPlayerAttached`. `PlayerIndex` and `ServerSideConnection`
-/// are host-resident and must NOT be accessed here.
+/// simulation-side entity and signals the host to attach the session via
+/// `OutboundPlayerAttached`. Sessions and `ServerSideConnection` are
+/// host-resident and must NOT be accessed here.
 fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
@@ -128,8 +153,11 @@ fn consume_inbound_player_spawn(
     dims: Query<(Entity, &DimensionId, &DimTypeIndex), With<Dimension>>,
     mut commands: Commands,
     mut dim_index: ResMut<DimPlayerIndex>,
+    simulation_distance: Res<SimulationDistance>,
+    default_game_mode: Res<DefaultGameMode>,
+    ops: Res<OpList>,
+    default_op_level: Res<DefaultOpLevel>,
 ) {
-    use std::sync::atomic::Ordering;
     for spawn in reader.read() {
         let Some((dim, dim_id, dim_type_index)) = dims.iter().next() else {
             continue;
@@ -146,12 +174,13 @@ fn consume_inbound_player_spawn(
                     .with_uuid(spawn.snapshot.uuid)
                     .with_transform(Transform::default().with_translation(spawn.snapshot.position)),
                 PlayerBundle {
-                    game_mode: PlayerGameMode(default_game_mode()),
+                    game_mode: PlayerGameMode(default_game_mode.0),
+                    op_level: ops.level_of(&spawn.snapshot.uuid, *default_op_level),
                     teleport_state: TeleportState::after_login(),
                     view_distance,
                     ..Default::default()
                 },
-                PlayerChunkObserver::default(),
+                ColumnView::default(),
                 HostAnchor(spawn.host_anchor),
                 Owner(spawn.session),
                 GameProfile {
@@ -161,6 +190,7 @@ fn consume_inbound_player_spawn(
                 },
             ))
             .id();
+        commands.queue(move |world: &mut World| persistence::load_player(world, new_entity));
         dim_index.0.insert(spawn.session, new_entity);
 
         let host = spawn.host_anchor;
@@ -184,13 +214,13 @@ fn consume_inbound_player_spawn(
             data: PacketPayload::PlayerLogin {
                 player_id: wire_id,
                 hardcore: false,
-                game_mode: default_game_mode(),
+                game_mode: default_game_mode.0,
                 dimension: dim_name,
                 dimension_type_id: dim_type_id,
                 dimensions,
                 max_players: 100,
                 chunk_radius: view_distance.distance as i32,
-                simulation_distance: view_distance.distance as i32,
+                simulation_distance: simulation_distance.0 as i32,
                 reduced_debug_info: false,
                 show_death_screen: false,
                 do_limited_crafting: false,
@@ -199,8 +229,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         // The client derives the local player's game mode (and therefore
         // spectator noclip) from its own player-list entry, not the login
@@ -213,28 +241,21 @@ fn consume_inbound_player_spawn(
                 entries: vec![PlayerInfoEntry {
                     player_uuid: spawn.snapshot.uuid,
                     username: spawn.snapshot.username.clone(),
-                    game_mode: default_game_mode(),
+                    game_mode: default_game_mode.0,
                     listed: true,
                 }],
             },
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
-            data: PacketPayload::SetChunkCacheCenter {
-                x: center_x,
-                z: center_z,
-            },
+            data: PacketPayload::SetChunkCacheCenter(ColumnPos::new(center_x, center_z)),
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
@@ -245,8 +266,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
@@ -255,21 +274,6 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
-
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::PlayerLoginEntityEvent {
-                entity_id: wire_id,
-                entity_status: 24,
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
@@ -281,12 +285,27 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
 
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
-            new_in_dim_entity: new_entity,
+        });
+    }
+}
+
+fn send_op_level(
+    players: Query<(Entity, &PlayerOpLevel, &HostAnchor), Changed<PlayerOpLevel>>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+) {
+    for (entity, &op_level, &HostAnchor(host)) in &players {
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::OpLevelEntityEvent {
+                entity_id: entity.index_u32() as i32,
+                entity_status: op_level.entity_status(),
+            },
+            session: PlayerSession(0),
+            epoch: 0,
         });
     }
 }
@@ -306,7 +325,25 @@ pub fn despawn_inbound_player(
         dim_index.0.remove(&msg.session);
         for (entity, anchor) in players.iter() {
             if anchor.0 == msg.host_anchor {
-                commands.entity(entity).despawn();
+                commands.queue(move |world: &mut World| {
+                    let unsaved: Vec<Op> = world
+                        .get::<SlotTable>(entity)
+                        .map(|table| {
+                            std::iter::once(slots::CARRIED)
+                                .chain(slots::CRAFT)
+                                .filter(|index| table.get(*index).is_some())
+                                .map(|index| Op::Drop {
+                                    from: Slot::new(entity, index),
+                                    count: u8::MAX,
+                                    thrower: entity,
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    crate::world::item::click::commit(world, unsaved);
+                    persistence::write_player(world, entity);
+                    world.despawn(entity);
+                });
             }
         }
     }
@@ -321,18 +358,16 @@ pub struct PlayerJoinEvent {
 fn network_add(
     event: On<EntityNetworkAddEvent>,
     added_player: Query<(Entity, &GameProfile, &Transform), With<Player>>,
-    viewer: Query<(&Reposition, &crate::world::player_index::HostAnchorRef), With<Player>>,
+    viewer: Query<(&Reposition, &HostAnchor), With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    use std::sync::atomic::Ordering;
     let Ok((entity, profile, transform)) = added_player.get(event.entity) else {
         return;
     };
-    let Ok((reposition, host_anchor_ref)) = viewer.get(event.player) else {
+    let Ok((reposition, &HostAnchor(host_anchor))) = viewer.get(event.player) else {
         return;
     };
 
-    let host_anchor = host_anchor_ref.0;
     packet_writer.write(OutboundPlayerPacket {
         target: PacketTarget::SinglePlayer(host_anchor),
         priority: PacketPriority::Normal,
@@ -343,28 +378,19 @@ fn network_add(
             position: reposition.convert_dvec3(transform.translation),
             yaw: transform.rotation.yaw(),
             pitch: transform.rotation.pitch(),
+            data: 0,
         },
         session: PlayerSession(0),
         epoch: 0,
     });
-    mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-        .fetch_add(1, Ordering::Relaxed);
 }
 
 fn player_joined(
     event: On<PlayerJoinEvent>,
-    players: Query<
-        (
-            &GameProfile,
-            &PlayerGameMode,
-            &crate::world::player_index::HostAnchorRef,
-        ),
-        With<Player>,
-    >,
+    players: Query<(&GameProfile, &PlayerGameMode, &HostAnchor), With<Player>>,
     positions: Query<&Transform, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    use std::sync::atomic::Ordering;
     let Ok((joined_player, _, _)) = players.get(event.player) else {
         return;
     };
@@ -400,8 +426,6 @@ fn player_joined(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-            .fetch_add(1, Ordering::Relaxed);
     }
 }
 

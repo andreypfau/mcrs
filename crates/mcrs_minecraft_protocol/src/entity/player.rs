@@ -38,6 +38,7 @@ impl Default for PlayerSpawnInfo<'_> {
 #[derive(Clone, Debug, Copy, PartialEq, Encode, Decode)]
 pub enum PlayerAction {
     StartDestroyBlock,
+    ChangeDestroyDirection,
     AbortDestroyBlock,
     StopDestroyBlock,
     DropAllItems,

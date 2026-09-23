@@ -20,6 +20,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.feature.BlockReplacement;
 import net.minecraft.world.level.levelgen.feature.OreFeature;
@@ -121,7 +122,7 @@ public final class OreOracle {
         );
         Map<BlockPos, BlockState> world = new HashMap<>();
         List<Placement> placements = new ArrayList<>();
-        RandomSource random = new XoroshiroRandomSource(oreCase.seed());
+        RandomSource random = new WorldgenRandom(new XoroshiroRandomSource(oreCase.seed()));
         boolean result = place(feature, world, placements, random, oreCase.origin());
         long stateLo = random.nextLong();
         long stateHi = random.nextLong();

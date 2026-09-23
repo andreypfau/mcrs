@@ -1,20 +1,19 @@
-use bevy_ecs::prelude::Entity;
 mod common;
 
 use std::sync::Arc;
 
 use common::*;
 
-fn drain_one(queue: &mut LightQueue, budget_cells: u64, avoid: &[BlockBox]) -> Vec<Influence> {
+fn drain_one(queue: &mut LightQueue, budget_cells: u64, avoid: &[BoundingBox]) -> Vec<Influence> {
     queue
         .drain_batches(budget_cells, avoid, 1)
         .pop()
         .unwrap_or_default()
 }
+use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, SectionPos};
 use mcrs_minecraft_light::field::FieldLayout;
 use mcrs_minecraft_light::prelude::*;
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
-use mcrs_voxel_storage::VoxelId;
 
 fn column(x: i32, z: i32) -> ColumnPos {
     ColumnPos { x, z }
@@ -119,11 +118,11 @@ fn a_column_bigger_than_the_budget_still_makes_progress() {
 #[test]
 fn the_queue_and_the_field_agree_on_what_an_area_costs() {
     for area in [
-        BlockBox {
+        BoundingBox {
             min: BlockPos::new(0, 0, 0),
             max: BlockPos::new(15, 15, 15),
         },
-        BlockBox {
+        BoundingBox {
             min: BlockPos::new(-17, -1, 3),
             max: BlockPos::new(40, 62, 16),
         },
@@ -168,7 +167,7 @@ fn a_column_under_work_in_flight_is_left_for_the_next_tick() {
 
     let in_flight = Influence::around(BlockPos::new(8, 8, 8))
         .bounds()
-        .expand(1)
+        .inflated(1)
         .section_aligned();
     let batch = drain_one(&mut queue, u64::MAX, &[in_flight]);
     assert_eq!(batch.len(), 1);
@@ -348,8 +347,8 @@ fn loading_a_stack_of_sections_produces_work_for_each() {
     let mut world = LightWorld::new(registry, LightBounds::new(0, 3));
     let loads: Vec<Edit> = (0..4)
         .map(|y| Edit::LoadSection {
-            entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(0, y, 0),
+            entity: 0,
+            pos: SectionPos::new(0, y, 0),
             blocks: Arc::new(filled(AIR)),
         })
         .collect();
@@ -379,8 +378,8 @@ fn loading_and_editing_a_column_in_one_batch_stays_inside_the_world() {
 
     let stats = world.update_now([
         Edit::LoadSection {
-            entity: Entity::PLACEHOLDER,
-            pos: ChunkPos::new(0, 0, 0),
+            entity: 0,
+            pos: SectionPos::new(0, 0, 0),
             blocks: Arc::new(filled(AIR)),
         },
         Edit::SetBlock { pos, block: TORCH },
@@ -409,7 +408,7 @@ fn batches_filled_in_one_pass_do_not_overlap() {
 
     let fields: Vec<_> = batches
         .iter()
-        .map(|batch| batch[0].bounds().expand(1).section_aligned())
+        .map(|batch| batch[0].bounds().inflated(1).section_aligned())
         .collect();
     for (i, a) in fields.iter().enumerate() {
         for b in &fields[i + 1..] {

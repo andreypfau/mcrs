@@ -6,11 +6,19 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use bytes::Bytes;
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::access::RegistryAccess;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
-use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_item::Item;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
+use mcrs_minecraft_level::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::runner::pump_channels;
 use mcrs_minecraft_server::world::bridge::bridge_inbound_to_channel;
 use mcrs_minecraft_server::world::bus::{
@@ -18,16 +26,8 @@ use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_server::world::player_index::{PendingInboundBuffer, PlayerIndex};
+use mcrs_minecraft_server::world::session::SessionBundle;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::Block;
-use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_voxel_world::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
 
 use crate::support;
 
@@ -55,15 +55,13 @@ fn build_app() -> App {
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Item>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
-    app.insert_resource(support::corpus(&app));
+    support::insert_corpus(&mut app);
 
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<DimChannelsResource>();
-    app.init_resource::<mcrs_voxel_world::world::in_flight::InFlightMoves>();
+    app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerAttached>();
@@ -83,7 +81,7 @@ fn drive_to_playing_and_spawn_subapps(app: &mut App) {
 }
 
 fn enqueue_overworld(app: &mut App) {
-    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0
@@ -188,24 +186,18 @@ fn inbound_latency_is_zero_host_ticks() {
         sub.add_systems(Update, record_sub_inbound);
     }
 
-    let host_anchor = Entity::from_raw_u32(42).expect("nonzero");
+    let host_anchor = app.world_mut().spawn_empty().id();
     let player = host_anchor;
-    let in_dim = Entity::from_raw_u32(99).expect("nonzero");
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
         .next();
-    app.world_mut().resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: Entity::PLACEHOLDER,
-            host_anchor,
-            dim: label_entity,
-            previous_dim: None,
-            in_dim_entity: Some(in_dim),
-            epoch: 0,
-        },
-    );
+    app.world_mut()
+        .entity_mut(host_anchor)
+        .insert(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::InDim(label_entity), 0),
+        ));
 
     app.world_mut()
         .resource_mut::<Messages<InboundPlayerPacket>>()
@@ -266,23 +258,17 @@ fn fifo_ordering_preserved() {
         sub.add_systems(Update, record_sub_inbound);
     }
 
-    let host_anchor = Entity::from_raw_u32(7).expect("nonzero");
-    let in_dim = Entity::from_raw_u32(8).expect("nonzero");
+    let host_anchor = app.world_mut().spawn_empty().id();
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
         .next();
-    app.world_mut().resource_mut::<SessionRegistry>().insert(
-        session,
-        SessionEntry {
-            connection_entity: Entity::PLACEHOLDER,
-            host_anchor,
-            dim: label_entity,
-            previous_dim: None,
-            in_dim_entity: Some(in_dim),
-            epoch: 0,
-        },
-    );
+    app.world_mut()
+        .entity_mut(host_anchor)
+        .insert(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::InDim(label_entity), 0),
+        ));
 
     // Send N messages in a known order via the host-side channel sender directly.
     let send_order: Vec<i32> = (100..105).collect();

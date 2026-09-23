@@ -20,7 +20,7 @@ no mixins are applied.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpOracle --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_density/tests/fixtures/vanilla
 ```
 
 Add `--no-daemon` if you hit Gradle lock contention. Never run two Gradle
@@ -127,7 +127,7 @@ Rust stage under test runs before carving.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpSurface --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_server/src/world/generate/tests/fixtures
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
 ```
 
 Two search modes pick the coordinates. `findBiomes` walks outward from the origin
@@ -187,7 +187,7 @@ supplies the biome, placed-feature and multi-noise-preset registries, exactly as
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpFeatureSteps --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla
 ```
 
 One file, `feature_steps.bin`. Sources and what they resolve to:
@@ -249,16 +249,17 @@ only `Bootstrap.bootStrap()`, for the block registry.
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpOreVeins --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_decoration/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla
 ```
 
 One file, `ore_vein.bin`.
 
 The cases, what each one pins, and the provenance map of the lifted code are
 beside the fixture in
-`crates/mcrs_minecraft_decoration/tests/fixtures/vanilla/capture_procedure.md`.
+`crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/capture_procedure.md`.
 
-The random source is `new XoroshiroRandomSource(seed)`. `rng_after_lo` and
+The random source is `new WorldgenRandom(new XoroshiroRandomSource(seed))`, the
+source `applyBiomeDecoration` hands a feature. `rng_after_lo` and
 `rng_after_hi` are two `nextLong()` values taken immediately after `place`
 returns; comparing them is what pins the draw count.
 
@@ -311,7 +312,7 @@ bound from the vanilla data pack through `TagLoader.loadTagsForExistingRegistrie
 ```sh
 cd tools/vanilla-oracle
 ./gradlew dumpTrees --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_decoration/tests/fixtures/vanilla
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla
 ```
 
 One file, `tree_geometry.bin`: all 45 `minecraft:tree` features at seeds 42, 1,
@@ -321,7 +322,7 @@ The level (`StubLevel`, a `WorldGenLevel` over flat dirt whose every method
 throws until a tree calls it), why the placed object is the codec round-trip
 rather than the bootstrap one, and what the fixture cannot pin, are beside the
 fixture in
-`crates/mcrs_minecraft_decoration/tests/fixtures/vanilla/tree_geometry_capture_procedure.md`.
+`crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/tree_geometry_capture_procedure.md`.
 `StubGen` prints the stub skeleton for any interface
 (`./gradlew stubGen -PstubClass=net.minecraft.world.level.WorldGenLevel`); run
 it again when a version bump changes `WorldGenLevel`.
@@ -355,3 +356,349 @@ repeated case_count times:
 holding. The leaf relaxation only rewrites positions already written, so it
 cannot reorder the list; the order is therefore the trunk, foliage and decorator
 order, and a port that visits cells in a different order fails on it.
+
+---
+
+# Template dumps
+
+`TemplateOracle.main` loads every structure template the jar ships through the
+loader a server uses — `ResourceManagerTemplateSource` over the vanilla data
+pack, with the real `DataFixers.getDataFixer()` and `BuiltInRegistries.BLOCK` —
+and records, for all 1511 of them, what `StructureTemplate.load` produced: the
+size, the palettes, the three-section block ordering, the file palette entries
+as resolved, and every jigsaw. For 33 listed templates it also writes the full
+ordered block list per palette. It runs no server: only
+`Bootstrap.bootStrap()` and the vanilla pack's `ResourceManager` are built.
+`StructureTemplateManager` is not constructed (it demands a world save
+directory); the resource-manager source it delegates to is called directly, and
+the private `palettes` list is read by reflection.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpTemplates --console=plain --no-daemon \
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+```
+
+One file, `templates.bin`. The task throws if the pack lists anything other
+than 1511 templates, if any template fails to load, or if a listed id is not
+in the corpus — vanilla substitutes an empty template where it cannot load one,
+and the dump must not.
+
+The listed subset, what each entry pins, and what the fixture cannot pin are
+beside the fixture in
+`crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/templates_capture_procedure.md`.
+
+## Binary layout
+
+Little-endian, same primitives as the density dumps. The block lists in the
+listed section are the same `(palette, blocks)` shape as the ore-vein and tree
+dumps, followed by one extra bitset.
+
+```
+magic            8 bytes, ASCII "MCTMPLT0"
+format_version   u32   currently 1
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
+
+dynamic_count    u32   blocks whose Block.hasDynamicShape() is true
+dynamic_ids      str * dynamic_count      in BuiltInRegistries.BLOCK order
+
+template_count   u32   1511
+repeated template_count times, ids ascending by Identifier.toString():
+  id             str   e.g. "minecraft:village/plains/houses/plains_small_house_1"
+  size_x         i32   StructureTemplate.getSize()
+  size_y         i32
+  size_z         i32
+  palette_count  u32   1, or 8 for the shipwrecks
+  repeated palette_count times:
+    full_count     u32   blocks with no nbt whose state is a full collision
+                         shape and whose block has no dynamic shape
+    other_count    u32   blocks with no nbt that are not full
+    entity_count   u32   blocks with nbt; the three sum to Palette.blocks().size()
+    entry_count    u32   the file's palette list length
+    entries        str * entry_count      BlockStateParser.serialize of
+                                          NbtUtils.readBlockState over each entry
+    jigsaw_count   u32   Palette.jigsaws().size()
+    repeated jigsaw_count times, in Palette.jigsaws() order:
+      x, y, z              i32 * 3
+      state                str   e.g. "minecraft:jigsaw[orientation=up_north]"
+      front                str   JigsawBlock.getFrontFacing(state): "down" … "east"
+      top                  str   JigsawBlock.getTopFacing(state)
+      joint                str   "rollable" | "aligned"
+      name                 str
+      pool                 str
+      target               str
+      placement_priority   i32
+      selection_priority   i32
+      final_state_raw      str   nbt "final_state", or "minecraft:air" when absent
+      final_state          str   BlockStateParser.parseForBlock of the raw string,
+                                 serialized; "" when the parse throws
+
+listed_count     u32   33
+repeated listed_count times:
+  id             str
+  palette_count  u32
+  repeated palette_count times:
+    palette_count  u32
+    palette        str * palette_count    interned in first-use order over Palette.blocks()
+    block_count    u32
+    blocks         (i32 x, i32 y, i32 z, u32 palette index) * block_count
+    nbt_bits       byte * ((block_count + 7) / 8)
+```
+
+`blocks` is `Palette.blocks()` verbatim: the full-block section, then the
+other-block section, then the block entities, each sorted by y, then x, then z.
+Positions are template-relative. Bit `i` of `nbt_bits` is
+`nbt_bits[i >> 3] & (1 << (i & 7))` and is set when block `i` carries a block
+entity compound.
+
+The file ends exactly at the last bitset; there is no trailer.
+
+---
+
+# Structure placement dumps
+
+`PlacementOracle.main` records where vanilla puts structures and whether the
+jigsaw start step yields a site there, for seeds 1, 42, 12345, -7 and
+0x7FFF_FFFF_0000_0001. It runs no server, but it does load the data pack the
+way a server does: `RegistryLayer.createRegistryAccess()`,
+`TagLoader.loadTagsForExistingRegistries` on the static layer,
+`TagLoader.buildUpdatedLookups`, then
+`RegistryDataLoader.load(resources, worldContextRegistries, WORLD_REGISTRIES, executor)`.
+`VanillaRegistries.createWorldLookup()` (what the density and surface dumps use)
+is useless here: it wraps every tag lookup in an empty holder set, so every
+structure's `biomes` tag is empty, `ChunkGeneratorStructureState.createForNormal`
+keeps zero sets, and nothing places. The task throws unless the live set counts
+come out as 18 overworld, 3 nether and 1 end.
+
+Per dimension it builds `NoiseBasedChunkGenerator` over the loaded noise
+settings and a biome source from the loaded parameter list (`TheEndBiomeSource`
+for the end); per seed, `RandomState.create` and
+`ChunkGeneratorStructureState.createForNormal(randomState, seed, ChunkPos.ZERO, biomeSource, structureSets)`.
+For the jigsaw sites a real `StructureTemplateManager` is built over a temporary
+`LevelStorageSource` access, and each `Structure.GenerationContext` is
+constructed the way `StructureCheck.canCreateStructure` constructs it, with a
+climate sampler from `randomState.createClimateSampler(SamplerContext.builder().enableCaches().build())`.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpPlacement --console=plain --no-daemon -PoracleOut=<dir>
+cp <dir>/structure_cells.bin ../../crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/
+cp <dir>/structure_sites.bin ../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/
+```
+
+Two files, both deterministic:
+
+- `structure_cells.bin` (magic `MCPLACE0`): for every random-spread set live in
+  each of the three dimensions, `getPotentialStructureChunk` and the full
+  `isStructureChunk` verdict over the chunk squares `[-24, 25)²` and
+  `[2000, 2025)²`.
+- `structure_sites.bin` (magic `MCSITES1`): the 128 stronghold ring chunks; for
+  every jigsaw structure, and again for every hardcoded type except the
+  mineshaft, live in the overworld and the nether, 16 placement chunks found by
+  walking square rings out from (0, 0), with `findGenerationPoint` presence,
+  the stub position, and the `findValidGenerationPoint` biome verdict from a
+  fresh context; `getBaseHeight` for `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG` at
+  64 columns per dimension; and for every live set, the entry
+  `createStructures`' weighted draw with removal settles on at each of 16
+  placement chunks.
+
+The field-by-field layouts, the provenance of every value and the case summaries
+are beside each fixture:
+`crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/structure_cells_capture_procedure.md`
+and
+`crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/structure_sites_capture_procedure.md`.
+
+---
+
+# Template placement dumps
+
+`TemplatePlacementOracle.main` places every distinct template pool element the
+data pack ships — the two `minecraft:template` feature nodes (`desert_well`,
+`sulfur_spring`), the two `minecraft:fossil` features (`fossil_coal`,
+`fossil_diamonds`), and the thirteen ruined portal templates through the
+`RuinedPortalPiece` settings chain with mirror and pivot — into a `StubLevel`
+over a flat floor and
+records what `StructureTemplate.placeInWorld` wrote: the written positions
+with their final states (hashed, or in full for a fixed subset), every block
+entity it loaded, and the placement random's state afterwards. Ahead of the
+cases it writes three censuses: the `BLOCK_ENTITY_TYPE` registry order, which
+block creates which block entity and whether that entity is a
+`RandomizableContainer`, and every block state that any rotation or mirror
+changes with its three rotations and two mirrors.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpTemplatePlacement --console=plain --no-daemon \
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+```
+
+One file, `template_placement.bin`, deterministic. The run log must contain no
+`Serialization errors` line: `placeInWorld` reports block-entity load problems
+through its logger rather than throwing, and a hit means a compound was not
+loaded the way the fixture claims.
+
+How `StubLevel` stands in for a server, the two entry points the cases go
+through, what each case pins and what the fixture cannot pin are beside the
+fixture in
+`crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/template_placement_capture_procedure.md`.
+
+## Binary layout
+
+Little-endian, same primitives as the other dumps; `u8` is one raw byte.
+
+```
+magic            8 bytes, ASCII "MCTMPLP2"
+format_version   u32   currently 1
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
+
+type_count       u32   BuiltInRegistries.BLOCK_ENTITY_TYPE size
+type_ids         str * type_count          registration order
+
+entity_block_count  u32
+repeated entity_block_count times, BuiltInRegistries.BLOCK order, every
+EntityBlock whose newBlockEntity(ZERO, defaultBlockState()) is non-null:
+  block_id       str
+  type_id        str   BLOCK_ENTITY_TYPE key of the created entity
+  loot_seeded    u8    1 iff the created entity is a RandomizableContainer
+
+rotation_palette_count  u32
+rotation_palette        str * count       BlockStateParser.serialize, interned in
+                                          first-use order over (state, cw90,
+                                          cw180, ccw90, left_right, front_back)
+rotation_count   u32   states that at least one rotation or mirror changes
+repeated rotation_count times, BLOCK order then getPossibleStates() order:
+  state, cw90, cw180, ccw90,  u32 * 6     palette indices; state.rotate(
+  left_right, front_back                  CLOCKWISE_90 | CLOCKWISE_180 |
+                                          COUNTERCLOCKWISE_90), state.mirror(
+                                          LEFT_RIGHT | FRONT_BACK)
+
+palette_count    u32   global block-state palette over every written block,
+palette          str * palette_count      interned in first-use order, file order
+
+case_count       u32
+repeated case_count times:
+  kind           u8    0 template pool element, 1 template or fossil feature
+                       node,
+                       2 ruined portal template through RuinedPortalPiece's
+                       settings
+  template_key   str   kind 0: getTemplateLocation(); kind 1: entry template
+                       ids joined by "," (a fossil: fossil_structures then
+                       ";" then overlay_structures); kind 2: the template id
+  processors_key str   "ref:<processor list id>" | "inline" | "none" (feature
+                       without processors); a kind-0 inline list is always
+                       empty (the dump aborts otherwise), a kind-1 one is the
+                       feature's own list (desert_well's append_loot rule), a
+                       fossil's is fossil_processors ";" overlay_processors;
+                       kind 2: "portal:<placement>,cold=<b>,air_pocket=<b>,
+                       mossiness=<f>,blackstone=<b>", the Properties handed
+                       to makeSettings
+  projection     u8    0 rigid, 1 terrain_matching; kind 1 and 2: 0
+  legacy         u8    kind 0: 1 iff LegacySinglePoolElement; kind 1 and 2: 0
+  rotation       u8    kind 0 and 2: Rotation.values()[caseIndex % 4];
+                       kind 1: 0
+  liquid         u8    kind 0: 1 (ignore_waterlogging) iff caseIndex % 8 == 7;
+                       kind 1 and 2: 0
+  mirror         u8    Mirror ordinal (none, left_right, front_back); kind 0
+                       and 1: 0; kind 2: portalIndex % 3
+  vx, vy, vz     i32 * 3   the rotation pivot; kind 0 and 1: (0, 0, 0);
+                           kind 2: (size.x / 2, 0, size.z / 2)
+  px, py, pz     i32 * 3   kind 0 and 2: (8, 62, 8); kind 1: origin (8, 64, 8)
+  rx, ry, rz     i32 * 3   kind 0 and 2: (center.x, minY, center.z) of
+                           template.getBoundingBox(settings, position);
+                           kind 1: the origin
+  has_clip       u8    kind 0: 1; kind 1 and 2: 0
+  clip           i32 * 6   when has_clip: min x, y, z, max x, y, z, inclusive;
+                           always (0, -63, 0, 15, 319, 15)
+  placement_count  u32   kind 0: 2; kind 1: 6 (a fossil: 16); kind 2: 3
+  repeated placement_count times:
+    floor          u8    0: dirt for y <= 63; 1: stone for y <= 60, water
+                         source 61..=63; 2: stone for y <= 60, lava source
+                         61..=63; air above any
+    seed           i64   WorldgenRandom over XoroshiroRandomSource(seed) is
+                         the placement random;
+                         kind 0 and 2: the case index; kind 1: 0, 1, 2 (a
+                         fossil: 0 to 7)
+    template_drawn str   kind 0 and 2: template_key; kind 1: the entry the
+                         weighted draw picked (a fossil: the fossil template)
+    rotation_drawn u8    kind 0 and 2: rotation; kind 1: the drawn rotation
+    x, y, z        i32 * 3   the position handed to placeInWorld; a fossil:
+                             the origin
+    placed         u8    what the placement returned
+    count          u32   distinct written positions
+    hash           u64   FNV-1a 64 over (i32 x, i32 y, i32 z, u32 palette
+                         index) per written entry, first-write order, final
+                         state
+    full           u8    1 when the running placement index % 100 == 0, or
+                         kind 1 with seed 0, or kind 2 with case index % 6
+                         == 0
+    entries        (i32 x, i32 y, i32 z, u32 palette index) * count, when full
+    entity_count   u32
+    repeated entity_count times, sorted by (x, y, z):
+      x, y, z      i32 * 3
+      type_id      str   BLOCK_ENTITY_TYPE key of be.getType()
+      len          u32
+      nbt          len bytes   NbtIo.write of be.saveWithFullMetadata(access):
+                               uncompressed, named (TAG_Compound, "", payload)
+    rng_lo         i64   random.nextLong() after placement
+    rng_hi         i64   random.nextLong() again
+```
+
+Kind-0 cases come first: pools sorted by `Identifier.toString()`,
+`getTemplates()` raw pairs in order, `ListPoolElement` children in
+`getElements()` order, the first occurrence of each
+`(template, processors, projection, legacy)` key. Kind-1 cases follow:
+`desert_well`, `sulfur_spring`, `fossil_coal` then `fossil_diamonds`, nodes in
+`Stream.concat(Stream.of(self), getSubFeatures())` order, first occurrence of
+each `(template ids, processors)` key. Kind-2 cases close the file: the ten
+`ruined_portal/portal_N` then the three `giant_portal_N`, six setups each,
+the setup fields drawn from the running portal index as the capture
+procedure lists. The case index and the running placement index both run
+over the whole file. The file ends at the last `rng_hi`; there is no
+trailer.
+
+---
+
+# Registry census
+
+`RegistryCensusOracle.main` walks the registries whose numeric ids cross the
+wire — `ENTITY_TYPE`, `ITEM`, `VILLAGER_TYPE`, `VILLAGER_PROFESSION` and
+`ATTRIBUTE` from `BuiltInRegistries`, plus `cat_variant` and
+`cat_sound_variant` loaded from the vanilla data pack the way a server loads
+them — and writes every key in id order, with the attributes' default, range
+and syncable flag after them. It runs no server.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpRegistryCensus --console=plain --no-daemon \
+    -PoracleOut=../../crates/mcrs_minecraft_world/src/entity/fixtures
+```
+
+One file, `registry_census.bin` (magic `MCREGCE0`), deterministic. The layout
+and what each consumer pins against it are beside the fixture in
+`crates/mcrs_minecraft_world/src/entity/fixtures/registry_census_capture_procedure.md`.
+
+---
+
+# Structure pieces and geometry
+
+Two dumps for the hardcoded structure types and the piece codec.
+`StructurePieceOracle.main` generates every non-jigsaw start the site dump's
+seeds and case chunks yield, over the real noise worlds, and writes each
+piece as `StructurePiece.createTag` writes it into the save; every jigsaw
+structure contributes one start as the parity check of the codec that exists
+first. `StructureGeometryOracle.main` generates starts over a flat world with
+one biome and places them chunk by chunk into a stub level, recording what
+each chunk writes, which block entities it loads and which entities it spawns.
+Neither runs a server.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpStructurePieces dumpStructureGeometry --console=plain --no-daemon \
+    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+```
+
+Two files, `structure_pieces.bin` (magic `MCSTRPC0`) and
+`structure_geometry.bin` (magic `MCSTRGE0`), both deterministic. Their layouts,
+the flat bases, the masks and what each consumer pins are beside the fixtures
+in `structure_pieces_capture_procedure.md` and
+`structure_geometry_capture_procedure.md`.

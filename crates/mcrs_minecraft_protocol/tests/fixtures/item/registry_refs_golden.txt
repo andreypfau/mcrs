@@ -1,0 +1,568 @@
+id minecraft:damage_type minecraft:in_fire 21
+id minecraft:damage_type minecraft:lava 24
+id minecraft:damage_type minecraft:cactus 2
+id minecraft:enchantment minecraft:sharpness 33
+id minecraft:enchantment minecraft:unbreaking 40
+id minecraft:block minecraft:stone 1
+id minecraft:block minecraft:dirt 9
+id minecraft:item minecraft:stone 1
+id minecraft:item minecraft:apple 1007
+id minecraft:item minecraft:diamond 1012
+id minecraft:entity_type minecraft:zombie 154
+id minecraft:entity_type minecraft:pig 101
+id minecraft:banner_pattern minecraft:globe 13
+id minecraft:banner_pattern minecraft:creeper 4
+id minecraft:block_transformer minecraft:axe 0
+id minecraft:block_transformer minecraft:shovel 2
+id minecraft:mob_effect minecraft:speed 0
+id minecraft:mob_effect minecraft:slowness 1
+id minecraft:mob_effect minecraft:haste 2
+id minecraft:villager_type minecraft:plains 2
+id minecraft:villager_type minecraft:desert 0
+id minecraft:wolf_variant minecraft:pale 3
+id minecraft:wolf_variant minecraft:ashen 0
+id minecraft:wolf_sound_variant minecraft:classic 2
+id minecraft:wolf_sound_variant minecraft:big 1
+id minecraft:pig_variant minecraft:temperate 1
+id minecraft:pig_variant minecraft:cold 0
+id minecraft:pig_sound_variant minecraft:classic 1
+id minecraft:pig_sound_variant minecraft:mini 2
+id minecraft:cow_variant minecraft:temperate 1
+id minecraft:cow_variant minecraft:warm 2
+id minecraft:cow_sound_variant minecraft:classic 0
+id minecraft:cow_sound_variant minecraft:moody 1
+id minecraft:chicken_variant minecraft:temperate 1
+id minecraft:chicken_variant minecraft:cold 0
+id minecraft:chicken_sound_variant minecraft:classic 0
+id minecraft:chicken_sound_variant minecraft:picky 1
+id minecraft:zombie_nautilus_variant minecraft:temperate 0
+id minecraft:zombie_nautilus_variant minecraft:warm 1
+id minecraft:frog_variant minecraft:temperate 1
+id minecraft:frog_variant minecraft:warm 2
+id minecraft:cat_variant minecraft:tabby 9
+id minecraft:cat_variant minecraft:jellie 4
+id minecraft:cat_sound_variant minecraft:classic 0
+id minecraft:cat_sound_variant minecraft:royal 1
+id minecraft:decorated_pot_pattern minecraft:angler 0
+id minecraft:decorated_pot_pattern minecraft:skull 21
+id minecraft:attribute minecraft:attack_damage 3
+id minecraft:attribute minecraft:armor 1
+id minecraft:sound_event minecraft:item.armor.equip_generic 70
+id minecraft:sound_event minecraft:item.shears.snip 1447
+id minecraft:sound_event minecraft:item.armor.equip_iron 72
+id minecraft:potion minecraft:swiftness 13
+id minecraft:potion minecraft:water 0
+id minecraft:block_entity_type minecraft:chest 1
+id minecraft:block_entity_type minecraft:sign 7
+id minecraft:attribute minecraft:scale 30
+sample minecraft:damage_type "minecraft:in_fire"
+  json "minecraft:in_fire"
+  snbt "minecraft:in_fire"
+  nbt 0800116d696e6563726166743a696e5f66697265
+  wire 15
+  wire_roundtrip true remaining 0
+  hash -581613836
+sample minecraft:damage_type "lava"
+  json "minecraft:lava"
+  snbt "minecraft:lava"
+  nbt 08000e6d696e6563726166743a6c617661
+  wire 18
+  wire_roundtrip true remaining 0
+  hash 1312494734
+sample minecraft:enchantments {"minecraft:sharpness":5}
+  json {"minecraft:sharpness":5}
+  snbt {"minecraft:sharpness":5}
+  nbt 0a0300136d696e6563726166743a73686172706e6573730000000500
+  wire 012105
+  wire_roundtrip true remaining 0
+  hash 1722377199
+sample minecraft:enchantments {}
+  json {}
+  snbt {}
+  nbt 0a00
+  wire 00
+  wire_roundtrip true remaining 0
+  hash -982207288
+sample minecraft:enchantments {"sharpness":0}
+  error Value 0 outside of range [1:255] missed input: {"sharpness":0}
+sample minecraft:enchantments {"sharpness":256}
+  error Value 256 outside of range [1:255] missed input: {"sharpness":256}
+sample minecraft:stored_enchantments {"minecraft:unbreaking":3}
+  json {"minecraft:unbreaking":3}
+  snbt {"minecraft:unbreaking":3}
+  nbt 0a0300146d696e6563726166743a756e627265616b696e670000000300
+  wire 012803
+  wire_roundtrip true remaining 0
+  hash -19184125
+sample minecraft:damage_resistant {"types":"#minecraft:is_fire"}
+  json {"types":"#minecraft:is_fire"}
+  snbt {types:"#minecraft:is_fire"}
+  nbt 0a08000574797065730012236d696e6563726166743a69735f6669726500
+  wire 00116d696e6563726166743a69735f66697265
+  wire_roundtrip true remaining 0
+  hash 1644159004
+sample minecraft:damage_resistant {"types":["minecraft:in_fire","minecraft:lava"]}
+  json {"types":["minecraft:in_fire","minecraft:lava"]}
+  snbt {types:["minecraft:in_fire","minecraft:lava"]}
+  nbt 0a0900057479706573080000000200116d696e6563726166743a696e5f66697265000e6d696e6563726166743a6c61766100
+  wire 031518
+  wire_roundtrip true remaining 0
+  hash -1151359168
+sample minecraft:damage_resistant {"types":"minecraft:lava"}
+  json {"types":"minecraft:lava"}
+  snbt {types:"minecraft:lava"}
+  nbt 0a0800057479706573000e6d696e6563726166743a6c61766100
+  wire 0218
+  wire_roundtrip true remaining 0
+  hash 188397766
+sample minecraft:damage_resistant {"types":["minecraft:lava"]}
+  json {"types":"minecraft:lava"}
+  snbt {types:"minecraft:lava"}
+  nbt 0a0800057479706573000e6d696e6563726166743a6c61766100
+  wire 0218
+  wire_roundtrip true remaining 0
+  hash 188397766
+sample minecraft:tool {"rules":[{"blocks":"#minecraft:mineable/pickaxe","speed":8.0,"correct_for_drops":true},{"blocks":["minecraft:stone","minecraft:dirt"]}],"default_mining_speed":1.0,"damage_per_block":2,"can_destroy_blocks_in_creative":false}
+  json {"rules":[{"blocks":"#minecraft:mineable/pickaxe","speed":8.0,"correct_for_drops":true},{"blocks":["minecraft:stone","minecraft:dirt"]}],"damage_per_block":2,"can_destroy_blocks_in_creative":false}
+  snbt {can_destroy_blocks_in_creative:0b,damage_per_block:2,rules:[{blocks:"#minecraft:mineable/pickaxe",correct_for_drops:1b,speed:8.0f},{blocks:["minecraft:stone","minecraft:dirt"]}]}
+  nbt 0a03001064616d6167655f7065725f626c6f636b0000000201001e63616e5f64657374726f795f626c6f636b735f696e5f63726561746976650009000572756c65730a00000002080006626c6f636b73001b236d696e6563726166743a6d696e6561626c652f7069636b617865010011636f72726563745f666f725f64726f70730105000573706565644100000000090006626c6f636b730800000002000f6d696e6563726166743a73746f6e65000e6d696e6563726166743a646972740000
+  wire 02001a6d696e6563726166743a6d696e6561626c652f7069636b6178650141000000010103010900003f8000000200
+  wire_roundtrip true remaining 0
+  hash -178064367
+sample minecraft:tool {"rules":[]}
+  json {"rules":[]}
+  snbt {rules:[]}
+  nbt 0a09000572756c6573000000000000
+  wire 003f8000000101
+  wire_roundtrip true remaining 0
+  hash 937295970
+sample minecraft:tool {"rules":[{"blocks":"minecraft:stone","speed":0.0}]}
+  error Value must be positive: 0.0
+sample minecraft:tool {"rules":[{"blocks":"minecraft:stone","correct_for_drops":false}],"default_mining_speed":-0.0,"damage_per_block":1,"can_destroy_blocks_in_creative":true}
+  json {"rules":[{"blocks":"minecraft:stone","correct_for_drops":false}],"default_mining_speed":-0.0}
+  snbt {default_mining_speed:0.0f,rules:[{blocks:"minecraft:stone",correct_for_drops:0b}]}
+  nbt 0a05001464656661756c745f6d696e696e675f73706565640000000009000572756c65730a00000001080006626c6f636b73000f6d696e6563726166743a73746f6e65010011636f72726563745f666f725f64726f7073000000
+  wire 010201000100800000000101
+  wire_roundtrip true remaining 0
+  hash -1565261080
+sample minecraft:repairable {"items":"minecraft:diamond"}
+  json {"items":"minecraft:diamond"}
+  snbt {items:"minecraft:diamond"}
+  nbt 0a0800056974656d7300116d696e6563726166743a6469616d6f6e6400
+  wire 02f407
+  wire_roundtrip true remaining 0
+  hash 586845746
+sample minecraft:repairable {"items":"#minecraft:planks"}
+  json {"items":"#minecraft:planks"}
+  snbt {items:"#minecraft:planks"}
+  nbt 0a0800056974656d730011236d696e6563726166743a706c616e6b7300
+  wire 00106d696e6563726166743a706c616e6b73
+  wire_roundtrip true remaining 0
+  hash -1036843399
+sample minecraft:repairable {"items":["minecraft:stone","minecraft:apple"]}
+  json {"items":["minecraft:stone","minecraft:apple"]}
+  snbt {items:["minecraft:stone","minecraft:apple"]}
+  nbt 0a0900056974656d730800000002000f6d696e6563726166743a73746f6e65000f6d696e6563726166743a6170706c6500
+  wire 0301ef07
+  wire_roundtrip true remaining 0
+  hash -284934266
+sample minecraft:mob_visibility {"targeting_entity_types":"#minecraft:skeletons","visibility":0.5}
+  json {"targeting_entity_types":"#minecraft:skeletons","visibility":0.5}
+  snbt {targeting_entity_types:"#minecraft:skeletons",visibility:0.5f}
+  nbt 0a05000a7669736962696c6974793f000000080016746172676574696e675f656e746974795f74797065730014236d696e6563726166743a736b656c65746f6e7300
+  wire 00136d696e6563726166743a736b656c65746f6e733f000000
+  wire_roundtrip true remaining 0
+  hash 43087807
+sample minecraft:mob_visibility {"targeting_entity_types":["minecraft:zombie","minecraft:pig"],"visibility":10.0}
+  json {"targeting_entity_types":["minecraft:zombie","minecraft:pig"],"visibility":10.0}
+  snbt {targeting_entity_types:["minecraft:zombie","minecraft:pig"],visibility:10.0f}
+  nbt 0a05000a7669736962696c69747941200000090016746172676574696e675f656e746974795f7479706573080000000200106d696e6563726166743a7a6f6d626965000d6d696e6563726166743a70696700
+  wire 039a016541200000
+  wire_roundtrip true remaining 0
+  hash -1181629106
+sample minecraft:mob_visibility {"targeting_entity_types":"minecraft:zombie","visibility":11.0}
+  error Value must be within range [0.0;10.0]: 11.0
+sample minecraft:provides_banner_patterns "#minecraft:pattern_item/globe"
+  json "#minecraft:pattern_item/globe"
+  snbt "#minecraft:pattern_item/globe"
+  nbt 08001d236d696e6563726166743a7061747465726e5f6974656d2f676c6f6265
+  wire 001c6d696e6563726166743a7061747465726e5f6974656d2f676c6f6265
+  wire_roundtrip true remaining 0
+  hash 1143489667
+sample minecraft:provides_banner_patterns "minecraft:globe"
+  json "minecraft:globe"
+  snbt "minecraft:globe"
+  nbt 08000f6d696e6563726166743a676c6f6265
+  wire 020d
+  wire_roundtrip true remaining 0
+  hash -1825343977
+sample minecraft:provides_banner_patterns ["minecraft:globe","minecraft:creeper"]
+  json ["minecraft:globe","minecraft:creeper"]
+  snbt ["minecraft:globe","minecraft:creeper"]
+  nbt 090800000002000f6d696e6563726166743a676c6f626500116d696e6563726166743a63726565706572
+  wire 030d04
+  wire_roundtrip true remaining 0
+  hash 957047153
+sample minecraft:block_transformer "minecraft:axe"
+  json "minecraft:axe"
+  snbt "minecraft:axe"
+  nbt 08000d6d696e6563726166743a617865
+  wire 00
+  wire_roundtrip true remaining 0
+  hash 1940274451
+sample minecraft:suspicious_stew_effects [{"id":"minecraft:speed"},{"id":"minecraft:slowness","duration":200}]
+  json [{"id":"minecraft:speed"},{"id":"minecraft:slowness","duration":200}]
+  snbt [{id:"minecraft:speed"},{duration:200,id:"minecraft:slowness"}]
+  nbt 090a000000020800026964000f6d696e6563726166743a7370656564000300086475726174696f6e000000c8080002696400126d696e6563726166743a736c6f776e65737300
+  wire 0200a00101c801
+  wire_roundtrip true remaining 0
+  hash 436431258
+sample minecraft:suspicious_stew_effects []
+  json []
+  snbt []
+  nbt 090000000000
+  wire 00
+  wire_roundtrip true remaining 0
+  hash -1978007022
+sample minecraft:suspicious_stew_effects [{"id":"minecraft:speed","duration":"bad"}]
+  json [{"id":"minecraft:speed"}]
+  snbt [{id:"minecraft:speed"}]
+  nbt 090a000000010800026964000f6d696e6563726166743a737065656400
+  wire 0100a001
+  wire_roundtrip true remaining 0
+  hash -748833595
+sample minecraft:suspicious_stew_effects [{"id":"minecraft:speed","duration":160}]
+  json [{"id":"minecraft:speed"}]
+  snbt [{id:"minecraft:speed"}]
+  nbt 090a000000010800026964000f6d696e6563726166743a737065656400
+  wire 0100a001
+  wire_roundtrip true remaining 0
+  hash -748833595
+sample minecraft:villager/variant "minecraft:desert"
+  json "minecraft:desert"
+  snbt "minecraft:desert"
+  nbt 0800106d696e6563726166743a646573657274
+  wire 00
+  wire_roundtrip true remaining 0
+  hash 1867638223
+sample minecraft:wolf/variant "minecraft:ashen"
+  json "minecraft:ashen"
+  snbt "minecraft:ashen"
+  nbt 08000f6d696e6563726166743a617368656e
+  wire 00
+  wire_roundtrip true remaining 0
+  hash 699442439
+sample minecraft:wolf/sound_variant "minecraft:big"
+  json "minecraft:big"
+  snbt "minecraft:big"
+  nbt 08000d6d696e6563726166743a626967
+  wire 01
+  wire_roundtrip true remaining 0
+  hash 1417600418
+sample minecraft:pig/variant "minecraft:cold"
+  json "minecraft:cold"
+  snbt "minecraft:cold"
+  nbt 08000e6d696e6563726166743a636f6c64
+  wire 00
+  wire_roundtrip true remaining 0
+  hash 38375946
+sample minecraft:pig/sound_variant "minecraft:mini"
+  json "minecraft:mini"
+  snbt "minecraft:mini"
+  nbt 08000e6d696e6563726166743a6d696e69
+  wire 02
+  wire_roundtrip true remaining 0
+  hash -449486635
+sample minecraft:cow/variant "minecraft:warm"
+  json "minecraft:warm"
+  snbt "minecraft:warm"
+  nbt 08000e6d696e6563726166743a7761726d
+  wire 02
+  wire_roundtrip true remaining 0
+  hash -74576610
+sample minecraft:cow/sound_variant "minecraft:moody"
+  json "minecraft:moody"
+  snbt "minecraft:moody"
+  nbt 08000f6d696e6563726166743a6d6f6f6479
+  wire 01
+  wire_roundtrip true remaining 0
+  hash -1242310052
+sample minecraft:chicken/variant "minecraft:cold"
+  json "minecraft:cold"
+  snbt "minecraft:cold"
+  nbt 08000e6d696e6563726166743a636f6c64
+  wire 00
+  wire_roundtrip true remaining 0
+  hash 38375946
+sample minecraft:chicken/sound_variant "minecraft:picky"
+  json "minecraft:picky"
+  snbt "minecraft:picky"
+  nbt 08000f6d696e6563726166743a7069636b79
+  wire 01
+  wire_roundtrip true remaining 0
+  hash 410346763
+sample minecraft:zombie_nautilus/variant "minecraft:warm"
+  json "minecraft:warm"
+  snbt "minecraft:warm"
+  nbt 08000e6d696e6563726166743a7761726d
+  wire 01
+  wire_roundtrip true remaining 0
+  hash -74576610
+sample minecraft:frog/variant "minecraft:warm"
+  json "minecraft:warm"
+  snbt "minecraft:warm"
+  nbt 08000e6d696e6563726166743a7761726d
+  wire 02
+  wire_roundtrip true remaining 0
+  hash -74576610
+sample minecraft:cat/variant "minecraft:jellie"
+  json "minecraft:jellie"
+  snbt "minecraft:jellie"
+  nbt 0800106d696e6563726166743a6a656c6c6965
+  wire 04
+  wire_roundtrip true remaining 0
+  hash -1538227354
+sample minecraft:cat/sound_variant "minecraft:royal"
+  json "minecraft:royal"
+  snbt "minecraft:royal"
+  nbt 08000f6d696e6563726166743a726f79616c
+  wire 01
+  wire_roundtrip true remaining 0
+  hash 1746426940
+sample minecraft:provides_pottery_pattern "minecraft:skull"
+  json "minecraft:skull"
+  snbt "minecraft:skull"
+  nbt 08000f6d696e6563726166743a736b756c6c
+  wire 15
+  wire_roundtrip true remaining 0
+  hash 8614449
+sample minecraft:attribute_modifiers [{"type":"minecraft:attack_damage","id":"minecraft:base_attack_damage","amount":7.0,"operation":"add_value"}]
+  json [{"type":"minecraft:attack_damage","id":"minecraft:base_attack_damage","amount":7.0,"operation":"add_value"}]
+  snbt [{amount:7.0d,id:"minecraft:base_attack_damage",operation:"add_value",type:"minecraft:attack_damage"}]
+  nbt 090a00000001060006616d6f756e74401c0000000000000800026964001c6d696e6563726166743a626173655f61747461636b5f64616d6167650800047479706500176d696e6563726166743a61747461636b5f64616d6167650800096f7065726174696f6e00096164645f76616c756500
+  wire 01031c6d696e6563726166743a626173655f61747461636b5f64616d616765401c000000000000000000
+  wire_roundtrip true remaining 0
+  hash 1457974947
+sample minecraft:attribute_modifiers [{"type":"minecraft:armor","id":"mcrs:armor","amount":-0.5,"operation":"add_multiplied_total","slot":"head","display":{"type":"hidden"}},{"type":"minecraft:attack_damage","id":"mcrs:dmg","amount":1.5,"operation":"add_multiplied_base","slot":"any","display":{"type":"default"}},{"type":"minecraft:armor","id":"mcrs:txt","amount":2,"operation":"add_value","slot":"armor","display":{"type":"override","value":"shown"}}]
+  json [{"type":"minecraft:armor","id":"mcrs:armor","amount":-0.5,"operation":"add_multiplied_total","slot":"head","display":{"type":"hidden"}},{"type":"minecraft:attack_damage","id":"mcrs:dmg","amount":1.5,"operation":"add_multiplied_base"},{"type":"minecraft:armor","id":"mcrs:txt","amount":2.0,"operation":"add_value","slot":"armor","display":{"value":"shown","type":"override"}}]
+  snbt [{amount:-0.5d,display:{type:"hidden"},id:"mcrs:armor",operation:"add_multiplied_total",slot:"head",type:"minecraft:armor"},{amount:1.5d,id:"mcrs:dmg",operation:"add_multiplied_base",type:"minecraft:attack_damage"},{amount:2.0d,display:{type:"override",value:"shown"},id:"mcrs:txt",operation:"add_value",slot:"armor",type:"minecraft:armor"}]
+  nbt 090a00000003060006616d6f756e74bfe00000000000000a0007646973706c617908000474797065000668696464656e000800026964000a6d6372733a61726d6f72080004736c6f7400046865616408000474797065000f6d696e6563726166743a61726d6f720800096f7065726174696f6e00146164645f6d756c7469706c6965645f746f74616c00060006616d6f756e743ff8000000000000080002696400086d6372733a646d670800047479706500176d696e6563726166743a61747461636b5f64616d6167650800096f7065726174696f6e00136164645f6d756c7469706c6965645f6261736500060006616d6f756e7440000000000000000a0007646973706c61790800047479706500086f7665727269646508000576616c7565000573686f776e00080002696400086d6372733a747874080004736c6f74000561726d6f7208000474797065000f6d696e6563726166743a61726d6f720800096f7065726174696f6e00096164645f76616c756500
+  wire 03010a6d6372733a61726d6f72bfe000000000000002070103086d6372733a646d673ff800000000000001000001086d6372733a747874400000000000000000080208000573686f776e
+  wire_roundtrip true remaining 0
+  hash 21091532
+sample minecraft:attribute_modifiers [{"type":"minecraft:armor","id":"mcrs:txt","amount":2,"operation":"add_value","display":{"type":"override","value":{"text":"styled","bold":true}}}]
+  json [{"type":"minecraft:armor","id":"mcrs:txt","amount":2.0,"operation":"add_value","display":{"value":{"text":"styled","bold":true},"type":"override"}}]
+  snbt [{amount:2.0d,display:{type:"override",value:{bold:1b,text:"styled"}},id:"mcrs:txt",operation:"add_value",type:"minecraft:armor"}]
+  nbt 090a00000001060006616d6f756e7440000000000000000a0007646973706c61790800047479706500086f766572726964650a000576616c75650800047465787400067374796c6564010004626f6c64010000080002696400086d6372733a74787408000474797065000f6d696e6563726166743a61726d6f720800096f7065726174696f6e00096164645f76616c756500
+  wire 0101086d6372733a74787440000000000000000000020a0800047465787400067374796c6564010004626f6c640100
+  wire_roundtrip true remaining 0
+  hash -753234659
+sample minecraft:attribute_modifiers []
+  json []
+  snbt []
+  nbt 090000000000
+  wire 00
+  wire_roundtrip true remaining 0
+  hash -1978007022
+sample minecraft:attribute_modifiers [{"type":"minecraft:armor","id":"mcrs:x","amount":1,"operation":"add_value","extra":1}]
+  json [{"type":"minecraft:armor","id":"mcrs:x","amount":1.0,"operation":"add_value"}]
+  snbt [{amount:1.0d,id:"mcrs:x",operation:"add_value",type:"minecraft:armor"}]
+  nbt 090a00000001060006616d6f756e743ff0000000000000080002696400066d6372733a7808000474797065000f6d696e6563726166743a61726d6f720800096f7065726174696f6e00096164645f76616c756500
+  wire 0101066d6372733a783ff0000000000000000000
+  wire_roundtrip true remaining 0
+  hash -1536468361
+sample minecraft:equippable {"slot":"head"}
+  json {"slot":"head"}
+  snbt {slot:"head"}
+  nbt 0a080004736c6f7400046865616400
+  wire 04470000000101010000a80b
+  wire_roundtrip true remaining 0
+  hash 497790992
+sample minecraft:equippable {"slot":"offhand","equip_sound":"minecraft:item.armor.equip_iron","asset_id":"minecraft:iron","camera_overlay":"minecraft:misc/pumpkinblur","allowed_entities":["minecraft:zombie","minecraft:pig"],"dispensable":false,"swappable":false,"damage_on_hurt":false,"equip_on_interact":true,"can_be_sheared":true,"shearing_sound":{"sound_id":"mcrs:snip","range":3.5}}
+  json {"slot":"offhand","equip_sound":"minecraft:item.armor.equip_iron","asset_id":"minecraft:iron","camera_overlay":"minecraft:misc/pumpkinblur","allowed_entities":["minecraft:zombie","minecraft:pig"],"dispensable":false,"swappable":false,"damage_on_hurt":false,"equip_on_interact":true,"can_be_sheared":true,"shearing_sound":{"sound_id":"mcrs:snip","range":3.5}}
+  snbt {allowed_entities:["minecraft:zombie","minecraft:pig"],asset_id:"minecraft:iron",camera_overlay:"minecraft:misc/pumpkinblur",can_be_sheared:1b,damage_on_hurt:0b,dispensable:0b,equip_on_interact:1b,equip_sound:"minecraft:item.armor.equip_iron",shearing_sound:{range:3.5f,sound_id:"mcrs:snip"},slot:"offhand",swappable:0b}
+  nbt 0a01000b64697370656e7361626c650001001165717569705f6f6e5f696e7465726163740108000b65717569705f736f756e64001f6d696e6563726166743a6974656d2e61726d6f722e65717569705f69726f6e090010616c6c6f7765645f656e746974696573080000000200106d696e6563726166743a7a6f6d626965000d6d696e6563726166743a70696708000e63616d6572615f6f7665726c6179001a6d696e6563726166743a6d6973632f70756d706b696e626c75720a000e7368656172696e675f736f756e64080008736f756e645f696400096d6372733a736e697005000572616e67654060000000080004736c6f7400076f666668616e6408000861737365745f6964000e6d696e6563726166743a69726f6e010009737761707061626c650001000e64616d6167655f6f6e5f687572740001000e63616e5f62655f736865617265640100
+  wire 0549010e6d696e6563726166743a69726f6e011a6d696e6563726166743a6d6973632f70756d706b696e626c757201039a0165000000010100096d6372733a736e69700140600000
+  wire_roundtrip true remaining 0
+  hash -742698965
+sample minecraft:equippable {"slot":"saddle","equip_sound":"minecraft:item.armor.equip_generic","allowed_entities":"#minecraft:skeletons","dispensable":true,"swappable":true,"damage_on_hurt":true,"equip_on_interact":false,"can_be_sheared":false,"shearing_sound":"minecraft:item.shears.snip"}
+  json {"slot":"saddle","allowed_entities":"#minecraft:skeletons"}
+  snbt {allowed_entities:"#minecraft:skeletons",slot:"saddle"}
+  nbt 0a080010616c6c6f7765645f656e7469746965730014236d696e6563726166743a736b656c65746f6e73080004736c6f740006736164646c6500
+  wire 074700000100136d696e6563726166743a736b656c65746f6e730101010000a80b
+  wire_roundtrip true remaining 0
+  hash -137090998
+sample minecraft:equippable {"slot":"body","equip_sound":{"sound_id":"mcrs:equip"},"allowed_entities":"minecraft:pig"}
+  json {"slot":"body","equip_sound":{"sound_id":"mcrs:equip"},"allowed_entities":"minecraft:pig"}
+  snbt {allowed_entities:"minecraft:pig",equip_sound:{sound_id:"mcrs:equip"},slot:"body"}
+  nbt 0a0a000b65717569705f736f756e64080008736f756e645f6964000a6d6372733a657175697000080010616c6c6f7765645f656e746974696573000d6d696e6563726166743a706967080004736c6f740004626f647900
+  wire 06000a6d6372733a65717569700000000102650101010000a80b
+  wire_roundtrip true remaining 0
+  hash 1431180046
+sample minecraft:potion_contents "minecraft:swiftness"
+  json {"potion":"minecraft:swiftness"}
+  snbt {potion:"minecraft:swiftness"}
+  nbt 0a080006706f74696f6e00136d696e6563726166743a73776966746e65737300
+  wire 010d000000
+  wire_roundtrip true remaining 0
+  hash -1164789092
+sample minecraft:potion_contents {}
+  json {}
+  snbt {}
+  nbt 0a00
+  wire 00000000
+  wire_roundtrip true remaining 0
+  hash -982207288
+sample minecraft:potion_contents {"potion":"minecraft:water","custom_color":16711680,"custom_effects":[{"id":"minecraft:speed","amplifier":1,"duration":100},{"id":"minecraft:haste","duration":-1,"ambient":true,"show_particles":false,"show_icon":true,"hidden_effect":{"amplifier":2,"duration":10}}],"custom_name":"mcrs"}
+  json {"potion":"minecraft:water","custom_color":16711680,"custom_effects":[{"id":"minecraft:speed","amplifier":1,"duration":100,"show_icon":true},{"id":"minecraft:haste","duration":-1,"ambient":true,"show_particles":false,"show_icon":true}],"custom_name":"mcrs"}
+  snbt {custom_color:16711680,custom_effects:[{amplifier:1b,duration:100,id:"minecraft:speed",show_icon:1b},{ambient:1b,duration:-1,id:"minecraft:haste",show_icon:1b,show_particles:0b}],custom_name:"mcrs",potion:"minecraft:water"}
+  nbt 0a080006706f74696f6e000f6d696e6563726166743a776174657203000c637573746f6d5f636f6c6f7200ff000008000b637573746f6d5f6e616d6500046d63727309000e637573746f6d5f656666656374730a000000020300086475726174696f6e0000006401000973686f775f69636f6e01010009616d706c6966696572010800026964000f6d696e6563726166743a7370656564000300086475726174696f6effffffff01000973686f775f69636f6e01010007616d6269656e74010800026964000f6d696e6563726166743a686173746501000e73686f775f7061727469636c6573000000
+  wire 01000100ff000002000164000101000200ffffffff0f0100010001046d637273
+  wire_roundtrip true remaining 0
+  hash -404464314
+sample minecraft:potion_contents {"custom_color":-13083194}
+  json {"custom_color":-13083194}
+  snbt {custom_color:-13083194}
+  nbt 0a03000c637573746f6d5f636f6c6f72ff385dc600
+  wire 0001ff385dc60000
+  wire_roundtrip true remaining 0
+  hash -1376803834
+sample minecraft:entity_data {"id":"minecraft:zombie","Health":20.0,"IsBaby":true}
+  json {"Health":20,"IsBaby":1,"id":"minecraft:zombie"}
+  snbt {Health:20b,IsBaby:1b,id:"minecraft:zombie"}
+  nbt 0a0100064865616c74681401000649734261627901080002696400106d696e6563726166743a7a6f6d62696500
+  wire 9a010a0100064865616c7468140100064973426162790100
+  wire_roundtrip true remaining 0
+  hash 105288566
+sample minecraft:entity_data "{id:\"minecraft:pig\",Saddle:1b}"
+  json {"id":"minecraft:pig","Saddle":1}
+  snbt {Saddle:1b,id:"minecraft:pig"}
+  nbt 0a0800026964000d6d696e6563726166743a706967010006536164646c650100
+  wire 650a010006536164646c650100
+  wire_roundtrip true remaining 0
+  hash -1728325551
+sample minecraft:entity_data {"Health":1}
+  error Expected 'id' field in {"Health":1}
+sample minecraft:block_entity_data {"id":"minecraft:chest","Items":[],"Lock":"key"}
+  json {"Items":[],"id":"minecraft:chest","Lock":"key"}
+  snbt {Items:[],Lock:"key",id:"minecraft:chest"}
+  nbt 0a0900054974656d7300000000000800026964000f6d696e6563726166743a63686573740800044c6f636b00036b657900
+  wire 010a0900054974656d7300000000000800044c6f636b00036b657900
+  wire_roundtrip true remaining 0
+  hash -268842438
+sample minecraft:bees [{"entity_data":{"id":"minecraft:pig","Health":5.0},"ticks_in_hive":10,"min_ticks_in_hive":600}]
+  json [{"entity_data":{"Health":5,"id":"minecraft:pig"},"ticks_in_hive":10,"min_ticks_in_hive":600}]
+  snbt [{entity_data:{Health:5b,id:"minecraft:pig"},min_ticks_in_hive:600,ticks_in_hive:10}]
+  nbt 090a0000000103000d7469636b735f696e5f686976650000000a0a000b656e746974795f646174610100064865616c7468050800026964000d6d696e6563726166743a706967000300116d696e5f7469636b735f696e5f686976650000025800
+  wire 01650a0100064865616c746805000ad804
+  wire_roundtrip true remaining 0
+  hash 514894621
+sample minecraft:bees []
+  json []
+  snbt []
+  nbt 090000000000
+  wire 00
+  wire_roundtrip true remaining 0
+  hash -1978007022
+sample minecraft:potion_contents {"custom_color":1.5}
+  json {"custom_color":1}
+  snbt {custom_color:1}
+  nbt 0a03000c637573746f6d5f636f6c6f720000000100
+  wire 0001000000010000
+  wire_roundtrip true remaining 0
+  hash -136329960
+sample minecraft:potion_contents {"custom_color":2147483648}
+  json {"custom_color":-2147483648}
+  snbt {custom_color:-2147483648}
+  nbt 0a03000c637573746f6d5f636f6c6f728000000000
+  wire 0001800000000000
+  wire_roundtrip true remaining 0
+  hash 535405702
+sample minecraft:potion_contents {"custom_color":null}
+  json {}
+  snbt {}
+  nbt 0a00
+  wire 00000000
+  wire_roundtrip true remaining 0
+  hash -982207288
+sample minecraft:suspicious_stew_effects [{"id":"minecraft:speed","duration":null}]
+  json [{"id":"minecraft:speed"}]
+  snbt [{id:"minecraft:speed"}]
+  nbt 090a000000010800026964000f6d696e6563726166743a737065656400
+  wire 0100a001
+  wire_roundtrip true remaining 0
+  hash -748833595
+sample minecraft:suspicious_stew_effects [{"id":"minecraft:speed","duration":true}]
+  json [{"id":"minecraft:speed"}]
+  snbt [{id:"minecraft:speed"}]
+  nbt 090a000000010800026964000f6d696e6563726166743a737065656400
+  wire 0100a001
+  wire_roundtrip true remaining 0
+  hash -748833595
+sample minecraft:suspicious_stew_effects [{"id":"minecraft:speed","duration":1.9}]
+  json [{"id":"minecraft:speed","duration":1}]
+  snbt [{duration:1,id:"minecraft:speed"}]
+  nbt 090a000000010300086475726174696f6e000000010800026964000f6d696e6563726166743a737065656400
+  wire 010001
+  wire_roundtrip true remaining 0
+  hash 1914576818
+sample minecraft:mob_visibility {"targeting_entity_types":"minecraft:zombie","visibility":-0.0}
+  error Value must be within range [0.0;10.0]: -0.0
+sample minecraft:mob_visibility {"targeting_entity_types":"minecraft:zombie","visibility":0.0}
+  json {"targeting_entity_types":"minecraft:zombie","visibility":0.0}
+  snbt {targeting_entity_types:"minecraft:zombie",visibility:0.0f}
+  nbt 0a05000a7669736962696c69747900000000080016746172676574696e675f656e746974795f747970657300106d696e6563726166743a7a6f6d62696500
+  wire 029a0100000000
+  wire_roundtrip true remaining 0
+  hash 332418851
+sample minecraft:tool {"rules":[{"blocks":"minecraft:stone","speed":-0.0}]}
+  error Value must be positive: -0.0
+sample minecraft:enchantments {"sharpness":1,"sharpness":2}
+  json {"minecraft:sharpness":2}
+  snbt {"minecraft:sharpness":2}
+  nbt 0a0300136d696e6563726166743a73686172706e6573730000000200
+  wire 012102
+  wire_roundtrip true remaining 0
+  hash -1580618251
+sample minecraft:tool {"rules":[],"default_mining_speed":null,"damage_per_block":null,"can_destroy_blocks_in_creative":null}
+  json {"rules":[]}
+  snbt {rules:[]}
+  nbt 0a09000572756c6573000000000000
+  wire 003f8000000101
+  wire_roundtrip true remaining 0
+  hash 937295970
+sample minecraft:equippable {"slot":"head","equip_sound":null,"dispensable":null,"swappable":null,"damage_on_hurt":null,"equip_on_interact":null,"can_be_sheared":null,"shearing_sound":null}
+  json {"slot":"head"}
+  snbt {slot:"head"}
+  nbt 0a080004736c6f7400046865616400
+  wire 04470000000101010000a80b
+  wire_roundtrip true remaining 0
+  hash 497790992
+sample minecraft:attribute_modifiers [{"type":"minecraft:scale","id":"mcrs:x","amount":1,"operation":"add_value","slot":null,"display":null}]
+  json [{"type":"minecraft:scale","id":"mcrs:x","amount":1.0,"operation":"add_value"}]
+  snbt [{amount:1.0d,id:"mcrs:x",operation:"add_value",type:"minecraft:scale"}]
+  nbt 090a00000001060006616d6f756e743ff0000000000000080002696400066d6372733a7808000474797065000f6d696e6563726166743a7363616c650800096f7065726174696f6e00096164645f76616c756500
+  wire 011e066d6372733a783ff0000000000000000000
+  wire_roundtrip true remaining 0
+  hash 1672400214
+sample minecraft:potion_contents {"potion":null,"custom_color":null,"custom_effects":null,"custom_name":null}
+  json {}
+  snbt {}
+  nbt 0a00
+  wire 00000000
+  wire_roundtrip true remaining 0
+  hash -982207288
+sample minecraft:entity_data {"id":"minecraft:pig","id2":1,"id":"minecraft:zombie"}
+  json {"id2":1,"id":"minecraft:zombie"}
+  snbt {id:"minecraft:zombie",id2:1b}
+  nbt 0a01000369643201080002696400106d696e6563726166743a7a6f6d62696500
+  wire 9a010a0100036964320100
+  wire_roundtrip true remaining 0
+  hash -94464848
+sample minecraft:entity_data {"id":"minecraft:pig","a":1,"a":2}
+  json {"a":2,"id":"minecraft:pig"}
+  snbt {a:2b,id:"minecraft:pig"}
+  nbt 0a01000161020800026964000d6d696e6563726166743a70696700
+  wire 650a010001610200
+  wire_roundtrip true remaining 0
+  hash 1762996336

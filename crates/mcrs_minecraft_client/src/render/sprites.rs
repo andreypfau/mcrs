@@ -7,8 +7,8 @@ use super::texture::{
     AtlasSlot, AtlasWriter, array_view, atlas_sampler, atlas_staging, blank_atlas, create_lightmap,
     create_tints,
 };
-use super::{Animation, AtlasUpdate, Budget};
-use crate::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
+use super::{Animation, Budget, SpriteEntry, SpriteUpload};
+use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 
 const TICKS_PER_SECOND: f64 = 20.0;
 
@@ -29,15 +29,13 @@ const UNWRITTEN: AnimationFrame = AnimationFrame {
 };
 
 impl Animation {
-    /// Frames sit under the top of their array, first frame highest, so the step counts down.
-    fn at(&self, ticks: f64, capacity: u32) -> AnimationFrame {
+    fn at(&self, ticks: f64) -> AnimationFrame {
         let count = self.count.max(1);
         let elapsed = ticks / f64::from(self.frametime.max(1));
         let step = (elapsed as u64 % u64::from(count)) as u32;
-        let top = capacity - 1 - self.frame_base;
         AnimationFrame {
-            layer: top - step,
-            next: top - (step + 1) % count,
+            layer: self.first_layer + step,
+            next: self.first_layer + (step + 1) % count,
             blend: if self.interpolate != 0 {
                 elapsed.fract() as f32
             } else {
@@ -58,7 +56,7 @@ pub(super) struct Sprites {
     pub lightmap: Texture,
     pub lightmap_view: TextureView,
     pub frames: Buffer,
-    pub animated_from: u32,
+    pub table: Buffer,
     animations: Vec<Animation>,
     written: Vec<AnimationFrame>,
 }
@@ -79,19 +77,18 @@ impl Sprites {
             lightmap_view: lightmap.create_view(&TextureViewDescriptor::default()),
             lightmap,
             frames: frame_buffer(device),
-            animated_from: 0,
+            table: table_buffer(device),
             animations: Vec::new(),
             written: Vec::new(),
         }
     }
 
-    /// Takes the layers the bake added and the animation table as it now stands. Returns the
-    /// bytes staged and whether a texture was replaced, which is when the bind groups follow.
+    /// Takes the layers and sprites the bake added and the animation table as it now stands.
+    /// Returns the bytes staged and whether a texture was replaced, which is when the bind
+    /// groups follow.
     pub fn update(
         &mut self,
-        updates: &[AtlasUpdate],
-        animations: &[Animation],
-        animated_from: u32,
+        upload: &SpriteUpload,
         device: &RenderDevice,
         encoder: &mut CommandEncoder,
         belt: &mut wgpu::util::StagingBelt,
@@ -103,18 +100,36 @@ impl Sprites {
             staging: &mut self.staging,
             used: 0,
         };
+        let SpriteUpload {
+            atlases,
+            table_from,
+            table,
+            animations,
+        } = upload;
         let mut rebound = false;
-        for (index, update) in updates.iter().enumerate() {
+        for (index, update) in atlases.iter().enumerate() {
             rebound |= writer.apply(index, &mut self.atlases[index], update);
         }
-        let spent = writer.used as usize;
+        let mut spent = writer.used as usize;
+        if !table.is_empty() {
+            let bytes: &[u8] = bytemuck::cast_slice(table);
+            belt.write_buffer(
+                encoder,
+                &self.table,
+                u64::from(*table_from) * size_of::<SpriteEntry>() as u64,
+                BufferSize::new(bytes.len() as u64).expect("at least one entry"),
+            )
+            .copy_from_slice(bytes);
+            spent += bytes.len();
+        }
         info!(
-            layers = ?updates.iter().map(|u| (u.size, u.stills - u.first_still, u.frames - u.first_frame)).collect::<Vec<_>>(),
+            layers = ?atlases.iter().map(|u| (u.size, u.layers - u.first)).collect::<Vec<_>>(),
+            sprites = table.len(),
+            animations = animations.len(),
             bytes = spent,
             rebound,
-            "added sprite layers"
+            "added sprites"
         );
-        self.animated_from = animated_from;
         self.animations = animations.to_vec();
         self.written = vec![UNWRITTEN; animations.len()];
         (spent, rebound)
@@ -137,7 +152,7 @@ pub(super) fn write_animation_frames(
     let ticks = time.elapsed_secs_f64() * TICKS_PER_SECOND;
     let mut changed = false;
     for (animation, written) in sprites.animations.iter().zip(&mut sprites.written) {
-        let frame = animation.at(ticks, sprites.atlases[animation.array as usize].capacity);
+        let frame = animation.at(ticks);
         changed |= *written != frame;
         *written = frame;
     }
@@ -146,11 +161,20 @@ pub(super) fn write_animation_frames(
     }
 }
 
-/// Sized once for every animation a sprite reference can name, so the table never moves.
+/// Sized once for every sprite an id can name, so neither table ever moves.
 fn frame_buffer(device: &RenderDevice) -> Buffer {
     device.create_buffer(&BufferDescriptor {
         label: Some("terrain animation frames"),
         size: (MAX_SPRITES * size_of::<AnimationFrame>()) as u64,
+        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
+fn table_buffer(device: &RenderDevice) -> Buffer {
+    device.create_buffer(&BufferDescriptor {
+        label: Some("terrain sprite table"),
+        size: (MAX_SPRITES * size_of::<SpriteEntry>()) as u64,
         usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     })

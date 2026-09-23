@@ -5,11 +5,11 @@ use bevy::asset::io::memory::{Dir, MemoryAssetReader};
 use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::math::DVec3;
 use bevy::prelude::*;
-use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_dimension::environment::Weather;
+use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
-use mcrs_minecraft_world::environment::Weather;
-use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
 
 use bevy::camera::visibility::VisibilitySystems;
 
@@ -108,7 +108,7 @@ pub fn run() {
             .disable::<bevy::pbr::PbrPlugin>()
             .disable::<bevy::light::LightPlugin>(),
     )
-    .add_plugins(mcrs_minecraft_core::MinecraftCorePlugin)
+    .add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin)
     .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)
     .add_plugins(player::PlayerPlugin)
     .add_plugins(input::ClientInputPlugin)
@@ -138,16 +138,13 @@ pub fn run() {
         app.insert_resource(sky_render::SkyDrawsOnly(only));
     }
 
-    let (budget, uploads, cave, loader) = config::terrain(TERRAIN_LIMITS);
-    app.add_plugins(TerrainPlugin(budget, uploads))
+    let (budget, uploads, cave) = config::terrain(TERRAIN_LIMITS);
+    app.add_plugins(TerrainPlugin(budget.clone(), uploads.clone()))
+        .add_plugins(stream::StreamPlugin::new(budget, uploads))
         .insert_resource(config::drawn_streams())
         .insert_resource(config::raster_fraction())
         .insert_resource(cave)
-        .insert_resource(loader)
-        .add_systems(
-            Update,
-            (stream::advance, cave::toggle, render::toggle_wireframe),
-        )
+        .add_systems(Update, (cave::toggle, render::toggle_wireframe))
         .add_systems(
             PostUpdate,
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
@@ -158,8 +155,10 @@ pub fn run() {
             app.add_plugins(ClientNetworkPlugin {
                 server,
                 username: query("username").unwrap_or_else(|| "Player".to_owned()),
+                profile_id: None,
                 view_distance: config::view_distance(),
             });
+            app.add_plugins(crate::columns::ColumnCachePlugin);
         }
         None => warn!(
             "no ?server=<https url>&cert=<sha-256 hex>: the browser draws sky only. \

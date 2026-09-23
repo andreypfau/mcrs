@@ -1,30 +1,38 @@
 use std::sync::Arc;
 
+use crate::world::light_codec::{LightCodecParams, build_delta_light_data};
 use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_minecraft_block::palette::ChunkBlocks;
+use mcrs_minecraft_core::{ColumnPos, SectionPos};
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::block_update::BlockPlaced;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::lifecycle::stage::SectionStageChanged;
+use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPosComponent};
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::prelude::LightWorkQueue;
 use mcrs_minecraft_light::prelude::{
-    BlockLight, Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SkyLight,
+    Edit, LightBounds, LightPlugin, LightSet, PendingEdits, Priority, SectionRelit,
 };
-use mcrs_minecraft_protocol::light_codec::{LightCodecParams, build_delta_light_data};
-use mcrs_voxel_math::{ChunkPos, ColumnPos};
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::lifecycle::markers::{ChunkFresh, ChunkLoaded};
-use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnPosComponent};
 
-use crate::world::heightmap::SurfaceHeightmap;
+use mcrs_minecraft_worldgen_generator::heightmap::SurfaceHeightmap;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
-use crate::world::entity::player::column_view::ColumnView;
+
+/// A dimension's side of the light engine: what it hands the light world before intake, and
+/// what it sends once the light world has published.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DimLightSet {
+    Feed,
+    Emit,
+}
 
 pub struct DimLightPlugin {
     pub registry: Arc<LightRegistry>,
@@ -39,25 +47,29 @@ impl Plugin for DimLightPlugin {
             bounds: self.bounds,
             sky: self.sky,
         })
-        // `ChunkLoaded` and the block palette land in `FixedLast`, so `Last` is
-        // the first schedule of the same tick that can see them.
-        // After `Track`, so that a section respawned at a position the same tick
-        // its predecessor died loads back after the unload rather than before it.
+        .configure_sets(
+            Last,
+            (
+                DimLightSet::Feed.before(LightSet::Intake),
+                DimLightSet::Emit.after(LightSet::Publish),
+            ),
+        )
+        // Sections land in `FixedLast`, so `Last` is the first schedule of the
+        // same tick that can see them.
         .add_systems(
             Last,
             (
-                feed_light_edits.before(LightSet::Intake),
-                reprioritize_light_work
-                    .after(feed_light_edits)
-                    .before(LightSet::Intake),
-                // After the block edits it bounds, and after the maps have taken
-                // this tick's edits: a bound must never describe blocks the
-                // light world has not been handed.
-                feed_column_surfaces
-                    .after(feed_light_edits)
-                    .after(crate::world::heightmap::update_column_heightmaps)
-                    .before(LightSet::Intake),
-                emit_light_updates.after(LightSet::Publish),
+                (
+                    feed_light_edits,
+                    reprioritize_light_work,
+                    // After the block edits it bounds, and after the maps have taken
+                    // this tick's edits: a bound must never describe blocks the
+                    // light world has not been handed.
+                    feed_column_surfaces.after(crate::world::heightmap::update_column_heightmaps),
+                )
+                    .chain()
+                    .in_set(DimLightSet::Feed),
+                emit_light_updates.in_set(DimLightSet::Emit),
             ),
         );
     }
@@ -74,20 +86,19 @@ fn reprioritize_light_work(
     mut queue: ResMut<LightWorkQueue>,
     players: Query<&Transform, With<Player>>,
     mut scored_for: Local<Vec<ColumnPos>>,
+    mut player_columns: Local<Vec<ColumnPos>>,
 ) {
     if pending.is_empty() && queue.0.is_empty() {
         return;
     }
-    let player_columns: Vec<ColumnPos> = players
-        .iter()
-        .map(|at| ColumnPos::from(at.translation))
-        .collect();
+    player_columns.clear();
+    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     // Nothing to score against, and a score is only stale once a player has moved to another
     // column: the walk is worth its cost then and wasted otherwise.
-    if player_columns.is_empty() || *scored_for == player_columns {
+    if player_columns.is_empty() || *scored_for == *player_columns {
         return;
     }
-    scored_for.clone_from(&player_columns);
+    scored_for.clone_from(&*player_columns);
 
     let score = |column: ColumnPos| {
         crate::world::chunk::min_column_distance(&column, &player_columns)
@@ -99,16 +110,14 @@ fn reprioritize_light_work(
 
 fn feed_light_edits(
     mut pending: ResMut<PendingEdits>,
-    loaded: Query<(Entity, &ChunkPos, &ChunkBlocks), (Added<ChunkLoaded>, With<ChunkFresh>)>,
-    positions: Query<&ChunkPos>,
+    mut stages: MessageReader<SectionStageChanged>,
+    blocks: Query<&ChunkBlocks>,
     players: Query<&Transform, With<Player>>,
-    mut unloaded: RemovedComponents<ChunkLoaded>,
     mut placed: MessageReader<BlockPlaced>,
+    mut player_columns: Local<Vec<ColumnPos>>,
 ) {
-    let player_columns: Vec<ColumnPos> = players
-        .iter()
-        .map(|at| ColumnPos::from(at.translation))
-        .collect();
+    player_columns.clear();
+    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     // A column is not sent until its light is published, so the light queue has
     // to drain in the sender's order: the same distance to the nearest player
     // that the column scheduler already treats as a ticket level.
@@ -117,17 +126,18 @@ fn feed_light_edits(
         pending.push_with_priority(edit, distance.clamp(0, Priority::MAX as i32) as Priority);
     };
 
-    for entity in unloaded.read() {
-        if let Ok(pos) = positions.get(entity) {
-            queue(Edit::UnloadSection { pos: *pos });
+    for change in stages.read() {
+        if change.left() {
+            queue(Edit::UnloadSection { pos: change.pos });
+        } else if change.landed()
+            && let Ok(section_blocks) = blocks.get(change.section)
+        {
+            queue(Edit::LoadSection {
+                pos: change.pos,
+                entity: change.section.to_bits(),
+                blocks: Arc::clone(&section_blocks.0),
+            });
         }
-    }
-    for (entity, pos, blocks) in &loaded {
-        queue(Edit::LoadSection {
-            pos: *pos,
-            entity,
-            blocks: Arc::clone(&blocks.0),
-        });
     }
     for placed in placed.read() {
         queue(Edit::SetBlock {
@@ -143,14 +153,13 @@ fn feed_column_surfaces(
     mut pending: ResMut<PendingEdits>,
     columns: Query<(&ColumnPosComponent, &SurfaceHeightmap), Changed<SurfaceHeightmap>>,
     players: Query<&Transform, With<Player>>,
+    mut player_columns: Local<Vec<ColumnPos>>,
 ) {
     if columns.is_empty() {
         return;
     }
-    let player_columns: Vec<ColumnPos> = players
-        .iter()
-        .map(|at| ColumnPos::from(at.translation))
-        .collect();
+    player_columns.clear();
+    player_columns.extend(players.iter().map(|at| ColumnPos::from(at.translation)));
     for (pos, surface) in &columns {
         let distance = crate::world::chunk::min_column_distance(&pos.0, &player_columns);
         pending.push_with_priority(
@@ -165,41 +174,32 @@ fn feed_column_surfaces(
 
 /// Turns a published light change into a `ClientboundLightUpdate` carrying only
 /// the rows that changed, for the players that already hold the column.
-///
-/// The scan is over every section entity, not only the changed ones: at view
-/// distance 10 that is on the order of ten thousand tick comparisons per
-/// dimension.
 pub fn emit_light_updates(
-    changed: Query<
-        (
-            Entity,
-            &ChunkPos,
-            &InDimension,
-            Ref<BlockLight>,
-            Ref<SkyLight>,
-        ),
-        Or<(Changed<BlockLight>, Changed<SkyLight>)>,
-    >,
+    mut relit: MessageReader<SectionRelit>,
+    sections: Query<(&SectionPos, &InDimension)>,
     column_indices: Query<&ColumnIndex>,
-    views: Query<(&ColumnView, &HostAnchor)>,
+    observers: Query<&PlayerObservers>,
+    anchors: Query<&HostAnchor>,
     codec_params: LightCodecParams,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut by_column: Local<FxHashMap<(Entity, ColumnPos), (Vec<Entity>, Vec<Entity>)>>,
 ) {
-    let mut by_column: FxHashMap<(Entity, ColumnPos), (Vec<Entity>, Vec<Entity>)> =
-        FxHashMap::default();
-    for (section, pos, in_dim, block, sky) in &changed {
+    for change in relit.read() {
+        let Ok((pos, in_dim)) = sections.get(change.section) else {
+            continue;
+        };
         let rows = by_column
             .entry((in_dim.0, ColumnPos::from(*pos)))
             .or_default();
-        if block.is_changed() {
-            rows.0.push(section);
+        if change.block && !rows.0.contains(&change.section) {
+            rows.0.push(change.section);
         }
-        if sky.is_changed() {
-            rows.1.push(section);
+        if change.sky && !rows.1.contains(&change.section) {
+            rows.1.push(change.section);
         }
     }
 
-    for ((dim, column_pos), (block_rows, sky_rows)) in by_column {
+    for ((dim, column_pos), (block_rows, sky_rows)) in by_column.drain() {
         let Some(column_entity) = column_indices
             .get(dim)
             .ok()
@@ -207,19 +207,18 @@ pub fn emit_light_updates(
         else {
             continue;
         };
-        // Who holds the column is what the sender recorded, not what the area
-        // of interest mirrors: that mirror is rebuilt from a player's movement,
-        // so for a player standing still every column that finished loading
-        // afterwards has an empty observer list and would never see a
-        // correction to the light it was sent.
         // The anchor, not the dimension world's player entity: the session
         // registry is keyed by anchor, and a target it cannot resolve is
         // dropped without a trace.
-        let targets: SmallVec<[Entity; 8]> = views
-            .iter()
-            .filter(|(view, _)| view.sent_columns.contains(&column_pos))
-            .map(|(_, anchor)| anchor.0)
-            .collect();
+        let targets: SmallVec<[Entity; 8]> = observers
+            .get(column_entity)
+            .map(|held| {
+                held.0
+                    .iter()
+                    .filter_map(|player| anchors.get(*player).ok().map(|anchor| anchor.0))
+                    .collect()
+            })
+            .unwrap_or_default();
         if targets.is_empty() {
             continue;
         }

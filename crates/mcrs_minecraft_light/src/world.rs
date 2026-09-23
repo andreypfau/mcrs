@@ -2,22 +2,21 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 
-use bevy_ecs::prelude::Entity;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
-use mcrs_voxel_math::{BlockPos, ChunkPos, ColumnPos};
-use mcrs_voxel_storage::{ColumnHeights, PalettedContainer, VoxelId};
+use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
 
 use crate::SectionBlocks;
 use crate::block::{Layer, LightRegistry};
-use crate::level::{BlockColumn, LightBounds, LightLevel, LocalPos, SECTION_WIDTH};
-use crate::region::BlockBox;
+use crate::level::{BlockColumn, LightBounds, LightLevel, SECTION_WIDTH};
 use crate::storage::LightStorage;
+use mcrs_minecraft_core::BoundingBox;
+use mcrs_minecraft_core::LocalPos;
 
 /// One loaded section: its blocks, the entity that owns them, and the last
 /// published light for both layers.
 #[derive(Clone, Debug)]
 pub struct Section {
-    pub entity: Entity,
+    pub entity: u64,
     pub blocks: Arc<SectionBlocks>,
     pub block_light: LightStorage,
     pub sky_light: LightStorage,
@@ -34,7 +33,7 @@ pub struct Section {
 }
 
 impl Section {
-    pub fn new(registry: &LightRegistry, entity: Entity, blocks: Arc<SectionBlocks>) -> Self {
+    pub fn new(registry: &LightRegistry, entity: u64, blocks: Arc<SectionBlocks>) -> Self {
         let emits = match &blocks.0 {
             PalettedContainer::Homogeneous(block) => !registry.emission(*block).is_zero(),
             // The palette keeps entries a `set` has emptied, so this errs towards
@@ -77,13 +76,13 @@ pub struct SkyFloor {
 impl SkyFloor {
     pub(crate) fn new(default_y: i32) -> Self {
         Self {
-            lowest_source_y: vec![default_y; BLOCKS::AREA].into_boxed_slice(),
+            lowest_source_y: vec![default_y; SectionPos::AREA].into_boxed_slice(),
         }
     }
 
     fn index(column: BlockColumn) -> usize {
-        ((column.x as usize) & BLOCKS::MASK)
-            | (((column.z as usize) & BLOCKS::MASK) << BLOCKS::BITS)
+        ((column.x as usize) & SectionPos::MASK)
+            | (((column.z as usize) & SectionPos::MASK) << SectionPos::BITS)
     }
 
     pub fn get(&self, column: BlockColumn) -> i32 {
@@ -111,14 +110,14 @@ pub enum Edit {
         block: VoxelId,
     },
     LoadSection {
-        pos: ChunkPos,
+        pos: SectionPos,
         /// Who owns the blocks. Published light is written back to it, so the
         /// engine never has to infer a lifecycle it does not define.
-        entity: Entity,
+        entity: u64,
         blocks: Arc<SectionBlocks>,
     },
     UnloadSection {
-        pos: ChunkPos,
+        pos: SectionPos,
     },
     /// Hands the sky scan a bound for one column. Carries no blocks, so it
     /// queues no lighting work; any later edit to the column supersedes it.
@@ -158,7 +157,7 @@ pub struct LightWorld {
     registry: Arc<LightRegistry>,
     bounds: LightBounds,
     sky: bool,
-    sections: FxHashMap<ChunkPos, Section>,
+    sections: FxHashMap<SectionPos, Section>,
     loaded_per_column: FxHashMap<ColumnPos, u32>,
     sky_floors: FxHashMap<ColumnPos, Arc<SkyFloor>>,
     surfaces: FxHashMap<ColumnPos, Arc<ColumnSurface>>,
@@ -195,19 +194,19 @@ impl LightWorld {
         self.bounds
     }
 
-    pub fn section(&self, pos: ChunkPos) -> Option<&Section> {
+    pub fn section(&self, pos: SectionPos) -> Option<&Section> {
         self.sections.get(&pos)
     }
 
-    pub fn section_mut(&mut self, pos: ChunkPos) -> Option<&mut Section> {
+    pub fn section_mut(&mut self, pos: SectionPos) -> Option<&mut Section> {
         self.sections.get_mut(&pos)
     }
 
-    pub fn loaded_sections(&self) -> impl Iterator<Item = (&ChunkPos, &Section)> {
+    pub fn loaded_sections(&self) -> impl Iterator<Item = (&SectionPos, &Section)> {
         self.sections.iter()
     }
 
-    pub(crate) fn insert_section(&mut self, pos: ChunkPos, section: Section) {
+    pub(crate) fn insert_section(&mut self, pos: SectionPos, section: Section) {
         self.forget_column_surface(ColumnPos::from(pos));
         if self.sections.insert(pos, section).is_none() {
             *self
@@ -217,7 +216,7 @@ impl LightWorld {
         }
     }
 
-    pub(crate) fn remove_section(&mut self, pos: ChunkPos) -> Option<Section> {
+    pub(crate) fn remove_section(&mut self, pos: SectionPos) -> Option<Section> {
         let section = self.sections.remove(&pos)?;
         let column = ColumnPos::from(pos);
         if let Some(count) = self.loaded_per_column.get_mut(&column) {
@@ -253,15 +252,15 @@ impl LightWorld {
         if self.bounds.is_outside(pos.y) {
             return self.registry.outside();
         }
-        match self.sections.get(&ChunkPos::from(pos)) {
-            Some(section) => section.blocks.get(pos),
+        match self.sections.get(&SectionPos::from(pos)) {
+            Some(section) => section.blocks.get(LocalPos::from(pos)),
             None => self.registry.unloaded(),
         }
     }
 
     /// Whether a missing section sits outside the world rather than merely
     /// being unloaded.
-    pub(crate) fn is_outside_world(&self, pos: ChunkPos) -> bool {
+    pub(crate) fn is_outside_world(&self, pos: SectionPos) -> bool {
         self.bounds.is_outside(pos.y * SECTION_WIDTH)
     }
 
@@ -272,9 +271,9 @@ impl LightWorld {
     /// space contributes nothing to either layer — which is why this method is
     /// not used to build seeds.
     pub fn light_at(&self, pos: BlockPos, layer: Layer) -> LightLevel {
-        match self.sections.get(&ChunkPos::from(pos)) {
+        match self.sections.get(&SectionPos::from(pos)) {
             Some(section) => {
-                let local = local_of(pos);
+                let local = LocalPos::from(pos);
                 LightLevel::new(section.light(layer).get(
                     local.x() as usize,
                     local.y() as usize,
@@ -343,7 +342,7 @@ impl LightWorld {
     /// were lit ticks ago, and those cells are further than one section from
     /// the section that moved it, so the loading influence alone does not reach
     /// them.
-    pub(crate) fn rescan_column(&mut self, section_column: ColumnPos) -> Option<BlockBox> {
+    pub(crate) fn rescan_column(&mut self, section_column: ColumnPos) -> Option<BoundingBox> {
         if !self.sky {
             return None;
         }
@@ -377,7 +376,7 @@ impl LightWorld {
                 section_column.x * SECTION_WIDTH,
                 section_column.z * SECTION_WIDTH,
             );
-            BlockBox {
+            BoundingBox {
                 min: BlockPos::new(x, low, z),
                 max: BlockPos::new(x + SECTION_WIDTH - 1, high, z + SECTION_WIDTH - 1),
             }
@@ -392,7 +391,7 @@ impl LightWorld {
         section_column: ColumnPos,
     ) -> impl Iterator<Item = (i32, SkyColumnSection<'_>)> {
         self.bounds.light_sections().rev().map(move |section_y| {
-            let pos = ChunkPos::new(section_column.x, section_y, section_column.z);
+            let pos = SectionPos::new(section_column.x, section_y, section_column.z);
             let section = match self.sections.get(&pos) {
                 Some(section) => match &section.blocks.0 {
                     PalettedContainer::Homogeneous(block) => SkyColumnSection::Uniform(*block),
@@ -446,14 +445,14 @@ impl LightWorld {
                 // seals no seam a uniform one would not: the entry seam and one
                 // air-over-air test settle all sixteen levels.
                 SkyColumnSection::Blocks(blocks) if section_y * SECTION_WIDTH >= surface => {
-                    let air = blocks.get_cell(local_x as usize, BLOCKS::MASK, local_z as usize);
+                    let air = blocks.get_cell(local_x as usize, SectionPos::MASK, local_z as usize);
                     match top(air) {
                         Ok(block) => above = block,
                         Err(floor) => return floor,
                     }
                 }
                 SkyColumnSection::Blocks(blocks) => {
-                    for local_y in (0..BLOCKS::SIZE as u8).rev() {
+                    for local_y in (0..SectionPos::SIZE as u8).rev() {
                         let below =
                             blocks.get_cell(local_x as usize, local_y as usize, local_z as usize);
                         if self.registry.breaks_sky_column(above, below) {
@@ -513,17 +512,9 @@ impl LightWorld {
 }
 
 fn local_x_of(column: BlockColumn) -> u8 {
-    (column.x & BLOCKS::MASK as i32) as u8
+    (column.x & SectionPos::MASK as i32) as u8
 }
 
 fn local_z_of(column: BlockColumn) -> u8 {
-    (column.z & BLOCKS::MASK as i32) as u8
-}
-
-pub(crate) fn local_of(pos: BlockPos) -> LocalPos {
-    LocalPos::new(
-        (pos.x & BLOCKS::MASK as i32) as u8,
-        (pos.y & BLOCKS::MASK as i32) as u8,
-        (pos.z & BLOCKS::MASK as i32) as u8,
-    )
+    (column.z & SectionPos::MASK as i32) as u8
 }

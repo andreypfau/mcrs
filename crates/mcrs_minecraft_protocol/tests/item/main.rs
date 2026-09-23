@@ -1,0 +1,19 @@
+#[path = "../common/mod.rs"]
+mod common;
+
+mod advancement;
+mod corpus;
+mod golden;
+mod harness;
+mod holders;
+mod nested;
+mod particle;
+mod plain;
+mod predicate;
+mod recipe_packets;
+mod records;
+mod registry_refs;
+mod scaffold;
+mod slotted;
+mod symmetry;
+mod table;

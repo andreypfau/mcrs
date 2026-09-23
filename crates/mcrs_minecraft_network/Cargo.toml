@@ -10,20 +10,19 @@ doctest = false
 
 [dependencies]
 anyhow.workspace = true
-bevy_app.workspace = true
-bevy_ecs.workspace = true
-bevy_tasks.workspace = true
+bevy_app = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
 bytes.workspace = true
 thiserror.workspace = true
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_voxel_storage.workspace = true
+mcrs_minecraft_registry.workspace = true
 md-5.workspace = true
 tokio = { version = "1.48.0", default-features = false, features = ["sync", "io-util"] }
 serde_json.workspace = true
 tracing.workspace = true
-log = "0.4.29"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio.workspace = true
@@ -49,4 +48,14 @@ web-sys = { version = "0.3", features = [
 ] }
 
 [features]
+default = ["bevy"]
+bevy = ["dep:bevy_app", "dep:bevy_ecs"]
 telemetry-tracy = []
+
+[[test]]
+name = "accept_rate_unit"
+required-features = ["bevy"]
+
+[[test]]
+name = "webtransport_session"
+required-features = ["bevy"]

@@ -4,7 +4,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use super::{DebugEntryGroup, DebugScreenDisplayer};
 use crate::cave::CaveCull;
 use crate::render::DrawnTriangles;
-use crate::stream::Loader;
+use crate::stream::Streaming;
 
 pub const GROUP: DebugEntryGroup = ResourceLocation::new_static("minecraft:terrain");
 
@@ -12,9 +12,9 @@ pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     triangles: Res<DrawnTriangles>,
     cave: Res<CaveCull>,
-    loader: Res<Loader>,
+    streaming: Streaming,
 ) {
-    let status = loader.status();
+    let status = streaming.status();
     let lines = vec![
         format!(
             "Tris: {} ({} hidden behind terrain)",

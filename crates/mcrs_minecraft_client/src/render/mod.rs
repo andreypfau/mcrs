@@ -2,6 +2,7 @@ mod arenas;
 mod binds;
 mod draws;
 mod frame;
+mod gui_items;
 mod heat;
 mod hiz;
 mod layer;
@@ -23,8 +24,8 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_resource::{CompareFunction, TextureFormat};
 use bevy::render::{ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
-use crate::mesh::STREAMS;
 use crate::probe::{self, CpuTimings, GpuTimings};
+use mcrs_minecraft_mesh::STREAMS;
 
 pub use stats::{DrawnTriangles, FrameCounts};
 pub use upload::{Placement, Upload, Uploads};
@@ -37,9 +38,9 @@ pub(crate) use pipeline::common as pipeline_descriptor;
 pub const DEPTH_COMPARE: CompareFunction = CompareFunction::GreaterEqual;
 const _: () = assert!(matches!(CORE_3D_DEPTH_FORMAT, TextureFormat::Depth32Float));
 
-pub const QUAD_BYTES: usize = crate::pack::QUAD_WORDS * 4;
+pub const QUAD_BYTES: usize = mcrs_minecraft_mesh::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
-pub const FACE_BYTES: usize = 4;
+pub const FACE_BYTES: usize = mcrs_minecraft_mesh::pack::FACE_WORDS * 4;
 pub const SECTION_BYTES: usize = size_of::<SectionDesc>();
 const VISIBLE_BYTES: usize = 8;
 
@@ -64,27 +65,42 @@ pub struct SectionDesc {
     pub face_base: u32,
 }
 
-/// The layers one array gained since the last update: stills from `first_still` up to `stills`,
-/// frame layers from `first_frame` up to `frames`, each as a full mip chain with level zero
-/// first. What was sent before stays where it is on the GPU.
+/// The layers one array gained since the last update, from `first` up to `layers`, as a full
+/// mip chain with level zero first. What was sent before stays where it is on the GPU.
 pub struct AtlasUpdate {
     pub size: u32,
-    pub stills: u32,
-    pub frames: u32,
-    pub first_still: u32,
-    pub first_frame: u32,
-    pub still_mips: Vec<Vec<u8>>,
-    pub frame_mips: Vec<Vec<u8>>,
+    pub layers: u32,
+    pub first: u32,
+    pub mips: Vec<Vec<u8>>,
 }
 
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Animation {
-    pub array: u32,
-    pub frame_base: u32,
+    pub first_layer: u32,
     pub count: u32,
     pub frametime: u32,
     pub interpolate: u32,
+}
+
+pub const STILL: u32 = u32::MAX;
+
+/// What one bake added: layers per atlas, the sprite table from `table_from` on, and every
+/// animation as the registry now lists them.
+pub struct SpriteUpload {
+    pub atlases: Vec<AtlasUpdate>,
+    pub table_from: u32,
+    pub table: Vec<SpriteEntry>,
+    pub animations: Vec<Animation>,
+}
+
+/// One row of the GPU sprite table: the array in the high half-word and the layer in the low,
+/// and the animation index or `STILL`.
+#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct SpriteEntry {
+    pub array_layer: u32,
+    pub animation: u32,
 }
 
 #[derive(Resource, Clone, Copy, ExtractResource)]
@@ -152,6 +168,7 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/heat.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/hiz.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/gui_items.wgsl");
 }
 
 pub struct TerrainPlugin(pub Arc<Budget>, pub Uploads);
@@ -194,6 +211,7 @@ impl Plugin for TerrainPlugin {
                 (
                     terrain::init_terrain,
                     heat::init_heat.after(terrain::init_terrain),
+                    gui_items::init_gui_pass,
                     probe::init,
                     probe::log_system_counts,
                 ),
@@ -217,6 +235,9 @@ impl Plugin for TerrainPlugin {
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
                     sprites::write_animation_frames.in_set(RenderSystems::Prepare),
                     frame::write_camera.in_set(RenderSystems::Prepare),
+                    (gui_items::prepare_gui_pass, gui_items::write_gui_buffers)
+                        .chain()
+                        .in_set(RenderSystems::Prepare),
                     stats::read_draw_args.in_set(RenderSystems::Cleanup),
                     probe::read.in_set(RenderSystems::Cleanup),
                     upload::recall_staging.in_set(RenderSystems::Cleanup),
@@ -224,9 +245,12 @@ impl Plugin for TerrainPlugin {
             )
             .add_systems(
                 Core3d,
-                pass::draw_frame
-                    .in_set(Core3dSystems::MainPass)
-                    .after(main_opaque_pass_3d),
+                (
+                    pass::draw_frame.after(main_opaque_pass_3d),
+                    gui_items::draw_gui,
+                )
+                    .chain()
+                    .in_set(Core3dSystems::MainPass),
             );
     }
 }

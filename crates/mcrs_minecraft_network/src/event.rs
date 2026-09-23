@@ -2,8 +2,8 @@ use crate::Instant;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bytes::Bytes;
-use log::warn;
 use mcrs_minecraft_protocol::{Decode, Packet};
+use tracing::warn;
 
 #[derive(Debug, Clone, EntityEvent)]
 pub struct ReceivedPacketEvent {
@@ -42,14 +42,13 @@ impl ReceivedPacketEvent {
 #[cfg(not(target_family = "wasm"))]
 mod loop_plugin {
     use super::ReceivedPacketEvent;
-    use crate::{EngineConnection, InGameConnectionState, ServerSideConnection};
+    use crate::{ConnectionState, EngineConnection, ServerSideConnection};
     use bevy_app::{App, Plugin, Update};
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::Commands;
-    use bevy_ecs::query::Without;
     use bevy_ecs::schedule::ScheduleLabel;
     use bevy_ecs::system::Query;
-    use log::warn;
+    use tracing::warn;
 
     pub(crate) struct EventLoopPlugin;
 
@@ -69,10 +68,14 @@ mod loop_plugin {
         tracing::instrument(name = "network::process_received_packet", skip_all)
     )]
     fn run_event_loop(
-        mut query: Query<(Entity, &mut ServerSideConnection), Without<InGameConnectionState>>,
+        mut query: Query<(Entity, &mut ServerSideConnection, Option<&ConnectionState>)>,
         mut commands: Commands,
     ) {
-        query.iter_mut().for_each(|(entity, mut conn)| {
+        query.iter_mut().for_each(|(entity, mut conn, state)| {
+            // A connection in game is read by the server's bridge, which rate-limits it.
+            if state == Some(&ConnectionState::Game) {
+                return;
+            }
             loop {
                 match conn.try_recv() {
                     Ok(Some(pkt)) => {

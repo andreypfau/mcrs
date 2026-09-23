@@ -1,30 +1,33 @@
 //! `update_client_blocks_per_dim` resolves recipients through the per-dim
 //! `Column.PlayerObservers` Component, eliminating the two-frame buffer
 //! rotation that caused the TNT silent-drop regression. The test drives the
-//! per-dim system body directly with a populated change set and asserts the
-//! emitted `OutboundPlayerPacket` carries the chunk's observer set.
+//! per-dim system body directly with placed blocks and asserts the emitted
+//! `OutboundPlayerPacket` carries the chunk's observer set.
 
 use bevy_app::App;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::IntoSystem;
-use mcrs_minecraft_block::palette::ChunkBlocks;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::block::BlockUpdateFlags;
+use mcrs_minecraft_level::block_update::BlockPlaced;
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::voxel_update::ChunkVoxelChanges;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnSlot};
 
 #[test]
 fn block_update_resolves_observers_per_dim_emit_site() {
     let mut app = App::new();
     app.add_message::<OutboundPlayerPacket>();
+    app.add_message::<BlockPlaced>();
 
     // Allocate a synthetic dimension entity, a column entity (carrying
     // PlayerObservers + acting as the lookup target via ColumnIndex), and a
@@ -41,7 +44,7 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     let column_entity = app.world_mut().spawn(observers).id();
 
     // Dim entity carries the ColumnIndex mapping (ColumnPos -> column entity).
-    let chunk_pos = ChunkPos::new(0, 0, 0);
+    let chunk_pos = SectionPos::new(0, 0, 0);
     let column_pos = ColumnPos::from(chunk_pos);
     let mut column_index = ColumnIndex::default();
     column_index.0.insert(
@@ -53,20 +56,28 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     );
     let dim_entity = app.world_mut().spawn(column_index).id();
 
-    // Chunk entity with a populated change set — simulates a block-change
-    // delta the way `apply_voxel_set_requests` would have left it.
-    let block_pos = BlockPos::new(2, 3, 4);
-    let mut change_set = ChunkVoxelChanges::default();
-    change_set.changes.insert(block_pos);
-    let _chunk_entity = app
+    let chunk_entity = app
         .world_mut()
-        .spawn((
-            chunk_pos,
-            InDimension(dim_entity),
-            ChunkBlocks::default(),
-            change_set,
-        ))
+        .spawn((chunk_pos, InDimension(dim_entity), ChunkBlocks::default()))
         .id();
+
+    // The block placed twice goes out once, and the one placed without telling
+    // clients does not go out at all.
+    let placed = |block_pos: BlockPos, flags: BlockUpdateFlags| BlockPlaced {
+        chunk: chunk_entity,
+        chunk_pos,
+        block_pos,
+        old_state: BlockStateId(0).into(),
+        new_state: BlockStateId(0).into(),
+        flags,
+    };
+    let block_pos = BlockPos::new(2, 3, 4);
+    app.world_mut()
+        .write_message(placed(block_pos, BlockUpdateFlags::all()));
+    app.world_mut()
+        .write_message(placed(block_pos, BlockUpdateFlags::all()));
+    app.world_mut()
+        .write_message(placed(BlockPos::new(5, 6, 7), BlockUpdateFlags::empty()));
 
     // Drive the per-dim system body directly. Avoids the FixedPostUpdate
     // accumulator and keeps the test focused on what update_client_blocks_per_dim
@@ -100,6 +111,6 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     }
     assert_eq!(
         block_update_count, 1,
-        "expected exactly one BlockUpdate packet per block change"
+        "expected exactly one BlockUpdate packet per changed block"
     );
 }

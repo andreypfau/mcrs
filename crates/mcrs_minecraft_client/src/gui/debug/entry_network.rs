@@ -1,10 +1,11 @@
+use crate::columns::ColumnStore;
+use crate::gui::chunk_map::JoinedTraces;
 use bevy::prelude::*;
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnSample, ColumnStage};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
     ChunkCacheRadius, ClientConnection, JoinedGame, ServerProfile,
 };
-use mcrs_minecraft_network::columns::ColumnStore;
-use mcrs_voxel_world::world::lifecycle::trace::{self, ColumnSample, ColumnStage};
 
 use super::DebugScreenDisplayer;
 
@@ -21,6 +22,7 @@ pub fn display(
     store: Option<Res<ColumnStore>>,
     mut samples: Local<Vec<ColumnSample>>,
     mut hops: Local<Vec<f32>>,
+    traces: JoinedTraces,
 ) {
     let Some(connection) = connection else {
         displayer.add_line("Server: not connected".to_owned());
@@ -37,13 +39,17 @@ pub fn display(
         Some(radius) => format!("Columns: {columns} resident, radius {}", radius.0),
         None => format!("Columns: {columns} resident"),
     });
-    displayer.add_line(hop_medians(&mut samples, &mut hops));
+    displayer.add_line(hop_medians(&traces, &mut samples, &mut hops));
 }
 
 /// The median time a column that reached the screen spent getting into each stage from the
 /// one before it, over the columns still traced.
-fn hop_medians(samples: &mut Vec<ColumnSample>, hops: &mut Vec<f32>) -> String {
-    trace::snapshot(samples);
+fn hop_medians(
+    traces: &JoinedTraces,
+    samples: &mut Vec<ColumnSample>,
+    hops: &mut Vec<f32>,
+) -> String {
+    traces.snapshot(samples);
     let mut line = String::from("Hops p50 ms:");
     let mut meshed = 0;
     for stage in ColumnStage::ALL.into_iter().skip(1) {

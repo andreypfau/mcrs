@@ -11,7 +11,7 @@
 
 use bevy_app::App;
 use bevy_ecs::message::Messages;
-use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
+use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_server::world::WorldPlugin;
 use mcrs_minecraft_server::world::bus::OutboundPlayerPacket;
 use mcrs_minecraft_server::world::entity::player::player_action::PlayerWillDestroyBlock;
@@ -101,7 +101,7 @@ fn host_side_no_longer_registers_per_dim_simulation_plugins() {
     app.add_plugins(bevy_time::TimePlugin);
     app.add_plugins(bevy_state::app::StatesPlugin);
     use bevy_state::app::AppExtStates;
-    app.init_state::<mcrs_minecraft_core::AppState>();
+    app.init_state::<mcrs_minecraft_assets::AppState>();
     app.add_plugins(WorldPlugin);
 
     let world = app.world();

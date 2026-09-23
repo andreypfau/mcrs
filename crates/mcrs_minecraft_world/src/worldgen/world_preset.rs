@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
-use bevy_ecs_macros::Resource;
+use bevy_ecs::resource::Resource;
 use bevy_reflect::TypePath;
+use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_core::asset::read_all;
 use serde::Deserialize;
 
 use crate::dimension::level_stem::{DimensionDefinition, ProtoDimensionEntry};
@@ -100,8 +100,8 @@ impl AssetLoader for WorldPresetLoader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::biome::source::ProtoBiomeSource;
     use crate::worldgen::chunk_generator::ProtoChunkGenerator;
+    use mcrs_minecraft_biome::source::ProtoBiomeSource;
     use std::path::PathBuf;
 
     fn assets_dir() -> PathBuf {

@@ -4,8 +4,7 @@
 //! to the host-resident connection without querying ServerSideConnection.
 
 use crate::mock_connection;
-
-use std::sync::atomic::Ordering;
+use mcrs_minecraft_core::ColumnPos;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
@@ -18,16 +17,24 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use bytes::Bytes;
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::access::RegistryAccess;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
-use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_item::Item;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
+use mcrs_minecraft_level::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
 use mcrs_minecraft_network::ServerSideConnection;
-use mcrs_minecraft_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::runner::pump_channels;
 use mcrs_minecraft_server::world::bridge::dispatch_encode;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
@@ -37,16 +44,8 @@ use mcrs_minecraft_server::world::bus::{
     PlayerTransferSnapshot,
 };
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
-use mcrs_minecraft_server::world::player_index::{PendingInboundBuffer, PlayerIndex};
+use mcrs_minecraft_server::world::session::SessionBundle;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::Block;
-use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_voxel_world::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
 use tokio::sync::mpsc;
 
 use crate::support;
@@ -58,7 +57,7 @@ use crate::support;
 fn build_dispatch_world() -> (World, Entity, mpsc::Receiver<Bytes>) {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<PlayerIndex>();
+    world.init_resource::<BridgeTelemetry>();
 
     let (raw, rx) = mock_connection::make_mock_raw_connection();
     let entity = world
@@ -108,15 +107,13 @@ fn build_host_app() -> App {
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Item>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
-    app.insert_resource(support::corpus(&app));
+    support::insert_corpus(&mut app);
 
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>();
-    app.init_resource::<mcrs_voxel_world::world::in_flight::InFlightMoves>();
+    app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();
@@ -136,8 +133,10 @@ fn spawn_subapp(app: &mut App) -> Entity {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: mcrs_voxel_world::world::dimension::DimensionId::new("test:overworld"),
-            type_config: mcrs_voxel_world::world::dimension::DimensionTypeConfig::new(-64, 384),
+            dimension_id: mcrs_minecraft_level::world::dimension::DimensionId::new(
+                "test:overworld",
+            ),
+            type_config: mcrs_minecraft_level::world::dimension::DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(app);
@@ -152,15 +151,12 @@ fn spawn_subapp(app: &mut App) -> Entity {
 // ---------------------------------------------------------------------------
 
 /// `PacketPayload::PlayerLogin` encodes to a non-empty blob without
-/// incrementing `BRIDGE_ENCODE_UNHANDLED_TOTAL`.
+/// incrementing `encode_unhandled_total`.
 #[test]
 fn player_login_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     push_critical(
         &mut world,
@@ -184,7 +180,7 @@ fn player_login_encodes() {
 
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(
         after - before,
         0,
@@ -202,17 +198,14 @@ fn player_login_encodes() {
 /// (the GameEvent packet).
 #[test]
 fn level_chunks_load_start_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     push_critical(&mut world, entity, PacketPayload::LevelChunksLoadStart);
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(
         after - before,
         0,
@@ -226,59 +219,53 @@ fn level_chunks_load_start_encodes() {
     );
 }
 
-/// `PacketPayload::PlayerLoginEntityEvent` encodes to a non-empty blob
+/// `PacketPayload::OpLevelEntityEvent` encodes to a non-empty blob
 /// (the EntityEvent packet).
 #[test]
 fn player_login_entity_event_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     push_critical(
         &mut world,
         entity,
-        PacketPayload::PlayerLoginEntityEvent {
+        PacketPayload::OpLevelEntityEvent {
             entity_id: 42,
             entity_status: 24,
         },
     );
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(
         after - before,
         0,
-        "PlayerLoginEntityEvent must not increment unhandled"
+        "OpLevelEntityEvent must not increment unhandled"
     );
 
     let blob = rx.try_recv().expect("blob sent to socket");
     assert!(
         !blob.is_empty(),
-        "PlayerLoginEntityEvent must produce a non-empty blob"
+        "OpLevelEntityEvent must produce a non-empty blob"
     );
 }
 
 /// `PacketPayload::SetChunkCacheCenter` encodes to a non-empty blob.
 #[test]
 fn cache_center_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     push_critical(
         &mut world,
         entity,
-        PacketPayload::SetChunkCacheCenter { x: 0, z: 0 },
+        PacketPayload::SetChunkCacheCenter(ColumnPos::new(0, 0)),
     );
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(
         after - before,
         0,
@@ -295,12 +282,9 @@ fn cache_center_encodes() {
 /// `PacketPayload::SetChunkCacheRadius` encodes to a non-empty blob.
 #[test]
 fn cache_radius_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     push_critical(
         &mut world,
@@ -309,7 +293,7 @@ fn cache_radius_encodes() {
     );
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(
         after - before,
         0,
@@ -326,12 +310,9 @@ fn cache_radius_encodes() {
 /// `PacketPayload::PlayerInfoUpdate` encodes to a non-empty blob.
 #[test]
 fn player_info_update_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     push_critical(
         &mut world,
@@ -347,7 +328,7 @@ fn player_info_update_encodes() {
     );
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(
         after - before,
         0,
@@ -380,17 +361,12 @@ fn play_login_emitted_on_spawn() {
             .world_mut()
             .resource_mut::<PlayerSessionCounter>()
             .next();
-        app.world_mut().resource_mut::<SessionRegistry>().insert(
-            session,
-            SessionEntry {
-                connection_entity: Entity::PLACEHOLDER,
-                host_anchor,
-                dim: dim_label,
-                previous_dim: None,
-                in_dim_entity: None,
-                epoch: 0,
-            },
-        );
+        app.world_mut()
+            .entity_mut(host_anchor)
+            .insert(SessionBundle::placed(
+                session,
+                SessionPlacement::new(Place::Joining(dim_label), 0),
+            ));
     }
 
     // Send ToDim::Spawn on the dim's control channel so drain_to_dim_inbox
@@ -466,17 +442,12 @@ fn play_login_targets_host_anchor() {
             .world_mut()
             .resource_mut::<PlayerSessionCounter>()
             .next();
-        app.world_mut().resource_mut::<SessionRegistry>().insert(
-            session,
-            SessionEntry {
-                connection_entity: Entity::PLACEHOLDER,
-                host_anchor,
-                dim: dim_label,
-                previous_dim: None,
-                in_dim_entity: None,
-                epoch: 0,
-            },
-        );
+        app.world_mut()
+            .entity_mut(host_anchor)
+            .insert(SessionBundle::placed(
+                session,
+                SessionPlacement::new(Place::Joining(dim_label), 0),
+            ));
     }
 
     {
@@ -604,14 +575,11 @@ fn in_dim_entity_carries_host_anchor() {
 /// correctly through dispatch_encode (pre-condition for the bus path to work).
 #[test]
 fn chunk_delivery_emits_chunkload() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
-    use mcrs_voxel_math::ColumnPos;
+    use mcrs_minecraft_core::ColumnPos;
     push_critical(
         &mut world,
         entity,
@@ -625,7 +593,7 @@ fn chunk_delivery_emits_chunkload() {
     );
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(after - before, 0, "ChunkLoad must not increment unhandled");
 
     let blob = rx.try_recv().expect("ChunkLoad blob sent to socket");
@@ -640,14 +608,11 @@ fn chunk_delivery_emits_chunkload() {
 /// bridge_dispatch.rs but repeated here as part of the delivery suite).
 #[test]
 fn light_delivery_emits_lightupdate() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
-    use mcrs_voxel_math::ColumnPos;
+    use mcrs_minecraft_core::ColumnPos;
     push_critical(
         &mut world,
         entity,
@@ -658,7 +623,7 @@ fn light_delivery_emits_lightupdate() {
     );
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(
         after - before,
         0,
@@ -680,12 +645,9 @@ fn light_delivery_emits_lightupdate() {
 /// encode correctly through dispatch_encode (bus routing pre-condition).
 #[test]
 fn view_enter_leave_route_via_bus() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     use smallvec::smallvec;
     push_critical(
@@ -698,6 +660,7 @@ fn view_enter_leave_route_via_bus() {
             position: DVec3::ZERO,
             yaw: 0.0,
             pitch: 0.0,
+            data: 0,
         },
     );
     push_critical(
@@ -709,7 +672,7 @@ fn view_enter_leave_route_via_bus() {
     );
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(
         after - before,
         0,
@@ -732,17 +695,14 @@ fn view_enter_leave_route_via_bus() {
 /// view-change packets).
 #[test]
 fn on_view_update_routes_cache_center() {
-    let _lock = TELEMETRY_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
-    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
     push_critical(
         &mut world,
         entity,
-        PacketPayload::SetChunkCacheCenter { x: 5, z: 3 },
+        PacketPayload::SetChunkCacheCenter(ColumnPos::new(5, 3)),
     );
     push_critical(
         &mut world,
@@ -751,7 +711,7 @@ fn on_view_update_routes_cache_center() {
     );
     run_dispatch(&mut world);
 
-    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
     assert_eq!(
         after - before,
         0,

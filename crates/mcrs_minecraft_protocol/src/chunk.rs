@@ -1,11 +1,15 @@
-use crate::section::{NetworkSectionKind, SectionValue};
-use crate::{BlockStateId, Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
-use anyhow::{Context, ensure};
+use crate::section::{Biomes, Blocks, NetworkSectionKind, PaletteForm, SectionValue};
+use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
+use anyhow::{Context, bail, ensure};
 use bitfield_struct::bitfield;
+use mcrs_minecraft_chunk::{
+    PalettedContainer, SectionKind, VoxelId, any_entry_past, first_entry_past, pack_from,
+    packed_len, remap_into, unpack_into,
+};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_voxel_storage::{SectionKind, packed_len};
 use std::borrow::Cow;
+use std::hash::Hash;
 use std::io::Write;
 
 #[derive(Clone, PartialEq, Debug, Encode, Decode)]
@@ -113,7 +117,7 @@ impl<'a> DecodeTrait<'a> for LightChunk {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct LightData<'a> {
     pub sky_light_mask: Cow<'a, [u64]>,
     pub block_light_mask: Cow<'a, [u64]>,
@@ -121,6 +125,54 @@ pub struct LightData<'a> {
     pub empty_block_light_mask: Cow<'a, [u64]>,
     pub sky_light_arrays: Cow<'a, [LightChunk]>,
     pub block_light_arrays: Cow<'a, [LightChunk]>,
+}
+
+/// Vanilla's `ByteBufCodecs.BIT_SET` is `BitSet.toByteArray()`: the words as
+/// little-endian bytes with trailing zero bytes dropped, behind a VarInt length.
+fn encode_bit_set(words: &[u64], mut w: impl Write) -> anyhow::Result<()> {
+    let mut bytes: Vec<u8> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
+    while bytes.last() == Some(&0) {
+        bytes.pop();
+    }
+    bytes.as_slice().encode(&mut w)
+}
+
+fn decode_bit_set<'a>(r: &mut &'a [u8]) -> anyhow::Result<Cow<'a, [u64]>> {
+    let bytes = <&[u8]>::decode(r)?;
+    Ok(Cow::Owned(
+        bytes
+            .chunks(8)
+            .map(|chunk| {
+                let mut word = [0u8; 8];
+                word[..chunk.len()].copy_from_slice(chunk);
+                u64::from_le_bytes(word)
+            })
+            .collect(),
+    ))
+}
+
+impl EncodeTrait for LightData<'_> {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        encode_bit_set(&self.sky_light_mask, &mut w)?;
+        encode_bit_set(&self.block_light_mask, &mut w)?;
+        encode_bit_set(&self.empty_sky_light_mask, &mut w)?;
+        encode_bit_set(&self.empty_block_light_mask, &mut w)?;
+        self.sky_light_arrays.encode(&mut w)?;
+        self.block_light_arrays.encode(&mut w)
+    }
+}
+
+impl<'a> DecodeTrait<'a> for LightData<'a> {
+    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        Ok(Self {
+            sky_light_mask: decode_bit_set(r)?,
+            block_light_mask: decode_bit_set(r)?,
+            empty_sky_light_mask: decode_bit_set(r)?,
+            empty_block_light_mask: decode_bit_set(r)?,
+            sky_light_arrays: DecodeTrait::decode(r)?,
+            block_light_arrays: DecodeTrait::decode(r)?,
+        })
+    }
 }
 
 impl<'a> Default for LightData<'a> {
@@ -170,91 +222,108 @@ impl crate::Decode<'_> for ChunkBlockUpdateEntry {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum Palette<V> {
-    Single(V),
-    Indirect(Box<[V]>),
-    Direct,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct PalettedContainer<V> {
-    pub bits_per_entry: u8,
-    pub palette: Palette<V>,
-    pub packed_data: Box<[i64]>,
-}
-
-impl<V: Into<VarInt> + Copy> mcrs_minecraft_protocol::Encode for PalettedContainer<V> {
+/// The network form drops the palette list past `MAX_INDIRECT_BITS` and packs
+/// registry ids directly; the save keeps a palette at every size.
+impl<V: SectionValue + Hash + Eq + Default, const DIM: usize> EncodeTrait
+    for PalettedContainer<V, DIM>
+{
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.bits_per_entry.encode(&mut w)?;
-
-        match &self.palette {
-            Palette::Single(id) => {
-                (*id).into().encode(&mut w)?;
+        const { assert!(DIM == V::Section::SIZE) };
+        let data = match self {
+            PalettedContainer::Homogeneous(value) => {
+                0u8.encode(&mut w)?;
+                return (*value).into().encode(w);
             }
-            Palette::Indirect(palette) => {
+            PalettedContainer::Heterogeneous(data) => data,
+        };
+        let packed = match V::Section::network_form(data.palette.len()) {
+            PaletteForm::Single => unreachable!("a heterogeneous container holds two values"),
+            PaletteForm::Indirect { bits } => {
+                (bits as u8).encode(&mut w)?;
+                let (palette, packed) = self.to_palette_and_packed_data(bits as u8);
                 VarInt(palette.len() as i32).encode(&mut w)?;
-                for id in palette {
-                    (*id)
-                        .into()
-                        .encode(&mut w)
-                        .expect("Failed to encode palette entry");
+                for value in palette.iter() {
+                    (*value).into().encode(&mut w)?;
                 }
+                packed
             }
-            Palette::Direct => {}
+            PaletteForm::Direct { bits } => {
+                (bits as u8).encode(&mut w)?;
+                let cells = data.cube.as_flattened().as_flattened();
+                pack_from(bits, cells, |&value| {
+                    let id: VarInt = value.into();
+                    id.0 as u32
+                })
+            }
+        };
+        for word in packed.iter() {
+            word.encode(&mut w)?;
         }
-        self.packed_data.iter().for_each(|v| {
-            (*v).encode(&mut w)
-                .expect("Failed to encode packed data entry");
-        });
         Ok(())
     }
 }
 
-impl<'a, V: SectionValue> DecodeTrait<'a> for PalettedContainer<V> {
+impl<'a, V: SectionValue + Hash + Eq + Default, const DIM: usize> DecodeTrait<'a>
+    for PalettedContainer<V, DIM>
+{
     fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        const { assert!(DIM == V::Section::SIZE) };
         let bits_per_entry = u8::decode(r)?;
+        if bits_per_entry == 0 {
+            return Ok(Self::Homogeneous(read_id(r)?));
+        }
         let storage_bits = V::Section::wire_storage_bits(bits_per_entry);
-        let palette = match bits_per_entry as u32 {
-            0 => Palette::Single(read_id(r)?),
-            bits if bits <= V::Section::MAX_INDIRECT_BITS => {
-                let len = VarInt::decode(r)?.0;
-                let len = usize::try_from(len)
-                    .with_context(|| format!("negative palette length {len}"))?;
-                ensure!(
-                    len <= 1 << storage_bits,
-                    "a palette of {len} entries is wider than the {storage_bits} bits \
-                     the entries are stored at"
-                );
-                let mut entries = Vec::with_capacity(len);
-                for index in 0..len {
-                    entries.push(read_id(r).with_context(|| format!("palette entry {index}"))?);
-                }
-                Palette::Indirect(entries.into_boxed_slice())
+        let palette = if bits_per_entry as u32 <= V::Section::MAX_INDIRECT_BITS {
+            let len = VarInt::decode(r)?.0;
+            let len =
+                usize::try_from(len).with_context(|| format!("negative palette length {len}"))?;
+            ensure!(
+                len <= 1 << storage_bits,
+                "a palette of {len} entries is wider than the {storage_bits} bits \
+                 the entries are stored at"
+            );
+            let mut entries = Vec::with_capacity(len);
+            for index in 0..len {
+                entries.push(read_id(r).with_context(|| format!("palette entry {index}"))?);
             }
-            _ => Palette::Direct,
+            Some(entries)
+        } else {
+            None
         };
 
-        let words = match storage_bits {
-            0 => 0,
-            bits => packed_len(bits, V::Section::ENTRY_COUNT),
-        };
+        let entry_count = V::Section::ENTRY_COUNT;
+        let words = packed_len(storage_bits, entry_count);
         ensure!(
             r.len() >= words * 8,
             "container of {bits_per_entry} bits per entry needs {words} packed longs, \
              but only {} bytes remain",
             r.len()
         );
-        let mut packed_data = Vec::with_capacity(words);
-        for _ in 0..words {
-            packed_data.push(i64::decode(r)?);
-        }
+        let packed = (0..words)
+            .map(|_| i64::decode(r))
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
-        Ok(Self {
-            bits_per_entry,
-            palette,
-            packed_data: packed_data.into_boxed_slice(),
-        })
+        let mut cells = vec![V::default(); entry_count];
+        match palette {
+            Some(entries) => {
+                if any_entry_past(storage_bits, &packed, entry_count, entries.len()) {
+                    let index = first_entry_past(storage_bits, &packed, entry_count, entries.len())
+                        .expect("an entry is past the palette");
+                    bail!("palette index {index} of {}", entries.len());
+                }
+                remap_into(storage_bits, &packed, &entries, &mut cells)
+                    .expect("the packed length was read to fit");
+            }
+            None => {
+                let mut ids = vec![0u16; entry_count];
+                unpack_into(storage_bits, &packed, &mut ids)
+                    .expect("the packed length was read to fit");
+                for (cell, id) in cells.iter_mut().zip(ids) {
+                    *cell = V::from_registry_id(id as i32)?;
+                }
+            }
+        }
+        Ok(Self::from_cells(&cells))
     }
 }
 
@@ -266,8 +335,8 @@ fn read_id<V: SectionValue>(r: &mut &[u8]) -> anyhow::Result<V> {
 pub struct ChunkSection {
     pub non_empty_block_count: u16,
     pub fluid_count: u16,
-    pub blocks: PalettedContainer<BlockStateId>,
-    pub biomes: PalettedContainer<u8>,
+    pub blocks: PalettedContainer<VoxelId, { Blocks::SIZE }>,
+    pub biomes: PalettedContainer<u8, { Biomes::SIZE }>,
 }
 
 impl<'a> ChunkData<'a> {

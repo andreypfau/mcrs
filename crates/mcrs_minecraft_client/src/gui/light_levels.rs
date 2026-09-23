@@ -1,9 +1,9 @@
+use crate::columns::{BlockSource, ColumnStore};
 use bevy::color::Mix;
 use bevy::prelude::*;
 use bevy::text::FontSize;
 use bevy::transform::TransformSystems;
 use bevy::ui::{ComputedNode, UiSystems};
-use mcrs_minecraft_network::columns::{BlockSource, ColumnStore};
 
 use crate::player::PlayerCamera;
 
@@ -92,7 +92,7 @@ impl Plugin for LightLevelsPlugin {
 }
 
 fn toggle(keys: Res<ButtonInput<KeyCode>>, mut levels: ResMut<LightLevels>) {
-    if keys.just_pressed(KeyCode::F4) {
+    if keys.just_pressed(KeyCode::F4) && !keys.pressed(KeyCode::F3) {
         *levels = levels.next();
     }
 }

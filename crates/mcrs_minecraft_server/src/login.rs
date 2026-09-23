@@ -1,9 +1,9 @@
 use bevy_ecs::component::Component;
-use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Add;
 use bevy_ecs::prelude::{On, Query};
 use bevy_ecs::query::Without;
-use bevy_ecs::system::{Commands, ResMut};
+use bevy_ecs::resource::Resource;
+use bevy_ecs::system::{Commands, Res, ResMut};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginFinished;
@@ -14,19 +14,18 @@ use mcrs_minecraft_protocol::profile::Property;
 use mcrs_minecraft_protocol::{Bounded, WritePacket, uuid};
 use std::borrow::Cow;
 
-use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use crate::world::session::{HostAnchorRef, SessionBundle};
+use mcrs_minecraft_level::session::PlayerSessionCounter;
 
 /// Vanilla mints one chat session id per listener and reuses it for every login.
-fn session_id() -> uuid::Uuid {
-    static SESSION_ID: std::sync::OnceLock<uuid::Uuid> = std::sync::OnceLock::new();
-    *SESSION_ID.get_or_init(uuid::Uuid::new_v4)
-}
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct ChatSessionId(pub uuid::Uuid);
 
 pub struct LoginPlugin;
 
 impl bevy_app::Plugin for LoginPlugin {
     fn build(&self, app: &mut bevy_app::App) {
+        app.insert_resource(ChatSessionId(uuid::Uuid::new_v4()));
         app.add_observer(handle_hello_packet);
         app.add_observer(handle_login_acknowledged);
         app.add_observer(on_login_accepted);
@@ -37,12 +36,6 @@ impl bevy_app::Plugin for LoginPlugin {
 pub enum LoginState {
     #[default]
     Hello,
-    Key,
-    Authenticating,
-    Negotiating,
-    Verifying,
-    WaitingForDupeDisconnect,
-    ProtocolSwitching,
     Accepted,
 }
 
@@ -76,6 +69,7 @@ impl<'a> From<&'a GameProfile> for mcrs_minecraft_protocol::profile::GameProfile
 pub fn handle_hello_packet(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(&mut ServerSideConnection, &ConnectionState), Without<LoginState>>,
+    session_id: Res<ChatSessionId>,
     mut commands: Commands,
 ) {
     let Ok((mut con, state)) = query.get_mut(event.entity) else {
@@ -84,7 +78,6 @@ pub fn handle_hello_packet(
     if ConnectionState::Login != *state {
         return;
     }
-    println!("handle_hello_packet: {:?}", event.data);
     let Some(pkt) = event.decode::<ServerboundHello>() else {
         return;
     };
@@ -93,10 +86,10 @@ pub fn handle_hello_packet(
         username: pkt.username.to_string(),
         properties: Vec::new(),
     };
-    println!("new profile: {profile:?}");
+    tracing::debug!(?profile, "login hello");
     let response = ClientboundLoginFinished {
         profile: (&profile).into(),
-        session_id: session_id(),
+        session_id: session_id.0,
     };
     con.write_packet(&response);
     commands
@@ -126,8 +119,6 @@ pub fn handle_login_acknowledged(
 pub fn on_login_accepted(
     trigger: On<Add, LoginState>,
     login_state: Query<(&LoginState, &GameProfile)>,
-    mut player_index: ResMut<PlayerIndex>,
-    mut session_registry: ResMut<SessionRegistry>,
     mut session_counter: ResMut<PlayerSessionCounter>,
     mut commands: Commands,
 ) {
@@ -139,28 +130,12 @@ pub fn on_login_accepted(
         return;
     }
 
-    let session = session_counter.next();
-
-    // current_dim = PLACEHOLDER until dim selection from spawn-point logic lands.
-    let host_anchor = commands.spawn(profile.clone()).id();
-
+    let host_anchor = commands
+        .spawn((profile.clone(), SessionBundle::new(session_counter.next())))
+        .id();
     commands
         .entity(connection_entity)
-        .insert((HostAnchorRef(host_anchor), PlayerSessionRef(session)));
-
-    session_registry.insert(
-        session,
-        SessionEntry {
-            connection_entity,
-            host_anchor,
-            dim: Entity::PLACEHOLDER,
-            previous_dim: None,
-            in_dim_entity: None,
-            epoch: 0,
-        },
-    );
-
-    player_index.insert_username(profile.username.clone(), session);
+        .insert(HostAnchorRef(host_anchor));
 }
 
 use bevy_ecs::query::With;

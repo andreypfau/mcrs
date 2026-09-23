@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::tag::key::TaggedRegistry;
+use mcrs_minecraft_core::tag_key::TaggedRegistry;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EntityType {

@@ -1,24 +1,17 @@
-use crate::world::inventory::PlayerHotbarSlots;
-use mcrs_minecraft_world::item::ItemStack;
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::block_update::BlockSetRequest;
+use crate::world::inventory::held_stack;
+use crate::world::item::chest::OpenContainerRequest;
 use bevy_app::{App, Plugin};
+use bevy_ecs::entity::{ContainsEntity, Entity};
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::entity::ContainsEntity;
-use bevy_ecs::prelude::{On, Query};
-use mcrs_voxel_world::entity::player::reposition::Reposition;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_world::world::dimension::InDimension;
+use bevy_ecs::prelude::{On, Query, Res, With};
+use mcrs_minecraft_item::{ItemStack, Items, SelectedHotbarSlot, SlotTable};
+use mcrs_minecraft_level::block::BlockUpdateFlags;
+use mcrs_minecraft_level::block_update::BlockSetRequest;
+use mcrs_minecraft_level::entity::player::reposition::Reposition;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundUseItemOn;
-use mcrs_minecraft_protocol::{BlockStateId, Direction};
-
-const TORCH_ITEM_ID: u16 = 323;
-const TORCH_STATE: u16 = 3370;
-const WALL_TORCH_STATE_NORTH: u16 = 3371;
-const WALL_TORCH_STATE_SOUTH: u16 = 3372;
-const WALL_TORCH_STATE_WEST: u16 = 3373;
-const WALL_TORCH_STATE_EAST: u16 = 3374;
 
 pub struct PlacingPlugin;
 
@@ -28,58 +21,45 @@ impl Plugin for PlacingPlugin {
     }
 }
 
+// ponytail: places the item's default block state on the clicked face; no
+// facing/waterlogged/replaceable resolution and no survival count decrement
+// yet.
 fn handle_use_item_on(
     event: On<ReceivedPacketEvent>,
-    players: Query<(&InDimension, &Reposition, &PlayerHotbarSlots)>,
-    items: Query<&ItemStack>,
+    players: Query<(&InDimension, &Reposition, &SlotTable, &SelectedHotbarSlot)>,
+    stacks: Query<&ItemStack>,
+    items: Res<Items>,
+    containers: Query<(Entity, &BlockEntityPos, &InDimension), With<SlotTable>>,
     mut writer: MessageWriter<BlockSetRequest>,
+    mut open: MessageWriter<OpenContainerRequest>,
 ) {
     let Some(pkt) = event.decode::<ServerboundUseItemOn>() else {
         return;
     };
-    let Ok((dim, rep, hotbar)) = players.get(event.entity) else {
+    let Ok((dim, rep, table, selected)) = players.get(event.entity) else {
         return;
     };
-    let Some(slot) = hotbar.get_selected_slot() else {
-        return;
-    };
-    let Ok(stack) = items.get(slot) else {
-        return;
-    };
-    if stack.item_id().0 != TORCH_ITEM_ID {
+    let clicked = rep.unconvert_block_pos(pkt.block_pos);
+    if let Some((container, _, _)) = containers
+        .iter()
+        .find(|(_, at, in_dim)| at.0 == clicked && in_dim.0 == dim.0)
+    {
+        open.write(OpenContainerRequest {
+            player: event.entity,
+            container,
+        });
         return;
     }
-
-    let block_pos = rep.unconvert_block_pos(pkt.block_pos);
-
-    let (place_pos, state_id) = match pkt.face {
-        Direction::Up => (
-            BlockPos::new(block_pos.x, block_pos.y + 1, block_pos.z),
-            TORCH_STATE,
-        ),
-        Direction::North => (
-            BlockPos::new(block_pos.x, block_pos.y, block_pos.z - 1),
-            WALL_TORCH_STATE_NORTH,
-        ),
-        Direction::South => (
-            BlockPos::new(block_pos.x, block_pos.y, block_pos.z + 1),
-            WALL_TORCH_STATE_SOUTH,
-        ),
-        Direction::West => (
-            BlockPos::new(block_pos.x - 1, block_pos.y, block_pos.z),
-            WALL_TORCH_STATE_WEST,
-        ),
-        Direction::East => (
-            BlockPos::new(block_pos.x + 1, block_pos.y, block_pos.z),
-            WALL_TORCH_STATE_EAST,
-        ),
-        Direction::Down => return,
+    let Some(stack) = held_stack(table, selected).and_then(|held| stacks.get(held).ok()) else {
+        return;
     };
-
+    let Some(state) = items.get(stack.item).and_then(|entry| entry.block_placer) else {
+        return;
+    };
     writer.write(BlockSetRequest {
         dimension: dim.entity(),
-        pos: place_pos,
-        new_state: BlockStateId(state_id),
+        pos: clicked + pkt.face.normal(),
+        new_state: state.into(),
         flags: BlockUpdateFlags::all(),
         recursion_left: 512,
     });

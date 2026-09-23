@@ -1,0 +1,980 @@
+{
+  "kinds": [
+    {
+      "id": "custom_data",
+      "wire_id": 0,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "max_stack_size",
+      "wire_id": 1,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "max_damage",
+      "wire_id": 2,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "damage",
+      "wire_id": 3,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": true,
+      "nested_stacks": false
+    },
+    {
+      "id": "unbreakable",
+      "wire_id": 4,
+      "transient": false,
+      "unit": true,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "use_effects",
+      "wire_id": 5,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "custom_name",
+      "wire_id": 6,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "minimum_attack_charge",
+      "wire_id": 7,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "damage_type",
+      "wire_id": 8,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "item_name",
+      "wire_id": 9,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "item_model",
+      "wire_id": 10,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "lore",
+      "wire_id": 11,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "rarity",
+      "wire_id": 12,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "enchantments",
+      "wire_id": 13,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "can_place_on",
+      "wire_id": 14,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": true
+    },
+    {
+      "id": "can_break",
+      "wire_id": 15,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": true
+    },
+    {
+      "id": "attribute_modifiers",
+      "wire_id": 16,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "custom_model_data",
+      "wire_id": 17,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "tooltip_display",
+      "wire_id": 18,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "repair_cost",
+      "wire_id": 19,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "creative_slot_lock",
+      "wire_id": 20,
+      "transient": true,
+      "unit": true,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "enchantment_glint_override",
+      "wire_id": 21,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "intangible_projectile",
+      "wire_id": 22,
+      "transient": false,
+      "unit": true,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "food",
+      "wire_id": 23,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "consumable",
+      "wire_id": 24,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "use_remainder",
+      "wire_id": 25,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": true
+    },
+    {
+      "id": "use_cooldown",
+      "wire_id": 26,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "damage_resistant",
+      "wire_id": 27,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "tool",
+      "wire_id": 28,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "weapon",
+      "wire_id": 29,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "attack_range",
+      "wire_id": 30,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "enchantable",
+      "wire_id": 31,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "equippable",
+      "wire_id": 32,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "repairable",
+      "wire_id": 33,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "glider",
+      "wire_id": 34,
+      "transient": false,
+      "unit": true,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "tooltip_style",
+      "wire_id": 35,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "death_protection",
+      "wire_id": 36,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "blocks_attacks",
+      "wire_id": 37,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "piercing_weapon",
+      "wire_id": 38,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "kinetic_weapon",
+      "wire_id": 39,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "attack_animation",
+      "wire_id": 40,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "interact_animation",
+      "wire_id": 41,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "additional_trade_cost",
+      "wire_id": 42,
+      "transient": true,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "block_transformer",
+      "wire_id": 43,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "villager_food",
+      "wire_id": 44,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "stored_enchantments",
+      "wire_id": 45,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "dye",
+      "wire_id": 46,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "dyed_color",
+      "wire_id": 47,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "map_id",
+      "wire_id": 48,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "map_decorations",
+      "wire_id": 49,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "map_post_processing",
+      "wire_id": 50,
+      "transient": true,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "charged_projectiles",
+      "wire_id": 51,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": true
+    },
+    {
+      "id": "bundle_contents",
+      "wire_id": 52,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": true
+    },
+    {
+      "id": "potion_contents",
+      "wire_id": 53,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "potion_duration_scale",
+      "wire_id": 54,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "suspicious_stew_effects",
+      "wire_id": 55,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "writable_book_content",
+      "wire_id": 56,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "written_book_content",
+      "wire_id": 57,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "trim",
+      "wire_id": 58,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "debug_stick_state",
+      "wire_id": 59,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "entity_data",
+      "wire_id": 60,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "bucket_entity_data",
+      "wire_id": 61,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "block_entity_data",
+      "wire_id": 62,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "instrument",
+      "wire_id": 63,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "provides_trim_material",
+      "wire_id": 64,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "ominous_bottle_amplifier",
+      "wire_id": 65,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "jukebox_playable",
+      "wire_id": 66,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "provides_banner_patterns",
+      "wire_id": 67,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "recipes",
+      "wire_id": 68,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "lodestone_tracker",
+      "wire_id": 69,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "firework_explosion",
+      "wire_id": 70,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "fireworks",
+      "wire_id": 71,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "profile",
+      "wire_id": 72,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "note_block_sound",
+      "wire_id": 73,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "banner_patterns",
+      "wire_id": 74,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "base_color",
+      "wire_id": 75,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "pot_decorations",
+      "wire_id": 76,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": true
+    },
+    {
+      "id": "container",
+      "wire_id": 77,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": true
+    },
+    {
+      "id": "block_state",
+      "wire_id": 78,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "bees",
+      "wire_id": 79,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "sulfur_cube_content",
+      "wire_id": 80,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": true
+    },
+    {
+      "id": "lock",
+      "wire_id": 81,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": true
+    },
+    {
+      "id": "container_loot",
+      "wire_id": 82,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "break_sound",
+      "wire_id": 83,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "compostable",
+      "wire_id": 84,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "cooking_fuel",
+      "wire_id": 85,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "brewing_fuel",
+      "wire_id": 86,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "mob_visibility",
+      "wire_id": 87,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "villager/variant",
+      "wire_id": 88,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "wolf/variant",
+      "wire_id": 89,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "wolf/sound_variant",
+      "wire_id": 90,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "wolf/collar",
+      "wire_id": 91,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "fox/variant",
+      "wire_id": 92,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "salmon/size",
+      "wire_id": 93,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "parrot/variant",
+      "wire_id": 94,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "tropical_fish/pattern",
+      "wire_id": 95,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "tropical_fish/base_color",
+      "wire_id": 96,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "tropical_fish/pattern_color",
+      "wire_id": 97,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "mooshroom/variant",
+      "wire_id": 98,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "rabbit/variant",
+      "wire_id": 99,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "pig/variant",
+      "wire_id": 100,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "pig/sound_variant",
+      "wire_id": 101,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "cow/variant",
+      "wire_id": 102,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "cow/sound_variant",
+      "wire_id": 103,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "chicken/variant",
+      "wire_id": 104,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "chicken/sound_variant",
+      "wire_id": 105,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "zombie_nautilus/variant",
+      "wire_id": 106,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "frog/variant",
+      "wire_id": 107,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "horse/variant",
+      "wire_id": 108,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "painting/variant",
+      "wire_id": 109,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "llama/variant",
+      "wire_id": 110,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "axolotl/variant",
+      "wire_id": 111,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "cat/variant",
+      "wire_id": 112,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "cat/sound_variant",
+      "wire_id": 113,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "cat/collar",
+      "wire_id": 114,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "sheep/color",
+      "wire_id": 115,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "shulker/color",
+      "wire_id": 116,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "provides_pottery_pattern",
+      "wire_id": 117,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "sign_text_front",
+      "wire_id": 118,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "sign_text_back",
+      "wire_id": 119,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "waxed",
+      "wire_id": 120,
+      "transient": false,
+      "unit": true,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    },
+    {
+      "id": "cushion/color",
+      "wire_id": 121,
+      "transient": false,
+      "unit": false,
+      "ignore_swap_animation": false,
+      "nested_stacks": false
+    }
+  ]
+}

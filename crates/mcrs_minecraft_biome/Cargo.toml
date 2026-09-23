@@ -1,0 +1,24 @@
+[package]
+name = "mcrs_minecraft_biome"
+description = "Biomes, climate parameters and biome sources"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen_structure.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+bevy_asset.workspace = true
+bevy_reflect.workspace = true
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_nbt.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true

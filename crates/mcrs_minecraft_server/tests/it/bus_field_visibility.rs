@@ -3,17 +3,17 @@
 // from this external integration test crate.
 
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_storage::VoxelId;
+use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::block::BlockUpdateFlags;
+use mcrs_minecraft_level::block_update::BlockPlaced;
 
 #[test]
 fn block_placed_all_fields_pub() {
     let placed = BlockPlaced {
         chunk: Entity::PLACEHOLDER,
-        chunk_pos: ChunkPos::new(0, 0, 0),
+        chunk_pos: SectionPos::new(0, 0, 0),
         block_pos: BlockPos::new(0, 0, 0),
         old_state: VoxelId(0),
         new_state: VoxelId(1),

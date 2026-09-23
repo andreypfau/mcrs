@@ -2,12 +2,12 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 
-use mcrs_voxel_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
+use mcrs_minecraft_level::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
+use crate::columns::SECTION_SIZE;
 use crate::local_player::{LocalPlayerTick, Sprint};
 use crate::options::FOV;
-use crate::player::{EYE_HEIGHT, Player, PlayerCamera};
-use mcrs_minecraft_network::columns::SECTION_SIZE;
+use crate::player::{EYE_HEIGHT, Player, PlayerCamera, pitch_rotation, yaw_rotation};
 
 const FLYING_FOV_MODIFIER: f32 = 1.1;
 /// `1.1 * (1.3 + 1) / 2`, where `1.3` is `MOVEMENT_SPEED` scaled by the `+0.3`
@@ -65,7 +65,13 @@ impl Plugin for CameraPlugin {
         app.init_resource::<CameraOrigin>()
             .add_plugins(ExtractResourcePlugin::<CameraOrigin>::default())
             .add_systems(FixedUpdate, tick_fov.after(LocalPlayerTick))
-            .add_systems(Update, (interpolate_render_position, apply_fov));
+            .add_systems(
+                Update,
+                (
+                    align_render_transforms.after(crate::player::apply_mouse_look),
+                    apply_fov,
+                ),
+            );
     }
 }
 
@@ -84,10 +90,16 @@ fn tick_fov(sprint: Single<&Sprint, With<Player>>, mut fov: Single<&mut FovFilte
     fov.current = next_fov_modifier(fov.current, target);
 }
 
-/// `Camera.alignWithEntity`.
-fn interpolate_render_position(
+/// `Camera.alignWithEntity`, and the only writer of the player's and the camera's render
+/// transforms.
+#[allow(clippy::type_complexity)]
+fn align_render_transforms(
     time: Res<Time<Fixed>>,
-    player: Single<(&PhysicsTransform, &OldTransform, &mut Transform), With<Player>>,
+    player: Single<
+        (&PhysicsTransform, &OldTransform, &mut Transform),
+        (With<Player>, Without<PlayerCamera>),
+    >,
+    camera: Single<&mut Transform, (With<PlayerCamera>, Without<Player>)>,
     mut origin: ResMut<CameraOrigin>,
 ) {
     let (physics, old_physics, mut transform) = player.into_inner();
@@ -95,6 +107,12 @@ fn interpolate_render_position(
         .translation
         .lerp(physics.translation, time.overstep_fraction_f64());
     transform.translation = translation.as_vec3();
+    transform.rotation = yaw_rotation(physics.rotation.yaw());
+    let pitch = pitch_rotation(physics.rotation.pitch());
+    let mut camera = camera.into_inner();
+    if camera.rotation != pitch {
+        camera.rotation = pitch;
+    }
     *origin = CameraOrigin::of(translation + DVec3::Y * EYE_HEIGHT as f64);
 }
 

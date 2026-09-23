@@ -7,14 +7,14 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use wgpu::util::StagingBelt;
 
-use crate::mesh::{Draw, Group};
-use crate::pack::QUAD_WORDS;
+use mcrs_minecraft_mesh::pack::{FACE_WORDS, QUAD_WORDS};
+use mcrs_minecraft_mesh::{Draw, Group};
 
 use super::arenas::Arenas;
 use super::stats::FrameCounts;
 use super::terrain::Terrain;
 use super::texture::write_tint_square;
-use super::{Animation, AtlasUpdate, SectionDesc};
+use super::{SectionDesc, SpriteUpload};
 
 static BUDGET: std::sync::LazyLock<usize> = std::sync::LazyLock::new(crate::config::upload_budget);
 
@@ -24,11 +24,7 @@ pub enum Upload {
         size: u32,
         data: Vec<u8>,
     },
-    Sprites {
-        atlases: Vec<AtlasUpdate>,
-        animations: Vec<Animation>,
-        animated_from: u32,
-    },
+    Sprites(SpriteUpload),
     Geometry(Placement),
 }
 
@@ -36,7 +32,7 @@ pub enum Upload {
 pub struct Placement {
     pub quads: (u64, Vec<[u32; QUAD_WORDS]>),
     pub vertices: (u64, Vec<u32>),
-    pub faces: (u64, Vec<u32>),
+    pub faces: (u64, Vec<[u32; FACE_WORDS]>),
     pub sections: (u64, Vec<SectionDesc>),
     /// Runs of records written into the group arena, each at its byte offset.
     pub groups: Vec<(u64, Vec<Group>)>,
@@ -159,20 +155,10 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
                     budget = budget.saturating_sub(data.len());
                     continue;
                 }
-                Some(Upload::Sprites {
-                    atlases,
-                    animations,
-                    animated_from,
-                }) => {
+                Some(Upload::Sprites(upload)) => {
                     let _adding = info_span!("upload sprites").entered();
-                    let (spent, rebound) = terrain.sprites.update(
-                        &atlases,
-                        &animations,
-                        animated_from,
-                        device,
-                        encoder,
-                        &mut belt,
-                    );
+                    let (spent, rebound) =
+                        terrain.sprites.update(&upload, device, encoder, &mut belt);
                     if rebound {
                         terrain.binds.rebuild_draw(
                             &terrain.arenas,

@@ -6,25 +6,25 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use bytes::Bytes;
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::access::RegistryAccess;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
-use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_item::Item;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerPacket,
 };
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_server::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::Block;
-use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
 
 use crate::support;
 
@@ -49,13 +49,11 @@ fn build_app() -> App {
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Item>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
-    app.insert_resource(support::corpus(&app));
+    support::insert_corpus(&mut app);
 
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<mcrs_voxel_world::session::SessionRegistry>();
-    app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
-    app.init_resource::<PendingInboundBuffer>();
+    app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
@@ -87,7 +85,7 @@ fn messages_buffered_before_dim_boots() {
 
     // Enqueue and spawn the dim. spawn_dim_subapp creates the channel pair
     // before the sub-app's schedule first runs.
-    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0

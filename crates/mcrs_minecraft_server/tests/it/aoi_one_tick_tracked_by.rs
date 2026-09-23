@@ -11,14 +11,14 @@
 use bevy_app::App;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_minecraft_server::world::aoi::TrackedBy;
-use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::world::dimension::{
+use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
 };
-use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_server::world::aoi::TrackedBy;
 
 use crate::harness;
 use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
@@ -37,7 +37,7 @@ fn tracked_by_observes_position_change_with_one_tick_latency() {
     let b = spawn_player_in_dim(&mut app, dim, DVec3::new(40.0, 64.0, 0.0));
     seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);
 
-    // Settle: tick 1 wires both initial subscription sets; tick 2 with
+    // Settle: tick 1 lists both players on their columns; tick 2 with
     // a nudge on both players forces both update_tracked_by bodies to
     // see the populated observer sets and record each other.
     drive_aoi_tick(&mut app);
@@ -80,8 +80,7 @@ fn tracked_by_observes_position_change_with_one_tick_latency() {
     );
 
     // Move B. NOW B's body runs and re-derives from the current
-    // observer sets, which already reflect A's new column subscription
-    // from the previous tick. After this tick, B still tracks A
+    // observer sets. After this tick, B still tracks A
     // (range is still satisfied) — and the test successfully shows
     // that the rederivation is gated on B's own Changed<Transform>.
     nudge(&mut app, b);

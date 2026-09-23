@@ -1,0 +1,14 @@
+[package]
+name = "mcrs_minecraft_worldgen_testing"
+description = "The shipped asset corpus and the oracle dumps, read for tests"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+bytes.workspace = true
+mcrs_minecraft_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true

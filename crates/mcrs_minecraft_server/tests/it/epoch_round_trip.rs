@@ -5,7 +5,7 @@
 //! visiting B (i.e., the A→B→A round trip).
 //!
 //! This is the FILTER half of ROUT-05 in isolation: it bumps the session epoch
-//! by mutating `SessionRegistry` directly so the test depends only on
+//! by mutating the session's placement directly so the test depends only on
 //! `bridge_outbound`. The WIRING half — that `bridge_player_transfer` actually
 //! performs the bump on each real dim change — is covered by
 //! `bridge_player_transfer_bumps_epoch_on_each_dim_change` in `world::bridge`.
@@ -18,10 +18,10 @@ use crate::mock_connection;
 
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
+use mcrs_minecraft_level::session::{PlayerSession, SessionPlacement};
 use mcrs_minecraft_server::world::bridge::bridge_outbound;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPriority};
-use mcrs_voxel_world::session::{PlayerSession, SessionRegistry};
 
 use mock_connection::{
     drain_queue, register_session, run_system, spawn_connection, write_packet_stamped,
@@ -33,7 +33,7 @@ use mock_connection::{
 fn epoch_round_trip() {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<SessionRegistry>();
+    world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
 
     // --- Connect a player: register session at epoch 0 (first Overworld visit) ---
     let session = PlayerSession(1);
@@ -47,13 +47,13 @@ fn epoch_round_trip() {
     //
     // bridge_player_transfer performs this bump in production on each real dim
     // change (covered by bridge_player_transfer_bumps_epoch_on_each_dim_change).
-    // Here we mutate SessionRegistry directly to keep this test scoped to the
+    // Here we mutate the placement directly to keep this test scoped to the
     // bridge_outbound filter alone. ---
-    world
-        .resource_mut::<SessionRegistry>()
-        .get_mut(&session)
-        .expect("session must be registered")
-        .epoch = 1;
+    let mut placements = world.query::<&mut SessionPlacement>();
+    let mut placement = placements
+        .single_mut(&mut world)
+        .expect("session must be registered");
+    *placement = SessionPlacement::new(placement.place(), 1);
 
     // Run bridge_outbound: the epoch-0 packet is now stale (session.epoch == 1)
     // and must be dropped by the strict-equality filter.

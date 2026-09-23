@@ -7,26 +7,26 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_core::registry::access::RegistryAccess;
-use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
-use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
-use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_environment::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
+use mcrs_minecraft_item::Item;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_minecraft_level::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket,
 };
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
-use mcrs_minecraft_server::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::block::Block;
-use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_minecraft_world::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
-use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
-use mcrs_voxel_world::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
 
 use crate::support;
 
@@ -50,10 +50,9 @@ fn build_host_app() -> App {
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Item>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
-    app.insert_resource(support::corpus(&app));
-    app.init_resource::<PlayerIndex>();
-    app.init_resource::<PendingInboundBuffer>();
+    support::insert_corpus(&mut app);
     app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();

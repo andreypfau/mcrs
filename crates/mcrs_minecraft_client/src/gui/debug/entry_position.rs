@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_voxel_math::{BlockPos, ChunkPos, Direction};
-use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
+use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
+use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 
 use super::{DebugEntryGroup, DebugScreenDisplayer};
 use crate::player::Player;
@@ -16,7 +16,7 @@ pub fn display(
 ) {
     let position = camera.translation;
     let feet = BlockPos::from(position);
-    let chunk = ChunkPos::from(feet);
+    let chunk = SectionPos::from(feet);
     let direction = Direction::from_y_rot(camera.rotation.yaw());
     let facing = match direction {
         Direction::North => "Towards negative Z",
@@ -39,10 +39,10 @@ pub fn display(
                 chunk.x,
                 chunk.y,
                 chunk.z,
-                chunk.x & 31,
-                chunk.z & 31,
-                chunk.x >> 5,
-                chunk.z >> 5,
+                ColumnPos::from(chunk).region_local_x(),
+                ColumnPos::from(chunk).region_local_z(),
+                RegionPos::from(ColumnPos::from(chunk)).x,
+                RegionPos::from(ColumnPos::from(chunk)).z,
             ),
             format!(
                 "Facing: {direction} ({facing}) ({:.1} / {:.1})",
@@ -60,7 +60,7 @@ mod tests {
     use super::*;
     use bevy::ecs::system::RunSystemOnce;
     use bevy::math::DVec3;
-    use mcrs_voxel_world::entity::physics::Rotation;
+    use mcrs_minecraft_level::entity::physics::Rotation;
 
     #[test]
     fn the_group_reads_the_way_vanilla_prints_it() {

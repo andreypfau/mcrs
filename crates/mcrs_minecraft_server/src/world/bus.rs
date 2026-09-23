@@ -2,12 +2,16 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
+use mcrs_minecraft_core::{BlockPos, ColumnPos};
+use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
+use mcrs_minecraft_protocol::entity::{EquipmentSlot, Metadata};
+use mcrs_minecraft_protocol::item::RawStack;
+use mcrs_minecraft_protocol::packets::game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{BlockStateId, VarInt};
 use mcrs_minecraft_protocol::{GameEventKind, GameMode, Look, Text};
-use mcrs_voxel_math::{BlockPos, ColumnPos};
-use mcrs_voxel_world::session::PlayerSession;
+use mcrs_minecraft_registry::BlockStateId;
 use smallvec::SmallVec;
 use std::time::Instant;
 
@@ -18,7 +22,7 @@ pub struct OutboundPlayerPacket {
     pub data: PacketPayload,
     // Stamped by the bridge extract closure, not by dim systems.
     // Default PlayerSession(0) / epoch 0 is safe: PlayerSession(0) never
-    // exists in SessionRegistry (counter starts at 1), so unstamped
+    // is a session's id (counter starts at 1), so unstamped
     // packets are always dropped by bridge_outbound.
     pub session: PlayerSession,
     pub epoch: u32,
@@ -47,7 +51,6 @@ pub struct InboundPlayerSpawn {
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerAttached {
     pub host_anchor: Entity,
-    pub new_in_dim_entity: Entity,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -75,6 +78,16 @@ pub enum PacketPriority {
     High,
     Normal,
     Low,
+}
+
+pub(crate) fn to(anchor: Entity, data: PacketPayload) -> OutboundPlayerPacket {
+    OutboundPlayerPacket {
+        target: PacketTarget::SinglePlayer(anchor),
+        priority: PacketPriority::Normal,
+        data,
+        session: PlayerSession(0),
+        epoch: 0,
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -120,6 +133,23 @@ pub enum PacketPayload {
         position: DVec3,
         yaw: f32,
         pitch: f32,
+        data: i32,
+    },
+    SetEntityData {
+        entity_id: i32,
+        metadata: Metadata<'static>,
+    },
+    SetEquipment {
+        entity_id: i32,
+        slots: Vec<(EquipmentSlot, RawStack)>,
+    },
+    UpdateAttributes {
+        entity_id: i32,
+        attributes: Vec<AttributeSnapshot<'static>>,
+    },
+    SetPassengers {
+        vehicle: i32,
+        passengers: Vec<i32>,
     },
     /// Carries the wire numeric entity id list so dispatch_encode can build
     /// ClientboundRemoveEntities without World access.
@@ -165,18 +195,14 @@ pub enum PacketPayload {
     /// Carries the `ClientboundGameEvent { LevelChunksLoadStart }` wire data.
     /// Emitted immediately after `PlayerLogin` during the join sequence.
     LevelChunksLoadStart,
-    /// Carries the entity-event data for the op-level status effect sent
-    /// during the join sequence (ClientboundEntityEvent).
-    PlayerLoginEntityEvent {
+    /// The `ClientboundEntityEvent` that tells a client its own operator level.
+    OpLevelEntityEvent {
         entity_id: i32,
         entity_status: i8,
     },
     /// Sets the client's chunk-load origin. A vanilla 26.1.2 client will not
     /// render any chunks until this packet is received.
-    SetChunkCacheCenter {
-        x: i32,
-        z: i32,
-    },
+    SetChunkCacheCenter(ColumnPos),
     /// Sets the client's view distance radius.
     SetChunkCacheRadius {
         radius: i32,
@@ -215,6 +241,31 @@ pub enum PacketPayload {
     /// (GameEventKind::ChangeGameMode) in single-player responses.
     GameEvent {
         game_event: GameEventKind,
+    },
+    ContainerSetContent {
+        container_id: u8,
+        state_id: u16,
+        slots: Vec<RawStack>,
+        carried: RawStack,
+    },
+    ContainerSetSlot {
+        container_id: u8,
+        state_id: u16,
+        slot: i16,
+        item: RawStack,
+    },
+    SetCursorItem(RawStack),
+    SetHeldSlot(u8),
+    OpenScreen {
+        container_id: u8,
+        menu_type: i32,
+        title: Text,
+    },
+    ContainerClose(u8),
+    TakeItemEntity {
+        item_id: i32,
+        player_id: i32,
+        amount: i32,
     },
 }
 
@@ -295,25 +346,25 @@ pub enum ArrivalCause {
 /// landing position.
 #[derive(Message, Clone, Debug)]
 pub struct InboundEntitySpawn {
-    pub move_id: mcrs_voxel_world::session::MoveId,
+    pub move_id: mcrs_minecraft_level::session::MoveId,
     pub epoch: u32,
     pub cause: ArrivalCause,
     pub payload: MovePayload,
-    pub player: Option<mcrs_voxel_world::session::PlayerSession>,
+    pub player: Option<mcrs_minecraft_level::session::PlayerSession>,
 }
 
 /// Forwarded from `ToDim::ConfirmMove` into the source sub-app message bus.
 /// The source-dim confirm system despawns the hidden in-transit entity.
 #[derive(Message, Clone, Debug)]
 pub struct InboundConfirmMove {
-    pub move_id: mcrs_voxel_world::session::MoveId,
+    pub move_id: mcrs_minecraft_level::session::MoveId,
 }
 
 /// Forwarded from `ToDim::RollbackMove` into the source sub-app message bus.
 /// The source-dim rollback system removes `InTransit` so the entity reappears.
 #[derive(Message, Clone, Debug)]
 pub struct InboundRollbackMove {
-    pub move_id: mcrs_voxel_world::session::MoveId,
+    pub move_id: mcrs_minecraft_level::session::MoveId,
 }
 
 #[cfg(test)]
@@ -360,10 +411,7 @@ mod tests {
         };
         assert_eq!(format!("{:?}", spawn.clone()), format!("{:?}", spawn));
 
-        let attached = OutboundPlayerAttached {
-            host_anchor: e,
-            new_in_dim_entity: e,
-        };
+        let attached = OutboundPlayerAttached { host_anchor: e };
         assert_eq!(format!("{:?}", attached.clone()), format!("{:?}", attached));
 
         let disconnect = OutboundPlayerDisconnect { host_anchor: e };

@@ -625,7 +625,7 @@ The three stages of the `Filled → Run → Merged` ladder, taken on their own r
 a running server:
 
 ```
-cargo test --release -p mcrs_minecraft_server the_ladder_costs -- --ignored --nocapture
+cargo test --release -p mcrs_minecraft_worldgen_generator the_ladder_costs -- --ignored --nocapture
 ```
 
 Scenario: the overworld router at seed 4242, forest everywhere, and the biome's own

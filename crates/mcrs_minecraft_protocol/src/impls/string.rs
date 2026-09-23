@@ -1,13 +1,7 @@
-use std::io::{Cursor, Write};
+use std::io::Write;
 
-use crate::text::{Text, TextContent, TextInner};
 use crate::{Bounded, Decode, Encode, VarInt};
-use anyhow::{Context, ensure};
-use byteorder::WriteBytesExt;
-use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
-use mcrs_minecraft_nbt::serializer::WriteAdaptor;
-use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_nbt::{COMPOUND_ID, STRING_ID, from_bytes_unnamed, to_bytes_unnamed};
+use anyhow::ensure;
 
 const DEFAULT_MAX_STRING_CHARS: usize = 32767;
 
@@ -96,46 +90,5 @@ impl Decode<'_> for Box<str> {
 impl<const MAX_CHARS: usize> Decode<'_> for Bounded<Box<str>, MAX_CHARS> {
     fn decode(r: &mut &'_ [u8]) -> anyhow::Result<Self> {
         Ok(Bounded(Bounded::<&str, MAX_CHARS>::decode(r)?.0.into()))
-    }
-}
-
-impl Encode for Text {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        if let TextContent::Text { text } = &self.content
-            && self.extra.is_empty()
-            && self.color.is_none()
-            && self.font.is_none()
-            && self.bold.is_none()
-            && self.italic.is_none()
-            && self.underlined.is_none()
-            && self.strikethrough.is_none()
-            && self.obfuscated.is_none()
-            && self.click_event.is_none()
-            && self.hover_event.is_none()
-            && self.insertion.is_none()
-        {
-            w.write_u8(STRING_ID)?;
-            NbtTag::String(text.to_string()).serialize_data(&mut WriteAdaptor::new(w))?;
-            return Ok(());
-        }
-        to_bytes_unnamed(&self, &mut w)?;
-        Ok(())
-    }
-}
-
-impl Decode<'_> for Text {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let tag = *r.first().context("empty input for Text")?;
-        let mut cursor = Cursor::new(*r);
-        let text = match tag {
-            STRING_ID => match NbtTag::deserialize(&mut NbtReadHelper::new(&mut cursor))? {
-                NbtTag::String(s) => Self::text(s),
-                other => anyhow::bail!("expected an NBT string tag for Text, got {other:?}"),
-            },
-            COMPOUND_ID => Self::from(from_bytes_unnamed::<TextInner>(&mut cursor)?),
-            other => anyhow::bail!("expected an NBT string or compound tag for Text, got {other}"),
-        };
-        *r = &r[cursor.position() as usize..];
-        Ok(text)
     }
 }

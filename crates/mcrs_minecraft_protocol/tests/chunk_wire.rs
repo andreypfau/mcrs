@@ -1,9 +1,12 @@
-use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkSection, Palette, PalettedContainer};
+use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId, pack_from, packed_len};
+use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkSection};
 use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
-use mcrs_minecraft_protocol::section::{Biomes, Blocks, NetworkSectionKind, PaletteForm};
-use mcrs_minecraft_protocol::{BlockStateId, Decode, Encode};
-use mcrs_voxel_storage::{SectionKind, pack_from};
+use mcrs_minecraft_protocol::section::{Biomes, Blocks};
+use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use std::borrow::Cow;
+
+type BlockContainer = PalettedContainer<VoxelId, { Blocks::SIZE }>;
+type BiomeContainer = PalettedContainer<u8, { Biomes::SIZE }>;
 
 fn encoded<T: Encode>(value: &T) -> Vec<u8> {
     let mut buf = Vec::new();
@@ -11,43 +14,14 @@ fn encoded<T: Encode>(value: &T) -> Vec<u8> {
     buf
 }
 
-fn container<K: NetworkSectionKind, V: Copy>(
-    ids: &[u32],
-    value: impl Fn(u32) -> V,
-) -> PalettedContainer<V> {
-    let mut palette: Vec<u32> = Vec::new();
-    for &id in ids {
-        if !palette.contains(&id) {
-            palette.push(id);
-        }
-    }
-    match K::network_form(palette.len()) {
-        PaletteForm::Single => PalettedContainer {
-            bits_per_entry: 0,
-            palette: Palette::Single(value(palette[0])),
-            packed_data: Box::new([]),
-        },
-        PaletteForm::Indirect { bits } => PalettedContainer {
-            bits_per_entry: bits as u8,
-            palette: Palette::Indirect(palette.iter().map(|&id| value(id)).collect()),
-            packed_data: pack_from(bits, ids, |id| {
-                palette.iter().position(|p| p == id).expect("indexed") as u32
-            }),
-        },
-        PaletteForm::Direct { bits } => PalettedContainer {
-            bits_per_entry: bits as u8,
-            palette: Palette::Direct,
-            packed_data: pack_from(bits, ids, |&id| id),
-        },
-    }
+fn blocks(ids: &[u32]) -> BlockContainer {
+    let cells: Vec<VoxelId> = ids.iter().map(|&id| VoxelId(id as u16)).collect();
+    PalettedContainer::from_cells(&cells)
 }
 
-fn blocks(ids: &[u32]) -> PalettedContainer<BlockStateId> {
-    container::<Blocks, _>(ids, |id| BlockStateId(id as u16))
-}
-
-fn biomes(ids: &[u32]) -> PalettedContainer<u8> {
-    container::<Biomes, _>(ids, |id| id as u8)
+fn biomes(ids: &[u32]) -> BiomeContainer {
+    let cells: Vec<u8> = ids.iter().map(|&id| id as u8).collect();
+    PalettedContainer::from_cells(&cells)
 }
 
 fn block_ids(distinct: u32) -> Vec<u32> {
@@ -62,14 +36,13 @@ fn biome_ids(distinct: u32) -> Vec<u32> {
         .collect()
 }
 
-fn round_trip<V>(container: PalettedContainer<V>)
+fn round_trip<C>(container: C)
 where
-    V: Copy + std::fmt::Debug + PartialEq,
-    PalettedContainer<V>: Encode + for<'a> Decode<'a>,
+    C: Encode + for<'a> Decode<'a> + PartialEq + std::fmt::Debug,
 {
     let bytes = encoded(&container);
     let mut r = bytes.as_slice();
-    let decoded = PalettedContainer::<V>::decode(&mut r).expect("decode container");
+    let decoded = C::decode(&mut r).expect("decode container");
     assert!(r.is_empty(), "{} bytes left unread", r.len());
     assert_eq!(decoded, container);
     assert_eq!(encoded(&decoded), bytes);
@@ -88,14 +61,43 @@ fn every_palette_form_round_trips_byte_for_byte() {
 
 #[test]
 fn the_three_forms_are_the_ones_under_test() {
-    assert_eq!(blocks(&block_ids(1)).bits_per_entry, 0);
-    assert!(matches!(
-        blocks(&block_ids(9)).palette,
-        Palette::Indirect(_)
-    ));
-    assert_eq!(blocks(&block_ids(400)).bits_per_entry, 15);
-    assert!(matches!(blocks(&block_ids(400)).palette, Palette::Direct));
-    assert_eq!(biomes(&biome_ids(40)).bits_per_entry, 7);
+    assert_eq!(
+        encoded(&blocks(&block_ids(1))),
+        [0, 0],
+        "a single value and no packed longs"
+    );
+
+    let indirect = encoded(&blocks(&block_ids(9)));
+    assert_eq!(indirect[..2], [4, 9], "four bits, then a palette of nine");
+    assert_eq!(
+        indirect.len(),
+        2 + 9 + 8 * packed_len(4, Blocks::ENTRY_COUNT)
+    );
+
+    let direct = encoded(&blocks(&block_ids(400)));
+    assert_eq!(direct[0], 15);
+    assert_eq!(
+        direct.len(),
+        1 + 8 * packed_len(15, Blocks::ENTRY_COUNT),
+        "no palette list"
+    );
+
+    assert_eq!(encoded(&biomes(&biome_ids(40)))[0], 7);
+}
+
+#[test]
+fn a_palette_index_past_the_palette_is_an_error() {
+    let mut indices = vec![0u16; Blocks::ENTRY_COUNT];
+    indices[17] = 5;
+    let mut bytes = Vec::new();
+    4u8.encode(&mut bytes).unwrap();
+    for id in [2, 0, 1] {
+        VarInt(id).encode(&mut bytes).unwrap();
+    }
+    for word in pack_from(4, &indices, |&index| index as u32).iter() {
+        word.encode(&mut bytes).unwrap();
+    }
+    assert!(BlockContainer::decode(&mut bytes.as_slice()).is_err());
 }
 
 fn column(section_count: usize) -> Vec<ChunkSection> {

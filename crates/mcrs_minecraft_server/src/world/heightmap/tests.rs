@@ -1,5 +1,9 @@
 use super::*;
-use crate::world::generate::tests::{block_tags, blocks as corpus, tag_members};
+use mcrs_minecraft_block::definition::BlockStateFlags;
+use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_worldgen_generator::heightmap::*;
+use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus, tag_members};
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
@@ -309,7 +313,7 @@ fn spawn_column(
     sections: &[Option<(BlockPalette, BiomePalette)>],
     y_sections: &[i32],
 ) -> (App, Entity, Vec<Entity>) {
-    use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnSlot};
+    use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 
     let mut app = App::new();
     app.add_message::<BlockPlaced>();
@@ -327,7 +331,7 @@ fn spawn_column(
     let first = *y_sections.first().unwrap();
     let height = ((*y_sections.last().unwrap() - first + 1) * 16) as u32;
     let min_y = first * 16;
-    let mut chunks = ColumnChunks::new(first, y_sections.len());
+    let mut chunks = ColumnSections::new(first, y_sections.len());
     for (&section_y, &entity) in y_sections.iter().zip(&section_entities) {
         chunks.set_loaded(section_y, entity);
     }
@@ -365,8 +369,8 @@ fn read_maps(app: &App, column: Entity) -> ColumnHeightmapSet {
 
 #[test]
 fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
-    use mcrs_minecraft_block::block::BlockUpdateFlags;
-    use mcrs_voxel_math::{BlockPos, ChunkPos};
+    use mcrs_minecraft_core::{BlockPos, SectionPos};
+    use mcrs_minecraft_level::block::BlockUpdateFlags;
 
     let table = predicates();
     let (mut sections, y_sections) = sample_column();
@@ -413,7 +417,7 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
             .set_cell(x, (y % 16) as usize, z, id);
         app.world_mut().write_message(BlockPlaced {
             chunk: section_entities[index],
-            chunk_pos: ChunkPos::new(0, y / 16, 0),
+            chunk_pos: SectionPos::new(0, y / 16, 0),
             block_pos: BlockPos::new(x as i32, y, z as i32),
             old_state: old,
             new_state: id,
@@ -432,7 +436,7 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
 
 #[test]
 fn priming_merges_partial_ranges_with_max() {
-    use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnSlot};
+    use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 
     let mut app = App::new();
     app.init_resource::<PendingColumnHeightmaps>();
@@ -544,15 +548,15 @@ fn heightmap_new_dimensions_sized_correctly() {
 #[test]
 fn heightmap_set_get_round_trip() {
     let mut h = ColumnHeightmap::new(384, -64);
-    for z in 0..BLOCKS::SIZE {
-        for x in 0..BLOCKS::SIZE {
-            let y = (z * BLOCKS::SIZE + x) as i32 - 64;
+    for z in 0..SectionPos::SIZE {
+        for x in 0..SectionPos::SIZE {
+            let y = (z * SectionPos::SIZE + x) as i32 - 64;
             h.set(x, z, y);
         }
     }
-    for z in 0..BLOCKS::SIZE {
-        for x in 0..BLOCKS::SIZE {
-            let y = (z * BLOCKS::SIZE + x) as i32 - 64;
+    for z in 0..SectionPos::SIZE {
+        for x in 0..SectionPos::SIZE {
+            let y = (z * SectionPos::SIZE + x) as i32 - 64;
             assert_eq!(h.get(x, z), y, "scalar mismatch at ({x}, {z})");
         }
     }
@@ -578,5 +582,5 @@ fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
 fn heightmap_zero_init_returns_min_y_for_unprimed_columns() {
     let h = ColumnHeightmap::new(384, -64);
     assert_eq!(h.get(0, 0), -64);
-    assert_eq!(h.get(BLOCKS::MASK, BLOCKS::MASK), -64);
+    assert_eq!(h.get(SectionPos::MASK, SectionPos::MASK), -64);
 }

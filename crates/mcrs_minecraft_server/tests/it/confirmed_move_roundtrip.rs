@@ -17,22 +17,23 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use bevy_math::DVec3;
+use mcrs_minecraft_level::entity::physics::Transform;
+use mcrs_minecraft_level::entity::{Despawned, InTransit};
+use mcrs_minecraft_level::session::{MoveId, Place, PlayerSession, SessionPlacement};
+use mcrs_minecraft_level::world::channels::{
+    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY, ToDimReceiver,
+};
+use mcrs_minecraft_level::world::in_flight::{InFlightMoves, MoveIds};
+use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_server::runner::pump_channels;
+use mcrs_minecraft_server::runner::{expire_moves, pump_channels};
 use mcrs_minecraft_server::world::bus::{
     ArrivalCause, InboundConfirmMove, InboundRollbackMove, MovePayload, OutboundPlayerPacket,
 };
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_server::world::entity::player::{despawn_on_confirm, unhide_on_rollback};
+use mcrs_minecraft_server::world::session::SessionBundle;
 use mcrs_minecraft_server::world::sub_app_builder::{DimLabel, DimSubAppHandle};
-use mcrs_voxel_world::entity::physics::Transform;
-use mcrs_voxel_world::entity::{Despawned, InTransit};
-use mcrs_voxel_world::session::{MoveId, PlayerSession, SessionEntry, SessionRegistry};
-use mcrs_voxel_world::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY, ToDimReceiver,
-};
-use mcrs_voxel_world::world::in_flight::{InFlightMoves, alloc_move_id};
-use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 
 const SOURCE_NAME: &str = "minecraft:overworld";
 const DEST_NAME: &str = "minecraft:the_nether";
@@ -42,7 +43,9 @@ const START_POS: DVec3 = DVec3::new(10.0, 64.0, 20.0);
 /// Host endpoints plus the raw channel handles each side holds.
 struct Harness {
     host: App,
+    source_label: Entity,
     dest_label: Entity,
+    session_anchor: Entity,
     /// The source dim sends its move request through this.
     source_from_tx: flume::Sender<FromDim>,
     /// The source dim's control receiver (confirm / rollback land here).
@@ -78,7 +81,6 @@ fn make_dim_channels(
 fn build_harness() -> Harness {
     let mut host = App::new();
     host.add_message::<OutboundPlayerPacket>();
-    host.init_resource::<SessionRegistry>();
     host.init_resource::<DimChannelsResource>();
     host.init_resource::<DimDespawnQueue>();
     host.init_resource::<InFlightMoves>();
@@ -93,24 +95,22 @@ fn build_harness() -> Harness {
         .id();
 
     // The moving player currently lives in the source dim at epoch 0.
-    host.world_mut().resource_mut::<SessionRegistry>().insert(
-        SESSION,
-        SessionEntry {
-            connection_entity: Entity::PLACEHOLDER,
-            host_anchor: Entity::PLACEHOLDER,
-            dim: source_label,
-            previous_dim: None,
-            in_dim_entity: None,
-            epoch: 0,
-        },
-    );
+    let session_anchor = host
+        .world_mut()
+        .spawn(SessionBundle::placed(
+            SESSION,
+            SessionPlacement::new(Place::InDim(source_label), 0),
+        ))
+        .id();
 
     let (_src_srv_rx, source_ctl_rx, source_from_tx) = make_dim_channels(&mut host, source_label);
     let (_dest_srv_rx, dest_ctl_rx, dest_from_tx) = make_dim_channels(&mut host, dest_label);
 
     Harness {
         host,
+        source_label,
         dest_label,
+        session_anchor,
         source_from_tx,
         source_ctl_rx,
         dest_from_tx,
@@ -189,13 +189,15 @@ fn initiate_move(h: &Harness, source_dim: &mut App, move_id: MoveId) -> Entity {
     entity
 }
 
-fn epoch(h: &Harness) -> u32 {
-    h.host
+fn placement(h: &Harness) -> SessionPlacement {
+    *h.host
         .world()
-        .resource::<SessionRegistry>()
-        .get(&SESSION)
+        .get::<SessionPlacement>(h.session_anchor)
         .expect("session")
-        .epoch
+}
+
+fn epoch(h: &Harness) -> u32 {
+    placement(h).epoch()
 }
 
 fn in_flight_present(h: &Harness, move_id: MoveId) -> bool {
@@ -210,7 +212,7 @@ fn in_flight_present(h: &Harness, move_id: MoveId) -> bool {
 fn confirmed_move_keeps_source_until_confirm_then_despawns() {
     let mut h = build_harness();
     let mut source_dim = build_source_dim(h.source_ctl_rx.clone());
-    let move_id = alloc_move_id();
+    let move_id = MoveIds::new(Entity::PLACEHOLDER).allocate();
 
     let entity = initiate_move(&h, &mut source_dim, move_id);
 
@@ -219,14 +221,12 @@ fn confirmed_move_keeps_source_until_confirm_then_despawns() {
 
     assert_eq!(epoch(&h), 1, "player epoch must bump on a cross-dim move");
     assert_eq!(
-        h.host
-            .world()
-            .resource::<SessionRegistry>()
-            .get(&SESSION)
-            .unwrap()
-            .dim,
-        h.dest_label,
-        "session dim must advance to the destination"
+        placement(&h).place(),
+        Place::Transferring {
+            from: h.source_label,
+            to: h.dest_label,
+        },
+        "the session must be moving to the destination"
     );
     assert!(
         in_flight_present(&h, move_id),
@@ -267,6 +267,11 @@ fn confirmed_move_keeps_source_until_confirm_then_despawns() {
         !in_flight_present(&h, move_id),
         "in-flight entry cleared on Spawned"
     );
+    assert_eq!(
+        placement(&h).place(),
+        Place::InDim(h.dest_label),
+        "the arrival attaches the session to the destination"
+    );
 
     // The real despawn-on-confirm system matches the entity by the echoed id and
     // despawns it — proving the id reconciliation holds end to end.
@@ -289,16 +294,17 @@ fn never_acked_move_rolls_back_on_tick_timeout() {
         .resource_mut::<InFlightMoves>()
         .timeout_ticks = 3;
     let mut source_dim = build_source_dim(h.source_ctl_rx.clone());
-    let move_id = alloc_move_id();
+    let move_id = MoveIds::new(Entity::PLACEHOLDER).allocate();
 
     let entity = initiate_move(&h, &mut source_dim, move_id);
 
-    // The target never acks. Each host pass advances the tick counter; after the
-    // threshold the host emits RollbackMove. Pump a few passes, draining the
+    // The target never acks. Each host tick advances the tick counter; after the
+    // threshold the host emits RollbackMove. Run a few ticks, draining the
     // source each time, until it un-hides.
     let mut rolled_back = false;
     for _ in 0..6 {
         pump_channels(&mut h.host);
+        expire_moves(&mut h.host);
         drive_dim(&mut source_dim);
         if source_dim.world().get::<InTransit>(entity).is_none() {
             rolled_back = true;
@@ -307,6 +313,11 @@ fn never_acked_move_rolls_back_on_tick_timeout() {
     }
 
     assert!(rolled_back, "timeout must roll the move back");
+    assert_eq!(
+        placement(&h).place(),
+        Place::InDim(h.source_label),
+        "a rolled-back move leaves the session where it was"
+    );
     assert!(
         !in_flight_present(&h, move_id),
         "timed-out entry removed from the in-flight table"
@@ -328,6 +339,33 @@ fn never_acked_move_rolls_back_on_tick_timeout() {
     );
 }
 
+/// The loop pumps the channels every few milliseconds while it waits for the
+/// next tick, so a timeout counted in pumps would fire in a fraction of its
+/// intended time.
+#[test]
+fn pumping_between_ticks_does_not_age_a_move() {
+    let mut h = build_harness();
+    h.host
+        .world_mut()
+        .resource_mut::<InFlightMoves>()
+        .timeout_ticks = 3;
+    let mut source_dim = build_source_dim(h.source_ctl_rx.clone());
+    let move_id = MoveIds::new(Entity::PLACEHOLDER).allocate();
+
+    let entity = initiate_move(&h, &mut source_dim, move_id);
+
+    for _ in 0..10 {
+        pump_channels(&mut h.host);
+        drive_dim(&mut source_dim);
+    }
+
+    assert!(in_flight_present(&h, move_id), "only ticks age a move");
+    assert!(
+        source_dim.world().get::<InTransit>(entity).is_some(),
+        "the entity stays in transit"
+    );
+}
+
 #[test]
 fn disconnected_target_rolls_back_immediately() {
     let mut h = build_harness();
@@ -335,7 +373,7 @@ fn disconnected_target_rolls_back_immediately() {
     // Disconnected on the very first pass.
     h.dest_ctl_rx = None;
     let mut source_dim = build_source_dim(h.source_ctl_rx.clone());
-    let move_id = alloc_move_id();
+    let move_id = MoveIds::new(Entity::PLACEHOLDER).allocate();
 
     let entity = initiate_move(&h, &mut source_dim, move_id);
 
@@ -345,6 +383,11 @@ fn disconnected_target_rolls_back_immediately() {
     assert!(
         source_dim.world().get::<InTransit>(entity).is_none(),
         "a disconnected target rolls the move back at once"
+    );
+    assert_eq!(
+        placement(&h).place(),
+        Place::InDim(h.source_label),
+        "the session stays in the dimension it never left"
     );
     assert!(
         source_dim.world().get::<Despawned>(entity).is_none(),

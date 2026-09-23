@@ -2,9 +2,9 @@
 //! migration, `tick_explode` (the `MessageWriter<BlockSetRequest>`) and
 //! `apply_voxel_set_requests` (the matching reader) live in the same
 //! per-dim `World`, so emitted `BlockSetRequest` messages reach the reader
-//! in the same tick. The reader in turn writes to a chunk's
-//! `ChunkVoxelChanges`, and the per-dim wire emitter fans the
-//! resulting `OutboundPlayerPacket` to the chunk's observers.
+//! in the same tick. The reader in turn reports every block it placed, and
+//! the per-dim wire emitter fans the resulting `OutboundPlayerPacket` to the
+//! chunk's observers.
 //!
 //! The test wires the writer half (a hand-written `BlockSetRequest`) and
 //! exercises the full `apply_voxel_set_requests` -> `update_client_blocks_per_dim`
@@ -16,22 +16,22 @@
 
 use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_block::palette::ChunkBlocks;
-use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::block::BlockUpdateFlags;
+use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
+use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_level::explosion::ExplosionConfig;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
+use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
-use mcrs_minecraft_server::world::explosion::ExplosionConfig;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_math::ColumnPos;
-use mcrs_voxel_world::aoi::PlayerObservers;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
-use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnSlot};
 
 #[test]
 fn tnt_cascade_propagates_through_block_update_per_dim() {
@@ -47,8 +47,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     // (b) Build a per-dim-shaped App: the writer (a BlockSetRequest emitted by
     // the test as a stand-in for tick_explode) and the reader
     // (apply_voxel_set_requests from BlockUpdatePlugin) live in the same World,
-    // so the message hop is single-frame and the chunk's
-    // ChunkVoxelChanges sees the change.
+    // so the message hop is single-frame.
     let mut app = App::new();
     app.add_message::<OutboundPlayerPacket>();
     // BlockUpdatePlugin no longer registers BlockSetRequest / BlockPlaced
@@ -70,15 +69,15 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     observers.0.push(player);
     let column_entity = app.world_mut().spawn(observers).id();
 
-    let chunk_positions: Vec<ChunkPos> = (0..3)
-        .flat_map(|x| (0..3).map(move |z| ChunkPos::new(x, 0, z)))
+    let chunk_positions: Vec<SectionPos> = (0..3)
+        .flat_map(|x| (0..3).map(move |z| SectionPos::new(x, 0, z)))
         .collect();
 
     // Each 3x3 chunk lives in its own ColumnPos; one shared dim carries the
-    // ChunkIndex (for the BlockSetRequest reader's lookup) and the ColumnIndex
+    // SectionIndex (for the BlockSetRequest reader's lookup) and the ColumnIndex
     // (for the wire emitter's observer-set lookup). Each column maps back to the
     // single column_entity so every chunk's observers resolve to the same player.
-    let mut chunk_index = ChunkIndex::default();
+    let mut chunk_index = SectionIndex::default();
     let mut column_index = ColumnIndex::default();
     let dim_entity = app.world_mut().spawn_empty().id();
 
@@ -99,10 +98,6 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     app.world_mut()
         .entity_mut(dim_entity)
         .insert((chunk_index, column_index));
-
-    // Tick once to let add_changes_set seed the per-chunk
-    // ChunkVoxelChanges Component before any BlockSetRequest fires.
-    app.world_mut().run_schedule(FixedUpdate);
 
     // Emit one BlockSetRequest per chunk — the "cascade simulation": after the
     // initial detonation, 9 secondary TNT positions would each emit a
@@ -132,7 +127,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     }
 
     // Drive the schedule: FixedUpdate runs apply_voxel_set_requests (which
-    // writes into each chunk's ChunkVoxelChanges);
+    // reports each block it placed);
     // FixedPostUpdate runs update_client_blocks_per_dim which fans
     // OutboundPlayerPackets out to observers.
     app.world_mut().run_schedule(FixedUpdate);

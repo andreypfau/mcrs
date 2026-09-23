@@ -1,11 +1,12 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Query;
 use bevy_math::DVec3;
-use mcrs_minecraft_block::palette::ChunkBlocks;
-use mcrs_minecraft_protocol::BlockStateId;
-use mcrs_voxel_math::BlockPos;
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::LocalPos;
+use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_registry::BlockStateId;
 
 const AIR: BlockStateId = BlockStateId(0);
 
@@ -20,13 +21,13 @@ fn nether_scale(coord: i32) -> i32 {
 /// Scale the source position by the nether coordinate divisor (8) and scan the
 /// target's live blocks upward to find a safe landing position.
 ///
-/// Reads blocks via `BlockPalette::get` through the `ChunkIndex` of `dim_entity`.
+/// Reads blocks via `BlockPalette::get` through the `SectionIndex` of `dim_entity`.
 /// If the target chunk is not loaded the function falls back to a deterministic
 /// position at the scaled coordinate so callers never panic.
 pub fn find_or_create_nether_landing(
     dim_entity: Entity,
     source_pos: BlockPos,
-    chunk_index_query: &Query<&ChunkIndex>,
+    chunk_index_query: &Query<&SectionIndex>,
     palette_query: &Query<&ChunkBlocks>,
 ) -> DVec3 {
     let scaled_x = nether_scale(source_pos.x);
@@ -65,12 +66,12 @@ pub fn find_or_create_nether_landing(
 
 fn read_block(
     pos: BlockPos,
-    chunk_index: &ChunkIndex,
+    chunk_index: &SectionIndex,
     palette_query: &Query<&ChunkBlocks>,
 ) -> Option<BlockStateId> {
-    let chunk_entity = chunk_index.get(ChunkPos::from(pos))?;
+    let chunk_entity = chunk_index.get(SectionPos::from(pos))?;
     let palette = palette_query.get(chunk_entity).ok()?;
-    Some(palette.get(pos).into())
+    Some(palette.get(LocalPos::from(pos)).into())
 }
 
 #[cfg(test)]

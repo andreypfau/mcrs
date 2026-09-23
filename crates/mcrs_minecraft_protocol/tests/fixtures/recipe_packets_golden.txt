@@ -1,0 +1,25 @@
+id item minecraft:stone 1
+id item minecraft:apple 1007
+id item minecraft:diamond_sword 1050
+id item minecraft:crafting_table 405
+id item minecraft:furnace 407
+id item minecraft:bucket 1128
+id item minecraft:water_bucket 1129
+id item minecraft:potion 1271
+id item minecraft:red_dye 1213
+id item minecraft:leather_helmet 1068
+id item minecraft:smithing_table 1512
+id item minecraft:netherite_upgrade_smithing_template 1579
+id item minecraft:iron_chestplate 1081
+id item minecraft:netherite_ingot 1023
+id item minecraft:stone_bricks 449
+id item minecraft:oak_planks 63
+id trim_pattern minecraft:coast 1
+id data_component_type minecraft:damage 3
+recipe_book_add wire 0500000304010600106d696e6563726166743a706c616e6b73060301ef07059a08020100030304950306030102020100106d696e6563726166743a706c616e6b7303010102010200010904e90804e8080a0204950304010000000002020204f7090103049a0803049703c8013eb333330104010001ac02030704bd0904ac080804b90804010200000a0002040404ab0c04b90804ff070804b90804ff0700096d6372733a77617665080004576176650104e80b000b000001
+update_recipes wire 02176d696e6563726166743a736d697468696e675f6261736501b908176d696e6563726166743a6675726e6163655f696e7075740002020105c10304000000106d696e6563726166743a706c616e6b73043f
+recipe_book_remove wire 0201ac02
+recipe_book_settings wire 0100000100000101
+place_recipe wire 07ac0201
+recipe_book_change_settings wire 020100
+recipe_book_seen_recipe wire 09

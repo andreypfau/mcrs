@@ -6,15 +6,15 @@ use bevy_app::{App, Last, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_tasks::{AsyncComputeTaskPool, Task, available_parallelism, block_on, poll_once};
-use mcrs_voxel_math::{BlockPos, ColumnPos};
+use mcrs_minecraft_core::{BlockPos, ColumnPos};
 
 use crate::block::LightRegistry;
 use crate::epoch::LightUpdate;
 use crate::level::{LightBounds, SECTION_WIDTH};
 use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority, PriorityColumns};
-use crate::region::BlockBox;
 use crate::world::{Edit, LightWorld};
 use crate::{BlockLight, SkyLight};
+use mcrs_minecraft_core::BoundingBox;
 
 /// Owns the block and light data. The ECS holds only what has been published.
 #[derive(Resource)]
@@ -161,7 +161,7 @@ impl Default for IntakeBudget {
 pub struct LightEpoch(Vec<InFlight>);
 
 struct InFlight {
-    area: BlockBox,
+    area: BoundingBox,
     task: Task<LightUpdate>,
 }
 
@@ -171,7 +171,7 @@ impl LightEpoch {
     }
 
     /// Whether an epoch under way may still write into `area`.
-    pub fn touches(&self, area: BlockBox) -> bool {
+    pub fn touches(&self, area: BoundingBox) -> bool {
         self.0.iter().any(|epoch| epoch.area.intersects(area))
     }
 }
@@ -236,7 +236,7 @@ impl LightStatus<'_> {
             }
         }
         let bounds = lighting.0.bounds();
-        let area = BlockBox {
+        let area = BoundingBox {
             min: BlockPos::new(
                 (column.x - 1) * SECTION_WIDTH,
                 bounds.min_light_y(),
@@ -289,6 +289,7 @@ impl Plugin for LightPlugin {
             .init_resource::<LightBudget>()
             .init_resource::<IntakeBudget>()
             .init_resource::<LightEpoch>()
+            .add_message::<SectionRelit>()
             .add_systems(
                 Last,
                 (
@@ -301,11 +302,20 @@ impl Plugin for LightPlugin {
     }
 }
 
+/// A section whose light `publish_light` wrote, and which of its two layers it wrote.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SectionRelit {
+    pub section: Entity,
+    pub block: bool,
+    pub sky: bool,
+}
+
 pub fn publish_light(
     mut lighting: ResMut<Lighting>,
     mut running: ResMut<LightEpoch>,
     mut commands: Commands,
     mut lit: Query<(&mut BlockLight, &mut SkyLight)>,
+    mut relit: MessageWriter<SectionRelit>,
 ) {
     let mut finished = Vec::new();
     running
@@ -322,11 +332,17 @@ pub fn publish_light(
         .into_iter()
         .flat_map(|update| lighting.0.apply(update))
     {
-        match lit.get_mut(published.entity) {
+        let section = Entity::from_bits(published.entity);
+        match lit.get_mut(section) {
             // Only a real change should wake whatever rebuilds meshes, and the
             // epoch already decided that: a layer it hands back is one whose
             // answer moved, so assigning it wakes nothing that should have slept.
             Ok((mut block, mut sky)) => {
+                relit.write(SectionRelit {
+                    section,
+                    block: published.block_light.is_some(),
+                    sky: published.sky_light.is_some(),
+                });
                 if let Some(light) = published.block_light {
                     block.0 = light;
                 }
@@ -337,11 +353,16 @@ pub fn publish_light(
             // A section reaches its entity for the first time with both layers
             // in hand, because nothing was published for it to match against.
             Err(_) => {
-                if let Ok(mut entity) = commands.get_entity(published.entity) {
+                if let Ok(mut entity) = commands.get_entity(section) {
                     entity.insert((
                         BlockLight(published.block_light.unwrap_or_default()),
                         SkyLight(published.sky_light.unwrap_or_default()),
                     ));
+                    relit.write(SectionRelit {
+                        section,
+                        block: true,
+                        sky: true,
+                    });
                 }
             }
         }
@@ -385,7 +406,7 @@ pub fn dispatch_epoch(
     if free == 0 {
         return;
     }
-    let occupied: Vec<BlockBox> = running.0.iter().map(|epoch| epoch.area).collect();
+    let occupied: Vec<BoundingBox> = running.0.iter().map(|epoch| epoch.area).collect();
     for batch in queue
         .0
         .drain_batches(budget.cells_per_epoch, &occupied, free)

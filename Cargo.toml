@@ -49,6 +49,7 @@ aes = "0.9.0-rc.2"
 base64 = "0.22.1"
 bitfield-struct = "0.12.1"
 byteorder = "1.5.0"
+crc32c = "0.6.8"
 cfb8 = "0.9.0-rc.1"
 derive_more = "2.0.1"
 flate2 = "1.1.5"
@@ -72,24 +73,44 @@ flume = { version = "0.12.0", default-features = false }
 rayon = "1"
 
 mcrs_minecraft_protocol_macros = { path = "crates/mcrs_minecraft_protocol_macros" }
-mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol", features = ["compression"] }
+mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol", default-features = false, features = ["compression"] }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
-mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network" }
-mcrs_voxel_world = { path = "crates/mcrs_voxel_world" }
+mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
+mcrs_minecraft_level = { path = "crates/mcrs_minecraft_level" }
 mcrs_minecraft_core_macros = { path = "crates/mcrs_minecraft_core_macros" }
-mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core" }
+mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
+mcrs_minecraft_registry = { path = "crates/mcrs_minecraft_registry", default-features = false }
+mcrs_minecraft_profile = { path = "crates/mcrs_minecraft_profile" }
+mcrs_minecraft_text = { path = "crates/mcrs_minecraft_text" }
+mcrs_minecraft_item_component = { path = "crates/mcrs_minecraft_item_component" }
+mcrs_minecraft_assets = { path = "crates/mcrs_minecraft_assets" }
 mcrs_minecraft_world = { path = "crates/mcrs_minecraft_world" }
-mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
-mcrs_minecraft_decoration = { path = "crates/mcrs_minecraft_decoration" }
-mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
+mcrs_minecraft_environment = { path = "crates/mcrs_minecraft_environment" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
+mcrs_minecraft_biome = { path = "crates/mcrs_minecraft_biome" }
+mcrs_minecraft_dimension = { path = "crates/mcrs_minecraft_dimension" }
+mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
+mcrs_minecraft_inventory = { path = "crates/mcrs_minecraft_inventory" }
+mcrs_minecraft_item_model = { path = "crates/mcrs_minecraft_item_model" }
+mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
+mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
+mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
+mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen", default-features = false }
+mcrs_minecraft_worldgen_testing = { path = "crates/mcrs_minecraft_worldgen_testing" }
+mcrs_minecraft_worldgen_noise = { path = "crates/mcrs_minecraft_worldgen_noise", default-features = false }
+mcrs_minecraft_worldgen_density = { path = "crates/mcrs_minecraft_worldgen_density", default-features = false }
+mcrs_minecraft_worldgen_surface = { path = "crates/mcrs_minecraft_worldgen_surface", default-features = false }
+mcrs_minecraft_worldgen_feature = { path = "crates/mcrs_minecraft_worldgen_feature", default-features = false }
+mcrs_minecraft_worldgen_feature_place = { path = "crates/mcrs_minecraft_worldgen_feature_place", default-features = false }
+mcrs_minecraft_worldgen_generator = { path = "crates/mcrs_minecraft_worldgen_generator" }
+mcrs_minecraft_worldgen_carver = { path = "crates/mcrs_minecraft_worldgen_carver", default-features = false }
+mcrs_minecraft_worldgen_structure = { path = "crates/mcrs_minecraft_worldgen_structure" }
+mcrs_minecraft_worldgen_structure_place = { path = "crates/mcrs_minecraft_worldgen_structure_place" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
-mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light" }
+mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light", default-features = false }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
-mcrs_voxel_storage = { path = "crates/mcrs_voxel_storage" }
-mcrs_voxel_math = { path = "crates/mcrs_voxel_math" }
-mcrs_voxel_server = { path = "crates/mcrs_voxel_server" }
+mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features = false }
 wtransport = "0.7.2"
 
 [dependencies]
@@ -98,14 +119,17 @@ bevy_ecs.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
 mcrs_minecraft_server.workspace = true
-mcrs_minecraft_network.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_telemetry.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_worldgen_generator.workspace = true
 bevy_state.workspace = true
-mcrs_minecraft_core.workspace = true
+mcrs_minecraft_client.workspace = true
+mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world.workspace = true
-mcrs_minecraft_worldgen.workspace = true
+mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
 
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
@@ -150,13 +174,34 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_protocol"]
 opt-level = 3
 
-[profile.dev.package."mcrs_minecraft_decoration"]
+[profile.dev.package."mcrs_minecraft_worldgen_noise"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_density"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_surface"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_feature"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_feature_place"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_generator"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_carver"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_structure"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_worldgen_structure_place"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_random"]
-opt-level = 3
-
-[profile.dev.package."mcrs_minecraft_block"]
 opt-level = 3
 
 # The light engine runs a frontier relaxation over millions of cells every time
@@ -167,8 +212,8 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_server"]
 opt-level = 2
 
-[profile.dev.package."mcrs_voxel_world"]
-opt-level = 1
+[profile.dev.package."mcrs_minecraft_level"]
+opt-level = 2
 
 # The browser bundle is inlined into a single HTML file, so binary size is the
 # dominant cost there in a way it never is for a native build.

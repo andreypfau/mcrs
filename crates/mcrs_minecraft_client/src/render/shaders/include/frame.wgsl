@@ -16,7 +16,6 @@ struct Camera {
     offset: vec3<f32>,
     tint_origin: vec2<f32>,
     tint_scale: vec2<f32>,
-    animated_from: u32,
     hiz_levels: u32,
 }
 

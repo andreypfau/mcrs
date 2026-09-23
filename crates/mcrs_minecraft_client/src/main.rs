@@ -17,15 +17,17 @@ use bevy::window::{
     WindowPosition, WindowResolution,
 };
 use bevy::winit::{UpdateMode, WinitSettings};
-use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_world::biome::Biome;
-use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
-use mcrs_minecraft_world::environment::Weather;
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_dimension::environment::Weather;
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClock, WorldClocks};
+use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::uuid::Uuid;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::save::{self, SaveError};
-use mcrs_minecraft_world::timeline::Timeline;
-use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClock, WorldClocks};
-use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 use mcrs_minecraft_client::config::TerrainLimits;
 use mcrs_minecraft_client::render::TerrainPlugin;
@@ -35,9 +37,11 @@ use mcrs_minecraft_client::{
     asset_corpus, camera, cave, config, gui, input, local_player, player, render, sky, sky_render,
     stream,
 };
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 
 #[cfg(feature = "telemetry-tracy")]
@@ -88,7 +92,7 @@ fn main() {
     let world = world_folder();
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = config::frozen_time();
-    let (budget, uploads, cave, loader) = config::terrain(TERRAIN_LIMITS);
+    let (budget, uploads, cave) = config::terrain(TERRAIN_LIMITS);
     let assets = asset_corpus().to_string_lossy().into_owned();
 
     let mut app = App::new();
@@ -156,7 +160,7 @@ fn main() {
         focused_mode: UpdateMode::Continuous,
         unfocused_mode: UpdateMode::Continuous,
     })
-    .add_plugins(mcrs_minecraft_core::MinecraftCorePlugin)
+    .add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin)
     .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)
     .add_plugins(player::PlayerPlugin)
     .add_plugins(input::ClientInputPlugin)
@@ -167,6 +171,8 @@ fn main() {
     .add_plugins(gui::light_levels::LightLevelsPlugin)
     .add_plugins(mcrs_minecraft_client::light_guard::LightGuardPlugin)
     .add_plugins(mcrs_minecraft_client::chunk_guard::ChunkGuardPlugin)
+    .add_plugins(mcrs_minecraft_client::item_model::resolve::ItemRenderPlugin)
+    .add_plugins(gui::scene::GuiPlugin)
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_plugins(sky::SkyPlugin)
     .add_plugins(screenshot::ScreenshotPlugin)
@@ -189,13 +195,25 @@ fn main() {
 
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
-    let server =
-        server_address().unwrap_or_else(|| host_integrated_server(world.as_deref(), &assets));
+    #[cfg(feature = "singleplayer")]
+    let server = server_address().unwrap_or_else(|| {
+        let traces = ColumnTraceSink::default();
+        app.insert_resource(traces.clone());
+        host_integrated_server(world.as_deref(), &assets, traces)
+    });
+    #[cfg(not(feature = "singleplayer"))]
+    let server = server_address()
+        .expect("a client built without singleplayer hosts no server; set MCRS_SERVER");
     app.add_plugins(ClientNetworkPlugin {
         server,
         username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
+        profile_id: save_data.player_uuid,
         view_distance: config::view_distance(),
     });
+    app.add_plugins(mcrs_minecraft_client::columns::ColumnCachePlugin);
+    app.add_plugins(mcrs_minecraft_client::inventory::InventoryPlugin);
+    app.add_plugins(mcrs_minecraft_client::game_mode::GameModePlugin);
+    app.add_plugins(gui::game_mode_switcher::GameModeSwitcherPlugin);
     app.insert_resource(ExitOnDisconnect);
 
     // Inserted after `add_plugins`: `WorldClockPlugin` calls
@@ -214,15 +232,14 @@ fn main() {
         .insert_resource(save_data.weather)
         .insert_resource(sky::PlayerDimension(save_data.dimension));
 
-    app.add_plugins(TerrainPlugin(budget, uploads))
+    app.add_plugins(TerrainPlugin(budget.clone(), uploads.clone()))
+        .add_plugins(stream::StreamPlugin::new(budget, uploads))
         .insert_resource(config::drawn_streams())
         .insert_resource(config::raster_fraction())
         .insert_resource(cave)
-        .insert_resource(loader)
         .add_systems(
             Update,
             (
-                stream::advance,
                 cave::toggle,
                 render::toggle_wireframe,
                 #[cfg(target_os = "macos")]
@@ -319,13 +336,18 @@ const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
 
 /// Singleplayer, the way the vanilla client plays it: a server of our own on a
 /// loopback port, which the client then joins like any other.
-#[cfg(not(target_family = "wasm"))]
-fn host_integrated_server(world: Option<&Path>, assets: &str) -> SocketAddr {
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+fn host_integrated_server(
+    world: Option<&Path>,
+    assets: &str,
+    traces: ColumnTraceSink,
+) -> SocketAddr {
     let mut server = App::new();
     server.add_plugins(
         MinecraftServerPlugin::embedded()
             .with_assets(assets)
-            .with_world(world.map(Path::to_path_buf)),
+            .with_world(world.map(Path::to_path_buf))
+            .with_column_traces(traces),
     );
     let address = server.world().resource::<BoundAddress>().0;
     mcrs_minecraft_server::spawn_server_thread(server, mcrs_minecraft_server::run_server_loop);
@@ -367,6 +389,7 @@ fn world_folder() -> Option<PathBuf> {
 #[cfg(not(target_family = "wasm"))]
 struct SaveData {
     world_clocks: save::WorldClockStates,
+    player_uuid: Option<Uuid>,
     dimension: String,
     advance_time: bool,
     weather: Weather,
@@ -380,6 +403,7 @@ impl Default for SaveData {
     fn default() -> Self {
         Self {
             world_clocks: save::WorldClockStates::default(),
+            player_uuid: None,
             dimension: "minecraft:overworld".to_owned(),
             advance_time: true,
             weather: Weather::default(),
@@ -398,14 +422,14 @@ fn load_save(world: &Path) -> SaveData {
     let game_rules = save::read_game_rules(world).unwrap_or_else(|err| fatal(err));
 
     let (position, yaw, pitch, dimension) = match level.singleplayer_uuid {
-        Some(uuid) => match save::read_player(world, uuid) {
-            Ok(player) => (
+        Some(uuid) => match save::read_player_dat(world, uuid) {
+            Ok(Some(player)) => (
                 DVec3::from_array(player.pos),
-                player.yaw,
-                player.pitch,
+                player.rotation[0],
+                player.rotation[1],
                 player.dimension,
             ),
-            Err(SaveError::Missing { .. }) => spawn_fallback(&level.spawn),
+            Ok(None) => spawn_fallback(&level.spawn),
             Err(err) => fatal(err),
         },
         None => spawn_fallback(&level.spawn),
@@ -413,6 +437,7 @@ fn load_save(world: &Path) -> SaveData {
 
     SaveData {
         world_clocks,
+        player_uuid: level.singleplayer_uuid,
         dimension,
         advance_time: game_rules.advance_time,
         weather: Weather {

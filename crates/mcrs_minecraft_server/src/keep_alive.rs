@@ -2,8 +2,9 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Commands, Query};
+use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::query::Changed;
+use bevy_time::{Real, Time};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::WritePacket;
@@ -11,8 +12,12 @@ use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundKee
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundKeepAlive as ConfigurationResponse;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive as GameRequest;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive as GameResponse;
-use std::time::Instant;
+use std::time::Duration;
 use tracing::{debug, warn};
+
+/// The reference's `KEEPALIVE_LIMIT`: how long after the last challenge the next one is due,
+/// and how long a challenge may go unanswered.
+const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 
 pub struct KeepAlivePlugin;
 
@@ -24,27 +29,26 @@ impl Plugin for KeepAlivePlugin {
     }
 }
 
-#[derive(Component, Debug)]
-pub struct KeepaliveState {
-    pending: bool,
-    time: Instant,
-    challenge: i64,
+/// Times are the real-time clock's elapsed time: a keep-alive measures the wire, not the tick.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeepAlive {
+    Idle { since: Duration },
+    Awaiting { challenge: i64, sent: Duration },
 }
 
+/// Each phase starts its own keep-alive, as the reference's packet listener for each phase does.
 pub fn new_connection(
     query: Query<(Entity, &ConnectionState), Changed<ConnectionState>>,
+    time: Res<Time<Real>>,
     mut commands: Commands,
 ) {
     for (entity, state) in query {
         if *state == ConnectionState::Login {
-            commands.entity(entity).remove::<KeepaliveState>();
+            commands.entity(entity).remove::<KeepAlive>();
             continue;
         }
-
-        commands.entity(entity).insert(KeepaliveState {
-            pending: false,
-            time: Instant::now(),
-            challenge: 0,
+        commands.entity(entity).insert(KeepAlive::Idle {
+            since: time.elapsed(),
         });
     }
 }
@@ -54,54 +58,48 @@ pub fn handle_keepalive(
         Entity,
         &mut ServerSideConnection,
         &ConnectionState,
-        &mut KeepaliveState,
+        &mut KeepAlive,
     )>,
+    time: Res<Time<Real>>,
     mut commands: Commands,
 ) {
-    let now = Instant::now();
+    let now = time.elapsed();
     for (entity, mut con, conn_state, mut state) in query.iter_mut() {
-        if *conn_state == ConnectionState::Login {
-            continue;
-        }
-
-        if now.duration_since(state.time).as_secs() >= 15 {
-            if state.pending {
+        match *state {
+            KeepAlive::Awaiting { sent, .. } if now.saturating_sub(sent) >= KEEPALIVE_INTERVAL => {
                 warn!("Keepalive timeout for {}", con.remote_addr());
                 commands.entity(entity).remove::<ServerSideConnection>();
-                continue;
             }
-
-            state.challenge = rand::random();
-            state.time = now;
-            state.pending = true;
-
-            debug!(
-                "Sending keepalive to {} with payload {}",
-                con.remote_addr(),
-                state.challenge
-            );
-            let request = mcrs_minecraft_protocol::packets::common::clientbound::KeepAlive {
-                payload: state.challenge,
-            };
-
-            match conn_state {
-                ConnectionState::Configuration => {
-                    let pkt = ConfigurationRequest(request);
-                    con.write_packet(&pkt);
+            KeepAlive::Idle { since } if now.saturating_sub(since) >= KEEPALIVE_INTERVAL => {
+                let challenge = rand::random();
+                debug!(
+                    "Sending keepalive to {} with payload {}",
+                    con.remote_addr(),
+                    challenge
+                );
+                let request = mcrs_minecraft_protocol::packets::common::clientbound::KeepAlive {
+                    payload: challenge,
+                };
+                match conn_state {
+                    ConnectionState::Configuration => {
+                        con.write_packet(&ConfigurationRequest(request))
+                    }
+                    ConnectionState::Game => con.write_packet(&GameRequest(request)),
+                    ConnectionState::Login => continue,
                 }
-                ConnectionState::Game => {
-                    let pkt = GameRequest(request);
-                    con.write_packet(&pkt);
-                }
-                ConnectionState::Login => unreachable!(),
+                *state = KeepAlive::Awaiting {
+                    challenge,
+                    sent: now,
+                };
             }
+            _ => {}
         }
     }
 }
 
 pub fn handle_keepalive_response(
     event: On<ReceivedPacketEvent>,
-    mut query: Query<(&ServerSideConnection, &ConnectionState, &mut KeepaliveState)>,
+    mut query: Query<(&ServerSideConnection, &ConnectionState, &mut KeepAlive)>,
     mut commands: Commands,
 ) {
     let Ok((con, conn_state, mut state)) = query.get_mut(event.entity) else {
@@ -123,18 +121,20 @@ pub fn handle_keepalive_response(
         _ => return,
     };
     debug!("Keepalive response: {:?}", keep_alive);
-    if !state.pending || keep_alive.payload != state.challenge {
-        warn!(
-            "Keepalive failed for {}: expected {}, got {}",
-            con.remote_addr(),
-            state.challenge,
-            keep_alive.payload
-        );
-        commands
-            .entity(event.entity)
-            .remove::<ServerSideConnection>();
-        return;
+    match *state {
+        KeepAlive::Awaiting { challenge, sent } if keep_alive.payload == challenge => {
+            *state = KeepAlive::Idle { since: sent };
+        }
+        _ => {
+            warn!(
+                "Keepalive failed for {}: got {} while {:?}",
+                con.remote_addr(),
+                keep_alive.payload,
+                *state
+            );
+            commands
+                .entity(event.entity)
+                .remove::<ServerSideConnection>();
+        }
     }
-
-    state.pending = false;
 }

@@ -1,9 +1,10 @@
-use mcrs_minecraft_network::columns::{BlockSource, SECTION_SIZE};
-use mcrs_voxel_math::ColumnPos;
+use crate::columns::{BlockSource, SECTION_SIZE};
+use mcrs_minecraft_core::ColumnPos;
 
 use crate::model::{self, Pack};
 
-use super::{Catalog, TINT_KINDS};
+use super::Catalog;
+use mcrs_minecraft_mesh::block::TINT_KINDS;
 
 #[derive(serde::Deserialize)]
 struct BiomeFile {
@@ -106,7 +107,7 @@ fn load_biome(pack: &Pack, name: &str) -> Result<BiomeFile, String> {
     serde_json::from_slice(bytes).map_err(|error| format!("{name}: cannot parse {path}: {error}"))
 }
 
-fn load_colormap(pack: &Pack, name: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn load_colormap(pack: &Pack, name: &str) -> Result<Vec<u8>, String> {
     use bevy::asset::RenderAssetUsages;
     use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
     use bevy::prelude::Image;
@@ -133,7 +134,11 @@ fn load_colormap(pack: &Pack, name: &str) -> Result<Vec<u8>, String> {
         .ok_or_else(|| format!("{path} decoded without pixel data"))
 }
 
-fn sample_colormap(map: Option<&[u8]>, temperature: f32, downfall: f32) -> Option<[f32; 4]> {
+pub(crate) fn sample_colormap(
+    map: Option<&[u8]>,
+    temperature: f32,
+    downfall: f32,
+) -> Option<[f32; 4]> {
     let map = map?;
     let t = temperature.clamp(0.0, 1.0);
     let d = downfall.clamp(0.0, 1.0) * t;
