@@ -85,6 +85,7 @@ use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_item::Item as VanillaItem;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
@@ -106,6 +107,7 @@ pub struct DimRegistryBundle {
     pub items: Items,
     pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
     pub block_tag_registry: DynTagRegistry<Block>,
+    pub item_tag_registry: DynTagRegistry<VanillaItem>,
     pub heightmap_predicates: Option<HeightmapPredicates>,
     pub biome_registry: RegistrySnapshot<Biome>,
     pub biome_sources: crate::world::generate::routers::DimensionBiomeSources,
@@ -126,6 +128,10 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         items: world.resource::<Items>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
+        item_tag_registry: world
+            .get_resource::<DynTagRegistry<VanillaItem>>()
+            .cloned()
+            .unwrap_or_default(),
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
         biome_sources: world
@@ -511,6 +517,7 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(registries.items.clone());
     sub_app.insert_resource(registries.static_enchantment_registry.clone());
     sub_app.insert_resource(registries.block_tag_registry.clone());
+    sub_app.insert_resource(registries.item_tag_registry.clone());
     if let Some(predicates) = &registries.heightmap_predicates {
         sub_app.insert_resource(predicates.clone());
     }

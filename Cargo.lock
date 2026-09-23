@@ -3655,6 +3655,7 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
+ "mcrs_minecraft_assets",
  "mcrs_minecraft_core",
  "mcrs_minecraft_item",
  "mcrs_minecraft_protocol",

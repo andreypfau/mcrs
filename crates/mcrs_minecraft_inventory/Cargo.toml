@@ -10,6 +10,7 @@ doctest = false
 [dependencies]
 bevy_app.workspace = true
 bevy_ecs.workspace = true
+mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_protocol.workspace = true

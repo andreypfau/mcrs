@@ -6,6 +6,8 @@ pub const PICKAXES: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!("minecra
 pub const AXES: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:axes"));
 pub const SHOVELS: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:shovels"));
 pub const HOES: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:hoes"));
+pub const SHULKER_BOXES: TagKey<Item> =
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:shulker_boxes"));
 
 // enchantable/* — referenced by Enchantment `supported_items` / `primary_items`.
 pub const ENCHANTABLE_ARMOR: TagKey<Item> =
@@ -63,6 +65,7 @@ pub const ALL_ITEM_TAGS: &[TagKey<Item>] = &[
     AXES,
     SHOVELS,
     HOES,
+    SHULKER_BOXES,
     ENCHANTABLE_ARMOR,
     ENCHANTABLE_BOW,
     ENCHANTABLE_CHEST_ARMOR,
