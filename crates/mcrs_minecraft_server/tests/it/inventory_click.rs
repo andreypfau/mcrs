@@ -1306,6 +1306,170 @@ fn a_creative_drop_at_the_drop_limit_spawns_nothing() {
     assert_eq!(drop_throttle(&world, player), DROP_THROTTLE_LIMIT);
 }
 
+fn split(stage: QuickCraftStage) -> u8 {
+    u8::from(QuickCraftButton {
+        kind: QuickCraftKind::Split,
+        stage,
+    })
+}
+
+#[test]
+fn a_drop_during_a_drag_at_the_drop_limit_only_resets_the_drag() {
+    let (mut world, player) = opened();
+    let carried = stone(&mut world, 64);
+    place(&mut world, carried, player, slots::CARRIED);
+    let held = stone(&mut world, 7);
+    place(&mut world, held, player, slots::HOTBAR.start);
+    world
+        .entity_mut(player)
+        .insert(DropThrottle(DROP_THROTTLE_LIMIT));
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        split(QuickCraftStage::Header),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        slots::MAIN.start as i16,
+        split(QuickCraftStage::Slot),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::Throw,
+        slots::HOTBAR.start as i16,
+        1,
+        Vec::new(),
+    );
+    assert_eq!(
+        stack_at(&world, player, slots::HOTBAR.start),
+        Some((held, 7))
+    );
+    assert_eq!(dropped_items(&mut world), 0);
+    assert_eq!(drop_throttle(&world, player), DROP_THROTTLE_LIMIT);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        split(QuickCraftStage::Header),
+        Vec::new(),
+    );
+    for offset in 0..5 {
+        click(
+            &mut world,
+            player,
+            ContainerInput::QuickCraft,
+            slots::MAIN.start as i16 + offset,
+            split(QuickCraftStage::Slot),
+            Vec::new(),
+        );
+    }
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        split(QuickCraftStage::End),
+        Vec::new(),
+    );
+
+    for offset in 0..5 {
+        assert_eq!(
+            stack_at(&world, player, slots::MAIN.start + offset).map(|s| s.1),
+            Some(12)
+        );
+    }
+    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(4));
+}
+
+#[test]
+fn a_drop_during_a_drag_is_not_charged() {
+    let (mut world, player) = opened();
+    let carried = stone(&mut world, 64);
+    place(&mut world, carried, player, slots::CARRIED);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        SLOT_CLICKED_OUTSIDE,
+        split(QuickCraftStage::Header),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickCraft,
+        slots::MAIN.start as i16,
+        split(QuickCraftStage::Slot),
+        Vec::new(),
+    );
+    click(
+        &mut world,
+        player,
+        ContainerInput::Pickup,
+        SLOT_CLICKED_OUTSIDE,
+        0,
+        Vec::new(),
+    );
+
+    assert_eq!(dropped_items(&mut world), 0);
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED),
+        Some((carried, 64))
+    );
+    assert_eq!(drop_throttle(&world, player), 0);
+}
+
+#[test]
+fn clicks_that_drop_nothing_do_not_charge_the_drop_throttle() {
+    let (mut world, player) = opened();
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::Pickup,
+        SLOT_CLICKED_OUTSIDE,
+        0,
+        Vec::new(),
+    );
+    assert_eq!(drop_throttle(&world, player), 0);
+
+    click(
+        &mut world,
+        player,
+        ContainerInput::Throw,
+        slots::HOTBAR.start as i16,
+        1,
+        Vec::new(),
+    );
+    assert_eq!(drop_throttle(&world, player), 0);
+
+    let held = stone(&mut world, 7);
+    place(&mut world, held, player, slots::HOTBAR.start);
+    let carried = stone(&mut world, 5);
+    place(&mut world, carried, player, slots::CARRIED);
+    click(
+        &mut world,
+        player,
+        ContainerInput::Throw,
+        slots::HOTBAR.start as i16,
+        1,
+        Vec::new(),
+    );
+    assert_eq!(drop_throttle(&world, player), 0);
+    assert_eq!(dropped_items(&mut world), 0);
+}
+
 fn tag_from_assets<T: TaggedRegistry>(
     source: &impl TagSource<Id = u32>,
     key: TagKey<T>,
