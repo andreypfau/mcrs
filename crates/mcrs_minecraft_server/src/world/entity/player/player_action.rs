@@ -33,6 +33,10 @@ pub enum PlayerActionKind {
         block_pos: BlockPos,
         direction: Direction,
     },
+    ChangeDestroyDirection {
+        block_pos: BlockPos,
+        direction: Direction,
+    },
     AbortDestroyBlock {
         block_pos: BlockPos,
     },
@@ -52,6 +56,12 @@ impl From<ServerboundPlayerAction> for PlayerActionKind {
         match value.action {
             mcrs_minecraft_protocol::entity::player::PlayerAction::StartDestroyBlock => {
                 PlayerActionKind::StartDestroyBlock {
+                    block_pos: value.pos,
+                    direction: value.direction,
+                }
+            }
+            mcrs_minecraft_protocol::entity::player::PlayerAction::ChangeDestroyDirection => {
+                PlayerActionKind::ChangeDestroyDirection {
                     block_pos: value.pos,
                     direction: value.direction,
                 }
