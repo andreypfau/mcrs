@@ -1,5 +1,4 @@
 {
-  "gui_light": "front",
   "textures": {
     "all": "block/straw_bed",
     "particle": "block/straw_bed_particle"
@@ -587,7 +586,7 @@
       "translation": [
         0,
         4,
-        -2
+        -3
       ],
       "scale": [
         0.5,
