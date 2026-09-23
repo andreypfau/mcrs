@@ -7,9 +7,11 @@ pub mod value;
 pub use data::{EnchantmentCost, EnchantmentData, NetworkEnchantmentData};
 
 use std::path::Path;
+use std::sync::OnceLock;
 
-use bevy_asset::AssetServer;
+use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::AssetSourceId;
+use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_tasks::block_on;
 
 use data::ProtoEnchantmentData;
@@ -85,4 +87,25 @@ pub fn register_all_enchantments(
         let leaked: &'static EnchantmentData = Box::leak(Box::new(data));
         registry.register(loc, leaked);
     }
+}
+
+/// The vanilla enchantments, loaded once per process; for tests that have no
+/// app to hand them an asset server from.
+pub fn test_enchantments() -> &'static StaticRegistry<EnchantmentData> {
+    static REGISTRY: OnceLock<StaticRegistry<EnchantmentData>> = OnceLock::new();
+    REGISTRY.get_or_init(|| {
+        let mut app = App::new();
+        app.add_plugins((
+            TaskPoolPlugin::default(),
+            AssetPlugin {
+                watch_for_changes_override: Some(false),
+                ..Default::default()
+            },
+        ));
+        let asset_server = app.world().resource::<AssetServer>().clone();
+        let mut registry = StaticRegistry::new();
+        register_all_enchantments(&mut registry, &asset_server);
+        registry.freeze();
+        registry
+    })
 }

@@ -20,6 +20,7 @@ fn stone(count: u8) -> StackView {
         stackable: true,
         armour: None,
         offhand: false,
+        binding_curse: false,
     }
 }
 
@@ -34,6 +35,7 @@ fn helmet() -> StackView {
         stackable: false,
         armour: Some(slots::ARMOR_HEAD),
         offhand: false,
+        binding_curse: false,
     }
 }
 
@@ -48,6 +50,7 @@ fn leggings() -> StackView {
         stackable: false,
         armour: Some(slots::ARMOR_LEGS),
         offhand: false,
+        binding_curse: false,
     }
 }
 
@@ -62,6 +65,7 @@ fn sword() -> StackView {
         stackable: false,
         armour: None,
         offhand: false,
+        binding_curse: false,
     }
 }
 

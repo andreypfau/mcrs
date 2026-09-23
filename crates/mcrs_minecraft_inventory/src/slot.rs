@@ -1,13 +1,14 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::HolderSet;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
     ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value,
 };
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
-use mcrs_minecraft_protocol::item::{ComponentPatch, Equippable};
-use mcrs_minecraft_registry::ItemId;
+use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
+use mcrs_minecraft_registry::{ItemId, StaticRegistry};
 use rustc_hash::FxHashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -44,6 +45,7 @@ pub struct StackView {
     pub stackable: bool,
     pub armour: Option<u16>,
     pub offhand: bool,
+    pub binding_curse: bool,
 }
 
 impl StackView {
@@ -70,6 +72,7 @@ impl StackView {
                 _ => None,
             },
             offhand: equippable.is_some_and(|equippable| equippable.slot == EquipmentSlot::OffHand),
+            binding_curse: prevents_armor_change(world, entity.get::<Enchantments>()),
         })
     }
 
@@ -83,6 +86,21 @@ impl StackView {
             ..self.clone()
         }
     }
+}
+
+fn prevents_armor_change(world: &World, enchantments: Option<&Enchantments>) -> bool {
+    let (Some(enchantments), Some(registry)) = (
+        enchantments,
+        world.get_resource::<StaticRegistry<EnchantmentData>>(),
+    ) else {
+        return false;
+    };
+    enchantments.0.iter().any(|(id, _)| {
+        registry
+            .get_by_loc(id.as_str())
+            .and_then(|data| data.effects.as_ref())
+            .is_some_and(|effects| effects.prevent_armor_change.is_some())
+    })
 }
 
 fn admits_player(equippable: &Equippable) -> bool {
