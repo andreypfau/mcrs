@@ -48,6 +48,7 @@ pub struct StackView {
     pub offhand: bool,
     pub binding_curse: bool,
     pub fits_inside_container_items: bool,
+    pub wearable: bool,
 }
 
 impl StackView {
@@ -63,10 +64,7 @@ impl StackView {
             count: item.count,
             max: max_stack_size(entity),
             stackable: is_stackable(entity),
-            armour: match equippable
-                .filter(|equippable| admits_player(equippable))
-                .map(|equippable| equippable.slot)
-            {
+            armour: match equippable.map(|equippable| equippable.slot) {
                 Some(EquipmentSlot::Head) => Some(slots::ARMOR_HEAD),
                 Some(EquipmentSlot::Chest) => Some(slots::ARMOR_CHEST),
                 Some(EquipmentSlot::Legs) => Some(slots::ARMOR_LEGS),
@@ -78,6 +76,7 @@ impl StackView {
             fits_inside_container_items: !world
                 .get_resource::<DynTagRegistry<Item>>()
                 .is_some_and(|tags| tags.contains(&tags::SHULKER_BOXES, u32::from(item.item.0))),
+            wearable: equippable.is_none_or(admits_player),
         })
     }
 
@@ -212,7 +211,9 @@ impl MenuSnapshot {
         }
         match slot.index {
             slots::RESULT => None,
-            slots::ARMOR_HEAD..=slots::ARMOR_FEET => (view.armour == Some(slot.index)).then_some(1),
+            slots::ARMOR_HEAD..=slots::ARMOR_FEET => {
+                (view.armour == Some(slot.index) && view.wearable).then_some(1)
+            }
             _ => Some(view.max),
         }
     }

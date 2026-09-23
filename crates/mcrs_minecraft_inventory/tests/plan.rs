@@ -22,6 +22,7 @@ fn stone(count: u8) -> StackView {
         offhand: false,
         binding_curse: false,
         fits_inside_container_items: true,
+        wearable: true,
     }
 }
 
@@ -38,6 +39,7 @@ fn ender_pearl(count: u8) -> StackView {
         offhand: false,
         binding_curse: false,
         fits_inside_container_items: true,
+        wearable: true,
     }
 }
 
@@ -54,6 +56,7 @@ fn helmet() -> StackView {
         offhand: false,
         binding_curse: false,
         fits_inside_container_items: true,
+        wearable: true,
     }
 }
 
@@ -70,6 +73,7 @@ fn leggings() -> StackView {
         offhand: false,
         binding_curse: false,
         fits_inside_container_items: true,
+        wearable: true,
     }
 }
 
@@ -86,6 +90,7 @@ fn sword() -> StackView {
         offhand: false,
         binding_curse: false,
         fits_inside_container_items: true,
+        wearable: true,
     }
 }
 
@@ -102,6 +107,7 @@ fn chestplate() -> StackView {
         offhand: false,
         binding_curse: false,
         fits_inside_container_items: true,
+        wearable: true,
     }
 }
 
@@ -118,6 +124,7 @@ fn cursed_chestplate() -> StackView {
         offhand: false,
         binding_curse: true,
         fits_inside_container_items: true,
+        wearable: true,
     }
 }
 
@@ -1091,7 +1098,7 @@ fn armour_the_player_may_not_wear_is_refused_by_its_own_slot() {
     snapshot.set(
         slot(slots::CARRIED),
         Some(StackView {
-            armour: None,
+            wearable: false,
             ..helmet()
         }),
     );
@@ -1102,6 +1109,52 @@ fn armour_the_player_may_not_wear_is_refused_by_its_own_slot() {
         0,
     );
     assert_eq!(ops, []);
+}
+
+#[test]
+fn shift_clicking_armour_the_player_may_not_wear_moves_nothing() {
+    let mut snapshot = fresh();
+    snapshot.set(
+        slot(slots::MAIN.start),
+        Some(StackView {
+            wearable: false,
+            ..helmet()
+        }),
+    );
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::QuickMove,
+        slots::MAIN.start as i16,
+        0,
+    );
+    assert_eq!(ops, []);
+}
+
+#[test]
+fn shift_clicking_armour_the_player_may_not_wear_past_occupied_armour_goes_to_the_hotbar() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::ARMOR_HEAD), Some(helmet()));
+    snapshot.set(
+        slot(slots::MAIN.start),
+        Some(StackView {
+            wearable: false,
+            ..helmet()
+        }),
+    );
+    let ops = click(
+        &mut snapshot,
+        ContainerInput::QuickMove,
+        slots::MAIN.start as i16,
+        0,
+    );
+    assert_eq!(
+        ops,
+        [Op::Transfer {
+            from: slot(slots::MAIN.start),
+            to: slot(slots::HOTBAR.start),
+            count: 1
+        }]
+    );
 }
 
 const CHEST: i16 = slots::ARMOR_CHEST as i16;
