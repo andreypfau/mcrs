@@ -25,6 +25,22 @@ fn stone(count: u8) -> StackView {
     }
 }
 
+fn ender_pearl(count: u8) -> StackView {
+    StackView {
+        key: StackKey {
+            item: ItemId(8),
+            components: ComponentPatch::EMPTY,
+        },
+        count,
+        max: 16,
+        stackable: true,
+        armour: None,
+        offhand: false,
+        binding_curse: false,
+        fits_inside_container_items: true,
+    }
+}
+
 fn helmet() -> StackView {
     StackView {
         key: StackKey {
@@ -1260,4 +1276,82 @@ fn cursed_armour_outside_the_armour_slots_is_taken_in_survival() {
             count: 1
         }]
     );
+}
+
+#[test]
+fn a_16_max_cursor_tops_up_a_slot_of_12_to_16_and_keeps_the_rest() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(ender_pearl(16)));
+    snapshot.set(slot(9), Some(ender_pearl(12)));
+    let ops = click(&mut snapshot, ContainerInput::Pickup, 9, 0);
+    assert_eq!(
+        ops,
+        [Op::Transfer {
+            from: slot(slots::CARRIED),
+            to: slot(9),
+            count: 4
+        }]
+    );
+    assert_eq!(snapshot.count(slot(9)), 16);
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 12);
+}
+
+#[test]
+fn a_16_max_cursor_fills_an_empty_slot_with_16() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(ender_pearl(16)));
+    let ops = click(&mut snapshot, ContainerInput::Pickup, 9, 0);
+    assert_eq!(
+        ops,
+        [Op::Transfer {
+            from: slot(slots::CARRIED),
+            to: slot(9),
+            count: 16
+        }]
+    );
+    assert_eq!(snapshot.count(slot(9)), 16);
+    assert_eq!(snapshot.get(slot(slots::CARRIED)), None);
+}
+
+#[test]
+fn the_result_slot_refuses_left_right_and_digit_key_placement() {
+    let result = slots::RESULT as i16;
+    for button in [0, 1] {
+        let mut snapshot = fresh();
+        snapshot.set(slot(slots::CARRIED), Some(stone(5)));
+        let ops = click(&mut snapshot, ContainerInput::Pickup, result, button);
+        assert!(ops.is_empty(), "button {button}: {ops:?}");
+        assert_eq!(snapshot.get(slot(slots::RESULT)), None);
+    }
+
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::held(0)), Some(stone(5)));
+    let ops = click(&mut snapshot, ContainerInput::Swap, result, 0);
+    assert!(ops.is_empty(), "{ops:?}");
+    assert_eq!(snapshot.get(slot(slots::RESULT)), None);
+
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(5)));
+    snapshot.set(slot(slots::RESULT), Some(ender_pearl(1)));
+    let ops = click(&mut snapshot, ContainerInput::Pickup, result, 0);
+    assert!(ops.is_empty(), "{ops:?}");
+}
+
+#[test]
+fn pickup_all_never_gathers_from_the_result_slot() {
+    let mut snapshot = fresh();
+    snapshot.set(slot(slots::CARRIED), Some(stone(5)));
+    snapshot.set(slot(slots::RESULT), Some(stone(10)));
+    snapshot.set(slot(9), Some(stone(10)));
+    let ops = click(&mut snapshot, ContainerInput::PickupAll, 12, 0);
+    assert_eq!(
+        ops,
+        [Op::Transfer {
+            from: slot(9),
+            to: slot(slots::CARRIED),
+            count: 10
+        }]
+    );
+    assert_eq!(snapshot.count(slot(slots::RESULT)), 10);
+    assert_eq!(snapshot.count(slot(slots::CARRIED)), 15);
 }
