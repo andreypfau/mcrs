@@ -42,6 +42,10 @@ pub struct CurrentMenu(pub Entity);
 #[derive(Component, Debug)]
 pub struct MenuContainer(pub Entity);
 
+/// The menu's own slots take only stacks that fit inside container items.
+#[derive(Component, Debug)]
+pub struct ShulkerBoxSlots;
+
 /// What the viewer's client holds for one slot, as far as the server knows.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum Remote {

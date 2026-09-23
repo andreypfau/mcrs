@@ -40,6 +40,8 @@ pub const LEAVES: TagKey<Block> = TagKey::new(mcrs_minecraft_core::rl!("minecraf
 pub const SAND: TagKey<Block> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:sand"));
 pub const WOOL: TagKey<Block> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:wool"));
 pub const SNOW: TagKey<Block> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:snow"));
+pub const SHULKER_BOXES: TagKey<Block> =
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:shulker_boxes"));
 
 // Heightmap predicates
 pub const BLOCKS_MOTION_IN_HEIGHTMAP: TagKey<Block> = TagKey::new(mcrs_minecraft_core::rl!(
@@ -76,6 +78,7 @@ pub const ALL_BLOCK_TAGS: &[TagKey<Block>] = &[
     SAND,
     WOOL,
     SNOW,
+    SHULKER_BOXES,
     BLOCKS_MOTION_IN_HEIGHTMAP,
     BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
     LIGHTNING_RODS,

@@ -9,7 +9,7 @@ use mcrs_minecraft_protocol::item::{ContainerInput, HashedStack};
 use rustc_hash::FxHashMap;
 
 use crate::drag::{Drag, Feed};
-use crate::menu::{CurrentMenu, Menu, MenuLayout, Remote, RemoteSlots};
+use crate::menu::{CurrentMenu, Menu, MenuLayout, Remote, RemoteSlots, ShulkerBoxSlots};
 use crate::plan::{Click, Planner, SLOT_CLICKED_OUTSIDE};
 use crate::slot::MenuSnapshot;
 use crate::transaction::{Op, Transaction};
@@ -127,10 +127,9 @@ pub fn handle_container_clicks(
         }
         fold.full |= req.state_id != i32::from(state_id);
         let (snapshot, ops) = plans.entry(req.player).or_insert_with(|| {
-            (
-                MenuSnapshot::new(world, items, req.player, layout.0.clone()),
-                Vec::new(),
-            )
+            let mut snapshot = MenuSnapshot::new(world, items, req.player, layout.0.clone());
+            snapshot.shulker_box_slots = world.get::<ShulkerBoxSlots>(menu).is_some();
+            (snapshot, Vec::new())
         });
         let mut planner = Planner::new(snapshot);
         let click = Click {

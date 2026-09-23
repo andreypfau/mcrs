@@ -6,11 +6,18 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::tag::file::SerializedTagFile;
+use mcrs_minecraft_assets::tag::{DynTagLoader, DynTagRegistry, TagSource};
+use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
 use mcrs_minecraft_inventory::{
     ContainerClickRequest, CurrentMenu, DROP_THROTTLE_LIMIT, DROP_THROTTLE_STEP, DropThrottle,
     Menu, Remote, RemoteSlots, SLOT_CLICKED_OUTSIDE, handle_container_clicks, tick_drop_throttles,
 };
-use mcrs_minecraft_item::{DroppedItem, Thrower, slots, stack_to_slot};
+use mcrs_minecraft_item::{DroppedItem, SlotTable, Thrower, slots, stack_to_slot};
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::item::{
     ContainerInput, HashedStack, ProtoStack, QuickCraftButton, QuickCraftKind, QuickCraftStage,
@@ -19,6 +26,7 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::player::ability::PlayerGameMode;
+use mcrs_minecraft_server::world::item::chest::{OpenContainerRequest, open_containers};
 use mcrs_minecraft_server::world::item::click::{
     CloseContainerRequest, CreativeSlotRequest, close_menus, handle_creative_slots,
 };
@@ -51,6 +59,15 @@ fn click(
     click_at(world, player, state_id, input, slot, button, changed, None);
 }
 
+fn open_container_id(world: &World, player: Entity) -> i32 {
+    i32::from(
+        world
+            .get::<Menu>(world.get::<CurrentMenu>(player).unwrap().0)
+            .unwrap()
+            .container_id,
+    )
+}
+
 fn click_at(
     world: &mut World,
     player: Entity,
@@ -61,12 +78,13 @@ fn click_at(
     changed: Vec<(u16, Option<HashedStack>)>,
     carried: Option<HashedStack>,
 ) {
+    let container_id = open_container_id(world, player);
     world
         .resource_mut::<Messages<ContainerClickRequest>>()
         .write(ContainerClickRequest {
             player,
             game_mode: GameMode::Survival,
-            container_id: 0,
+            container_id,
             state_id,
             slot,
             button,
@@ -86,12 +104,13 @@ fn write_click(world: &mut World, player: Entity, input: ContainerInput, slot: i
             .unwrap()
             .state_id,
     );
+    let container_id = open_container_id(world, player);
     world
         .resource_mut::<Messages<ContainerClickRequest>>()
         .write(ContainerClickRequest {
             player,
             game_mode: GameMode::Survival,
-            container_id: 0,
+            container_id,
             state_id,
             slot,
             button,
@@ -1285,4 +1304,88 @@ fn a_creative_drop_at_the_drop_limit_spawns_nothing() {
     handle_creative_slots(&mut world);
     assert_eq!(dropped_items(&mut world), 1);
     assert_eq!(drop_throttle(&world, player), DROP_THROTTLE_LIMIT);
+}
+
+fn tag_from_assets<T: TaggedRegistry>(
+    source: &impl TagSource<Id = u32>,
+    key: TagKey<T>,
+) -> DynTagRegistry<T> {
+    let location = key.location();
+    let path = std::path::Path::new(&std::env::var("BEVY_ASSET_ROOT").unwrap()).join(format!(
+        "assets/{}/tags/{}/{}.json",
+        location.namespace(),
+        T::REGISTRY_PATH,
+        location.path()
+    ));
+    let file: SerializedTagFile = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let ids = file
+        .values
+        .iter()
+        .map(|entry| source.id_of(entry.id.loc.as_str()).unwrap())
+        .collect();
+    let mut loader = DynTagLoader::<T>::default();
+    loader.insert(key.to_arc().location().clone(), ids);
+    loader.freeze(source)
+}
+
+/// Opens a 27-slot container standing at a position holding `block`.
+fn opened_over(block: &str) -> (World, Entity, Entity) {
+    let (mut world, player) = opened();
+    let (blocks, items) = standalone_corpus();
+    world.insert_resource(tag_from_assets(blocks, mcrs_minecraft_block::tags::SHULKER_BOXES));
+    world.insert_resource(tag_from_assets(items, mcrs_minecraft_item::tags::SHULKER_BOXES));
+    let mut palette = ChunkBlocks::default();
+    palette
+        .make_mut()
+        .set_cell(1, 1, 1, VoxelId(blocks.default_state(block).0));
+    let section = world.spawn(palette).id();
+    let container = world
+        .spawn((
+            BlockEntityPos(BlockPos::new(1, 1, 1)),
+            InSection(section),
+            SlotTable::fixed(27),
+        ))
+        .id();
+    world.init_resource::<Messages<OpenContainerRequest>>();
+    world.write_message(OpenContainerRequest { player, container });
+    open_containers(&mut world);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+    (world, player, container)
+}
+
+#[test]
+fn a_menu_over_a_shulker_box_refuses_a_shulker_box_and_takes_a_bundle() {
+    let (mut world, player, container) = opened_over("minecraft:shulker_box");
+    let bundle = item(&mut world, "bundle", 1);
+    place(&mut world, bundle, player, slots::CARRIED);
+    click(&mut world, player, ContainerInput::Pickup, 0, 0, Vec::new());
+    assert_eq!(stack_at(&world, container, 0), Some((bundle, 1)));
+    assert_eq!(stack_at(&world, player, slots::CARRIED), None);
+
+    let shulker = item(&mut world, "shulker_box", 1);
+    place(&mut world, shulker, player, slots::CARRIED);
+    click(&mut world, player, ContainerInput::Pickup, 1, 0, Vec::new());
+    assert_eq!(stack_at(&world, player, slots::CARRIED), Some((shulker, 1)));
+    assert_eq!(stack_at(&world, container, 1), None);
+}
+
+#[test]
+fn shift_clicking_a_shulker_box_into_a_menu_over_a_shulker_box_moves_nothing() {
+    let (mut world, player, container) = opened_over("minecraft:shulker_box");
+    let shulker = item(&mut world, "shulker_box", 1);
+    place(&mut world, shulker, player, slots::MAIN.start);
+    click(&mut world, player, ContainerInput::QuickMove, 27, 0, Vec::new());
+    assert_eq!(stack_at(&world, player, slots::MAIN.start), Some((shulker, 1)));
+    assert!((0..27).all(|index| stack_at(&world, container, index).is_none()));
+}
+
+#[test]
+fn a_menu_over_a_chest_takes_a_shulker_box() {
+    let (mut world, player, container) = opened_over("minecraft:chest");
+    let shulker = item(&mut world, "shulker_box", 1);
+    place(&mut world, shulker, player, slots::CARRIED);
+    click(&mut world, player, ContainerInput::Pickup, 0, 0, Vec::new());
+    assert_eq!(stack_at(&world, container, 0), Some((shulker, 1)));
+    assert_eq!(stack_at(&world, player, slots::CARRIED), None);
 }

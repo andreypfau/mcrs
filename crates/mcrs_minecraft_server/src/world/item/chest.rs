@@ -9,14 +9,20 @@ use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::relationship::RelationshipTarget;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_block::Block;
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_inventory::{
     CurrentMenu, Menu, MenuContainer, MenuLayout, MenuSlots, MenuViewer, MenusOf, RemoteSlots,
-    container_menu_layout,
+    ShulkerBoxSlots, container_menu_layout,
 };
 use mcrs_minecraft_item::SlotTable;
 use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
+use mcrs_minecraft_level::palette::ChunkBlocks;
+use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
 use mcrs_minecraft_protocol::Text;
+use mcrs_minecraft_registry::BlockStateId;
 
 /// ponytail: no menu registry is loaded, so the generic 9x3 id is the
 /// vanilla constant. Upgrade: a `minecraft:menu` snapshot in RegistryAccess.
@@ -66,6 +72,23 @@ pub fn close_container_menu(world: &mut World, player: Entity, menu: Entity, not
     }
 }
 
+fn is_shulker_box(world: &World, container: Entity) -> bool {
+    let (Some(section), Some(pos)) = (
+        world.get::<InSection>(container),
+        world.get::<BlockEntityPos>(container),
+    ) else {
+        return false;
+    };
+    let Some(palette) = world.get::<ChunkBlocks>(section.0) else {
+        return false;
+    };
+    let state = BlockStateId::from(palette.get(LocalPos::from(pos.0)));
+    let block = world.resource::<Blocks>().block_index(state);
+    world
+        .resource::<DynTagRegistry<Block>>()
+        .contains(&mcrs_minecraft_block::tags::SHULKER_BOXES, block)
+}
+
 pub fn open_containers(world: &mut World) {
     let requests: Vec<OpenContainerRequest> = world
         .resource_mut::<Messages<OpenContainerRequest>>()
@@ -85,6 +108,7 @@ pub fn open_containers(world: &mut World) {
             tracing::debug!(container = ?req.container, slots = table.len(), "a container without a chest menu");
             continue;
         }
+        let shulker_box = is_shulker_box(world, req.container);
         if world.get::<MenuContainer>(current).is_some() {
             close_container_menu(world, req.player, current, true);
         }
@@ -117,6 +141,9 @@ pub fn open_containers(world: &mut World) {
                 },
             ))
             .id();
+        if shulker_box {
+            world.entity_mut(menu).insert(ShulkerBoxSlots);
+        }
         world.entity_mut(req.player).insert(CurrentMenu(menu));
         let packet = to(
             world,

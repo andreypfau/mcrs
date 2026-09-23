@@ -10,7 +10,7 @@ use mcrs_minecraft_item::{
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
 use mcrs_minecraft_registry::{ItemId, StaticRegistry};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Slot {
@@ -135,8 +135,8 @@ pub struct MenuSnapshot {
     pub player: Entity,
     pub selected: u8,
     pub layout: Vec<Slot>,
+    pub shulker_box_slots: bool,
     stacks: FxHashMap<Source, StackView>,
-    container_items: FxHashSet<Entity>,
 }
 
 impl MenuSnapshot {
@@ -150,17 +150,14 @@ impl MenuSnapshot {
                 stacks.insert(Source::Slot(slot), view);
             }
         }
-        let mut container_items: FxHashSet<Entity> =
-            layout.iter().map(|slot| slot.holder).collect();
-        container_items.retain(|&holder| world.get::<ItemStack>(holder).is_some());
         MenuSnapshot {
             player,
             selected: world
                 .get::<SelectedHotbarSlot>(player)
                 .map_or(0, |selected| selected.0),
             layout,
+            shulker_box_slots: false,
             stacks,
-            container_items,
         }
     }
 
@@ -170,8 +167,8 @@ impl MenuSnapshot {
             player,
             selected,
             layout,
+            shulker_box_slots: false,
             stacks: FxHashMap::default(),
-            container_items: FxHashSet::default(),
         }
     }
 
@@ -208,7 +205,7 @@ impl MenuSnapshot {
     /// ponytail: a container with its own limit (a chest's 64) caps here when it exists.
     pub fn slot_max(&self, slot: Slot, view: &StackView) -> Option<u8> {
         if slot.holder != self.player {
-            if self.container_items.contains(&slot.holder) && !view.fits_inside_container_items {
+            if self.shulker_box_slots && !view.fits_inside_container_items {
                 return None;
             }
             return Some(view.max);
