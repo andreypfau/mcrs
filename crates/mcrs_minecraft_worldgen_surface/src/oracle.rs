@@ -338,6 +338,10 @@ mod tests {
         // so the rest stay `maybe`.
         let mut palettes: Vec<Vec<u32>> = biomes.chunks(5).map(<[u32]>::to_vec).collect();
         palettes.push(biomes.clone());
+        // Column 8 holds an iron vein at `min_y + 7`; no earlier column has one in its band.
+        while palettes.len() < 9 {
+            palettes.push(biomes.clone());
+        }
 
         let mut scratch = MaterialScratch::default();
         let mut visited = Visited::new();
@@ -381,6 +385,7 @@ mod tests {
                         min_y + 4,
                         min_y + 5,
                         min_y + 6,
+                        min_y + 7,
                         -9,
                         -8,
                         -1,
