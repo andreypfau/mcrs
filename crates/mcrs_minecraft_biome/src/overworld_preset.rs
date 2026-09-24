@@ -1212,7 +1212,7 @@ impl Builder {
         let (e0, e1, _e2, _e3, _e4, e5, e6) = self.erosion_septet();
         self.underground(
             full,
-            full,
+            Parameter::span(-1.0, 0.7),
             Parameter::span(0.8, 1.0),
             full,
             full,
@@ -1230,7 +1230,7 @@ impl Builder {
         );
         self.underground(
             full,
-            full,
+            Parameter::span(-1.0, 0.7),
             coast.union(inland),
             e5.union(e6),
             Parameter::span(-1.1, -0.85),

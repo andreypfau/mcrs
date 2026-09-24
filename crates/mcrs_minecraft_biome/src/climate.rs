@@ -60,10 +60,11 @@ impl Parameter {
         }
     }
 
-    /// How far `target` lies outside the span, zero when inside it.
+    /// How far `target` lies outside the span, zero when inside it. The upper
+    /// bound is exclusive, so a point span is never a zero-distance match.
     #[inline]
     pub fn distance(self, target: i64) -> i64 {
-        (target - self.max).max(self.min - target).max(0)
+        (target - self.max + 1).max(self.min - target).max(0)
     }
 }
 
@@ -249,7 +250,7 @@ impl Tree {
     fn distance(&self, at: usize, target: &Coords) -> i64 {
         let mut total = 0;
         for axis in 0..6 {
-            let distance = (target[axis] - self.max[axis][at])
+            let distance = (target[axis] - self.max[axis][at] + 1)
                 .max(self.min[axis][at] - target[axis])
                 .max(0);
             total += distance * distance;
@@ -298,7 +299,7 @@ fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> 
         let max = &tree.max[axis][start..start + count];
         let target = target[axis];
         for ((total, &min), &max) in distances.iter_mut().zip(min).zip(max) {
-            let distance = (target - max).max(min - target).max(0);
+            let distance = (target - max + 1).max(min - target).max(0);
             *total += distance * distance;
         }
     }
@@ -574,9 +575,10 @@ mod tests {
     #[test]
     fn a_span_measures_only_the_distance_outside_itself() {
         let span = Parameter::span(-0.2, 0.2);
+        assert_eq!(span.distance(quantize_coord(-0.2)), 0);
         assert_eq!(span.distance(quantize_coord(0.0)), 0);
-        assert_eq!(span.distance(quantize_coord(0.2)), 0);
-        assert_eq!(span.distance(quantize_coord(0.3)), 1000);
+        assert_eq!(span.distance(quantize_coord(0.2)), 1);
+        assert_eq!(span.distance(quantize_coord(0.3)), 1001);
         assert_eq!(span.distance(quantize_coord(-0.3)), 1000);
     }
 
@@ -594,8 +596,8 @@ mod tests {
             offset: quantize_coord(0.1),
             ..plain
         };
-        assert_eq!(plain.fitness(target), 0);
-        assert_eq!(penalized.fitness(target), 1000 * 1000);
+        assert_eq!(plain.fitness(target), 6);
+        assert_eq!(penalized.fitness(target), 6 + 1000 * 1000);
         let table = ParameterList::new(vec![(penalized, "penalized"), (plain, "plain")]);
         assert_eq!(*table.find_value(target), "plain");
     }
@@ -622,10 +624,10 @@ mod tests {
         let target = TargetPoint::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         let mut only_weirdness = point(0.0, 0.0);
         only_weirdness.weirdness = Parameter::point(1.0);
-        assert_eq!(only_weirdness.fitness(target), 10000 * 10000);
+        assert_eq!(only_weirdness.fitness(target), 10000 * 10000 + 5);
         let mut only_depth = point(0.0, 0.0);
         only_depth.depth = Parameter::point(1.0);
-        assert_eq!(only_depth.fitness(target), 10000 * 10000);
+        assert_eq!(only_depth.fitness(target), 10000 * 10000 + 5);
     }
 
     /// The tree only prunes, so it has to reach the same entry a full scan
