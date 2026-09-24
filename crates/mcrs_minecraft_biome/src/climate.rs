@@ -60,6 +60,11 @@ impl Parameter {
         }
     }
 
+    /// Whether the two spans share more than a bound, or are the same span.
+    pub fn overlaps(self, other: Parameter) -> bool {
+        self == other || self.min.max(other.min) < self.max.min(other.max)
+    }
+
     /// How far `target` lies outside the span, zero when inside it. The upper
     /// bound is exclusive, so a point span is never a zero-distance match.
     #[inline]
@@ -102,6 +107,20 @@ impl ParameterPoint {
             self.offset,
         ];
         terms.iter().map(|term| term * term).sum()
+    }
+}
+
+impl ParameterPoint {
+    /// Whether no target could tell the two apart: the same offset, and every
+    /// noise parameter overlapping.
+    pub fn indistinguishable_from(&self, other: &ParameterPoint) -> bool {
+        self.offset == other.offset
+            && self.temperature.overlaps(other.temperature)
+            && self.humidity.overlaps(other.humidity)
+            && self.continentalness.overlaps(other.continentalness)
+            && self.erosion.overlaps(other.erosion)
+            && self.depth.overlaps(other.depth)
+            && self.weirdness.overlaps(other.weirdness)
     }
 }
 
@@ -580,6 +599,15 @@ mod tests {
         assert_eq!(span.distance(quantize_coord(0.2)), 1);
         assert_eq!(span.distance(quantize_coord(0.3)), 1001);
         assert_eq!(span.distance(quantize_coord(-0.3)), 1000);
+    }
+
+    #[test]
+    fn spans_that_only_touch_do_not_overlap() {
+        let low = Parameter::span(-1.0, 0.7);
+        assert!(!low.overlaps(Parameter::span(0.7, 1.0)));
+        assert!(low.overlaps(Parameter::span(0.6, 1.0)));
+        assert!(Parameter::point(0.0).overlaps(Parameter::point(0.0)));
+        assert!(!Parameter::point(0.0).overlaps(Parameter::span(-1.0, 1.0)));
     }
 
     #[test]

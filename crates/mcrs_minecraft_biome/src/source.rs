@@ -4,7 +4,7 @@ use bevy_asset::{Handle, LoadContext, UntypedAssetId};
 use serde::Deserialize;
 
 use super::Biome;
-use super::climate::ClimateParameters;
+use super::climate::{ClimateParameters, ParameterPoint};
 use mcrs_minecraft_core::ResourceLocation;
 
 // ===========================================================================
@@ -202,7 +202,30 @@ fn default_scale() -> u32 {
 #[derive(Deserialize)]
 pub struct ProtoMultiNoiseBiomeSource {
     pub preset: Option<ResourceLocation<Arc<str>>>,
+    #[serde(default, deserialize_with = "distinguishable_entries")]
     pub biomes: Option<Vec<ProtoMultiNoiseBiomeEntry>>,
+}
+
+fn distinguishable_entries<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Vec<ProtoMultiNoiseBiomeEntry>>, D::Error> {
+    let entries = Option::<Vec<ProtoMultiNoiseBiomeEntry>>::deserialize(deserializer)?;
+    let points: Vec<ParameterPoint> = entries
+        .iter()
+        .flatten()
+        .map(|entry| ParameterPoint::from(&entry.parameters))
+        .collect();
+    for (first, a) in points.iter().enumerate() {
+        for (second, b) in points.iter().enumerate().skip(first + 1) {
+            let biomes = entries.as_deref().unwrap_or_default();
+            if biomes[first].biome != biomes[second].biome && a.indistinguishable_from(b) {
+                return Err(serde::de::Error::custom(format!(
+                    "Entries {first} and {second} overlap in all noise parameters"
+                )));
+            }
+        }
+    }
+    Ok(entries)
 }
 
 #[derive(Deserialize)]
@@ -276,6 +299,43 @@ impl ProtoMultiNoiseBiomeSource {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+
+    #[test]
+    fn two_biomes_no_climate_can_tell_apart_are_a_load_error() {
+        let entry = |biome: &str, humidity: &str| {
+            format!(
+                r#"{{"biome":"{biome}","parameters":{{"temperature":0.0,"humidity":{humidity},"continentalness":0.0,"erosion":0.0,"depth":0.0,"weirdness":0.0,"offset":0.0}}}}"#
+            )
+        };
+        let parse = |a: String, b: String| {
+            serde_json::from_str::<ProtoMultiNoiseBiomeSource>(&format!(
+                r#"{{"biomes":[{a},{b}]}}"#
+            ))
+        };
+
+        let error = parse(
+            entry("minecraft:plains", "0.0"),
+            entry("minecraft:desert", "0.0"),
+        )
+        .err()
+        .expect("two biomes on one climate point")
+        .to_string();
+        assert!(error.contains("Entries 0 and 1 overlap"), "{error}");
+        assert!(
+            parse(
+                entry("minecraft:plains", "0.0"),
+                entry("minecraft:plains", "0.0")
+            )
+            .is_ok()
+        );
+        assert!(
+            parse(
+                entry("minecraft:plains", "[-1.0, 0.7]"),
+                entry("minecraft:desert", "[0.7, 1.0]")
+            )
+            .is_ok()
+        );
+    }
 
     #[test]
     fn beta_biome_all_land_reachable() {
