@@ -346,7 +346,7 @@ mod tests {
         let width = IntProvider::uniform(1, 3).sample(&mut replay);
         let length = IntProvider::uniform(1, 3).sample(&mut replay);
         assert_eq!(rng, replay);
-        assert_eq!(hits.len() as i32, (width + 1) * (height + 1) * (length + 1));
+        assert_eq!(hits.len() as i32, width * height * length);
         assert_eq!(hits[0], ORIGIN);
         assert_eq!(
             hits[1],
@@ -358,8 +358,8 @@ mod tests {
     #[test]
     fn a_cuboid_shell_drops_the_interior() {
         let modifiers = vec![Modifier::Cuboid {
-            xz_size: BoundedIntProvider(IntProvider::Constant(2)),
-            y_size: BoundedIntProvider(IntProvider::Constant(2)),
+            xz_size: BoundedIntProvider(IntProvider::Constant(3)),
+            y_size: BoundedIntProvider(IntProvider::Constant(3)),
             include_edges: true,
             include_interior: false,
         }];

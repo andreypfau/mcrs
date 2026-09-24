@@ -132,24 +132,16 @@ impl PlacementModifier<Predicate> {
                 let height = y_size.sample(rng);
                 let width = xz_size.sample(rng);
                 let length = xz_size.sample(rng);
-                for x in 0..=width {
-                    for y in 0..=height {
-                        for z in 0..=length {
-                            let edge_xy =
-                                *include_edges || (x != 0 && x != width) || (y != 0 && y != height);
-                            let edge_zy = *include_edges
-                                || (z != 0 && z != length)
-                                || (y != 0 && y != height);
-                            let edge_xz =
-                                *include_edges || (x != 0 && x != width) || (z != 0 && z != length);
-                            let interior = *include_interior
-                                || x == 0
-                                || x == width
-                                || y == 0
-                                || y == height
-                                || z == 0
-                                || z == length;
-                            if edge_xy && edge_zy && edge_xz && interior {
+                for x in 0..width {
+                    let x_face = x == 0 || x == width - 1;
+                    for y in 0..height {
+                        let y_face = y == 0 || y == height - 1;
+                        for z in 0..length {
+                            let z_face = z == 0 || z == length - 1;
+                            let on_edge =
+                                x_face && y_face || z_face && y_face || x_face && z_face;
+                            let on_face = x_face || y_face || z_face;
+                            if (*include_edges || !on_edge) && (*include_interior || on_face) {
                                 out.push(BlockPos::new(x + origin.x, y + origin.y, z + origin.z));
                             }
                         }
