@@ -158,6 +158,7 @@ fn java_round(value: f64) -> i32 {
     }) as i32
 }
 
+#[cfg(test)]
 pub fn ring_positions(
     seed: i64,
     distance: i32,

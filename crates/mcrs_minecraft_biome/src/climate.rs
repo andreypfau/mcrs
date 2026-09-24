@@ -111,8 +111,6 @@ impl ParameterPoint {
 }
 
 impl ParameterPoint {
-    /// Whether no target could tell the two apart: the same offset, and every
-    /// noise parameter overlapping.
     pub fn indistinguishable_from(&self, other: &ParameterPoint) -> bool {
         self.offset == other.offset
             && self.temperature.overlaps(other.temperature)
@@ -264,17 +262,6 @@ impl Tree {
         self.value.push(0);
         self.children_start.push(0);
         self.children_count.push(0);
-    }
-
-    fn distance(&self, at: usize, target: &Coords) -> i64 {
-        let mut total = 0;
-        for axis in 0..6 {
-            let distance = (target[axis] - self.max[axis][at] + 1)
-                .max(self.min[axis][at] - target[axis])
-                .max(0);
-            total += distance * distance;
-        }
-        total + self.offset[at]
     }
 }
 
@@ -537,10 +524,12 @@ impl<T> ParameterList<T> {
                 bound_distance(&self.values[slot].0.space(), &coords),
             )
         });
-        let (slot, _) = if self.tree.children_count[0] == 0 {
-            (self.tree.value[0], self.tree.distance(0, &coords))
+        let slot = if self.tree.children_count[0] == 0 {
+            self.tree.value[0]
         } else {
-            search(&self.tree, 0, &coords, seed).expect("a non-empty tree")
+            search(&self.tree, 0, &coords, seed)
+                .expect("a non-empty tree")
+                .0
         };
         *last = Some(slot as usize);
         slot as usize

@@ -503,7 +503,26 @@ pub struct TerrainCarving<'a, 'f> {
     pub block_z: i32,
 }
 
-impl TerrainCarving<'_, '_> {
+impl<'a, 'f> TerrainCarving<'a, 'f> {
+    pub fn new(
+        mask: &'a CarvingMask,
+        ids: &'a ModernCarverBlockIds,
+        fluid: &'a mut FluidField<'f>,
+        router: &'a NoiseRouter,
+        chunk_x: i32,
+        chunk_z: i32,
+    ) -> Self {
+        Self {
+            mask,
+            ids,
+            fluid,
+            router,
+            ws: Workspace::new(),
+            block_x: chunk_x * 16,
+            block_z: chunk_z * 16,
+        }
+    }
+
     #[inline]
     pub fn is_carved(&self, x: i32, y: i32, z: i32) -> bool {
         self.mask.contains(x, y, z)
@@ -525,6 +544,7 @@ impl TerrainCarving<'_, '_> {
 
 /// Every carver of every biome that reaches this chunk, applied to a column no
 /// material rule decides.
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub fn apply_modern_carvers(
     column: &ColumnBlocks,
@@ -541,15 +561,7 @@ pub fn apply_modern_carvers(
     let mask = modern_carving_mask(chunk_x, chunk_z, world_seed, router, ws, biomes, height);
     carve_unsurfaced(
         column,
-        &mut TerrainCarving {
-            mask: &mask,
-            ids,
-            fluid,
-            router,
-            ws: Workspace::new(),
-            block_x: chunk_x * 16,
-            block_z: chunk_z * 16,
-        },
+        &mut TerrainCarving::new(&mask, ids, fluid, router, chunk_x, chunk_z),
     );
 }
 

@@ -210,15 +210,14 @@ fn distinguishable_entries<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<Vec<ProtoMultiNoiseBiomeEntry>>, D::Error> {
     let entries = Option::<Vec<ProtoMultiNoiseBiomeEntry>>::deserialize(deserializer)?;
-    let points: Vec<ParameterPoint> = entries
+    let points: Vec<_> = entries
         .iter()
         .flatten()
-        .map(|entry| ParameterPoint::from(&entry.parameters))
+        .map(|entry| (&entry.biome, ParameterPoint::from(&entry.parameters)))
         .collect();
-    for (first, a) in points.iter().enumerate() {
-        for (second, b) in points.iter().enumerate().skip(first + 1) {
-            let biomes = entries.as_deref().unwrap_or_default();
-            if biomes[first].biome != biomes[second].biome && a.indistinguishable_from(b) {
+    for (first, (biome_a, a)) in points.iter().enumerate() {
+        for (second, (biome_b, b)) in points.iter().enumerate().skip(first + 1) {
+            if biome_a != biome_b && a.indistinguishable_from(b) {
                 return Err(serde::de::Error::custom(format!(
                     "Entries {first} and {second} overlap in all noise parameters"
                 )));

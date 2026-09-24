@@ -97,11 +97,9 @@ pub fn build_dimension_router(
         name: ResourceLocation::minecraft(name),
         properties: None,
     };
+    let stone = plain("stone");
     let blocks = RouterBlocks {
-        default_block: match &settings.settings.default_block {
-            Some(state) => resolve(state)?,
-            None => resolve(&plain("stone"))?,
-        },
+        default_block: resolve(settings.settings.default_block.as_ref().unwrap_or(&stone))?,
         default_fluid: resolve(&settings.settings.default_fluid)?,
         water: resolve(&plain("water"))?,
         lava: resolve(&plain("lava"))?,

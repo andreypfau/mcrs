@@ -379,14 +379,8 @@ pub fn fill_column(
             carver_blocks,
             ..
         } => {
-            let mut carving = modern_mask.as_ref().map(|mask| TerrainCarving {
-                mask,
-                ids: carver_blocks,
-                fluid: &mut filled.fluid,
-                router,
-                ws: Workspace::new(),
-                block_x: col.x * 16,
-                block_z: col.z * 16,
+            let mut carving = modern_mask.as_ref().map(|mask| {
+                TerrainCarving::new(mask, carver_blocks, &mut filled.fluid, router, col.x, col.z)
             });
             let surfaced = match (surface, filled.biome_grid.as_ref(), ctx.material.as_deref()) {
                 (Some(ids), Some(grid), Some(material)) => {

@@ -218,15 +218,14 @@ fn main() {
             &material,
             &surface_ids,
             scratch,
-            Some(&mut TerrainCarving {
-                mask: &mask,
-                ids: &carver_ids,
-                fluid: &mut filled.fluid,
-                router: &router,
-                ws: Workspace::new(),
-                block_x: x * 16,
-                block_z: z * 16,
-            }),
+            Some(&mut TerrainCarving::new(
+                &mask,
+                &carver_ids,
+                &mut filled.fluid,
+                &router,
+                x,
+                z,
+            )),
         );
         s.surface = t.elapsed();
 

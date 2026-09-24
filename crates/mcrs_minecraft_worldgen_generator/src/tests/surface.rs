@@ -16,7 +16,6 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
-use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
@@ -388,15 +387,14 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             &material,
             &surface_ids(&ids),
             &mut MaterialScratch::default(),
-            Some(&mut TerrainCarving {
-                mask: &mask,
-                ids: &carver_ids,
-                fluid: &mut filled.fluid,
-                router: &router,
-                ws: Workspace::new(),
-                block_x: section_x * 16,
-                block_z: section_z * 16,
-            }),
+            Some(&mut TerrainCarving::new(
+                &mask,
+                &carver_ids,
+                &mut filled.fluid,
+                &router,
+                section_x,
+                section_z,
+            )),
         );
 
         for &(x, top, z) in &grass_tops {
