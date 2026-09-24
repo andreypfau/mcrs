@@ -336,7 +336,8 @@ pub(super) fn draw_frame(
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("forward"),
         color_attachments: &color_attachments,
-        depth_stencil_attachment: Some(depth.get_attachment(StoreOp::Store)),
+        // The last reader of this frame's depth: the GUI pass clears it next.
+        depth_stencil_attachment: Some(depth.get_attachment(StoreOp::Discard)),
         timestamp_writes: timestamps,
         occlusion_query_set: None,
         multiview_mask: None,
