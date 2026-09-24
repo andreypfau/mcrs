@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
 use bevy::asset::RenderAssetUsages;
@@ -5,6 +6,8 @@ use bevy::clipboard::Clipboard;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
+
+use crate::probe::{self, CpuTimings, GpuTimings};
 
 const DIR_VAR: &str = "MCRS_SCREENSHOT_DIR";
 
@@ -103,10 +106,14 @@ const SETTLE_SECS: f32 = 3.0;
 
 const SETTLE_TIMEOUT_SECS: f32 = 180.0;
 
+/// Kept below the GPU probe's 256-sample window, so every GPU figure comes from these frames.
+const TIMING_FRAMES: usize = 240;
+
 #[derive(Default)]
 struct Settling {
     quiet_since: Option<f32>,
     last: (usize, usize, usize),
+    timed: usize,
     requested: bool,
 }
 
@@ -117,6 +124,8 @@ fn capture_scene(
     capture: Res<SceneCapture>,
     streaming: crate::stream::Streaming,
     time: Res<Time<Real>>,
+    gpu: Res<GpuTimings>,
+    cpu: Res<CpuTimings>,
     captured: Option<Res<SceneCaptured>>,
     mut settling: Local<Settling>,
 ) {
@@ -139,11 +148,20 @@ fn capture_scene(
     settling.last = counts;
     if !quiet {
         settling.quiet_since = None;
+        settling.timed = 0;
         return;
     }
     let since = *settling.quiet_since.get_or_insert(now);
     if now - since < SETTLE_SECS {
         return;
+    }
+    settling.timed += 1;
+    if settling.timed < TIMING_FRAMES {
+        return;
+    }
+    let timings = capture.0.with_extension("tsv");
+    if let Err(err) = std::fs::write(&timings, timing_rows(&gpu, &cpu)) {
+        error!("cannot write {}: {err}", timings.display());
     }
     info!(path = %capture.0.display(), "capturing the settled scene");
     commands
@@ -153,6 +171,22 @@ fn capture_scene(
             commands.insert_resource(SceneCaptured);
         });
     settling.requested = true;
+}
+
+fn timing_rows(gpu: &GpuTimings, cpu: &CpuTimings) -> String {
+    let gpu_rows = probe::NAMES
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, name)| Some(("gpu", name, gpu.median_and_p95(slot, TIMING_FRAMES)?)));
+    let cpu_rows = probe::CPU_NAMES
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, name)| Some(("cpu", name, cpu.median_and_p95(slot, TIMING_FRAMES)?)));
+    let mut rows = String::new();
+    for (kind, name, (median, p95)) in gpu_rows.chain(cpu_rows) {
+        let _ = writeln!(rows, "{kind}\t{name}\t{median:.4}\t{p95:.4}");
+    }
+    rows
 }
 
 fn copy_to_clipboard(captured: On<ScreenshotCaptured>, mut clipboard: ResMut<Clipboard>) {

@@ -43,6 +43,16 @@ impl GpuTimings {
         self.0.samples.lock().ok()?.median(slot)
     }
 
+    pub fn median_and_p95(&self, slot: usize, last: usize) -> Option<(f32, f32)> {
+        let [median, p95] = self
+            .0
+            .samples
+            .lock()
+            .ok()?
+            .percentiles(slot, last, &[0.5, 0.95])?;
+        Some((median, p95))
+    }
+
     fn writing(&self) -> u32 {
         self.0.frame.load(Ordering::Relaxed) % RING * SLOTS as u32 * 2
     }
@@ -236,6 +246,16 @@ impl CpuTimings {
             .ok()?
             .percentiles(slot, recent, &[0.5])
             .map(|p| p[0])
+    }
+
+    pub fn median_and_p95(&self, slot: usize, last: usize) -> Option<(f32, f32)> {
+        let [median, p95] = self
+            .0
+            .samples
+            .lock()
+            .ok()?
+            .percentiles(slot, last, &[0.5, 0.95])?;
+        Some((median, p95))
     }
 
     pub fn spread(&self, slot: usize) -> Option<Spread> {

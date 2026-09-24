@@ -15,6 +15,7 @@ import numpy as np
 from PIL import Image
 
 AMPLIFY = 32
+MISSING = "\u2014"
 
 
 def load(path):
@@ -24,6 +25,49 @@ def load(path):
 def compare(base, head):
     delta = np.abs(base - head)
     return int((delta.max(axis=2) > 0).sum()), int(delta.max()), delta
+
+
+def load_timings(path):
+    """Rows of a capture's timing file keyed by (kind, slot), or None without one."""
+    if not path.is_file():
+        return None
+    rows = {}
+    for line in path.read_text().splitlines():
+        if line:
+            kind, slot, median, p95 = line.split("\t")
+            rows[(kind, slot)] = (float(median), float(p95))
+    return rows
+
+
+def gpu_total(timings):
+    if not timings:
+        return None
+    medians = [median for (kind, _), (median, _) in timings.items() if kind == "gpu"]
+    return sum(medians) if medians else None
+
+
+def cpu_engine(timings):
+    row = (timings or {}).get(("cpu", "engine"))
+    return row[0] if row else None
+
+
+def ms(value):
+    return MISSING if value is None else f"{value:.3f}"
+
+
+def timing_table(base, head):
+    slots = list(dict.fromkeys([*(base or {}), *(head or {})]))
+    if not slots:
+        return "No timings recorded.\n"
+    lines = [
+        "| Kind | Slot | Base median ms | Base p95 ms | Head median ms | Head p95 ms |",
+        "|------|------|----------------|-------------|----------------|-------------|",
+    ]
+    for key in slots:
+        b = (base or {}).get(key, (None, None))
+        h = (head or {}).get(key, (None, None))
+        lines.append(f"| {key[0]} | {key[1]} | {ms(b[0])} | {ms(b[1])} | {ms(h[0])} | {ms(h[1])} |")
+    return "\n".join(lines) + "\n"
 
 
 def scene_result(out, scene):
@@ -55,21 +99,29 @@ def report(out, base_label, head_label):
     errored = differed = False
     for scene in scenes:
         result, detail = scene_result(out, scene)
+        base_t = load_timings(out / scene / "base.tsv")
+        head_t = load_timings(out / scene / "head.tsv")
+        timing = (
+            f"{ms(gpu_total(base_t))} \u2192 {ms(gpu_total(head_t))} | "
+            f"{ms(cpu_engine(base_t))} \u2192 {ms(cpu_engine(head_t))}"
+        )
         if result == "error":
             print(f"{scene}: error {detail}")
-            rows.append(f"| {scene} | error: {detail} | | |")
+            rows.append(f"| {scene} | error: {detail} | | | {timing} |")
             errored = True
         elif result == "differs":
             print(f"{scene}: {detail[0]} pixels differ, largest delta {detail[1]}")
-            rows.append(f"| {scene} | differs | {detail[0]} | {detail[1]} |")
+            rows.append(f"| {scene} | differs | {detail[0]} | {detail[1]} | {timing} |")
             differed = True
         else:
             print(f"{scene}: identical")
-            rows.append(f"| {scene} | identical | 0 | 0 |")
+            rows.append(f"| {scene} | identical | 0 | 0 | {timing} |")
         images = [f"![base]({scene}/base.png)", f"![head]({scene}/head.png)"]
         if result == "differs":
             images.append(f"![difference x{AMPLIFY}]({scene}/diff.png)")
-        sections.append(f"## {scene}\n\n" + "\n".join(images) + "\n")
+        sections.append(
+            f"## {scene}\n\n" + "\n".join(images) + "\n\n" + timing_table(base_t, head_t)
+        )
     text = "\n".join(
         [
             "# Classic parity",
@@ -77,8 +129,10 @@ def report(out, base_label, head_label):
             f"- Base: {base_label}",
             f"- Head: {head_label}",
             "",
-            "| Scene | Result | Differing pixels | Largest channel delta |",
-            "|-------|--------|------------------|-----------------------|",
+            "| Scene | Result | Differing pixels | Largest channel delta "
+            "| GPU total ms base \u2192 head | CPU engine ms base \u2192 head |",
+            "|-------|--------|------------------|-----------------------"
+            "|---------------------------|-----------------------------|",
             *rows,
             "",
             *sections,
@@ -102,10 +156,21 @@ def self_test():
         base = load(out / "same" / "base.png")
         assert compare(base, load(out / "same" / "head.png"))[:2] == (0, 0)
         assert compare(base, load(out / "changed" / "head.png"))[:2] == (1, 1)
+        (out / "same" / "base.tsv").write_text(
+            "gpu\tcull\t0.2500\t0.3000\ngpu\tworld\t4.0000\t5.0000\n"
+            "cpu\tmain\t1.0000\t1.5000\ncpu\tengine\t3.0000\t3.5000\n"
+        )
+        (out / "same" / "head.tsv").write_text(
+            "gpu\tcull\t0.5000\t0.6000\ngpu\tforward\t1.0000\t1.2000\n"
+            "cpu\tengine\t2.0000\t2.5000\n"
+        )
         (out / "scenes.txt").write_text("same\nchanged\n")
         assert report(out, "base", "head") == 3
         text = (out / "report.md").read_text()
-        assert "| same | identical |" in text and "| changed | differs | 1 | 1 |" in text
+        assert "| same | identical | 0 | 0 | 4.250 \u2192 1.500 | 3.000 \u2192 2.000 |" in text, text
+        assert f"| changed | differs | 1 | 1 | {MISSING} \u2192 {MISSING} | {MISSING} \u2192 {MISSING} |" in text
+        assert "| gpu | world | 4.000 | 5.000 | \u2014 | \u2014 |" in text
+        assert "| gpu | forward | \u2014 | \u2014 | 1.000 | 1.200 |" in text
         assert (out / "changed" / "diff.png").is_file()
         assert not (out / "same" / "diff.png").exists()
         (out / "scenes.txt").write_text("same\nmissing\n")
