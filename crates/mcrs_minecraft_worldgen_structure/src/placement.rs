@@ -165,20 +165,33 @@ pub fn ring_positions(
     count: i32,
     mut find: impl FnMut(ColumnPos, &mut LegacyRandom) -> Option<ColumnPos>,
 ) -> Vec<ColumnPos> {
+    ring_starts(seed, distance, spread, count)
+        .into_iter()
+        .map(|(initial, mut fork)| find(initial, &mut fork).unwrap_or(initial))
+        .collect()
+}
+
+/// Each ring position's unadjusted column and the fork its biome search draws
+/// from. The forks are taken in ring order, so the searches can run in any
+/// order, or in parallel, and still land where the sequential walk would.
+pub fn ring_starts(
+    seed: i64,
+    distance: i32,
+    spread: i32,
+    count: i32,
+) -> Vec<(ColumnPos, LegacyRandom)> {
     let mut rng = LegacyRandom::new(seed as u64);
     let mut angle = rng.next_f64() * PI * 2.0;
     let mut position_in_circle = 0;
     let mut circle = 0;
     let mut spread = spread;
-    let mut positions = Vec::with_capacity(count as usize);
+    let mut starts = Vec::with_capacity(count as usize);
     for i in 0..count {
         let dist = (4 * distance + distance * circle * 6) as f64
             + (rng.next_f64() - 0.5) * (distance as f64 * 2.5);
         let initial_x = java_round(angle.cos() * dist);
         let initial_z = java_round(angle.sin() * dist);
-        let mut fork = rng.fork();
-        let initial = ColumnPos::new(initial_x, initial_z);
-        positions.push(find(initial, &mut fork).unwrap_or(initial));
+        starts.push((ColumnPos::new(initial_x, initial_z), rng.fork()));
         angle += PI * 2.0 / spread as f64;
         position_in_circle += 1;
         if position_in_circle == spread {
@@ -189,7 +202,7 @@ pub fn ring_positions(
             angle += rng.next_f64() * PI * 2.0;
         }
     }
-    positions
+    starts
 }
 
 pub fn scan_biome_window(

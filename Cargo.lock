@@ -4164,6 +4164,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_surface",
  "mcrs_minecraft_worldgen_testing",
  "rand_xoshiro",
+ "rayon",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",

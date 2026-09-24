@@ -7,6 +7,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen::beard::{Beard, BeardPiece, JunctionPoint};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
@@ -21,9 +22,10 @@ use mcrs_minecraft_worldgen_feature_place::terrain_skin::{
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_structure::StructurePlacement;
 use mcrs_minecraft_worldgen_structure::placement::{
-    SpreadPlacement, excluded_in_range, fixed_biome_window, frequency_gate, ring_positions,
+    SpreadPlacement, excluded_in_range, fixed_biome_window, frequency_gate, ring_starts,
     scan_biome_window, select_with_removal,
 };
+use rayon::prelude::*;
 
 use crate::heightmap::HeightmapPredicates;
 use crate::modern_carvers::climate_target_at;
@@ -481,7 +483,6 @@ fn ring_sets(
     biomes: &BiomeLookup,
 ) -> RingSets {
     let frozen = &tables.frozen;
-    let mut ws = Workspace::new();
     tables
         .live
         .iter()
@@ -500,37 +501,35 @@ fn ring_sets(
                 .preferred_biomes
                 .as_ref()
                 .expect("the freeze masks the preferred biomes of every ring set");
-            let positions =
-                ring_positions(
-                    seed,
-                    distance.0,
-                    spread.0,
-                    count.0,
-                    |initial, fork| match biomes {
-                        BiomeLookup::MultiNoise(table) => {
-                            scan_biome_window(initial, fork, |quart_x, quart_z, side| {
-                                plane_admits(
-                                    router, &mut ws, table, quart_x, quart_z, side, preferred,
-                                )
-                            })
-                        }
-                        BiomeLookup::Fixed(biome) => preferred
-                            .contains(*biome as usize)
-                            .then(|| fixed_biome_window(initial, fork)),
-                        BiomeLookup::TheEnd(end) => {
-                            scan_biome_window(initial, fork, |quart_x, quart_z, side| {
-                                (0..side * side)
-                                    .map(|at| {
-                                        let quart =
-                                            IVec3::new(quart_x + at % side, 0, quart_z + at / side);
-                                        preferred.contains(end.at(router, &mut ws, quart) as usize)
-                                    })
-                                    .collect()
-                            })
-                        }
-                        BiomeLookup::None => None,
-                    },
-                );
+            let find =
+                |ws: &mut Workspace, initial: ColumnPos, fork: &mut LegacyRandom| match biomes {
+                    BiomeLookup::MultiNoise(table) => {
+                        scan_biome_window(initial, fork, |quart_x, quart_z, side| {
+                            plane_admits(router, ws, table, quart_x, quart_z, side, preferred)
+                        })
+                    }
+                    BiomeLookup::Fixed(biome) => preferred
+                        .contains(*biome as usize)
+                        .then(|| fixed_biome_window(initial, fork)),
+                    BiomeLookup::TheEnd(end) => {
+                        scan_biome_window(initial, fork, |quart_x, quart_z, side| {
+                            (0..side * side)
+                                .map(|at| {
+                                    let quart =
+                                        IVec3::new(quart_x + at % side, 0, quart_z + at / side);
+                                    preferred.contains(end.at(router, ws, quart) as usize)
+                                })
+                                .collect()
+                        })
+                    }
+                    BiomeLookup::None => None,
+                };
+            let positions = ring_starts(seed, distance.0, spread.0, count.0)
+                .into_par_iter()
+                .map_init(Workspace::new, |ws, (initial, mut fork)| {
+                    find(ws, initial, &mut fork).unwrap_or(initial)
+                })
+                .collect();
             Some((*set, positions))
         })
         .collect()

@@ -36,6 +36,7 @@ mcrs_minecraft_worldgen_structure_place.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 mcrs_minecraft_worldgen_testing = { workspace = true, optional = true }
 bytes = { workspace = true, optional = true }
+rayon.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, optional = true }
