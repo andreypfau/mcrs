@@ -403,6 +403,25 @@ pub fn look_override() -> Option<(f32, f32)> {
     pair("LOOK", ',', "expected <yaw>,<pitch> in degrees")
 }
 
+/// `POS=<x>,<y>,<z>` puts the player somewhere other than where the save left
+/// it, in blocks.
+pub fn position_override() -> Option<bevy::math::DVec3> {
+    let spec = knob("POS")?;
+    let coordinates: Option<Vec<f64>> = spec
+        .split(',')
+        .map(|part| {
+            part.trim()
+                .parse()
+                .ok()
+                .filter(|value: &f64| value.is_finite())
+        })
+        .collect();
+    match coordinates.as_deref() {
+        Some(&[x, y, z]) => Some(bevy::math::DVec3::new(x, y, z)),
+        _ => reject("POS", &spec, "expected <x>,<y>,<z> in blocks"),
+    }
+}
+
 /// `SKY=disc,twilight,celestial,stars,clouds` draws only the passes it lists,
 /// which is how a frame gets priced one pass at a time.
 pub fn sky_draws_only() -> Option<SkyEffects> {

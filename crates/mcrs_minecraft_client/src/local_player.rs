@@ -134,6 +134,10 @@ pub struct LookOverride {
     pub pitch: f32,
 }
 
+/// The position a run asked for, kept through the teleports the server answers a join with.
+#[derive(Resource, Clone, Copy)]
+pub struct PositionOverride(pub DVec3);
+
 /// One tick of local-player movement, from the sprint machine through the
 /// shared travel step.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -160,6 +164,7 @@ fn accept_teleports(
     player: Single<(&mut PhysicsTransform, &mut Velocity), With<Player>>,
     connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
     look: Option<Res<LookOverride>>,
+    position: Option<Res<PositionOverride>>,
 ) {
     let Some(connection) = connection else { return };
     let (mut connection, mut pending) = connection.into_inner();
@@ -168,7 +173,9 @@ fn accept_teleports(
     }
     let (mut transform, mut velocity) = player.into_inner();
     for teleport in pending.0.drain(..) {
-        transform.translation = teleport.position;
+        transform.translation = position
+            .as_deref()
+            .map_or(teleport.position, |position| position.0);
         transform.rotation = match look.as_deref() {
             Some(look) => Rotation::new(look.yaw, look.pitch),
             None => Rotation::new(teleport.look.yaw, teleport.look.pitch),
@@ -179,6 +186,7 @@ fn accept_teleports(
             position: transform.translation.into(),
             look: teleport.look,
         });
+        info!(translation = ?transform.translation, "accepted teleport");
     }
 }
 

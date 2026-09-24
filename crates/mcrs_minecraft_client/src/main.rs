@@ -74,7 +74,7 @@ fn main() {
 }
 
 #[cfg(not(target_family = "wasm"))]
-fn main() {
+fn main() -> AppExit {
     #[cfg(target_os = "macos")]
     mcrs_minecraft_client::app_nap::decline();
     if config::hot_clocks() {
@@ -235,7 +235,16 @@ fn main() {
     if config::look_override().is_some() {
         app.insert_resource(local_player::LookOverride { yaw, pitch });
     }
-    let player = player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
+    let position = config::position_override();
+    if let Some(position) = position {
+        app.insert_resource(local_player::PositionOverride(position));
+    }
+    let player = player::spawn_player(
+        app.world_mut(),
+        position.unwrap_or(save_data.position),
+        yaw,
+        pitch,
+    );
     if let Some(speed) = config::scripted_flight() {
         app.insert_resource(local_player::ScriptedFlight {
             turn_at: config::turn_after(),
@@ -246,7 +255,7 @@ fn main() {
             .insert(mcrs_minecraft_world::entity::player::FlyingSpeed(speed));
     }
 
-    app.run();
+    app.run()
 }
 
 /// Opens the window on the fastest display rather than on the system's primary
