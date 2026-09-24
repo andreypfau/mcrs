@@ -31,7 +31,7 @@ use crate::heightmap::HeightmapPredicates;
 use crate::modern_carvers::climate_target_at;
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::stages::extent;
-use crate::{base_column, base_height, heightmap_kind};
+use crate::{base_column, base_height, first_free_kind, heightmap_kind};
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, SetId, StructureId};
 use mcrs_minecraft_worldgen_structure::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
 use mcrs_minecraft_worldgen_structure::piece::{Piece, Start};
@@ -691,7 +691,7 @@ impl SiteWorld for View<'_> {
             &self.index.router,
             &mut self.ws,
             predicates,
-            heightmap_kind(heightmap),
+            first_free_kind(heightmap),
             x,
             z,
             self.index.accessor_min_y,

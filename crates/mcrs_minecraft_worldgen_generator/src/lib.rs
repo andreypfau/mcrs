@@ -594,9 +594,18 @@ pub fn heightmap_kind(name: HeightmapName) -> HeightmapKinds {
     }
 }
 
+/// What the unfilled terrain column answers a heightmap with: any block for
+/// the surface maps, solid terrain alone for every other, fluids never.
+pub fn first_free_kind(name: HeightmapName) -> HeightmapKinds {
+    match name {
+        HeightmapName::WorldSurfaceWg | HeightmapName::WorldSurface => HeightmapKinds::SURFACE,
+        _ => HeightmapKinds::SOLID,
+    }
+}
+
 /// One above the topmost block of the unfilled terrain column at `(x, z)`
 /// satisfying `kind`, over the noise range clipped to the accessor range, or
-/// `accessor_min_y` when no block does.
+/// the floor of that range when no block does.
 #[allow(clippy::too_many_arguments)]
 pub fn base_height(
     router: &NoiseRouter,
@@ -612,7 +621,7 @@ pub fn base_height(
     column
         .iter()
         .rposition(|state| predicates.get(*state).contains(kind))
-        .map_or(accessor_min_y, |index| min_y + index as i32 + 1)
+        .map_or(min_y, |index| min_y + index as i32 + 1)
 }
 
 /// `getBaseColumn`: the unfilled terrain column at `(x, z)` over the noise

@@ -2,7 +2,8 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use crate::heightmap::{HeightmapKinds, build_terrain_heightmaps, heightmap_predicates};
 use crate::task::CancellationToken;
-use crate::{ColumnBlocks, base_height, fill_column_dense_any};
+use crate::{ColumnBlocks, base_height, fill_column_dense_any, first_free_kind};
+use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 
 use super::{block_tags, blocks, build_settings_router};
 
@@ -119,4 +120,19 @@ fn an_accessor_outside_the_noise_range_answers_its_floor() {
         16,
     );
     assert_eq!(height, 400);
+}
+
+#[test]
+fn only_the_surface_maps_count_the_sea_as_occupied() {
+    for name in [HeightmapName::WorldSurfaceWg, HeightmapName::WorldSurface] {
+        assert_eq!(first_free_kind(name), HeightmapKinds::SURFACE, "{name:?}");
+    }
+    for name in [
+        HeightmapName::OceanFloorWg,
+        HeightmapName::OceanFloor,
+        HeightmapName::MotionBlocking,
+        HeightmapName::MotionBlockingNoLeaves,
+    ] {
+        assert_eq!(first_free_kind(name), HeightmapKinds::SOLID, "{name:?}");
+    }
 }
