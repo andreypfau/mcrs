@@ -1,11 +1,11 @@
 //! Validates the per-dim plugin migration:
 //!
-//! - `MinecraftBlockPlugin` and `ExplosionPlugin` run inside each
+//! - `TntBlockPlugin` and `ExplosionPlugin` run inside each
 //!   per-dim sub-app, with the per-sub-app `Messages<T>` buffers their
 //!   systems read and write registered.
 //! - `PlayerWillDestroyBlock` stays within the per-dim sub-app world;
 //!   the digging systems write it intra-dim via `MessageWriter` and
-//!   `MinecraftBlockPlugin` reads it in the same world.
+//!   `TntBlockPlugin` reads it in the same world.
 //! - `BlockUpdatePlugin`, `MinecraftEntityPlugin`, and `LootPlugin`
 //!   are now per-dim via the channel migration.
 

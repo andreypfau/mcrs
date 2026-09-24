@@ -1,7 +1,6 @@
 use anyhow::{Context, bail, ensure};
 use bytes::{Buf, BytesMut};
 
-#[cfg(feature = "compression")]
 use crate::CompressionThreshold;
 use crate::var_int::{VarInt, VarIntDecodeError};
 use crate::{Decode, MAX_PACKET_SIZE};
@@ -9,9 +8,7 @@ use crate::{Decode, MAX_PACKET_SIZE};
 #[derive(Default)]
 pub struct PacketDecoder {
     buf: BytesMut,
-    #[cfg(feature = "compression")]
     decompress_buf: BytesMut,
-    #[cfg(feature = "compression")]
     threshold: CompressionThreshold,
 }
 
@@ -43,7 +40,6 @@ impl PacketDecoder {
 
         let mut data;
 
-        #[cfg(feature = "compression")]
         if self.threshold.0 >= 0 {
             use std::io::Write;
 
@@ -108,12 +104,6 @@ impl PacketDecoder {
             data = self.buf.split_to(packet_len as usize);
         }
 
-        #[cfg(not(feature = "compression"))]
-        {
-            self.buf.advance(packet_len_len);
-            data = self.buf.split_to(packet_len as usize);
-        }
-
         // Decode the leading packet ID.
         r = &data[..];
         let packet_id = VarInt::decode(&mut r)
@@ -128,12 +118,6 @@ impl PacketDecoder {
         }))
     }
 
-    #[cfg(feature = "compression")]
-    pub fn compression(&self) -> CompressionThreshold {
-        self.threshold
-    }
-
-    #[cfg(feature = "compression")]
     pub fn set_compression(&mut self, threshold: CompressionThreshold) {
         self.threshold = threshold;
     }

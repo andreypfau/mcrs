@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 ///
 /// The token is cloned and passed to worker tasks. When `cancel()` is called,
 /// tasks check `is_cancelled()` between section generations and can exit early.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct CancellationToken(Arc<AtomicBool>);
 
 impl CancellationToken {
@@ -22,12 +22,6 @@ impl CancellationToken {
     /// Check if cancellation has been signaled.
     pub fn is_cancelled(&self) -> bool {
         self.0.load(Ordering::Acquire)
-    }
-}
-
-impl Default for CancellationToken {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

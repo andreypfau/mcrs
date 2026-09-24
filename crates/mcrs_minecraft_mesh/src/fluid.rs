@@ -1,16 +1,16 @@
 use crate::SECTION_SIZE;
-use crate::block::{BlockInfo, Fluid, Pass, TintKind};
+use crate::block::{BlockInfo, Fluid, Pass};
 use crate::pack::{
-    FACE_AO, FACE_BLOCK_LIGHT, FACE_FLUID, FACE_NONE, FACE_SKY_LIGHT, FACE_SPRITE, FACE_TINT,
-    FACE_WORDS, FLUID_INSET, MODEL_STEPS,
+    FACE_FLUID, FACE_NONE, FACE_SPRITE, FACE_TINT, FACE_WORDS, FLUID_INSET, MODEL_STEPS,
 };
+use crate::tint::Tint;
 
 use super::model::{self, SHADE_DOWN, SHADE_EAST_WEST, SHADE_NORTH_SOUTH, SHADE_UP, UNGROUPED};
 use super::scratch::{
     COLUMNS, Columns, FLUID_KINDS, NOT_FLAT, Scratch, border_index, column_index, section_cell,
 };
 use super::sweep::{FLUID_KEY, PASS_KEY_BITS, sweep};
-use super::{Sink, face_normal};
+use super::{Sink, cube, face_normal};
 
 pub(super) const FLUID_AMOUNT: u8 = 0x0f;
 pub(super) const FLUID_LAVA: u8 = 0x10;
@@ -283,11 +283,9 @@ fn face_attr(
     let mut words = [0u32; FACE_WORDS];
     FACE_SPRITE.set(&mut words, sprite as u64);
     if !fluid.lava {
-        FACE_TINT.set(&mut words, TintKind::Water as u64 + 1);
+        FACE_TINT.set(&mut words, Tint::Water.index() as u64);
     }
-    FACE_BLOCK_LIGHT.set(&mut words, block_light as u64);
-    FACE_SKY_LIGHT.set(&mut words, sky_light as u64);
-    FACE_AO.set(&mut words, FACE_AO.max());
+    cube::set_corners(&mut words, [0; 4], [block_light << 4 | sky_light << 20; 4]);
     if face >= 2 {
         FACE_FLUID.set(&mut words, 1);
     }
@@ -324,11 +322,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
         } else {
             Pass::Translucent
         } as usize;
-        let tint = if fluid.lava {
-            0
-        } else {
-            TintKind::Water as u32 + 1
-        };
+        let tint = if fluid.lava { 0 } else { Tint::Water.index() };
         let out = &mut scratch.complex_by_pass[pass][UNGROUPED];
 
         let mut corners = cell.corners;
@@ -352,7 +346,8 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
 
         let light = |a: usize, b: usize| {
             let (a, b) = (scratch.light[a] as u32, scratch.light[b] as u32);
-            ((a >> 4).max(b >> 4).max(emission), (a & 0xf).max(b & 0xf))
+            let (block, sky) = ((a >> 4).max(b >> 4).max(emission), (a & 0xf).max(b & 0xf));
+            [block << 4 | sky << 20; 4]
         };
         let side_light = light(here, above);
 
@@ -588,7 +583,7 @@ mod tests {
             [CubeFace {
                 sprite: 1,
                 pass: Pass::Translucent as u8,
-                tinted: false,
+                tint: crate::tint::Tint::None,
             }; 6],
         );
 

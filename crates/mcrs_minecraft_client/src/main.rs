@@ -4,7 +4,6 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
 use bevy::asset::AssetPlugin;
-use bevy::camera::visibility::VisibilitySystems;
 use bevy::log::{BoxedLayer, LogPlugin};
 use bevy::math::DVec3;
 use bevy::prelude::*;
@@ -30,12 +29,11 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_world::save::{self, SaveError};
 
 use mcrs_minecraft_client::config::TerrainLimits;
-use mcrs_minecraft_client::render::TerrainPlugin;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
-    asset_corpus, camera, cave, config, gui, input, local_player, player, render, sky, sky_render,
-    stream, vanilla,
+    ClientPlugins, ClientTerrainPlugin, asset_corpus, config, gui, local_player, player, sky,
+    sky_render, vanilla,
 };
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
@@ -92,7 +90,6 @@ fn main() {
     let world = world_folder();
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = config::frozen_time();
-    let (budget, uploads, cave) = config::terrain(TERRAIN_LIMITS);
     let assets = asset_corpus().to_string_lossy().into_owned();
 
     let mut app = App::new();
@@ -161,23 +158,18 @@ fn main() {
         focused_mode: UpdateMode::Continuous,
         unfocused_mode: UpdateMode::Continuous,
     })
-    .add_plugins(vanilla::VanillaAssetsPlugin)
-    .add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin)
-    .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)
-    .add_plugins(player::PlayerPlugin)
-    .add_plugins(input::ClientInputPlugin)
-    .add_plugins(local_player::LocalPlayerPlugin)
-    .add_plugins(camera::CameraPlugin)
-    .add_plugins(gui::debug::DebugScreenPlugin)
-    .add_plugins(gui::chunk_map::ChunkMapPlugin)
-    .add_plugins(gui::light_levels::LightLevelsPlugin)
-    .add_plugins(mcrs_minecraft_client::light_guard::LightGuardPlugin)
-    .add_plugins(mcrs_minecraft_client::chunk_guard::ChunkGuardPlugin)
-    .add_plugins(mcrs_minecraft_client::item_model::resolve::ItemRenderPlugin)
-    .add_plugins(gui::scene::GuiPlugin)
+    .add_plugins(
+        ClientPlugins
+            .build()
+            .add_before::<sky::SkyPlugin>(mcrs_minecraft_client::light_guard::LightGuardPlugin)
+            .add_before::<sky::SkyPlugin>(mcrs_minecraft_client::chunk_guard::ChunkGuardPlugin)
+            .add_before::<sky::SkyPlugin>(
+                mcrs_minecraft_client::item_model::resolve::ItemRenderPlugin,
+            )
+            .add_before::<sky::SkyPlugin>(gui::scene::GuiPlugin)
+            .add(screenshot::ScreenshotPlugin),
+    )
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
-    .add_plugins(sky::SkyPlugin)
-    .add_plugins(screenshot::ScreenshotPlugin)
     .add_systems(
         OnEnter(AppState::Playing),
         (log_registry_counts, log_seeded_resources),
@@ -234,24 +226,7 @@ fn main() {
         .insert_resource(save_data.weather)
         .insert_resource(sky::PlayerDimension(save_data.dimension));
 
-    app.add_plugins(TerrainPlugin(budget.clone(), uploads.clone()))
-        .add_plugins(stream::StreamPlugin::new(budget, uploads))
-        .insert_resource(config::drawn_streams())
-        .insert_resource(config::raster_fraction())
-        .insert_resource(cave)
-        .add_systems(
-            Update,
-            (
-                cave::toggle,
-                render::toggle_wireframe,
-                #[cfg(target_os = "macos")]
-                mcrs_minecraft_client::capture::gputrace,
-            ),
-        )
-        .add_systems(
-            PostUpdate,
-            cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
-        );
+    app.add_plugins(ClientTerrainPlugin(TERRAIN_LIMITS));
 
     #[cfg(feature = "telemetry-tracy")]
     app.add_systems(Last, frame_mark);
@@ -345,12 +320,12 @@ fn host_integrated_server(
     traces: ColumnTraceSink,
 ) -> SocketAddr {
     let mut server = App::new();
-    server.add_plugins(
-        MinecraftServerPlugin::embedded()
-            .with_assets(assets)
-            .with_world(world.map(Path::to_path_buf))
-            .with_column_traces(traces),
-    );
+    server.add_plugins(MinecraftServerPlugin {
+        asset_path: Some(assets.to_owned()),
+        world: world.map(Path::to_path_buf),
+        column_traces: Some(traces),
+        ..MinecraftServerPlugin::embedded()
+    });
     let address = server.world().resource::<BoundAddress>().0;
     mcrs_minecraft_server::spawn_server_thread(server, mcrs_minecraft_server::run_server_loop);
     match world {

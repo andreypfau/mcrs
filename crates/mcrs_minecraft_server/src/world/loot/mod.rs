@@ -2,9 +2,9 @@ pub mod condition;
 pub mod context;
 pub mod entry;
 
-use crate::world::loot::condition::{LootCondition, LootConditionProto};
+use crate::world::loot::condition::LootCondition;
 use crate::world::loot::context::{BlockBreakContext, LootDrop};
-use crate::world::loot::entry::LootEntryProto;
+use crate::world::loot::entry::LootEntry;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::io::Reader;
 use bevy_asset::{
@@ -18,187 +18,28 @@ use bevy_ecs::system::Res;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, LootId};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_registry::StaticRegistry;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::{debug, info, warn};
-
-// ============================================================================
-// Proto types (JSON deserialization)
-// ============================================================================
+use tracing::{debug, info};
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct LootTableProto {
+pub struct LootTable {
     #[serde(rename = "type")]
     pub table_type: String,
     #[serde(default)]
-    pub pools: Vec<LootPoolProto>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct LootPoolProto {
-    pub rolls: u32,
-    pub entries: Vec<LootEntryProto>,
-    #[serde(default)]
-    pub conditions: Vec<LootConditionProto>,
-}
-
-// ============================================================================
-// Resolved runtime types
-// ============================================================================
-
-#[derive(Debug, Clone)]
-pub struct LootTable {
     pub pools: Vec<LootPool>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct LootPool {
     pub rolls: u32,
     pub entries: Vec<LootEntry>,
+    #[serde(default)]
     pub conditions: Vec<LootCondition>,
 }
-
-#[derive(Debug, Clone)]
-pub enum LootEntry {
-    Item {
-        name: ResourceLocation,
-        conditions: Vec<LootCondition>,
-    },
-    Alternatives {
-        children: Vec<LootEntry>,
-        conditions: Vec<LootCondition>,
-    },
-    Empty {
-        conditions: Vec<LootCondition>,
-    },
-}
-
-// ============================================================================
-// Resolution: Proto -> Resolved
-// ============================================================================
-
-impl LootTableProto {
-    pub fn resolve(&self, enchantment_registry: &StaticRegistry<EnchantmentData>) -> LootTable {
-        LootTable {
-            pools: self
-                .pools
-                .iter()
-                .map(|p| p.resolve(enchantment_registry))
-                .collect(),
-        }
-    }
-}
-
-impl LootPoolProto {
-    fn resolve(&self, enchantment_registry: &StaticRegistry<EnchantmentData>) -> LootPool {
-        LootPool {
-            rolls: self.rolls,
-            entries: self
-                .entries
-                .iter()
-                .map(|e| resolve_entry(e, enchantment_registry))
-                .collect(),
-            conditions: self
-                .conditions
-                .iter()
-                .map(|c| resolve_condition(c, enchantment_registry))
-                .collect(),
-        }
-    }
-}
-
-fn resolve_entry(
-    entry: &LootEntryProto,
-    enchantment_registry: &StaticRegistry<EnchantmentData>,
-) -> LootEntry {
-    match entry {
-        LootEntryProto::Item {
-            name, conditions, ..
-        } => LootEntry::Item {
-            name: name.clone(),
-            conditions: conditions
-                .iter()
-                .map(|c| resolve_condition(c, enchantment_registry))
-                .collect(),
-        },
-        LootEntryProto::Alternatives {
-            children,
-            conditions,
-        } => LootEntry::Alternatives {
-            children: children
-                .iter()
-                .map(|e| resolve_entry(e, enchantment_registry))
-                .collect(),
-            conditions: conditions
-                .iter()
-                .map(|c| resolve_condition(c, enchantment_registry))
-                .collect(),
-        },
-        LootEntryProto::Empty { conditions } => LootEntry::Empty {
-            conditions: conditions
-                .iter()
-                .map(|c| resolve_condition(c, enchantment_registry))
-                .collect(),
-        },
-        LootEntryProto::Unknown => LootEntry::Empty { conditions: vec![] },
-    }
-}
-
-fn resolve_condition(
-    condition: &LootConditionProto,
-    enchantment_registry: &StaticRegistry<EnchantmentData>,
-) -> LootCondition {
-    match condition {
-        LootConditionProto::MatchTool { predicate } => {
-            if let Some(predicates) = &predicate.predicates
-                && let Some(enchantments) = &predicates.enchantments
-                && let Some(first) = enchantments.first()
-            {
-                let enchantment_id = &first.enchantments;
-                if enchantment_registry
-                    .id_of(enchantment_id.as_str())
-                    .is_some()
-                {
-                    let min_level = first.levels.as_ref().and_then(|l| l.min).unwrap_or(1);
-                    return LootCondition::MatchToolEnchantment {
-                        enchantment: enchantment_id.clone(),
-                        min_level,
-                    };
-                }
-                warn!(
-                    enchantment = %enchantment_id,
-                    "Enchantment not found in registry, condition will always be false"
-                );
-            }
-            LootCondition::AlwaysTrue
-        }
-        LootConditionProto::SurvivesExplosion {} => LootCondition::SurvivesExplosion,
-        LootConditionProto::Inverted { term } => {
-            LootCondition::Inverted(Box::new(resolve_condition(term, enchantment_registry)))
-        }
-        LootConditionProto::AnyOf { terms } => LootCondition::AnyOf(
-            terms
-                .iter()
-                .map(|t| resolve_condition(t, enchantment_registry))
-                .collect(),
-        ),
-        LootConditionProto::AllOf { terms } => LootCondition::AllOf(
-            terms
-                .iter()
-                .map(|t| resolve_condition(t, enchantment_registry))
-                .collect(),
-        ),
-        LootConditionProto::Unknown => LootCondition::AlwaysTrue,
-    }
-}
-
-// ============================================================================
-// Evaluation
-// ============================================================================
 
 impl LootTable {
     pub fn evaluate(&self, ctx: &BlockBreakContext) -> Vec<LootDrop> {
@@ -208,46 +49,20 @@ impl LootTable {
                 continue;
             }
             for _ in 0..pool.rolls {
-                for entry in &pool.entries {
-                    if let Some(drop) = evaluate_entry(entry, ctx) {
-                        drops.push(drop);
-                    }
-                }
+                drops.extend(pool.entries.iter().filter_map(|entry| entry.evaluate(ctx)));
             }
         }
         drops
     }
-}
 
-fn evaluate_entry(entry: &LootEntry, ctx: &BlockBreakContext) -> Option<LootDrop> {
-    match entry {
-        LootEntry::Item { name, conditions } => {
-            if conditions.iter().all(|c| c.check(ctx)) {
-                Some(LootDrop {
-                    item_name: name.clone(),
-                    count: 1,
-                })
-            } else {
-                None
+    fn drop_unknown_enchantments(&mut self, registry: &StaticRegistry<EnchantmentData>) {
+        for pool in &mut self.pools {
+            for entry in &mut pool.entries {
+                entry.drop_unknown_enchantments(registry);
             }
-        }
-        LootEntry::Alternatives {
-            children,
-            conditions,
-        } => {
-            if !conditions.iter().all(|c| c.check(ctx)) {
-                return None;
+            for condition in &mut pool.conditions {
+                condition.drop_unknown_enchantments(registry);
             }
-            for child in children {
-                if let Some(drop) = evaluate_entry(child, ctx) {
-                    return Some(drop);
-                }
-            }
-            None
-        }
-        LootEntry::Empty { conditions: _ } => {
-            // Empty entry never produces a drop regardless of condition outcome.
-            None
         }
     }
 }
@@ -260,7 +75,7 @@ fn evaluate_entry(entry: &LootEntry, ctx: &BlockBreakContext) -> Option<LootDrop
 pub struct LootTableAsset {
     pub loot: LootId,
     pub table_id: String,
-    pub proto: LootTableProto,
+    pub table: LootTable,
 }
 
 impl Asset for LootTableAsset {}
@@ -305,15 +120,15 @@ impl AssetLoader for LootTableLoader {
 
         let bytes = read_all(reader).await?;
 
-        let proto: LootTableProto = serde_json::from_slice(&bytes)
+        let table: LootTable = serde_json::from_slice(&bytes)
             .map_err(|e| LootTableLoaderError::Json(e.to_string()))?;
 
-        debug!(table = %table_id, pools = proto.pools.len(), "loaded loot table");
+        debug!(table = %table_id, pools = table.pools.len(), "loaded loot table");
 
         Ok(LootTableAsset {
             loot: LootId(loot),
             table_id,
-            proto,
+            table,
         })
     }
 }
@@ -395,7 +210,8 @@ fn process_loaded_loot_tables(
         if let AssetEvent::LoadedWithDependencies { id } = event
             && let Some(asset) = assets.get(*id)
         {
-            let resolved = asset.proto.resolve(&enchantment_registry);
+            let mut resolved = asset.table.clone();
+            resolved.drop_unknown_enchantments(&enchantment_registry);
             debug!(
                 table = %asset.table_id,
                 pools = resolved.pools.len(),
@@ -421,7 +237,7 @@ impl Plugin for LootPlugin {
 
 #[cfg(test)]
 mod tests {
-    use super::LootTableProto;
+    use super::LootTable;
 
     #[test]
     fn every_shipped_block_loot_table_parses() {
@@ -433,7 +249,7 @@ mod tests {
         for entry in std::fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
             let bytes = std::fs::read(&path).unwrap();
-            serde_json::from_slice::<LootTableProto>(&bytes)
+            serde_json::from_slice::<LootTable>(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             count += 1;
         }

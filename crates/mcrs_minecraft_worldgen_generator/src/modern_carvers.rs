@@ -1,3 +1,4 @@
+use crate::structures::index::CLIMATE_ROOTS;
 use crate::{ColumnBlocks, beta_chunk_seed};
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
@@ -19,9 +20,7 @@ use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_caves, is_star
 use mcrs_minecraft_worldgen_carver::water::WaterMask;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, point_barrier};
 use mcrs_minecraft_worldgen_density::program::Workspace;
-use mcrs_minecraft_worldgen_density::router::{
-    CONTINENTS, DEPTH, EROSION, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
-};
+use mcrs_minecraft_worldgen_density::router::{NoiseRouter, TEMPERATURE, VEGETATION};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -40,9 +39,8 @@ pub fn climate_target_at(
         IVec3::new(quart_x * 4, quart_y * 4, quart_z * 4),
         IVec3::ONE,
     );
-    let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
     let mut values = [0.0f32; 6];
-    router.fill_roots(ws, &volume, &roots, &mut values);
+    router.fill_roots(ws, &volume, &CLIMATE_ROOTS, &mut values);
     TargetPoint::new(
         values[0], values[1], values[2], values[3], values[4], values[5],
     )
@@ -286,9 +284,8 @@ impl CarverBiomeTable {
         let mut slots = [0u16; (TILE * TILE) as usize];
         match &self.biomes {
             SourceBiomes::Climate(table) => {
-                let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
-                let mut values = vec![0.0f32; roots.len() * points];
-                router.fill_roots(ws, &volume, &roots, &mut values);
+                let mut values = vec![0.0f32; CLIMATE_ROOTS.len() * points];
+                router.fill_roots(ws, &volume, &CLIMATE_ROOTS, &mut values);
                 let mut last = None;
                 for dx in 0..TILE {
                     for dz in 0..TILE {
@@ -393,7 +390,6 @@ const PROTECTED_BLOCKS_ON_TOP: i32 = 7;
 /// blocks the reference protects.
 pub(crate) fn carving_mask(height: HeightContext) -> CarvingMask {
     CarvingMask::new(
-        16,
         height.min_y + 1,
         height.min_y + height.depth - 1 - PROTECTED_BLOCKS_ON_TOP,
     )

@@ -17,6 +17,7 @@ use mcrs_minecraft_light::prelude::{
     BlockLight, LightBudget, LightEpoch, LightWorkQueue, PendingEdits, SkyLight,
 };
 use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
@@ -238,7 +239,7 @@ fn capture_light_updates(
     mut captured: ResMut<CapturedLightUpdates>,
 ) {
     for packet in reader.read() {
-        if matches!(packet.data, PacketPayload::LightUpdate { .. }) {
+        if matches!(packet.data, PacketPayload::LightUpdate(_)) {
             captured.0.push(packet.clone());
         }
     }
@@ -333,10 +334,11 @@ fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
         PacketPriority::High,
         "a column's light is sent in full once, so a shed delta is never made good"
     );
-    let PacketPayload::LightUpdate { column, light_data } = &packet.data else {
+    let PacketPayload::LightUpdate(ClientboundLightUpdate { x, z, light_data }) = &packet.data
+    else {
         unreachable!("filtered above");
     };
-    assert_eq!(*column, ColumnPos::new(0, 0));
+    assert_eq!((x.0, z.0), (0, 0));
 
     let rows = unpack_light_data(light_data, WIRE_ROWS).expect("the delta decodes");
     let torch_row = wire_row(SectionPos::from(torch_at()).y);
@@ -370,7 +372,8 @@ fn both_sections_one_torch_reaches_ride_in_the_same_packet() {
     let (captured, _) = torch_delta(true);
 
     assert_eq!(captured.len(), 1, "one packet, not one per section");
-    let PacketPayload::LightUpdate { light_data, .. } = &captured[0].data else {
+    let PacketPayload::LightUpdate(ClientboundLightUpdate { light_data, .. }) = &captured[0].data
+    else {
         unreachable!("filtered above");
     };
     let rows = unpack_light_data(light_data, WIRE_ROWS).expect("the delta decodes");

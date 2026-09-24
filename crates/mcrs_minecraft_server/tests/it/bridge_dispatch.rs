@@ -6,6 +6,15 @@
 //! how many blobs arrive per tick.
 
 use crate::mock_connection;
+use mcrs_minecraft_protocol::ByteAngle;
+use mcrs_minecraft_protocol::LpVec3;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
+use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -25,7 +34,6 @@ use mcrs_minecraft_server::world::bridge_queue::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT
 use mcrs_minecraft_server::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
-use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
 // ---------------------------------------------------------------------------
@@ -241,10 +249,10 @@ fn coalesce_single_write_per_tick() {
             q.push(OutboundPlayerPacket {
                 target: PacketTarget::AllPlayers,
                 priority: PacketPriority::Normal,
-                data: PacketPayload::BlockUpdate {
-                    position: BlockPos::new(i as i32, 64, 0),
-                    new_state: BlockStateId(i as u16),
-                },
+                data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+                    block_pos: BlockPos::new(i as i32, 64, 0),
+                    block_state_id: BlockStateId(i as u16),
+                }),
                 session: PlayerSession(0),
                 epoch: 0,
             });
@@ -343,10 +351,11 @@ fn light_update_encodes() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::LightUpdate {
-                column: ColumnPos::new(3, -5),
+            data: PacketPayload::LightUpdate(ClientboundLightUpdate {
+                x: VarInt(3),
+                z: VarInt(-5),
                 light_data: LightData::default(),
-            },
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });
@@ -422,16 +431,15 @@ fn entity_pos_sync_encodes() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::EntityPosSync {
-                entity_id: 42,
-                position: DVec3::new(1.0, 64.0, -3.0),
-                velocity: DVec3::ZERO,
+            data: PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
+                entity_id: VarInt(42),
+                position: PositionPath::Linear(DVec3::new(1.0, 64.0, -3.0)),
                 look: Look {
                     yaw: 0.0,
                     pitch: 0.0,
                 },
                 on_ground: true,
-            },
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });
@@ -466,15 +474,17 @@ fn player_entered_view_encodes() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerEnteredView {
-                entity_id: 7,
+            data: PacketPayload::PlayerEnteredView(ClientboundAddEntity {
+                id: VarInt(7),
                 uuid: Uuid::nil(),
-                kind: 128,
-                position: DVec3::new(0.0, 64.0, 0.0),
-                yaw: 90.0,
-                pitch: 0.0,
-                data: 0,
-            },
+                kind: VarInt(128),
+                pos: DVec3::new(0.0, 64.0, 0.0),
+                movement: LpVec3(DVec3::ZERO),
+                yaw: ByteAngle::from_degrees(90.0),
+                pitch: ByteAngle::from_degrees(0.0),
+                head_yaw: ByteAngle::from_degrees(90.0),
+                data: VarInt(0),
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });
@@ -506,12 +516,12 @@ fn player_left_view_encodes() {
         let mut q = world
             .get_mut::<OutboundQueue>(socket)
             .expect("OutboundQueue");
-        let mut ids: SmallVec<[i32; 4]> = SmallVec::new();
-        ids.push(99);
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerLeftView { entity_ids: ids },
+            data: PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
+                entity_ids: vec![VarInt(99)],
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });
@@ -547,10 +557,11 @@ fn only_test_remains_counted_drop() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::LightUpdate {
-                column: ColumnPos::new(0, 0),
+            data: PacketPayload::LightUpdate(ClientboundLightUpdate {
+                x: VarInt(0),
+                z: VarInt(0),
                 light_data: LightData::default(),
-            },
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });
@@ -570,40 +581,41 @@ fn only_test_remains_counted_drop() {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::EntityPosSync {
-                entity_id: 1,
-                position: DVec3::ZERO,
-                velocity: DVec3::ZERO,
+            data: PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
+                entity_id: VarInt(1),
+                position: PositionPath::Linear(DVec3::ZERO),
                 look: Look {
                     yaw: 0.0,
                     pitch: 0.0,
                 },
                 on_ground: false,
-            },
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerEnteredView {
-                entity_id: 2,
+            data: PacketPayload::PlayerEnteredView(ClientboundAddEntity {
+                id: VarInt(2),
                 uuid: Uuid::nil(),
-                kind: 128,
-                position: DVec3::ZERO,
-                yaw: 0.0,
-                pitch: 0.0,
-                data: 0,
-            },
+                kind: VarInt(128),
+                pos: DVec3::ZERO,
+                movement: LpVec3(DVec3::ZERO),
+                yaw: ByteAngle::from_degrees(0.0),
+                pitch: ByteAngle::from_degrees(0.0),
+                head_yaw: ByteAngle::from_degrees(0.0),
+                data: VarInt(0),
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });
-        let mut ids: SmallVec<[i32; 4]> = SmallVec::new();
-        ids.push(3);
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerLeftView { entity_ids: ids },
+            data: PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
+                entity_ids: vec![VarInt(3)],
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });

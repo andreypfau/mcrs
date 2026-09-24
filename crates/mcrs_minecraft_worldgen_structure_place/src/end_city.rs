@@ -1,20 +1,17 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, Mirror};
-use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::template::data_markers;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, elytra_frame, shulker};
-use mcrs_minecraft_worldgen_feature_place::template::{
-    CompiledChain, CompiledProcessor, Placement, SettingsRandom, place_template,
-};
+use mcrs_minecraft_worldgen_feature_place::template::{CompiledChain, CompiledProcessor};
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
 use mcrs_minecraft_worldgen_structure::piece::EndCityPiece;
 
-use crate::block_mask;
+use crate::template_piece::seed_container_loot;
+use crate::{block_mask, place_positional};
 
 pub const END_CITY_TREASURE_LOOT: &str = "minecraft:chests/end_city_treasure";
 
@@ -58,39 +55,29 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
 ) {
     let template = &frozen.templates[piece.template.0 as usize];
     let manifest = &frozen.manifests[piece.template.0 as usize];
-    if template.palettes.is_empty() {
-        return;
-    }
-    let palette = LegacyRandom::new(block_pos_seed(piece.position))
-        .next_i32_bound(template.palettes.len() as i32) as usize;
-    let placed = place_template(
-        &Placement {
-            template,
-            jigsaws: &[],
-            palette,
-            position: piece.position,
-            reference,
-            rotation: piece.rotation,
-            mirror: Mirror::None,
-            pivot: IVec3::ZERO,
-            random: SettingsRandom::Positional,
-            clip: Some(clip),
-            chain: if piece.overwrite {
-                &chains.overwrite
-            } else {
-                &chains.keep_air
-            },
-            waterlog: true,
-            place_entities: false,
-        },
+    let chain = if piece.overwrite {
+        &chains.overwrite
+    } else {
+        &chains.keep_air
+    };
+    let Some(palette) = place_positional(
+        template,
+        piece.position,
+        piece.rotation,
+        Mirror::None,
+        IVec3::ZERO,
+        clip,
+        chain,
+        true,
+        false,
+        reference,
         volume,
         rng,
         entities,
         spawns,
-    );
-    if !placed {
+    ) else {
         return;
-    }
+    };
     let markers = manifest.markers.get(palette).map_or(&[][..], Vec::as_slice);
     for (pos, metadata) in data_markers(
         markers,
@@ -103,7 +90,7 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
         if metadata.starts_with("Chest") {
             let chest = BlockPos::from(pos - IVec3::Y);
             if clip.is_inside(chest) {
-                seed_loot(entities, chest, rng);
+                seed_container_loot(entities, chest, END_CITY_TREASURE_LOOT, rng);
             }
         } else if clip.is_inside(pos.into()) {
             if metadata.starts_with("Sentry") {
@@ -113,25 +100,5 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
                 spawns.push(elytra_frame(pos.into(), facing, rng));
             }
         }
-    }
-}
-
-/// `RandomizableContainer.setBlockEntityLootTable`: the seed is drawn only
-/// when a container stands there.
-fn seed_loot(entities: &mut [GeneratedBlockEntity], at: BlockPos, rng: &mut WorldgenRandom) {
-    let container = entities.iter_mut().rev().find_map(|entity| match entity {
-        GeneratedBlockEntity::Chest(container)
-        | GeneratedBlockEntity::TrappedChest(container)
-        | GeneratedBlockEntity::Barrel(container)
-        | GeneratedBlockEntity::Dispenser(container)
-            if BlockPos::new(container.x, container.y, container.z) == at =>
-        {
-            Some(container)
-        }
-        _ => None,
-    });
-    if let Some(container) = container {
-        container.loot_table = Some(END_CITY_TREASURE_LOOT.to_owned());
-        container.loot_table_seed = rng.next_java_long();
     }
 }

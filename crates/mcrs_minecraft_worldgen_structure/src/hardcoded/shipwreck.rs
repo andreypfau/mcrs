@@ -51,8 +51,6 @@ pub const OCEAN: &[&str] = &[
 /// The beached list is a subset of the ocean one.
 pub const TEMPLATES: &[&str] = OCEAN;
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 const REGION_FIT: i32 = 32;
 
 pub fn heightmap(is_beached: bool) -> HeightmapName {

@@ -2,9 +2,8 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, ResourceLocation};
-use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
@@ -17,14 +16,12 @@ use mcrs_minecraft_worldgen_feature::template::data_markers;
 use mcrs_minecraft_worldgen_feature::tree::UnitFloat;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, drowned};
-use mcrs_minecraft_worldgen_feature_place::template::{
-    ChainKind, CompiledChain, Placement, SettingsRandom, compile_chain, place_template,
-};
+use mcrs_minecraft_worldgen_feature_place::template::{ChainKind, CompiledChain, compile_chain};
 use mcrs_minecraft_worldgen_structure::OceanTemperature;
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenStructures, OceanRuinConfig, StructureId};
 use mcrs_minecraft_worldgen_structure::piece::OceanRuinPiece;
 
-use crate::state;
+use crate::{place_positional, state};
 
 pub const UNDERWATER_RUIN_SMALL_LOOT: &str = "minecraft:chests/underwater_ruin_small";
 pub const UNDERWATER_RUIN_BIG_LOOT: &str = "minecraft:chests/underwater_ruin_big";
@@ -137,35 +134,24 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
     let position = piece.position.with_y(piece.floor_y);
     let template = &frozen.templates[piece.template.0 as usize];
     let manifest = &frozen.manifests[piece.template.0 as usize];
-    if template.palettes.is_empty() {
-        return;
-    }
-    let palette = LegacyRandom::new(block_pos_seed(position))
-        .next_i32_bound(template.palettes.len() as i32) as usize;
-    let placed = place_template(
-        &Placement {
-            template,
-            jigsaws: &[],
-            palette,
-            position,
-            reference,
-            rotation: piece.rotation,
-            mirror: Mirror::None,
-            pivot: IVec3::ZERO,
-            random: SettingsRandom::Positional,
-            clip: Some(clip),
-            chain: blocks.chain(piece.integrity),
-            waterlog: true,
-            place_entities: true,
-        },
+    let Some(palette) = place_positional(
+        template,
+        position,
+        piece.rotation,
+        Mirror::None,
+        IVec3::ZERO,
+        clip,
+        blocks.chain(piece.integrity),
+        true,
+        true,
+        reference,
         region,
         rng,
         entities,
         spawns,
-    );
-    if !placed {
+    ) else {
         return;
-    }
+    };
     let markers = manifest.markers.get(palette).map_or(&[][..], Vec::as_slice);
     for (pos, marker) in data_markers(
         markers,

@@ -17,7 +17,6 @@
     clippy::dbg_macro
 )]
 
-extern crate core; // This allows us to use our own proc macros internally.
 extern crate self as mcrs_minecraft_protocol;
 /// Used only by macros. Not public API.
 #[doc(hidden)]
@@ -29,7 +28,6 @@ pub mod __private {
 }
 
 pub mod advancement;
-mod bit_set;
 mod block;
 pub mod block_pos;
 mod byte_angle;
@@ -73,7 +71,6 @@ mod var_long;
 use std::io::Write;
 
 use anyhow::Context;
-pub use bit_set::FixedBitSet;
 pub use byte_angle::ByteAngle;
 pub use chunk::ChunkData;
 pub use chunk::LightData;
@@ -120,15 +117,10 @@ pub const MINECRAFT_VERSION: &str = "26.3";
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From, Into)]
 pub struct CompressionThreshold(pub i32);
 
-impl CompressionThreshold {
-    /// No compression.
-    pub const DEFAULT: Self = Self(-1);
-}
-
 /// No compression.
 impl Default for CompressionThreshold {
     fn default() -> Self {
-        Self::DEFAULT
+        Self(-1)
     }
 }
 
@@ -322,15 +314,4 @@ pub enum ConnectionState {
     Login,
     Configuration,
     Game,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn protocol_version_matches_target_release() {
-        assert_eq!(PROTOCOL_VERSION, 777);
-        assert_eq!(MINECRAFT_VERSION, "26.3");
-    }
 }

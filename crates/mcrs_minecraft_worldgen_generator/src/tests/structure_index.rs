@@ -85,7 +85,7 @@ fn the_nearest_village_cell_yields_a_start() {
         .find_map(|chunk| Some((chunk, index.selected(villages, chunk)?)))
         .expect("a village within 128 chunks of the origin");
     assert!(entries.contains(&structure));
-    assert!(index.starts_present(villages, chunk, structure));
+    assert_eq!(index.selected(villages, chunk), Some(structure));
 
     let site = index.site(chunk, structure).unwrap();
     assert!(site.biome_ok);
@@ -163,7 +163,8 @@ fn locate_answers_the_nearest_stronghold_ring_position() {
         found,
         locate_pos(&frozen.sets[strongholds.0 as usize].placement, expected)
     );
-    assert!(index.starts_present(strongholds, expected, stronghold));
+    assert!(index.gate(strongholds, expected));
+    assert_eq!(index.selected(strongholds, expected), Some(stronghold));
     assert_eq!(
         index.site(expected, stronghold).unwrap().position,
         IVec3::new(expected.min_block_x(), 0, expected.min_block_z())
@@ -201,10 +202,10 @@ fn every_column_a_village_crosses_finds_its_start() {
     let village =
         frozen.structure_ids[&ResourceLocation::parse("minecraft:village_plains").unwrap()];
     let chunk = ColumnPos::new(-31, 72);
-    let start = index
-        .starts_at(chunk)
+    let (_, start) = index
+        .starts_reaching(chunk)
         .into_iter()
-        .find(|start| start.structure == village)
+        .find(|(from, start)| *from == chunk && start.structure == village)
         .expect("a plains village starts in the chunk");
 
     let bounds = start.bounds;

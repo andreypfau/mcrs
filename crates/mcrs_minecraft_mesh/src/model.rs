@@ -1,8 +1,9 @@
 use crate::SECTION_SIZE;
+use crate::ambient;
 use crate::block::{BlockInfo, Pass};
 use crate::pack::{
     FACE_NONE, MODEL_BLOCK_LIGHT, MODEL_OVERHANG, MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_SPRITE,
-    MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
+    MODEL_STEPS, MODEL_TINT, MODEL_TINT_HIGH, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
 };
 
 use super::Sink;
@@ -13,16 +14,16 @@ pub const WORDS_PER_QUAD: usize = 3 * 4;
 
 pub(super) const UNGROUPED: usize = FACE_GROUPS - 1;
 
-pub(super) const SHADE_DOWN: u32 = 0;
-pub(super) const SHADE_EAST_WEST: u32 = 1;
-pub(super) const SHADE_NORTH_SOUTH: u32 = 2;
-pub(super) const SHADE_UP: u32 = 3;
+pub(super) const SHADE_DOWN: u8 = 127;
+pub(super) const SHADE_EAST_WEST: u8 = 153;
+pub(super) const SHADE_NORTH_SOUTH: u8 = 204;
+pub(super) const SHADE_UP: u8 = 255;
 
 pub(super) struct Quad {
     pub positions: [[f32; 3]; 4],
     pub uvs: [[f32; 2]; 4],
-    pub shade: [u32; 4],
-    pub light: (u32, u32),
+    pub shade: [u8; 4],
+    pub light: [u32; 4],
     pub tint: u32,
     pub sprite: u16,
 }
@@ -42,9 +43,10 @@ pub(super) fn push(out: &mut Vec<u32>, quad: &Quad) {
             &mut words,
             (quad.uvs[corner][1].clamp(0.0, 1.0) * scale) as u64,
         );
-        MODEL_TINT.set(&mut words, quad.tint as u64);
-        MODEL_BLOCK_LIGHT.set(&mut words, quad.light.0 as u64);
-        MODEL_SKY_LIGHT.set(&mut words, quad.light.1 as u64);
+        MODEL_TINT.set(&mut words, quad.tint as u64 & MODEL_TINT.max());
+        MODEL_TINT_HIGH.set(&mut words, quad.tint as u64 >> MODEL_TINT.bits);
+        MODEL_BLOCK_LIGHT.set(&mut words, ambient::block_light(quad.light[corner]) as u64);
+        MODEL_SKY_LIGHT.set(&mut words, ambient::sky_light(quad.light[corner]) as u64);
         MODEL_SHADE.set(&mut words, quad.shade[corner] as u64);
         MODEL_SPRITE.set(&mut words, quad.sprite as u64);
         out.extend_from_slice(&words);
@@ -81,7 +83,40 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
                         }
                         sample = front;
                     }
-                    let raw = scratch.light[sample] as u32;
+                    let (shade, light) = if info.ambient_occlusion {
+                        let lit = ambient::smooth(
+                            &quad.positions,
+                            quad.facing,
+                            info.neighbour.full_block,
+                            scratch.coords[here],
+                            |o| scratch.sample(x as i32 + o.x, y as i32 + o.y, z as i32 + o.z),
+                        );
+                        (
+                            lit.shade.map(|ao| ambient::shade_byte(ao, quad.shade)),
+                            lit.light,
+                        )
+                    } else {
+                        if quad.cull.is_none()
+                            && ambient::face_cubic(
+                                &quad.positions,
+                                quad.facing,
+                                info.neighbour.full_block,
+                            )
+                        {
+                            let normal = face_normal(quad.facing as usize);
+                            sample = border_index(
+                                x as i32 + normal[0],
+                                y as i32 + normal[1],
+                                z as i32 + normal[2],
+                            );
+                        }
+                        let light = ambient::light_coords(
+                            info.emissive,
+                            info.emission,
+                            scratch.light[sample],
+                        );
+                        ([ambient::shade_byte(1.0, quad.shade); 4], [light; 4])
+                    };
                     let group = quad.face.map_or(UNGROUPED, |group| group as usize);
                     let offset = [x as f32, y as f32, z as f32];
                     push(
@@ -92,13 +127,9 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
                                 [p.x + offset[0], p.y + offset[1], p.z + offset[2]]
                             }),
                             uvs: quad.uvs,
-                            shade: quad.shade.map(shade_bucket),
-                            light: ((raw >> 4).max(info.emission as u32), raw & 0xf),
-                            tint: if quad.tinted {
-                                info.tint_kind as u32 + 1
-                            } else {
-                                0
-                            },
+                            shade,
+                            light,
+                            tint: quad.tint.index(),
                             sprite: quad.sprite,
                         },
                     );
@@ -124,19 +155,6 @@ pub(super) fn emit(scratch: &mut Scratch, sink: &mut Sink) {
 }
 
 #[inline]
-fn shade_bucket(shade: u8) -> u32 {
-    match shade {
-        0..=140 => 0,
-        141..=175 => 1,
-        176..=225 => 2,
-        _ => 3,
-    }
-}
-
-#[cfg(test)]
-const BUCKET_SHADES: [f32; 4] = [0.5, 0.6, 0.8, 1.0];
-
-#[inline]
 pub(super) fn fixed(value: f32) -> u32 {
     ((value + MODEL_OVERHANG) * MODEL_STEPS)
         .round()
@@ -145,12 +163,14 @@ pub(super) fn fixed(value: f32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{BUCKET_SHADES, fixed, shade_bucket};
+    use super::fixed;
+    use crate::ambient::{Neighbour, corner};
     use crate::block::{BlockInfo, ModelQuad, Pass};
-    use crate::pack::{MODEL_OVERHANG, MODEL_STEPS};
+    use crate::pack::{MODEL_OVERHANG, MODEL_SHADE, MODEL_STEPS};
     use crate::{SECTION_SIZE, SECTION_VOLUME};
     use crate::{Scratch, mesh_world, one_section_world};
     use bevy_math::Vec3;
+    use mcrs_minecraft_core::Direction;
 
     #[test]
     fn the_model_mesher_names_blocks_in_the_worlds_numbering() {
@@ -162,11 +182,12 @@ mod tests {
             positions: [Vec3::ZERO; 4],
             uvs: [[0.0; 2]; 4],
             cull: None,
+            facing: Direction::Up,
             face: None,
             sprite: 0,
             pass: Pass::Solid,
-            shade: [255; 4],
-            tinted: false,
+            shade: 1.0,
+            tint: crate::tint::Tint::None,
         }];
 
         let mut scratch = Scratch::new();
@@ -191,32 +212,47 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_bucketed_shade_decodes_to_the_shade_it_stood_for() {
-        for (byte, shade) in [(127u8, 0.5), (153, 0.6), (204, 0.8), (255, 1.0)] {
-            let bucket = shade_bucket(byte) as usize;
-            assert_eq!(
-                BUCKET_SHADES[bucket], shade,
-                "a face baked at {shade} buckets to {bucket}"
-            );
-        }
+    fn west_face_on_a_floor(ambient_occlusion: bool) -> [u64; 4] {
+        const FLOOR: u16 = 1;
+        const BLOCK: u16 = 2;
+        let world = one_section_world(|x, y, z| match (x, y, z) {
+            (8, 1, 8) => BLOCK,
+            (6..=10, 0, 6..=10) => FLOOR,
+            _ => 0,
+        });
+        let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
+        let solid = Neighbour {
+            full_block: true,
+            solid_render: true,
+            light_opaque: true,
+        };
+        catalog[FLOOR as usize].neighbour = solid;
+        catalog[BLOCK as usize].neighbour = solid;
+        catalog[BLOCK as usize].ambient_occlusion = ambient_occlusion;
+        catalog[BLOCK as usize].quads = vec![ModelQuad {
+            positions: std::array::from_fn(|i| corner(Direction::West, i, Vec3::ZERO, Vec3::ONE)),
+            uvs: [[0.0; 2]; 4],
+            cull: None,
+            facing: Direction::West,
+            face: None,
+            sprite: 0,
+            pass: Pass::Solid,
+            shade: 0.6,
+            tint: crate::tint::Tint::None,
+        }];
 
-        let source = include_str!("../../mcrs_minecraft_client/src/render/shaders/core/model.wgsl");
-        let table = source
-            .split_once("fn shade_bucket(")
-            .and_then(|(_, rest)| rest.split_once("\n}"))
-            .expect("model.wgsl no longer spells the shade table out in shade_bucket")
-            .0;
-        let arms: Vec<f32> = table
-            .lines()
-            .filter_map(|line| {
-                let (_, rest) = line.trim().split_once("return ")?;
-                rest.split_once(';')?.0.parse().ok()
-            })
-            .collect();
-        assert_eq!(
-            arms, BUCKET_SHADES,
-            "the shader expands the buckets differently"
-        );
+        let batch = mesh_world(&world, &catalog, &[[0, 0, 0]], &mut Scratch::new());
+        assert_eq!(batch.model_quads(), 1);
+        std::array::from_fn(|corner| MODEL_SHADE.read(&batch.complex[corner * 3..corner * 3 + 3]))
+    }
+
+    #[test]
+    fn a_model_face_is_occluded_by_the_blocks_around_it_in_the_section() {
+        assert_eq!(west_face_on_a_floor(true), [153, 91, 91, 153]);
+    }
+
+    #[test]
+    fn a_model_without_ambient_occlusion_keeps_only_its_face_shade() {
+        assert_eq!(west_face_on_a_floor(false), [153; 4]);
     }
 }

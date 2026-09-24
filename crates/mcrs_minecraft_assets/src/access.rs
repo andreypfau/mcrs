@@ -27,33 +27,15 @@ impl PackSource {
     }
 }
 
-pub struct ErasedEntry<'a> {
-    pub network_id: u32,
-    pub location: &'a ResourceLocation<Arc<str>>,
-    pub data: Option<&'a NbtTag>,
-    pub pack_source: Option<&'a PackSource>,
-}
-
-pub trait ErasedRegistrySnapshot: Send + Sync {
-    fn registry_key(&self) -> &str;
-    fn len(&self) -> usize;
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn iter_entries(&self) -> Box<dyn Iterator<Item = ErasedEntry<'_>> + '_>;
-}
-
-struct ErasedOwnedEntry {
-    location: ResourceLocation<Arc<str>>,
-    nbt: Option<NbtTag>,
-    pack_source: Option<PackSource>,
+pub struct RegistryEntry {
+    pub location: ResourceLocation<Arc<str>>,
+    pub data: Option<NbtTag>,
+    pub pack_source: Option<PackSource>,
 }
 
 pub struct RegistrySnapshotErased {
     key: String,
-    entries: Vec<ErasedOwnedEntry>,
+    entries: Vec<RegistryEntry>,
 }
 
 impl RegistrySnapshotErased {
@@ -66,9 +48,9 @@ impl RegistrySnapshotErased {
             key: key.to_string(),
             entries: entries
                 .into_iter()
-                .map(|(location, nbt)| ErasedOwnedEntry {
+                .map(|(location, data)| RegistryEntry {
                     location,
-                    nbt,
+                    data,
                     pack_source: pack_source.clone(),
                 })
                 .collect(),
@@ -83,13 +65,10 @@ impl RegistrySnapshotErased {
     ) -> Self {
         let entries = registry
             .iter()
-            .map(|(_id, loc, val)| {
-                let nbt = serialize(loc, val);
-                ErasedOwnedEntry {
-                    location: loc.clone(),
-                    nbt,
-                    pack_source: pack_source.clone(),
-                }
+            .map(|(_id, loc, val)| RegistryEntry {
+                location: loc.clone(),
+                data: serialize(loc, val),
+                pack_source: pack_source.clone(),
             })
             .collect();
         Self {
@@ -106,9 +85,9 @@ impl RegistrySnapshotErased {
         let entries = snapshot
             .entries()
             .iter()
-            .map(|e| ErasedOwnedEntry {
+            .map(|e| RegistryEntry {
                 location: e.location.clone(),
-                nbt: Some(e.nbt.clone()),
+                data: Some(e.nbt.clone()),
                 pack_source: pack_source
                     .clone()
                     .filter(|_| !is_local_addition(&e.location)),
@@ -133,27 +112,21 @@ fn is_local_addition(location: &ResourceLocation<Arc<str>>) -> bool {
         .is_some_and(|name| name.starts_with("beta"))
 }
 
-impl ErasedRegistrySnapshot for RegistrySnapshotErased {
-    fn registry_key(&self) -> &str {
+impl RegistrySnapshotErased {
+    pub fn registry_key(&self) -> &str {
         &self.key
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    fn iter_entries(&self) -> Box<dyn Iterator<Item = ErasedEntry<'_>> + '_> {
-        Box::new(
-            self.entries
-                .iter()
-                .enumerate()
-                .map(|(i, entry)| ErasedEntry {
-                    network_id: i as u32,
-                    location: &entry.location,
-                    data: entry.nbt.as_ref(),
-                    pack_source: entry.pack_source.as_ref(),
-                }),
-        )
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn iter_entries(&self) -> impl Iterator<Item = &RegistryEntry> {
+        self.entries.iter()
     }
 }
 
@@ -173,17 +146,17 @@ pub struct RegistryAccess(Arc<RegistryAccessInner>);
 
 #[derive(Default)]
 pub struct RegistryAccessInner {
-    registries: Vec<Box<dyn ErasedRegistrySnapshot>>,
+    registries: Vec<RegistrySnapshotErased>,
     lookup: OnceLock<LookupIndex>,
 }
 
-fn build_lookup_index(registries: &[Box<dyn ErasedRegistrySnapshot>]) -> LookupIndex {
+fn build_lookup_index(registries: &[RegistrySnapshotErased]) -> LookupIndex {
     let mut index = LookupIndex::default();
     for registry in registries {
         let key = registry.registry_key();
         let key: Box<str> = key.split_once(':').map_or(key, |(_, path)| path).into();
-        for entry in registry.iter_entries() {
-            index.insert(&key, entry.network_id, Some(entry.location.clone()));
+        for (network_id, entry) in registry.iter_entries().enumerate() {
+            index.insert(&key, network_id as u32, Some(entry.location.clone()));
         }
     }
     index
@@ -208,7 +181,7 @@ impl RegistryAccess {
     /// call. The inner `Arc::get_mut` check enforces the freeze-before-clone
     /// invariant: once any clone has been handed to a per-dim sub-app the
     /// refcount is > 1 and mutation is forbidden.
-    pub fn register(&mut self, snapshot: Box<dyn ErasedRegistrySnapshot>) {
+    pub fn register(&mut self, snapshot: RegistrySnapshotErased) {
         let inner = Arc::get_mut(&mut self.0).expect(
             "RegistryAccess: registry mutation attempted after the registry was cloned; \
              mutation must complete before WorldgenFreeze — \
@@ -218,8 +191,8 @@ impl RegistryAccess {
         inner.registries.push(snapshot);
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &dyn ErasedRegistrySnapshot> {
-        self.0.registries.iter().map(|b| &**b)
+    pub fn iter(&self) -> impl Iterator<Item = &RegistrySnapshotErased> {
+        self.0.registries.iter()
     }
 
     fn lookup(&self) -> &LookupIndex {
@@ -281,10 +254,8 @@ mod tests {
 
         let entries: Vec<_> = erased.iter_entries().collect();
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].network_id, 0);
         assert_eq!(entries[0].location.as_str(), "minecraft:plains");
         assert!(entries[0].data.is_some());
-        assert_eq!(entries[1].network_id, 1);
         assert_eq!(entries[1].location.as_str(), "minecraft:desert");
     }
 
@@ -320,8 +291,8 @@ mod tests {
         );
 
         let mut access = RegistryAccess::default();
-        access.register(Box::new(biome));
-        access.register(Box::new(sound));
+        access.register(biome);
+        access.register(sound);
 
         let keys: Vec<&str> = access.iter().map(|s| s.registry_key()).collect();
         assert_eq!(keys, &["minecraft:worldgen/biome", "minecraft:sound_event"]);
@@ -338,54 +309,22 @@ mod tests {
             vec![(make_location("stone"), None)],
             None,
         );
-        access.register(Box::new(snap));
+        access.register(snap);
         assert!(!access.is_empty());
         assert_eq!(access.len(), 1);
     }
 
     #[test]
-    fn erased_registry_snapshot_is_object_safe() {
-        let erased = RegistrySnapshotErased::from_entries(
-            "minecraft:item",
-            vec![(make_location("diamond"), None)],
-            None,
-        );
-        let _: Box<dyn ErasedRegistrySnapshot> = Box::new(erased);
-    }
-
-    #[test]
-    fn an_id_no_entry_owns_has_no_name() {
-        struct Sparse(Vec<ResourceLocation<Arc<str>>>);
-
-        impl ErasedRegistrySnapshot for Sparse {
-            fn registry_key(&self) -> &str {
-                "minecraft:item"
-            }
-
-            fn len(&self) -> usize {
-                self.0.len()
-            }
-
-            fn iter_entries(&self) -> Box<dyn Iterator<Item = ErasedEntry<'_>> + '_> {
-                Box::new(self.0.iter().enumerate().map(|(i, location)| ErasedEntry {
-                    network_id: i as u32 * 2,
-                    location,
-                    data: None,
-                    pack_source: None,
-                }))
-            }
-        }
-
+    fn lookup_resolves_names_and_ids_by_position() {
         let mut access = RegistryAccess::default();
-        access.register(Box::new(Sparse(vec![
-            make_location("stone"),
-            make_location("dirt"),
-        ])));
-        assert_eq!(access.name("item", 0), Some(&make_location("stone")));
-        assert_eq!(access.name("item", 1), None);
-        assert_eq!(access.name("item", 2), Some(&make_location("dirt")));
-        assert_eq!(access.name("item", 3), None);
-        assert_eq!(access.id("item", &make_location("dirt")), Some(2));
+        access.register(RegistrySnapshotErased::from_entries(
+            "minecraft:item",
+            vec![(make_location("stone"), None), (make_location("dirt"), None)],
+            None,
+        ));
+        assert_eq!(access.name("item", 1), Some(&make_location("dirt")));
+        assert_eq!(access.name("item", 2), None);
+        assert_eq!(access.id("item", &make_location("dirt")), Some(1));
         assert_eq!(access.id("block", &make_location("dirt")), None);
     }
 
@@ -404,7 +343,7 @@ mod tests {
             Some(PackSource::vanilla_core()),
         );
         let entries: Vec<_> = erased.iter_entries().collect();
-        let src = entries[0].pack_source.unwrap();
+        let src = entries[0].pack_source.as_ref().unwrap();
         assert_eq!(&*src.namespace, "minecraft");
         assert_eq!(&*src.id, "core");
     }
@@ -430,21 +369,21 @@ mod tests {
         let _clone = original.clone();
         // The clone holds an Arc reference; Arc::get_mut inside register now
         // returns None and the expect panics with the documented message.
-        original.register(Box::new(RegistrySnapshotErased::from_entries(
+        original.register(RegistrySnapshotErased::from_entries(
             "minecraft:biome",
             vec![(make_location("plains"), None)],
             None,
-        )));
+        ));
     }
 
     #[test]
     fn clone_is_o1_pointer_equal() {
         let mut original = RegistryAccess::default();
-        original.register(Box::new(RegistrySnapshotErased::from_entries(
+        original.register(RegistrySnapshotErased::from_entries(
             "minecraft:block",
             vec![(make_location("stone"), None)],
             None,
-        )));
+        ));
 
         let cloned = original.clone();
 

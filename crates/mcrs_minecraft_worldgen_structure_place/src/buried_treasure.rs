@@ -148,6 +148,7 @@ mod tests {
                 min: BlockPos::new(0, 1, 0),
                 max: BlockPos::new(15, 31, 15),
             },
+            keep: None,
         };
         let mut rng = LegacyRandom::new(7);
         paint_buried_treasure(&blocks(), &mut canvas, &mut rng);
@@ -184,6 +185,7 @@ mod tests {
                 min: BlockPos::new(0, 1, 0),
                 max: BlockPos::new(15, 31, 15),
             },
+            keep: None,
         };
         let mut rng = LegacyRandom::new(7);
         paint_buried_treasure(&blocks(), &mut canvas, &mut rng);

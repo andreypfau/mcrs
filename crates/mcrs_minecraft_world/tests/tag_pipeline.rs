@@ -88,8 +88,23 @@ fn tags_load_resolve_and_freeze_on_the_way_to_playing() {
 
     let resolved = tags.iter().count();
     println!("block tags resolved: {resolved}");
+    let shipped = count_json(&workspace_root().join("assets/minecraft/tags/block"));
     assert!(
-        resolved > block_tags::ALL_BLOCK_TAGS.len(),
-        "the loader must pick up more than the tags Rust names: {resolved}"
+        resolved >= shipped,
+        "the loader must pick up every shipped block tag: {resolved} < {shipped}"
     );
+}
+
+fn count_json(dir: &std::path::Path) -> usize {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .map(|path| {
+            if path.is_dir() {
+                count_json(&path)
+            } else {
+                usize::from(path.extension().is_some_and(|e| e == "json"))
+            }
+        })
+        .sum()
 }

@@ -19,7 +19,7 @@ use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
-use mcrs_minecraft_server::runner::pump_channels;
+use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::world::bridge::bridge_inbound_to_channel;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
@@ -278,12 +278,12 @@ fn fifo_ordering_preserved() {
         for &id in &send_order {
             entry
                 .serverbound_sender
-                .try_send(ToDim::Serverbound {
+                .try_send(ToDim::Serverbound(InboundPlayerPacket {
                     player: host_anchor,
                     id,
                     data: Bytes::new(),
                     timestamp: std::time::Instant::now(),
-                })
+                }))
                 .expect("send succeeds");
         }
     }

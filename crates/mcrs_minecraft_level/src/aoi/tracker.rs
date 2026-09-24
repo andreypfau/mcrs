@@ -72,19 +72,14 @@ mod tests {
         #[derive(Resource, Default)]
         struct FireLog(Vec<bool>);
 
+        let mut helper = every_n_ticks(3);
         let mut app = App::new();
         app.init_resource::<FireLog>();
         app.add_schedule(bevy_ecs::schedule::Schedule::new(DummySchedule));
         app.add_systems(
             DummySchedule,
-            (|mut local_n: Local<u32>, mut log: ResMut<FireLog>| {
-                *local_n = local_n.saturating_add(1);
-                let fired = if *local_n >= 3 {
-                    *local_n = 0;
-                    true
-                } else {
-                    false
-                };
+            (move |local: Local<u32>, mut log: ResMut<FireLog>| {
+                let fired = helper(local);
                 log.0.push(fired);
             },)
                 .into_configs(),

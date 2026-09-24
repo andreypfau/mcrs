@@ -18,6 +18,7 @@
 //!   host-resident connection, not just the in-process bus.
 
 use crate::mock_connection;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
 
 use crate::harness;
 
@@ -46,8 +47,8 @@ use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
+use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
-use mcrs_minecraft_server::runner::pump_channels;
 use mcrs_minecraft_server::world::aoi::TrackedBy;
 use mcrs_minecraft_server::world::bridge::{
     bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
@@ -177,10 +178,10 @@ fn e2e_packet_round_trip() {
         .write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host_anchor),
             priority: PacketPriority::Normal,
-            data: PacketPayload::BlockUpdate {
-                position: BlockPos::new(0, 64, 0),
-                new_state: BlockStateId(1),
-            },
+            data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+                block_pos: BlockPos::new(0, 64, 0),
+                block_state_id: BlockStateId(1),
+            }),
             session,
             epoch: 0,
         });

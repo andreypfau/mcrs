@@ -1,21 +1,21 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
+use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::template::FrozenTemplate;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_feature_place::template::{
-    CompiledChain, CompiledProcessor, Placement, SettingsRandom, place_template, rotate_state,
+    CompiledChain, CompiledProcessor, rotate_state,
 };
 use mcrs_minecraft_worldgen_structure::orient::random_rotation;
 use mcrs_minecraft_worldgen_structure::piece::NetherFossilPiece;
 
-use crate::{block_mask, state};
+use crate::{block_mask, place_positional, state};
 
 #[derive(Clone, Debug)]
 pub struct NetherFossilBlocks {
@@ -59,24 +59,17 @@ pub fn paint_nether_fossil<W: WorldGenVolume>(
         return;
     }
     let clip = clip.union(piece.bounds);
-    let palette = LegacyRandom::new(block_pos_seed(piece.position))
-        .next_i32_bound(template.palettes.len() as i32) as usize;
-    place_template(
-        &Placement {
-            template,
-            jigsaws: &[],
-            palette,
-            position: piece.position,
-            reference,
-            rotation: piece.rotation,
-            mirror: Mirror::None,
-            pivot: IVec3::ZERO,
-            random: SettingsRandom::Positional,
-            clip: Some(clip),
-            chain: &b.chain,
-            waterlog: true,
-            place_entities: true,
-        },
+    place_positional(
+        template,
+        piece.position,
+        piece.rotation,
+        Mirror::None,
+        IVec3::ZERO,
+        clip,
+        &b.chain,
+        true,
+        true,
+        reference,
         volume,
         rng,
         entities,
@@ -91,8 +84,7 @@ fn place_dried_ghast<W: WorldGenVolume>(
     fossil: BoundingBox,
     clip: BoundingBox,
 ) {
-    let centre = *fossil.min + (*fossil.max - *fossil.min + IVec3::ONE) / 2;
-    let mut rng = LegacyRandom::new(b.world_seed as u64).fork_at(centre);
+    let mut rng = LegacyRandom::new(b.world_seed as u64).fork_at(*fossil.center());
     if rng.next_f32() >= 0.5 {
         return;
     }
@@ -140,9 +132,8 @@ mod tests {
     }
 
     fn coin_passes(world_seed: i64) -> bool {
-        let centre = *FOSSIL.min + (*FOSSIL.max - *FOSSIL.min + IVec3::ONE) / 2;
         LegacyRandom::new(world_seed as u64)
-            .fork_at(centre)
+            .fork_at(*FOSSIL.center())
             .next_f32()
             < 0.5
     }

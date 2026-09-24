@@ -8,6 +8,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_level::entity::EntityNetworkSyncEvent;
 use mcrs_minecraft_level::entity::physics::{OldTransform, Rotation, Transform};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_server::world::entity::entity_pos_sync;
 
@@ -36,7 +37,8 @@ fn a_synced_entity_keeps_its_look_angles_on_the_wire() {
     let [packet] = sent.as_slice() else {
         panic!("expected exactly one outbound packet, got {}", sent.len());
     };
-    let PacketPayload::EntityPosSync { look, .. } = &packet.data else {
+    let PacketPayload::EntityPosSync(ClientboundEntityPositionSync { look, .. }) = &packet.data
+    else {
         panic!("expected an EntityPosSync payload, got {:?}", packet.data);
     };
     assert_eq!(look.yaw, 90.0);

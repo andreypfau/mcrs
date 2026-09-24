@@ -147,10 +147,6 @@ impl ColumnStore {
         self.columns.contains_key(&pos)
     }
 
-    pub fn positions(&self) -> impl Iterator<Item = ColumnPos> + '_ {
-        self.columns.keys().copied()
-    }
-
     /// The resident columns with the handle each one is held by. A light update
     /// rewrites a handle nobody else holds in place, so a reader telling a column
     /// it has already looked at from one it has not keeps a `Weak` to the handle:

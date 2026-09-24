@@ -146,7 +146,7 @@ fn tick_update_schedule(app: &mut App) {
 fn dim_despawn_count(ctl_rx: &flume::Receiver<ToDim>) -> usize {
     ctl_rx
         .try_iter()
-        .filter(|msg| matches!(msg, ToDim::Despawn { .. }))
+        .filter(|msg| matches!(msg, ToDim::Despawn(..)))
         .count()
 }
 

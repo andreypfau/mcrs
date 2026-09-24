@@ -1,7 +1,8 @@
 
 #import mcrs_minecraft_client::fields::{
-    FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS,
+    FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS, FACE_AO_CORNER_BITS,
     FACE_BLOCK_LIGHT_WORD, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS,
+    FACE_LIGHT_CORNER_BITS,
     FACE_FLUID_WORD, FACE_FLUID_SHIFT, FACE_FLUID_BITS,
     FACE_SKY_LIGHT_WORD, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS,
     FACE_SPRITE_WORD, FACE_SPRITE_SHIFT, FACE_SPRITE_BITS,
@@ -22,7 +23,7 @@
 }
 #import mcrs_minecraft_client::finish::{finish_cutout, finish_solid, finish_translucent}
 #import mcrs_minecraft_client::frame::{camera, params}
-#import mcrs_minecraft_client::lighting::{ao_factor, face_shade, lightmap}
+#import mcrs_minecraft_client::lighting::{face_shade, lightmap}
 #import mcrs_minecraft_client::quad::{
     corner_index, corner_uv, face_normal, face_u_dir, face_v_dir, quad_of,
 }
@@ -86,19 +87,38 @@ fn vertex_greedy(@builtin(vertex_index) vertex: u32) -> GreedyOut {
     return out;
 }
 
+/// A corner's vertex colour as vanilla computes it: the occlusion byte scaled by the face shade,
+/// times the lightmap at the corner's light. Light is stored in quarter levels.
+fn corner_color(ao: u32, block: u32, sky: u32, corner: u32, directional: f32) -> vec3<f32> {
+    let ao_mask = (1u << FACE_AO_CORNER_BITS) - 1u;
+    let light_mask = (1u << FACE_LIGHT_CORNER_BITS) - 1u;
+    let code = (ao >> (corner * FACE_AO_CORNER_BITS)) & ao_mask;
+    let byte = floor(f32(255u - 51u * code) * directional);
+    let block_units = f32(((block >> (corner * FACE_LIGHT_CORNER_BITS)) & light_mask) * 4u);
+    let sky_units = f32(((sky >> (corner * FACE_LIGHT_CORNER_BITS)) & light_mask) * 4u);
+    return byte / 255.0 * lightmap(block_units, sky_units);
+}
+
 fn greedy_surface(in: GreedyOut) -> Surface {
     let uv = in.quad_uv * vec2<f32>(in.face_span);
     let cell = min(vec2<u32>(max(uv, vec2<f32>(0.0))), in.face_span - vec2<u32>(1u));
     let attr = (in.face_base + cell.y * in.face_span.x + cell.x) * FACE_WORDS;
-    let block_light = f32(face_field(attr, FACE_BLOCK_LIGHT_WORD, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS));
-    let sky_light = f32(face_field(attr, FACE_SKY_LIGHT_WORD, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS));
-    let ao_bits = face_field(attr, FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS);
+    let ao = face_field(attr, FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS);
+    let block = face_field(attr, FACE_BLOCK_LIGHT_WORD, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS);
+    let sky = face_field(attr, FACE_SKY_LIGHT_WORD, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS);
+    var corners: array<vec3<f32>, 4>;
+    for (var k = 0u; k < 4u; k++) {
+        corners[k] = corner_color(ao, block, sky, k, in.directional);
+    }
     let f = uv - vec2<f32>(cell);
-    let ao = mix(
-        mix(ao_factor(ao_bits, 0u), ao_factor(ao_bits, 3u), f.x),
-        mix(ao_factor(ao_bits, 1u), ao_factor(ao_bits, 2u), f.x),
-        f.y,
-    );
+    // Vanilla draws each block face as two triangles split from corner 0 to corner 2, and the
+    // colour is interpolated across each triangle on its own, not bilinearly across the face.
+    var shade: vec3<f32>;
+    if (f.y > f.x) {
+        shade = corners[0] + (corners[2] - corners[1]) * f.x + (corners[1] - corners[0]) * f.y;
+    } else {
+        shade = corners[0] + (corners[3] - corners[0]) * f.x + (corners[2] - corners[3]) * f.y;
+    }
 
     // A fluid sprite is drawn at half scale and repeats, so its gradients halve with it.
     let fluid = face_field(attr, FACE_FLUID_WORD, FACE_FLUID_SHIFT, FACE_FLUID_BITS) != 0u;
@@ -107,7 +127,7 @@ fn greedy_surface(in: GreedyOut) -> Surface {
     var s: Surface;
     s.sprite = face_field(attr, FACE_SPRITE_WORD, FACE_SPRITE_SHIFT, FACE_SPRITE_BITS);
     s.tint_kind = face_field(attr, FACE_TINT_WORD, FACE_TINT_SHIFT, FACE_TINT_BITS);
-    s.shade = lightmap(block_light, sky_light) * (in.directional * ao);
+    s.shade = shade;
     s.uv = select(uv, fract(uv) * 0.5, fluid);
     s.world_xz = in.world_xz;
     s.ddx = dpdx(uv) * scale;

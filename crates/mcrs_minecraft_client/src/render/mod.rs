@@ -137,11 +137,9 @@ pub struct Wireframe(pub bool);
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Occlusion(pub bool);
 
-impl Default for Occlusion {
-    fn default() -> Self {
-        Self(true)
-    }
-}
+/// Vanilla's Brightness slider, from 0 (Moody) to 1 (Bright).
+#[derive(Resource, Clone, Copy, ExtractResource)]
+pub struct Brightness(pub f32);
 
 pub fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<Wireframe>) {
     if keys.just_pressed(KeyCode::F10) {
@@ -183,9 +181,12 @@ impl Plugin for TerrainPlugin {
         let counts = FrameCounts::default();
         app.insert_resource(crate::config::wireframe())
             .insert_resource(crate::config::occlusion())
-            .init_resource::<Streams>()
+            .insert_resource(Brightness(crate::config::brightness()))
+            .insert_resource(crate::config::drawn_streams())
+            .insert_resource(crate::config::raster_fraction())
             .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
+            .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<Streams>::default())
             .add_plugins(ExtractResourcePlugin::<Raster>::default())
             .insert_resource(triangles.clone())

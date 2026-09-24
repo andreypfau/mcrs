@@ -24,41 +24,28 @@ use mcrs_minecraft_worldgen_noise::sample_grid::Axis;
 use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
 use mcrs_minecraft_worldgen_noise::strata::{Axes, NO_AXES, axis_bit};
 use std::collections::{BTreeMap, HashMap};
-use std::fmt;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CompileError {
+    #[error("unknown density function: {0}")]
     UnknownFunction(String),
+    #[error("unknown noise: {0}")]
     UnknownNoise(String),
+    #[error("reference cycle through {0}")]
     ReferenceCycle(String),
+    #[error("unknown material rule: {0}")]
     UnknownRule(String),
+    #[error("unknown material condition: {0}")]
     UnknownCondition(String),
+    #[error("unknown block state: {0}")]
     UnknownBlockState(String),
+    #[error("unknown biome: {0}")]
     UnknownBiome(String),
     /// A condition kind this build parses but cannot evaluate.
+    #[error("material condition minecraft:{0} cannot be evaluated by this build")]
     UnsupportedCondition(&'static str),
 }
-
-impl fmt::Display for CompileError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CompileError::UnknownFunction(id) => write!(f, "unknown density function: {id}"),
-            CompileError::UnknownNoise(id) => write!(f, "unknown noise: {id}"),
-            CompileError::ReferenceCycle(id) => write!(f, "reference cycle through {id}"),
-            CompileError::UnknownRule(id) => write!(f, "unknown material rule: {id}"),
-            CompileError::UnknownCondition(id) => write!(f, "unknown material condition: {id}"),
-            CompileError::UnknownBlockState(id) => write!(f, "unknown block state: {id}"),
-            CompileError::UnknownBiome(id) => write!(f, "unknown biome: {id}"),
-            CompileError::UnsupportedCondition(kind) => write!(
-                f,
-                "material condition minecraft:{kind} cannot be evaluated by this build"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for CompileError {}
 
 pub fn build_router(
     settings: &NoiseGeneratorSettings,

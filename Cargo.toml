@@ -70,7 +70,7 @@ flume = { version = "0.12.0", default-features = false }
 rayon = "1"
 
 mcrs_minecraft_protocol_macros = { path = "crates/mcrs_minecraft_protocol_macros" }
-mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol", default-features = false, features = ["compression"] }
+mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
 mcrs_minecraft_level = { path = "crates/mcrs_minecraft_level" }
@@ -104,7 +104,6 @@ mcrs_minecraft_worldgen_structure = { path = "crates/mcrs_minecraft_worldgen_str
 mcrs_minecraft_worldgen_structure_place = { path = "crates/mcrs_minecraft_worldgen_structure_place" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
 mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light", default-features = false }
-mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
 mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features = false }
 wtransport = "0.7.2"
@@ -116,7 +115,7 @@ bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
 mcrs_minecraft_server.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
-mcrs_telemetry.workspace = true
+bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
 
 [dev-dependencies]
 mcrs_minecraft_worldgen_generator.workspace = true
@@ -124,16 +123,13 @@ bevy_state.workspace = true
 mcrs_minecraft_client.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_world.workspace = true
-mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
-telemetry-tracy = ["mcrs_telemetry/telemetry-tracy", "mcrs_minecraft_server/telemetry-tracy"]
-# Diagnostics features stay confined to mcrs_telemetry because no other
-# crate currently registers diagnostic plugins. Add propagation lines
+telemetry-tracy = ["bevy_log/tracing-tracy", "mcrs_minecraft_server/telemetry-tracy"]
+# No other crate registers diagnostic plugins yet. Add propagation lines
 # here when individual crates start exposing their own histograms.
-telemetry-diagnostics = ["mcrs_telemetry/telemetry-diagnostics"]
+telemetry-diagnostics = ["dep:bevy_diagnostic"]
 
 [profile.dev]
 opt-level = 0

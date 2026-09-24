@@ -1,6 +1,8 @@
 use bevy_math::Vec3;
 use mcrs_minecraft_core::Direction;
 
+use crate::ambient::Neighbour;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Fluid {
     pub lava: bool,
@@ -47,20 +49,13 @@ impl Pass {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum TintKind {
-    Grass = 0,
-    Foliage = 1,
-    Water = 2,
-}
-
-pub const TINT_KINDS: usize = 3;
+use crate::tint::Tint;
 
 #[derive(Copy, Clone, Default)]
 pub struct CubeFace {
     pub sprite: u16,
     pub pass: u8,
-    pub tinted: bool,
+    pub tint: Tint,
 }
 
 #[derive(Clone)]
@@ -68,38 +63,26 @@ pub struct ModelQuad {
     pub positions: [Vec3; 4],
     pub uvs: [[f32; 2]; 4],
     pub cull: Option<Direction>,
+    pub facing: Direction,
     pub face: Option<u8>,
     pub sprite: u16,
     pub pass: Pass,
-    pub shade: [u8; 4],
-    pub tinted: bool,
+    pub shade: f32,
+    pub tint: Tint,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct BlockInfo {
     pub cube: Option<[CubeFace; 6]>,
     pub quads: Vec<ModelQuad>,
     pub occludes: bool,
     pub self_culls: bool,
     pub sturdy: u8,
-    pub tint_kind: TintKind,
     pub emission: u8,
+    pub emissive: bool,
     pub fluid: Option<Fluid>,
-}
-
-impl Default for BlockInfo {
-    fn default() -> Self {
-        Self {
-            cube: None,
-            quads: Vec::new(),
-            occludes: false,
-            self_culls: false,
-            sturdy: 0,
-            tint_kind: TintKind::Grass,
-            emission: 0,
-            fluid: None,
-        }
-    }
+    pub neighbour: Neighbour,
+    pub ambient_occlusion: bool,
 }
 
 pub const FACE_AXES: [[u8; 6]; 6] = [

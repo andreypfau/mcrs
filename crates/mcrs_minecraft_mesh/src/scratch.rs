@@ -1,3 +1,4 @@
+use crate::ambient::{self, Neighbour, Sample};
 use crate::block::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{FACE_NONE, FACE_WORDS, QUAD_WORDS};
 use crate::{BlockView, SECTION_SIZE, SECTION_VOLUME};
@@ -7,6 +8,11 @@ use super::fluid::{COVER_SEE_THROUGH, FLUID_LAVA, Sloped, fluid_kind};
 pub(super) const BORDER: usize = SECTION_SIZE + 2;
 pub(super) const BORDER_VOLUME: usize = BORDER * BORDER * BORDER;
 pub(super) const COLUMNS: usize = BORDER * BORDER;
+
+/// Occlusion probes the block past a face's neighbour, so they reach one block further out than
+/// anything else the mesher reads.
+const APRON: usize = SECTION_SIZE + 4;
+const APRON_VOLUME: usize = APRON * APRON * APRON;
 
 pub(super) const FACE_GROUPS: usize = FACE_NONE as usize + 1;
 pub(super) const FLUID_KINDS: usize = 2;
@@ -18,6 +24,8 @@ const GRID: usize = SECTION_SIZE * SECTION_SIZE;
 pub struct Scratch {
     pub(super) states: Box<[u16; BORDER_VOLUME]>,
     pub(super) occludes: Box<[bool; BORDER_VOLUME]>,
+    neighbours: Box<[Neighbour; APRON_VOLUME]>,
+    pub(super) coords: Box<[u32; BORDER_VOLUME]>,
     pub(super) light: Box<[u8; BORDER_VOLUME]>,
     pub(super) cube_columns: Box<[[u32; COLUMNS]; 3]>,
     pub(super) occlude_columns: Box<[[u32; COLUMNS]; 3]>,
@@ -48,6 +56,8 @@ impl Scratch {
         Self {
             states: Box::new([0; BORDER_VOLUME]),
             occludes: Box::new([false; BORDER_VOLUME]),
+            neighbours: Box::new([Neighbour::default(); APRON_VOLUME]),
+            coords: Box::new([0; BORDER_VOLUME]),
             light: Box::new([0; BORDER_VOLUME]),
             cube_columns: Box::new([[0; COLUMNS]; 3]),
             occlude_columns: Box::new([[0; COLUMNS]; 3]),
@@ -89,7 +99,10 @@ impl Scratch {
                     let info = &catalog[state as usize];
                     self.states[index] = state;
                     self.occludes[index] = info.occludes;
-                    self.light[index] = world.light(base[0] + x, base[1] + y, base[2] + z);
+                    self.neighbours[apron_index(x, y, z)] = info.neighbour;
+                    let light = world.light(base[0] + x, base[1] + y, base[2] + z);
+                    self.light[index] = light;
+                    self.coords[index] = ambient::light_coords(info.emissive, info.emission, light);
                     let fluid = info.fluid.map_or(0, |fluid| {
                         fluid.amount | if fluid.lava { FLUID_LAVA } else { 0 }
                     });
@@ -120,6 +133,32 @@ impl Scratch {
                 }
             }
         }
+
+        let apron = -2..=SECTION_SIZE as i32 + 1;
+        for y in apron.clone() {
+            for z in apron.clone() {
+                for x in apron.clone() {
+                    if border(x) && border(y) && border(z) {
+                        continue;
+                    }
+                    let state = world.block(base[0] + x, base[1] + y, base[2] + z) as usize;
+                    self.neighbours[apron_index(x, y, z)] = catalog
+                        .get(state)
+                        .map_or(Neighbour::default(), |info| info.neighbour);
+                }
+            }
+        }
+    }
+
+    /// What smooth lighting reads of the block at a border position.
+    pub(super) fn sample(&self, x: i32, y: i32, z: i32) -> Sample {
+        let neighbour = self.neighbours[apron_index(x, y, z)];
+        let light = if border(x) && border(y) && border(z) {
+            self.coords[border_index(x, y, z)]
+        } else {
+            0
+        };
+        Sample { neighbour, light }
     }
 
     pub(super) fn visible(
@@ -151,6 +190,16 @@ impl Scratch {
 #[inline]
 pub(super) fn inside(coordinate: i32) -> bool {
     (0..SECTION_SIZE as i32).contains(&coordinate)
+}
+
+#[inline]
+fn border(coordinate: i32) -> bool {
+    (-1..=SECTION_SIZE as i32).contains(&coordinate)
+}
+
+#[inline]
+fn apron_index(x: i32, y: i32, z: i32) -> usize {
+    ((y + 2) as usize * APRON + (z + 2) as usize) * APRON + (x + 2) as usize
 }
 
 #[inline]

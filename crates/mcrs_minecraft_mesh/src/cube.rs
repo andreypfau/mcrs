@@ -1,6 +1,12 @@
-use crate::SECTION_SIZE;
-use crate::block::{BlockInfo, CORNER_UV, FACE_AXES};
-use crate::pack::{FACE_AO, FACE_BLOCK_LIGHT, FACE_SKY_LIGHT, FACE_SPRITE, FACE_TINT, FACE_WORDS};
+use bevy_math::Vec3;
+use mcrs_minecraft_core::Direction;
+
+use crate::ambient;
+use crate::block::BlockInfo;
+use crate::pack::{
+    FACE_AO, FACE_AO_CORNER_BITS, FACE_BLOCK_LIGHT, FACE_LIGHT_CORNER_BITS, FACE_SKY_LIGHT,
+    FACE_SPRITE, FACE_TINT, FACE_WORDS,
+};
 
 use super::scratch::{Columns, Scratch, border_index};
 use super::sweep::sweep;
@@ -44,54 +50,57 @@ fn face_attr(
     }
 
     let cube = cube[face];
-    let axes = FACE_AXES[face];
-    let mut u_step = [0i32; 3];
-    u_step[axes[2] as usize] = if axes[3] == 1 { 1 } else { -1 };
-    let mut v_step = [0i32; 3];
-    v_step[axes[4] as usize] = if axes[5] == 1 { 1 } else { -1 };
+    let (ao, light) = if info.ambient_occlusion {
+        let dir = Direction::all()[face];
+        let positions = std::array::from_fn(|i| ambient::corner(dir, i, Vec3::ZERO, Vec3::ONE));
+        let lit = ambient::smooth(
+            &positions,
+            dir,
+            info.neighbour.full_block,
+            scratch.coords[border_index(local[0], local[1], local[2])],
+            |o| scratch.sample(local[0] + o.x, local[1] + o.y, local[2] + o.z),
+        );
+        (lit.shade.map(ao_code), lit.light)
+    } else {
+        let light = ambient::light_coords(info.emissive, info.emission, scratch.light[front_index]);
+        ([0; 4], [light; 4])
+    };
 
-    let mut ao = 0u32;
-    for corner in 0..4 {
-        let du = if CORNER_UV[corner][0] > 0.5 { 1 } else { -1 };
-        let dv = if CORNER_UV[corner][1] > 0.5 { 1 } else { -1 };
-        let side_u = occludes_at(scratch, front, u_step, du, [0; 3], 0);
-        let side_v = occludes_at(scratch, front, v_step, dv, [0; 3], 0);
-        let diagonal = occludes_at(scratch, front, u_step, du, v_step, dv);
-        let value = if side_u && side_v {
-            0
-        } else {
-            3 - (side_u as u32 + side_v as u32 + diagonal as u32)
-        };
-        ao |= value << (corner * 2);
-    }
-
-    let raw = scratch.light[front_index] as u32;
     let mut words = [0u32; FACE_WORDS];
     FACE_SPRITE.set(&mut words, cube.sprite as u64);
-    if cube.tinted {
-        FACE_TINT.set(&mut words, info.tint_kind as u64 + 1);
-    }
-    FACE_BLOCK_LIGHT.set(&mut words, (raw >> 4).max(info.emission as u32) as u64);
-    FACE_SKY_LIGHT.set(&mut words, (raw & 0xf) as u64);
-    FACE_AO.set(&mut words, ao as u64);
+    FACE_TINT.set(&mut words, cube.tint.index() as u64);
+    set_corners(&mut words, ao, light);
     Some((cube.pass, words))
 }
 
-#[inline]
-fn occludes_at(
-    scratch: &Scratch,
-    base: [i32; 3],
-    a: [i32; 3],
-    sa: i32,
-    b: [i32; 3],
-    sb: i32,
-) -> bool {
-    let x = base[0] + a[0] * sa + b[0] * sb;
-    let y = base[1] + a[1] * sa + b[1] * sb;
-    let z = base[2] + a[2] * sa + b[2] * sb;
-    let limit = -1..=SECTION_SIZE as i32;
-    if !limit.contains(&x) || !limit.contains(&y) || !limit.contains(&z) {
-        return false;
+/// Full cube faces keep vanilla's occlusion byte as its distance below 255 in steps of 51, the
+/// only bytes a face lying on its block's boundary can reach.
+fn ao_code(ao: f32) -> u32 {
+    let byte = ambient::shade_byte(ao, 1.0) as u32;
+    debug_assert_eq!((255 - byte) % 51, 0, "{ao} is no full cube occlusion");
+    (255 - byte) / 51
+}
+
+pub(super) fn set_corners(words: &mut [u32; FACE_WORDS], ao: [u32; 4], light: [u32; 4]) {
+    let mut codes = 0u64;
+    let mut block = 0u64;
+    let mut sky = 0u64;
+    for corner in 0..4 {
+        let quarter = |units: u32| {
+            debug_assert_eq!(
+                units % 4,
+                0,
+                "{units} is finer than a full cube face reaches"
+            );
+            u64::from(units / 4)
+        };
+        codes |= u64::from(ao[corner]) << (corner as u32 * FACE_AO_CORNER_BITS);
+        block |= quarter(ambient::block_light(light[corner]))
+            << (corner as u32 * FACE_LIGHT_CORNER_BITS);
+        sky |=
+            quarter(ambient::sky_light(light[corner])) << (corner as u32 * FACE_LIGHT_CORNER_BITS);
     }
-    scratch.occludes[border_index(x, y, z)]
+    FACE_AO.set(words, codes);
+    FACE_BLOCK_LIGHT.set(words, block);
+    FACE_SKY_LIGHT.set(words, sky);
 }

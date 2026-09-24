@@ -1,21 +1,18 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction};
-use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, TemplateManifest, data_markers};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, allays, evoker, vindicator};
-use mcrs_minecraft_worldgen_feature_place::template::{
-    CompiledChain, CompiledProcessor, Placement, SettingsRandom, place_template,
-};
+use mcrs_minecraft_worldgen_feature_place::template::{CompiledChain, CompiledProcessor};
 use mcrs_minecraft_worldgen_structure::piece::WoodlandMansionPiece;
 
 use crate::canvas::ChestStates;
-use crate::{block_mask, state};
+use crate::{block_mask, place_positional, state};
 
 pub const WOODLAND_MANSION_LOOT: &str = "minecraft:chests/woodland_mansion";
 
@@ -58,35 +55,24 @@ pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
-    if template.palettes.is_empty() {
-        return;
-    }
-    let palette = LegacyRandom::new(block_pos_seed(piece.position))
-        .next_i32_bound(template.palettes.len() as i32) as usize;
-    let placed = place_template(
-        &Placement {
-            template,
-            jigsaws: &[],
-            palette,
-            position: piece.position,
-            reference,
-            rotation: piece.rotation,
-            mirror: piece.mirror,
-            pivot: IVec3::ZERO,
-            random: SettingsRandom::Positional,
-            clip: Some(clip),
-            chain: &b.chain,
-            waterlog: true,
-            place_entities: false,
-        },
+    let Some(palette) = place_positional(
+        template,
+        piece.position,
+        piece.rotation,
+        piece.mirror,
+        IVec3::ZERO,
+        clip,
+        &b.chain,
+        true,
+        false,
+        reference,
         volume,
         rng,
         entities,
         spawns,
-    );
-    if !placed {
+    ) else {
         return;
-    }
+    };
     let markers = manifest.markers.get(palette).map_or(&[][..], Vec::as_slice);
     let air = volume.world().air;
     for (pos, marker) in data_markers(

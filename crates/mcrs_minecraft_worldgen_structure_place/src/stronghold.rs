@@ -74,7 +74,7 @@ impl StrongholdBlocks {
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let of = |block: &str, properties: &[(&str, &str)]| {
-            Ok(Oriented::of(world, state(blocks, block, properties)?))
+            Oriented::named(world, blocks, block, properties)
         };
         let plain = |block: &str| of(block, &[]);
         let sides = |block: &str, on: &[&str]| {

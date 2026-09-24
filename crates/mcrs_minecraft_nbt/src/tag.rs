@@ -1,6 +1,6 @@
 use compound::NbtCompound;
 use deserializer::NbtReadHelper;
-use io::Read;
+use io::{Read, Write};
 use serde::{Deserialize, Serialize};
 use serializer::WriteAdaptor;
 
@@ -365,13 +365,6 @@ impl NbtTag {
             _ => None,
         }
     }
-
-    pub fn extract_long_array(&self) -> Option<&[i64]> {
-        match self {
-            NbtTag::LongArray(long_array) => Some(long_array),
-            _ => None,
-        }
-    }
 }
 
 /// A mixed list is written as compounds with every non-compound element
@@ -400,14 +393,6 @@ fn list_element_type(list: &[NbtTag]) -> Result<u8, Error> {
 impl From<&str> for NbtTag {
     fn from(value: &str) -> Self {
         NbtTag::String(value.to_string())
-    }
-}
-
-impl From<&[u8]> for NbtTag {
-    fn from(value: &[u8]) -> Self {
-        let mut cloned = Vec::with_capacity(value.len());
-        cloned.copy_from_slice(value);
-        NbtTag::ByteArray(cloned.into_boxed_slice())
     }
 }
 

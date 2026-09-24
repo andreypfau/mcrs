@@ -1,4 +1,4 @@
-use mcrs_minecraft_level::palette::AirCount;
+use mcrs_minecraft_level::palette::non_air_block_count;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_density::compile::build_router;
@@ -90,13 +90,13 @@ fn beta_sections_outside_noise_range_are_air() {
 
         if !inside_range {
             assert_eq!(
-                blocks.non_air_block_count(),
+                non_air_block_count(blocks),
                 0,
                 "section sy={} (Y {}..{}) is outside beta noise range [0,128) but contains {} non-air blocks",
                 sy,
                 section_min_y,
                 section_max_y,
-                blocks.non_air_block_count(),
+                non_air_block_count(blocks),
             );
         }
     }

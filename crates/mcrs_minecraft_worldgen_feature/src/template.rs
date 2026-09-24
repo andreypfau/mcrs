@@ -110,32 +110,19 @@ pub struct FrozenEntity {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct VillagerData {
-    #[serde(rename = "type", default = "plains")]
+    #[serde(rename = "type")]
     pub kind: ResourceLocation,
-    #[serde(default = "none")]
     pub profession: ResourceLocation,
-    #[serde(default = "one")]
     pub level: i32,
-}
-
-fn plains() -> ResourceLocation {
-    ResourceLocation::minecraft("plains")
-}
-
-fn none() -> ResourceLocation {
-    ResourceLocation::minecraft("none")
-}
-
-fn one() -> i32 {
-    1
 }
 
 impl Default for VillagerData {
     fn default() -> Self {
         VillagerData {
-            kind: plains(),
-            profession: none(),
+            kind: ResourceLocation::minecraft("plains"),
+            profession: ResourceLocation::minecraft("none"),
             level: 1,
         }
     }

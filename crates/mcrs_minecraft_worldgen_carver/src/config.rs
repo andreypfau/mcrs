@@ -74,82 +74,23 @@ impl CarverConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_core::value_provider::{
         DispatchedFloatProvider, DispatchedHeightProvider, DispatchedIntProvider, VerticalAnchor,
     };
-    use std::path::PathBuf;
+    use mcrs_minecraft_worldgen_testing::{read, round_trips};
 
-    fn carver_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets/minecraft/worldgen/carver")
-    }
-
-    /// The reference reads these fields through `Codec.FLOAT`, so the numbers
-    /// carry f32 precision and re-serializing widens them back to f64 with the
-    /// digits that implies. Compare at the precision the codec actually has.
-    fn at_f32_precision(value: &serde_json::Value) -> serde_json::Value {
-        match value {
-            serde_json::Value::Number(n) => serde_json::json!(n.as_f64().unwrap() as f32 as f64),
-            serde_json::Value::Array(items) => {
-                serde_json::Value::Array(items.iter().map(at_f32_precision).collect())
-            }
-            serde_json::Value::Object(fields) => serde_json::Value::Object(
-                fields
-                    .iter()
-                    .map(|(key, v)| (key.clone(), at_f32_precision(v)))
-                    .collect(),
-            ),
-            other => other.clone(),
-        }
+    fn carver<T: serde::de::DeserializeOwned>(name: &str) -> T {
+        read("carver", &ResourceLocation::minecraft(name))
     }
 
     #[test]
     fn every_shipped_carver_parses_and_round_trips() {
-        let mut names = Vec::new();
-        for entry in std::fs::read_dir(carver_dir()).expect("carver dir must exist") {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let bytes = std::fs::read(&path).unwrap();
-            let config: CarverConfig = serde_json::from_slice(&bytes)
-                .unwrap_or_else(|err| panic!("{} does not parse: {err}", path.display()));
-            let written = serde_json::to_string(&config).unwrap();
-            assert_eq!(
-                serde_json::from_str::<CarverConfig>(&written).unwrap(),
-                config,
-                "{} does not survive a write and a re-read",
-                path.display()
-            );
-            let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-            assert_eq!(
-                at_f32_precision(&serde_json::to_value(&config).unwrap()),
-                at_f32_precision(&raw),
-                "{} does not round-trip",
-                path.display()
-            );
-            names.push(path.file_stem().unwrap().to_string_lossy().into_owned());
-        }
-        names.sort();
-        assert_eq!(
-            names,
-            [
-                "beta_cave",
-                "canyon",
-                "cave",
-                "cave_extra_underground",
-                "nether_cave"
-            ]
-        );
+        assert_eq!(round_trips::<CarverConfig>("carver"), 5);
     }
 
     #[test]
     fn the_cave_carver_reads_its_whole_surface() {
-        let bytes = std::fs::read(carver_dir().join("cave.json")).unwrap();
         let CarverConfig::Cave {
             probability,
             y,
@@ -159,7 +100,7 @@ mod tests {
             start_vertical_radius_multiplier,
             floor_level,
             ..
-        } = serde_json::from_slice(&bytes).unwrap()
+        } = carver("cave")
         else {
             panic!("cave.json is a cave carver");
         };
@@ -205,7 +146,6 @@ mod tests {
     /// the bare-scalar form of every multiplier.
     #[test]
     fn the_nether_cave_is_the_cave_carver_with_scalars() {
-        let bytes = std::fs::read(carver_dir().join("nether_cave.json")).unwrap();
         let CarverConfig::Cave {
             horizontal_radius_multiplier,
             vertical_radius_multiplier,
@@ -215,7 +155,7 @@ mod tests {
             weird_thickness_bias,
             y,
             ..
-        } = serde_json::from_slice(&bytes).unwrap()
+        } = carver("nether_cave")
         else {
             panic!("nether_cave.json is a cave carver");
         };
@@ -242,13 +182,12 @@ mod tests {
 
     #[test]
     fn the_canyon_carver_reads_its_shape() {
-        let bytes = std::fs::read(carver_dir().join("canyon.json")).unwrap();
         let CarverConfig::Canyon {
             probability,
             vertical_rotation,
             shape,
             ..
-        } = serde_json::from_slice(&bytes).unwrap()
+        } = carver("canyon")
         else {
             panic!("canyon.json is a canyon carver");
         };
@@ -273,9 +212,7 @@ mod tests {
 
     #[test]
     fn an_unknown_field_is_a_load_error() {
-        let mut raw: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(carver_dir().join("canyon.json")).unwrap())
-                .unwrap();
+        let mut raw: serde_json::Value = carver("canyon");
         raw["surprise"] = serde_json::json!(1);
         assert!(serde_json::from_value::<CarverConfig>(raw).is_err());
     }

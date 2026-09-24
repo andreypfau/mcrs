@@ -11,7 +11,12 @@ use mcrs_minecraft_item::{ItemStack, SelectedHotbarSlot, SlotTable, slots, stack
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue, RawStack};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetContent;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetHeldSlot;
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::item::chest::{
@@ -25,7 +30,7 @@ use crate::support::standalone_corpus;
 pub(crate) fn world() -> (World, Entity, Entity) {
     let (blocks, items) = standalone_corpus();
     let mut registry = RegistryAccess::default();
-    registry.register(Box::new(RegistrySnapshotErased::from_entries(
+    registry.register(RegistrySnapshotErased::from_entries(
         "minecraft:item",
         items
             .0
@@ -33,7 +38,7 @@ pub(crate) fn world() -> (World, Entity, Entity) {
             .map(|entry| (entry.identifier.clone(), None))
             .collect(),
         None,
-    )));
+    ));
     let mut world = World::new();
     world.insert_resource(blocks.clone());
     world.insert_resource(items.clone());
@@ -111,16 +116,19 @@ fn join_sends_held_slot_then_full_inventory() {
     for packet in &packets {
         assert!(matches!(packet.target, PacketTarget::SinglePlayer(a) if a == anchor));
     }
-    assert!(matches!(packets[0].data, PacketPayload::SetHeldSlot(3)));
+    assert!(matches!(
+        packets[0].data,
+        PacketPayload::SetHeldSlot(ClientboundSetHeldSlot { slot: VarInt(3) })
+    ));
     match &packets[1].data {
-        PacketPayload::ContainerSetContent {
+        PacketPayload::ContainerSetContent(ClientboundContainerSetContent {
             container_id,
-            state_id,
-            slots,
-            carried,
-        } => {
+            state_seqno,
+            slot_data: slots,
+            carried_item: carried,
+        }) => {
             assert_eq!(
-                (*container_id, *state_id, slots.len()),
+                (container_id.0, state_seqno.0, slots.len()),
                 (0, 1, slots::MENU_COUNT)
             );
             assert!(slots.iter().all(|slot| *slot == RawStack::EMPTY));
@@ -149,17 +157,17 @@ fn dirty_slots_become_set_slot_and_cursor_packets() {
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
     assert_eq!(packets.len(), 1, "{packets:?}");
-    let PacketPayload::ContainerSetSlot {
+    let PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot {
         container_id,
-        state_id,
+        state_seqno,
         slot,
         item,
-    } = &packets[0].data
+    }) = &packets[0].data
     else {
         panic!("{packets:?}");
     };
     assert_eq!(
-        (*container_id, *state_id, *slot),
+        (container_id.0, state_seqno.0, *slot),
         (0, 2, slots::HOTBAR.start as i16)
     );
     assert_ne!(*item, RawStack::EMPTY);
@@ -170,11 +178,16 @@ fn dirty_slots_become_set_slot_and_cursor_packets() {
     assert_eq!(packets.len(), 2, "{packets:?}");
     assert!(matches!(
         &packets[0].data,
-        PacketPayload::ContainerSetSlot { state_id: 3, slot, item, .. }
+        PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot {
+            state_seqno: VarInt(3),
+            slot,
+            item,
+            ..
+        })
             if *slot == slots::HOTBAR.start as i16 && *item == RawStack::EMPTY
     ));
     assert!(
-        matches!(&packets[1].data, PacketPayload::SetCursorItem(item) if *item != RawStack::EMPTY)
+        matches!(&packets[1].data, PacketPayload::SetCursorItem(ClientboundSetCursorItem { contents: item }) if *item != RawStack::EMPTY)
     );
 
     sync_stack_slots(&mut world);
@@ -218,13 +231,18 @@ fn a_slot_outside_the_chest_layout_that_changed_is_resent_when_the_chest_closes(
     assert!(
         !packets
             .iter()
-            .any(|packet| matches!(packet.data, PacketPayload::ContainerSetContent { .. })),
+            .any(|packet| matches!(packet.data, PacketPayload::ContainerSetContent(_))),
         "{packets:?}"
     );
     assert!(
         packets.iter().any(|packet| matches!(
             &packet.data,
-            PacketPayload::ContainerSetSlot { container_id: 0, slot, item, .. }
+            PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot {
+                container_id: VarInt(0),
+                slot,
+                item,
+                ..
+            })
                 if *slot == slots::ARMOR_HEAD as i16 && *item != RawStack::EMPTY
         )),
         "{packets:?}"

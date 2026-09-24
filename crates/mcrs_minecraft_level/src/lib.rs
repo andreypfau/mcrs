@@ -7,7 +7,6 @@
 pub mod aoi;
 pub mod block;
 pub mod block_update;
-pub mod dim;
 pub mod entity;
 pub mod experience;
 pub mod explosion;

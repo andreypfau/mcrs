@@ -1,4 +1,4 @@
-use crate::{EngineConnection, Instant, ReceivedPacket};
+use crate::{Instant, ReceivedPacket};
 use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_protocol::{
     CompressionThreshold, Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket,
@@ -148,7 +148,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         let writer = writer_loop(outgoing_receiver, writer, disconnect_flag.clone());
 
         #[cfg(not(target_family = "wasm"))]
-        let (reader_task, writer_task) = (tokio::spawn(reader), tokio::spawn(writer));
+        let reader_task = tokio::spawn(reader);
+        #[cfg(not(target_family = "wasm"))]
+        tokio::spawn(writer);
         #[cfg(target_family = "wasm")]
         {
             wasm_bindgen_futures::spawn_local(reader);
@@ -160,8 +162,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             recv: incoming_receiver,
             #[cfg(not(target_family = "wasm"))]
             reader_task,
-            #[cfg(not(target_family = "wasm"))]
-            writer_task,
             enc: self.enc,
             remote_addr,
             disconnect_flag,
@@ -242,10 +242,6 @@ pub struct RawConnection {
     // resolves and the incoming channel is found closed.
     #[cfg(not(target_family = "wasm"))]
     reader_task: tokio::task::JoinHandle<()>,
-    // Held to keep the writer task alive; dropped implicitly when RawConnection is dropped.
-    #[cfg(not(target_family = "wasm"))]
-    #[allow(dead_code)]
-    writer_task: tokio::task::JoinHandle<()>,
     pub enc: PacketEncoder,
     pub remote_addr: SocketAddr,
     /// Blobs the writer had no room for yet, sent ahead of anything newer: a slow socket delays
@@ -263,38 +259,6 @@ impl Drop for RawConnection {
 }
 
 impl RawConnection {
-    /// Construct a mock `RawConnection` for tests that do not need real sockets.
-    ///
-    /// `outgoing` is the send half of a channel the test holds the receiver
-    /// for; every blob passed to `try_send_blob` lands there. The dummy
-    /// reader/writer tasks park immediately and are never scheduled. No TCP
-    /// socket is created.
-    #[cfg(not(target_family = "wasm"))]
-    pub fn new_for_test(outgoing: mpsc::Sender<Bytes>) -> Self {
-        let (inbound_tx, inbound_rx) = mpsc::channel::<ReceivedPacket>(32);
-        let reader_task = tokio::spawn(async move {
-            // Keep inbound_tx alive so the recv end never disconnects while
-            // the RawConnection exists; the future parks indefinitely.
-            let _keep = inbound_tx;
-            std::future::pending::<()>().await;
-        });
-        let writer_task = tokio::spawn(async {
-            std::future::pending::<()>().await;
-        });
-        let disconnect_flag = Arc::new(AtomicBool::new(false));
-        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-        RawConnection {
-            outgoing,
-            recv: inbound_rx,
-            reader_task,
-            writer_task,
-            enc: PacketEncoder::new(),
-            remote_addr: addr,
-            disconnect_flag,
-            unsent: VecDeque::new(),
-        }
-    }
-
     /// Construct a mock with separate inbound control: the caller drives
     /// the inbound channel (for bridge_inbound tests).
     ///
@@ -308,16 +272,12 @@ impl RawConnection {
         let reader_task = tokio::spawn(async {
             std::future::pending::<()>().await;
         });
-        let writer_task = tokio::spawn(async {
-            std::future::pending::<()>().await;
-        });
         let disconnect_flag = Arc::new(AtomicBool::new(false));
         let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
         let raw = RawConnection {
             outgoing: outgoing_tx,
             recv: inbound_rx,
             reader_task,
-            writer_task,
             enc: PacketEncoder::new(),
             remote_addr: addr,
             disconnect_flag,
@@ -363,10 +323,8 @@ impl RawConnection {
     pub fn append<P: Encode + Packet>(&mut self, pkt: &P) -> anyhow::Result<()> {
         self.enc.append_packet(pkt)
     }
-}
 
-impl EngineConnection for RawConnection {
-    fn try_recv(&mut self) -> Result<Option<ReceivedPacket>, TryRecvError> {
+    pub fn try_recv(&mut self) -> Result<Option<ReceivedPacket>, TryRecvError> {
         match self.recv.try_recv() {
             Ok(packet) => Ok(Some(packet)),
             Err(TryRecvError::Empty) => Ok(None),
@@ -374,7 +332,7 @@ impl EngineConnection for RawConnection {
         }
     }
 
-    fn flush(&mut self) -> anyhow::Result<()> {
+    pub fn flush(&mut self) -> anyhow::Result<()> {
         let bytes = self.enc.take();
         if bytes.is_empty() {
             return Ok(());
@@ -384,13 +342,6 @@ impl EngineConnection for RawConnection {
             .try_send(blob)
             .map_err(|_| anyhow::anyhow!("connection closed"))
     }
-
-    fn queued_bytes(&self) -> usize {
-        // Depth is tracked in ECS via OutboundQueue; the cross-thread atomic
-        // was removed (AP-03). Return 0 so the handshake/login flush path
-        // still compiles without breaking the EngineConnection contract.
-        0
-    }
 }
 
 impl WritePacket for RawConnection {
@@ -399,9 +350,5 @@ impl WritePacket for RawConnection {
         P: Encode + Packet,
     {
         self.enc.write_packet_fallible(packet)
-    }
-
-    fn write_packet_bytes(&mut self, bytes: &[u8]) {
-        self.enc.write_packet_bytes(bytes)
     }
 }

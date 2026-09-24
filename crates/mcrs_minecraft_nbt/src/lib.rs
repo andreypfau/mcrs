@@ -1,7 +1,6 @@
 use std::{
     fmt::Display,
-    io::{self, Read, Seek, Write},
-    ops::Deref,
+    io::{self, Read, Seek},
 };
 
 use bytes::Bytes;
@@ -167,11 +166,6 @@ impl Nbt {
         bytes.into()
     }
 
-    pub fn write_to_writer<W: Write>(&self, mut writer: W) -> Result<(), io::Error> {
-        writer.write_all(&self.write())?;
-        Ok(())
-    }
-
     /// Writes an NBT tag without a root `Compound` name.
     pub fn write_unnamed(&self) -> Bytes {
         let mut bytes = Vec::new();
@@ -181,36 +175,6 @@ impl Nbt {
         self.root_tag.serialize_content(&mut writer).unwrap();
 
         bytes.into()
-    }
-}
-
-impl Deref for Nbt {
-    type Target = NbtCompound;
-
-    fn deref(&self) -> &Self::Target {
-        &self.root_tag
-    }
-}
-
-impl From<NbtCompound> for Nbt {
-    fn from(value: NbtCompound) -> Self {
-        Nbt::new(String::new(), value)
-    }
-}
-
-impl<T> AsRef<T> for Nbt
-where
-    T: ?Sized,
-    <Nbt as Deref>::Target: AsRef<T>,
-{
-    fn as_ref(&self) -> &T {
-        self.deref().as_ref()
-    }
-}
-
-impl AsMut<NbtCompound> for Nbt {
-    fn as_mut(&mut self) -> &mut NbtCompound {
-        &mut self.root_tag
     }
 }
 

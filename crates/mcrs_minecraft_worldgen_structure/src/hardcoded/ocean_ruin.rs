@@ -63,8 +63,6 @@ pub const TEMPLATES: &[&str] = &[
     "underwater_ruin/big_warm_7",
 ];
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 pub fn site(
     _config: &OceanRuinConfig,
     ctx: &mut Context<'_>,

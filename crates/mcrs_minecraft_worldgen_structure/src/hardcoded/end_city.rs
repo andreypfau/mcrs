@@ -31,8 +31,6 @@ pub const TEMPLATES: &[&str] = &[
     "end_city/fat_tower_top",
 ];
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 const MAX_GEN_DEPTH: i32 = 8;
 
 const TOWER_BRIDGES: [(Rotation, IVec3); 4] = [

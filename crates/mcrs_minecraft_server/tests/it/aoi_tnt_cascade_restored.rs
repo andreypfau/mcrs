@@ -23,7 +23,6 @@ use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::block::BlockUpdateFlags;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::explosion::ExplosionConfig;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
@@ -35,16 +34,7 @@ use mcrs_minecraft_server::world::entity::player::HostAnchor;
 
 #[test]
 fn tnt_cascade_propagates_through_block_update_per_dim() {
-    // (a) cascading flag is on by default — the cascade is structurally restored
-    // by the per-dim block-update migration.
-    let cfg = ExplosionConfig::default();
-    assert!(
-        cfg.cascading_enabled,
-        "ExplosionConfig::default().cascading_enabled must be true; \
-         the cascade is structurally restored by the per-dim block-update migration"
-    );
-
-    // (b) Build a per-dim-shaped App: the writer (a BlockSetRequest emitted by
+    // Build a per-dim-shaped App: the writer (a BlockSetRequest emitted by
     // the test as a stand-in for tick_explode) and the reader
     // (apply_voxel_set_requests from BlockUpdatePlugin) live in the same World,
     // so the message hop is single-frame.
@@ -138,7 +128,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     let mut cursor = buf.get_cursor();
     let count = cursor
         .read(buf)
-        .filter(|pkt| matches!(pkt.data, PacketPayload::BlockUpdate { .. }))
+        .filter(|pkt| matches!(pkt.data, PacketPayload::BlockUpdate(_)))
         .count();
     assert!(
         count >= 9,

@@ -2,7 +2,7 @@ use crate::beard::{BeardifierPlacement, beardifier_placement};
 use bevy_app::{App, Plugin};
 use bevy_asset::io::Reader;
 use bevy_asset::{
-    Asset, AssetApp, AssetLoader, Assets, Handle, LoadContext, LoadDirectError, UntypedAssetId,
+    Asset, AssetApp, AssetLoader, Assets, Handle, LoadContext, UntypedAssetId,
     VisitAssetDependencies,
 };
 use bevy_ecs::prelude::Res;
@@ -417,14 +417,6 @@ impl AssetLoader for TemplateLoader {
     }
 }
 
-#[derive(Debug, Error)]
-pub enum WorldgenLoaderError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    LoadDirectError(#[from] LoadDirectError),
-}
-
 /// The JSON a worldgen asset parses from and the ids that JSON names. Loading is
 /// the same for every one of them: parse, turn the ids into handles, keep both.
 trait WorldgenAsset: Asset {
@@ -462,7 +454,7 @@ impl<A: TypePath> Default for WorldgenAssetLoader<A> {
 impl<A: WorldgenAsset> AssetLoader for WorldgenAssetLoader<A> {
     type Asset = A;
     type Settings = ();
-    type Error = WorldgenLoaderError;
+    type Error = std::io::Error;
 
     async fn load(
         &self,

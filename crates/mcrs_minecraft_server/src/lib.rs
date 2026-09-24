@@ -1,10 +1,5 @@
 #![recursion_limit = "2048"]
-#![allow(
-    dead_code,
-    unexpected_cfgs,
-    clippy::type_complexity,
-    clippy::too_many_arguments
-)]
+#![allow(unexpected_cfgs, clippy::type_complexity, clippy::too_many_arguments)]
 
 extern crate core;
 
@@ -13,6 +8,7 @@ mod client_info;
 pub mod runner;
 pub use runner::{DEFAULT_TPS, run_server_loop};
 pub mod configuration;
+pub mod dim;
 pub mod disconnect;
 mod keep_alive;
 pub mod login;
@@ -103,29 +99,7 @@ impl MinecraftServerPlugin {
         Self {
             bind_address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
             owns_task_pools: false,
-            asset_path: None,
-            world: None,
-            column_traces: None,
-            lighting: Lighting::from_env(),
-            default_op_level: 0,
-        }
-    }
-
-    pub fn with_assets(self, path: impl Into<String>) -> Self {
-        Self {
-            asset_path: Some(path.into()),
-            ..self
-        }
-    }
-
-    pub fn with_world(self, world: Option<PathBuf>) -> Self {
-        Self { world, ..self }
-    }
-
-    pub fn with_column_traces(self, traces: ColumnTraceSink) -> Self {
-        Self {
-            column_traces: Some(traces),
-            ..self
+            ..Default::default()
         }
     }
 }

@@ -31,40 +31,45 @@ fn direction_named(name: &str) -> Option<Direction> {
     Direction::all().into_iter().find(|d| d.name() == name)
 }
 
-fn rail_shape(shape: &str, rotation: Rotation) -> Option<&'static str> {
-    Some(match (rotation, shape) {
-        (Rotation::Clockwise90, "north_south") | (Rotation::Counterclockwise90, "north_south") => {
-            "east_west"
-        }
-        (Rotation::Clockwise90, "east_west") | (Rotation::Counterclockwise90, "east_west") => {
-            "north_south"
-        }
-        (Rotation::Clockwise90, "ascending_east") => "ascending_south",
-        (Rotation::Clockwise90, "ascending_west") => "ascending_north",
-        (Rotation::Clockwise90, "ascending_north") => "ascending_east",
-        (Rotation::Clockwise90, "ascending_south") => "ascending_west",
-        (Rotation::Clockwise90, "south_east") => "south_west",
-        (Rotation::Clockwise90, "south_west") => "north_west",
-        (Rotation::Clockwise90, "north_west") => "north_east",
-        (Rotation::Clockwise90, "north_east") => "south_east",
-        (Rotation::Clockwise180, "ascending_east") => "ascending_west",
-        (Rotation::Clockwise180, "ascending_west") => "ascending_east",
-        (Rotation::Clockwise180, "ascending_north") => "ascending_south",
-        (Rotation::Clockwise180, "ascending_south") => "ascending_north",
-        (Rotation::Clockwise180, "south_east") => "north_west",
-        (Rotation::Clockwise180, "south_west") => "north_east",
-        (Rotation::Clockwise180, "north_west") => "south_east",
-        (Rotation::Clockwise180, "north_east") => "south_west",
-        (Rotation::Counterclockwise90, "ascending_east") => "ascending_north",
-        (Rotation::Counterclockwise90, "ascending_west") => "ascending_south",
-        (Rotation::Counterclockwise90, "ascending_north") => "ascending_west",
-        (Rotation::Counterclockwise90, "ascending_south") => "ascending_east",
-        (Rotation::Counterclockwise90, "south_east") => "north_east",
-        (Rotation::Counterclockwise90, "south_west") => "south_east",
-        (Rotation::Counterclockwise90, "north_west") => "south_west",
-        (Rotation::Counterclockwise90, "north_east") => "north_west",
-        _ => return None,
+fn rail_shape(shape: &str, f: impl Fn(Direction) -> Direction) -> Option<String> {
+    if let Some(slope) = shape.strip_prefix("ascending_") {
+        return Some(format!("ascending_{}", f(direction_named(slope)?).name()));
+    }
+    let (a, b) = shape.split_once('_')?;
+    let (a, b) = (f(direction_named(a)?), f(direction_named(b)?));
+    Some(match (a.axis(), b.axis()) {
+        (Axis::Z, Axis::Z) => "north_south".to_owned(),
+        (Axis::X, Axis::X) => "east_west".to_owned(),
+        (Axis::Z, _) => format!("{}_{}", a.name(), b.name()),
+        _ => format!("{}_{}", b.name(), a.name()),
     })
+}
+
+fn orientation(value: &str, f: impl Fn(Direction) -> Direction) -> Option<String> {
+    let (front, top) = value.split_once('_')?;
+    Some(format!(
+        "{}_{}",
+        f(direction_named(front)?).name(),
+        f(direction_named(top)?).name()
+    ))
+}
+
+fn remap_sides(
+    layout: &BlockLayout,
+    state: VoxelId,
+    mut out: VoxelId,
+    f: impl Fn(Direction) -> Direction,
+) -> VoxelId {
+    if Direction::HORIZONTAL
+        .iter()
+        .all(|d| layout.property(d.name()).is_some())
+    {
+        for side in Direction::HORIZONTAL {
+            let value = value_of(layout, state, side.name()).expect("checked above");
+            out = layout.try_set(out, f(side).name(), value);
+        }
+    }
+    out
 }
 
 fn value_of<'a>(layout: &'a BlockLayout, state: VoxelId, name: &str) -> Option<&'a str> {
@@ -111,54 +116,19 @@ pub fn rotate_state(world: &WorldStates, state: VoxelId, rotation: Rotation) -> 
                 out = layout.with_index(out, property, (index + count / 4 * quarter_turns) % count);
             }
             "shape" => {
-                if let Some(rotated) = rail_shape(value, rotation) {
-                    out = layout.try_set(out, "shape", rotated);
+                if let Some(rotated) = rail_shape(value, |d| rotation.rotate(d)) {
+                    out = layout.try_set(out, "shape", &rotated);
                 }
             }
             "orientation" => {
-                if let Some((front, top)) = value
-                    .split_once('_')
-                    .and_then(|(f, t)| Some((direction_named(f)?, direction_named(t)?)))
-                {
-                    let rotated = format!(
-                        "{}_{}",
-                        rotation.rotate(front).name(),
-                        rotation.rotate(top).name()
-                    );
+                if let Some(rotated) = orientation(value, |d| rotation.rotate(d)) {
                     out = layout.try_set(out, "orientation", &rotated);
                 }
             }
             _ => {}
         }
     }
-    if Direction::HORIZONTAL
-        .iter()
-        .all(|d| layout.property(d.name()).is_some())
-    {
-        for side in Direction::HORIZONTAL {
-            let value = value_of(layout, state, side.name()).expect("checked above");
-            out = layout.try_set(out, rotation.rotate(side).name(), value);
-        }
-    }
-    out
-}
-
-fn rail_mirror(shape: &str, mirror: Mirror) -> Option<&'static str> {
-    Some(match (mirror, shape) {
-        (Mirror::LeftRight, "ascending_north") => "ascending_south",
-        (Mirror::LeftRight, "ascending_south") => "ascending_north",
-        (Mirror::LeftRight, "south_east") => "north_east",
-        (Mirror::LeftRight, "south_west") => "north_west",
-        (Mirror::LeftRight, "north_west") => "south_west",
-        (Mirror::LeftRight, "north_east") => "south_east",
-        (Mirror::FrontBack, "ascending_east") => "ascending_west",
-        (Mirror::FrontBack, "ascending_west") => "ascending_east",
-        (Mirror::FrontBack, "south_east") => "south_west",
-        (Mirror::FrontBack, "south_west") => "south_east",
-        (Mirror::FrontBack, "north_west") => "north_east",
-        (Mirror::FrontBack, "north_east") => "north_west",
-        _ => return None,
-    })
+    remap_sides(layout, state, out, |d| rotation.rotate(d))
 }
 
 // The reference keeps the inner shapes of a front-back mirrored stair as they
@@ -198,39 +168,25 @@ pub fn mirror_state(world: &WorldStates, state: VoxelId, mirror: Mirror) -> Voxe
             "rotation" => out = layout.with_index(out, property, mirror.mirror_index(index, count)),
             "shape" => {
                 let mirrored = match facing {
-                    Some(_) => flipped.then(|| stair_mirror(value, mirror)).flatten(),
-                    None => rail_mirror(value, mirror),
+                    Some(_) => flipped
+                        .then(|| stair_mirror(value, mirror))
+                        .flatten()
+                        .map(str::to_owned),
+                    None => rail_shape(value, |d| mirror.mirror(d)),
                 };
                 if let Some(mirrored) = mirrored {
-                    out = layout.try_set(out, "shape", mirrored);
+                    out = layout.try_set(out, "shape", &mirrored);
                 }
             }
             "orientation" => {
-                if let Some((front, top)) = value
-                    .split_once('_')
-                    .and_then(|(f, t)| Some((direction_named(f)?, direction_named(t)?)))
-                {
-                    let mirrored = format!(
-                        "{}_{}",
-                        mirror.mirror(front).name(),
-                        mirror.mirror(top).name()
-                    );
+                if let Some(mirrored) = orientation(value, |d| mirror.mirror(d)) {
                     out = layout.try_set(out, "orientation", &mirrored);
                 }
             }
             _ => {}
         }
     }
-    if Direction::HORIZONTAL
-        .iter()
-        .all(|d| layout.property(d.name()).is_some())
-    {
-        for side in Direction::HORIZONTAL {
-            let value = value_of(layout, state, side.name()).expect("checked above");
-            out = layout.try_set(out, mirror.mirror(side).name(), value);
-        }
-    }
-    out
+    remap_sides(layout, state, out, |d| mirror.mirror(d))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1201,6 +1157,17 @@ mod tests {
             output,
             modifier,
         }])
+    }
+
+    #[test]
+    fn rail_shapes_turn_with_their_directions() {
+        let turn = |shape| rail_shape(shape, |d| Rotation::Clockwise90.rotate(d));
+        let flip = |shape| rail_shape(shape, |d| Mirror::LeftRight.mirror(d));
+        assert_eq!(turn("north_south").as_deref(), Some("east_west"));
+        assert_eq!(turn("south_east").as_deref(), Some("south_west"));
+        assert_eq!(turn("ascending_north").as_deref(), Some("ascending_east"));
+        assert_eq!(flip("north_west").as_deref(), Some("south_west"));
+        assert_eq!(turn("inner_left"), None);
     }
 
     #[test]

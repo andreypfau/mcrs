@@ -26,11 +26,9 @@ pub mod worldgen;
 
 use crate::data_pack::{
     check_tags_ready, index_biomes, index_structures, index_timelines,
-    register_static_registries_with_access, request_data_pack_assets, request_every_biome_tag,
-    request_every_block_tag, request_every_fluid_tag, request_every_structure_tag,
+    register_static_registries_with_access, request_data_pack_assets, request_every_tag,
     resolve_infiniburn_tags, resolve_timeline_tags, start_loading_data_pack,
 };
-use crate::entity::tags as entity_type_tags;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetApp, AssetServer, UntypedHandle};
 use bevy_ecs::prelude::*;
@@ -38,14 +36,11 @@ use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::asset::JsonLoader;
 use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
-use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, freeze_timelines};
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::seed_world_clocks;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
-use mcrs_minecraft_item::enchantment::tags as enchantment_tags;
-use mcrs_minecraft_item::tags as item_tags;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_worldgen_structure::Structure;
@@ -88,7 +83,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.init_asset::<mcrs_minecraft_dimension::dimension_type::DimensionType>();
         app.register_asset_loader(mcrs_minecraft_dimension::dimension_type::DimensionTypeLoader);
         app.init_asset::<worldgen::world_preset::WorldPreset>();
-        app.init_asset::<dimension::level_stem::DimensionDefinition>();
+        app.init_asset::<dimension::DimensionDefinition>();
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
         app.init_asset::<mcrs_minecraft_biome::Biome>();
         app.register_asset_loader(JsonLoader::<mcrs_minecraft_biome::Biome>::default());
@@ -154,27 +149,30 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
             (
-                request_every_block_tag,
-                request_every_fluid_tag,
-                request_every_biome_tag,
-                request_every_structure_tag,
+                request_every_tag::<mcrs_minecraft_block::Block, u32>,
+                request_every_tag::<mcrs_minecraft_block::Fluid, u32>,
+                request_every_tag::<mcrs_minecraft_item::Item, u32>,
+                request_every_tag::<
+                    EnchantmentData,
+                    mcrs_minecraft_registry::StaticId<EnchantmentData>,
+                >,
+                request_every_tag::<
+                    entity::EntityType,
+                    mcrs_minecraft_registry::StaticId<entity::EntityType>,
+                >,
+                request_every_tag::<mcrs_minecraft_biome::Biome, u32>,
+                request_every_tag::<Structure, u32>,
             )
                 .in_set(TagPhase::Request),
         );
-        app.add_tagged_registry::<mcrs_minecraft_block::Block, mcrs_minecraft_block::definition::Blocks>(
-            block_tags::ALL_BLOCK_TAGS,
-        )
-        .add_tagged_registry::<mcrs_minecraft_block::Fluid, mcrs_minecraft_block::definition::Fluids>(&[])
-        .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>(item_tags::ALL_ITEM_TAGS)
-        .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>(
-            enchantment_tags::ALL_ENCHANTMENT_TAGS,
-        )
-        .add_tagged_registry::<entity::EntityType, StaticRegistry<entity::EntityType>>(
-            entity_type_tags::ALL_ENTITY_TYPE_TAGS,
-        )
-        .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>(&[])
-        .add_tagged_registry::<mcrs_minecraft_biome::Biome, DynRegistryIndex<mcrs_minecraft_biome::Biome>>(&[])
-        .add_tagged_registry::<Structure, DynRegistryIndex<Structure>>(&[]);
+        app.add_tagged_registry::<mcrs_minecraft_block::Block, mcrs_minecraft_block::definition::Blocks>()
+        .add_tagged_registry::<mcrs_minecraft_block::Fluid, mcrs_minecraft_block::definition::Fluids>()
+        .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>()
+        .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>()
+        .add_tagged_registry::<entity::EntityType, StaticRegistry<entity::EntityType>>()
+        .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>()
+        .add_tagged_registry::<mcrs_minecraft_biome::Biome, DynRegistryIndex<mcrs_minecraft_biome::Biome>>()
+        .add_tagged_registry::<Structure, DynRegistryIndex<Structure>>();
 
         app.init_resource::<DimensionEnvironments>();
 
@@ -462,10 +460,22 @@ impl Plugin for MinecraftWorldPlugin {
             tracing::info!("frozen StaticRegistry<SoundEvent>");
         }
         {
+            let asset_server = app.world().resource::<AssetServer>().clone();
+            let source = asset_server
+                .get_source(bevy_asset::io::AssetSourceId::Default)
+                .expect("default AssetSource missing");
+            let path = std::path::Path::new("mcrs/reports/registries.json");
+            let bytes = bevy_tasks::block_on(mcrs_minecraft_assets::asset::read_whole(
+                source.reader(),
+                path,
+            ))
+            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let table = mcrs_minecraft_registry::StaticRegistryTable::from_json(&bytes)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let mut entity_types = app
                 .world_mut()
                 .resource_mut::<StaticRegistry<entity::EntityType>>();
-            entity::minecraft::register_all_entity_types(&mut entity_types);
+            entity::minecraft::register_all_entity_types(&mut entity_types, &table);
             tracing::info!(
                 count = entity_types.len(),
                 "registered StaticRegistry<EntityType>"

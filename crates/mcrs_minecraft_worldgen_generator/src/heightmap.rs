@@ -6,7 +6,6 @@ use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_block::tags::{
     BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
 };
-pub use mcrs_minecraft_chunk::ColumnHeights as ColumnHeightmap;
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};

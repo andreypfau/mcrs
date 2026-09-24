@@ -27,8 +27,6 @@ pub const TEMPLATES: &[&str] = &[
     "nether_fossils/fossil_14",
 ];
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 pub fn site(
     height: &HeightProvider,
     ctx: &mut Context<'_>,

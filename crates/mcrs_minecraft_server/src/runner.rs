@@ -1,16 +1,11 @@
+use crate::dim::{expire_moves, pump_channels};
 use crate::world::bridge::OutboundFlush;
-use crate::world::bus::{ArrivalCause, MovePayload, OutboundPlayerPacket, PacketTarget};
-use crate::world::channel_types::{FromDim, ToDim};
 use crate::world::sub_app_builder::{
-    ColumnDrain, DimLabel, DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue,
+    ColumnDrain, DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue,
 };
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
 use bevy_ecs::query::With;
-use bevy_ecs::world::World;
-use mcrs_minecraft_level::dim::{DimProtocol, DimRequest};
-use mcrs_minecraft_level::session::{MoveId, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 use std::num::NonZeroU32;
 
@@ -48,115 +43,4 @@ fn drain_columns(app: &mut App) {
     }
     pump_channels(app);
     app.world_mut().run_schedule(OutboundFlush);
-}
-
-pub fn pump_channels(app: &mut App) {
-    mcrs_minecraft_level::dim::pump_dim_channels::<MinecraftDims>(app);
-}
-
-pub fn expire_moves(app: &mut App) {
-    mcrs_minecraft_level::dim::expire_moves::<MinecraftDims>(app);
-}
-
-pub struct MinecraftDims;
-
-impl DimProtocol for MinecraftDims {
-    type ToDim = ToDim;
-    type FromDim = FromDim;
-    type Departure = (ArrivalCause, MovePayload);
-
-    fn classify(world: &World, message: FromDim) -> Option<DimRequest<Self>> {
-        match message {
-            FromDim::Spawned { move_id } => Some(DimRequest::Arrived { move_id }),
-            FromDim::Clientbound { .. } => Some(DimRequest::Other(message)),
-            FromDim::MoveEntity {
-                move_id,
-                target,
-                cause,
-                payload,
-                player,
-            } => {
-                let destination = world
-                    .try_query_filtered::<(Entity, &DimLabel), With<DimSubAppHandle>>()
-                    .and_then(|mut dims| {
-                        dims.iter(world)
-                            .find(|(_, label)| label.0 == target)
-                            .map(|(entity, _)| entity)
-                    });
-                let Some(destination) = destination else {
-                    tracing::warn!(
-                        target_dim = %target,
-                        "MoveEntity names an unknown dim; dropping (no rollback entry)"
-                    );
-                    return None;
-                };
-                Some(DimRequest::Move {
-                    move_id,
-                    destination,
-                    session: player,
-                    departure: (cause, payload),
-                })
-            }
-        }
-    }
-
-    fn depart(
-        move_id: MoveId,
-        session: Option<PlayerSession>,
-        epoch: u32,
-        (cause, payload): Self::Departure,
-    ) -> ToDim {
-        ToDim::SpawnEntity {
-            move_id,
-            epoch,
-            cause,
-            payload,
-            player: session,
-        }
-    }
-
-    fn confirm(move_id: MoveId) -> ToDim {
-        ToDim::ConfirmMove { move_id }
-    }
-
-    fn roll_back(move_id: MoveId) -> ToDim {
-        ToDim::RollbackMove { move_id }
-    }
-
-    fn deliver(world: &mut World, _source_dim: Entity, message: FromDim) {
-        let FromDim::Clientbound {
-            target,
-            priority,
-            data,
-            ..
-        } = message
-        else {
-            tracing::warn!("deliver reached a message the move protocol does not route; dropping");
-            return;
-        };
-
-        let (session, epoch) = match &target {
-            PacketTarget::SinglePlayer(anchor) => world
-                .get_entity(*anchor)
-                .ok()
-                .and_then(|anchor| {
-                    Some((
-                        anchor.get::<Session>()?.0,
-                        anchor.get::<SessionPlacement>()?.epoch(),
-                    ))
-                })
-                .unwrap_or((PlayerSession(0), 0)),
-            _ => (PlayerSession(0), 0),
-        };
-
-        world
-            .resource_mut::<Messages<OutboundPlayerPacket>>()
-            .write(OutboundPlayerPacket {
-                target,
-                priority,
-                data,
-                session,
-                epoch,
-            });
-    }
 }

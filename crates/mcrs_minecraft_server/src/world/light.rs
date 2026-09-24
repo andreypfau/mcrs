@@ -1,3 +1,5 @@
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
 use std::sync::Arc;
 
 use crate::world::light_codec::{LightCodecParams, build_delta_light_data};
@@ -228,15 +230,16 @@ pub fn emit_light_updates(
             // A column's light is sent in full exactly once, so a shed delta is
             // never re-sent; Normal is the class `dispatch_encode` drops first.
             priority: PacketPriority::High,
-            data: PacketPayload::LightUpdate {
-                column: column_pos,
+            data: PacketPayload::LightUpdate(ClientboundLightUpdate {
+                x: VarInt(column_pos.x),
+                z: VarInt(column_pos.z),
                 light_data: build_delta_light_data(
                     column_entity,
                     &block_rows,
                     &sky_rows,
                     &codec_params,
                 ),
-            },
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });

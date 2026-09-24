@@ -6,7 +6,6 @@
 use rayon::prelude::*;
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, SectionPos};
@@ -52,7 +51,6 @@ pub struct EpochStats {
     pub block_rounds: usize,
     pub sky_rounds: usize,
     pub area_cells: usize,
-    pub timings: EpochTimings,
 }
 
 /// Below this many cells the per-section passes run on one thread: a small
@@ -145,19 +143,6 @@ impl SkyFrontier {
     }
 }
 
-/// Where the time inside one epoch went. Costs a handful of clock reads.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-pub struct EpochTimings {
-    /// Allocating the working field and copying published light into it.
-    pub fill: Duration,
-    /// Erasing and collecting seeds.
-    pub seed: Duration,
-    /// The calculation itself.
-    pub relax: Duration,
-    /// Reading the result back out.
-    pub read_back: Duration,
-}
-
 /// A prepared, self-contained unit of work. Holds no borrows on the world, so
 /// it can be sent to a worker thread and outlive further edits to the world.
 pub struct LightJob {
@@ -201,7 +186,7 @@ impl LightJob {
             dark,
         } = self;
 
-        let started = Instant::now();
+        let fill = tracing::info_span!("light_fill").entered();
         let mut block_field = LightField::new(layout.clone());
         let mut sky_field = LightField::new(layout.clone());
         for (section_index, light) in published.iter().enumerate() {
@@ -212,8 +197,8 @@ impl LightJob {
             sky_field.fill_section(section_index, sky_light);
         }
 
-        let fill = started.elapsed();
-        let started = Instant::now();
+        drop(fill);
+        let seed = tracing::info_span!("light_seed").entered();
 
         // The frontier is a property of the section column, not of the section:
         // it reads the column's sky floors and its four neighbours' and nothing
@@ -344,8 +329,8 @@ impl LightJob {
             per_section.into_iter().unzip();
         let (block_seeds, sky_seeds) = (block_seeds.concat(), sky_seeds.concat());
 
-        let seed = started.elapsed();
-        let started = Instant::now();
+        drop(seed);
+        let relax_span = tracing::info_span!("light_relax").entered();
 
         // The two layers share nothing but the blocks, so they run side by side.
         let (block_rounds, sky_rounds) = rayon::join(
@@ -353,8 +338,8 @@ impl LightJob {
             || relax(&sky_field, &blocks, &registry, sky_seeds),
         );
 
-        let relax_time = started.elapsed();
-        let started = Instant::now();
+        drop(relax_span);
+        let _read_back = tracing::info_span!("light_read_back").entered();
 
         // Independent per section like the seeding pass: 4096 loads each, and a
         // repack only where the answer moved.
@@ -404,12 +389,6 @@ impl LightJob {
                 block_rounds,
                 sky_rounds,
                 area_cells: layout.cell_count(),
-                timings: EpochTimings {
-                    fill,
-                    seed,
-                    relax: relax_time,
-                    read_back: started.elapsed(),
-                },
             },
         }
     }

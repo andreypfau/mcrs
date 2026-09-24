@@ -1,7 +1,6 @@
 pub mod column_heights;
 pub mod container;
 pub mod nibbles;
-pub mod packed_bit_storage;
 pub mod section;
 pub mod volume;
 pub mod voxel_palette;
@@ -9,7 +8,6 @@ pub mod voxel_palette;
 pub use column_heights::ColumnHeights;
 pub use container::{AbstractCube, HeterogeneousPaletteData, PalettedContainer};
 pub use nibbles::SectionNibbles;
-pub use packed_bit_storage::{PackedBitStorage, bits_needed_for};
 pub use volume::{Blocks, BlocksMut, BoxVolume, Volume};
 pub use voxel_palette::{SharedVoxelPalette, VoxelPalette};
 
@@ -120,13 +118,6 @@ pub fn unpack_into(bits: u32, data: &[i64], out: &mut [u16]) -> Result<(), DataL
         }
     }
     Ok(())
-}
-
-#[inline]
-pub fn entry_at(bits: u32, data: &[i64], index: usize) -> u16 {
-    let per_long = entries_per_long(bits);
-    let word = data[index / per_long] as u64;
-    ((word >> ((index % per_long) as u32 * bits)) & ((1u64 << bits) - 1)) as u16
 }
 
 /// Masking alternate lanes leaves `bits` spare bits above each one kept, which

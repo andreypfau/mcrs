@@ -30,12 +30,12 @@ fn ui_needed(needed: Option<Res<UiNeeded>>) -> bool {
 }
 
 fn update_ui_needed(
-    list: Res<DebugScreenEntryList>,
+    overlay: Res<DebugOverlay>,
     map: Res<ChunkMap>,
     levels: Res<LightLevels>,
     mut needed: ResMut<UiNeeded>,
 ) {
-    let now = list.overlay_visible() || map.visible() || levels.visible();
+    let now = **overlay || map.visible() || levels.visible();
     let next = UiNeeded {
         now,
         before: needed.now,
@@ -50,10 +50,8 @@ pub mod entry_fps;
 pub mod entry_frame;
 pub mod entry_network;
 pub mod entry_position;
-pub mod entry_section_position;
 pub mod entry_system_specs;
 pub mod entry_terrain;
-pub mod entry_version;
 
 pub use displayer::DebugScreenDisplayer;
 
@@ -84,20 +82,8 @@ impl Refresh {
 }
 
 /// Whether the F3 overlay is up.
-#[derive(Resource, Default)]
-pub struct DebugScreenEntryList {
-    overlay_visible: bool,
-}
-
-impl DebugScreenEntryList {
-    pub fn overlay_visible(&self) -> bool {
-        self.overlay_visible
-    }
-
-    pub fn toggle_overlay(&mut self) {
-        self.overlay_visible = !self.overlay_visible;
-    }
-}
+#[derive(Resource, Default, Deref, DerefMut)]
+pub struct DebugOverlay(bool);
 
 #[derive(SystemSet, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DebugScreenSet {
@@ -113,7 +99,7 @@ impl Plugin for DebugScreenPlugin {
         if !app.is_plugin_added::<FrameTimeDiagnosticsPlugin>() {
             app.add_plugins(FrameTimeDiagnosticsPlugin::new(entry_fps::HISTORY));
         }
-        app.init_resource::<DebugScreenEntryList>()
+        app.init_resource::<DebugOverlay>()
             .init_resource::<mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink>()
             .init_resource::<DebugScreenDisplayer>()
             .init_resource::<UiNeeded>()
@@ -166,17 +152,16 @@ impl Plugin for DebugScreenPlugin {
             (
                 entry_fps::display,
                 entry_frame::display,
-                entry_version::display,
+                entry_fps::display_version,
                 entry_network::display,
                 entry_position::display,
-                entry_section_position::display,
                 entry_system_specs::display,
                 entry_terrain::display.run_if(resource_exists::<crate::stream::Loader>),
             )
                 .chain()
                 .in_set(DebugScreenSet::Collect)
-                .run_if(|list: Res<DebugScreenEntryList>, refresh: Res<Refresh>| {
-                    list.overlay_visible() || refresh.logging
+                .run_if(|overlay: Res<DebugOverlay>, refresh: Res<Refresh>| {
+                    **overlay || refresh.logging
                 }),
         );
 
@@ -204,14 +189,10 @@ impl Plugin for DebugScreenPlugin {
     }
 }
 
-fn schedule_refresh(
-    mut refresh: ResMut<Refresh>,
-    list: Res<DebugScreenEntryList>,
-    time: Res<Time>,
-) {
+fn schedule_refresh(mut refresh: ResMut<Refresh>, overlay: Res<DebugOverlay>, time: Res<Time>) {
     let now = time.elapsed_secs();
     let refresh = refresh.bypass_change_detection();
-    let shown = list.overlay_visible() && now >= refresh.next_refresh;
+    let shown = **overlay && now >= refresh.next_refresh;
     if shown {
         refresh.next_refresh = now + Refresh::SHOWN_INTERVAL;
     }
@@ -222,7 +203,7 @@ fn schedule_refresh(
         }
         due
     });
-    refresh.active = shown || refresh.logging || list.is_changed();
+    refresh.active = shown || refresh.logging || overlay.is_changed();
 }
 
 fn log_debug_screen(displayer: Res<DebugScreenDisplayer>) {

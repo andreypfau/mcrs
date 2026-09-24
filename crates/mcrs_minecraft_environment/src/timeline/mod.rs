@@ -103,22 +103,6 @@ pub struct TimelineError {
 }
 
 impl Timeline {
-    /// The tick this timeline stands at within its own period.
-    pub fn current_ticks(&self, total_ticks: i64) -> i64 {
-        match self.period_ticks {
-            Some(period) => total_ticks.rem_euclid(i64::from(period)),
-            None => total_ticks,
-        }
-    }
-
-    /// How many whole periods this timeline has completed.
-    pub fn period_count(&self, total_ticks: i64) -> i64 {
-        match self.period_ticks {
-            Some(period) => total_ticks.div_euclid(i64::from(period)),
-            None => 0,
-        }
-    }
-
     /// Bake every track of this timeline.
     ///
     /// Derived once from the loaded asset and never invalidated, so the result
@@ -354,20 +338,6 @@ mod tests {
             markers.get_compound("minecraft:day").unwrap().get("ticks"),
             Some(&NbtTag::Int(1000))
         );
-    }
-
-    #[test]
-    fn a_marker_with_no_period_reports_no_period_count() {
-        let early_game = timeline("early_game.json");
-        assert_eq!(early_game.period_ticks, None);
-        assert_eq!(early_game.current_ticks(50_000), 50_000);
-        assert_eq!(early_game.period_count(50_000), 0);
-
-        let day = timeline("day.json");
-        assert_eq!(day.current_ticks(50_000), 2_000);
-        assert_eq!(day.period_count(50_000), 2);
-        assert_eq!(day.current_ticks(0), 0);
-        assert_eq!(day.period_count(23_999), 0);
     }
 
     #[test]

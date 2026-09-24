@@ -1,8 +1,7 @@
 pub mod clientbound {
-    use crate::packets::cookie::clientbound::CookieRequest;
     use crate::profile::GameProfile;
     use crate::{Bounded, RawBytes, VarInt};
-    use derive_more::{From, Into};
+    use derive_more::Into;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
@@ -41,22 +40,11 @@ pub mod clientbound {
         pub channel: ResourceLocation<Cow<'a, str>>,
         pub data: Bounded<RawBytes<'a>, 1048576>,
     }
-
-    #[derive(Clone, Debug, Encode, Decode, From)]
-    pub enum Packet<'a> {
-        LoginDisconnect(ClientboundLoginDisconnect<'a>),
-        Hello(ClientboundHello<'a>),
-        LoginFinished(ClientboundLoginFinished<'a>),
-        LoginCompression(LoginCompression),
-        CustomQuery(CustomQuery<'a>),
-        CookieRequest(CookieRequest<'a>),
-    }
 }
 
 pub mod serverbound {
     use crate::packets::cookie::serverbound::CookieResponse;
     use crate::{Bounded, RawBytes, VarInt};
-    use derive_more::From;
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use uuid::Uuid;
 
@@ -88,13 +76,4 @@ pub mod serverbound {
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x04, state=Login)]
     pub struct ServerboundCookieResponse<'a>(CookieResponse<'a>);
-
-    #[derive(Clone, Debug, Encode, Decode, From)]
-    pub enum ServerboundPacket<'a> {
-        Hello(ServerboundHello<'a>),
-        Key(ServerboundKey<'a>),
-        CustomQueryAnswer(ServerboundCustomQueryAnswer<'a>),
-        LoginAcknowledged(ServerboundLoginAcknowledged),
-        CookieResponse(ServerboundCookieResponse<'a>),
-    }
 }

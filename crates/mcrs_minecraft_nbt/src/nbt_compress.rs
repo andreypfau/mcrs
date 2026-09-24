@@ -1,7 +1,7 @@
 use crate::deserializer::NbtReadHelper;
 use crate::{Error, Nbt, NbtCompound, deserializer, serializer};
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
-use std::io::{Cursor, Read, Seek};
+use std::io::{Cursor, Read, Seek, Write};
 
 pub fn read_gzip_compound_tag(input: impl Read + Seek) -> Result<NbtCompound, Error> {
     let mut decoder = GzDecoder::new(input);
@@ -14,8 +14,8 @@ pub fn read_gzip_compound_tag(input: impl Read + Seek) -> Result<NbtCompound, Er
 
 pub fn write_gzip_compound_tag_to_bytes(compound: &NbtCompound) -> Result<Vec<u8>, Error> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-    Nbt::new(String::new(), compound.clone())
-        .write_to_writer(&mut encoder)
+    encoder
+        .write_all(&Nbt::new(String::new(), compound.clone()).write())
         .map_err(Error::Incomplete)?;
     encoder.finish().map_err(Error::Incomplete)
 }
@@ -78,8 +78,18 @@ mod tests {
         assert_eq!(read_compound.get_short("short_value"), Some(12345));
         assert_eq!(read_compound.get_int("int_value"), Some(1234567));
         assert_eq!(read_compound.get_long("long_value"), Some(123456789));
-        assert_eq!(read_compound.get_float("float_value"), Some(123.456));
-        assert_eq!(read_compound.get_double("double_value"), Some(123456.789));
+        assert_eq!(
+            read_compound
+                .get("float_value")
+                .and_then(NbtTag::extract_float),
+            Some(123.456)
+        );
+        assert_eq!(
+            read_compound
+                .get("double_value")
+                .and_then(NbtTag::extract_double),
+            Some(123456.789)
+        );
         assert_eq!(read_compound.get_bool("bool_value"), Some(true));
         assert_eq!(
             read_compound.get_string("string_value"),

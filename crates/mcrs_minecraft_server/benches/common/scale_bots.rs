@@ -22,6 +22,7 @@
 
 #![allow(dead_code)]
 
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
 use std::time::{Duration, Instant};
 
 use bevy_ecs::entity::Entity;
@@ -236,10 +237,10 @@ fn run_profile_bounded(
                     .write(OutboundPlayerPacket {
                         target: PacketTarget::SinglePlayer(*player),
                         priority: PacketPriority::Normal,
-                        data: PacketPayload::BlockUpdate {
-                            position: mcrs_minecraft_core::BlockPos::new(0, 64, 0),
-                            new_state: BlockStateId(1),
-                        },
+                        data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+                            block_pos: mcrs_minecraft_core::BlockPos::new(0, 64, 0),
+                            block_state_id: BlockStateId(1),
+                        }),
                         session: *session,
                         epoch: 0,
                     });

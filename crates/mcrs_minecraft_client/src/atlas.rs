@@ -45,6 +45,7 @@ pub struct SpriteArray {
 /// The base texture a permuted sprite copies and the palette swap it applies.
 type Permutation = (String, PaletteMapping);
 
+#[derive(Default)]
 pub struct SpriteRegistry {
     arrays: Vec<SpriteArray>,
     index: HashMap<String, u16>,
@@ -61,16 +62,6 @@ struct Source {
 }
 
 impl SpriteRegistry {
-    pub fn new() -> Self {
-        Self {
-            arrays: Vec::new(),
-            index: HashMap::new(),
-            table: Vec::new(),
-            animations: Vec::new(),
-            permutations: HashMap::new(),
-        }
-    }
-
     pub fn len(&self) -> usize {
         self.table.len()
     }
@@ -596,7 +587,7 @@ mod tests {
 
     #[test]
     fn the_mips_of_a_tail_of_stills_match_the_whole_chain() {
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         for id in [
             "minecraft:block/stone",
             "minecraft:block/dirt",
@@ -617,7 +608,7 @@ mod tests {
 
     #[test]
     fn sprites_of_different_sizes_land_in_different_arrays() {
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         let small = registry
             .intern(Pack::corpus(), "minecraft:block/stone")
             .unwrap();
@@ -667,7 +658,7 @@ mod tests {
 
     #[test]
     fn every_step_of_an_animation_gets_its_own_layer() {
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         registry
             .intern(Pack::corpus(), "minecraft:block/stone")
             .unwrap();
@@ -688,7 +679,7 @@ mod tests {
 
     #[test]
     fn a_sequence_that_revisits_a_frame_lays_it_down_twice() {
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         registry
             .intern(Pack::corpus(), "minecraft:block/lava_still")
             .unwrap();
@@ -700,7 +691,7 @@ mod tests {
 
     #[test]
     fn a_sequence_out_of_order_is_laid_out_in_the_order_it_names() {
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         registry
             .intern(Pack::corpus(), "minecraft:block/prismarine")
             .unwrap();
@@ -712,7 +703,7 @@ mod tests {
 
     #[test]
     fn a_sequence_starting_part_way_through_the_image_starts_there() {
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         registry
             .intern(Pack::corpus(), "minecraft:block/fire_0")
             .unwrap();
@@ -765,7 +756,7 @@ mod tests {
 
     #[test]
     fn an_animation_names_its_own_layers_whatever_order_the_interning_took() {
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         let stone = registry
             .intern(Pack::corpus(), "minecraft:block/stone")
             .unwrap();
@@ -842,7 +833,7 @@ mod tests {
 
     #[test]
     fn a_sprite_is_interned_once() {
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         let first = registry
             .intern(Pack::corpus(), "minecraft:block/stone")
             .unwrap();
@@ -872,7 +863,7 @@ mod tests {
             permuted += sources.permutations(pack).unwrap().len();
         }
         assert_eq!(permuted, 64);
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         registry.load_atlases(pack).unwrap();
         let quartz = registry
             .intern(pack, "minecraft:trims/items/chestplate_trim_quartz")
@@ -900,7 +891,7 @@ mod tests {
 
     #[test]
     fn the_missing_sprite_is_a_generated_checker() {
-        let mut registry = SpriteRegistry::new();
+        let mut registry = SpriteRegistry::default();
         let sprite = registry.intern(Pack::corpus(), MISSING_SPRITE).unwrap();
         let pixels = registry.frames(sprite)[0];
         assert_eq!(pixels.len(), 16 * 16 * 4);

@@ -1,3 +1,4 @@
+use crate::world::bus::to;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{
@@ -5,15 +6,16 @@ use bevy_ecs::prelude::{
 };
 use bevy_math::DVec3;
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_protocol::MoveFlags;
+use mcrs_minecraft_protocol::Look;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
     ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
 };
 
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 
 pub struct MovementPlugin;
@@ -78,25 +80,26 @@ impl TeleportState {
 }
 
 fn handle_move_packets(on: On<ReceivedPacketEvent>, mut writer: MessageWriter<PlayerMovement>) {
-    let e = on.entity;
-    if let Some(p) = on.decode::<ServerboundMovePlayerPos>() {
-        writer.write(PlayerMovement::new(
-            e,
-            Some(p.position.into()),
-            None,
-            p.flags,
-        ));
+    let entity = on.entity;
+    let (position, look) = if let Some(p) = on.decode::<ServerboundMovePlayerPos>() {
+        (Some(p.position.into()), None)
     } else if let Some(p) = on.decode::<ServerboundMovePlayerPosRot>() {
-        let look = Rotation::new(p.look.yaw, p.look.pitch);
-        let m = PlayerMovement::new(e, Some(p.position.into()), Some(look), p.flags);
-        writer.write(m);
+        (
+            Some(p.position.into()),
+            Some(Rotation::new(p.look.yaw, p.look.pitch)),
+        )
     } else if let Some(p) = on.decode::<ServerboundMovePlayerRot>() {
-        let look = Rotation::new(p.look.yaw, p.look.pitch);
-        let m = PlayerMovement::new(e, None, Some(look), p.flags);
-        writer.write(m);
-    } else if let Some(p) = on.decode::<ServerboundMovePlayerStatusOnly>() {
-        writer.write(PlayerMovement::new(e, None, None, p.flags));
-    }
+        (None, Some(Rotation::new(p.look.yaw, p.look.pitch)))
+    } else if on.decode::<ServerboundMovePlayerStatusOnly>().is_some() {
+        (None, None)
+    } else {
+        return;
+    };
+    writer.write(PlayerMovement {
+        entity,
+        position,
+        look,
+    });
 }
 
 #[derive(Message)]
@@ -104,23 +107,6 @@ pub struct PlayerMovement {
     entity: Entity,
     position: Option<DVec3>,
     look: Option<Rotation>,
-    flags: MoveFlags,
-}
-
-impl PlayerMovement {
-    pub fn new(
-        entity: Entity,
-        position: Option<DVec3>,
-        look: Option<Rotation>,
-        flags: MoveFlags,
-    ) -> Self {
-        Self {
-            entity,
-            position,
-            look,
-            flags,
-        }
-    }
 }
 
 fn process_movement(
@@ -162,16 +148,19 @@ fn teleport(
             state.synced_transform = *transform;
 
             let teleport_id = state.next_teleport_id();
-            packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(anchor.0),
-                priority: PacketPriority::Critical,
-                data: PacketPayload::PlayerPosition {
-                    teleport_id,
-                    position: transform.translation,
-                },
-                session: PlayerSession(0),
-                epoch: 0,
-            });
+            packet_writer.write(
+                to(
+                    anchor.0,
+                    PacketPayload::PlayerPosition(ClientboundPlayerPosition {
+                        teleport_id: VarInt(teleport_id),
+                        position: transform.translation,
+                        velocity: DVec3::ZERO,
+                        look: Look::default(),
+                        flags: Vec::new(),
+                    }),
+                )
+                .critical(),
+            );
         }
     }
 }

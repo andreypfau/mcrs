@@ -1,6 +1,5 @@
-use crate::world::bus::{
-    InboundPlayerPacket, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use crate::world::bus::to;
+use crate::world::bus::{InboundPlayerPacket, OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::explosive::primed_tnt::PrimedTntPlugin;
 use crate::world::entity::mob::MobTrackerPlugin;
 use crate::world::entity::player::{DimPlayerPlugin, HostAnchor};
@@ -12,14 +11,15 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, ContainsEntity, On};
 use bevy_ecs::query::With;
 use bevy_ecs::system::Query;
-use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_level::entity::physics::{OldTransform, Transform};
 use mcrs_minecraft_level::entity::{EntityNetworkSyncEvent, EntityPlugin};
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Look;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
+use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
 
 pub mod explosive;
 pub mod item;
@@ -117,20 +117,16 @@ pub fn entity_pos_sync(
     let Ok(transform) = entity_data.get(event.entity) else {
         return;
     };
-    packet_writer.write(OutboundPlayerPacket {
-        target: PacketTarget::SinglePlayer(event.player),
-        priority: PacketPriority::Normal,
-        data: PacketPayload::EntityPosSync {
-            entity_id: event.entity.index_u32() as i32,
-            position: transform.translation,
-            velocity: DVec3::ZERO,
+    packet_writer.write(to(
+        event.player,
+        PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
+            entity_id: VarInt(event.entity.index_u32() as i32),
+            position: PositionPath::Linear(transform.translation),
             look: Look {
                 yaw: transform.rotation.yaw(),
                 pitch: transform.rotation.pitch(),
             },
             on_ground: true,
-        },
-        session: PlayerSession(0),
-        epoch: 0,
-    });
+        }),
+    ));
 }

@@ -307,7 +307,7 @@ fn level_particles_packet_matches_vanilla() {
     assert_eq!(packet.count, VarInt(3));
     assert_eq!(packet.particle.resolve(&lookup()).unwrap(), check("item"));
     let rebuilt = ClientboundLevelParticles {
-        particle: RawParticle::from_options(&check("item"), &lookup()).unwrap(),
+        particle: RawParticle::from_value(&check("item"), &lookup()).unwrap(),
         ..packet
     };
     let mut out = Vec::new();

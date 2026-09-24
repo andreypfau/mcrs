@@ -20,6 +20,8 @@ use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
 };
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use mcrs_minecraft_server::world::aoi::{PlayerTrackerPlugin, TrackedBy};
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
@@ -372,8 +374,8 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     };
     let left_view_for_o = pkts.iter().any(|pkt| {
         matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == player_o)
-            && matches!(&pkt.data, PacketPayload::PlayerLeftView { entity_ids }
-                if entity_ids.contains(&expected_wire_id))
+            && matches!(&pkt.data, PacketPayload::PlayerLeftView(ClientboundRemoveEntities { entity_ids })
+                if entity_ids.contains(&VarInt(expected_wire_id)))
     });
     assert!(
         left_view_for_o,

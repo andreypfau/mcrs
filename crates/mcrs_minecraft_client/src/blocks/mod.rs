@@ -9,13 +9,13 @@ use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 use mcrs_minecraft_registry::BlockStateId;
 use tint::extend_tints;
-pub use tint::tint_column;
+pub use tint::{BiomeTint, tint_column};
 
 mod build;
 
 mod tint;
 
-pub(crate) use tint::{load_colormap, sample_colormap};
+pub(crate) use tint::{colormap_rgba, load_colormap};
 
 /// A block state as the resource pack names it: the block's identifier and
 /// every property it declares, rendered the way a blockstates file spells them.
@@ -76,20 +76,22 @@ fn render(value: &PropertyValue) -> String {
 pub struct Catalog {
     pub blocks: Vec<BlockInfo>,
     pub sprites: SpriteRegistry,
-    pub tints: Vec<[f32; 4]>,
+    pub tints: Vec<tint::BiomeTint>,
     pub failures: Vec<String>,
+    pub smooth_lighting: bool,
 }
 
 pub fn cube_corner(dir: Dir, corner: usize) -> Vec3 {
-    crate::bake::corner(dir, corner, Vec3::ZERO, Vec3::ONE)
+    mcrs_minecraft_mesh::ambient::corner(dir, corner, Vec3::ZERO, Vec3::ONE)
 }
 
 pub fn empty() -> Catalog {
     Catalog {
         blocks: Vec::new(),
-        sprites: SpriteRegistry::new(),
-        tints: vec![[1.0, 1.0, 1.0, 1.0]],
+        sprites: SpriteRegistry::default(),
+        tints: Vec::new(),
         failures: Vec::new(),
+        smooth_lighting: true,
     }
 }
 
@@ -110,7 +112,13 @@ pub fn extend(
     for &id in ids {
         let state = state_key(definitions, id);
         let data = definitions.state(BlockStateId(id));
-        match build_one(pack, &state, data, &mut catalog.sprites) {
+        match build_one(
+            pack,
+            &state,
+            data,
+            &mut catalog.sprites,
+            catalog.smooth_lighting,
+        ) {
             Ok(info) => catalog.blocks[id as usize] = info,
             Err(reason) => catalog
                 .failures

@@ -6,7 +6,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_world::LoadedRegistryAssets;
-use mcrs_minecraft_world::dimension::level_stem::DimensionDefinition;
+use mcrs_minecraft_world::dimension::DimensionDefinition;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::{ActiveWorldPreset, WorldPreset};
 use std::env;
@@ -146,31 +146,11 @@ pub fn world_seed_from_env() -> WorldSeed {
 /// Returns the default 'normal' preset if not set or invalid.
 /// Supports both short names ("normal") and namespaced identifiers ("minecraft:normal").
 pub fn get_world_preset_name() -> String {
-    match env::var("MCRS_WORLD_PRESET") {
-        Ok(preset_name) => {
-            let preset_name = preset_name.trim().to_lowercase();
-
-            if preset_name.is_empty() {
-                info!(
-                    default_preset = DEFAULT_WORLD_PRESET,
-                    "MCRS_WORLD_PRESET is empty, using default preset"
-                );
-                return DEFAULT_WORLD_PRESET.to_string();
-            }
-
-            info!(
-                preset = %preset_name,
-                "Loading world preset from MCRS_WORLD_PRESET"
-            );
-
-            preset_name
-        }
-        Err(_) => {
-            info!(
-                default_preset = DEFAULT_WORLD_PRESET,
-                "MCRS_WORLD_PRESET not set, using default preset"
-            );
-            DEFAULT_WORLD_PRESET.to_string()
-        }
-    }
+    let preset = env::var("MCRS_WORLD_PRESET")
+        .ok()
+        .map(|name| name.trim().to_lowercase())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| DEFAULT_WORLD_PRESET.to_string());
+    info!(%preset, "world preset");
+    preset
 }

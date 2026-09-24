@@ -67,31 +67,44 @@ fn asset_ids(files: &[&str], folder: &str) -> Vec<String> {
         .collect()
 }
 
+fn entity_type_registry() -> mcrs_minecraft_registry::StaticRegistry<super::EntityType> {
+    let table = mcrs_minecraft_registry::StaticRegistryTable::load(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json"),
+    )
+    .unwrap();
+    let mut registry = mcrs_minecraft_registry::StaticRegistry::new();
+    minecraft::register_all_entity_types(&mut registry, &table);
+    registry
+}
+
 #[test]
 fn entity_types_follow_the_registry_order() {
     let census = read_census();
     let expected = &census.ids["minecraft:entity_type"];
-    let actual: Vec<String> = minecraft::ALL
+    let registry = entity_type_registry();
+    let actual: Vec<String> = registry
         .iter()
-        .map(|t| t.identifier.to_string())
+        .map(|(_, _, t)| t.identifier.to_string())
         .collect();
     assert_eq!(actual, *expected);
-    for (index, entity_type) in minecraft::ALL.iter().enumerate() {
+    for (id, _, entity_type) in registry.iter() {
         assert_eq!(
-            entity_type.protocol_id as usize, index,
+            entity_type.protocol_id,
+            id.raw(),
             "{}",
             entity_type.identifier
         );
     }
+    assert_eq!(minecraft::PLAYER.protocol_id, 159);
+    assert_eq!(minecraft::PRIMED_TNT.protocol_id, 136);
+    assert_eq!(minecraft::ITEM.protocol_id, 72);
 }
 
 #[test]
 fn every_template_entity_kind_is_a_registered_entity_type() {
+    let registry = entity_type_registry();
     for id in mcrs_minecraft_worldgen_feature::template::EntityKind::IDS {
-        assert!(
-            minecraft::ALL.iter().any(|t| t.identifier.as_str() == id),
-            "{id} is not an entity type"
-        );
+        assert!(registry.id_of(id).is_some(), "{id} is not an entity type");
     }
 }
 

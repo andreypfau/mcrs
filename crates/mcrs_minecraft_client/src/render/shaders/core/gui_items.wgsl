@@ -116,8 +116,8 @@ fn fs_gui(in: VertexOut) -> @location(0) vec4<f32> {
     }
     let entry = sprites[in.sprite & 0xFFFFu];
     let array = entry.array_layer >> 16u;
-    let texel = sample_sprite(entry, in.uv);
-    var color = vec4<f32>(to_srgb(texel.rgb), texel.a) * in.color;
+    // The terrain atlas already hands back the stored bytes.
+    var color = sample_sprite(entry, in.uv) * in.color;
     if color.a < ALPHA_CUTOUT {
         discard;
     }

@@ -6,9 +6,7 @@ use mcrs_minecraft_chunk::BlocksMut;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::BlockStateId;
-use mcrs_minecraft_worldgen_feature_place::ore_beta::{
-    OreConfig, TargetBlockState, place_beta_ore,
-};
+use mcrs_minecraft_worldgen_feature_place::ore_beta::{OreConfig, place_beta_ore};
 
 pub struct BetaOreBlockIds {
     pub stone: BlockStateId,
@@ -47,10 +45,8 @@ impl BetaOreBlockIds {
 
 fn ore_config(stone: BlockStateId, state: BlockStateId, size: i32) -> OreConfig {
     OreConfig {
-        targets: vec![TargetBlockState {
-            target: stone.into(),
-            state: state.into(),
-        }],
+        target: stone.into(),
+        state: state.into(),
         size,
     }
 }

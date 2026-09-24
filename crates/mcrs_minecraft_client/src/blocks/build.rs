@@ -1,13 +1,15 @@
 use super::BlockStateKey;
 use super::cube_corner;
 use crate::atlas::{Opacity, SpriteRegistry};
-use crate::bake::{self, Dir, TinyWorld};
+use crate::bake::{self, Dir};
 use crate::model::Pack;
-use bevy::math::{IVec3, Vec3};
-use mcrs_minecraft_block::definition::BlockStateData;
+use bevy::math::Vec3;
+use mcrs_minecraft_block::definition::{BlockStateData, BlockStateFlags};
+use mcrs_minecraft_mesh::ambient::Neighbour;
 use mcrs_minecraft_mesh::block::{
-    BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Fluid, ModelQuad, Pass, TintKind,
+    BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Fluid, ModelQuad, Pass,
 };
+use mcrs_minecraft_mesh::tint::Tint;
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
     "minecraft:bubble_column",
@@ -64,6 +66,7 @@ pub(super) fn build_one(
     state: &BlockStateKey,
     data: &BlockStateData,
     sprites: &mut SpriteRegistry,
+    smooth_lighting: bool,
 ) -> Result<BlockInfo, String> {
     if state.name == "minecraft:air"
         || state.name == "minecraft:cave_air"
@@ -73,19 +76,25 @@ pub(super) fn build_one(
     }
 
     let emission = data.light_emission;
-    let tint_kind = tint_kind_of(&state.name);
     let fluid = fluid_of(pack, state, data, sprites)?;
 
-    let baked = bake::bake(
-        pack,
-        &state.name,
-        &state.pairs(),
-        IVec3::ZERO,
-        &TinyWorld::default(),
-    )?;
+    let solid_render = data.flags.contains(BlockStateFlags::IS_SOLID_RENDER);
+    let neighbour = Neighbour {
+        full_block: data
+            .flags
+            .contains(BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK),
+        solid_render,
+        light_opaque: solid_render && data.light_dampening != 0,
+    };
+    let emissive = data.flags.contains(BlockStateFlags::EMISSIVE_RENDERING);
+
+    let baked = bake::bake(pack, &state.name, &state.pairs())?;
     if baked.quads.is_empty() {
         return Ok(BlockInfo {
             fluid,
+            neighbour,
+            emission,
+            emissive,
             ..BlockInfo::default()
         });
     }
@@ -112,7 +121,7 @@ pub(super) fn build_one(
             built[dir as usize] = CubeFace {
                 sprite: interned,
                 pass: pass as u8,
-                tinted: quad.tint.is_some(),
+                tint: tint_of(state, quad.tint),
             };
         }
         cube = Some(built);
@@ -128,11 +137,12 @@ pub(super) fn build_one(
             positions: quad.positions,
             uvs: quad.uvs,
             cull: quad.cull,
+            facing: quad.dir,
             face: face_group(&quad.positions),
             sprite: interned,
             pass: Pass::from(sprites.opacity(interned)),
-            shade: quad.color,
-            tinted: quad.tint.is_some(),
+            shade: quad.shade,
+            tint: tint_of(state, quad.tint),
         });
     }
 
@@ -142,9 +152,11 @@ pub(super) fn build_one(
         occludes,
         self_culls,
         sturdy,
-        tint_kind,
         emission,
+        emissive,
         fluid,
+        neighbour,
+        ambient_occlusion: smooth_lighting && baked.ambient_occlusion && emission == 0,
     })
 }
 
@@ -224,14 +236,38 @@ fn face_group(positions: &[Vec3; 4]) -> Option<u8> {
     Some(Dir::all().len() as u8 + diagonal as u8)
 }
 
-fn tint_kind_of(name: &str) -> TintKind {
-    if name.ends_with("_leaves") || name.ends_with("vine") || name == "minecraft:glow_lichen" {
-        return TintKind::Foliage;
-    }
-    if name == "minecraft:water" || name == "minecraft:bubble_column" {
-        return TintKind::Water;
-    }
-    TintKind::Grass
+/// Vanilla's `BlockColors`: the colour each block multiplies into the faces that name a tint
+/// layer. A layer past the block's list, or a block with none, is left untinted.
+fn tint_of(state: &BlockStateKey, layer: Option<u32>) -> Tint {
+    let Some(layer) = layer else {
+        return Tint::None;
+    };
+    let prop = |key: &str| {
+        state
+            .props
+            .iter()
+            .find(|(name, _)| name == key)
+            .and_then(|(_, value)| value.parse::<u8>().ok())
+            .unwrap_or(0)
+    };
+    let name = state.name.strip_prefix("minecraft:").unwrap_or(&state.name);
+    let layers: &[Tint] = match name {
+        "large_fern" | "tall_grass" | "fern" | "short_grass" | "potted_fern" | "bush"
+        | "grass_block" | "sugar_cane" => &[Tint::Grass],
+        "pink_petals" | "wildflowers" => &[Tint::None, Tint::Grass],
+        "spruce_leaves" => &[Tint::SPRUCE_LEAVES],
+        "birch_leaves" => &[Tint::BIRCH_LEAVES],
+        "oak_leaves" | "jungle_leaves" | "acacia_leaves" | "dark_oak_leaves" | "vine"
+        | "mangrove_leaves" => &[Tint::Foliage],
+        "leaf_litter" => &[Tint::DryFoliage],
+        "water_cauldron" => &[Tint::Water],
+        "attached_melon_stem" | "attached_pumpkin_stem" => &[Tint::ATTACHED_STEM],
+        "lily_pad" => &[Tint::LILY_PAD],
+        "melon_stem" | "pumpkin_stem" => &[Tint::stem(prop("age"))],
+        "redstone_wire" => &[Tint::redstone(prop("power"))],
+        _ => &[],
+    };
+    layers.get(layer as usize).copied().unwrap_or(Tint::None)
 }
 
 fn split_cube(quads: &[bake::BakedQuad]) -> (Option<[usize; 6]>, Vec<usize>) {
@@ -285,6 +321,72 @@ mod tests {
     }
 
     #[test]
+    fn each_block_tints_its_layers_the_way_vanilla_registers_them() {
+        use mcrs_minecraft_mesh::tint::Tint;
+        let key = |name: &str, props: &[(&str, &str)]| BlockStateKey {
+            name: format!("minecraft:{name}"),
+            props: props
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        };
+        let tint = |name, props, layer| super::tint_of(&key(name, props), layer);
+        assert_eq!(tint("cherry_leaves", &[], Some(0)), Tint::None);
+        assert_eq!(tint("azalea_leaves", &[], Some(0)), Tint::None);
+        assert_eq!(tint("oak_leaves", &[], Some(0)), Tint::Foliage);
+        assert_eq!(tint("dark_oak_leaves", &[], Some(0)), Tint::Foliage);
+        assert_eq!(tint("spruce_leaves", &[], Some(0)), Tint::SPRUCE_LEAVES);
+        assert_eq!(tint("birch_leaves", &[], Some(0)), Tint::BIRCH_LEAVES);
+        assert_eq!(tint("leaf_litter", &[], Some(0)), Tint::DryFoliage);
+        assert_eq!(
+            tint("grass_block", &[], None),
+            Tint::None,
+            "an untinted face"
+        );
+        assert_eq!(tint("pink_petals", &[], Some(0)), Tint::None);
+        assert_eq!(tint("pink_petals", &[], Some(1)), Tint::Grass);
+        assert_eq!(
+            tint("redstone_wire", &[("power", "7")], Some(0)),
+            Tint::redstone(7)
+        );
+        assert_eq!(
+            tint("pumpkin_stem", &[("age", "3")], Some(0)),
+            Tint::stem(3)
+        );
+        assert_eq!(tint("stone", &[], Some(0)), Tint::None);
+    }
+
+    #[test]
+    fn ambient_occlusion_reads_its_neighbours_from_the_corpus() {
+        let stone = bake_state("minecraft:stone", &[]);
+        assert!(stone.neighbour.full_block && stone.neighbour.light_opaque);
+
+        let glass = bake_state("minecraft:glass", &[]);
+        assert!(
+            glass.neighbour.full_block,
+            "glass still darkens its neighbours"
+        );
+        assert!(!glass.neighbour.light_opaque, "light passes through glass");
+
+        let stairs = bake_state(
+            "minecraft:oak_stairs",
+            &[
+                ("facing", "north"),
+                ("half", "bottom"),
+                ("shape", "straight"),
+                ("waterlogged", "false"),
+            ],
+        );
+        assert!(stairs.ambient_occlusion);
+        assert!(!stairs.neighbour.full_block);
+
+        assert!(
+            !bake_state("minecraft:torch", &[]).ambient_occlusion,
+            "a block that emits light is never occluded"
+        );
+    }
+
+    #[test]
     fn a_block_lights_the_mesh_by_what_the_corpus_says_it_emits() {
         assert_eq!(bake_state("minecraft:torch", &[]).emission, 14);
         assert_eq!(bake_state("minecraft:glowstone", &[]).emission, 15);
@@ -293,8 +395,8 @@ mod tests {
 
     use super::{BlockStateKey, Pack, cube_corner, face_group, split_cube};
     use crate::atlas::SpriteRegistry;
-    use crate::bake::{self, Dir, TinyWorld};
-    use bevy::math::{IVec3, Vec3};
+    use crate::bake::{self, Dir};
+    use bevy::math::Vec3;
 
     fn bake_state(name: &str, props: &[(&str, &str)]) -> super::BlockInfo {
         let state = BlockStateKey {
@@ -316,7 +418,8 @@ mod tests {
             Pack::corpus(),
             &state,
             corpus.state(id),
-            &mut SpriteRegistry::new(),
+            &mut SpriteRegistry::default(),
+            true,
         )
         .unwrap_or_else(|reason| panic!("{name} does not bake: {reason}"))
     }
@@ -417,14 +520,7 @@ mod tests {
 
     #[test]
     fn cube_uv_matches_the_vanilla_bake() {
-        let baked = bake::bake(
-            Pack::corpus(),
-            "minecraft:stone",
-            &[],
-            IVec3::ZERO,
-            &TinyWorld::default(),
-        )
-        .expect("stone bakes");
+        let baked = bake::bake(Pack::corpus(), "minecraft:stone", &[]).expect("stone bakes");
         let (faces, extras) = split_cube(&baked.quads);
         let faces = faces.expect("stone is a full cube");
         assert!(extras.is_empty(), "stone has nothing beyond its cube");
@@ -442,25 +538,12 @@ mod tests {
 
     #[test]
     fn a_rotated_log_is_not_greedy_meshable() {
-        let world = TinyWorld::default();
-        let upright = bake::bake(
-            Pack::corpus(),
-            "minecraft:oak_log",
-            &[("axis", "y")],
-            IVec3::ZERO,
-            &world,
-        )
-        .expect("upright log bakes");
+        let upright = bake::bake(Pack::corpus(), "minecraft:oak_log", &[("axis", "y")])
+            .expect("upright log bakes");
         assert!(split_cube(&upright.quads).0.is_some());
 
-        let sideways = bake::bake(
-            Pack::corpus(),
-            "minecraft:oak_log",
-            &[("axis", "x")],
-            IVec3::ZERO,
-            &world,
-        )
-        .expect("sideways log bakes");
+        let sideways = bake::bake(Pack::corpus(), "minecraft:oak_log", &[("axis", "x")])
+            .expect("sideways log bakes");
         assert!(
             split_cube(&sideways.quads).0.is_none(),
             "a log turned on its side has rotated UVs and cannot tile"
@@ -470,8 +553,6 @@ mod tests {
             Pack::corpus(),
             "minecraft:grass_block",
             &[("snowy", "false")],
-            IVec3::ZERO,
-            &world,
         )
         .expect("grass block bakes");
         let (cube, extras) = split_cube(&grass.quads);

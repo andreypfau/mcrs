@@ -168,12 +168,12 @@ impl SkyEnvironment {
                 self.scalar(frame, SkyField::CloudFogEndDistance),
                 0.0,
             ],
-            sky_light: rgba(
+            sky_light: raw(
                 color(SkyField::SkyLightColor),
                 self.scalar(frame, SkyField::SkyLightFactor),
             ),
-            block_light: rgba(color(SkyField::BlockLightTint), BLOCK_LIGHT_FACTOR),
-            ambient: rgba(color(SkyField::AmbientLightColor), 0.0),
+            block_light: raw(color(SkyField::BlockLightTint), BLOCK_LIGHT_FACTOR),
+            ambient: raw(color(SkyField::AmbientLightColor), 0.0),
         }
     }
 
@@ -309,6 +309,11 @@ pub(crate) const fn rgb(packed: u32) -> Vec3 {
 
 fn rgba(packed: u32, w: f32) -> [f32; 4] {
     rgb(packed).map(Srgba::gamma_function).extend(w).to_array()
+}
+
+/// The light colours feed vanilla's lightmap, which works on the bytes as they are written.
+fn raw(packed: u32, w: f32) -> [f32; 4] {
+    rgb(packed).extend(w).to_array()
 }
 
 fn alpha(packed: u32) -> f32 {
@@ -753,6 +758,7 @@ mod sky_regression {
         let sunrise = track(&SUNRISE, at);
         let sun = sun_angle(at);
         let linear3 = |color: Vec3, w: f32| color.map(Srgba::gamma_function).extend(w).to_array();
+        let raw3 = |color: Vec3, w: f32| color.extend(w).to_array();
         SkyUniform {
             disc: linear3(
                 BASE_SKY * track(&SKY_COLOR, at),
@@ -777,9 +783,9 @@ mod sky_regression {
                 CLOUD_COLOR.w,
             ),
             cloud: [CLOUD_HEIGHT, cloud_drift(ticks as f64), CLOUD_FADE, 0.0],
-            sky_light: linear3(track(&SKY_LIGHT_COLOR, at), track(&SKY_LIGHT_FACTOR, at)),
-            block_light: linear3(BLOCK_LIGHT_TINT, BLOCK_LIGHT_FACTOR),
-            ambient: linear3(AMBIENT, 0.0),
+            sky_light: raw3(track(&SKY_LIGHT_COLOR, at), track(&SKY_LIGHT_FACTOR, at)),
+            block_light: raw3(BLOCK_LIGHT_TINT, BLOCK_LIGHT_FACTOR),
+            ambient: raw3(AMBIENT, 0.0),
         }
     }
 

@@ -1,10 +1,14 @@
+use std::sync::LazyLock;
+
 use crate::columns::{BlockSource, SECTION_SIZE};
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_worldgen_noise::simplex::SimplexNoise;
 
 use crate::model::{self, Pack};
 
 use super::Catalog;
-use mcrs_minecraft_mesh::block::TINT_KINDS;
+use mcrs_minecraft_mesh::tint::BIOME_TINTS;
 
 #[derive(serde::Deserialize)]
 struct BiomeFile {
@@ -12,18 +16,77 @@ struct BiomeFile {
     temperature: f32,
     #[serde(default)]
     downfall: f32,
-    #[serde(default)]
     effects: BiomeEffects,
 }
 
-#[derive(serde::Deserialize, Default)]
+#[derive(serde::Deserialize)]
 struct BiomeEffects {
-    #[serde(default)]
-    water_color: Option<Rgb>,
+    water_color: Rgb,
     #[serde(default)]
     grass_color: Option<Rgb>,
     #[serde(default)]
     foliage_color: Option<Rgb>,
+    #[serde(default)]
+    dry_foliage_color: Option<Rgb>,
+    #[serde(default)]
+    grass_color_modifier: GrassModifier,
+}
+
+#[derive(serde::Deserialize, Default, Copy, Clone, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+enum GrassModifier {
+    #[default]
+    None,
+    DarkForest,
+    Swamp,
+}
+
+/// A biome's colour for each biome tint, as `0xRRGGBB`.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct BiomeTint {
+    grass: Grass,
+    foliage: u32,
+    dry_foliage: u32,
+    water: u32,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum Grass {
+    Color(u32),
+    /// Swamp grass takes one of two colours by a noise over the ground.
+    Swamp,
+}
+
+const SWAMP_DARK: u32 = 0x4c763c;
+const SWAMP_LIGHT: u32 = 0x6a5d39;
+
+static BIOME_INFO_NOISE: LazyLock<SimplexNoise> =
+    LazyLock::new(|| SimplexNoise::from_random_at_origin(&mut LegacyRandom::new(2345)));
+
+impl BiomeTint {
+    fn grass_at(&self, x: i32, z: i32) -> u32 {
+        match self.grass {
+            Grass::Color(color) => color,
+            Grass::Swamp => {
+                let ground =
+                    BIOME_INFO_NOISE.sample_2d(x as f64 * 0.0225, z as f64 * 0.0225, 1.0, 1.0);
+                if (ground as f32) < -0.1 {
+                    SWAMP_DARK
+                } else {
+                    SWAMP_LIGHT
+                }
+            }
+        }
+    }
+
+    fn layers_at(&self, x: i32, z: i32) -> [u32; BIOME_TINTS.len()] {
+        [
+            self.grass_at(x, z),
+            self.foliage,
+            self.dry_foliage,
+            self.water,
+        ]
+    }
 }
 
 /// A biome colour is written either as `#rrggbb` or as the packed integer that spells.
@@ -65,33 +128,44 @@ impl<'de> serde::Deserialize<'de> for Rgb {
 }
 
 pub(super) fn extend_tints(pack: &Pack, catalog: &mut Catalog, biomes: &[String]) {
-    let done = (catalog.tints.len() - 1) / TINT_KINDS;
+    let done = catalog.tints.len();
     if done == biomes.len() {
         return;
     }
     let grass_map = noted(load_colormap(pack, "grass"), &mut catalog.failures);
     let foliage_map = noted(load_colormap(pack, "foliage"), &mut catalog.failures);
+    let dry_foliage_map = noted(load_colormap(pack, "dry_foliage"), &mut catalog.failures);
     for name in &biomes[done..] {
-        let file = noted(load_biome(pack, name), &mut catalog.failures);
-        let (temperature, downfall, effects) = match file {
-            Some(file) => (file.temperature, file.downfall, file.effects),
-            None => (0.5, 0.5, BiomeEffects::default()),
+        let Some(file) = noted(load_biome(pack, name), &mut catalog.failures) else {
+            catalog.tints.push(BiomeTint {
+                grass: Grass::Color(0xffffff),
+                foliage: 0xffffff,
+                dry_foliage: 0xffffff,
+                water: 0xffffff,
+            });
+            continue;
         };
-        let grass = effects
+        let (temperature, downfall, effects) = (file.temperature, file.downfall, file.effects);
+        let from_map =
+            |map: &Option<Vec<u8>>| sample_colormap(map.as_deref(), temperature, downfall);
+        let base_grass = effects
             .grass_color
-            .map(rgb)
-            .or_else(|| sample_colormap(grass_map.as_deref(), temperature, downfall))
-            .unwrap_or([0.56, 0.73, 0.35, 1.0]);
-        let foliage = effects
-            .foliage_color
-            .map(rgb)
-            .or_else(|| sample_colormap(foliage_map.as_deref(), temperature, downfall))
-            .unwrap_or([0.29, 0.60, 0.21, 1.0]);
-        let water = effects
-            .water_color
-            .map(rgb)
-            .unwrap_or([0.25, 0.46, 0.89, 1.0]);
-        catalog.tints.extend_from_slice(&[grass, foliage, water]);
+            .map_or_else(|| from_map(&grass_map), |Rgb(c)| c);
+        let grass = match effects.grass_color_modifier {
+            GrassModifier::None => Grass::Color(base_grass),
+            GrassModifier::DarkForest => Grass::Color(((base_grass & 0xfefefe) + 0x28340a) >> 1),
+            GrassModifier::Swamp => Grass::Swamp,
+        };
+        catalog.tints.push(BiomeTint {
+            grass,
+            foliage: effects
+                .foliage_color
+                .map_or_else(|| from_map(&foliage_map), |Rgb(c)| c),
+            dry_foliage: effects
+                .dry_foliage_color
+                .map_or_else(|| from_map(&dry_foliage_map), |Rgb(c)| c),
+            water: effects.water_color.0,
+        });
     }
 }
 
@@ -118,45 +192,55 @@ pub(crate) fn load_colormap(pack: &Pack, name: &str) -> Result<Vec<u8>, String> 
     Ok(data)
 }
 
-pub(crate) fn sample_colormap(
+/// Vanilla's colormap lookup, in doubles as it computes it. A missing map, or a climate that
+/// lands outside it, gives the magenta vanilla uses to flag the same.
+pub(crate) fn sample_colormap(map: Option<&[u8]>, temperature: f32, downfall: f32) -> u32 {
+    const MISSING: u32 = 0xff00ff;
+    let Some(map) = map else {
+        return MISSING;
+    };
+    let temperature = f64::from(temperature.clamp(0.0, 1.0));
+    let downfall = f64::from(downfall.clamp(0.0, 1.0)) * temperature;
+    let x = ((1.0 - temperature) * 255.0) as usize;
+    let y = ((1.0 - downfall) * 255.0) as usize;
+    let offset = (y << 8 | x) * 4;
+    match map.get(offset..offset + 3) {
+        Some(&[r, g, b]) => u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
+        _ => MISSING,
+    }
+}
+
+/// An item's grass colour, where vanilla's colormap resolves it.
+pub(crate) fn colormap_rgba(
     map: Option<&[u8]>,
     temperature: f32,
     downfall: f32,
 ) -> Option<[f32; 4]> {
-    let map = map?;
-    let t = temperature.clamp(0.0, 1.0);
-    let d = downfall.clamp(0.0, 1.0) * t;
-    let column = ((1.0 - t) * 255.0) as usize;
-    let row = ((1.0 - d) * 255.0) as usize;
-    let offset = (row * 256 + column) * 4;
-    if offset + 3 >= map.len() {
-        return None;
-    }
-    Some([
-        map[offset] as f32 / 255.0,
-        map[offset + 1] as f32 / 255.0,
-        map[offset + 2] as f32 / 255.0,
-        1.0,
-    ])
+    let color = sample_colormap(Some(map?), temperature, downfall);
+    Some(crate::sky::rgb(color).extend(1.0).to_array())
 }
 
-fn rgb(Rgb(packed): Rgb) -> [f32; 4] {
-    crate::sky::rgb(packed).extend(1.0).to_array()
-}
-
-pub fn tint_column(store: &impl BlockSource, tints: &[[f32; 4]], column: ColumnPos) -> Vec<u8> {
+pub fn tint_column(store: &impl BlockSource, tints: &[BiomeTint], column: ColumnPos) -> Vec<u8> {
     const SIZE: usize = SECTION_SIZE;
-    let mut out = vec![0u8; SIZE * SIZE * 4 * TINT_KINDS];
+    let mut out = vec![0u8; SIZE * SIZE * 4 * BIOME_TINTS.len()];
     for z in 0..SIZE {
         for x in 0..SIZE {
             let biome = surface_biome(store, column, x, z);
-            for kind in 0..TINT_KINDS {
-                let slot = 1 + biome as usize * TINT_KINDS + kind;
-                let color = tints.get(slot).copied().unwrap_or([1.0; 4]);
-                let offset = (kind * SIZE * SIZE + z * SIZE + x) * 4;
-                for channel in 0..4 {
-                    out[offset + channel] = (color[channel].clamp(0.0, 1.0) * 255.0) as u8;
-                }
+            let world_x = column.x * SIZE as i32 + x as i32;
+            let world_z = column.z * SIZE as i32 + z as i32;
+            let layers = tints
+                .get(biome as usize)
+                .map_or([0xffffff; BIOME_TINTS.len()], |tint| {
+                    tint.layers_at(world_x, world_z)
+                });
+            for (layer, color) in layers.into_iter().enumerate() {
+                let offset = (layer * SIZE * SIZE + z * SIZE + x) * 4;
+                out[offset..offset + 4].copy_from_slice(&[
+                    (color >> 16) as u8,
+                    (color >> 8) as u8,
+                    color as u8,
+                    255,
+                ]);
             }
         }
     }
@@ -181,51 +265,56 @@ fn surface_biome(store: &impl BlockSource, column: ColumnPos, x: usize, z: usize
 mod tests {
     use super::*;
 
+    fn tints_of(biome: &str) -> BiomeTint {
+        let mut catalog = crate::blocks::empty();
+        extend_tints(Pack::corpus(), &mut catalog, &[biome.to_string()]);
+        assert!(catalog.failures.is_empty(), "{:?}", catalog.failures);
+        catalog.tints[0]
+    }
+
     #[test]
     fn a_biome_without_a_colour_of_its_own_is_tinted_from_the_colormap() {
-        let mut catalog = crate::blocks::empty();
-        extend_tints(
-            Pack::corpus(),
-            &mut catalog,
-            &["minecraft:plains".to_string()],
-        );
-        assert!(catalog.failures.is_empty(), "{:?}", catalog.failures);
+        let plains = tints_of("minecraft:plains");
         assert_eq!(
-            catalog.tints[1],
-            [145.0 / 255.0, 189.0 / 255.0, 89.0 / 255.0, 1.0],
+            plains.grass,
+            Grass::Color(0x91bd59),
             "plains grass is the colormap texel at its temperature and downfall"
         );
+        assert_eq!(plains.foliage, 0x77ab2f);
     }
 
     #[test]
     fn a_biome_that_names_its_own_colour_takes_it_over_the_colormap() {
-        let mut catalog = crate::blocks::empty();
-        extend_tints(
-            Pack::corpus(),
-            &mut catalog,
-            &["minecraft:swamp".to_string()],
-        );
-        assert!(catalog.failures.is_empty(), "{:?}", catalog.failures);
+        let swamp = tints_of("minecraft:swamp");
         assert_eq!(
-            catalog.tints[2],
-            [
-                0x6a as f32 / 255.0,
-                0x70 as f32 / 255.0,
-                0x39 as f32 / 255.0,
-                1.0
-            ],
+            swamp.foliage, 0x6a7039,
             "the swamp names its foliage colour outright"
         );
-        assert_eq!(
-            catalog.tints[3],
-            [
-                0x61 as f32 / 255.0,
-                0x7b as f32 / 255.0,
-                0x64 as f32 / 255.0,
-                1.0
-            ],
-            "and its water colour"
+        assert_eq!(swamp.water, 0x617b64, "and its water colour");
+        assert_eq!(swamp.dry_foliage, 0x7b5334, "and its dry foliage colour");
+    }
+
+    #[test]
+    fn dark_forest_grass_is_its_colormap_colour_pulled_toward_a_dark_green() {
+        let base = sample_colormap(
+            load_colormap(Pack::corpus(), "grass").ok().as_deref(),
+            0.7,
+            0.8,
         );
+        assert_eq!(
+            tints_of("minecraft:dark_forest").grass,
+            Grass::Color(((base & 0xfefefe) + 0x28340a) >> 1)
+        );
+    }
+
+    #[test]
+    fn swamp_grass_is_one_of_two_colours_by_where_it_grows() {
+        let swamp = tints_of("minecraft:swamp");
+        let seen: std::collections::BTreeSet<u32> = (0..64)
+            .flat_map(|x| (0..64).map(move |z| (x * 16, z * 16)))
+            .map(|(x, z)| swamp.grass_at(x, z))
+            .collect();
+        assert_eq!(seen, [SWAMP_DARK, SWAMP_LIGHT].into_iter().collect());
     }
 
     #[test]

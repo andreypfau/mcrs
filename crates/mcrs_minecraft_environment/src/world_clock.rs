@@ -191,40 +191,6 @@ pub struct ClockTimeMarker {
     pub show_in_commands: bool,
 }
 
-impl ClockTimeMarker {
-    pub fn occurs_at(&self, total_ticks: i64) -> bool {
-        i64::from(self.ticks)
-            == match self.period_ticks {
-                Some(period) => total_ticks.rem_euclid(i64::from(period)),
-                None => total_ticks,
-            }
-    }
-
-    /// The total tick count a clock must be moved to for this marker to occur
-    /// next. Always strictly forward: standing on the marker moves a whole
-    /// period, never nowhere.
-    pub fn resolve_time_to_move_to(&self, total_ticks: i64) -> i64 {
-        let Some(period) = self.period_ticks.map(i64::from) else {
-            return i64::from(self.ticks);
-        };
-        let duration = i64::from(self.ticks) - total_ticks.rem_euclid(period);
-        total_ticks
-            + if duration > 0 {
-                duration
-            } else {
-                period + duration
-            }
-    }
-
-    pub fn repetition_count(&self, total_ticks: i64) -> i64 {
-        let Some(period) = self.period_ticks.map(i64::from) else {
-            return i64::from(total_ticks >= i64::from(self.ticks));
-        };
-        total_ticks.div_euclid(period)
-            + i64::from(total_ticks.rem_euclid(period) >= i64::from(self.ticks))
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum TimeMarkerError {
     #[error("time marker `{marker}` at tick {ticks} must be in range [0; {period})")]
@@ -761,62 +727,6 @@ mod tests {
         )]);
         assert_eq!(markers.len(), 1);
         assert!(markers.get(OVERWORLD, "minecraft:day").is_none());
-    }
-
-    #[test]
-    fn a_periodic_marker_always_moves_forward() {
-        let day = ClockTimeMarker {
-            ticks: 1000,
-            period_ticks: Some(24_000),
-            show_in_commands: true,
-        };
-
-        assert!(!day.occurs_at(2_000));
-        assert_eq!(day.resolve_time_to_move_to(2_000), 25_000);
-
-        // Standing on the marker jumps a whole period rather than nowhere.
-        assert!(day.occurs_at(1_000));
-        assert_eq!(day.resolve_time_to_move_to(1_000), 25_000);
-
-        assert_eq!(day.resolve_time_to_move_to(0), 1_000);
-        assert_eq!(day.resolve_time_to_move_to(24_000), 25_000);
-        assert!(day.occurs_at(25_000));
-
-        assert_eq!(day.repetition_count(0), 0);
-        assert_eq!(day.repetition_count(999), 0);
-        assert_eq!(day.repetition_count(1_000), 1);
-        assert_eq!(day.repetition_count(24_000), 1);
-        assert_eq!(day.repetition_count(25_000), 2);
-    }
-
-    #[test]
-    fn a_marker_at_tick_zero_occurs_at_tick_zero() {
-        let wake_up = ClockTimeMarker {
-            ticks: 0,
-            period_ticks: Some(24_000),
-            show_in_commands: false,
-        };
-        assert!(wake_up.occurs_at(0));
-        assert_eq!(wake_up.repetition_count(0), 1);
-        assert_eq!(wake_up.resolve_time_to_move_to(0), 24_000);
-        assert_eq!(wake_up.repetition_count(24_000), 2);
-    }
-
-    #[test]
-    fn a_marker_without_a_period_happens_once() {
-        let once = ClockTimeMarker {
-            ticks: 1_000,
-            period_ticks: None,
-            show_in_commands: false,
-        };
-
-        assert!(once.occurs_at(1_000));
-        assert!(!once.occurs_at(25_000));
-        assert_eq!(once.resolve_time_to_move_to(2_000), 1_000);
-        assert_eq!(once.resolve_time_to_move_to(0), 1_000);
-        assert_eq!(once.repetition_count(999), 0);
-        assert_eq!(once.repetition_count(1_000), 1);
-        assert_eq!(once.repetition_count(1_000_000), 1);
     }
 
     #[test]

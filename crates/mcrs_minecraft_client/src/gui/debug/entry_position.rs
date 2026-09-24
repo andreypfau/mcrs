@@ -52,6 +52,12 @@ pub fn display(
             ),
             // Only a server force-loads chunks, and this client has none.
             format!("{} FC: 0", dimension.0),
+            format!(
+                "Section-relative: {:02} {:02} {:02}",
+                feet.x & 15,
+                feet.y & 15,
+                feet.z & 15
+            ),
         ],
     );
 }
@@ -84,6 +90,7 @@ mod tests {
                 "Chunk: 6 4 -3 [6 29 in r.0.-1.mca]",
                 "Facing: west (Towards negative X) (45.0 / -10.0)",
                 "minecraft:overworld FC: 0",
+                "Section-relative: 04 07 14",
                 "",
             ]
         );

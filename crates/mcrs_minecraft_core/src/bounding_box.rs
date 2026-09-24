@@ -69,6 +69,10 @@ impl BoundingBox {
             .union(Self::of_section(SectionPos::from(self.max)))
     }
 
+    pub fn center(&self) -> BlockPos {
+        (*self.min + (*self.max - *self.min + IVec3::ONE) / 2).into()
+    }
+
     pub fn y_span(&self) -> i32 {
         self.max.y - self.min.y + 1
     }

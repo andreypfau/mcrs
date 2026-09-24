@@ -25,7 +25,6 @@ use mcrs_minecraft_worldgen_structure::frozen::{
 };
 use mcrs_minecraft_worldgen_structure::hardcoded::{nether_fossil, ruined_portal, shipwreck};
 use mcrs_minecraft_worldgen_structure::piece::TERRAIN_MARGIN;
-use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 use mcrs_minecraft_worldgen_structure::{
     DecorationStep, PoolAlias, PoolElement, Structure, StructurePlacement, StructureSet,
     TemplatePool, TerrainAdaptation,
@@ -537,9 +536,6 @@ fn freeze_structures(
             Structure::SwampHut { .. } => StructureKind::SwampHut,
             Structure::WoodlandMansion { .. } => StructureKind::WoodlandMansion,
         };
-        if site_implies_piece(&kind).is_none() {
-            tracing::warn!(structure = %id, "no generator for this structure type; it places nothing");
-        }
         frozen
             .structure_ids
             .insert(id.clone(), StructureId(frozen.structures.len() as u32));

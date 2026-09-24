@@ -23,6 +23,8 @@ use mcrs_minecraft_protocol::item::{
     ContainerInput, HashedStack, ProtoStack, QuickCraftButton, QuickCraftKind, QuickCraftStage,
     RawDelimitedStack, RawStack,
 };
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::player::ability::PlayerGameMode;
@@ -155,7 +157,10 @@ fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
         Vec::new(),
     );
     assert_eq!(stack_at(&world, player, slots::CARRIED), None);
-    assert_eq!(stack_at(&world, player, slots::MAIN.start), Some((stack, 7)));
+    assert_eq!(
+        stack_at(&world, player, slots::MAIN.start),
+        Some((stack, 7))
+    );
 }
 
 #[test]
@@ -176,7 +181,10 @@ fn right_click_takes_half_then_places_one() {
         stack_at(&world, player, slots::HOTBAR.start).map(|c| c.1),
         Some(3)
     );
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|c| c.1), Some(4));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|c| c.1),
+        Some(4)
+    );
 
     click(
         &mut world,
@@ -186,8 +194,14 @@ fn right_click_takes_half_then_places_one() {
         1,
         Vec::new(),
     );
-    assert_eq!(stack_at(&world, player, slots::HOTBAR.start), Some((stack, 4)));
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|c| c.1), Some(3));
+    assert_eq!(
+        stack_at(&world, player, slots::HOTBAR.start),
+        Some((stack, 4))
+    );
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|c| c.1),
+        Some(3)
+    );
 }
 
 #[test]
@@ -204,7 +218,10 @@ fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
         0,
         Vec::new(),
     );
-    assert_eq!(stack_at(&world, player, slots::MAIN.start), Some((stack, 7)));
+    assert_eq!(
+        stack_at(&world, player, slots::MAIN.start),
+        Some((stack, 7))
+    );
 
     click(
         &mut world,
@@ -306,7 +323,7 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
     assert_eq!(packets.len(), 1, "{packets:?}");
     assert!(matches!(
         &packets[0].data,
-        PacketPayload::ContainerSetSlot { slot, item, .. } if *slot == untouched as i16 && *item == RawStack::EMPTY
+        PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot { slot, item, .. }) if *slot == untouched as i16 && *item == RawStack::EMPTY
     ));
 
     click_at(
@@ -324,7 +341,7 @@ fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
     assert_eq!(packets.len(), 1, "{packets:?}");
     assert!(matches!(
         &packets[0].data,
-        PacketPayload::ContainerSetContent { .. }
+        PacketPayload::ContainerSetContent(_)
     ));
 }
 
@@ -354,7 +371,7 @@ fn a_sword_in_the_helmet_slot_is_refused_and_the_claim_is_corrected() {
     assert!(
         packets.iter().any(|packet| matches!(
             &packet.data,
-            PacketPayload::ContainerSetSlot { slot, item, .. }
+            PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot { slot, item, .. })
                 if *slot == slots::ARMOR_HEAD as i16 && *item == RawStack::EMPTY
         )),
         "{packets:?}"
@@ -362,7 +379,7 @@ fn a_sword_in_the_helmet_slot_is_refused_and_the_claim_is_corrected() {
     assert!(
         packets.iter().any(|packet| matches!(
             &packet.data,
-            PacketPayload::SetCursorItem(item) if *item != RawStack::EMPTY
+            PacketPayload::SetCursorItem(ClientboundSetCursorItem { contents: item }) if *item != RawStack::EMPTY
         )),
         "{packets:?}"
     );
@@ -382,7 +399,10 @@ fn a_helmet_goes_into_the_helmet_slot() {
         0,
         Vec::new(),
     );
-    assert_eq!(stack_at(&world, player, slots::ARMOR_HEAD), Some((helmet, 1)));
+    assert_eq!(
+        stack_at(&world, player, slots::ARMOR_HEAD),
+        Some((helmet, 1))
+    );
     assert_eq!(stack_at(&world, player, slots::CARRIED), None);
 }
 
@@ -436,7 +456,10 @@ fn left_drag_splits_the_cursor_evenly_and_syncs_per_slot() {
             Some(12)
         );
     }
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(4));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(4)
+    );
 
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
@@ -445,7 +468,7 @@ fn left_drag_splits_the_cursor_evenly_and_syncs_per_slot() {
         assert!(
             matches!(
                 &packet.data,
-                PacketPayload::ContainerSetSlot { .. } | PacketPayload::SetCursorItem(_)
+                PacketPayload::ContainerSetSlot(_) | PacketPayload::SetCursorItem(_)
             ),
             "{packets:?}"
         );
@@ -496,7 +519,14 @@ fn a_click_during_a_drag_resets_it_and_is_swallowed() {
         }),
         Vec::new(),
     );
-    click(&mut world, player, ContainerInput::Pickup, 20, 0, Vec::new());
+    click(
+        &mut world,
+        player,
+        ContainerInput::Pickup,
+        20,
+        0,
+        Vec::new(),
+    );
     click(
         &mut world,
         player,
@@ -523,7 +553,10 @@ fn a_click_during_a_drag_resets_it_and_is_swallowed() {
     for slot in [9u16, 10, 11, 20] {
         assert_eq!(stack_at(&world, player, slot), None);
     }
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(64)
+    );
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 
@@ -566,7 +599,10 @@ fn a_click_during_a_drag_resets_it_and_is_swallowed() {
     for slot in [9u16, 10, 11] {
         assert_eq!(stack_at(&world, player, slot).map(|s| s.1), Some(21));
     }
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(1));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(1)
+    );
 }
 
 #[test]
@@ -601,7 +637,10 @@ fn a_slot_or_end_packet_without_a_header_moves_nothing() {
     );
 
     assert_eq!(stack_at(&world, player, 9), None);
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(64)
+    );
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
@@ -672,7 +711,10 @@ fn a_second_header_mid_drag_resets_the_drag() {
 
     assert_eq!(stack_at(&world, player, 9), None);
     assert_eq!(stack_at(&world, player, 10), None);
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(64)
+    );
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
@@ -756,7 +798,10 @@ fn an_end_right_after_a_header_or_before_a_slot_moves_nothing() {
         Vec::new(),
     );
 
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(64)
+    );
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 
@@ -795,7 +840,10 @@ fn an_end_right_after_a_header_or_before_a_slot_moves_nothing() {
     );
 
     assert_eq!(stack_at(&world, player, 9), None);
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(64)
+    );
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
 
@@ -842,7 +890,10 @@ fn a_full_kind_header_from_a_survival_player_resets() {
     );
 
     assert_eq!(stack_at(&world, player, 9), None);
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(64));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(64)
+    );
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
@@ -914,7 +965,10 @@ fn a_drag_split_across_two_ticks_still_applies() {
     for slot in 9u16..=13 {
         assert_eq!(stack_at(&world, player, slot).map(|s| s.1), Some(12));
     }
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(4));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(4)
+    );
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
@@ -997,7 +1051,10 @@ fn a_slot_packet_outside_the_layout_is_dropped_and_the_rest_of_the_drag_applies(
     for slot in [9u16, 10, 11] {
         assert_eq!(stack_at(&world, player, slot).map(|s| s.1), Some(21));
     }
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(1));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(1)
+    );
     let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
@@ -1039,8 +1096,12 @@ fn a_drag_whose_claims_match_sends_no_packet() {
     let slot_hash =
         HashedStack::create(&stack_to_slot(&world, slot_scratch, &standalone_corpus().1)).unwrap();
     let cursor_scratch = stone(&mut world, 4);
-    let cursor_hash =
-        HashedStack::create(&stack_to_slot(&world, cursor_scratch, &standalone_corpus().1)).unwrap();
+    let cursor_hash = HashedStack::create(&stack_to_slot(
+        &world,
+        cursor_scratch,
+        &standalone_corpus().1,
+    ))
+    .unwrap();
     let changed: Vec<(u16, Option<HashedStack>)> =
         (9u16..14).map(|slot| (slot, slot_hash.clone())).collect();
 
@@ -1067,7 +1128,10 @@ fn a_drag_whose_claims_match_sends_no_packet() {
     for slot in 9u16..14 {
         assert_eq!(stack_at(&world, player, slot).map(|s| s.1), Some(12));
     }
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(4));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(4)
+    );
 
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
@@ -1093,7 +1157,10 @@ fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
     close_menus(&mut world);
     assert_eq!(stack_at(&world, player, slots::CARRIED), None);
     assert_eq!(stack_at(&world, player, held_slot), Some((held, 40)));
-    assert_eq!(stack_at(&world, player, slots::HOTBAR.start), Some((first, 50)));
+    assert_eq!(
+        stack_at(&world, player, slots::HOTBAR.start),
+        Some((first, 50))
+    );
 }
 
 #[test]
@@ -1198,7 +1265,7 @@ fn a_throw_at_the_drop_limit_is_ignored_and_the_slot_resent() {
     assert!(
         packets.iter().any(|packet| matches!(
             &packet.data,
-            PacketPayload::ContainerSetSlot { slot, item, .. }
+            PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot { slot, item, .. })
                 if *slot == slots::HOTBAR.start as i16 && *item != RawStack::EMPTY
         )),
         "{packets:?}"
@@ -1388,7 +1455,10 @@ fn a_drop_during_a_drag_at_the_drop_limit_only_resets_the_drag() {
             Some(12)
         );
     }
-    assert_eq!(stack_at(&world, player, slots::CARRIED).map(|s| s.1), Some(4));
+    assert_eq!(
+        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
+        Some(4)
+    );
 }
 
 #[test]
@@ -1496,8 +1566,14 @@ fn tag_from_assets<T: TaggedRegistry>(
 fn opened_over(block: &str) -> (World, Entity, Entity) {
     let (mut world, player) = opened();
     let (blocks, items) = standalone_corpus();
-    world.insert_resource(tag_from_assets(blocks, mcrs_minecraft_block::tags::SHULKER_BOXES));
-    world.insert_resource(tag_from_assets(items, mcrs_minecraft_item::tags::SHULKER_BOXES));
+    world.insert_resource(tag_from_assets(
+        blocks,
+        mcrs_minecraft_block::tags::SHULKER_BOXES,
+    ));
+    world.insert_resource(tag_from_assets(
+        items,
+        mcrs_minecraft_item::tags::SHULKER_BOXES,
+    ));
     let mut palette = ChunkBlocks::default();
     palette
         .make_mut()
@@ -1539,8 +1615,18 @@ fn shift_clicking_a_shulker_box_into_a_menu_over_a_shulker_box_moves_nothing() {
     let (mut world, player, container) = opened_over("minecraft:shulker_box");
     let shulker = item(&mut world, "shulker_box", 1);
     place(&mut world, shulker, player, slots::MAIN.start);
-    click(&mut world, player, ContainerInput::QuickMove, 27, 0, Vec::new());
-    assert_eq!(stack_at(&world, player, slots::MAIN.start), Some((shulker, 1)));
+    click(
+        &mut world,
+        player,
+        ContainerInput::QuickMove,
+        27,
+        0,
+        Vec::new(),
+    );
+    assert_eq!(
+        stack_at(&world, player, slots::MAIN.start),
+        Some((shulker, 1))
+    );
     assert!((0..27).all(|index| stack_at(&world, container, index).is_none()));
 }
 

@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 
@@ -18,7 +20,8 @@ pub fn display(
         Some(spread) => format!("{:.2}/{:.2}", spread.p99, spread.max),
         None => "-".to_owned(),
     };
-    let (terrain_draws, sky_draws) = counts.draws();
+    let terrain_draws = counts.terrain_draws.load(Ordering::Relaxed);
+    let sky_draws = counts.sky_draws.load(Ordering::Relaxed);
     let engine = match cpu.spread(probe::ENGINE) {
         Some(spread) => format!(
             "Engine: {:.3} ms median, {:.3} p99, {:.2} max over {} frames in the last second",
@@ -50,7 +53,7 @@ pub fn display(
         format!("Draws: {terrain_draws} terrain, {sky_draws} sky"),
         format!(
             "Upload: {} KB of {} KB",
-            counts.upload_bytes() >> 10,
+            counts.upload_bytes.load(Ordering::Relaxed) >> 10,
             crate::config::upload_budget() >> 10
         ),
     ];

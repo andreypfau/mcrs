@@ -8,7 +8,7 @@ use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_world::dimension::level_stem::DimensionDefinition;
+use mcrs_minecraft_world::dimension::DimensionDefinition;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::beard::BeardifierPlacement;
 use mcrs_minecraft_worldgen::bevy::{

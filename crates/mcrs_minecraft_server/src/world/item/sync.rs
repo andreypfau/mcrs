@@ -15,8 +15,13 @@ use mcrs_minecraft_item::{
     DroppedItem, Held, Items, SlotTable, StackRevision, WireStack, slots, stack_to_slot,
 };
 use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::entity::{MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol::item::{ProtoStack, RawStack};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetContent;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetEntityData;
 use mcrs_minecraft_registry::ChainLookup;
 use rustc_hash::FxHashSet;
 
@@ -94,12 +99,12 @@ pub fn sync_stack_slots(world: &mut World) {
             out.push(to(
                 world,
                 viewer,
-                PacketPayload::ContainerSetContent {
-                    container_id,
-                    state_id,
-                    slots,
-                    carried,
-                },
+                PacketPayload::ContainerSetContent(ClientboundContainerSetContent {
+                    container_id: VarInt(i32::from(container_id)),
+                    state_seqno: VarInt(i32::from(state_id)),
+                    slot_data: slots,
+                    carried_item: carried,
+                }),
             ));
             continue;
         }
@@ -129,16 +134,20 @@ pub fn sync_stack_slots(world: &mut World) {
             out.push(to(
                 world,
                 viewer,
-                PacketPayload::ContainerSetSlot {
-                    container_id,
-                    state_id,
+                PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot {
+                    container_id: VarInt(i32::from(container_id)),
+                    state_seqno: VarInt(i32::from(state_id)),
                     slot,
                     item,
-                },
+                }),
             ));
         }
         if let Some(item) = cursor {
-            out.push(to(world, viewer, PacketPayload::SetCursorItem(item)));
+            out.push(to(
+                world,
+                viewer,
+                PacketPayload::SetCursorItem(ClientboundSetCursorItem { contents: item }),
+            ));
         }
     }
 
@@ -159,13 +168,13 @@ pub fn sync_stack_slots(world: &mut World) {
         out.push(OutboundPlayerPacket {
             target: PacketTarget::PlayerSet(targets),
             priority: PacketPriority::Normal,
-            data: PacketPayload::SetEntityData {
-                entity_id: root.index_u32() as i32,
+            data: PacketPayload::SetEntityData(ClientboundSetEntityData {
+                entity_id: VarInt(root.index_u32() as i32),
                 metadata: Metadata(vec![MetadataEntry {
                     index: DROPPED_ITEM_STACK_INDEX,
                     value: MetaDataValue::Slot(encoded),
                 }]),
-            },
+            }),
             session: PlayerSession(0),
             epoch: 0,
         });

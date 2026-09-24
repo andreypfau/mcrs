@@ -971,11 +971,15 @@ pub fn column_fluid_field(
 
 /// Apply the Beta surface pass to a generated chunk column.
 ///
+pub fn beta_surface_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {
+    LegacyRandom::large_feature_with_salt(0, chunk_x, chunk_z, 0)
+}
+
 /// Ports replaceBlocksForBiome from back2beta with a single per-chunk LegacyRandom
 /// that drives both the surface depth, beach conditions, and the bedrock Y 0-4
 /// probabilistic check — all interleaved in back2beta's exact column iteration order.
 ///
-/// The caller seeds `rng` once per chunk with seed = chunkX*341873128712 + chunkZ*132897987541.
+/// The caller seeds `rng` once per chunk with [`beta_surface_rng`].
 /// `rng` must be threaded across section calls so the stream is continuous.
 pub fn apply_beta_surface(
     column: &ColumnBlocks,

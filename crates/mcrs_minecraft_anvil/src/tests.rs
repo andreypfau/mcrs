@@ -1095,15 +1095,3 @@ fn the_index_formulas_match_the_reference() {
     assert_eq!(Biomes::index(3, 3, 3), 63);
     assert_eq!(Biomes::ENTRY_COUNT, 64);
 }
-
-#[test]
-fn timestamps_come_from_the_second_header_sector() {
-    let fixture = Fixture::new("timestamp");
-    let path = fixture.region(0, 0, &single_slot(ZLIB, &chunk_nbt(0, 0, Vec::new())));
-    assert_eq!(
-        RegionFile::open(&path)
-            .unwrap()
-            .timestamp(ColumnPos::new(0, 0)),
-        1_700_000_000
-    );
-}

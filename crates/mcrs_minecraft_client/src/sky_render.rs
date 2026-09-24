@@ -1,4 +1,5 @@
 use std::num::NonZeroU64;
+use std::sync::atomic::Ordering;
 
 use crate::sky_state::{SkyEffects, SkyFrame, SkyKey};
 use bevy::asset::embedded_asset;
@@ -373,7 +374,7 @@ impl SkyDraws<'_> {
         cache: &'pass PipelineCache,
     ) {
         let Some((pipelines, extracted, binds)) = self.ready() else {
-            self.counts.set_sky_draws(0);
+            self.counts.sky_draws.store(0, Ordering::Relaxed);
             return;
         };
         pass.set_bind_group(1, &binds.textures, &[]);
@@ -381,7 +382,7 @@ impl SkyDraws<'_> {
         for index in (0..SKY_DRAWS.len()).filter(|&index| index != CLOUDS) {
             draws += issue(pass, index, pipelines, extracted, binds, view_offset, cache) as u32;
         }
-        self.counts.set_sky_draws(draws);
+        self.counts.sky_draws.store(draws, Ordering::Relaxed);
     }
 
     pub fn draw_clouds<'pass>(

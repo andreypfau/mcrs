@@ -1,9 +1,8 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, HolderSet, ResourceLocation};
-use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, states_of,
@@ -14,15 +13,13 @@ use mcrs_minecraft_worldgen_feature::rule_test::RuleTest;
 use mcrs_minecraft_worldgen_feature::template::FrozenTemplate;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
-use mcrs_minecraft_worldgen_feature_place::template::{
-    ChainKind, CompiledChain, Placement, SettingsRandom, compile_chain, place_template,
-};
+use mcrs_minecraft_worldgen_feature_place::template::{ChainKind, CompiledChain, compile_chain};
 use mcrs_minecraft_worldgen_structure::RuinedPortalSetup;
 use mcrs_minecraft_worldgen_structure::hardcoded::ruined_portal::heightmap;
 use mcrs_minecraft_worldgen_structure::piece::{PortalProperties, RuinedPortalPiece};
 use mcrs_minecraft_worldgen_structure::{PortalPlacement, PortalPlacement::OnOceanFloor};
 
-use crate::{block_mask, state};
+use crate::{block_mask, place_positional, state};
 
 const GOLD_GONE: f32 = 0.3;
 const MAGMA_INSTEAD_OF_NETHERRACK: f32 = 0.07;
@@ -177,10 +174,6 @@ fn processors(placement: PortalPlacement, p: &PortalProperties) -> Vec<Structure
     chain
 }
 
-fn centre(bounds: BoundingBox) -> IVec3 {
-    *bounds.min + (*bounds.max - *bounds.min + IVec3::ONE) / 2
-}
-
 /// `RuinedPortalPiece.postProcess`: nothing unless the column holds the box
 /// centre, then the whole template from that column, netherrack spread within
 /// fourteen blocks of the centre, drip columns under the portal, and vines or
@@ -198,7 +191,7 @@ pub fn place_ruined_portal<W: WorldGenVolume>(
     rng: &mut WorldgenRandom,
 ) {
     let bounds = piece.bounds;
-    if !clip.is_inside(centre(bounds).into()) {
+    if !clip.is_inside(bounds.center()) {
         return;
     }
     let Some(chain) = b.chain(piece) else {
@@ -209,24 +202,17 @@ pub fn place_ruined_portal<W: WorldGenVolume>(
         return;
     };
     let size = IVec3::from(template.size.map(i32::from));
-    let palette = LegacyRandom::new(block_pos_seed(piece.position))
-        .next_i32_bound(template.palettes.len().max(1) as i32) as usize;
-    place_template(
-        &Placement {
-            template,
-            jigsaws: &[],
-            palette,
-            position: piece.position,
-            reference,
-            rotation: piece.rotation,
-            mirror: piece.mirror,
-            pivot: IVec3::new(size.x / 2, 0, size.z / 2),
-            random: SettingsRandom::Positional,
-            clip: Some(clip.union(bounds)),
-            chain,
-            waterlog: true,
-            place_entities: true,
-        },
+    place_positional(
+        template,
+        piece.position,
+        piece.rotation,
+        piece.mirror,
+        IVec3::new(size.x / 2, 0, size.z / 2),
+        clip.union(bounds),
+        chain,
+        true,
+        true,
+        reference,
         volume,
         rng,
         entities,
@@ -272,7 +258,7 @@ impl<W: WorldGenVolume> Portal<'_, W> {
             placement,
             PortalPlacement::OnLandSurface | PortalPlacement::OnOceanFloor
         );
-        let centre = centre(bounds);
+        let centre = bounds.center();
         let max_distance = NETHERRACK_BY_DISTANCE.len() as i32;
         let average_width = (bounds.max.x - bounds.min.x + 1 + bounds.max.z - bounds.min.z + 1) / 2;
         let adjustment = self.rng.next_i32_bound((8 - average_width / 2).max(1));

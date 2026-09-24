@@ -17,6 +17,7 @@ mcrs_minecraft_random.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

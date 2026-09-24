@@ -87,8 +87,6 @@ pub const TEMPLATES: &[&str] = &[
     "woodland_mansion/wall_window",
 ];
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 pub fn site(ctx: &mut Context<'_>, rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
     lowest_corner_site(ctx, rng)
 }

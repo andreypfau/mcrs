@@ -26,6 +26,8 @@ use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
 };
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use mcrs_minecraft_server::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, LeavingSessions,
     filter_inflight_for_disconnect, process_disconnect,
@@ -72,7 +74,7 @@ fn register_dim_channel(app: &mut App, dim: Entity) -> flume::Receiver<ToDim> {
 
 fn count_despawns(rx: &flume::Receiver<ToDim>) -> usize {
     rx.try_iter()
-        .filter(|m| matches!(m, ToDim::Despawn { .. }))
+        .filter(|m| matches!(m, ToDim::Despawn(..)))
         .count()
 }
 
@@ -320,8 +322,8 @@ fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
     let pkts: Vec<OutboundPlayerPacket> = drain_outbound(&mut aoi_app);
     let left_view_for_o = pkts.iter().any(|pkt| {
         matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == player_o)
-            && matches!(&pkt.data, PacketPayload::PlayerLeftView { entity_ids }
-                if entity_ids.contains(&expected_wire_id))
+            && matches!(&pkt.data, PacketPayload::PlayerLeftView(ClientboundRemoveEntities { entity_ids })
+                if entity_ids.contains(&VarInt(expected_wire_id)))
     });
     assert!(
         left_view_for_o,

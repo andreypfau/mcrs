@@ -45,14 +45,12 @@ pub struct SkyLight(pub LightStorage);
 
 pub mod prelude {
     pub use crate::block::{Layer, LightProperties, LightRegistry, SpecialBlocks};
-    pub use crate::epoch::{
-        EpochStats, EpochTimings, LightJob, LightUpdate, PublishedLight, SectionLight,
-    };
+    pub use crate::epoch::{EpochStats, LightJob, LightUpdate, PublishedLight, SectionLight};
     pub use crate::level::{BlockColumn, LightBounds, LightLevel};
     #[cfg(feature = "bevy")]
     pub use crate::plugin::{
         IntakeBudget, LightBudget, LightEpoch, LightPlugin, LightSet, LightStatus, LightWorkQueue,
-        Lighting, PendingEdits, SectionRelit, dispatch_epoch, light_has_settled, publish_light,
+        Lighting, PendingEdits, SectionRelit, dispatch_epoch, publish_light,
     };
     pub use crate::queue::{DEFAULT_PRIORITY, LightQueue, Priority};
     pub use crate::region::Influence;

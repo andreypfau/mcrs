@@ -272,7 +272,7 @@ fn switcher(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::debug::DebugScreenEntryList;
+    use crate::gui::debug::DebugOverlay;
     use crate::gui::debug_screen_overlay::DebugModifier;
     use bevy::window::CursorGrabMode;
 
@@ -281,7 +281,7 @@ mod tests {
         app.init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<Screen>()
             .init_resource::<DebugModifier>()
-            .init_resource::<DebugScreenEntryList>()
+            .init_resource::<DebugOverlay>()
             .init_resource::<DebugChat>()
             .init_resource::<Time<Real>>()
             .insert_resource(Language::default())
@@ -325,9 +325,7 @@ mod tests {
     }
 
     fn overlay(app: &App) -> bool {
-        app.world()
-            .resource::<DebugScreenEntryList>()
-            .overlay_visible()
+        **app.world().resource::<DebugOverlay>()
     }
 
     #[test]

@@ -5,9 +5,7 @@ pub use self::clientbound::ClientboundShowDialog;
 pub use self::clientbound::ClientboundUpdateTags;
 
 pub mod clientbound {
-    use crate::packets::common::clientbound::{CustomPayload, Disconnect, KeepAlive, Ping};
-    use crate::packets::cookie::clientbound::CookieRequest;
-    use derive_more::From;
+    use crate::packets::common::clientbound::KeepAlive;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
@@ -65,19 +63,6 @@ pub mod clientbound {
         /// Tags grouped by registry type
         pub registries: Vec<RegistryTags<'a>>,
     }
-
-    #[derive(Clone, Debug, Encode, Decode, From)]
-    pub enum Packet<'a> {
-        CookieRequest(CookieRequest<'a>),
-        CustomPayload(CustomPayload<'a>),
-        Disconnect(Disconnect<'a>),
-        FinishConfiguration,
-        KeepAlive(KeepAlive),
-        Ping(Ping),
-        ResetChat,
-        RegistryData(ClientboundRegistryData<'a>),
-        UpdateTags(ClientboundUpdateTags<'a>),
-    }
 }
 
 pub mod serverbound {
@@ -132,18 +117,4 @@ pub mod serverbound {
     #[derive(Clone, Debug, Encode, Decode, From, Packet)]
     #[packet(id=0x09, state=Configuration)]
     pub struct ServerboundAcceptCodeOfConduct;
-
-    #[derive(Clone, Debug, Encode, Decode, From)]
-    pub enum Packet<'a> {
-        ClientInformation(ServerboundClientInformation<'a>),
-        CookieResponse(ServerboundCookieResponse<'a>),
-        CustomPayload(ServerboundCustomPayload<'a>),
-        FinishConfiguration,
-        KeepAlive(KeepAlive),
-        Pong(Pong),
-        ResourcePack(ResourcePack),
-        SelectKnownPacks(ServerboundSelectKnownPacks<'a>),
-        CustomClickAction(ServerboundCustomClickAction<'a>),
-        AcceptCodeOfConduct,
-    }
 }

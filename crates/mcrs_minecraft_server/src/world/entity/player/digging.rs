@@ -1,3 +1,4 @@
+use crate::world::bus::to;
 use crate::world::entity::item::BlockDrop;
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::player_action::{
@@ -19,13 +20,14 @@ use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::experience::BlockDestroyed;
 use mcrs_minecraft_level::palette::ChunkBlocks;
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::item::{Enchantments, Tool};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockDestruction;
 use mcrs_minecraft_registry::BlockStateId;
 
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::inventory::held_stack;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
@@ -289,17 +291,14 @@ impl SendDestroyBlockProgress<'_, '_> {
             if player == id {
                 continue;
             }
-            self.packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(anchor.0),
-                priority: PacketPriority::Normal,
-                data: PacketPayload::BlockDestruction {
-                    entity_id: id.index_u32() as i32,
+            self.packet_writer.write(to(
+                anchor.0,
+                PacketPayload::BlockDestruction(ClientboundBlockDestruction {
+                    id: VarInt(id.index_u32() as i32),
                     pos: block_pos,
                     progress,
-                },
-                session: PlayerSession(0),
-                epoch: 0,
-            });
+                }),
+            ));
         }
     }
 }

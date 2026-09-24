@@ -1,4 +1,4 @@
-use crate::{ConnectionState, EngineConnection, NetworkSet, RawConnection, ReceivedPacket};
+use crate::{ConnectionState, NetworkSet, RawConnection};
 use crate::{connect, event, webtransport};
 use bevy_app::{App, FixedPreUpdate, Plugin, PostStartup};
 use bevy_ecs::prelude::Component;
@@ -10,7 +10,6 @@ use mcrs_minecraft_protocol::{Encode, Packet, WritePacket};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime};
-use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{Sender, channel};
 
 pub struct NetworkPlugin {
@@ -157,10 +156,6 @@ impl ServerSideConnection {
     pub fn remote_addr(&self) -> SocketAddr {
         self.raw.remote_addr
     }
-
-    pub fn queued_bytes(&self) -> usize {
-        self.raw.queued_bytes()
-    }
 }
 
 impl WritePacket for ServerSideConnection {
@@ -170,28 +165,10 @@ impl WritePacket for ServerSideConnection {
     {
         self.raw.write_packet_fallible(packet)
     }
-
-    fn write_packet_bytes(&mut self, bytes: &[u8]) {
-        self.raw.write_packet_bytes(bytes)
-    }
-}
-
-impl EngineConnection for ServerSideConnection {
-    fn try_recv(&mut self) -> Result<Option<ReceivedPacket>, TryRecvError> {
-        self.raw.try_recv()
-    }
-
-    fn flush(&mut self) -> anyhow::Result<()> {
-        self.raw.flush()
-    }
-
-    fn queued_bytes(&self) -> usize {
-        self.raw.queued_bytes()
-    }
 }
 
 impl Drop for ServerSideConnection {
     fn drop(&mut self) {
-        let _ = self.flush();
+        let _ = self.raw.flush();
     }
 }

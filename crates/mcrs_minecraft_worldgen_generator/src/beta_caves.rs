@@ -130,7 +130,7 @@ mod tests {
         let sand: VoxelId = corpus().default_state("minecraft:sand").into();
         let sections: Vec<i32> = (0..8).collect();
         let column = ColumnBlocks::new(&sections);
-        let mut mask = CarvingMask::new(16, 1, 120);
+        let mut mask = CarvingMask::new(1, 120);
         for (x, y, state) in [
             (0, 10, ids.stone),
             (0, 11, ids.stone),

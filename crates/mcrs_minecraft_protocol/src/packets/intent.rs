@@ -1,7 +1,6 @@
 pub mod serverbound {
     use crate::handshake::Intent;
     use crate::{Bounded, VarInt};
-    use derive_more::From;
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -11,10 +10,5 @@ pub mod serverbound {
         pub server_address: Bounded<&'a str, 255>,
         pub server_port: u16,
         pub intent: Intent,
-    }
-
-    #[derive(Clone, Debug, Encode, Decode, From)]
-    pub enum Packet<'a> {
-        Handshake(ServerboundHandshake<'a>),
     }
 }

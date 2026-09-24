@@ -2,6 +2,7 @@ use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::window::{PresentMode, PrimaryWindow};
+use mcrs_minecraft_core::VERSION_NAME;
 
 use super::DebugScreenDisplayer;
 use crate::probe::{CPU_WINDOW, WINDOW_SECS};
@@ -51,5 +52,14 @@ pub fn display(
         window.physical_width(),
         window.physical_height(),
         window.scale_factor()
+    ));
+}
+
+const BRAND: &str = "mcrs";
+
+pub fn display_version(mut displayer: ResMut<DebugScreenDisplayer>) {
+    displayer.add_priority_line(format!(
+        "Minecraft {VERSION_NAME} ({}/{BRAND})",
+        env!("CARGO_PKG_VERSION")
     ));
 }

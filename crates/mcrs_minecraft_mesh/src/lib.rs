@@ -1,3 +1,4 @@
+pub mod ambient;
 pub mod arena;
 pub mod block;
 mod connectivity;
@@ -7,6 +8,7 @@ mod model;
 pub mod pack;
 mod scratch;
 mod sweep;
+pub mod tint;
 
 use crate::block::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{FACE_WORDS, QUAD_WORDS};
@@ -91,20 +93,16 @@ pub const fn face_normal(face: usize) -> [i32; 3] {
     normal
 }
 
-struct Partial {
+struct Sink {
     simple: Vec<[u32; QUAD_WORDS]>,
     complex: Vec<u32>,
     groups: Vec<(u32, Group)>,
-}
-
-struct Sink<'a> {
-    partial: &'a mut Partial,
     slot: u32,
 }
 
-impl Sink<'_> {
+impl Sink {
     fn group(&mut self, stream: usize, face: u64, quad_base: usize, quad_count: usize) {
-        self.partial.groups.push((
+        self.groups.push((
             stream as u32,
             Group {
                 quad_base: quad_base as u32,
@@ -120,23 +118,23 @@ impl Sink<'_> {
         if quads.is_empty() {
             return;
         }
-        let base = self.partial.simple.len();
+        let base = self.simple.len();
         self.group(pass * 2, face, base, quads.len());
-        self.partial.simple.extend_from_slice(quads);
+        self.simple.extend_from_slice(quads);
     }
 
     fn complex(&mut self, pass: usize, face: u64, verts: &[u32]) {
         if verts.is_empty() {
             return;
         }
-        let base = self.partial.complex.len() / model::WORDS_PER_QUAD;
+        let base = self.complex.len() / model::WORDS_PER_QUAD;
         self.group(
             pass * 2 + 1,
             face,
             base,
             verts.len() / model::WORDS_PER_QUAD,
         );
-        self.partial.complex.extend_from_slice(verts);
+        self.complex.extend_from_slice(verts);
     }
 }
 
@@ -149,13 +147,10 @@ pub fn mesh_section(
 ) -> SectionMesh {
     scratch.load(world, catalog, section.map(|n| n * SECTION_SIZE as i32));
 
-    let mut partial = Partial {
+    let mut sink = Sink {
         simple: Vec::new(),
         complex: Vec::new(),
         groups: Vec::new(),
-    };
-    let mut sink = Sink {
-        partial: &mut partial,
         slot,
     };
 
@@ -168,12 +163,12 @@ pub fn mesh_section(
     fluid::models(catalog, scratch);
     model::emit(scratch, &mut sink);
 
-    let mut groups = Vec::with_capacity(partial.groups.len());
+    let mut groups = Vec::with_capacity(sink.groups.len());
     let mut spans = [StreamSpan::default(); STREAMS];
     for stream in 0..STREAMS {
         let first = groups.len();
         let mut quads = 0u32;
-        for &(from, group) in &partial.groups {
+        for &(from, group) in &sink.groups {
             if from as usize == stream {
                 let mut group = group;
                 group.quad_prefix = quads;
@@ -189,9 +184,9 @@ pub fn mesh_section(
 
     SectionMesh {
         section,
-        simple: partial.simple,
+        simple: sink.simple,
         faces: std::mem::take(&mut scratch.section_faces),
-        complex: partial.complex,
+        complex: sink.complex,
         groups,
         spans,
         connectivity: connectivity::connectivity(&scratch.occludes),
@@ -297,7 +292,7 @@ mod tests {
             [CubeFace {
                 sprite: 1,
                 pass: Pass::Solid as u8,
-                tinted: false,
+                tint: crate::tint::Tint::None,
             }; 6],
         );
         catalog[STONE as usize].occludes = true;
@@ -305,11 +300,12 @@ mod tests {
             positions: [Vec3::ZERO, Vec3::X, Vec3::ONE, Vec3::Y],
             uvs: [[0.0; 2]; 4],
             cull: None,
+            facing: mcrs_minecraft_core::Direction::Up,
             face: None,
             sprite: 0,
             pass: Pass::Cutout,
-            shade: [255; 4],
-            tinted: false,
+            shade: 1.0,
+            tint: crate::tint::Tint::None,
         }];
 
         let subject = one_section_world(|x, y, z| match (x + y + z) % 4 {
@@ -343,7 +339,7 @@ mod tests {
             [CubeFace {
                 sprite: 1,
                 pass: Pass::Solid as u8,
-                tinted: false,
+                tint: crate::tint::Tint::None,
             }; 6],
         );
         catalog[STONE as usize].occludes = true;
@@ -351,11 +347,12 @@ mod tests {
             positions: [Vec3::ZERO, Vec3::X, Vec3::ONE, Vec3::Y],
             uvs: [[0.0; 2]; 4],
             cull: None,
+            facing: mcrs_minecraft_core::Direction::Up,
             face: None,
             sprite: 0,
             pass: Pass::Cutout,
-            shade: [255; 4],
-            tinted: false,
+            shade: 1.0,
+            tint: crate::tint::Tint::None,
         }];
 
         let mut scratch = Scratch::new();

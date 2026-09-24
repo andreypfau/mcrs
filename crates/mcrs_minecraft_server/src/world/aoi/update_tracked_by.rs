@@ -4,22 +4,27 @@
 //! Emits `PlayerEnteredView` / `PlayerLeftView` delta packets via the
 //! outbound bus.
 
+use crate::world::bus::to;
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Changed, Entity, Query, ResMut, With, Without};
+use bevy_ecs::prelude::{Changed, Entity, Query, With, Without};
+use bevy_math::DVec3;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
+use mcrs_minecraft_protocol::ByteAngle;
+use mcrs_minecraft_protocol::LpVec3;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use smallvec::SmallVec;
 
 use crate::login::GameProfile;
 use crate::world::aoi::components::TrackedBy;
-use crate::world::aoi::probe::AoiTickProbe;
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_world::entity::minecraft::PLAYER;
 
 /// Chunk-column radius for player-to-player tracking. ~5 chunks ≈ 80
@@ -41,7 +46,6 @@ pub const TRACKING_RADIUS_BLOCKS_SQ: f64 = 80.0 * 80.0;
 )]
 #[allow(clippy::type_complexity)]
 pub fn update_tracked_by(
-    mut probe: ResMut<AoiTickProbe>,
     mut moved_players: Query<
         (Entity, &Transform, &InDimension, &mut TrackedBy),
         (With<Player>, Changed<Transform>),
@@ -51,8 +55,6 @@ pub fn update_tracked_by(
     column_indices: Query<&ColumnIndex>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    probe.tracked_by_ran = probe.tracked_by_ran.saturating_add(1);
-
     for (player, transform, in_dim, mut tracked_by) in moved_players.iter_mut() {
         let Ok(column_index) = column_indices.get(in_dim.0) else {
             continue;
@@ -104,34 +106,30 @@ pub fn update_tracked_by(
                         (uuid, xf.translation)
                     })
                     .unwrap_or((Uuid::nil(), transform.translation));
-                packet_writer.write(OutboundPlayerPacket {
-                    target: PacketTarget::SinglePlayer(new_entity),
-                    priority: PacketPriority::Normal,
-                    data: PacketPayload::PlayerEnteredView {
-                        entity_id: player.index_u32() as i32,
+                packet_writer.write(to(
+                    new_entity,
+                    PacketPayload::PlayerEnteredView(ClientboundAddEntity {
+                        id: VarInt(player.index_u32() as i32),
                         uuid,
-                        kind: PLAYER.protocol_id as i32,
-                        position: pos,
-                        yaw: transform.rotation.yaw(),
-                        pitch: transform.rotation.pitch(),
-                        data: 0,
-                    },
-                    session: PlayerSession(0),
-                    epoch: 0,
-                });
+                        kind: VarInt(PLAYER.protocol_id as i32),
+                        pos,
+                        movement: LpVec3(DVec3::ZERO),
+                        yaw: ByteAngle::from_degrees(transform.rotation.yaw()),
+                        pitch: ByteAngle::from_degrees(transform.rotation.pitch()),
+                        head_yaw: ByteAngle::from_degrees(transform.rotation.yaw()),
+                        data: VarInt(0),
+                    }),
+                ));
             }
         }
         for &old_entity in tracked_by.0.iter() {
             if !new_observers.contains(&old_entity) {
-                let mut ids: SmallVec<[i32; 4]> = SmallVec::new();
-                ids.push(player.index_u32() as i32);
-                packet_writer.write(OutboundPlayerPacket {
-                    target: PacketTarget::SinglePlayer(old_entity),
-                    priority: PacketPriority::Normal,
-                    data: PacketPayload::PlayerLeftView { entity_ids: ids },
-                    session: PlayerSession(0),
-                    epoch: 0,
-                });
+                packet_writer.write(to(
+                    old_entity,
+                    PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
+                        entity_ids: vec![VarInt(player.index_u32() as i32)],
+                    }),
+                ));
             }
         }
         tracked_by.0 = new_observers;

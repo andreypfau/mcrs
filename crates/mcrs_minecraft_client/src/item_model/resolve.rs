@@ -14,7 +14,7 @@ use mcrs_minecraft_protocol::item::ItemModel;
 
 use super::bake::{BakedItemModel, BakedNode, ItemModels};
 use super::eval::{EntityStack, Evaluator};
-use crate::blocks::sample_colormap;
+use crate::blocks::colormap_rgba;
 use crate::model::{GuiLight, ItemTransform};
 
 /// A slot-local GUI vertex: `pos` in pixels from the slot's top-left, `y` down and
@@ -94,7 +94,7 @@ pub fn resolve<'a>(
     };
     let foil = stack.has_foil();
     let grass = |temperature, downfall| {
-        sample_colormap(models.grass_colormap.as_deref(), temperature, downfall)
+        colormap_rgba(models.grass_colormap.as_deref(), temperature, downfall)
     };
     let evaluator = Evaluator {
         stack,
@@ -307,7 +307,7 @@ mod tests {
 
     fn models() -> &'static ItemModels {
         static MODELS: OnceLock<ItemModels> = OnceLock::new();
-        MODELS.get_or_init(|| bake_all(Pack::corpus(), &mut SpriteRegistry::new()).unwrap())
+        MODELS.get_or_init(|| bake_all(Pack::corpus(), &mut SpriteRegistry::default()).unwrap())
     }
 
     fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {
@@ -346,7 +346,7 @@ mod tests {
     }
 
     fn grass(temperature: f32, downfall: f32) -> Option<[f32; 4]> {
-        sample_colormap(models().grass_colormap.as_deref(), temperature, downfall)
+        colormap_rgba(models().grass_colormap.as_deref(), temperature, downfall)
     }
 
     fn eval<'w>(

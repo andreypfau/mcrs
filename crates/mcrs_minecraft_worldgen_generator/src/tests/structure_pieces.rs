@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::PathBuf;
 
@@ -17,12 +17,6 @@ use super::template_parity::canonical;
 use crate::structures::index::StructureIndex;
 
 const MAGIC: &[u8; 8] = b"MCSTRPC0";
-
-/// Every structure type whose layout is not ported: the oracle has starts for
-/// them and this build produces none. The buried treasure, jungle temple, end
-/// city and mansion have no present case at the dump's shared chunks and join
-/// the list with their own cases.
-const UNPORTED_PIECE_TYPES: [&str; 0] = [];
 
 /// Fields the reference fills in at placement from the live world, which the
 /// layout fixes here from the density heights instead: they are dropped from
@@ -110,12 +104,10 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
     let dump = read_dump();
     let frozen = frozen_shared();
     let mut indices: HashMap<(i64, String), StructureIndex> = HashMap::new();
-    let mut unported = BTreeSet::new();
     let mut compared = 0;
     let mut pieces = 0;
     for case in &dump {
         let id = frozen.structure_ids[&ResourceLocation::parse(&case.structure).unwrap()];
-        let structure = &frozen.structures[id.0 as usize];
         let label = format!(
             "seed {} {} {} at {:?}",
             case.seed, case.dimension, case.structure, case.chunk
@@ -132,8 +124,7 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
             continue;
         };
         let Some(start) = ours else {
-            unported.insert(structure.kind.type_name());
-            continue;
+            panic!("{label}: no start where the reference has one");
         };
         assert_eq!(start.bounds, *bounds, "{label}: start box");
         assert_eq!(start.pieces.len(), expected.len(), "{label}: piece count");
@@ -152,6 +143,5 @@ fn structure_pieces_serialise_as_the_reference_writes_them() {
         }
         compared += 1;
     }
-    assert_eq!(unported, UNPORTED_PIECE_TYPES.into_iter().collect());
     assert_eq!((compared, pieces), (592, 40849));
 }

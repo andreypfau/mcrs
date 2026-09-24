@@ -69,13 +69,6 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>
     (biome_source, snapshot)
 }
 
-fn make_chunk_rng(chunk_x: i32, chunk_z: i32) -> mcrs_minecraft_random::legacy::LegacyRandom {
-    let seed: i64 = (chunk_x as i64)
-        .wrapping_mul(341873128712)
-        .wrapping_add((chunk_z as i64).wrapping_mul(132897987541));
-    mcrs_minecraft_random::legacy::LegacyRandom::new(seed as u64)
-}
-
 /// Verify that apply_beta_surface places surface and bedrock blocks.
 ///
 /// After running apply_beta_surface on a full Beta column (8 sections, Y 0..=7):
@@ -103,7 +96,7 @@ fn apply_beta_surface_places_surface_and_bedrock() {
         &cancel,
     );
 
-    let mut rng = make_chunk_rng(chunk_x, chunk_z);
+    let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
 
     let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_surface(
@@ -197,7 +190,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         &cancel,
     );
 
-    let mut rng = make_chunk_rng(chunk_x, chunk_z);
+    let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
     let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_surface(
         &column,
@@ -469,7 +462,7 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
         &cancel,
     );
 
-    let mut rng = make_chunk_rng(chunk_x, chunk_z);
+    let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
 
     let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_surface(

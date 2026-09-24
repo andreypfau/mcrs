@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use bevy::core_pipeline::core_3d::{AlphaMask3d, Opaque3d};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
@@ -206,7 +208,7 @@ pub(super) fn draw_frame(
             ctx.command_encoder(),
         );
     } else {
-        frame.counts.set_terrain_draws(0);
+        frame.counts.terrain_draws.store(0, Ordering::Relaxed);
     }
 
     let color_attachments = [Some(target.get_color_attachment())];
@@ -249,7 +251,7 @@ pub(super) fn draw_frame(
                 frame.wireframe.0,
             );
         }
-        frame.counts.set_terrain_draws(draws);
+        frame.counts.terrain_draws.store(draws, Ordering::Relaxed);
     }
 
     span.end(&mut pass);
@@ -334,7 +336,8 @@ pub(super) fn draw_frame(
     }
     frame
         .counts
-        .set_terrain_draws(frame.counts.draws().0 + draws);
+        .terrain_draws
+        .fetch_add(draws, Ordering::Relaxed);
     span.end(&mut pass);
 }
 

@@ -23,6 +23,7 @@ use mcrs_minecraft_environment::{timeline, world_clock};
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
+use mcrs_minecraft_registry::TagId;
 use mcrs_minecraft_worldgen::bevy::StructureAsset;
 use mcrs_minecraft_worldgen_structure::Structure;
 use {mcrs_minecraft_item as item, mcrs_minecraft_item::trim};
@@ -426,42 +427,14 @@ async fn walk_files(
 }
 
 #[allow(clippy::needless_pass_by_value)]
-pub(crate) fn request_every_block_tag(
-    mut loader: ResMut<TagLoader<block::Block, u32>>,
+pub(crate) fn request_every_tag<T: TaggedRegistry + 'static, I: TagId>(
+    mut loader: ResMut<TagLoader<T, I>>,
     asset_server: Res<AssetServer>,
 ) {
-    request_every_tag(&mut loader, &asset_server);
-}
-
-pub(crate) fn request_every_fluid_tag(
-    mut loader: ResMut<TagLoader<block::Fluid, u32>>,
-    asset_server: Res<AssetServer>,
-) {
-    request_every_tag(&mut loader, &asset_server);
-}
-
-pub(crate) fn request_every_biome_tag(
-    mut loader: ResMut<TagLoader<biome::Biome, u32>>,
-    asset_server: Res<AssetServer>,
-) {
-    request_every_tag(&mut loader, &asset_server);
-}
-
-pub(crate) fn request_every_structure_tag(
-    mut loader: ResMut<TagLoader<Structure, u32>>,
-    asset_server: Res<AssetServer>,
-) {
-    request_every_tag(&mut loader, &asset_server);
-}
-
-fn request_every_tag<T: TaggedRegistry + 'static>(
-    loader: &mut TagLoader<T, u32>,
-    asset_server: &AssetServer,
-) {
-    let files = list_tag_files(asset_server, T::REGISTRY_PATH);
+    let files = list_tag_files(&asset_server, T::REGISTRY_PATH);
     let count = files.len();
     for (location, _) in files {
-        loader.request(&TagKey::<T, _>::from_location(location), asset_server);
+        loader.request(&TagKey::<T, _>::from_location(location), &asset_server);
     }
     tracing::info!(
         count,
@@ -597,47 +570,39 @@ pub(crate) fn register_static_registries_with_access(
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut access: ResMut<mcrs_minecraft_assets::RegistryAccess>,
 ) {
-    access.register(Box::new(
-        mcrs_minecraft_assets::RegistrySnapshotErased::from_entries(
-            "minecraft:item",
-            items
-                .iter()
-                .map(|entry| (entry.identifier.clone(), None))
-                .collect(),
-            Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
-        ),
+    access.register(mcrs_minecraft_assets::RegistrySnapshotErased::from_entries(
+        "minecraft:item",
+        items
+            .iter()
+            .map(|entry| (entry.identifier.clone(), None))
+            .collect(),
+        Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
     ));
-    access.register(Box::new(
-        mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
-            "minecraft:sound_event",
-            &sound_registry,
-            |_, _| None,
-            Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
-        ),
+    access.register(mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
+        "minecraft:sound_event",
+        &sound_registry,
+        |_, _| None,
+        Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
     ));
-    access.register(Box::new(
-        mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
-            "minecraft:entity_type",
-            &entity_registry,
-            |_, _| None,
-            Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
-        ),
+    access.register(mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
+        "minecraft:entity_type",
+        &entity_registry,
+        |_, _| None,
+        Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
     ));
-    access.register(Box::new(
-        mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
-            "minecraft:enchantment",
-            &enchantment_registry,
-            |location, data| {
-                use mcrs_minecraft_item::enchantment::data::NetworkEnchantmentData;
-                let network = NetworkEnchantmentData::from(data);
-                Some(
-                    mcrs_minecraft_nbt::to_nbt_tag(&network).unwrap_or_else(|e| {
-                        panic!("{} does not encode for the network: {e}", location.as_str())
-                    }),
-                )
-            },
-            Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
-        ),
+    access.register(mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
+        "minecraft:enchantment",
+        &enchantment_registry,
+        |location, data| {
+            use mcrs_minecraft_item::enchantment::data::NetworkEnchantmentData;
+            let network = NetworkEnchantmentData::from(data);
+            Some(
+                mcrs_minecraft_nbt::to_nbt_tag(&network).unwrap_or_else(|e| {
+                    panic!("{} does not encode for the network: {e}", location.as_str())
+                }),
+            )
+        },
+        Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
     ));
     tracing::info!(count = access.len(), "populated RegistryAccess");
 }

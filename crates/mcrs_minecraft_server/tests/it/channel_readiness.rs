@@ -19,6 +19,7 @@ use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
+use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerPacket,
@@ -126,27 +127,31 @@ fn messages_buffered_before_dim_boots() {
             .get(label_entity)
             .expect("channel entry exists before first tick");
 
-        let spawn_result = entry.control_sender.try_send(ToDim::Spawn {
-            host_anchor: anchor,
-            session: PlayerSession(1),
-            snapshot: mcrs_minecraft_server::world::bus::PlayerTransferSnapshot {
-                uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
-                username: "readiness_player".into(),
-                position: bevy_math::DVec3::ZERO,
-                rotation: bevy_math::Vec2::ZERO,
-                view_distance: 12,
-            },
-            dimensions: Vec::new(),
-        });
+        let spawn_result = entry
+            .control_sender
+            .try_send(ToDim::Spawn(InboundPlayerSpawn {
+                host_anchor: anchor,
+                session: PlayerSession(1),
+                snapshot: mcrs_minecraft_server::world::bus::PlayerTransferSnapshot {
+                    uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
+                    username: "readiness_player".into(),
+                    position: bevy_math::DVec3::ZERO,
+                    rotation: bevy_math::Vec2::ZERO,
+                    view_distance: 12,
+                },
+                dimensions: Vec::new(),
+            }));
 
         let serverbound_results: Vec<_> = (200i32..203)
             .map(|id| {
-                entry.serverbound_sender.try_send(ToDim::Serverbound {
-                    player: anchor,
-                    id,
-                    data: Bytes::new(),
-                    timestamp: std::time::Instant::now(),
-                })
+                entry
+                    .serverbound_sender
+                    .try_send(ToDim::Serverbound(InboundPlayerPacket {
+                        player: anchor,
+                        id,
+                        data: Bytes::new(),
+                        timestamp: std::time::Instant::now(),
+                    }))
             })
             .collect();
 

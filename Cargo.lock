@@ -3422,6 +3422,7 @@ name = "mcrs"
 version = "0.1.0"
 dependencies = [
  "bevy_app",
+ "bevy_diagnostic",
  "bevy_ecs",
  "bevy_log",
  "bevy_state",
@@ -3430,10 +3431,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_network",
  "mcrs_minecraft_server",
- "mcrs_minecraft_world",
- "mcrs_minecraft_worldgen",
  "mcrs_minecraft_worldgen_generator",
- "mcrs_telemetry",
  "tokio",
 ]
 
@@ -3548,9 +3546,11 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
+ "mcrs_minecraft_worldgen_noise",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
  "serde",
@@ -3716,7 +3716,6 @@ dependencies = [
  "rand 0.10.0",
  "rustc-hash 2.1.1",
  "smallvec",
- "thiserror 2.0.18",
  "tracing",
  "uuid",
 ]
@@ -3733,6 +3732,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "rayon",
  "rustc-hash 2.1.1",
+ "tracing",
 ]
 
 [[package]]
@@ -3843,6 +3843,7 @@ name = "mcrs_minecraft_registry"
 version = "0.1.0"
 dependencies = [
  "bevy_ecs",
+ "fixedbitset",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "serde",
@@ -3986,6 +3987,7 @@ dependencies = [
  "fixedbitset",
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
+ "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
 ]
@@ -4006,6 +4008,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
  "tracing",
 ]
 
@@ -4164,15 +4167,6 @@ dependencies = [
  "mcrs_minecraft_core",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "mcrs_telemetry"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_diagnostic",
- "bevy_log",
 ]
 
 [[package]]

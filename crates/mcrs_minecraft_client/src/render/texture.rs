@@ -3,11 +3,11 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
 use crate::sky::SkyUniform;
-use mcrs_minecraft_mesh::block::TINT_KINDS;
+use mcrs_minecraft_mesh::tint::BIOME_TINTS;
 
 use super::{AtlasUpdate, Budget};
 
-const TINT_LAYERS: u32 = TINT_KINDS as u32;
+const TINT_LAYERS: u32 = BIOME_TINTS.len() as u32;
 
 const LIGHT_LEVELS: u32 = 16;
 
@@ -37,7 +37,7 @@ fn atlas_texture(index: usize, size: u32, capacity: u32, device: &RenderDevice) 
         mip_level_count: size.trailing_zeros() + 1,
         sample_count: 1,
         dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba8UnormSrgb,
+        format: TextureFormat::Rgba8Unorm,
         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::COPY_SRC,
         view_formats: &[],
     })
@@ -244,7 +244,7 @@ pub(super) fn create_tints(budget: &Budget, device: &RenderDevice) -> (Texture, 
         mip_level_count: 1,
         sample_count: 1,
         dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba8UnormSrgb,
+        format: TextureFormat::Rgba8Unorm,
         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -294,8 +294,8 @@ pub(super) fn write_tint_square(
     }
 }
 
-pub(super) fn create_lightmap(device: &RenderDevice) -> Texture {
-    device.create_texture(&TextureDescriptor {
+pub(super) fn create_lightmap(device: &RenderDevice) -> (Texture, Sampler) {
+    let texture = device.create_texture(&TextureDescriptor {
         label: Some("terrain lightmap"),
         size: Extent3d {
             width: LIGHT_LEVELS,
@@ -305,19 +305,33 @@ pub(super) fn create_lightmap(device: &RenderDevice) -> Texture {
         mip_level_count: 1,
         sample_count: 1,
         dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba32Float,
+        format: TextureFormat::Rgba8Unorm,
         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         view_formats: &[],
-    })
+    });
+    let sampler = device.create_sampler(&SamplerDescriptor {
+        label: Some("terrain lightmap"),
+        address_mode_u: AddressMode::ClampToEdge,
+        address_mode_v: AddressMode::ClampToEdge,
+        mag_filter: FilterMode::Linear,
+        min_filter: FilterMode::Linear,
+        ..default()
+    });
+    (texture, sampler)
 }
 
-pub(super) fn write_lightmap(lightmap: &Texture, queue: &RenderQueue, sky: &SkyUniform) {
+pub(super) fn write_lightmap(
+    lightmap: &Texture,
+    queue: &RenderQueue,
+    sky: &SkyUniform,
+    brightness: f32,
+) {
     let levels = LIGHT_LEVELS as usize;
-    let mut texels = [[0.0f32; 4]; (LIGHT_LEVELS * LIGHT_LEVELS) as usize];
+    let mut texels = [[0u8; 4]; (LIGHT_LEVELS * LIGHT_LEVELS) as usize];
     for sky_level in 0..levels {
         for block_level in 0..levels {
             texels[sky_level * levels + block_level] =
-                lit_color(sky, block_level as f32, sky_level as f32);
+                lit_color(sky, brightness, block_level as f32, sky_level as f32);
         }
     }
     queue.write_texture(
@@ -330,7 +344,7 @@ pub(super) fn write_lightmap(lightmap: &Texture, queue: &RenderQueue, sky: &SkyU
         bytemuck::cast_slice(&texels),
         TexelCopyBufferLayout {
             offset: 0,
-            bytes_per_row: Some(LIGHT_LEVELS * size_of::<[f32; 4]>() as u32),
+            bytes_per_row: Some(LIGHT_LEVELS * 4),
             rows_per_image: Some(LIGHT_LEVELS),
         },
         Extent3d {
@@ -346,15 +360,31 @@ fn light_curve(level: f32) -> f32 {
     f / (4.0 - 3.0 * f)
 }
 
-fn lit_color(sky: &SkyUniform, block_level: f32, sky_level: f32) -> [f32; 4] {
+/// Lifts dark colours toward bright by the curve `1 - (1 - x)^4` of their largest channel, which
+/// the Brightness slider mixes in.
+fn not_gamma(color: Vec3) -> Vec3 {
+    let max = color.max_element();
+    if max <= 0.0 {
+        return color;
+    }
+    let scaled = 1.0 - (1.0 - max).powi(4);
+    color * (scaled / max)
+}
+
+/// One texel of vanilla's lightmap, with the sky and block factors in the colours' fourth lanes.
+fn lit_color(sky: &SkyUniform, brightness: f32, block_level: f32, sky_level: f32) -> [u8; 4] {
     let rgb = |channels: [f32; 4]| Vec3::from_slice(&channels);
-    let mut color = rgb(sky.ambient);
-    color += rgb(sky.sky_light) * light_curve(sky_level) * sky.sky_light[3];
+    let block_brightness = light_curve(block_level) * sky.block_light[3];
+    let sky_brightness = light_curve(sky_level) * sky.sky_light[3];
+    let mut color = rgb(sky.ambient).max(Vec3::ZERO);
+    color += rgb(sky.sky_light) * sky_brightness;
     let f = block_level / 15.0;
     let parabolic = (2.0 * f - 1.0) * (2.0 * f - 1.0);
-    let tint = rgb(sky.block_light).lerp(Vec3::ONE, 0.9 * parabolic);
-    color += tint * light_curve(block_level) * sky.block_light[3];
-    color.clamp(Vec3::ZERO, Vec3::ONE).extend(1.0).to_array()
+    color += rgb(sky.block_light).lerp(Vec3::ONE, 0.9 * parabolic) * block_brightness;
+    let color = color.clamp(Vec3::ZERO, Vec3::ONE);
+    let color = color.lerp(not_gamma(color), brightness);
+    let byte = |c: f32| (c * 255.0).round() as u8;
+    [byte(color.x), byte(color.y), byte(color.z), 255]
 }
 
 #[cfg(test)]
@@ -370,16 +400,6 @@ mod tests {
         }
     }
 
-    fn assert_lit(block_level: f32, sky_level: f32, expected: [f32; 3]) {
-        let got = lit_color(&sky(), block_level, sky_level);
-        let close = (0..3).all(|c| (got[c] - expected[c]).abs() < 1e-6);
-        assert!(
-            close,
-            "({block_level}, {sky_level}) lit to {got:?}, want {expected:?}"
-        );
-        assert_eq!(got[3], 1.0);
-    }
-
     #[test]
     fn the_light_curve_holds_its_shape() {
         assert_eq!(light_curve(0.0), 0.0);
@@ -389,10 +409,31 @@ mod tests {
     }
 
     #[test]
-    fn the_lightmap_matches_the_curve_worked_by_hand() {
-        assert_lit(0.0, 15.0, [0.2, 0.3, 0.4]);
-        assert_lit(15.0, 0.0, [0.9, 0.86, 0.82]);
-        assert_lit(5.0, 10.0, [0.222_222_2, 0.215_555_5, 0.208_888_9]);
-        assert_lit(15.0, 15.0, [1.0, 1.0, 1.0]);
+    fn moody_brightness_is_the_curve_worked_by_hand() {
+        let lit = |block, sky_level| lit_color(&sky(), 0.0, block, sky_level);
+        assert_eq!(lit(0.0, 15.0), [51, 77, 102, 255]);
+        assert_eq!(lit(15.0, 0.0), [230, 219, 209, 255]);
+        assert_eq!(lit(15.0, 15.0), [255, 255, 255, 255]);
+    }
+
+    #[test]
+    fn brightness_lifts_the_dark_end_and_leaves_white_alone() {
+        let at = |brightness| lit_color(&sky(), brightness, 2.0, 0.0);
+        let (moody, default, bright) = (at(0.0), at(0.5), at(1.0));
+        assert!(
+            moody[0] < default[0] && default[0] < bright[0],
+            "{moody:?} {default:?} {bright:?}"
+        );
+        assert_eq!(lit_color(&sky(), 1.0, 15.0, 15.0), [255, 255, 255, 255]);
+    }
+
+    #[test]
+    fn full_brightness_is_the_not_gamma_curve() {
+        let dark = Vec3::new(0.1, 0.05, 0.0);
+        let lifted = not_gamma(dark);
+        let expected = 1.0 - 0.9f32.powi(4);
+        assert!((lifted.x - expected).abs() < 1e-6);
+        assert!((lifted.y - expected / 2.0).abs() < 1e-6, "the hue is kept");
+        assert_eq!(not_gamma(Vec3::ZERO), Vec3::ZERO);
     }
 }

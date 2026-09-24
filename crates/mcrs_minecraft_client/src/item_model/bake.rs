@@ -345,7 +345,7 @@ mod tests {
     use super::*;
 
     fn baked() -> ItemModels {
-        let mut sprites = SpriteRegistry::new();
+        let mut sprites = SpriteRegistry::default();
         bake_all(Pack::corpus(), &mut sprites).unwrap()
     }
 

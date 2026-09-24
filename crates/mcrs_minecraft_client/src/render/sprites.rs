@@ -55,6 +55,7 @@ pub(super) struct Sprites {
     pub tint_sampler: Sampler,
     pub lightmap: Texture,
     pub lightmap_view: TextureView,
+    pub lightmap_sampler: Sampler,
     pub frames: Buffer,
     pub table: Buffer,
     animations: Vec<Animation>,
@@ -64,7 +65,7 @@ pub(super) struct Sprites {
 impl Sprites {
     pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
         let (tints, tint_sampler) = create_tints(budget, device);
-        let lightmap = create_lightmap(device);
+        let (lightmap, lightmap_sampler) = create_lightmap(device);
         Self {
             atlases: (0..MAX_SPRITE_ARRAYS)
                 .map(|index| blank_atlas(index, device))
@@ -76,6 +77,7 @@ impl Sprites {
             tint_sampler,
             lightmap_view: lightmap.create_view(&TextureViewDescriptor::default()),
             lightmap,
+            lightmap_sampler,
             frames: frame_buffer(device),
             table: table_buffer(device),
             animations: Vec::new(),

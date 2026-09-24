@@ -1,13 +1,11 @@
 //! Turns a blockstate into shaded quads, following the vanilla client's `FaceBakery`,
 //! `ModelBlockRenderer` and `BlockModelLighter`.
 //!
-//! Positions come out in block space (0..1 for a full cube), UVs in sprite space (0..1), and
-//! `color` holds the final vanilla vertex byte: ambient occlusion multiplied by the directional
-//! face shade, in sRGB space exactly as the client writes it into its vertex buffer.
+//! Positions come out in block space (0..1 for a full cube) and UVs in sprite space (0..1).
+//! Ambient occlusion depends on the neighbours, so it is left to the mesher.
 
-use std::collections::HashSet;
-
-use bevy::math::{IVec3, Mat4, Vec3};
+use bevy::math::{Mat4, Vec3};
+use mcrs_minecraft_mesh::ambient::corner;
 
 use crate::model::{
     BlockStateFile, Element, ElementRotation, Face, Pack, ResolvedModel, resolve_model,
@@ -44,26 +42,6 @@ pub fn nearest(v: Vec3) -> Option<Dir> {
         }
     }
     best
-}
-
-/// Per-direction vertex corner order, each entry selecting `from` (0) or `to` (1) per axis.
-/// Winding is counter-clockwise seen from outside the block, matching the client's `FaceInfo`.
-const FACE_CORNERS: [[[u8; 3]; 4]; 6] = [
-    [[0, 0, 1], [0, 0, 0], [1, 0, 0], [1, 0, 1]], // down
-    [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]], // up
-    [[1, 1, 0], [1, 0, 0], [0, 0, 0], [0, 1, 0]], // north
-    [[0, 1, 1], [0, 0, 1], [1, 0, 1], [1, 1, 1]], // south
-    [[0, 1, 0], [0, 0, 0], [0, 0, 1], [0, 1, 1]], // west
-    [[1, 1, 1], [1, 0, 1], [1, 0, 0], [1, 1, 0]], // east
-];
-
-pub(crate) fn corner(dir: Dir, index: usize, from: Vec3, to: Vec3) -> Vec3 {
-    let select = FACE_CORNERS[dir as usize][index];
-    Vec3::new(
-        if select[0] == 0 { from.x } else { to.x },
-        if select[1] == 0 { from.y } else { to.y },
-        if select[2] == 0 { from.z } else { to.z },
-    )
 }
 
 /// `(minU, minV, maxU, maxV)` in texel space. `minU > maxU` is legal and means mirrored, so the
@@ -222,8 +200,7 @@ pub struct BakedQuad {
     pub dir: Dir,
     pub sprite: usize,
     pub cull: Option<Dir>,
-    /// Vanilla's final vertex byte, sRGB space, before any tint colour is multiplied in.
-    pub color: [u8; 4],
+    pub shade: f32,
     /// The face's `tintindex`, if it has one.
     pub tint: Option<u32>,
 }
@@ -232,50 +209,8 @@ pub struct BakedQuad {
 pub struct BakedBlock {
     pub quads: Vec<BakedQuad>,
     pub sprites: Vec<String>,
+    pub ambient_occlusion: bool,
 }
-
-/// Every listed position is a full opaque cube; everything else is air.
-#[derive(Debug, Default, Clone)]
-pub struct TinyWorld {
-    solid: HashSet<IVec3>,
-}
-
-impl TinyWorld {
-    pub fn new(blocks: impl IntoIterator<Item = IVec3>) -> Self {
-        Self {
-            solid: blocks.into_iter().collect(),
-        }
-    }
-
-    pub fn is_solid(&self, pos: IVec3) -> bool {
-        self.solid.contains(&pos)
-    }
-
-    fn shade_brightness(&self, pos: IVec3) -> f32 {
-        if self.is_solid(pos) { 0.2 } else { 1.0 }
-    }
-
-    fn is_view_blocking(&self, pos: IVec3) -> bool {
-        self.is_solid(pos)
-    }
-
-    fn light_dampening(&self, pos: IVec3) -> u8 {
-        if self.is_solid(pos) { 15 } else { 0 }
-    }
-
-    pub fn is_collision_shape_full_block(&self, pos: IVec3) -> bool {
-        self.is_solid(pos)
-    }
-}
-
-const AO_CORNERS: [[Dir; 4]; 6] = [
-    [Dir::West, Dir::East, Dir::North, Dir::South], // down
-    [Dir::East, Dir::West, Dir::North, Dir::South], // up
-    [Dir::Up, Dir::Down, Dir::East, Dir::West],     // north
-    [Dir::West, Dir::East, Dir::Down, Dir::Up],     // south
-    [Dir::Up, Dir::Down, Dir::North, Dir::South],   // west
-    [Dir::Down, Dir::Up, Dir::North, Dir::South],   // east
-];
 
 /// Directional face shade, overworld values from the client's `CardinalLighting`.
 fn face_shade(dir: Dir) -> f32 {
@@ -285,114 +220,6 @@ fn face_shade(dir: Dir) -> f32 {
         Dir::North | Dir::South => 0.8,
         Dir::West | Dir::East => 0.6,
     }
-}
-
-/// Position along `dir`'s axis, oriented so the result is 0 at the face opposite `dir`.
-fn coord_towards(dir: Dir, p: Vec3) -> f32 {
-    let axis = axis(dir);
-    let c = p[axis];
-    if dir.normal()[axis] > 0 { c } else { 1.0 - c }
-}
-
-fn ambient_occlusion(positions: &[Vec3; 4], dir: Dir, pos: IVec3, world: &TinyWorld) -> [f32; 4] {
-    const EPS: f32 = 1.0e-4;
-    const NEAR_ONE: f32 = 0.9999;
-
-    let mut min = positions[0];
-    let mut max = positions[0];
-    for p in positions.iter() {
-        min = min.min(*p);
-        max = max.max(*p);
-    }
-    let full = world.is_collision_shape_full_block(pos);
-    let face_cubic = match dir {
-        Dir::Down => min.y == max.y && (min.y < EPS || full),
-        Dir::Up => min.y == max.y && (max.y > NEAR_ONE || full),
-        Dir::North => min.z == max.z && (min.z < EPS || full),
-        Dir::South => min.z == max.z && (max.z > NEAR_ONE || full),
-        Dir::West => min.x == max.x && (min.x < EPS || full),
-        Dir::East => min.x == max.x && (max.x > NEAR_ONE || full),
-    };
-
-    let base = if face_cubic { pos + dir.normal() } else { pos };
-    let c = AO_CORNERS[dir as usize];
-
-    let mut shade = [0.0f32; 4];
-    let mut translucent = [false; 4];
-    for i in 0..4 {
-        shade[i] = world.shade_brightness(base + c[i].normal());
-        // The occlusion probe sits one block further out than the side sample.
-        let probe = base + c[i].normal() + dir.normal();
-        translucent[i] = !world.is_view_blocking(probe) || world.light_dampening(probe) == 0;
-    }
-    let diagonal =
-        |a: usize, b: usize| world.shade_brightness(base + c[a].normal() + c[b].normal());
-    // The `shade[0]` reuse in all four branches is vanilla, including where symmetry would call
-    // for `shade[1]`. "Fixing" it diverges from the client on every inside corner.
-    let corner_02 = if !translucent[2] && !translucent[0] {
-        shade[0]
-    } else {
-        diagonal(0, 2)
-    };
-    let corner_03 = if !translucent[3] && !translucent[0] {
-        shade[0]
-    } else {
-        diagonal(0, 3)
-    };
-    let corner_12 = if !translucent[2] && !translucent[1] {
-        shade[0]
-    } else {
-        diagonal(1, 2)
-    };
-    let corner_13 = if !translucent[3] && !translucent[1] {
-        shade[0]
-    } else {
-        diagonal(1, 3)
-    };
-    let center = world.shade_brightness(if face_cubic { base } else { pos });
-
-    let slot = [
-        (shade[3] + shade[0] + corner_03 + center) * 0.25,
-        (shade[2] + shade[0] + corner_02 + center) * 0.25,
-        (shade[2] + shade[1] + corner_12 + center) * 0.25,
-        (shade[3] + shade[1] + corner_13 + center) * 0.25,
-    ];
-
-    // Vanilla assigns the four slots to vertices through a per-direction table for full faces and
-    // through weight products for partial ones. Bilinear interpolation over the face square is
-    // both: evaluated at the corners of a full face it reproduces the table exactly for all six
-    // directions, and it is the closed form of the weight products in between.
-    let mut ao = [0.0f32; 4];
-    for (i, ao) in ao.iter_mut().enumerate() {
-        // Vanilla blends at the face's bounding-box corners, not at the vertices themselves: a
-        // rotated element keeps the unrotated corner order, and an element poking outside its own
-        // block extrapolates instead of clamping.
-        let p = corner(dir, i, min, max);
-        let u = coord_towards(c[1], p);
-        let v = coord_towards(c[3], p);
-        let blend = (1.0 - u) * (1.0 - v) * slot[1]
-            + (1.0 - u) * v * slot[0]
-            + u * (1.0 - v) * slot[2]
-            + u * v * slot[3];
-        *ao = blend.clamp(0.0, 1.0);
-    }
-    ao
-}
-
-fn as_8bit(value: f32) -> u8 {
-    (value * 255.0).floor().clamp(0.0, 255.0) as u8
-}
-
-fn scale_rgb(component: u8, scale: f32) -> u8 {
-    ((component as f32 * scale) as i32).clamp(0, 255) as u8
-}
-
-struct BakeContext<'a> {
-    rotation: VariantRotation,
-    uvlock: bool,
-    smooth: bool,
-    pos: IVec3,
-    world: &'a TinyWorld,
 }
 
 /// A face's corners, texture coordinates and orientation before any lighting is applied.
@@ -475,15 +302,9 @@ fn bake_face(
     dir: Dir,
     face: &Face,
     sprite: usize,
-    ctx: &BakeContext<'_>,
+    rotation: VariantRotation,
+    uvlock: bool,
 ) -> Result<BakedQuad, String> {
-    let BakeContext {
-        rotation,
-        uvlock,
-        smooth,
-        pos,
-        world,
-    } = *ctx;
     let FaceGeometry {
         positions,
         uvs,
@@ -491,76 +312,58 @@ fn bake_face(
         cull,
     } = face_geometry(element, dir, face, rotation, uvlock)?;
 
-    let ao = if smooth {
-        ambient_occlusion(&positions, facing, pos, world)
-    } else {
-        [1.0; 4]
-    };
     let shade = if element.shade {
         face_shade(facing)
     } else {
         face_shade(Dir::Up)
     };
-    let color = std::array::from_fn(|i| scale_rgb(as_8bit(ao[i]), shade));
-
     Ok(BakedQuad {
         positions,
         uvs,
         dir: facing,
         sprite,
         cull,
-        color,
+        shade,
         tint: face.tint_index,
     })
 }
 
-pub fn bake(
-    pack: &Pack,
-    block: &str,
-    props: &[(&str, &str)],
-    pos: IVec3,
-    world: &TinyWorld,
-) -> Result<BakedBlock, String> {
+pub fn bake(pack: &Pack, block: &str, props: &[(&str, &str)]) -> Result<BakedBlock, String> {
     let states = BlockStateFile::load(pack, block)?;
     let mut merged = BakedBlock {
         quads: Vec::new(),
         sprites: Vec::new(),
+        ambient_occlusion: false,
     };
     // A multipart blockstate contributes several models at once (a fence post plus each connected
     // arm); their quads share one sprite table so the result bakes exactly like a single model.
-    for variant in states.select_all(props)? {
+    for (index, variant) in states.select_all(props)?.into_iter().enumerate() {
         let model = resolve_model(pack, &variant.model)?;
+        if index == 0 {
+            merged.ambient_occlusion = model.ambient_occlusion;
+        }
         let rotation = VariantRotation::from_degrees(variant.x, variant.y, variant.z)?;
-        let part = bake_model(&model, rotation, variant.uvlock, pos, world)?;
+        let part = bake_model(&model, rotation, variant.uvlock)?;
         for mut quad in part.quads {
-            let sprite = &part.sprites[quad.sprite];
-            quad.sprite = match merged.sprites.iter().position(|s| s == sprite) {
-                Some(index) => index,
-                None => {
-                    merged.sprites.push(sprite.clone());
-                    merged.sprites.len() - 1
-                }
-            };
+            quad.sprite = intern(&mut merged.sprites, &part.sprites[quad.sprite]);
             merged.quads.push(quad);
         }
     }
     Ok(merged)
 }
 
+fn intern(sprites: &mut Vec<String>, sprite: &str) -> usize {
+    sprites.iter().position(|s| s == sprite).unwrap_or_else(|| {
+        sprites.push(sprite.to_owned());
+        sprites.len() - 1
+    })
+}
+
 fn bake_model(
     model: &ResolvedModel,
     rotation: VariantRotation,
     uvlock: bool,
-    pos: IVec3,
-    world: &TinyWorld,
 ) -> Result<BakedBlock, String> {
-    let ctx = BakeContext {
-        rotation,
-        uvlock,
-        smooth: model.ambient_occlusion,
-        pos,
-        world,
-    };
     let mut sprites: Vec<String> = Vec::new();
     let mut quads = Vec::new();
     for element in &model.elements {
@@ -572,33 +375,23 @@ fn bake_model(
             if !draws_face(element, dir) {
                 continue;
             }
-            let sprite_id = model.sprite_of(face)?;
-            let sprite = match sprites.iter().position(|s| s == sprite_id) {
-                Some(index) => index,
-                None => {
-                    sprites.push(sprite_id.to_string());
-                    sprites.len() - 1
-                }
-            };
-            quads.push(bake_face(element, dir, face, sprite, &ctx)?);
+            let sprite = intern(&mut sprites, model.sprite_of(face)?);
+            quads.push(bake_face(element, dir, face, sprite, rotation, uvlock)?);
         }
     }
-    Ok(BakedBlock { quads, sprites })
+    Ok(BakedBlock {
+        quads,
+        sprites,
+        ambient_occlusion: model.ambient_occlusion,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn oak_log(props: &[(&str, &str)], world: &TinyWorld) -> BakedBlock {
-        bake(
-            Pack::corpus(),
-            "minecraft:oak_log",
-            props,
-            IVec3::ZERO,
-            world,
-        )
-        .expect("oak_log bakes")
+    fn oak_log(props: &[(&str, &str)]) -> BakedBlock {
+        bake(Pack::corpus(), "minecraft:oak_log", props).expect("oak_log bakes")
     }
 
     fn quad(baked: &BakedBlock, dir: Dir) -> &BakedQuad {
@@ -609,25 +402,9 @@ mod tests {
             .unwrap_or_else(|| panic!("no {dir:?} quad"))
     }
 
-    fn lone_block() -> TinyWorld {
-        TinyWorld::new([IVec3::ZERO])
-    }
-
-    /// A solid floor under the block, wide enough that every AO sample around it is covered.
-    fn block_on_floor(extra: &[IVec3]) -> TinyWorld {
-        let mut blocks = vec![IVec3::ZERO];
-        blocks.extend_from_slice(extra);
-        for x in -2..=2 {
-            for z in -2..=2 {
-                blocks.push(IVec3::new(x, -1, z));
-            }
-        }
-        TinyWorld::new(blocks)
-    }
-
     #[test]
     fn geometry_and_sprites() {
-        let baked = oak_log(&[("axis", "y")], &lone_block());
+        let baked = oak_log(&[("axis", "y")]);
         assert_eq!(baked.quads.len(), 6);
         assert_eq!(baked.sprites.len(), 2);
 
@@ -658,57 +435,31 @@ mod tests {
     }
 
     #[test]
-    fn face_shade_in_open_air() {
-        let baked = oak_log(&[("axis", "y")], &lone_block());
+    fn face_shade_follows_the_direction() {
+        let baked = oak_log(&[("axis", "y")]);
+        assert!(baked.ambient_occlusion);
         for (dir, expected) in [
-            (Dir::Down, 127u8),
-            (Dir::Up, 255),
-            (Dir::North, 204),
-            (Dir::South, 204),
-            (Dir::West, 153),
-            (Dir::East, 153),
+            (Dir::Down, 0.5),
+            (Dir::Up, 1.0),
+            (Dir::North, 0.8),
+            (Dir::South, 0.8),
+            (Dir::West, 0.6),
+            (Dir::East, 0.6),
         ] {
-            let q = quad(&baked, dir);
-            assert_eq!(q.color, [expected; 4], "face shade of {dir:?}");
+            assert_eq!(quad(&baked, dir).shade, expected, "face shade of {dir:?}");
         }
     }
 
     #[test]
-    fn ambient_occlusion_darkens_toward_the_floor() {
-        let baked = oak_log(&[("axis", "y")], &block_on_floor(&[]));
-        let q = quad(&baked, Dir::West);
-        // v0 and v3 are the top corners, v1 and v2 the bottom ones.
-        assert_eq!(q.color, [153, 91, 91, 153]);
-    }
-
-    #[test]
-    fn inside_corner_reuses_the_first_side_sample() {
-        // Occludes the west face's `north` corner probe, firing the `corner_12` short circuit.
-        let world = block_on_floor(&[IVec3::new(-2, 0, -1)]);
-        let baked = oak_log(&[("axis", "y")], &world);
-        let q = quad(&baked, Dir::West);
-        // Vanilla substitutes the *up* sample (1.0) here, not the *down* one (0.2): the corner
-        // averages to 0.8 rather than 0.6.
-        assert_eq!(q.color[1], 122);
-    }
-
-    #[test]
     fn object_form_texture_slots_resolve() {
-        let baked = bake(
-            Pack::corpus(),
-            "minecraft:glass",
-            &[],
-            IVec3::ZERO,
-            &lone_block(),
-        )
-        .expect("glass bakes");
+        let baked = bake(Pack::corpus(), "minecraft:glass", &[]).expect("glass bakes");
         assert_eq!(baked.sprites, ["minecraft:block/glass"]);
         assert_eq!(baked.quads.len(), 6);
     }
 
     #[test]
     fn variant_rotation_turns_the_log_on_its_side() {
-        let baked = oak_log(&[("axis", "x")], &lone_block());
+        let baked = oak_log(&[("axis", "x")]);
         assert_eq!(baked.quads.len(), 6);
         let sprite_of = |dir| baked.sprites[quad(&baked, dir).sprite].as_str();
         // A log along X shows its rings on the two X faces and bark everywhere else.

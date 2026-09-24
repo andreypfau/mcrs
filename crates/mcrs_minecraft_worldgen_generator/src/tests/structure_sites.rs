@@ -23,7 +23,6 @@ use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::structures::index::{BiomeLookup, EndBiomes, StructureIndex};
 use crate::structures::live_sets;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, StructureKind};
-use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
 
 const MAGIC: &[u8; 8] = b"MCSITES1";
 
@@ -359,7 +358,6 @@ fn set_selection_matches_the_oracle() {
     let frozen = frozen_shared();
     let mut cases = 0;
     let mut selected = 0;
-    let mut skipped = std::collections::BTreeSet::new();
     for entry in &dump {
         let seed = entry.seed;
         assert_eq!(entry.selection.len(), 2);
@@ -367,16 +365,6 @@ fn set_selection_matches_the_oracle() {
             let index = build_index(&dimension(dimension_id), seed);
             for dumped in sets {
                 let set = frozen.set_ids[&ResourceLocation::parse(&dumped.set).unwrap()];
-                let unported = frozen.sets[set.0 as usize]
-                    .entries
-                    .iter()
-                    .any(|(structure, _)| {
-                        site_implies_piece(&frozen.structures[structure.0 as usize].kind).is_none()
-                    });
-                if unported {
-                    skipped.insert(dumped.set.as_str());
-                    continue;
-                }
                 assert_eq!(dumped.cases.len(), 16, "{}: cases", dumped.set);
                 for (chunk, expected) in &dumped.cases {
                     let ColumnPos { x, z } = *chunk;
@@ -391,7 +379,6 @@ fn set_selection_matches_the_oracle() {
             }
         }
     }
-    assert!(skipped.is_empty(), "sets without a site: {skipped:?}");
     assert_eq!((cases, selected), (5 * 21 * 16, 660));
 }
 

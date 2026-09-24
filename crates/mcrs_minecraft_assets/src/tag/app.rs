@@ -5,7 +5,7 @@ use bevy_app::{App, Update};
 use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
-use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_registry::bitset::TagId;
 
 /// The phases a tagged registry passes through, as system sets so callers can
@@ -43,14 +43,14 @@ pub trait TagRegistryAppExt {
     /// Declare a tagged registry: its tag files are requested while the data
     /// pack loads, resolved against `S` at `WorldgenFreeze`, and the loader is
     /// consumed into a `TagRegistry<T, S::Id>` in [`TagPhase::Freeze`].
-    fn add_tagged_registry<T, S>(&mut self, tags: &'static [TagKey<T>]) -> &mut Self
+    fn add_tagged_registry<T, S>(&mut self) -> &mut Self
     where
         T: TaggedRegistry + 'static,
         S: TagSource + Resource;
 }
 
 impl TagRegistryAppExt for App {
-    fn add_tagged_registry<T, S>(&mut self, tags: &'static [TagKey<T>]) -> &mut Self
+    fn add_tagged_registry<T, S>(&mut self) -> &mut Self
     where
         T: TaggedRegistry + 'static,
         S: TagSource + Resource,
@@ -70,11 +70,7 @@ impl TagRegistryAppExt for App {
                 );
         }
 
-        self.insert_resource(TagLoader::<T, S::Id>::new(tags))
-            .add_systems(
-                OnEnter(AppState::LoadingDataPack),
-                request_tags::<T, S::Id>.in_set(TagPhase::Request),
-            )
+        self.init_resource::<TagLoader<T, S::Id>>()
             .add_systems(
                 Update,
                 check_settled::<T, S::Id>
@@ -103,21 +99,6 @@ fn check_settled<T: TaggedRegistry + 'static, I: TagId>(
     if !loader.all_handles_settled(&asset_server) {
         settled.0 = false;
     }
-}
-
-fn request_tags<T: TaggedRegistry + 'static, I: TagId>(
-    mut loader: ResMut<TagLoader<T, I>>,
-    asset_server: Res<AssetServer>,
-) {
-    let tags = loader.requested();
-    for tag in tags {
-        loader.request(tag, &asset_server);
-    }
-    tracing::info!(
-        count = tags.len(),
-        registry = T::REGISTRY_PATH,
-        "requested tag files"
-    );
 }
 
 fn resolve_tags<T: TaggedRegistry + 'static, S: TagSource + Resource>(

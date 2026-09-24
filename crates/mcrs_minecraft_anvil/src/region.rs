@@ -68,19 +68,6 @@ impl RegionFile {
             .map(move |slot| self.pos.column_at(slot % REGION_SIDE, slot / REGION_SIDE))
     }
 
-    pub fn timestamp(&self, pos: ColumnPos) -> i32 {
-        let head = HEADER_BYTES / 2 + slot_index(pos) * 4;
-        i32::from_be_bytes(self.bytes[head..head + 4].try_into().unwrap())
-    }
-
-    /// The chunk's decompressed NBT, or `None` when the slot is empty.
-    pub fn chunk_nbt(&self, pos: ColumnPos) -> Result<Option<Vec<u8>>, AnvilError> {
-        self.read_nbt(pos).map_err(|kind| AnvilError {
-            path: self.path.clone(),
-            kind,
-        })
-    }
-
     pub fn read_chunk(
         &self,
         pos: ColumnPos,

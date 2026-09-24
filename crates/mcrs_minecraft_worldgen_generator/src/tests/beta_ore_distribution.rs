@@ -5,9 +5,7 @@ use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen_feature_place::ore_beta::{
-    OreConfig, TargetBlockState, place_beta_ore,
-};
+use mcrs_minecraft_worldgen_feature_place::ore_beta::{OreConfig, place_beta_ore};
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::{BetaOreBlockIds, place_all_ores};
@@ -164,10 +162,8 @@ fn simulate<R: Random>(
     // Clay 10x32: coord draws happen every iteration; a vein starts only from a
     // water block and turns sand. On a stone region no water exists, so 0 veins place.
     let clay_cfg = OreConfig {
-        targets: vec![TargetBlockState {
-            target: ids.sand.into(),
-            state: ids.clay.into(),
-        }],
+        target: ids.sand.into(),
+        state: ids.clay.into(),
         size: 32,
     };
     let mut clay_placed = 0;
@@ -195,10 +191,8 @@ fn simulate<R: Random>(
             _ => unreachable!(),
         };
         let cfg = OreConfig {
-            targets: vec![TargetBlockState {
-                target: stone.into(),
-                state: state.into(),
-            }],
+            target: stone.into(),
+            state: state.into(),
             size,
         };
         for _ in 0..count {
@@ -213,10 +207,8 @@ fn simulate<R: Random>(
 
     // Lapis 1x6: x, then Y = nextInt(16)+nextInt(16), then z.
     let lapis_cfg = OreConfig {
-        targets: vec![TargetBlockState {
-            target: stone.into(),
-            state: ids.lapis.into(),
-        }],
+        target: stone.into(),
+        state: ids.lapis.into(),
         size: 6,
     };
     let lx = rng.next_i32_bound(16);

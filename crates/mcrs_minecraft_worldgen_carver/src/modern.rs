@@ -194,7 +194,7 @@ mod tests {
     }
 
     fn empty_mask() -> CarvingMask {
-        CarvingMask::new(16, -63, 312)
+        CarvingMask::new(-63, 312)
     }
 
     #[test]

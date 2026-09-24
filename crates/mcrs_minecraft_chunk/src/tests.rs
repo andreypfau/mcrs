@@ -49,19 +49,6 @@ fn remapping_translates_every_cell_through_the_table() {
 }
 
 #[test]
-fn reading_one_cell_agrees_with_unpacking_all_of_them() {
-    for bits in 1..=16u32 {
-        let cells: Vec<u16> = (0..Section16::ENTRY_COUNT)
-            .map(|i| (i as u16).wrapping_mul(7919) & ((1u32 << bits) - 1) as u16)
-            .collect();
-        let packed = pack_from(bits, &cells, |&c| c as u32);
-        for index in [0, 1, 63, 64, 1000, Section16::ENTRY_COUNT - 1] {
-            assert_eq!(entry_at(bits, &packed, index), cells[index], "{bits} bits");
-        }
-    }
-}
-
-#[test]
 fn the_word_wise_bound_test_matches_a_cell_by_cell_scan() {
     let mut seed = 0x2545_f491_4f6c_dd1du64;
     let mut next = move || {

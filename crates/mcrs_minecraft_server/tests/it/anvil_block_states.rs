@@ -6,7 +6,7 @@ use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, load_block_definitions};
-use mcrs_minecraft_level::palette::AirCount;
+use mcrs_minecraft_level::palette::non_air_block_count;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_worldgen_generator::saved::{
@@ -391,5 +391,5 @@ fn a_saved_section_decodes_its_blocks_and_nothing_else() {
     let (blocks, _) = sections[1]
         .as_ref()
         .expect("a Y the save skipped is empty, not absent");
-    assert_eq!(blocks.non_air_block_count(), 0);
+    assert_eq!(non_air_block_count(blocks), 0);
 }

@@ -1,9 +1,9 @@
 use crate::login::GameProfile;
 use crate::ops::{DefaultOpLevel, OpList};
+use crate::world::bus::to;
 use crate::world::bus::{
     InboundConfirmMove, InboundPlayerDespawn, InboundPlayerSpawn, InboundRollbackMove,
-    OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-    PlayerInfoEntry,
+    OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload, PlayerInfoEntry,
 };
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
@@ -27,7 +27,8 @@ use bevy_ecs::prelude::{Changed, Commands, Query, Res, ResMut, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
-use mcrs_minecraft_core::ColumnPos;
+use bevy_math::DVec3;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_inventory::{Op, Slot};
 use mcrs_minecraft_item::{SlotTable, slots};
 use mcrs_minecraft_level::aoi::every_n_ticks;
@@ -35,12 +36,25 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::entity::{Despawned, EntityNetworkAddEvent, InTransit};
-use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession};
+use mcrs_minecraft_level::session::{DimPlayerIndex, Owner};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionId, InDimension};
 use mcrs_minecraft_level::world::lifecycle::ticket::SimulationDistance;
+use mcrs_minecraft_protocol::ByteAngle;
+use mcrs_minecraft_protocol::GameEventKind;
 use mcrs_minecraft_protocol::GameMode;
-use movement::TeleportState;
+use mcrs_minecraft_protocol::Look;
+use mcrs_minecraft_protocol::LpVec3;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityEvent;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundGameEvent;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_world::entity::minecraft::PLAYER;
+use movement::TeleportState;
 use tracing::debug;
 
 pub mod ability;
@@ -197,7 +211,11 @@ fn consume_inbound_player_spawn(
         let center_x = (spawn_pos.x / 16.0).floor() as i32;
         let center_z = (spawn_pos.z / 16.0).floor() as i32;
 
-        let dimensions = spawn.dimensions.clone();
+        let dimensions = spawn
+            .dimensions
+            .iter()
+            .filter_map(|s| ResourceLocation::parse_cow(s.clone()).ok())
+            .collect();
 
         debug!(
             target: "mcrs_minecraft_server::player",
@@ -206,83 +224,96 @@ fn consume_inbound_player_spawn(
             "emit_play_login: emitting play ClientboundLogin for newly-materialized in-dim entity"
         );
 
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::PlayerLogin {
-                player_id: wire_id,
-                hardcore: false,
-                game_mode: default_game_mode.0,
-                dimension: dim_name,
-                dimension_type_id: dim_type_id,
-                dimensions,
-                max_players: 100,
-                chunk_radius: view_distance.distance as i32,
-                simulation_distance: simulation_distance.0 as i32,
-                reduced_debug_info: false,
-                show_death_screen: false,
-                do_limited_crafting: false,
-                enforces_secure_chat: false,
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::PlayerLogin(ClientboundLogin {
+                    player_id: wire_id,
+                    hardcore: false,
+                    dimensions,
+                    max_players: VarInt(100),
+                    chunk_radius: VarInt(view_distance.distance as i32),
+                    simulation_distance: VarInt(simulation_distance.0 as i32),
+                    reduced_debug_info: false,
+                    show_death_screen: false,
+                    do_limited_crafting: false,
+                    player_spawn_info: PlayerSpawnInfo {
+                        dimension_type_id: VarInt(dim_type_id),
+                        dimension: ResourceLocation::parse_cow(dim_name)
+                            .expect("dimension id is a valid resource location"),
+                        game_mode: default_game_mode.0,
+                        ..Default::default()
+                    },
+                    online_mode: false,
+                    enforces_secure_chat: false,
+                }),
+            )
+            .critical(),
+        );
 
         // The client derives the local player's game mode (and therefore
         // spectator noclip) from its own player-list entry, not the login
         // packet. Without this the client treats itself as non-spectator and
         // keeps block collisions even though login set the spectator mode.
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::PlayerInfoUpdate {
-                entries: vec![PlayerInfoEntry {
-                    player_uuid: spawn.snapshot.uuid,
-                    username: spawn.snapshot.username.clone(),
-                    game_mode: default_game_mode.0,
-                    listed: true,
-                }],
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::PlayerInfoUpdate {
+                    entries: vec![PlayerInfoEntry {
+                        player_uuid: spawn.snapshot.uuid,
+                        username: spawn.snapshot.username.clone(),
+                        game_mode: default_game_mode.0,
+                        listed: true,
+                    }],
+                },
+            )
+            .critical(),
+        );
 
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::SetChunkCacheCenter(ColumnPos::new(center_x, center_z)),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
+                    x: VarInt(center_x),
+                    z: VarInt(center_z),
+                }),
+            )
+            .critical(),
+        );
 
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::SetChunkCacheRadius {
-                radius: view_distance.distance as i32,
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius {
+                    radius: VarInt(view_distance.distance as i32),
+                }),
+            )
+            .critical(),
+        );
 
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::LevelChunksLoadStart,
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::GameEvent(ClientboundGameEvent {
+                    game_event: GameEventKind::LevelChunksLoadStart,
+                }),
+            )
+            .critical(),
+        );
 
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::PlayerPosition {
-                teleport_id: TeleportState::LOGIN_TELEPORT_ID,
-                position: spawn_pos,
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::PlayerPosition(ClientboundPlayerPosition {
+                    teleport_id: VarInt(TeleportState::LOGIN_TELEPORT_ID),
+                    position: spawn_pos,
+                    velocity: DVec3::ZERO,
+                    look: Look::default(),
+                    flags: Vec::new(),
+                }),
+            )
+            .critical(),
+        );
 
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
@@ -295,16 +326,16 @@ fn send_op_level(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (entity, &op_level, &HostAnchor(host)) in &players {
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::OpLevelEntityEvent {
-                entity_id: entity.index_u32() as i32,
-                entity_status: op_level.entity_status(),
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::OpLevelEntityEvent(ClientboundEntityEvent {
+                    entity_id: entity.index_u32() as i32,
+                    entity_status: op_level.entity_status(),
+                }),
+            )
+            .critical(),
+        );
     }
 }
 
@@ -360,21 +391,20 @@ fn network_add(
         return;
     };
 
-    packet_writer.write(OutboundPlayerPacket {
-        target: PacketTarget::SinglePlayer(host_anchor),
-        priority: PacketPriority::Normal,
-        data: PacketPayload::PlayerEnteredView {
-            entity_id: entity.index_u32() as i32,
+    packet_writer.write(to(
+        host_anchor,
+        PacketPayload::PlayerEnteredView(ClientboundAddEntity {
+            id: VarInt(entity.index_u32() as i32),
             uuid: profile.id,
-            kind: PLAYER.protocol_id as i32,
-            position: transform.translation,
-            yaw: transform.rotation.yaw(),
-            pitch: transform.rotation.pitch(),
-            data: 0,
-        },
-        session: PlayerSession(0),
-        epoch: 0,
-    });
+            kind: VarInt(PLAYER.protocol_id as i32),
+            pos: transform.translation,
+            movement: LpVec3(DVec3::ZERO),
+            yaw: ByteAngle::from_degrees(transform.rotation.yaw()),
+            pitch: ByteAngle::from_degrees(transform.rotation.pitch()),
+            head_yaw: ByteAngle::from_degrees(transform.rotation.yaw()),
+            data: VarInt(0),
+        }),
+    ));
 }
 
 /// Source-dim system: when `ConfirmMove` arrives, find the in-transit entity

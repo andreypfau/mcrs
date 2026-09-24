@@ -774,7 +774,10 @@ impl BlockCatalog {
     fn new() -> Self {
         Self {
             pack: PackLoad::Pending,
-            catalog: Some(blocks::empty()),
+            catalog: Some(blocks::Catalog {
+                smooth_lighting: crate::config::smooth_lighting(),
+                ..blocks::empty()
+            }),
             blocks: Arc::new(Vec::new()),
             baked: Vec::new(),
             to_bake: Vec::new(),
@@ -1319,7 +1322,7 @@ fn tint_columns(
     let Some(catalog) = catalog.catalog.as_ref() else {
         return;
     };
-    if catalog.tints.len() <= 1 {
+    if catalog.tints.is_empty() {
         return;
     }
     let pool = AsyncComputeTaskPool::get();
@@ -1489,7 +1492,7 @@ mod tests {
         SectionMesh {
             section,
             simple: vec![[0; QUAD_WORDS]; quads as usize],
-            faces: vec![[0; 2]; 4],
+            faces: vec![[0; mcrs_minecraft_mesh::pack::FACE_WORDS]; 4],
             complex: Vec::new(),
             groups: vec![Group {
                 quad_base: 0,
@@ -1625,7 +1628,7 @@ mod tests {
         SectionMesh {
             section,
             simple: vec![[0; QUAD_WORDS]; total as usize],
-            faces: vec![[0; 2]; 4],
+            faces: vec![[0; mcrs_minecraft_mesh::pack::FACE_WORDS]; 4],
             complex: Vec::new(),
             groups: (0..total)
                 .map(|quad| Group {

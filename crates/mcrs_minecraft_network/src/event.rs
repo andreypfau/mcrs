@@ -42,7 +42,7 @@ impl ReceivedPacketEvent {
 #[cfg(not(target_family = "wasm"))]
 mod loop_plugin {
     use super::ReceivedPacketEvent;
-    use crate::{ConnectionState, EngineConnection, ServerSideConnection};
+    use crate::{ConnectionState, ServerSideConnection};
     use bevy_app::{App, Plugin, Update};
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::Commands;
@@ -71,7 +71,7 @@ mod loop_plugin {
                 return;
             }
             loop {
-                match conn.try_recv() {
+                match conn.raw.try_recv() {
                     Ok(Some(pkt)) => {
                         commands.trigger(ReceivedPacketEvent {
                             entity,
@@ -79,13 +79,6 @@ mod loop_plugin {
                             data: pkt.payload,
                             timestamp: pkt.timestamp,
                         });
-                        // let now = Instant::now();
-                        // info!(
-                        //     "{}: processed packet {} in {:?}",
-                        //     entity,
-                        //     pkt.id,
-                        //     now - pkt.timestamp
-                        // );
                     }
                     Ok(None) => break,
                     Err(e) => {

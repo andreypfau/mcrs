@@ -1303,7 +1303,7 @@ impl<I: HoverItem> DerefMut for Text<I> {
     }
 }
 
-impl<I: HoverItem, T: IntoText<'static, I>> ops::Add<T> for Text<I> {
+impl<I: HoverItem, T: IntoText<I>> ops::Add<T> for Text<I> {
     type Output = Self;
 
     fn add(self, rhs: T) -> Self::Output {
@@ -1311,7 +1311,7 @@ impl<I: HoverItem, T: IntoText<'static, I>> ops::Add<T> for Text<I> {
     }
 }
 
-impl<I: HoverItem, T: IntoText<'static, I>> ops::AddAssign<T> for Text<I> {
+impl<I: HoverItem, T: IntoText<I>> ops::AddAssign<T> for Text<I> {
     fn add_assign(&mut self, rhs: T) {
         self.extra.push(rhs.into_text());
     }

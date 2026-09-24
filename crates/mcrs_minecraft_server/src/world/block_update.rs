@@ -28,6 +28,7 @@ use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 
@@ -40,7 +41,7 @@ use crate::world::entity::player::HostAnchor;
 /// clients, resolves the observer set through the section's column
 /// (`ColumnPos::from(section_pos)` -> `ColumnIndex.0.get` -> column entity ->
 /// `PlayerObservers`), and emits one `OutboundPlayerPacket { target: PlayerSet,
-/// priority: Normal, data: PacketPayload::BlockUpdate { position, new_state } }`
+/// priority: Normal, data: PacketPayload::BlockUpdate(..) }`
 /// per changed block.
 ///
 /// Recipients are resolved at emit time by reading `PlayerObservers` on
@@ -104,10 +105,10 @@ pub fn update_client_blocks_per_dim(
             packet_writer.write(OutboundPlayerPacket {
                 target: PacketTarget::PlayerSet(targets.clone()),
                 priority: PacketPriority::Normal,
-                data: PacketPayload::BlockUpdate {
-                    position,
-                    new_state,
-                },
+                data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+                    block_pos: position,
+                    block_state_id: new_state,
+                }),
                 session: PlayerSession(0),
                 epoch: 0,
             });

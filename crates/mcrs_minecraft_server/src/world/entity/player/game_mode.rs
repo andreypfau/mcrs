@@ -1,7 +1,6 @@
 use crate::login::GameProfile;
-use crate::world::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, PlayerInfoEntry,
-};
+use crate::world::bus::to;
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PlayerInfoEntry};
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::{
     Flying, Invulnerable, MayBuild, MayFly, PlayerGameMode, PlayerOpLevel,
@@ -9,9 +8,9 @@ use crate::world::entity::player::ability::{
 };
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::GameEventKind;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundGameEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChangeGameMode;
 
 const REQUIRED_OP_LEVEL: u8 = 2;
@@ -84,15 +83,12 @@ fn handle_change_game_mode(
         } else {
             commands.entity(event.entity).remove::<Flying>();
         }
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(anchor.0),
-            priority: PacketPriority::Normal,
-            data: PacketPayload::GameEvent {
+        packet_writer.write(to(
+            anchor.0,
+            PacketPayload::GameEvent(ClientboundGameEvent {
                 game_event: GameEventKind::ChangeGameMode(pkt.mode),
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+            }),
+        ));
     }
 
     let entries: Vec<PlayerInfoEntry> = players
@@ -106,14 +102,11 @@ fn handle_change_game_mode(
         .collect();
 
     for (_, _, _, _, _, _, anchor) in players.iter() {
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(anchor.0),
-            priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerInfoUpdate {
+        packet_writer.write(to(
+            anchor.0,
+            PacketPayload::PlayerInfoUpdate {
                 entries: entries.clone(),
             },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        ));
     }
 }

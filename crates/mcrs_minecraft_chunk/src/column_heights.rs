@@ -1,4 +1,4 @@
-use crate::{PackedBitStorage, bits_needed_for};
+use crate::{entries_per_long, packed_len};
 use mcrs_minecraft_core::SectionPos;
 
 /// One packed Y scalar over the 16x16 column footprint, indexed by `(x, z)` in
@@ -6,20 +6,19 @@ use mcrs_minecraft_core::SectionPos;
 /// map's predicate, or `min_y` when the column holds no such block.
 #[derive(Debug, Clone)]
 pub struct ColumnHeights {
-    store: PackedBitStorage,
+    longs: Vec<u64>,
+    bits: u32,
     height: u32,
     min_y: i32,
 }
 
 impl ColumnHeights {
     pub fn new(height: u32, min_y: i32) -> Self {
-        let max_value = height; // stored value range is [0, height]
+        // stored value range is [0, height]
+        let bits = (u32::BITS - height.leading_zeros()).max(1);
         Self {
-            store: PackedBitStorage::with_bits(
-                SectionPos::AREA,
-                bits_needed_for(max_value),
-                max_value,
-            ),
+            longs: vec![0; packed_len(bits, SectionPos::AREA)],
+            bits,
             height,
             min_y,
         }
@@ -47,8 +46,17 @@ impl ColumnHeights {
         (z & SectionPos::MASK) * SectionPos::SIZE + (x & SectionPos::MASK)
     }
 
+    #[inline]
+    fn slot(&self, x: usize, z: usize) -> (usize, u32, u64) {
+        let index = Self::index(x, z);
+        let per_long = entries_per_long(self.bits);
+        let shift = (index % per_long) as u32 * self.bits;
+        (index / per_long, shift, (1u64 << self.bits) - 1)
+    }
+
     pub fn get(&self, x: usize, z: usize) -> i32 {
-        self.store.get(Self::index(x, z)) as i32 + self.min_y
+        let (word, shift, mask) = self.slot(x, z);
+        ((self.longs[word] >> shift) & mask) as i32 + self.min_y
     }
 
     pub fn set(&mut self, x: usize, z: usize, y: i32) {
@@ -59,14 +67,15 @@ impl ColumnHeights {
             max = self.max_y(),
         );
         let rel = (y - self.min_y).clamp(0, self.height as i32);
-        self.store.set(Self::index(x, z), rel as u32);
+        let (word, shift, mask) = self.slot(x, z);
+        self.longs[word] = (self.longs[word] & !(mask << shift)) | ((rel as u64) << shift);
     }
 
     pub fn raw_longs(&self) -> &[u64] {
-        self.store.raw_longs()
+        &self.longs
     }
 
-    pub fn storage(&self) -> &PackedBitStorage {
-        &self.store
+    pub fn bits(&self) -> u32 {
+        self.bits
     }
 }

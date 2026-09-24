@@ -184,7 +184,7 @@ macro_rules! snapshot_registry {
                             &snapshot,
                             $pack_source,
                         );
-                        access.register(::std::boxed::Box::new(erased));
+                        access.register(erased);
                     },
                 ).chain(),
             );

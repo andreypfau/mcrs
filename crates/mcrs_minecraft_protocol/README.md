@@ -44,4 +44,3 @@ The currently targeted Minecraft version and protocol version can be checked usi
 ## Feature Flags
 
 - `encryption`: Enables support for packet encryption.
-- `compression`: Enables support for packet compression.

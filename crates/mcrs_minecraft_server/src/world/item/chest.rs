@@ -22,6 +22,9 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
 use mcrs_minecraft_protocol::Text;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerClose;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
 use mcrs_minecraft_registry::BlockStateId;
 
 /// ponytail: no menu registry is loaded, so the generic 9x3 id is the
@@ -65,7 +68,13 @@ pub fn close_container_menu(world: &mut World, player: Entity, menu: Entity, not
         }
     }
     if notify {
-        let packet = to(world, player, PacketPayload::ContainerClose(container_id));
+        let packet = to(
+            world,
+            player,
+            PacketPayload::ContainerClose(ClientboundContainerClose {
+                container_id: VarInt(i32::from(container_id)),
+            }),
+        );
         world
             .resource_mut::<Messages<crate::world::bus::OutboundPlayerPacket>>()
             .write(packet);
@@ -148,11 +157,11 @@ pub fn open_containers(world: &mut World) {
         let packet = to(
             world,
             req.player,
-            PacketPayload::OpenScreen {
-                container_id,
-                menu_type: GENERIC_9X3,
+            PacketPayload::OpenScreen(ClientboundOpenScreen {
+                container_id: VarInt(i32::from(container_id)),
+                menu_type: VarInt(GENERIC_9X3),
                 title: Text::translate("container.chest", Vec::new()),
-            },
+            }),
         );
         world
             .resource_mut::<Messages<crate::world::bus::OutboundPlayerPacket>>()

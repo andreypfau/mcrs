@@ -8,7 +8,7 @@ use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_core::ResourceKey;
 use serde::Deserialize;
 
-use crate::dimension::level_stem::{DimensionDefinition, ProtoDimensionEntry};
+use crate::dimension::{DimensionDefinition, ProtoDimensionEntry};
 
 // ===========================================================================
 // Runtime type

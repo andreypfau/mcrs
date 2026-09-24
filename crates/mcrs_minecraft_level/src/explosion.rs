@@ -19,34 +19,7 @@ pub struct ExplosionPlugin;
 
 impl Plugin for ExplosionPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ExplosionConfig>();
         app.add_systems(FixedUpdate, tick_explode);
-    }
-}
-
-/// Runtime configuration for `ExplosionPlugin`.
-///
-/// `cascading_enabled` gates whether `tick_explode` emits `BlockSetRequest`
-/// messages that drive the cascading-TNT mechanic (a primary detonation
-/// removing adjacent TNT blocks, triggering them in turn).
-///
-/// Default: `true`. `ExplosionPlugin` and `BlockUpdatePlugin` both run in
-/// each `DimSubApp`, so the `MessageWriter<BlockSetRequest>` from
-/// `tick_explode` and the matching `MessageReader<BlockSetRequest>` in
-/// `apply_voxel_set_requests` live in the same per-dim `World`. The
-/// cascade chain is a single message hop — no two-frame buffer rotation
-/// across a cross-`World` boundary — so emitted requests reach the reader
-/// in the same tick and the secondary TNT actually detonates.
-#[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy)]
-pub struct ExplosionConfig {
-    pub cascading_enabled: bool,
-}
-
-impl Default for ExplosionConfig {
-    fn default() -> Self {
-        Self {
-            cascading_enabled: true,
-        }
     }
 }
 
@@ -151,7 +124,6 @@ type ChunkEntity = Entity;
 type DimEntity = Entity;
 
 fn tick_explode(
-    config: Res<ExplosionConfig>,
     mut explosions: Query<
         (
             ExplosionEntity,
@@ -208,16 +180,11 @@ fn tick_explode(
 
     let mut event_set = deduplicate_blocks(&mut queue, &mut commands);
 
-    let cascading_enabled = config.cascading_enabled;
-    writer.write_batch(event_set.drain().filter_map(|event| {
+    writer.write_batch(event_set.drain().map(|event| {
         let dim = event.dimension;
         let block_pos = event.block_pos;
         commands.trigger(event);
-        if cascading_enabled {
-            Some(remove_block(dim, block_pos))
-        } else {
-            None
-        }
+        remove_block(dim, block_pos)
     }));
 }
 
@@ -238,8 +205,7 @@ where
     R: rand::Rng,
 {
     let mut ret = Vec::new();
-    let cached_rays = cached_rays();
-    for inc in cached_rays {
+    for inc in CACHED_RAYS.iter() {
         let mut cached_block = cache.get_explosion_block(center);
         let mut curr = center;
 
@@ -308,46 +274,40 @@ use bevy_math::DVec3;
 use bevy_utils::Parallel;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use rand::{RngExt, rng};
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 const N: i32 = 15;
 const SCALE: f64 = 0.3;
 const POINTS: usize = 1352;
-const LEN: usize = POINTS;
 
-pub static CACHED_RAYS: OnceLock<[DVec3; LEN]> = OnceLock::new();
+static CACHED_RAYS: LazyLock<[DVec3; POINTS]> = LazyLock::new(|| {
+    let mut out: [DVec3; POINTS] = [DVec3::ZERO; POINTS];
+    let mut i = 0usize;
 
-pub fn cached_rays() -> &'static [DVec3; LEN] {
-    CACHED_RAYS.get_or_init(|| {
-        let mut out: [DVec3; LEN] = [DVec3::ZERO; LEN];
-        let mut i = 0usize;
+    for x in 0..=N {
+        for y in 0..=N {
+            for z in 0..=N {
+                if x == 0 || x == N || y == 0 || y == N || z == 0 || z == N {
+                    let xd = (x as f64 / N as f64) * 2.0 - 1.0;
+                    let yd = (y as f64 / N as f64) * 2.0 - 1.0;
+                    let zd = (z as f64 / N as f64) * 2.0 - 1.0;
 
-        for x in 0..=N {
-            for y in 0..=N {
-                for z in 0..=N {
-                    if x == 0 || x == N || y == 0 || y == N || z == 0 || z == N {
-                        let xd = (x as f64 / N as f64) * 2.0 - 1.0;
-                        let yd = (y as f64 / N as f64) * 2.0 - 1.0;
-                        let zd = (z as f64 / N as f64) * 2.0 - 1.0;
+                    let mag = (xd * xd + yd * yd + zd * zd).sqrt();
 
-                        let mag = (xd * xd + yd * yd + zd * zd).sqrt();
-
-                        out[i] =
-                            DVec3::new((xd / mag) * SCALE, (yd / mag) * SCALE, (zd / mag) * SCALE);
-                        i += 1;
-                    }
+                    out[i] = DVec3::new((xd / mag) * SCALE, (yd / mag) * SCALE, (zd / mag) * SCALE);
+                    i += 1;
                 }
             }
         }
+    }
 
-        assert_eq!(
-            i, LEN,
-            "cached_rays: surface-cell count diverged from LEN; bump LEN or fix the loop",
-        );
+    assert_eq!(
+        i, POINTS,
+        "cached_rays: surface-cell count diverged from POINTS; bump POINTS or fix the loop",
+    );
 
-        out
-    })
-}
+    out
+});
 
 #[cfg(test)]
 mod tests {
@@ -357,40 +317,8 @@ mod tests {
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::System;
 
-    /// `ExplosionConfig::default()` keeps cascading enabled now that the
-    /// `tick_explode` writer and the matching `apply_voxel_set_requests`
-    /// reader share a per-dim `World`. The single message hop guarantees
-    /// `BlockSetRequest` reaches the reader in the same tick.
-    #[test]
-    fn explosion_config_defaults_to_cascading_enabled() {
-        let cfg = ExplosionConfig::default();
-        assert!(
-            cfg.cascading_enabled,
-            "ExplosionConfig must default to cascading enabled"
-        );
-    }
-
-    /// Wiring smoke test: building an app with `ExplosionPlugin` registers
-    /// both the config and the `BlockSetRequest` message buffer (the latter is
-    /// added by the plugin's reliance on `MessageWriter<BlockSetRequest>`).
-    #[test]
-    fn explosion_plugin_registers_config_with_cascading_enabled() {
-        let mut app = App::new();
-        app.add_message::<BlockSetRequest>();
-        app.add_plugins(ExplosionPlugin);
-
-        let cfg = app
-            .world()
-            .get_resource::<ExplosionConfig>()
-            .expect("ExplosionPlugin must register ExplosionConfig");
-        assert!(
-            cfg.cascading_enabled,
-            "ExplosionPlugin must register ExplosionConfig with cascading enabled"
-        );
-    }
-
-    /// With cascading on by default, running `tick_explode` against an empty
-    /// world (no `Explosion` entities) still drains nothing into
+    /// Running `tick_explode` against an empty world (no `Explosion`
+    /// entities) drains nothing into
     /// `Messages<BlockSetRequest>` because the event set is empty. Negative-
     /// path smoke test that the system does not panic on an empty world and
     /// the buffer stays clean.
@@ -411,26 +339,6 @@ mod tests {
             msgs.is_empty(),
             "with no explosions in the world, tick_explode must not write any BlockSetRequest \
              (the iterated event set is empty, so no writes are emitted)"
-        );
-    }
-
-    /// The resource is `Clone + Copy`; an operator-side `world.insert_resource`
-    /// flip to `cascading_enabled = false` is the path to disable cascading at
-    /// runtime if a server admin wants to suppress the mechanic.
-    #[test]
-    fn explosion_config_can_be_flipped_at_runtime() {
-        let mut app = App::new();
-        app.add_message::<BlockSetRequest>();
-        app.add_plugins(ExplosionPlugin);
-
-        app.world_mut().insert_resource(ExplosionConfig {
-            cascading_enabled: false,
-        });
-
-        let cfg = app.world().resource::<ExplosionConfig>();
-        assert!(
-            !cfg.cascading_enabled,
-            "runtime flip to disabled must stick"
         );
     }
 }

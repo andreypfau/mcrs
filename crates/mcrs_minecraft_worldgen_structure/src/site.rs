@@ -230,30 +230,6 @@ pub fn layout(ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
     }
 }
 
-/// Whether a site that passed always yields a piece, so a search need not run
-/// the layout; `None` for a type this build has no generator for, whose layout
-/// is empty and whose site never passes.
-pub fn site_implies_piece(kind: &StructureKind) -> Option<bool> {
-    match kind {
-        StructureKind::Jigsaw { .. } => Some(true),
-        StructureKind::BuriedTreasure => hardcoded::buried_treasure::SITE_IMPLIES_PIECE,
-        StructureKind::DesertPyramid => hardcoded::desert_pyramid::SITE_IMPLIES_PIECE,
-        StructureKind::EndCity => hardcoded::end_city::SITE_IMPLIES_PIECE,
-        StructureKind::Fortress => hardcoded::fortress::SITE_IMPLIES_PIECE,
-        StructureKind::Igloo => hardcoded::igloo::SITE_IMPLIES_PIECE,
-        StructureKind::JungleTemple => hardcoded::jungle_temple::SITE_IMPLIES_PIECE,
-        StructureKind::Mineshaft { .. } => hardcoded::mineshaft::SITE_IMPLIES_PIECE,
-        StructureKind::NetherFossil { .. } => hardcoded::nether_fossil::SITE_IMPLIES_PIECE,
-        StructureKind::OceanMonument { .. } => hardcoded::ocean_monument::SITE_IMPLIES_PIECE,
-        StructureKind::OceanRuin(_) => hardcoded::ocean_ruin::SITE_IMPLIES_PIECE,
-        StructureKind::RuinedPortal { .. } => hardcoded::ruined_portal::SITE_IMPLIES_PIECE,
-        StructureKind::Shipwreck { .. } => hardcoded::shipwreck::SITE_IMPLIES_PIECE,
-        StructureKind::Stronghold => hardcoded::stronghold::SITE_IMPLIES_PIECE,
-        StructureKind::SwampHut => hardcoded::swamp_hut::SITE_IMPLIES_PIECE,
-        StructureKind::WoodlandMansion => hardcoded::woodland_mansion::SITE_IMPLIES_PIECE,
-    }
-}
-
 fn jigsaw_site(
     ctx: &mut Context<'_>,
     start_pool: PoolId,

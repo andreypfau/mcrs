@@ -1,20 +1,31 @@
-//! Covers AOI-04 (stationary players cost zero AoI work per tick). The
-//! `AoiTickProbe` Resource counts how many times the AoI system body
-//! has actually executed; the assertion compares the post-baseline
-//! counter to the baseline. If the run-criterion gating worked, the
-//! body does not fire on subsequent stationary ticks and the counter
-//! stays flat.
+//! Stationary players cost zero AoI work per tick. A
+//! counting system gated like the AoI system records how many times the
+//! gate opened; the assertion compares the post-baseline count to the
+//! baseline. If the run-criterion gating worked, the gate stays shut on
+//! subsequent stationary ticks and the counter stays flat.
 
+use bevy_app::FixedPostUpdate;
+use bevy_ecs::prelude::{IntoScheduleConfigs, ResMut, Resource};
 use bevy_math::DVec3;
 use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
-use mcrs_minecraft_server::world::aoi::AoiTickProbe;
+use mcrs_minecraft_server::world::aoi::{PlayerTrackerSet, on_changed_transform};
 
 use crate::harness;
 use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
 
+#[derive(Resource, Default)]
+struct GatedRuns(u32);
+
 #[test]
 fn stationary_players_trigger_no_aoi_writes() {
     let mut app = make_aoi_app();
+    app.init_resource::<GatedRuns>();
+    app.add_systems(
+        FixedPostUpdate,
+        (|mut runs: ResMut<GatedRuns>| runs.0 += 1)
+            .in_set(PlayerTrackerSet)
+            .run_if(on_changed_transform),
+    );
     let dim = app
         .world_mut()
         .spawn(DimensionBundle::new(
@@ -24,14 +35,13 @@ fn stationary_players_trigger_no_aoi_writes() {
         .id();
     let _player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
 
-    // Tick 1: the initial Changed<Transform> triggers the AoI system at
-    // least once. Capture the probe state here as the baseline.
+    // Tick 1: the initial Changed<Transform> opens the AoI gate at least
+    // once. Capture the count here as the baseline.
     drive_aoi_tick(&mut app);
-    let baseline = *app.world().resource::<AoiTickProbe>();
+    let baseline = app.world().resource::<GatedRuns>().0;
     assert!(
-        baseline.tracked_by_ran >= 1,
-        "baseline should record at least one tracked_by body run; got {}",
-        baseline.tracked_by_ran
+        baseline >= 1,
+        "baseline should record at least one gated run; got {baseline}"
     );
 
     // Run 10 stationary ticks. Nothing mutates Transform, so the
@@ -41,10 +51,9 @@ fn stationary_players_trigger_no_aoi_writes() {
         drive_aoi_tick(&mut app);
     }
 
-    let after = *app.world().resource::<AoiTickProbe>();
+    let after = app.world().resource::<GatedRuns>().0;
     assert_eq!(
-        after.tracked_by_ran, baseline.tracked_by_ran,
-        "tracked_by body executed on a stationary tick (baseline={}, after={})",
-        baseline.tracked_by_ran, after.tracked_by_ran
+        after, baseline,
+        "the AoI gate opened on a stationary tick (baseline={baseline}, after={after})"
     );
 }

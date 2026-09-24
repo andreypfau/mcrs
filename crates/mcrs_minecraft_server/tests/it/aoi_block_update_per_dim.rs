@@ -92,7 +92,7 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     let mut cursor = buf.get_cursor();
     let mut block_update_count = 0;
     for pkt in cursor.read(buf) {
-        if !matches!(pkt.data, PacketPayload::BlockUpdate { .. }) {
+        if !matches!(pkt.data, PacketPayload::BlockUpdate(_)) {
             continue;
         }
         match &pkt.target {

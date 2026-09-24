@@ -1,4 +1,5 @@
 use crate::login::GameProfile;
+use crate::world::bus::to;
 use crate::world::bus::{
     ArrivalCause, MovePayload, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
@@ -13,7 +14,11 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::session::{Owner, PlayerSession};
 use mcrs_minecraft_level::world::in_flight::MoveIds;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::Text;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundChat, ServerboundChatCommand,
 };
@@ -68,27 +73,27 @@ fn handle_command(
             };
             let host = host_anchor.0;
             transform.translation = pos;
-            packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(host),
-                priority: PacketPriority::Critical,
-                data: PacketPayload::PlayerPosition {
-                    teleport_id: 1,
-                    position: pos,
-                },
-                session: PlayerSession(0),
-                epoch: 0,
-            });
-            packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(host),
-                priority: PacketPriority::Normal,
-                data: PacketPayload::SystemChat {
+            packet_writer.write(
+                to(
+                    host,
+                    PacketPayload::PlayerPosition(ClientboundPlayerPosition {
+                        teleport_id: VarInt(1),
+                        position: pos,
+                        velocity: DVec3::ZERO,
+                        look: Look::default(),
+                        flags: Vec::new(),
+                    }),
+                )
+                .critical(),
+            );
+            packet_writer.write(to(
+                host,
+                PacketPayload::SystemChat(ClientboundSystemChatPacket {
                     content: format!("Teleported to {:.1}, {:.1}, {:.1}", pos.x, pos.y, pos.z)
                         .into_text(),
                     overlay: false,
-                },
-                session: PlayerSession(0),
-                epoch: 0,
-            });
+                }),
+            ));
             info!("teleported {:?} to {:?}", event.entity, pos);
         }
         Some("dim") => {
@@ -144,16 +149,13 @@ fn handle_command(
                 format!("minecraft:{raw}")
             };
             let origin = transform.translation.floor().as_ivec3();
-            packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(host_anchor.0),
-                priority: PacketPriority::Normal,
-                data: PacketPayload::SystemChat {
+            packet_writer.write(to(
+                host_anchor.0,
+                PacketPayload::SystemChat(ClientboundSystemChatPacket {
                     content: locate_structure(fill.as_deref(), origin, &id),
                     overlay: false,
-                },
-                session: PlayerSession(0),
-                epoch: 0,
-            });
+                }),
+            ));
         }
         _ => {}
     }
@@ -233,16 +235,13 @@ fn handle_chat(
     }
 
     if info.is_some_and(|info| info.chat_mode == ChatMode::Hidden) {
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host_anchor.0),
-            priority: PacketPriority::Normal,
-            data: PacketPayload::SystemChat {
+        packet_writer.write(to(
+            host_anchor.0,
+            PacketPayload::SystemChat(ClientboundSystemChatPacket {
                 content: Text::translate("chat.disabled.options", vec![]).color(Color::RED),
                 overlay: false,
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+            }),
+        ));
         return;
     }
 
@@ -258,10 +257,10 @@ fn handle_chat(
     packet_writer.write(OutboundPlayerPacket {
         target: PacketTarget::AllPlayers,
         priority: PacketPriority::Normal,
-        data: PacketPayload::SystemChat {
+        data: PacketPayload::SystemChat(ClientboundSystemChatPacket {
             content: text,
             overlay: false,
-        },
+        }),
         session: PlayerSession(0),
         epoch: 0,
     });

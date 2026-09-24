@@ -35,9 +35,7 @@ use crate::{base_column, base_height, first_free_kind, heightmap_kind};
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, SetId, StructureId};
 use mcrs_minecraft_worldgen_structure::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
 use mcrs_minecraft_worldgen_structure::piece::{Piece, Start};
-use mcrs_minecraft_worldgen_structure::site::{
-    BaseColumn, Context, Site, SiteWorld, layout, site, site_implies_piece,
-};
+use mcrs_minecraft_worldgen_structure::site::{BaseColumn, Context, Site, SiteWorld, layout, site};
 
 #[derive(Clone)]
 pub enum BiomeLookup {
@@ -97,7 +95,8 @@ impl EndBiomes {
     }
 }
 
-const CLIMATE_ROOTS: [usize; 6] = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
+pub(crate) const CLIMATE_ROOTS: [usize; 6] =
+    [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
 
 const MAX_STRUCTURE_DISTANCE: i32 = 8;
 
@@ -248,18 +247,12 @@ impl StructureIndex {
         (!pieces.is_empty()).then(|| Start::new(&self.tables.frozen, structure, pieces))
     }
 
-    pub fn starts_at(&self, chunk: ColumnPos) -> Vec<Start> {
-        let sets = self.tables.live.iter().map(|(set, _)| *set);
-        self.starts_of(&mut self.view(), chunk, sets)
-    }
-
-    fn starts_of(
-        &self,
-        view: &mut View<'_>,
-        chunk: ColumnPos,
-        sets: impl Iterator<Item = SetId>,
-    ) -> Vec<Start> {
-        sets.filter(|set| self.gate(*set, chunk))
+    fn starts_of(&self, view: &mut View<'_>, chunk: ColumnPos) -> Vec<Start> {
+        self.tables
+            .live
+            .iter()
+            .map(|(set, _)| *set)
+            .filter(|set| self.gate(*set, chunk))
             .filter_map(|set| {
                 let cell = Arc::clone(
                     self.starts
@@ -275,11 +268,8 @@ impl StructureIndex {
 
     fn start_in(&self, view: &mut View<'_>, set: SetId, chunk: ColumnPos) -> Option<Start> {
         let frozen = &self.tables.frozen;
-        let (structure, selected) = self.selected_site(view, set, chunk)?;
-        let pieces = match selected {
-            Selected::Pieces(pieces) => pieces,
-            Selected::Site(site) => layout(&mut self.context(view, chunk, structure), site),
-        };
+        let (structure, site) = self.selected_site(view, set, chunk)?;
+        let pieces = layout(&mut self.context(view, chunk, structure), site);
         (!pieces.is_empty()).then(|| Start::new(frozen, structure, pieces))
     }
 
@@ -315,14 +305,10 @@ impl StructureIndex {
             for dz in -radius..=radius {
                 let chunk = ColumnPos::new(column.x + dx, column.z + dz);
                 starts.extend(
-                    self.starts_of(
-                        &mut view,
-                        chunk,
-                        self.tables.live.iter().map(|(set, _)| *set),
-                    )
-                    .into_iter()
-                    .filter(|start| start.bounds.intersects(footprint))
-                    .map(|start| (chunk, start)),
+                    self.starts_of(&mut view, chunk)
+                        .into_iter()
+                        .filter(|start| start.bounds.intersects(footprint))
+                        .map(|start| (chunk, start)),
                 );
             }
         }
@@ -400,14 +386,13 @@ impl StructureIndex {
     }
 
     /// `tryGenerateStructure` over the set's draw with removal: a site that
-    /// passes its biome test, and a layout with a piece where the site alone
-    /// cannot promise one.
+    /// passes its biome test.
     fn selected_site(
         &self,
         view: &mut View<'_>,
         set: SetId,
         chunk: ColumnPos,
-    ) -> Option<(StructureId, Selected)> {
+    ) -> Option<(StructureId, Site)> {
         let frozen = &self.tables.frozen;
         let mut accepted = None;
         let structure = select_with_removal(
@@ -415,27 +400,13 @@ impl StructureIndex {
             chunk,
             &frozen.sets[set.0 as usize].entries,
             |structure| {
-                let Some(site) = self
+                accepted = self
                     .site_in(view, chunk, structure)
-                    .filter(|site| site.biome_ok)
-                else {
-                    return false;
-                };
-                let kind = &frozen.structures[structure.0 as usize].kind;
-                accepted = if site_implies_piece(kind) == Some(true) {
-                    Some(Selected::Site(site))
-                } else {
-                    let pieces = layout(&mut self.context(view, chunk, structure), site);
-                    (!pieces.is_empty()).then_some(Selected::Pieces(pieces))
-                };
+                    .filter(|site| site.biome_ok);
                 accepted.is_some()
             },
         )?;
         Some((structure, accepted?))
-    }
-
-    pub fn starts_present(&self, set: SetId, chunk: ColumnPos, structure: StructureId) -> bool {
-        self.gate(set, chunk) && self.selected(set, chunk) == Some(structure)
     }
 
     pub fn locate(&self, origin: IVec3, wanted: &[StructureId]) -> Option<(IVec3, StructureId)> {
@@ -566,11 +537,6 @@ fn plane_admits(
             preferred.contains(table.biome_at_from(target, &mut last) as usize)
         })
         .collect()
-}
-
-enum Selected {
-    Site(Site),
-    Pieces(Vec<Piece>),
 }
 
 struct View<'a> {

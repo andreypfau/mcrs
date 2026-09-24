@@ -11,16 +11,16 @@
 //! per-dim wire emitters that want a belt-and-braces liveness filter
 //! before fan-out.
 
+use crate::world::bus::to;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Entity, Query, With};
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use smallvec::SmallVec;
 
 use crate::world::aoi::components::TrackedBy;
-use crate::world::bus::{
-    InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use crate::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::column_view::ColumnView;
 
@@ -60,7 +60,9 @@ pub fn drain_inbound_player_despawn(
             continue;
         };
 
-        let entity_ids: SmallVec<[i32; 4]> = SmallVec::from_slice(&[target.index_u32() as i32]);
+        let left_view = ClientboundRemoveEntities {
+            entity_ids: vec![VarInt(target.index_u32() as i32)],
+        };
 
         // Emit PlayerLeftView to former observers before any cache is mutated.
         // Former observers are all in-dim players whose TrackedBy currently
@@ -78,15 +80,10 @@ pub fn drain_inbound_player_despawn(
             if let Ok(tracked_by) = player_caches.get(observer_entity)
                 && tracked_by.0.contains(&target)
             {
-                packet_writer.write(OutboundPlayerPacket {
-                    target: PacketTarget::SinglePlayer(observer_entity),
-                    priority: PacketPriority::Normal,
-                    data: PacketPayload::PlayerLeftView {
-                        entity_ids: entity_ids.clone(),
-                    },
-                    session: PlayerSession(0),
-                    epoch: 0,
-                });
+                packet_writer.write(to(
+                    observer_entity,
+                    PacketPayload::PlayerLeftView(left_view.clone()),
+                ));
             }
         }
 

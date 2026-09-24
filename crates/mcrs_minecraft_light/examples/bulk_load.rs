@@ -200,17 +200,8 @@ fn main() {
     );
 
     println!(
-        "{:>4}  {:>5}  {:>9}  {:>12}  {:>7}  {:>8}  {:>8}  {:>8}  {:>9}  {:>10}",
-        "tick",
-        "batch",
-        "influx",
-        "area_cells",
-        "cols",
-        "fill",
-        "seed",
-        "relax",
-        "read_back",
-        "job"
+        "{:>4}  {:>5}  {:>9}  {:>12}  {:>7}  {:>10}",
+        "tick", "batch", "influx", "area_cells", "cols", "job"
     );
 
     let started = Instant::now();
@@ -277,14 +268,9 @@ fn main() {
             worst_cells = worst_cells.max(stats.area_cells);
             if index <= 12 || index % 25 == 0 {
                 println!(
-                    "{tick:>4}  {index:>5}  {influences:>9}  {:>12}  {:>7}  {:>8?}  {:>8?}  \
-                     {:>8?}  {:>9?}  {:>10?}",
+                    "{tick:>4}  {index:>5}  {influences:>9}  {:>12}  {:>7}  {:>10?}",
                     stats.area_cells,
                     influences / sections_per_column,
-                    stats.timings.fill,
-                    stats.timings.seed,
-                    stats.timings.relax,
-                    stats.timings.read_back,
                     job_wall
                 );
             }

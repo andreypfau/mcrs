@@ -10,8 +10,6 @@ use crate::orient::{Orientation, orient_box, world_pos};
 use crate::piece::{MonumentChild, MonumentRoom, MonumentRoomKind, OceanMonumentPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 const BIOME_RANGE_CHECK: i32 = 29;
 
 pub fn site(

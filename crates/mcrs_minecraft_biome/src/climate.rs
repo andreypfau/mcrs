@@ -27,10 +27,6 @@ pub fn quantize_coord(coord: f32) -> i64 {
     (coord * 10000.0) as i64
 }
 
-pub fn unquantize_coord(coord: i64) -> f32 {
-    coord as f32 / 10000.0
-}
-
 /// One climate coordinate's accepted span, quantized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Parameter {
@@ -577,7 +573,7 @@ mod tests {
         // 0.26666668 * 10000 lands just under 2666.667, and truncation is what
         // the reference does with it.
         assert_eq!(quantize_coord(0.266_666_68), 2666);
-        assert_eq!(unquantize_coord(quantize_coord(0.5)), 0.5);
+        assert_eq!(quantize_coord(0.5), 5000);
     }
 
     #[test]

@@ -13,7 +13,7 @@ use crate::frozen::{
     ElementId, FrozenElement, FrozenStructures, StructureId, StructureKind, TemplateId,
 };
 use crate::hardcoded::igloo::IglooTemplate;
-use crate::orient::Orientation;
+use crate::orient::{Orientation, union_of};
 use crate::{
     LiquidSettings, MineshaftType, OceanTemperature, PoolElement, PortalPlacement, SingleElement,
     TerrainAdaptation,
@@ -543,11 +543,7 @@ pub struct Start {
 
 impl Start {
     pub fn new(frozen: &FrozenStructures, structure: StructureId, pieces: Vec<Piece>) -> Self {
-        let union = pieces
-            .iter()
-            .map(Piece::bounds)
-            .reduce(BoundingBox::union)
-            .expect("a start has at least one piece");
+        let union = union_of(&pieces);
         let bounds =
             if frozen.structures[structure.0 as usize].adaptation == TerrainAdaptation::None {
                 union

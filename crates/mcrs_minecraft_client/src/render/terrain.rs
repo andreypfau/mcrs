@@ -6,6 +6,7 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 
 use crate::sky_render::ExtractedSky;
 
+use super::Brightness;
 use super::arenas::Arenas;
 use super::binds::Bindings;
 use super::draws::DrawList;
@@ -91,13 +92,14 @@ pub(super) fn init_terrain(
     });
 }
 
-/// The lightmap follows the three light colours alone, which move at tick rate and often not at
-/// all, so a frame whose colours match the last one uploads nothing.
+/// The lightmap follows the three light colours and the brightness alone, which move at tick rate
+/// and often not at all, so a frame whose inputs match the last one uploads nothing.
 pub(super) fn write_lightmap(
     terrain: Option<Res<Terrain>>,
     sky: Option<Res<ExtractedSky>>,
+    brightness: Res<Brightness>,
     queue: Res<RenderQueue>,
-    mut last: Local<Option<[[f32; 4]; 3]>>,
+    mut last: Local<Option<([[f32; 4]; 3], f32)>>,
 ) {
     let (Some(terrain), Some(sky)) = (terrain, sky) else {
         return;
@@ -107,9 +109,14 @@ pub(super) fn write_lightmap(
         sky.uniform.sky_light,
         sky.uniform.block_light,
     ];
-    if *last == Some(lights) {
+    if *last == Some((lights, brightness.0)) {
         return;
     }
-    *last = Some(lights);
-    texture::write_lightmap(&terrain.sprites.lightmap, &queue, &sky.uniform);
+    *last = Some((lights, brightness.0));
+    texture::write_lightmap(
+        &terrain.sprites.lightmap,
+        &queue,
+        &sky.uniform,
+        brightness.0,
+    );
 }

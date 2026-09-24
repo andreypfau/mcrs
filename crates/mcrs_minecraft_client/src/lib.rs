@@ -4,6 +4,10 @@
 
 use std::path::{Path, PathBuf};
 
+use bevy::app::PluginGroupBuilder;
+use bevy::camera::visibility::VisibilitySystems;
+use bevy::prelude::*;
+
 pub mod anim;
 #[cfg(target_os = "macos")]
 pub mod app_nap;
@@ -45,4 +49,47 @@ pub fn asset_corpus() -> PathBuf {
         .nth(2)
         .expect("the crate sits two levels below the workspace root")
         .join("assets")
+}
+
+pub struct ClientPlugins;
+
+impl PluginGroup for ClientPlugins {
+    fn build(self) -> PluginGroupBuilder {
+        PluginGroupBuilder::start::<Self>()
+            .add(vanilla::VanillaAssetsPlugin)
+            .add(mcrs_minecraft_assets::MinecraftCorePlugin)
+            .add(mcrs_minecraft_world::MinecraftWorldPlugin)
+            .add(player::PlayerPlugin)
+            .add(input::ClientInputPlugin)
+            .add(local_player::LocalPlayerPlugin)
+            .add(camera::CameraPlugin)
+            .add(gui::debug::DebugScreenPlugin)
+            .add(gui::chunk_map::ChunkMapPlugin)
+            .add(gui::light_levels::LightLevelsPlugin)
+            .add(sky::SkyPlugin)
+    }
+}
+
+pub struct ClientTerrainPlugin(pub config::TerrainLimits);
+
+impl Plugin for ClientTerrainPlugin {
+    fn build(&self, app: &mut App) {
+        let (budget, uploads, cave) = config::terrain(self.0);
+        app.add_plugins(render::TerrainPlugin(budget.clone(), uploads.clone()))
+            .add_plugins(stream::StreamPlugin::new(budget, uploads))
+            .insert_resource(cave)
+            .add_systems(
+                Update,
+                (
+                    cave::toggle,
+                    render::toggle_wireframe,
+                    #[cfg(target_os = "macos")]
+                    capture::gputrace,
+                ),
+            )
+            .add_systems(
+                PostUpdate,
+                cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
+            );
+    }
 }

@@ -2,23 +2,11 @@ use std::sync::Arc;
 
 use bevy_asset::{Asset, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use mcrs_minecraft_core::{ResourceKey, rl};
 use serde::Deserialize;
 
 use crate::ResourceLocation;
 use crate::worldgen::chunk_generator::{ChunkGenerator, ProtoChunkGenerator};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
-
-// ===========================================================================
-// Well-known dimension keys
-// ===========================================================================
-
-pub const OVERWORLD: ResourceKey<DimensionDefinition, &'static str> =
-    ResourceKey::new(rl!("minecraft:overworld"));
-
-// ===========================================================================
-// Runtime type
-// ===========================================================================
 
 /// A dimension definition: a dimension type reference plus a chunk generator.
 ///
@@ -38,20 +26,12 @@ impl VisitAssetDependencies for DimensionDefinition {
     }
 }
 
-// ===========================================================================
-// Proto type (serde layer)
-// ===========================================================================
-
 #[derive(Deserialize)]
 pub(crate) struct ProtoDimensionEntry {
     #[serde(rename = "type")]
     pub(crate) dimension_type: ResourceLocation<Arc<str>>,
     pub(crate) generator: ProtoChunkGenerator,
 }
-
-// ===========================================================================
-// Resolve: Proto → Runtime
-// ===========================================================================
 
 impl ProtoDimensionEntry {
     pub(crate) fn resolve(self, ctx: &mut LoadContext) -> DimensionDefinition {

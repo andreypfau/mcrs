@@ -120,12 +120,7 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         app.world_mut()
             .resource_mut::<DimChannelsResource>()
-            .insert(
-                current_dim,
-                srv_tx,
-                ctl_tx,
-                from_rx,
-            );
+            .insert(current_dim, srv_tx, ctl_tx, from_rx);
         ctl_rx
     };
     let session = app
@@ -184,10 +179,10 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
         "exactly one despawn routed to control channel (second call routes nothing)",
     );
     match &despawn_msgs[0] {
-        mcrs_minecraft_server::world::channel_types::ToDim::Despawn {
+        mcrs_minecraft_server::world::channel_types::ToDim::Despawn(InboundPlayerDespawn {
             host_anchor: ha,
             session: sess,
-        } => {
+        }) => {
             assert_eq!(*ha, host_anchor);
             assert_eq!(
                 *sess, session,

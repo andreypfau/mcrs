@@ -11,13 +11,9 @@ use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_wor
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
-use bevy::camera::visibility::VisibilitySystems;
-
 use crate::config::TerrainLimits;
-use crate::render::TerrainPlugin;
 use crate::{
-    camera, cave, config, gui, input, local_player, player, render, sky, sky_render, stream,
-    vanilla,
+    ClientPlugins, ClientTerrainPlugin, config, local_player, player, sky, sky_render, vanilla,
 };
 
 pub const CANVAS: &str = "#mcrs";
@@ -110,17 +106,7 @@ pub fn run() {
             .disable::<bevy::pbr::PbrPlugin>()
             .disable::<bevy::light::LightPlugin>(),
     )
-    .add_plugins(vanilla::VanillaAssetsPlugin)
-    .add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin)
-    .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)
-    .add_plugins(player::PlayerPlugin)
-    .add_plugins(input::ClientInputPlugin)
-    .add_plugins(local_player::LocalPlayerPlugin)
-    .add_plugins(camera::CameraPlugin)
-    .add_plugins(gui::debug::DebugScreenPlugin)
-    .add_plugins(gui::chunk_map::ChunkMapPlugin)
-    .add_plugins(gui::light_levels::LightLevelsPlugin)
-    .add_plugins(sky::SkyPlugin)
+    .add_plugins(ClientPlugins)
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .insert_resource(WorldClocks::default())
     .insert_resource(AdvanceTime(frozen_at.is_none()))
@@ -141,17 +127,7 @@ pub fn run() {
         app.insert_resource(sky_render::SkyDrawsOnly(only));
     }
 
-    let (budget, uploads, cave) = config::terrain(TERRAIN_LIMITS);
-    app.add_plugins(TerrainPlugin(budget.clone(), uploads.clone()))
-        .add_plugins(stream::StreamPlugin::new(budget, uploads))
-        .insert_resource(config::drawn_streams())
-        .insert_resource(config::raster_fraction())
-        .insert_resource(cave)
-        .add_systems(Update, (cave::toggle, render::toggle_wireframe))
-        .add_systems(
-            PostUpdate,
-            cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
-        );
+    app.add_plugins(ClientTerrainPlugin(TERRAIN_LIMITS));
 
     match server() {
         Some(server) => {

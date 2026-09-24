@@ -122,7 +122,7 @@ pub fn place_start<W: WorldGenVolume>(
 ) {
     let structure = &frozen.structures[start.structure.0 as usize];
     let first = start.pieces[0].bounds();
-    let centre = *first.min + (*first.max - *first.min + IVec3::ONE) / 2;
+    let centre = first.center();
     let reference = IVec3::new(centre.x, first.min.y, centre.z);
     for piece in &start.pieces {
         if !piece.bounds().intersects(clip) {
@@ -157,6 +157,7 @@ pub fn place_start<W: WorldGenVolume>(
                     bounds: sunk_bounds(piece, sink),
                     orientation: Some(piece.orientation),
                     clip,
+                    keep: None,
                 };
                 paint_desert_pyramid(blocks, &mut canvas, rng);
             }
@@ -178,6 +179,7 @@ pub fn place_start<W: WorldGenVolume>(
                     bounds: raised,
                     orientation: Some(piece.orientation),
                     clip,
+                    keep: None,
                 };
                 paint_jungle_temple(blocks, &mut canvas, rng);
             }
@@ -197,6 +199,7 @@ pub fn place_start<W: WorldGenVolume>(
                     )),
                     orientation: Some(piece.orientation),
                     clip,
+                    keep: None,
                 };
                 paint_swamp_hut(
                     blocks,
@@ -219,6 +222,7 @@ pub fn place_start<W: WorldGenVolume>(
                     bounds: piece.bounds,
                     orientation: None,
                     clip,
+                    keep: None,
                 };
                 paint_buried_treasure(blocks, &mut canvas, rng);
             }
@@ -234,6 +238,7 @@ pub fn place_start<W: WorldGenVolume>(
                     bounds: piece.bounds,
                     orientation: Some(piece.orientation),
                     clip,
+                    keep: None,
                 };
                 paint_fortress(blocks, piece.kind, &mut canvas, rng);
             }
@@ -306,6 +311,7 @@ pub fn place_start<W: WorldGenVolume>(
                     bounds: piece.bounds,
                     orientation: Some(piece.orientation),
                     clip,
+                    keep: None,
                 };
                 paint_ocean_monument(blocks, piece, &mut canvas, rng);
             }
@@ -374,6 +380,7 @@ pub fn place_start<W: WorldGenVolume>(
                     bounds: piece.bounds,
                     orientation: Some(piece.orientation),
                     clip,
+                    keep: None,
                 };
                 paint_stronghold(blocks, piece.kind, piece.entry_door, &mut canvas, rng);
             }

@@ -265,7 +265,7 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
     draws.set(draws.get() + 2); // two draws for l and i1
 
     let water = WaterMask::default();
-    let mut mask = CarvingMask::new(16, 1, 120);
+    let mut mask = CarvingMask::new(1, 120);
     let radius = SOURCE_RADIUS;
 
     for origin_x in (chunk_x - radius)..=(chunk_x + radius) {
@@ -335,13 +335,6 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
         lookup: Box::new(build_beta_lookup_table()),
     };
     (biome_source, snapshot)
-}
-
-fn make_chunk_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {
-    let seed: i64 = (chunk_x as i64)
-        .wrapping_mul(341873128712)
-        .wrapping_add((chunk_z as i64).wrapping_mul(132897987541));
-    LegacyRandom::new(seed as u64)
 }
 
 // ── Parity test ───────────────────────────────────────────────────────────────
@@ -528,7 +521,7 @@ fn generate_column_beta_has_caves() {
         &cancel,
     );
 
-    let mut rng = make_chunk_rng(chunk_x, chunk_z);
+    let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
     let column = ColumnBlocks::from_sections(&sections, &y_sections);
     apply_beta_surface(
         &column,
@@ -634,7 +627,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 None,
                 &cancel,
             );
-            let mut rng = make_chunk_rng(chunk_x, chunk_z);
+            let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
             let column = ColumnBlocks::from_sections(&sections, &y_sections);
             apply_beta_surface(
                 &column,

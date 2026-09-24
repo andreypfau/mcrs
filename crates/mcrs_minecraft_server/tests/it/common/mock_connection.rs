@@ -174,8 +174,12 @@ pub fn make_mock_raw_connection() -> (RawConnection, mpsc::Receiver<Bytes>) {
             .expect("test tokio runtime")
     });
 
-    let (outgoing_tx, outgoing_rx) = mpsc::channel::<Bytes>(16);
-    let raw = rt.block_on(async { RawConnection::new_for_test(outgoing_tx) });
+    let (raw, outgoing_rx, inbound_tx) =
+        rt.block_on(async { RawConnection::new_for_test_full(16) });
+    rt.spawn(async move {
+        let _keep = inbound_tx;
+        std::future::pending::<()>().await;
+    });
     (raw, outgoing_rx)
 }
 

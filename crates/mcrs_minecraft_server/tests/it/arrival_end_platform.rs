@@ -10,8 +10,7 @@ use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest, BlockUpda
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::{DimPlayerIndex, MoveId, PlayerSessionCounter};
 use mcrs_minecraft_level::world::channels::{
-    FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    ToDimReceiver,
+    FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY, ToDimReceiver,
 };
 use mcrs_minecraft_level::world::dimension::Dimension;
 use mcrs_minecraft_level::world::in_flight::InFlightMoves;
@@ -66,12 +65,7 @@ fn make_dim_channels(
     let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
     app.world_mut()
         .resource_mut::<DimChannelsResource>()
-        .insert(
-            label_entity,
-            srv_tx,
-            ctl_tx,
-            from_rx,
-        );
+        .insert(label_entity, srv_tx, ctl_tx, from_rx);
     (srv_rx, ctl_rx, from_tx)
 }
 
@@ -83,13 +77,13 @@ fn drain_inbox(
 ) {
     for msg in rx.control.try_iter() {
         match msg {
-            ToDim::SpawnEntity {
+            ToDim::SpawnEntity(InboundEntitySpawn {
                 move_id,
                 epoch,
                 cause,
                 payload,
                 player,
-            } => {
+            }) => {
                 entity_spawn_msgs.write(InboundEntitySpawn {
                     move_id,
                     epoch,
@@ -98,10 +92,10 @@ fn drain_inbox(
                     player,
                 });
             }
-            ToDim::ConfirmMove { move_id } => {
+            ToDim::ConfirmMove(InboundConfirmMove { move_id }) => {
                 confirm_msgs.write(InboundConfirmMove { move_id });
             }
-            ToDim::RollbackMove { move_id } => {
+            ToDim::RollbackMove(InboundRollbackMove { move_id }) => {
                 rollback_msgs.write(InboundRollbackMove { move_id });
             }
             _ => {}
@@ -185,9 +179,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
 
         // FromDimSender so ArrivalPlugin can send Spawned ack.
         let (from_tx2, _from_rx2) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        sub.insert_resource(FromDimSender::<FromDim>(
-            from_tx2,
-        ));
+        sub.insert_resource(FromDimSender::<FromDim>(from_tx2));
         sub.init_resource::<DimPlayerIndex>();
 
         // Pre-insert a loaded chunk at the floor chunk position (y=63).
@@ -221,7 +213,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         let entry = channels.get(dest_label).expect("dest channels");
         entry
             .control_sender
-            .try_send(ToDim::SpawnEntity {
+            .try_send(ToDim::SpawnEntity(InboundEntitySpawn {
                 move_id: MoveId {
                     source: Entity::PLACEHOLDER,
                     seq: 7,
@@ -233,7 +225,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                     username: "end-test".to_string(),
                 },
                 player: None,
-            })
+            }))
             .expect("send SpawnEntity to dest");
     }
 

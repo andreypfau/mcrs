@@ -1,4 +1,3 @@
-use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -49,8 +48,7 @@ pub fn desert_pyramid<W: WorldGenVolume>(
     let mut placements: Vec<BlockPos> = potential_suspicious_sand(bounds, orientation).collect();
     placements.sort_by_key(|pos| (pos.y, pos.z, pos.x));
     placements.dedup();
-    let centre = *bounds.min + (*bounds.max - *bounds.min + IVec3::ONE) / 2;
-    let mut rng = LegacyRandom::new(b.world_seed as u64).fork_at(centre);
+    let mut rng = LegacyRandom::new(b.world_seed as u64).fork_at(*bounds.center());
     shuffle(&mut placements, &mut rng);
     let mut to_place = placements.len().min(rng.next_i32_bound(3) as usize + 5);
     let sand = b.sand.get(orientation);

@@ -1,5 +1,5 @@
 use crate::game_mode::OptGameMode;
-use crate::{Bounded, FixedBitSet, GameMode, GlobalPos, VarInt};
+use crate::{Bounded, GameMode, GlobalPos, VarInt};
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use std::borrow::Cow;
@@ -63,6 +63,6 @@ pub struct CommandArgumentSignature<'a> {
 #[derive(Copy, Clone, Debug, Encode, Decode)]
 pub struct MessageSignature {
     pub offset: VarInt,
-    pub acknowledged: FixedBitSet<20, 3>,
+    pub acknowledged: [u8; 3],
     pub checksum: u8,
 }

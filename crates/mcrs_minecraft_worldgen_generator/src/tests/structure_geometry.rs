@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
@@ -33,9 +33,6 @@ use crate::structures::place::{column_clip, place_start};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::{RAIN_TEMPERATURE, temperature};
 
 const MAGIC: &[u8; 8] = b"MCSTRGE0";
-
-/// Every structure type the oracle places and this build cannot yet.
-const UNPORTED_GEOMETRY_TYPES: [&str; 0] = [];
 
 /// The oracle's packed entity data follows the tag and is skipped: the server
 /// derives that packet from the components delivery builds out of these fields.
@@ -561,7 +558,6 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
     let dump = dump();
     let frozen = frozen_shared();
     let program = program();
-    let mut unported = BTreeSet::new();
     let mut faults = Vec::new();
     let mut placed = 0;
     let mut chunks = 0;
@@ -581,8 +577,7 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
             continue;
         };
         let Some(start) = ours else {
-            unported.insert(structure.kind.type_name());
-            continue;
+            panic!("{label}: no start where the reference has one");
         };
         assert_eq!(start.bounds, expected.bounds, "{label}: start box");
         assert_eq!(
@@ -632,6 +627,5 @@ fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
         faults.len(),
         faults[..faults.len().min(20)].join("\n")
     );
-    assert_eq!(unported, UNPORTED_GEOMETRY_TYPES.into_iter().collect());
     assert_eq!((placed, chunks), (75, 1751));
 }

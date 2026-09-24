@@ -65,6 +65,8 @@ pub struct PieceCanvas<'a, W: WorldGenVolume> {
     pub bounds: BoundingBox,
     pub orientation: Option<Orientation>,
     pub clip: BoundingBox,
+    /// States `place` never overwrites.
+    pub keep: Option<&'a StateMask>,
 }
 
 impl<W: WorldGenVolume> PieceCanvas<'_, W> {
@@ -79,7 +81,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
     /// `placeBlock`.
     pub fn place(&mut self, state: &Oriented, x: i32, y: i32, z: i32) {
         let pos = self.world_pos(x, y, z);
-        if self.clip.is_inside(pos) {
+        if self.clip.is_inside(pos) && !self.keep.is_some_and(|keep| self.volume.holds(keep, pos)) {
             self.volume.set(pos, self.oriented(state));
         }
     }
@@ -108,19 +110,14 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         fill: &Oriented,
         skip_air: bool,
     ) {
-        let [x0, y0, z0] = min;
-        let [x1, y1, z1] = max;
-        for y in y0..=y1 {
-            for x in x0..=x1 {
-                for z in z0..=z1 {
-                    if skip_air && self.is_air(x, y, z) {
-                        continue;
-                    }
-                    let inside = y != y0 && y != y1 && x != x0 && x != x1 && z != z0 && z != z1;
-                    self.place(if inside { fill } else { edge }, x, y, z);
-                }
-            }
-        }
+        self.generate_selected_box(
+            min,
+            max,
+            skip_air,
+            |on_face| {
+                if on_face { edge } else { fill }
+            },
+        );
     }
 
     /// `generateBox` with one state throughout, air included.
@@ -305,16 +302,11 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
         self.place(dispenser, x, y, z);
         self.entities
-            .push(GeneratedBlockEntity::Dispenser(ContainerData {
-                x: pos.x,
-                y: pos.y,
-                z: pos.z,
-                loot_table: Some(loot_table.to_owned()),
-                loot_table_seed: rng.next_java_long(),
-                items: Vec::new(),
-                custom_name: None,
-                components: None,
-            }));
+            .push(GeneratedBlockEntity::Dispenser(ContainerData::looted(
+                pos,
+                loot_table.to_owned(),
+                rng.next_java_long(),
+            )));
         true
     }
 }
@@ -356,6 +348,7 @@ mod tests {
                 min: BlockPos::new(0, 1, 0),
                 max: BlockPos::new(15, 31, 31),
             },
+            keep: None,
         }
     }
 

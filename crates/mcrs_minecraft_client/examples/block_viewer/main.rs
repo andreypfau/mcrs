@@ -25,9 +25,10 @@ use bevy::tasks::block_on;
 
 use mcrs_minecraft_client::asset_corpus;
 use mcrs_minecraft_client::atlas;
-use mcrs_minecraft_client::bake::{self, TinyWorld};
+use mcrs_minecraft_client::bake;
 use mcrs_minecraft_client::model::{self, Pack};
 use mcrs_minecraft_client::vanilla::{self, VanillaAssets};
+use mcrs_minecraft_mesh::ambient::{self, Neighbour, Sample};
 
 const DEFAULT_TARGET: &str = "minecraft:oak_log[axis=y]";
 
@@ -220,7 +221,7 @@ fn build_mesh(
     target: &Target,
 ) -> Result<(Mesh, Vec<String>), String> {
     let props = target.pairs();
-    let world = TinyWorld::new(blocks.iter().copied());
+    let solid = |pos: IVec3| blocks.contains(&pos);
     let mut sprites: Vec<String> = Vec::new();
     let mut positions: Vec<[f32; 3]> = Vec::new();
     let mut normals: Vec<[f32; 3]> = Vec::new();
@@ -229,13 +230,13 @@ fn build_mesh(
     let mut indices: Vec<u32> = Vec::new();
     let mut baked_quads = Vec::new();
 
+    let baked = bake::bake(pack, &target.block, &props)?;
     for &pos in blocks {
-        let baked = bake::bake(pack, &target.block, &props, pos, &world)?;
-        for quad in baked.quads {
+        for quad in baked.quads.iter().cloned() {
             // The only piece of vanilla's `shouldRenderFace` a lone block needs: a face touching a
             // full neighbour is never visible.
             if let Some(cull) = quad.cull
-                && world.is_collision_shape_full_block(pos + cull.normal())
+                && solid(pos + cull.normal())
             {
                 continue;
             }
@@ -247,12 +248,28 @@ fn build_mesh(
                     sprites.len() - 1
                 }
             };
-            baked_quads.push((pos, quad, slot));
+            let ao = if baked.ambient_occlusion {
+                ambient::smooth(&quad.positions, quad.dir, solid(pos), 0, |offset| {
+                    let full = solid(pos + offset);
+                    Sample {
+                        neighbour: Neighbour {
+                            full_block: full,
+                            solid_render: full,
+                            light_opaque: full,
+                        },
+                        light: 0,
+                    }
+                })
+                .shade
+            } else {
+                [1.0; 4]
+            };
+            baked_quads.push((pos, quad, slot, ao));
         }
     }
 
     let slots = sprites.len().max(1) as f32;
-    for (pos, quad, slot) in baked_quads {
+    for (pos, quad, slot, ao) in baked_quads {
         let base = positions.len() as u32;
         let normal = quad.dir.normal().as_vec3().to_array();
         for i in 0..4 {
@@ -260,7 +277,7 @@ fn build_mesh(
             normals.push(normal);
             uvs.push([quad.uvs[i][0], (slot as f32 + quad.uvs[i][1]) / slots]);
             // Vanilla's shade byte is sRGB; Bevy consumes vertex colours as linear.
-            let c = quad.color[i];
+            let c = ambient::shade_byte(ao[i], quad.shade);
             colors.push(LinearRgba::from(Color::srgb_u8(c, c, c)).to_f32_array());
         }
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);

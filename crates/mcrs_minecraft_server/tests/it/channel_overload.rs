@@ -1,4 +1,5 @@
 use crate::mock_connection;
+use mcrs_minecraft_server::world::bus::{InboundPlayerDespawn, InboundPlayerSpawn};
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -34,12 +35,9 @@ fn make_channels(
     let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
     let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
     let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-    world.resource_mut::<DimChannelsResource>().insert(
-        dim,
-        srv_tx,
-        ctl_tx,
-        from_rx,
-    );
+    world
+        .resource_mut::<DimChannelsResource>()
+        .insert(dim, srv_tx, ctl_tx, from_rx);
     (srv_rx, ctl_rx, from_tx)
 }
 
@@ -108,12 +106,12 @@ fn serverbound_full_disconnects_session() {
         for i in 0..TO_DIM_CAPACITY {
             entry
                 .serverbound_sender
-                .try_send(ToDim::Serverbound {
+                .try_send(ToDim::Serverbound(InboundPlayerPacket {
                     player: anchor_a,
                     id: i as i32,
                     data: Bytes::new(),
                     timestamp: std::time::Instant::now(),
-                })
+                }))
                 .expect("fill channel");
         }
     }
@@ -169,12 +167,12 @@ fn spawn_succeeds_when_serverbound_full() {
         for i in 0..TO_DIM_CAPACITY {
             entry
                 .serverbound_sender
-                .try_send(ToDim::Serverbound {
+                .try_send(ToDim::Serverbound(InboundPlayerPacket {
                     player: anchor,
                     id: i as i32,
                     data: Bytes::new(),
                     timestamp: std::time::Instant::now(),
-                })
+                }))
                 .expect("fill serverbound channel");
         }
     }
@@ -184,18 +182,20 @@ fn spawn_succeeds_when_serverbound_full() {
     {
         let channels = world.resource::<DimChannelsResource>();
         let entry = channels.get(dim).expect("channel present");
-        let result = entry.control_sender.try_send(ToDim::Spawn {
-            host_anchor: anchor,
-            session: PlayerSession(1),
-            snapshot: mcrs_minecraft_server::world::bus::PlayerTransferSnapshot {
-                uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
-                username: "test".into(),
-                position: bevy_math::DVec3::ZERO,
-                rotation: bevy_math::Vec2::ZERO,
-                view_distance: 12,
-            },
-            dimensions: Vec::new(),
-        });
+        let result = entry
+            .control_sender
+            .try_send(ToDim::Spawn(InboundPlayerSpawn {
+                host_anchor: anchor,
+                session: PlayerSession(1),
+                snapshot: mcrs_minecraft_server::world::bus::PlayerTransferSnapshot {
+                    uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
+                    username: "test".into(),
+                    position: bevy_math::DVec3::ZERO,
+                    rotation: bevy_math::Vec2::ZERO,
+                    view_distance: 12,
+                },
+                dimensions: Vec::new(),
+            }));
         assert!(
             result.is_ok(),
             "Spawn must succeed even when serverbound channel is full (control reserve)"
@@ -205,7 +205,7 @@ fn spawn_succeeds_when_serverbound_full() {
     // The Spawn message arrived on the control channel.
     let msg = ctl_rx.try_recv().expect("Spawn present in control channel");
     assert!(
-        matches!(msg, ToDim::Spawn { .. }),
+        matches!(msg, ToDim::Spawn(..)),
         "control channel received a Spawn"
     );
 
@@ -238,12 +238,12 @@ fn dim_teardown_only_on_control_reserve_exhausted() {
         for i in 0..TO_DIM_CAPACITY {
             entry
                 .serverbound_sender
-                .try_send(ToDim::Serverbound {
+                .try_send(ToDim::Serverbound(InboundPlayerPacket {
                     player: anchor,
                     id: i as i32,
                     data: Bytes::new(),
                     timestamp: std::time::Instant::now(),
-                })
+                }))
                 .expect("fill serverbound");
         }
     }
@@ -262,12 +262,12 @@ fn dim_teardown_only_on_control_reserve_exhausted() {
         for i in 0..TO_DIM_CONTROL_CAPACITY {
             entry
                 .control_sender
-                .try_send(ToDim::Spawn {
+                .try_send(ToDim::Spawn(InboundPlayerSpawn {
                     host_anchor: anchor,
                     session: PlayerSession(i as u64 + 1),
                     snapshot: snapshot.clone(),
                     dimensions: Vec::new(),
-                })
+                }))
                 .expect("fill control channel");
         }
     }
@@ -276,10 +276,12 @@ fn dim_teardown_only_on_control_reserve_exhausted() {
     let result = {
         let channels = world.resource::<DimChannelsResource>();
         let entry = channels.get(dim).expect("channel present");
-        entry.control_sender.try_send(ToDim::Despawn {
-            host_anchor: anchor,
-            session: PlayerSession(1),
-        })
+        entry
+            .control_sender
+            .try_send(ToDim::Despawn(InboundPlayerDespawn {
+                host_anchor: anchor,
+                session: PlayerSession(1),
+            }))
     };
     assert!(
         result.is_err(),
@@ -310,8 +312,8 @@ fn transfer_snapshot() -> mcrs_minecraft_server::world::bus::PlayerTransferSnaps
 
 #[test]
 fn control_full_enqueues_dim_teardown() {
-    use mcrs_minecraft_level::dim::send_control_or_teardown;
     use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
+    use mcrs_minecraft_server::dim::send_control_or_teardown;
 
     let mut world = World::new();
     let dim = world.spawn_empty().id();
@@ -325,10 +327,10 @@ fn control_full_enqueues_dim_teardown() {
     send_control_or_teardown(
         &ok_sender,
         dim,
-        ToDim::Despawn {
+        ToDim::Despawn(InboundPlayerDespawn {
             host_anchor: dim,
             session: PlayerSession(1),
-        },
+        }),
         &mut queue,
     );
     assert!(
@@ -336,7 +338,7 @@ fn control_full_enqueues_dim_teardown() {
         "a control channel with room must not schedule teardown"
     );
     assert!(
-        matches!(ok_rx.try_recv(), Ok(ToDim::Despawn { .. })),
+        matches!(ok_rx.try_recv(), Ok(ToDim::Despawn(..))),
         "the control message must be delivered when the channel has capacity"
     );
 
@@ -347,22 +349,22 @@ fn control_full_enqueues_dim_teardown() {
     let full_sender = full_tx;
     for i in 0..TO_DIM_CONTROL_CAPACITY {
         full_sender
-            .try_send(ToDim::Spawn {
+            .try_send(ToDim::Spawn(InboundPlayerSpawn {
                 host_anchor: dim,
                 session: PlayerSession(i as u64 + 1),
                 snapshot: snapshot.clone(),
                 dimensions: Vec::new(),
-            })
+            }))
             .expect("fill control channel");
     }
     let mut queue = DimDespawnQueue::default();
     send_control_or_teardown(
         &full_sender,
         dim,
-        ToDim::Despawn {
+        ToDim::Despawn(InboundPlayerDespawn {
             host_anchor: dim,
             session: PlayerSession(1),
-        },
+        }),
         &mut queue,
     );
     assert_eq!(
@@ -375,10 +377,10 @@ fn control_full_enqueues_dim_teardown() {
     send_control_or_teardown(
         &full_sender,
         dim,
-        ToDim::Despawn {
+        ToDim::Despawn(InboundPlayerDespawn {
             host_anchor: dim,
             session: PlayerSession(1),
-        },
+        }),
         &mut queue,
     );
     assert_eq!(

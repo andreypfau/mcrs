@@ -3,14 +3,9 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 
 #[derive(Clone, Debug)]
-pub struct TargetBlockState {
+pub struct OreConfig {
     pub target: VoxelId,
     pub state: VoxelId,
-}
-
-#[derive(Clone, Debug)]
-pub struct OreConfig {
-    pub targets: Vec<TargetBlockState>,
     pub size: i32,
 }
 
@@ -20,7 +15,7 @@ pub struct OreConfig {
 ///   - y-offset is `+2` (not modern `-2`)
 ///   - no blob overlap-cull pre-pass
 ///   - no air-exposure discard
-///   - stone-only replacement via `targets` table
+///   - stone-only replacement via `target`
 pub fn place_beta_ore<R: Random>(
     config: &OreConfig,
     origin: BlockPos,
@@ -76,9 +71,8 @@ pub fn place_beta_ore<R: Random>(
                     let d14 = (i3 as f64 + 0.5 - d8) / (d10 / 2.0);
                     if d12 * d12 + d13 * d13 + d14 * d14 < 1.0 {
                         let at = BlockPos::new(k2, l2, i3);
-                        let current = volume.get(at);
-                        if let Some(tgt) = config.targets.iter().find(|t| current == t.target) {
-                            volume.set(at, tgt.state);
+                        if volume.get(at) == config.target {
+                            volume.set(at, config.state);
                         }
                     }
                 }
@@ -99,10 +93,8 @@ mod tests {
 
     fn beta_coal_config() -> OreConfig {
         OreConfig {
-            targets: vec![TargetBlockState {
-                target: STONE,
-                state: COAL_ORE,
-            }],
+            target: STONE,
+            state: COAL_ORE,
             size: 16,
         }
     }
@@ -187,10 +179,8 @@ mod tests {
         //   = 3 + 9 = 12 method calls consuming 3 + 18 = 21 LCG advances.
         // This test pins the RNG state after placement for regression detection.
         let config = OreConfig {
-            targets: vec![TargetBlockState {
-                target: STONE,
-                state: COAL_ORE,
-            }],
+            target: STONE,
+            state: COAL_ORE,
             size: 8,
         };
         let mut world = all_stone(32, 128);

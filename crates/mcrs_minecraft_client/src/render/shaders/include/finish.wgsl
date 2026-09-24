@@ -1,5 +1,14 @@
 #define_import_path mcrs_minecraft_client::finish
 
+/// Vanilla shades the bytes its textures are written with and hands the result to the screen
+/// unchanged. The view target encodes to sRGB as it is written, so the colour is decoded first
+/// and the target writes vanilla's bytes back out.
+fn to_target(raw: vec3<f32>) -> vec3<f32> {
+    let low = raw / 12.92;
+    let high = pow((raw + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(high, low, raw <= vec3<f32>(0.04045));
+}
+
 fn edge_pixels(quad_uv: vec2<f32>) -> f32 {
     let width = max(fwidth(quad_uv), vec2<f32>(1e-6));
     let border = min(
@@ -23,7 +32,7 @@ fn finish_solid(color: vec4<f32>, quad_uv: vec2<f32>) -> vec4<f32> {
     if (wireframe_discards(quad_uv)) {
         discard;
     }
-    return vec4<f32>(color.rgb, 1.0);
+    return vec4<f32>(to_target(color.rgb), 1.0);
 }
 
 fn finish_cutout(color: vec4<f32>, quad_uv: vec2<f32>) -> vec4<f32> {
@@ -33,12 +42,12 @@ fn finish_cutout(color: vec4<f32>, quad_uv: vec2<f32>) -> vec4<f32> {
     if (color.a < 0.5 || wireframe_discards) {
         discard;
     }
-    return vec4<f32>(color.rgb, 1.0);
+    return vec4<f32>(to_target(color.rgb), 1.0);
 }
 
 fn finish_translucent(color: vec4<f32>, quad_uv: vec2<f32>) -> vec4<f32> {
     if (wireframe_discards(quad_uv)) {
         discard;
     }
-    return color;
+    return vec4<f32>(to_target(color.rgb), color.a);
 }

@@ -15,8 +15,6 @@ use super::frozen::{ElementId, FrozenStructures, PoolId};
 use super::piece::{JigsawPiece, Junction};
 use super::site::{Context, PlacedJigsaw, Site, SiteWorld, Stub, element_bounds, shuffled_jigsaws};
 
-pub use super::piece::TERRAIN_MARGIN;
-
 const EMPTY_POOL: &str = "minecraft:empty";
 const EXPANSION_HACK_MAX_HEIGHT: i32 = 16;
 

@@ -47,12 +47,14 @@ impl DesertPyramidBlocks {
         world: &WorldStates,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: &str| Ok(Oriented::of(world, state(blocks, block, &[])?));
+        let oriented = |block: &str| Oriented::named(world, blocks, block, &[]);
         let stairs = |facing: &str| {
-            Ok(Oriented::of(
+            Oriented::named(
                 world,
-                state(blocks, "minecraft:sandstone_stairs", &[("facing", facing)])?,
-            ))
+                blocks,
+                "minecraft:sandstone_stairs",
+                &[("facing", facing)],
+            )
         };
         Ok(DesertPyramidBlocks {
             sandstone: oriented("minecraft:sandstone")?,
@@ -567,16 +569,14 @@ impl SwampHutBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: &str| Ok(Oriented::of(world, state(blocks, block, &[])?));
+        let oriented = |block: &str| Oriented::named(world, blocks, block, &[]);
         let stairs = |facing: &str, shape: &str| {
-            Ok(Oriented::of(
+            Oriented::named(
                 world,
-                state(
-                    blocks,
-                    "minecraft:spruce_stairs",
-                    &[("facing", facing), ("shape", shape)],
-                )?,
-            ))
+                blocks,
+                "minecraft:spruce_stairs",
+                &[("facing", facing), ("shape", shape)],
+            )
         };
         Ok(SwampHutBlocks {
             spruce_planks: oriented("minecraft:spruce_planks")?,

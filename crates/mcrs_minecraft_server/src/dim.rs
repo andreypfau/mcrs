@@ -1,51 +1,17 @@
-use crate::session::{MoveId, Place, PlayerSession, Session, SessionPlacement};
-use crate::world::channels::DimChannels;
-use crate::world::in_flight::{InFlightEntry, InFlightMoves};
-use crate::world::sub_app::DimDespawnQueue;
+use crate::world::bus::{
+    InboundConfirmMove, InboundEntitySpawn, InboundRollbackMove, OutboundPlayerPacket, PacketTarget,
+};
+use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
+use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
+use bevy_ecs::query::With;
 use bevy_ecs::world::World;
+use mcrs_minecraft_level::session::{MoveId, Place, PlayerSession, Session, SessionPlacement};
+use mcrs_minecraft_level::world::in_flight::{InFlightEntry, InFlightMoves};
+use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use tracing::warn;
-
-/// What the host must do with one message drained from a dimension's outbox.
-pub enum DimRequest<P: DimProtocol + ?Sized> {
-    /// Start a move: the entity is in transit in `source dim` and wants to
-    /// materialise in `destination`.
-    Move {
-        move_id: MoveId,
-        destination: Entity,
-        session: Option<PlayerSession>,
-        departure: P::Departure,
-    },
-    /// The destination acknowledged the arrival.
-    Arrived { move_id: MoveId },
-    /// Not part of the move protocol; handed straight back to [`DimProtocol::deliver`].
-    Other(P::FromDim),
-}
-
-/// The game-shaped half of the cross-sub-app move protocol.
-pub trait DimProtocol: Send + Sync + 'static {
-    type ToDim: Send + Sync + 'static;
-    type FromDim: Send + Sync + 'static;
-    /// Whatever the destination needs to materialise the arrival. Opaque here.
-    type Departure;
-
-    /// `None` drops the message without opening a move.
-    fn classify(world: &World, message: Self::FromDim) -> Option<DimRequest<Self>>;
-
-    fn depart(
-        move_id: MoveId,
-        session: Option<PlayerSession>,
-        epoch: u32,
-        departure: Self::Departure,
-    ) -> Self::ToDim;
-
-    fn confirm(move_id: MoveId) -> Self::ToDim;
-
-    fn roll_back(move_id: MoveId) -> Self::ToDim;
-
-    fn deliver(world: &mut World, source_dim: Entity, message: Self::FromDim);
-}
 
 /// Send a non-sheddable control message, escalating a saturated control channel
 /// to whole-dim teardown.
@@ -60,17 +26,18 @@ pub fn send_control_or_teardown<T>(
     dim_entity: Entity,
     msg: T,
     despawn_queue: &mut DimDespawnQueue,
-) {
+) -> bool {
     match sender.try_send(msg) {
-        Ok(()) => {}
+        Ok(()) => true,
         Err(flume::TrySendError::Full(_)) => {
             warn!(
                 dim = ?dim_entity,
                 "control channel saturated (hard overload); enqueueing dim teardown"
             );
             enqueue_teardown(despawn_queue, dim_entity);
+            false
         }
-        Err(flume::TrySendError::Disconnected(_)) => {}
+        Err(flume::TrySendError::Disconnected(_)) => false,
     }
 }
 
@@ -80,27 +47,37 @@ fn enqueue_teardown(despawn_queue: &mut DimDespawnQueue, dim_entity: Entity) {
     }
 }
 
-fn send_control<P: DimProtocol>(world: &mut World, dim_entity: Entity, msg: P::ToDim) {
-    let result = {
-        let channels = world.resource::<DimChannels<P::ToDim, P::FromDim>>();
-        channels
-            .get(dim_entity)
-            .map(|chan| chan.control_sender.try_send(msg))
+/// Whether the message was handed to the dim.
+fn send_control(world: &mut World, dim_entity: Entity, msg: ToDim) -> bool {
+    let Some(sender) = world
+        .resource::<DimChannelsResource>()
+        .get(dim_entity)
+        .map(|chan| chan.control_sender.clone())
+    else {
+        return false;
     };
-    if let Some(Err(flume::TrySendError::Full(_))) = result {
-        enqueue_teardown(&mut world.resource_mut::<DimDespawnQueue>(), dim_entity);
-    }
+    send_control_or_teardown(&sender, dim_entity, msg, &mut world.resource_mut())
+}
+
+fn find_dim(world: &World, name: &str) -> Option<Entity> {
+    world
+        .try_query_filtered::<(Entity, &DimLabel), With<DimSubAppHandle>>()
+        .and_then(|mut dims| {
+            dims.iter(world)
+                .find(|(_, label)| label.0 == name)
+                .map(|(entity, _)| entity)
+        })
 }
 
 /// Drain every dimension's outbox once.
 ///
 /// Runs outside the ECS schedule, because rollback and teardown both need
 /// `&mut App`, and as often as the loop idles between ticks.
-pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
+pub fn pump_channels(app: &mut App) {
     let world = app.world_mut();
 
-    let dim_entries: Vec<(Entity, Vec<P::FromDim>)> = {
-        let Some(channels) = world.get_resource::<DimChannels<P::ToDim, P::FromDim>>() else {
+    let dim_entries: Vec<(Entity, Vec<FromDim>)> = {
+        let Some(channels) = world.get_resource::<DimChannelsResource>() else {
             return;
         };
         channels
@@ -114,12 +91,9 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
 
     for (source_dim, messages) in dim_entries {
         for message in messages {
-            let Some(request) = P::classify(world, message) else {
-                continue;
-            };
-            match request {
-                DimRequest::Other(message) => P::deliver(world, source_dim, message),
-                DimRequest::Arrived { move_id } => {
+            match message {
+                FromDim::Clientbound(packet) => deliver(world, packet),
+                FromDim::Spawned { move_id } => {
                     if let Some(entry) = world.resource_mut::<InFlightMoves>().remove(move_id) {
                         if let Some(session) = entry.session {
                             place_session(world, session, |placement| {
@@ -131,12 +105,20 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
                         pending_confirms.push((move_id, entry.source_dim));
                     }
                 }
-                DimRequest::Move {
+                FromDim::MoveEntity {
                     move_id,
-                    destination,
-                    session,
-                    departure,
+                    target,
+                    cause,
+                    payload,
+                    player: session,
                 } => {
+                    let Some(destination) = find_dim(world, &target) else {
+                        warn!(
+                            target_dim = %target,
+                            "MoveEntity names an unknown dim; dropping (no rollback entry)"
+                        );
+                        continue;
+                    };
                     let epoch = match session {
                         Some(session) => {
                             let placed = place_session(world, session, |placement| {
@@ -166,27 +148,16 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
                         },
                     );
 
-                    let command = P::depart(move_id, session, epoch, departure);
-                    let sent = {
-                        let channels = world.resource::<DimChannels<P::ToDim, P::FromDim>>();
-                        channels
-                            .get(destination)
-                            .map(|chan| chan.control_sender.try_send(command))
-                    };
-                    match sent {
-                        Some(Ok(())) => {}
-                        Some(Err(flume::TrySendError::Full(_))) => {
-                            world.resource_mut::<InFlightMoves>().remove(move_id);
-                            pending_rollbacks.push((move_id, source_dim, session));
-                            enqueue_teardown(
-                                &mut world.resource_mut::<DimDespawnQueue>(),
-                                destination,
-                            );
-                        }
-                        Some(Err(flume::TrySendError::Disconnected(_))) | None => {
-                            world.resource_mut::<InFlightMoves>().remove(move_id);
-                            pending_rollbacks.push((move_id, source_dim, session));
-                        }
+                    let command = ToDim::SpawnEntity(InboundEntitySpawn {
+                        move_id,
+                        epoch,
+                        cause,
+                        payload,
+                        player: session,
+                    });
+                    if !send_control(world, destination, command) {
+                        world.resource_mut::<InFlightMoves>().remove(move_id);
+                        pending_rollbacks.push((move_id, source_dim, session));
                     }
                 }
             }
@@ -195,17 +166,49 @@ pub fn pump_dim_channels<P: DimProtocol>(app: &mut App) {
 
     for (move_id, source_dim, session) in pending_rollbacks {
         roll_back_placement(world, session);
-        send_control::<P>(world, source_dim, P::roll_back(move_id));
+        send_control(
+            world,
+            source_dim,
+            ToDim::RollbackMove(InboundRollbackMove { move_id }),
+        );
     }
 
     for (move_id, source_dim) in pending_confirms {
-        send_control::<P>(world, source_dim, P::confirm(move_id));
+        send_control(
+            world,
+            source_dim,
+            ToDim::ConfirmMove(InboundConfirmMove { move_id }),
+        );
     }
+}
+
+fn deliver(world: &mut World, packet: OutboundPlayerPacket) {
+    let (session, epoch) = match &packet.target {
+        PacketTarget::SinglePlayer(anchor) => world
+            .get_entity(*anchor)
+            .ok()
+            .and_then(|anchor| {
+                Some((
+                    anchor.get::<Session>()?.0,
+                    anchor.get::<SessionPlacement>()?.epoch(),
+                ))
+            })
+            .unwrap_or((PlayerSession(0), 0)),
+        _ => (PlayerSession(0), 0),
+    };
+
+    world
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .write(OutboundPlayerPacket {
+            session,
+            epoch,
+            ..packet
+        });
 }
 
 /// Rolls back the moves no destination acknowledged in time. The timeout is
 /// counted in ticks, so this runs once per tick and never from the idle loop.
-pub fn expire_moves<P: DimProtocol>(app: &mut App) {
+pub fn expire_moves(app: &mut App) {
     let world = app.world_mut();
     let Some(mut in_flight) = world.get_resource_mut::<InFlightMoves>() else {
         return;
@@ -216,7 +219,11 @@ pub fn expire_moves<P: DimProtocol>(app: &mut App) {
             continue;
         };
         roll_back_placement(world, entry.session);
-        send_control::<P>(world, entry.source_dim, P::roll_back(move_id));
+        send_control(
+            world,
+            entry.source_dim,
+            ToDim::RollbackMove(InboundRollbackMove { move_id }),
+        );
     }
 }
 

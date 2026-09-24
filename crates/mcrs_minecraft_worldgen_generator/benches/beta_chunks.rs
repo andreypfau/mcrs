@@ -13,7 +13,6 @@ use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
@@ -22,7 +21,8 @@ use mcrs_minecraft_worldgen_generator::modern_carvers::CarverBiomeTable;
 use mcrs_minecraft_worldgen_generator::stages::extent;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use mcrs_minecraft_worldgen_generator::{
-    BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, fill_column_dense_any,
+    BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, beta_surface_rng,
+    fill_column_dense_any,
 };
 
 #[path = "../src/tests/support.rs"]
@@ -129,10 +129,7 @@ fn generate_chunk(
     stages.terrain = t.elapsed().as_secs_f64() * 1000.0;
 
     let t = Instant::now();
-    let seed = (chunk_x as i64)
-        .wrapping_mul(341873128712)
-        .wrapping_add((chunk_z as i64).wrapping_mul(132897987541));
-    let mut rng = LegacyRandom::new(seed as u64);
+    let mut rng = beta_surface_rng(chunk_x, chunk_z);
     apply_beta_surface(
         &column,
         chunk_x * 16,
@@ -225,8 +222,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
         &cancel,
     )
     .expect("column");
-    let seedr = (0i64).wrapping_mul(341873128712);
-    let mut rng = LegacyRandom::new(seedr as u64);
+    let mut rng = beta_surface_rng(0, 0);
     apply_beta_surface(&column, 0, 0, &router, &biome_source, corpus(), &mut rng);
     let world_seed = router.world_seed as i64;
     apply_beta_carvers(

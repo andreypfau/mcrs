@@ -4,14 +4,21 @@ use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, LightData};
-use mcrs_minecraft_protocol::entity::{EquipmentSlot, Metadata};
-use mcrs_minecraft_protocol::item::RawStack;
-use mcrs_minecraft_protocol::packets::game::clientbound::AttributeSnapshot;
+use mcrs_minecraft_protocol::packets::game::clientbound::{
+    ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
+    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundChunkCacheRadius,
+    ClientboundContainerClose, ClientboundContainerSetContent, ClientboundContainerSetSlot,
+    ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
+    ClientboundGameEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundOpenScreen,
+    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
+    ClientboundSetCursorItem, ClientboundSetEntityData, ClientboundSetEquipment,
+    ClientboundSetHeldSlot, ClientboundSetPassengers, ClientboundSystemChatPacket,
+    ClientboundTakeItemEntity, ClientboundUpdateAttributes,
+};
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{GameEventKind, GameMode, Look, Text};
-use mcrs_minecraft_registry::BlockStateId;
 use smallvec::SmallVec;
 use std::time::Instant;
 
@@ -90,19 +97,20 @@ pub(crate) fn to(anchor: Entity, data: PacketPayload) -> OutboundPlayerPacket {
     }
 }
 
+impl OutboundPlayerPacket {
+    pub(crate) fn critical(self) -> Self {
+        Self {
+            priority: PacketPriority::Critical,
+            ..self
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum PacketPayload {
-    /// Carries all fields ClientboundLightUpdate requires so dispatch_encode
-    /// needs no World access: column coordinates plus the owned light payload.
-    LightUpdate {
-        column: ColumnPos,
-        light_data: LightData<'static>,
-    },
+    LightUpdate(ClientboundLightUpdate<'static>),
     Test(TestPayload),
-    BlockUpdate {
-        position: BlockPos,
-        new_state: BlockStateId,
-    },
+    BlockUpdate(ClientboundBlockUpdate),
     /// Carries owned chunk bytes and light data so dispatch_encode can build
     /// ClientboundLevelChunkWithLight without World access. The per-dim chunk
     /// producer encodes sections into `chunk_bytes`; dispatch constructs the
@@ -114,159 +122,42 @@ pub enum PacketPayload {
         light_data: LightData<'static>,
         block_entities: Vec<ChunkDataBlockEntity<'static>>,
     },
-    ChunkUnload {
-        column: ColumnPos,
-    },
+    ChunkUnload(ClientboundForgetLevelChunk),
     /// Brackets the columns of one send batch, which the client times to answer with the rate
     /// it can take them at.
-    ChunkBatchStart,
-    ChunkBatchFinished {
-        batch_size: u32,
-    },
-    /// Carries the wire numeric entity id and all fields ClientboundAddEntity
-    /// needs so dispatch_encode needs no World access. The producer resolves
-    /// `entity.index_u32() as i32` before emitting this variant.
-    PlayerEnteredView {
-        entity_id: i32,
-        uuid: Uuid,
-        kind: i32,
-        position: DVec3,
-        yaw: f32,
-        pitch: f32,
-        data: i32,
-    },
-    SetEntityData {
-        entity_id: i32,
-        metadata: Metadata<'static>,
-    },
-    SetEquipment {
-        entity_id: i32,
-        slots: Vec<(EquipmentSlot, RawStack)>,
-    },
-    UpdateAttributes {
-        entity_id: i32,
-        attributes: Vec<AttributeSnapshot<'static>>,
-    },
-    SetPassengers {
-        vehicle: i32,
-        passengers: Vec<i32>,
-    },
-    /// Carries the wire numeric entity id list so dispatch_encode can build
-    /// ClientboundRemoveEntities without World access.
-    PlayerLeftView {
-        entity_ids: SmallVec<[i32; 4]>,
-    },
-    /// Carries the wire numeric entity id and all fields
-    /// ClientboundEntityPositionSync needs so dispatch_encode needs no World
-    /// access. The producer resolves `entity.index_u32() as i32`.
-    EntityPosSync {
-        entity_id: i32,
-        position: DVec3,
-        velocity: DVec3,
-        look: Look,
-        on_ground: bool,
-    },
-    /// Carries all fields ClientboundLogin requires as self-contained owned
-    /// wire data so dispatch_encode needs no World access. The per-dim play-
-    /// login emitter fills these from the InboundPlayerSpawn snapshot and the
-    /// world preset dimensions list.
-    PlayerLogin {
-        player_id: i32,
-        hardcore: bool,
-        game_mode: GameMode,
-        /// The dimension the player is spawning into (resource location, e.g.
-        /// "minecraft:the_nether"). Goes into PlayerSpawnInfo.dimension.
-        dimension: String,
-        /// Index of this dimension's type in the dimension_type registry sent
-        /// during configuration. The client uses it to resolve the dimension
-        /// height (section count) when building its ClientLevel; a wrong value
-        /// desyncs chunk-section decoding and crashes the client.
-        dimension_type_id: i32,
-        /// Dimension resource-location strings (e.g. "minecraft:overworld").
-        dimensions: Vec<String>,
-        max_players: i32,
-        chunk_radius: i32,
-        simulation_distance: i32,
-        reduced_debug_info: bool,
-        show_death_screen: bool,
-        do_limited_crafting: bool,
-        enforces_secure_chat: bool,
-    },
-    /// Carries the `ClientboundGameEvent { LevelChunksLoadStart }` wire data.
-    /// Emitted immediately after `PlayerLogin` during the join sequence.
-    LevelChunksLoadStart,
+    ChunkBatchStart(ClientboundChunkBatchStart),
+    ChunkBatchFinished(ClientboundChunkBatchFinished),
+    PlayerEnteredView(ClientboundAddEntity),
+    SetEntityData(ClientboundSetEntityData<'static>),
+    SetEquipment(ClientboundSetEquipment),
+    UpdateAttributes(ClientboundUpdateAttributes<'static>),
+    SetPassengers(ClientboundSetPassengers),
+    PlayerLeftView(ClientboundRemoveEntities),
+    EntityPosSync(ClientboundEntityPositionSync),
+    PlayerLogin(ClientboundLogin<'static>),
     /// The `ClientboundEntityEvent` that tells a client its own operator level.
-    OpLevelEntityEvent {
-        entity_id: i32,
-        entity_status: i8,
-    },
+    OpLevelEntityEvent(ClientboundEntityEvent),
     /// Sets the client's chunk-load origin. A vanilla 26.1.2 client will not
     /// render any chunks until this packet is received.
-    SetChunkCacheCenter(ColumnPos),
+    SetChunkCacheCenter(ClientboundSetChunkCacheCenter),
     /// Sets the client's view distance radius.
-    SetChunkCacheRadius {
-        radius: i32,
-    },
+    SetChunkCacheRadius(ClientboundChunkCacheRadius),
     /// Carries owned per-entry data for ClientboundPlayerInfoUpdate so
     /// dispatch_encode needs no World access.
     PlayerInfoUpdate {
         entries: Vec<PlayerInfoEntry>,
     },
-    /// Carries the fields ClientboundPlayerPosition (teleport-sync) requires.
-    /// Emitted once per join immediately after `PlayerLogin` so the client
-    /// renders at the correct spawn position rather than (0,0,0).
-    PlayerPosition {
-        teleport_id: i32,
-        position: DVec3,
-    },
-    /// Carries an owned system-chat message so dispatch_encode builds
-    /// ClientboundSystemChatPacket without World access. The per-dim chat
-    /// broadcaster emits this through the bridge instead of writing
-    /// `ServerSideConnection` directly (host-resident, never in a sub-app).
-    SystemChat {
-        content: Text,
-        overlay: bool,
-    },
-    /// Carries the wire numeric entity id, block position, and progress stage
-    /// so dispatch_encode builds ClientboundBlockDestruction without World
-    /// access. The producer resolves `entity.index_u32() as i32` and the
-    /// 0-9/-1 progress value before emitting this variant.
-    BlockDestruction {
-        entity_id: i32,
-        pos: BlockPos,
-        progress: i8,
-    },
-    /// Carries a single game-event kind so dispatch_encode builds
-    /// ClientboundGameEvent without World access. Used for game-mode changes
-    /// (GameEventKind::ChangeGameMode) in single-player responses.
-    GameEvent {
-        game_event: GameEventKind,
-    },
-    ContainerSetContent {
-        container_id: u8,
-        state_id: u16,
-        slots: Vec<RawStack>,
-        carried: RawStack,
-    },
-    ContainerSetSlot {
-        container_id: u8,
-        state_id: u16,
-        slot: i16,
-        item: RawStack,
-    },
-    SetCursorItem(RawStack),
-    SetHeldSlot(u8),
-    OpenScreen {
-        container_id: u8,
-        menu_type: i32,
-        title: Text,
-    },
-    ContainerClose(u8),
-    TakeItemEntity {
-        item_id: i32,
-        player_id: i32,
-        amount: i32,
-    },
+    PlayerPosition(ClientboundPlayerPosition),
+    SystemChat(ClientboundSystemChatPacket),
+    BlockDestruction(ClientboundBlockDestruction),
+    GameEvent(ClientboundGameEvent),
+    ContainerSetContent(ClientboundContainerSetContent),
+    ContainerSetSlot(ClientboundContainerSetSlot),
+    SetCursorItem(ClientboundSetCursorItem),
+    SetHeldSlot(ClientboundSetHeldSlot),
+    OpenScreen(ClientboundOpenScreen),
+    ContainerClose(ClientboundContainerClose),
+    TakeItemEntity(ClientboundTakeItemEntity),
 }
 
 /// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.

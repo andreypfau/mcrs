@@ -8,11 +8,14 @@ use bytes::Bytes;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityEvent;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundGameEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChangeGameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Encode, GameEventKind, GameMode, Packet};
+use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::ops::{DefaultOpLevel, OpList, OpListEntry};
-use mcrs_minecraft_server::runner::pump_channels;
+use mcrs_minecraft_server::world::bus::InboundPlayerPacket;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerTransferSnapshot,
 };
@@ -94,7 +97,7 @@ impl Server {
                 session,
                 SessionPlacement::new(Place::Joining(self.dim), 0),
             ));
-        self.submit(ToDim::Spawn {
+        self.submit(ToDim::Spawn(InboundPlayerSpawn {
             host_anchor: self.host_anchor,
             session: PlayerSession(0),
             snapshot: PlayerTransferSnapshot {
@@ -105,7 +108,7 @@ impl Server {
                 view_distance: 2,
             },
             dimensions: Vec::new(),
-        });
+        }));
         self.ticks(2)
     }
 
@@ -117,7 +120,7 @@ impl Server {
             .get(self.dim)
             .unwrap();
         let sender = match message {
-            ToDim::Serverbound { .. } => &channels.serverbound_sender,
+            ToDim::Serverbound(..) => &channels.serverbound_sender,
             _ => &channels.control_sender,
         };
         sender.try_send(message).unwrap();
@@ -126,12 +129,12 @@ impl Server {
     fn send<P: Packet + Encode>(&self, packet: &P) {
         let mut data = Vec::new();
         packet.encode(&mut data).unwrap();
-        self.submit(ToDim::Serverbound {
+        self.submit(ToDim::Serverbound(InboundPlayerPacket {
             player: self.host_anchor,
             id: P::ID,
             data: Bytes::from(data),
             timestamp: std::time::Instant::now(),
-        });
+        }));
     }
 
     fn player(&mut self) -> Entity {
@@ -154,7 +157,9 @@ fn op_statuses(packets: &[OutboundPlayerPacket]) -> Vec<i8> {
     packets
         .iter()
         .filter_map(|packet| match packet.data {
-            PacketPayload::OpLevelEntityEvent { entity_status, .. } => Some(entity_status),
+            PacketPayload::OpLevelEntityEvent(ClientboundEntityEvent { entity_status, .. }) => {
+                Some(entity_status)
+            }
             _ => None,
         })
         .collect()
@@ -164,9 +169,9 @@ fn game_mode_changes(packets: &[OutboundPlayerPacket]) -> Vec<GameMode> {
     packets
         .iter()
         .filter_map(|packet| match &packet.data {
-            PacketPayload::GameEvent {
+            PacketPayload::GameEvent(ClientboundGameEvent {
                 game_event: GameEventKind::ChangeGameMode(mode),
-            } => Some(*mode),
+            }) => Some(*mode),
             _ => None,
         })
         .collect()
@@ -189,11 +194,11 @@ fn listed_op_receives_its_level_after_login() {
     assert_eq!(op_statuses(&packets), vec![28]);
     let login = packets
         .iter()
-        .position(|packet| matches!(packet.data, PacketPayload::PlayerLogin { .. }))
+        .position(|packet| matches!(packet.data, PacketPayload::PlayerLogin(_)))
         .expect("the player logs in");
     let status = packets
         .iter()
-        .position(|packet| matches!(packet.data, PacketPayload::OpLevelEntityEvent { .. }))
+        .position(|packet| matches!(packet.data, PacketPayload::OpLevelEntityEvent(_)))
         .unwrap();
     assert!(
         login < status,

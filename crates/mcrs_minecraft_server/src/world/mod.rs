@@ -67,18 +67,6 @@ impl Plugin for WorldPlugin {
                 .after(mcrs_minecraft_network::NetworkSet::SpawnConnections),
         );
 
-        // BridgeSet ordering: Outbound fills queues from the bus, Dispatch
-        // encodes + sends, Inbound reads sockets and routes to partitions.
-        // All three run in FixedPostUpdate (after DimSubApp extracts).
-        app.configure_sets(
-            FixedPostUpdate,
-            (
-                crate::world::bridge::BridgeSet::Outbound,
-                crate::world::bridge::BridgeSet::Dispatch,
-                crate::world::bridge::BridgeSet::Inbound,
-            )
-                .chain(),
-        );
         app.add_schedule(bevy_ecs::schedule::Schedule::new(
             crate::world::bridge::OutboundFlush,
         ));
@@ -93,13 +81,10 @@ impl Plugin for WorldPlugin {
         app.add_systems(
             FixedPostUpdate,
             (
-                (|world: &mut bevy_ecs::world::World| {
-                    world.run_schedule(crate::world::bridge::OutboundFlush)
-                })
-                .in_set(crate::world::bridge::BridgeSet::Outbound),
-                crate::world::bridge::bridge_inbound
-                    .in_set(crate::world::bridge::BridgeSet::Inbound),
-            ),
+                crate::world::bridge::run_outbound_flush,
+                crate::world::bridge::bridge_inbound,
+            )
+                .chain(),
         );
 
         app.add_systems(
@@ -114,7 +99,7 @@ impl Plugin for WorldPlugin {
 
         // Per-dim plugins are composed inside each sub-app via
         // `spawn_dim_subapp`: `DimensionPlugin`, `LightingPlugin`,
-        // `ChunkPlugin` (worldgen), `MinecraftBlockPlugin`,
+        // `ChunkPlugin` (worldgen), `TntBlockPlugin`,
         // `ExplosionPlugin`, `PlayerTrackerPlugin`, `BlockUpdatePlugin`
         // (+ `BlockUpdateWirePlugin`), `MinecraftEntityPlugin`, and
         // `LootPlugin`. Each is self-contained: it reads only the
@@ -152,9 +137,7 @@ impl Plugin for WorldPlugin {
 /// per-dim sub-app per request.
 pub(crate) fn enqueue_dim_spawns_from_preset(
     world_preset: Res<LoadedWorldPreset>,
-    dim_defs: Res<
-        bevy_asset::Assets<mcrs_minecraft_world::dimension::level_stem::DimensionDefinition>,
-    >,
+    dim_defs: Res<bevy_asset::Assets<mcrs_minecraft_world::dimension::DimensionDefinition>>,
     dimension_types: Res<
         bevy_asset::Assets<mcrs_minecraft_dimension::dimension_type::DimensionType>,
     >,

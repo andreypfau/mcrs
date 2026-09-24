@@ -25,11 +25,6 @@ use super::{biome_index, biome_tags, corpus, structure_index, structure_tags};
 use crate::features::possible_biomes;
 use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state};
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
-use mcrs_minecraft_worldgen_structure::site::site_implies_piece;
-
-/// Every structure type the corpus uses whose site is not ported yet: its
-/// structures freeze with their config, never select and place nothing.
-const UNPORTED_TYPES: [&str; 0] = [];
 
 pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
     let path = assets_dir()
@@ -127,17 +122,6 @@ fn structure(id: &str) -> &'static mcrs_minecraft_worldgen_structure::frozen::Fr
     let frozen = frozen();
     let id = ResourceLocation::parse(id).unwrap();
     &frozen.structures[frozen.structure_ids[&id].0 as usize]
-}
-
-#[test]
-fn the_unported_type_census_is_pinned() {
-    let unported: BTreeSet<&str> = frozen()
-        .structures
-        .iter()
-        .filter(|structure| site_implies_piece(&structure.kind).is_none())
-        .map(|structure| structure.kind.type_name())
-        .collect();
-    assert_eq!(unported, UNPORTED_TYPES.into_iter().collect());
 }
 
 #[test]

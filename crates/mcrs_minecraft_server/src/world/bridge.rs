@@ -4,47 +4,26 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
-use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Query, Res, ResMut};
-use bevy_math::DVec3;
 
 /// Bridges the bus to the sockets and writes them: run in the tick's `FixedPostUpdate` and
 /// again between ticks, so a packet a dimension produced off the tick leaves at once.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OutboundFlush;
 
-/// FixedPostUpdate ordering for the three bridge stages.
-///
-/// `Outbound` fills per-connection `OutboundQueue` from the message bus.
-/// `Dispatch` encodes + coalesces + sends each queue to the socket.
-/// `Inbound` reads serverbound packets from sockets and routes them to
-/// `PendingInboundPartition` or `inbound_pending`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, SystemSet)]
-pub enum BridgeSet {
-    Outbound,
-    Dispatch,
-    Inbound,
+pub fn run_outbound_flush(world: &mut bevy_ecs::world::World) {
+    world.run_schedule(OutboundFlush);
 }
-use mcrs_minecraft_core::ResourceLocation;
+
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
-use mcrs_minecraft_network::{ConnectionState, EngineConnection, ServerSideConnection};
+use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
+use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::chunk::ChunkData;
-use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
-    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundChunkCacheRadius,
-    ClientboundContainerClose, ClientboundContainerSetContent, ClientboundContainerSetSlot,
-    ClientboundDisconnect, ClientboundEntityEvent, ClientboundEntityPositionSync,
-    ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelChunkWithLight,
-    ClientboundLightUpdate, ClientboundLogin, ClientboundOpenScreen, ClientboundPlayerInfoUpdate,
-    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
-    ClientboundSetCursorItem, ClientboundSetEntityData, ClientboundSetEquipment,
-    ClientboundSetHeldSlot, ClientboundSetPassengers, ClientboundSystemChatPacket,
-    ClientboundTakeItemEntity, ClientboundUpdateAttributes, PositionPath,
+    ClientboundDisconnect, ClientboundLevelChunkWithLight, ClientboundPlayerInfoUpdate,
 };
 use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, LpVec3, PositionFlag, Text, VarInt};
 use std::borrow::Cow;
 use tracing::{trace, warn};
 
@@ -169,8 +148,8 @@ const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTE
 /// and coalesce all encoded bytes into a single `try_send_blob` per socket per
 /// tick.
 ///
-/// Execution order: runs in `BridgeSet::Dispatch` (FixedPostUpdate), after
-/// `bridge_outbound` filled queues and before `bridge_inbound` reads.
+/// Execution order: runs in `OutboundFlush`, after `bridge_outbound` filled
+/// queues; in FixedPostUpdate that flush runs before `bridge_inbound` reads.
 ///
 /// SEQUENTIAL `iter_mut()` — do NOT use `par_iter_mut`. Kicking a connection
 /// issues `commands.entity(e).remove::<ServerSideConnection>()`, which
@@ -250,131 +229,18 @@ pub fn dispatch_encode(
                     kind = ?std::mem::discriminant(&pkt.data),
                     "dispatch_encode"
                 );
-                match pkt.data {
-                    PacketPayload::LightUpdate { column, light_data } => {
-                        conn.raw
-                            .append(&ClientboundLightUpdate {
-                                x: VarInt(column.x),
-                                z: VarInt(column.z),
-                                light_data,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::BlockUpdate {
-                        position,
-                        new_state,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundBlockUpdate {
-                                block_pos: position,
-                                block_state_id: new_state,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::ChunkUnload { column } => {
-                        conn.raw
-                            .append(&ClientboundForgetLevelChunk {
-                                x: column.x,
-                                z: column.z,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::EntityPosSync {
-                        entity_id,
-                        position,
-                        velocity: _,
-                        look,
-                        on_ground,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundEntityPositionSync {
-                                entity_id: VarInt(entity_id),
-                                position: PositionPath::Linear(position),
-                                look,
-                                on_ground,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::BlockDestruction {
-                        entity_id,
-                        pos,
-                        progress,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundBlockDestruction {
-                                id: VarInt(entity_id),
-                                pos,
-                                progress,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::GameEvent { game_event } => {
-                        conn.raw.append(&ClientboundGameEvent { game_event }).ok();
-                    }
-                    PacketPayload::PlayerEnteredView {
-                        entity_id,
-                        uuid,
-                        kind,
-                        position,
-                        yaw,
-                        pitch,
-                        data,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundAddEntity {
-                                id: VarInt(entity_id),
-                                uuid,
-                                kind: VarInt(kind),
-                                pos: position,
-                                movement: LpVec3(DVec3::ZERO),
-                                yaw: ByteAngle::from_degrees(yaw),
-                                pitch: ByteAngle::from_degrees(pitch),
-                                head_yaw: ByteAngle::from_degrees(yaw),
-                                data: VarInt(data),
-                            })
-                            .ok();
-                    }
-                    PacketPayload::SetEntityData {
-                        entity_id,
-                        metadata,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundSetEntityData {
-                                entity_id: VarInt(entity_id),
-                                metadata,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::SetEquipment { entity_id, slots } => {
-                        conn.raw
-                            .append(&ClientboundSetEquipment {
-                                entity_id: VarInt(entity_id),
-                                slots,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::UpdateAttributes {
-                        entity_id,
-                        attributes,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundUpdateAttributes {
-                                entity_id: VarInt(entity_id),
-                                attributes,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::SetPassengers {
-                        vehicle,
-                        passengers,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundSetPassengers {
-                                vehicle: VarInt(vehicle),
-                                passengers: passengers.into_iter().map(VarInt).collect(),
-                            })
-                            .ok();
-                    }
+                let _ = match pkt.data {
+                    PacketPayload::LightUpdate(p) => conn.raw.append(&p),
+                    PacketPayload::BlockUpdate(p) => conn.raw.append(&p),
+                    PacketPayload::ChunkUnload(p) => conn.raw.append(&p),
+                    PacketPayload::EntityPosSync(p) => conn.raw.append(&p),
+                    PacketPayload::BlockDestruction(p) => conn.raw.append(&p),
+                    PacketPayload::GameEvent(p) => conn.raw.append(&p),
+                    PacketPayload::PlayerEnteredView(p) => conn.raw.append(&p),
+                    PacketPayload::SetEntityData(p) => conn.raw.append(&p),
+                    PacketPayload::SetEquipment(p) => conn.raw.append(&p),
+                    PacketPayload::UpdateAttributes(p) => conn.raw.append(&p),
+                    PacketPayload::SetPassengers(p) => conn.raw.append(&p),
                     PacketPayload::ChunkLoad {
                         column,
                         chunk_bytes,
@@ -391,106 +257,19 @@ pub fn dispatch_encode(
                             block_entities: Cow::Owned(block_entities),
                             ..Default::default()
                         };
-                        conn.raw
-                            .append(&ClientboundLevelChunkWithLight {
-                                pos: column,
-                                chunk_data,
-                                light_data,
-                            })
-                            .ok();
+                        conn.raw.append(&ClientboundLevelChunkWithLight {
+                            pos: column,
+                            chunk_data,
+                            light_data,
+                        })
                     }
-                    PacketPayload::ChunkBatchStart => {
-                        conn.raw.append(&ClientboundChunkBatchStart).ok();
-                    }
-                    PacketPayload::ChunkBatchFinished { batch_size } => {
-                        conn.raw
-                            .append(&ClientboundChunkBatchFinished {
-                                batch_size: VarInt(batch_size as i32),
-                            })
-                            .ok();
-                    }
-                    PacketPayload::PlayerLeftView { entity_ids } => {
-                        conn.raw
-                            .append(&ClientboundRemoveEntities {
-                                entity_ids: entity_ids.iter().map(|id| VarInt(*id)).collect(),
-                            })
-                            .ok();
-                    }
-                    PacketPayload::PlayerLogin {
-                        player_id,
-                        hardcore,
-                        game_mode,
-                        dimension,
-                        dimension_type_id,
-                        dimensions,
-                        max_players,
-                        chunk_radius,
-                        simulation_distance,
-                        reduced_debug_info,
-                        show_death_screen,
-                        do_limited_crafting,
-                        enforces_secure_chat,
-                    } => {
-                        let dim_idents: Vec<ResourceLocation<std::borrow::Cow<str>>> = dimensions
-                            .iter()
-                            .filter_map(|s| ResourceLocation::parse_cow(s.as_str()).ok())
-                            .collect();
-                        conn.raw
-                            .append(&ClientboundLogin {
-                                player_id,
-                                hardcore,
-                                dimensions: dim_idents,
-                                max_players: VarInt(max_players),
-                                chunk_radius: VarInt(chunk_radius),
-                                simulation_distance: VarInt(simulation_distance),
-                                reduced_debug_info,
-                                show_death_screen,
-                                do_limited_crafting,
-                                player_spawn_info: PlayerSpawnInfo {
-                                    dimension_type_id: VarInt(dimension_type_id),
-                                    dimension: ResourceLocation::parse_cow(dimension.as_str())
-                                        .expect("dimension id is a valid resource location"),
-                                    game_mode,
-                                    ..Default::default()
-                                },
-                                online_mode: false,
-                                enforces_secure_chat,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::LevelChunksLoadStart => {
-                        conn.raw
-                            .append(&ClientboundGameEvent {
-                                game_event: GameEventKind::LevelChunksLoadStart,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::OpLevelEntityEvent {
-                        entity_id,
-                        entity_status,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundEntityEvent {
-                                entity_id,
-                                entity_status,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::SetChunkCacheCenter(center) => {
-                        conn.raw
-                            .append(&ClientboundSetChunkCacheCenter {
-                                x: VarInt(center.x),
-                                z: VarInt(center.z),
-                            })
-                            .ok();
-                    }
-                    PacketPayload::SetChunkCacheRadius { radius } => {
-                        conn.raw
-                            .append(&ClientboundChunkCacheRadius {
-                                radius: VarInt(radius),
-                            })
-                            .ok();
-                    }
+                    PacketPayload::ChunkBatchStart(p) => conn.raw.append(&p),
+                    PacketPayload::ChunkBatchFinished(p) => conn.raw.append(&p),
+                    PacketPayload::PlayerLeftView(p) => conn.raw.append(&p),
+                    PacketPayload::PlayerLogin(p) => conn.raw.append(&p),
+                    PacketPayload::OpLevelEntityEvent(p) => conn.raw.append(&p),
+                    PacketPayload::SetChunkCacheCenter(p) => conn.raw.append(&p),
+                    PacketPayload::SetChunkCacheRadius(p) => conn.raw.append(&p),
                     PacketPayload::PlayerInfoUpdate { entries } => {
                         let wire_entries: Vec<PlayerListEntry<'_>> = entries
                             .iter()
@@ -502,114 +281,30 @@ pub fn dispatch_encode(
                                 ..Default::default()
                             })
                             .collect();
-                        conn.raw
-                            .append(&ClientboundPlayerInfoUpdate {
-                                actions: PlayerListActions::new()
-                                    .with_add_player(true)
-                                    .with_update_game_mode(true)
-                                    .with_update_listed(true),
-                                entries: std::borrow::Cow::Borrowed(&wire_entries),
-                            })
-                            .ok();
+                        conn.raw.append(&ClientboundPlayerInfoUpdate {
+                            actions: PlayerListActions::new()
+                                .with_add_player(true)
+                                .with_update_game_mode(true)
+                                .with_update_listed(true),
+                            entries: Cow::Borrowed(&wire_entries),
+                        })
                     }
-                    PacketPayload::PlayerPosition {
-                        teleport_id,
-                        position,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundPlayerPosition {
-                                teleport_id: VarInt(teleport_id),
-                                position,
-                                velocity: DVec3::ZERO,
-                                look: Look::default(),
-                                flags: Vec::<PositionFlag>::new(),
-                            })
-                            .ok();
-                    }
-                    PacketPayload::SystemChat { content, overlay } => {
-                        conn.raw
-                            .append(&ClientboundSystemChatPacket { content, overlay })
-                            .ok();
-                    }
-                    PacketPayload::ContainerSetContent {
-                        container_id,
-                        state_id,
-                        slots,
-                        carried,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundContainerSetContent {
-                                container_id: VarInt(i32::from(container_id)),
-                                state_seqno: VarInt(i32::from(state_id)),
-                                slot_data: slots,
-                                carried_item: carried,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::ContainerSetSlot {
-                        container_id,
-                        state_id,
-                        slot,
-                        item,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundContainerSetSlot {
-                                container_id: VarInt(i32::from(container_id)),
-                                state_seqno: VarInt(i32::from(state_id)),
-                                slot,
-                                item,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::SetCursorItem(contents) => {
-                        conn.raw.append(&ClientboundSetCursorItem { contents }).ok();
-                    }
-                    PacketPayload::SetHeldSlot(slot) => {
-                        conn.raw
-                            .append(&ClientboundSetHeldSlot {
-                                slot: VarInt(i32::from(slot)),
-                            })
-                            .ok();
-                    }
-                    PacketPayload::OpenScreen {
-                        container_id,
-                        menu_type,
-                        title,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundOpenScreen {
-                                container_id: VarInt(i32::from(container_id)),
-                                menu_type: VarInt(menu_type),
-                                title,
-                            })
-                            .ok();
-                    }
-                    PacketPayload::ContainerClose(container_id) => {
-                        conn.raw
-                            .append(&ClientboundContainerClose {
-                                container_id: VarInt(i32::from(container_id)),
-                            })
-                            .ok();
-                    }
-                    PacketPayload::TakeItemEntity {
-                        item_id,
-                        player_id,
-                        amount,
-                    } => {
-                        conn.raw
-                            .append(&ClientboundTakeItemEntity {
-                                item_id: VarInt(item_id),
-                                player_id: VarInt(player_id),
-                                amount: VarInt(amount),
-                            })
-                            .ok();
-                    }
+                    PacketPayload::PlayerPosition(p) => conn.raw.append(&p),
+                    PacketPayload::SystemChat(p) => conn.raw.append(&p),
+                    PacketPayload::ContainerSetContent(p) => conn.raw.append(&p),
+                    PacketPayload::ContainerSetSlot(p) => conn.raw.append(&p),
+                    PacketPayload::SetCursorItem(p) => conn.raw.append(&p),
+                    PacketPayload::SetHeldSlot(p) => conn.raw.append(&p),
+                    PacketPayload::OpenScreen(p) => conn.raw.append(&p),
+                    PacketPayload::ContainerClose(p) => conn.raw.append(&p),
+                    PacketPayload::TakeItemEntity(p) => conn.raw.append(&p),
                     PacketPayload::Test(_) => {
                         // Test-only payload; no wire packet. Counted-drop so
                         // test assertions on encode_unhandled_total work.
                         telemetry.encode_unhandled_total += 1;
+                        Ok(())
                     }
-                }
+                };
             }
         }
 
@@ -675,18 +370,9 @@ fn route_serverbound(
         return true;
     };
     !matches!(
-        chan.serverbound_sender.try_send(serverbound(packet)),
+        chan.serverbound_sender.try_send(ToDim::Serverbound(packet)),
         Err(flume::TrySendError::Full(_))
     )
-}
-
-fn serverbound(packet: InboundPlayerPacket) -> ToDim {
-    ToDim::Serverbound {
-        player: packet.player,
-        id: packet.id,
-        data: packet.data,
-        timestamp: packet.timestamp,
-    }
 }
 
 /// A dimension that has spawned a player attaches its session.
@@ -721,7 +407,7 @@ pub fn forward_pending_inbound(
             continue;
         };
         for packet in pending.0.drain(..) {
-            let _ = chan.serverbound_sender.try_send(serverbound(packet));
+            let _ = chan.serverbound_sender.try_send(ToDim::Serverbound(packet));
         }
     }
 }
@@ -820,12 +506,9 @@ mod tests {
         let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
         let (ctl_tx, _ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        world.resource_mut::<DimChannelsResource>().insert(
-            dim,
-            srv_tx,
-            ctl_tx,
-            from_rx,
-        );
+        world
+            .resource_mut::<DimChannelsResource>()
+            .insert(dim, srv_tx, ctl_tx, from_rx);
         srv_rx
     }
 
@@ -856,7 +539,7 @@ mod tests {
     fn ids(rx: &flume::Receiver<ToDim>) -> Vec<i32> {
         rx.try_iter()
             .map(|msg| match msg {
-                ToDim::Serverbound { id, .. } => id,
+                ToDim::Serverbound(packet) => packet.id,
                 other => panic!("expected Serverbound, got {other:?}"),
             })
             .collect()

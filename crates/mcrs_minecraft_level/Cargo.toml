@@ -30,7 +30,6 @@ mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 rand.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
-thiserror.workspace = true
 tracing.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 

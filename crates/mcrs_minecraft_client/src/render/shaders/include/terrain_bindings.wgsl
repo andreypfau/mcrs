@@ -40,6 +40,7 @@ const STILL: u32 = 0xFFFFFFFFu;
 @group(1) @binding(13) var<storage, read> sections: array<SectionDesc>;
 @group(1) @binding(14) var lightmap_levels: texture_2d<f32>;
 @group(1) @binding(15) var<storage, read> args: array<DrawArgs>;
+@group(1) @binding(16) var lightmap_sampler: sampler;
 
 fn visible_slot(quad: u32) -> u32 {
     return params.visible_base + quad;

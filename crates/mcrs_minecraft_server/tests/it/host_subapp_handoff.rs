@@ -142,12 +142,7 @@ fn game_transition_emits_initial_spawn() {
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         app.world_mut()
             .resource_mut::<DimChannelsResource>()
-            .insert(
-                dim_label,
-                srv_tx,
-                ctl_tx,
-                from_rx,
-            );
+            .insert(dim_label, srv_tx, ctl_tx, from_rx);
         ctl_rx
     };
 
@@ -157,7 +152,7 @@ fn game_transition_emits_initial_spawn() {
 
     let spawns: Vec<ToDim> = ctl_rx
         .try_iter()
-        .filter(|m| matches!(m, ToDim::Spawn { .. }))
+        .filter(|m| matches!(m, ToDim::Spawn(..)))
         .collect();
     assert_eq!(
         spawns.len(),
@@ -165,9 +160,9 @@ fn game_transition_emits_initial_spawn() {
         "exactly one ToDim::Spawn should be sent to the dim's control channel"
     );
     match &spawns[0] {
-        ToDim::Spawn {
+        ToDim::Spawn(InboundPlayerSpawn {
             host_anchor: ha, ..
-        } => {
+        }) => {
             assert_eq!(*ha, host_anchor, "spawn's host_anchor must match");
         }
         _ => unreachable!(),
@@ -236,12 +231,7 @@ fn idempotent_single_emit() {
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         app.world_mut()
             .resource_mut::<DimChannelsResource>()
-            .insert(
-                dim_label,
-                srv_tx,
-                ctl_tx,
-                from_rx,
-            );
+            .insert(dim_label, srv_tx, ctl_tx, from_rx);
         ctl_rx
     };
 
@@ -252,7 +242,7 @@ fn idempotent_single_emit() {
     // Drain the first spawn so the channel is empty again
     let first_spawns: Vec<_> = ctl_rx
         .try_iter()
-        .filter(|m| matches!(m, ToDim::Spawn { .. }))
+        .filter(|m| matches!(m, ToDim::Spawn(..)))
         .collect();
     assert_eq!(first_spawns.len(), 1, "exactly one spawn on first tick");
 
@@ -261,7 +251,7 @@ fn idempotent_single_emit() {
 
     let second_spawns = ctl_rx
         .try_iter()
-        .filter(|m| matches!(m, ToDim::Spawn { .. }))
+        .filter(|m| matches!(m, ToDim::Spawn(..)))
         .count();
     assert_eq!(
         second_spawns, 0,
@@ -315,7 +305,7 @@ fn spawn_consumer_materializes_in_dim_entity() {
             .get(dim_label)
             .expect("channel registered by spawn_dim_subapp")
             .control_sender
-            .try_send(ToDim::Spawn {
+            .try_send(ToDim::Spawn(InboundPlayerSpawn {
                 host_anchor,
                 session: PlayerSession(0),
                 snapshot: PlayerTransferSnapshot {
@@ -326,7 +316,7 @@ fn spawn_consumer_materializes_in_dim_entity() {
                     view_distance: 12,
                 },
                 dimensions: Vec::new(),
-            })
+            }))
             .expect("control channel not full");
     }
 
@@ -441,7 +431,7 @@ fn no_duplicate_spawn_on_reread() {
             .get(dim_label)
             .expect("channel registered by spawn_dim_subapp")
             .control_sender
-            .try_send(ToDim::Spawn {
+            .try_send(ToDim::Spawn(InboundPlayerSpawn {
                 host_anchor,
                 session: PlayerSession(0),
                 snapshot: PlayerTransferSnapshot {
@@ -452,7 +442,7 @@ fn no_duplicate_spawn_on_reread() {
                     view_distance: 12,
                 },
                 dimensions: Vec::new(),
-            })
+            }))
             .expect("control channel not full");
     }
 

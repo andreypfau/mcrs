@@ -498,9 +498,9 @@ fn the_chunk_packet_carries_the_three_client_heightmaps() {
     use mcrs_minecraft_protocol::{Decode, Encode};
     use std::borrow::Cow;
 
-    let mut surface = SurfaceHeightmap(ColumnHeightmap::new(384, -64));
-    let motion = MotionHeightmap(ColumnHeightmap::new(384, -64));
-    let no_leaves = NoLeavesHeightmap(ColumnHeightmap::new(384, -64));
+    let mut surface = SurfaceHeightmap(ColumnHeights::new(384, -64));
+    let motion = MotionHeightmap(ColumnHeights::new(384, -64));
+    let no_leaves = NoLeavesHeightmap(ColumnHeights::new(384, -64));
     surface.0.set(3, 5, 70);
 
     let maps = client_heightmaps(&surface, &motion, &no_leaves);
@@ -538,16 +538,15 @@ fn the_chunk_packet_carries_the_three_client_heightmaps() {
 
 #[test]
 fn heightmap_new_dimensions_sized_correctly() {
-    let h = ColumnHeightmap::new(384, 0);
-    assert_eq!(h.storage().bits_per_entry(), 9);
-    assert_eq!(h.storage().entry_count(), 256);
+    let h = ColumnHeights::new(384, 0);
+    assert_eq!(h.bits(), 9);
     // 256 entries / (64 / 9 = 7 per long) = 37 longs.
     assert_eq!(h.raw_longs().len(), 37);
 }
 
 #[test]
 fn heightmap_set_get_round_trip() {
-    let mut h = ColumnHeightmap::new(384, -64);
+    let mut h = ColumnHeights::new(384, -64);
     for z in 0..SectionPos::SIZE {
         for x in 0..SectionPos::SIZE {
             let y = (z * SectionPos::SIZE + x) as i32 - 64;
@@ -565,7 +564,7 @@ fn heightmap_set_get_round_trip() {
 #[test]
 fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
     // 9 bits per entry, lowest entry in lowest bits of long 0.
-    let mut h = ColumnHeightmap::new(384, 0);
+    let mut h = ColumnHeights::new(384, 0);
     // Index 0 = (x=0, z=0); index 1 = (x=1, z=0); index 2 = (x=2, z=0).
     h.set(0, 0, 5);
     h.set(1, 0, 10);
@@ -580,7 +579,7 @@ fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
 
 #[test]
 fn heightmap_zero_init_returns_min_y_for_unprimed_columns() {
-    let h = ColumnHeightmap::new(384, -64);
+    let h = ColumnHeights::new(384, -64);
     assert_eq!(h.get(0, 0), -64);
     assert_eq!(h.get(SectionPos::MASK, SectionPos::MASK), -64);
 }

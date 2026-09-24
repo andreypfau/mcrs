@@ -18,6 +18,8 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_protocol::GameMode;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundTakeItemEntity;
 use rustc_hash::FxHashMap;
 
 const PLAYER_HALF_WIDTH: f64 = 0.3;
@@ -80,11 +82,11 @@ pub fn pickup_items(world: &mut World) {
                 .write(OutboundPlayerPacket {
                     target: PacketTarget::PlayerSet(targets),
                     priority: PacketPriority::Normal,
-                    data: PacketPayload::TakeItemEntity {
-                        item_id: item.index_u32() as i32,
-                        player_id: player.index_u32() as i32,
-                        amount: i32::from(view.count),
-                    },
+                    data: PacketPayload::TakeItemEntity(ClientboundTakeItemEntity {
+                        item_id: VarInt(item.index_u32() as i32),
+                        player_id: VarInt(player.index_u32() as i32),
+                        amount: VarInt(i32::from(view.count)),
+                    }),
                     session: PlayerSession(0),
                     epoch: 0,
                 });

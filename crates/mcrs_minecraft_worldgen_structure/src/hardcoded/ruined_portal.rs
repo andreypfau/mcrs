@@ -30,8 +30,6 @@ pub const TEMPLATES: &[&str] = &[
 pub const PORTALS: &[&str] = TEMPLATES.split_at(10).0;
 pub const GIANT_PORTALS: &[&str] = TEMPLATES.split_at(10).1;
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 const GIANT_PORTAL_PROBABILITY: f32 = 0.05;
 const MIN_Y_INDEX: i32 = 15;
 
@@ -77,7 +75,7 @@ pub fn site(
     };
     let base = IVec3::new(ctx.chunk.min_block_x(), 0, ctx.chunk.min_block_z());
     let bounds = template_bounds(ctx, template, base, rotation, mirror);
-    let centre = *bounds.min + (*bounds.max - *bounds.min + IVec3::ONE) / 2;
+    let centre = bounds.center();
     let surface_y = ctx
         .world
         .free_height(centre.x, centre.z, heightmap(chosen.placement))

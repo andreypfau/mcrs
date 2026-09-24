@@ -116,33 +116,24 @@ fn extend_from_tag_file<S: TagSource>(
 /// ask a membership question against half-loaded data.
 #[derive(Resource)]
 pub struct TagLoader<T: TaggedRegistry + 'static, I: TagId = StaticId<T>> {
-    requested: &'static [TagKey<T>],
     handles: HashMap<ResourceLocation<Arc<str>>, Handle<TagFile>>,
     resolved: HashMap<ResourceLocation<Arc<str>>, HashSet<I>>,
+    _marker: PhantomData<fn() -> T>,
 }
 
 pub type DynTagLoader<T> = TagLoader<T, u32>;
 
 impl<T: TaggedRegistry + 'static, I: TagId> Default for TagLoader<T, I> {
     fn default() -> Self {
-        Self::new(&[])
+        TagLoader {
+            handles: HashMap::new(),
+            resolved: HashMap::new(),
+            _marker: PhantomData,
+        }
     }
 }
 
 impl<T: TaggedRegistry + 'static, I: TagId> TagLoader<T, I> {
-    pub fn new(requested: &'static [TagKey<T>]) -> Self {
-        TagLoader {
-            requested,
-            handles: HashMap::new(),
-            resolved: HashMap::new(),
-        }
-    }
-
-    /// The tag list this loader was declared with.
-    pub fn requested(&self) -> &'static [TagKey<T>] {
-        self.requested
-    }
-
     /// Request a tag file to be loaded. No-op if already requested.
     ///
     /// Loading uses `TagFileSettings` so the loader can resolve nested `#tag`

@@ -7,8 +7,6 @@ use super::on_top_of_chunk_centre;
 use crate::piece::{BuriedTreasurePiece, Piece};
 use crate::site::{Context, Site, Stub};
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
     on_top_of_chunk_centre(ctx, HeightmapName::OceanFloorWg)
 }

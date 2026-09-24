@@ -74,7 +74,7 @@ fn preset_biomes(
 mod tests {
     use super::*;
     use bytes::Buf;
-    use mcrs_minecraft_worldgen_testing::dump_string;
+    use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
     use std::path::Path;
 
     /// The reference's own `possibleBiomes`, per source, from the dump the
@@ -82,11 +82,7 @@ mod tests {
     fn dumped_biomes() -> BTreeMap<String, Vec<String>> {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla/feature_steps.bin");
-        let data = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let mut r: &[u8] = &data;
-        r.copy_to_bytes(8);
-        assert_eq!(r.get_i32_le(), 1, "unsupported oracle format version");
-        assert_eq!(r.get_i32_le(), 5119, "the dump is from another snapshot");
+        let mut r = open_dump(&path, b"MCFSTEP0");
 
         let mut sources = BTreeMap::new();
         for _ in 0..r.get_i32_le() {

@@ -1,5 +1,5 @@
 use bevy_math::IVec3;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, Mirror, Rotation};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 
 use crate::piece::Piece;
@@ -46,15 +46,6 @@ impl Orientation {
 
     pub const fn data_2d(self) -> i32 {
         self as i32
-    }
-
-    pub const fn direction(self) -> Direction {
-        match self {
-            Orientation::South => Direction::South,
-            Orientation::West => Direction::West,
-            Orientation::North => Direction::North,
-            Orientation::East => Direction::East,
-        }
     }
 
     /// `StructurePiece.setOrientation`: how a block state is transformed
@@ -135,7 +126,7 @@ pub fn world_pos(orientation: Option<Orientation>, bounds: BoundingBox, local: I
     BlockPos::new(world_x, y + min.y, world_z)
 }
 
-fn union_of(pieces: &[Piece]) -> BoundingBox {
+pub(crate) fn union_of(pieces: &[Piece]) -> BoundingBox {
     pieces
         .iter()
         .map(Piece::bounds)

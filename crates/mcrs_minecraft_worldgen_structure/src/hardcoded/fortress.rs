@@ -9,8 +9,6 @@ use crate::site::{Context, Site, Stub};
 
 use super::{PieceWeight, WeightTable};
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 const MAX_DEPTH: i32 = 30;
 const LOWEST_Y: i32 = 10;
 const START_Y: i32 = 64;

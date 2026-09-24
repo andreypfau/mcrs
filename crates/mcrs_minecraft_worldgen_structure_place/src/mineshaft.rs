@@ -2,15 +2,13 @@ use std::cmp::Ordering;
 
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
-use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, ResourceLocation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, states_of,
 };
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, chest_minecart};
@@ -96,7 +94,7 @@ impl MineshaftBlocks {
             ),
         };
         let oriented = |block: &str, properties: &[(&str, &str)]| {
-            Ok(Oriented::of(world, state(blocks, block, properties)?))
+            Oriented::named(world, blocks, block, properties)
         };
         let unstable =
             ResourceLocation::parse("minecraft:unstable_bottom_center").expect("a literal id");
@@ -126,61 +124,6 @@ impl MineshaftBlocks {
     }
 }
 
-/// The volume as `MineShaftPiece.canBeReplaced` sees it: `placeBlock` leaves
-/// timber alone, while `setBlock` on the level writes through to `inner`.
-struct Timbered<'a, W> {
-    inner: &'a mut W,
-    timber: &'a StateMask,
-}
-
-impl<W: WorldGenVolume> Volume for Timbered<'_, W> {
-    fn min(&self) -> BlockPos {
-        self.inner.min()
-    }
-
-    fn max(&self) -> BlockPos {
-        self.inner.max()
-    }
-}
-
-impl<W: WorldGenVolume> Blocks for Timbered<'_, W> {
-    fn get(&self, p: BlockPos) -> VoxelId {
-        self.inner.get(p)
-    }
-}
-
-impl<W: WorldGenVolume> BlocksMut for Timbered<'_, W> {
-    fn set(&mut self, p: BlockPos, id: VoxelId) {
-        if !self.inner.holds(self.timber, p) {
-            self.inner.set(p, id);
-        }
-    }
-}
-
-impl<W: WorldGenVolume> WorldGenVolume for Timbered<'_, W> {
-    fn world(&self) -> &WorldStates {
-        self.inner.world()
-    }
-
-    fn height(&self, kind: HeightmapName, x: i32, z: i32) -> i32 {
-        self.inner.height(kind, x, z)
-    }
-
-    fn biome(&self, p: BlockPos) -> u32 {
-        self.inner.biome(p)
-    }
-
-    fn extent(&self) -> HeightContext {
-        self.inner.extent()
-    }
-
-    fn would_survive(&self, state: VoxelId, p: BlockPos) -> bool {
-        self.inner.would_survive(state, p)
-    }
-}
-
-type Canvas<'a, W> = PieceCanvas<'a, Timbered<'a, W>>;
-
 /// Each type's `postProcess` for one column.
 pub fn paint_mineshaft<W: WorldGenVolume>(
     b: &MineshaftBlocks,
@@ -194,17 +137,14 @@ pub fn paint_mineshaft<W: WorldGenVolume>(
     if in_invalid_location(b, region, piece.bounds, clip) {
         return;
     }
-    let mut timbered = Timbered {
-        inner: region,
-        timber: &b.timber,
-    };
     let mut c = PieceCanvas {
-        volume: &mut timbered,
+        volume: region,
         entities,
         spawns,
         bounds: piece.bounds,
         orientation: piece.orientation(),
         clip,
+        keep: Some(&b.timber),
     };
     match &piece.kind {
         MineshaftKind::Room { entrances } => room(b, &mut c, entrances),
@@ -268,21 +208,21 @@ fn in_invalid_location<W: WorldGenVolume>(
 
 fn air<W: WorldGenVolume>(
     b: &MineshaftBlocks,
-    c: &mut Canvas<'_, W>,
+    c: &mut PieceCanvas<'_, W>,
     min: [i32; 3],
     max: [i32; 3],
 ) {
     c.generate_box(min, max, &b.cave_air, &b.cave_air, false);
 }
 
-fn sturdy_up<W: WorldGenVolume>(c: &Canvas<'_, W>, pos: BlockPos) -> bool {
-    c.volume.inner.holds(&c.volume.world().sturdy_up, pos)
+fn sturdy_up<W: WorldGenVolume>(c: &PieceCanvas<'_, W>, pos: BlockPos) -> bool {
+    c.volume.holds(&c.volume.world().sturdy_up, pos)
 }
 
 /// `setPlanksBlock`: planks under an interior cell whose block is not sturdy.
 fn set_planks<W: WorldGenVolume>(
     b: &MineshaftBlocks,
-    c: &mut Canvas<'_, W>,
+    c: &mut PieceCanvas<'_, W>,
     x: i32,
     y: i32,
     z: i32,
@@ -292,11 +232,15 @@ fn set_planks<W: WorldGenVolume>(
     }
     let pos = c.world_pos(x, y, z);
     if !sturdy_up(c, pos) {
-        c.volume.inner.set(pos, b.planks.unoriented());
+        c.volume.set(pos, b.planks.unoriented());
     }
 }
 
-fn room<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>, entrances: &[BoundingBox]) {
+fn room<W: WorldGenVolume>(
+    b: &MineshaftBlocks,
+    c: &mut PieceCanvas<'_, W>,
+    entrances: &[BoundingBox],
+) {
     let (min, max) = (*c.bounds.min, *c.bounds.max);
     air(
         b,
@@ -316,7 +260,7 @@ fn room<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>, entrances
     );
 }
 
-fn stairs<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>) {
+fn stairs<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut PieceCanvas<'_, W>) {
     air(b, c, [0, 5, 0], [2, 7, 1]);
     air(b, c, [0, 0, 7], [2, 2, 8]);
     for i in 0..5 {
@@ -325,7 +269,7 @@ fn stairs<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>) {
     }
 }
 
-fn crossing<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>, two_floored: bool) {
+fn crossing<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut PieceCanvas<'_, W>, two_floored: bool) {
     let (min, max) = (*c.bounds.min, *c.bounds.max);
     if two_floored {
         air(
@@ -381,7 +325,7 @@ fn crossing<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>, two_f
 
 fn corridor<W: WorldGenVolume>(
     b: &MineshaftBlocks,
-    c: &mut Canvas<'_, W>,
+    c: &mut PieceCanvas<'_, W>,
     rng: &mut WorldgenRandom,
     has_rails: bool,
     spider_corridor: bool,
@@ -435,7 +379,7 @@ fn corridor<W: WorldGenVolume>(
             let pos = c.world_pos(1, 0, spawner_z);
             if hosts_spawner && c.clip.is_inside(pos) && c.is_interior(1, 0, spawner_z) {
                 placed_spider = true;
-                c.volume.inner.set(pos, b.spawner);
+                c.volume.set(pos, b.spawner);
                 c.entities.push(GeneratedBlockEntity::mob_spawner(
                     pos,
                     "minecraft:cave_spider",
@@ -469,7 +413,7 @@ fn corridor<W: WorldGenVolume>(
 /// `placeSupport` over the corridor's full width and height.
 fn place_support<W: WorldGenVolume>(
     b: &MineshaftBlocks,
-    c: &mut Canvas<'_, W>,
+    c: &mut PieceCanvas<'_, W>,
     rng: &mut WorldgenRandom,
     z: i32,
 ) {
@@ -490,7 +434,7 @@ fn place_support<W: WorldGenVolume>(
 
 fn maybe_cobweb<W: WorldGenVolume>(
     b: &MineshaftBlocks,
-    c: &mut Canvas<'_, W>,
+    c: &mut PieceCanvas<'_, W>,
     rng: &mut WorldgenRandom,
     probability: f32,
     x: i32,
@@ -505,7 +449,7 @@ fn maybe_cobweb<W: WorldGenVolume>(
 /// `hasSturdyNeighbours`: `count` of the six neighbours inside the clip with a
 /// sturdy face towards the cell.
 fn sturdy_neighbours<W: WorldGenVolume>(
-    c: &Canvas<'_, W>,
+    c: &PieceCanvas<'_, W>,
     x: i32,
     y: i32,
     z: i32,
@@ -534,7 +478,7 @@ fn sturdy_neighbours<W: WorldGenVolume>(
 /// cell is air over something that is not.
 fn create_minecart<W: WorldGenVolume>(
     b: &MineshaftBlocks,
-    c: &mut Canvas<'_, W>,
+    c: &mut PieceCanvas<'_, W>,
     rng: &mut WorldgenRandom,
     x: i32,
     y: i32,
@@ -561,7 +505,7 @@ fn create_minecart<W: WorldGenVolume>(
 
 /// `placeDoubleLowerOrUpperSupport`: both corridor edges at `z`, where the
 /// floor is planks.
-fn double_support<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>, z: i32) {
+fn double_support<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut PieceCanvas<'_, W>, z: i32) {
     let planks = c.volume.world().block_of(b.planks.unoriented());
     for x in [0, 2] {
         if c.volume.world().block_of(c.get(x, -1, z)) == planks {
@@ -575,7 +519,7 @@ fn double_support<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>,
 /// whichever the alternating walk finds first.
 fn pillar_down_or_chain_up<W: WorldGenVolume>(
     b: &MineshaftBlocks,
-    c: &mut Canvas<'_, W>,
+    c: &mut PieceCanvas<'_, W>,
     x: i32,
     y: i32,
     z: i32,
@@ -588,18 +532,18 @@ fn pillar_down_or_chain_up<W: WorldGenVolume>(
     let (floor, ceiling) = (extent.min_y + 1, extent.min_y + extent.depth - 1);
     let world_y = pos.y;
     let at = |dy: i32| BlockPos::new(pos.x, dy, pos.z);
-    let inner = &mut *c.volume.inner;
+    let volume = &mut *c.volume;
     let mut distance = 1;
     let mut check_below = true;
     let mut check_above = true;
     while check_below || check_above {
         if check_below {
             let probe = at(world_y - distance);
-            let empty = inner.holds(&b.replaceable_by_structures, probe)
-                && !inner.holds(&inner.world().lava_states, probe);
-            if !empty && inner.holds(&inner.world().sturdy_up, probe) {
+            let empty = volume.holds(&b.replaceable_by_structures, probe)
+                && !volume.holds(&volume.world().lava_states, probe);
+            if !empty && volume.holds(&volume.world().sturdy_up, probe) {
                 for fill_y in world_y - distance + 1..world_y {
-                    inner.set(at(fill_y), b.wood);
+                    volume.set(at(fill_y), b.wood);
                 }
                 return;
             }
@@ -607,11 +551,11 @@ fn pillar_down_or_chain_up<W: WorldGenVolume>(
         }
         if check_above {
             let probe = at(world_y + distance);
-            let empty = inner.holds(&b.replaceable_by_structures, probe);
-            if !empty && inner.holds(&b.chain_support, probe) {
-                inner.set(at(world_y + 1), b.fence);
+            let empty = volume.holds(&b.replaceable_by_structures, probe);
+            if !empty && volume.holds(&b.chain_support, probe) {
+                volume.set(at(world_y + 1), b.fence);
                 for fill_y in world_y + 2..world_y + distance {
-                    inner.set(at(fill_y), b.chain);
+                    volume.set(at(fill_y), b.chain);
                 }
                 return;
             }

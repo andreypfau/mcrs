@@ -46,11 +46,6 @@ pub trait NoiseFloat:
     fn grad_dot(hash: usize, x: Self, y: Self, z: Self) -> Self {
         Self::grad_dot_at((hash & 15) << 2, x, y, z)
     }
-
-    #[inline(always)]
-    fn grad_dot_xz(hash: usize, x: Self, z: Self) -> Self {
-        Self::grad_dot_xz_at((hash & 15) << 2, x, z)
-    }
 }
 
 macro_rules! flat_gradients {

@@ -1,9 +1,15 @@
 #define_import_path mcrs_minecraft_client::lighting
 
-#import mcrs_minecraft_client::terrain_bindings::lightmap_levels
+#import mcrs_minecraft_client::terrain_bindings::{lightmap_levels, lightmap_sampler}
 
-fn lightmap(block_level: f32, sky_level: f32) -> vec3<f32> {
-    return textureLoad(lightmap_levels, vec2<u32>(u32(block_level), u32(sky_level)), 0).rgb;
+/// Vanilla samples its lightmap bilinearly at sixteenths of a level, clamped to the texel centres.
+fn lightmap(block: f32, sky: f32) -> vec3<f32> {
+    let uv = clamp(
+        vec2<f32>(block, sky) / 256.0 + 0.5 / 16.0,
+        vec2<f32>(0.5 / 16.0),
+        vec2<f32>(15.5 / 16.0),
+    );
+    return textureSampleLevel(lightmap_levels, lightmap_sampler, uv, 0.0).rgb;
 }
 
 fn face_shade(face: u32) -> f32 {
@@ -13,8 +19,4 @@ fn face_shade(face: u32) -> f32 {
         case 2u, 3u: { return 0.8; }
         default: { return 0.6; }
     }
-}
-
-fn ao_factor(bits: u32, corner: u32) -> f32 {
-    return 0.4 + f32((bits >> (corner * 2u)) & 3u) * 0.2;
 }

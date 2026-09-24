@@ -26,7 +26,8 @@ use mcrs_minecraft_level::world::channels::{
 use mcrs_minecraft_level::world::in_flight::{InFlightMoves, MoveIds};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_server::runner::{expire_moves, pump_channels};
+use mcrs_minecraft_server::dim::{expire_moves, pump_channels};
+use mcrs_minecraft_server::world::bus::InboundEntitySpawn;
 use mcrs_minecraft_server::world::bus::{
     ArrivalCause, InboundConfirmMove, InboundRollbackMove, MovePayload, OutboundPlayerPacket,
 };
@@ -69,12 +70,7 @@ fn make_dim_channels(
     let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
     app.world_mut()
         .resource_mut::<DimChannelsResource>()
-        .insert(
-            label_entity,
-            srv_tx,
-            ctl_tx,
-            from_rx,
-        );
+        .insert(label_entity, srv_tx, ctl_tx, from_rx);
     (srv_rx, ctl_rx, from_tx)
 }
 
@@ -146,10 +142,10 @@ fn drain_source_control(
 ) {
     for msg in rx.control.try_iter() {
         match msg {
-            ToDim::ConfirmMove { move_id } => {
+            ToDim::ConfirmMove(InboundConfirmMove { move_id }) => {
                 confirm.write(InboundConfirmMove { move_id });
             }
-            ToDim::RollbackMove { move_id } => {
+            ToDim::RollbackMove(InboundRollbackMove { move_id }) => {
                 rollback.write(InboundRollbackMove { move_id });
             }
             _ => {}
@@ -236,11 +232,11 @@ fn confirmed_move_keeps_source_until_confirm_then_despawns() {
     // Target received the spawn command, keyed on the source's move id and the
     // post-bump epoch.
     match h.dest_ctl_rx.as_ref().unwrap().try_recv() {
-        Ok(ToDim::SpawnEntity {
+        Ok(ToDim::SpawnEntity(InboundEntitySpawn {
             move_id: forwarded,
             epoch: stamped,
             ..
-        }) => {
+        })) => {
             assert_eq!(forwarded, move_id, "spawn must carry the source's move id");
             assert_eq!(stamped, 1, "spawn must carry the post-bump epoch");
         }

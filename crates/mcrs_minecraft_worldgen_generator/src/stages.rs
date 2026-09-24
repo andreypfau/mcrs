@@ -15,7 +15,6 @@ use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
@@ -48,7 +47,7 @@ use crate::structures::place::{column_clip, place_structures};
 use crate::task::{CancellationToken, ColumnSource};
 use crate::{
     BetaCaveBlockIds, ColumnBlocks, SurfaceIds, apply_beta_carvers, apply_beta_surface,
-    apply_material_surface, fill_column_dense_any, spans_dimension,
+    apply_material_surface, beta_surface_rng, fill_column_dense_any, spans_dimension,
 };
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
@@ -355,10 +354,7 @@ pub fn fill_column(
             let (src, _) = ctx
                 .biome_context()
                 .expect("a beta program has a biome source");
-            let seed = (col.x as i64)
-                .wrapping_mul(341873128712)
-                .wrapping_add((col.z as i64).wrapping_mul(132897987541));
-            let mut rng = LegacyRandom::new(seed as u64);
+            let mut rng = beta_surface_rng(col.x, col.z);
             apply_beta_surface(
                 column,
                 col.x * 16,

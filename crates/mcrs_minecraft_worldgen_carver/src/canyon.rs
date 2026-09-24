@@ -203,7 +203,7 @@ mod tests {
     }
 
     fn empty_mask() -> CarvingMask {
-        CarvingMask::new(16, -63, 312)
+        CarvingMask::new(-63, 312)
     }
 
     fn runs(mask: &CarvingMask) -> Vec<(i32, i32, i32, i32)> {

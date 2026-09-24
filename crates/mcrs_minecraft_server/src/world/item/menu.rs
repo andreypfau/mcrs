@@ -9,6 +9,8 @@ use mcrs_minecraft_inventory::{
 };
 use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable};
 use mcrs_minecraft_level::entity::player::Player;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetHeldSlot;
 
 pub fn open_menus(world: &mut World) {
     let joined: Vec<Entity> = world
@@ -35,7 +37,13 @@ pub fn open_menus(world: &mut World) {
         let selected = world
             .get::<SelectedHotbarSlot>(player)
             .map_or(0, |selected| selected.0);
-        let packet = to(world, player, PacketPayload::SetHeldSlot(selected));
+        let packet = to(
+            world,
+            player,
+            PacketPayload::SetHeldSlot(ClientboundSetHeldSlot {
+                slot: VarInt(i32::from(selected)),
+            }),
+        );
         world
             .resource_mut::<Messages<crate::world::bus::OutboundPlayerPacket>>()
             .write(packet);

@@ -1,8 +1,6 @@
 //! The per-dim plugin that registers the player AoI systems into
-//! `FixedPostUpdate`. The plugin also seeds
-//! `AoiTickProbe` (used by the stationary-zero-work invariant test) and
-//! keeps each column's `PlayerObservers` in line with the columns players
-//! hold.
+//! `FixedPostUpdate`. The plugin also keeps each column's `PlayerObservers`
+//! in line with the columns players hold.
 
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::{IntoScheduleConfigs, Query};
@@ -13,7 +11,6 @@ use mcrs_minecraft_level::voxel_update::VoxelUpdateSet;
 use crate::world::aoi::mirror::{
     ColumnHeld, announce_held_columns, mirror_held_columns, withdraw_held_columns,
 };
-use crate::world::aoi::probe::AoiTickProbe;
 use crate::world::aoi::update_tracked_by::update_tracked_by;
 
 /// `SystemSet` covering the AoI system. Living on its own set keeps the AoI
@@ -25,7 +22,7 @@ pub struct PlayerTrackerSet;
 /// Run-criterion that gates `PlayerTrackerSet` so the AoI system body does
 /// not execute on ticks where no player's `Transform` changed. The
 /// stationary-zero-work invariant (`aoi_stationary_zero_work.rs`) asserts
-/// the AoI probe counter stays flat across stationary ticks; the
+/// the gate stays shut across stationary ticks; the
 /// `Changed<Transform>` Query filter alone does NOT skip the system
 /// body, only the iteration — so we hoist the same predicate up to the
 /// schedule and skip the whole set when nothing moved.
@@ -33,14 +30,12 @@ pub fn on_changed_transform(query: Query<(), bevy_ecs::prelude::Changed<Transfor
     !query.is_empty()
 }
 
-/// Per-dim plugin: registers `AoiTickProbe`, the
-/// despawn drain in `FixedPreUpdate`, the observer mirror, and the AoI
+/// Per-dim plugin: registers the despawn drain in `FixedPreUpdate`, the observer mirror, and the AoI
 /// system in `FixedPostUpdate` gated by `on_changed_transform`.
 pub struct PlayerTrackerPlugin;
 
 impl Plugin for PlayerTrackerPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<AoiTickProbe>();
         app.add_message::<ColumnHeld>();
         app.add_observer(announce_held_columns);
         app.add_observer(withdraw_held_columns);

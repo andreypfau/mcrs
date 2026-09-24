@@ -1,5 +1,5 @@
 use crate::{Decode, Encode};
-use bevy_math::{DQuat, DVec2, DVec3, IVec2, IVec3, Quat, Vec2, Vec3, Vec3A, Vec4};
+use bevy_math::{DVec3, IVec3, Vec2, Vec3, Vec4};
 use std::io::Write;
 
 impl Encode for Vec2 {
@@ -36,20 +36,6 @@ impl Decode<'_> for Vec3 {
     }
 }
 
-impl Encode for Vec3A {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.x.encode(&mut w)?;
-        self.y.encode(&mut w)?;
-        self.z.encode(w)
-    }
-}
-
-impl Decode<'_> for Vec3A {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Self::new(f32::decode(r)?, f32::decode(r)?, f32::decode(r)?))
-    }
-}
-
 impl Encode for IVec3 {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         self.x.encode(&mut w)?;
@@ -64,22 +50,6 @@ impl Decode<'_> for IVec3 {
             x: i32::decode(r)?,
             y: i32::decode(r)?,
             z: i32::decode(r)?,
-        })
-    }
-}
-
-impl Encode for IVec2 {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.x.encode(&mut w)?;
-        self.y.encode(w)
-    }
-}
-
-impl Decode<'_> for IVec2 {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Self {
-            x: i32::decode(r)?,
-            y: i32::decode(r)?,
         })
     }
 }
@@ -104,42 +74,6 @@ impl Decode<'_> for Vec4 {
     }
 }
 
-impl Encode for Quat {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.x.encode(&mut w)?;
-        self.y.encode(&mut w)?;
-        self.z.encode(&mut w)?;
-        self.w.encode(w)
-    }
-}
-
-impl Decode<'_> for Quat {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Self::from_xyzw(
-            f32::decode(r)?,
-            f32::decode(r)?,
-            f32::decode(r)?,
-            f32::decode(r)?,
-        ))
-    }
-}
-
-impl Encode for DVec2 {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.x.encode(&mut w)?;
-        self.y.encode(w)
-    }
-}
-
-impl Decode<'_> for DVec2 {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Self {
-            x: f64::decode(r)?,
-            y: f64::decode(r)?,
-        })
-    }
-}
-
 impl Encode for DVec3 {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         self.x.encode(&mut w)?;
@@ -155,25 +89,5 @@ impl Decode<'_> for DVec3 {
             y: f64::decode(r)?,
             z: f64::decode(r)?,
         })
-    }
-}
-
-impl Encode for DQuat {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.x.encode(&mut w)?;
-        self.y.encode(&mut w)?;
-        self.z.encode(&mut w)?;
-        self.w.encode(w)
-    }
-}
-
-impl Decode<'_> for DQuat {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(Self::from_xyzw(
-            f64::decode(r)?,
-            f64::decode(r)?,
-            f64::decode(r)?,
-            f64::decode(r)?,
-        ))
     }
 }

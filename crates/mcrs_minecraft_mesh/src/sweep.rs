@@ -198,7 +198,7 @@ mod tests {
             [CubeFace {
                 sprite: 263,
                 pass: Pass::Solid as u8,
-                tinted: false,
+                tint: crate::tint::Tint::None,
             }; 6],
         );
         blocks[TEST_BLOCK as usize].occludes = true;

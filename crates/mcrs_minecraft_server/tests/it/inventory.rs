@@ -1,3 +1,11 @@
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetContent;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetEntityData;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetHeldSlot;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundTakeItemEntity;
+use mcrs_minecraft_server::world::bus::{InboundPlayerDespawn, InboundPlayerPacket};
 use std::path::PathBuf;
 
 use bevy_app::App;
@@ -34,7 +42,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Encode, Packet};
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_server::WorldSave;
-use mcrs_minecraft_server::runner::pump_channels;
+use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerTransferSnapshot,
 };
@@ -70,9 +78,8 @@ impl Server {
         app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
         app.add_message::<InboundPlayerSpawn>();
         app.insert_resource(WorldSave(save.clone()));
-        app.world_mut()
-            .resource_mut::<RegistryAccess>()
-            .register(Box::new(RegistrySnapshotErased::from_entries(
+        app.world_mut().resource_mut::<RegistryAccess>().register(
+            RegistrySnapshotErased::from_entries(
                 "minecraft:item",
                 items
                     .0
@@ -80,7 +87,8 @@ impl Server {
                     .map(|entry| (entry.identifier.clone(), None))
                     .collect(),
                 None,
-            )));
+            ),
+        );
         app.insert_resource(RegistrySnapshot::<Biome>::default());
         host_app::drive_to_playing(&mut app);
         host_app::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
@@ -151,7 +159,7 @@ impl Server {
                 session,
                 SessionPlacement::new(Place::Joining(self.dim), 0),
             ));
-        self.control(ToDim::Spawn {
+        self.control(ToDim::Spawn(InboundPlayerSpawn {
             host_anchor: self.host_anchor,
             session: PlayerSession(0),
             snapshot: PlayerTransferSnapshot {
@@ -162,15 +170,15 @@ impl Server {
                 view_distance: 2,
             },
             dimensions: Vec::new(),
-        });
+        }));
         self.ticks(2)
     }
 
     fn leave(&mut self) -> Vec<OutboundPlayerPacket> {
-        self.control(ToDim::Despawn {
+        self.control(ToDim::Despawn(InboundPlayerDespawn {
             host_anchor: self.host_anchor,
             session: PlayerSession(0),
-        });
+        }));
         self.ticks(2)
     }
 
@@ -193,12 +201,12 @@ impl Server {
             .get(self.dim)
             .unwrap()
             .serverbound_sender
-            .try_send(ToDim::Serverbound {
+            .try_send(ToDim::Serverbound(InboundPlayerPacket {
                 player: self.host_anchor,
                 id: P::ID,
                 data: Bytes::from(data),
                 timestamp: std::time::Instant::now(),
-            })
+            }))
             .unwrap();
     }
 
@@ -292,8 +300,8 @@ fn inventory_packets(packets: &[OutboundPlayerPacket]) -> Vec<&PacketPayload> {
             matches!(
                 data,
                 PacketPayload::SetHeldSlot(_)
-                    | PacketPayload::ContainerSetContent { .. }
-                    | PacketPayload::ContainerSetSlot { .. }
+                    | PacketPayload::ContainerSetContent(_)
+                    | PacketPayload::ContainerSetSlot(_)
                     | PacketPayload::SetCursorItem(_)
             )
         })
@@ -304,12 +312,12 @@ fn set_slots<'a>(
     packets: &'a [OutboundPlayerPacket],
 ) -> impl Iterator<Item = (i16, &'a RawStack)> + 'a {
     packets.iter().filter_map(|packet| match &packet.data {
-        PacketPayload::ContainerSetSlot {
-            container_id: 0,
+        PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot {
+            container_id: VarInt(0),
             slot,
             item,
             ..
-        } => Some((*slot, item)),
+        }) => Some((*slot, item)),
         _ => None,
     })
 }
@@ -320,23 +328,31 @@ fn join_sends_held_slot_then_the_full_inventory_after_the_login_packets() {
     let packets = server.join();
     let login = packets
         .iter()
-        .position(|packet| matches!(packet.data, PacketPayload::PlayerLogin { .. }))
+        .position(|packet| matches!(packet.data, PacketPayload::PlayerLogin(_)))
         .expect("login is sent");
     let held = packets
         .iter()
-        .position(|packet| matches!(packet.data, PacketPayload::SetHeldSlot(0)))
+        .position(|packet| {
+            matches!(
+                packet.data,
+                PacketPayload::SetHeldSlot(ClientboundSetHeldSlot { slot: VarInt(0) })
+            )
+        })
         .expect("the held slot is sent");
     assert!(login < held, "{packets:?}");
     let inventory = inventory_packets(&packets);
     assert_eq!(inventory.len(), 2, "{inventory:?}");
-    assert!(matches!(inventory[0], PacketPayload::SetHeldSlot(0)));
+    assert!(matches!(
+        inventory[0],
+        PacketPayload::SetHeldSlot(ClientboundSetHeldSlot { slot: VarInt(0) })
+    ));
     match inventory[1] {
-        PacketPayload::ContainerSetContent {
-            container_id: 0,
-            state_id: 1,
-            slots,
-            carried,
-        } => {
+        PacketPayload::ContainerSetContent(ClientboundContainerSetContent {
+            container_id: VarInt(0),
+            state_seqno: VarInt(1),
+            slot_data: slots,
+            carried_item: carried,
+        }) => {
             assert_eq!(slots.len(), slots::MENU_COUNT);
             assert!(slots.iter().all(|slot| *slot == RawStack::EMPTY));
             assert_eq!(*carried, RawStack::EMPTY);
@@ -365,12 +381,12 @@ fn a_creative_slot_is_answered_with_one_set_slot() {
     let packets = server.ticks(3);
     let inventory = inventory_packets(&packets);
     assert_eq!(inventory.len(), 1, "{inventory:?}");
-    let PacketPayload::ContainerSetSlot {
-        container_id: 0,
-        state_id: 2,
+    let PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot {
+        container_id: VarInt(0),
+        state_seqno: VarInt(2),
         slot: sent_slot,
         item,
-    } = inventory[0]
+    }) = inventory[0]
     else {
         panic!("{inventory:?}");
     };
@@ -411,16 +427,16 @@ fn a_stale_state_id_resends_the_whole_menu() {
     let packets = server.ticks(3);
     let inventory = inventory_packets(&packets);
     assert_eq!(inventory.len(), 1, "{inventory:?}");
-    let PacketPayload::ContainerSetContent {
-        container_id: 0,
-        state_id: sent,
-        slots,
+    let PacketPayload::ContainerSetContent(ClientboundContainerSetContent {
+        container_id: VarInt(0),
+        state_seqno: sent,
+        slot_data: slots,
         ..
-    } = inventory[0]
+    }) = inventory[0]
     else {
         panic!("{inventory:?}");
     };
-    assert_eq!(i32::from(*sent), state_id + 1);
+    assert_eq!(sent.0, state_id + 1);
     assert_ne!(slots[slots::HOTBAR.start as usize], RawStack::EMPTY);
 }
 
@@ -484,14 +500,18 @@ fn a_drop_adds_an_item_entity_and_its_stack_metadata() {
     let added = packets.iter().position(|packet| {
         matches!(
             packet.data,
-            PacketPayload::PlayerEnteredView { entity_id, kind: 72, .. } if entity_id == wire_id
+            PacketPayload::PlayerEnteredView(ClientboundAddEntity {
+                id: VarInt(id),
+                kind: VarInt(72),
+                ..
+            }) if id == wire_id
         )
     });
     let data = packets.iter().position(|packet| {
         matches!(
             &packet.data,
-            PacketPayload::SetEntityData { entity_id, metadata }
-                if *entity_id == wire_id && metadata.0.iter().any(|entry| entry.index == 8)
+            PacketPayload::SetEntityData(ClientboundSetEntityData { entity_id, metadata })
+                if entity_id.0 == wire_id && metadata.0.iter().any(|entry| entry.index == 8)
         )
     });
     assert!(added.is_some() && data.is_some(), "{packets:?}");
@@ -527,8 +547,11 @@ fn a_pickup_announces_the_full_take_then_fills_the_held_stack_and_a_free_cell() 
         .position(|packet| {
             matches!(
                 packet.data,
-                PacketPayload::TakeItemEntity { item_id, player_id, amount: 7 }
-                    if item_id == item.index_u32() as i32 && player_id == player.index_u32() as i32
+                PacketPayload::TakeItemEntity(ClientboundTakeItemEntity {
+                    item_id: VarInt(item_id),
+                    player_id: VarInt(player_id),
+                    amount: VarInt(7),
+                }) if item_id == item.index_u32() as i32 && player_id == player.index_u32() as i32
             )
         })
         .unwrap_or_else(|| panic!("{packets:?}"));
@@ -564,7 +587,7 @@ fn a_relog_round_trips_the_player_file_with_keys_it_does_not_model() {
     let held = packets
         .iter()
         .find_map(|packet| match packet.data {
-            PacketPayload::SetHeldSlot(slot) => Some(slot),
+            PacketPayload::SetHeldSlot(ClientboundSetHeldSlot { slot }) => Some(slot.0),
             _ => None,
         })
         .unwrap();
@@ -572,7 +595,10 @@ fn a_relog_round_trips_the_player_file_with_keys_it_does_not_model() {
     let content = packets
         .iter()
         .find_map(|packet| match &packet.data {
-            PacketPayload::ContainerSetContent { slots, .. } => Some(slots),
+            PacketPayload::ContainerSetContent(ClientboundContainerSetContent {
+                slot_data,
+                ..
+            }) => Some(slot_data),
             _ => None,
         })
         .unwrap();
@@ -618,7 +644,10 @@ fn a_relog_round_trips_the_player_file_with_keys_it_does_not_model() {
     let content = packets
         .iter()
         .find_map(|packet| match &packet.data {
-            PacketPayload::ContainerSetContent { slots, .. } => Some(slots),
+            PacketPayload::ContainerSetContent(ClientboundContainerSetContent {
+                slot_data,
+                ..
+            }) => Some(slot_data),
             _ => None,
         })
         .unwrap();

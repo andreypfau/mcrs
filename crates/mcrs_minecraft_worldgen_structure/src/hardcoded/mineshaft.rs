@@ -13,8 +13,6 @@ use crate::orient::{
 use crate::piece::{MineshaftKind, MineshaftPiece, Piece};
 use crate::site::{Context, Site, SiteWorld, Stub};
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 const MAX_DEPTH: i32 = 8;
 const REACH: i32 = 80;
 const START_Y: i32 = 50;
@@ -38,7 +36,7 @@ pub fn site(
                 .map(Piece::bounds)
                 .reduce(BoundingBox::union)
                 .expect("the room");
-            let centre = *bounds.min + (*bounds.max - *bounds.min + IVec3::ONE) / 2;
+            let centre = bounds.center();
             let surface = ctx
                 .world
                 .free_height(centre.x, centre.z, HeightmapName::WorldSurfaceWg);

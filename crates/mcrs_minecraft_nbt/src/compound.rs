@@ -170,14 +170,6 @@ impl NbtCompound {
         self.get(name).and_then(|tag| tag.extract_long())
     }
 
-    pub fn get_float(&self, name: &str) -> Option<f32> {
-        self.get(name).and_then(|tag| tag.extract_float())
-    }
-
-    pub fn get_double(&self, name: &str) -> Option<f64> {
-        self.get(name).and_then(|tag| tag.extract_double())
-    }
-
     pub fn get_bool(&self, name: &str) -> Option<bool> {
         self.get(name).and_then(|tag| tag.extract_bool())
     }

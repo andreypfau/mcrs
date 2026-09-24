@@ -43,23 +43,18 @@ impl FortressBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: &str| Ok(Oriented::of(world, state(blocks, block, &[])?));
+        let oriented = |block: &str| Oriented::named(world, blocks, block, &[]);
         let fence = |sides: &[&str]| {
             let on: Vec<(&str, &str)> = sides.iter().map(|side| (*side, "true")).collect();
-            Ok(Oriented::of(
-                world,
-                state(blocks, "minecraft:nether_brick_fence", &on)?,
-            ))
+            Oriented::named(world, blocks, "minecraft:nether_brick_fence", &on)
         };
         let stairs = |facing: &str| {
-            Ok(Oriented::of(
+            Oriented::named(
                 world,
-                state(
-                    blocks,
-                    "minecraft:nether_brick_stairs",
-                    &[("facing", facing)],
-                )?,
-            ))
+                blocks,
+                "minecraft:nether_brick_stairs",
+                &[("facing", facing)],
+            )
         };
         Ok(FortressBlocks {
             bricks: oriented("minecraft:nether_bricks")?,

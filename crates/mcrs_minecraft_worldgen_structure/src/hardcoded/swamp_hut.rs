@@ -7,8 +7,6 @@ use crate::orient::{Orientation, orient_box};
 use crate::piece::{Piece, SwampHutPiece};
 use crate::site::{Context, Site, Stub};
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
     on_top_of_chunk_centre(ctx, HeightmapName::WorldSurfaceWg)
 }

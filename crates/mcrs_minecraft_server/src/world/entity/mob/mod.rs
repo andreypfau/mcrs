@@ -8,7 +8,6 @@ use bevy_ecs::prelude::{
     SystemCondition, With,
 };
 use bevy_ecs::query::QueryData;
-use bevy_ecs::schedule::SystemSet;
 use bevy_math::DVec3;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
@@ -23,9 +22,17 @@ use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
+use mcrs_minecraft_protocol::ByteAngle;
+use mcrs_minecraft_protocol::LpVec3;
 use mcrs_minecraft_protocol::entity::{EquipmentSlot, MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol::item::{ComponentPatch, RawStack};
 use mcrs_minecraft_protocol::packets::game::clientbound::AttributeSnapshot;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetEntityData;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetEquipment;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPassengers;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{ProtoStack, VarInt};
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
@@ -37,16 +44,13 @@ use mcrs_minecraft_worldgen_feature_place::entity::{
 };
 use serde::de::value::StrDeserializer;
 use serde::de::{DeserializeOwned, IntoDeserializer};
-use smallvec::{SmallVec, smallvec};
+use smallvec::SmallVec;
 
 /// `clientTrackingRange` of the spawned kinds, in blocks: eight chunks, the
 /// range of every monster; the guardian, shulker, frame and villager see ten.
 // ponytail: one range for every kind; put the per-kind range on the entity type table if a
 // player is meant to see a villager two chunks before a witch.
 const TRACKING_RANGE_SQ: f64 = (8.0 * 16.0) * (8.0 * 16.0);
-
-#[derive(SystemSet, Clone, Default, Hash, PartialEq, Eq, Debug)]
-pub struct MobTrackerSet;
 
 pub struct MobTrackerPlugin;
 
@@ -55,7 +59,6 @@ impl Plugin for MobTrackerPlugin {
         app.add_systems(
             FixedPostUpdate,
             update_mob_tracked_by
-                .in_set(MobTrackerSet)
                 .after(PlayerTrackerSet)
                 .run_if(on_changed_transform.or_else(on_changed_observers)),
         );
@@ -138,12 +141,8 @@ fn spawn_one(
                 Health::full(10.0),
                 left_handed(left),
             ));
-            if let Some((variant, sound)) = registry_id(registry, "minecraft:cat_variant", &variant)
-                .zip(registry_id(
-                    registry,
-                    "minecraft:cat_sound_variant",
-                    &sound_variant,
-                ))
+            if let Some((variant, sound)) = registry_id(registry, "cat_variant", &variant)
+                .zip(registry_id(registry, "cat_sound_variant", &sound_variant))
             {
                 spawned.insert(CatVariant { variant, sound });
             }
@@ -183,13 +182,9 @@ fn spawn_one(
                 Health::full(4.0),
                 left_handed(left),
             ));
-            if let Some((variant, sound)) =
-                registry_id(registry, "minecraft:chicken_variant", &variant).zip(registry_id(
-                    registry,
-                    "minecraft:chicken_sound_variant",
-                    &sound_variant,
-                ))
-            {
+            if let Some((variant, sound)) = registry_id(registry, "chicken_variant", &variant).zip(
+                registry_id(registry, "chicken_sound_variant", &sound_variant),
+            ) {
                 spawned.insert(ChickenVariant { variant, sound });
             }
         }
@@ -202,9 +197,7 @@ fn spawn_one(
                 Health::full(15.0),
                 left_handed(left),
             ));
-            if let Some(variant) =
-                registry_id(registry, "minecraft:zombie_nautilus_variant", &variant)
-            {
+            if let Some(variant) = registry_id(registry, "zombie_nautilus_variant", &variant) {
                 spawned.insert(ZombieNautilusVariant(variant));
             }
         }
@@ -297,12 +290,7 @@ fn registry_id(
     key: &str,
     location: &ResourceLocation,
 ) -> Option<u32> {
-    let id = registry?
-        .iter()
-        .find(|snapshot| snapshot.registry_key() == key)?
-        .iter_entries()
-        .find(|entry| entry.location.as_str() == location.as_str())
-        .map(|entry| entry.network_id);
+    let id = registry?.id(key, location);
     if id.is_none() {
         tracing::warn!(key, %location, "a spawned entity names a variant the registry lacks");
     }
@@ -383,8 +371,8 @@ pub struct Pairing {
     wire: Option<&'static WireStack>,
 }
 
-fn wire_id(entity: Entity) -> i32 {
-    entity.index_u32() as i32
+fn wire_id(entity: Entity) -> VarInt {
+    VarInt(entity.index_u32() as i32)
 }
 
 /// A stack the registries cannot encode is dropped from the packet rather
@@ -410,31 +398,36 @@ impl PairingItem<'_, '_> {
         lookup: &dyn RegistryLookup,
     ) -> Vec<PacketPayload> {
         let id = wire_id(self.entity);
-        let mut out = vec![PacketPayload::PlayerEnteredView {
-            entity_id: id,
+        let yaw = ByteAngle::from_degrees(self.transform.rotation.yaw());
+        let mut out = vec![PacketPayload::PlayerEnteredView(ClientboundAddEntity {
+            id,
             uuid: self.uuid.0,
-            kind: self.kind.protocol_id as i32,
-            position: self.transform.translation,
-            yaw: self.transform.rotation.yaw(),
-            pitch: self.transform.rotation.pitch(),
-            data: self.frame.map_or(0, |frame| frame.facing.id() as i32),
-        }];
+            kind: VarInt(self.kind.protocol_id as i32),
+            pos: self.transform.translation,
+            movement: LpVec3(DVec3::ZERO),
+            yaw,
+            pitch: ByteAngle::from_degrees(self.transform.rotation.pitch()),
+            head_yaw: yaw,
+            data: VarInt(self.frame.map_or(0, |frame| frame.facing.id() as i32)),
+        })];
         let metadata = self.entity_data(lookup);
         if !metadata.is_empty() {
-            out.push(PacketPayload::SetEntityData {
+            out.push(PacketPayload::SetEntityData(ClientboundSetEntityData {
                 entity_id: id,
                 metadata: Metadata(metadata),
-            });
+            }));
         }
         if let Some(health) = self.health {
-            out.push(PacketPayload::UpdateAttributes {
-                entity_id: id,
-                attributes: vec![AttributeSnapshot {
-                    attribute: VarInt(MAX_HEALTH.protocol_id as i32),
-                    base: f64::from(health.max),
-                    modifiers: Vec::new(),
-                }],
-            });
+            out.push(PacketPayload::UpdateAttributes(
+                ClientboundUpdateAttributes {
+                    entity_id: id,
+                    attributes: vec![AttributeSnapshot {
+                        attribute: VarInt(MAX_HEALTH.protocol_id as i32),
+                        base: f64::from(health.max),
+                        modifiers: Vec::new(),
+                    }],
+                },
+            ));
         }
         if let Some(equipment) = self.equipment {
             let slots: Vec<(EquipmentSlot, RawStack)> = [
@@ -445,25 +438,25 @@ impl PairingItem<'_, '_> {
             .filter_map(|(slot, stack)| Some((slot, wire_stack(stack?, lookup)?)))
             .collect();
             if !slots.is_empty() {
-                out.push(PacketPayload::SetEquipment {
+                out.push(PacketPayload::SetEquipment(ClientboundSetEquipment {
                     entity_id: id,
                     slots,
-                });
+                }));
             }
         }
         if let Some(ridden_by) = self.ridden_by.filter(|riders| !riders.is_empty()) {
-            out.push(PacketPayload::SetPassengers {
+            out.push(PacketPayload::SetPassengers(ClientboundSetPassengers {
                 vehicle: id,
                 passengers: ridden_by.iter().map(|rider| wire_id(*rider)).collect(),
-            });
+            }));
         }
         if let Some(vehicle) = self.riding
             && let Ok(riders) = vehicles.get(vehicle.0)
         {
-            out.push(PacketPayload::SetPassengers {
+            out.push(PacketPayload::SetPassengers(ClientboundSetPassengers {
                 vehicle: wire_id(vehicle.0),
                 passengers: riders.iter().map(|rider| wire_id(*rider)).collect(),
-            });
+            }));
         }
         out
     }
@@ -545,9 +538,9 @@ impl PairingItem<'_, '_> {
 }
 
 fn remove(entity: Entity) -> PacketPayload {
-    PacketPayload::PlayerLeftView {
-        entity_ids: smallvec![wire_id(entity)],
-    }
+    PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
+        entity_ids: vec![wire_id(entity)],
+    })
 }
 
 /// A player sees a mob when it holds the mob's column and stands within the
@@ -656,7 +649,7 @@ mod tests {
     fn left_view(sent: &[(Entity, PacketPayload)], anchor: Entity, mob: Entity) -> bool {
         matches!(
             sent,
-            [(to, PacketPayload::PlayerLeftView { entity_ids })]
+            [(to, PacketPayload::PlayerLeftView(ClientboundRemoveEntities { entity_ids }))]
                 if *to == anchor && entity_ids.as_slice() == [wire_id(mob)]
         )
     }
@@ -730,21 +723,22 @@ mod tests {
         let sent = drain(&mut app);
         assert!(sent.iter().all(|(to, _)| *to == anchor), "{sent:?}");
         assert_eq!(sent.len(), 3, "{sent:?}");
-        let PacketPayload::PlayerEnteredView {
-            entity_id,
+        let PacketPayload::PlayerEnteredView(ClientboundAddEntity {
+            id,
             kind,
-            position,
+            pos,
             data,
             ..
-        } = &sent[0].1
+        }) = &sent[0].1
         else {
             panic!("{sent:?}")
         };
-        assert_eq!(*entity_id, wire_id(mob));
-        assert_eq!(*kind, entity_types::WITCH.protocol_id as i32);
-        assert_eq!(*position, DVec3::new(8.5, 65.0, 8.5));
-        assert_eq!(*data, 0);
-        let PacketPayload::SetEntityData { metadata, .. } = &sent[1].1 else {
+        assert_eq!(*id, wire_id(mob));
+        assert_eq!(*kind, VarInt(entity_types::WITCH.protocol_id as i32));
+        assert_eq!(*pos, DVec3::new(8.5, 65.0, 8.5));
+        assert_eq!(*data, VarInt(0));
+        let PacketPayload::SetEntityData(ClientboundSetEntityData { metadata, .. }) = &sent[1].1
+        else {
             panic!("{sent:?}")
         };
         assert_eq!(
@@ -760,7 +754,7 @@ mod tests {
                 },
             ]
         );
-        assert!(matches!(sent[2].1, PacketPayload::UpdateAttributes { .. }));
+        assert!(matches!(sent[2].1, PacketPayload::UpdateAttributes(_)));
         assert_eq!(
             app.world()
                 .get::<TrackedBy>(mob)

@@ -4,7 +4,20 @@
 //! to the host-resident connection without querying ServerSideConnection.
 
 use crate::mock_connection;
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_protocol::ByteAngle;
+use mcrs_minecraft_protocol::GameEventKind;
+use mcrs_minecraft_protocol::LpVec3;
+use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityEvent;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundGameEvent;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
@@ -35,7 +48,7 @@ use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
-use mcrs_minecraft_server::runner::pump_channels;
+use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::world::bridge::dispatch_encode;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft_server::world::bus::{
@@ -161,21 +174,25 @@ fn player_login_encodes() {
     push_critical(
         &mut world,
         entity,
-        PacketPayload::PlayerLogin {
+        PacketPayload::PlayerLogin(ClientboundLogin {
             player_id: 42,
             hardcore: false,
-            game_mode: GameMode::Creative,
-            dimension: "minecraft:overworld".to_string(),
-            dimension_type_id: 0,
-            dimensions: vec!["minecraft:overworld".to_string()],
-            max_players: 100,
-            chunk_radius: 12,
-            simulation_distance: 12,
+            dimensions: vec![ResourceLocation::parse_cow("minecraft:overworld").unwrap()],
+            max_players: VarInt(100),
+            chunk_radius: VarInt(12),
+            simulation_distance: VarInt(12),
             reduced_debug_info: false,
             show_death_screen: false,
             do_limited_crafting: false,
+            player_spawn_info: PlayerSpawnInfo {
+                dimension_type_id: VarInt(0),
+                dimension: ResourceLocation::parse_cow("minecraft:overworld").unwrap(),
+                game_mode: GameMode::Creative,
+                ..Default::default()
+            },
+            online_mode: false,
             enforces_secure_chat: false,
-        },
+        }),
     );
 
     run_dispatch(&mut world);
@@ -194,15 +211,20 @@ fn player_login_encodes() {
     );
 }
 
-/// `PacketPayload::LevelChunksLoadStart` encodes to a non-empty blob
-/// (the GameEvent packet).
+/// The `LevelChunksLoadStart` game event encodes to a non-empty blob.
 #[test]
 fn level_chunks_load_start_encodes() {
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
-    push_critical(&mut world, entity, PacketPayload::LevelChunksLoadStart);
+    push_critical(
+        &mut world,
+        entity,
+        PacketPayload::GameEvent(ClientboundGameEvent {
+            game_event: GameEventKind::LevelChunksLoadStart,
+        }),
+    );
     run_dispatch(&mut world);
 
     let after = world.resource::<BridgeTelemetry>().encode_unhandled_total;
@@ -230,10 +252,10 @@ fn player_login_entity_event_encodes() {
     push_critical(
         &mut world,
         entity,
-        PacketPayload::OpLevelEntityEvent {
+        PacketPayload::OpLevelEntityEvent(ClientboundEntityEvent {
             entity_id: 42,
             entity_status: 24,
-        },
+        }),
     );
     run_dispatch(&mut world);
 
@@ -261,7 +283,10 @@ fn cache_center_encodes() {
     push_critical(
         &mut world,
         entity,
-        PacketPayload::SetChunkCacheCenter(ColumnPos::new(0, 0)),
+        PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
+            x: VarInt(0),
+            z: VarInt(0),
+        }),
     );
     run_dispatch(&mut world);
 
@@ -289,7 +314,7 @@ fn cache_radius_encodes() {
     push_critical(
         &mut world,
         entity,
-        PacketPayload::SetChunkCacheRadius { radius: 12 },
+        PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius { radius: VarInt(12) }),
     );
     run_dispatch(&mut world);
 
@@ -378,7 +403,7 @@ fn play_login_emitted_on_spawn() {
             .get(dim_label)
             .expect("channel registered for dim_label")
             .control_sender
-            .try_send(ToDim::Spawn {
+            .try_send(ToDim::Spawn(InboundPlayerSpawn {
                 host_anchor,
                 session: PlayerSession(0),
                 snapshot: PlayerTransferSnapshot {
@@ -389,7 +414,7 @@ fn play_login_emitted_on_spawn() {
                     view_distance: 12,
                 },
                 dimensions: Vec::new(),
-            })
+            }))
             .expect("control channel not full");
     }
 
@@ -415,8 +440,7 @@ fn play_login_emitted_on_spawn() {
         .collect();
 
     let has_login = packets.iter().any(|p| {
-        matches!(&p.data, PacketPayload::PlayerLogin { .. })
-            && p.priority == PacketPriority::Critical
+        matches!(&p.data, PacketPayload::PlayerLogin(_)) && p.priority == PacketPriority::Critical
     });
     assert!(
         has_login,
@@ -457,7 +481,7 @@ fn play_login_targets_host_anchor() {
             .get(dim_label)
             .expect("channel registered for dim_label")
             .control_sender
-            .try_send(ToDim::Spawn {
+            .try_send(ToDim::Spawn(InboundPlayerSpawn {
                 host_anchor,
                 session: PlayerSession(0),
                 snapshot: PlayerTransferSnapshot {
@@ -468,7 +492,7 @@ fn play_login_targets_host_anchor() {
                     view_distance: 12,
                 },
                 dimensions: Vec::new(),
-            })
+            }))
             .expect("control channel not full");
     }
 
@@ -491,7 +515,7 @@ fn play_login_targets_host_anchor() {
 
     let login_pkt = packets
         .iter()
-        .find(|p| matches!(&p.data, PacketPayload::PlayerLogin { .. }))
+        .find(|p| matches!(&p.data, PacketPayload::PlayerLogin(_)))
         .expect("PlayerLogin packet must be present");
 
     match &login_pkt.target {
@@ -529,7 +553,7 @@ fn in_dim_entity_carries_host_anchor() {
             .get(dim_label)
             .expect("channel registered for dim_label")
             .control_sender
-            .try_send(ToDim::Spawn {
+            .try_send(ToDim::Spawn(InboundPlayerSpawn {
                 host_anchor,
                 session: PlayerSession(0),
                 snapshot: PlayerTransferSnapshot {
@@ -540,7 +564,7 @@ fn in_dim_entity_carries_host_anchor() {
                     view_distance: 12,
                 },
                 dimensions: Vec::new(),
-            })
+            }))
             .expect("control channel not full");
     }
 
@@ -612,14 +636,14 @@ fn light_delivery_emits_lightupdate() {
 
     let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
-    use mcrs_minecraft_core::ColumnPos;
     push_critical(
         &mut world,
         entity,
-        PacketPayload::LightUpdate {
-            column: ColumnPos::new(1, 2),
+        PacketPayload::LightUpdate(ClientboundLightUpdate {
+            x: VarInt(1),
+            z: VarInt(2),
             light_data: LightData::default(),
-        },
+        }),
     );
     run_dispatch(&mut world);
 
@@ -649,26 +673,27 @@ fn view_enter_leave_route_via_bus() {
 
     let before = world.resource::<BridgeTelemetry>().encode_unhandled_total;
 
-    use smallvec::smallvec;
     push_critical(
         &mut world,
         entity,
-        PacketPayload::PlayerEnteredView {
-            entity_id: 7,
+        PacketPayload::PlayerEnteredView(ClientboundAddEntity {
+            id: VarInt(7),
             uuid: Uuid::nil(),
-            kind: 128,
-            position: DVec3::ZERO,
-            yaw: 0.0,
-            pitch: 0.0,
-            data: 0,
-        },
+            kind: VarInt(128),
+            pos: DVec3::ZERO,
+            movement: LpVec3(DVec3::ZERO),
+            yaw: ByteAngle::from_degrees(0.0),
+            pitch: ByteAngle::from_degrees(0.0),
+            head_yaw: ByteAngle::from_degrees(0.0),
+            data: VarInt(0),
+        }),
     );
     push_critical(
         &mut world,
         entity,
-        PacketPayload::PlayerLeftView {
-            entity_ids: smallvec![7],
-        },
+        PacketPayload::PlayerLeftView(ClientboundRemoveEntities {
+            entity_ids: vec![VarInt(7)],
+        }),
     );
     run_dispatch(&mut world);
 
@@ -702,12 +727,15 @@ fn on_view_update_routes_cache_center() {
     push_critical(
         &mut world,
         entity,
-        PacketPayload::SetChunkCacheCenter(ColumnPos::new(5, 3)),
+        PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
+            x: VarInt(5),
+            z: VarInt(3),
+        }),
     );
     push_critical(
         &mut world,
         entity,
-        PacketPayload::SetChunkCacheRadius { radius: 10 },
+        PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius { radius: VarInt(10) }),
     );
     run_dispatch(&mut world);
 

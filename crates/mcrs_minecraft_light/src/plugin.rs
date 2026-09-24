@@ -195,19 +195,6 @@ impl LightStatus<'_> {
         self.lighting.is_some()
     }
 
-    /// Nothing outstanding anywhere. Systems whose behaviour has to be
-    /// reproducible — mob spawning, crop growth, saving a region — should run
-    /// only when this holds, because light published a tick later than an edit
-    /// is fine for rendering and not fine for simulation.
-    pub fn settled(&self) -> bool {
-        self.epoch.as_ref().is_none_or(|epoch| !epoch.is_running())
-            && self
-                .pending
-                .as_ref()
-                .is_none_or(|pending| pending.is_empty())
-            && self.queue.as_ref().is_none_or(|queue| queue.0.is_empty())
-    }
-
     /// Whether the light of one column is finished, neighbours included.
     ///
     /// A column is sent once and its light travels with it, so anything the
@@ -250,11 +237,6 @@ impl LightStatus<'_> {
         };
         !self.epoch.as_ref().is_some_and(|epoch| epoch.touches(area))
     }
-}
-
-/// Run condition for systems that must see settled light.
-pub fn light_has_settled(status: LightStatus) -> bool {
-    status.settled()
 }
 
 /// The tick-loop steps, in the order they must run.

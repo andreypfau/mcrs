@@ -7,6 +7,7 @@
     MODEL_SPRITE_WORD, MODEL_SPRITE_SHIFT, MODEL_SPRITE_BITS,
     MODEL_STEPS,
     MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS,
+    MODEL_TINT_HIGH_WORD, MODEL_TINT_HIGH_SHIFT, MODEL_TINT_HIGH_BITS,
     MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS,
     MODEL_V_WORD, MODEL_V_SHIFT, MODEL_V_BITS,
     MODEL_X_WORD, MODEL_X_SHIFT, MODEL_X_BITS,
@@ -34,15 +35,6 @@ struct ModelOut {
     @location(5) quad_uv: vec2<f32>,
 };
 
-fn shade_bucket(bucket: u32) -> f32 {
-    switch bucket {
-        case 0u: { return 0.5; }
-        case 1u: { return 0.6; }
-        case 2u: { return 0.8; }
-        default: { return 1.0; }
-    }
-}
-
 @vertex
 fn vertex_model(@builtin(vertex_index) vertex: u32) -> ModelOut {
     var out: ModelOut;
@@ -67,15 +59,16 @@ fn vertex_model(@builtin(vertex_index) vertex: u32) -> ModelOut {
         f32(model_field(base, MODEL_BLOCK_LIGHT_WORD, MODEL_BLOCK_LIGHT_SHIFT, MODEL_BLOCK_LIGHT_BITS));
     let sky_light =
         f32(model_field(base, MODEL_SKY_LIGHT_WORD, MODEL_SKY_LIGHT_SHIFT, MODEL_SKY_LIGHT_BITS));
-    let shade =
-        shade_bucket(model_field(base, MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS));
+    let shade = f32(model_field(base, MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS)) / 255.0;
 
     out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
     out.uv = vec2<f32>(u, v);
     out.sprite = model_field(base, MODEL_SPRITE_WORD, MODEL_SPRITE_SHIFT, MODEL_SPRITE_BITS);
     out.shade = lightmap(block_light, sky_light) * shade;
     out.world_xz = world.xz;
-    out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS);
+    out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS)
+        | model_field(base, MODEL_TINT_HIGH_WORD, MODEL_TINT_HIGH_SHIFT, MODEL_TINT_HIGH_BITS)
+            << MODEL_TINT_BITS;
     out.quad_uv = corner_uv(corner);
     return out;
 }

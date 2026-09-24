@@ -330,7 +330,7 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
                 .find(|&y| column.get(x, y, z).is_some_and(|state| state != AIR))
         };
 
-        let mut mask = CarvingMask::new(16, -63, 319 - 7);
+        let mut mask = CarvingMask::new(-63, 319 - 7);
         let mut grass_tops = Vec::new();
         let mut water_tops = Vec::new();
         for x in 0..16 {

@@ -4,7 +4,7 @@ use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldSt
 use mcrs_minecraft_worldgen_structure::piece::JungleTemplePiece;
 
 use crate::canvas::{ChestStates, PieceCanvas};
-use crate::{Oriented, block_mask, state};
+use crate::{Oriented, block_mask};
 
 pub const JUNGLE_TEMPLE_LOOT: &str = "minecraft:chests/jungle_temple";
 pub const JUNGLE_TEMPLE_DISPENSER_LOOT: &str = "minecraft:chests/jungle_temple_dispenser";
@@ -49,7 +49,7 @@ impl JungleTempleBlocks {
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let of = |block: &str, properties: &[(&str, &str)]| {
-            Ok(Oriented::of(world, state(blocks, block, properties)?))
+            Oriented::named(world, blocks, block, properties)
         };
         let stairs = |facing| of("minecraft:cobblestone_stairs", &[("facing", facing)]);
         let hook = |facing| {

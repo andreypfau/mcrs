@@ -129,7 +129,7 @@ mod tests {
     /// vertical radius and never below the floor level.
     #[test]
     fn the_ellipsoid_marks_only_its_own_interior() {
-        let mut mask = CarvingMask::new(16, 1, 120);
+        let mut mask = CarvingMask::new(1, 120);
         assert!(carve_ellipsoid(
             0,
             0,
@@ -161,7 +161,7 @@ mod tests {
     fn a_water_abort_marks_nothing_and_reports_it() {
         let mut water = WaterMask::default();
         water.insert(4, 50, 8);
-        let mut mask = CarvingMask::new(16, 1, 120);
+        let mut mask = CarvingMask::new(1, 120);
         assert!(!carve_ellipsoid(
             0,
             0,
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn an_ellipsoid_far_from_the_chunk_marks_nothing() {
-        let mut mask = CarvingMask::new(16, 1, 120);
+        let mut mask = CarvingMask::new(1, 120);
         assert!(!carve_ellipsoid(
             0,
             0,

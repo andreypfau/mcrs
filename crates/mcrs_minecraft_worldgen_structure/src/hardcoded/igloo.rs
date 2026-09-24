@@ -13,8 +13,6 @@ use crate::site::{Context, Site, Stub};
 
 pub const TEMPLATES: &[&str] = &["igloo/top", "igloo/middle", "igloo/bottom"];
 
-pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
-
 const LAYOUT_HEIGHT: i32 = 90;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

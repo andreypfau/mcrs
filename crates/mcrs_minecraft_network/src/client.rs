@@ -1,6 +1,6 @@
 use crate::event::ReceivedPacketEvent;
 use crate::packet_io::{ByteStream, PacketIo};
-use crate::{ConnectionState, EngineConnection, RawConnection};
+use crate::{ConnectionState, RawConnection};
 use anyhow::bail;
 use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_ecs::component::Component;
@@ -236,10 +236,6 @@ impl WritePacket for ClientConnection {
         P: Encode + Packet,
     {
         self.raw.write_packet_fallible(packet)
-    }
-
-    fn write_packet_bytes(&mut self, bytes: &[u8]) {
-        self.raw.write_packet_bytes(bytes)
     }
 }
 

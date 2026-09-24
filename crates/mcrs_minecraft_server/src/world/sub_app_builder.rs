@@ -72,7 +72,7 @@ pub enum ColumnDrainSet {
 }
 use crate::WorldSave;
 use crate::world::aoi::PlayerTrackerPlugin;
-use crate::world::block::MinecraftBlockPlugin;
+use crate::world::block::tnt::TntBlockPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::generate::DimensionRouters;
@@ -192,12 +192,7 @@ pub fn spawn_dim_subapp(
 
     app.world_mut()
         .resource_mut::<DimChannels<ToDim, FromDim>>()
-        .insert(
-            label_entity,
-            to_dim_srv_tx,
-            to_dim_ctl_tx,
-            from_dim_rx,
-        );
+        .insert(label_entity, to_dim_srv_tx, to_dim_ctl_tx, from_dim_rx);
 
     let asset_root = app
         .world()
@@ -215,9 +210,7 @@ pub fn spawn_dim_subapp(
         serverbound: to_dim_srv_rx,
         control: to_dim_ctl_rx,
     });
-    sub_app.insert_resource(FromDimSender::<FromDim>(
-        from_dim_tx,
-    ));
+    sub_app.insert_resource(FromDimSender::<FromDim>(from_dim_tx));
 
     // Per-sub-app message registrations. Only types that still flow through
     // the dim sub-app's Messages<T> double-buffer (intra-dim use) are kept.
@@ -459,7 +452,7 @@ pub fn spawn_dim_subapp(
     }
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
     // Per-dim composition of the simulation plugins. Each plugin's
-    // schedule placements (`MinecraftBlockPlugin`, `ExplosionPlugin`,
+    // schedule placements (`TntBlockPlugin`, `ExplosionPlugin`,
     // `PlayerTrackerPlugin`, `BlockUpdatePlugin`, `BlockUpdateWirePlugin`,
     // `MinecraftEntityPlugin`, `LootPlugin`) run inside the per-dim
     // sub-app's `World`. `ExplosionPlugin::tick_explode` writes
@@ -469,13 +462,12 @@ pub fn spawn_dim_subapp(
     // additional `BlockUpdateWirePlugin` (defined in
     // `crate::world::block_update`) registers the per-dim wire-emit
     // system that fans block updates out via `OutboundPlayerPacket`
-    // through `Column.PlayerObservers`. `MinecraftBlockPlugin` carries
-    // the per-block TNT sub-plugin which reads
+    // through `Column.PlayerObservers`. `TntBlockPlugin` reads
     // `MessageReader<PlayerWillDestroyBlock>` — the host-side
     // `digging.rs` writers route a clone of each event into
     // `PendingInboundLifecycle.block_events`, drained per-dim by the
     // extract closure below.
-    sub_app.add_plugins(MinecraftBlockPlugin);
+    sub_app.add_plugins(TntBlockPlugin);
     sub_app.add_plugins(ExplosionPlugin);
     sub_app.add_plugins(PlayerTrackerPlugin);
     sub_app.add_plugins(BlockUpdatePlugin::default());
@@ -645,66 +637,27 @@ fn drain_to_dim_inbox(
 ) {
     for msg in rx.control.try_iter() {
         match msg {
-            ToDim::Spawn {
-                host_anchor,
-                session,
-                snapshot,
-                dimensions,
-            } => {
-                spawn_msgs.write(InboundPlayerSpawn {
-                    host_anchor,
-                    session,
-                    snapshot,
-                    dimensions,
-                });
+            ToDim::Spawn(m) => {
+                spawn_msgs.write(m);
             }
-            ToDim::Despawn {
-                host_anchor,
-                session,
-            } => {
-                despawn_msgs.write(InboundPlayerDespawn {
-                    host_anchor,
-                    session,
-                });
+            ToDim::Despawn(m) => {
+                despawn_msgs.write(m);
             }
-            ToDim::Serverbound { .. } => {}
-            ToDim::SpawnEntity {
-                move_id,
-                epoch,
-                cause,
-                payload,
-                player,
-            } => {
-                entity_spawn_msgs.write(InboundEntitySpawn {
-                    move_id,
-                    epoch,
-                    cause,
-                    payload,
-                    player,
-                });
+            ToDim::Serverbound(_) => {}
+            ToDim::SpawnEntity(m) => {
+                entity_spawn_msgs.write(m);
             }
-            ToDim::ConfirmMove { move_id } => {
-                confirm_msgs.write(InboundConfirmMove { move_id });
+            ToDim::ConfirmMove(m) => {
+                confirm_msgs.write(m);
             }
-            ToDim::RollbackMove { move_id } => {
-                rollback_msgs.write(InboundRollbackMove { move_id });
+            ToDim::RollbackMove(m) => {
+                rollback_msgs.write(m);
             }
         }
     }
     for msg in rx.serverbound.try_iter() {
-        if let ToDim::Serverbound {
-            player,
-            id,
-            data,
-            timestamp,
-        } = msg
-        {
-            serverbound_msgs.write(crate::world::bus::InboundPlayerPacket {
-                player,
-                id,
-                data,
-                timestamp,
-            });
+        if let ToDim::Serverbound(m) = msg {
+            serverbound_msgs.write(m);
         }
     }
 }
@@ -724,14 +677,7 @@ pub(crate) fn flush_from_dim_outbox(
     sender: Res<FromDimSender<FromDim>>,
     mut backlog: Local<VecDeque<FromDim>>,
 ) {
-    use mcrs_minecraft_level::session::PlayerSession;
-    backlog.extend(msgs.drain().map(|msg| FromDim::Clientbound {
-        target: msg.target,
-        priority: msg.priority,
-        data: msg.data,
-        session: PlayerSession(0),
-        epoch: 0,
-    }));
+    backlog.extend(msgs.drain().map(FromDim::Clientbound));
     while let Some(outbound) = backlog.pop_front() {
         if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
             backlog.push_front(outbound);
@@ -847,10 +793,10 @@ mod tests {
         let mut arrived = Vec::new();
         let drain = |arrived: &mut Vec<u32>| {
             arrived.extend(rx.try_iter().map(|msg| match msg {
-                FromDim::Clientbound {
+                FromDim::Clientbound(OutboundPlayerPacket {
                     data: PacketPayload::Test(payload),
                     ..
-                } => payload.seq,
+                }) => payload.seq,
                 other => panic!("unexpected message {other:?}"),
             }));
         };

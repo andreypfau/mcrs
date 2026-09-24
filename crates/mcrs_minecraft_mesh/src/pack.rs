@@ -54,24 +54,34 @@ const _: () = assert!(
     "a section can hold more faces than a quad can name a place among"
 );
 
-pub const FACE_TINT: Field = Field::new(0, 0, 2);
-pub const FACE_BLOCK_LIGHT: Field = Field::new(0, 2, 4);
-pub const FACE_SKY_LIGHT: Field = Field::new(0, 6, 4);
-pub const FACE_AO: Field = Field::new(0, 10, 8);
-pub const FACE_FLUID: Field = Field::new(0, 18, 1);
-pub const FACE_SPRITE: Field = Field::new(1, 0, 16);
+pub const FACE_FLUID: Field = Field::new(0, 2, 1);
+pub const FACE_AO: Field = Field::new(0, 3, 4 * FACE_AO_CORNER_BITS);
+pub const FACE_SPRITE: Field = Field::new(0, 15, 16);
+pub const FACE_BLOCK_LIGHT: Field = Field::new(1, 0, 4 * FACE_LIGHT_CORNER_BITS);
+pub const FACE_SKY_LIGHT: Field = Field::new(2, 0, 4 * FACE_LIGHT_CORNER_BITS);
+pub const FACE_TINT: Field = Field::new(1, 24, 6);
 
-pub const FACE_WORDS: usize = 2;
+/// A full cube face's occlusion is one of five vanilla bytes, `255 - 51 * code`.
+pub const FACE_AO_CORNER_BITS: u32 = 3;
+
+/// A full cube face's smooth light is the mean of four whole levels, so a quarter level is its
+/// finest step and a corner stores it in quarter levels.
+pub const FACE_LIGHT_CORNER_BITS: u32 = 6;
+
+pub const FACE_WORDS: usize = 3;
 
 pub const MODEL_X: Field = Field::new(0, 0, 10);
 pub const MODEL_Y: Field = Field::new(0, 10, 10);
 pub const MODEL_Z: Field = Field::new(0, 20, 10);
 pub const MODEL_U: Field = Field::new(1, 0, 10);
 pub const MODEL_V: Field = Field::new(1, 10, 10);
-pub const MODEL_TINT: Field = Field::new(1, 20, 2);
-pub const MODEL_BLOCK_LIGHT: Field = Field::new(1, 22, 4);
-pub const MODEL_SHADE: Field = Field::new(1, 26, 2);
-pub const MODEL_SKY_LIGHT: Field = Field::new(1, 28, 4);
+pub const MODEL_BLOCK_LIGHT: Field = Field::new(1, 20, 8);
+/// A model vertex has no six free bits in one word, so its tint is split: the low four bits
+/// here and the high two in `MODEL_TINT_HIGH`.
+pub const MODEL_TINT: Field = Field::new(1, 28, 4);
+pub const MODEL_TINT_HIGH: Field = Field::new(0, 30, 2);
+pub const MODEL_SHADE: Field = Field::new(2, 16, 8);
+pub const MODEL_SKY_LIGHT: Field = Field::new(2, 24, 8);
 pub const MODEL_SPRITE: Field = Field::new(2, 0, FACE_SPRITE.bits);
 
 pub const MODEL_OVERHANG: f32 = 2.0;
@@ -117,6 +127,7 @@ const MODEL_FIELDS: &[(&str, Field)] = &[
     ("MODEL_U", MODEL_U),
     ("MODEL_V", MODEL_V),
     ("MODEL_TINT", MODEL_TINT),
+    ("MODEL_TINT_HIGH", MODEL_TINT_HIGH),
     ("MODEL_BLOCK_LIGHT", MODEL_BLOCK_LIGHT),
     ("MODEL_SKY_LIGHT", MODEL_SKY_LIGHT),
     ("MODEL_SHADE", MODEL_SHADE),
@@ -142,6 +153,8 @@ const FLOATS: &[(&str, f32)] = &[
 const COUNTS: &[(&str, u32)] = &[
     ("QUAD_WORDS", QUAD_WORDS as u32),
     ("FACE_WORDS", FACE_WORDS as u32),
+    ("FACE_AO_CORNER_BITS", FACE_AO_CORNER_BITS),
+    ("FACE_LIGHT_CORNER_BITS", FACE_LIGHT_CORNER_BITS),
     ("FACE_NONE", FACE_NONE),
 ];
 
@@ -171,6 +184,18 @@ rewrites it.\n#define_import_path mcrs_minecraft_client::fields\n",
     for (name, value) in FLOATS {
         out.push_str(&format!("const {name}: f32 = {value:?};\n"));
     }
+    out.push('\n');
+    out.push_str(&format!(
+        "const BIOME_TINTS: u32 = {}u;\n",
+        crate::tint::BIOME_TINTS.len()
+    ));
+    let fixed = crate::tint::fixed_colors();
+    let colors: Vec<String> = fixed.iter().map(|c| format!("0x{c:06x}u")).collect();
+    out.push_str(&format!(
+        "const FIXED_TINTS = array<u32, {}>({});\n",
+        fixed.len(),
+        colors.join(", ")
+    ));
     out
 }
 

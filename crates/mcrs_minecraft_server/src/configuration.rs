@@ -1,8 +1,9 @@
 use crate::WorldSave;
 use crate::client_info::ClientInfo;
+use crate::dim::send_control_or_teardown;
 use crate::disconnect::despawn_from_dims;
 use crate::login::GameProfile;
-use mcrs_minecraft_protocol::MINECRAFT_VERSION;
+use crate::world::bus::InboundPlayerSpawn;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::HostAnchorRef;
@@ -13,12 +14,11 @@ use bevy_ecs::component::Component;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With, Without};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::Res;
-use bevy_math::{DVec3, Vec2};
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
+use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
+use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::{OnEnter, in_state};
-use mcrs_minecraft_assets::access::ErasedRegistrySnapshot;
 use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile, TagFileSettings};
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_assets::tag::registry::TagRegistry;
@@ -29,11 +29,11 @@ use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_item::Item as VanillaItem;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_level::dim::send_control_or_teardown;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
+use mcrs_minecraft_protocol::MINECRAFT_VERSION;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };
@@ -421,7 +421,7 @@ fn on_known_packs_response(
 
     // RegistryData: filter to the 30 protocol-synced registries and send
     // them in alphabetical order by registry key for deterministic output.
-    let mut registries: Vec<&dyn ErasedRegistrySnapshot> = access
+    let mut registries: Vec<_> = access
         .iter()
         .filter(|r| SYNCED_REGISTRIES.contains(&r.registry_key()))
         .collect();
@@ -433,6 +433,7 @@ fn on_known_packs_response(
             .map(|e| {
                 let pack = e
                     .pack_source
+                    .as_ref()
                     .map(|ps| (ps.namespace.as_ref(), ps.id.as_ref()));
                 let skip_nbt = should_skip_nbt(e.data.is_some(), pack, &client_known);
 
@@ -441,7 +442,7 @@ fn on_known_packs_response(
                     data: if skip_nbt {
                         None
                     } else {
-                        e.data.map(Cow::Borrowed)
+                        e.data.as_ref().map(Cow::Borrowed)
                     },
                 }
             })
@@ -708,12 +709,12 @@ pub fn emit_initial_player_spawn(
         send_control_or_teardown(
             &chan.control_sender,
             dim_label,
-            ToDim::Spawn {
+            ToDim::Spawn(InboundPlayerSpawn {
                 host_anchor,
                 session: session.0,
                 snapshot,
                 dimensions: dimensions.clone(),
-            },
+            }),
             &mut despawn_queue,
         );
     }

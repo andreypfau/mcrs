@@ -149,8 +149,9 @@ fn draw_layout() -> BindGroupLayoutDescriptor {
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
-                texture_2d(TextureSampleType::Float { filterable: false }),
+                texture_2d(TextureSampleType::Float { filterable: true }),
                 storage_buffer_read_only_sized(false, None),
+                sampler(SamplerBindingType::Filtering),
             ),
         ),
     )
@@ -208,6 +209,7 @@ fn draw_bind_group(
             arenas.sections.as_entire_buffer_binding(),
             &sprites.lightmap_view,
             frame.args.as_entire_buffer_binding(),
+            &sprites.lightmap_sampler,
         )),
     )
 }

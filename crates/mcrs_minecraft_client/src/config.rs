@@ -90,18 +90,12 @@ fn numbers<T: std::str::FromStr>(spec: &str) -> Vec<T> {
 
 /// `VIEW=<columns>` is the render distance the client asks the server for.
 pub fn view_distance() -> u8 {
-    let Some(spec) = knob("VIEW") else {
-        return VIEW_DISTANCE;
-    };
-    match spec.trim().parse::<u8>() {
-        Ok(columns) if (2..=MAX_VIEW_DISTANCE).contains(&columns) => columns,
-        _ => reject(
-            "VIEW",
-            &spec,
-            format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
-        )
-        .unwrap_or(VIEW_DISTANCE),
-    }
+    parsed(
+        "VIEW",
+        |columns| (2..=MAX_VIEW_DISTANCE).contains(columns),
+        format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
+    )
+    .unwrap_or(VIEW_DISTANCE)
 }
 
 pub fn upload_budget() -> usize {
@@ -146,11 +140,7 @@ pub fn fullscreen() -> bool {
 /// `LATENCY=<frames>` is how many swapchain images the window may run ahead by, for checking
 /// whether a display's drawable recycling is what the frame is waiting on.
 pub fn frame_latency() -> Option<std::num::NonZeroU32> {
-    let spec = knob("LATENCY")?;
-    match spec.trim().parse().ok().and_then(std::num::NonZeroU32::new) {
-        Some(frames) => Some(frames),
-        None => reject("LATENCY", &spec, "expected a frame count above zero"),
-    }
+    parsed("LATENCY", |_| true, "expected a frame count above zero")
 }
 
 /// `TRACY_PREVIEW=1` streams frame images to the profiler, which costs a readback per frame and
@@ -173,48 +163,37 @@ pub fn hot_clocks() -> bool {
 /// the GPU is saturated: 16384 workgroups did that on an M4 Max at 60 Hz, where the same cull
 /// read 0.058 ms. With the GPU held busy the pass timestamps are the code's own.
 pub fn gpu_hot() -> Option<u32> {
-    let spec = knob("GPU_HOT")?;
-    match spec.trim().parse::<u32>() {
-        Ok(workgroups) if workgroups > 0 => Some(workgroups),
-        _ => reject("GPU_HOT", &spec, "expected a workgroup count above zero"),
-    }
+    parsed(
+        "GPU_HOT",
+        |&workgroups| workgroups > 0,
+        "expected a workgroup count above zero",
+    )
 }
 
 /// `FLY=<speed>` holds forward and sprint down from the first tick at that flying speed, in
 /// vanilla's units where 0.05 is the default, so a flight can be repeated exactly.
 pub fn scripted_flight() -> Option<f64> {
-    let spec = knob("FLY")?;
-    match spec.trim().parse::<f64>() {
-        Ok(speed) if speed > 0.0 => Some(speed),
-        _ => reject(
-            "FLY",
-            &spec,
-            "expected a flying speed above zero, 0.05 is vanilla",
-        ),
-    }
+    parsed(
+        "FLY",
+        |&speed| speed > 0.0,
+        "expected a flying speed above zero, 0.05 is vanilla",
+    )
 }
 
 /// `TURN=<seconds>` turns a scripted flight round once, that long after launch, so the way
 /// back over columns the server took back can be repeated exactly.
 pub fn turn_after() -> Option<f32> {
-    let spec = knob("TURN")?;
-    match spec.trim().parse::<f32>() {
-        Ok(seconds) if seconds > 0.0 => Some(seconds),
-        _ => reject("TURN", &spec, "expected seconds above zero"),
-    }
+    parsed(
+        "TURN",
+        |&seconds| seconds > 0.0,
+        "expected seconds above zero",
+    )
 }
 
 /// `RESOLUTION=<width>x<height>` opens a window of exactly that many pixels instead of the
 /// fullscreen one, so a frame can be priced at a stated pixel count.
 pub fn resolution() -> Option<(u32, u32)> {
-    let spec = knob("RESOLUTION")?;
-    let size = spec
-        .split_once('x')
-        .and_then(|(w, h)| Some((w.trim().parse().ok()?, h.trim().parse().ok()?)));
-    match size {
-        Some(size) => Some(size),
-        None => reject("RESOLUTION", &spec, "expected <width>x<height> in pixels"),
-    }
+    pair("RESOLUTION", 'x', "expected <width>x<height> in pixels")
 }
 
 /// Off by default so a frame time is readable: with vsync the frame reports the
@@ -335,6 +314,22 @@ pub fn gputrace_path() -> Option<String> {
     knob("GPUTRACE")
 }
 
+/// Vanilla's "Smooth Lighting": ambient occlusion and light blended across each face. Off draws
+/// every face at the flat light in front of it.
+pub fn smooth_lighting() -> bool {
+    flag("SMOOTH_LIGHTING", true)
+}
+
+/// Vanilla's "Brightness" slider, from 0 (Moody) through 0.5 (the default) to 1 (Bright).
+pub fn brightness() -> f32 {
+    parsed(
+        "BRIGHTNESS",
+        |value: &f32| (0.0..=1.0).contains(value),
+        "a brightness from 0 to 1",
+    )
+    .unwrap_or(0.5)
+}
+
 pub fn wireframe() -> Wireframe {
     Wireframe(knob("WIREFRAME").is_some_and(|on| on != "0"))
 }
@@ -372,17 +367,29 @@ fn reject<T>(name: &str, value: &str, expected: impl std::fmt::Display) -> Optio
     None
 }
 
+fn parsed<T: std::str::FromStr>(
+    name: &str,
+    check: impl FnOnce(&T) -> bool,
+    expected: impl std::fmt::Display,
+) -> Option<T> {
+    let spec = knob(name)?;
+    match spec.trim().parse() {
+        Ok(value) if check(&value) => Some(value),
+        _ => reject(name, &spec, expected),
+    }
+}
+
+fn pair<T: std::str::FromStr>(name: &str, separator: char, expected: &str) -> Option<(T, T)> {
+    let spec = knob(name)?;
+    spec.split_once(separator)
+        .and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?)))
+        .or_else(|| reject(name, &spec, expected))
+}
+
 /// `LOOK=<yaw>,<pitch>` aims the camera somewhere other than where the save
 /// left it, in Minecraft degrees.
 pub fn look_override() -> Option<(f32, f32)> {
-    let look = knob("LOOK")?;
-    let angles = look
-        .split_once(',')
-        .and_then(|(yaw, pitch)| Some((yaw.trim().parse().ok()?, pitch.trim().parse().ok()?)));
-    match angles {
-        Some(angles) => Some(angles),
-        None => reject("LOOK", &look, "expected <yaw>,<pitch> in degrees"),
-    }
+    pair("LOOK", ',', "expected <yaw>,<pitch> in degrees")
 }
 
 /// `SKY=disc,twilight,celestial,stars,clouds` draws only the passes it lists,
@@ -398,24 +405,13 @@ pub fn sky_draws_only() -> Option<SkyEffects> {
 /// `TIME=<ticks>` pins every clock and stops them, so a scripted screenshot
 /// lands on the tick it asked for.
 pub fn frozen_time() -> Option<i64> {
-    let ticks = knob("TIME")?;
-    match ticks.trim().parse() {
-        Ok(ticks) => Some(ticks),
-        Err(error) => reject("TIME", ticks.trim(), error),
-    }
+    parsed("TIME", |_| true, "expected a tick count")
 }
 
 /// `GUI_SCALE=<n>` pins the GUI scale; `0` or unset picks the largest scale
 /// that keeps 320x240 GUI units on screen, as vanilla's auto setting does.
 pub fn gui_scale() -> u32 {
-    let Some(spec) = knob("GUI_SCALE") else {
-        return 0;
-    };
-    match spec.trim().parse() {
-        Ok(scale) => Some(scale),
-        Err(error) => reject("GUI_SCALE", spec.trim(), error),
-    }
-    .unwrap_or(0)
+    parsed("GUI_SCALE", |_| true, "expected a whole GUI scale").unwrap_or(0)
 }
 
 /// `SCREEN=inventory` opens that screen at start, so a capture is deterministic.
@@ -432,19 +428,10 @@ pub fn initial_screen() -> crate::inventory::Screen {
 
 /// `CURSOR=<x>,<y>` pins the cursor in GUI units for the screens, in place of the pointer.
 pub fn gui_cursor() -> Option<bevy::math::IVec2> {
-    let spec = knob("CURSOR")?;
-    let at = spec.split_once(',').and_then(|(x, y)| {
-        Some(bevy::math::IVec2::new(
-            x.trim().parse().ok()?,
-            y.trim().parse().ok()?,
-        ))
-    });
-    match at {
-        Some(at) => Some(at),
-        None => reject("CURSOR", &spec, "expected <x>,<y> in GUI units"),
-    }
+    pair("CURSOR", ',', "expected <x>,<y> in GUI units").map(|(x, y)| bevy::math::IVec2::new(x, y))
 }
 
+#[derive(Clone, Copy)]
 pub struct TerrainLimits {
     pub arena_scale: usize,
     pub groups: usize,

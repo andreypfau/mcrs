@@ -85,29 +85,6 @@ pub enum StructureKind {
     WoodlandMansion,
 }
 
-impl StructureKind {
-    pub fn type_name(&self) -> &'static str {
-        match self {
-            StructureKind::Jigsaw { .. } => "minecraft:jigsaw",
-            StructureKind::BuriedTreasure => "minecraft:buried_treasure",
-            StructureKind::DesertPyramid => "minecraft:desert_pyramid",
-            StructureKind::EndCity => "minecraft:end_city",
-            StructureKind::Fortress => "minecraft:fortress",
-            StructureKind::Igloo => "minecraft:igloo",
-            StructureKind::JungleTemple => "minecraft:jungle_temple",
-            StructureKind::Mineshaft { .. } => "minecraft:mineshaft",
-            StructureKind::NetherFossil { .. } => "minecraft:nether_fossil",
-            StructureKind::OceanMonument { .. } => "minecraft:ocean_monument",
-            StructureKind::OceanRuin(_) => "minecraft:ocean_ruin",
-            StructureKind::RuinedPortal { .. } => "minecraft:ruined_portal",
-            StructureKind::Shipwreck { .. } => "minecraft:shipwreck",
-            StructureKind::Stronghold => "minecraft:stronghold",
-            StructureKind::SwampHut => "minecraft:swamp_hut",
-            StructureKind::WoodlandMansion => "minecraft:woodland_mansion",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct OceanRuinConfig {
     pub biome_temp: OceanTemperature,

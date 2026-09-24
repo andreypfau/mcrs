@@ -1,39 +1,27 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, HolderSet, Mirror, ResourceLocation};
-use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
+use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_random::{Random, block_pos_seed};
-use mcrs_minecraft_worldgen_feature::compile::{
-    BlockResolver, FeatureCompileError, StateQuery, states_of,
-};
+use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, TemplateManifest, data_markers, transform,
 };
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
-use mcrs_minecraft_worldgen_feature_place::template::{
-    CompiledChain, CompiledProcessor, Placement, SettingsRandom, place_template,
-};
+use mcrs_minecraft_worldgen_feature_place::template::{CompiledChain, CompiledProcessor};
 use mcrs_minecraft_worldgen_structure::hardcoded::igloo::IglooTemplate;
 use mcrs_minecraft_worldgen_structure::piece::{IglooPiece, ShipwreckPiece};
 
-use crate::{block_mask, state};
+use crate::{block_mask, place_positional, state};
 
 fn ignore_blocks(
     blocks: &dyn BlockResolver,
     names: &[&str],
 ) -> Result<CompiledChain, FeatureCompileError> {
-    let ignored = HolderSet::List(
-        names
-            .iter()
-            .map(|n| ResourceLocation::minecraft(n))
-            .collect(),
-    );
-    Ok(vec![CompiledProcessor::BlockIgnore(states_of(
-        blocks,
-        StateQuery::Blocks(&ignored),
+    Ok(vec![CompiledProcessor::BlockIgnore(block_mask(
+        blocks, names,
     )?)])
 }
 
@@ -41,7 +29,7 @@ fn ignore_blocks(
 pub fn ignore_structure_and_air(
     blocks: &dyn BlockResolver,
 ) -> Result<CompiledChain, FeatureCompileError> {
-    ignore_blocks(blocks, &["structure_block", "air"])
+    ignore_blocks(blocks, &["minecraft:structure_block", "minecraft:air"])
 }
 
 /// `RandomizableContainer.setBlockEntityLootTable`: the container this run
@@ -96,36 +84,25 @@ pub fn paint_shipwreck<W: WorldGenVolume>(
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) {
-    if template.palettes.is_empty() {
-        return;
-    }
     let position = piece.placed_position();
-    let palette = LegacyRandom::new(block_pos_seed(position))
-        .next_i32_bound(template.palettes.len() as i32) as usize;
-    let placed = place_template(
-        &Placement {
-            template,
-            jigsaws: &[],
-            palette,
-            position,
-            reference,
-            rotation: piece.rotation,
-            mirror: Mirror::None,
-            pivot: ShipwreckPiece::PIVOT,
-            random: SettingsRandom::Positional,
-            clip: Some(clip),
-            chain,
-            waterlog: true,
-            place_entities: true,
-        },
+    let Some(palette) = place_positional(
+        template,
+        position,
+        piece.rotation,
+        Mirror::None,
+        ShipwreckPiece::PIVOT,
+        clip,
+        chain,
+        true,
+        true,
+        reference,
         region,
         rng,
         entities,
         spawns,
-    );
-    if !placed {
+    ) else {
         return;
-    }
+    };
     let markers = manifest.markers.get(palette).map_or(&[][..], Vec::as_slice);
     for (pos, marker) in data_markers(
         markers,
@@ -152,7 +129,7 @@ pub struct IglooBlocks {
 impl IglooBlocks {
     pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(IglooBlocks {
-            chain: ignore_blocks(blocks, &["structure_block"])?,
+            chain: ignore_blocks(blocks, &["minecraft:structure_block"])?,
             snow_block: state(blocks, "minecraft:snow_block", &[])?,
             air: state(blocks, "minecraft:air", &[])?,
             ladder: block_mask(blocks, &["minecraft:ladder"])?,
@@ -186,30 +163,23 @@ pub fn paint_igloo<W: WorldGenVolume>(
     }
     let position = piece.placed_position();
     let pivot = piece.template.pivot();
-    let palette = LegacyRandom::new(block_pos_seed(position))
-        .next_i32_bound(template.palettes.len() as i32) as usize;
-    let placed = place_template(
-        &Placement {
-            template,
-            jigsaws: &[],
-            palette,
-            position,
-            reference,
-            rotation: piece.rotation,
-            mirror: Mirror::None,
-            pivot,
-            random: SettingsRandom::Positional,
-            clip: Some(clip),
-            chain: &b.chain,
-            waterlog: false,
-            place_entities: true,
-        },
+    let placed = place_positional(
+        template,
+        position,
+        piece.rotation,
+        Mirror::None,
+        pivot,
+        clip,
+        &b.chain,
+        false,
+        true,
+        reference,
         region,
         rng,
         entities,
         spawns,
     );
-    if placed {
+    if let Some(palette) = placed {
         let markers = manifest.markers.get(palette).map_or(&[][..], Vec::as_slice);
         for (pos, marker) in data_markers(
             markers,

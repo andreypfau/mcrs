@@ -185,7 +185,7 @@ pub enum Item {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemStack {
     pub id: Item,
-    #[serde(default = "one")]
+    #[serde(default = "crate::block_entity::one")]
     pub count: i32,
 }
 
@@ -193,10 +193,6 @@ impl ItemStack {
     pub fn one(id: Item) -> Self {
         ItemStack { id, count: 1 }
     }
-}
-
-fn one() -> i32 {
-    1
 }
 
 /// `Direction.LEGACY_ID_CODEC`: the face's 3D id as a byte.

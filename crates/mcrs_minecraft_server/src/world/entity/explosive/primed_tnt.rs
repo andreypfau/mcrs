@@ -1,5 +1,4 @@
 use crate::world::aoi::TrackedBy;
-use crate::world::entity::explosive::ExplosiveBundle;
 use crate::world::entity::{EntityUuid, MinecraftEntity};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
@@ -33,7 +32,7 @@ pub struct PrimedTntBundle {
     pub dimension: InDimension,
     pub transform: Transform,
     pub uuid: EntityUuid,
-    pub explosive: ExplosiveBundle,
+    pub explosion_radius: ExplosionRadius,
     pub fuse: Fuse,
     kind: EntityKind,
     tracked_by: TrackedBy,
@@ -44,10 +43,7 @@ pub struct PrimedTntBundle {
 impl PrimedTntBundle {
     pub fn new(dimension: InDimension, transform: Transform) -> Self {
         Self {
-            explosive: ExplosiveBundle {
-                explosion_radius: ExplosionRadius(DEFAULT_EXPLOSION_RADIUS),
-                ..Default::default()
-            },
+            explosion_radius: ExplosionRadius(DEFAULT_EXPLOSION_RADIUS),
             fuse: Fuse::default(),
             kind: EntityKind(&PRIMED_TNT),
             tracked_by: TrackedBy::default(),

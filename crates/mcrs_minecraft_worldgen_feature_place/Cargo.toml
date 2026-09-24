@@ -21,13 +21,13 @@ mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_feature_place = { path = ".", default-features = false, features = ["test-support"] }
 mcrs_minecraft_worldgen_testing.workspace = true
+serde_json.workspace = true
 
 [features]
 default = ["fast"]

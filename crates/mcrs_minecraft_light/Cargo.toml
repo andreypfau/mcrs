@@ -15,6 +15,7 @@ bevy_app = { workspace = true, optional = true }
 bevy_tasks = { workspace = true, features = ["multi_threaded"], optional = true }
 rayon.workspace = true
 rustc-hash.workspace = true
+tracing.workspace = true
 
 [features]
 default = ["bevy"]

@@ -17,6 +17,7 @@
 //! `drain_pending_disconnects` runs in `First` to refill the budget and
 //! process whatever was queued in earlier ticks.
 
+use crate::world::bus::InboundPlayerDespawn;
 use bevy_app::{App, First, Plugin, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Remove;
@@ -30,10 +31,10 @@ use smallvec::SmallVec;
 use std::collections::VecDeque;
 use tracing::warn;
 
+use crate::dim::send_control_or_teardown;
 use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::{HostAnchorRef, SessionConnection};
-use mcrs_minecraft_level::dim::send_control_or_teardown;
 use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 
@@ -87,10 +88,6 @@ impl PendingDisconnectQueue {
             true
         }
     }
-
-    pub fn pop_front(&mut self) -> Option<Entity> {
-        self.entries.pop_front()
-    }
 }
 
 /// Set of host-anchors removed in the current tick. Populated by the
@@ -105,7 +102,7 @@ pub struct DisconnectedThisTick {
 /// (the only deterministic way to assert the drop happened without
 /// taking on a `tracing_test`-style log-capture dependency) and also
 /// exposed as a steady-state telemetry surface so an operator can scrape
-/// the value alongside `AoiTickProbe`.
+/// the value.
 ///
 /// The observer emits a `warn!` log on the first drop of a fresh
 /// `OverflowCounter` and then every `OVERFLOW_HEARTBEAT_INTERVAL` drops
@@ -229,10 +226,10 @@ pub fn despawn_from_dims(
             send_control_or_teardown(
                 &chan.control_sender,
                 dim,
-                ToDim::Despawn {
+                ToDim::Despawn(InboundPlayerDespawn {
                     host_anchor,
                     session,
-                },
+                }),
                 despawn_queue,
             );
         }
@@ -256,11 +253,10 @@ pub fn drain_pending_disconnects(
     mut commands: Commands,
 ) {
     disconnect_budget.refill();
-    while disconnect_budget.0 > 0 {
-        let Some(host_anchor) = pending_queue.pop_front() else {
-            break;
-        };
-        disconnect_budget.0 -= 1;
+    while let Some(&host_anchor) = pending_queue.entries.front()
+        && disconnect_budget.consume()
+    {
+        pending_queue.entries.pop_front();
         disconnected_this_tick.host_anchors.push(host_anchor);
         process_disconnect(
             host_anchor,

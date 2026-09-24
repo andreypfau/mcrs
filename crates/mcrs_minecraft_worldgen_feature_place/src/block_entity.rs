@@ -367,7 +367,7 @@ pub enum GeneratedBlockEntity {
 
 pub(crate) use mcrs_minecraft_nbt::nbt_flag;
 
-fn one() -> i32 {
+pub(crate) fn one() -> i32 {
     1
 }
 
@@ -498,6 +498,21 @@ pub struct ContainerData {
     pub custom_name: Option<Text>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub components: Option<NbtCompound>,
+}
+
+impl ContainerData {
+    pub fn looted(pos: BlockPos, loot_table: String, loot_table_seed: i64) -> Self {
+        ContainerData {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z,
+            loot_table: Some(loot_table),
+            loot_table_seed,
+            items: Vec::new(),
+            custom_name: None,
+            components: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -746,16 +761,7 @@ impl GeneratedBlockEntity {
     }
 
     pub fn chest(pos: BlockPos, loot_table: String, loot_table_seed: i64) -> Self {
-        GeneratedBlockEntity::Chest(ContainerData {
-            x: pos.x,
-            y: pos.y,
-            z: pos.z,
-            loot_table: Some(loot_table),
-            loot_table_seed,
-            items: Vec::new(),
-            custom_name: None,
-            components: None,
-        })
+        GeneratedBlockEntity::Chest(ContainerData::looted(pos, loot_table, loot_table_seed))
     }
 
     /// A spawner as `MonsterRoomFeature` leaves it: every timing field still at

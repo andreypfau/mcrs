@@ -667,12 +667,3 @@ impl Decode<'_> for TrailParticle {
 ctx_free!(VibrationParticle, TrailParticle);
 
 pub type RawParticle = Raw<ParticleOptions>;
-
-impl RawParticle {
-    pub fn from_options(
-        particle: &ParticleOptions,
-        ctx: &dyn RegistryLookup,
-    ) -> anyhow::Result<RawParticle> {
-        Raw::from_value(particle, ctx)
-    }
-}

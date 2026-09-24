@@ -56,7 +56,6 @@ impl<T> StaticId<T> {
 pub struct StaticRegistry<T: 'static> {
     entries: Vec<(ResourceLocation<Arc<str>>, &'static T)>,
     index: HashMap<ResourceLocation<Arc<str>>, u32>,
-    reverse: HashMap<usize, u32>,
     frozen: bool,
 }
 
@@ -67,7 +66,6 @@ impl<T: 'static> Clone for StaticRegistry<T> {
         Self {
             entries: self.entries.clone(),
             index: self.index.clone(),
-            reverse: self.reverse.clone(),
             frozen: self.frozen,
         }
     }
@@ -78,7 +76,6 @@ impl<T: 'static> StaticRegistry<T> {
         StaticRegistry {
             entries: Vec::new(),
             index: HashMap::new(),
-            reverse: HashMap::new(),
             frozen: false,
         }
     }
@@ -106,10 +103,6 @@ impl<T: 'static> StaticRegistry<T> {
         }
     }
 
-    pub fn get_by_id(&self, id: StaticId<T>) -> Option<&'static T> {
-        self.entries.get(id.id as usize).map(|(_, v)| *v)
-    }
-
     /// Look up by string key. Zero-alloc via `Borrow<str>`.
     pub fn get_by_loc(&self, loc: &str) -> Option<&'static T> {
         let id = *self.index.get(loc)?;
@@ -134,17 +127,8 @@ impl<T: 'static> StaticRegistry<T> {
 
     pub fn freeze(&mut self) {
         assert!(!self.frozen, "freeze() called twice");
-        for (i, (_, value)) in self.entries.iter().enumerate() {
-            self.reverse.insert(*value as *const T as usize, i as u32);
-        }
         self.frozen = true;
         tracing::info!(count = self.entries.len(), "frozen StaticRegistry");
-    }
-
-    pub fn id_of_value(&self, value: &'static T) -> Option<StaticId<T>> {
-        self.reverse
-            .get(&(value as *const T as usize))
-            .map(|&id| StaticId::new(id))
     }
 
     pub fn frozen(&self) -> bool {
@@ -182,7 +166,6 @@ mod tests {
     static DUMMY_A: Dummy = Dummy(1);
     static DUMMY_B: Dummy = Dummy(2);
     static DUMMY_C: Dummy = Dummy(3);
-    static DUMMY_UNKNOWN: Dummy = Dummy(999);
 
     fn loc(s: &'static str) -> ResourceLocation<Arc<str>> {
         ResourceLocation::from_str_const(s)
@@ -194,15 +177,6 @@ mod tests {
         reg.register(loc("minecraft:b"), &DUMMY_B);
         reg.register(loc("minecraft:c"), &DUMMY_C);
         reg
-    }
-
-    #[test]
-    fn test_freeze_builds_reverse_index() {
-        let mut reg = make_registry();
-        reg.freeze();
-        assert_eq!(reg.id_of_value(&DUMMY_A).unwrap().raw(), 0);
-        assert_eq!(reg.id_of_value(&DUMMY_B).unwrap().raw(), 1);
-        assert_eq!(reg.id_of_value(&DUMMY_C).unwrap().raw(), 2);
     }
 
     #[test]
@@ -223,31 +197,12 @@ mod tests {
     }
 
     #[test]
-    fn test_get_by_id_after_freeze() {
-        let mut reg = make_registry();
-        let id_a = reg.id_of("minecraft:a").unwrap();
-        let id_b = reg.id_of("minecraft:b").unwrap();
-        let id_c = reg.id_of("minecraft:c").unwrap();
-        reg.freeze();
-        assert_eq!(reg.get_by_id(id_a).unwrap().0, 1);
-        assert_eq!(reg.get_by_id(id_b).unwrap().0, 2);
-        assert_eq!(reg.get_by_id(id_c).unwrap().0, 3);
-    }
-
-    #[test]
     fn test_get_by_loc_after_freeze() {
         let mut reg = make_registry();
         reg.freeze();
         assert_eq!(reg.get_by_loc("minecraft:a").unwrap().0, 1);
         assert_eq!(reg.get_by_loc("minecraft:b").unwrap().0, 2);
         assert_eq!(reg.get_by_loc("minecraft:c").unwrap().0, 3);
-    }
-
-    #[test]
-    fn test_id_of_value_returns_none_for_unknown() {
-        let mut reg = make_registry();
-        reg.freeze();
-        assert!(reg.id_of_value(&DUMMY_UNKNOWN).is_none());
     }
 
     #[test]

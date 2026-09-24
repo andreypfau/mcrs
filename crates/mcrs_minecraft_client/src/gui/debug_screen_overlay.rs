@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::text::{FontSize, Justify, LineBreak};
 
-use crate::gui::debug::{DebugScreenDisplayer, DebugScreenEntryList};
+use crate::gui::debug::{DebugOverlay, DebugScreenDisplayer};
 
 const MARGIN: f32 = 2.0;
 const BACKGROUND: Color = Color::srgba(0.314, 0.314, 0.314, 0.565);
@@ -59,16 +59,16 @@ pub struct DebugModifier {
 pub fn toggle_overlay(
     keys: Res<ButtonInput<KeyCode>>,
     mut modifier: ResMut<DebugModifier>,
-    mut list: ResMut<DebugScreenEntryList>,
+    mut overlay: ResMut<DebugOverlay>,
 ) {
     if keys.just_released(KeyCode::F3) && !std::mem::take(&mut modifier.used) {
-        list.toggle_overlay();
+        **overlay = !**overlay;
     }
 }
 
 pub fn render(
     displayer: Res<DebugScreenDisplayer>,
-    list: Res<DebugScreenEntryList>,
+    overlay: Res<DebugOverlay>,
     mut columns: Query<(&DebugScreenColumn, &mut Text, &mut Visibility)>,
 ) {
     let (left, right) = displayer.columns();
@@ -81,7 +81,7 @@ pub fn render(
             .iter()
             .rposition(|line| !line.is_empty())
             .map_or(0, |last| last + 1);
-        let wanted = if end == 0 || !list.overlay_visible() {
+        let wanted = if end == 0 || !**overlay {
             Visibility::Hidden
         } else {
             Visibility::Inherited

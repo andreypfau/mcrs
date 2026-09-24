@@ -12,7 +12,6 @@ mod intent;
 pub mod metrics;
 pub mod packet_io;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
-#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod webtransport;
 
 /// Reading a `std::time::Instant` panics in the browser, so packet timestamps
@@ -34,7 +33,6 @@ pub enum NetworkSet {
     SpawnConnections,
 }
 use bytes::Bytes;
-use tokio::sync::mpsc::error::TryRecvError;
 
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub(crate) use server::SharedNetworkState;
@@ -74,12 +72,6 @@ pub fn certificate_hash_from_hex(hex: &str) -> anyhow::Result<[u8; 32]> {
         *byte = u8::from_str_radix(std::str::from_utf8(pair)?, 16)?;
     }
     Ok(hash)
-}
-
-pub trait EngineConnection: Send + Sync + 'static {
-    fn try_recv(&mut self) -> Result<Option<ReceivedPacket>, TryRecvError>;
-    fn flush(&mut self) -> anyhow::Result<()>;
-    fn queued_bytes(&self) -> usize;
 }
 
 #[cfg(all(test, feature = "bevy", not(target_family = "wasm")))]

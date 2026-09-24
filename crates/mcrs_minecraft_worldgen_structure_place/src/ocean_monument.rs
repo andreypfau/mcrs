@@ -9,7 +9,7 @@ use mcrs_minecraft_worldgen_structure::piece::{
 };
 
 use crate::canvas::{PieceCanvas, replaceable_by_structures};
-use crate::{Oriented, block_mask, state};
+use crate::{Oriented, block_mask};
 
 #[derive(Clone, Debug)]
 pub struct OceanMonumentBlocks {
@@ -32,7 +32,7 @@ impl OceanMonumentBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: &str| Ok(Oriented::of(world, state(blocks, block, &[])?));
+        let oriented = |block: &str| Oriented::named(world, blocks, block, &[]);
         Ok(OceanMonumentBlocks {
             gray: oriented("minecraft:prismarine")?,
             light: oriented("minecraft:prismarine_bricks")?,
@@ -191,6 +191,7 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
             bounds: piece.bounds,
             orientation,
             clip,
+            keep: None,
         },
         rooms: &piece.rooms,
     };
@@ -208,6 +209,7 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
                 bounds: child.bounds,
                 orientation,
                 clip,
+                keep: None,
             },
             rooms: &piece.rooms,
         };

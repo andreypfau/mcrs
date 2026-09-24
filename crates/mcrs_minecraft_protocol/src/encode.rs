@@ -8,20 +8,13 @@ use crate::{CompressionThreshold, Encode, MAX_PACKET_SIZE, Packet};
 #[derive(Default)]
 pub struct PacketEncoder {
     buf: BytesMut,
-    #[cfg(feature = "compression")]
     compress_buf: Vec<u8>,
-    #[cfg(feature = "compression")]
     threshold: CompressionThreshold,
 }
 
 impl PacketEncoder {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    #[inline]
-    pub fn append_bytes(&mut self, bytes: &[u8]) {
-        self.buf.extend_from_slice(bytes)
     }
 
     pub fn append_packet<P>(&mut self, pkt: &P) -> anyhow::Result<()>
@@ -34,7 +27,6 @@ impl PacketEncoder {
 
         let data_len = self.buf.len() - start_len;
 
-        #[cfg(feature = "compression")]
         if self.threshold.0 >= 0 {
             use std::io::Read;
 
@@ -118,7 +110,6 @@ impl PacketEncoder {
         self.buf.clear();
     }
 
-    #[cfg(feature = "compression")]
     pub fn set_compression(&mut self, threshold: CompressionThreshold) {
         self.threshold = threshold;
     }
@@ -142,23 +133,6 @@ pub trait WritePacket {
     fn write_packet_fallible<P>(&mut self, packet: &P) -> anyhow::Result<()>
     where
         P: Packet + Encode;
-
-    /// Copies raw packet data directly into this object. Don't use this unless
-    /// you know what you're doing.
-    fn write_packet_bytes(&mut self, bytes: &[u8]);
-}
-
-impl<W: WritePacket> WritePacket for &mut W {
-    fn write_packet_fallible<P>(&mut self, packet: &P) -> anyhow::Result<()>
-    where
-        P: Packet + Encode,
-    {
-        (*self).write_packet_fallible(packet)
-    }
-
-    fn write_packet_bytes(&mut self, bytes: &[u8]) {
-        (*self).write_packet_bytes(bytes)
-    }
 }
 
 impl WritePacket for PacketEncoder {
@@ -167,9 +141,5 @@ impl WritePacket for PacketEncoder {
         P: Packet + Encode,
     {
         self.append_packet(packet)
-    }
-
-    fn write_packet_bytes(&mut self, bytes: &[u8]) {
-        self.append_bytes(bytes)
     }
 }

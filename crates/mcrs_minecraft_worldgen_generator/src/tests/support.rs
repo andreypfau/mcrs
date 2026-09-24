@@ -137,8 +137,9 @@ use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_structure::Structure;
 
 fn tag_dir(registry: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join(format!("../../assets/minecraft/tags/{registry}"))
+    mcrs_minecraft_worldgen_testing::assets_dir()
+        .join("minecraft/tags")
+        .join(registry)
 }
 
 /// One block tag of the corpus, expanded off the files themselves.
@@ -170,7 +171,7 @@ fn collect_tag_members<S: TagSource<Id = u32>>(
 /// files themselves.
 fn every_tag<T: TaggedRegistry, S: TagSource<Id = u32>>(source: &S) -> DynTagRegistry<T> {
     let dir = tag_dir(T::REGISTRY_PATH);
-    let mut loader = TagLoader::<T, u32>::new(&[]);
+    let mut loader = TagLoader::<T, u32>::default();
     for path in mcrs_minecraft_worldgen_testing::json_files(&dir) {
         let relative = path.strip_prefix(&dir).unwrap().with_extension("");
         let name = format!(

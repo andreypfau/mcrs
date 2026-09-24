@@ -1,3 +1,4 @@
+use crate::world::bus::to;
 use crate::world::light_codec::{
     LightCodecParams, build_full_light_data, build_fullbright_light_data,
 };
@@ -14,8 +15,7 @@ use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::chunk_view::{ChunkTrackingView, PlayerViewDistance};
-use mcrs_minecraft_level::palette::{AirCount, BiomePalette, ChunkBlocks};
-use mcrs_minecraft_level::session::PlayerSession;
+use mcrs_minecraft_level::palette::{BiomePalette, ChunkBlocks, non_air_block_count};
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_level::world::lifecycle::ticket::{
@@ -27,13 +27,19 @@ use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchFinished;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchStart;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundForgetLevelChunk;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
 
 use crate::world::aoi::ColumnHeld;
 use crate::world::block_entity::{BlockEntity, packet_entry};
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::heightmap::client_heightmaps;
 use mcrs_minecraft_worldgen_generator::heightmap::{
@@ -291,15 +297,16 @@ pub(crate) fn update_view(
                     column,
                     held: false,
                 });
-                packet_writer.write(OutboundPlayerPacket {
-                    target: PacketTarget::SinglePlayer(host_anchor.0),
-                    priority: PacketPriority::Critical,
-                    data: PacketPayload::ChunkUnload {
-                        column,
-                    },
-                    session: PlayerSession(0),
-                    epoch: 0,
-                });
+                packet_writer.write(
+                    to(
+                        host_anchor.0,
+                        PacketPayload::ChunkUnload(ClientboundForgetLevelChunk {
+                            x: column.x,
+                            z: column.z,
+                        }),
+                    )
+                    .critical(),
+                );
             }
         }
         view.view = Some(new_view);
@@ -314,27 +321,27 @@ fn send_cache_view(
     packet_writer: &mut MessageWriter<OutboundPlayerPacket>,
 ) {
     if old_view.is_none_or(|old_view| old_view.center != new_view.center) {
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::SetChunkCacheCenter(ColumnPos::new(
-                new_view.center.x,
-                new_view.center.z,
-            )),
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
+                    x: VarInt(new_view.center.x),
+                    z: VarInt(new_view.center.z),
+                }),
+            )
+            .critical(),
+        );
     }
     if old_view.is_none_or(|old_view| old_view.distance != new_view.distance) {
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host),
-            priority: PacketPriority::Critical,
-            data: PacketPayload::SetChunkCacheRadius {
-                radius: new_view.distance as i32,
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
+        packet_writer.write(
+            to(
+                host,
+                PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius {
+                    radius: VarInt(new_view.distance as i32),
+                }),
+            )
+            .critical(),
+        );
     }
 }
 
@@ -528,12 +535,7 @@ fn column_distance_sq(pos: ColumnPos, center: SectionPos) -> i64 {
 /// are never dropped by the bridge.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn send_column_queue(
-    mut players: Query<(
-        Entity,
-        &mut ColumnView,
-        &InDimension,
-        &HostAnchor,
-    )>,
+    mut players: Query<(Entity, &mut ColumnView, &InDimension, &HostAnchor)>,
     chunks: Query<(&ChunkBlocks, &BiomePalette, Option<&SectionBlockEntities>)>,
     stages: Query<&SectionStage>,
     block_entities_held: Query<&'static BlockEntity>,
@@ -646,8 +648,7 @@ pub(crate) fn send_column_queue(
                         }
                     }
                     // section and turns the rest of the column into garbage.
-                    blocks
-                        .non_air_block_count()
+                    non_air_block_count(blocks)
                         .encode(&mut data)
                         .expect("Failed to encode chunk block count");
                     0u16.encode(&mut data)
@@ -674,7 +675,6 @@ pub(crate) fn send_column_queue(
                         client_heightmaps(surface, motion, no_leaves)
                     })
                     .unwrap_or_default();
-
 
                 column_trace::mark(&mut traces, column_pos, ColumnStage::Sent);
                 chunk_view.set(column_pos, Some(ColumnState::Sent));
@@ -715,19 +715,17 @@ pub(crate) fn send_column_queue(
 
             let batch_size = batch.len() as u32;
             let mut emit = |data| {
-                packet_writer.write(OutboundPlayerPacket {
-                    target: PacketTarget::SinglePlayer(host),
-                    priority: PacketPriority::Critical,
-                    data,
-                    session: PlayerSession(0),
-                    epoch: 0,
-                });
+                packet_writer.write(to(host, data).critical());
             };
-            emit(PacketPayload::ChunkBatchStart);
+            emit(PacketPayload::ChunkBatchStart(ClientboundChunkBatchStart));
             for column in batch.drain(..) {
                 emit(column);
             }
-            emit(PacketPayload::ChunkBatchFinished { batch_size });
+            emit(PacketPayload::ChunkBatchFinished(
+                ClientboundChunkBatchFinished {
+                    batch_size: VarInt(batch_size as i32),
+                },
+            ));
         })
 }
 
@@ -832,11 +830,7 @@ mod tests {
 
         let host = world.spawn_empty().id();
         let player = world
-            .spawn((
-                ColumnView::default(),
-                InDimension(dim),
-                HostAnchor(host),
-            ))
+            .spawn((ColumnView::default(), InDimension(dim), HostAnchor(host)))
             .id();
 
         let registry = std::sync::Arc::new(LightRegistry::new(
@@ -1179,7 +1173,7 @@ mod tests {
             world
                 .resource_mut::<Messages<OutboundPlayerPacket>>()
                 .drain()
-                .any(|packet| matches!(packet.data, PacketPayload::ChunkUnload { column } if column == leaving))
+                .any(|packet| matches!(packet.data, PacketPayload::ChunkUnload(ClientboundForgetLevelChunk { x, z }) if ColumnPos::new(x, z) == leaving))
         );
         assert!(held_changes(&world).contains(&ColumnHeld {
             player: fx.player,

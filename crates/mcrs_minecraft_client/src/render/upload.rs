@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use bevy::ecs::system::SystemParam;
@@ -229,7 +230,10 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
         let _finishing = info_span!("upload finish").entered();
         belt.finish();
     }
-    counts.set_upload_bytes(*BUDGET - budget);
+    counts.upload_bytes.store(
+        (*BUDGET - budget).try_into().unwrap_or(u32::MAX),
+        Ordering::Relaxed,
+    );
     let _flushing = info_span!("upload flush params").entered();
     terrain.list.flush(&terrain.frame.params, queue);
 }
