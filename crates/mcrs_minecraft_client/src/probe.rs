@@ -384,15 +384,17 @@ impl Queries {
 const TIMESTAMP_BYTES: u64 = 8;
 const RESOLVE_BYTES: u64 = QUERY_RESOLVE_BUFFER_ALIGNMENT;
 
+#[derive(Resource)]
+pub struct PassTimestamps(pub bool);
+
 pub fn init(
     mut commands: Commands,
+    enabled: Res<PassTimestamps>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     timings: Res<GpuTimings>,
 ) {
-    let overlay_times_encoders =
-        std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0");
-    if overlay_times_encoders || std::env::var("MCRS_PROBE").is_ok_and(|on| on == "0") {
+    if !enabled.0 {
         return;
     }
     if !device.features().contains(WgpuFeatures::TIMESTAMP_QUERY) {

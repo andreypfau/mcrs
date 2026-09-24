@@ -184,7 +184,13 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/gui_items.wgsl");
 }
 
-pub struct TerrainPlugin(pub Arc<Budget>, pub Uploads);
+pub struct TerrainPlugin {
+    pub budget: Arc<Budget>,
+    pub uploads: Uploads,
+    /// Workgroups of arithmetic burnt each frame to keep the GPU clocked up while passes are timed.
+    pub heat: Option<u32>,
+    pub timestamps: bool,
+}
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
@@ -221,8 +227,9 @@ impl Plugin for TerrainPlugin {
             .insert_resource(timings)
             .insert_resource(cpu)
             .insert_resource(counts)
-            .insert_resource(TerrainBudget(self.0.clone()))
-            .insert_resource(self.1.clone())
+            .insert_resource(TerrainBudget(self.budget.clone()))
+            .insert_resource(self.uploads.clone())
+            .insert_resource(probe::PassTimestamps(self.timestamps))
             .add_systems(
                 RenderStartup,
                 (
@@ -276,5 +283,8 @@ impl Plugin for TerrainPlugin {
                 ScheduleCleanupPolicy::RemoveSystemsOnly,
             )
             .expect("the 3d core pipeline adds its opaque pass");
+        if let Some(workgroups) = self.heat {
+            render_app.insert_resource(heat::HeatWorkgroups(workgroups));
+        }
     }
 }

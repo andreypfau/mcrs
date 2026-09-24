@@ -21,14 +21,18 @@ pub(super) struct Heat {
     workgroups: u32,
 }
 
+#[derive(Resource)]
+pub(super) struct HeatWorkgroups(pub u32);
+
 pub(super) fn init_heat(
     mut commands: Commands,
+    workgroups: Option<Res<HeatWorkgroups>>,
     device: Res<RenderDevice>,
     terrain: Res<Terrain>,
     asset_server: Res<AssetServer>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let Some(workgroups) = crate::config::gpu_hot() else {
+    let Some(&HeatWorkgroups(workgroups)) = workgroups.as_deref() else {
         return;
     };
     let workgroups = workgroups.min(device.limits().max_compute_workgroups_per_dimension);

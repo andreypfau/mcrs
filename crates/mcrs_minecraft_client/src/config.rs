@@ -170,6 +170,13 @@ pub fn gpu_hot() -> Option<u32> {
     )
 }
 
+/// `PROBE=0` leaves passes untimed.
+pub fn pass_timestamps() -> bool {
+    let overlay_times_encoders =
+        std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0");
+    !overlay_times_encoders && knob("PROBE").is_none_or(|on| on != "0")
+}
+
 /// `FLY=<speed>` holds forward and sprint down from the first tick at that flying speed, in
 /// vanilla's units where 0.05 is the default, so a flight can be repeated exactly.
 pub fn scripted_flight() -> Option<f64> {

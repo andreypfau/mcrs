@@ -75,27 +75,32 @@ pub struct ClientTerrainPlugin(pub config::TerrainLimits);
 impl Plugin for ClientTerrainPlugin {
     fn build(&self, app: &mut App) {
         let (budget, uploads, cave) = config::terrain(self.0);
-        app.add_plugins(render::TerrainPlugin(budget.clone(), uploads.clone()))
-            .insert_resource(config::wireframe())
-            .insert_resource(config::occlusion())
-            .insert_resource(render::Brightness(config::brightness()))
-            .insert_resource(config::drawn_streams())
-            .insert_resource(config::raster_fraction())
-            .add_plugins(stream::StreamPlugin::new(budget, uploads))
-            .insert_resource(cave)
-            .add_systems(
-                Update,
-                (
-                    cave::toggle,
-                    toggle_wireframe,
-                    #[cfg(target_os = "macos")]
-                    capture::gputrace,
-                ),
-            )
-            .add_systems(
-                PostUpdate,
-                cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
-            );
+        app.add_plugins(render::TerrainPlugin {
+            budget: budget.clone(),
+            uploads: uploads.clone(),
+            heat: config::gpu_hot(),
+            timestamps: config::pass_timestamps(),
+        })
+        .insert_resource(config::wireframe())
+        .insert_resource(config::occlusion())
+        .insert_resource(render::Brightness(config::brightness()))
+        .insert_resource(config::drawn_streams())
+        .insert_resource(config::raster_fraction())
+        .add_plugins(stream::StreamPlugin::new(budget, uploads))
+        .insert_resource(cave)
+        .add_systems(
+            Update,
+            (
+                cave::toggle,
+                toggle_wireframe,
+                #[cfg(target_os = "macos")]
+                capture::gputrace,
+            ),
+        )
+        .add_systems(
+            PostUpdate,
+            cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
+        );
         if let Some(tick) = config::frozen_time() {
             app.insert_resource(render::PinnedTick(tick));
         }
