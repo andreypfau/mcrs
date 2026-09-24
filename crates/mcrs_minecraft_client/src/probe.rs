@@ -527,4 +527,32 @@ mod tests {
         assert_eq!(timings.median(CULL), Some(1.0));
         assert_eq!(timings.median(WORLD), Some(4.0));
     }
+
+    #[test]
+    fn gpu_median_and_p95_cover_only_the_newest_frames() {
+        let timings = GpuTimings::default();
+        for ms in 1..=100 {
+            let mut frame = [0.0; SLOTS];
+            frame[WORLD] = ms as f32;
+            timings.push(frame);
+        }
+        assert_eq!(timings.median_and_p95(WORLD, 100), Some((51.0, 96.0)));
+        assert_eq!(timings.median_and_p95(WORLD, 10), Some((96.0, 100.0)));
+    }
+
+    #[test]
+    fn cpu_median_and_p95_cover_only_the_newest_frames() {
+        let timings = CpuTimings::default();
+        for ms in 1..=100 {
+            timings.0.samples.lock().unwrap().push(ENGINE, ms as f32);
+        }
+        assert_eq!(timings.median_and_p95(ENGINE, 100), Some((51.0, 96.0)));
+        assert_eq!(timings.median_and_p95(ENGINE, 10), Some((96.0, 100.0)));
+    }
+
+    #[test]
+    fn median_and_p95_of_a_slot_without_samples_is_none() {
+        assert_eq!(GpuTimings::default().median_and_p95(CULL, 100), None);
+        assert_eq!(CpuTimings::default().median_and_p95(ENGINE, 100), None);
+    }
 }
