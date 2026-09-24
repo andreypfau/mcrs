@@ -17,8 +17,11 @@ mod upload;
 
 use std::sync::Arc;
 
-use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
+use bevy::core_pipeline::core_3d::{
+    CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d, main_transparent_pass_3d,
+};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
+use bevy::ecs::schedule::ScheduleCleanupPolicy;
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_resource::{CompareFunction, TextureFormat};
@@ -251,12 +254,19 @@ impl Plugin for TerrainPlugin {
             )
             .add_systems(
                 Core3d,
-                (
-                    pass::draw_frame.after(main_opaque_pass_3d),
-                    gui_items::draw_gui,
-                )
+                (pass::draw_frame, gui_items::draw_gui)
                     .chain()
+                    .before(main_transparent_pass_3d)
                     .in_set(Core3dSystems::MainPass),
             );
+        // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,
+        // which the world pass then loads back; without it the world pass does the clear.
+        render_app
+            .remove_systems_in_set(
+                Core3d,
+                main_opaque_pass_3d,
+                ScheduleCleanupPolicy::RemoveSystemsOnly,
+            )
+            .expect("the 3d core pipeline adds its opaque pass");
     }
 }
