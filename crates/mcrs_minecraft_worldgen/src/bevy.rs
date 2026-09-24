@@ -98,7 +98,10 @@ pub fn build_dimension_router(
         properties: None,
     };
     let blocks = RouterBlocks {
-        default_block: resolve(&settings.settings.default_block)?,
+        default_block: match &settings.settings.default_block {
+            Some(state) => resolve(state)?,
+            None => resolve(&plain("stone"))?,
+        },
         default_fluid: resolve(&settings.settings.default_fluid)?,
         water: resolve(&plain("water"))?,
         lava: resolve(&plain("lava"))?,

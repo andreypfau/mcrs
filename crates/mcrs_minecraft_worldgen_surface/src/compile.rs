@@ -189,6 +189,21 @@ impl MaterialProgram {
         &self.tape
     }
 
+    /// The block the rule answers wherever no guarded rule before it did, if
+    /// it ends in one.
+    pub fn fallback_block(&self) -> Option<VoxelId> {
+        let mut at = 0;
+        while let Some(op) = self.tape.get(at) {
+            match *op {
+                Op::Guard { skip_to, .. } => at = skip_to as usize,
+                Op::Block { state } => return Some(state),
+                Op::Bandlands => return None,
+                Op::OreVein { .. } => at += 1,
+            }
+        }
+        None
+    }
+
     pub fn conditions(&self) -> &[CompiledCondition] {
         &self.conditions
     }
@@ -277,7 +292,7 @@ pub fn build_router_and_material(
     blocks: RouterBlocks,
     inputs: &MaterialInputs<'_>,
 ) -> Result<(NoiseRouter, MaterialProgram), CompileError> {
-    let (router, mut material) = build_router_with(
+    let (mut router, mut material) = build_router_with(
         settings,
         registry,
         noises,
@@ -285,6 +300,13 @@ pub fn build_router_and_material(
         blocks,
         |compiler, roots| compile_material(compiler, roots, settings, inputs),
     )?;
+    // Filling with the block the rule falls back to leaves the bulk of the
+    // terrain already in its final state, so the rule pass need not rewrite it.
+    if settings.default_block.is_none()
+        && let Some(fallback) = material.fallback_block()
+    {
+        router.default_block_state = fallback;
+    }
     material.vein_bounds = material
         .veins
         .iter()

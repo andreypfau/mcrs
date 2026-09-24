@@ -98,7 +98,10 @@ pub type SpawnTargetPoint = BTreeMap<ResourceLocation, ValueRange>;
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
 pub struct NoiseGeneratorSettings {
     pub noise: NoiseSettings,
-    pub default_block: BlockState,
+    /// The block the fill stands in for solid terrain before the material rule
+    /// decides it. Absent, it is the block the rule falls back to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_block: Option<BlockState>,
     pub default_fluid: BlockState,
     pub noise_router: RouterFunctions,
     pub material_rule: ResourceLocation,

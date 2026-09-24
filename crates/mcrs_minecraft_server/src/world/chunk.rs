@@ -829,29 +829,40 @@ mod tests {
     use mcrs_minecraft_worldgen_generator::block_state::try_resolve_state;
     use mcrs_minecraft_worldgen_generator::tests::blocks as corpus;
 
-    fn noise_settings_state(field: &str) -> ProtoBlockState {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/minecraft/worldgen/noise_settings/overworld.json"
+    fn worldgen_json(path: &str) -> serde_json::Value {
+        let path = format!(
+            "{}/../../assets/minecraft/worldgen/{path}",
+            env!("CARGO_MANIFEST_DIR")
         );
-        let settings: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(path).expect("the overworld noise settings ship"),
-        )
-        .expect("the noise settings parse");
-        serde_json::from_value(settings[field].clone()).expect("the state parses")
+        serde_json::from_slice(&std::fs::read(&path).expect("the worldgen asset ships"))
+            .expect("the worldgen asset parses")
     }
 
     #[test]
-    fn the_terrain_block_and_the_sea_come_from_the_noise_settings() {
+    fn the_terrain_block_comes_from_the_material_rule_and_the_sea_from_the_noise_settings() {
         let blocks = corpus();
 
-        let stone = try_resolve_state(blocks, &noise_settings_state("default_block"));
+        let rule = worldgen_json("material_rule/overworld.json");
+        let fallback = rule["sequence"]
+            .as_array()
+            .and_then(|sequence| sequence.last())
+            .expect("the overworld rule is a sequence");
+        let stone = try_resolve_state(
+            blocks,
+            &serde_json::from_value::<ProtoBlockState>(fallback["result_state"].clone())
+                .expect("the state parses"),
+        );
         assert_eq!(
             stone,
             Some(blocks.block("minecraft:stone").unwrap().default_state_id)
         );
 
-        let water = try_resolve_state(blocks, &noise_settings_state("default_fluid"));
+        let settings = worldgen_json("noise_settings/overworld.json");
+        let water = try_resolve_state(
+            blocks,
+            &serde_json::from_value::<ProtoBlockState>(settings["default_fluid"].clone())
+                .expect("the state parses"),
+        );
         assert_eq!(
             water,
             Some(blocks.block("minecraft:water").unwrap().default_state_id)

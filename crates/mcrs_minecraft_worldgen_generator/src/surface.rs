@@ -208,8 +208,9 @@ fn apply_material_surface_with(
                             eval.update_y(depth_above, depth_below, water_level, y);
                             eval.apply()
                         };
-                        if let Some(state) = state {
-                            set_block(column, tops, min_y, x, y, z, state);
+                        match state {
+                            Some(state) if state == stone => {}
+                            state => set_block(column, tops, min_y, x, y, z, state.unwrap_or_default()),
                         }
                     }
                 },
