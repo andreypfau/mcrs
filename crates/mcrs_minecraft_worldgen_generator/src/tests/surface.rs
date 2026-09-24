@@ -1,6 +1,7 @@
 use super::{
     assets_root, corpus, density_function_registry, load_json_dir, noise_registry, router_blocks,
 };
+use crate::modern_carvers::{ModernCarverBlockIds, TerrainCarving};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::surface::{Visit, descend_strip, set_block};
 use crate::task::CancellationToken;
@@ -13,7 +14,9 @@ use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
+use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
@@ -177,6 +180,7 @@ fn surface_ids(ids: &HashMap<String, u32>) -> SurfaceIds {
         deep_frozen_ocean: biome("minecraft:deep_frozen_ocean"),
         snow_block: corpus().default_state("minecraft:snow_block").into(),
         packed_ice: corpus().default_state("minecraft:packed_ice").into(),
+        dirt: corpus().default_state("minecraft:dirt").into(),
     }
 }
 
@@ -227,6 +231,7 @@ pub(super) fn surfaced_column(
         material,
         &surface_ids(ids),
         &mut scratch,
+        None,
     );
     column
 }
@@ -296,6 +301,131 @@ fn an_overworld_column_gets_grass_over_dirt_over_stone() {
     }
     assert!(grassed > 0, "not one strip of the column ended in grass");
     assert!(over_stone > 0, "grass and dirt never sat on stone");
+}
+
+/// Carving is decided block by block inside the descent: a carved grass top
+/// opens to air and the dirt it bared is surfaced again as the new top, while
+/// the fill's own water is never carved.
+#[test]
+fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
+    let ids = biome_ids();
+    let (router, material) = overworld_material_router(2, &ids);
+    let y_sections: Vec<i32> = (-4..20).collect();
+    let (mut regrown, mut kept_water) = (0, 0);
+    for (section_x, section_z) in [(3, -7), (40, 0), (-12, 5), (0, 0)] {
+        let plain = surfaced_column(
+            &router,
+            &material,
+            &ids,
+            section_x,
+            section_z,
+            &y_sections,
+            false,
+        );
+
+        let grass = VoxelId::from(corpus().default_state("minecraft:grass_block"));
+        let dirt = VoxelId::from(corpus().default_state("minecraft:dirt"));
+        let fluid = router.default_fluid_state;
+        let top_of = |column: &ColumnBlocks, x: i32, z: i32| {
+            (-64..320)
+                .rev()
+                .find(|&y| column.get(x, y, z).is_some_and(|state| state != AIR))
+        };
+
+        let mut mask = CarvingMask::new(16, -63, 319 - 7);
+        let mut grass_tops = Vec::new();
+        let mut water_tops = Vec::new();
+        for x in 0..16 {
+            for z in 0..16 {
+                let Some(top) = top_of(&plain, x, z) else {
+                    continue;
+                };
+                match plain.get(x, top, z) {
+                    Some(state) if state == grass && plain.get(x, top - 1, z) == Some(dirt) => {
+                        grass_tops.push((x, top, z));
+                        mask.carve(x, top, z);
+                    }
+                    Some(state) if state == fluid => {
+                        water_tops.push((x, top, z));
+                        mask.carve(x, top, z);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let table = MultiNoiseBiomeTable::resolve(
+            &MultiNoiseBiomeSource {
+                preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
+                biomes: None,
+            },
+            |biome| u8::try_from(ids[biome]).ok(),
+        )
+        .expect("the overworld preset resolves");
+        let mut column = ColumnBlocks::new(&y_sections);
+        let mut filled = fill_column_dense_any(
+            &mut column,
+            section_x,
+            section_z,
+            &y_sections,
+            &router,
+            None,
+            None,
+            None,
+            &CancellationToken::new(),
+        )
+        .expect("the column fills");
+        let (_, grid) =
+            multi_noise_palettes(&router, &table, section_x * 16, section_z * 16, &y_sections);
+        let carver_ids = ModernCarverBlockIds::for_test(Vec::new());
+        apply_material_surface(
+            &column,
+            section_x,
+            section_z,
+            &mut filled.tops,
+            &grid.expect("the multi-noise fill widens a grid"),
+            &router,
+            &material,
+            &surface_ids(&ids),
+            &mut MaterialScratch::default(),
+            Some(&mut TerrainCarving {
+                mask: &mask,
+                ids: &carver_ids,
+                fluid: &mut filled.fluid,
+                router: &router,
+                ws: Workspace::new(),
+                block_x: section_x * 16,
+                block_z: section_z * 16,
+            }),
+        );
+
+        for &(x, top, z) in &grass_tops {
+            let opened = column.get(x, top, z).unwrap();
+            assert_ne!(
+                opened, grass,
+                "the carved top at {x},{top},{z} still stands"
+            );
+            if opened == AIR {
+                assert_eq!(
+                    column.get(x, top - 1, z),
+                    Some(grass),
+                    "the dirt bared at {x},{},{z} was not surfaced again",
+                    top - 1
+                );
+                regrown += 1;
+            }
+        }
+        for &(x, y, z) in &water_tops {
+            assert_eq!(
+                column.get(x, y, z),
+                Some(fluid),
+                "water carved at {x},{y},{z}"
+            );
+            kept_water += 1;
+        }
+    }
+    assert!(regrown > 0, "no carved top opened to air");
+    assert!(kept_water > 0, "no carved water was left standing");
 }
 
 /// A condition given the wrong scope produces plausible terrain and passes
@@ -604,6 +734,7 @@ fn surfaced_column_fixed(
         material,
         &surface_ids(ids),
         &mut scratch,
+        None,
     );
     column
 }

@@ -465,8 +465,66 @@ pub(crate) fn carve_sources(
     mask
 }
 
-/// Every carver of every biome that reaches this chunk, then one pass to fill
-/// what they freed.
+/// Every modern carver of every biome that reaches this chunk, marked into one
+/// mask before any block of the column is decided.
+#[allow(clippy::too_many_arguments)]
+pub fn modern_carving_mask(
+    chunk_x: i32,
+    chunk_z: i32,
+    world_seed: i64,
+    router: &NoiseRouter,
+    ws: &mut Workspace,
+    biomes: &CarverBiomeTable,
+    height: HeightContext,
+) -> CarvingMask {
+    carve_sources(
+        || unreachable!("a Beta carver outside a Beta dimension is refused with the tables"),
+        chunk_x,
+        chunk_z,
+        world_seed,
+        router,
+        ws,
+        biomes,
+        height,
+    )
+}
+
+/// What the carvers make of the solid terrain of one column: the mask they
+/// marked, and the fluid field the fill used, asked again with zero density,
+/// so a positive barrier alone keeps a carved tunnel through a lake shore
+/// walled.
+pub struct TerrainCarving<'a, 'f> {
+    pub mask: &'a CarvingMask,
+    pub ids: &'a ModernCarverBlockIds,
+    pub fluid: &'a mut FluidField<'f>,
+    pub router: &'a NoiseRouter,
+    pub ws: Workspace,
+    pub block_x: i32,
+    pub block_z: i32,
+}
+
+impl TerrainCarving<'_, '_> {
+    #[inline]
+    pub fn is_carved(&self, x: i32, y: i32, z: i32) -> bool {
+        self.mask.contains(x, y, z)
+    }
+
+    /// The air or fluid a solid block becomes in place of `block`, the one the
+    /// material rules chose for it. `None` leaves `block` standing: the
+    /// position is not carved, `block` is uncarvable, or the barrier keeps it
+    /// solid.
+    pub fn substance(&mut self, x: i32, y: i32, z: i32, block: Option<VoxelId>) -> Option<VoxelId> {
+        if !self.is_carved(x, y, z) || block.is_some_and(|block| self.ids.is_uncarvable(block)) {
+            return None;
+        }
+        let mut barrier = point_barrier(self.router, &mut self.ws);
+        self.fluid
+            .substance_settled(self.block_x + x, y, self.block_z + z, 0.0, &mut barrier)
+    }
+}
+
+/// Every carver of every biome that reaches this chunk, applied to a column no
+/// material rule decides.
 #[allow(clippy::too_many_arguments)]
 pub fn apply_modern_carvers(
     column: &ColumnBlocks,
@@ -480,50 +538,43 @@ pub fn apply_modern_carvers(
     ids: &ModernCarverBlockIds,
     fluid: &mut FluidField<'_>,
 ) {
-    let mask = carve_sources(
-        || unreachable!("a Beta carver outside a Beta dimension is refused with the tables"),
-        chunk_x,
-        chunk_z,
-        world_seed,
-        router,
-        ws,
-        biomes,
-        height,
+    let mask = modern_carving_mask(chunk_x, chunk_z, world_seed, router, ws, biomes, height);
+    carve_unsurfaced(
+        column,
+        &mut TerrainCarving {
+            mask: &mask,
+            ids,
+            fluid,
+            router,
+            ws: Workspace::new(),
+            block_x: chunk_x * 16,
+            block_z: chunk_z * 16,
+        },
     );
-    apply_carver_substance(column, chunk_x, chunk_z, router, ws, &mask, ids, fluid);
 }
 
-/// Fill the freed space by asking the fluid field with zero density: the same
-/// field the terrain fill used, so a positive barrier alone keeps a carved
-/// tunnel through a lake shore walled, and a block it calls solid is left as
-/// it was.
-#[allow(clippy::too_many_arguments)]
-fn apply_carver_substance(
-    column: &ColumnBlocks,
-    chunk_x: i32,
-    chunk_z: i32,
-    router: &NoiseRouter,
-    ws: &mut Workspace,
-    mask: &CarvingMask,
-    ids: &ModernCarverBlockIds,
-    fluid: &mut FluidField<'_>,
-) {
-    let mut barrier_at = point_barrier(router, ws);
+/// Each carved solid block of a column no material rule decides, asked as it
+/// stands what it becomes. Air and fluid the fill placed are never carved.
+pub fn carve_unsurfaced(column: &ColumnBlocks, carving: &mut TerrainCarving<'_, '_>) {
+    let router = carving.router;
+    let open = [
+        VoxelId::default(),
+        router.default_fluid_state,
+        router.water_state,
+        router.lava_state,
+    ];
+    let mask = carving.mask;
     mask.visit(|x, z, bottom_y, top_y| {
-        let (world_x, world_z) = (chunk_x * 16 + x, chunk_z * 16 + z);
         for y in (bottom_y..=top_y).rev() {
             let Some(state) = column.get(x, y, z) else {
                 continue;
             };
-            if ids.is_uncarvable(state) {
+            if open.contains(&state) {
                 continue;
             }
-            let Some(substance) =
-                fluid.substance_settled(world_x, y, world_z, 0.0, &mut barrier_at)
-            else {
-                continue;
-            };
-            column.set(x, y, z, substance);
+            if let Some(substance) = carving.substance(x, y, z, Some(state)) {
+                column.set(x, y, z, substance);
+            }
         }
     });
 }

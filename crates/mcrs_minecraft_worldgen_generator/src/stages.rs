@@ -35,7 +35,9 @@ use crate::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, TerrainHeightmaps, build_column_heightmaps,
     build_terrain_heightmaps,
 };
-use crate::modern_carvers::{CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers};
+use crate::modern_carvers::{
+    CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, carve_unsurfaced, modern_carving_mask,
+};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::saved::{SavedColumns, column_sections, saved_block_entities};
 use crate::staging::{
@@ -336,10 +338,20 @@ pub fn fill_column(
         )?
     };
 
-    // The surface runs between the fill it reads and the carvers, because
-    // carved rock is not re-surfaced.
+    // The carvers draw against the dimension, not against the slice of
+    // sections a dispatch happens to carry.
+    let height = extent(router);
+    let world_seed = router.world_seed as i64;
+    let mut ws = Workspace::new();
+    let modern_mask = match (&ctx.program.generator, &ctx.program.carvers) {
+        (ColumnGenerator::Modern { .. }, Some(carvers)) => Some(modern_carving_mask(
+            col.x, col.z, world_seed, router, &mut ws, carvers, height,
+        )),
+        _ => None,
+    };
+
     match &ctx.program.generator {
-        ColumnGenerator::Beta(_) => {
+        ColumnGenerator::Beta(ids) => {
             let (src, _) = ctx
                 .biome_context()
                 .expect("a beta program has a biome source");
@@ -356,60 +368,56 @@ pub fn fill_column(
                 &ctx.blocks,
                 &mut rng,
             );
-        }
-        ColumnGenerator::Modern {
-            surface: Some(ids), ..
-        } => {
-            if let (Some(grid), Some(material)) =
-                (filled.biome_grid.as_ref(), ctx.material.as_deref())
-            {
-                thread_local! {
-                    static MATERIAL: RefCell<MaterialScratch> = RefCell::new(MaterialScratch::default());
-                }
-                debug_assert!(
-                    spans_dimension(y_sections, router),
-                    "the descent needs the whole column, not the sections this dispatch owes"
+            if let Some(carvers) = &ctx.program.carvers {
+                apply_beta_carvers(
+                    column, col.x, col.z, world_seed, router, &mut ws, carvers, height, ids,
                 );
-                MATERIAL.with_borrow_mut(|scratch| {
-                    apply_material_surface(
-                        column,
-                        col.x,
-                        col.z,
-                        &mut filled.tops,
-                        grid,
-                        router,
-                        material,
-                        ids,
-                        scratch,
-                    );
-                });
             }
         }
-        ColumnGenerator::Modern { surface: None, .. } => {}
-    }
-
-    if let Some(carvers) = &ctx.program.carvers {
-        let world_seed = router.world_seed as i64;
-        let mut ws = Workspace::new();
-        // The carvers draw against the dimension, not against the slice of
-        // sections a dispatch happens to carry.
-        let height = extent(router);
-        match &ctx.program.generator {
-            ColumnGenerator::Beta(ids) => apply_beta_carvers(
-                column, col.x, col.z, world_seed, router, &mut ws, carvers, height, ids,
-            ),
-            ColumnGenerator::Modern { carver_blocks, .. } => apply_modern_carvers(
-                column,
-                col.x,
-                col.z,
-                world_seed,
+        ColumnGenerator::Modern {
+            surface,
+            carver_blocks,
+            ..
+        } => {
+            let mut carving = modern_mask.as_ref().map(|mask| TerrainCarving {
+                mask,
+                ids: carver_blocks,
+                fluid: &mut filled.fluid,
                 router,
-                &mut ws,
-                carvers,
-                height,
-                carver_blocks,
-                &mut filled.fluid,
-            ),
+                ws: Workspace::new(),
+                block_x: col.x * 16,
+                block_z: col.z * 16,
+            });
+            let surfaced = match (surface, filled.biome_grid.as_ref(), ctx.material.as_deref()) {
+                (Some(ids), Some(grid), Some(material)) => {
+                    thread_local! {
+                        static MATERIAL: RefCell<MaterialScratch> = RefCell::new(MaterialScratch::default());
+                    }
+                    debug_assert!(
+                        spans_dimension(y_sections, router),
+                        "the descent needs the whole column, not the sections this dispatch owes"
+                    );
+                    MATERIAL.with_borrow_mut(|scratch| {
+                        apply_material_surface(
+                            column,
+                            col.x,
+                            col.z,
+                            &mut filled.tops,
+                            grid,
+                            router,
+                            material,
+                            ids,
+                            scratch,
+                            carving.as_mut(),
+                        );
+                    });
+                    true
+                }
+                _ => false,
+            };
+            if !surfaced && let Some(carving) = carving.as_mut() {
+                carve_unsurfaced(column, carving);
+            }
         }
     }
 

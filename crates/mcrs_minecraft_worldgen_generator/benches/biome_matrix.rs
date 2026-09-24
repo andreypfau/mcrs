@@ -127,6 +127,7 @@ fn surface_ids(names: &[String]) -> SurfaceIds {
         deep_frozen_ocean: id("deep_frozen_ocean"),
         snow_block: corpus().default_state("minecraft:snow_block").into(),
         packed_ice: corpus().default_state("minecraft:packed_ice").into(),
+        dirt: corpus().default_state("minecraft:dirt").into(),
     }
 }
 
@@ -267,6 +268,7 @@ fn run_pinned(
                 material,
                 ids,
                 scratch,
+                None,
             );
             total += t.elapsed();
         }
@@ -432,6 +434,7 @@ fn natural(
                 material,
                 ids,
                 &mut scratch,
+                None,
             );
             let real = t.elapsed().as_secs_f64() * 1e3;
 
@@ -461,6 +464,7 @@ fn natural(
                 material,
                 ids,
                 &mut scratch,
+                None,
             );
             let pinned = t.elapsed().as_secs_f64() * 1e3;
 

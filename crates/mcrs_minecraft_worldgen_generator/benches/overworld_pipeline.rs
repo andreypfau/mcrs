@@ -14,7 +14,7 @@ use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_generator::modern_carvers::{
-    CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers,
+    CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, modern_carving_mask,
 };
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -137,6 +137,7 @@ fn main() {
         deep_frozen_ocean: biome("minecraft:deep_frozen_ocean"),
         snow_block: corpus().default_state("minecraft:snow_block").into(),
         packed_ice: corpus().default_state("minecraft:packed_ice").into(),
+        dirt: corpus().default_state("minecraft:dirt").into(),
     };
     let height = HeightContext {
         min_y: router.noise.min_y,
@@ -203,6 +204,10 @@ fn main() {
         };
 
         let t = Instant::now();
+        let mask = modern_carving_mask(x, z, seed as i64, &router, ws, &carvers, height);
+        s.carve = t.elapsed();
+
+        let t = Instant::now();
         apply_material_surface(
             column,
             x,
@@ -213,23 +218,17 @@ fn main() {
             &material,
             &surface_ids,
             scratch,
+            Some(&mut TerrainCarving {
+                mask: &mask,
+                ids: &carver_ids,
+                fluid: &mut filled.fluid,
+                router: &router,
+                ws: Workspace::new(),
+                block_x: x * 16,
+                block_z: z * 16,
+            }),
         );
         s.surface = t.elapsed();
-
-        let t = Instant::now();
-        apply_modern_carvers(
-            column,
-            x,
-            z,
-            seed as i64,
-            &router,
-            ws,
-            &carvers,
-            height,
-            &carver_ids,
-            &mut filled.fluid,
-        );
-        s.carve = t.elapsed();
 
         let t = Instant::now();
         let sections = column.into_sections(&biomes);

@@ -1,3 +1,4 @@
+use crate::modern_carvers::TerrainCarving;
 use crate::multi_noise_biomes::BiomeGrid;
 use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
@@ -23,6 +24,7 @@ pub struct SurfaceIds {
     pub deep_frozen_ocean: u32,
     pub snow_block: VoxelId,
     pub packed_ice: VoxelId,
+    pub dirt: VoxelId,
 }
 
 impl SurfaceIds {
@@ -40,6 +42,7 @@ impl SurfaceIds {
             deep_frozen_ocean: biome("minecraft:deep_frozen_ocean"),
             snow_block: blocks.default_state("minecraft:snow_block").into(),
             packed_ice: blocks.default_state("minecraft:packed_ice").into(),
+            dirt: blocks.default_state("minecraft:dirt").into(),
         }
     }
 }
@@ -66,11 +69,13 @@ pub fn spans_dimension(y_sections: &[i32], router: &NoiseRouter) -> bool {
         && y_sections.last().is_some_and(|&last| last + 1 >= top)
 }
 
-/// Rewrite every strip of a filled column from the top down.
+/// Rewrite every strip of a filled column from the top down, carving it as it
+/// goes where `carving` is given.
 ///
 /// The surface gradients read the tops the fill left, so a pillar or an
 /// iceberg changes neither its neighbours' steepness nor their gradient rules;
 /// a strip's own descent still starts above its pillar.
+#[allow(clippy::too_many_arguments)]
 pub fn apply_material_surface(
     column: &ColumnBlocks,
     section_x: i32,
@@ -81,13 +86,15 @@ pub fn apply_material_surface(
     material: &MaterialProgram,
     ids: &SurfaceIds,
     scratch: &mut MaterialScratch,
+    carving: Option<&mut TerrainCarving<'_, '_>>,
 ) {
     thread_local! {
         static FIDDLE: RefCell<FiddleCache> = RefCell::new(FiddleCache::default());
     }
     FIDDLE.with_borrow_mut(|fiddle| {
         apply_material_surface_with(
-            column, section_x, section_z, tops, grid, router, material, ids, scratch, fiddle,
+            column, section_x, section_z, tops, grid, router, material, ids, scratch, carving,
+            fiddle,
         )
     });
 }
@@ -102,6 +109,7 @@ fn apply_material_surface_with(
     program: &MaterialProgram,
     ids: &SurfaceIds,
     scratch: &mut MaterialScratch,
+    mut carving: Option<&mut TerrainCarving<'_, '_>>,
     fiddle: &mut FiddleCache,
 ) {
     let block_x = section_x * 16;
@@ -176,6 +184,7 @@ fn apply_material_surface_with(
                 - height_of(&fill_tops, x, (z - 1).max(0), min_y);
             eval.begin_strip(bx, bz, gradient_x, gradient_z);
             let mut run = 0;
+            let mut carved_top = false;
             descend_strip(
                 column,
                 x,
@@ -201,6 +210,11 @@ fn apply_material_surface_with(
                         );
                         run = 0;
                     }
+                    Visit::Open { y } => {
+                        carved_top &= carving
+                            .as_deref()
+                            .is_some_and(|carving| carving.is_carved(x, y, z));
+                    }
                     Visit::Block {
                         y,
                         depth_above,
@@ -210,7 +224,7 @@ fn apply_material_surface_with(
                         while run < settled.len() && y < settled[run].0 {
                             run += 1;
                         }
-                        let state = if run < settled.len() && y <= settled[run].1 {
+                        let mut state = if run < settled.len() && y <= settled[run].1 {
                             match settled[run].2 {
                                 SettledState::Block(state) => state,
                                 SettledState::Bandlands => Some(eval.bandlands_at(y)),
@@ -219,6 +233,23 @@ fn apply_material_surface_with(
                             eval.update_y(depth_above, depth_below, water_level, y);
                             eval.apply()
                         };
+                        if let Some(substance) = carving
+                            .as_deref_mut()
+                            .and_then(|carving| carving.substance(x, y, z, state))
+                        {
+                            carved_top |= depth_above == 1;
+                            set_block(column, tops, min_y, x, y, z, substance);
+                            return;
+                        }
+                        // Carving the top of a run away bares the block under
+                        // it, which is surfaced again as if it were the top.
+                        if carved_top {
+                            if state == Some(ids.dirt) {
+                                eval.update_y(1, depth_below, water_level, y);
+                                state = eval.apply();
+                            }
+                            carved_top = false;
+                        }
                         match state {
                             Some(state) if state == stone => {}
                             state => set_block(column, tops, min_y, x, y, z, state.unwrap_or_default()),
@@ -242,6 +273,7 @@ fn apply_material_surface_with(
                     sea_level,
                     fluid,
                     ids,
+                    carving.as_deref(),
                 );
             }
         }
@@ -250,7 +282,7 @@ fn apply_material_surface_with(
 
 /// What the descent hands its visitor: each solid run as it is entered, with
 /// the depth its top block has — fluid above does not reset it — then every
-/// solid block of it.
+/// solid block of it, and every air or fluid block between runs.
 pub(crate) enum Visit {
     Run {
         top: i32,
@@ -264,6 +296,9 @@ pub(crate) enum Visit {
         depth_above: i32,
         depth_below: i32,
         water_level: i32,
+    },
+    Open {
+        y: i32,
     },
 }
 
@@ -299,10 +334,12 @@ pub(crate) fn descend_strip(
         if old == air {
             depth_above = 0;
             water_level = NO_WATER;
+            visit(Visit::Open { y });
         } else if is_fluid(old) {
             if water_level == NO_WATER {
                 water_level = y + 1;
             }
+            visit(Visit::Open { y });
         } else {
             if next_ceiling >= y {
                 next_ceiling = (min_y..y)
@@ -479,7 +516,7 @@ fn eroded_badlands(
 }
 
 /// The icebergs of frozen ocean, built after the rule pass so the rules do not
-/// touch them.
+/// touch them, and never where the carvers opened the column.
 #[allow(clippy::too_many_arguments)]
 fn frozen_ocean(
     column: &ColumnBlocks,
@@ -495,9 +532,15 @@ fn frozen_ocean(
     sea_level: i32,
     fluid: VoxelId,
     ids: &SurfaceIds,
+    carving: Option<&TerrainCarving<'_, '_>>,
 ) {
     let air = VoxelId::default();
     let sample = |which, scale: f64| noise_2d(program, which, block_x, block_z, scale);
+    let set_block = |tops: &mut [i32; 256], y: i32, state: VoxelId| {
+        if !carving.is_some_and(|carving| carving.is_carved(x, y, z)) {
+            set_block(column, tops, min_y, x, y, z, state);
+        }
+    };
     let iceberg = (f64::from(sample(SurfaceNoise::IcebergSurface, 1.0)) * 8.25)
         .abs()
         .min(f64::from(sample(SurfaceNoise::IcebergPillar, 1.28) * 15.0));
@@ -527,10 +570,10 @@ fn frozen_ocean(
             || old == fluid && y > bottom as i32 && y < sea_level && random.next_f64() > 0.15
         {
             if snow_depth <= max_snow_depth && y > min_snow_height {
-                set_block(column, tops, min_y, x, y, z, ids.snow_block);
+                set_block(tops, y, ids.snow_block);
                 snow_depth += 1;
             } else {
-                set_block(column, tops, min_y, x, y, z, ids.packed_ice);
+                set_block(tops, y, ids.packed_ice);
             }
         }
     }
