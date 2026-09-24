@@ -14,6 +14,26 @@ pub fn quart_cell(zoom_seed: i64, pos: BlockPos) -> QuartPos {
     })
 }
 
+/// The biome every one of the eight corners [`quart_cell`] chooses between
+/// answers, when they all agree. Most blocks sit inside one biome, and then the
+/// pick cannot matter and its fiddles need not be drawn.
+pub fn uniform_corners<B: PartialEq>(
+    pos: BlockPos,
+    mut biome: impl FnMut(QuartPos) -> B,
+) -> Option<B> {
+    let (x, y, z) = ((pos.x - 2) >> 2, (pos.y - 2) >> 2, (pos.z - 2) >> 2);
+    let first = biome(QuartPos::new(x, y, z));
+    (1..8)
+        .all(|i| {
+            biome(QuartPos::new(
+                x + (i >> 2 & 1),
+                y + (i >> 1 & 1),
+                z + (i & 1),
+            )) == first
+        })
+        .then_some(first)
+}
+
 /// The eight corners around a block, in the order the reference tries them.
 /// `fiddles` answers with a corner's three offsets, which depend on the seed
 /// and the corner alone.

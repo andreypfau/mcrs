@@ -3,7 +3,7 @@ use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed, quart_cell};
+use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed, quart_cell, uniform_corners};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, QuartPos};
@@ -132,7 +132,11 @@ fn apply_material_surface_with(
         router,
         program,
         scratch,
-        |x, y, z| grid_biome(grid, fiddle.quart_cell(BlockPos::new(x, y, z))),
+        |x, y, z| {
+            let pos = BlockPos::new(x, y, z);
+            uniform_corners(pos, |quart| grid_biome(grid, quart))
+                .unwrap_or_else(|| grid_biome(grid, fiddle.quart_cell(pos)))
+        },
         |bx, bz, lo, hi, out| reachable_biomes(grid, bx, bz, lo, hi, out),
         block_x,
         block_z,
@@ -322,7 +326,9 @@ fn height_of(tops: &[i32; 256], x: i32, z: i32, min_y: i32) -> i32 {
 /// The biome the fiddled zoom selects, read out of the widened grid rather than
 /// out of a neighbouring column's stored palette.
 fn zoom_biome(grid: &BiomeGrid, zoom_seed: i64, x: i32, y: i32, z: i32) -> u32 {
-    grid_biome(grid, quart_cell(zoom_seed, BlockPos::new(x, y, z)))
+    let pos = BlockPos::new(x, y, z);
+    uniform_corners(pos, |quart| grid_biome(grid, quart))
+        .unwrap_or_else(|| grid_biome(grid, quart_cell(zoom_seed, pos)))
 }
 
 /// Every biome the zoom can select for the strip at `(bx, bz)` anywhere in

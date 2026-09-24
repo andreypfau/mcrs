@@ -8,7 +8,7 @@ use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::BiomeSource;
-use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
+use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell, uniform_corners};
 use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
@@ -534,6 +534,9 @@ impl<'a> ColumnRegion<'a> {
     /// A quart cell the zoom picks outside the 3x3 falls back to the cell the
     /// position sits in, which is always inside it.
     fn biome_at(&self, p: BlockPos) -> u32 {
+        if let Some(Some(biome)) = uniform_corners(p, |quart| self.quart_biome(quart)) {
+            return biome;
+        }
         self.quart_biome(quart_cell(self.zoom_seed, p))
             .or_else(|| self.quart_biome(QuartPos::of(p)))
             .unwrap_or_default()
