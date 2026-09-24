@@ -39,8 +39,8 @@ pub fn possible_biomes(
         BiomeSource::MultiNoise(multi) => match (&multi.biomes, &multi.preset) {
             (Some(entries), _) => entries.iter().map(|entry| entry.location.clone()).collect(),
             (None, Some(preset)) => match preset.as_str() {
-                "minecraft:overworld" => preset_biomes(&overworld_parameter_list()),
-                "minecraft:nether" => preset_biomes(&nether_parameter_list()),
+                "minecraft:overworld" => preset_biomes(overworld_parameter_list()),
+                "minecraft:nether" => preset_biomes(nether_parameter_list()),
                 other => panic!("no biome list for the multi-noise preset {other}"),
             },
             (None, None) => panic!("a multi-noise source names neither biomes nor a preset"),

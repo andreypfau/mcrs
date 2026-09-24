@@ -216,69 +216,104 @@ impl<T> Node<T> {
     }
 }
 
-/// The tree laid out in one array, breadth first, so a node's children sit
-/// next to each other and the walk streams them instead of chasing a `Vec` per
-/// node. The order within a node is the order the tree built, which is what
-/// decides a tie.
-#[derive(Debug, Clone)]
-struct FlatNode {
-    space: [Parameter; 7],
+/// The tree laid out breadth first, so a node's children sit next to each other,
+/// and stored one array per axis, so a node's children are measured in one pass
+/// over contiguous bounds. The order within a node is the order the tree built,
+/// which is what decides a tie.
+#[derive(Debug, Clone, Default)]
+struct Tree {
+    min: [Vec<i64>; 6],
+    max: [Vec<i64>; 6],
+    /// The squared distance along the offset axis, which measures from zero
+    /// whatever the target, so it is known before any search.
+    offset: Vec<i64>,
     /// The entry a leaf answers with. A subtree carries children instead.
-    value: u32,
-    children_start: u32,
-    children_count: u32,
+    value: Vec<u32>,
+    children_start: Vec<u32>,
+    children_count: Vec<u32>,
 }
 
-fn flatten<T>(root: Node<T>) -> Vec<FlatNode>
+impl Tree {
+    fn push(&mut self, space: &[Parameter; 7]) {
+        for axis in 0..6 {
+            self.min[axis].push(space[axis].min);
+            self.max[axis].push(space[axis].max);
+        }
+        let offset = space[6].distance(0);
+        self.offset.push(offset * offset);
+        self.value.push(0);
+        self.children_start.push(0);
+        self.children_count.push(0);
+    }
+
+    fn distance(&self, at: usize, target: &Coords) -> i64 {
+        let mut total = 0;
+        for axis in 0..6 {
+            let distance = (target[axis] - self.max[axis][at])
+                .max(self.min[axis][at] - target[axis])
+                .max(0);
+            total += distance * distance;
+        }
+        total + self.offset[at]
+    }
+}
+
+fn flatten<T>(root: Node<T>) -> Tree
 where
     T: Copy + Into<u32>,
 {
-    let reserve = |space: &[Parameter; 7]| FlatNode {
-        space: *space,
-        value: 0,
-        children_start: 0,
-        children_count: 0,
-    };
-    let mut nodes = vec![reserve(root.space())];
+    let mut tree = Tree::default();
+    tree.push(root.space());
     let mut queue = std::collections::VecDeque::from([(root, 0usize)]);
     while let Some((node, at)) = queue.pop_front() {
         match node {
-            Node::Leaf { value, .. } => nodes[at].value = value.into(),
+            Node::Leaf { value, .. } => tree.value[at] = value.into(),
             Node::SubTree { children, .. } => {
-                let start = nodes.len();
-                nodes[at].children_start = start as u32;
-                nodes[at].children_count = children.len() as u32;
-                nodes.extend(children.iter().map(|child| reserve(child.space())));
+                assert!(children.len() <= CHILDREN_PER_NODE);
+                let start = tree.value.len();
+                tree.children_start[at] = start as u32;
+                tree.children_count[at] = children.len() as u32;
+                for child in &children {
+                    tree.push(child.space());
+                }
                 for (offset, child) in children.into_iter().enumerate() {
                     queue.push_back((child, start + offset));
                 }
             }
         }
     }
-    nodes
+    tree
 }
 
-/// The nearest leaf under `at`, given a candidate to beat. A branch whose own
-/// bound is already further than the candidate is not entered at all.
-fn search(
-    nodes: &[FlatNode],
-    at: usize,
-    target: &Coords,
-    best: Option<(u32, i64)>,
-) -> Option<(u32, i64)> {
-    let node = &nodes[at];
-    if node.children_count == 0 {
-        return Some((node.value, bound_distance(&node.space, target)));
+/// The nearest leaf under the subtree `at`, given a candidate to beat. A branch
+/// whose own bound is already further than the candidate is not entered at all.
+fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> Option<(u32, i64)> {
+    let start = tree.children_start[at] as usize;
+    let count = tree.children_count[at] as usize;
+    let mut distances = [0i64; CHILDREN_PER_NODE];
+    let distances = &mut distances[..count];
+    distances.copy_from_slice(&tree.offset[start..start + count]);
+    for axis in 0..6 {
+        let min = &tree.min[axis][start..start + count];
+        let max = &tree.max[axis][start..start + count];
+        let target = target[axis];
+        for ((total, &min), &max) in distances.iter_mut().zip(min).zip(max) {
+            let distance = (target - max).max(min - target).max(0);
+            *total += distance * distance;
+        }
     }
     let mut best = best;
-    let start = node.children_start as usize;
-    for child in start..start + node.children_count as usize {
-        let nearest = best.map_or(i64::MAX, |(_, distance)| distance);
-        if nearest <= bound_distance(&nodes[child].space, target) {
+    for (child, &distance) in (start..).zip(distances.iter()) {
+        if best.map_or(i64::MAX, |(_, nearest)| nearest) <= distance {
             continue;
         }
-        if let Some(found) = search(nodes, child, target, best)
-            && best.map_or(i64::MAX, |(_, distance)| distance) > found.1
+        let found = if tree.children_count[child] == 0 {
+            Some((tree.value[child], distance))
+        } else {
+            search(tree, child, target, best)
+        };
+        if let Some(found) = found
+            && best.map_or(i64::MAX, |(_, nearest)| nearest) > found.1
         {
             best = Some(found);
         }
@@ -302,7 +337,7 @@ fn union_space<T>(children: &[Node<T>]) -> [Parameter; 7] {
 /// node's own children end up in, and it is a different key from the one the
 /// bucketing uses.
 fn sort_by_total_magnitude<T>(nodes: &mut [Node<T>]) {
-    nodes.sort_by_key(|node| {
+    nodes.sort_by_cached_key(|node| {
         node.space()
             .iter()
             .map(|parameter| ((parameter.min + parameter.max) / 2).abs())
@@ -323,7 +358,7 @@ fn sort_nodes<T>(nodes: &mut [Node<T>], dimension: usize, absolute: bool) {
         }
         out
     };
-    nodes.sort_by_key(key);
+    nodes.sort_by_cached_key(key);
 }
 
 /// How many nodes go in each bucket: the largest power of the branching factor
@@ -405,7 +440,7 @@ fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Node<T
 #[derive(Debug, Clone)]
 pub struct ParameterList<T> {
     values: Vec<(ParameterPoint, T)>,
-    nodes: Vec<FlatNode>,
+    tree: Tree,
 }
 
 impl<T> ParameterList<T> {
@@ -422,8 +457,29 @@ impl<T> ParameterList<T> {
                 value: slot as u32,
             })
             .collect();
-        let nodes = flatten(build_node(leaves, CHILDREN_PER_NODE));
-        ParameterList { values, nodes }
+        let tree = flatten(build_node(leaves, CHILDREN_PER_NODE));
+        ParameterList { values, tree }
+    }
+
+    /// The same climates answering with other values. The tree depends on the
+    /// climates alone, so it is shared rather than rebuilt.
+    pub fn map_values<U>(&self, mut f: impl FnMut(&T) -> U) -> ParameterList<U> {
+        self.try_map_values(|value| Some(f(value)))
+            .expect("an infallible mapping")
+    }
+
+    pub fn try_map_values<U>(
+        &self,
+        mut f: impl FnMut(&T) -> Option<U>,
+    ) -> Option<ParameterList<U>> {
+        Some(ParameterList {
+            values: self
+                .values
+                .iter()
+                .map(|(point, value)| Some((*point, f(value)?)))
+                .collect::<Option<_>>()?,
+            tree: self.tree.clone(),
+        })
     }
 
     pub fn values(&self) -> &[(ParameterPoint, T)] {
@@ -461,7 +517,11 @@ impl<T> ParameterList<T> {
                 bound_distance(&self.values[slot].0.space(), &coords),
             )
         });
-        let (slot, _) = search(&self.nodes, 0, &coords, seed).expect("a non-empty tree");
+        let (slot, _) = if self.tree.children_count[0] == 0 {
+            (self.tree.value[0], self.tree.distance(0, &coords))
+        } else {
+            search(&self.tree, 0, &coords, seed).expect("a non-empty tree")
+        };
         *last = Some(slot as usize);
         slot as usize
     }

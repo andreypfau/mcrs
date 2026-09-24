@@ -48,11 +48,9 @@ impl MultiNoiseBiomeTable {
                     "minecraft:nether" => nether_parameter_list(),
                     _ => return None,
                 };
-                named
-                    .values()
-                    .iter()
-                    .map(|(point, biome)| Some((*point, id_of(biome)?)))
-                    .collect::<Option<_>>()?
+                return Some(MultiNoiseBiomeTable {
+                    table: named.try_map_values(|biome| id_of(biome))?,
+                });
             }
             (None, Some(entries)) => entries
                 .iter()

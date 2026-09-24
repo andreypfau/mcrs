@@ -7,6 +7,8 @@
 //! `OverworldBiomeBuilder`, and the order entries are emitted in is part of the
 //! data because ties in the climate search go to the earlier entry.
 
+use std::sync::LazyLock;
+
 use super::climate::{Parameter, ParameterList, ParameterPoint};
 
 const VALLEY_SIZE: f32 = 0.05;
@@ -1263,58 +1265,64 @@ impl Builder {
 }
 
 /// The overworld climate table, in the order the reference emits it.
-pub fn overworld_parameter_list() -> ParameterList<&'static str> {
-    let mut builder = Builder::new();
-    builder.add_off_coast_biomes();
-    builder.add_inland_biomes();
-    builder.add_underground_biomes();
-    ParameterList::new(builder.out)
+pub fn overworld_parameter_list() -> &'static ParameterList<&'static str> {
+    static LIST: LazyLock<ParameterList<&'static str>> = LazyLock::new(|| {
+        let mut builder = Builder::new();
+        builder.add_off_coast_biomes();
+        builder.add_inland_biomes();
+        builder.add_underground_biomes();
+        ParameterList::new(builder.out)
+    });
+    &LIST
 }
 
 /// The `minecraft:nether` preset, which is small enough to be a literal.
-pub fn nether_parameter_list() -> ParameterList<&'static str> {
-    let point = Parameter::point(0.0);
-    let entry = |temperature: Parameter, humidity: Parameter, offset: f32, biome| {
-        (
-            ParameterPoint {
-                temperature,
-                humidity,
-                continentalness: point,
-                erosion: point,
-                depth: point,
-                weirdness: point,
-                offset: super::climate::quantize_coord(offset),
-            },
-            biome,
-        )
-    };
-    ParameterList::new(vec![
-        entry(point, point, 0.0, "minecraft:nether_wastes"),
-        entry(
-            Parameter::point(0.0),
-            Parameter::point(-0.5),
-            0.0,
-            "minecraft:soul_sand_valley",
-        ),
-        entry(
-            Parameter::point(0.4),
-            Parameter::point(0.0),
-            0.0,
-            "minecraft:crimson_forest",
-        ),
-        entry(
-            Parameter::point(0.0),
-            Parameter::point(0.5),
-            0.375,
-            "minecraft:warped_forest",
-        ),
-        entry(
-            Parameter::point(-0.5),
-            Parameter::point(0.0),
-            0.175,
-            "minecraft:basalt_deltas",
-        ),
-    ])
+pub fn nether_parameter_list() -> &'static ParameterList<&'static str> {
+    static LIST: LazyLock<ParameterList<&'static str>> = LazyLock::new(|| {
+        let point = Parameter::point(0.0);
+        let entry = |temperature: Parameter, humidity: Parameter, offset: f32, biome| {
+            (
+                ParameterPoint {
+                    temperature,
+                    humidity,
+                    continentalness: point,
+                    erosion: point,
+                    depth: point,
+                    weirdness: point,
+                    offset: super::climate::quantize_coord(offset),
+                },
+                biome,
+            )
+        };
+        ParameterList::new(vec![
+            entry(point, point, 0.0, "minecraft:nether_wastes"),
+            entry(
+                Parameter::point(0.0),
+                Parameter::point(-0.5),
+                0.0,
+                "minecraft:soul_sand_valley",
+            ),
+            entry(
+                Parameter::point(0.4),
+                Parameter::point(0.0),
+                0.0,
+                "minecraft:crimson_forest",
+            ),
+            entry(
+                Parameter::point(0.0),
+                Parameter::point(0.5),
+                0.375,
+                "minecraft:warped_forest",
+            ),
+            entry(
+                Parameter::point(-0.5),
+                Parameter::point(0.0),
+                0.175,
+                "minecraft:basalt_deltas",
+            ),
+        ])
+    });
+    &LIST
 }
 
 #[cfg(test)]

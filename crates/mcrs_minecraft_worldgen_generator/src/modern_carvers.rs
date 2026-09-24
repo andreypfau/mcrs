@@ -234,22 +234,16 @@ impl CarverBiomeTable {
     }
 
     fn map_values(
-        named: ParameterList<&'static str>,
+        named: &ParameterList<&'static str>,
         lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
     ) -> ParameterList<Arc<[CarverConfig]>> {
         let mut resolved: HashMap<&str, Arc<[CarverConfig]>> = HashMap::new();
-        let values = named
-            .values()
-            .iter()
-            .map(|(point, biome)| {
-                let carvers = resolved
-                    .entry(biome)
-                    .or_insert_with(|| lookup(biome))
-                    .clone();
-                (*point, carvers)
-            })
-            .collect();
-        ParameterList::new(values)
+        named.map_values(|biome| {
+            resolved
+                .entry(biome)
+                .or_insert_with(|| lookup(biome))
+                .clone()
+        })
     }
 
     /// The carvers the source chunk at `(source_x, source_z)` runs.
