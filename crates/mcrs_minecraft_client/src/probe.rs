@@ -19,13 +19,15 @@ pub const HEAT: usize = 2;
 pub const HIZ: usize = 3;
 pub const CULL_SECOND: usize = 4;
 pub const WORLD_SECOND: usize = 5;
-pub const NAMES: [&str; 6] = [
+pub const FORWARD: usize = 6;
+pub const NAMES: [&str; 7] = [
     "cull",
     "world",
     "heat",
     "hiz",
     "cull second",
     "world second",
+    "forward",
 ];
 pub const SLOTS: usize = NAMES.len();
 
@@ -514,9 +516,9 @@ mod tests {
     fn the_median_ignores_the_one_frame_that_stalled() {
         let timings = GpuTimings::default();
         for _ in 0..8 {
-            timings.push([1.0, 4.0, 0.5, 0.1, 0.2, 0.3]);
+            timings.push([1.0, 4.0, 0.5, 0.1, 0.2, 0.3, 0.6]);
         }
-        timings.push([1.0, 400.0, 0.5, 0.1, 0.2, 0.3]);
+        timings.push([1.0, 400.0, 0.5, 0.1, 0.2, 0.3, 0.6]);
         assert_eq!(timings.median(CULL), Some(1.0));
         assert_eq!(timings.median(WORLD), Some(4.0));
     }
@@ -525,7 +527,7 @@ mod tests {
     fn a_pass_the_gpu_never_timed_leaves_the_others_readable() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(2.0));
@@ -541,7 +543,7 @@ mod tests {
     fn a_resolved_frame_lands_in_the_window_as_milliseconds() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000, 0, 0, 0, 0, 0, 0, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(1.0));

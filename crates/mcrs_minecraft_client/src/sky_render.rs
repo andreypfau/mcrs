@@ -340,8 +340,7 @@ fn prepare_sky_bind_groups(
     commands.insert_resource(SkyBindGroups { view, textures });
 }
 
-/// The sky draws go first in the world pass and the clouds between its opaque and blended
-/// terrain, so both are issued by whoever holds the pass.
+/// The sky opens the world pass and the clouds open the forward pass.
 #[derive(SystemParam)]
 pub(crate) struct SkyDraws<'w> {
     sky: Option<Res<'w, Sky>>,

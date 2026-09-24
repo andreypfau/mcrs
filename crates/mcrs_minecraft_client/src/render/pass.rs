@@ -152,9 +152,6 @@ pub(super) struct FrameParams<'w> {
     heat: Option<Res<'w, Heat>>,
 }
 
-/// The whole frame from one system, so it records into one encoder and submits one command
-/// buffer: uploads, the timestamp resolve, the cull dispatch, then one render pass holding the
-/// sky, the opaque terrain, the clouds and the blended terrain in that order.
 pub(super) fn draw_frame(
     view: ViewQuery<(
         &ViewTarget,
@@ -211,10 +208,12 @@ pub(super) fn draw_frame(
         frame.counts.terrain_draws.store(0, Ordering::Relaxed);
     }
 
-    let color_attachments = [Some(target.get_color_attachment())];
-    let depth_attachment = Some(depth.get_attachment(StoreOp::Store));
+    let raster_size =
+        (frame.raster.0 < 1.0).then(|| extracted.viewport.zw().as_vec2() * frame.raster.0);
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
+
+    let color_attachments = [Some(target.get_color_attachment())];
     let timestamps = frame
         .queries
         .as_deref()
@@ -222,113 +221,138 @@ pub(super) fn draw_frame(
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("world"),
         color_attachments: &color_attachments,
-        depth_stencil_attachment: depth_attachment,
+        depth_stencil_attachment: Some(depth.get_attachment(StoreOp::Store)),
         timestamp_writes: timestamps,
         occlusion_query_set: None,
         multiview_mask: None,
     });
     let span = diagnostics.pass_span(&mut pass, "world");
-
     sky.draw_sky(&mut pass, view_offset.offset, &frame.pipeline_cache);
-
     if let Some(terrain) = terrain {
-        if frame.raster.0 < 1.0 {
-            let size = extracted.viewport.zw().as_vec2() * frame.raster.0;
+        if let Some(size) = raster_size {
             pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
         }
-        let mut draws = 0;
-        for group in LayerGroup::ALL {
-            if group == LayerGroup::Translucent {
-                draws += sky.draw_clouds(&mut pass, view_offset.offset, &frame.pipeline_cache);
-            }
-            draws += draw_layer_group(
-                &mut pass,
-                terrain,
-                group,
-                0,
-                &frame.pipeline_cache,
-                &frame.streams,
-                frame.wireframe.0,
-            );
-        }
+        let draws = draw_layer_group(
+            &mut pass,
+            terrain,
+            LayerGroup::Opaque,
+            0,
+            &frame.pipeline_cache,
+            &frame.streams,
+            frame.wireframe.0,
+        );
         frame.counts.terrain_draws.store(draws, Ordering::Relaxed);
     }
-
     span.end(&mut pass);
     drop(pass);
-    let Some(terrain) =
-        terrain.filter(|terrain| frame.occlusion.0 && terrain.list.visible_entries != 0)
-    else {
-        return;
-    };
-    terrain.hiz.build(
-        &frame.pipeline_cache,
-        frame.queries.as_deref(),
-        &frame.timings,
-        ctx.command_encoder(),
-    );
-    let Some(second) = frame
-        .pipeline_cache
-        .get_compute_pipeline(terrain.pipelines.cull_second)
-    else {
-        return;
-    };
-    {
+
+    let second_cull = terrain
+        .filter(|terrain| frame.occlusion.0 && terrain.list.visible_entries != 0)
+        .and_then(|terrain| {
+            terrain.hiz.build(
+                &frame.pipeline_cache,
+                frame.queries.as_deref(),
+                &frame.timings,
+                ctx.command_encoder(),
+            );
+            let second = frame
+                .pipeline_cache
+                .get_compute_pipeline(terrain.pipelines.cull_second)?;
+            Some((terrain, second))
+        });
+    if let Some((terrain, second)) = second_cull {
+        {
+            let timestamps = frame
+                .queries
+                .as_deref()
+                .map(|q| q.compute(probe::CULL_SECOND, &frame.timings));
+            let mut pass = ctx
+                .command_encoder()
+                .begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("terrain cull second"),
+                    timestamp_writes: timestamps,
+                });
+            pass.set_bind_group(1, &terrain.binds.cull, &[]);
+            for group in LayerGroup::ALL {
+                cull_group(&mut pass, terrain, group, second, &frame.streams);
+            }
+        }
+        let color_attachments = [Some(RenderPassColorAttachment {
+            view: target.main_texture_view(),
+            depth_slice: None,
+            resolve_target: None,
+            ops: Operations {
+                load: LoadOp::Load,
+                store: StoreOp::Store,
+            },
+        })];
         let timestamps = frame
             .queries
             .as_deref()
-            .map(|q| q.compute(probe::CULL_SECOND, &frame.timings));
-        let mut pass = ctx
-            .command_encoder()
-            .begin_compute_pass(&ComputePassDescriptor {
-                label: Some("terrain cull second"),
-                timestamp_writes: timestamps,
-            });
-        pass.set_bind_group(1, &terrain.binds.cull, &[]);
-        for group in LayerGroup::ALL {
-            cull_group(&mut pass, terrain, group, second, &frame.streams);
+            .map(|q| q.render(probe::WORLD_SECOND, &frame.timings));
+        let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
+            label: Some("world second"),
+            color_attachments: &color_attachments,
+            depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                view: depth.view(),
+                depth_ops: Some(Operations {
+                    load: LoadOp::Load,
+                    store: StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: timestamps,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        let span = diagnostics.pass_span(&mut pass, "world second");
+        if let Some(size) = raster_size {
+            pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
         }
+        let draws = draw_layer_group(
+            &mut pass,
+            terrain,
+            LayerGroup::Opaque,
+            1,
+            &frame.pipeline_cache,
+            &frame.streams,
+            frame.wireframe.0,
+        );
+        frame
+            .counts
+            .terrain_draws
+            .fetch_add(draws, Ordering::Relaxed);
+        span.end(&mut pass);
     }
-    let color_attachments = [Some(RenderPassColorAttachment {
-        view: target.main_texture_view(),
-        depth_slice: None,
-        resolve_target: None,
-        ops: Operations {
-            load: LoadOp::Load,
-            store: StoreOp::Store,
-        },
-    })];
+
+    let Some(terrain) = terrain else {
+        return;
+    };
+    let color_attachments = [Some(target.get_color_attachment())];
     let timestamps = frame
         .queries
         .as_deref()
-        .map(|q| q.render(probe::WORLD_SECOND, &frame.timings));
+        .map(|q| q.render(probe::FORWARD, &frame.timings));
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
-        label: Some("world second"),
+        label: Some("forward"),
         color_attachments: &color_attachments,
-        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-            view: depth.view(),
-            depth_ops: Some(Operations {
-                load: LoadOp::Load,
-                store: StoreOp::Store,
-            }),
-            stencil_ops: None,
-        }),
+        depth_stencil_attachment: Some(depth.get_attachment(StoreOp::Store)),
         timestamp_writes: timestamps,
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    let span = diagnostics.pass_span(&mut pass, "world second");
-    if frame.raster.0 < 1.0 {
-        let size = extracted.viewport.zw().as_vec2() * frame.raster.0;
+    let span = diagnostics.pass_span(&mut pass, "forward");
+    if let Some(size) = raster_size {
         pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
     }
-    let mut draws = 0;
-    for group in LayerGroup::ALL {
+    let mut draws = sky.draw_clouds(&mut pass, view_offset.offset, &frame.pipeline_cache);
+    let phases: &[u64] = if second_cull.is_some() { &[0, 1] } else { &[0] };
+    for &phase in phases {
         draws += draw_layer_group(
             &mut pass,
             terrain,
-            group,
-            1,
+            LayerGroup::Translucent,
+            phase,
             &frame.pipeline_cache,
             &frame.streams,
             frame.wireframe.0,
