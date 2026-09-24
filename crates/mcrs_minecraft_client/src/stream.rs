@@ -1,3 +1,4 @@
+use std::collections::BinaryHeap;
 use std::sync::{Arc, LazyLock};
 
 use crate::columns::{
@@ -92,6 +93,9 @@ pub struct Loader {
     camera: Vec3,
     anchor: Vec3,
     evicted: usize,
+    /// Residents farthest first, as of the camera section it was built in. Entries go stale as
+    /// sections leave and are skipped when they surface.
+    farthest: Option<([i32; 3], BinaryHeap<(u32, [i32; 3])>)>,
     quads: Arena,
     models: Arena,
     faces: Arena,
@@ -247,6 +251,7 @@ impl Loader {
             camera: Vec3::ZERO,
             anchor: Vec3::splat(f32::MAX),
             evicted: 0,
+            farthest: None,
             quads: Arena::new(budget.quads),
             models: Arena::new(budget.models),
             faces: Arena::new(budget.faces),
@@ -360,13 +365,36 @@ impl Loader {
         taken
     }
 
-    fn victim(&self, candidate: f32) -> Option<[i32; 3]> {
-        let farthest = self
-            .sections
-            .residents()
-            .map(|(at, _)| at)
-            .max_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))?;
-        worth_evicting(self.distance(farthest), candidate).then_some(farthest)
+    fn victim(&mut self, candidate: f32) -> Option<[i32; 3]> {
+        let camera = self.camera_section();
+        if self.farthest.as_ref().is_none_or(|(built, _)| *built != camera) {
+            // Distances are never negative, so their bit patterns order the same way they do.
+            let heap = self
+                .sections
+                .residents()
+                .map(|(at, _)| (self.distance(at).to_bits(), at))
+                .collect();
+            self.farthest = Some((camera, heap));
+        }
+        let (_, heap) = self.farthest.as_mut()?;
+        while let Some(&(distance, at)) = heap.peek() {
+            if !matches!(self.sections.states.get(&at), Some(SectionState::Resident(_))) {
+                heap.pop();
+                continue;
+            }
+            return worth_evicting(f32::from_bits(distance), candidate).then(|| {
+                heap.pop();
+                at
+            });
+        }
+        None
+    }
+
+    fn placed(&mut self, at: [i32; 3]) {
+        let distance = self.distance(at).to_bits();
+        if let Some((_, heap)) = &mut self.farthest {
+            heap.push((distance, at));
+        }
     }
 
     fn take_slot(&mut self) -> Option<u32> {
@@ -406,7 +434,6 @@ impl Loader {
         }
         cave.forget(section);
         self.evicted += 1;
-        self.requeue_deferred();
     }
 
     fn follow(&mut self, cave: &mut CaveCull) {
@@ -446,6 +473,9 @@ impl Loader {
                         self.sections.depart(at);
                         self.evict(at, cave);
                     }
+                    // Only a departure frees room nothing else claims: evicting to place a
+                    // nearer mesh or to remesh a relit one hands that room straight back.
+                    self.requeue_deferred();
                 }
                 ColumnChange::Arrived(pos, column) => {
                     self.trace
@@ -1369,6 +1399,7 @@ fn place_meshes(
         loop {
             match loader.place(pending, slot, &mut cave) {
                 Ok(placement) => {
+                    loader.placed(at);
                     if !placement.sections.1.is_empty() {
                         uploads.push(Upload::Geometry(placement));
                     }
