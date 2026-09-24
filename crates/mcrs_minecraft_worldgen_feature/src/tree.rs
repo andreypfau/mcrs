@@ -6,7 +6,7 @@ use super::proto::Holder;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
-use mcrs_minecraft_core::value_provider::{IntProvider, Weighted};
+use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider, Weighted};
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
@@ -251,6 +251,16 @@ pub type BaseHeight = Bounded<0, 32>;
 pub type HeightRand = Bounded<0, 24>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct TrunkWidth(pub BoundedIntProvider<1, { i32::MAX }>);
+
+impl Default for TrunkWidth {
+    fn default() -> Self {
+        TrunkWidth(BoundedIntProvider(IntProvider::Constant(1)))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 pub enum TrunkPlacer {
     #[serde(rename = "minecraft:straight_trunk_placer")]
@@ -258,6 +268,8 @@ pub enum TrunkPlacer {
         base_height: BaseHeight,
         height_rand_a: HeightRand,
         height_rand_b: HeightRand,
+        #[serde(default, skip_serializing_if = "is_default")]
+        trunk_width: TrunkWidth,
     },
     #[serde(rename = "minecraft:forking_trunk_placer")]
     Forking {
@@ -622,6 +634,25 @@ pub struct TreeConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_straight_trunk_is_one_block_wide_unless_it_names_a_positive_width() {
+        let plain = r#"{"type":"minecraft:straight_trunk_placer","base_height":5,"height_rand_a":2,"height_rand_b":0}"#;
+        let placer: TrunkPlacer = serde_json::from_str(plain).unwrap();
+        assert!(
+            matches!(&placer, TrunkPlacer::Straight { trunk_width, .. } if *trunk_width == TrunkWidth::default())
+        );
+        assert_eq!(serde_json::to_string(&placer).unwrap(), plain);
+
+        let wide = r#"{"type":"minecraft:straight_trunk_placer","base_height":5,"height_rand_a":2,"height_rand_b":0,"trunk_width":{"type":"minecraft:uniform","min_inclusive":1,"max_inclusive":2}}"#;
+        let placer: TrunkPlacer = serde_json::from_str(wide).unwrap();
+        assert_eq!(serde_json::to_string(&placer).unwrap(), wide);
+
+        serde_json::from_str::<TrunkPlacer>(
+            r#"{"type":"minecraft:straight_trunk_placer","base_height":5,"height_rand_a":2,"height_rand_b":0,"trunk_width":0}"#,
+        )
+        .unwrap_err();
+    }
 
     /// Neither shape occurs in the shipped corpus, so nothing else covers them.
     #[test]

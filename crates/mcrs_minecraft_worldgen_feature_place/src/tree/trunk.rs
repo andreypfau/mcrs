@@ -201,6 +201,7 @@ impl Trunk {
                 base_height,
                 height_rand_a,
                 height_rand_b,
+                ..
             }
             | Forking {
                 base_height,
@@ -314,15 +315,22 @@ impl Trunk {
         origin: BlockPos,
     ) -> Vec<FoliageAttachment> {
         match &self.placer {
-            TrunkPlacer::Straight { .. } => {
-                cx.place_below_trunk_block(rng, origin - IVec3::Y);
+            TrunkPlacer::Straight { trunk_width, .. } => {
+                let width = trunk_width.0.sample(rng);
+                let north_west = origin - IVec3::new(1, 0, 1) * ((width - 1) / 2);
+                let south_east = origin + IVec3::new(1, 0, 1) * (width / 2);
                 for y in 0..tree_height {
-                    self.place_log(cx, rng, origin + IVec3::Y * y, None);
+                    for z in north_west.z..=south_east.z {
+                        for x in north_west.x..=south_east.x {
+                            let pos = BlockPos::new(x, origin.y + y, z);
+                            self.place_log(cx, rng, pos, None);
+                        }
+                    }
                 }
                 vec![FoliageAttachment::new(
-                    origin + IVec3::Y * tree_height,
+                    north_west + IVec3::Y * tree_height,
                     0,
-                    false,
+                    width == 2,
                 )]
             }
             TrunkPlacer::Forking { .. } => self.place_forking(cx, rng, tree_height, origin),
@@ -1234,6 +1242,27 @@ mod tests {
     }
 
     #[test]
+    fn a_wide_straight_trunk_fills_a_square_hung_from_its_north_west_corner() {
+        let origin = BlockPos::new(8, 64, 8);
+        for (width, corner, double_trunk) in [(2, origin, true), (3, origin - IVec3::new(1, 0, 1), false)] {
+            let trunk = placer(
+                "straight",
+                &format!(r#"{},"trunk_width":{width}"#, base(4, 0, 0)),
+            );
+            let mut attachments = Vec::new();
+            let pin = run(42, |cx, rng| {
+                attachments = trunk.place_trunk(cx, rng, 4, origin);
+            });
+            assert_eq!(pin.writes, (width * width * 4) as usize, "width {width}");
+            assert_eq!(
+                attachments,
+                vec![FoliageAttachment::new(corner + IVec3::Y * 4, 0, double_trunk)],
+                "width {width}"
+            );
+        }
+    }
+
+    #[test]
     fn every_trunk_placer_writes_and_draws_what_it_did() {
         let expected = TRUNK_PINS;
         assert_eq!(
@@ -1325,8 +1354,8 @@ mod tests {
     const TRUNK_PINS: &[(&str, usize, u64, i64, i64)] = &[
         (
             "straight",
-            5,
-            0xe1e676b22b37128c,
+            4,
+            0x2642b079ecac3c45,
             -7542733517267348717,
             8419651034261488620,
         ),
