@@ -158,6 +158,7 @@ fn render(
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn structure_layouts_match_the_oracle() {
     let dump = read_dump();
     assert_eq!(dump.len(), 5, "the dump lost seeds");

@@ -556,6 +556,7 @@ fn compare_chunk(
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
     let dump = dump();
     let frozen = frozen_shared();

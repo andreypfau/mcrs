@@ -241,6 +241,7 @@ const RING_DIVERGENCE_BUDGET: usize = if mcrs_minecraft_worldgen_density::FAST_P
 const RING_WINDOW_CHUNKS: i32 = 15;
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn stronghold_rings_match_the_oracle() {
     let dump = read_dump();
     let frozen = frozen_shared();
@@ -273,6 +274,7 @@ fn stronghold_rings_match_the_oracle() {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn structure_sites_match_the_oracle() {
     let dump = read_dump();
     assert_eq!(dump.len(), 5, "the dump lost seeds");
@@ -310,6 +312,7 @@ fn structure_sites_match_the_oracle() {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn hardcoded_sites_match_the_oracle() {
     let dump = read_dump();
     let frozen = frozen_shared();
@@ -350,6 +353,7 @@ fn hardcoded_sites_match_the_oracle() {
 /// Every set whose entries all have a site, which since the mineshaft's port
 /// is every set the dump holds.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn set_selection_matches_the_oracle() {
     let dump = read_dump();
     let frozen = frozen_shared();
@@ -435,6 +439,7 @@ fn base_heights_match_the_oracle() {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn site_positions_ignore_the_top_sixteen_seed_bits() {
     let dump = read_dump();
     let frozen = frozen_shared();

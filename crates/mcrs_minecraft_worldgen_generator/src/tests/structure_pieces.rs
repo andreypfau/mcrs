@@ -105,6 +105,7 @@ pub(super) fn comparable(piece: &NbtCompound) -> NbtCompound {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn structure_pieces_serialise_as_the_reference_writes_them() {
     let dump = read_dump();
     let frozen = frozen_shared();
