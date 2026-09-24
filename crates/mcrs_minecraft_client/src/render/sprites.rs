@@ -7,7 +7,7 @@ use super::texture::{
     AtlasSlot, AtlasWriter, array_view, atlas_sampler, atlas_staging, blank_atlas, create_lightmap,
     create_tints,
 };
-use super::{Animation, Budget, SpriteEntry, SpriteUpload};
+use super::{Animation, Budget, PinnedTick, SpriteEntry, SpriteUpload};
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 
 const TICKS_PER_SECOND: f64 = 20.0;
@@ -145,13 +145,17 @@ const FIRST_STAGING_BYTES: u64 = 1 << 20;
 pub(super) fn write_animation_frames(
     terrain: Option<ResMut<Terrain>>,
     time: Res<Time>,
+    pinned: Option<Res<PinnedTick>>,
     queue: Res<RenderQueue>,
 ) {
     let Some(mut terrain) = terrain else {
         return;
     };
     let sprites = &mut terrain.sprites;
-    let ticks = time.elapsed_secs_f64() * TICKS_PER_SECOND;
+    let ticks = match pinned {
+        Some(pinned) => pinned.0 as f64,
+        None => time.elapsed_secs_f64() * TICKS_PER_SECOND,
+    };
     let mut changed = false;
     for (animation, written) in sprites.animations.iter().zip(&mut sprites.written) {
         let frame = animation.at(ticks);

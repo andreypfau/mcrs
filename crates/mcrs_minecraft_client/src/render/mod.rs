@@ -141,6 +141,10 @@ pub struct Occlusion(pub bool);
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Brightness(pub f32);
 
+/// The tick texture animation shows instead of following real time.
+#[derive(Resource, Clone, Copy, ExtractResource)]
+pub struct PinnedTick(pub i64);
+
 pub fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<Wireframe>) {
     if keys.just_pressed(KeyCode::F10) {
         wireframe.0 = !wireframe.0;
@@ -189,6 +193,7 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<Streams>::default())
             .add_plugins(ExtractResourcePlugin::<Raster>::default())
+            .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())
             .insert_resource(triangles.clone())
             .insert_resource(timings.clone())
             .insert_resource(cpu.clone())

@@ -91,5 +91,8 @@ impl Plugin for ClientTerrainPlugin {
                 PostUpdate,
                 cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
             );
+        if let Some(tick) = config::frozen_time() {
+            app.insert_resource(render::PinnedTick(tick));
+        }
     }
 }
