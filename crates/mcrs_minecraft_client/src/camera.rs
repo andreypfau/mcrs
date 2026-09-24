@@ -1,12 +1,11 @@
 use bevy::math::DVec3;
 use bevy::prelude::*;
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 
 use mcrs_minecraft_level::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
-use crate::columns::SECTION_SIZE;
 use crate::local_player::{LocalPlayerTick, Sprint};
 use crate::player::{EYE_HEIGHT, Player, PlayerCamera, pitch_rotation, yaw_rotation};
+use crate::render::CameraOrigin;
 
 /// Vanilla's `Options` default. `fovEffectScale` stays at its default 1.0, which collapses
 /// `Mth.lerp(scale, 1.0, modifier)` to `modifier`.
@@ -37,35 +36,11 @@ impl Default for FovFilter {
     }
 }
 
-/// The camera split into the section it stands in and where it stands inside that section, so
-/// the terrain shaders never need an absolute world coordinate in f32.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, ExtractResource)]
-pub struct CameraOrigin {
-    pub section: IVec3,
-    pub offset: Vec3,
-}
-
-impl CameraOrigin {
-    pub fn of(eye: DVec3) -> Self {
-        let section = (eye / SECTION_SIZE as f64).floor();
-        Self {
-            section: section.as_ivec3(),
-            offset: (eye - section * SECTION_SIZE as f64).as_vec3(),
-        }
-    }
-
-    /// Subtracted in i32, so a block at the edge of the world still lands where it belongs.
-    pub fn relative(&self, block: IVec3) -> Vec3 {
-        (block - self.section * SECTION_SIZE as i32).as_vec3()
-    }
-}
-
 pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CameraOrigin>()
-            .add_plugins(ExtractResourcePlugin::<CameraOrigin>::default())
             .add_systems(FixedUpdate, tick_fov.after(LocalPlayerTick))
             .add_systems(
                 Update,
@@ -132,17 +107,6 @@ fn apply_fov(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_far_section_keeps_the_precision_an_absolute_f32_has_lost() {
-        let eye = DVec3::new(30_000_000.5, 16_777_216.25, -30_000_000.5);
-        let origin = CameraOrigin::of(eye);
-        let far = (origin.section + IVec3::new(96, 0, -96)) * SECTION_SIZE as i32;
-        let truth = (far.as_dvec3() - eye).as_vec3();
-
-        assert_eq!(origin.relative(far) - origin.offset, truth);
-        assert_ne!(far.as_vec3() - eye.as_vec3(), truth);
-    }
 
     #[test]
     fn the_field_of_view_eases_halfway_to_the_sprint_target_each_tick() {

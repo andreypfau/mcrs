@@ -1,5 +1,7 @@
+use bevy::math::DVec3;
 use bevy::math::primitives::ViewFrustum;
 use bevy::prelude::*;
+use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::view::ExtractedView;
@@ -8,11 +10,32 @@ use super::Occlusion;
 use super::draws::PARAMS_STRIDE;
 use super::stats::args_reset;
 use super::terrain::Terrain;
-use crate::camera::CameraOrigin;
-use crate::columns::SECTION_SIZE;
-use mcrs_minecraft_mesh::STREAMS;
+use mcrs_minecraft_mesh::{SECTION_SIZE, STREAMS};
 
 use super::Budget;
+
+/// The camera split into the section it stands in and where it stands inside that section, so
+/// the terrain shaders never need an absolute world coordinate in f32.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, ExtractResource)]
+pub struct CameraOrigin {
+    pub section: IVec3,
+    pub offset: Vec3,
+}
+
+impl CameraOrigin {
+    pub fn of(eye: DVec3) -> Self {
+        let section = (eye / SECTION_SIZE as f64).floor();
+        Self {
+            section: section.as_ivec3(),
+            offset: (eye - section * SECTION_SIZE as f64).as_vec3(),
+        }
+    }
+
+    /// Subtracted in i32, so a block at the edge of the world still lands where it belongs.
+    pub fn relative(&self, block: IVec3) -> Vec3 {
+        (block - self.section * SECTION_SIZE as i32).as_vec3()
+    }
+}
 
 /// The frame's view, expressed against the origin of the section the camera stands in. Nothing
 /// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
@@ -150,6 +173,17 @@ mod tests {
 
     fn ndc(clip: Vec4) -> Vec2 {
         clip.xy() / clip.w
+    }
+
+    #[test]
+    fn a_far_section_keeps_the_precision_an_absolute_f32_has_lost() {
+        let eye = DVec3::new(30_000_000.5, 16_777_216.25, -30_000_000.5);
+        let origin = CameraOrigin::of(eye);
+        let far = (origin.section + IVec3::new(96, 0, -96)) * SECTION_SIZE as i32;
+        let truth = (far.as_dvec3() - eye).as_vec3();
+
+        assert_eq!(origin.relative(far) - origin.offset, truth);
+        assert_ne!(far.as_vec3() - eye.as_vec3(), truth);
     }
 
     /// A block a render distance away, seen from the far edge of the world. Against an f64

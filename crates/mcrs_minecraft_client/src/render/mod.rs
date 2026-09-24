@@ -30,6 +30,7 @@ use bevy::render::{ExtractSchedule, Render, RenderApp, RenderStartup, RenderSyst
 use crate::probe::{self, CpuTimings, GpuTimings};
 use mcrs_minecraft_mesh::STREAMS;
 
+pub use frame::CameraOrigin;
 pub use stats::{DrawnTriangles, FrameCounts};
 pub use upload::{Placement, Upload, Uploads};
 
@@ -200,7 +201,8 @@ impl Plugin for TerrainPlugin {
         let timings = GpuTimings::default();
         let cpu = CpuTimings::default();
         let counts = FrameCounts::default();
-        app.init_resource::<Wireframe>()
+        app.init_resource::<CameraOrigin>()
+            .init_resource::<Wireframe>()
             .init_resource::<Occlusion>()
             .init_resource::<Brightness>()
             .init_resource::<Streams>()
@@ -211,6 +213,7 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<Streams>::default())
             .add_plugins(ExtractResourcePlugin::<Raster>::default())
             .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())
+            .add_plugins(ExtractResourcePlugin::<CameraOrigin>::default())
             .insert_resource(triangles.clone())
             .insert_resource(timings.clone())
             .insert_resource(cpu.clone())
