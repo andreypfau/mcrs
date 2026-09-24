@@ -1,0 +1,3 @@
+# <name> MCRS_<KNOB>=<value> ...
+# Positions refer to the world given to parity.sh.
+spawn_noon MCRS_TIME=6000

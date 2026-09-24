@@ -40,6 +40,10 @@ impl Plugin for ScreenshotPlugin {
         app.insert_resource(ScreenshotDir(dir))
             .add_systems(Startup, prepare_dir)
             .add_systems(Update, capture);
+        if let Some(path) = crate::config::capture_path() {
+            app.insert_resource(SceneCapture(path))
+                .add_systems(Update, capture_scene);
+        }
         #[cfg(feature = "telemetry-tracy")]
         if crate::config::tracy_preview() {
             app.init_resource::<tracy_preview::Preview>()
@@ -86,6 +90,69 @@ fn capture(
             .spawn(Screenshot::primary_window())
             .observe(copy_to_clipboard);
     }
+}
+
+/// Where a scripted run writes its one screenshot of the settled scene.
+#[derive(Resource)]
+pub struct SceneCapture(pub PathBuf);
+
+#[derive(Resource)]
+struct SceneCaptured;
+
+const SETTLE_SECS: f32 = 3.0;
+
+const SETTLE_TIMEOUT_SECS: f32 = 180.0;
+
+#[derive(Default)]
+struct Settling {
+    quiet_since: Option<f32>,
+    last: (usize, usize, usize),
+    requested: bool,
+}
+
+/// `Streaming::done` also holds in the gaps between the server's batches, so the
+/// scene counts as settled only once it has stayed done with nothing new arriving.
+fn capture_scene(
+    mut commands: Commands,
+    capture: Res<SceneCapture>,
+    streaming: crate::stream::Streaming,
+    time: Res<Time<Real>>,
+    captured: Option<Res<SceneCaptured>>,
+    mut settling: Local<Settling>,
+) {
+    if captured.is_some() {
+        commands.write_message(AppExit::Success);
+        return;
+    }
+    if settling.requested {
+        return;
+    }
+    let now = time.elapsed_secs();
+    if now > SETTLE_TIMEOUT_SECS {
+        error!(path = %capture.0.display(), "the scene did not settle within 180 s");
+        commands.write_message(AppExit::error());
+        return;
+    }
+    let status = streaming.status();
+    let counts = (status.columns, status.sections, status.sections_total);
+    let quiet = streaming.done() && status.columns > 0 && counts == settling.last;
+    settling.last = counts;
+    if !quiet {
+        settling.quiet_since = None;
+        return;
+    }
+    let since = *settling.quiet_since.get_or_insert(now);
+    if now - since < SETTLE_SECS {
+        return;
+    }
+    info!(path = %capture.0.display(), "capturing the settled scene");
+    commands
+        .spawn(Screenshot::primary_window())
+        .observe(save_to_disk(capture.0.clone()))
+        .observe(|_: On<ScreenshotCaptured>, mut commands: Commands| {
+            commands.insert_resource(SceneCaptured);
+        });
+    settling.requested = true;
 }
 
 fn copy_to_clipboard(captured: On<ScreenshotCaptured>, mut clipboard: ResMut<Clipboard>) {

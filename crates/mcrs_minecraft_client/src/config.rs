@@ -314,6 +314,17 @@ pub fn gputrace_path() -> Option<String> {
     knob("GPUTRACE")
 }
 
+/// `CAPTURE=<file>.png` waits for streaming to settle, writes one screenshot there and exits.
+pub fn capture_path() -> Option<std::path::PathBuf> {
+    let spec = knob("CAPTURE")?;
+    let path = std::path::PathBuf::from(&spec);
+    if path.extension().is_some_and(|extension| extension == "png") {
+        Some(path)
+    } else {
+        reject("CAPTURE", &spec, "expected a path ending in .png")
+    }
+}
+
 /// Vanilla's "Smooth Lighting": ambient occlusion and light blended across each face. Off draws
 /// every face at the flat light in front of it.
 pub fn smooth_lighting() -> bool {
