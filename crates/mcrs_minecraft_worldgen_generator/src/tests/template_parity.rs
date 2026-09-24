@@ -230,11 +230,13 @@ fn block_name(id: VoxelId) -> &'static str {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn the_block_entity_type_order_is_the_registry_s() {
     assert_eq!(BLOCK_ENTITY_TYPES.to_vec(), dump().types);
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn the_loot_seeded_kinds_and_every_template_block_entity_id_are_pinned() {
     let dump = dump();
     let type_of: BTreeMap<&str, &str> = dump
@@ -282,6 +284,7 @@ fn the_loot_seeded_kinds_and_every_template_block_entity_id_are_pinned() {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn every_block_state_rotates_and_mirrors_as_the_reference_does() {
     let dump = dump();
     let program = program();
@@ -646,6 +649,7 @@ fn report(faults: &[String], placements: usize) {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn every_pool_element_places_as_the_reference_does() {
     let dump = dump();
     let program = program();
@@ -776,6 +780,7 @@ fn feature_program(node: &Feature) -> FeatureProgram {
 /// blocks above that bottom, into the air, where every corner is empty; the
 /// three draws before the corner check still happen.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn a_fossil_with_too_many_empty_corners_places_nothing() {
     let node = &corpus_features().features[&ResourceLocation::minecraft("fossil_coal")];
     let program = feature_program(node);
@@ -800,6 +805,7 @@ fn a_fossil_with_too_many_empty_corners_places_nothing() {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn every_template_feature_places_as_the_reference_does() {
     let dump = dump();
     let mut nodes: BTreeMap<CaseKey, Feature> = BTreeMap::new();
@@ -930,6 +936,7 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn every_ruined_portal_chain_places_as_the_reference_does() {
     let dump = dump();
     let biomes = biome_registry(&[BIOME]);

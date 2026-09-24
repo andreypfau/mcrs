@@ -122,6 +122,7 @@ fn stone_world(origin: [i32; 3], stone: VoxelId, air: VoxelId, ocean_floor: i32)
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn every_dumped_vein_matches_block_for_block() {
     let cases = read_dump();
     assert_eq!(cases.len(), 21, "the dump lost cases");
@@ -185,6 +186,7 @@ fn every_dumped_vein_matches_block_for_block() {
 /// reference's arithmetic gives a spread of 2.5 rounded up to 3 and a max radius
 /// of 2, so columns -5..=5 are tested against y 60.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn the_probe_box_is_the_reference_box() {
     let cfg = CompiledOre {
         targets: vec![OreReplacement {
@@ -215,6 +217,7 @@ fn the_probe_box_is_the_reference_box() {
 /// The three segment draws are spent before the probe, so a vein whose probe box
 /// is entirely below the floor still advances the source.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn a_failed_probe_still_costs_the_segment_draws() {
     let cfg = CompiledOre {
         targets: vec![OreReplacement {

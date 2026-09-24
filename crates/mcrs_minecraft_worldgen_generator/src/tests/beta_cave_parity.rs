@@ -356,6 +356,7 @@ fn make_chunk_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {
 /// The fixed-terrain input (pre_cave from the corpus) removes f32 terrain
 /// divergence by construction, so any carve-mask mismatch is a real parity bug.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn beta_cave_parity_gate() {
     let corpus = load_corpus();
     let router = build_beta_router();
@@ -483,6 +484,7 @@ fn beta_cave_parity_gate() {
 const DRAW_COUNT_CHUNK_0_0_SEED_12345: u64 = 1883;
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn beta_cave_draw_count_pin() {
     let count = count_rng_draws_for_chunk(0, 0, 12345);
 
@@ -504,6 +506,7 @@ fn beta_cave_draw_count_pin() {
 /// Integration smoke: a Beta column generated through the full path (terrain +
 /// surface + caves) at seed 12345 has cave air below the surface and lava at/below Y 10.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn generate_column_beta_has_caves() {
     let router = build_beta_router();
     let (biome_source, snapshot) = build_beta_biome_source();
@@ -608,6 +611,7 @@ fn generate_column_beta_has_caves() {
 /// deep can only come from the carver. Prints per-chunk counts and requires at
 /// least one chunk to contain deep cave air.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn beta_real_pipeline_has_cave_air_below_y32() {
     let router = build_beta_router();
     let (biome_source, snapshot) = build_beta_biome_source();

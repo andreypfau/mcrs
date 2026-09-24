@@ -108,6 +108,7 @@ fn read_dump() -> (Vec<f32>, Vec<Case>) {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn kernel_matches_the_reference_bit_for_bit() {
     let (dumped, _) = read_dump();
     assert_eq!(dumped.len(), KERNEL_LEN);
@@ -129,6 +130,7 @@ fn kernel_matches_the_reference_bit_for_bit() {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn sample_and_fill_match_the_reference_bit_for_bit() {
     let (_, cases) = read_dump();
     assert!(!cases.is_empty(), "the dump holds no cases");

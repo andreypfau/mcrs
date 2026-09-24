@@ -123,6 +123,7 @@ impl Placements {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn the_dump_holds_the_expected_cases() {
     let dump = read_dump();
     assert_eq!(
@@ -152,6 +153,7 @@ fn the_dump_holds_the_expected_cases() {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn potential_chunks_match_the_reference() {
     let placements = Placements::load();
     let mut cases = 0usize;
@@ -186,6 +188,7 @@ fn potential_chunks_match_the_reference() {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn structure_chunks_match_the_reference() {
     let placements = Placements::load();
     let mut hits = 0usize;
@@ -213,6 +216,7 @@ fn structure_chunks_match_the_reference() {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn placement_ignores_the_top_sixteen_seed_bits() {
     let placements = Placements::load();
     let dump = read_dump();

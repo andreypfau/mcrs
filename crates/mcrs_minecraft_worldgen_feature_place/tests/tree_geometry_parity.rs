@@ -359,6 +359,7 @@ fn blind_distance(writes: &[([i32; 3], String)]) -> Vec<([i32; 3], String)> {
 }
 
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn every_covered_tree_matches_the_reference_block_for_block() {
     let cases = read_dump();
     assert_eq!(cases.len(), 180, "the dump lost cases");

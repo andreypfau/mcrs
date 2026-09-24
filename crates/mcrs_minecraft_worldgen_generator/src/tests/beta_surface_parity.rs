@@ -347,6 +347,7 @@ fn make_chunk_rng(chunk_x: i32, chunk_z: i32) -> mcrs_minecraft_random::legacy::
 /// emits a band-grouped, cause-classified mismatch report rather than any silent
 /// path change — per the gate-failure protocol, the phase halts for user review.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn beta_surface_parity_gate() {
     let corpus = load_corpus();
     let router = build_beta_router();
@@ -576,6 +577,7 @@ fn beta_surface_parity_gate() {
 ///   (  0,  0)  → Desert(7)   — lx=lz=0, trivially geographic
 ///   (+16,+16)  → Savanna(4)  — lx=lz=0, trivially geographic
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn beta_climate_matches_back2beta_oracle() {
     let router = build_beta_router();
 

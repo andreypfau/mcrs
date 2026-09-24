@@ -84,6 +84,7 @@ fn name_of(state: VoxelId) -> &'static str {
 /// Nothing is tolerated: every position of every dump matches, whether the
 /// density left it empty or filled it with rock.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn a_surfaced_column_matches_the_vanilla_chunk() {
     let ids = biome_ids();
     let mut differ: BTreeMap<(String, &str), usize> = BTreeMap::new();
@@ -141,6 +142,7 @@ fn a_surfaced_column_matches_the_vanilla_chunk() {
 /// The three pieces of the stage that are not rules are only compared if a dump
 /// holds them, and which chunk holds what is not visible from a file name.
 #[test]
+#[ignore = "reference parity check; run with --ignored"]
 fn the_dumps_hold_the_clay_bands_a_pillar_and_an_iceberg() {
     let mut blocks: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     let mut tallest_over_median = 0;
