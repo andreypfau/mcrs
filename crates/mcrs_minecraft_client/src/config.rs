@@ -479,6 +479,7 @@ pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull) {
         faces: face_mb * limits.arena_scale * 1_000_000 / FACE_BYTES,
         groups: limits.groups,
         sections: limits.sections,
+        upload: upload_budget(),
         tint_size: [limits.tint_span; 2],
     });
 

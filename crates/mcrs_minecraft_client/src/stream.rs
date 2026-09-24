@@ -1503,6 +1503,7 @@ mod tests {
             faces: 1 << 16,
             groups: 1 << 12,
             sections: 1 << 8,
+            upload: 0,
             tint_size: [512; 2],
         })
     }
@@ -1614,6 +1615,7 @@ mod tests {
             faces: 1 << 16,
             groups: 1 << 12,
             sections: 1 << 12,
+            upload: 0,
             tint_size: [512; 2],
         });
         let mut cave = CaveCull::new(1 << 12);
@@ -1683,6 +1685,7 @@ mod tests {
             faces: 1 << 14,
             groups: 1 << 12,
             sections: 1 << 10,
+            upload: 0,
             tint_size: [512; 2],
         });
         let mut cave = CaveCull::new(1 << 10);
@@ -1729,6 +1732,7 @@ mod tests {
             faces: 1 << 16,
             groups: 1 << 12,
             sections: 1 << 13,
+            upload: 0,
             tint_size: [512; 2],
         });
         let mut cave = CaveCull::new(1 << 13);

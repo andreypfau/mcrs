@@ -15,9 +15,7 @@ use super::arenas::Arenas;
 use super::stats::FrameCounts;
 use super::terrain::Terrain;
 use super::texture::write_tint_square;
-use super::{SectionDesc, SpriteUpload};
-
-static BUDGET: std::sync::LazyLock<usize> = std::sync::LazyLock::new(crate::config::upload_budget);
+use super::{SectionDesc, SpriteUpload, TerrainBudget};
 
 pub enum Upload {
     Tints {
@@ -62,10 +60,10 @@ impl Uploads {
 pub(super) struct Staging(Mutex<StagingBelt>);
 
 impl Staging {
-    pub fn new(device: &RenderDevice) -> Self {
+    pub fn new(device: &RenderDevice, upload: usize) -> Self {
         Self(Mutex::new(StagingBelt::new(
             device.wgpu_device().clone(),
-            *BUDGET as u64,
+            upload as u64,
         )))
     }
 }
@@ -126,6 +124,7 @@ pub(super) struct UploadParams<'w> {
     queue: Res<'w, RenderQueue>,
     pipeline_cache: Res<'w, PipelineCache>,
     counts: Res<'w, FrameCounts>,
+    budget: Res<'w, TerrainBudget>,
 }
 
 pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEncoder) {
@@ -137,13 +136,15 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
         queue,
         pipeline_cache,
         counts,
+        budget,
     } = params;
     let (Some(terrain), Some(staging)) = (terrain.as_mut(), staging) else {
         return;
     };
     let terrain = terrain.as_mut();
     let mut belt = staging.0.lock().unwrap();
-    let mut budget = *BUDGET;
+    let limit = budget.upload;
+    let mut budget = limit;
 
     while budget > 0 {
         if terrain.arenas.pending.is_none() {
@@ -231,7 +232,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
         belt.finish();
     }
     counts.upload_bytes.store(
-        (*BUDGET - budget).try_into().unwrap_or(u32::MAX),
+        (limit - budget).try_into().unwrap_or(u32::MAX),
         Ordering::Relaxed,
     );
     let _flushing = info_span!("upload flush params").entered();

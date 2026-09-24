@@ -78,7 +78,7 @@ pub(super) fn init_terrain(
     );
     let pipelines = Pipelines::new(Shaders::load(&asset_server), &binds, &pipeline_cache);
 
-    commands.insert_resource(super::upload::Staging::new(&device));
+    commands.insert_resource(super::upload::Staging::new(&device, budget.upload));
     commands.insert_resource(Terrain {
         cull_grid: super::pass::cull_grid(&device.limits()),
         list: DrawList::new(),

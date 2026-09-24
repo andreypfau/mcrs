@@ -76,13 +76,18 @@ impl Plugin for ClientTerrainPlugin {
     fn build(&self, app: &mut App) {
         let (budget, uploads, cave) = config::terrain(self.0);
         app.add_plugins(render::TerrainPlugin(budget.clone(), uploads.clone()))
+            .insert_resource(config::wireframe())
+            .insert_resource(config::occlusion())
+            .insert_resource(render::Brightness(config::brightness()))
+            .insert_resource(config::drawn_streams())
+            .insert_resource(config::raster_fraction())
             .add_plugins(stream::StreamPlugin::new(budget, uploads))
             .insert_resource(cave)
             .add_systems(
                 Update,
                 (
                     cave::toggle,
-                    render::toggle_wireframe,
+                    toggle_wireframe,
                     #[cfg(target_os = "macos")]
                     capture::gputrace,
                 ),
@@ -94,5 +99,11 @@ impl Plugin for ClientTerrainPlugin {
         if let Some(tick) = config::frozen_time() {
             app.insert_resource(render::PinnedTick(tick));
         }
+    }
+}
+
+fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<render::Wireframe>) {
+    if keys.just_pressed(KeyCode::F10) {
+        wireframe.0 = !wireframe.0;
     }
 }

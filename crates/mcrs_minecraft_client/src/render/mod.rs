@@ -53,6 +53,8 @@ pub struct Budget {
     pub faces: usize,
     pub groups: usize,
     pub sections: usize,
+    /// Bytes copied to the GPU per frame at most.
+    pub upload: usize,
     /// The tint texture is a window of this many blocks a side that the world wraps into, so
     /// it follows the camera for nothing; it only has to be wider than what is resident.
     pub tint_size: [u32; 2],
@@ -140,19 +142,25 @@ pub struct Wireframe(pub bool);
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Occlusion(pub bool);
 
+impl Default for Occlusion {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 /// Vanilla's Brightness slider, from 0 (Moody) to 1 (Bright).
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Brightness(pub f32);
 
+impl Default for Brightness {
+    fn default() -> Self {
+        Self(0.5)
+    }
+}
+
 /// The tick texture animation shows instead of following real time.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct PinnedTick(pub i64);
-
-pub fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<Wireframe>) {
-    if keys.just_pressed(KeyCode::F10) {
-        wireframe.0 = !wireframe.0;
-    }
-}
 
 #[derive(Resource, Deref)]
 struct TerrainBudget(Arc<Budget>);
@@ -186,11 +194,11 @@ impl Plugin for TerrainPlugin {
         let timings = GpuTimings::default();
         let cpu = CpuTimings::default();
         let counts = FrameCounts::default();
-        app.insert_resource(crate::config::wireframe())
-            .insert_resource(crate::config::occlusion())
-            .insert_resource(Brightness(crate::config::brightness()))
-            .insert_resource(crate::config::drawn_streams())
-            .insert_resource(crate::config::raster_fraction())
+        app.init_resource::<Wireframe>()
+            .init_resource::<Occlusion>()
+            .init_resource::<Brightness>()
+            .init_resource::<Streams>()
+            .init_resource::<Raster>()
             .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
