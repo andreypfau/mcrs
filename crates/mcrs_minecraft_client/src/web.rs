@@ -17,6 +17,7 @@ use crate::config::TerrainLimits;
 use crate::render::TerrainPlugin;
 use crate::{
     camera, cave, config, gui, input, local_player, player, render, sky, sky_render, stream,
+    vanilla,
 };
 
 pub const CANVAS: &str = "#mcrs";
@@ -99,6 +100,7 @@ pub fn run() {
 
     let mut app = App::new();
     register_asset_source(&mut app);
+    vanilla::register(&mut app);
     app.add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
@@ -108,6 +110,7 @@ pub fn run() {
             .disable::<bevy::pbr::PbrPlugin>()
             .disable::<bevy::light::LightPlugin>(),
     )
+    .add_plugins(vanilla::VanillaAssetsPlugin)
     .add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin)
     .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)
     .add_plugins(player::PlayerPlugin)

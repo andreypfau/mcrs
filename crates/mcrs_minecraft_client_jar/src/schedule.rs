@@ -9,6 +9,7 @@ pub(crate) const DIRECTORY: u32 = 1;
 pub(crate) const FONTS: u32 = 2;
 pub(crate) const TEXTURES: u32 = 3;
 pub(crate) const ASSETS: u32 = 4;
+#[cfg(not(target_family = "wasm"))]
 pub(crate) const REST: u32 = 5;
 
 const CHUNK: u64 = 1 << 20;
@@ -18,6 +19,7 @@ const CHUNK: u64 = 1 << 20;
 pub(crate) struct Ranges(Vec<Range<u64>>);
 
 impl Ranges {
+    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Range<u64>> {
         self.0.iter()
     }
@@ -110,6 +112,7 @@ pub(crate) struct Queue {
 }
 
 impl Queue {
+    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn resume(held: Ranges) -> Self {
         Self {
             claimed: held.clone(),
@@ -118,6 +121,7 @@ impl Queue {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn held(&self) -> &Ranges {
         &self.held
     }

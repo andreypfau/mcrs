@@ -3602,6 +3602,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing-tracy 0.12.0",
+ "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
 ]
@@ -3611,12 +3612,16 @@ name = "mcrs_minecraft_client_jar"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "js-sys",
  "serde",
  "serde_json",
  "sha1",
  "tracing",
  "tracing-subscriber",
  "ureq",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
  "zip",
 ]
 

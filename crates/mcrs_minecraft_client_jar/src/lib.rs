@@ -10,10 +10,14 @@ mod fonts;
 #[cfg(not(target_family = "wasm"))]
 mod native;
 mod schedule;
+#[cfg(target_family = "wasm")]
+mod web;
 
 pub use fonts::{FontHint, font_files};
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;
+#[cfg(target_family = "wasm")]
+pub use web::fetch;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Artifact<'a> {

@@ -54,7 +54,10 @@ pub fn register(app: &mut App) {
         unpacked.clone(),
     ));
     #[cfg(target_family = "wasm")]
-    let worker = None;
+    let worker = {
+        spawn_web(root, progress.clone(), fonts.clone(), unpacked.clone());
+        None
+    };
     app.insert_resource(Fetch {
         progress,
         fonts,
@@ -85,6 +88,23 @@ fn spawn(
             }
         })
         .expect("a thread for the client jar")
+}
+
+#[cfg(target_family = "wasm")]
+fn spawn_web(
+    root: Dir,
+    progress: Arc<Progress>,
+    fonts: Arc<Mutex<Option<Files>>>,
+    unpacked: Arc<AtomicBool>,
+) {
+    wasm_bindgen_futures::spawn_local(async move {
+        let files = client_jar::fetch(&progress, is_resource, |files| {
+            *fonts.lock().unwrap() = Some(files);
+        })
+        .await;
+        fill(&root, files);
+        unpacked.store(true, Ordering::Release);
+    });
 }
 
 pub fn register_source(app: &mut App, root: Dir) {
