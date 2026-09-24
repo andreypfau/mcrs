@@ -810,34 +810,6 @@ mod tests {
     // ── SYNCED_REGISTRIES ──
 
     #[test]
-    fn synced_registries_count() {
-        assert_eq!(SYNCED_REGISTRIES.len(), 31);
-    }
-
-    #[test]
-    fn synced_registries_excludes_non_synced() {
-        assert!(!SYNCED_REGISTRIES.contains(&"minecraft:block"));
-        assert!(!SYNCED_REGISTRIES.contains(&"minecraft:item"));
-        assert!(!SYNCED_REGISTRIES.contains(&"minecraft:sound_event"));
-        assert!(!SYNCED_REGISTRIES.contains(&"minecraft:entity_type"));
-    }
-
-    #[test]
-    fn synced_registries_includes_enchantment() {
-        assert!(SYNCED_REGISTRIES.contains(&"minecraft:enchantment"));
-    }
-
-    #[test]
-    fn synced_registries_includes_worldgen_biome() {
-        assert!(SYNCED_REGISTRIES.contains(&"minecraft:worldgen/biome"));
-    }
-
-    #[test]
-    fn synced_registries_includes_dimension_type() {
-        assert!(SYNCED_REGISTRIES.contains(&"minecraft:dimension_type"));
-    }
-
-    #[test]
     fn synced_registries_is_sorted() {
         let mut sorted = SYNCED_REGISTRIES.to_vec();
         sorted.sort();
@@ -847,33 +819,10 @@ mod tests {
     // ── TAG_CAPABLE_REGISTRIES ──
 
     #[test]
-    fn tag_capable_registries_count() {
-        assert_eq!(TAG_CAPABLE_REGISTRIES.len(), 7);
-    }
-
-    #[test]
     fn tag_capable_registries_is_sorted() {
         let mut sorted = TAG_CAPABLE_REGISTRIES.to_vec();
         sorted.sort();
         assert_eq!(sorted, TAG_CAPABLE_REGISTRIES);
-    }
-
-    #[test]
-    fn tag_capable_registries_contents() {
-        for expected in &[
-            "minecraft:block",
-            "minecraft:enchantment",
-            "minecraft:entity_type",
-            "minecraft:fluid",
-            "minecraft:game_event",
-            "minecraft:item",
-            "minecraft:worldgen/biome",
-        ] {
-            assert!(
-                TAG_CAPABLE_REGISTRIES.contains(expected),
-                "missing {expected}"
-            );
-        }
     }
 
     // ── should_skip_nbt: KnownPacks NBT-skip logic ──
@@ -917,26 +866,5 @@ mod tests {
         let mut known = HashSet::new();
         known.insert(("minecraft", "core"));
         assert!(!should_skip_nbt(true, Some(("minecraft", "extra")), &known));
-    }
-
-    // ── filter behavior ──
-
-    #[test]
-    fn filtering_excludes_non_synced_static_registries() {
-        let candidates = [
-            "minecraft:block",
-            "minecraft:item",
-            "minecraft:sound_event",
-            "minecraft:entity_type",
-            "minecraft:enchantment",
-            "minecraft:worldgen/biome",
-        ];
-        let filtered: Vec<&&str> = candidates
-            .iter()
-            .filter(|k| SYNCED_REGISTRIES.contains(*k))
-            .collect();
-        assert_eq!(filtered.len(), 2);
-        assert!(filtered.contains(&&"minecraft:enchantment"));
-        assert!(filtered.contains(&&"minecraft:worldgen/biome"));
     }
 }

@@ -368,7 +368,7 @@ fn crossing<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>, two_f
         (max.x - 1, min.z + 1),
         (max.x - 1, max.z - 1),
     ] {
-        if !is_air(c, x, max.y + 1, z) {
+        if !c.is_air(x, max.y + 1, z) {
             c.generate_box([x, min.y, z], [x, max.y, z], &b.planks, &b.cave_air, false);
         }
     }
@@ -377,11 +377,6 @@ fn crossing<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut Canvas<'_, W>, two_f
             set_planks(b, c, x, min.y - 1, z);
         }
     }
-}
-
-fn is_air<W: WorldGenVolume>(c: &Canvas<'_, W>, x: i32, y: i32, z: i32) -> bool {
-    let state = c.get(x, y, z);
-    c.volume.world().air_states.contains(state.0 as usize)
 }
 
 fn corridor<W: WorldGenVolume>(
@@ -478,7 +473,7 @@ fn place_support<W: WorldGenVolume>(
     rng: &mut WorldgenRandom,
     z: i32,
 ) {
-    if (0..=2).any(|x| is_air(c, x, 3, z)) {
+    if (0..=2).any(|x| c.is_air(x, 3, z)) {
         return;
     }
     c.generate_box([0, 0, z], [0, 1, z], &b.fence_west, &b.cave_air, false);

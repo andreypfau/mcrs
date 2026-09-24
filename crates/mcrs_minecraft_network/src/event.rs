@@ -46,7 +46,6 @@ mod loop_plugin {
     use bevy_app::{App, Plugin, Update};
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::Commands;
-    use bevy_ecs::schedule::ScheduleLabel;
     use bevy_ecs::system::Query;
     use tracing::warn;
 
@@ -54,14 +53,9 @@ mod loop_plugin {
 
     impl Plugin for EventLoopPlugin {
         fn build(&self, app: &mut App) {
-            // app.init_schedule(RunEventLoop);
-            // let mut order = app.world_mut().resource_mut::<MainScheduleOrder>();
             app.add_systems(Update, run_event_loop);
         }
     }
-
-    #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
-    pub struct RunEventLoop;
 
     #[cfg_attr(
         feature = "telemetry-tracy",
@@ -106,5 +100,3 @@ mod loop_plugin {
 }
 #[cfg(not(target_family = "wasm"))]
 pub(crate) use loop_plugin::EventLoopPlugin;
-#[cfg(not(target_family = "wasm"))]
-pub use loop_plugin::RunEventLoop;

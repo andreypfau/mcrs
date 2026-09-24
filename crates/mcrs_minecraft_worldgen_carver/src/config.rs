@@ -13,10 +13,6 @@ fn is_one(provider: &FloatProvider) -> bool {
     *provider == one()
 }
 
-fn is_false(value: &bool) -> bool {
-    !*value
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bevy", derive(bevy_reflect::TypePath))]
 #[serde(tag = "type", deny_unknown_fields)]
@@ -27,7 +23,7 @@ pub enum CarverConfig {
         y: HeightProvider,
         count: IntProvider,
         thickness: FloatProvider,
-        #[serde(default, skip_serializing_if = "is_false")]
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         weird_thickness_bias: bool,
         room_vertical_radius_multiplier: FloatProvider,
         horizontal_radius_multiplier: FloatProvider,

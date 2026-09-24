@@ -27,9 +27,7 @@ use mcrs_minecraft_environment::attribute::{
 use mcrs_minecraft_environment::timeline::{AttributeTrackSampler, Timeline};
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 
-pub use mcrs_minecraft_environment::spatial::{
-    BiomeAttributeSource, BiomeAttributes, SpatialAttributeInterpolator, UniformBiomes,
-};
+pub use mcrs_minecraft_environment::spatial::{BiomeAttributes, SpatialAttributeInterpolator};
 
 /// How much it is raining and thundering, in `[0; 1]`.
 ///

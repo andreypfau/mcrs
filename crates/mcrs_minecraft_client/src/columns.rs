@@ -21,6 +21,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 
+pub use mcrs_minecraft_mesh::{SECTION_SIZE, SECTION_VOLUME};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
@@ -28,8 +29,6 @@ use mcrs_minecraft_network::client::{
 };
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 
-pub const SECTION_SIZE: usize = 16;
-pub const SECTION_VOLUME: usize = SECTION_SIZE * SECTION_SIZE * SECTION_SIZE;
 pub const BIOME_CELLS: usize = 64;
 
 /// Block state 0. The network palette is the server's global one, so no remap

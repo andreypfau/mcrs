@@ -8,7 +8,6 @@ edition.workspace = true
 
 [features]
 default = []
-encryption = ["dep:aes", "dep:cfb8"]
 compression = ["dep:flate2"]
 
 [dependencies]
@@ -26,16 +25,12 @@ thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 byteorder.workspace = true
 uuid = { workspace = true, features = ["serde"] }
-base64.workspace = true
-url.workspace = true
-serde_json.workspace = true
 tracing.workspace = true
 bytes.workspace = true
 bitfield-struct.workspace = true
 derive_more = { workspace = true, features = ["from", "into", "deref", "deref_mut", "as_ref"] }
-cfb8 = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
-aes = { workspace = true, optional = true }
 
 [dev-dependencies]
 rand.workspace = true
+serde_json.workspace = true

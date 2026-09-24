@@ -7,6 +7,8 @@ use crate::orient::{Orientation, find_collision, move_below_sea_level, orient_bo
 use crate::piece::{Piece, SmallDoor, StrongholdKind, StrongholdPiece};
 use crate::site::{Context, Site, Stub};
 
+use super::{PieceWeight, WeightTable};
+
 pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
 
 const MAX_DEPTH: i32 = 50;
@@ -41,6 +43,16 @@ const fn entry(kind: StrongholdKind, weight: i32, max_place_count: i32, min_dept
     }
 }
 
+impl PieceWeight for Weight {
+    fn weight(&self) -> i32 {
+        self.weight
+    }
+
+    fn max_place_count(&self) -> i32 {
+        self.max_place_count
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Side {
     Forward,
@@ -51,9 +63,7 @@ enum Side {
 struct Layout {
     pieces: Vec<Piece>,
     pending: Vec<usize>,
-    weights: Vec<Weight>,
-    place_count: Vec<i32>,
-    available: Vec<usize>,
+    table: WeightTable<Weight>,
     previous: Option<usize>,
     imposed: Option<StrongholdKind>,
     portal_room: bool,
@@ -114,9 +124,7 @@ pub fn layout(ctx: &mut Context<'_>, _site: Site) -> Vec<Piece> {
             start_min: *start.bounds.min,
             pieces: vec![Piece::Stronghold(start)],
             pending: Vec::new(),
-            weights: weights.to_vec(),
-            place_count: vec![0; weights.len()],
-            available: (0..weights.len()).collect(),
+            table: WeightTable::new(&weights),
             previous: None,
             imposed: None,
             portal_room: false,
@@ -148,28 +156,8 @@ impl Layout {
         }
     }
 
-    fn valid(&self, entry: usize) -> bool {
-        let max = self.weights[entry].max_place_count;
-        max == 0 || self.place_count[entry] < max
-    }
-
     fn do_place(&self, entry: usize, depth: i32) -> bool {
-        self.valid(entry) && depth > self.weights[entry].min_depth
-    }
-
-    /// `updatePieceWeight`: the offered weight, or `None` when no entry with
-    /// a cap is under it.
-    fn total_weight(&self) -> Option<i32> {
-        let mut any = false;
-        let mut total = 0;
-        for &entry in &self.available {
-            let weight = &self.weights[entry];
-            if weight.max_place_count > 0 && self.place_count[entry] < weight.max_place_count {
-                any = true;
-            }
-            total += weight.weight;
-        }
-        any.then_some(total)
+        self.table.valid(entry) && depth > self.table.weights[entry].min_depth
     }
 
     /// Each type's `addChildren`.
@@ -315,7 +303,7 @@ impl Layout {
         direction: Orientation,
         depth: i32,
     ) -> Option<StrongholdPiece> {
-        let total = self.total_weight()?;
+        let total = self.table.total_weight()?;
         if let Some(kind) = self.imposed.take()
             && let Some(piece) = self.create(rng, kind, foot, direction, depth)
         {
@@ -323,9 +311,9 @@ impl Layout {
         }
         for _ in 0..5 {
             let mut selection = rng.next_i32_bound(total);
-            for position in 0..self.available.len() {
-                let entry = self.available[position];
-                let weight = self.weights[entry];
+            for position in 0..self.table.available.len() {
+                let entry = self.table.available[position];
+                let weight = self.table.weights[entry];
                 selection -= weight.weight;
                 if selection >= 0 {
                     continue;
@@ -336,11 +324,8 @@ impl Layout {
                 let Some(piece) = self.create(rng, weight.kind, foot, direction, depth) else {
                     continue;
                 };
-                self.place_count[entry] += 1;
+                self.table.placed(position);
                 self.previous = Some(entry);
-                if !self.valid(entry) {
-                    self.available.remove(position);
-                }
                 return Some(piece);
             }
         }

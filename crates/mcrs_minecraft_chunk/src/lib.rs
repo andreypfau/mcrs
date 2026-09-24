@@ -77,10 +77,6 @@ pub trait SectionKind {
     }
 }
 
-pub trait IdMap<T: ?Sized> {
-    fn id_of(&self, value: &T) -> Option<u32>;
-}
-
 #[inline]
 pub const fn entries_per_long(bits: u32) -> usize {
     64 / bits as usize

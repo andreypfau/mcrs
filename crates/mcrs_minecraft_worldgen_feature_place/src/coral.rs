@@ -1,5 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
@@ -7,10 +8,6 @@ use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 
 use crate::tree::trunk::random_horizontal;
 use mcrs_minecraft_random::shuffle;
-
-fn counter_clockwise(direction: Direction) -> Direction {
-    direction.clockwise().opposite()
-}
 
 /// `CoralTreeFeature.place`: a trunk of one to three blocks, then two to four
 /// branches that step outward as they climb.
@@ -74,7 +71,11 @@ where
     }
     let claw = random_horizontal(rng);
     let branches = rng.next_i32_bound(2) + 2;
-    let mut directions = [claw, claw.clockwise(), counter_clockwise(claw)];
+    let mut directions = [
+        claw,
+        claw.clockwise(),
+        Rotation::Counterclockwise90.rotate(claw),
+    ];
     shuffle(&mut directions, rng);
 
     for direction in &directions[..branches as usize] {
@@ -213,7 +214,11 @@ mod tests {
         let mut replay = WorldgenRandom::new(5);
         let claw = Direction::HORIZONTAL[replay.next_i32_bound(4) as usize];
         let branches = replay.next_i32_bound(2) + 2;
-        let mut directions = [claw, claw.clockwise(), counter_clockwise(claw)];
+        let mut directions = [
+            claw,
+            claw.clockwise(),
+            Rotation::Counterclockwise90.rotate(claw),
+        ];
         shuffle(&mut directions, &mut replay);
 
         // Every branch is refused at its first sideways cell and again at its

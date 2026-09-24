@@ -5,8 +5,9 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::template::bounding_box;
 
-use super::{corner_heights, lowest_y, on_top_of_chunk_centre, random_rotation};
+use super::{corner_heights, lowest_y, on_top_of_chunk_centre};
 use crate::frozen::TemplateId;
+use crate::orient::random_rotation;
 use crate::piece::{Piece, ShipwreckPiece};
 use crate::site::{Context, Site, Stub};
 

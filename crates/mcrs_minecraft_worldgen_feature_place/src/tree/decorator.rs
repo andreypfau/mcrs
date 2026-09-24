@@ -184,9 +184,11 @@ pub trait TreeSink<W> {
 ///
 /// Only right where the corpus carries no `pale_moss` decorator — a tree that
 /// does grows nothing where its patch belongs.
+#[cfg(any(test, feature = "test-support"))]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct EntitiesOnly(pub Vec<GeneratedBlockEntity>);
 
+#[cfg(any(test, feature = "test-support"))]
 impl<W> TreeSink<W> for EntitiesOnly {
     fn block_entity(&mut self, entity: GeneratedBlockEntity) {
         self.0.push(entity);

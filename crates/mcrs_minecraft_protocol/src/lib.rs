@@ -29,7 +29,6 @@ pub mod __private {
 }
 
 pub mod advancement;
-mod array;
 mod bit_set;
 mod block;
 pub mod block_pos;
@@ -37,7 +36,6 @@ mod byte_angle;
 pub mod chunk;
 pub mod column_pos;
 pub mod decode;
-mod dialog;
 mod difficulty;
 mod direction;
 pub mod encode;
@@ -61,9 +59,7 @@ pub mod recipe;
 pub mod registry;
 pub mod resource_pack;
 pub mod section;
-mod serial;
 pub mod setting;
-pub mod sound;
 mod teleport_flags;
 /// Text components with the item stack template as the hover item.
 pub mod text {
@@ -77,7 +73,6 @@ mod var_long;
 use std::io::Write;
 
 use anyhow::Context;
-pub use array::FixedArray;
 pub use bit_set::FixedBitSet;
 pub use byte_angle::ByteAngle;
 pub use chunk::ChunkData;
@@ -339,162 +334,3 @@ mod tests {
         assert_eq!(MINECRAFT_VERSION, "26.3");
     }
 }
-
-// #[allow(dead_code)]
-// #[cfg(test)]
-// mod tests {
-//     use std::borrow::Cow;
-//
-//     use bytes::BytesMut;
-//
-//     use super::*;
-//     use crate::block_pos::BlockPos;
-//     use crate::decode::PacketDecoder;
-//     use crate::encode::PacketEncoder;
-//     use crate::hand::Hand;
-//     use crate::item::{ItemId, ItemStack};
-//     use crate::text::{IntoText, Text};
-//     use crate::var_int::VarInt;
-//     use crate::var_long::VarLong;
-//     use crate::ResourceLocation;
-//
-//     #[derive(Encode, Decode, Packet, Debug)]
-//     #[packet(id = 1, side = PacketSide::Clientbound)]
-//     struct RegularStruct {
-//         foo: i32,
-//         bar: bool,
-//         baz: f64,
-//     }
-//
-//     #[derive(Encode, Decode, Packet, Debug)]
-//     #[packet(id = 2, side = PacketSide::Clientbound)]
-//     struct UnitStruct;
-//
-//     #[derive(Encode, Decode, Packet, Debug)]
-//     #[packet(id = 3, side = PacketSide::Clientbound)]
-//     struct EmptyStruct {}
-//
-//     #[derive(Encode, Decode, Packet, Debug)]
-//     #[packet(id = 4, side = PacketSide::Clientbound)]
-//     struct TupleStruct(i32, bool, f64);
-//
-//     #[derive(Encode, Decode, Packet, Debug)]
-//     #[packet(id = 5, side = PacketSide::Clientbound)]
-//     struct StructWithGenerics<'z, T = ()> {
-//         foo: &'z str,
-//         bar: T,
-//     }
-//
-//     #[derive(Encode, Decode, Packet, Debug)]
-//     #[packet(id = 6, side = PacketSide::Clientbound)]
-//     struct TupleStructWithGenerics<'z, T = ()>(&'z str, i32, T);
-//
-//     #[allow(unconditional_recursion, clippy::extra_unused_type_parameters)]
-//     fn assert_has_impls<'a, T>()
-//     where
-//         T: Encode + Decode<'a> + Packet,
-//     {
-//         assert_has_impls::<RegularStruct>();
-//         assert_has_impls::<UnitStruct>();
-//         assert_has_impls::<EmptyStruct>();
-//         assert_has_impls::<TupleStruct>();
-//         assert_has_impls::<StructWithGenerics>();
-//         assert_has_impls::<TupleStructWithGenerics>();
-//     }
-//
-//     #[test]
-//     fn packet_name() {
-//         assert_eq!(RegularStruct::NAME, "RegularStruct");
-//         assert_eq!(UnitStruct::NAME, "UnitStruct");
-//         assert_eq!(StructWithGenerics::<()>::NAME, "StructWithGenerics");
-//     }
-//
-//     #[cfg(feature = "encryption")]
-//     const CRYPT_KEY: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-//
-//     #[derive(PartialEq, Debug, Encode, Decode, Packet)]
-//     #[packet(id = 42, side = PacketSide::Clientbound)]
-//     struct TestPacket<'a> {
-//         a: bool,
-//         b: u8,
-//         c: i32,
-//         d: f32,
-//         e: f64,
-//         f: BlockPos,
-//         g: Hand,
-//         h: ResourceLocation<Cow<'a, str>>,
-//         i: ItemStack,
-//         j: Text,
-//         k: VarInt,
-//         l: VarLong,
-//         m: &'a str,
-//         n: &'a [u8; 10],
-//         o: [u128; 3],
-//     }
-//
-//     impl<'a> TestPacket<'a> {
-//         fn new(string: &'a str) -> Self {
-//             Self {
-//                 a: true,
-//                 b: 12,
-//                 c: -999,
-//                 d: 5.001,
-//                 e: 1e10,
-//                 f: BlockPos::new(1, 2, 3),
-//                 g: Hand::Off,
-//                 h: ResourceLocation::new("minecraft:whatever").unwrap(),
-//                 i: ItemStack::new(ItemId(1), 12, None),
-//                 j: "my ".into_text() + "fancy".italic() + " text",
-//                 k: VarInt(123),
-//                 l: VarLong(456),
-//                 m: string,
-//                 n: &[7; 10],
-//                 o: [123456789; 3],
-//             }
-//         }
-//     }
-//
-//     fn check_test_packet(dec: &mut PacketDecoder, string: &str) {
-//         let frame = dec.try_next_packet().unwrap().unwrap();
-//
-//         let pkt = frame.decode::<TestPacket>().unwrap();
-//
-//         assert_eq!(&pkt, &TestPacket::new(string));
-//     }
-//
-//     #[test]
-//     fn packets_round_trip() {
-//         let mut buf = BytesMut::new();
-//
-//         let mut enc = PacketEncoder::new();
-//
-//         enc.append_packet(&TestPacket::new("first")).unwrap();
-//         #[cfg(feature = "compression")]
-//         enc.set_compression(0.into());
-//         enc.append_packet(&TestPacket::new("second")).unwrap();
-//         buf.unsplit(enc.take());
-//         #[cfg(feature = "encryption")]
-//         enc.enable_encryption(&CRYPT_KEY);
-//         enc.append_packet(&TestPacket::new("third")).unwrap();
-//         enc.prepend_packet(&TestPacket::new("fourth")).unwrap();
-//
-//         buf.unsplit(enc.take());
-//
-//         let mut dec = PacketDecoder::new();
-//
-//         dec.queue_bytes(buf);
-//
-//         check_test_packet(&mut dec, "first");
-//
-//         #[cfg(feature = "compression")]
-//         dec.set_compression(0.into());
-//
-//         check_test_packet(&mut dec, "second");
-//
-//         #[cfg(feature = "encryption")]
-//         dec.enable_encryption(&CRYPT_KEY);
-//
-//         check_test_packet(&mut dec, "fourth");
-//         check_test_packet(&mut dec, "third");
-//     }
-// }

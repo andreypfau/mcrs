@@ -1,5 +1,5 @@
 use crate::session::{MoveId, Place, PlayerSession, Session, SessionPlacement};
-use crate::world::channels::{DimChannels, DimSender};
+use crate::world::channels::DimChannels;
 use crate::world::in_flight::{InFlightEntry, InFlightMoves};
 use crate::world::sub_app::DimDespawnQueue;
 use bevy_app::App;
@@ -56,7 +56,7 @@ pub trait DimProtocol: Send + Sync + 'static {
 /// `Entity` is enqueued for teardown rather than silently dropping the message.
 /// A `Disconnected` channel means the dim is already gone.
 pub fn send_control_or_teardown<T>(
-    sender: &DimSender<T>,
+    sender: &flume::Sender<T>,
     dim_entity: Entity,
     msg: T,
     despawn_queue: &mut DimDespawnQueue,

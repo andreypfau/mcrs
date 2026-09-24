@@ -1,6 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, Rotation};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
@@ -12,6 +12,7 @@ use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_minecraft_worldgen_feature_place::template::{
     CompiledChain, CompiledProcessor, Placement, SettingsRandom, place_template, rotate_state,
 };
+use mcrs_minecraft_worldgen_structure::orient::random_rotation;
 use mcrs_minecraft_worldgen_structure::piece::NetherFossilPiece;
 
 use crate::{block_mask, state};
@@ -103,7 +104,7 @@ fn place_dried_ghast<W: WorldGenVolume>(
         .air_states
         .contains(volume.get(pos).0 as usize);
     if air && clip.is_inside(pos) {
-        let rotation = Rotation::ALL[rng.next_i32_bound(4) as usize];
+        let rotation = random_rotation(&mut rng);
         let state = rotate_state(volume.world(), b.dried_ghast, rotation);
         volume.set(pos, state);
     }

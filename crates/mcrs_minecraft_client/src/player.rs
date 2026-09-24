@@ -15,10 +15,13 @@ use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed};
 use crate::camera::FovFilter;
 use crate::inventory::{ContainerSeqno, Screen};
 use crate::local_player::{LastSentMovement, Sprint};
-use crate::options::SENSITIVITY;
 
 pub(crate) const EYE_HEIGHT: f32 = 1.62;
 
+/// Vanilla's `Options` default. `invertMouseX`, `invertMouseY` and `smoothCamera` stay off,
+/// which leaves the inversions and the `SmoothDouble` branch of `MouseHandler.turnPlayer`
+/// unreachable.
+const SENSITIVITY: f32 = 0.5;
 const FAR_PLANE: f32 = 4000.0;
 
 /// `MouseHandler.turnPlayer` builds `sens = (sensitivity * 0.6 + 0.2)^3 * 8` and

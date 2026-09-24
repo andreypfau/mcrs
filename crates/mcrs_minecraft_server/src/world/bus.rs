@@ -285,11 +285,6 @@ pub struct TestPayload {
     pub seq: u32,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct TestInboundPayload {
-    pub seq: u32,
-}
-
 /// Persistent-only player state snapshot used by cross-dim transfer.
 ///
 /// Current shape carries the minimal viable fields (uuid + username +
@@ -321,7 +316,7 @@ pub enum MovePayload {
         username: String,
     },
     NonPlayer {
-        kind: crate::world::entity::MinecraftEntityType,
+        kind: &'static mcrs_minecraft_world::entity::EntityType,
     },
 }
 

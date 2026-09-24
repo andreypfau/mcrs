@@ -1,18 +1,8 @@
 use crate::block::BlockUpdateFlags;
-use crate::voxel_update::{VoxelPlaced, VoxelSetRequest, VoxelUpdateFlags, VoxelUpdatePlugin};
+pub use crate::voxel_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_registry::BlockStateId;
-
-impl VoxelUpdateFlags for BlockUpdateFlags {
-    fn notifies_clients(&self) -> bool {
-        self.contains(BlockUpdateFlags::CLIENTS)
-    }
-}
-
-pub type BlockSetRequest = VoxelSetRequest<BlockUpdateFlags>;
-pub type BlockPlaced = VoxelPlaced<BlockUpdateFlags>;
-pub type BlockUpdatePlugin = VoxelUpdatePlugin<BlockUpdateFlags>;
 
 pub fn remove_block<P: Into<BlockPos>>(dimension: Entity, pos: P) -> BlockSetRequest {
     BlockSetRequest {
@@ -33,7 +23,7 @@ mod tests {
 
     #[test]
     fn set_configured_compile_test() {
-        let _ = apply_voxel_set_requests::<BlockUpdateFlags>.in_set(VoxelUpdateSet::ApplyChanges);
+        let _ = apply_voxel_set_requests.in_set(VoxelUpdateSet::ApplyChanges);
     }
 
     #[test]

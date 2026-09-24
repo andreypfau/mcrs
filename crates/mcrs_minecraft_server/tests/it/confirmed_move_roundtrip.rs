@@ -21,7 +21,7 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::{Despawned, InTransit};
 use mcrs_minecraft_level::session::{MoveId, Place, PlayerSession, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY, ToDimReceiver,
+    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY, ToDimReceiver,
 };
 use mcrs_minecraft_level::world::in_flight::{InFlightMoves, MoveIds};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
@@ -71,8 +71,8 @@ fn make_dim_channels(
         .resource_mut::<DimChannelsResource>()
         .insert(
             label_entity,
-            DimSender::new(srv_tx),
-            DimSender::new(ctl_tx),
+            srv_tx,
+            ctl_tx,
             from_rx,
         );
     (srv_rx, ctl_rx, from_tx)

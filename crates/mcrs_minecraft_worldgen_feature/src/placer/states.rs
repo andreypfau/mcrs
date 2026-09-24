@@ -62,6 +62,17 @@ pub struct PropertyLayout {
     pub stride: u16,
 }
 
+/// The value index of a property `stride` ids apart and `count` values wide
+/// in a block whose first state is `base`.
+pub fn digit(state: VoxelId, base: u16, stride: u16, count: u16) -> u16 {
+    (state.0 - base) / stride % count
+}
+
+pub fn with_digit(state: VoxelId, base: u16, stride: u16, count: u16, index: u16) -> VoxelId {
+    let shift = (index as i32 - digit(state, base, stride, count) as i32) * stride as i32;
+    VoxelId((state.0 as i32 + shift) as u16)
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct BlockLayout {
     pub base: u16,
@@ -74,13 +85,22 @@ impl BlockLayout {
     }
 
     pub fn value_index(&self, state: VoxelId, property: &PropertyLayout) -> u16 {
-        (state.0 - self.base) / property.stride % property.values.len() as u16
+        digit(
+            state,
+            self.base,
+            property.stride,
+            property.values.len() as u16,
+        )
     }
 
     pub fn with_index(&self, state: VoxelId, property: &PropertyLayout, index: u16) -> VoxelId {
-        let shift =
-            (index as i32 - self.value_index(state, property) as i32) * property.stride as i32;
-        VoxelId((state.0 as i32 + shift) as u16)
+        with_digit(
+            state,
+            self.base,
+            property.stride,
+            property.values.len() as u16,
+            index,
+        )
     }
 
     /// `BlockState.trySetValue`: a property this block lacks, or a value
@@ -113,6 +133,15 @@ impl BlockLayout {
 impl WorldStates {
     pub fn layout_of(&self, state: VoxelId) -> Option<&BlockLayout> {
         self.layouts.get(self.block_of(state) as usize)
+    }
+
+    /// [`BlockLayout::with_properties_of`], leaving `target` alone when either
+    /// state has no layout.
+    pub fn with_properties_of(&self, target: VoxelId, source: VoxelId) -> VoxelId {
+        match (self.layout_of(target), self.layout_of(source)) {
+            (Some(into), Some(from)) => into.with_properties_of(target, from, source),
+            _ => target,
+        }
     }
 
     /// `SpeleothemUtils.isEmptyOrWater`: air, or the water block itself.

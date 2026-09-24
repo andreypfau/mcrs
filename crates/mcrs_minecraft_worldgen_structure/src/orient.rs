@@ -4,6 +4,11 @@ use mcrs_minecraft_random::Random;
 
 use crate::piece::Piece;
 
+/// `Rotation.getRandom`.
+pub fn random_rotation<R: Random>(rng: &mut R) -> Rotation {
+    Rotation::ALL[rng.next_i32_bound(4) as usize]
+}
+
 /// A grid piece's facing, numbered by `Direction.get2DDataValue`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]

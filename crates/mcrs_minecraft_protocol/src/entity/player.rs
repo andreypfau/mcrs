@@ -22,7 +22,7 @@ impl Default for PlayerSpawnInfo<'_> {
     fn default() -> Self {
         Self {
             dimension_type_id: VarInt(0),
-            dimension: ResourceLocation::from(rl!("overworld")),
+            dimension: ResourceLocation::from(rl!("minecraft:overworld")),
             seed: 0,
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode::default(),

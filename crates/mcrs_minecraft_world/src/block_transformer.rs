@@ -1,7 +1,5 @@
-use bevy_asset::io::Reader;
-use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
+use bevy_asset::{Asset, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_worldgen_feature::tree::BlockStateProvider;
 use serde::{Deserialize, Serialize};
@@ -61,29 +59,6 @@ impl Asset for BlockTransformer {}
 
 impl VisitAssetDependencies for BlockTransformer {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
-}
-
-#[derive(Default, TypePath)]
-pub struct BlockTransformerLoader;
-
-impl AssetLoader for BlockTransformerLoader {
-    type Asset = BlockTransformer;
-    type Settings = ();
-    type Error = crate::jukebox_song::JukeboxSongLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &(),
-        _load_context: &mut LoadContext<'_>,
-    ) -> Result<BlockTransformer, Self::Error> {
-        let bytes = read_all(reader).await?;
-        Ok(serde_json::from_slice(&bytes)?)
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &[]
-    }
 }
 
 #[cfg(test)]

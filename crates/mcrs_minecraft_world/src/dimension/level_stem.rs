@@ -15,10 +15,6 @@ use mcrs_minecraft_dimension::dimension_type::DimensionType;
 
 pub const OVERWORLD: ResourceKey<DimensionDefinition, &'static str> =
     ResourceKey::new(rl!("minecraft:overworld"));
-pub const THE_NETHER: ResourceKey<DimensionDefinition, &'static str> =
-    ResourceKey::new(rl!("minecraft:the_nether"));
-pub const THE_END: ResourceKey<DimensionDefinition, &'static str> =
-    ResourceKey::new(rl!("minecraft:the_end"));
 
 // ===========================================================================
 // Runtime type

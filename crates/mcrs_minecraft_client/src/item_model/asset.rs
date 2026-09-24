@@ -13,7 +13,7 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, valu
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::transform::Transformation;
+use super::transform::Transformation;
 
 fn one() -> f32 {
     1.0

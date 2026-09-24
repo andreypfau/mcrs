@@ -50,10 +50,6 @@ impl ColumnPos {
     pub const fn region_local_z(self) -> i32 {
         self.z & RegionPos::MASK as i32
     }
-
-    pub const fn manhattan_distance(&self, other: Self) -> i32 {
-        (self.x - other.x).abs() + (self.z - other.z).abs()
-    }
 }
 
 impl From<SectionPos> for ColumnPos {

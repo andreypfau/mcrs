@@ -1,3 +1,4 @@
+use mcrs_minecraft_worldgen_density::cell::corner_bounds;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_noise::interval::Interval;
 
@@ -104,7 +105,7 @@ fn a_cell_bound_contains_every_density_inside_it() {
                     for y in 0..size.y - 1 {
                         let at = IVec3::new(x, y, z);
                         let verdict = lattice.classify(&router, at, &mut fluid, &mut fill);
-                        lattice.corner_bounds(at, &mut fill.corners);
+                        corner_bounds(&lattice.values, &lattice.volume, at, &mut fill.corners);
                         let min = IVec3::new(
                             lattice.volume.block_x(x),
                             lattice.volume.block_y(y),

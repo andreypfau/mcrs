@@ -1,3 +1,4 @@
+use mcrs_minecraft_worldgen_testing::worldgen_dir;
 use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
@@ -7,7 +8,7 @@ use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
-use super::{assets_root, build_settings_router, corpus};
+use super::{build_settings_router, corpus};
 use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers, climate_target_at,
 };
@@ -27,7 +28,7 @@ fn y_sections() -> Vec<i32> {
 
 /// The carver list a biome actually ships, read the way the loader would.
 fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let path = assets_root().join(format!(
+    let path = worldgen_dir().join(format!(
         "biome/{}.json",
         biome.strip_prefix("minecraft:").unwrap_or(biome)
     ));
@@ -44,7 +45,7 @@ fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
     names
         .iter()
         .map(|name| {
-            let path = assets_root().join(format!(
+            let path = worldgen_dir().join(format!(
                 "carver/{}.json",
                 name.strip_prefix("minecraft:").unwrap_or(name)
             ));
@@ -335,7 +336,7 @@ fn asset_maps() -> (
     std::collections::HashMap<String, CarverConfig>,
 ) {
     let mut carvers_by_biome = std::collections::HashMap::new();
-    for entry in std::fs::read_dir(assets_root().join("biome")).unwrap() {
+    for entry in std::fs::read_dir(worldgen_dir().join("biome")).unwrap() {
         let path = entry.unwrap().path();
         if path.extension().and_then(|s| s.to_str()) != Some("json") {
             continue;
@@ -357,7 +358,7 @@ fn asset_maps() -> (
     }
 
     let mut config_by_location = std::collections::HashMap::new();
-    for entry in std::fs::read_dir(assets_root().join("carver")).unwrap() {
+    for entry in std::fs::read_dir(worldgen_dir().join("carver")).unwrap() {
         let path = entry.unwrap().path();
         if path.extension().and_then(|s| s.to_str()) != Some("json") {
             continue;
@@ -513,7 +514,7 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
         unreachable!("the helper builds a Beta source");
     };
     let cave: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(assets_root().join("carver/cave.json")).unwrap())
+        serde_json::from_slice(&std::fs::read(worldgen_dir().join("carver/cave.json")).unwrap())
             .unwrap();
     // A marker per land biome: a cave whose probability is the biome's index.
     let table = CarverBiomeTable::beta(&source, |biome| {

@@ -20,24 +20,15 @@ use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Look;
-use mcrs_minecraft_protocol::uuid::Uuid;
 
-pub mod attribute;
 pub mod explosive;
 pub mod item;
-mod meta;
 pub mod mob;
 pub mod player;
 
 pub use mcrs_minecraft_level::entity::mob::EntityUuid;
 
 pub struct MinecraftEntityPlugin;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MinecraftEntityType {
-    PrimedTnt = 136,
-    Player = 159,
-}
 
 impl Plugin for MinecraftEntityPlugin {
     fn build(&self, app: &mut App) {
@@ -57,27 +48,6 @@ pub struct EntityBundle {
     pub dimension: InDimension,
     pub transform: Transform,
     pub uuid: EntityUuid,
-}
-
-impl EntityBundle {
-    pub fn new(dimension: InDimension) -> Self {
-        Self {
-            minecraft_entity: Default::default(),
-            dimension,
-            transform: Default::default(),
-            uuid: Default::default(),
-        }
-    }
-
-    pub fn with_uuid(mut self, uuid: Uuid) -> Self {
-        self.uuid = EntityUuid(uuid);
-        self
-    }
-
-    pub fn with_transform(mut self, transform: Transform) -> Self {
-        self.transform = transform;
-        self
-    }
 }
 
 #[derive(Component, Default)]

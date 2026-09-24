@@ -14,14 +14,13 @@ use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::placing::PlacingPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
-use crate::world::entity::{EntityBundle, MinecraftEntityType};
+use crate::world::entity::{EntityBundle, EntityUuid};
 use crate::world::inventory::PlayerInventoryBundle;
 use crate::world::item::StackSet;
 use crate::world::sub_app_builder::DimTypeIndex;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::event::EntityEvent;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Changed, Commands, Query, Res, ResMut, With};
@@ -35,17 +34,16 @@ use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionId, InDimension};
 use mcrs_minecraft_level::world::lifecycle::ticket::SimulationDistance;
 use mcrs_minecraft_protocol::GameMode;
 use movement::TeleportState;
-use tracing::{debug, info};
+use mcrs_minecraft_world::entity::minecraft::PLAYER;
+use tracing::debug;
 
 pub mod ability;
-pub mod attribute;
 mod chat;
 pub mod column_view;
 pub mod digging;
@@ -117,7 +115,6 @@ impl Plugin for DimPlayerPlugin {
                 .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
         );
         app.add_observer(network_add);
-        app.add_observer(player_joined);
     }
 }
 
@@ -129,9 +126,7 @@ const MAX_VIEW_DISTANCE: u8 = 96;
 pub struct PlayerBundle {
     pub teleport_state: TeleportState,
     pub view_distance: PlayerViewDistance,
-    pub reposition: Reposition,
     pub abilities: ability::PlayerAbilitiesBundle,
-    pub attributes: attribute::PlayerAttributesBundle,
     pub inventory: PlayerInventoryBundle,
     pub game_mode: PlayerGameMode,
     pub op_level: PlayerOpLevel,
@@ -170,9 +165,12 @@ fn consume_inbound_player_spawn(
         };
         let new_entity = commands
             .spawn((
-                EntityBundle::new(InDimension(dim))
-                    .with_uuid(spawn.snapshot.uuid)
-                    .with_transform(Transform::default().with_translation(spawn.snapshot.position)),
+                EntityBundle {
+                    minecraft_entity: Default::default(),
+                    dimension: InDimension(dim),
+                    transform: Transform::default().with_translation(spawn.snapshot.position),
+                    uuid: EntityUuid(spawn.snapshot.uuid),
+                },
                 PlayerBundle {
                     game_mode: PlayerGameMode(default_game_mode.0),
                     op_level: ops.level_of(&spawn.snapshot.uuid, *default_op_level),
@@ -349,22 +347,16 @@ pub fn despawn_inbound_player(
     }
 }
 
-#[derive(EntityEvent)]
-pub struct PlayerJoinEvent {
-    #[event_target]
-    pub player: Entity,
-}
-
 fn network_add(
     event: On<EntityNetworkAddEvent>,
     added_player: Query<(Entity, &GameProfile, &Transform), With<Player>>,
-    viewer: Query<(&Reposition, &HostAnchor), With<Player>>,
+    viewer: Query<&HostAnchor, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let Ok((entity, profile, transform)) = added_player.get(event.entity) else {
         return;
     };
-    let Ok((reposition, &HostAnchor(host_anchor))) = viewer.get(event.player) else {
+    let Ok(&HostAnchor(host_anchor)) = viewer.get(event.player) else {
         return;
     };
 
@@ -374,8 +366,8 @@ fn network_add(
         data: PacketPayload::PlayerEnteredView {
             entity_id: entity.index_u32() as i32,
             uuid: profile.id,
-            kind: MinecraftEntityType::Player as i32,
-            position: reposition.convert_dvec3(transform.translation),
+            kind: PLAYER.protocol_id as i32,
+            position: transform.translation,
             yaw: transform.rotation.yaw(),
             pitch: transform.rotation.pitch(),
             data: 0,
@@ -383,50 +375,6 @@ fn network_add(
         session: PlayerSession(0),
         epoch: 0,
     });
-}
-
-fn player_joined(
-    event: On<PlayerJoinEvent>,
-    players: Query<(&GameProfile, &PlayerGameMode, &HostAnchor), With<Player>>,
-    positions: Query<&Transform, With<Player>>,
-    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-) {
-    let Ok((joined_player, _, _)) = players.get(event.player) else {
-        return;
-    };
-
-    info!(
-        "{} logged in with entity id {} at {}",
-        joined_player.username,
-        event.player,
-        positions
-            .get(event.player)
-            .map(|pos| format!("{}", pos.translation))
-            .unwrap_or_default()
-    );
-
-    let entries: Vec<PlayerInfoEntry> = players
-        .iter()
-        .map(|(profile, game_mode, _)| PlayerInfoEntry {
-            player_uuid: profile.id,
-            username: profile.username.clone(),
-            game_mode: game_mode.0,
-            listed: true,
-        })
-        .collect();
-
-    // Broadcast player info to every connected player (including the joining player).
-    for (_, _, host_anchor_ref) in players.iter() {
-        packet_writer.write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(host_anchor_ref.0),
-            priority: PacketPriority::Normal,
-            data: PacketPayload::PlayerInfoUpdate {
-                entries: entries.clone(),
-            },
-            session: PlayerSession(0),
-            epoch: 0,
-        });
-    }
 }
 
 /// Source-dim system: when `ConfirmMove` arrives, find the in-transit entity

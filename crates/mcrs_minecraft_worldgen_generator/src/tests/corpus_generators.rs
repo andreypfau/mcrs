@@ -3,6 +3,7 @@
 //! A feature without a generator keeps its index and its seed and places
 //! nothing, so a gap here is silent in the world and loud only in this census.
 
+use mcrs_minecraft_worldgen_testing::registry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
@@ -15,8 +16,7 @@ use crate::features::FeatureTables;
 use mcrs_minecraft_worldgen_feature::compile::LoadedFeatures;
 
 use super::{
-    biome_registry, block_tags, blocks, build_program, corpus_features, fluid_tags, load_json_dir,
-    one_step,
+    biome_registry, block_tags, blocks, build_program, corpus_features, fluid_tags, one_step,
 };
 
 const BIOME: &str = "minecraft:badlands";
@@ -101,7 +101,7 @@ fn id(name: &str) -> ResourceLocation {
 #[test]
 fn the_census_of_what_still_places_nothing() {
     let runnable = runnable();
-    let features: BTreeMap<ResourceLocation, Feature> = load_json_dir("feature");
+    let features: BTreeMap<ResourceLocation, Feature> = registry("feature");
     let missing: BTreeSet<&str> = features
         .keys()
         .filter(|id| !runnable.contains(*id))
@@ -158,7 +158,7 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
     };
     use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
 
-    let features: BTreeMap<ResourceLocation, Feature> = load_json_dir("feature");
+    let features: BTreeMap<ResourceLocation, Feature> = registry("feature");
     let resolve = |name: &str| {
         let Some(Feature::SimpleBlock { to_place, .. }) = features.get(&id(name)) else {
             panic!("{name} is a simple_block");
@@ -288,7 +288,7 @@ fn corpus_feature_types() -> BTreeMap<String, Vec<Feature>> {
     }
 
     let mut raw = BTreeMap::new();
-    for value in load_json_dir::<serde_json::Value>("feature").values() {
+    for value in registry::<serde_json::Value>("feature").values() {
         walk(value, true, &mut raw);
     }
     raw.into_iter()
@@ -375,7 +375,7 @@ fn simple_block_states(to_place: &serde_json::Value, out: &mut BTreeSet<String>)
                 out.insert(name.clone());
             } else if let Ok(provider) = ResourceLocation::parse(name)
                 && let Some(provider) =
-                    load_json_dir::<serde_json::Value>("block_state_provider").get(&provider)
+                    registry::<serde_json::Value>("block_state_provider").get(&provider)
             {
                 simple_block_states(provider, out);
             }
@@ -445,7 +445,7 @@ fn every_simple_block_state_is_decided() {
     let mut by_filter = BTreeSet::new();
     let mut by_family = BTreeSet::new();
     let mut by_default = BTreeSet::new();
-    for (_, value) in load_json_dir::<serde_json::Value>("feature") {
+    for (_, value) in registry::<serde_json::Value>("feature") {
         let mut states = BTreeSet::new();
         for simple_block in nested_simple_blocks(&value) {
             simple_block_states(&simple_block["to_place"], &mut states);

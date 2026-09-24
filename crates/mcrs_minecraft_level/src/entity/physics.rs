@@ -98,9 +98,6 @@ pub struct OldTransform(pub Transform);
 #[derive(Copy, Clone, Debug, Deref, DerefMut, Component)]
 pub struct Velocity(pub DVec3);
 
-#[derive(Copy, Clone, Debug, Deref, DerefMut, Component)]
-pub struct OldVelocity(pub Velocity);
-
 #[cfg(test)]
 mod tests {
     use super::Rotation;

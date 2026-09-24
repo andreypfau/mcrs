@@ -175,18 +175,6 @@ impl Feature {
             | Self::VoidStartPlatform { .. } => {}
         }
     }
-
-    /// This feature, then every feature written inline inside it, in pre-order.
-    pub fn for_each_feature(&self, f: &mut dyn FnMut(&Feature)) {
-        f(self);
-        self.visit_placed_features(&mut |holder| {
-            if let Holder::Inline(placed) = holder
-                && let Holder::Inline(feature) = &placed.feature
-            {
-                feature.for_each_feature(f);
-            }
-        });
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -794,38 +782,12 @@ pub enum RuleBlockEntityModifier {
 // Bounded scalars, defaults and validators
 // ---------------------------------------------------------------------------
 
-/// A bounded `f64`, held as `serde_json` parses it so a re-encode is the
-/// decimal the pack shipped. `$as` is the type the reference compares in:
-/// `f32` for a `floatRange`, `f64` for a `doubleRange`.
-macro_rules! bounded_float {
-    ($($(#[$doc:meta])* $name:ident as $as:ident in $min:literal ..= $max:literal;)*) => {$(
-        $(#[$doc])*
-        #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-        #[serde(try_from = "f64")]
-        pub struct $name(pub f64);
-
-        impl TryFrom<f64> for $name {
-            type Error = String;
-
-            fn try_from(value: f64) -> Result<Self, String> {
-                if !(($min as $as)..=($max as $as)).contains(&(value as $as)) {
-                    return Err(format!(
-                        "Value must be within range [{};{}]: {value}", $min, $max
-                    ));
-                }
-                Ok($name(value))
-            }
-        }
-    )*};
-}
-pub(crate) use bounded_float;
-
-bounded_float! {
-    UnitDouble as f64 in 0.0 ..= 1.0;
-    CrackSize as f64 in 0.0 ..= 5.0;
-    LayerThickness as f64 in 0.01 ..= 50.0;
-    CaveHeightRatio as f64 in 0.1 ..= 1.0;
-    BluntnessForWind as f64 in 0.0 ..= 5.0;
+mcrs_minecraft_worldgen_noise::bounded_float! {
+    UnitDouble as f64 in [0.0, 1.0];
+    CrackSize as f64 in [0.0, 5.0];
+    LayerThickness as f64 in [0.01, 50.0];
+    CaveHeightRatio as f64 in [0.1, 1.0];
+    BluntnessForWind as f64 in [0.0, 5.0];
 }
 
 macro_rules! defaults {

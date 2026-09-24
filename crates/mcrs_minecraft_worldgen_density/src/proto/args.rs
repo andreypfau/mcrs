@@ -179,36 +179,11 @@ pub struct BlendedNoiseArguments {
     pub smear_scale_multiplier: SmearScaleMultiplier,
 }
 
-macro_rules! bounded_f64 {
-    ($name:ident, $min:expr, $max:expr) => {
-        #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-        #[serde(try_from = "f64")]
-        pub struct $name(pub f64);
-
-        mcrs_minecraft_worldgen_noise::eq_by_bits!($name);
-
-        impl TryFrom<f64> for $name {
-            type Error = String;
-
-            fn try_from(value: f64) -> Result<Self, Self::Error> {
-                if !($min..=$max).contains(&value) {
-                    return Err(format!(
-                        "Value must be within range [{};{}]: {value}",
-                        $min, $max
-                    ));
-                }
-                Ok($name(value))
-            }
-        }
-    };
+mcrs_minecraft_worldgen_noise::bounded_float! {
+    eq_by_bits
+    ScaleValue as f64 in [MIN_BLENDED_NOISE_SCALE, MAX_BLENDED_NOISE_SCALE];
+    SmearScaleMultiplier as f64 in [MIN_SMEAR_SCALE_MULTIPLIER, MAX_SMEAR_SCALE_MULTIPLIER];
 }
-
-bounded_f64!(ScaleValue, MIN_BLENDED_NOISE_SCALE, MAX_BLENDED_NOISE_SCALE);
-bounded_f64!(
-    SmearScaleMultiplier,
-    MIN_SMEAR_SCALE_MULTIPLIER,
-    MAX_SMEAR_SCALE_MULTIPLIER
-);
 
 #[cfg(test)]
 mod tests {

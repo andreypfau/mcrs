@@ -197,10 +197,6 @@ impl NbtCompound {
     pub fn get_int_array(&self, name: &str) -> Option<&[i32]> {
         self.get(name).and_then(|tag| tag.extract_int_array())
     }
-
-    pub fn get_long_array(&self, name: &str) -> Option<&[i64]> {
-        self.get(name).and_then(|tag| tag.extract_long_array())
-    }
 }
 
 impl From<Nbt> for NbtCompound {

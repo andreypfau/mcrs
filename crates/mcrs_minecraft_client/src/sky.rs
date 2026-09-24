@@ -148,7 +148,7 @@ impl SkyEnvironment {
                 self.scalar(frame, SkyField::SunAngle).to_radians(),
                 self.scalar(frame, SkyField::MoonAngle).to_radians(),
                 self.scalar(frame, SkyField::StarAngle).to_radians(),
-                linear(self.scalar(frame, SkyField::StarBrightness)),
+                Srgba::gamma_function(self.scalar(frame, SkyField::StarBrightness)),
             ],
             // Layer 0 of the celestial array is the sun; the phases follow it.
             moon: [
@@ -299,17 +299,20 @@ fn cloud_drift(ticks: f64) -> f32 {
     (ticks * CLOUD_BLOCKS_PER_TICK).rem_euclid(CLOUD_DRIFT_SPAN) as f32
 }
 
+pub(crate) const fn rgb(packed: u32) -> Vec3 {
+    Vec3::new(
+        ((packed >> 16) & 0xff) as f32 / 255.0,
+        ((packed >> 8) & 0xff) as f32 / 255.0,
+        (packed & 0xff) as f32 / 255.0,
+    )
+}
+
 fn rgba(packed: u32, w: f32) -> [f32; 4] {
-    let channel = |shift: u32| linear(((packed >> shift) & 0xff) as f32 / 255.0);
-    [channel(16), channel(8), channel(0), w]
+    rgb(packed).map(Srgba::gamma_function).extend(w).to_array()
 }
 
 fn alpha(packed: u32) -> f32 {
     ((packed >> 24) & 0xff) as f32 / 255.0
-}
-
-fn linear(srgb: f32) -> f32 {
-    Srgba::gamma_function(srgb)
 }
 
 fn request_sources(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -495,6 +498,8 @@ mod tests {
 mod reference {
     use bevy::prelude::*;
 
+    use super::rgb;
+
     pub const DAY: f32 = 24000.0;
 
     pub const BASE_SKY: Vec3 = rgb(0x78a7ff);
@@ -589,19 +594,12 @@ mod reference {
         (23757.0, argb(0xb1e78733)),
     ];
 
-    pub const fn rgb(hex: u32) -> Vec3 {
-        Vec3::new(
-            ((hex >> 16) & 0xff) as f32 / 255.0,
-            ((hex >> 8) & 0xff) as f32 / 255.0,
-            (hex & 0xff) as f32 / 255.0,
-        )
-    }
-
     pub const fn argb(hex: u32) -> Vec4 {
+        let color = rgb(hex);
         Vec4::new(
-            ((hex >> 16) & 0xff) as f32 / 255.0,
-            ((hex >> 8) & 0xff) as f32 / 255.0,
-            (hex & 0xff) as f32 / 255.0,
+            color.x,
+            color.y,
+            color.z,
             ((hex >> 24) & 0xff) as f32 / 255.0,
         )
     }
@@ -754,7 +752,7 @@ mod sky_regression {
         let at = ticks as f32;
         let sunrise = track(&SUNRISE, at);
         let sun = sun_angle(at);
-        let linear3 = |color: Vec3, w: f32| [linear(color.x), linear(color.y), linear(color.z), w];
+        let linear3 = |color: Vec3, w: f32| color.map(Srgba::gamma_function).extend(w).to_array();
         SkyUniform {
             disc: linear3(
                 BASE_SKY * track(&SKY_COLOR, at),
@@ -765,7 +763,7 @@ mod sky_regression {
                 sun,
                 sun + std::f32::consts::PI,
                 sun,
-                linear(track(&STAR_BRIGHTNESS, at)),
+                Srgba::gamma_function(track(&STAR_BRIGHTNESS, at)),
             ],
             moon: [
                 1.0 + (at / DAY).floor().rem_euclid(MOON_PHASE_COUNT),
@@ -852,7 +850,7 @@ mod sky_regression {
     #[test]
     fn star_brightness_carries_no_curve_beyond_the_colour_conversion() {
         let brightest = packed(18000, Vec3::ZERO).angles[3];
-        assert_eq!(brightest, linear(0.5));
+        assert_eq!(brightest, Srgba::gamma_function(0.5));
         assert_eq!(packed(6000, Vec3::ZERO).angles[3], 0.0);
     }
 

@@ -12,7 +12,6 @@ mod intent;
 pub mod metrics;
 pub mod packet_io;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
-mod status;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod webtransport;
 

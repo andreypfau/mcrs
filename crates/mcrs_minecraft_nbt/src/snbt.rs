@@ -711,7 +711,7 @@ impl<'a> Parser<'a> {
             ("bool", [argument]) => bool::deserialize(argument.clone())
                 .map(|truthy| NbtTag::Byte(truthy as i8))
                 .map_err(|_| self.error("expected a number or a boolean".to_string())),
-            ("uuid", [NbtTag::String(text)]) => parse_uuid(text)
+            ("uuid", [NbtTag::String(text)]) => parse_lenient_uuid(text)
                 .map(|(most, least)| {
                     NbtTag::IntArray(vec![
                         (most >> 32) as i32,
@@ -730,8 +730,8 @@ impl<'a> Parser<'a> {
 }
 
 /// Five dash-separated hex groups, each group masked to its field width, at
-/// most 36 characters in total.
-fn parse_uuid(text: &str) -> Option<(i64, i64)> {
+/// most 36 characters in total. Returns the most and least significant halves.
+pub fn parse_lenient_uuid(text: &str) -> Option<(i64, i64)> {
     if text.len() > 36 {
         return None;
     }
@@ -739,12 +739,7 @@ fn parse_uuid(text: &str) -> Option<(i64, i64)> {
     let [a, b, c, d, e] = groups.as_slice() else {
         return None;
     };
-    let hex = |group: &str| -> Option<i64> {
-        if group.is_empty() || group.len() > 16 {
-            return None;
-        }
-        i64::from_str_radix(group, 16).ok()
-    };
+    let hex = |group: &str| i64::from_str_radix(group, 16).ok();
     let most = ((hex(a)? & 0xffff_ffff) << 32) | ((hex(b)? & 0xffff) << 16) | (hex(c)? & 0xffff);
     let least = ((hex(d)? & 0xffff) << 48) | (hex(e)? & 0xffff_ffff_ffff);
     Some((most, least))

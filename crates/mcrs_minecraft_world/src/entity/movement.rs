@@ -40,13 +40,6 @@ pub fn snap_tiny_movement_of_player(velocity: &mut DVec3) {
     velocity.y = snap_tiny_axis(velocity.y);
 }
 
-/// The branch `LivingEntity.tick` takes for everything that is not a player.
-pub fn snap_tiny_movement(velocity: &mut DVec3) {
-    velocity.x = snap_tiny_axis(velocity.x);
-    velocity.y = snap_tiny_axis(velocity.y);
-    velocity.z = snap_tiny_axis(velocity.z);
-}
-
 fn snap_tiny_axis(value: f64) -> f64 {
     if value.abs() < MIN_MOVEMENT_DISTANCE {
         0.0

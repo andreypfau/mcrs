@@ -125,7 +125,7 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 #[test]
 fn game_transition_emits_initial_spawn() {
     use mcrs_minecraft_level::world::channels::{
-        DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
     use mcrs_minecraft_server::world::channel_types::FromDim;
 
@@ -144,8 +144,8 @@ fn game_transition_emits_initial_spawn() {
             .resource_mut::<DimChannelsResource>()
             .insert(
                 dim_label,
-                DimSender::new(srv_tx),
-                DimSender::new(ctl_tx),
+                srv_tx,
+                ctl_tx,
                 from_rx,
             );
         ctl_rx
@@ -219,7 +219,7 @@ fn no_live_dim_no_spawn() {
 #[test]
 fn idempotent_single_emit() {
     use mcrs_minecraft_level::world::channels::{
-        DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
     use mcrs_minecraft_server::world::channel_types::FromDim;
 
@@ -238,8 +238,8 @@ fn idempotent_single_emit() {
             .resource_mut::<DimChannelsResource>()
             .insert(
                 dim_label,
-                DimSender::new(srv_tx),
-                DimSender::new(ctl_tx),
+                srv_tx,
+                ctl_tx,
                 from_rx,
             );
         ctl_rx

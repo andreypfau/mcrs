@@ -5,8 +5,8 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::template::bounding_box;
 
-use super::random_rotation;
 use crate::frozen::TemplateId;
+use crate::orient::random_rotation;
 use crate::piece::{Piece, PortalProperties, RuinedPortalPiece};
 use crate::site::{Context, Site, Stub};
 use crate::{PortalPlacement, RuinedPortalSetup};

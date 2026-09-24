@@ -15,8 +15,9 @@ use super::provider::StateProvider;
 use mcrs_minecraft_core::BlockPos;
 pub use mcrs_minecraft_core::{Axis, dist_manhattan};
 
-pub fn random_horizontal(rng: &mut WorldgenRandom) -> Direction {
-    Direction::HORIZONTAL[rng.next_i32_bound(Direction::HORIZONTAL.len() as i32) as usize]
+/// `Direction.Plane.getRandomDirection`.
+pub fn random_horizontal<R: Random>(rng: &mut R) -> Direction {
+    Direction::HORIZONTAL[rng.next_i32_bound(4) as usize]
 }
 
 /// `Direction.allShuffled`, which is `Util.shuffle` over all six: a descending

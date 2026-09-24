@@ -94,7 +94,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
-    fn is_air(&self, x: i32, y: i32, z: i32) -> bool {
+    pub(crate) fn is_air(&self, x: i32, y: i32, z: i32) -> bool {
         let state = self.get(x, y, z);
         self.volume.world().air_states.contains(state.0 as usize)
     }
@@ -121,6 +121,11 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
                 }
             }
         }
+    }
+
+    /// `generateBox` with one state throughout, air included.
+    pub fn solid(&mut self, state: &Oriented, min: [i32; 3], max: [i32; 3]) {
+        self.generate_box(min, max, state, state, false);
     }
 
     /// `generateBox` with a `BlockSelector`: `select` is asked once per cell,

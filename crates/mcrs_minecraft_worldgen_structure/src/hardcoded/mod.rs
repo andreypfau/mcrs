@@ -1,9 +1,9 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::Rotation;
-use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 
+use crate::orient::random_rotation;
 use crate::site::{Context, Stub};
 
 pub mod buried_treasure;
@@ -22,8 +22,55 @@ pub mod stronghold;
 pub mod swamp_hut;
 pub mod woodland_mansion;
 
-pub(crate) fn random_rotation(rng: &mut LegacyRandom) -> Rotation {
-    Rotation::ALL[rng.next_i32_bound(4) as usize]
+pub(crate) trait PieceWeight: Copy {
+    fn weight(&self) -> i32;
+    fn max_place_count(&self) -> i32;
+}
+
+/// A piece table: its weights, how often each entry has been placed, and
+/// which entries are still offered.
+pub(crate) struct WeightTable<W> {
+    pub weights: Vec<W>,
+    pub place_count: Vec<i32>,
+    pub available: Vec<usize>,
+}
+
+impl<W: PieceWeight> WeightTable<W> {
+    pub fn new(weights: &[W]) -> Self {
+        WeightTable {
+            weights: weights.to_vec(),
+            place_count: vec![0; weights.len()],
+            available: (0..weights.len()).collect(),
+        }
+    }
+
+    pub fn valid(&self, entry: usize) -> bool {
+        let max = self.weights[entry].max_place_count();
+        max == 0 || self.place_count[entry] < max
+    }
+
+    /// `updatePieceWeight`: the offered weight, or `None` when no entry with
+    /// a cap is under it.
+    pub fn total_weight(&self) -> Option<i32> {
+        let mut any = false;
+        let mut total = 0;
+        for &entry in &self.available {
+            let weight = &self.weights[entry];
+            if weight.max_place_count() > 0 && self.place_count[entry] < weight.max_place_count() {
+                any = true;
+            }
+            total += weight.weight();
+        }
+        any.then_some(total)
+    }
+
+    pub fn placed(&mut self, position: usize) {
+        let entry = self.available[position];
+        self.place_count[entry] += 1;
+        if !self.valid(entry) {
+            self.available.remove(position);
+        }
+    }
 }
 
 /// `couldValidBiomeExistInTerrainColumn`: one block below the accessor's

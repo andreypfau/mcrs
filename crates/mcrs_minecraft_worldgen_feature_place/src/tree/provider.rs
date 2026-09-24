@@ -9,7 +9,7 @@ use mcrs_minecraft_core::value_provider::{IntProvider, pick_weighted_by};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
-use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume};
+use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume, with_digit};
 use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
 
 pub type SharedNoise = Arc<NoiseStack<Octave>>;
@@ -83,8 +83,7 @@ impl IntProperty {
         if !(0..self.count as i32).contains(&index) {
             return state;
         }
-        let current = ((state.0 - self.base) / self.stride % self.count) as i32;
-        VoxelId((state.0 as i32 + (index - current) * self.stride as i32) as u16)
+        with_digit(state, self.base, self.stride, self.count, index as u16)
     }
 }
 
@@ -103,8 +102,7 @@ impl DirectionProperty {
         let Some(index) = self.by_direction[direction as usize] else {
             return state;
         };
-        let current = (state.0 - self.base) / self.stride % self.count;
-        VoxelId((state.0 as i32 + (index as i32 - current as i32) * self.stride as i32) as u16)
+        with_digit(state, self.base, self.stride, self.count, index)
     }
 }
 
@@ -265,12 +263,7 @@ impl StateProvider {
             }
             StateProvider::CopyProperties(source) => {
                 let state = source.state(volume, rng, pos);
-                let here = volume.get(pos);
-                let world = volume.world();
-                Some(match (world.layout_of(state), world.layout_of(here)) {
-                    (Some(into), Some(from)) => into.with_properties_of(state, from, here),
-                    _ => state,
-                })
+                Some(volume.world().with_properties_of(state, volume.get(pos)))
             }
             StateProvider::Noise {
                 noise,

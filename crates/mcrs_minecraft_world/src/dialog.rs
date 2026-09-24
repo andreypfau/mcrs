@@ -97,51 +97,13 @@ impl AssetLoader for DialogLoader {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
-    fn assets_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets")
-    }
-
     #[test]
     fn deserialize_all_dialogs() {
-        let dir = assets_dir().join("minecraft/dialog");
-        let mut count = 0;
-        let mut failures = Vec::new();
-
-        for entry in std::fs::read_dir(&dir).expect("dialog dir must exist") {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let bytes = std::fs::read(&path).unwrap();
-            match serde_json::from_slice::<serde_json::Map<String, serde_json::Value>>(&bytes) {
-                Ok(map) => {
-                    assert!(map.contains_key("type"), "{}", path.display());
-                    count += 1;
-                }
-                Err(e) => failures.push((path.display().to_string(), e.to_string())),
-            }
+        for (path, map) in mcrs_minecraft_worldgen_testing::parse_all::<
+            serde_json::Map<String, serde_json::Value>,
+        >("minecraft/dialog")
+        {
+            assert!(map.contains_key("type"), "{}", path.display());
         }
-
-        if !failures.is_empty() {
-            for (path, err) in &failures {
-                eprintln!("FAIL {path}: {err}");
-            }
-            panic!(
-                "{} of {} dialogs failed to deserialize",
-                failures.len(),
-                count + failures.len()
-            );
-        }
-
-        assert!(count > 0, "no dialog files found");
-        eprintln!("successfully deserialized {count} dialogs");
     }
 }

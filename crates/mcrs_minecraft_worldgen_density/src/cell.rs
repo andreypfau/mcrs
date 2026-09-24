@@ -3,6 +3,7 @@ use crate::program::{Node, NodeId, Program};
 use bevy_math::IVec3;
 use mcrs_minecraft_worldgen_noise::interval::Interval;
 use mcrs_minecraft_worldgen_noise::jmath::{lerp, mul_add};
+use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
 /// The lattice a router with no `interpolated` node is still asked about.
 const DEFAULT_CELL: IVec3 = IVec3::new(4, 8, 4);
@@ -67,6 +68,43 @@ pub fn sampled_range(cell: IVec3, corner: impl Fn(i32, i32, i32) -> f32) -> Inte
     }
     let slop = 2.0 * cell.y as f32 * f32::EPSILON * lo.abs().max(hi.abs());
     Interval::of(lo - slop, hi + slop)
+}
+
+/// The hull of one cell's eight corner values, per lattice row of `values`.
+pub fn corner_bounds(values: &[f32], lattice: &SampleGrid, at: IVec3, out: &mut [Interval]) {
+    let stride = lattice.len();
+    for (k, bound) in out.iter_mut().enumerate() {
+        let row = &values[k * stride..(k + 1) * stride];
+        let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
+        for dz in 0..2 {
+            for dx in 0..2 {
+                for dy in 0..2 {
+                    let v = row[lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz)];
+                    lo = lo.min(v);
+                    hi = hi.max(v);
+                }
+            }
+        }
+        *bound = Interval::of(lo, hi);
+    }
+}
+
+/// [`corner_bounds`] over the range the blocks of the cell actually reach,
+/// rather than over the closed cell.
+pub fn sampled_bounds(
+    values: &[f32],
+    lattice: &SampleGrid,
+    at: IVec3,
+    cell: IVec3,
+    out: &mut [Interval],
+) {
+    let stride = lattice.len();
+    for (k, bound) in out.iter_mut().enumerate() {
+        let row = &values[k * stride..(k + 1) * stride];
+        *bound = sampled_range(cell, |dx, dy, dz| {
+            row[lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz)]
+        });
+    }
 }
 
 /// One root's subgraph split at every `interpolated` node: the wrappers and

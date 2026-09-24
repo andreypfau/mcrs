@@ -10,7 +10,7 @@ use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest, BlockUpda
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::{DimPlayerIndex, MoveId, PlayerSessionCounter};
 use mcrs_minecraft_level::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
 };
 use mcrs_minecraft_level::world::dimension::Dimension;
@@ -68,8 +68,8 @@ fn make_dim_channels(
         .resource_mut::<DimChannelsResource>()
         .insert(
             label_entity,
-            DimSender::new(srv_tx),
-            DimSender::new(ctl_tx),
+            srv_tx,
+            ctl_tx,
             from_rx,
         );
     (srv_rx, ctl_rx, from_tx)
@@ -186,7 +186,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         // FromDimSender so ArrivalPlugin can send Spawned ack.
         let (from_tx2, _from_rx2) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         sub.insert_resource(FromDimSender::<FromDim>(
-            mcrs_minecraft_level::world::channels::DimSender::new(from_tx2),
+            from_tx2,
         ));
         sub.init_resource::<DimPlayerIndex>();
 

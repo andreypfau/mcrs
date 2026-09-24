@@ -222,12 +222,6 @@ pub struct BakedQuad {
     pub dir: Dir,
     pub sprite: usize,
     pub cull: Option<Dir>,
-    /// Occlusion factor per vertex, before the directional shade is folded in.
-    #[allow(
-        dead_code,
-        reason = "the viewer draws `color`; the factor is what the tests pin"
-    )]
-    pub ao: [f32; 4],
     /// Vanilla's final vertex byte, sRGB space, before any tint colour is multiplied in.
     pub color: [u8; 4],
     /// The face's `tintindex`, if it has one.
@@ -238,18 +232,6 @@ pub struct BakedQuad {
 pub struct BakedBlock {
     pub quads: Vec<BakedQuad>,
     pub sprites: Vec<String>,
-}
-
-/// What the mesher needs to know about the blocks around the one being baked. Implementing this
-/// over a real chunk section is the only change needed to mesh actual terrain.
-pub trait Neighborhood {
-    fn shade_brightness(&self, pos: IVec3) -> f32;
-    fn is_view_blocking(&self, pos: IVec3) -> bool;
-    fn light_dampening(&self, pos: IVec3) -> u8;
-    fn is_collision_shape_full_block(&self, pos: IVec3) -> bool;
-    fn light_emission(&self, _pos: IVec3) -> u8 {
-        0
-    }
 }
 
 /// Every listed position is a full opaque cube; everything else is air.
@@ -268,9 +250,7 @@ impl TinyWorld {
     pub fn is_solid(&self, pos: IVec3) -> bool {
         self.solid.contains(&pos)
     }
-}
 
-impl Neighborhood for TinyWorld {
     fn shade_brightness(&self, pos: IVec3) -> f32 {
         if self.is_solid(pos) { 0.2 } else { 1.0 }
     }
@@ -283,7 +263,7 @@ impl Neighborhood for TinyWorld {
         if self.is_solid(pos) { 15 } else { 0 }
     }
 
-    fn is_collision_shape_full_block(&self, pos: IVec3) -> bool {
+    pub fn is_collision_shape_full_block(&self, pos: IVec3) -> bool {
         self.is_solid(pos)
     }
 }
@@ -314,12 +294,7 @@ fn coord_towards(dir: Dir, p: Vec3) -> f32 {
     if dir.normal()[axis] > 0 { c } else { 1.0 - c }
 }
 
-fn ambient_occlusion(
-    positions: &[Vec3; 4],
-    dir: Dir,
-    pos: IVec3,
-    world: &dyn Neighborhood,
-) -> [f32; 4] {
+fn ambient_occlusion(positions: &[Vec3; 4], dir: Dir, pos: IVec3, world: &TinyWorld) -> [f32; 4] {
     const EPS: f32 = 1.0e-4;
     const NEAR_ONE: f32 = 0.9999;
 
@@ -417,7 +392,7 @@ struct BakeContext<'a> {
     uvlock: bool,
     smooth: bool,
     pos: IVec3,
-    world: &'a dyn Neighborhood,
+    world: &'a TinyWorld,
 }
 
 /// A face's corners, texture coordinates and orientation before any lighting is applied.
@@ -534,7 +509,6 @@ fn bake_face(
         dir: facing,
         sprite,
         cull,
-        ao,
         color,
         tint: face.tint_index,
     })
@@ -545,7 +519,7 @@ pub fn bake(
     block: &str,
     props: &[(&str, &str)],
     pos: IVec3,
-    world: &dyn Neighborhood,
+    world: &TinyWorld,
 ) -> Result<BakedBlock, String> {
     let states = BlockStateFile::load(pack, block)?;
     let mut merged = BakedBlock {
@@ -578,12 +552,12 @@ fn bake_model(
     rotation: VariantRotation,
     uvlock: bool,
     pos: IVec3,
-    world: &dyn Neighborhood,
+    world: &TinyWorld,
 ) -> Result<BakedBlock, String> {
     let ctx = BakeContext {
         rotation,
         uvlock,
-        smooth: model.ambient_occlusion && world.light_emission(pos) == 0,
+        smooth: model.ambient_occlusion,
         pos,
         world,
     };
@@ -695,7 +669,6 @@ mod tests {
             (Dir::East, 153),
         ] {
             let q = quad(&baked, dir);
-            assert_eq!(q.ao, [1.0; 4], "isolated block has no occlusion on {dir:?}");
             assert_eq!(q.color, [expected; 4], "face shade of {dir:?}");
         }
     }
@@ -705,7 +678,6 @@ mod tests {
         let baked = oak_log(&[("axis", "y")], &block_on_floor(&[]));
         let q = quad(&baked, Dir::West);
         // v0 and v3 are the top corners, v1 and v2 the bottom ones.
-        assert_eq!(q.ao, [1.0, 0.6, 0.6, 1.0]);
         assert_eq!(q.color, [153, 91, 91, 153]);
     }
 
@@ -717,7 +689,6 @@ mod tests {
         let q = quad(&baked, Dir::West);
         // Vanilla substitutes the *up* sample (1.0) here, not the *down* one (0.2): the corner
         // averages to 0.8 rather than 0.6.
-        assert_eq!(q.ao[1], 0.8);
         assert_eq!(q.color[1], 122);
     }
 

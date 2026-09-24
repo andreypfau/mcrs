@@ -109,7 +109,7 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
     let ctl_rx = {
         use mcrs_minecraft_level::world::channels::{
-            DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+            FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
         };
         use mcrs_minecraft_server::world::channel_types::FromDim;
         let (srv_tx, _srv_rx) =
@@ -122,8 +122,8 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
             .resource_mut::<DimChannelsResource>()
             .insert(
                 current_dim,
-                DimSender::new(srv_tx),
-                DimSender::new(ctl_tx),
+                srv_tx,
+                ctl_tx,
                 from_rx,
             );
         ctl_rx

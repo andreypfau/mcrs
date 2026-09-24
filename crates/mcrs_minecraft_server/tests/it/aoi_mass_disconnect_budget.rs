@@ -7,7 +7,7 @@ use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft_server::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, LeavingSessions,
@@ -38,7 +38,7 @@ fn register_dim_channel(app: &mut App, dim: Entity) -> flume::Receiver<ToDim> {
     let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
     app.world_mut()
         .resource_mut::<DimChannelsResource>()
-        .insert(dim, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+        .insert(dim, srv_tx, ctl_tx, from_rx);
     ctl_rx
 }
 
@@ -225,7 +225,7 @@ fn e4_2_queue_hard_cap_drops_overflow_with_warn() {
     // Saturate the budget so every push from now on goes through the queue.
     {
         let mut budget = app.world_mut().resource_mut::<DisconnectBudget>();
-        budget.remaining = 0;
+        budget.0 = 0;
     }
 
     // Pre-fill the queue to QUEUE_HARD_CAP - 1 with throwaway anchors.

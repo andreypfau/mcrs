@@ -28,7 +28,7 @@ serde.workspace = true
 serde_json.workspace = true
 bevy_reflect.workspace = true
 thiserror.workspace = true
-mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
+mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 bevy_math.workspace = true

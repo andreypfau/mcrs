@@ -1,4 +1,4 @@
-use bevy_math::{Mat4, Quat, Vec3};
+use bevy::math::{Mat4, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 
 /// `T · Rl · S · Rr` as a record, or sixteen row-major floats.

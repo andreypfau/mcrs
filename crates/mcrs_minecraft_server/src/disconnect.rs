@@ -37,28 +37,24 @@ use mcrs_minecraft_level::dim::send_control_or_teardown;
 use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 
-/// Per-tick cleanup budget. The initial 32 caps work at 640 disconnects/sec
-/// under a 20 TPS schedule, draining a 1000-player kick in ~1.5s without
-/// monopolising a tick.
+/// 32 caps work at 640 disconnects/sec under a 20 TPS schedule, draining a
+/// 1000-player kick in ~1.5s without monopolising a tick.
+pub const DISCONNECT_BUDGET: u32 = 32;
+
+/// Cleanup slots left this tick.
 #[derive(Resource)]
-pub struct DisconnectBudget {
-    pub remaining: u32,
-    pub max_per_tick: u32,
-}
+pub struct DisconnectBudget(pub u32);
 
 impl Default for DisconnectBudget {
     fn default() -> Self {
-        Self {
-            remaining: 32,
-            max_per_tick: 32,
-        }
+        Self(DISCONNECT_BUDGET)
     }
 }
 
 impl DisconnectBudget {
     pub fn consume(&mut self) -> bool {
-        if self.remaining > 0 {
-            self.remaining -= 1;
+        if self.0 > 0 {
+            self.0 -= 1;
             true
         } else {
             false
@@ -66,7 +62,7 @@ impl DisconnectBudget {
     }
 
     pub fn refill(&mut self) {
-        self.remaining = self.max_per_tick;
+        self.0 = DISCONNECT_BUDGET;
     }
 }
 
@@ -260,11 +256,11 @@ pub fn drain_pending_disconnects(
     mut commands: Commands,
 ) {
     disconnect_budget.refill();
-    while disconnect_budget.remaining > 0 {
+    while disconnect_budget.0 > 0 {
         let Some(host_anchor) = pending_queue.pop_front() else {
             break;
         };
-        disconnect_budget.remaining -= 1;
+        disconnect_budget.0 -= 1;
         disconnected_this_tick.host_anchors.push(host_anchor);
         process_disconnect(
             host_anchor,
@@ -341,30 +337,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn disconnect_budget_default_is_32() {
-        let b = DisconnectBudget::default();
-        assert_eq!(b.remaining, 32);
-        assert_eq!(b.max_per_tick, 32);
-    }
-
-    #[test]
     fn disconnect_budget_consume_decrements_until_zero() {
         let mut b = DisconnectBudget::default();
-        for _ in 0..32 {
+        for _ in 0..DISCONNECT_BUDGET {
             assert!(b.consume());
         }
         assert!(!b.consume());
-        assert_eq!(b.remaining, 0);
+        assert_eq!(b.0, 0);
     }
 
     #[test]
     fn disconnect_budget_refill_resets_to_max() {
-        let mut b = DisconnectBudget {
-            remaining: 0,
-            max_per_tick: 32,
-        };
+        let mut b = DisconnectBudget(0);
         b.refill();
-        assert_eq!(b.remaining, 32);
+        assert_eq!(b.0, DISCONNECT_BUDGET);
     }
 
     #[test]

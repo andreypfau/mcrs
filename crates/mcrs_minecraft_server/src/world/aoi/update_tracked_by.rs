@@ -20,7 +20,7 @@ use crate::login::GameProfile;
 use crate::world::aoi::components::TrackedBy;
 use crate::world::aoi::probe::AoiTickProbe;
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
-use crate::world::entity::MinecraftEntityType;
+use mcrs_minecraft_world::entity::minecraft::PLAYER;
 
 /// Chunk-column radius for player-to-player tracking. ~5 chunks ≈ 80
 /// blocks; matches vanilla's mob/player track radius before
@@ -110,7 +110,7 @@ pub fn update_tracked_by(
                     data: PacketPayload::PlayerEnteredView {
                         entity_id: player.index_u32() as i32,
                         uuid,
-                        kind: MinecraftEntityType::Player as i32,
+                        kind: PLAYER.protocol_id as i32,
                         position: pos,
                         yaw: transform.rotation.yaw(),
                         pitch: transform.rotation.pitch(),

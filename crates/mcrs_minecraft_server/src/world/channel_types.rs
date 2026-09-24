@@ -59,15 +59,6 @@ pub enum ToDim {
     RollbackMove { move_id: MoveId },
 }
 
-impl ToDim {
-    /// Returns `true` if this message may be shed when the channel is at
-    /// capacity. Only `Serverbound` is sheddable; lifecycle/control messages
-    /// are never shed.
-    pub(crate) fn is_sheddable(&self) -> bool {
-        matches!(self, ToDim::Serverbound { .. })
-    }
-}
-
 /// Dim→host message channel type.
 ///
 /// Carries all traffic from a dimension world back to the host (MainWorld).

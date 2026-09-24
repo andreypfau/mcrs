@@ -125,27 +125,6 @@ impl ClockState {
     pub fn is_paused(&self) -> bool {
         self.paused || self.rate == 0.0
     }
-
-    pub fn network_state(&self, advance_time: bool) -> ClockNetworkState {
-        ClockNetworkState {
-            total_ticks: self.total_ticks,
-            partial_tick: self.partial_tick,
-            rate: if self.paused || !advance_time {
-                0.0
-            } else {
-                self.rate
-            },
-        }
-    }
-}
-
-/// The wire form of a [`ClockState`]: no `paused` field, a zeroed `rate`
-/// standing in for both a paused clock and a disabled `advance_time`.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ClockNetworkState {
-    pub total_ticks: i64,
-    pub partial_tick: f32,
-    pub rate: f32,
 }
 
 /// Every clock of the `world_clock` registry, keyed by id.
@@ -581,19 +560,16 @@ mod tests {
     }
 
     #[test]
-    fn the_network_state_reports_a_zero_rate_for_either_kind_of_stop() {
+    fn a_zero_rate_reads_as_paused() {
         let running = ClockState {
             rate: 0.5,
             ..ClockState::default()
         };
-        assert_eq!(running.network_state(true).rate, 0.5);
-        assert_eq!(running.network_state(false).rate, 0.0);
-
         let paused = ClockState {
             paused: true,
             ..running
         };
-        assert_eq!(paused.network_state(true).rate, 0.0);
+        assert!(paused.is_paused());
 
         let received = ClockState {
             rate: 0.0,

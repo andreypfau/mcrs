@@ -3,11 +3,12 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 
-use super::{DebugEntryGroup, DebugScreenDisplayer};
+use super::DebugScreenDisplayer;
 use crate::player::Player;
 use crate::sky::PlayerDimension;
 
-pub const GROUP: DebugEntryGroup = ResourceLocation::new_static("minecraft:position");
+pub const GROUP: ResourceLocation<&'static str> =
+    ResourceLocation::new_static("minecraft:position");
 
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,

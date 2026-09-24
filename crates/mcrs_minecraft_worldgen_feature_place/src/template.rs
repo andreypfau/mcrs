@@ -333,13 +333,6 @@ pub struct BlockAgeTables {
     pub crying_obsidian: VoxelId,
 }
 
-fn with_properties_of(world: &WorldStates, target: VoxelId, source: VoxelId) -> VoxelId {
-    match (world.layout_of(target), world.layout_of(source)) {
-        (Some(into), Some(from)) => into.with_properties_of(target, from, source),
-        _ => target,
-    }
-}
-
 impl BlockAgeTables {
     fn age<R: Random>(&self, world: &WorldStates, state: VoxelId, rng: &mut R) -> Option<VoxelId> {
         let id = state.0 as usize;
@@ -361,16 +354,16 @@ impl BlockAgeTables {
                 return None;
             }
             let mossy = [
-                with_properties_of(world, self.mossy_stone_brick_stairs, state),
+                world.with_properties_of(self.mossy_stone_brick_stairs, state),
                 self.mossy_stone_brick_slab,
             ];
             Some(self.pick(rng, [self.stone_slab, self.stone_brick_slab], mossy))
         } else if self.slabs.contains(id) {
             (rng.next_f32() < self.mossiness)
-                .then(|| with_properties_of(world, self.mossy_stone_brick_slab, state))
+                .then(|| world.with_properties_of(self.mossy_stone_brick_slab, state))
         } else if self.walls.contains(id) {
             (rng.next_f32() < self.mossiness)
-                .then(|| with_properties_of(world, self.mossy_stone_brick_wall, state))
+                .then(|| world.with_properties_of(self.mossy_stone_brick_wall, state))
         } else if self.obsidian.contains(id) {
             (rng.next_f32() < 0.15).then_some(self.crying_obsidian)
         } else {
@@ -394,7 +387,7 @@ impl BlockAgeTables {
 }
 
 fn random_facing_stairs<R: Random>(world: &WorldStates, stairs: VoxelId, rng: &mut R) -> VoxelId {
-    let facing = Direction::HORIZONTAL[rng.next_i32_bound(4) as usize];
+    let facing = crate::tree::trunk::random_horizontal(rng);
     let half = ["top", "bottom"][rng.next_i32_bound(2) as usize];
     let Some(layout) = world.layout_of(stairs) else {
         return stairs;

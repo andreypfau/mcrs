@@ -1,13 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use bevy_asset::io::Reader;
-use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
+use bevy_asset::{Asset, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 
 use mcrs_minecraft_core::ResourceLocation;
@@ -96,37 +94,6 @@ impl VisitAssetDependencies for Timeline {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
 
-#[derive(Default, TypePath)]
-pub struct TimelineLoader;
-
-#[derive(Debug, thiserror::Error)]
-pub enum TimelineLoaderError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error("JSON parse error: {0}")]
-    Json(#[from] serde_json::Error),
-}
-
-impl AssetLoader for TimelineLoader {
-    type Asset = Timeline;
-    type Settings = ();
-    type Error = TimelineLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &(),
-        _load_context: &mut LoadContext<'_>,
-    ) -> Result<Timeline, TimelineLoaderError> {
-        let bytes = read_all(reader).await?;
-        Ok(serde_json::from_slice(&bytes)?)
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &[]
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 #[error("timeline track `{track}`: {kind}")]
 pub struct TimelineError {
@@ -168,8 +135,8 @@ mod tests {
     use super::*;
     use crate::attribute::{AttributeValue, Operation};
     use mcrs_minecraft_nbt::tag::NbtTag;
+    use mcrs_minecraft_worldgen_testing::assets_dir;
     use serde_json::{Value, json};
-    use std::path::PathBuf;
 
     const SHIPPED: [&str; 4] = [
         "day.json",
@@ -177,15 +144,6 @@ mod tests {
         "villager_schedule.json",
         "early_game.json",
     ];
-
-    fn assets_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets")
-    }
 
     fn raw(name: &str) -> Value {
         let bytes = std::fs::read(assets_dir().join("minecraft/timeline").join(name)).unwrap();
@@ -414,36 +372,7 @@ mod tests {
 
     #[test]
     fn deserialize_all_timelines() {
-        let dir = assets_dir().join("minecraft/timeline");
-        let mut count = 0;
-        let mut failures = Vec::new();
-
-        for entry in std::fs::read_dir(&dir).expect("timeline dir must exist") {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let bytes = std::fs::read(&path).unwrap();
-            match serde_json::from_slice::<Timeline>(&bytes) {
-                Ok(_) => count += 1,
-                Err(e) => failures.push((path.display().to_string(), e.to_string())),
-            }
-        }
-
-        if !failures.is_empty() {
-            for (path, err) in &failures {
-                eprintln!("FAIL {path}: {err}");
-            }
-            panic!(
-                "{} of {} timelines failed to deserialize",
-                failures.len(),
-                count + failures.len()
-            );
-        }
-
-        assert!(count > 0, "no timeline files found");
-        eprintln!("successfully deserialized {count} timelines");
+        mcrs_minecraft_worldgen_testing::parse_all::<Timeline>("minecraft/timeline");
     }
 
     // ── Baking and sampling ──────────────────────────────────────────────────

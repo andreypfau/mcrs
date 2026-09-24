@@ -1,6 +1,4 @@
-use super::{
-    assets_root, corpus, density_function_registry, load_json_dir, noise_registry, router_blocks,
-};
+use super::{corpus, router_blocks};
 use crate::modern_carvers::{ModernCarverBlockIds, TerrainCarving};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::surface::{Visit, descend_strip, set_block};
@@ -21,6 +19,7 @@ use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch, NO_WATER,
 };
+use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
 use std::collections::{BTreeMap, HashMap};
 
 const AIR: VoxelId = VoxelId(0);
@@ -144,12 +143,12 @@ pub fn overworld_material_router(
     seed: u64,
     ids: &HashMap<String, u32>,
 ) -> (NoiseRouter, MaterialProgram) {
-    let path = assets_root().join("noise_settings/overworld.json");
+    let path = worldgen_dir().join("noise_settings/overworld.json");
     let settings: NoiseGeneratorSettings =
         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = load_json_dir("material_rule");
+    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        load_json_dir("material_condition");
+        registry("material_condition");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
@@ -162,8 +161,8 @@ pub fn overworld_material_router(
     };
     build_router_and_material(
         &settings,
-        &density_function_registry(),
-        &noise_registry(),
+        &registry("density_function"),
+        &registry("noise"),
         seed,
         router_blocks(corpus()),
         &inputs,

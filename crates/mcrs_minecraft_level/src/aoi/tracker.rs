@@ -1,42 +1,4 @@
-//! AoI tracker substrate. Concrete implementations (`PlayerTracker`, future
-//! `MobTracker` / `ItemTracker` / `ProjectileTracker`) live in the game tier
-//! and plug in via associated types; no `dyn` dispatch in the trait surface.
-
-use bevy_ecs::component::Component;
-use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::{ScheduleConfigs, SystemSet};
-use bevy_ecs::system::{Local, ScheduleSystem};
-
-/// Update cadence for a concrete tracker. `Every` is the default for
-/// position-driven AoI work; `EveryN(n)` is a cost-amortising knob for
-/// trackers whose inputs change rarely (e.g., projectile despawn
-/// timers).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TickInterval {
-    Every,
-    EveryN(u32),
-}
-
-impl TickInterval {
-    pub const fn to_n(self) -> u32 {
-        match self {
-            Self::Every => 1,
-            Self::EveryN(n) => n,
-        }
-    }
-}
-
-/// Generic AoI tracker contract. Per-tracker `SystemSet`, associated
-/// per-tracker Entity marker Component + Cache Resource, and a const
-/// cadence. Each concrete impl is monomorphised; there is no virtual
-/// call in the AoI hot path.
-pub trait EntityTracker: 'static + Send + Sync {
-    type Entity: Component;
-    type Cache: Resource + Default;
-    type Set: SystemSet + Clone + Default;
-    const CADENCE: TickInterval;
-    fn systems() -> ScheduleConfigs<ScheduleSystem>;
-}
+use bevy_ecs::system::Local;
 
 /// `run_if`-friendly cadence helper backed by a `Local<u32>` counter.
 /// Returns a closure that yields `true` exactly once every `n` calls
@@ -45,8 +7,7 @@ pub trait EntityTracker: 'static + Send + Sync {
 ///
 /// `n == 0` is clamped to `1` ("every call") because the semantics of
 /// "every zero calls" are undefined and naive `>= 0` arithmetic would
-/// fire on every call without resetting the counter, defeating the
-/// cost-amortising knob the cadence enum exists for.
+/// fire on every call without resetting the counter.
 pub fn every_n_ticks(n: u32) -> impl FnMut(Local<u32>) -> bool {
     let n = n.max(1);
     move |mut counter: Local<u32>| {
@@ -64,47 +25,10 @@ pub fn every_n_ticks(n: u32) -> impl FnMut(Local<u32>) -> bool {
 mod tests {
     use super::*;
     use bevy_app::App;
-    use bevy_ecs::prelude::IntoScheduleConfigs;
     use bevy_ecs::schedule::ScheduleLabel;
 
     #[derive(ScheduleLabel, Clone, Copy, Debug, PartialEq, Eq, Hash)]
     struct DummySchedule;
-
-    #[derive(Component, Default)]
-    struct DummyMarker;
-
-    #[derive(Resource, Default)]
-    struct DummyCache;
-
-    #[derive(SystemSet, Clone, Default, Hash, PartialEq, Eq, Debug)]
-    struct DummySet;
-
-    struct DummyTracker;
-
-    fn dummy_system() {}
-
-    impl EntityTracker for DummyTracker {
-        type Entity = DummyMarker;
-        type Cache = DummyCache;
-        type Set = DummySet;
-        const CADENCE: TickInterval = TickInterval::EveryN(2);
-
-        fn systems() -> ScheduleConfigs<ScheduleSystem> {
-            dummy_system.into_configs()
-        }
-    }
-
-    #[test]
-    fn dummy_tracker_compiles_and_const_cadence_matches() {
-        assert_eq!(DummyTracker::CADENCE, TickInterval::EveryN(2));
-        assert_eq!(DummyTracker::CADENCE.to_n(), 2);
-        let _ = DummyTracker::systems();
-    }
-
-    #[test]
-    fn tick_interval_every_to_n_is_one() {
-        assert_eq!(TickInterval::Every.to_n(), 1);
-    }
 
     #[test]
     fn every_n_ticks_zero_clamps_to_every_call() {

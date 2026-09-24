@@ -76,12 +76,6 @@ impl<T: TaggedRegistry> TagKey<T, &'static str> {
     pub fn resource_location(&self) -> ResourceLocation<&'static str> {
         self.rl
     }
-
-    /// The `ResourceLocation` of the tag, converted to the Arc variant.
-    /// Use this when you need an owned key for HashMap insertion.
-    pub fn resource_location_arc(&self) -> ResourceLocation<Arc<str>> {
-        self.rl.to_arc()
-    }
 }
 
 // ── Arc variant (runtime-parsed) ──

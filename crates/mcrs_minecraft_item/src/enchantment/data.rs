@@ -183,16 +183,7 @@ pub struct EnchantmentCost {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn assets_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets")
-    }
+    use mcrs_minecraft_worldgen_testing::assets_dir;
 
     #[test]
     fn deserialize_and_resolve_sharpness() {
@@ -227,39 +218,13 @@ mod tests {
 
     #[test]
     fn deserialize_and_resolve_all_enchantments() {
-        let dir = assets_dir().join("minecraft/enchantment");
-        let mut count = 0;
-        let mut failures = Vec::new();
-
-        for entry in std::fs::read_dir(&dir).expect("enchantment dir must exist") {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let bytes = std::fs::read(&path).unwrap();
-            match serde_json::from_slice::<ProtoEnchantmentData>(&bytes) {
-                Ok(proto) => match proto.resolve() {
-                    Ok(_) => count += 1,
-                    Err(e) => failures.push((path.display().to_string(), e.to_string())),
-                },
-                Err(e) => failures.push((path.display().to_string(), e.to_string())),
-            }
+        for (path, proto) in mcrs_minecraft_worldgen_testing::parse_all::<ProtoEnchantmentData>(
+            "minecraft/enchantment",
+        ) {
+            proto
+                .resolve()
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         }
-
-        if !failures.is_empty() {
-            for (path, err) in &failures {
-                eprintln!("FAIL {path}: {err}");
-            }
-            panic!(
-                "{} of {} enchantments failed",
-                failures.len(),
-                count + failures.len()
-            );
-        }
-
-        assert!(count > 0, "no enchantment files found");
-        eprintln!("successfully deserialized and resolved {count} enchantments");
     }
 
     #[test]

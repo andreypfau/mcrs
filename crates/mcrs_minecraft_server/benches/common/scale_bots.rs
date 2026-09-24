@@ -56,10 +56,6 @@ pub struct ScaleReport {
     pub entity_count_start: u64,
     /// entity count at T=end
     pub entity_count_end: u64,
-    /// monotone emitted count at T=0
-    pub emitted_start: u64,
-    /// monotone emitted count at T=end
-    pub emitted_end: u64,
     /// monotone consumed count at T=0
     pub consumed_start: u64,
     /// monotone consumed count at T=end
@@ -93,9 +89,8 @@ impl ScaleReport {
     /// consumed over the run — a SOFT observational dimension only, never a
     /// pass/fail gate. Use `total_queued` for routing assertions.
     pub fn saturation_gap(&self) -> i64 {
-        let emitted_delta = (self.emitted_end - self.emitted_start) as i64;
         let consumed_delta = (self.consumed_end - self.consumed_start) as i64;
-        emitted_delta - consumed_delta
+        self.packets_injected as i64 - consumed_delta
     }
 }
 
@@ -194,7 +189,6 @@ fn run_profile_bounded(
 
     // T=0 snapshot.
     let snapshot_start = *world.resource::<BridgeTelemetry>();
-    let emitted_start = 0;
     let consumed_start = snapshot_start.outbound_messages_consumed_total;
     let entity_count_start = world.entities().len() as u64;
 
@@ -334,8 +328,6 @@ fn run_profile_bounded(
         snapshot_end,
         entity_count_start,
         entity_count_end,
-        emitted_start,
-        emitted_end: packets_injected,
         consumed_start,
         consumed_end,
         tick_min_us,
@@ -368,8 +360,6 @@ pub fn write_baseline_json(report: &ScaleReport, path: &std::path::Path) -> std:
         "packets_injected": report.packets_injected,
         "total_queued": report.total_queued,
         "cross_dim_transfers": report.cross_dim_transfers,
-        "emitted_start": report.emitted_start,
-        "emitted_end": report.emitted_end,
         "consumed_start": report.consumed_start,
         "consumed_end": report.consumed_end,
         "saturation_gap": report.saturation_gap(),

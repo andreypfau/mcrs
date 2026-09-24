@@ -81,7 +81,7 @@ fn content_variants_round_trip_through_json() {
         nbt(
             DataSource::Storage {
                 typed: (),
-                storage: rl!("foo").into(),
+                storage: rl!("minecraft:foo").into(),
             },
             r#"{"nbt":"bar","interpret":true,"separator":"baz","storage":"minecraft:foo"}"#,
         ),
@@ -163,7 +163,7 @@ fn a_component_that_is_neither_a_string_nor_a_compound_is_rejected() {
 fn a_boolean_inside_a_content_variant_survives_nbt() {
     let storage = DataSource::Storage {
         typed: (),
-        storage: rl!("foo").into(),
+        storage: rl!("minecraft:foo").into(),
     };
     let block = DataSource::Block {
         typed: (),
@@ -383,7 +383,7 @@ fn vanilla_stream_codec_bytes_decode_and_re_encode() {
 fn an_int_array_below_a_list_stays_an_int_array() {
     let mut hover = Text::text("x");
     hover.hover_event = Some(HoverEvent::ShowEntity {
-        id: ResourceKey::from_location(rl!("pig").into()),
+        id: ResourceKey::from_location(rl!("minecraft:pig").into()),
         uuid: Uuid::from_u128(0x00000001_00000002_00000003_00000004),
         name: None,
     });

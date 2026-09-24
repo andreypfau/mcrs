@@ -5,8 +5,8 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::template::bounding_box;
 
-use super::random_rotation;
 use crate::frozen::TemplateId;
+use crate::orient::random_rotation;
 use crate::piece::{NetherFossilPiece, Piece};
 use crate::site::{Context, Site, Stub};
 

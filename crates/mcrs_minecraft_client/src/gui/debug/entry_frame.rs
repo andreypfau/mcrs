@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 
-use super::{DebugEntryGroup, DebugScreenDisplayer};
+use super::DebugScreenDisplayer;
 use crate::probe::{self, CpuTimings, GpuTimings};
 use crate::render::FrameCounts;
 
-pub const GROUP: DebugEntryGroup = ResourceLocation::new_static("mcrs:frame");
+pub const GROUP: ResourceLocation<&'static str> = ResourceLocation::new_static("mcrs:frame");
 
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,

@@ -11,7 +11,6 @@ pub mod dim;
 pub mod entity;
 pub mod experience;
 pub mod explosion;
-pub mod packet;
 pub mod palette;
 pub mod server_loop;
 pub mod session;

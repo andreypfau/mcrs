@@ -33,7 +33,7 @@ pub fn locate<'r>(
                 let mut closest_sqr = f64::MAX;
                 for &chunk in positions {
                     let centre = IVec3::new(chunk.middle_block_x(), 32, chunk.middle_block_z());
-                    let d = dist_sqr(centre, origin);
+                    let d = centre.as_dvec3().distance_squared(origin.as_dvec3());
                     if (closest.is_none() || d < closest_sqr)
                         && let Some(hit) = generating_at(entry, chunk, &mut present)
                     {
@@ -42,7 +42,7 @@ pub fn locate<'r>(
                     }
                 }
                 if let Some(hit) = closest {
-                    let d = dist_sqr(origin, hit.0);
+                    let d = origin.as_dvec3().distance_squared(hit.0.as_dvec3());
                     if d < distance_sqr {
                         distance_sqr = d;
                         nearest = Some(hit);
@@ -66,7 +66,7 @@ pub fn locate<'r>(
                 continue;
             };
             found = true;
-            let d = dist_sqr(origin, hit.0);
+            let d = origin.as_dvec3().distance_squared(hit.0.as_dvec3());
             if d < distance_sqr {
                 distance_sqr = d;
                 nearest = Some(hit);
@@ -129,13 +129,6 @@ pub fn locate_pos(placement: &StructurePlacement, chunk: ColumnPos) -> IVec3 {
         offset[1],
         chunk.min_block_z().wrapping_add(offset[2]),
     )
-}
-
-fn dist_sqr(a: IVec3, b: IVec3) -> f64 {
-    let dx = a.x as f64 - b.x as f64;
-    let dy = a.y as f64 - b.y as f64;
-    let dz = a.z as f64 - b.z as f64;
-    dx * dx + dy * dy + dz * dz
 }
 
 #[cfg(test)]
@@ -210,7 +203,12 @@ mod tests {
         let far = cell(&wide, ColumnPos::new(4, 4));
         let near = cell(&narrow, ColumnPos::new(4, 0));
         assert!(
-            dist_sqr(ORIGIN, locate_pos(&narrow, near)) < dist_sqr(ORIGIN, locate_pos(&wide, far))
+            ORIGIN
+                .as_dvec3()
+                .distance_squared(locate_pos(&narrow, near).as_dvec3())
+                < ORIGIN
+                    .as_dvec3()
+                    .distance_squared(locate_pos(&wide, far).as_dvec3())
         );
 
         let placements = [spread_entry(A, &wide), spread_entry(B, &narrow)];
@@ -229,7 +227,12 @@ mod tests {
         let far = cell(&wide, ColumnPos::new(4, 4));
         let near = cell(&narrow, ColumnPos::new(2, 0));
         assert!(
-            dist_sqr(ORIGIN, locate_pos(&narrow, near)) < dist_sqr(ORIGIN, locate_pos(&wide, far))
+            ORIGIN
+                .as_dvec3()
+                .distance_squared(locate_pos(&narrow, near).as_dvec3())
+                < ORIGIN
+                    .as_dvec3()
+                    .distance_squared(locate_pos(&wide, far).as_dvec3())
         );
 
         let placements = [spread_entry(A, &wide), spread_entry(B, &narrow)];

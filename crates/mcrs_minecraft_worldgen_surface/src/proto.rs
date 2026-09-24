@@ -5,10 +5,6 @@ use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_worldgen_density::proto::{BlockState, DensityFunctionHolder};
 use mcrs_minecraft_worldgen_noise::proto::HashableF64;
 
-fn is_false(value: &bool) -> bool {
-    !*value
-}
-
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
@@ -64,7 +60,7 @@ pub enum MaterialCondition {
         noise: ResourceLocation,
         min_threshold: HashableF64,
         max_threshold: HashableF64,
-        #[serde(default, skip_serializing_if = "is_false")]
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         is_3d: bool,
     },
     #[serde(rename = "minecraft:vertical_gradient")]

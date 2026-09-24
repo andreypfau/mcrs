@@ -37,14 +37,6 @@ pub fn derive_encode(item: StdTokenStream) -> StdTokenStream {
     }
 }
 
-// #[proc_macro_derive(PacketWrite, attributes(packet))]
-// pub fn derive_packet_write(item: StdTokenStream) -> StdTokenStream {
-//     match encode::derive_packet_write(item.into()) {
-//         Ok(tokens) => tokens.into(),
-//         Err(e) => e.into_compile_error().into(),
-//     }
-// }
-
 #[proc_macro_derive(Decode, attributes(packet))]
 pub fn derive_decode(item: StdTokenStream) -> StdTokenStream {
     match decode::derive_decode(item.into()) {

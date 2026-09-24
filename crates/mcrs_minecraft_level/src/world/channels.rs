@@ -16,37 +16,9 @@ pub const TO_DIM_CONTROL_CAPACITY: usize = 32;
 /// traffic before the dim's own outbox self-throttles it via backpressure.
 pub const FROM_DIM_CAPACITY: usize = 512;
 
-pub struct DimSender<T>(flume::Sender<T>);
-
-impl<T> DimSender<T> {
-    pub fn new(inner: flume::Sender<T>) -> Self {
-        Self(inner)
-    }
-
-    pub fn try_send(&self, msg: T) -> Result<(), flume::TrySendError<T>> {
-        self.0.try_send(msg)
-    }
-}
-
-pub struct DimReceiver<T>(flume::Receiver<T>);
-
-impl<T> DimReceiver<T> {
-    pub fn new(inner: flume::Receiver<T>) -> Self {
-        Self(inner)
-    }
-
-    pub fn try_recv(&self) -> Result<T, flume::TryRecvError> {
-        self.0.try_recv()
-    }
-
-    pub fn drain(&self) -> impl Iterator<Item = T> + '_ {
-        self.0.try_iter()
-    }
-}
-
 pub struct DimChannelEntry<In, Out> {
-    pub serverbound_sender: DimSender<In>,
-    pub control_sender: DimSender<In>,
+    pub serverbound_sender: flume::Sender<In>,
+    pub control_sender: flume::Sender<In>,
     pub from_dim_receiver: flume::Receiver<Out>,
 }
 
@@ -79,8 +51,8 @@ where
     pub fn insert(
         &mut self,
         key: Entity,
-        serverbound_sender: DimSender<In>,
-        control_sender: DimSender<In>,
+        serverbound_sender: flume::Sender<In>,
+        control_sender: flume::Sender<In>,
         from_dim_receiver: flume::Receiver<Out>,
     ) {
         self.map.insert(
@@ -101,13 +73,6 @@ where
         self.map.remove(&key)
     }
 
-    pub fn drain_from(&self, key: Entity) -> Vec<Out> {
-        self.map
-            .get(&key)
-            .map(|entry| entry.from_dim_receiver.try_iter().collect())
-            .unwrap_or_default()
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = (&Entity, &DimChannelEntry<In, Out>)> {
         self.map.iter()
     }
@@ -126,9 +91,4 @@ pub struct ToDimReceiver<T: Send + Sync + 'static> {
 /// Dim-world resource: holds the `FromDim` sender so dim systems can push
 /// outbound messages back to the host without blocking.
 #[derive(Resource)]
-pub struct FromDimSender<T: Send + Sync + 'static>(pub DimSender<T>);
-
-/// Returned by the engine when a sheddable send is rejected due to capacity.
-/// The caller decides the reaction (e.g. disconnect the session).
-#[derive(Debug)]
-pub struct ChannelFull;
+pub struct FromDimSender<T: Send + Sync + 'static>(pub flume::Sender<T>);

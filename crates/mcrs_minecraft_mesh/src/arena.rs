@@ -4,15 +4,10 @@ use std::collections::BTreeSet;
 pub struct Block {
     pub offset: usize,
     size: usize,
-    asked: usize,
 }
 
 impl Block {
-    pub const EMPTY: Self = Self {
-        offset: 0,
-        size: 0,
-        asked: 0,
-    };
+    pub const EMPTY: Self = Self { offset: 0, size: 0 };
 
     /// The units the block really holds, which the buddy rounding leaves above what was asked.
     pub fn capacity(&self) -> usize {
@@ -24,7 +19,6 @@ pub struct Arena {
     capacity: usize,
     free: Vec<BTreeSet<usize>>,
     held: usize,
-    asked: usize,
 }
 
 impl Arena {
@@ -42,7 +36,6 @@ impl Arena {
             capacity,
             free,
             held: 0,
-            asked: 0,
         }
     }
 
@@ -63,11 +56,9 @@ impl Arena {
             self.free[class].insert(offset + (1 << class));
         }
         self.held += 1 << want;
-        self.asked += units;
         Some(Block {
             offset,
             size: 1 << want,
-            asked: units,
         })
     }
 
@@ -76,7 +67,6 @@ impl Arena {
             return;
         }
         self.held -= block.size;
-        self.asked -= block.asked;
         let mut class = class_of(block.size);
         let mut offset = block.offset;
         while class + 1 < self.free.len() {
@@ -93,10 +83,6 @@ impl Arena {
 
     pub fn held(&self) -> usize {
         self.held
-    }
-
-    pub fn asked(&self) -> usize {
-        self.asked
     }
 
     pub fn capacity(&self) -> usize {
@@ -121,7 +107,6 @@ mod tests {
         let mut arena = Arena::new(1024);
         let block = arena.alloc(33).unwrap();
         assert_eq!(block.size, 64, "33 units round up to a class of 64");
-        assert_eq!(arena.asked(), 33);
         assert_eq!(
             arena.held(),
             64,

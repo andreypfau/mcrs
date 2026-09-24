@@ -25,7 +25,7 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
+mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true

@@ -20,7 +20,7 @@ mod states;
 pub use box_region::BoxRegion;
 pub use modifier::{Modifier, biome_info_noise};
 pub use predicate::{Predicate, Rule, mask_of, single_state};
-pub use states::{BlockLayout, PropertyLayout, WorldStates};
+pub use states::{BlockLayout, PropertyLayout, WorldStates, with_digit};
 
 /// What a placement modifier or a generator may ask of the volume it runs in,
 /// beyond the blocks themselves.

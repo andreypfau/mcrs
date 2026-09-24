@@ -30,9 +30,8 @@ use mcrs_minecraft_worldgen_surface::{
 #[path = "../src/tests/support.rs"]
 mod support;
 
-use support::{
-    assets_root, corpus, density_function_registry, load_json_dir, noise_registry, router_blocks,
-};
+use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
+use support::{corpus, router_blocks};
 
 const NETHER: [&str; 5] = [
     "nether_wastes",
@@ -55,7 +54,7 @@ const END: [&str; 5] = [
 /// hold would fall back to a substitute id and quietly make those rules
 /// unreachable.
 fn corpus_biome_ids() -> Vec<String> {
-    let dir = assets_root().join("biome");
+    let dir = worldgen_dir().join("biome");
     let mut names: Vec<String> = std::fs::read_dir(&dir)
         .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
         .filter_map(|e| {
@@ -82,12 +81,12 @@ fn overworld_subset(names: &[String]) -> Vec<(usize, String)> {
 }
 
 fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram) {
-    let path = assets_root().join("noise_settings/overworld.json");
+    let path = worldgen_dir().join("noise_settings/overworld.json");
     let settings: NoiseGeneratorSettings =
         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = load_json_dir("material_rule");
+    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        load_json_dir("material_condition");
+        registry("material_condition");
     let index: BTreeMap<&str, u32> = names
         .iter()
         .enumerate()
@@ -110,8 +109,8 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
     };
     build_router_and_material(
         &settings,
-        &density_function_registry(),
-        &noise_registry(),
+        &registry("density_function"),
+        &registry("noise"),
         seed,
         router_blocks(corpus()),
         &inputs,

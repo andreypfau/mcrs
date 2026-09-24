@@ -16,7 +16,7 @@
 use bevy::asset::{AssetPlugin, RenderAssetUsages};
 use bevy::color::LinearRgba;
 use bevy::core_pipeline::tonemapping::Tonemapping;
-use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
+use bevy::image::ImageSampler;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
@@ -24,7 +24,8 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::block_on;
 
 use mcrs_minecraft_client::asset_corpus;
-use mcrs_minecraft_client::bake::{self, Neighborhood, TinyWorld};
+use mcrs_minecraft_client::atlas;
+use mcrs_minecraft_client::bake::{self, TinyWorld};
 use mcrs_minecraft_client::model::{self, Pack};
 use mcrs_minecraft_client::vanilla::{self, VanillaAssets};
 
@@ -286,20 +287,8 @@ fn build_atlas(pack: &Pack, sprites: &[String]) -> Result<Image, String> {
     let mut cells: Vec<(usize, Vec<u8>)> = Vec::new();
     for id in sprites {
         let path = model::resource_path(id, "textures", "png");
-        let bytes = pack.read(&path)?;
-        let image = Image::from_buffer(
-            bytes,
-            ImageType::Extension("png"),
-            CompressedImageFormats::NONE,
-            true,
-            ImageSampler::nearest(),
-            RenderAssetUsages::default(),
-        )
-        .map_err(|error| format!("cannot decode {path}: {error}"))?;
-        let width = image.width() as usize;
-        let data = image
-            .data
-            .ok_or_else(|| format!("{path} decoded without pixel data"))?;
+        let (data, width, _) = atlas::decode_png(pack.read(&path)?, &path)?;
+        let width = width as usize;
         // An animated sprite is a vertical strip of square frames; take the first one.
         let frame = width * width * 4;
         if data.len() < frame {

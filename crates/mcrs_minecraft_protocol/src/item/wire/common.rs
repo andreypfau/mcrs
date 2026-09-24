@@ -71,7 +71,6 @@ macro_rules! resolvable_wire {
     )*};
 }
 
-
 resolvable_wire!(ResolvableInt, ResolvableFloat);
 
 record_ctx_wire!(MobEffectInstance { id, details });

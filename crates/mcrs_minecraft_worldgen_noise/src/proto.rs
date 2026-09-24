@@ -297,6 +297,45 @@ macro_rules! eq_by_bits {
     };
 }
 
+/// A bounded `f64`, held as `serde_json` parses it so a re-encode is the
+/// decimal the pack shipped. `$as` is the type the reference compares in:
+/// `f32` for a `floatRange`, `f64` for a `doubleRange`. The `eq_by_bits` form
+/// compares like [`eq_by_bits!`] instead of deriving `PartialEq`.
+#[macro_export]
+macro_rules! bounded_float {
+    (eq_by_bits $($(#[$doc:meta])* $name:ident as $as:ident in [$min:expr, $max:expr];)*) => {$(
+        $(#[$doc])*
+        #[derive(Debug, Clone, Copy, ::serde::Serialize, ::serde::Deserialize)]
+        #[serde(try_from = "f64")]
+        pub struct $name(pub f64);
+
+        $crate::eq_by_bits!($name);
+        $crate::bounded_float!(@try_from $name, $as, $min, $max);
+    )*};
+    ($($(#[$doc:meta])* $name:ident as $as:ident in [$min:expr, $max:expr];)*) => {$(
+        $(#[$doc])*
+        #[derive(Debug, Clone, Copy, PartialEq, ::serde::Serialize, ::serde::Deserialize)]
+        #[serde(try_from = "f64")]
+        pub struct $name(pub f64);
+
+        $crate::bounded_float!(@try_from $name, $as, $min, $max);
+    )*};
+    (@try_from $name:ident, $as:ident, $min:expr, $max:expr) => {
+        impl TryFrom<f64> for $name {
+            type Error = String;
+
+            fn try_from(value: f64) -> Result<Self, String> {
+                if !(($min as $as)..=($max as $as)).contains(&(value as $as)) {
+                    return Err(format!(
+                        "Value must be within range [{};{}]: {value}", $min, $max
+                    ));
+                }
+                Ok($name(value))
+            }
+        }
+    };
+}
+
 /// A `Codec.DOUBLE` payload.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct HashableF64(pub f64);

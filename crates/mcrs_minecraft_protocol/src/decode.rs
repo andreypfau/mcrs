@@ -1,17 +1,10 @@
-#[cfg(feature = "encryption")]
-use aes::cipher::{BlockDecryptMut, BlockSizeUser, KeyIvInit, generic_array::GenericArray};
 use anyhow::{Context, bail, ensure};
 use bytes::{Buf, BytesMut};
 
 #[cfg(feature = "compression")]
 use crate::CompressionThreshold;
 use crate::var_int::{VarInt, VarIntDecodeError};
-use crate::{Decode, MAX_PACKET_SIZE, Packet};
-
-/// The AES block cipher with a 128 bit key, using the CFB-8 mode of
-/// operation.
-#[cfg(feature = "encryption")]
-type Cipher = cfb8::Decryptor<aes::Aes128>;
+use crate::{Decode, MAX_PACKET_SIZE};
 
 #[derive(Default)]
 pub struct PacketDecoder {
@@ -20,8 +13,6 @@ pub struct PacketDecoder {
     decompress_buf: BytesMut,
     #[cfg(feature = "compression")]
     threshold: CompressionThreshold,
-    #[cfg(feature = "encryption")]
-    cipher: Option<Cipher>,
 }
 
 impl PacketDecoder {
@@ -147,50 +138,8 @@ impl PacketDecoder {
         self.threshold = threshold;
     }
 
-    #[cfg(feature = "encryption")]
-    pub fn enable_encryption(&mut self, key: &[u8; 16]) {
-        assert!(self.cipher.is_none(), "encryption is already enabled");
-
-        let mut cipher = Cipher::new_from_slices(key, key).expect("invalid key");
-
-        // Don't forget to decrypt the data we already have.
-        Self::decrypt_bytes(&mut cipher, &mut self.buf);
-
-        self.cipher = Some(cipher);
-    }
-
-    /// Decrypts the provided byte slice in place using the cipher, without
-    /// consuming the cipher.
-    #[cfg(feature = "encryption")]
-    fn decrypt_bytes(cipher: &mut Cipher, bytes: &mut [u8]) {
-        for chunk in bytes.chunks_mut(Cipher::block_size()) {
-            let gen_arr = GenericArray::from_mut_slice(chunk);
-            cipher.decrypt_block_mut(gen_arr);
-        }
-    }
-
-    pub fn queue_bytes(&mut self, mut bytes: BytesMut) {
-        #![allow(unused_mut)]
-
-        #[cfg(feature = "encryption")]
-        if let Some(cipher) = &mut self.cipher {
-            Self::decrypt_bytes(cipher, &mut bytes);
-        }
-
+    pub fn queue_bytes(&mut self, bytes: BytesMut) {
         self.buf.unsplit(bytes);
-    }
-
-    pub fn queue_slice(&mut self, bytes: &[u8]) {
-        #[cfg(feature = "encryption")]
-        let len = self.buf.len();
-
-        self.buf.extend_from_slice(bytes);
-
-        #[cfg(feature = "encryption")]
-        if let Some(cipher) = &mut self.cipher {
-            let slice = &mut self.buf[len..];
-            Self::decrypt_bytes(cipher, slice);
-        }
     }
 
     pub fn take_capacity(&mut self) -> BytesMut {
@@ -208,35 +157,4 @@ pub struct PacketFrame {
     pub id: i32,
     /// The contents of the packet after the leading VarInt ID.
     pub body: BytesMut,
-}
-
-impl PacketFrame {
-    /// Attempts to decode this packet as type `P`. An error is returned if the
-    /// packet ID does not match, the body of the packet failed to decode, or
-    /// some input was missed.
-    pub fn decode<'a, P>(&'a self) -> anyhow::Result<P>
-    where
-        P: Packet + Decode<'a>,
-    {
-        ensure!(
-            P::ID == self.id,
-            "packet ID mismatch while decoding '{}': expected {}, got {}",
-            P::NAME,
-            P::ID,
-            self.id
-        );
-
-        let mut r = &self.body[..];
-
-        let pkt = P::decode(&mut r)?;
-
-        ensure!(
-            r.is_empty(),
-            "missed {} bytes while decoding '{}'",
-            r.len(),
-            P::NAME
-        );
-
-        Ok(pkt)
-    }
 }

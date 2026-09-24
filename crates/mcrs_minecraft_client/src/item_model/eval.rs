@@ -1,97 +1,136 @@
+use bevy::ecs::world::EntityRef;
+use bevy::prelude::Entity;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_item::{
+    ItemStack, Items, children, component_value, has_component, has_non_default,
+};
 use mcrs_minecraft_item_component::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
     FireworkExplosion, Holder, ItemComponentKind, ItemComponentValue, ItemDataComponent, MaxDamage,
     MaxStackSize, PotionContents, Trim,
 };
 
-use crate::asset::{
+use super::asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
 };
 
-/// A stack as the model selectors see it: its effective components and its
-/// child stacks, wherever they are stored.
-pub trait StackView: Sized {
-    fn item(&self) -> &ResourceLocation;
-    fn count(&self) -> u8;
-    fn value(&self, kind: ItemComponentKind) -> Option<ItemComponentValue>;
-    fn has(&self, kind: ItemComponentKind) -> bool;
+/// A stack entity and the corpus that names its item, as the model selectors see it: its
+/// effective components and its child stacks.
+pub struct EntityStack<'w, 'l, L> {
+    pub entity: EntityRef<'w>,
+    pub items: &'l Items,
+    pub lookup: L,
+}
+
+impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
+    fn item(&self) -> &ResourceLocation {
+        static AIR: std::sync::LazyLock<ResourceLocation> =
+            std::sync::LazyLock::new(|| ResourceLocation::minecraft("air"));
+        self.entity
+            .get::<ItemStack>()
+            .and_then(|stack| self.items.get(stack.item))
+            .map_or(&AIR, |entry| &entry.identifier)
+    }
+
+    fn count(&self) -> u8 {
+        self.entity
+            .get::<ItemStack>()
+            .map_or(0, |stack| stack.count)
+    }
+
+    fn value(&self, kind: ItemComponentKind) -> Option<ItemComponentValue> {
+        component_value(self.entity, kind)
+    }
+
+    fn has(&self, kind: ItemComponentKind) -> bool {
+        has_component(self.entity, self.items, kind)
+    }
+
     /// Vanilla's `hasNonDefault`: the value is not the prototype's, a
     /// tombstone included.
-    fn has_non_default(&self, kind: ItemComponentKind) -> bool;
-    fn children(&self) -> Vec<Self>;
+    fn has_non_default(&self, kind: ItemComponentKind) -> bool {
+        has_non_default(self.entity, self.items, kind)
+    }
+
+    fn children(&self) -> Vec<Self> {
+        children(self.entity, &self.lookup)
+            .into_iter()
+            .map(|entity| EntityStack {
+                entity,
+                items: self.items,
+                lookup: self.lookup,
+            })
+            .collect()
+    }
 
     fn get<K: ItemDataComponent>(&self) -> Option<K> {
         K::from_value(&self.value(K::KIND)?).cloned()
     }
-}
 
-pub fn max_stack_size(stack: &impl StackView) -> u8 {
-    stack.get::<MaxStackSize>().map_or(1, |max| max.0.0 as u8)
-}
-
-pub fn is_damageable(stack: &impl StackView) -> bool {
-    stack.has(ItemComponentKind::MaxDamage)
-        && stack.has(ItemComponentKind::Damage)
-        && !stack.has(ItemComponentKind::Unbreakable)
-}
-
-pub fn max_damage(stack: &impl StackView) -> i32 {
-    stack.get::<MaxDamage>().map_or(0, |max| max.0.0)
-}
-
-pub fn damage_value(stack: &impl StackView) -> i32 {
-    stack
-        .get::<Damage>()
-        .map_or(0, |damage| damage.0.0)
-        .clamp(0, max_damage(stack))
-}
-
-pub fn is_damaged(stack: &impl StackView) -> bool {
-    is_damageable(stack) && damage_value(stack) > 0
-}
-
-pub fn next_damage_will_break(stack: &impl StackView) -> bool {
-    is_damageable(stack) && damage_value(stack) >= max_damage(stack) - 1
-}
-
-pub fn is_enchanted(stack: &impl StackView) -> bool {
-    stack
-        .get::<Enchantments>()
-        .is_some_and(|enchantments| !enchantments.0.is_empty())
-}
-
-pub fn has_foil(stack: &impl StackView) -> bool {
-    if let Some(EnchantmentGlintOverride(foil)) = stack.get::<EnchantmentGlintOverride>() {
-        return foil;
+    fn max_stack_size(&self) -> u8 {
+        self.get::<MaxStackSize>().map_or(1, |max| max.0.0 as u8)
     }
-    // ponytail: the only vanilla override is the compass with a lodestone
-    // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
-    if stack.item().as_str() == "minecraft:compass"
-        && stack.has(ItemComponentKind::LodestoneTracker)
-    {
-        return true;
-    }
-    is_enchanted(stack)
-}
 
-/// A bundle's fill fraction: each child weighs `count / max_stack_size`, a
-/// nested bundle its own weight plus 1/16, and a hive with bees a full slot.
-pub fn bundle_weight<S: StackView>(stack: &S) -> f32 {
-    stack
-        .children()
-        .iter()
-        .map(|child| {
-            let weight = if child.has(ItemComponentKind::BundleContents) {
-                bundle_weight(child) + 1.0 / 16.0
-            } else if child.get::<Bees>().is_some_and(|bees| !bees.0.is_empty()) {
-                1.0
-            } else {
-                1.0 / max_stack_size(child) as f32
-            };
-            f32::from(child.count()) * weight
-        })
-        .sum()
+    fn is_damageable(&self) -> bool {
+        self.has(ItemComponentKind::MaxDamage)
+            && self.has(ItemComponentKind::Damage)
+            && !self.has(ItemComponentKind::Unbreakable)
+    }
+
+    fn max_damage(&self) -> i32 {
+        self.get::<MaxDamage>().map_or(0, |max| max.0.0)
+    }
+
+    fn damage_value(&self) -> i32 {
+        self.get::<Damage>()
+            .map_or(0, |damage| damage.0.0)
+            .clamp(0, self.max_damage())
+    }
+
+    fn is_damaged(&self) -> bool {
+        self.is_damageable() && self.damage_value() > 0
+    }
+
+    fn next_damage_will_break(&self) -> bool {
+        self.is_damageable() && self.damage_value() >= self.max_damage() - 1
+    }
+
+    fn is_enchanted(&self) -> bool {
+        self.get::<Enchantments>()
+            .is_some_and(|enchantments| !enchantments.0.is_empty())
+    }
+
+    pub fn has_foil(&self) -> bool {
+        if let Some(EnchantmentGlintOverride(foil)) = self.get::<EnchantmentGlintOverride>() {
+            return foil;
+        }
+        // ponytail: the only vanilla override is the compass with a lodestone
+        // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
+        if self.item().as_str() == "minecraft:compass"
+            && self.has(ItemComponentKind::LodestoneTracker)
+        {
+            return true;
+        }
+        self.is_enchanted()
+    }
+
+    /// A bundle's fill fraction: each child weighs `count / max_stack_size`, a
+    /// nested bundle its own weight plus 1/16, and a hive with bees a full slot.
+    fn bundle_weight(&self) -> f32 {
+        self.children()
+            .iter()
+            .map(|child| {
+                let weight = if child.has(ItemComponentKind::BundleContents) {
+                    child.bundle_weight() + 1.0 / 16.0
+                } else if child.get::<Bees>().is_some_and(|bees| !bees.0.is_empty()) {
+                    1.0
+                } else {
+                    1.0 / child.max_stack_size() as f32
+                };
+                f32::from(child.count()) * weight
+            })
+            .sum()
+    }
 }
 
 fn opaque(color: i32) -> u32 {
@@ -114,15 +153,15 @@ fn scaled(normalize: bool, value: f32, max: f32) -> f32 {
     }
 }
 
-impl<S: StackView> Evaluator<'_, S> {
+impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStack<'w, '_, L>> {
     fn custom_model_data(&self) -> Option<CustomModelData> {
         self.stack.get::<CustomModelData>()
     }
 
     pub fn condition(&self, property: &ConditionProperty) -> bool {
         match property {
-            ConditionProperty::Damaged => is_damaged(&self.stack),
-            ConditionProperty::Broken => next_damage_will_break(&self.stack),
+            ConditionProperty::Damaged => self.stack.is_damaged(),
+            ConditionProperty::Broken => self.stack.next_damage_will_break(),
             ConditionProperty::HasComponent {
                 component,
                 ignore_default,
@@ -207,19 +246,19 @@ impl<S: StackView> Evaluator<'_, S> {
         match property {
             RangeProperty::Damage { normalize } => scaled(
                 *normalize,
-                damage_value(&self.stack) as f32,
-                max_damage(&self.stack) as f32,
+                self.stack.damage_value() as f32,
+                self.stack.max_damage() as f32,
             ),
             RangeProperty::Count { normalize } => scaled(
                 *normalize,
                 f32::from(self.stack.count()),
-                max_stack_size(&self.stack) as f32,
+                self.stack.max_stack_size() as f32,
             ),
             RangeProperty::CustomModelData { index } => self
                 .custom_model_data()
                 .and_then(|data| data.floats.get(*index as usize).copied())
                 .unwrap_or(0.0),
-            RangeProperty::BundleFullness => bundle_weight(&self.stack),
+            RangeProperty::BundleFullness => self.stack.bundle_weight(),
             RangeProperty::Cooldown
             | RangeProperty::CrossbowPull
             | RangeProperty::UseDuration { .. }

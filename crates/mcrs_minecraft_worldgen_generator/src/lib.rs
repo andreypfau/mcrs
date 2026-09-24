@@ -14,7 +14,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
-use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, sampled_range};
+use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
     CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
@@ -201,26 +201,6 @@ impl CellLattice {
         })
     }
 
-    /// The eight corner values of one cell, per wrapper.
-    fn corner_bounds(&self, at: IVec3, out: &mut [Interval]) {
-        let stride = self.volume.len();
-        for (k, bound) in out.iter_mut().enumerate() {
-            let row = &self.values[k * stride..(k + 1) * stride];
-            let mut lo = f32::INFINITY;
-            let mut hi = f32::NEG_INFINITY;
-            for dz in 0..2 {
-                for dx in 0..2 {
-                    for dy in 0..2 {
-                        let v = row[self.volume.index_unchecked(at.x + dx, at.y + dy, at.z + dz)];
-                        lo = lo.min(v);
-                        hi = hi.max(v);
-                    }
-                }
-            }
-            *bound = Interval::of(lo, hi);
-        }
-    }
-
     fn classify(
         &self,
         noise_router: &NoiseRouter,
@@ -228,7 +208,7 @@ impl CellLattice {
         fluid: &mut FluidField<'_>,
         fill: &mut FillBuffers,
     ) -> CellFill {
-        self.corner_bounds(at, &mut fill.corners);
+        corner_bounds(&self.values, &self.volume, at, &mut fill.corners);
         let min = IVec3::new(
             self.volume.block_x(at.x),
             self.volume.block_y(at.y),
@@ -251,7 +231,7 @@ impl CellLattice {
         // short of its far face. Asking again over the range they do reach is
         // exact and settles cells the hull leaves open; it runs only here, on
         // the few per column the first pass could not answer.
-        self.sampled_bounds(at, &mut fill.corners);
+        sampled_bounds(&self.values, &self.volume, at, self.cell, &mut fill.corners);
         let Some(bounds) = noise_router.final_density_cell_bounds(
             &fill.corners,
             min,
@@ -281,18 +261,6 @@ impl CellLattice {
             };
         }
         CellFill::Mixed
-    }
-
-    /// [`Self::corner_bounds`] over the range the blocks of the cell actually
-    /// reach, rather than over the closed cell.
-    fn sampled_bounds(&self, at: IVec3, out: &mut [Interval]) {
-        let stride = self.volume.len();
-        for (k, bound) in out.iter_mut().enumerate() {
-            let row = &self.values[k * stride..(k + 1) * stride];
-            *bound = sampled_range(self.cell, |dx, dy, dz| {
-                row[self.volume.index_unchecked(at.x + dx, at.y + dy, at.z + dz)]
-            });
-        }
     }
 }
 

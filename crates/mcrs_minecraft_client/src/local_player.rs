@@ -15,9 +15,10 @@ use mcrs_minecraft_world::entity::movement;
 use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed, Input};
 
 use crate::input;
-use crate::options::SPRINT_WINDOW_TICKS;
 use crate::player::Player;
 
+/// Vanilla's `Options` default.
+const SPRINT_WINDOW_TICKS: u8 = 7;
 pub const TICKS_PER_SECOND: f64 = 20.0;
 
 const VERTICAL_IMPULSE_SCALE: f64 = 3.0;

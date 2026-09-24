@@ -1067,22 +1067,10 @@ mod lenient_uuid {
         mcrs_minecraft_profile::uuid_ints(*uuid).serialize(s)
     }
 
-    /// Five hex groups of any length, each masked to its width.
     fn from_string(v: &str) -> Result<Uuid, String> {
-        if v.len() > 36 {
-            return Err("UUID string too large".to_owned());
-        }
-        let groups: Vec<&str> = v.split('-').collect();
-        let [a, b, c, d, e] = groups[..] else {
-            return Err(format!("Invalid UUID string: {v}"));
-        };
-        let hex = |group: &str| {
-            i64::from_str_radix(group, 16).map_err(|_| format!("For input string: \"{group}\""))
-        };
-        let most =
-            ((hex(a)? & 0xffff_ffff) << 32) | ((hex(b)? & 0xffff) << 16) | (hex(c)? & 0xffff);
-        let least = ((hex(d)? & 0xffff) << 48) | (hex(e)? & 0xffff_ffff_ffff);
-        Ok(Uuid::from_u64_pair(most as u64, least as u64))
+        mcrs_minecraft_nbt::snbt::parse_lenient_uuid(v)
+            .map(|(most, least)| Uuid::from_u64_pair(most as u64, least as u64))
+            .ok_or_else(|| format!("Invalid UUID string: {v}"))
     }
 
     pub(super) fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Uuid, D::Error> {

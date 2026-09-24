@@ -250,7 +250,7 @@ impl SpriteRegistry {
     }
 }
 
-pub(crate) fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), String> {
+pub fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), String> {
     let image = Image::from_buffer(
         bytes,
         ImageType::Extension("png"),
@@ -478,24 +478,13 @@ fn mip_levels(pixels: &[u8], opacities: &[Opacity], mut size: usize) -> Vec<Vec<
     levels
 }
 
-static SRGB_TO_LINEAR: LazyLock<[f32; 256]> = LazyLock::new(|| {
-    std::array::from_fn(|byte| {
-        let c = byte as f32 / 255.0;
-        if c <= 0.04045 {
-            c / 12.92
-        } else {
-            ((c + 0.055) / 1.055).powf(2.4)
-        }
-    })
-});
+static SRGB_TO_LINEAR: LazyLock<[f32; 256]> =
+    LazyLock::new(|| std::array::from_fn(|byte| Srgba::gamma_function(byte as f32 / 255.0)));
 
 fn linear_to_srgb(light: f32) -> u8 {
-    let c = if light <= 0.0031308 {
-        light * 12.92
-    } else {
-        1.055 * light.powf(1.0 / 2.4) - 0.055
-    };
-    (c * 255.0).round().clamp(0.0, 255.0) as u8
+    (Srgba::gamma_function_inverse(light) * 255.0)
+        .round()
+        .clamp(0.0, 255.0) as u8
 }
 
 fn coverage(pixels: &[u8], texels: usize, scale: f32) -> f32 {

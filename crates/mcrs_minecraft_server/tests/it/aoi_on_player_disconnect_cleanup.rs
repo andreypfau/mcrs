@@ -20,7 +20,7 @@ use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
@@ -66,7 +66,7 @@ fn register_dim_channel(app: &mut App, dim: Entity) -> flume::Receiver<ToDim> {
     let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
     app.world_mut()
         .resource_mut::<DimChannelsResource>()
-        .insert(dim, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+        .insert(dim, srv_tx, ctl_tx, from_rx);
     ctl_rx
 }
 

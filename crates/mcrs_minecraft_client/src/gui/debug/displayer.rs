@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::DebugEntryGroup;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
 
 /// The lines one frame's debug entries produced, in the shape
 /// `DebugScreenOverlay` splits into its two columns.
@@ -9,7 +9,7 @@ pub struct DebugScreenDisplayer {
     left: Vec<String>,
     right: Vec<String>,
     lines: Vec<String>,
-    groups: Vec<(DebugEntryGroup, Vec<String>)>,
+    groups: Vec<(ResourceLocation<&'static str>, Vec<String>)>,
 }
 
 impl DebugScreenDisplayer {
@@ -27,7 +27,7 @@ impl DebugScreenDisplayer {
 
     pub fn add_to_group(
         &mut self,
-        group: DebugEntryGroup,
+        group: ResourceLocation<&'static str>,
         lines: impl IntoIterator<Item = String>,
     ) {
         match self.groups.iter_mut().find(|(id, _)| *id == group) {
@@ -87,10 +87,9 @@ impl DebugScreenDisplayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::resource_location::ResourceLocation;
 
-    const FIRST: DebugEntryGroup = ResourceLocation::new_static("minecraft:first");
-    const SECOND: DebugEntryGroup = ResourceLocation::new_static("minecraft:second");
+    const FIRST: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:first");
+    const SECOND: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:second");
 
     fn lines(of: &[&str]) -> Vec<String> {
         of.iter().map(|line| (*line).to_owned()).collect()

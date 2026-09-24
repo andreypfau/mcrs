@@ -108,30 +108,14 @@ fn load_biome(pack: &Pack, name: &str) -> Result<BiomeFile, String> {
 }
 
 pub(crate) fn load_colormap(pack: &Pack, name: &str) -> Result<Vec<u8>, String> {
-    use bevy::asset::RenderAssetUsages;
-    use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
-    use bevy::prelude::Image;
-
     let path = model::resource_path(&format!("minecraft:colormap/{name}"), "textures", "png");
-    let image = Image::from_buffer(
-        pack.read(&path)?,
-        ImageType::Extension("png"),
-        CompressedImageFormats::NONE,
-        false,
-        ImageSampler::nearest(),
-        RenderAssetUsages::default(),
-    )
-    .map_err(|error| format!("cannot decode {path}: {error}"))?;
-    if image.width() != 256 || image.height() != 256 {
+    let (data, width, height) = crate::atlas::decode_png(pack.read(&path)?, &path)?;
+    if width != 256 || height != 256 {
         return Err(format!(
-            "{path} is {}x{}, and a colormap is sampled as a 256x256 grid",
-            image.width(),
-            image.height(),
+            "{path} is {width}x{height}, and a colormap is sampled as a 256x256 grid"
         ));
     }
-    image
-        .data
-        .ok_or_else(|| format!("{path} decoded without pixel data"))
+    Ok(data)
 }
 
 pub(crate) fn sample_colormap(
@@ -157,12 +141,7 @@ pub(crate) fn sample_colormap(
 }
 
 fn rgb(Rgb(packed): Rgb) -> [f32; 4] {
-    [
-        ((packed >> 16) & 0xff) as f32 / 255.0,
-        ((packed >> 8) & 0xff) as f32 / 255.0,
-        (packed & 0xff) as f32 / 255.0,
-        1.0,
-    ]
+    crate::sky::rgb(packed).extend(1.0).to_array()
 }
 
 pub fn tint_column(store: &impl BlockSource, tints: &[[f32; 4]], column: ColumnPos) -> Vec<u8> {

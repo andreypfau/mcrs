@@ -12,11 +12,11 @@ use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use std::collections::BTreeMap;
 
-super::proto::bounded_float! {
+mcrs_minecraft_worldgen_noise::bounded_float! {
     /// `Codec.floatRange(0.0F, 1.0F)`.
-    UnitFloat as f32 in 0.0 ..= 1.0;
+    UnitFloat as f32 in [0.0, 1.0];
     /// `Codec.floatRange(-1.0F, 1.0F)`.
-    SignedUnitFloat as f32 in -1.0 ..= 1.0;
+    SignedUnitFloat as f32 in [-1.0, 1.0];
 }
 
 /// `ExtraCodecs.POSITIVE_FLOAT`: the low bound is exclusive.

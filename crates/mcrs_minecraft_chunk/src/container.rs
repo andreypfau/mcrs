@@ -168,14 +168,6 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
         Self::from_cube(cube)
     }
 
-    #[allow(dead_code)]
-    fn bits_per_entry(&self) -> u8 {
-        match self {
-            Self::Homogeneous(_) => 0,
-            Self::Heterogeneous(data) => ceillog2(data.counts.len()) as u8,
-        }
-    }
-
     pub fn to_palette_and_packed_data(&self, bits_per_entry: u8) -> (Box<[V]>, Box<[i64]>) {
         match self {
             Self::Homogeneous(registry_id) => (Box::new([*registry_id]), Box::new([])),

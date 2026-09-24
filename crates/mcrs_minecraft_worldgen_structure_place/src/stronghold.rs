@@ -190,15 +190,6 @@ fn walls<W: WorldGenVolume, R: Random>(
     });
 }
 
-fn solid<W: WorldGenVolume>(
-    c: &mut PieceCanvas<'_, W>,
-    state: &Oriented,
-    min: [i32; 3],
-    max: [i32; 3],
-) {
-    c.generate_box(min, max, state, state, false);
-}
-
 /// `generateSmallDoor`.
 fn door<W: WorldGenVolume>(
     b: &StrongholdBlocks,
@@ -219,7 +210,7 @@ fn door<W: WorldGenVolume>(
         c.place(sb, x + 2, y, z);
     };
     match kind {
-        SmallDoor::Opening => solid(c, &b.cave_air, [x, y, z], [x + 2, y + 2, z]),
+        SmallDoor::Opening => c.solid(&b.cave_air, [x, y, z], [x + 2, y + 2, z]),
         SmallDoor::WoodDoor => {
             frame(c);
             c.place(&b.oak_door_lower, x + 1, y, z);
@@ -323,10 +314,10 @@ fn straight<W: WorldGenVolume, R: Random>(
     c.maybe_generate_block(rng, 0.1, 1, 2, 5, &b.wall_torch_east);
     c.maybe_generate_block(rng, 0.1, 3, 2, 5, &b.wall_torch_west);
     if left {
-        solid(c, &b.cave_air, [0, 1, 2], [0, 3, 4]);
+        c.solid(&b.cave_air, [0, 1, 2], [0, 3, 4]);
     }
     if right {
-        solid(c, &b.cave_air, [4, 1, 2], [4, 3, 4]);
+        c.solid(&b.cave_air, [4, 1, 2], [4, 3, 4]);
     }
 }
 
@@ -338,7 +329,7 @@ fn prison_hall<W: WorldGenVolume, R: Random>(
 ) {
     walls(b, c, rng, [0, 0, 0], [8, 4, 10], true);
     door(b, c, entry_door, 1, 1, 0);
-    solid(c, &b.cave_air, [1, 1, 10], [3, 3, 10]);
+    c.solid(&b.cave_air, [1, 1, 10], [3, 3, 10]);
     walls(b, c, rng, [4, 1, 1], [4, 3, 1], false);
     walls(b, c, rng, [4, 1, 3], [4, 3, 3], false);
     walls(b, c, rng, [4, 1, 7], [4, 3, 7], false);
@@ -372,9 +363,9 @@ fn left_turn<W: WorldGenVolume, R: Random>(
     walls(b, c, rng, [0, 0, 0], [4, 4, 4], true);
     door(b, c, entry_door, 1, 1, 0);
     if turns_left(c) {
-        solid(c, &b.cave_air, [0, 1, 1], [0, 3, 3]);
+        c.solid(&b.cave_air, [0, 1, 1], [0, 3, 3]);
     } else {
-        solid(c, &b.cave_air, [4, 1, 1], [4, 3, 3]);
+        c.solid(&b.cave_air, [4, 1, 1], [4, 3, 3]);
     }
 }
 
@@ -387,9 +378,9 @@ fn right_turn<W: WorldGenVolume, R: Random>(
     walls(b, c, rng, [0, 0, 0], [4, 4, 4], true);
     door(b, c, entry_door, 1, 1, 0);
     if turns_left(c) {
-        solid(c, &b.cave_air, [4, 1, 1], [4, 3, 3]);
+        c.solid(&b.cave_air, [4, 1, 1], [4, 3, 3]);
     } else {
-        solid(c, &b.cave_air, [0, 1, 1], [0, 3, 3]);
+        c.solid(&b.cave_air, [0, 1, 1], [0, 3, 3]);
     }
 }
 
@@ -406,9 +397,9 @@ fn room_crossing<W: WorldGenVolume, R: Random>(
     let planks = &b.oak_planks;
     walls(b, c, rng, [0, 0, 0], [10, 6, 10], true);
     door(b, c, entry_door, 4, 1, 0);
-    solid(c, &b.cave_air, [4, 1, 10], [6, 3, 10]);
-    solid(c, &b.cave_air, [0, 1, 4], [0, 3, 6]);
-    solid(c, &b.cave_air, [10, 1, 4], [10, 3, 6]);
+    c.solid(&b.cave_air, [4, 1, 10], [6, 3, 10]);
+    c.solid(&b.cave_air, [0, 1, 4], [0, 3, 6]);
+    c.solid(&b.cave_air, [10, 1, 4], [10, 3, 6]);
     match variant {
         0 => {
             c.place(sb, 5, 1, 5);
@@ -520,31 +511,31 @@ fn five_crossing<W: WorldGenVolume, R: Random>(
     walls(b, c, rng, [0, 0, 0], [9, 8, 10], true);
     door(b, c, entry_door, 4, 3, 0);
     if left_low {
-        solid(c, &b.cave_air, [0, 3, 1], [0, 5, 3]);
+        c.solid(&b.cave_air, [0, 3, 1], [0, 5, 3]);
     }
     if right_low {
-        solid(c, &b.cave_air, [9, 3, 1], [9, 5, 3]);
+        c.solid(&b.cave_air, [9, 3, 1], [9, 5, 3]);
     }
     if left_high {
-        solid(c, &b.cave_air, [0, 5, 7], [0, 7, 9]);
+        c.solid(&b.cave_air, [0, 5, 7], [0, 7, 9]);
     }
     if right_high {
-        solid(c, &b.cave_air, [9, 5, 7], [9, 7, 9]);
+        c.solid(&b.cave_air, [9, 5, 7], [9, 7, 9]);
     }
-    solid(c, &b.cave_air, [5, 1, 10], [7, 3, 10]);
+    c.solid(&b.cave_air, [5, 1, 10], [7, 3, 10]);
     walls(b, c, rng, [1, 2, 1], [8, 2, 6], false);
     walls(b, c, rng, [4, 1, 5], [4, 4, 9], false);
     walls(b, c, rng, [8, 1, 5], [8, 4, 9], false);
     walls(b, c, rng, [1, 4, 7], [3, 4, 9], false);
     walls(b, c, rng, [1, 3, 5], [3, 3, 6], false);
-    solid(c, slab, [1, 3, 4], [3, 3, 4]);
-    solid(c, slab, [1, 4, 6], [3, 4, 6]);
+    c.solid(slab, [1, 3, 4], [3, 3, 4]);
+    c.solid(slab, [1, 4, 6], [3, 4, 6]);
     walls(b, c, rng, [5, 1, 7], [7, 1, 8], false);
-    solid(c, slab, [5, 1, 9], [7, 1, 9]);
-    solid(c, slab, [5, 2, 7], [7, 2, 7]);
-    solid(c, slab, [4, 5, 7], [4, 5, 9]);
-    solid(c, slab, [8, 5, 7], [8, 5, 9]);
-    solid(c, &b.smooth_stone_slab_double, [5, 5, 7], [7, 5, 9]);
+    c.solid(slab, [5, 1, 9], [7, 1, 9]);
+    c.solid(slab, [5, 2, 7], [7, 2, 7]);
+    c.solid(slab, [4, 5, 7], [4, 5, 9]);
+    c.solid(slab, [8, 5, 7], [8, 5, 9]);
+    c.solid(&b.smooth_stone_slab_double, [5, 5, 7], [7, 5, 9]);
     c.place(&b.wall_torch_south, 6, 5, 6);
 }
 
@@ -558,7 +549,7 @@ fn chest_corridor<W: WorldGenVolume, R: Random>(
     walls(b, c, rng, [0, 0, 0], [4, 4, 6], true);
     door(b, c, entry_door, 1, 1, 0);
     door(b, c, SmallDoor::Opening, 1, 1, 6);
-    solid(c, &b.stone_bricks, [3, 1, 2], [3, 1, 4]);
+    c.solid(&b.stone_bricks, [3, 1, 2], [3, 1, 4]);
     c.place(slab, 3, 1, 1);
     c.place(slab, 3, 1, 5);
     c.place(slab, 3, 2, 2);
@@ -593,40 +584,40 @@ fn library<W: WorldGenVolume, R: Random>(
     );
     for d in 1..=13 {
         if (d - 1) % 4 == 0 {
-            solid(c, planks, [1, 1, d], [1, 4, d]);
-            solid(c, planks, [12, 1, d], [12, 4, d]);
+            c.solid(planks, [1, 1, d], [1, 4, d]);
+            c.solid(planks, [12, 1, d], [12, 4, d]);
             c.place(&b.wall_torch_east, 2, 3, d);
             c.place(&b.wall_torch_west, 11, 3, d);
             if tall {
-                solid(c, planks, [1, 6, d], [1, 9, d]);
-                solid(c, planks, [12, 6, d], [12, 9, d]);
+                c.solid(planks, [1, 6, d], [1, 9, d]);
+                c.solid(planks, [12, 6, d], [12, 9, d]);
             }
         } else {
-            solid(c, shelf, [1, 1, d], [1, 4, d]);
-            solid(c, shelf, [12, 1, d], [12, 4, d]);
+            c.solid(shelf, [1, 1, d], [1, 4, d]);
+            c.solid(shelf, [12, 1, d], [12, 4, d]);
             if tall {
-                solid(c, shelf, [1, 6, d], [1, 9, d]);
-                solid(c, shelf, [12, 6, d], [12, 9, d]);
+                c.solid(shelf, [1, 6, d], [1, 9, d]);
+                c.solid(shelf, [12, 6, d], [12, 9, d]);
             }
         }
     }
     for dx in (3..12).step_by(2) {
-        solid(c, shelf, [3, 1, dx], [4, 3, dx]);
-        solid(c, shelf, [6, 1, dx], [7, 3, dx]);
-        solid(c, shelf, [9, 1, dx], [10, 3, dx]);
+        c.solid(shelf, [3, 1, dx], [4, 3, dx]);
+        c.solid(shelf, [6, 1, dx], [7, 3, dx]);
+        c.solid(shelf, [9, 1, dx], [10, 3, dx]);
     }
     if tall {
-        solid(c, planks, [1, 5, 1], [3, 5, 13]);
-        solid(c, planks, [10, 5, 1], [12, 5, 13]);
-        solid(c, planks, [4, 5, 1], [9, 5, 2]);
-        solid(c, planks, [4, 5, 12], [9, 5, 13]);
+        c.solid(planks, [1, 5, 1], [3, 5, 13]);
+        c.solid(planks, [10, 5, 1], [12, 5, 13]);
+        c.solid(planks, [4, 5, 1], [9, 5, 2]);
+        c.solid(planks, [4, 5, 12], [9, 5, 13]);
         c.place(planks, 9, 5, 11);
         c.place(planks, 8, 5, 11);
         c.place(planks, 9, 5, 10);
-        solid(c, &b.fence_ns, [3, 6, 3], [3, 6, 11]);
-        solid(c, &b.fence_ns, [10, 6, 3], [10, 6, 9]);
-        solid(c, &b.fence_we, [4, 6, 2], [9, 6, 2]);
-        solid(c, &b.fence_we, [4, 6, 12], [7, 6, 12]);
+        c.solid(&b.fence_ns, [3, 6, 3], [3, 6, 11]);
+        c.solid(&b.fence_ns, [10, 6, 3], [10, 6, 9]);
+        c.solid(&b.fence_we, [4, 6, 2], [9, 6, 2]);
+        c.solid(&b.fence_we, [4, 6, 12], [7, 6, 12]);
         c.place(&b.fence_ne, 3, 6, 2);
         c.place(&b.fence_se, 3, 6, 12);
         c.place(&b.fence_nw, 10, 6, 2);
@@ -678,16 +669,16 @@ fn portal_room<W: WorldGenVolume, R: Random>(
     walls(b, c, rng, [2, 6, 14], [8, 6, 14], false);
     walls(b, c, rng, [1, 1, 1], [2, 1, 4], false);
     walls(b, c, rng, [8, 1, 1], [9, 1, 4], false);
-    solid(c, &b.lava, [1, 1, 1], [1, 1, 3]);
-    solid(c, &b.lava, [9, 1, 1], [9, 1, 3]);
+    c.solid(&b.lava, [1, 1, 1], [1, 1, 3]);
+    c.solid(&b.lava, [9, 1, 1], [9, 1, 3]);
     walls(b, c, rng, [3, 1, 8], [7, 1, 12], false);
-    solid(c, &b.lava, [4, 1, 9], [6, 1, 11]);
+    c.solid(&b.lava, [4, 1, 9], [6, 1, 11]);
     for z in (3..14).step_by(2) {
-        solid(c, &b.bars_ns, [0, 3, z], [0, 4, z]);
-        solid(c, &b.bars_ns, [10, 3, z], [10, 4, z]);
+        c.solid(&b.bars_ns, [0, 3, z], [0, 4, z]);
+        c.solid(&b.bars_ns, [10, 3, z], [10, 4, z]);
     }
     for x in (2..9).step_by(2) {
-        solid(c, &b.bars_we, [x, 3, 15], [x, 4, 15]);
+        c.solid(&b.bars_we, [x, 3, 15], [x, 4, 15]);
     }
     walls(b, c, rng, [4, 1, 5], [6, 1, 7], false);
     walls(b, c, rng, [4, 2, 6], [6, 2, 7], false);
@@ -718,7 +709,7 @@ fn portal_room<W: WorldGenVolume, R: Random>(
     c.place(&frame(west, eyes[10]), 7, 3, 10);
     c.place(&frame(west, eyes[11]), 7, 3, 11);
     if all_eyes {
-        solid(c, &b.end_portal, [4, 3, 9], [6, 3, 11]);
+        c.solid(&b.end_portal, [4, 3, 9], [6, 3, 11]);
     }
     let pos = c.world_pos(5, 3, 6);
     if c.clip.is_inside(pos) {

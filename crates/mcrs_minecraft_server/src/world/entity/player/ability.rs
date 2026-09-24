@@ -44,22 +44,12 @@ impl Default for MayBuild {
     }
 }
 
-#[derive(Component, Debug, Clone, Copy, Deref, DerefMut)]
-pub struct WalkSpeed(pub f32);
-
-impl Default for WalkSpeed {
-    fn default() -> Self {
-        Self(0.1)
-    }
-}
-
 #[derive(Bundle, Default)]
 pub struct PlayerAbilitiesBundle {
     pub invulnerable: Invulnerable,
     pub may_fly: MayFly,
     pub may_build: MayBuild,
     pub fly_speed: FlyingSpeed,
-    pub walk_speed: WalkSpeed,
 }
 
 /// Returns whether the player should carry the `Flying` marker afterwards;

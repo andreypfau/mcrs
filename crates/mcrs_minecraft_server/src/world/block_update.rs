@@ -20,11 +20,12 @@ use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
+use mcrs_minecraft_level::block::BlockUpdateFlags;
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::voxel_update::{VoxelUpdateFlags, VoxelUpdateSet};
+use mcrs_minecraft_level::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -61,7 +62,7 @@ pub fn update_client_blocks_per_dim(
     mut changed: Local<FxHashMap<Entity, (SectionPos, FxHashSet<BlockPos>)>>,
 ) {
     for placed in placed.read() {
-        if placed.flags.notifies_clients() {
+        if placed.flags.contains(BlockUpdateFlags::CLIENTS) {
             changed
                 .entry(placed.chunk)
                 .or_insert_with(|| (placed.chunk_pos, FxHashSet::default()))

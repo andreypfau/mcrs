@@ -937,7 +937,7 @@ fn place_fossil<W: WorldGenVolume>(
     entities: &mut Vec<GeneratedBlockEntity>,
     spawns: &mut Vec<GeneratedEntity>,
 ) -> bool {
-    let rotation = Rotation::ALL[rng.next_i32_bound(4) as usize];
+    let rotation = mcrs_minecraft_worldgen_structure::orient::random_rotation(rng);
     let (fossil, overlay) = &config.pairs[rng.next_i32_bound(config.pairs.len() as i32) as usize];
     let extent = region.extent();
     let chunk_min = IVec3::new(

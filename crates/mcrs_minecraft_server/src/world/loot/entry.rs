@@ -10,8 +10,6 @@ pub enum LootEntryProto {
         name: ResourceLocation,
         #[serde(default)]
         conditions: Vec<LootConditionProto>,
-        #[serde(default)]
-        functions: Vec<serde_json::Value>,
     },
     #[serde(rename = "minecraft:alternatives")]
     Alternatives {

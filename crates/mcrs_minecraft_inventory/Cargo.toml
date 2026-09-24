@@ -8,7 +8,6 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-bevy_app.workspace = true
 bevy_ecs.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
@@ -20,5 +19,4 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-bevy_asset.workspace = true
 serde_json.workspace = true

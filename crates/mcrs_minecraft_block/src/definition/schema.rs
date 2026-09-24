@@ -2,8 +2,8 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use serde::de::{self, MapAccess, SeqAccess, Visitor};
-use serde::ser::{SerializeMap, SerializeSeq};
+use serde::de::{self, MapAccess, Visitor};
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::material::PushReaction;
@@ -105,7 +105,8 @@ impl<'de> Deserialize<'de> for BlockProperties {
 
 /// A property value keeps the JSON type it was dumped with: `"true"` and
 /// `true` are different values, and so are `"3"` and `3`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(untagged)]
 pub enum PropertyValue {
     Str(Box<str>),
     Int(i32),
@@ -144,52 +145,6 @@ impl fmt::Display for PropertyValue {
     }
 }
 
-impl<'de> Deserialize<'de> for PropertyValue {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct V;
-
-        impl Visitor<'_> for V {
-            type Value = PropertyValue;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a string, integer or boolean property value")
-            }
-
-            fn visit_bool<E: de::Error>(self, v: bool) -> Result<PropertyValue, E> {
-                Ok(PropertyValue::Bool(v))
-            }
-
-            fn visit_i64<E: de::Error>(self, v: i64) -> Result<PropertyValue, E> {
-                i32::try_from(v)
-                    .map(PropertyValue::Int)
-                    .map_err(|_| E::custom(format!("property value {v} is out of range")))
-            }
-
-            fn visit_u64<E: de::Error>(self, v: u64) -> Result<PropertyValue, E> {
-                i32::try_from(v)
-                    .map(PropertyValue::Int)
-                    .map_err(|_| E::custom(format!("property value {v} is out of range")))
-            }
-
-            fn visit_str<E: de::Error>(self, v: &str) -> Result<PropertyValue, E> {
-                Ok(PropertyValue::Str(v.into()))
-            }
-        }
-
-        d.deserialize_any(V)
-    }
-}
-
-impl Serialize for PropertyValue {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match self {
-            PropertyValue::Str(v) => s.serialize_str(v),
-            PropertyValue::Int(v) => s.serialize_i32(*v),
-            PropertyValue::Bool(v) => s.serialize_bool(*v),
-        }
-    }
-}
-
 /// One box in Bedrock convention: sixteenths of a block, origin relative to
 /// the block centre on X and Z and to the block bottom on Y.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
@@ -208,53 +163,32 @@ impl ModelBox {
 
 /// `minecraft:collision_box` and friends: a boolean, one box, or an array of
 /// boxes. `false` is no box at all and `true` is the full cube.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[serde(from = "BoxListRepr")]
 pub struct BoxList(pub Vec<ModelBox>);
-
-impl<'de> Deserialize<'de> for BoxList {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = BoxList;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a boolean, a box, or an array of boxes")
-            }
-
-            fn visit_bool<E: de::Error>(self, v: bool) -> Result<BoxList, E> {
-                Ok(BoxList(if v {
-                    vec![ModelBox::FULL_CUBE]
-                } else {
-                    Vec::new()
-                }))
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<BoxList, A::Error> {
-                let single = ModelBox::deserialize(de::value::MapAccessDeserializer::new(map))?;
-                Ok(BoxList(vec![single]))
-            }
-
-            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<BoxList, A::Error> {
-                let mut boxes = Vec::with_capacity(seq.size_hint().unwrap_or(1));
-                while let Some(b) = seq.next_element()? {
-                    boxes.push(b);
-                }
-                Ok(BoxList(boxes))
-            }
-        }
-
-        d.deserialize_any(V)
-    }
-}
 
 impl Serialize for BoxList {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut seq = s.serialize_seq(Some(self.0.len()))?;
-        for b in &self.0 {
-            seq.serialize_element(b)?;
-        }
-        seq.end()
+        self.0.serialize(s)
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum BoxListRepr {
+    Bool(bool),
+    One(ModelBox),
+    Many(Vec<ModelBox>),
+}
+
+impl From<BoxListRepr> for BoxList {
+    fn from(repr: BoxListRepr) -> Self {
+        BoxList(match repr {
+            BoxListRepr::Bool(true) => vec![ModelBox::FULL_CUBE],
+            BoxListRepr::Bool(false) => Vec::new(),
+            BoxListRepr::One(single) => vec![single],
+            BoxListRepr::Many(boxes) => boxes,
+        })
     }
 }
 

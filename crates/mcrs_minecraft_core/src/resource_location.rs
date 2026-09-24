@@ -51,70 +51,51 @@ impl<S: AsRef<str>> ResourceLocation<S> {
             colon_pos: self.colon_pos,
         }
     }
-
-    /// Build the asset path for this resource location.
-    ///
-    /// Format: `{namespace}/{path}` (e.g. `"minecraft/stone"`).
-    pub fn to_asset_path(&self) -> String {
-        format!("{}/{}", self.namespace(), self.path())
-    }
 }
 
 // ─── &'static str constructors ───────────────────────────────────────────────
 
 impl ResourceLocation<&'static str> {
-    /// The full `namespace:path` string with `'static` lifetime.
-    #[inline]
-    pub const fn as_static_str(&self) -> &'static str {
-        self.string
-    }
-
-    /// The namespace portion with `'static` lifetime.
-    #[inline]
-    pub fn namespace_static(&self) -> &'static str {
-        let s = self.string;
-        // SAFETY: colon_pos is always a valid byte index into s
-        &s[..self.colon_pos as usize]
-    }
-
-    /// The path portion with `'static` lifetime.
-    #[inline]
-    pub fn path_static(&self) -> &'static str {
-        let s = self.string;
-        &s[(self.colon_pos as usize + 1)..]
-    }
-
-    /// Const-compatible constructor from a pre-validated string.
-    ///
-    /// # Safety contract (not unsafe, but panics on bad input)
-    /// The caller must ensure `s` contains exactly one `:` separator.
-    /// Prefer the `rl!` macro which validates at compile time.
+    /// Const constructor; panics unless `s` is `namespace:path` with a
+    /// non-empty namespace in `[a-z0-9_.-]` and a non-empty path in
+    /// `[a-z0-9_.-/]`. Inside `rl!` the panic is a compile error.
     #[track_caller]
     pub const fn new_static(s: &'static str) -> Self {
         let bytes = s.as_bytes();
-        let mut i = 0;
         let mut colon = None;
+        let mut i = 0;
         while i < bytes.len() {
-            if bytes[i] == b':' {
-                colon = Some(i);
-                break;
+            let c = bytes[i];
+            match colon {
+                None if c == b':' => colon = Some(i),
+                None => {
+                    if !matches!(c, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-') {
+                        panic!(
+                            "invalid character in resource location namespace (allowed: a-z 0-9 _ . -)"
+                        );
+                    }
+                }
+                Some(_) => {
+                    if !matches!(c, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-' | b'/') {
+                        panic!(
+                            "invalid character in resource location path (allowed: a-z 0-9 _ . - /)"
+                        );
+                    }
+                }
             }
             i += 1;
         }
         match colon {
+            Some(0) => panic!("resource location namespace must not be empty"),
+            Some(pos) if pos + 1 == bytes.len() => {
+                panic!("resource location path must not be empty")
+            }
             Some(pos) => ResourceLocation {
                 string: s,
                 colon_pos: pos as u16,
             },
             None => panic!("ResourceLocation must contain ':'"),
         }
-    }
-
-    /// Used by the `rl!` macro — do not call directly.
-    #[doc(hidden)]
-    #[inline]
-    pub const fn __from_validated(string: &'static str, colon_pos: u16) -> Self {
-        ResourceLocation { string, colon_pos }
     }
 }
 
@@ -342,27 +323,14 @@ impl ResourceLocation<Arc<str>> {
 
 // ─── rl! macro ───────────────────────────────────────────────────────────────
 
-/// Macro for creating a `ResourceLocation<&'static str>` from a string literal.
-///
-/// Validates the resource location at compile time (charset, format) and
-/// auto-prefixes `"minecraft:"` when no namespace is given.
-///
-/// ```rust,ignore
-/// use mcrs_minecraft_core::rl;
-/// let loc = rl!("minecraft:stone");   // ResourceLocation<&'static str>
-/// let loc2 = rl!("stone");            // same: "minecraft:stone"
-/// ```
+/// A `ResourceLocation<&'static str>` from a `namespace:path` literal,
+/// validated at compile time.
 #[macro_export]
 macro_rules! rl {
-    ($s:literal) => {{
-        const _VALIDATED: (&str, u16) = $crate::__rl_impl!($s);
-        $crate::resource_location::ResourceLocation::__from_validated(_VALIDATED.0, _VALIDATED.1)
-    }};
+    ($s:literal) => {
+        const { $crate::resource_location::ResourceLocation::new_static($s) }
+    };
 }
-
-// Re-export the proc macro under a hidden name for use by the rl! declarative macro.
-#[doc(hidden)]
-pub use mcrs_minecraft_core_macros::rl_impl as __rl_impl;
 
 #[cfg(test)]
 mod tests {
@@ -395,5 +363,25 @@ mod tests {
             read(r#""a.b-c_1:d/e.f-g_2""#).unwrap().as_str(),
             "a.b-c_1:d/e.f-g_2"
         );
+    }
+
+    #[test]
+    fn new_static_enforces_the_character_sets() {
+        let loc = crate::rl!("a.b-c_1:d/e.f-g_2");
+        assert_eq!((loc.namespace(), loc.path()), ("a.b-c_1", "d/e.f-g_2"));
+        for bad in [
+            "alt",
+            ":alt",
+            "minecraft:",
+            "MC:alt",
+            "minecraft:Alt",
+            "a:b:c",
+            "a/b:c",
+        ] {
+            assert!(
+                std::panic::catch_unwind(|| ResourceLocation::new_static(bad)).is_err(),
+                "{bad}"
+            );
+        }
     }
 }

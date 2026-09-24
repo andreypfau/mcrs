@@ -22,4 +22,3 @@ crc32c.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
-uuid = { workspace = true, features = ["serde"] }

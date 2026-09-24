@@ -30,9 +30,8 @@ use mcrs_minecraft_worldgen_surface::{
 #[path = "../src/tests/support.rs"]
 mod support;
 
-use support::{
-    assets_root, corpus, density_function_registry, load_json_dir, noise_registry, router_blocks,
-};
+use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
+use support::{corpus, router_blocks};
 
 const ABSENT_BIOME: u32 = 250;
 
@@ -46,12 +45,12 @@ fn biome_ids() -> HashMap<String, u32> {
 }
 
 fn material_router(seed: u64, ids: &HashMap<String, u32>) -> (NoiseRouter, MaterialProgram) {
-    let path = assets_root().join("noise_settings/overworld.json");
+    let path = worldgen_dir().join("noise_settings/overworld.json");
     let settings: NoiseGeneratorSettings =
         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = load_json_dir("material_rule");
+    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        load_json_dir("material_condition");
+        registry("material_condition");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
@@ -64,8 +63,8 @@ fn material_router(seed: u64, ids: &HashMap<String, u32>) -> (NoiseRouter, Mater
     };
     build_router_and_material(
         &settings,
-        &density_function_registry(),
-        &noise_registry(),
+        &registry("density_function"),
+        &registry("noise"),
         seed,
         router_blocks(corpus()),
         &inputs,
@@ -74,7 +73,7 @@ fn material_router(seed: u64, ids: &HashMap<String, u32>) -> (NoiseRouter, Mater
 }
 
 fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let path = assets_root().join(format!(
+    let path = worldgen_dir().join(format!(
         "biome/{}.json",
         biome.strip_prefix("minecraft:").unwrap_or(biome)
     ));
@@ -90,7 +89,7 @@ fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
     names
         .iter()
         .map(|name| {
-            let path = assets_root().join(format!(
+            let path = worldgen_dir().join(format!(
                 "carver/{}.json",
                 name.strip_prefix("minecraft:").unwrap_or(name)
             ));

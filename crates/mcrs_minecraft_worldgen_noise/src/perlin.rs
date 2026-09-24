@@ -522,10 +522,10 @@ fn cell_blend(
 }
 
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
+#[cfg_attr(feature = "fast", allow(dead_code))]
 pub(crate) struct CellCorners(pub [usize; 8]);
 
-#[allow(dead_code)]
+#[cfg_attr(feature = "fast", allow(dead_code))]
 impl CellCorners {
     #[inline(always)]
     pub(crate) fn sample(
@@ -546,7 +546,7 @@ impl CellCorners {
 /// lerps are affine with constant weights, so the whole cell collapses to two lines that
 /// the y smoothstep interpolates between.
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
+#[cfg_attr(not(feature = "fast"), allow(dead_code))]
 pub(crate) struct CellLine {
     lower_at_0: f32,
     lower_slope: f32,
@@ -554,7 +554,7 @@ pub(crate) struct CellLine {
     upper_slope: f32,
 }
 
-#[allow(dead_code)]
+#[cfg_attr(not(feature = "fast"), allow(dead_code))]
 impl CellLine {
     #[inline(always)]
     pub(crate) fn new(

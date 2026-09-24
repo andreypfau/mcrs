@@ -60,7 +60,7 @@ fn drain_clears_disconnected_this_tick_via_filter_at_end_of_update() {
     insert_player(&mut app, host_anchor, dim);
     {
         let mut budget = app.world_mut().resource_mut::<DisconnectBudget>();
-        budget.remaining = 0;
+        budget.0 = 0;
     }
     {
         let mut q = app.world_mut().resource_mut::<PendingDisconnectQueue>();

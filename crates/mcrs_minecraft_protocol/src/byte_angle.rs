@@ -1,6 +1,5 @@
 use crate::{Decode, Encode};
 use derive_more::Deref;
-use std::f32::consts::TAU;
 use std::fmt;
 use std::io::Write;
 
@@ -13,17 +12,9 @@ impl ByteAngle {
         ByteAngle((f.rem_euclid(360.0) / 360.0 * 256.0).round() as u8)
     }
 
-    pub fn from_radians(f: f32) -> ByteAngle {
-        ByteAngle((f.rem_euclid(TAU) / TAU * 256.0).round() as u8)
-    }
-
     pub fn to_degrees(self) -> f32 {
         self.0 as f32 / 256.0 * 360.0
     }
-
-    // pub fn to_radians(self) -> f32 {
-    //     self.0 as f32 / 256.0 * TAU
-    // }
 }
 
 impl fmt::Debug for ByteAngle {

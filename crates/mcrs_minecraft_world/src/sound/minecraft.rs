@@ -3,23 +3,23 @@ use mcrs_minecraft_registry::StaticRegistry;
 
 use super::SoundEvent;
 
-pub const EMPTY: ResourceLocation<&'static str> = rl!("intentionally_empty");
+pub const EMPTY: ResourceLocation<&'static str> = rl!("minecraft:intentionally_empty");
 
-pub const WOOD_BREAK: ResourceLocation<&'static str> = rl!("block.wood.break");
-pub const WOOD_FALL: ResourceLocation<&'static str> = rl!("block.wood.fall");
-pub const WOOD_HIT: ResourceLocation<&'static str> = rl!("block.wood.hit");
-pub const WOOD_PLACE: ResourceLocation<&'static str> = rl!("block.wood.place");
-pub const WOOD_STEP: ResourceLocation<&'static str> = rl!("block.wood.step");
+pub const WOOD_BREAK: ResourceLocation<&'static str> = rl!("minecraft:block.wood.break");
+pub const WOOD_FALL: ResourceLocation<&'static str> = rl!("minecraft:block.wood.fall");
+pub const WOOD_HIT: ResourceLocation<&'static str> = rl!("minecraft:block.wood.hit");
+pub const WOOD_PLACE: ResourceLocation<&'static str> = rl!("minecraft:block.wood.place");
+pub const WOOD_STEP: ResourceLocation<&'static str> = rl!("minecraft:block.wood.step");
 
-pub const STONE_BREAK: ResourceLocation<&'static str> = rl!("block.stone.break");
-pub const STONE_FALL: ResourceLocation<&'static str> = rl!("block.stone.fall");
-pub const STONE_HIT: ResourceLocation<&'static str> = rl!("block.stone.hit");
-pub const STONE_PLACE: ResourceLocation<&'static str> = rl!("block.stone.place");
+pub const STONE_BREAK: ResourceLocation<&'static str> = rl!("minecraft:block.stone.break");
+pub const STONE_FALL: ResourceLocation<&'static str> = rl!("minecraft:block.stone.fall");
+pub const STONE_HIT: ResourceLocation<&'static str> = rl!("minecraft:block.stone.hit");
+pub const STONE_PLACE: ResourceLocation<&'static str> = rl!("minecraft:block.stone.place");
 pub const STONE_PRESSURE_PLATE_CLICK_OFF: ResourceLocation<&'static str> =
-    rl!("block.stone_pressure_plate.click_off");
+    rl!("minecraft:block.stone_pressure_plate.click_off");
 pub const STONE_PRESSURE_PLATE_CLICK_ON: ResourceLocation<&'static str> =
-    rl!("block.stone_pressure_plate.click_on");
-pub const STONE_STEP: ResourceLocation<&'static str> = rl!("block.stone.step");
+    rl!("minecraft:block.stone_pressure_plate.click_on");
+pub const STONE_STEP: ResourceLocation<&'static str> = rl!("minecraft:block.stone.step");
 
 pub static EMPTY_EVENT: SoundEvent = SoundEvent::new(EMPTY, None);
 pub static WOOD_BREAK_EVENT: SoundEvent = SoundEvent::new(WOOD_BREAK, None);

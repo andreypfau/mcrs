@@ -27,9 +27,7 @@ use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
 };
 
-use super::{
-    block_tags, blocks, build_program, corpus_features, generate_region, load_json_dir, one_step,
-};
+use super::{block_tags, blocks, build_program, corpus_features, generate_region, one_step};
 
 /// The three biomes of the step-6 checkpoint, each with the tree feature its
 /// own `worldgen/biome` file names and nothing else.
@@ -91,12 +89,14 @@ fn material_router(
     registry: &RegistrySnapshot<Biome>,
     seed: u64,
 ) -> (NoiseRouter, MaterialProgram) {
-    let path = super::assets_root().join("noise_settings/overworld.json");
+    let path =
+        mcrs_minecraft_worldgen_testing::worldgen_dir().join("noise_settings/overworld.json");
     let settings: NoiseGeneratorSettings =
         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = load_json_dir("material_rule");
+    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> =
+        mcrs_minecraft_worldgen_testing::registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        load_json_dir("material_condition");
+        mcrs_minecraft_worldgen_testing::registry("material_condition");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
@@ -112,8 +112,8 @@ fn material_router(
     };
     build_router_and_material(
         &settings,
-        &super::density_function_registry(),
-        &super::noise_registry(),
+        &mcrs_minecraft_worldgen_testing::registry("density_function"),
+        &mcrs_minecraft_worldgen_testing::registry("noise"),
         seed,
         super::router_blocks(&blocks().0),
         &inputs,

@@ -7,7 +7,7 @@ use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_server::world::bridge::bridge_inbound_to_channel;
@@ -36,8 +36,8 @@ fn make_channels(
     let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
     world.resource_mut::<DimChannelsResource>().insert(
         dim,
-        DimSender::new(srv_tx),
-        DimSender::new(ctl_tx),
+        srv_tx,
+        ctl_tx,
         from_rx,
     );
     (srv_rx, ctl_rx, from_tx)
@@ -320,7 +320,7 @@ fn control_full_enqueues_dim_teardown() {
     // A control channel with headroom: the send is delivered and no teardown is
     // scheduled.
     let (ok_tx, ok_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
-    let ok_sender = DimSender::new(ok_tx);
+    let ok_sender = ok_tx;
     let mut queue = DimDespawnQueue::default();
     send_control_or_teardown(
         &ok_sender,
@@ -344,7 +344,7 @@ fn control_full_enqueues_dim_teardown() {
     // teardown instead of silently dropping the lifecycle message. The receiver
     // is kept alive so the send reports Full, not Disconnected.
     let (full_tx, _full_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
-    let full_sender = DimSender::new(full_tx);
+    let full_sender = full_tx;
     for i in 0..TO_DIM_CONTROL_CAPACITY {
         full_sender
             .try_send(ToDim::Spawn {

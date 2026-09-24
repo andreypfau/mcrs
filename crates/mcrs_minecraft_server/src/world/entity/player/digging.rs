@@ -1,7 +1,5 @@
-use crate::world::entity::attribute::Attribute;
 use crate::world::entity::item::BlockDrop;
 use crate::world::entity::player::ability::InstantBuild;
-use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency};
 use crate::world::entity::player::player_action::{
     PlayerAction, PlayerActionKind, PlayerWillDestroyBlock,
 };
@@ -19,7 +17,6 @@ use mcrs_minecraft_item::tool::{is_correct_for_drops, mining_speed};
 use mcrs_minecraft_item::{ItemStack, Items, SelectedHotbarSlot, SlotTable};
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_level::entity::physics::Transform;
-use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::experience::BlockDestroyed;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::session::PlayerSession;
@@ -130,10 +127,7 @@ fn player_start_destroy_block(
     mut players: Query<(
         &InDimension,
         &Transform,
-        &Reposition,
         Has<InstantBuild>,
-        &MiningEfficiency,
-        &BlockBreakSpeed,
         &SlotTable,
         &SelectedHotbarSlot,
     )>,
@@ -147,11 +141,9 @@ fn player_start_destroy_block(
 ) {
     reader.read().for_each(|event| {
         let player = event.player;
-        let (dim, _pos, rep, _instant_build, mining_efficiency, block_break_speed, table, selected) =
-            match players.get_mut(player) {
-                Ok(value) => value,
-                Err(_) => return,
-            };
+        let Ok((dim, _pos, _instant_build, table, selected)) = players.get_mut(player) else {
+            return;
+        };
         let PlayerActionKind::StartDestroyBlock {
             block_pos,
             direction: _,
@@ -159,7 +151,6 @@ fn player_start_destroy_block(
         else {
             return;
         };
-        let block_pos = rep.unconvert_block_pos(block_pos);
 
         let Some(chunk_index) = dimensions.get(dim.entity()).ok() else {
             return;
@@ -188,8 +179,6 @@ fn player_start_destroy_block(
                 held_stack(table, selected),
                 &tools,
                 &items,
-                mining_efficiency,
-                block_break_speed,
                 &tag_registry,
             );
         }
@@ -286,7 +275,7 @@ fn player_stop_destroy_block(
 #[derive(SystemParam)]
 struct SendDestroyBlockProgress<'w, 's> {
     dim_players: Query<'w, 's, &'static DimensionPlayers>,
-    all_players: Query<'w, 's, (Entity, &'static HostAnchor, &'static Reposition)>,
+    all_players: Query<'w, 's, (Entity, &'static HostAnchor)>,
     packet_writer: MessageWriter<'w, OutboundPlayerPacket>,
 }
 
@@ -296,7 +285,7 @@ impl SendDestroyBlockProgress<'_, '_> {
             return;
         };
         let mut iter = self.all_players.iter_many(dim_players.iter());
-        while let Some((player, anchor, rep)) = iter.fetch_next() {
+        while let Some((player, anchor)) = iter.fetch_next() {
             if player == id {
                 continue;
             }
@@ -305,7 +294,7 @@ impl SendDestroyBlockProgress<'_, '_> {
                 priority: PacketPriority::Normal,
                 data: PacketPayload::BlockDestruction {
                     entity_id: id.index_u32() as i32,
-                    pos: rep.convert_block_pos(block_pos),
+                    pos: block_pos,
                     progress,
                 },
                 session: PlayerSession(0),
@@ -315,14 +304,15 @@ impl SendDestroyBlockProgress<'_, '_> {
     }
 }
 
+const MINING_EFFICIENCY: f32 = 0.0;
+const BLOCK_BREAK_SPEED: f32 = 1.0;
+
 fn get_destroy_speed(
     state: BlockStateId,
     blocks: &BlockDefinitions,
     held: Option<Entity>,
     tools: &Query<(&ItemStack, Option<&Tool>)>,
     items: &Items,
-    mining_efficiency: &MiningEfficiency,
-    block_break_speed: &BlockBreakSpeed,
     tag_registry: &DynTagRegistry<VanillaBlock>,
 ) -> f32 {
     let hardness = blocks.state(state).hardness;
@@ -332,9 +322,9 @@ fn get_destroy_speed(
     let (has_correct_tool, mut speed) =
         extract_tool_data(state, blocks, held, tools, items, tag_registry);
     if speed > 1.0 {
-        speed += mining_efficiency.value();
+        speed += MINING_EFFICIENCY;
     }
-    speed *= block_break_speed.value();
+    speed *= BLOCK_BREAK_SPEED;
     let modifier = if has_correct_tool { 30.0 } else { 100.0 };
     speed / hardness / modifier
 }

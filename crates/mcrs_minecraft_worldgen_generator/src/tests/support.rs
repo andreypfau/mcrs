@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
@@ -31,14 +32,11 @@ pub fn blocks() -> &'static Blocks {
     })
 }
 
-use std::collections::BTreeMap;
-use std::path::PathBuf;
+use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_density::compile::build_router;
-use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
-use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 
 pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
     RouterBlocks {
@@ -49,31 +47,15 @@ pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
     }
 }
 
-pub fn assets_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/minecraft/worldgen")
-}
-
-pub fn load_json_dir<T: serde::de::DeserializeOwned>(name: &str) -> BTreeMap<ResourceLocation, T> {
-    mcrs_minecraft_worldgen_testing::registry(name)
-}
-
-pub fn density_function_registry() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
-    load_json_dir("density_function")
-}
-
-pub fn noise_registry() -> BTreeMap<ResourceLocation, NoiseParam> {
-    load_json_dir("noise")
-}
-
 pub fn build_settings_router(settings_name: &str, seed: u64) -> NoiseRouter {
-    let path = assets_root().join(format!("noise_settings/{settings_name}.json"));
+    let path = worldgen_dir().join(format!("noise_settings/{settings_name}.json"));
     let json = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     let settings: NoiseGeneratorSettings =
         serde_json::from_str(&json).unwrap_or_else(|e| panic!("{settings_name}: {e}"));
     build_router(
         &settings,
-        &density_function_registry(),
-        &noise_registry(),
+        &registry("density_function"),
+        &registry("noise"),
         seed,
         router_blocks(corpus()),
     )
@@ -89,7 +71,7 @@ pub fn build_beta_router() -> NoiseRouter {
 /// generation, so a corpus rename would otherwise cost every chunk silently.
 #[test]
 fn every_shipped_noise_settings_compiles_its_material_rules() {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     use mcrs_minecraft_worldgen_surface::compile::build_router_and_material;
     use mcrs_minecraft_worldgen_surface::{
@@ -98,18 +80,18 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
 
     use crate::block_state::try_resolve_state;
 
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = load_json_dir("material_rule");
+    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        load_json_dir("material_condition");
-    let biome_ids: HashMap<String, u32> = load_json_dir::<serde::de::IgnoredAny>("biome")
+        registry("material_condition");
+    let biome_ids: HashMap<String, u32> = registry::<serde::de::IgnoredAny>("biome")
         .into_keys()
         .enumerate()
         .map(|(id, name)| (name.as_str().to_owned(), id as u32))
         .collect();
-    let functions = density_function_registry();
-    let noises = noise_registry();
+    let functions = registry("density_function");
+    let noises = registry("noise");
 
-    let dir = assets_root().join("noise_settings");
+    let dir = worldgen_dir().join("noise_settings");
     let mut seen = 0;
     for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())) {
         let path = entry.unwrap().path();
@@ -221,7 +203,7 @@ pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
 pub fn biome_index() -> &'static DynRegistryIndex<Biome> {
     static INDEX: std::sync::OnceLock<DynRegistryIndex<Biome>> = std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
-        DynRegistryIndex::build(load_json_dir::<serde::de::IgnoredAny>("biome").into_keys())
+        DynRegistryIndex::build(registry::<serde::de::IgnoredAny>("biome").into_keys())
     })
 }
 
@@ -230,7 +212,7 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
     static CLIMATE: std::sync::OnceLock<std::sync::Arc<[BiomeClimate]>> =
         std::sync::OnceLock::new();
     CLIMATE.get_or_init(|| {
-        let biomes = load_json_dir::<Biome>("biome");
+        let biomes = registry::<Biome>("biome");
         (0..biome_index().len())
             .map(|id| {
                 let name = biome_index()
@@ -255,7 +237,7 @@ pub fn biome_tags() -> &'static DynTagRegistry<Biome> {
 pub fn structure_index() -> &'static DynRegistryIndex<Structure> {
     static INDEX: std::sync::OnceLock<DynRegistryIndex<Structure>> = std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
-        DynRegistryIndex::build(load_json_dir::<serde::de::IgnoredAny>("structure").into_keys())
+        DynRegistryIndex::build(registry::<serde::de::IgnoredAny>("structure").into_keys())
     })
 }
 

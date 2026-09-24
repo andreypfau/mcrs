@@ -5,7 +5,7 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::mth::{map, mth_floor};
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_worldgen_density::cell::CELL_BOUNDS_SLACK;
+use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
 use mcrs_minecraft_worldgen_noise::interval::Interval;
@@ -802,7 +802,7 @@ where
                 .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK);
         let closed = closed
             || (cell_min.y <= self.veins.max_block().y && {
-                sampled_corner_bounds(
+                sampled_bounds(
                     &self.scratch.lattice,
                     &lattice,
                     IVec3::new(cx, cy, cz),
@@ -1114,40 +1114,5 @@ fn plan_veins(
         scratch
             .vein_cells
             .resize(at + (size.x * size.y * size.z) as usize, CELL_UNKNOWN);
-    }
-}
-/// [`corner_bounds`] over the range the blocks of the cell actually reach.
-fn sampled_corner_bounds(
-    values: &[f32],
-    lattice: &SampleGrid,
-    at: IVec3,
-    cell: IVec3,
-    out: &mut [Interval],
-) {
-    let stride = lattice.len();
-    for (k, bound) in out.iter_mut().enumerate() {
-        let row = &values[k * stride..(k + 1) * stride];
-        *bound = mcrs_minecraft_worldgen_density::cell::sampled_range(cell, |dx, dy, dz| {
-            row[lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz)]
-        });
-    }
-}
-
-/// The hull of one cell's eight corner values, per lattice row.
-fn corner_bounds(values: &[f32], lattice: &SampleGrid, at: IVec3, out: &mut [Interval]) {
-    let stride = lattice.len();
-    for (k, bound) in out.iter_mut().enumerate() {
-        let row = &values[k * stride..(k + 1) * stride];
-        let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
-        for dz in 0..2 {
-            for dx in 0..2 {
-                for dy in 0..2 {
-                    let v = row[lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz)];
-                    lo = lo.min(v);
-                    hi = hi.max(v);
-                }
-            }
-        }
-        *bound = Interval::of(lo, hi);
     }
 }

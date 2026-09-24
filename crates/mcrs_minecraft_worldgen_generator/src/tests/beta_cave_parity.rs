@@ -38,8 +38,6 @@ struct BetaSurfaceCorpus {
 struct ColumnFixture {
     wx: i32,
     wz: i32,
-    #[allow(dead_code)]
-    biome_id: u8,
     #[serde(with = "serde_base64")]
     pre_cave: Vec<u8>,
     #[serde(with = "serde_base64")]

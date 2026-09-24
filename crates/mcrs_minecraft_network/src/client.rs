@@ -252,10 +252,10 @@ impl Drop for ClientConnection {
 /// Vanilla's offline profile id: an MD5 name-based UUID over
 /// `OfflinePlayer:<name>`, with no namespace prefix.
 pub fn offline_player_uuid(username: &str) -> Uuid {
-    let mut bytes: [u8; 16] = Md5::digest(format!("OfflinePlayer:{username}").as_bytes()).into();
-    bytes[6] = (bytes[6] & 0x0f) | 0x30;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    Uuid::from_bytes(bytes)
+    mcrs_minecraft_protocol::uuid::Builder::from_md5_bytes(
+        Md5::digest(format!("OfflinePlayer:{username}").as_bytes()).into(),
+    )
+    .into_uuid()
 }
 
 async fn connect_and_log_in(
@@ -624,6 +624,14 @@ mod tests {
 #[cfg(test)]
 mod lookup_tests {
     use super::*;
+
+    #[test]
+    fn offline_player_uuid_matches_vanilla() {
+        assert_eq!(
+            offline_player_uuid("Notch").to_string(),
+            "b50ad385-829d-3141-a216-7e7d7539ba7f"
+        );
+    }
 
     #[test]
     fn received_registries_resolve_names_and_network_ids() {

@@ -22,8 +22,6 @@ pub enum LootConditionProto {
 pub struct ToolPredicateProto {
     #[serde(default)]
     pub predicates: Option<ToolPredicatesProto>,
-    #[serde(default)]
-    pub items: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -43,8 +41,6 @@ pub struct EnchantmentPredicateProto {
 pub struct LevelRange {
     #[serde(default)]
     pub min: Option<u8>,
-    #[serde(default)]
-    pub max: Option<u8>,
 }
 
 // Resolved runtime types

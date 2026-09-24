@@ -31,7 +31,7 @@ mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_world.workspace = true
-mcrs_minecraft_worldgen = { workspace = true, features = ["bevy", "fast"] }
+mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_anvil.workspace = true
 bevy_math.workspace = true
@@ -59,7 +59,6 @@ mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-suppor
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 tracing-subscriber = "0.3"
 proptest = "1.11.0"
-rand09 = { package = "rand", version = "0.9" }
 criterion = { version = "0.7", features = ["html_reports"] }
 
 [features]

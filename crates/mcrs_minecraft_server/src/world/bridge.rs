@@ -46,7 +46,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
 use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, LpVec3, PositionFlag, Text, VarInt};
 use std::borrow::Cow;
-use tracing::{debug, trace, warn};
+use tracing::{trace, warn};
 
 use crate::world::bridge_queue::{
     DEPTH_DRAIN_TARGET, DEPTH_LIMIT, InboundRateBucket, OutboundQueue,
@@ -188,7 +188,6 @@ pub fn dispatch_encode(
 ) {
     use mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
-    let mut depth = [0u64; 4];
     for (entity, mut queue, mut conn) in players.iter_mut() {
         // --- (1) Disconnected writer check (AP-06 path) ---
         if conn.raw.disconnected() {
@@ -245,15 +244,14 @@ pub fn dispatch_encode(
 
         for sub_queue in encode_queues {
             for pkt in sub_queue {
+                trace!(
+                    target: "mcrs_minecraft_server::bridge",
+                    conn = ?entity,
+                    kind = ?std::mem::discriminant(&pkt.data),
+                    "dispatch_encode"
+                );
                 match pkt.data {
                     PacketPayload::LightUpdate { column, light_data } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            col_x = column.x,
-                            col_z = column.z,
-                            "dispatch_encode: LightUpdate"
-                        );
                         conn.raw
                             .append(&ClientboundLightUpdate {
                                 x: VarInt(column.x),
@@ -288,12 +286,6 @@ pub fn dispatch_encode(
                         look,
                         on_ground,
                     } => {
-                        trace!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            entity_id,
-                            "dispatch_encode: EntityPosSync"
-                        );
                         conn.raw
                             .append(&ClientboundEntityPositionSync {
                                 entity_id: VarInt(entity_id),
@@ -308,14 +300,6 @@ pub fn dispatch_encode(
                         pos,
                         progress,
                     } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            entity_id,
-                            ?pos,
-                            progress,
-                            "dispatch_encode: BlockDestruction"
-                        );
                         conn.raw
                             .append(&ClientboundBlockDestruction {
                                 id: VarInt(entity_id),
@@ -325,11 +309,6 @@ pub fn dispatch_encode(
                             .ok();
                     }
                     PacketPayload::GameEvent { game_event } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            "dispatch_encode: GameEvent"
-                        );
                         conn.raw.append(&ClientboundGameEvent { game_event }).ok();
                     }
                     PacketPayload::PlayerEnteredView {
@@ -341,12 +320,6 @@ pub fn dispatch_encode(
                         pitch,
                         data,
                     } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            entity_id,
-                            "dispatch_encode: PlayerEnteredView"
-                        );
                         conn.raw
                             .append(&ClientboundAddEntity {
                                 id: VarInt(entity_id),
@@ -409,14 +382,6 @@ pub fn dispatch_encode(
                         light_data,
                         block_entities,
                     } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            col_x = column.x,
-                            col_z = column.z,
-                            bytes = chunk_bytes.len(),
-                            "dispatch_encode: ChunkLoad"
-                        );
                         let chunk_data = ChunkData {
                             heightmaps: heightmaps
                                 .iter()
@@ -445,12 +410,6 @@ pub fn dispatch_encode(
                             .ok();
                     }
                     PacketPayload::PlayerLeftView { entity_ids } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            count = entity_ids.len(),
-                            "dispatch_encode: PlayerLeftView"
-                        );
                         conn.raw
                             .append(&ClientboundRemoveEntities {
                                 entity_ids: entity_ids.iter().map(|id| VarInt(*id)).collect(),
@@ -472,12 +431,6 @@ pub fn dispatch_encode(
                         do_limited_crafting,
                         enforces_secure_chat,
                     } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            player_id,
-                            "dispatch_encode: PlayerLogin (releases client from Joining world)"
-                        );
                         let dim_idents: Vec<ResourceLocation<std::borrow::Cow<str>>> = dimensions
                             .iter()
                             .filter_map(|s| ResourceLocation::parse_cow(s.as_str()).ok())
@@ -506,11 +459,6 @@ pub fn dispatch_encode(
                             .ok();
                     }
                     PacketPayload::LevelChunksLoadStart => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            "dispatch_encode: LevelChunksLoadStart"
-                        );
                         conn.raw
                             .append(&ClientboundGameEvent {
                                 game_event: GameEventKind::LevelChunksLoadStart,
@@ -521,13 +469,6 @@ pub fn dispatch_encode(
                         entity_id,
                         entity_status,
                     } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            entity_id,
-                            entity_status,
-                            "dispatch_encode: OpLevelEntityEvent"
-                        );
                         conn.raw
                             .append(&ClientboundEntityEvent {
                                 entity_id,
@@ -536,12 +477,6 @@ pub fn dispatch_encode(
                             .ok();
                     }
                     PacketPayload::SetChunkCacheCenter(center) => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            ?center,
-                            "dispatch_encode: SetChunkCacheCenter"
-                        );
                         conn.raw
                             .append(&ClientboundSetChunkCacheCenter {
                                 x: VarInt(center.x),
@@ -550,12 +485,6 @@ pub fn dispatch_encode(
                             .ok();
                     }
                     PacketPayload::SetChunkCacheRadius { radius } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            radius,
-                            "dispatch_encode: SetChunkCacheRadius"
-                        );
                         conn.raw
                             .append(&ClientboundChunkCacheRadius {
                                 radius: VarInt(radius),
@@ -563,12 +492,6 @@ pub fn dispatch_encode(
                             .ok();
                     }
                     PacketPayload::PlayerInfoUpdate { entries } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            count = entries.len(),
-                            "dispatch_encode: PlayerInfoUpdate"
-                        );
                         let wire_entries: Vec<PlayerListEntry<'_>> = entries
                             .iter()
                             .map(|e| PlayerListEntry {
@@ -593,13 +516,6 @@ pub fn dispatch_encode(
                         teleport_id,
                         position,
                     } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            ?position,
-                            teleport_id,
-                            "dispatch_encode: PlayerPosition (teleport-sync)"
-                        );
                         conn.raw
                             .append(&ClientboundPlayerPosition {
                                 teleport_id: VarInt(teleport_id),
@@ -611,11 +527,6 @@ pub fn dispatch_encode(
                             .ok();
                     }
                     PacketPayload::SystemChat { content, overlay } => {
-                        debug!(
-                            target: "mcrs_minecraft_server::bridge",
-                            conn = ?entity,
-                            "dispatch_encode: SystemChat"
-                        );
                         conn.raw
                             .append(&ClientboundSystemChatPacket { content, overlay })
                             .ok();
@@ -711,16 +622,7 @@ pub fn dispatch_encode(
             let piece = blob.split_to(blob.len().min(MAX_QUEUED_BYTES_PER_SOCKET));
             conn.raw.try_send_blob(piece);
         }
-
-        depth[0] += queue.critical.len() as u64;
-        depth[1] += queue.high.len() as u64;
-        depth[2] += queue.normal.len() as u64;
-        depth[3] += queue.low.len() as u64;
     }
-    telemetry.queue_depth_critical = depth[0];
-    telemetry.queue_depth_high = depth[1];
-    telemetry.queue_depth_normal = depth[2];
-    telemetry.queue_depth_low = depth[3];
 }
 
 /// Routes serverbound packets written to the bus into the dim channel seam.
@@ -911,7 +813,7 @@ mod tests {
     use bytes::Bytes;
     use mcrs_minecraft_level::session::PlayerSession;
     use mcrs_minecraft_level::world::channels::{
-        DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
 
     fn make_dim_channels(world: &mut World, dim: Entity) -> flume::Receiver<ToDim> {
@@ -920,8 +822,8 @@ mod tests {
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         world.resource_mut::<DimChannelsResource>().insert(
             dim,
-            DimSender::new(srv_tx),
-            DimSender::new(ctl_tx),
+            srv_tx,
+            ctl_tx,
             from_rx,
         );
         srv_rx

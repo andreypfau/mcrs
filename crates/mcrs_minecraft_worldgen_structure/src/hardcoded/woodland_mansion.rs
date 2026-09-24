@@ -2,7 +2,9 @@ use bevy_math::IVec3;
 use mcrs_minecraft_core::{Direction, Mirror, ResourceLocation, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
-use mcrs_minecraft_worldgen_feature::template::{bounding_box, zero_position_with_transform};
+use mcrs_minecraft_worldgen_feature::template::{
+    bounding_box, transform, zero_position_with_transform,
+};
 
 use super::lowest_corner_site;
 use crate::frozen::{FrozenStructures, TemplateId};
@@ -137,20 +139,6 @@ fn step(direction: Direction) -> (i32, i32) {
     (normal.x, normal.z)
 }
 
-fn counter_clockwise(direction: Direction) -> Direction {
-    direction.opposite().clockwise()
-}
-
-/// `BlockPos.rotate`.
-fn rotate_pos(pos: IVec3, rotation: Rotation) -> IVec3 {
-    match rotation {
-        Rotation::None => pos,
-        Rotation::Clockwise90 => IVec3::new(-pos.z, pos.y, pos.x),
-        Rotation::Clockwise180 => IVec3::new(-pos.x, pos.y, -pos.z),
-        Rotation::Counterclockwise90 => IVec3::new(pos.z, pos.y, -pos.x),
-    }
-}
-
 /// `SimpleGrid`: an 11×11 plan whose cells outside read as blocked.
 #[derive(Clone)]
 struct Grid {
@@ -253,10 +241,6 @@ impl MansionGrid {
     fn is_room_id(&self, x: i32, y: i32, floor: usize, room_id: i32) -> bool {
         (self.rooms[floor].get(x, y) & ROOM_ID_MASK) == room_id
     }
-
-    fn room_1x2_direction(&self, x: i32, y: i32, floor: usize, room_id: i32) -> Option<Direction> {
-        room_1x2_direction(&self.rooms[floor], x, y, room_id)
-    }
 }
 
 fn room_1x2_direction(rooms: &Grid, x: i32, y: i32, room_id: i32) -> Option<Direction> {
@@ -292,7 +276,7 @@ fn recursive_corridor(
         }
     }
     let (cx, cz) = step(heading.clockwise());
-    let (ccx, ccz) = step(counter_clockwise(heading));
+    let (ccx, ccz) = step(Rotation::Counterclockwise90.rotate(heading));
     grid.set_if(x + cx, y + cz, CLEAR, ROOM);
     grid.set_if(x + ccx, y + ccz, CLEAR, ROOM);
     grid.set_if(x + hx + cx, y + hz + cz, CLEAR, ROOM);
@@ -790,7 +774,7 @@ impl Placer<'_> {
                     if room_type == ROOM_1X1 {
                         self.add_room_1x1(room_pos, rotation, door_dir, pool);
                     } else if room_type == ROOM_1X2 && door_dir.is_some() {
-                        let room_dir = mansion.room_1x2_direction(x, y, floor, room_id);
+                        let room_dir = room_1x2_direction(&mansion.rooms[floor], x, y, room_id);
                         let stairs = room_data & ROOM_STAIRS == ROOM_STAIRS;
                         self.add_room_1x2(
                             room_pos,
@@ -842,7 +826,7 @@ impl Placer<'_> {
         let start_heading = heading;
         loop {
             let (hx, hz) = step(heading);
-            let (ccx, ccz) = step(counter_clockwise(heading));
+            let (ccx, ccz) = step(Rotation::Counterclockwise90.rotate(heading));
             if !grid.is_house(x + hx, y + hz) {
                 self.traverse_turn(data);
                 heading = heading.clockwise();
@@ -853,7 +837,7 @@ impl Placer<'_> {
                 self.traverse_inner_turn(data);
                 x += hx;
                 y += hz;
-                heading = counter_clockwise(heading);
+                heading = Rotation::Counterclockwise90.rotate(heading);
             } else {
                 x += hx;
                 y += hz;
@@ -1139,7 +1123,7 @@ impl Placer<'_> {
         let orientation =
             zero_position_with_transform(IVec3::new(1, 0, 0), Mirror::None, piece_rot, 7, 7);
         let piece_rot = piece_rot.rotated(rotation);
-        let orientation = rotate_pos(orientation, rotation);
+        let orientation = transform(orientation, Mirror::None, rotation, IVec3::ZERO);
         let pos = room_pos + IVec3::new(orientation.x, 0, orientation.z);
         self.add(&name, pos, piece_rot, Mirror::None);
     }

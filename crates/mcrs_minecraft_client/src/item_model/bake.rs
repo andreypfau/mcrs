@@ -10,11 +10,11 @@ use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
 use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
 use crate::blocks::load_colormap;
 use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
-use mcrs_minecraft_item_model::asset::{
+use super::asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,
     UnbakedItemModel,
 };
-use mcrs_minecraft_item_model::transform::compose;
+use super::transform::compose;
 
 #[derive(Debug, Clone)]
 pub struct ItemQuad {

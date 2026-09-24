@@ -750,27 +750,16 @@ pub(crate) mod tests {
         lava: VoxelId(3),
     };
 
-    pub(crate) fn corpus() -> (
-        BTreeMap<ResourceLocation, DensityFunctionHolder>,
-        BTreeMap<ResourceLocation, NoiseParam>,
-    ) {
-        (
-            mcrs_minecraft_worldgen_testing::registry("density_function"),
-            mcrs_minecraft_worldgen_testing::registry("noise"),
-        )
-    }
     use mcrs_minecraft_worldgen_density::program::Workspace;
     use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+    use mcrs_minecraft_worldgen_testing::registry;
     use std::collections::BTreeSet;
 
     pub(crate) fn material_corpus() -> (
         BTreeMap<ResourceLocation, MaterialRuleHolder>,
         BTreeMap<ResourceLocation, MaterialConditionHolder>,
     ) {
-        (
-            mcrs_minecraft_worldgen_testing::registry("material_rule"),
-            mcrs_minecraft_worldgen_testing::registry("material_condition"),
-        )
+        (registry("material_rule"), registry("material_condition"))
     }
 
     /// Stands in for the block and biome registries the compiling crate does not
@@ -798,7 +787,6 @@ pub(crate) mod tests {
         mcrs_minecraft_worldgen_density::router::NoiseRouter,
         MaterialProgram,
     ) {
-        let (functions, noises) = corpus();
         let (rules, conditions) = material_corpus();
         let inputs = MaterialInputs {
             rules: &rules,
@@ -808,8 +796,8 @@ pub(crate) mod tests {
         };
         build_router_and_material(
             &settings(name),
-            &functions,
-            &noises,
+            &registry("density_function"),
+            &registry("noise"),
             42,
             TEST_BLOCKS,
             &inputs,
@@ -1051,7 +1039,6 @@ pub(crate) mod tests {
         rule: &str,
         block: &dyn Fn(&BlockState) -> Option<VoxelId>,
     ) -> Result<(), CompileError> {
-        let (functions, noises) = corpus();
         let (mut rules, conditions) = material_corpus();
         rules.insert(
             ResourceLocation::minecraft("overworld"),
@@ -1065,8 +1052,8 @@ pub(crate) mod tests {
         };
         build_router_and_material(
             &settings("overworld"),
-            &functions,
-            &noises,
+            &registry("density_function"),
+            &registry("noise"),
             42,
             TEST_BLOCKS,
             &inputs,
@@ -1186,7 +1173,6 @@ pub(crate) mod tests {
 
     #[test]
     fn a_missing_noise_is_a_compile_error() {
-        let (functions, _) = corpus();
         let (rules, conditions) = material_corpus();
         let inputs = MaterialInputs {
             rules: &rules,
@@ -1196,7 +1182,7 @@ pub(crate) mod tests {
         };
         let error = build_router_and_material(
             &settings("overworld"),
-            &functions,
+            &registry("density_function"),
             &BTreeMap::new(),
             42,
             TEST_BLOCKS,

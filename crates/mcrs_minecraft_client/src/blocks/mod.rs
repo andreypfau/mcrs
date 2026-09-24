@@ -1,5 +1,5 @@
 use crate::atlas::SpriteRegistry;
-use crate::bake::{Dir, TinyWorld};
+use crate::bake::Dir;
 use crate::model::Pack;
 use bevy::math::Vec3;
 use build::build_one;
@@ -102,7 +102,6 @@ pub fn extend(
     ids: &[u16],
     biomes: &[String],
 ) {
-    let neighbours = TinyWorld::default();
     if catalog.blocks.len() < definitions.state_count() {
         catalog
             .blocks
@@ -111,7 +110,7 @@ pub fn extend(
     for &id in ids {
         let state = state_key(definitions, id);
         let data = definitions.state(BlockStateId(id));
-        match build_one(pack, &state, data, &neighbours, &mut catalog.sprites) {
+        match build_one(pack, &state, data, &mut catalog.sprites) {
             Ok(info) => catalog.blocks[id as usize] = info,
             Err(reason) => catalog
                 .failures

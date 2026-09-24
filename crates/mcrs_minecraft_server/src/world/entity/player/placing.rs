@@ -7,7 +7,6 @@ use bevy_ecs::prelude::{On, Query, Res, With};
 use mcrs_minecraft_item::{ItemStack, Items, SelectedHotbarSlot, SlotTable};
 use mcrs_minecraft_level::block::BlockUpdateFlags;
 use mcrs_minecraft_level::block_update::BlockSetRequest;
-use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -26,7 +25,7 @@ impl Plugin for PlacingPlugin {
 // yet.
 fn handle_use_item_on(
     event: On<ReceivedPacketEvent>,
-    players: Query<(&InDimension, &Reposition, &SlotTable, &SelectedHotbarSlot)>,
+    players: Query<(&InDimension, &SlotTable, &SelectedHotbarSlot)>,
     stacks: Query<&ItemStack>,
     items: Res<Items>,
     containers: Query<(Entity, &BlockEntityPos, &InDimension), With<SlotTable>>,
@@ -36,10 +35,10 @@ fn handle_use_item_on(
     let Some(pkt) = event.decode::<ServerboundUseItemOn>() else {
         return;
     };
-    let Ok((dim, rep, table, selected)) = players.get(event.entity) else {
+    let Ok((dim, table, selected)) = players.get(event.entity) else {
         return;
     };
-    let clicked = rep.unconvert_block_pos(pkt.block_pos);
+    let clicked = pkt.block_pos;
     if let Some((container, _, _)) = containers
         .iter()
         .find(|(_, at, in_dim)| at.0 == clicked && in_dim.0 == dim.0)

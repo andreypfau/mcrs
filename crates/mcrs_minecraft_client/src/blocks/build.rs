@@ -63,7 +63,6 @@ pub(super) fn build_one(
     pack: &Pack,
     state: &BlockStateKey,
     data: &BlockStateData,
-    world: &TinyWorld,
     sprites: &mut SpriteRegistry,
 ) -> Result<BlockInfo, String> {
     if state.name == "minecraft:air"
@@ -77,7 +76,13 @@ pub(super) fn build_one(
     let tint_kind = tint_kind_of(&state.name);
     let fluid = fluid_of(pack, state, data, sprites)?;
 
-    let baked = bake::bake(pack, &state.name, &state.pairs(), IVec3::ZERO, world)?;
+    let baked = bake::bake(
+        pack,
+        &state.name,
+        &state.pairs(),
+        IVec3::ZERO,
+        &TinyWorld::default(),
+    )?;
     if baked.quads.is_empty() {
         return Ok(BlockInfo {
             fluid,
@@ -311,7 +316,6 @@ mod tests {
             Pack::corpus(),
             &state,
             corpus.state(id),
-            &TinyWorld::default(),
             &mut SpriteRegistry::new(),
         )
         .unwrap_or_else(|reason| panic!("{name} does not bake: {reason}"))

@@ -810,7 +810,7 @@ fn every_template_feature_places_as_the_reference_does() {
     let dump = dump();
     let mut nodes: BTreeMap<CaseKey, Feature> = BTreeMap::new();
     for feature in corpus_features().features.values() {
-        feature.for_each_feature(&mut |node| {
+        super::for_each_feature(feature, &mut |node| {
             if let Some(key) = feature_key(node) {
                 nodes.entry(key).or_insert_with(|| node.clone());
             }

@@ -1,12 +1,10 @@
 pub mod condition;
 pub mod context;
 pub mod entry;
-pub mod function;
 
 use crate::world::loot::condition::{LootCondition, LootConditionProto};
 use crate::world::loot::context::{BlockBreakContext, LootDrop};
 use crate::world::loot::entry::LootEntryProto;
-use crate::world::loot::function::LootFunctionProto;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::io::Reader;
 use bevy_asset::{
@@ -38,20 +36,14 @@ pub struct LootTableProto {
     pub table_type: String,
     #[serde(default)]
     pub pools: Vec<LootPoolProto>,
-    #[serde(default)]
-    pub random_sequence: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LootPoolProto {
     pub rolls: u32,
-    #[serde(default)]
-    pub bonus_rolls: f32,
     pub entries: Vec<LootEntryProto>,
     #[serde(default)]
     pub conditions: Vec<LootConditionProto>,
-    #[serde(default)]
-    pub functions: Vec<LootFunctionProto>,
 }
 
 // ============================================================================

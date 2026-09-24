@@ -1,3 +1,4 @@
+use mcrs_minecraft_worldgen_testing::registry;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
@@ -20,7 +21,7 @@ use mcrs_minecraft_worldgen_structure::{
 };
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
-use super::{biome_index, biome_tags, corpus, load_json_dir, structure_index, structure_tags};
+use super::{biome_index, biome_tags, corpus, structure_index, structure_tags};
 use crate::features::possible_biomes;
 use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state};
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
@@ -47,9 +48,9 @@ struct Corpus {
 
 fn corpus_registries() -> Corpus {
     Corpus {
-        sets: load_json_dir("structure_set"),
-        structures: load_json_dir("structure"),
-        pools: load_json_dir("template_pool"),
+        sets: registry("structure_set"),
+        structures: registry("structure"),
+        pools: registry("template_pool"),
     }
 }
 

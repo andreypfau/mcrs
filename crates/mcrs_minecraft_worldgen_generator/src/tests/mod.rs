@@ -77,19 +77,31 @@ use crate::stages::{FillContext, fill_column, merge_column, run_region};
 use crate::staging::{FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column};
 use crate::task::{CancellationToken, ColumnSource};
 use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures};
-use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
+use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature};
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
+use mcrs_minecraft_worldgen_testing::registry;
+
+/// `feature`, then every feature written inline inside it, in pre-order.
+pub fn for_each_feature(feature: &Feature, f: &mut dyn FnMut(&Feature)) {
+    f(feature);
+    feature.visit_placed_features(&mut |holder| {
+        if let Holder::Inline(placed) = holder
+            && let Holder::Inline(inner) = &placed.feature
+        {
+            for_each_feature(inner, f);
+        }
+    });
+}
 
 /// Both feature registries of the shipped corpus, with every template and
 /// processor list the features name, parsed once per test binary.
 pub fn corpus_features() -> &'static LoadedFeatures {
     static CORPUS: LazyLock<LoadedFeatures> = LazyLock::new(|| {
-        let features: BTreeMap<ResourceLocation, Feature> = load_json_dir("feature");
-        let placed_features: BTreeMap<ResourceLocation, PlacedFeature> =
-            load_json_dir("placed_feature");
+        let features: BTreeMap<ResourceLocation, Feature> = registry("feature");
+        let placed_features: BTreeMap<ResourceLocation, PlacedFeature> = registry("placed_feature");
         let mut templates = BTreeMap::new();
         for feature in features.values() {
-            feature.for_each_feature(&mut |node| {
+            for_each_feature(feature, &mut |node| {
                 for id in node.templates() {
                     templates.entry(id.clone()).or_insert_with(|| {
                         structures::template_file(id)
@@ -103,8 +115,8 @@ pub fn corpus_features() -> &'static LoadedFeatures {
             features,
             placed_features,
             templates,
-            processor_lists: load_json_dir("processor_list"),
-            block_state_providers: load_json_dir("block_state_provider"),
+            processor_lists: registry("processor_list"),
+            block_state_providers: registry("block_state_provider"),
         }
     });
     &CORPUS

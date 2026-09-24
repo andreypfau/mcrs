@@ -4,25 +4,23 @@ use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::prelude::{
-    Changed, Commands, Entity, Has, IntoScheduleConfigs, MessageWriter, On, Query, Res, Resource,
+    Changed, Commands, Entity, Has, IntoScheduleConfigs, MessageWriter, On, Query, Res,
     SystemCondition, With,
 };
 use bevy_ecs::query::QueryData;
-use bevy_ecs::schedule::{ScheduleConfigs, SystemSet};
-use bevy_ecs::system::ScheduleSystem;
+use bevy_ecs::schedule::SystemSet;
 use bevy_math::DVec3;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
 use mcrs_minecraft_item::{ItemStack, Items, WireStack};
-use mcrs_minecraft_level::aoi::{EntityTracker, PlayerObservers, TickInterval};
+use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::mob::{
     Baby, CatVariant, ChickenVariant, EntityInSection, EntityKind, EntityUuid, Equipment, Health,
     ItemFrame, MobFlags, RiddenBy, Riding, Villager, ZombieNautilusVariant,
 };
 use mcrs_minecraft_level::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex};
 use mcrs_minecraft_protocol::entity::{EquipmentSlot, MetaDataValue, Metadata, MetadataEntry};
@@ -47,33 +45,17 @@ use smallvec::{SmallVec, smallvec};
 // player is meant to see a villager two chunks before a witch.
 const TRACKING_RANGE_SQ: f64 = (8.0 * 16.0) * (8.0 * 16.0);
 
-pub struct MobTracker;
-
 #[derive(SystemSet, Clone, Default, Hash, PartialEq, Eq, Debug)]
 pub struct MobTrackerSet;
-
-#[derive(Resource, Default)]
-pub struct MobTrackerCache;
-
-impl EntityTracker for MobTracker {
-    type Entity = EntityKind;
-    type Cache = MobTrackerCache;
-    type Set = MobTrackerSet;
-    const CADENCE: TickInterval = TickInterval::Every;
-
-    fn systems() -> ScheduleConfigs<ScheduleSystem> {
-        update_mob_tracked_by.in_set(MobTrackerSet)
-    }
-}
 
 pub struct MobTrackerPlugin;
 
 impl Plugin for MobTrackerPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<MobTrackerCache>();
         app.add_systems(
             FixedPostUpdate,
-            MobTracker::systems()
+            update_mob_tracked_by
+                .in_set(MobTrackerSet)
                 .after(PlayerTrackerSet)
                 .run_if(on_changed_transform.or_else(on_changed_observers)),
         );
@@ -424,7 +406,6 @@ impl PairingItem<'_, '_> {
     /// what it holds and who rides whom.
     fn packets(
         &self,
-        reposition: &Reposition,
         vehicles: &Query<&RiddenBy>,
         lookup: &dyn RegistryLookup,
     ) -> Vec<PacketPayload> {
@@ -433,7 +414,7 @@ impl PairingItem<'_, '_> {
             entity_id: id,
             uuid: self.uuid.0,
             kind: self.kind.protocol_id as i32,
-            position: reposition.convert_dvec3(self.transform.translation),
+            position: self.transform.translation,
             yaw: self.transform.rotation.yaw(),
             pitch: self.transform.rotation.pitch(),
             data: self.frame.map_or(0, |frame| frame.facing.id() as i32),
@@ -581,7 +562,7 @@ pub fn update_mob_tracked_by(
     blocks: Option<Res<Blocks>>,
     observers: Query<&PlayerObservers, With<Column>>,
     column_indices: Query<&ColumnIndex>,
-    players: Query<(&Transform, &HostAnchor, &Reposition), With<Player>>,
+    players: Query<(&Transform, &HostAnchor), With<Player>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     let registry: &dyn RegistryLookup = &*registry;
@@ -600,7 +581,7 @@ pub fn update_mob_tracked_by(
             .and_then(|slot| observers.get(slot.entity).ok());
         let mut now: SmallVec<[Entity; 32]> = SmallVec::new();
         for &player in seen_by.into_iter().flat_map(|seen_by| seen_by.0.iter()) {
-            let Ok((transform, _, _)) = players.get(player) else {
+            let Ok((transform, _)) = players.get(player) else {
                 continue;
             };
             let delta = transform.translation - at;
@@ -613,16 +594,16 @@ pub fn update_mob_tracked_by(
             if tracked_by.0.contains(&player) {
                 continue;
             }
-            let Ok((_, anchor, reposition)) = players.get(player) else {
+            let Ok((_, anchor)) = players.get(player) else {
                 continue;
             };
-            for payload in pairing.packets(reposition, &vehicles, &lookup) {
+            for payload in pairing.packets(&vehicles, &lookup) {
                 packets.write(to(anchor.0, payload));
             }
         }
         for &player in tracked_by.0.iter() {
             if !now.contains(&player)
-                && let Ok((_, anchor, _)) = players.get(player)
+                && let Ok((_, anchor)) = players.get(player)
             {
                 packets.write(to(anchor.0, remove(pairing.entity)));
             }
@@ -699,7 +680,6 @@ mod tests {
             .spawn((
                 Player,
                 Transform::from_xyz(40.0, 70.0, 8.0),
-                Reposition::default(),
                 InDimension(dim),
                 HostAnchor(anchor),
             ))

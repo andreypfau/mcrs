@@ -14,7 +14,6 @@ use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::chunk_view::{ChunkTrackingView, PlayerViewDistance};
-use mcrs_minecraft_level::entity::player::reposition::Reposition;
 use mcrs_minecraft_level::palette::{AirCount, BiomePalette, ChunkBlocks};
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
@@ -228,7 +227,6 @@ pub(crate) fn update_view(
             &Transform,
             &PlayerViewDistance,
             &InDimension,
-            &Reposition,
             &HostAnchor,
         ),
         Or<(
@@ -243,7 +241,7 @@ pub(crate) fn update_view(
     mut left: Local<Vec<ColumnPos>>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
-    for (player, mut chunk_view, transform, distance, in_dim, rep, host_anchor) in &mut players {
+    for (player, mut chunk_view, transform, distance, in_dim, host_anchor) in &mut players {
         let Ok((mut tickets, type_config)) = dims.get_mut(in_dim.entity()) else {
             continue;
         };
@@ -259,7 +257,7 @@ pub(crate) fn update_view(
         if old_view == Some(new_view) {
             continue;
         }
-        send_cache_view(old_view, new_view, rep, host_anchor.0, &mut packet_writer);
+        send_cache_view(old_view, new_view, host_anchor.0, &mut packet_writer);
 
         let view = &mut *chunk_view;
         let mut queue = |column: ColumnPos| {
@@ -276,7 +274,7 @@ pub(crate) fn update_view(
             }
         }
 
-        let off = offset_sections(rep, type_config.min_y);
+        let off = offset_sections(type_config.min_y);
         for column in left.drain(..) {
             column_trace::forget(&mut traces, column);
             let Some(state) = view.set(column, None) else {
@@ -297,10 +295,7 @@ pub(crate) fn update_view(
                     target: PacketTarget::SinglePlayer(host_anchor.0),
                     priority: PacketPriority::Critical,
                     data: PacketPayload::ChunkUnload {
-                        column: ColumnPos::new(
-                            rep.convert_chunk_x(column.x),
-                            rep.convert_chunk_z(column.z),
-                        ),
+                        column,
                     },
                     session: PlayerSession(0),
                     epoch: 0,
@@ -315,7 +310,6 @@ pub(crate) fn update_view(
 fn send_cache_view(
     old_view: Option<ChunkTrackingView>,
     new_view: ChunkTrackingView,
-    rep: &Reposition,
     host: Entity,
     packet_writer: &mut MessageWriter<OutboundPlayerPacket>,
 ) {
@@ -324,8 +318,8 @@ fn send_cache_view(
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
             data: PacketPayload::SetChunkCacheCenter(ColumnPos::new(
-                rep.convert_chunk_x(new_view.center.x),
-                rep.convert_chunk_z(new_view.center.z),
+                new_view.center.x,
+                new_view.center.z,
             )),
             session: PlayerSession(0),
             epoch: 0,
@@ -351,12 +345,12 @@ fn send_cache_view(
 /// spawns, so counting sections here would let the view ask for more than `spawn_chunks` can
 /// ever hand out and grow the queue without bound.
 pub(crate) fn raise_queued_columns(
-    mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
+    mut players: Query<(&mut ColumnView, &InDimension)>,
     mut dims: Query<(&mut SectionTickets, &DimensionTypeConfig)>,
     mut nearest: Local<Vec<ColumnPos>>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
-    for (mut chunk_view, in_dim, rep) in &mut players {
+    for (mut chunk_view, in_dim) in &mut players {
         let Some(view) = chunk_view.view else {
             continue;
         };
@@ -376,7 +370,7 @@ pub(crate) fn raise_queued_columns(
         }
         nearest.sort_unstable_by_key(|column| column.distance_squared(center));
 
-        let off = offset_sections(rep, type_config.min_y);
+        let off = offset_sections(type_config.min_y);
         for column in nearest.drain(..) {
             chunk_view.set(column, Some(ColumnState::Awaiting));
             apply_loading_tickets(&mut tickets, column, off, type_config.section_count, true);
@@ -389,16 +383,16 @@ pub(crate) fn raise_queued_columns(
 /// dimension that does not hand them back here pins them loaded for good.
 fn release_loading_tickets(
     discard: On<Discard, ColumnView>,
-    players: Query<(&ColumnView, &InDimension, &Reposition)>,
+    players: Query<(&ColumnView, &InDimension)>,
     mut dims: Query<(&mut SectionTickets, &DimensionTypeConfig)>,
 ) {
-    let Ok((view, in_dim, rep)) = players.get(discard.event().entity) else {
+    let Ok((view, in_dim)) = players.get(discard.event().entity) else {
         return;
     };
     let Ok((mut tickets, type_config)) = dims.get_mut(in_dim.entity()) else {
         return;
     };
-    let off = offset_sections(rep, type_config.min_y);
+    let off = offset_sections(type_config.min_y);
     for (&column, state) in &view.states {
         if *state != ColumnState::Queued {
             apply_loading_tickets(&mut tickets, column, off, type_config.section_count, false);
@@ -445,7 +439,7 @@ fn resolve_column(
 /// again, so sending one before its light has settled leaves it permanently black on the
 /// client.
 pub(crate) fn project_ready_columns(
-    mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
+    mut players: Query<(&mut ColumnView, &InDimension)>,
     dims: Query<(&SectionIndex, &ColumnIndex, &DimensionTypeConfig)>,
     chunks: Query<&SectionStage>,
     codec_params: LightCodecParams,
@@ -455,12 +449,12 @@ pub(crate) fn project_ready_columns(
     mut traces: Option<ResMut<ColumnTraceLog>>,
 ) {
     let await_light = light_status.is_installed() && *lighting == crate::Lighting::Propagated;
-    for (mut chunk_view, dim, rep) in &mut players {
+    for (mut chunk_view, dim) in &mut players {
         let Ok((chunk_index, column_index, type_config)) = dims.get(dim.entity()) else {
             continue;
         };
         let section_count = type_config.section_count as i32;
-        let off = offset_sections(rep, type_config.min_y);
+        let off = offset_sections(type_config.min_y);
         let sections_of = |col: ColumnPos| {
             resolve_column(chunk_index, column_index, col, section_count, off).filter(
                 |(_, sections)| {
@@ -537,7 +531,6 @@ pub(crate) fn send_column_queue(
     mut players: Query<(
         Entity,
         &mut ColumnView,
-        &Reposition,
         &InDimension,
         &HostAnchor,
     )>,
@@ -558,7 +551,7 @@ pub(crate) fn send_column_queue(
 ) {
     players
         .iter_mut()
-        .for_each(|(player, mut chunk_view, rep, in_dim, host_anchor)| {
+        .for_each(|(player, mut chunk_view, in_dim, host_anchor)| {
             let host = host_anchor.0;
             let Ok(chunk_index) = dim_chunk_indexes.get(in_dim.entity()) else {
                 return;
@@ -571,7 +564,7 @@ pub(crate) fn send_column_queue(
             };
             let wire_light_rows = type_config.section_count as usize + 2;
             let section_count = type_config.section_count as i32;
-            let off = offset_sections(rep, type_config.min_y);
+            let off = offset_sections(type_config.min_y);
 
             if chunk_view.unacknowledged_batches >= chunk_view.max_unacknowledged_batches {
                 return;
@@ -682,10 +675,6 @@ pub(crate) fn send_column_queue(
                     })
                     .unwrap_or_default();
 
-                let wire_pos = ColumnPos::new(
-                    rep.convert_chunk_x(column_pos.x),
-                    rep.convert_chunk_z(column_pos.z),
-                );
 
                 column_trace::mark(&mut traces, column_pos, ColumnStage::Sent);
                 chunk_view.set(column_pos, Some(ColumnState::Sent));
@@ -699,8 +688,8 @@ pub(crate) fn send_column_queue(
                 trace!(
                     target: "mcrs_minecraft_server::player",
                     host_anchor = ?host,
-                    col_x = wire_pos.x,
-                    col_z = wire_pos.z,
+                    col_x = column_pos.x,
+                    col_z = column_pos.z,
                     bytes = data.len(),
                     "send_column_queue: emitting ChunkLoad via bus"
                 );
@@ -709,7 +698,7 @@ pub(crate) fn send_column_queue(
                     + (light_data.sky_light_arrays.len() + light_data.block_light_arrays.len())
                         * size_of::<mcrs_minecraft_protocol::chunk::LightChunk>();
                 batch.push(PacketPayload::ChunkLoad {
-                    column: wire_pos,
+                    column: column_pos,
                     chunk_bytes: data,
                     heightmaps,
                     light_data,
@@ -743,9 +732,8 @@ pub(crate) fn send_column_queue(
 }
 
 #[inline]
-fn offset_sections(rep: &Reposition, min_y: i32) -> i32 {
-    let bits = SectionPos::BITS as i32;
-    (rep.offset_y_blocks() >> bits) - (min_y >> bits)
+fn offset_sections(min_y: i32) -> i32 {
+    -(min_y >> SectionPos::BITS)
 }
 
 /// A column and the eight around it. A column's own light is only final once the eight around
@@ -846,7 +834,6 @@ mod tests {
         let player = world
             .spawn((
                 ColumnView::default(),
-                Reposition::default(),
                 InDimension(dim),
                 HostAnchor(host),
             ))

@@ -272,7 +272,7 @@ fn jigsaw_site(
         resolve_aliases(frozen, &config.pool_aliases, &mut alias_rng, &mut aliases);
     }
 
-    let rotation = Rotation::ALL[rng.next_i32_bound(4) as usize];
+    let rotation = crate::orient::random_rotation(rng);
     let pool = aliases
         .get(&config.start_pool)
         .copied()

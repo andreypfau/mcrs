@@ -25,7 +25,6 @@ pub mod item_model;
 pub mod light_guard;
 pub mod local_player;
 pub mod model;
-pub mod options;
 pub mod player;
 pub mod probe;
 pub mod readback;

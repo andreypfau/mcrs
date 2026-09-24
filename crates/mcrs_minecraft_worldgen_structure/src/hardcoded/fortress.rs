@@ -7,6 +7,8 @@ use crate::orient::{Orientation, find_collision, move_inside_heights, orient_box
 use crate::piece::{FortressKind, FortressPiece, Piece};
 use crate::site::{Context, Site, Stub};
 
+use super::{PieceWeight, WeightTable};
+
 pub const SITE_IMPLIES_PIECE: Option<bool> = Some(true);
 
 const MAX_DEPTH: i32 = 30;
@@ -44,43 +46,17 @@ const fn entry(
     }
 }
 
-/// One of the reference's two piece tables: its weights, how often each
-/// entry has been placed, and which entries are still offered.
-struct Table {
-    weights: Vec<Weight>,
-    place_count: Vec<i32>,
-    available: Vec<usize>,
-}
-
-impl Table {
-    fn new(weights: &[Weight]) -> Self {
-        Table {
-            weights: weights.to_vec(),
-            place_count: vec![0; weights.len()],
-            available: (0..weights.len()).collect(),
-        }
+impl PieceWeight for Weight {
+    fn weight(&self) -> i32 {
+        self.weight
     }
 
-    fn valid(&self, entry: usize) -> bool {
-        let max = self.weights[entry].max_place_count;
-        max == 0 || self.place_count[entry] < max
-    }
-
-    /// `updatePieceWeight`: the offered weight, or `-1` when no entry with a
-    /// cap is under it.
-    fn total_weight(&self) -> i32 {
-        let mut any = false;
-        let mut total = 0;
-        for &entry in &self.available {
-            let weight = &self.weights[entry];
-            if weight.max_place_count > 0 && self.place_count[entry] < weight.max_place_count {
-                any = true;
-            }
-            total += weight.weight;
-        }
-        if any { total } else { -1 }
+    fn max_place_count(&self) -> i32 {
+        self.max_place_count
     }
 }
+
+type Table = WeightTable<Weight>;
 
 #[derive(Clone, Copy)]
 enum Side {
@@ -285,8 +261,9 @@ impl Layout {
         depth: i32,
         castle: bool,
     ) -> Option<FortressPiece> {
-        let total = self.table(castle).total_weight();
-        if total > 0 && depth <= MAX_DEPTH {
+        if let Some(total) = self.table(castle).total_weight().filter(|&total| total > 0)
+            && depth <= MAX_DEPTH
+        {
             for _ in 0..5 {
                 let mut selection = rng.next_i32_bound(total);
                 let table = self.table(castle);
@@ -309,11 +286,8 @@ impl Layout {
                     } else {
                         &mut self.bridge
                     };
-                    table.place_count[entry] += 1;
+                    table.placed(position);
                     self.previous = Some((castle, entry));
-                    if !table.valid(entry) {
-                        table.available.remove(position);
-                    }
                     return Some(piece);
                 }
             }

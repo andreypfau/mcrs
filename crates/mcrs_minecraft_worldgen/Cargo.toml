@@ -8,20 +8,20 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-bevy_app = { workspace = true, optional = true }
-bevy_asset = { workspace = true, optional = true }
-bevy_ecs = { workspace = true, optional = true }
-bevy_reflect = { workspace = true, optional = true }
-mcrs_minecraft_assets = { workspace = true, optional = true }
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_ecs.workspace = true
+bevy_reflect.workspace = true
+mcrs_minecraft_assets.workspace = true
 bevy_math.workspace = true
 mcrs_minecraft_chunk.workspace = true
-mcrs_minecraft_core.workspace = true
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
-mcrs_minecraft_worldgen_density.workspace = true
-mcrs_minecraft_worldgen_surface.workspace = true
+mcrs_minecraft_worldgen_density = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen_surface = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_feature.workspace = true
-mcrs_minecraft_worldgen_carver.workspace = true
+mcrs_minecraft_worldgen_carver = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_structure.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -32,16 +32,5 @@ bytes.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true
 
 [features]
-default = ["bevy", "fast"]
-bevy = [
-    "dep:bevy_app",
-    "dep:bevy_ecs",
-    "dep:bevy_asset",
-    "dep:bevy_reflect",
-    "dep:mcrs_minecraft_assets",
-    "mcrs_minecraft_core/bevy",
-    "mcrs_minecraft_worldgen_density/bevy",
-    "mcrs_minecraft_worldgen_surface/bevy",
-    "mcrs_minecraft_worldgen_carver/bevy",
-]
+default = ["fast"]
 fast = ["mcrs_minecraft_worldgen_noise/fast", "mcrs_minecraft_worldgen_density/fast", "mcrs_minecraft_worldgen_surface/fast", "mcrs_minecraft_worldgen_feature/fast"]

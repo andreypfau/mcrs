@@ -89,26 +89,6 @@ impl BiomeAttributes {
     }
 }
 
-/// Where the biome attributes at a quart-resolution position come from.
-///
-/// Quart resolution is the biome grid: one entry per 4×4×4 blocks.
-pub trait BiomeAttributeSource {
-    fn at_quart(&self, x: i32, y: i32, z: i32) -> &Arc<BiomeAttributes>;
-}
-
-/// Every position is the same biome.
-///
-/// Stands in until loaded chunks can answer a biome lookup. Swapping in the
-/// real source changes nothing above this trait.
-#[derive(Debug, Clone, Default)]
-pub struct UniformBiomes(pub Arc<BiomeAttributes>);
-
-impl BiomeAttributeSource for UniformBiomes {
-    fn at_quart(&self, _x: i32, _y: i32, _z: i32) -> &Arc<BiomeAttributes> {
-        &self.0
-    }
-}
-
 /// `SpatialAttributeInterpolator`: the biome attribute maps around one
 /// position, each with the weight the Gaussian kernel gave it.
 ///
@@ -146,20 +126,17 @@ impl SpatialAttributeInterpolator {
         self.weights.is_empty() && self.exact.is_none()
     }
 
-    /// Fill in the biomes around `position`, in block coordinates.
-    pub fn sample(&mut self, position: DVec3, biomes: &dyn BiomeAttributeSource) {
+    /// Fill in the biomes around `position`, in block coordinates, with every
+    /// position standing in the same biome until loaded chunks can answer a
+    /// biome lookup.
+    pub fn sample(&mut self, position: DVec3, biome: &Arc<BiomeAttributes>) {
         self.clear();
-        let quart = position * 0.25;
         gaussian_sample(
-            quart,
-            |x, y, z| biomes.at_quart(x, y, z),
+            position * 0.25,
+            |_, _, _| biome,
             |weight, attributes| self.accumulate(weight, attributes),
         );
-        self.exact = Some(
-            biomes
-                .at_quart(quart.x as i32, quart.y as i32, quart.z as i32)
-                .clone(),
-        );
+        self.exact = Some(biome.clone());
     }
 
     /// Compose this layer onto `base`. `index` is the attribute's registry
@@ -233,7 +210,7 @@ mod tests {
     fn a_single_biome_applies_its_own_modifier() {
         let swamp = map(json!({"minecraft:visual/sky_color": "#6a7039"}));
         let mut interpolator = SpatialAttributeInterpolator::default();
-        interpolator.sample(DVec3::ZERO, &UniformBiomes(swamp));
+        interpolator.sample(DVec3::ZERO, &swamp);
 
         let spec = attribute("minecraft:visual/sky_color").unwrap();
         let index = index(spec.id);
@@ -247,7 +224,7 @@ mod tests {
     fn an_undeclared_attribute_falls_through() {
         let plains = map(json!({"minecraft:visual/sky_color": "#78a7ff"}));
         let mut interpolator = SpatialAttributeInterpolator::default();
-        interpolator.sample(DVec3::ZERO, &UniformBiomes(plains));
+        interpolator.sample(DVec3::ZERO, &plains);
 
         let spec = attribute("minecraft:visual/water_fog_color").unwrap();
         let index = index(spec.id);
@@ -283,7 +260,7 @@ mod tests {
             "minecraft:visual/default_dripstone_particle": {"type": "minecraft:dripping_lava"},
         }));
         let mut interpolator = SpatialAttributeInterpolator::default();
-        interpolator.sample(DVec3::ZERO, &UniformBiomes(dripping));
+        interpolator.sample(DVec3::ZERO, &dripping);
 
         let spec = attribute("minecraft:visual/default_dripstone_particle").unwrap();
         let index = index(spec.id);

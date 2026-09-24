@@ -69,6 +69,29 @@ pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation,
         .collect()
 }
 
+/// Every `.json` under `assets/<dir>`, parsed. Panics naming every file that
+/// did not parse, or if the folder holds none.
+pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
+    let mut parsed = Vec::new();
+    let mut failures = Vec::new();
+    for path in json_files(&assets_dir().join(dir)) {
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        match serde_json::from_slice::<T>(&bytes) {
+            Ok(value) => parsed.push((path, value)),
+            Err(e) => failures.push(format!("{}: {e}", path.display())),
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} files in {dir} failed to parse:\n{}",
+        failures.len(),
+        failures.len() + parsed.len(),
+        failures.join("\n")
+    );
+    assert!(!parsed.is_empty(), "no files found in {dir}");
+    parsed
+}
+
 /// One named `minecraft/worldgen` asset, which must parse.
 pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
     let path = worldgen_dir()

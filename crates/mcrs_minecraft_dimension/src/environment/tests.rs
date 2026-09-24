@@ -85,9 +85,7 @@ fn biomes(json: serde_json::Value) -> SpatialAttributeInterpolator {
     let mut interpolator = SpatialAttributeInterpolator::default();
     interpolator.sample(
         DVec3::ZERO,
-        &UniformBiomes(Arc::new(
-            BiomeAttributes::bake(&serde_json::from_value(json).unwrap()).unwrap(),
-        )),
+        &Arc::new(BiomeAttributes::bake(&serde_json::from_value(json).unwrap()).unwrap()),
     );
     interpolator
 }

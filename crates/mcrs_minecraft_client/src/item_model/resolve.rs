@@ -8,17 +8,12 @@ use bevy::prelude::{
     SystemCondition, With, resource_exists,
 };
 use bytemuck::{Pod, Zeroable};
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_item::{
-    Held, ItemStack, Items, StackRevision, children, component_value, has_component,
-    has_non_default,
-};
-use mcrs_minecraft_item_model::eval::has_foil;
-use mcrs_minecraft_item_model::{Evaluator, StackView};
+use mcrs_minecraft_item::{Held, ItemStack, Items, StackRevision};
 use mcrs_minecraft_network::client::ClientNetworkSystems;
-use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemComponentValue, ItemModel};
+use mcrs_minecraft_protocol::item::ItemModel;
 
 use super::bake::{BakedItemModel, BakedNode, ItemModels};
+use super::eval::{EntityStack, Evaluator};
 use crate::blocks::sample_colormap;
 use crate::model::{GuiLight, ItemTransform};
 
@@ -97,7 +92,7 @@ pub fn resolve<'a>(
         items,
         lookup,
     };
-    let foil = has_foil(&stack);
+    let foil = stack.has_foil();
     let grass = |temperature, downfall| {
         sample_colormap(models.grass_colormap.as_deref(), temperature, downfall)
     };
@@ -122,61 +117,14 @@ pub fn resolve<'a>(
     }
 }
 
-/// A stack entity and the corpus that names its item.
-pub struct EntityStack<'w, 'l, L> {
-    pub entity: EntityRef<'w>,
-    pub items: &'l Items,
-    pub lookup: L,
-}
-
-impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> StackView for EntityStack<'w, '_, L> {
-    fn item(&self) -> &ResourceLocation {
-        static AIR: std::sync::LazyLock<ResourceLocation> =
-            std::sync::LazyLock::new(|| ResourceLocation::minecraft("air"));
-        self.entity
-            .get::<ItemStack>()
-            .and_then(|stack| self.items.get(stack.item))
-            .map_or(&AIR, |entry| &entry.identifier)
-    }
-
-    fn count(&self) -> u8 {
-        self.entity
-            .get::<ItemStack>()
-            .map_or(0, |stack| stack.count)
-    }
-
-    fn value(&self, kind: ItemComponentKind) -> Option<ItemComponentValue> {
-        component_value(self.entity, kind)
-    }
-
-    fn has(&self, kind: ItemComponentKind) -> bool {
-        has_component(self.entity, self.items, kind)
-    }
-
-    fn has_non_default(&self, kind: ItemComponentKind) -> bool {
-        has_non_default(self.entity, self.items, kind)
-    }
-
-    fn children(&self) -> Vec<Self> {
-        children(self.entity, &self.lookup)
-            .into_iter()
-            .map(|entity| EntityStack {
-                entity,
-                items: self.items,
-                lookup: self.lookup,
-            })
-            .collect()
-    }
-}
-
 struct Layer<'m> {
     model: &'m Arc<BakedItemModel>,
     transform: Mat4,
     tints: Vec<u32>,
 }
 
-fn collect<'m, S: StackView>(
-    evaluator: &Evaluator<'_, S>,
+fn collect<'w, 'm, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>>(
+    evaluator: &Evaluator<'_, EntityStack<'w, '_, L>>,
     node: &'m BakedNode,
     out: &mut Vec<Layer<'m>>,
 ) {

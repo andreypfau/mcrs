@@ -6,9 +6,11 @@ use mcrs_minecraft_level::entity::physics::{OldTransform, Transform as PhysicsTr
 
 use crate::columns::SECTION_SIZE;
 use crate::local_player::{LocalPlayerTick, Sprint};
-use crate::options::FOV;
 use crate::player::{EYE_HEIGHT, Player, PlayerCamera, pitch_rotation, yaw_rotation};
 
+/// Vanilla's `Options` default. `fovEffectScale` stays at its default 1.0, which collapses
+/// `Mth.lerp(scale, 1.0, modifier)` to `modifier`.
+const FOV: f32 = 70.0;
 const FLYING_FOV_MODIFIER: f32 = 1.1;
 /// `1.1 * (1.3 + 1) / 2`, where `1.3` is `MOVEMENT_SPEED` scaled by the `+0.3`
 /// `ADD_MULTIPLIED_TOTAL` sprint modifier. Hard-coded because this player has no

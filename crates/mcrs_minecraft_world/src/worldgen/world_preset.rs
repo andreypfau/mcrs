@@ -102,53 +102,13 @@ mod tests {
     use super::*;
     use crate::worldgen::chunk_generator::ProtoChunkGenerator;
     use mcrs_minecraft_biome::source::ProtoBiomeSource;
-    use std::path::PathBuf;
+    use mcrs_minecraft_worldgen_testing::assets_dir;
 
-    fn assets_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets")
-    }
-
-    /// Deserialize every world preset JSON through the Proto layer.
-    /// This validates the serde definitions without needing a full Bevy LoadContext.
     #[test]
     fn deserialize_all_world_presets() {
-        let preset_dir = assets_dir().join("minecraft/worldgen/world_preset");
-        let mut count = 0;
-        let mut failures = Vec::new();
-
-        for entry in std::fs::read_dir(&preset_dir).expect("world_preset dir must exist") {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let bytes = std::fs::read(&path).unwrap();
-            match serde_json::from_slice::<ProtoWorldPreset>(&bytes) {
-                Ok(_) => {
-                    count += 1;
-                }
-                Err(e) => failures.push((path.display().to_string(), e.to_string())),
-            }
-        }
-
-        if !failures.is_empty() {
-            for (path, err) in &failures {
-                eprintln!("FAIL {path}: {err}");
-            }
-            panic!(
-                "{} of {} world presets failed to deserialize",
-                failures.len(),
-                count + failures.len()
-            );
-        }
-
-        assert!(count > 0, "no world preset files found");
-        eprintln!("successfully deserialized {count} world presets");
+        mcrs_minecraft_worldgen_testing::parse_all::<ProtoWorldPreset>(
+            "minecraft/worldgen/world_preset",
+        );
     }
 
     #[test]

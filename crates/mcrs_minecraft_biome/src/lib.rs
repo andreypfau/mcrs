@@ -6,13 +6,11 @@ pub mod zoom;
 
 use std::sync::Arc;
 
-use bevy_asset::io::Reader;
-use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
+use bevy_asset::{Asset, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::de::{self, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings};
 use mcrs_minecraft_worldgen_feature::FeatureStepList;
@@ -161,97 +159,29 @@ where
 // Asset loader
 // ---------------------------------------------------------------------------
 
-#[derive(Default, TypePath)]
-pub struct BiomeLoader;
-
-#[derive(Debug, thiserror::Error)]
-pub enum BiomeLoaderError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error("JSON parse error: {0}")]
-    Json(#[from] serde_json::Error),
-}
-
-impl AssetLoader for BiomeLoader {
-    type Asset = Biome;
-    type Settings = ();
-    type Error = BiomeLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &(),
-        _load_context: &mut LoadContext<'_>,
-    ) -> Result<Biome, BiomeLoaderError> {
-        let bytes = read_all(reader).await?;
-        let biome: Biome = serde_json::from_slice(&bytes)?;
-        Ok(biome)
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &[]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn assets_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets")
-    }
+    use mcrs_minecraft_worldgen_testing::assets_dir;
 
     #[test]
     fn deserialize_all_biomes() {
-        let biome_dir = assets_dir().join("minecraft/worldgen/biome");
-        let mut count = 0;
-        let mut failures = Vec::new();
-
-        for entry in std::fs::read_dir(&biome_dir).expect("biome dir must exist") {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let bytes = std::fs::read(&path).unwrap();
-            match serde_json::from_slice::<Biome>(&bytes) {
-                Ok(biome) => {
-                    let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-                    let attributes = raw
-                        .get("attributes")
-                        .cloned()
-                        .unwrap_or_else(|| serde_json::json!({}));
-                    assert_eq!(
-                        serde_json::to_value(&biome.attributes).unwrap(),
-                        attributes,
-                        "{} attributes must round-trip unchanged",
-                        path.display()
-                    );
-                    count += 1;
-                }
-                Err(e) => failures.push((path.display().to_string(), e.to_string())),
-            }
-        }
-
-        if !failures.is_empty() {
-            for (path, err) in &failures {
-                eprintln!("FAIL {path}: {err}");
-            }
-            panic!(
-                "{} of {} biomes failed to deserialize",
-                failures.len(),
-                count + failures.len()
+        for (path, biome) in
+            mcrs_minecraft_worldgen_testing::parse_all::<Biome>("minecraft/worldgen/biome")
+        {
+            let raw: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            let attributes = raw
+                .get("attributes")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({}));
+            assert_eq!(
+                serde_json::to_value(&biome.attributes).unwrap(),
+                attributes,
+                "{} attributes must round-trip unchanged",
+                path.display()
             );
         }
-
-        assert!(count > 0, "no biome files found");
-        eprintln!("successfully deserialized {count} biomes");
     }
 
     #[test]

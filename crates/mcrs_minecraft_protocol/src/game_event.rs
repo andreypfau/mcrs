@@ -124,9 +124,3 @@ pub enum EnterCredits {
     SeenBefore,
     FirstTime,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RespawnScreen {
-    EnableRespawnScreen,
-    ImmediateRespawn,
-}

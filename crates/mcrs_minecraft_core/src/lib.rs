@@ -37,7 +37,3 @@ pub use resource_location::ResourceLocation;
 pub use rotation::Rotation;
 pub use section_pos::SectionPos;
 pub use tag_key::{TagKey, TaggedRegistry};
-
-// Re-export the proc macro for the rl! declarative macro.
-#[doc(hidden)]
-pub use mcrs_minecraft_core_macros::rl_impl as __rl_impl;
