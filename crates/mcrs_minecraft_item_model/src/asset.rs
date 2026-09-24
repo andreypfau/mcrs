@@ -849,16 +849,19 @@ mod tests {
 
     use super::*;
 
+    fn item_stem(name: &str) -> Option<&str> {
+        name.strip_prefix("minecraft/items/")?
+            .strip_suffix(".json")
+            .filter(|stem| !stem.contains('/'))
+    }
+
     fn corpus() -> Vec<(String, Vec<u8>)> {
-        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/minecraft/items");
-        let mut files: Vec<(String, Vec<u8>)> = std::fs::read_dir(root)
-            .unwrap()
-            .map(|entry| entry.unwrap().path())
-            .filter(|path| path.extension().is_some_and(|e| e == "json"))
-            .map(|path| {
-                let id = format!("minecraft:{}", path.file_stem().unwrap().to_string_lossy());
-                (id, std::fs::read(&path).unwrap())
-            })
+        let progress = mcrs_minecraft_client_jar::Progress::default();
+        let (files, _) =
+            mcrs_minecraft_client_jar::resolve(&progress, |name| item_stem(name).is_some(), drop);
+        let mut files: Vec<(String, Vec<u8>)> = files
+            .into_iter()
+            .map(|(name, bytes)| (format!("minecraft:{}", item_stem(&name).unwrap()), bytes))
             .collect();
         files.sort();
         files

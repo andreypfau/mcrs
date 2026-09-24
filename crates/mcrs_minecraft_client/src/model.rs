@@ -125,6 +125,14 @@ impl Pack {
     }
 }
 
+impl FromIterator<(String, Vec<u8>)> for Pack {
+    fn from_iter<I: IntoIterator<Item = (String, Vec<u8>)>>(files: I) -> Self {
+        Self {
+            files: files.into_iter().collect(),
+        }
+    }
+}
+
 #[cfg(test)]
 impl Pack {
     /// The client jar's resource pack plus the repo's data folders, read without an asset

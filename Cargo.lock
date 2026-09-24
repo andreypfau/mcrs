@@ -3611,8 +3611,11 @@ name = "mcrs_minecraft_client_jar"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "serde",
+ "serde_json",
  "sha1",
  "tracing",
+ "tracing-subscriber",
  "ureq",
  "zip",
 ]
@@ -3744,6 +3747,7 @@ name = "mcrs_minecraft_item_model"
 version = "0.1.0"
 dependencies = [
  "bevy_math",
+ "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
  "mcrs_minecraft_item_component",
  "mcrs_minecraft_nbt",

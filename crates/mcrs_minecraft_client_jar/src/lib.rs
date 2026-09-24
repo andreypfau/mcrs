@@ -6,8 +6,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use sha1::{Digest, Sha1};
 
+mod fonts;
 #[cfg(not(target_family = "wasm"))]
 mod native;
+mod schedule;
+
+pub use fonts::{FontHint, font_files};
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;
 
@@ -18,10 +22,38 @@ pub struct Artifact<'a> {
     pub size: u64,
 }
 
+/// A release's client jar and what the launcher keeps next to it.
+#[derive(Clone, Copy, Debug)]
+pub struct Release<'a> {
+    pub id: &'a str,
+    pub jar: Artifact<'a>,
+    /// The jar's central directory and end record, which are its last bytes.
+    pub directory: Artifact<'a>,
+    pub json: Artifact<'a>,
+    /// A [`FontHint`] as JSON; only a hint, checked against the jar before it is trusted.
+    pub font_hint: &'a str,
+}
+
 pub const CLIENT_JAR: Artifact<'static> = Artifact {
     url: "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
     sha1: "e877b6a07acd633fb3bb475002175cec036e7b87",
     size: 41483720,
+};
+
+pub const RELEASE: Release<'static> = Release {
+    id: "26.3",
+    jar: CLIENT_JAR,
+    directory: Artifact {
+        url: CLIENT_JAR.url,
+        sha1: "b7b2254d2554e90574714be5a7c05b5285a30078",
+        size: 3557135,
+    },
+    json: Artifact {
+        url: "https://piston-meta.mojang.com/v1/packages/bc098d111a72e9f6178801544a42099bdfbb0cf2/26.3.json",
+        sha1: "bc098d111a72e9f6178801544a42099bdfbb0cf2",
+        size: 44992,
+    },
+    font_hint: include_str!("font_hint.json"),
 };
 
 #[derive(Default, Debug)]
@@ -84,24 +116,47 @@ fn u32_at(bytes: &[u8], at: usize) -> u32 {
     u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap())
 }
 
-#[derive(Clone, Debug)]
-struct Entry {
-    name: String,
-    offset: u64,
-    method: u16,
-    crc32: u32,
-    compressed: u64,
-    size: u64,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Entry {
+    pub(crate) name: String,
+    pub(crate) offset: u64,
+    pub(crate) method: u16,
+    pub(crate) crc32: u32,
+    pub(crate) compressed: u64,
+    pub(crate) size: u64,
 }
 
 /// A zip's central directory: what every entry is and where its bytes lie.
 #[derive(Clone, Debug)]
 pub struct Directory {
     entries: Vec<Entry>,
+    offsets: Vec<u64>,
     start: u64,
 }
 
 impl Directory {
+    pub(crate) fn new(entries: Vec<Entry>, start: u64) -> Self {
+        let mut offsets: Vec<u64> = entries.iter().map(|entry| entry.offset).collect();
+        offsets.sort_unstable();
+        Self {
+            entries,
+            offsets,
+            start,
+        }
+    }
+
+    pub(crate) fn entry(&self, name: &str) -> Option<&Entry> {
+        self.entries.iter().find(|entry| entry.name == name)
+    }
+
+    /// An entry's bytes: its local header, data and descriptor, up to the next entry.
+    pub(crate) fn extent(&self, entry: &Entry) -> Range<u64> {
+        let next = self
+            .offsets
+            .partition_point(|&offset| offset <= entry.offset);
+        entry.offset..self.offsets.get(next).copied().unwrap_or(self.start)
+    }
+
     /// Reads the records of a central directory that starts at `start` in the zip and runs
     /// through `bytes` up to its end record.
     pub fn parse(bytes: &[u8], start: u64) -> Result<Self, String> {
@@ -129,7 +184,7 @@ impl Directory {
         if entries.is_empty() {
             return Err("the central directory has no records".to_owned());
         }
-        Ok(Self { entries, start })
+        Ok(Self::new(entries, start))
     }
 
     /// The directory of a whole zip, found through its end record.
@@ -149,24 +204,27 @@ impl Directory {
     /// The byte ranges holding the `assets/` entries whose path below `assets/` is picked, each
     /// from its local header up to the next entry, merged where they touch.
     pub fn spans(&self, mut pick: impl FnMut(&str) -> bool) -> Vec<Range<u64>> {
-        let mut starts: Vec<(u64, bool)> = self
-            .entries
-            .iter()
-            .map(|entry| (entry.offset, asset_name(&entry.name).is_some_and(&mut pick)))
-            .collect();
-        starts.sort_unstable();
-        let mut spans: Vec<Range<u64>> = Vec::new();
-        for (index, &(start, picked)) in starts.iter().enumerate() {
-            if !picked {
-                continue;
-            }
-            let end = starts.get(index + 1).map_or(self.start, |&(next, _)| next);
-            match spans.last_mut() {
-                Some(last) if last.end == start => last.end = end,
-                _ => spans.push(start..end),
+        let mut picked = Vec::new();
+        let mut folders = Vec::new();
+        for entry in &self.entries {
+            match asset_name(&entry.name) {
+                Some(name) if pick(name) => picked.push(self.extent(entry)),
+                None if entry.name.starts_with("assets/") => folders.push(self.extent(entry)),
+                _ => {}
             }
         }
+        // Folder entries sit between every two directories of files; bridging them keeps a
+        // run of textures one request instead of one per directory.
+        let mut extents: Vec<Range<u64>> = picked.iter().cloned().chain(folders).collect();
+        extents.sort_unstable_by_key(|extent| extent.start);
+        let mut spans = merge(extents);
+        spans.retain(|span| picked.iter().any(|extent| span.contains(&extent.start)));
         spans
+    }
+
+    #[cfg(test)]
+    pub(crate) fn start(&self) -> u64 {
+        self.start
     }
 
     /// The picked `assets/` files, keyed by their path below `assets/` and checked against
@@ -198,7 +256,19 @@ impl Directory {
     }
 }
 
-fn asset_name(name: &str) -> Option<&str> {
+/// Sorted ranges, with the ones that touch joined.
+pub(crate) fn merge(sorted: Vec<Range<u64>>) -> Vec<Range<u64>> {
+    let mut merged: Vec<Range<u64>> = Vec::with_capacity(sorted.len());
+    for range in sorted {
+        match merged.last_mut() {
+            Some(last) if last.end >= range.start => last.end = last.end.max(range.end),
+            _ => merged.push(range),
+        }
+    }
+    merged
+}
+
+pub(crate) fn asset_name(name: &str) -> Option<&str> {
     name.strip_prefix("assets/")
         .filter(|name| !name.is_empty() && !name.ends_with('/'))
 }
@@ -251,9 +321,15 @@ pub(crate) mod tests {
         let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
         let deflated = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
         let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-        let noise = |seed: u32, len: usize| -> Vec<u8> {
-            (0..len as u32)
-                .map(|i| (i.wrapping_mul(2_654_435_761).wrapping_add(seed) >> 13) as u8)
+        let noise = |seed: u64, len: usize| -> Vec<u8> {
+            let mut state = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1;
+            (0..len)
+                .map(|_| {
+                    state ^= state << 13;
+                    state ^= state >> 7;
+                    state ^= state << 17;
+                    (state >> 32) as u8
+                })
                 .collect()
         };
         let mut file = |name: &str, options, bytes: &[u8]| {
