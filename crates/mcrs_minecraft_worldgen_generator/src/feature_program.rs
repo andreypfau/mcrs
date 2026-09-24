@@ -2579,6 +2579,52 @@ pub struct Resolver<'a> {
     /// Indexed by the biome id [`WorldGenVolume::biome`] answers with.
     pub climate: &'a [BiomeClimate],
     pub block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
+    shape_masks: ShapeMasks,
+}
+
+/// The state sets that are a function of each state's shapes, indexed over
+/// `Direction::all()`. Template processors ask for them hundreds of times, and
+/// voxelizing every shape per ask dominated the freeze.
+struct ShapeMasks {
+    full_outline: StateMask,
+    sturdy_face: [StateMask; 6],
+    full_collision_face: [StateMask; 6],
+}
+
+impl ShapeMasks {
+    fn new(blocks: &BlockDefinitions) -> Self {
+        let mut facts: FxHashMap<u32, (bool, [bool; 6])> = FxHashMap::default();
+        let mut fact = |shape: mcrs_minecraft_block::definition::ShapeId| {
+            *facts.entry(shape.0).or_insert_with(|| {
+                let voxels = VoxelShape::from_boxes(blocks.shape(shape));
+                (
+                    voxels.occludes_full_block(),
+                    mcrs_minecraft_core::Direction::all()
+                        .map(|face| *voxels.face_mask(face) == FACE_MASK_FULL),
+                )
+            })
+        };
+        let count = blocks.state_count();
+        let empty = || FixedBitSet::with_capacity(count);
+        let mut full_outline = empty();
+        let mut sturdy_face: [FixedBitSet; 6] = std::array::from_fn(|_| empty());
+        let mut full_collision_face: [FixedBitSet; 6] = std::array::from_fn(|_| empty());
+        for id in 0..count {
+            let state = blocks.state(BlockStateId(id as u16));
+            let (selection_full, selection_faces) = fact(state.selection_shape);
+            let (_, collision_faces) = fact(state.collision_shape);
+            full_outline.set(id, selection_full);
+            for face in 0..6 {
+                sturdy_face[face].set(id, selection_faces[face] || collision_faces[face]);
+                full_collision_face[face].set(id, collision_faces[face]);
+            }
+        }
+        ShapeMasks {
+            full_outline: Arc::new(full_outline),
+            sturdy_face: sturdy_face.map(Arc::new),
+            full_collision_face: full_collision_face.map(Arc::new),
+        }
+    }
 }
 
 impl<'a> Resolver<'a> {
@@ -2602,6 +2648,7 @@ impl<'a> Resolver<'a> {
             biomes,
             world_seed,
             climate,
+            shape_masks: ShapeMasks::new(blocks),
         };
         resolver.world = resolver.world_states();
         resolver.tables = Arc::new(resolver.block_tables()?);
@@ -2827,45 +2874,12 @@ impl BlockResolver for Resolver<'_> {
             }
             StateQuery::Solid => return Some(self.world.solid.clone()),
             StateQuery::Replaceable => return Some(self.world.replaceable.clone()),
-            StateQuery::FullOutline => {
-                let mut full: FxHashMap<u32, bool> = FxHashMap::default();
-                for id in 0..self.blocks.state_count() {
-                    let shape = self.blocks.state(BlockStateId(id as u16)).selection_shape;
-                    if *full.entry(shape.0).or_insert_with(|| {
-                        VoxelShape::from_boxes(self.blocks.shape(shape)).occludes_full_block()
-                    }) {
-                        mask.insert(id);
-                    }
-                }
-            }
+            StateQuery::FullOutline => return Some(self.shape_masks.full_outline.clone()),
             StateQuery::SturdyFace(direction) => {
-                let face = mcrs_minecraft_core::Direction::all()[direction as usize];
-                let mut covers: FxHashMap<u32, bool> = FxHashMap::default();
-                let mut full = |shape: mcrs_minecraft_block::definition::ShapeId| {
-                    *covers.entry(shape.0).or_insert_with(|| {
-                        *VoxelShape::from_boxes(self.blocks.shape(shape)).face_mask(face)
-                            == FACE_MASK_FULL
-                    })
-                };
-                for id in 0..self.blocks.state_count() {
-                    let state = self.blocks.state(BlockStateId(id as u16));
-                    if full(state.selection_shape) || full(state.collision_shape) {
-                        mask.insert(id);
-                    }
-                }
+                return Some(self.shape_masks.sturdy_face[direction as usize].clone());
             }
             StateQuery::FullCollisionFace(direction) => {
-                let face = mcrs_minecraft_core::Direction::all()[direction as usize];
-                let mut covers: FxHashMap<u32, bool> = FxHashMap::default();
-                for id in 0..self.blocks.state_count() {
-                    let shape = self.blocks.state(BlockStateId(id as u16)).collision_shape;
-                    if *covers.entry(shape.0).or_insert_with(|| {
-                        *VoxelShape::from_boxes(self.blocks.shape(shape)).face_mask(face)
-                            == FACE_MASK_FULL
-                    }) {
-                        mask.insert(id);
-                    }
-                }
+                return Some(self.shape_masks.full_collision_face[direction as usize].clone());
             }
         }
         Some(Arc::new(mask))
