@@ -36,6 +36,7 @@ pub mod sky;
 pub mod sky_render;
 pub mod sky_state;
 pub mod stream;
+pub mod vanilla;
 #[cfg(target_family = "wasm")]
 pub mod web;
 

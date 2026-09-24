@@ -35,7 +35,7 @@ use mcrs_minecraft_client::render::TerrainPlugin;
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
     asset_corpus, camera, cave, config, gui, input, local_player, player, render, sky, sky_render,
-    stream,
+    stream, vanilla,
 };
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
@@ -96,6 +96,7 @@ fn main() {
     let assets = asset_corpus().to_string_lossy().into_owned();
 
     let mut app = App::new();
+    vanilla::register(&mut app);
     app.add_plugins(
         DefaultPlugins
             .set(bevy::app::TaskPoolPlugin {
@@ -160,6 +161,7 @@ fn main() {
         focused_mode: UpdateMode::Continuous,
         unfocused_mode: UpdateMode::Continuous,
     })
+    .add_plugins(vanilla::VanillaAssetsPlugin)
     .add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin)
     .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)
     .add_plugins(player::PlayerPlugin)

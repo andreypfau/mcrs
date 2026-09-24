@@ -21,6 +21,7 @@ use crate::render::{
     Animation, AtlasUpdate, Budget, FACE_BYTES, Placement, STILL, SectionDesc, SpriteEntry,
     SpriteUpload, Upload, Uploads,
 };
+use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
@@ -56,7 +57,7 @@ impl Plugin for StreamPlugin {
                 (
                     follow_camera,
                     adopt_columns,
-                    bake_catalog,
+                    bake_catalog.run_if(in_state(VanillaAssets::Ready)),
                     tint_columns,
                     place_meshes,
                     flush_streams,

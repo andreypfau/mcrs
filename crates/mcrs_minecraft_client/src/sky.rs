@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bevy::asset::RenderAssetUsages;
+use bevy::asset::{AssetPath, RenderAssetUsages};
 use bevy::image::{ImageLoaderSettings, ImageSampler};
 use bevy::prelude::*;
 use bevy::render::render_resource::{
@@ -20,6 +20,7 @@ use mcrs_minecraft_environment::spatial::SpatialAttributeInterpolator;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
+use crate::vanilla::{self, VanillaAssets};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
 
@@ -63,8 +64,11 @@ impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SkyFrame>()
             .add_plugins(crate::sky_render::SkyRenderPlugin)
-            .add_systems(Startup, request_sources)
-            .add_systems(Update, assemble_arrays)
+            .add_systems(OnEnter(VanillaAssets::Ready), request_sources)
+            .add_systems(
+                Update,
+                assemble_arrays.run_if(resource_exists::<SkySources>),
+            )
             .add_systems(OnEnter(AppState::Playing), build_sky_environment)
             .add_systems(
                 PostUpdate,
@@ -315,7 +319,7 @@ fn request_sources(mut commands: Commands, asset_server: Res<AssetServer>) {
             .with_settings(|settings: &mut ImageLoaderSettings| {
                 settings.asset_usage = RenderAssetUsages::MAIN_WORLD;
             })
-            .load(path)
+            .load(AssetPath::from(path).with_source(vanilla::SOURCE))
     };
     commands.insert_resource(SkySources {
         celestials: celestial_paths().map(load).collect(),
@@ -475,10 +479,11 @@ mod tests {
 
     #[test]
     fn every_layer_path_names_a_file_in_the_corpus() {
-        let corpus = crate::asset_corpus();
         for path in celestial_paths().chain(CLOUD_LAYERS.iter().map(|p| (*p).to_owned())) {
-            let file = corpus.join(path);
-            assert!(file.is_file(), "{} is missing", file.display());
+            assert!(
+                crate::model::Pack::corpus().get(&path).is_some(),
+                "{path} is missing"
+            );
         }
     }
 }

@@ -24,6 +24,7 @@ crates=(
     mcrs_minecraft_light
     mcrs_minecraft_network
     mcrs_minecraft_mesh
+    mcrs_minecraft_client_jar
 )
 
 status=0

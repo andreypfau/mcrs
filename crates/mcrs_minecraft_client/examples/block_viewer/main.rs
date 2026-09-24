@@ -26,33 +26,44 @@ use bevy::tasks::block_on;
 use mcrs_minecraft_client::asset_corpus;
 use mcrs_minecraft_client::bake::{self, Neighborhood, TinyWorld};
 use mcrs_minecraft_client::model::{self, Pack};
+use mcrs_minecraft_client::vanilla::{self, VanillaAssets};
 
 const DEFAULT_TARGET: &str = "minecraft:oak_log[axis=y]";
 
 fn main() {
     let target = Target::from_args();
-    App::new()
-        .add_plugins(
-            DefaultPlugins
-                .set(AssetPlugin {
-                    file_path: asset_corpus().to_string_lossy().into_owned(),
-                    ..default()
-                })
-                .set(ImagePlugin::default_nearest())
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        title: target.label(),
-                        ..default()
-                    }),
+    let mut app = App::new();
+    vanilla::register(&mut app);
+    app.add_plugins(
+        DefaultPlugins
+            .set(AssetPlugin {
+                file_path: asset_corpus().to_string_lossy().into_owned(),
+                ..default()
+            })
+            .set(ImagePlugin::default_nearest())
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: target.label(),
                     ..default()
                 }),
-        )
-        .insert_resource(ClearColor(Color::srgb(0.13, 0.14, 0.17)))
-        .insert_resource(target)
-        .init_resource::<ShowFloor>()
-        .add_systems(Startup, (spawn_camera, read_pack))
-        .add_systems(Update, (toggle_floor, rebuild_scene, orbit))
-        .run();
+                ..default()
+            }),
+    )
+    .add_plugins(vanilla::VanillaAssetsPlugin)
+    .insert_resource(ClearColor(Color::srgb(0.13, 0.14, 0.17)))
+    .insert_resource(target)
+    .init_resource::<ShowFloor>()
+    .add_systems(Startup, spawn_camera)
+    .add_systems(OnEnter(VanillaAssets::Ready), read_pack)
+    .add_systems(
+        Update,
+        (
+            toggle_floor,
+            rebuild_scene.run_if(resource_exists::<Pack>),
+            orbit,
+        ),
+    )
+    .run();
 }
 
 /// The blockstate to render, written the way the game writes it: `name[prop=value,...]`.

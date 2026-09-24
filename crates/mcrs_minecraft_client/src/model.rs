@@ -12,18 +12,31 @@ use bevy::tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
 use serde::{Deserialize, Serialize};
 
+use crate::vanilla;
+
 /// The folders of the resource pack the renderer draws from. Everything under them is held in
 /// memory, because a block state first seen mid-stream has to bake without an await.
-const PACK_FOLDERS: [&str; 8] = [
+const RESOURCE_FOLDERS: [&str; 7] = [
     "blockstates",
     "models",
     "textures",
-    "worldgen/biome",
     "items",
     "atlases",
     "font",
     "lang",
 ];
+
+/// Biome tints come from the data pack, whose `beta_*` biomes exist only in the repo.
+const DATA_FOLDERS: [&str; 1] = ["worldgen/biome"];
+
+pub fn is_resource(path: &str) -> bool {
+    path.split_once('/').is_some_and(|(_, rest)| {
+        RESOURCE_FOLDERS.iter().any(|folder| {
+            rest.strip_prefix(folder)
+                .is_some_and(|tail| tail.starts_with('/'))
+        })
+    })
+}
 
 /// The resource pack, read once through the asset system and thereafter immutable.
 #[derive(Resource, Default)]
@@ -33,23 +46,33 @@ pub struct Pack {
 
 impl Pack {
     pub async fn load(assets: &AssetServer) -> Result<Self, String> {
-        let source = assets
-            .get_source(AssetSourceId::Default)
-            .map_err(|error| format!("no default asset source: {error}"))?;
-        Self::walk(source.reader()).await
+        let mut files = HashMap::new();
+        for (source, folders) in [
+            (AssetSourceId::from(vanilla::SOURCE), &RESOURCE_FOLDERS[..]),
+            (AssetSourceId::Default, &DATA_FOLDERS[..]),
+        ] {
+            let reader = assets
+                .get_source(source.clone())
+                .map_err(|error| format!("no {source} asset source: {error}"))?;
+            Self::walk(reader.reader(), folders, &mut files).await?;
+        }
+        Ok(Self { files })
     }
 
-    async fn walk(reader: &dyn ErasedAssetReader) -> Result<Self, String> {
+    async fn walk(
+        reader: &dyn ErasedAssetReader,
+        folders: &[&str],
+        files: &mut HashMap<String, Vec<u8>>,
+    ) -> Result<(), String> {
         let mut namespaces = reader
             .read_directory(Path::new(""))
             .await
             .map_err(|error| format!("cannot list the asset root: {error}"))?;
         let mut pending: Vec<PathBuf> = Vec::new();
         while let Some(namespace) = namespaces.next().await {
-            pending.extend(PACK_FOLDERS.iter().map(|folder| namespace.join(folder)));
+            pending.extend(folders.iter().map(|folder| namespace.join(folder)));
         }
 
-        let mut files = HashMap::new();
         while let Some(directory) = pending.pop() {
             let Ok(mut entries) = reader.read_directory(&directory).await else {
                 continue;
@@ -65,7 +88,7 @@ impl Pack {
                 files.insert(path.to_string_lossy().into_owned(), bytes);
             }
         }
-        Ok(Self { files })
+        Ok(())
     }
 
     pub fn len(&self) -> usize {
@@ -104,16 +127,18 @@ impl Pack {
 
 #[cfg(test)]
 impl Pack {
-    /// The shipped corpus, read straight off disk: a test has no asset system to read it through.
+    /// The client jar's resource pack plus the repo's data folders, read without an asset
+    /// system: a test has none to read them through.
     pub fn corpus() -> &'static Pack {
         static CORPUS: std::sync::LazyLock<Pack> = std::sync::LazyLock::new(|| {
             let root = crate::asset_corpus();
-            let mut files = HashMap::new();
+            let mut files: HashMap<String, Vec<u8>> =
+                vanilla::resource_files().iter().cloned().collect();
             let mut pending: Vec<PathBuf> = std::fs::read_dir(&root)
                 .expect("the corpus is next to the workspace")
                 .filter_map(|entry| entry.ok())
                 .flat_map(|namespace| {
-                    PACK_FOLDERS
+                    DATA_FOLDERS
                         .iter()
                         .map(move |folder| namespace.path().join(folder))
                 })
@@ -551,6 +576,9 @@ mod tests {
     #[test]
     fn the_asset_system_reads_the_pack_the_corpus_holds() {
         let mut app = bevy::app::App::new();
+        let root = bevy::asset::io::memory::Dir::default();
+        vanilla::fill(&root, vanilla::resource_files().clone());
+        vanilla::register_source(&mut app, root);
         app.add_plugins(bevy::MinimalPlugins)
             .add_plugins(bevy::asset::AssetPlugin {
                 file_path: crate::asset_corpus().to_string_lossy().into_owned(),

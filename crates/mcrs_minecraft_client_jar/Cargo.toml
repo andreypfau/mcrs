@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_minecraft_client_jar"
+description = "Locates, downloads and unpacks the vanilla 26.3 client jar"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+sha1 = "0.11"
+flate2.workspace = true
+tracing.workspace = true
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+ureq = "3.4"
+
+[dev-dependencies]
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }
