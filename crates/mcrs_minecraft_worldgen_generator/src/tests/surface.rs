@@ -13,6 +13,7 @@ use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
@@ -52,33 +53,31 @@ pub fn fill(column: &ColumnBlocks, range: std::ops::RangeInclusive<i32>, state: 
 #[test]
 fn the_descent_reports_depths_water_and_the_floor_below_a_run() {
     let column = ColumnBlocks::new(&[0, 1]);
-    fill(&column, 0..=9, STONE);
+    fill(&column, 3..=9, STONE);
     fill(&column, 10..=12, WATER);
 
     let seen = walk(&column, 13, 0);
 
     // The first fluid block from above sets the water level one block over it,
-    // and the look-ahead's read below the bottom ends the stone run at y = 0.
-    let expected: Vec<_> = (0..=9)
+    // and the air under y = 3 is the floor the depth below counts from.
+    let expected: Vec<_> = (3..=9)
         .rev()
         .enumerate()
-        .map(|(step, y)| (y, step as i32 + 1, y + 1, 13))
+        .map(|(step, y)| (y, step as i32 + 1, y - 2, 13))
         .collect();
     assert_eq!(seen, expected);
 }
 
 #[test]
-fn an_all_stone_column_ends_its_run_at_the_bottom_of_the_dimension() {
+fn a_run_down_to_the_bottom_of_the_dimension_has_no_floor_under_it() {
     let column = ColumnBlocks::new(&[0, 1]);
     fill(&column, 0..=31, STONE);
 
     let seen = walk(&column, 32, 0);
 
-    assert_eq!(seen.first().copied(), Some((31, 1, 32, NO_WATER)));
-    // Treating the read below the bottom as "stop" instead of "not solid"
-    // leaves this at a sentinel some thirty thousand blocks deep, and every
-    // ceiling rule fires.
-    assert_eq!(seen.last().copied(), Some((0, 32, 1, NO_WATER)));
+    let below = |y: i32| y - WAY_BELOW_MIN_Y + 1;
+    assert_eq!(seen.first().copied(), Some((31, 1, below(31), NO_WATER)));
+    assert_eq!(seen.last().copied(), Some((0, 32, below(0), NO_WATER)));
 }
 
 #[test]
@@ -92,12 +91,13 @@ fn a_section_this_dispatch_does_not_carry_is_skipped_rather_than_the_bottom() {
     // The look-ahead skips the gap too, so the run below y = 47 reaches the
     // floor of the dimension rather than the floor of the dispatch: treating the
     // gap as a ceiling would make this 16 and fire every ceiling rule at y = 32.
-    assert_eq!(seen.first().copied(), Some((47, 1, 48, NO_WATER)));
+    let below = |y: i32| y - WAY_BELOW_MIN_Y + 1;
+    assert_eq!(seen.first().copied(), Some((47, 1, below(47), NO_WATER)));
     assert!(
         seen.iter().any(|(y, _, _, _)| *y == 15),
         "the descent stopped at the gap instead of skipping it"
     );
-    assert_eq!(seen.last().copied(), Some((0, 32, 1, NO_WATER)));
+    assert_eq!(seen.last().copied(), Some((0, 32, below(0), NO_WATER)));
 }
 
 /// A rule that carves the top block away lowers the strip's height, which the

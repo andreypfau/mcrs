@@ -132,7 +132,7 @@ pub struct MaterialEval<'a, B, R> {
     /// Where the current strip starts in a `vein_values` row.
     vein_row: usize,
     run_top: i32,
-    run_bottom: i32,
+    run_ceiling: i32,
     run_depth: i32,
     gen_xz: u32,
     gen_y: u32,
@@ -253,7 +253,7 @@ where
             veins,
             vein_row: 0,
             run_top: 0,
-            run_bottom: 0,
+            run_ceiling: 0,
             run_depth: 0,
             gen_xz: 0,
             gen_y: 0,
@@ -301,7 +301,8 @@ where
     /// The runs of y, descending, over which the tape answers the same for
     /// every block — one state, or nothing — so the descent need not run it
     /// there. Asked once per solid run of a strip, from `top`, whose block sits
-    /// `depth_above` deep, down to `bottom`, with `water_level` above it: along
+    /// `depth_above` deep, down to `bottom`, whose depth below counts from
+    /// `ceiling`, with `water_level` above it: along
     /// such a run the depths are affine in y, so every depth, water and height
     /// condition is a threshold in y, the y-only ones too; the per-strip ones
     /// hold across it, a biome set the column folded is settled, and an ore
@@ -312,6 +313,7 @@ where
         &mut self,
         top: i32,
         bottom: i32,
+        ceiling: i32,
         depth_above: i32,
         water_level: i32,
         out: &mut Vec<(i32, i32, SettledState)>,
@@ -322,7 +324,7 @@ where
             return;
         }
         self.run_top = top;
-        self.run_bottom = bottom;
+        self.run_ceiling = ceiling;
         self.run_depth = depth_above;
         self.water_level = water_level;
         let min_y = self.veins.min_block().y;
@@ -533,9 +535,9 @@ where
     }
 
     /// How a condition answers along the current run, where the depth above
-    /// is `run_depth + run_top - y` and the depth below `y - run_bottom + 1`.
+    /// is `run_depth + run_top - y` and the depth below `y - run_ceiling + 1`.
     fn split(&mut self, condition: CondId) -> Option<Split> {
-        let (bottom, water) = (self.run_bottom, self.water_level);
+        let (ceiling_y, water) = (self.run_ceiling, self.water_level);
         // What `y + depth_above` comes to anywhere on the run.
         let top = self.run_top + self.run_depth - 1;
         Some(match self.program.conditions()[condition as usize].kind {
@@ -548,7 +550,7 @@ where
                 let limit =
                     self.stone_depth_limit(offset, add_surface_depth, secondary_depth_range);
                 if ceiling {
-                    Split::AtOrBelow(bottom + limit - 1)
+                    Split::AtOrBelow(ceiling_y + limit - 1)
                 } else {
                     Split::At(top + 1 - limit)
                 }

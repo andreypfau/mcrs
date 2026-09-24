@@ -8,6 +8,7 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, QuartPos};
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use mcrs_minecraft_worldgen_surface::{
@@ -67,8 +68,9 @@ pub fn spans_dimension(y_sections: &[i32], router: &NoiseRouter) -> bool {
 
 /// Rewrite every strip of a filled column from the top down.
 ///
-/// `tops` is read twice per strip and written by both landforms, because a
-/// pillar raises the strip it stands on and the steepness its neighbours see.
+/// The surface gradients read the tops the fill left, so a pillar or an
+/// iceberg changes neither its neighbours' steepness nor their gradient rules;
+/// a strip's own descent still starts above its pillar.
 pub fn apply_material_surface(
     column: &ColumnBlocks,
     section_x: i32,
@@ -144,6 +146,7 @@ fn apply_material_surface_with(
         &biomes,
     );
 
+    let fill_tops = *tops;
     let mut settled = Vec::new();
     for x in 0..16 {
         for z in 0..16 {
@@ -167,10 +170,10 @@ fn apply_material_surface_with(
             }
 
             let height = height_of(tops, x, z, min_y) + 1;
-            let gradient_x = height_of(tops, (x + 1).min(15), z, min_y)
-                - height_of(tops, (x - 1).max(0), z, min_y);
-            let gradient_z = height_of(tops, x, (z + 1).min(15), min_y)
-                - height_of(tops, x, (z - 1).max(0), min_y);
+            let gradient_x = height_of(&fill_tops, (x + 1).min(15), z, min_y)
+                - height_of(&fill_tops, (x - 1).max(0), z, min_y);
+            let gradient_z = height_of(&fill_tops, x, (z + 1).min(15), min_y)
+                - height_of(&fill_tops, x, (z - 1).max(0), min_y);
             eval.begin_strip(bx, bz, gradient_x, gradient_z);
             let mut run = 0;
             descend_strip(
@@ -184,10 +187,18 @@ fn apply_material_surface_with(
                     Visit::Run {
                         top,
                         bottom,
+                        ceiling,
                         depth_above,
                         water_level,
                     } => {
-                        eval.settled_runs(top, bottom, depth_above, water_level, &mut settled);
+                        eval.settled_runs(
+                            top,
+                            bottom,
+                            ceiling,
+                            depth_above,
+                            water_level,
+                            &mut settled,
+                        );
                         run = 0;
                     }
                     Visit::Block {
@@ -244,6 +255,7 @@ pub(crate) enum Visit {
     Run {
         top: i32,
         bottom: i32,
+        ceiling: i32,
         depth_above: i32,
         water_level: i32,
     },
@@ -257,13 +269,14 @@ pub(crate) enum Visit {
 
 /// Walk one strip from `height` down to the bottom of the dimension, handing
 /// every solid block its two depths and the water level above it, and each
-/// solid run its top, its bottom and the water level over it as it is entered.
-/// Any of `fluids` counts as fluid, as the reference reads any non-empty fluid
-/// state: lava from the field's floor is not rock to surface.
+/// solid run its top, its bottom, the ceiling its depth below counts from and
+/// the water level over it as it is entered. Any of `fluids` counts as fluid,
+/// as the reference reads any non-empty fluid state: lava from the field's
+/// floor is not rock to surface.
 ///
 /// A position this dispatch does not carry is skipped rather than ending the
-/// descent, and the look-ahead's read one below the bottom answers non-solid,
-/// which is what settles `depth_below` in an all-stone column.
+/// descent. A run that reaches the floor has no ceiling under it, so its depth
+/// below counts from far beneath the world and no ceiling rule fires there.
 pub(crate) fn descend_strip(
     column: &ColumnBlocks,
     x: i32,
@@ -292,16 +305,18 @@ pub(crate) fn descend_strip(
             }
         } else {
             if next_ceiling >= y {
-                next_ceiling = (min_y - 1..y)
+                next_ceiling = (min_y..y)
                     .rev()
-                    .find(|&look| match column.get(x, look, z) {
-                        Some(old) => old == air || is_fluid(old),
-                        None => look < min_y,
+                    .find(|&look| {
+                        column
+                            .get(x, look, z)
+                            .is_some_and(|old| old == air || is_fluid(old))
                     })
-                    .map_or(min_y, |floor| floor + 1);
+                    .map_or(WAY_BELOW_MIN_Y, |floor| floor + 1);
                 visit(Visit::Run {
                     top: y,
-                    bottom: next_ceiling,
+                    bottom: next_ceiling.max(min_y),
+                    ceiling: next_ceiling,
                     depth_above: depth_above + 1,
                     water_level,
                 });
