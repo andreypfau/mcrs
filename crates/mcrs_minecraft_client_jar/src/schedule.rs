@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::ops::Range;
+use std::sync::atomic::Ordering;
 
 use crate::fonts::{FontHint, font_textures, is_font_definition, is_texture};
 use crate::{Directory, Files, Progress, Release, verify};
@@ -176,9 +177,11 @@ impl Queue {
     }
 
     fn report(&self, progress: &Progress, phase: &str) {
-        progress.set_total(self.counted.len());
-        progress.set_done(self.held.covered(&self.counted));
-        progress.set_status(self.error.as_deref().unwrap_or(phase));
+        progress.total.store(self.counted.len(), Ordering::Relaxed);
+        progress
+            .done
+            .store(self.held.covered(&self.counted), Ordering::Relaxed);
+        *progress.status.lock().unwrap() = self.error.as_deref().unwrap_or(phase).to_owned();
     }
 }
 
@@ -189,7 +192,6 @@ pub(crate) trait Source {
     /// Returns once the queue may have changed, or after a short while.
     async fn wait(&self);
 
-    /// Bytes that are held.
     fn read(&self, span: Range<u64>) -> Result<Vec<u8>, String>;
 }
 

@@ -265,7 +265,10 @@ fn draw_progress(
     mut shown: Local<[String; 2]>,
     mut commands: Commands,
 ) {
-    let (done, total) = (fetch.progress.done(), fetch.progress.total());
+    let (done, total) = (
+        fetch.progress.done.load(Ordering::Relaxed),
+        fetch.progress.total.load(Ordering::Relaxed),
+    );
     let fraction = if total == 0 {
         0.0
     } else {
@@ -288,7 +291,7 @@ fn draw_progress(
                 ),
                 WHITE,
             ),
-            Line::Status => (fetch.progress.status(), GRAY),
+            Line::Status => (fetch.progress.status.lock().unwrap().clone(), GRAY),
         };
         if shown[line as usize] == text {
             continue;

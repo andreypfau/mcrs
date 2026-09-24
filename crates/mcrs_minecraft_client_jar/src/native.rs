@@ -32,7 +32,6 @@ fn home() -> PathBuf {
         .expect("HOME is set")
 }
 
-/// The game directory the official launcher uses.
 pub fn official_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     return home().join("Library/Application Support/minecraft");
@@ -78,8 +77,8 @@ pub fn locate(paths: &[PathBuf], artifact: &Artifact, progress: &Progress) -> Op
         if fs::metadata(path).ok()?.len() != artifact.size {
             return None;
         }
-        progress.set_total(artifact.size);
-        progress.set_status(format!("Checking {}", path.display()));
+        progress.total.store(artifact.size, Ordering::Relaxed);
+        *progress.status.lock().unwrap() = format!("Checking {}", path.display());
         let bytes = read_counting(path, progress).ok()?;
         if !verify(artifact, &bytes) {
             tracing::warn!(path = %path.display(), expected = artifact.sha1, "skipping a file with the wrong SHA-1");
@@ -93,9 +92,9 @@ pub fn locate(paths: &[PathBuf], artifact: &Artifact, progress: &Progress) -> Op
 fn read_counting(path: &Path, progress: &Progress) -> std::io::Result<Vec<u8>> {
     let mut file = File::open(path)?;
     let mut bytes = Vec::new();
-    progress.set_done(0);
+    progress.done.store(0, Ordering::Relaxed);
     while (&mut file).take(CHUNK).read_to_end(&mut bytes)? > 0 {
-        progress.set_done(bytes.len() as u64);
+        progress.done.store(bytes.len() as u64, Ordering::Relaxed);
     }
     Ok(bytes)
 }
@@ -141,7 +140,7 @@ pub fn download(
     let jar = dir.join(format!("{}.jar", release.id));
     let part = with_suffix(&jar, ".part");
     let sidecar = with_suffix(&part, ".ranges");
-    progress.set_status(format!("Opening {}", part.display()));
+    *progress.status.lock().unwrap() = format!("Opening {}", part.display());
     let (file, held) = match retry(progress, || open(release, &jar, &part, &sidecar)) {
         Opened::Installed(bytes) => return (local(&bytes, pick, fonts), None),
         Opened::Part(file, held) => (file, held),
@@ -459,7 +458,7 @@ fn retry<T>(progress: &Progress, mut attempt: impl FnMut() -> Result<T, String>)
             Err(error) => {
                 let status = format!("{error}; retrying in {backoff:?}");
                 tracing::warn!("{status}");
-                progress.set_status(status);
+                *progress.status.lock().unwrap() = status;
                 std::thread::sleep(backoff);
                 backoff = (backoff * 2).min(MAX_BACKOFF);
             }
@@ -552,8 +551,8 @@ mod tests {
 
     use crate::fonts::{FontHint, is_texture};
     use crate::schedule::{ASSETS, DIRECTORY, FONTS, HINTED_FONTS, TEXTURES};
-    use crate::tests::sample_jar;
-    use crate::{CLIENT_JAR, entries, sha1_hex};
+    use crate::tests::{entries, sample_jar};
+    use crate::{CLIENT_JAR, sha1_hex};
 
     use super::*;
 
@@ -748,8 +747,8 @@ mod tests {
         let progress = Progress::default();
 
         assert_eq!(locate(&[jar], &artifact, &progress), None);
-        assert_eq!(progress.status(), "");
-        assert_eq!(progress.total(), 0);
+        assert_eq!(*progress.status.lock().unwrap(), "");
+        assert_eq!(progress.total.load(Ordering::Relaxed), 0);
     }
 
     #[test]
@@ -774,7 +773,7 @@ mod tests {
         );
 
         assert_eq!(found.as_deref(), Some(&b"client jar"[..]));
-        assert_eq!(progress.done(), 10);
+        assert_eq!(progress.done.load(Ordering::Relaxed), 10);
     }
 
     #[test]
@@ -797,7 +796,7 @@ mod tests {
             std::thread::spawn(move || {
                 let mut seen = Vec::new();
                 while watching.load(Ordering::Relaxed) {
-                    seen.push(progress.status());
+                    seen.push(progress.status.lock().unwrap().clone());
                     std::thread::sleep(Duration::from_millis(1));
                 }
                 seen
@@ -1038,7 +1037,7 @@ mod tests {
         let progress = Progress::default();
         let found = locate(&candidates, &CLIENT_JAR, &progress);
         println!("checked {candidates:#?}");
-        println!("{}", progress.status());
+        println!("{}", progress.status.lock().unwrap());
         assert!(found.is_some());
     }
 
@@ -1079,8 +1078,8 @@ mod tests {
                     "fonts: {} files after {:?}, {} of {} bytes in",
                     fonts.len(),
                     started.elapsed(),
-                    progress.done(),
-                    progress.total()
+                    progress.done.load(Ordering::Relaxed),
+                    progress.total.load(Ordering::Relaxed)
                 )
             },
         );
@@ -1088,7 +1087,7 @@ mod tests {
             "ready: {} asset files after {:?} with {workers} workers, {} bytes of the jar needed",
             files.len(),
             started.elapsed(),
-            progress.total()
+            progress.total.load(Ordering::Relaxed)
         );
         rest.unwrap().finish();
         println!("complete after {:?}", started.elapsed());

@@ -2,7 +2,7 @@ use std::fmt::Write;
 use std::io::Read;
 use std::ops::Range;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 
 use sha1::{Digest, Sha1};
 
@@ -62,35 +62,9 @@ pub const RELEASE: Release<'static> = Release {
 
 #[derive(Default, Debug)]
 pub struct Progress {
-    done: AtomicU64,
-    total: AtomicU64,
-    status: Mutex<String>,
-}
-
-impl Progress {
-    pub fn done(&self) -> u64 {
-        self.done.load(Ordering::Relaxed)
-    }
-
-    pub fn total(&self) -> u64 {
-        self.total.load(Ordering::Relaxed)
-    }
-
-    pub fn status(&self) -> String {
-        self.status.lock().unwrap().clone()
-    }
-
-    pub fn set_done(&self, bytes: u64) {
-        self.done.store(bytes, Ordering::Relaxed);
-    }
-
-    pub fn set_total(&self, bytes: u64) {
-        self.total.store(bytes, Ordering::Relaxed);
-    }
-
-    pub fn set_status(&self, status: impl Into<String>) {
-        *self.status.lock().unwrap() = status.into();
-    }
+    pub done: AtomicU64,
+    pub total: AtomicU64,
+    pub status: Mutex<String>,
 }
 
 pub fn verify(artifact: &Artifact, bytes: &[u8]) -> bool {
@@ -130,7 +104,6 @@ pub(crate) struct Entry {
     pub(crate) size: u64,
 }
 
-/// A zip's central directory: what every entry is and where its bytes lie.
 #[derive(Clone, Debug)]
 pub struct Directory {
     entries: Vec<Entry>,
@@ -191,7 +164,6 @@ impl Directory {
         Ok(Self::new(entries, start))
     }
 
-    /// The directory of a whole zip, found through its end record.
     pub fn of(zip: &[u8]) -> Result<Self, String> {
         let end = zip
             .windows(4)
@@ -260,7 +232,6 @@ impl Directory {
     }
 }
 
-/// Sorted ranges, with the ones that touch joined.
 pub(crate) fn merge(sorted: Vec<Range<u64>>) -> Vec<Range<u64>> {
     let mut merged: Vec<Range<u64>> = Vec::with_capacity(sorted.len());
     for range in sorted {
@@ -303,14 +274,6 @@ fn inflate(entry: &Entry, local: &[u8]) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-/// The picked `assets/` files of a whole jar whose SHA-1 already matched.
-pub fn entries(jar: &[u8], pick: impl FnMut(&str) -> bool) -> Files {
-    const CORRUPT: &str = "a jar that matched its pinned SHA-1 is a readable zip";
-    Directory::of(jar)
-        .and_then(|directory| directory.unpack(&[(0, jar)], pick))
-        .expect(CORRUPT)
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use std::io::{Cursor, Write};
@@ -319,6 +282,12 @@ pub(crate) mod tests {
     use zip::write::SimpleFileOptions;
 
     use super::*;
+
+    pub fn entries(jar: &[u8], pick: impl FnMut(&str) -> bool) -> Files {
+        Directory::of(jar)
+            .and_then(|directory| directory.unpack(&[(0, jar)], pick))
+            .unwrap()
+    }
 
     /// A small jar laid out like the client's: classes, then assets, then more classes.
     pub fn sample_jar() -> Vec<u8> {

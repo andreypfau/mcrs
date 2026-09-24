@@ -54,7 +54,6 @@ pub(crate) fn font_textures(definitions: &Files) -> BTreeSet<String> {
     textures
 }
 
-/// Every font definition and the textures they draw from, out of `chunks` of the zip.
 pub fn font_files(directory: &Directory, chunks: &[(u64, &[u8])]) -> Result<Files, String> {
     let mut files = directory.unpack(chunks, is_font_definition)?;
     let textures = font_textures(&files);
@@ -108,7 +107,6 @@ impl FontHint {
         })
     }
 
-    /// The release's hint, if it is well-formed and describes this very jar.
     pub(crate) fn for_release(release: &Release) -> Option<Self> {
         if release.font_hint.is_empty() {
             return None;
@@ -151,7 +149,6 @@ impl FontHint {
         Directory::new(self.fonts.iter().map(HintedFont::entry).collect(), u64::MAX)
     }
 
-    /// Whether every hinted font lies exactly where the central directory puts it.
     pub(crate) fn agrees_with(&self, directory: &Directory) -> bool {
         self.fonts.iter().all(|font| {
             directory.entry(&font.name).is_some_and(|entry| {
