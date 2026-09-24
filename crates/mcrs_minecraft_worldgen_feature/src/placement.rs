@@ -120,7 +120,10 @@ pub enum PlacementModifier<P = BlockPredicate> {
         placements: Vec<PlacementModifier<P>>,
     },
     #[serde(rename = "minecraft:fixed_placement")]
-    FixedPlacement { positions: Vec<[i32; 3]> },
+    FixedPlacement {
+        #[serde(deserialize_with = "non_empty")]
+        positions: Vec<[i32; 3]>,
+    },
 }
 
 impl<P> PlacementModifier<P> {
@@ -218,5 +221,22 @@ impl<P> PlacementModifier<P> {
                 positions: positions.clone(),
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fixed_placement_without_positions_is_a_load_error() {
+        serde_json::from_str::<PlacementModifier>(
+            r#"{"type":"minecraft:fixed_placement","positions":[]}"#,
+        )
+        .unwrap_err();
+        serde_json::from_str::<PlacementModifier>(
+            r#"{"type":"minecraft:fixed_placement","positions":[[1,2,3]]}"#,
+        )
+        .unwrap();
     }
 }
