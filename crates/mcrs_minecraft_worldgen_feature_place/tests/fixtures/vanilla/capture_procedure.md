@@ -1,6 +1,6 @@
 # Fixture Capture Procedure — `ore_vein.bin`
 
-**Source of truth:** vanilla `26.3-snapshot-10`, `world_version` 5015, read through
+**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
 Fabric Loom's mapped jar. No server and no client is started.
 
 **Harness:** `tools/vanilla-oracle/src/main/java/mcrs/oracle/OreOracle.java`

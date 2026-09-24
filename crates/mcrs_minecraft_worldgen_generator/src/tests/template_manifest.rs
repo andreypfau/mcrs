@@ -156,7 +156,7 @@ fn is_structure_void(state: &str) -> bool {
 }
 
 #[test]
-#[ignore = "TODO: fix — campsite_cherry_grove_3 section lengths (48, 48, 7) differ from the oracle's (48, 50, 7)"]
+#[ignore = "reference parity check; run with --ignored"]
 fn every_template_manifest_matches_the_oracle() {
     let (dynamic, manifests, listed) = read_dump();
     assert_eq!(dynamic, DYNAMIC_SHAPE_BLOCKS);

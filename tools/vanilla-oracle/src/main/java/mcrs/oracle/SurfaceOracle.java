@@ -90,7 +90,7 @@ public final class SurfaceOracle {
         if (args.length > 1 && args[1].equals("search")) {
             for (long seed : new long[] {42L, 2L}) {
                 RandomState randomState = RandomState.create(noises, seed, settings.value());
-                net.minecraft.world.level.biome.BiomeResolver resolver = biomeSource.createUncachedResolver(
+                net.minecraft.world.level.biome.NoiseBiomeResolver resolver = biomeSource.createUncachedResolver(
                     randomState
                 );
                 for (String target : new String[] {
@@ -191,17 +191,19 @@ public final class SurfaceOracle {
             containers,
             null
         );
+        chunk.setPersistedStatus(net.minecraft.world.level.chunk.status.ChunkStatus.BIOMES);
+        chunk.fillBiomes(
+            new net.minecraft.world.level.biome.CachedChunkBiomeResolver(
+                chunk, biomeSource.createUncachedResolver(randomState), BiomeManager.obfuscateSeed(column.seed())
+            )
+        );
         generator.buildTerrain(
                 chunk,
                 Blender.empty(),
                 randomState,
                 noStructures(),
-                new BiomeManager(
-                    biomeSource.createUncachedResolver(randomState),
-                    BiomeManager.obfuscateSeed(column.seed())
-                ),
                 null,
-                biomeSource.possibleBiomes()
+                chunk.collectBiomesInPalette(new java.util.HashSet<>())
             )
             .join();
         return chunk;
@@ -258,8 +260,10 @@ public final class SurfaceOracle {
             blockStates,
             air,
             PalettedContainer.codecRW(BlockState.CODEC, blockStates, air),
-            Strategy.createForBiomes(idMap),
             plains,
+            Strategy.createForNoiseBiomes(idMap),
+            null,
+            Strategy.createForBiomes(idMap),
             null
         );
     }

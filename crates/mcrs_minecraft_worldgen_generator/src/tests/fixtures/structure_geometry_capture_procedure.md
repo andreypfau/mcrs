@@ -1,6 +1,6 @@
 # Fixture Capture Procedure — `structure_geometry.bin`
 
-**Source of truth:** vanilla `26.3-snapshot-10`, `world_version` 5015, read through
+**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
 Fabric Loom's mapped jar. No server and no client is started. The data pack is
 the jar's own, loaded the way a server loads it (`PlacementOracle.loadWorldRegistries`),
 the templates come through a real `StructureTemplateManager` over a temporary
@@ -20,7 +20,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic in every value: two consecutive runs produce a file
-of the same size (580 701 bytes) that differs only in the order of the
+of the same size (575 219 bytes) that differs only in the order of the
 `attributes` list inside the igloo's villagers and the ocean ruin's drowned,
 which the JVM's identity hashes decide, so a consumer comparing entity NBT
 must sort that list. The run log must contain no `Serialization errors`
@@ -49,7 +49,7 @@ ported.
 
 **The world is flat.** `Structure.generate` is given a `ChunkGenerator`
 (`StructureGeometryOracle.FlatGenerator`) over a `FixedBiomeSource` whose
-`getBaseHeight`, `getBaseColumn`, `getSeaLevel`, `getMinY` and `getGenDepth`
+`getBaseColumn`, `getSeaLevel`, `getMinY` and `getGenDepth`
 are answered from a list of layers and the dimension: `FlatLevelSource`'s
 semantics with the sea level, floor and height of the real dimension instead
 of that class's constants. The height accessor is the dimension's
@@ -227,7 +227,7 @@ Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 ```
 magic            8 bytes, ASCII "MCSTRGE0"
 format_version   u32   currently 1
-world_version    u32   5015
+world_version    u32   5119
 
 palette_count    u32
 palette          str * palette_count   BlockStateParser.serialize, first-use order

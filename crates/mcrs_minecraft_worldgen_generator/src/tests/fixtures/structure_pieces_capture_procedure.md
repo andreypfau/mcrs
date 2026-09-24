@@ -1,6 +1,6 @@
 # Fixture Capture Procedure — `structure_pieces.bin`
 
-**Source of truth:** vanilla `26.3-snapshot-10`, `world_version` 5015, read through
+**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
 Fabric Loom's mapped jar. No server and no client is started. The data pack is
 the jar's own, loaded the way a server loads it (`PlacementOracle.loadWorldRegistries`),
 the templates come through a real `StructureTemplateManager` over a temporary
@@ -17,7 +17,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
-(5 417 299 bytes).
+(5 410 364 bytes).
 
 **Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/structure_pieces.rs`,
 which builds the same start through the index over the same noise world and
@@ -122,7 +122,7 @@ Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 ```
 magic            8 bytes, ASCII "MCSTRPC0"
 format_version   u32   currently 1
-world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5015
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5119
 
 case_count       u32
 repeated case_count times, seeds outer, dimensions middle, structures inner:

@@ -45,7 +45,7 @@ import net.minecraft.util.datafix.DataFixers;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelHeightAccessor;
-import net.minecraft.world.level.NoiseColumn;
+import net.minecraft.world.level.levelgen.NoiseColumn;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeManager;
@@ -525,7 +525,7 @@ public final class StructureGeometryOracle {
 
     /**
      * A chunk generator that is a flat floor with one biome: what a layout may
-     * read of a world (`getBaseHeight`, `getBaseColumn`, the sea level and the
+     * read of a world (`getBaseColumn`, the sea level and the
      * height range), answered from the layers, and nothing else.
      */
     static final class FlatGenerator extends ChunkGenerator {
@@ -562,7 +562,6 @@ public final class StructureGeometryOracle {
             final Blender blender,
             final RandomState randomState,
             final StructureManager structureManager,
-            final BiomeManager biomeManager,
             final WorldGenRegion carverBiomeRegion,
             final Set<Holder<Biome>> possibleBiomes
         ) {
@@ -580,26 +579,20 @@ public final class StructureGeometryOracle {
         }
 
         @Override
-        public int getBaseHeight(
-            final int x, final int z, final Heightmap.Types type, final LevelHeightAccessor heights, final RandomState randomState
-        ) {
-            for (int layer = Math.min(this.layers.length - 1, heights.getMaxY() - this.minY); layer >= 0; layer--) {
+        public NoiseColumn getBaseColumn(final int x, final int z, final LevelHeightAccessor heights, final RandomState randomState) {
+            NoiseColumn column = new NoiseColumn(this.minY, this.layers.length);
+            for (int layer = 0; layer < this.layers.length; layer++) {
                 BlockState state = this.layers[layer];
-                if (state != null && type.isOpaque().test(state)) {
-                    return this.minY + layer + 1;
+                if (state == null || state.isAir()) {
+                    continue;
+                }
+                if (state.getBlock() instanceof net.minecraft.world.level.block.LiquidBlock) {
+                    column.setFluid(this.minY + layer, state);
+                } else {
+                    column.setSolid(this.minY + layer);
                 }
             }
-            return this.minY;
-        }
-
-        @Override
-        public NoiseColumn getBaseColumn(final int x, final int z, final LevelHeightAccessor heights, final RandomState randomState) {
-            BlockState air = Blocks.AIR.defaultBlockState();
-            BlockState[] column = new BlockState[this.layers.length];
-            for (int layer = 0; layer < column.length; layer++) {
-                column[layer] = this.layers[layer] == null ? air : this.layers[layer];
-            }
-            return new NoiseColumn(this.minY, column);
+            return column;
         }
 
         @Override

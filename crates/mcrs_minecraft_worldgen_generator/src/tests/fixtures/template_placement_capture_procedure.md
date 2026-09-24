@@ -1,6 +1,6 @@
 # Fixture Capture Procedure — `template_placement.bin`
 
-**Source of truth:** vanilla `26.3-snapshot-10`, `world_version` 5015, read through
+**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
 Fabric Loom's mapped jar. No server and no client is started. The data pack is
 the jar's own, loaded the way a server loads it (`PlacementOracle.loadWorldRegistries`),
 the templates come through a real `StructureTemplateManager` over a temporary
@@ -18,7 +18,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
-(5 376 220 bytes). The run log must contain no `Serialization errors` line —
+(5 370 937 bytes). The run log must contain no `Serialization errors` line —
 `placeInWorld` reports block-entity load problems through its logger instead
 of throwing, so a hit means a compound in the fixture was not loaded the way
 the fixture claims. The capture that produced this file had none.

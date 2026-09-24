@@ -25,7 +25,7 @@ const DIVERGENCE_BUDGET: Option<f32> = None;
 const DIVERGENCE_BUDGET: Option<f32> = Some(1.0e-5);
 /// `SharedConstants.WORLD_VERSION` of the snapshot the dumps came from. Asserted
 /// rather than skipped, so a corpus bump cannot silently invalidate the oracle.
-const WORLD_VERSION: u32 = 5015;
+const WORLD_VERSION: u32 = 5119;
 
 struct DumpVolume {
     name: String,

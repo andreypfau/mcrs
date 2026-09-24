@@ -1,6 +1,6 @@
 # Fixture Capture Procedure — `structure_sites.bin`
 
-**Source of truth:** vanilla `26.3-snapshot-10`, `world_version` 5015, read through
+**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
 Fabric Loom's mapped jar. No server and no client is started. The structures,
 structure sets, template pools, templates and biome tags are the jar's own data
 pack, loaded through the same `RegistryDataLoader` path a dedicated server takes,
@@ -63,7 +63,7 @@ Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 ```
 magic            8 bytes, ASCII "MCSITES1"
 format_version   u32   currently 1
-world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5015
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5119
 
 seed_count       u32   5
 repeated seed_count times, seeds in the order 1, 42, 12345, -7, 0x7FFF_FFFF_0000_0001:
@@ -102,8 +102,8 @@ repeated seed_count times, seeds in the order 1, 42, 12345, -7, 0x7FFF_FFFF_0000
     repeated probe_count times, i = 0..63:
       x                i32   i*37 - 1000
       z                i32   i*53 - 700
-      world_surface_wg i32   generator.getBaseHeight(x, z, WORLD_SURFACE_WG, heightAccessor, randomState)
-      ocean_floor_wg   i32   generator.getBaseHeight(x, z, OCEAN_FLOOR_WG, heightAccessor, randomState)
+      world_surface_wg i32   generator.getFirstFreeHeight(x, z, WORLD_SURFACE_WG, heightAccessor, randomState)
+      ocean_floor_wg   i32   generator.getFirstFreeHeight(x, z, OCEAN_FLOOR_WG, heightAccessor, randomState)
 
   dim_count      u32   2
   repeated dim_count times, "minecraft:overworld" then "minecraft:the_nether":
@@ -149,7 +149,7 @@ Every shipped structure reaches 16 well inside the radius bound.
 | case chunks | `StructurePlacement.isStructureChunk` of that placement (`placement/AbstractSpreadingStructurePlacement.java:89-94`) |
 | `site_present`, `x, y, z` | `JigsawStructure.findGenerationPoint` (`structure/structures/JigsawStructure.java:155-174`): `startHeight.sample` then `JigsawPlacement.addPieces` (`structure/pools/JigsawPlacement.java:51-141`); the position is the `GenerationStub` centre `(centerX, centerY, centerZ)` |
 | `biome_ok` | `Structure.findValidGenerationPoint` (`structure/Structure.java:235-237`) = `findGenerationPoint` filtered by `GenerationContext.isValidBiome` (`:289-300`), which resolves the biome at the stub position through `biomeSource.createResolver(climateSampler)` and tests `structure.biomes()::contains` |
-| `world_surface_wg`, `ocean_floor_wg` | `NoiseBasedChunkGenerator.getBaseHeight` (`levelgen/NoiseBasedChunkGenerator.java:157-166, 204-252`) |
+| `world_surface_wg`, `ocean_floor_wg` | `ChunkGenerator.getFirstFreeHeight` (`chunk/ChunkGenerator.java:773-786`) over `NoiseBasedChunkGenerator.getBaseColumn` (`levelgen/NoiseBasedChunkGenerator.java:181-197`) |
 | hardcoded `site_present`, `x, y, z` | each type's `findGenerationPoint`, invoked reflectively because `Structure` declares it protected: `onTopOfChunkCenter` (`structure/Structure.java:138-159`) for the treasure, hut, igloo, shipwreck, ocean ruin and monument; `SinglePieceStructure.findGenerationPoint` (`structure/SinglePieceStructure.java:25-36`) for the pyramid and jungle temple; `getLowestYIn5by5Box` (`Structure.java:215-231`) for the end city and mansion; `structures/NetherFossilStructure.java:37-70`; `structures/RuinedPortalStructure.java:66-166, 178-238`; the fortress and stronghold at fixed heights |
 | `selected` | `ChunkGenerator.createStructures` (`world/level/chunk/ChunkGenerator.java:560-641`): a single entry is tried directly; otherwise the weighted draw with removal on a `WorldgenRandom` seeded by `setLargeFeatureSeed(seed, x, z)`; each try is `Structure.generate` (`structure/Structure.java:90-134`) with zero references, and succeeds when the start `isValid()` |
 

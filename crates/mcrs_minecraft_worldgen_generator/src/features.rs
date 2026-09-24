@@ -86,7 +86,7 @@ mod tests {
         let mut r: &[u8] = &data;
         r.copy_to_bytes(8);
         assert_eq!(r.get_i32_le(), 1, "unsupported oracle format version");
-        assert_eq!(r.get_i32_le(), 5015, "the dump is from another snapshot");
+        assert_eq!(r.get_i32_le(), 5119, "the dump is from another snapshot");
 
         let mut sources = BTreeMap::new();
         for _ in 0..r.get_i32_le() {

@@ -534,8 +534,8 @@ public final class PlacementOracle {
             int z = i * 53 - 700;
             Bin.i32(out, x);
             Bin.i32(out, z);
-            Bin.i32(out, dim.generator().getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, dim.heights(), seed.randomState()));
-            Bin.i32(out, dim.generator().getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, dim.heights(), seed.randomState()));
+            Bin.i32(out, dim.generator().getFirstFreeHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, dim.heights(), seed.randomState()));
+            Bin.i32(out, dim.generator().getFirstFreeHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, dim.heights(), seed.randomState()));
         }
     }
 }

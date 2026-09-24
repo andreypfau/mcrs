@@ -30,7 +30,7 @@ and its libraries; later runs take a few seconds.
 Output is deterministic: re-running produces byte-identical files.
 
 The Minecraft version comes from `gradle.properties`
-(`minecraft_version=26.3-snapshot-10`). Change it there, not in the source.
+(`minecraft_version=26.4-snapshot-1`). Change it there, not in the source.
 
 ## What is dumped
 
@@ -116,13 +116,14 @@ server: the chunk is created against a `PalettedContainerFactory` assembled from
 the biome lookup, structures are stubbed out with a `StructureManager` whose
 `startsForStructure` returns nothing (so the beardifier is `Beardifier.EMPTY`,
 as for a chunk with no structures), the blender is `Blender.empty()`, and the
-`BiomeManager` is the biome source's own uncached resolver under
-`BiomeManager.obfuscateSeed(seed)` — the same values a `WorldGenRegion` would
-read out of the neighbouring chunks' palettes.
+chunk's per-block biomes are filled first through a `CachedChunkBiomeResolver`
+over the biome source's own uncached resolver under
+`BiomeManager.obfuscateSeed(seed)` — the same values the `biomes` status would
+upscale from the neighbouring chunks' noise biomes.
 
 `buildTerrain` also carves, so the task runs with `-DMC_DEBUG_ENABLED
 -DMC_DEBUG_DISABLE_CARVERS` and `main` refuses to write a dump without them: the
-Rust stage under test runs before carving.
+dumps hold the uncarved terrain the Rust surface parity test compares against.
 
 ```sh
 cd tools/vanilla-oracle
@@ -497,7 +498,7 @@ Two files, both deterministic:
   mineshaft, live in the overworld and the nether, 16 placement chunks found by
   walking square rings out from (0, 0), with `findGenerationPoint` presence,
   the stub position, and the `findValidGenerationPoint` biome verdict from a
-  fresh context; `getBaseHeight` for `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG` at
+  fresh context; `getFirstFreeHeight` for `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG` at
   64 columns per dimension; and for every live set, the entry
   `createStructures`' weighted draw with removal settles on at each of 16
   placement chunks.

@@ -115,7 +115,7 @@ pub fn dump_string(r: &mut impl bytes::Buf) -> String {
 
 /// `SharedConstants.WORLD_VERSION` of the snapshot every oracle dump came from,
 /// so a corpus bump cannot silently invalidate a fixture.
-pub const WORLD_VERSION: u32 = 5015;
+pub const WORLD_VERSION: u32 = 5119;
 
 /// One of the oracle's little-endian dumps past its header: the eight-byte
 /// `magic`, format version 1, and the world version.

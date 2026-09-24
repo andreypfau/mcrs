@@ -27,7 +27,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -383,16 +382,8 @@ public final class StubLevel implements WorldGenLevel {
     }
 
     @Override
-    public BiomeManager getBiomeManager() {
-        if (this.biome == null) {
-            throw new UnsupportedOperationException("getBiomeManager");
-        }
-        return new BiomeManager(this, BiomeManager.obfuscateSeed(this.seed));
-    }
-
-    @Override
-    public Holder<Biome> getNoiseBiome(final int quartX, final int quartY, final int quartZ) {
-        return this.getUncachedNoiseBiome(quartX, quartY, quartZ);
+    public Holder<Biome> getBiome(final int x, final int y, final int z) {
+        return this.getUncachedBiome(x, y, z);
     }
 
     /**
@@ -428,9 +419,9 @@ public final class StubLevel implements WorldGenLevel {
     }
 
     @Override
-    public Holder<Biome> getUncachedNoiseBiome(final int x, final int y, final int z) {
+    public Holder<Biome> getUncachedBiome(final int x, final int y, final int z) {
         if (this.biome == null) {
-            throw new UnsupportedOperationException("getUncachedNoiseBiome");
+            throw new UnsupportedOperationException("getUncachedBiome");
         }
         return this.biome;
     }
@@ -569,7 +560,7 @@ public final class StubLevel implements WorldGenLevel {
             final LevelStem stem,
             final List<CustomSpawner> spawners
         ) {
-            super(server, executor, storage, levelData, dimension, stem, false, 0L, spawners, false);
+            super(server, executor, storage, levelData, dimension, stem, false, spawners, false);
         }
 
         static ServerLevel allocate() {
@@ -612,7 +603,7 @@ public final class StubLevel implements WorldGenLevel {
             final LevelStem stem,
             final List<CustomSpawner> spawners
         ) {
-            super(server, executor, storage, levelData, dimension, stem, false, 0L, spawners, false);
+            super(server, executor, storage, levelData, dimension, stem, false, spawners, false);
         }
 
         static ServerLevel allocate(final StubLevel owner, final MinecraftServer server) {
@@ -704,18 +695,13 @@ public final class StubLevel implements WorldGenLevel {
         }
 
         @Override
-        public BiomeManager getBiomeManager() {
-            return this.owner.getBiomeManager();
+        public Holder<Biome> getBiome(final int x, final int y, final int z) {
+            return this.owner.getUncachedBiome(x, y, z);
         }
 
         @Override
-        public Holder<Biome> getNoiseBiome(final int quartX, final int quartY, final int quartZ) {
-            return this.owner.getUncachedNoiseBiome(quartX, quartY, quartZ);
-        }
-
-        @Override
-        public Holder<Biome> getUncachedNoiseBiome(final int quartX, final int quartY, final int quartZ) {
-            return this.owner.getUncachedNoiseBiome(quartX, quartY, quartZ);
+        public Holder<Biome> getUncachedBiome(final int x, final int y, final int z) {
+            return this.owner.getUncachedBiome(x, y, z);
         }
 
         @Override

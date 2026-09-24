@@ -1,6 +1,6 @@
 # Fixture Capture Procedure — `structure_layouts.bin`
 
-**Source of truth:** vanilla `26.3-snapshot-10`, `world_version` 5015, read through
+**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
 Fabric Loom's mapped jar. No server and no client is started. The structures,
 structure sets, template pools, templates, placed features and biome tags are
 the jar's own data pack, loaded through the same `RegistryDataLoader` path a
@@ -71,7 +71,7 @@ Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 ```
 magic            8 bytes, ASCII "MCJIGSW0"
 format_version   u32   currently 1
-world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5015
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5119
 
 seed_count       u32   5
 repeated seed_count times, seeds in the order 1, 42, 12345, -7, 0x7FFF_FFFF_0000_0001:

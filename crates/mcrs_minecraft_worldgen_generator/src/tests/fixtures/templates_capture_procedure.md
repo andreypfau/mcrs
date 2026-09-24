@@ -1,9 +1,9 @@
 # Fixture Capture Procedure — `templates.bin`
 
-**Source of truth:** vanilla `26.3-snapshot-10`, `world_version` 5015, read through
+**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
 Fabric Loom's mapped jar. No server and no client is started. The templates are
 the jar's own `data/minecraft/structure/**/*.nbt` (1511 files, every one already
-at `DataVersion` 5015), opened through the vanilla pack's `ResourceManager`.
+at `DataVersion` 5119), opened through the vanilla pack's `ResourceManager`.
 
 **Harness:** `tools/vanilla-oracle/src/main/java/mcrs/oracle/TemplateOracle.java`
 
@@ -13,12 +13,13 @@ cd tools/vanilla-oracle
     -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
 ```
 
-Output is deterministic: re-running produces a byte-identical file (4 620 732
+Output is deterministic: re-running produces a byte-identical file (4 619 646
 bytes).
 
 **Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/template_manifest.rs`,
-which freezes the shipped `assets/minecraft/structure` tree — the jar's own
-structure tree, every file at `DataVersion` 5015 — and asserts, for every one
+which freezes the shipped `assets/minecraft/structure` tree — the 26.3 release
+structure tree, every file at `DataVersion` 5023, which differs from the jar's
+in the `DataVersion` and in the nested data of twelve files — and asserts, for every one
 of the 1511 templates, the size, the palette count,
 the three section lengths of the block ordering, that every file palette entry
 resolves to the same state, and every jigsaw field by field; and for the 33
@@ -99,7 +100,7 @@ The 33 listed templates (173 palettes, 114 812 block records) and what each pins
   template contains one. `dynamic_ids` lists the 23 ids so a port can pin the
   set without modelling it.
 - **Trailing input after a `final_state`'s closing `]`.** `parseForBlock`
-  ignores it, but no 5015 template carries any, so the corpus never exercises
+  ignores it, but no 5119 template carries any, so the corpus never exercises
   the clause; `final_state` and `final_state_raw` differ only where the raw
   string names none or only some of the block's properties.
 - **The datafixer.** Every file is already at the jar's `DataVersion`, so the

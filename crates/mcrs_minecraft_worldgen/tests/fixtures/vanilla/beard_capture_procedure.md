@@ -1,6 +1,6 @@
 # Fixture Capture Procedure — `beard.bin`
 
-**Source of truth:** vanilla `26.3-snapshot-10`, `world_version` 5015, read through
+**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
 Fabric Loom's mapped jar. No server, no client, no registries and no world are
 involved: `Beardifier` is a pure function of its rigid pieces, its jigsaw
 junctions and its affected box, so every case is synthetic.
@@ -14,7 +14,7 @@ cd tools/vanilla-oracle
 ```
 
 Output is deterministic: re-running produces a byte-identical file (3 999 134
-bytes, SHA-256 `ba6a0c81cd6bbb6b9523ae031242e3c86e44068c6d49d0856f5807ec024d58ef`).
+bytes, SHA-256 `044aa889a251c9ad5282512d3d0e7142b0ce34dd6512948d15b75468ae5d126c`).
 
 **Consumer:** the structure terrain adaptation tests, which compare the kernel
 table and every sampled density value bit for bit.
@@ -56,7 +56,7 @@ Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 ```
 magic            8 bytes, ASCII "MCBEARD0"
 format_version   u32   currently 1
-world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5015
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5119
 
 kernel_len       u32   13824
 kernel           f32 * kernel_len   Beardifier.BEARD_KERNEL, in array order
