@@ -65,13 +65,18 @@ html = """<!doctype html>
   #perf a.on { border-color: #9cf; color: #fff; }
   #perf hr { border: none; border-top: 1px solid #345; margin: 6px 0; }
 </style>
-<div id="boot">loading…</div>
+<div id="boot">downloading…</div>
 <canvas id="mcrs"></canvas>
 <div id="perf" hidden></div>
 <script>@@GLUE@@</script>
+<script type="application/wasm" id="wasm">@@WASM@@</script>
 <script>
-  const bytes = Uint8Array.from(atob("@@WASM@@"), c => c.charCodeAt(0));
-  wasm_bindgen({ module_or_path: bytes })
+  // Base64 kept out of a JS string literal: V8 scanning a 44 MB literal costs about a second.
+  const base64 = document.getElementById("wasm").textContent;
+  document.getElementById("boot").textContent = "starting…";
+  wasm_bindgen({ module_or_path: Uint8Array.fromBase64
+      ? Uint8Array.fromBase64(base64)
+      : fetch("data:application/wasm;base64," + base64) })
     .then(() => document.getElementById("boot").remove())
     .catch(err => {
       // winit unwinds out of its event loop on wasm; that is not a failure.
