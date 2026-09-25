@@ -1,24 +1,35 @@
 #!/usr/bin/env bash
-# Captures every scene with a base commit and with the working tree, each run on
-# a fresh copy of one saved world, and writes a report of the pixels that differ.
+# Captures every scene with a base commit and with the working tree, or with
+# --paths as classic, deferred and the deferred parity mask from the working tree
+# alone, each run on a fresh copy of one saved world, and writes a report.
 set -euo pipefail
 LC_ALL=C
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+paths=0
+if [ "${1-}" = --paths ]; then
+    paths=1
+    shift
+fi
+if [ $# -lt $((2 - paths)) ] || [ $# -gt $((3 - paths)) ]; then
     echo "usage: $0 <base-rev> <world-dir> [<scenes-file>]" >&2
+    echo "       $0 --paths <world-dir> [<scenes-file>]" >&2
     exit 1
 fi
-base=$(git -C "$root" rev-parse --verify --quiet "$1^{commit}") || {
-    echo "unknown revision: $1" >&2
-    exit 1
-}
-if [ ! -f "$2/level.dat" ]; then
-    echo "not a world folder, no level.dat in: $2" >&2
+if [ $paths -eq 0 ]; then
+    base=$(git -C "$root" rev-parse --verify --quiet "$1^{commit}") || {
+        echo "unknown revision: $1" >&2
+        exit 1
+    }
+    base_rev=$1
+    shift
+fi
+if [ ! -f "$1/level.dat" ]; then
+    echo "not a world folder, no level.dat in: $1" >&2
     exit 1
 fi
-world=$(cd "$2" && pwd)
-scenes_file=${3:-$root/scripts/parity-scenes.txt}
+world=$(cd "$1" && pwd)
+scenes_file=${2:-$root/scripts/parity-scenes.txt}
 
 token_re='^MCRS_[A-Z0-9_]+=[A-Za-z0-9_.,+-]*$'
 dimension_re='^[a-z_]+$'
@@ -34,7 +45,8 @@ while IFS= read -r line || [ -n "$line" ]; do
     case $name in \#*) continue ;; esac
     for token in "${words[@]:1}"; do
         if ! [[ $token =~ $token_re ]] || [[ $token == MCRS_CAPTURE=* ]] ||
-            { [[ $token == MCRS_DIMENSION=* ]] && ! [[ ${token#MCRS_DIMENSION=} =~ $dimension_re ]]; }; then
+            { [[ $token == MCRS_DIMENSION=* ]] && ! [[ ${token#MCRS_DIMENSION=} =~ $dimension_re ]]; } ||
+            { [ $paths -eq 1 ] && [[ $token == MCRS_RENDER_PATH=* || $token == MCRS_PARITY_MASK=* ]]; }; then
             echo "scene $name: rejected token $token" >&2
             exit 1
         fi
@@ -51,8 +63,8 @@ if ! python3 -c 'import PIL, numpy' 2>/dev/null; then
     echo "the report needs Pillow and NumPy: python3 -m pip install pillow numpy" >&2
     exit 1
 fi
-if ! git -C "$root" grep -q '"CAPTURE"' "$base" -- crates/mcrs_minecraft_client/src; then
-    echo "$1 predates the client's capture mode and cannot be a base" >&2
+if [ $paths -eq 0 ] && ! git -C "$root" grep -q '"CAPTURE"' "$base" -- crates/mcrs_minecraft_client/src; then
+    echo "$base_rev predates the client's capture mode and cannot be a base" >&2
     exit 1
 fi
 
@@ -73,11 +85,13 @@ CARGO_TARGET_DIR=$root/target cargo build --release -p mcrs_minecraft_client \
     --manifest-path "$root/Cargo.toml"
 cp "$root/target/release/mcrs_minecraft_client" "$tmp/head"
 
-echo "building base $base" >&2
-git -C "$root" worktree add --detach --quiet "$tmp/base-src" "$base"
-CARGO_TARGET_DIR=$root/target/parity-base cargo build --release -p mcrs_minecraft_client \
-    --manifest-path "$tmp/base-src/Cargo.toml"
-cp "$root/target/parity-base/release/mcrs_minecraft_client" "$tmp/base"
+if [ $paths -eq 0 ]; then
+    echo "building base $base" >&2
+    git -C "$root" worktree add --detach --quiet "$tmp/base-src" "$base"
+    CARGO_TARGET_DIR=$root/target/parity-base cargo build --release -p mcrs_minecraft_client \
+        --manifest-path "$tmp/base-src/Cargo.toml"
+    cp "$root/target/parity-base/release/mcrs_minecraft_client" "$tmp/base"
+fi
 
 # The saved player position decides what the server loads before the first teleport, so
 # every capture starts where its scene stands rather than where the world was last left.
@@ -115,8 +129,9 @@ EOF
 }
 
 run() {
-    local side=$1 scene=$2 knobs=()
-    read -r -a knobs <<< "$3"
+    local binary=$1 side=$2 scene=$3 knobs=()
+    read -r -a knobs <<< "$4"
+    shift 4
     rm -rf "$tmp/run"
     mkdir -p "$tmp/run" "$out/$scene"
     cp -R "$world" "$tmp/run/world"
@@ -130,21 +145,38 @@ run() {
     place_dimension "$tmp/run/world" "$dimension"
     echo "scene $scene: $side" >&2
     if ! (cd "$tmp/run" && env MCRS_RESOLUTION=1280x720 MCRS_VIEW=10 MCRS_HOT=1 \
-        ${knobs[@]+"${knobs[@]}"} MCRS_CAPTURE="$out/$scene/$side.png" \
-        "$tmp/$side" "$tmp/run/world") > "$out/$scene/$side.log" 2>&1; then
-        echo "scene $scene: the $side build failed, see $out/$scene/$side.log" >&2
+        ${knobs[@]+"${knobs[@]}"} "$@" MCRS_CAPTURE="$out/$scene/$side.png" \
+        "$tmp/$binary" "$tmp/run/world") > "$out/$scene/$side.log" 2>&1; then
+        echo "scene $scene: the $side capture failed, see $out/$scene/$side.log" >&2
     fi
 }
 
-for i in "${!names[@]}"; do
-    echo "${names[$i]}" >> "$out/scenes.txt"
-    run base "${names[$i]}" "${settings[$i]}"
-    run head "${names[$i]}" "${settings[$i]}"
-done
-
 status=0
-python3 "$root/scripts/parity_report.py" "$out" \
-    "$(git -C "$root" log -1 --format='%h %s' "$base")" \
-    "$(git -C "$root" describe --always --dirty)" || status=$?
+if [ $paths -eq 1 ]; then
+    for i in "${!names[@]}"; do
+        case " ${settings[$i]} " in
+            *" MCRS_SMOOTH_LIGHTING=0 "*)
+                echo "scene ${names[$i]}: skipped, flat lighting is Classic-only" >&2
+                echo "${names[$i]}" >> "$out/skipped.txt"
+                continue
+                ;;
+        esac
+        echo "${names[$i]}" >> "$out/scenes.txt"
+        run head classic "${names[$i]}" "${settings[$i]}" MCRS_RENDER_PATH=classic
+        run head deferred "${names[$i]}" "${settings[$i]}" MCRS_RENDER_PATH=deferred
+        run head mask "${names[$i]}" "${settings[$i]}" MCRS_RENDER_PATH=deferred MCRS_PARITY_MASK=1
+    done
+    python3 "$root/scripts/parity_report.py" --paths "$out" \
+        "$(git -C "$root" describe --always --dirty)" || status=$?
+else
+    for i in "${!names[@]}"; do
+        echo "${names[$i]}" >> "$out/scenes.txt"
+        run base base "${names[$i]}" "${settings[$i]}"
+        run head head "${names[$i]}" "${settings[$i]}"
+    done
+    python3 "$root/scripts/parity_report.py" "$out" \
+        "$(git -C "$root" log -1 --format='%h %s' "$base")" \
+        "$(git -C "$root" describe --always --dirty)" || status=$?
+fi
 echo "report: $out/report.md"
 exit "$status"
