@@ -2780,11 +2780,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "139ef39800118c7683f2fd3c98c1b23c09ae076556b435f8e9064ae108aaeeec"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi",
  "rand_core 0.10.0",
  "wasip2",
  "wasip3",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -3529,6 +3531,7 @@ dependencies = [
  "bytes",
  "console_error_panic_hook",
  "flate2",
+ "getrandom 0.4.1",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",

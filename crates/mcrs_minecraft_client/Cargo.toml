@@ -65,8 +65,9 @@ bevy = { version = "0.19.1", default-features = false, features = ["web", "webgp
 console_error_panic_hook = "0.1"
 wasm-bindgen-futures = "0.4"
 # The rustflag in .cargo/config.toml picks the backend; without the crate
-# feature of the same name getrandom refuses to build at all. Both majors are
-# in the dependency graph.
+# feature of the same name getrandom refuses to build at all. Only 0.4 reaches
+# the wasm dependency graph.
+getrandom = { version = "0.4", features = ["wasm_js"] }
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
 
 [features]
