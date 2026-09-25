@@ -146,19 +146,17 @@ fn ready(terrain: Option<&Terrain>) -> Option<&Terrain> {
     terrain.filter(|terrain| terrain.pipelines.ready())
 }
 
-fn occluding<'a>(terrain: Option<&'a Terrain>, occlusion: &Occlusion) -> Option<&'a Terrain> {
-    ready(terrain).filter(|terrain| occlusion.0 && terrain.list.visible_entries != 0)
-}
-
 fn second_cull<'a>(
     terrain: Option<&'a Terrain>,
     occlusion: &Occlusion,
     pipeline_cache: &PipelineCache,
 ) -> Option<&'a Terrain> {
-    occluding(terrain, occlusion).filter(|terrain| {
-        pipeline_cache
-            .get_compute_pipeline(terrain.pipelines.cull_second)
-            .is_some()
+    ready(terrain).filter(|terrain| {
+        occlusion.0
+            && terrain.list.visible_entries != 0
+            && pipeline_cache
+                .get_compute_pipeline(terrain.pipelines.cull_second)
+                .is_some()
     })
 }
 
@@ -274,7 +272,9 @@ pub(super) fn build_occlusion(
     frame: FrameParams,
     mut ctx: RenderContext,
 ) {
-    let Some(terrain) = occluding(terrain.as_deref(), &frame.occlusion) else {
+    let Some(terrain) = ready(terrain.as_deref())
+        .filter(|terrain| frame.occlusion.0 && terrain.list.visible_entries != 0)
+    else {
         return;
     };
     terrain.hiz.build(

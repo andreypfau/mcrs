@@ -45,8 +45,12 @@ impl GpuTimings {
         self.0.samples.lock().ok()?.median(slot)
     }
 
-    pub fn median_and_p95(&self, slot: usize, last: usize) -> Option<(f32, f32)> {
-        self.0.samples.lock().ok()?.median_and_p95(slot, last)
+    pub fn median_and_p95(&self, slot: usize, last: usize) -> Option<[f32; 2]> {
+        self.0
+            .samples
+            .lock()
+            .ok()?
+            .percentiles(slot, last, &[0.5, 0.95])
     }
 
     fn writing(&self) -> u32 {
@@ -130,11 +134,6 @@ impl<const N: usize, const W: usize> Samples<N, W> {
 
     fn median(&self, slot: usize) -> Option<f32> {
         self.percentiles(slot, W, &[0.5]).map(|p| p[0])
-    }
-
-    fn median_and_p95(&self, slot: usize, last: usize) -> Option<(f32, f32)> {
-        let [median, p95] = self.percentiles(slot, last, &[0.5, 0.95])?;
-        Some((median, p95))
     }
 
     /// Quantiles over the newest `last` samples, each clamped to the last sample held.
@@ -249,8 +248,12 @@ impl CpuTimings {
             .map(|p| p[0])
     }
 
-    pub fn median_and_p95(&self, slot: usize, last: usize) -> Option<(f32, f32)> {
-        self.0.samples.lock().ok()?.median_and_p95(slot, last)
+    pub fn median_and_p95(&self, slot: usize, last: usize) -> Option<[f32; 2]> {
+        self.0
+            .samples
+            .lock()
+            .ok()?
+            .percentiles(slot, last, &[0.5, 0.95])
     }
 
     pub fn spread(&self, slot: usize) -> Option<Spread> {
@@ -557,8 +560,8 @@ mod tests {
             frame[WORLD] = ms as f32;
             timings.push(frame);
         }
-        assert_eq!(timings.median_and_p95(WORLD, 100), Some((51.0, 96.0)));
-        assert_eq!(timings.median_and_p95(WORLD, 10), Some((96.0, 100.0)));
+        assert_eq!(timings.median_and_p95(WORLD, 100), Some([51.0, 96.0]));
+        assert_eq!(timings.median_and_p95(WORLD, 10), Some([96.0, 100.0]));
     }
 
     #[test]
@@ -567,8 +570,8 @@ mod tests {
         for ms in 1..=100 {
             timings.0.samples.lock().unwrap().push(ENGINE, ms as f32);
         }
-        assert_eq!(timings.median_and_p95(ENGINE, 100), Some((51.0, 96.0)));
-        assert_eq!(timings.median_and_p95(ENGINE, 10), Some((96.0, 100.0)));
+        assert_eq!(timings.median_and_p95(ENGINE, 100), Some([51.0, 96.0]));
+        assert_eq!(timings.median_and_p95(ENGINE, 10), Some([96.0, 100.0]));
     }
 
     #[test]

@@ -183,7 +183,7 @@ fn timing_rows(gpu: &GpuTimings, cpu: &CpuTimings) -> String {
         .enumerate()
         .filter_map(|(slot, name)| Some(("cpu", name, cpu.median_and_p95(slot, TIMING_FRAMES)?)));
     let mut rows = String::new();
-    for (kind, name, (median, p95)) in gpu_rows.chain(cpu_rows) {
+    for (kind, name, [median, p95]) in gpu_rows.chain(cpu_rows) {
         let _ = writeln!(rows, "{kind}\t{name}\t{median:.4}\t{p95:.4}");
     }
     rows

@@ -292,11 +292,7 @@ fn prepare_sky(
             })
         })
     });
-    info!(
-        ?extracted.effects,
-        draws = extracted.effects.bits().count_ones(),
-        "queued the sky pipelines"
-    );
+    info!(?extracted.effects, "queued the sky pipelines");
     sky.pipelines = Some((extracted.effects, queued));
 }
 

@@ -20,11 +20,9 @@ fi
 world=$(cd "$2" && pwd)
 scenes_file=${3:-$root/scripts/parity-scenes.txt}
 
-name_re='^[a-z0-9_]+$'
 token_re='^MCRS_[A-Z0-9_]+=[A-Za-z0-9_.,+-]*$'
 names=()
 settings=()
-seen=" "
 while IFS= read -r line || [ -n "$line" ]; do
     words=()
     read -r -a words <<< "$line"
@@ -33,16 +31,6 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
     name=${words[0]}
     case $name in \#*) continue ;; esac
-    if ! [[ $name =~ $name_re ]]; then
-        echo "scene $name: rejected name" >&2
-        exit 1
-    fi
-    case $seen in *" $name "*)
-        echo "scene $name: listed twice" >&2
-        exit 1
-        ;;
-    esac
-    seen="$seen$name "
     for token in "${words[@]:1}"; do
         if ! [[ $token =~ $token_re ]] || [[ $token == MCRS_CAPTURE=* ]]; then
             echo "scene $name: rejected token $token" >&2

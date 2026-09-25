@@ -186,7 +186,6 @@ fn accept_teleports(
             position: transform.translation.into(),
             look: teleport.look,
         });
-        info!(translation = ?transform.translation, "accepted teleport");
     }
 }
 
