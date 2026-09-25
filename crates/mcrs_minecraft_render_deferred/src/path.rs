@@ -3,7 +3,7 @@ use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::render::render_resource::{CachedPipelineState, CachedRenderPipelineId, PipelineCache};
 use bevy::shader::ShaderCacheError;
-use mcrs_minecraft_render::{EffectivePath, RenderPath};
+use mcrs_minecraft_render::{EffectivePath, RenderPath, ShownPath};
 
 use crate::gbuffer::DeferredFrame;
 use crate::pipelines::DeferredPipelines;
@@ -23,7 +23,8 @@ pub(crate) fn derive_effective_path(
     frame: Option<Res<DeferredFrame>>,
     pipelines: Res<DeferredPipelines>,
     cache: Res<PipelineCache>,
-    mut shown: ResMut<EffectivePath>,
+    mut effective_path: ResMut<EffectivePath>,
+    shown: Res<ShownPath>,
     mut waiting: Local<Option<(Instant, u32)>>,
     mut failed: Local<HashSet<CachedRenderPipelineId>>,
 ) {
@@ -41,7 +42,7 @@ pub(crate) fn derive_effective_path(
         }
     }
     let next = effective(*requested, frame.is_some(), pipelines.ready(&cache));
-    if next.0 == RenderPath::Deferred && shown.0 == RenderPath::Classic {
+    if next.0 == RenderPath::Deferred && effective_path.0 == RenderPath::Classic {
         let (since, frames) = waiting.take().unwrap_or((Instant::now(), 0));
         let ms = since.elapsed().as_millis();
         info!(frames, ms, "the deferred path is ready");
@@ -50,7 +51,8 @@ pub(crate) fn derive_effective_path(
     } else {
         *waiting = None;
     }
-    shown.set_if_neq(next);
+    effective_path.set_if_neq(next);
+    shown.set(next.0);
 }
 
 #[cfg(test)]

@@ -22,6 +22,7 @@ mod texture;
 mod upload;
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use bevy::core_pipeline::core_3d::{
     CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d, main_transparent_pass_3d,
@@ -181,9 +182,37 @@ pub enum RenderPath {
     Deferred,
 }
 
+impl RenderPath {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Classic => "classic",
+            Self::Deferred => "deferred",
+        }
+    }
+}
+
 /// The path the frame shows this frame.
 #[derive(Resource, Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub struct EffectivePath(pub RenderPath);
+
+/// The path the frame last showed, readable from the main world.
+#[derive(Resource, Clone, Default)]
+pub struct ShownPath(Arc<AtomicBool>);
+
+impl ShownPath {
+    pub fn get(&self) -> RenderPath {
+        if self.0.load(Ordering::Relaxed) {
+            RenderPath::Deferred
+        } else {
+            RenderPath::Classic
+        }
+    }
+
+    pub fn set(&self, path: RenderPath) {
+        self.0
+            .store(path == RenderPath::Deferred, Ordering::Relaxed);
+    }
+}
 
 #[derive(Resource, Deref)]
 struct TerrainBudget(Arc<Budget>);
@@ -253,6 +282,7 @@ impl Plugin for TerrainPlugin {
         let timings = GpuTimings::default();
         let cpu = CpuTimings::default();
         let counts = FrameCounts::default();
+        let shown = ShownPath::default();
         app.init_resource::<CameraOrigin>()
             .init_resource::<Wireframe>()
             .init_resource::<Occlusion>()
@@ -272,6 +302,7 @@ impl Plugin for TerrainPlugin {
             .insert_resource(timings.clone())
             .insert_resource(cpu.clone())
             .insert_resource(counts.clone())
+            .insert_resource(shown.clone())
             .add_systems(First, probe::frame_started.after(bevy::time::TimeSystems))
             .add_systems(Last, probe::main_ended)
             .add_systems(PostStartup, probe::log_system_counts);
@@ -284,6 +315,7 @@ impl Plugin for TerrainPlugin {
             .insert_resource(timings)
             .insert_resource(cpu)
             .insert_resource(counts)
+            .insert_resource(shown)
             .init_resource::<EffectivePath>()
             .insert_resource(TerrainBudget(self.budget.clone()))
             .insert_resource(self.uploads.clone())

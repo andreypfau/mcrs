@@ -4,7 +4,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use super::DebugScreenDisplayer;
 use crate::cave::CaveCull;
 use crate::stream::Streaming;
-use mcrs_minecraft_render::DrawnTriangles;
+use mcrs_minecraft_render::{DrawnTriangles, RenderPath, ShownPath};
 
 pub const GROUP: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:terrain");
 
@@ -13,9 +13,11 @@ pub fn display(
     triangles: Res<DrawnTriangles>,
     cave: Res<CaveCull>,
     streaming: Streaming,
+    requested: Res<RenderPath>,
+    shown: Res<ShownPath>,
 ) {
     let status = streaming.status();
-    let lines = vec![
+    let mut lines = vec![
         format!(
             "Tris: {} ({} hidden behind terrain)",
             triangles.get(),
@@ -41,6 +43,32 @@ pub fn display(
             (true, None) => format!("Sight lines: {} sections", cave.reached()),
             (true, Some(ms)) => format!("Sight lines: {} sections in {ms:.3} ms", cave.reached()),
         },
+        render_line(shown.get(), *requested),
     ];
+    lines.extend(gpu_memory_line());
     displayer.add_to_group(GROUP, lines);
+}
+
+fn render_line(shown: RenderPath, requested: RenderPath) -> String {
+    let shown_name = shown.name();
+    match requested {
+        _ if requested == shown => format!("Render: {shown_name}"),
+        RenderPath::Deferred => format!("Render: {shown_name} (deferred requested, compiling)"),
+        RenderPath::Classic => format!("Render: {shown_name} (classic requested)"),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn gpu_memory_line() -> Option<String> {
+    use objc2_metal::{MTLCreateSystemDefaultDevice, MTLDevice};
+    let bytes = MTLCreateSystemDefaultDevice()?.currentAllocatedSize();
+    Some(format!(
+        "GPU memory: {:.1} MiB",
+        bytes as f64 / (1024.0 * 1024.0)
+    ))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn gpu_memory_line() -> Option<String> {
+    None
 }

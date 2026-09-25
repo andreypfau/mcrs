@@ -8,6 +8,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
 
 use mcrs_minecraft_render::probe::{self, CpuTimings, GpuTimings};
+use mcrs_minecraft_render::{RenderPath, ShownPath};
 
 const DIR_VAR: &str = "MCRS_SCREENSHOT_DIR";
 
@@ -126,6 +127,8 @@ fn capture_scene(
     time: Res<Time<Real>>,
     gpu: Res<GpuTimings>,
     cpu: Res<CpuTimings>,
+    requested: Res<RenderPath>,
+    shown: Res<ShownPath>,
     captured: Option<Res<SceneCaptured>>,
     mut settling: Local<Settling>,
 ) {
@@ -144,7 +147,10 @@ fn capture_scene(
     }
     let status = streaming.status();
     let counts = (status.columns, status.sections, status.sections_total);
-    let quiet = streaming.done() && status.columns > 0 && counts == settling.last;
+    let quiet = streaming.done()
+        && status.columns > 0
+        && counts == settling.last
+        && shown.get() == *requested;
     settling.last = counts;
     if !quiet {
         settling.quiet_since = None;
@@ -162,6 +168,10 @@ fn capture_scene(
     let timings = capture.0.with_extension("tsv");
     if let Err(err) = std::fs::write(&timings, timing_rows(&gpu, &cpu)) {
         error!("cannot write {}: {err}", timings.display());
+    }
+    let path = capture.0.with_extension("path");
+    if let Err(err) = std::fs::write(&path, format!("{}\n", shown.get().name())) {
+        error!("cannot write {}: {err}", path.display());
     }
     info!(path = %capture.0.display(), "capturing the settled scene");
     commands

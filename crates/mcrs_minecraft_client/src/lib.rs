@@ -94,6 +94,7 @@ impl Plugin for ClientTerrainPlugin {
             (
                 cave::toggle,
                 toggle_wireframe,
+                toggle_render_path,
                 #[cfg(target_os = "macos")]
                 capture::gputrace,
             ),
@@ -117,5 +118,60 @@ fn toggle_wireframe(
 ) {
     if keys.just_pressed(KeyCode::F10) {
         wireframe.0 = !wireframe.0;
+    }
+}
+
+fn toggle_render_path(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut path: ResMut<mcrs_minecraft_render::RenderPath>,
+) {
+    use mcrs_minecraft_render::RenderPath;
+    if keys.just_pressed(KeyCode::F7) {
+        *path = match *path {
+            RenderPath::Classic => RenderPath::Deferred,
+            RenderPath::Deferred => RenderPath::Classic,
+        };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_render::RenderPath;
+
+    fn press(app: &mut App, key: KeyCode) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear();
+    }
+
+    fn release(app: &mut App, key: KeyCode) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(key);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear();
+    }
+
+    #[test]
+    fn f7_switches_the_requested_render_path_back_and_forth() {
+        let mut app = App::new();
+        app.init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<RenderPath>()
+            .add_systems(Update, toggle_render_path);
+        let path = |app: &App| *app.world().resource::<RenderPath>();
+
+        press(&mut app, KeyCode::F7);
+        assert_eq!(path(&app), RenderPath::Deferred);
+        release(&mut app, KeyCode::F7);
+        assert_eq!(path(&app), RenderPath::Deferred);
+        press(&mut app, KeyCode::F7);
+        assert_eq!(path(&app), RenderPath::Classic);
     }
 }
