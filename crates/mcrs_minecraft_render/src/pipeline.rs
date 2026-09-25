@@ -209,7 +209,7 @@ fn model_depth_bias(layer: Pass, shape: Shape) -> DepthBiasState {
 
 pub(super) fn prepare_pipelines(
     mut terrain: Option<ResMut<Terrain>>,
-    views: Query<&ExtractedView>,
+    views: Query<&ExtractedView, With<Camera3d>>,
     pipeline_cache: Res<PipelineCache>,
 ) {
     let Some(terrain) = terrain.as_mut() else {

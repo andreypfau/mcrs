@@ -81,6 +81,7 @@ impl Plugin for ClientTerrainPlugin {
         })
         .add_plugins(mcrs_minecraft_render_deferred::DeferredPlugin)
         .add_plugins(render::GuiItemsPlugin)
+        .add_plugins(render::RasterPlugin)
         .insert_resource(config::render_path())
         .insert_resource(config::occlusion())
         .insert_resource(mcrs_minecraft_render::Brightness(config::brightness()))

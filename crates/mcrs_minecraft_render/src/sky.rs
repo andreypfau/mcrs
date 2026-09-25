@@ -243,7 +243,7 @@ fn write_sky(sky: Option<Res<Sky>>, extracted: Option<Res<ExtractedSky>>, queue:
 fn prepare_sky(
     sky: Option<ResMut<Sky>>,
     extracted: Option<Res<ExtractedSky>>,
-    views: Query<&ExtractedView>,
+    views: Query<&ExtractedView, With<Camera3d>>,
     pipeline_cache: Res<PipelineCache>,
 ) {
     let (Some(mut sky), Some(extracted)) = (sky, extracted) else {

@@ -58,7 +58,7 @@ pub(crate) fn prepare_deferred_pipelines(
     mut pipelines: ResMut<DeferredPipelines>,
     requested: Res<RenderPath>,
     terrain: Option<Res<Terrain>>,
-    views: Query<&ExtractedView>,
+    views: Query<&ExtractedView, With<Camera3d>>,
     fullscreen: Res<FullscreenShader>,
     asset_server: Res<AssetServer>,
     cache: Res<PipelineCache>,

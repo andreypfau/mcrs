@@ -9,8 +9,8 @@ use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUniformOffset};
 use mcrs_minecraft_render::sky::SkyDraws;
 use mcrs_minecraft_render::{
-    DepthDisplay, DepthSource, FrameCounts, LayerGroup, Occlusion, Raster, SelectedView, Streams,
-    Terrain, draw_layer_group, restrict_to_raster, stream_slot,
+    DepthDisplay, DepthSource, FrameCounts, LayerGroup, Occlusion, SelectedView, Streams, Terrain,
+    draw_layer_group, stream_slot,
 };
 
 use crate::gbuffer::DeferredFrame;
@@ -31,7 +31,6 @@ pub(crate) struct DeferredParams<'w> {
     pipelines: Res<'w, DeferredPipelines>,
     cache: Res<'w, PipelineCache>,
     streams: Res<'w, Streams>,
-    raster: Res<'w, Raster>,
     occlusion: Res<'w, Occlusion>,
     counts: Res<'w, FrameCounts>,
     views: Res<'w, DeferredViews>,
@@ -56,10 +55,8 @@ impl DeferredParams<'_> {
         &'pass self,
         pass: &mut TrackedRenderPass<'pass>,
         terrain: &'pass Terrain,
-        view: &ExtractedView,
         phase: u64,
     ) {
-        restrict_to_raster(pass, &self.raster, view);
         let wireframe = self.display().wireframe;
         let draws = draw_layer_group(
             pass,
@@ -128,7 +125,7 @@ pub(crate) fn draw_gbuffer(
     let Some(frame) = params.frame.as_deref() else {
         return;
     };
-    let (target, depth, extracted, view_offset) = view.into_inner();
+    let (target, depth, _, view_offset) = view.into_inner();
     let color_attachments = [Some(target.get_color_attachment())];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("sky"),
@@ -143,7 +140,7 @@ pub(crate) fn draw_gbuffer(
 
     let mut pass = gbuffer_pass(&mut ctx, "gbuffer", frame, depth, true);
     if let Some(terrain) = params.terrain.as_deref().filter(|terrain| terrain.ready()) {
-        params.draw_opaque(&mut pass, terrain, extracted, 0);
+        params.draw_opaque(&mut pass, terrain, 0);
     }
 }
 
@@ -158,13 +155,12 @@ pub(crate) fn draw_gbuffer_second(
     if !terrain.second_pass(&params.occlusion, &params.cache) {
         return;
     }
-    let (_, depth, extracted, _) = view.into_inner();
+    let (_, depth, _, _) = view.into_inner();
     let mut pass = gbuffer_pass(&mut ctx, "gbuffer second", frame, depth, false);
-    params.draw_opaque(&mut pass, terrain, extracted, 1);
+    params.draw_opaque(&mut pass, terrain, 1);
 }
 
-/// Not restricted to the raster viewport: the fragment leaves every pixel at depth 0 alone, which
-/// is the sky and everything outside the viewport.
+/// The fragment leaves every pixel at depth 0 alone, which is the sky.
 pub(crate) fn draw_lighting(
     view: ViewQuery<WorldView>,
     params: DeferredParams,
@@ -229,7 +225,7 @@ pub(crate) fn draw_forward_deferred(
     } else {
         &[0]
     };
-    let (target, depth, extracted, view_offset) = view.into_inner();
+    let (target, depth, _, view_offset) = view.into_inner();
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
     let color_attachments = [Some(target.get_color_attachment())];
@@ -243,7 +239,6 @@ pub(crate) fn draw_forward_deferred(
         multiview_mask: None,
     });
     let span = diagnostics.pass_span(&mut pass, "forward");
-    restrict_to_raster(&mut pass, &params.raster, extracted);
     let mut draws = sky.draw_clouds(&mut pass, view_offset.offset, &params.cache);
     for &phase in phases {
         draws += draw_layer_group(

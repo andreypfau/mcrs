@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::cave::CaveCull;
+use crate::render::Raster;
 use mcrs_minecraft_mesh::STREAMS;
 use mcrs_minecraft_render::sky::SkyEffects;
 use mcrs_minecraft_render::{
-    Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Raster, RenderPath, Streams, Uploads,
+    Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, RenderPath, Streams, Uploads,
 };
 
 #[cfg(not(target_family = "wasm"))]

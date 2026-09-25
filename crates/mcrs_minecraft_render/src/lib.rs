@@ -41,7 +41,7 @@ use mcrs_minecraft_mesh::STREAMS;
 
 pub use frame::{CameraOrigin, clip_from_relative};
 pub use layer::{LayerGroup, Shape};
-pub use pass::{draw_layer_group, restrict_to_raster};
+pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
 pub use show::{DepthDisplay, DepthSource};
 pub use stats::{DrawnTriangles, FrameCounts};
@@ -138,15 +138,6 @@ impl Streams {
 impl Default for Streams {
     fn default() -> Self {
         Self(Self::ALL)
-    }
-}
-
-#[derive(Resource, Clone, Copy, ExtractResource)]
-pub struct Raster(pub f32);
-
-impl Default for Raster {
-    fn default() -> Self {
-        Self(1.0)
     }
 }
 
@@ -289,7 +280,6 @@ impl Plugin for TerrainPlugin {
             .init_resource::<Occlusion>()
             .init_resource::<Brightness>()
             .init_resource::<Streams>()
-            .init_resource::<Raster>()
             .init_resource::<RenderPath>()
             .init_resource::<DebugViews>()
             .init_resource::<SelectedView>()
@@ -298,7 +288,6 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<Streams>::default())
-            .add_plugins(ExtractResourcePlugin::<Raster>::default())
             .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())
             .add_plugins(ExtractResourcePlugin::<CameraOrigin>::default())
             .insert_resource(triangles.clone())

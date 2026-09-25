@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::render::renderer::RenderQueue;
 use bevy::render::view::ExtractedView;
-use mcrs_minecraft_render::{CameraOrigin, Raster, clip_from_relative};
+use mcrs_minecraft_render::{CameraOrigin, clip_from_relative};
 
 use crate::gbuffer::DeferredFrame;
 
@@ -20,7 +20,6 @@ pub(crate) const LIGHTING_UNIFORM_SIZE: u64 = size_of::<LightingUniform>() as u6
 pub(crate) fn write_lighting_uniform(
     frame: Option<Res<DeferredFrame>>,
     origin: Option<Res<CameraOrigin>>,
-    raster: Res<Raster>,
     views: Query<&ExtractedView, With<Camera3d>>,
     queue: Res<RenderQueue>,
 ) {
@@ -32,7 +31,7 @@ pub(crate) fn write_lighting_uniform(
         view.world_from_view.rotation(),
         origin.offset,
     );
-    let viewport = (view.viewport.zw().as_vec2() * raster.0.min(1.0)).max(Vec2::ONE);
+    let viewport = view.viewport.zw().as_vec2();
     queue.write_buffer(
         &frame.lighting,
         0,

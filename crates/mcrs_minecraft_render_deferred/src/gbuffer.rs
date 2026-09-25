@@ -130,7 +130,7 @@ pub(crate) fn fit_deferred_frame(
     mut commands: Commands,
     requested: Res<RenderPath>,
     frame: Option<ResMut<DeferredFrame>>,
-    views: Query<&ViewDepthTexture>,
+    views: Query<&ViewDepthTexture, With<Camera3d>>,
     device: Res<RenderDevice>,
     cache: Res<PipelineCache>,
 ) {

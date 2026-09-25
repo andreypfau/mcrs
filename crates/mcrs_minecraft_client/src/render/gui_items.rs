@@ -1,9 +1,11 @@
 use std::num::NonZeroU64;
 
+use bevy::camera::NormalizedRenderTarget;
 use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_transparent_pass_3d};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::mesh::VertexBufferLayout;
 use bevy::prelude::*;
+use bevy::render::camera::ExtractedCamera;
 use bevy::render::render_resource::binding_types::{
     sampler, storage_buffer_read_only_sized, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
@@ -144,7 +146,7 @@ pub(super) fn prepare_gui_pass(
     pass: Option<ResMut<GuiPass>>,
     atlas: Option<Res<GuiAtlas>>,
     terrain: Option<Res<Terrain>>,
-    views: Query<&ExtractedView>,
+    views: Query<(&ExtractedView, &ExtractedCamera)>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     pipeline_cache: Res<PipelineCache>,
@@ -152,7 +154,7 @@ pub(super) fn prepare_gui_pass(
     let (Some(mut pass), Some(terrain)) = (pass, terrain) else {
         return;
     };
-    let Some(view) = views.iter().next() else {
+    let Some(view) = window_view(&views) else {
         return;
     };
     let pass = &mut *pass;
@@ -266,17 +268,29 @@ pub(super) fn prepare_gui_pass(
     }
 }
 
+fn on_window(camera: &ExtractedCamera) -> bool {
+    matches!(camera.target, Some(NormalizedRenderTarget::Window(_)))
+}
+
+fn window_view<'a>(
+    views: &'a Query<(&ExtractedView, &ExtractedCamera)>,
+) -> Option<&'a ExtractedView> {
+    views
+        .iter()
+        .find_map(|(view, camera)| on_window(camera).then_some(view))
+}
+
 pub(super) fn write_gui_buffers(
     pass: Option<ResMut<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
-    views: Query<&ExtractedView>,
+    views: Query<(&ExtractedView, &ExtractedCamera)>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(mut pass), Some(batch)) = (pass, batch) else {
         return;
     };
-    let Some(view) = views.iter().next() else {
+    let Some(view) = window_view(&views) else {
         return;
     };
     let pass = &mut *pass;
@@ -316,13 +330,21 @@ pub(super) fn write_gui_buffers(
 /// Every item element then gets its own slice of the depth range, so its own geometry is
 /// depth-tested against itself and later elements land over earlier ones by draw order.
 pub(super) fn draw_gui(
-    view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ExtractedView)>,
+    view: ViewQuery<(
+        &ViewTarget,
+        &ViewDepthTexture,
+        &ExtractedView,
+        &ExtractedCamera,
+    )>,
     gui: Option<Res<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
     pipeline_cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
-    let (target, depth, extracted) = view.into_inner();
+    let (target, depth, extracted, camera) = view.into_inner();
+    if !on_window(camera) {
+        return;
+    }
     let color_attachments = [Some(RenderPassColorAttachment {
         view: target.main_texture_view(),
         depth_slice: None,

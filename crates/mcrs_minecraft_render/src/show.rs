@@ -92,7 +92,7 @@ pub(crate) fn init_depth_display(mut commands: Commands, asset_server: Res<Asset
 
 pub(crate) fn prepare_depth_display(
     mut display: ResMut<DepthDisplay>,
-    views: Query<&ExtractedView>,
+    views: Query<&ExtractedView, With<Camera3d>>,
     fullscreen: Res<FullscreenShader>,
     cache: Res<PipelineCache>,
 ) {

@@ -21,7 +21,7 @@ use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, FrameCounts, copy_args};
 use super::terrain::Terrain;
 use super::upload::{UploadParams, apply_uploads};
 use super::views::ClassicViews;
-use super::{Occlusion, Raster, SelectedView, Streams};
+use super::{Occlusion, SelectedView, Streams};
 
 fn cull_terrain(
     terrain: &Terrain,
@@ -132,7 +132,6 @@ pub(super) struct FrameParams<'w> {
     streams: Res<'w, Streams>,
     selected: Res<'w, SelectedView>,
     classic_views: Res<'w, ClassicViews>,
-    raster: Res<'w, Raster>,
     occlusion: Res<'w, Occlusion>,
     counts: Res<'w, FrameCounts>,
     heat: Option<Res<'w, Heat>>,
@@ -161,13 +160,6 @@ fn second_cull<'a>(
     pipeline_cache: &PipelineCache,
 ) -> Option<&'a Terrain> {
     terrain.filter(|terrain| terrain.second_pass(occlusion, pipeline_cache))
-}
-
-pub fn restrict_to_raster(pass: &mut TrackedRenderPass, raster: &Raster, view: &ExtractedView) {
-    if raster.0 < 1.0 {
-        let size = view.viewport.zw().as_vec2() * raster.0;
-        pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
-    }
 }
 
 pub(super) fn upload_frame(
@@ -232,7 +224,7 @@ pub(super) fn draw_opaque(
     sky: SkyDraws,
     mut ctx: RenderContext,
 ) {
-    let (target, depth, extracted, view_offset) = view.into_inner();
+    let (target, depth, _, view_offset) = view.into_inner();
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
     let color_attachments = [Some(target.get_color_attachment())];
@@ -251,7 +243,6 @@ pub(super) fn draw_opaque(
     let span = diagnostics.pass_span(&mut pass, "world");
     sky.draw_sky(&mut pass, view_offset.offset, &frame.pipeline_cache);
     if let Some(terrain) = ready(terrain.as_deref()) {
-        restrict_to_raster(&mut pass, &frame.raster, extracted);
         let draws = draw_layer_group(
             &mut pass,
             terrain,
@@ -321,7 +312,7 @@ pub(super) fn draw_opaque_second(
     else {
         return;
     };
-    let (target, depth, extracted, _) = view.into_inner();
+    let (target, depth, _, _) = view.into_inner();
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
     let color_attachments = [Some(RenderPassColorAttachment {
@@ -353,7 +344,6 @@ pub(super) fn draw_opaque_second(
         multiview_mask: None,
     });
     let span = diagnostics.pass_span(&mut pass, "world second");
-    restrict_to_raster(&mut pass, &frame.raster, extracted);
     let draws = draw_layer_group(
         &mut pass,
         terrain,
@@ -420,7 +410,7 @@ pub(super) fn draw_forward(
     let Some(terrain) = ready(terrain.as_deref()) else {
         return;
     };
-    let (target, depth, extracted, view_offset) = view.into_inner();
+    let (target, depth, _, view_offset) = view.into_inner();
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
     let color_attachments = [Some(target.get_color_attachment())];
@@ -438,7 +428,6 @@ pub(super) fn draw_forward(
         multiview_mask: None,
     });
     let span = diagnostics.pass_span(&mut pass, "forward");
-    restrict_to_raster(&mut pass, &frame.raster, extracted);
     let mut draws = sky.draw_clouds(&mut pass, view_offset.offset, &frame.pipeline_cache);
     for &phase in phases {
         draws += draw_layer_group(
