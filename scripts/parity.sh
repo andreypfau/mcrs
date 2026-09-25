@@ -21,6 +21,7 @@ world=$(cd "$2" && pwd)
 scenes_file=${3:-$root/scripts/parity-scenes.txt}
 
 token_re='^MCRS_[A-Z0-9_]+=[A-Za-z0-9_.,+-]*$'
+dimension_re='^[a-z_]+$'
 names=()
 settings=()
 while IFS= read -r line || [ -n "$line" ]; do
@@ -32,7 +33,8 @@ while IFS= read -r line || [ -n "$line" ]; do
     name=${words[0]}
     case $name in \#*) continue ;; esac
     for token in "${words[@]:1}"; do
-        if ! [[ $token =~ $token_re ]] || [[ $token == MCRS_CAPTURE=* ]]; then
+        if ! [[ $token =~ $token_re ]] || [[ $token == MCRS_CAPTURE=* ]] ||
+            { [[ $token == MCRS_DIMENSION=* ]] && ! [[ ${token#MCRS_DIMENSION=} =~ $dimension_re ]]; }; then
             echo "scene $name: rejected token $token" >&2
             exit 1
         fi
@@ -93,15 +95,39 @@ for path in glob.glob(f'{sys.argv[1]}/players/data/*.dat'):
 EOF
 }
 
+# The server joins the player in the saved dimension, and a world is saved wherever
+# it was last left, so every run writes the scene's dimension.
+place_dimension() {
+    python3 - "$1" "$2" <<'EOF'
+import glob, gzip, struct, sys
+key = b'\x08\x00\x09Dimension'
+value = f'minecraft:{sys.argv[2]}'.encode()
+for path in glob.glob(f'{sys.argv[1]}/players/data/*.dat'):
+    data = gzip.decompress(open(path, 'rb').read())
+    at = data.find(key)
+    if at < 0:
+        sys.exit(f'no Dimension string in {path}')
+    start = at + len(key)
+    end = start + 2 + struct.unpack_from('>H', data, start)[0]
+    data = data[:start] + struct.pack('>H', len(value)) + value + data[end:]
+    open(path, 'wb').write(gzip.compress(data))
+EOF
+}
+
 run() {
     local side=$1 scene=$2 knobs=()
     read -r -a knobs <<< "$3"
     rm -rf "$tmp/run"
     mkdir -p "$tmp/run" "$out/$scene"
     cp -R "$world" "$tmp/run/world"
+    local dimension=overworld
     for knob in ${knobs[@]+"${knobs[@]}"}; do
-        case $knob in MCRS_POS=*) place_players "$tmp/run/world" "${knob#MCRS_POS=}" ;; esac
+        case $knob in
+            MCRS_POS=*) place_players "$tmp/run/world" "${knob#MCRS_POS=}" ;;
+            MCRS_DIMENSION=*) dimension=${knob#MCRS_DIMENSION=} ;;
+        esac
     done
+    place_dimension "$tmp/run/world" "$dimension"
     echo "scene $scene: $side" >&2
     if ! (cd "$tmp/run" && env MCRS_RESOLUTION=1280x720 MCRS_VIEW=10 MCRS_HOT=1 \
         ${knobs[@]+"${knobs[@]}"} MCRS_CAPTURE="$out/$scene/$side.png" \
