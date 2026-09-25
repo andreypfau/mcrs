@@ -51,15 +51,29 @@ fn cull_terrain(
     pass.set_bind_group(1, &terrain.binds.cull, &[]);
     for group in LayerGroup::ALL {
         if group.culls_in_order() {
-            cull_group(&mut pass, terrain, group, count, streams);
+            cull_group(&mut pass, terrain, group, count, streams, terrain.cull_grid);
             pass.set_pipeline(scan);
             for (index, _) in terrain.list.drawn(group, streams) {
                 pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
                 pass.dispatch_workgroups(1, 1, 1);
             }
-            cull_group(&mut pass, terrain, group, scatter, streams);
+            cull_group(
+                &mut pass,
+                terrain,
+                group,
+                scatter,
+                streams,
+                terrain.cull_grid,
+            );
         } else {
-            cull_group(&mut pass, terrain, group, compacting, streams);
+            cull_group(
+                &mut pass,
+                terrain,
+                group,
+                compacting,
+                streams,
+                terrain.cull_grid,
+            );
         }
     }
 }
@@ -87,6 +101,7 @@ fn cull_group<'pass>(
     group: LayerGroup,
     pipeline: &'pass ComputePipeline,
     streams: &Streams,
+    grid: u32,
 ) {
     pass.set_pipeline(pipeline);
     let mut open = None;
@@ -99,13 +114,7 @@ fn cull_group<'pass>(
             open = Some(draw.stream);
         }
         pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
-        pass.dispatch_workgroups(
-            draw.group_count
-                .div_ceil(CULL_THREADS)
-                .min(terrain.cull_grid),
-            1,
-            1,
-        );
+        pass.dispatch_workgroups(draw.group_count.div_ceil(CULL_THREADS).min(grid), 1, 1);
     }
     if open.is_some() {
         pass.pop_debug_group();
@@ -301,7 +310,13 @@ pub(super) fn build_occlusion(
         });
     pass.set_bind_group(1, &terrain.binds.cull, &[]);
     for group in LayerGroup::ALL {
-        cull_group(&mut pass, terrain, group, second, &frame.streams);
+        // Blending is not commutative; a single workgroup reserves slots in list order.
+        let grid = if group.culls_in_order() {
+            1
+        } else {
+            terrain.cull_grid
+        };
+        cull_group(&mut pass, terrain, group, second, &frame.streams, grid);
     }
 }
 
