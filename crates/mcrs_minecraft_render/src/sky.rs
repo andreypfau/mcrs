@@ -361,7 +361,7 @@ fn prepare_sky_bind_groups(
 
 /// The sky opens the world pass and the clouds open the forward pass.
 #[derive(SystemParam)]
-pub(crate) struct SkyDraws<'w> {
+pub struct SkyDraws<'w> {
     sky: Option<Res<'w, Sky>>,
     extracted: Option<Res<'w, ExtractedSky>>,
     binds: Option<Res<'w, SkyBindGroups>>,

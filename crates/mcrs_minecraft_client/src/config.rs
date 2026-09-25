@@ -5,7 +5,8 @@ use crate::cave::CaveCull;
 use mcrs_minecraft_mesh::STREAMS;
 use mcrs_minecraft_render::sky::SkyEffects;
 use mcrs_minecraft_render::{
-    Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Raster, Streams, Uploads, Wireframe,
+    Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Raster, RenderPath, Streams, Uploads,
+    Wireframe,
 };
 
 #[cfg(not(target_family = "wasm"))]
@@ -358,6 +359,22 @@ pub fn occlusion() -> Occlusion {
     Occlusion(flag("OCCLUSION", true))
 }
 
+/// `RENDER_PATH=deferred` starts on the deferred path.
+pub fn render_path() -> RenderPath {
+    let value = knob("RENDER_PATH");
+    parse_render_path(value.as_deref()).unwrap_or_else(|expected| {
+        reject("RENDER_PATH", value.as_deref().unwrap_or_default(), expected).unwrap_or_default()
+    })
+}
+
+fn parse_render_path(value: Option<&str>) -> Result<RenderPath, &'static str> {
+    match value {
+        None | Some("classic") => Ok(RenderPath::Classic),
+        Some("deferred") => Ok(RenderPath::Deferred),
+        Some(_) => Err("expected classic or deferred"),
+    }
+}
+
 /// The knob's spelling in the message a bad value produces, which is the
 /// spelling whoever set it typed.
 #[cfg(not(target_family = "wasm"))]
@@ -499,4 +516,19 @@ pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull) {
 
     let cave = CaveCull::new(budget.sections);
     (budget, Uploads::default(), cave)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_render_path_knob_accepts_classic_and_deferred_only() {
+        assert_eq!(parse_render_path(None), Ok(RenderPath::Classic));
+        assert_eq!(parse_render_path(Some("classic")), Ok(RenderPath::Classic));
+        assert_eq!(parse_render_path(Some("deferred")), Ok(RenderPath::Deferred));
+        for value in ["", "Deferred", "forward", "deferred "] {
+            assert!(parse_render_path(Some(value)).is_err(), "{value:?} was accepted");
+        }
+    }
 }

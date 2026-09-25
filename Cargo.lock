@@ -3551,6 +3551,7 @@ dependencies = [
  "mcrs_minecraft_random",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_render",
+ "mcrs_minecraft_render_deferred",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen_noise",
@@ -3863,6 +3864,16 @@ dependencies = [
  "bytemuck",
  "mcrs_minecraft_mesh",
  "wgpu",
+]
+
+[[package]]
+name = "mcrs_minecraft_render_deferred"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bytemuck",
+ "mcrs_minecraft_mesh",
+ "mcrs_minecraft_render",
 ]
 
 [[package]]

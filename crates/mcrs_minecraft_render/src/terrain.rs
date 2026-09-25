@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bevy::prelude::*;
-use bevy::render::render_resource::PipelineCache;
+use bevy::render::render_resource::{BindGroup, BindGroupLayoutDescriptor, PipelineCache};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
 use crate::sky::ExtractedSky;
@@ -32,6 +32,22 @@ pub struct Terrain {
 }
 
 impl Terrain {
+    pub fn view_layout(&self) -> &BindGroupLayoutDescriptor {
+        &self.binds.view_layout
+    }
+
+    pub fn draw_layout(&self) -> &BindGroupLayoutDescriptor {
+        &self.binds.draw_layout
+    }
+
+    pub fn view_bind_group(&self) -> &BindGroup {
+        &self.binds.view
+    }
+
+    pub fn draw_bind_group(&self) -> &BindGroup {
+        &self.binds.draw
+    }
+
     pub fn write_cave_visibility(&self, queue: &RenderQueue, bits: &[u32]) {
         queue.write_buffer(&self.frame.cave, 0, bytemuck::cast_slice(bits));
     }

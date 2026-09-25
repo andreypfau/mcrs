@@ -1,0 +1,21 @@
+[package]
+name = "mcrs_minecraft_render_deferred"
+description = "Deferred terrain path: a G-buffer, one fullscreen lighting pass and forward translucents over the world pass stages"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_render.workspace = true
+mcrs_minecraft_mesh.workspace = true
+bevy = { version = "0.19.1", default-features = false, features = [
+    "std",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_image",
+] }
+bytemuck = { version = "1", features = ["derive"] }

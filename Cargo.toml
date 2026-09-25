@@ -91,6 +91,7 @@ mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_render = { path = "crates/mcrs_minecraft_render" }
+mcrs_minecraft_render_deferred = { path = "crates/mcrs_minecraft_render_deferred" }
 mcrs_minecraft_client_jar = { path = "crates/mcrs_minecraft_client_jar" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen", default-features = false }
 mcrs_minecraft_worldgen_testing = { path = "crates/mcrs_minecraft_worldgen_testing" }

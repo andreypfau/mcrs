@@ -170,6 +170,18 @@ impl Default for Brightness {
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct PinnedTick(pub i64);
 
+/// The path the player asked for; the frame shows it once it is ready.
+#[derive(Resource, Clone, Copy, Default, PartialEq, Eq, Debug, ExtractResource)]
+pub enum RenderPath {
+    #[default]
+    Classic,
+    Deferred,
+}
+
+/// The path the frame shows this frame.
+#[derive(Resource, Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub struct EffectivePath(pub RenderPath);
+
 #[derive(Resource, Deref)]
 struct TerrainBudget(Arc<Budget>);
 
@@ -184,6 +196,7 @@ fn embed_shaders(app: &mut App) {
     load_shader_library!(app, "shaders/include/terrain_bindings.wgsl");
     load_shader_library!(app, "shaders/include/surface.wgsl");
     load_shader_library!(app, "shaders/include/finish.wgsl");
+    load_shader_library!(app, "shaders/include/deferred.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/model.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
@@ -200,6 +213,7 @@ pub enum WorldPass {
     Opaque,
     Occlusion,
     OpaqueSecond,
+    Lighting,
     Forward,
 }
 
@@ -211,6 +225,7 @@ impl WorldPass {
             Self::Opaque,
             Self::Occlusion,
             Self::OpaqueSecond,
+            Self::Lighting,
             Self::Forward,
         )
             .chain()
@@ -241,6 +256,8 @@ impl Plugin for TerrainPlugin {
             .init_resource::<Brightness>()
             .init_resource::<Streams>()
             .init_resource::<Raster>()
+            .init_resource::<RenderPath>()
+            .add_plugins(ExtractResourcePlugin::<RenderPath>::default())
             .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
@@ -264,6 +281,7 @@ impl Plugin for TerrainPlugin {
             .insert_resource(timings)
             .insert_resource(cpu)
             .insert_resource(counts)
+            .init_resource::<EffectivePath>()
             .insert_resource(TerrainBudget(self.budget.clone()))
             .insert_resource(self.uploads.clone())
             .insert_resource(probe::PassTimestamps(self.timestamps))
@@ -305,10 +323,16 @@ impl Plugin for TerrainPlugin {
                 (
                     pass::upload_frame.in_set(WorldPass::Upload),
                     pass::cull_frame.in_set(WorldPass::Cull),
-                    pass::draw_opaque.in_set(WorldPass::Opaque),
+                    pass::draw_opaque
+                        .in_set(WorldPass::Opaque)
+                        .run_if(resource_equals(EffectivePath(RenderPath::Classic))),
                     pass::build_occlusion.in_set(WorldPass::Occlusion),
-                    pass::draw_opaque_second.in_set(WorldPass::OpaqueSecond),
-                    pass::draw_forward.in_set(WorldPass::Forward),
+                    pass::draw_opaque_second
+                        .in_set(WorldPass::OpaqueSecond)
+                        .run_if(resource_equals(EffectivePath(RenderPath::Classic))),
+                    pass::draw_forward
+                        .in_set(WorldPass::Forward)
+                        .run_if(resource_equals(EffectivePath(RenderPath::Classic))),
                 ),
             );
         // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,
