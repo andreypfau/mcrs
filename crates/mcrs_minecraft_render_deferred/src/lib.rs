@@ -43,6 +43,9 @@ impl Plugin for DeferredPlugin {
                     pass::draw_lighting
                         .in_set(WorldPass::Lighting)
                         .run_if(resource_equals(EffectivePath(RenderPath::Deferred))),
+                    pass::draw_forward_deferred
+                        .in_set(WorldPass::Forward)
+                        .run_if(resource_equals(EffectivePath(RenderPath::Deferred))),
                 ),
             );
     }

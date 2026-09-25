@@ -24,7 +24,7 @@ impl DeferredPipelines {
             .chain(self.terrain.iter().copied().flatten())
     }
 
-    pub fn gbuffer<'cache>(
+    pub fn terrain<'cache>(
         &self,
         slot: usize,
         cache: &'cache PipelineCache,
@@ -71,8 +71,8 @@ pub(crate) fn prepare_deferred_pipelines(
         )
     };
     pipelines.lighting = Some(cache.queue_render_pipeline(lighting));
-    for (layer, shape, wireframe) in gbuffer_slots() {
-        let descriptor = gbuffer_descriptor(&terrain, layer, shape, wireframe, view);
+    for (layer, shape, wireframe) in gbuffer_slots().chain(forward_slots()) {
+        let descriptor = deferred_descriptor(&terrain, layer, shape, wireframe, view);
         pipelines.terrain[terrain_slot(layer, shape, wireframe)] =
             Some(cache.queue_render_pipeline(descriptor));
     }
@@ -87,7 +87,13 @@ fn gbuffer_slots() -> impl Iterator<Item = (Pass, Shape, bool)> {
     })
 }
 
-fn gbuffer_descriptor(
+fn forward_slots() -> impl Iterator<Item = (Pass, Shape, bool)> {
+    Shape::ALL
+        .into_iter()
+        .flat_map(|shape| [false, true].map(move |wireframe| (Pass::Translucent, shape, wireframe)))
+}
+
+fn deferred_descriptor(
     terrain: &Terrain,
     layer: Pass,
     shape: Shape,
@@ -98,7 +104,11 @@ fn gbuffer_descriptor(
     descriptor.label = descriptor
         .label
         .map(|label| format!("{label} deferred").into());
-    descriptor.vertex.entry_point = Some(format!("vertex_{}_deferred", shape.label()).into());
+    let writes_gbuffer = layer != Pass::Translucent;
+    // A translucent greedy face writes no G-buffer, so it needs no face out of the vertex stage.
+    if writes_gbuffer || shape == Shape::Model {
+        descriptor.vertex.entry_point = Some(format!("vertex_{}_deferred", shape.label()).into());
+    }
     descriptor.vertex.shader_defs.push("DEFERRED".into());
     let fragment = descriptor
         .fragment
@@ -107,15 +117,17 @@ fn gbuffer_descriptor(
     fragment.entry_point =
         Some(format!("fragment_{}_{}_deferred", shape.label(), layer.label()).into());
     fragment.shader_defs.push("DEFERRED".into());
-    fragment.targets = GBUFFER_FORMATS
-        .map(|format| {
-            Some(ColorTargetState {
-                format,
-                blend: None,
-                write_mask: ColorWrites::ALL,
+    if writes_gbuffer {
+        fragment.targets = GBUFFER_FORMATS
+            .map(|format| {
+                Some(ColorTargetState {
+                    format,
+                    blend: None,
+                    write_mask: ColorWrites::ALL,
+                })
             })
-        })
-        .into();
+            .into();
+    }
     descriptor
 }
 
@@ -132,5 +144,16 @@ mod tests {
         slots.dedup();
         assert_eq!(slots.len(), 8);
         assert!(gbuffer_slots().all(|(layer, _, _)| layer != Pass::Translucent));
+    }
+
+    #[test]
+    fn the_deferred_table_fills_every_terrain_slot_exactly_once() {
+        let mut slots: Vec<usize> = gbuffer_slots()
+            .chain(forward_slots())
+            .map(|(layer, shape, wireframe)| terrain_slot(layer, shape, wireframe))
+            .collect();
+        slots.sort_unstable();
+        assert_eq!(slots, (0..TERRAIN_PIPELINES).collect::<Vec<_>>());
+        assert!(forward_slots().all(|(layer, _, _)| layer == Pass::Translucent));
     }
 }

@@ -2,6 +2,7 @@ use std::sync::atomic::Ordering;
 
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::render_phase::TrackedRenderPass;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, ViewQuery};
@@ -23,7 +24,7 @@ type WorldView = (
 );
 
 #[derive(SystemParam)]
-pub(crate) struct GBufferParams<'w> {
+pub(crate) struct DeferredParams<'w> {
     terrain: Option<Res<'w, Terrain>>,
     frame: Option<Res<'w, DeferredFrame>>,
     pipelines: Res<'w, DeferredPipelines>,
@@ -34,7 +35,7 @@ pub(crate) struct GBufferParams<'w> {
     counts: Res<'w, FrameCounts>,
 }
 
-impl GBufferParams<'_> {
+impl DeferredParams<'_> {
     fn draw_opaque<'pass>(
         &'pass self,
         pass: &mut TrackedRenderPass<'pass>,
@@ -51,7 +52,7 @@ impl GBufferParams<'_> {
             &self.streams,
             |stream| {
                 self.pipelines
-                    .gbuffer(stream_slot(stream, false), &self.cache)
+                    .terrain(stream_slot(stream, false), &self.cache)
             },
         );
         self.counts
@@ -103,7 +104,7 @@ fn gbuffer_pass<'a>(
 /// geometry with no depth test, so it cannot go behind the lit terrain later.
 pub(crate) fn draw_gbuffer(
     view: ViewQuery<WorldView>,
-    params: GBufferParams,
+    params: DeferredParams,
     sky: SkyDraws,
     mut ctx: RenderContext,
 ) {
@@ -131,7 +132,7 @@ pub(crate) fn draw_gbuffer(
 
 pub(crate) fn draw_gbuffer_second(
     view: ViewQuery<WorldView>,
-    params: GBufferParams,
+    params: DeferredParams,
     mut ctx: RenderContext,
 ) {
     let (Some(frame), Some(terrain)) = (params.frame.as_deref(), params.terrain.as_deref()) else {
@@ -179,4 +180,56 @@ pub(crate) fn draw_lighting(
     pass.set_bind_group(1, terrain.draw_bind_group(), &[]);
     pass.set_bind_group(2, &frame.bind_group, &[]);
     pass.draw(0..3, 0..1);
+}
+
+/// Drawn over the lit frame the way the classic path draws it, with the lighting pass's shading.
+pub(crate) fn draw_forward_deferred(
+    view: ViewQuery<WorldView>,
+    params: DeferredParams,
+    sky: SkyDraws,
+    mut ctx: RenderContext,
+) {
+    let Some(terrain) = params.terrain.as_deref().filter(|terrain| terrain.ready()) else {
+        return;
+    };
+    let phases: &[u64] = if terrain.second_pass(&params.occlusion, &params.cache) {
+        &[0, 1]
+    } else {
+        &[0]
+    };
+    let (target, depth, extracted, view_offset) = view.into_inner();
+    let diagnostics = ctx.diagnostic_recorder();
+    let diagnostics = diagnostics.as_deref();
+    let color_attachments = [Some(target.get_color_attachment())];
+    let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
+        label: Some("forward"),
+        color_attachments: &color_attachments,
+        // The last reader of this frame's depth: the GUI pass clears it next.
+        depth_stencil_attachment: Some(depth.get_attachment(StoreOp::Discard)),
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+    });
+    let span = diagnostics.pass_span(&mut pass, "forward");
+    restrict_to_raster(&mut pass, &params.raster, extracted);
+    let mut draws = sky.draw_clouds(&mut pass, view_offset.offset, &params.cache);
+    for &phase in phases {
+        draws += draw_layer_group(
+            &mut pass,
+            terrain,
+            LayerGroup::Translucent,
+            phase,
+            &params.streams,
+            |stream| {
+                params
+                    .pipelines
+                    .terrain(stream_slot(stream, false), &params.cache)
+            },
+        );
+    }
+    params
+        .counts
+        .terrain_draws
+        .fetch_add(draws, Ordering::Relaxed);
+    span.end(&mut pass);
 }

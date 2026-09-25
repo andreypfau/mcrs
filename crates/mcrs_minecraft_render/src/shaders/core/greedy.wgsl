@@ -280,4 +280,16 @@ fn fragment_greedy_cutout_deferred(in: GreedyDeferredOut) -> mcrs_minecraft_clie
     }
     return greedy_gbuffer(classic, color.rgb, in.face);
 }
+
+@fragment
+fn fragment_greedy_translucent_deferred(in: GreedyOut) -> @location(0) vec4<f32> {
+    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+    let color = greedy_albedo(in);
+    if (wireframe_discards) {
+        discard;
+    }
+    let light = greedy_light(in);
+    let lit = mcrs_minecraft_client::deferred::shade(color.rgb, light.x, light.y, light.z);
+    return vec4<f32>(mcrs_minecraft_client::finish::to_target(lit), color.a);
+}
 #endif

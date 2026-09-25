@@ -209,4 +209,15 @@ fn fragment_model_cutout_deferred(in: ModelDeferredOut) -> mcrs_minecraft_client
     }
     return model_gbuffer(in, color.rgb);
 }
+
+@fragment
+fn fragment_model_translucent_deferred(in: ModelDeferredOut) -> @location(0) vec4<f32> {
+    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+    let color = model_albedo(in);
+    if (wireframe_discards) {
+        discard;
+    }
+    let lit = mcrs_minecraft_client::deferred::shade(color.rgb, in.shade, in.block_light, in.sky_light);
+    return vec4<f32>(mcrs_minecraft_client::finish::to_target(lit), color.a);
+}
 #endif
