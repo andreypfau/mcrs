@@ -33,6 +33,7 @@ pub async fn fetch(
         pieces: RefCell::default(),
         served: RefCell::default(),
         stop: Cell::new(false),
+        whole: Cell::new(false),
         cache: open_cache().await,
     });
     for id in 0..WORKERS {
@@ -48,6 +49,7 @@ struct WebSource {
     pieces: RefCell<BTreeMap<u64, Vec<u8>>>,
     served: RefCell<HashSet<String>>,
     stop: Cell<bool>,
+    whole: Cell<bool>,
     cache: Option<Cache>,
 }
 
@@ -82,7 +84,6 @@ impl Source for WebSource {
 }
 
 impl WebSource {
-    /// Drops whatever an earlier fetch left inside `cut`, which is about to be fetched again.
     fn trim(&self, cut: &Range<u64>) {
         let mut pieces = self.pieces.borrow_mut();
         let overlapping: Vec<u64> = pieces
@@ -104,13 +105,13 @@ impl WebSource {
 
     fn keep(&self, at: u64, bytes: Vec<u8>) {
         let range = at..at + bytes.len() as u64;
+        self.trim(&range);
         self.pieces.borrow_mut().insert(at, bytes);
         self.queue.borrow_mut().wrote(range);
     }
 
     async fn fetch(&self, range: &Range<u64>, reached: &mut u64) -> Result<(), String> {
         let key = format!("{}?bytes={}-{}", RELEASE.jar.url, range.start, range.end);
-        self.trim(range);
         // A chunk asked for twice in one session was dropped as corrupt, so its cached copy
         // is not trusted again.
         let first = self.served.borrow_mut().insert(key.clone());
@@ -137,18 +138,28 @@ impl WebSource {
             .await
             .map_err(describe)?
             .unchecked_into();
-        let mut position = match response.status() {
-            206 => range.start,
-            200 => 0,
+        // The CDN answers the If-Range Chrome sends for a partly cached jar with the whole jar;
+        // one worker keeps all of it while the others wait instead of fetching it again.
+        let (mut position, end) = match response.status() {
+            206 => (range.start, range.end),
+            200 if self.whole.get() => {
+                if let Some(body) = response.body() {
+                    let _ = body.cancel();
+                }
+                return Ok(());
+            }
+            200 => (0, RELEASE.jar.size),
             status => return Err(format!("HTTP {status}")),
         };
+        let whole = end != range.end;
+        let _streaming = whole.then(|| Streaming::start(&self.whole));
         let reader: ReadableStreamDefaultReader = response
             .body()
             .ok_or("a response without a body")?
             .get_reader()
             .unchecked_into();
-        while *reached < range.end {
-            if self.stop.get() {
+        while position < end {
+            if self.stop.get() && !whole {
                 let _ = reader.cancel();
                 return Err("stopped".to_owned());
             }
@@ -167,20 +178,18 @@ impl WebSource {
                 .as_bool()
                 == Some(true)
             {
-                return Err(format!("the connection closed at byte {reached}"));
+                return Err(format!("the connection closed at byte {position}"));
             }
-            let data =
+            let mut data =
                 Uint8Array::new(&Reflect::get(&read, &"value".into()).map_err(describe)?).to_vec();
-            let from = (*reached).max(position);
-            let to = (position + data.len() as u64).min(range.end);
-            if from < to {
-                self.keep(
-                    from,
-                    data[(from - position) as usize..(to - position) as usize].to_vec(),
-                );
-                *reached = to;
+            let to = (position + data.len() as u64).min(end);
+            data.truncate((to - position) as usize);
+            if data.is_empty() {
+                continue;
             }
-            position += data.len() as u64;
+            self.keep(position, data);
+            position = to;
+            *reached = position.clamp(range.start, range.end);
         }
         let _ = reader.cancel();
         if let Some(cache) = self.cache.clone() {
@@ -199,13 +208,35 @@ impl WebSource {
     }
 }
 
+struct Streaming<'a>(&'a Cell<bool>);
+
+impl<'a> Streaming<'a> {
+    fn start(flag: &'a Cell<bool>) -> Self {
+        flag.set(true);
+        Self(flag)
+    }
+}
+
+impl Drop for Streaming<'_> {
+    fn drop(&mut self) {
+        self.0.set(false);
+    }
+}
+
 async fn work(source: Rc<WebSource>, id: usize) {
     let mut backoff = MIN_BACKOFF_MS;
     while !source.stop.get() {
+        if source.whole.get() {
+            sleep(IDLE_MS).await;
+            continue;
+        }
         let Some(chunk) = source.queue.borrow_mut().next() else {
             sleep(IDLE_MS).await;
             continue;
         };
+        if source.queue.borrow().holds(std::slice::from_ref(&chunk.range)) {
+            continue;
+        }
         tracing::debug!(
             worker = id,
             group = chunk.group,
