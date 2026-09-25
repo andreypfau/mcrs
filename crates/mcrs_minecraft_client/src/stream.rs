@@ -368,21 +368,21 @@ impl Loader {
     fn victim(&mut self, candidate: f32) -> Option<[i32; 3]> {
         let camera = self.camera_section();
         if self.farthest.as_ref().is_none_or(|(built, _)| *built != camera) {
-            // Distances are never negative, so their bit patterns order the same way they do.
             let heap = self
                 .sections
                 .residents()
-                .map(|(at, _)| (self.distance(at).to_bits(), at))
+                .map(|(at, _)| (heap_key(camera, at), at))
                 .collect();
             self.farthest = Some((camera, heap));
         }
+        let eye = self.camera;
         let (_, heap) = self.farthest.as_mut()?;
-        while let Some(&(distance, at)) = heap.peek() {
+        while let Some(&(_, at)) = heap.peek() {
             if !matches!(self.sections.states.get(&at), Some(SectionState::Resident(_))) {
                 heap.pop();
                 continue;
             }
-            return worth_evicting(f32::from_bits(distance), candidate).then(|| {
+            return worth_evicting(distance_from(eye, at), candidate).then(|| {
                 heap.pop();
                 at
             });
@@ -391,9 +391,8 @@ impl Loader {
     }
 
     fn placed(&mut self, at: [i32; 3]) {
-        let distance = self.distance(at).to_bits();
-        if let Some((_, heap)) = &mut self.farthest {
-            heap.push((distance, at));
+        if let Some((camera, heap)) = &mut self.farthest {
+            heap.push((heap_key(*camera, at), at));
         }
     }
 
@@ -1253,6 +1252,14 @@ impl MeshQueue {
 
 fn worth_evicting(resident: f32, candidate: f32) -> bool {
     resident > candidate + HYSTERESIS
+}
+
+/// Measured from the middle of the camera's section rather than the camera itself, so the order
+/// does not depend on where inside that section the camera was when a key was taken. Distances
+/// are never negative, so their bit patterns order the same way they do.
+fn heap_key(camera_section: [i32; 3], section: [i32; 3]) -> u32 {
+    let middle = (Vec3::from_array(camera_section.map(|n| n as f32)) + 0.5) * SECTION_SIZE as f32;
+    distance_from(middle, section).to_bits()
 }
 
 fn distance_from(camera: Vec3, section: [i32; 3]) -> f32 {
